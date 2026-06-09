@@ -5,7 +5,7 @@
 //   1. Spawn `go run ./cmd/extract-fn-bodies` to lift the original TS source
 //      text of every arrow-function body inside VALIDATION_SUITE.
 //   2. Load the suite through vite's ssrLoadModule with the runtypes plugin
-//      active, so `createIsType<T>()` calls resolve to real validators
+//      active, so `createValidate<T>()` calls resolve to real validators
 //      (cache populated by the Go daemon via the plugin's transform hook).
 //   3. Phase 3 — runtime pass: for each case + each API, call the
 //      validator against the case's `valid` / `invalid` samples to compute
@@ -37,21 +37,21 @@ const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
 const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
 const OUT_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.json');
 const MD_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.md');
-const FN_FIELDS = ['isType', 'isTypeReflect', 'getSamples'];
-const APIS = ['isType', 'isTypeReflect'];
+const FN_FIELDS = ['validate', 'validateReflect', 'getSamples'];
+const APIS = ['validate', 'validateReflect'];
 
 // Cache module the validation bench actually needs rendered per
-// compile cycle. Both API forms (static `isType` + reflection
-// `isTypeReflect`) share the same isType cache — the runtime distinction
+// compile cycle. Both API forms (static `validate` + reflection
+// `validateReflect`) share the same validate cache — the runtime distinction
 // is the call-site shape, not the RT factory. Asking the resolver for
 // just this cache (instead of `['all']`) keeps compileMs measuring the
 // work the validation suite is actually about — not the cost of
 // rendering 12 unrelated cache modules.
-const COMPILE_CACHE_KINDS = ['isType'];
+const COMPILE_CACHE_KINDS = ['validate'];
 
 // Cache modules the dump artifact under gendocs/cases/ needs. Captured
 // once per case in an extra untimed scan after the COMPILE_CYCLES loop.
-const DUMP_CACHE_KINDS = ['runType', 'isType', 'pureFns'];
+const DUMP_CACHE_KINDS = ['runType', 'validate', 'pureFns'];
 
 // Workload knobs. Tune at the top — no CLI flags for now.
 const OPS_CYCLES = 10;
@@ -71,8 +71,8 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
     noIsArrayCheck?: boolean;
     strictTypes?: boolean;
   }
-  export type IsTypeFn = (value: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): Promise<IsTypeFn>;
+  export type ValidateFn = (value: unknown) => boolean;
+  export function createValidate<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): Promise<ValidateFn>;
 }
 `;
 
@@ -121,7 +121,7 @@ function ensureBinary() {
 
 // Phase 2 — load the suite WITH the runtypes plugin active. The plugin's
 // transform hook scans the suite file, spawns the daemon, and populates
-// the isType cache so the validators are usable after this returns.
+// the validate cache so the validators are usable after this returns.
 async function loadSuiteWithPlugin() {
   const server = await createServer({
     root: REPO_ROOT,
@@ -294,9 +294,9 @@ async function runCompilePhase(metrics, bodies) {
         await client.reset();
         await client.setSources(sourcesMap);
         const scanStart = performance.now();
-        // Only the isType cache — that's the work the validation suite
+        // Only the validate cache — that's the work the validation suite
         // is actually about. `['all']` would conflate the per-case
-        // isType cost with rendering 12 unrelated cache modules.
+        // validate cost with rendering 12 unrelated cache modules.
         await client.scanFiles([relpath], {includeCacheSources: COMPILE_CACHE_KINDS});
         compileTimes.push(performance.now() - scanStart);
         totalRpcs += 2;
@@ -306,7 +306,7 @@ async function runCompilePhase(metrics, bodies) {
       metrics[category][caseKey][api].compileMs = statsOf(compileTimes);
       metrics[category][caseKey][api].tsCompileMs = statsOf(tsCompileTimes);
       // Untimed extra scan to capture the dump artifacts. Asks for the
-      // runType + isType + pureFns cache modules writeCaseDump consumes.
+      // runType + validate + pureFns cache modules writeCaseDump consumes.
       // Skipped after the first API — the synth file is the same
       // regardless of which call shape the API uses, so the cache
       // modules are identical and one dump per case is enough.
@@ -334,7 +334,7 @@ function writeCaseDump(casesDir, category, caseKey, api, resp) {
   let n = 0;
   for (const [field, file] of [
     ['runTypeCacheSource', 'runTypes.js'],
-    ['isTypeCacheSource', 'isType.js'],
+    ['validateCacheSource', 'validate.js'],
     ['pureFnsCacheSource', 'pureFns.js'],
   ]) {
     const body = resp[field];
@@ -347,7 +347,7 @@ function writeCaseDump(casesDir, category, caseKey, api, resp) {
 }
 
 function buildSynthetic(body) {
-  return `import {createIsType} from '@mionjs/ts-go-run-types';\nconst _probe = () => {\n${body}\n};\n`;
+  return `import {createValidate} from '@mionjs/ts-go-run-types';\nconst _probe = () => {\n${body}\n};\n`;
 }
 
 function safe(s) {
@@ -355,19 +355,19 @@ function safe(s) {
 }
 
 // Emits a markdown summary of the suite. Per category we render an HTML
-// <table> rather than a markdown pipe-table so the `isType` cell can hold
+// <table> rather than a markdown pipe-table so the `validate` cell can hold
 // a fenced ```ts code block — markdown parsers re-enter inline-markdown
 // mode inside a <td> when there are blank lines around the fence, which
 // triggers syntax highlighting on GitHub / VSCode preview / most GFM
-// renderers. Only the `isType` API is shown here; full per-case metrics
-// (including `isTypeReflect`) live in validation-suite.json.
+// renderers. Only the `validate` API is shown here; full per-case metrics
+// (including `validateReflect`) live in validation-suite.json.
 function renderMarkdown(out) {
   const lines = [];
   lines.push('# Validation suite');
   lines.push('');
   lines.push(
     'Generated from `VALIDATION_SUITE` in `packages/ts-go-run-types/test/suites/validation/`. ' +
-      'Full per-case metrics (including `isTypeReflect`) live in `validation-suite.json`; ' +
+      'Full per-case metrics (including `validateReflect`) live in `validation-suite.json`; ' +
       'per-case rendered cache modules live under `cases/`. ' +
       '`ts-compile` measures pure tsgo (bind + typecheck + emit) on the synthetic case file; ' +
       '`compile` measures the ts-go-run-types marker scan + cache emit. ' +
@@ -384,12 +384,12 @@ function renderMarkdown(out) {
     lines.push('<th align="right">compile (ms)</th>');
     lines.push('<th align="right">valid ops/sec</th>');
     lines.push('<th align="right">invalid ops/sec</th>');
-    lines.push('<th>isType</th>');
+    lines.push('<th>validate</th>');
     lines.push('</tr></thead>');
     lines.push('<tbody>');
     for (const [caseKey, record] of Object.entries(cases)) {
       const title = record.title ?? caseKey;
-      const m = record.metrics?.isType;
+      const m = record.metrics?.validate;
       const tsCompileMs = m?.tsCompileMs?.mean ?? null;
       const compileMs = m?.compileMs?.mean ?? null;
       const validOps = m?.validOpsPerSec?.mean ?? null;
@@ -403,12 +403,12 @@ function renderMarkdown(out) {
       // Blank lines + fenced block re-enter markdown parsing inside this <td>.
       lines.push('<td>');
       lines.push('');
-      if (typeof record.isType === 'string' && record.isType.length > 0) {
+      if (typeof record.validate === 'string' && record.validate.length > 0) {
         lines.push('```ts');
-        lines.push(record.isType);
+        lines.push(record.validate);
         lines.push('```');
       } else {
-        lines.push('_no isType thunk_');
+        lines.push('_no validate thunk_');
       }
       lines.push('');
       lines.push('</td>');
@@ -447,7 +447,7 @@ function buildOutput(suite, bodies, metrics) {
       const record = {};
       if (typeof caseObj.title === 'string') record.title = caseObj.title;
       if (typeof caseObj.description === 'string') record.description = caseObj.description;
-      if (caseObj.isTypeNotes !== undefined) record.isTypeNotes = caseObj.isTypeNotes;
+      if (caseObj.validateNotes !== undefined) record.validateNotes = caseObj.validateNotes;
       for (const fnField of FN_FIELDS) {
         if (typeof caseObj[fnField] !== 'function') continue;
         const body = bodies?.[category]?.[caseKey]?.[fnField];

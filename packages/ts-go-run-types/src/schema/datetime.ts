@@ -22,7 +22,7 @@ import type {LeafType, TemporalFormatByTag, TemporalBaseByTag, TemporalBuilderFn
 //
 // Same no-params/plain ↔ params/branded overload split as the scalar leaves in
 // atomic.ts: the no-params call returns plain `RunType<Date>` (converges with the
-// type-first `Date` / `createIsType<Date>()`), the params-present call returns the
+// type-first `Date` / `createValidate<Date>()`), the params-present call returns the
 // branded `RunType<FormatDate<P>>`.
 
 /** A native-`Date` field builder. `date()` → `RunType<Date>`; `date({max: 'now'})`
@@ -64,7 +64,7 @@ function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag
 /** A no-ordering temporal builder (`plainMonthDay` / `duration`). These have no
  *  min/max semantics, so — unlike `temporalBuilder` — there is only the no-params
  *  overload: it returns the raw instance type and converges with the type-first
- *  `createIsType<Temporal.PlainMonthDay>()` / `<Temporal.Duration>()` form. **/
+ *  `createValidate<Temporal.PlainMonthDay>()` / `<Temporal.Duration>()` form. **/
 function temporalInstanceBuilder<Tag extends 'temporal.plainMonthDay' | 'temporal.duration'>(
   tag: Tag
 ): (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>) => RunType<TemporalBaseByTag[Tag]> {

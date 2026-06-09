@@ -18,9 +18,9 @@ import (
 //     validated as a sub-StringFormat, label hyphen-edges are rejected,
 //     and the segment count is bounded by maxParts/minParts.
 //
-// isType emits the decomposition as an IIFE expression (same splice
+// validate emits the decomposition as an IIFE expression (same splice
 // shape as datetime.go) so it AND-chains after the base-kind check;
-// typeErrors emits an error-accumulating statement block.
+// validationErrors emits an error-accumulating statement block.
 type domainEmitter struct{}
 
 func init() {
@@ -30,14 +30,14 @@ func init() {
 func (domainEmitter) Name() string                  { return "domain" }
 func (domainEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
 
-func (domainEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (domainEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation != nil && domainHasNames(annotation.Params) {
-		return domainIsTypeExprFor(ctx, annotation.Params, vλl)
+		return domainValidateExprFor(ctx, annotation.Params, vλl)
 	}
-	return namedPatternIsType(ctx, annotation, vλl)
+	return namedPatternValidate(ctx, annotation, vλl)
 }
 
-func (domainEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (domainEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation != nil && domainHasNames(annotation.Params) {
 		return domainErrorsBlockFor(ctx, annotation.Params, vλl, pathExpr, errorsArr)
 	}
@@ -99,14 +99,14 @@ func hasAllowedValues(params map[string]any) bool {
 	return ok
 }
 
-// domainIsTypeExprFor builds the decomposition isType IIFE for a domain
+// domainValidateExprFor builds the decomposition validate IIFE for a domain
 // applied to valExpr (the whole value at the root, or the domain
 // substring when reached from email). Mirrors mion domain.runtype.ts:
 // 101-116. Returns an expression evaluating to true iff valExpr is a
 // well-formed domain under params. The bound `s` plus the loop locals
 // (count/start/pos/name/tld) are arrow-scoped, so fixed names can't
 // collide across sibling or nested domain checks.
-func domainIsTypeExprFor(ctx formats.EmitContext, params map[string]any, valExpr string) string {
+func domainValidateExprFor(ctx formats.EmitContext, params map[string]any, valExpr string) string {
 	namesParams, _ := params["names"].(map[string]any)
 	tldParams, _ := params["tld"].(map[string]any)
 
@@ -145,7 +145,7 @@ func domainIsTypeExprFor(ctx formats.EmitContext, params map[string]any, valExpr
 	return b.String()
 }
 
-// domainErrorsBlockFor builds the decomposition typeErrors statement
+// domainErrorsBlockFor builds the decomposition validationErrors statement
 // block (mion domain.runtype.ts:145-159). Error-accumulating (no early
 // returns): every failing label / bound pushes onto errorsArr. count
 // starts at 0 and is bumped once post-loop so it equals the segment
@@ -193,18 +193,18 @@ func domainErrorsBlockFor(ctx formats.EmitContext, params map[string]any, valExp
 	return b.String()
 }
 
-// domainSubCheckExpr returns a domain isType EXPRESSION over valExpr,
+// domainSubCheckExpr returns a domain validate EXPRESSION over valExpr,
 // dispatching on whether the domain params use the names/tld
 // decomposition (IIFE) or the pattern/length path (AND of conditions).
 // Used by the email emitter to validate the domain half of an address.
 func domainSubCheckExpr(ctx formats.EmitContext, domainParams map[string]any, valExpr string) string {
 	if domainHasNames(domainParams) {
-		return domainIsTypeExprFor(ctx, domainParams, valExpr)
+		return domainValidateExprFor(ctx, domainParams, valExpr)
 	}
 	return strings.Join(stringConditions(ctx, domainParams, valExpr), " && ")
 }
 
-// domainSubErrorsStmts returns domain typeErrors STATEMENTS over
+// domainSubErrorsStmts returns domain validationErrors STATEMENTS over
 // valExpr, dispatching the same way as domainSubCheckExpr. Used by the
 // email emitter.
 func domainSubErrorsStmts(ctx formats.EmitContext, domainParams map[string]any, valExpr, pathExpr, errorsArr string) string {

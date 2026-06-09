@@ -15,9 +15,9 @@ export interface FormatErrorExpectation {
   formatPathTail?: string;
 }
 
-/** A format validation case — a `ValidationCase` (isType / getTypeErrors
+/** A format validation case — a `ValidationCase` (validate / getValidationErrors
  *  / mockType thunks + samples) plus the optional format-error
- *  expectations consumed by the format getTypeErrors adapter. **/
+ *  expectations consumed by the format getValidationErrors adapter. **/
 export type FormatValidationCase = ValidationCase & {
   expectedFormatErrors?: () => Array<FormatErrorExpectation | null>;
 };

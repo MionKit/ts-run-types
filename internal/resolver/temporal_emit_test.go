@@ -9,18 +9,18 @@ import (
 )
 
 // temporal_emit_test.go asserts each RT-fn family emits the right code for a
-// Temporal type: isType (instanceof), restore (Temporal.X.from), stringify
+// Temporal type: validate (instanceof), restore (Temporal.X.from), stringify
 // (toJSON), binary (serString/desString + from). One representative type per
 // assertion keeps it fast; the scan test already covers all 8 detect.
 
-// emitSourcesFor scans createIsType<Temporal.<typeName>>() requesting the given
+// emitSourcesFor scans createValidate<Temporal.<typeName>>() requesting the given
 // cache sources, and returns the response. Use this for families seeded by the
-// always-emit `it` path (isType / JSON / runType); binary families are now
+// always-emit `it` path (validate / JSON / runType); binary families are now
 // demand-driven, so they must be seeded via emitSourcesForFn with the matching
 // createBinaryEncoder/Decoder call.
 func emitSourcesFor(t *testing.T, typeName string, kinds ...protocol.CacheKind) *protocol.Response {
 	t.Helper()
-	return emitSourcesForFn(t, "createIsType", typeName, kinds...)
+	return emitSourcesForFn(t, "createValidate", typeName, kinds...)
 }
 
 // emitSourcesForFn scans `<fnName><Temporal.<typeName>>()` requesting the given
@@ -40,7 +40,7 @@ export const _ = ` + fnName + `<Temporal.` + typeName + `>();
 	return &resp
 }
 
-func TestTemporal_EmitIsType(t *testing.T) {
+func TestTemporal_EmitValidate(t *testing.T) {
 	cases := map[string]string{
 		"PlainDate":     "instanceof Temporal.PlainDate",
 		"Instant":       "instanceof Temporal.Instant",
@@ -49,9 +49,9 @@ func TestTemporal_EmitIsType(t *testing.T) {
 	}
 	for typeName, want := range cases {
 		t.Run(typeName, func(t *testing.T) {
-			resp := emitSourcesFor(t, typeName, protocol.CacheKindIsType)
-			if !strings.Contains(resp.IsTypeCacheSource, want) {
-				t.Fatalf("%s isType missing %q:\n%s", typeName, want, resp.IsTypeCacheSource)
+			resp := emitSourcesFor(t, typeName, protocol.CacheKindValidate)
+			if !strings.Contains(resp.ValidateCacheSource, want) {
+				t.Fatalf("%s validate missing %q:\n%s", typeName, want, resp.ValidateCacheSource)
 			}
 		})
 	}

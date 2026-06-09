@@ -16,7 +16,7 @@ import (
 //     (FormatEmailStrict); localPart is validated as a sub-StringFormat
 //     and domain as a sub-domain (which may itself decompose).
 //
-// isType emits an IIFE expression; typeErrors emits a statement block.
+// validate emits an IIFE expression; validationErrors emits a statement block.
 type emailEmitter struct{}
 
 func init() {
@@ -26,14 +26,14 @@ func init() {
 func (emailEmitter) Name() string                  { return "email" }
 func (emailEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
 
-func (emailEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (emailEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation != nil && emailHasParts(annotation.Params) {
-		return emailIsTypeExprFor(ctx, annotation.Params, vλl)
+		return emailValidateExprFor(ctx, annotation.Params, vλl)
 	}
-	return namedPatternIsType(ctx, annotation, vλl)
+	return namedPatternValidate(ctx, annotation, vλl)
 }
 
-func (emailEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (emailEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation != nil && emailHasParts(annotation.Params) {
 		return emailErrorsBlockFor(ctx, annotation.Params, vλl, pathExpr, errorsArr)
 	}
@@ -51,11 +51,11 @@ func emailHasParts(params map[string]any) bool {
 	return ok
 }
 
-// emailIsTypeExprFor builds the decomposition isType IIFE (mion
+// emailValidateExprFor builds the decomposition validate IIFE (mion
 // email.runtype.ts:78-88): root length, split on the last '@', validate
 // localPart and the domain half. The bound `e` and the locals are
 // arrow-scoped, so fixed names are collision-free.
-func emailIsTypeExprFor(ctx formats.EmitContext, params map[string]any, valExpr string) string {
+func emailValidateExprFor(ctx formats.EmitContext, params map[string]any, valExpr string) string {
 	localPartParams, _ := params["localPart"].(map[string]any)
 	domainParams, _ := params["domain"].(map[string]any)
 
@@ -82,7 +82,7 @@ func emailIsTypeExprFor(ctx formats.EmitContext, params map[string]any, valExpr 
 	return b.String()
 }
 
-// emailErrorsBlockFor builds the decomposition typeErrors block (mion
+// emailErrorsBlockFor builds the decomposition validationErrors block (mion
 // email.runtype.ts:109-117). When '@' is absent we push that error and
 // skip the part checks (avoids spurious localPart/domain errors over the
 // un-splittable value); otherwise both halves accumulate their errors.

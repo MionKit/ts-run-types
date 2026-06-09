@@ -34,8 +34,8 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// Per-cache "did this scan change anything?" signals consumed by
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
-		addedIsType := addedRunTypes && typefns.AnyIsTypeSupported(added)
-		addedTypeErrors := addedRunTypes && typefns.AnyTypeErrorsSupported(added)
+		addedValidate := addedRunTypes && typefns.AnyValidateSupported(added)
+		addedValidationErrors := addedRunTypes && typefns.AnyValidationErrorsSupported(added)
 		addedPrepareForJson := addedRunTypes && typefns.AnyPrepareForJsonSupported(added)
 		addedRestoreFromJson := addedRunTypes && typefns.AnyRestoreFromJsonSupported(added)
 		addedStringifyJson := addedRunTypes && typefns.AnyStringifyJsonSupported(added)
@@ -67,8 +67,8 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			Replacements:                    pureFnReplacements,
 			Added:                           added,
 			AddedRunTypes:                   addedRunTypes,
-			AddedIsType:                     addedIsType,
-			AddedTypeErrors:                 addedTypeErrors,
+			AddedValidate:                     addedValidate,
+			AddedValidationErrors:                 addedValidationErrors,
 			AddedPrepareForJson:             addedPrepareForJson,
 			AddedRestoreFromJson:            addedRestoreFromJson,
 			AddedStringifyJson:              addedStringifyJson,
@@ -85,8 +85,8 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			Diagnostics:                     combinedDiagnostics,
 		}
 		wantRunType := wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
-		wantIsType := wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
-		wantTypeErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindTypeErrors)
+		wantValidate := wantsCache(request.IncludeCacheSources, protocol.CacheKindValidate)
+		wantValidationErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindValidationErrors)
 		wantPrepareForJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJson)
 		wantRestoreFromJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
 		wantStringifyJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindStringifyJson)
@@ -100,7 +100,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantFromBinary := wantsCache(request.IncludeCacheSources, protocol.CacheKindFromBinary)
 		wantFormatTransform := wantsCache(request.IncludeCacheSources, protocol.CacheKindFormatTransform)
 		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
-		anyCache := wantRunType || wantIsType || wantTypeErrors || wantPrepareForJson || wantRestoreFromJson ||
+		anyCache := wantRunType || wantValidate || wantValidationErrors || wantPrepareForJson || wantRestoreFromJson ||
 			wantStringifyJson || wantPrepareForJsonSafe ||
 			wantHasUnknownKeys || wantStripUnknownKeys || wantUnknownKeyErrors ||
 			wantUnknownKeysToUndefined || wantUnknownKeysToUndefinedWire ||
@@ -117,19 +117,19 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				}
 				response.RunTypeCacheSource = rendered
 			}
-			if wantIsType {
-				isTypeRendered, isTypeErr := renderIsTypeModule(scoped, rtOpts)
-				if isTypeErr != nil {
-					return protocol.Response{Error: isTypeErr.Error()}
+			if wantValidate {
+				validateRendered, validateErr := renderValidateModule(scoped, rtOpts)
+				if validateErr != nil {
+					return protocol.Response{Error: validateErr.Error()}
 				}
-				response.IsTypeCacheSource = isTypeRendered
+				response.ValidateCacheSource = validateRendered
 			}
-			if wantTypeErrors {
-				typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(scoped, rtOpts)
-				if typeErrorsErr != nil {
-					return protocol.Response{Error: typeErrorsErr.Error()}
+			if wantValidationErrors {
+				validationErrorsRendered, validationErrorsErr := renderValidationErrorsModule(scoped, rtOpts)
+				if validationErrorsErr != nil {
+					return protocol.Response{Error: validationErrorsErr.Error()}
 				}
-				response.TypeErrorsCacheSource = typeErrorsRendered
+				response.ValidationErrorsCacheSource = validationErrorsRendered
 			}
 			if wantPrepareForJson {
 				prepareRendered, prepareErr := renderPrepareForJsonModule(scoped, rtOpts)
@@ -262,8 +262,8 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// for just the one cache it's serving in this hook call.
 		noFilter := len(request.IncludeCacheSources) == 0
 		wantRunType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
-		wantIsType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
-		wantTypeErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindTypeErrors)
+		wantValidate := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindValidate)
+		wantValidationErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindValidationErrors)
 		wantPrepareForJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJson)
 		wantRestoreFromJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
 		wantStringifyJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindStringifyJson)
@@ -284,19 +284,19 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			}
 			response.RunTypeCacheSource = rendered
 		}
-		if wantIsType {
-			isTypeRendered, isTypeErr := renderIsTypeModule(fullDump, rtOpts)
-			if isTypeErr != nil {
-				return protocol.Response{Error: isTypeErr.Error()}
+		if wantValidate {
+			validateRendered, validateErr := renderValidateModule(fullDump, rtOpts)
+			if validateErr != nil {
+				return protocol.Response{Error: validateErr.Error()}
 			}
-			response.IsTypeCacheSource = isTypeRendered
+			response.ValidateCacheSource = validateRendered
 		}
-		if wantTypeErrors {
-			typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(fullDump, rtOpts)
-			if typeErrorsErr != nil {
-				return protocol.Response{Error: typeErrorsErr.Error()}
+		if wantValidationErrors {
+			validationErrorsRendered, validationErrorsErr := renderValidationErrorsModule(fullDump, rtOpts)
+			if validationErrorsErr != nil {
+				return protocol.Response{Error: validationErrorsErr.Error()}
 			}
-			response.TypeErrorsCacheSource = typeErrorsRendered
+			response.ValidationErrorsCacheSource = validationErrorsRendered
 		}
 		if wantPrepareForJson {
 			prepareRendered, prepareErr := renderPrepareForJsonModule(fullDump, rtOpts)

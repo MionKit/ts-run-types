@@ -74,7 +74,7 @@ func (dateEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []strin
 	return validateMinMax(annotation.Params, dateKind, format)
 }
 
-func (dateEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (dateEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -88,13 +88,13 @@ func (dateEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl s
 	}
 	alias := pureFnAlias(ctx, fnName)
 	check := alias + "(" + vλl + ")"
-	if bounds := boundIsTypeChecks(ctx, annotation.Params, vλl, dateKind, format); bounds != "" {
+	if bounds := boundValidateChecks(ctx, annotation.Params, vλl, dateKind, format); bounds != "" {
 		check = check + " && " + bounds
 	}
 	return check
 }
 
-func (dateEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (dateEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}

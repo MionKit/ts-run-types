@@ -1,36 +1,36 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
-import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const NATIVE = {
   map_string_number: {
     title: 'Map with string keys and number values',
     description:
       'mion native/map — `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
-    isType: () => createIsType<Map<string, number>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Map<string, number>>>(),
-    isTypeSchema: () => createIsType(RT.map(RT.string(), RT.number())),
-    deserializeIsType: () => deserializeIsType<Map<string, number>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Map<string, number>>(),
+    validateDataOnly: () => createValidate<DataOnly<Map<string, number>>>(),
+    validateSchema: () => createValidate(RT.map(RT.string(), RT.number())),
+    deserializeValidate: () => deserializeValidate<Map<string, number>>(),
+    validateReflect: () => {
       const v: Map<string, number> = new Map();
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Map<string, number> = new Map();
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Map<string, number>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Map<string, number>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.map(RT.string(), RT.number())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Map<string, number>>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Map<string, number>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Map<string, number>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.map(RT.string(), RT.number())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Map<string, number>>(),
+    getValidationErrorsReflect: () => {
       const v: Map<string, number> = new Map();
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Map<string, number> = new Map();
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Map<string, number>>(),
     mockTypeReflect: () => {
@@ -72,29 +72,29 @@ export const NATIVE = {
   set_string: {
     title: 'Set of strings',
     description: 'mion native/set — `v instanceof Set` plus iteration over `v.values()`.',
-    isType: () => createIsType<Set<string>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Set<string>>>(),
-    isTypeSchema: () => createIsType(RT.set(RT.string())),
-    deserializeIsType: () => deserializeIsType<Set<string>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Set<string>>(),
+    validateDataOnly: () => createValidate<DataOnly<Set<string>>>(),
+    validateSchema: () => createValidate(RT.set(RT.string())),
+    deserializeValidate: () => deserializeValidate<Set<string>>(),
+    validateReflect: () => {
       const v: Set<string> = new Set();
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Set<string> = new Set();
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Set<string>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Set<string>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.set(RT.string())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Set<string>>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Set<string>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Set<string>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.set(RT.string())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Set<string>>(),
+    getValidationErrorsReflect: () => {
       const v: Set<string> = new Set();
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Set<string> = new Set();
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Set<string>>(),
     mockTypeReflect: () => {
@@ -133,39 +133,39 @@ export const NATIVE = {
     // `DataOnly` STRIPS Promise (a thenable is not data — see DataOnly in
     // runtypes/types.ts), so `DataOnly<Promise<string>>` is `never` and the
     // DataOnly validator collapses to an always-throw, diverging from the bare
-    // form's thenable check. (The matching emitter change — make `isType` itself
+    // form's thenable check. (The matching emitter change — make `validate` itself
     // drop Promise like symbol/method — is tracked separately; until then the
-    // bare `isType` still thenable-validates, so this stays divergent.)
+    // bare `validate` still thenable-validates, so this stays divergent.)
     dataOnlyDivergent: true,
     description:
       "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below). prepareForJson/restoreFromJson throw at RT compile (mion's nodes/native/promise.ts).",
-    isTypeNotes: [
+    validateNotes: [
       'TS DIVERGENCE: Promise validation is a "thenable" check — any object with a `then: function` PASSES, even if it is not an actual `Promise` instance.',
       'The wrapped type T is NOT validated — the promise has not resolved yet. Use `Awaited<P>` if you have the resolved value and want to validate it.',
     ],
-    isType: () => createIsType<Promise<string>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Promise<string>>>(),
-    isTypeSchema: () => createIsType(RT.promise(RT.string())),
-    deserializeIsType: () => deserializeIsType<Promise<string>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Promise<string>>(),
+    validateDataOnly: () => createValidate<DataOnly<Promise<string>>>(),
+    validateSchema: () => createValidate(RT.promise(RT.string())),
+    deserializeValidate: () => deserializeValidate<Promise<string>>(),
+    validateReflect: () => {
       const v: Promise<string> = Promise.resolve('x');
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Promise<string> = Promise.resolve('x');
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Promise<string>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Promise<string>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.promise(RT.string())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Promise<string>>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Promise<string>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Promise<string>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.promise(RT.string())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Promise<string>>(),
+    getValidationErrorsReflect: () => {
       const v: Promise<string> = Promise.resolve('x');
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Promise<string> = Promise.resolve('x');
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Promise<string>>(),
     mockTypeReflect: () => {
@@ -198,31 +198,31 @@ export const NATIVE = {
     title: 'Awaited<Promise<T>> — resolves to the wrapped type',
     description:
       "TypeScript's built-in `Awaited<P>` utility unwraps the promise to its resolved type; tsgo resolves it at compile time, so this case lands as plain `string` in our cache and reuses the atomic string emit. The test verifies the utility threads through correctly.",
-    isTypeNotes:
+    validateNotes:
       '`Awaited<P>` is resolved at the type-checker layer to the resolved value type — `Awaited<Promise<string>>` becomes plain `string`. The validator is identical to the atomic-string emit; a real Promise does NOT satisfy it.',
-    isType: () => createIsType<Awaited<Promise<string>>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Awaited<Promise<string>>>>(),
-    isTypeSchema: () => createIsType(RT.string()),
-    deserializeIsType: () => deserializeIsType<Awaited<Promise<string>>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Awaited<Promise<string>>>(),
+    validateDataOnly: () => createValidate<DataOnly<Awaited<Promise<string>>>>(),
+    validateSchema: () => createValidate(RT.string()),
+    deserializeValidate: () => deserializeValidate<Awaited<Promise<string>>>(),
+    validateReflect: () => {
       const v: Awaited<Promise<string>> = 'hello';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Awaited<Promise<string>> = 'hello';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Awaited<Promise<string>>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Awaited<Promise<string>>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Awaited<Promise<string>>>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Awaited<Promise<string>>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Awaited<Promise<string>>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Awaited<Promise<string>>>(),
+    getValidationErrorsReflect: () => {
       const v: Awaited<Promise<string>> = 'hello';
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Awaited<Promise<string>> = 'hello';
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Awaited<Promise<string>>>(),
     mockTypeReflect: () => {

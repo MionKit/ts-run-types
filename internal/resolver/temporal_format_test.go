@@ -15,18 +15,18 @@ import (
 // relative bounds (per-type component restriction) and emits compare() checks.
 
 // scanTemporalFormat builds getRunTypeId<TypeFormat<Temporal.<typ>, fmt, P>>()
-// and returns the isType source + FMT002 diagnostics.
+// and returns the validate source + FMT002 diagnostics.
 func scanTemporalFormat(t *testing.T, typ, formatName, params string) (string, []diag.Diagnostic) {
 	t.Helper()
-	code := `import {createIsType} from '@mionjs/ts-go-run-types';
+	code := `import {createValidate} from '@mionjs/ts-go-run-types';
 ` + typeFormatBrandDecl + `
-export const _ = createIsType<TypeFormat<Temporal.` + typ + `, '` + formatName + `', ` + params + `>>();
+export const _ = createValidate<TypeFormat<Temporal.` + typ + `, '` + formatName + `', ` + params + `>>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindIsType},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
 	})
 	if resp.Error != "" {
 		t.Fatalf("scan: %s", resp.Error)
@@ -37,7 +37,7 @@ export const _ = createIsType<TypeFormat<Temporal.` + typ + `, '` + formatName +
 			diags = append(diags, d)
 		}
 	}
-	return resp.IsTypeCacheSource, diags
+	return resp.ValidateCacheSource, diags
 }
 
 func TestTemporalFormat_EmitsCompareCheck(t *testing.T) {
@@ -46,7 +46,7 @@ func TestTemporalFormat_EmitsCompareCheck(t *testing.T) {
 		t.Fatalf("valid bounds diagnosed: %+v", diags)
 	}
 	if !strings.Contains(src, "Temporal.PlainDate.compare(") {
-		t.Fatalf("expected compare() in isType, got:\n%s", src)
+		t.Fatalf("expected compare() in validate, got:\n%s", src)
 	}
 	// strconv.Quote emits double quotes.
 	if !strings.Contains(src, `Temporal.PlainDate.from("2020-01-01")`) {

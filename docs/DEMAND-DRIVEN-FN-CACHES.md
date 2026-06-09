@@ -9,25 +9,25 @@ entries; each `createX<T>()` family cache contains only the types its call sites
 request, with `it_<member>` seeded across families for union round-trips.
 `go test ./internal/...` + `pnpm test` (85 files / 5856) green. Remaining polish
 is in "Follow-ups" at the bottom. Execution tracked in the Task list.
-Owner item: `docs/TODOS.md` §2 ("createIsType and other functions are not
+Owner item: `docs/TODOS.md` §2 ("createValidate and other functions are not
 parsing compiler options, instead they are generating all families at once").
 
 ## ⚠️ Critical finding (discovered during implementation)
 
-`it` (isType) is a **shared cross-family runtime dependency**, so it CANNOT be
+`it` (validate) is a **shared cross-family runtime dependency**, so it CANNOT be
 demand-scoped on its own:
 
 - The JSON and binary **union decoders discriminate members at runtime via
-  `it_<member>.fn(value)`** — see `unionMemberIsTypeCheck` in
+  `it_<member>.fn(value)`** — see `unionMemberValidateCheck` in
   `internal/compiled/typefns/json_prepare.go`. The call is guarded
   `(it_<member>?.fn(v) ?? true)`, so a **missing** `it_<member>` silently
   evaluates to `true` → the first union member always matches → wrong
   round-trip values (no error, just corrupt data).
-- `typeErrors` (`te`) delegates child checks to `it_` too.
+- `validationErrors` (`te`) delegates child checks to `it_` too.
 
-Consequence: if `it` is demand-scoped to only `createIsType` call sites, a file
+Consequence: if `it` is demand-scoped to only `createValidate` call sites, a file
 that serializes a union via `createBinaryEncoder` / `createJsonEncoder` (but
-never calls `createIsType` on it) loses the `it_<member>` entries its union
+never calls `createValidate` on it) loses the `it_<member>` entries its union
 decoder needs. Verified empirically: demand-scoping `it`/`te` together turned
 the serialization suite from 468→ green to 22 union/binary round-trip failures.
 
@@ -56,7 +56,7 @@ This reorders the rollout: **leaf families first, `it` last.**
 
 ## Problem (confirmed)
 
-The function cache modules (`isType`, `typeErrors`, `prepareForJson`,
+The function cache modules (`validate`, `validationErrors`, `prepareForJson`,
 `toBinary`, … — every family except the `runTypes` reflection cache) are
 emitted **for every interned `RunType`**, not for the types actually passed to
 a `createX<T>()` call.
@@ -66,9 +66,9 @@ Root cause, two facts in the code:
 1. `internal/compiled/typefns/module.go` (`RenderFnModule`) iterates
    `for _, runType := range dump.RunTypes { renderRoot(runType) }` — it emits a
    factory for every interned type the emitter `Supports`. Call sites
-   (`dump.Sites`) are consulted **only** by `collectIsTypeVariants`, and only to
+   (`dump.Sites`) are consulted **only** by `collectValidateVariants`, and only to
    add option-variant entries (`itNL_`, `itNA_`) on top of the always-emitted
-   base entries, and only for `isType`/`typeErrors`.
+   base entries, and only for `validate`/`validationErrors`.
 2. `internal/protocol/protocol.go` `Site` carries `File, Pos, ID, ParamIndex,
    ArgsCount, Options` but **no record of which `createX` function produced it**.
    The scanner (`scan.go`) matches the trailing `InjectRunTypeId<T>` brand
@@ -77,13 +77,13 @@ Root cause, two facts in the code:
 
 Empirically confirmed: a file whose only marker call is
 `getRunTypeId<{a: string; b: number}>()` (pure reflection — zero `createX`)
-still emits 6+ entries in **every** function family (isType: 10, typeErrors: 6,
+still emits 6+ entries in **every** function family (validate: 10, validationErrors: 6,
 prepareForJson: 6, toBinary: 6, fromBinary: 6, …). None can ever be used.
 
 The two invariants the user asserted already hold:
 - one type-id per type (idempotency) — guaranteed by the structural-id → hash
   map in `cache.AssignID`.
-- each type+param combo → unique function id — done for `IsTypeOptions` via the
+- each type+param combo → unique function id — done for `ValidateOptions` via the
   variant suffix; the JSON `strategy` differentiates by family tag.
 
 ## Function → family is many-to-many
@@ -91,7 +91,7 @@ The two invariants the user asserted already hold:
 | function | family tag(s) |
 |---|---|
 | `getRunTypeId` / `reflectRunTypeId` / RT builders / `createMockType` | reflection (`t`) only — no function family |
-| `createIsType` / `createGetTypeErrors` | `it` / `te` (+ `IsTypeOptions` variant suffix) |
+| `createValidate` / `createGetValidationErrors` | `it` / `te` (+ `ValidateOptions` variant suffix) |
 | `createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors` / `createUnknownKeysToUndefined` / `createFormatTransform` | `huk` / `suk` / `uke` / `uku` / `fmt` |
 | `createJsonEncoder` | strategy: `direct`→`sj`, `stripClone`→`pjs`, `clone`→`pjsp`, `mutate`→`pj`, `stripMutate`→`pj`+`uku` |
 | `createJsonDecoder` | strategy: `strip`→`rj`+`ukuw`, `preserve`→`rj` |
@@ -122,28 +122,28 @@ today read only at runtime (`createRTFunctions.ts`).
   duplicated key construction (Go derives the variant suffix into
   `Site.Options`; the JS runtime recomputes it via `buildVariantKey`).
 - **Migration surface:** all 11 function factories move to `InjectTypeFnArgs`
-  (`createIsType`, `createGetTypeErrors`, `createHasUnknownKeys`,
+  (`createValidate`, `createGetValidationErrors`, `createHasUnknownKeys`,
   `createStripUnknownKeys`, `createUnknownKeyErrors`,
   `createUnknownKeysToUndefined`, `createFormatTransform`, `createJsonEncoder`,
   `createJsonDecoder`, `createBinaryEncoder`, `createBinaryDecoder`). The
   reflection entry points stay on `InjectRunTypeId<T>` (`getRunTypeId`,
   `reflectRunTypeId`, value-first RT builders, `createMockType`).
 
-## Prior art — the reusable template (`IsTypeOptions` variants)
+## Prior art — the reusable template (`ValidateOptions` variants)
 
-`createIsType` / `createGetTypeErrors` are the **only** functions that already
+`createValidate` / `createGetValidationErrors` are the **only** functions that already
 extract a compile-time arg at the call site to generate a *specific* variant
 factory in the cache (distinct key + distinct body). This is the pipeline to
 lift and generalise:
 
-1. **extract** — `extractIsTypeOptions(call, lastIndex, argsCount)` reads the
+1. **extract** — `extractValidateOptions(call, lastIndex, argsCount)` reads the
    object literal in the slot before the id (`internal/resolver/scan.go:438`).
 2. **record** — `Site.Options = options.Names()` (`scan.go:350`).
-3. **registry** — `constants.IsTypeOptions` + `IsTypeVariantSuffix(names)` →
+3. **registry** — `constants.ValidateOptions` + `ValidateVariantSuffix(names)` →
    `NL`/`NA`/`NLA` (`constants.go:141`); mirrored to TS as
-   `buildIsTypeVariantSuffix` via `gen-ts-constants`.
-4. **fan-out** — `collectIsTypeVariants(dump.Sites, supportsIsTypeVariants(emitter))`,
-   gated to `IsTypeEmitter`/`TypeErrorsEmitter` (`module.go:302,72,426`).
+   `buildValidateVariantSuffix` via `gen-ts-constants`.
+4. **fan-out** — `collectValidateVariants(dump.Sites, supportsValidateVariants(emitter))`,
+   gated to `ValidateEmitter`/`ValidationErrorsEmitter` (`module.go:302,72,426`).
 5. **render per variant** — `renderEntryWithDeps(…, suffix, options)` → key
    `<tag><suffix>_<id>` (`itNL_<id>`); primes `walker.VariantOptions`
    (`module.go:330,518`).
@@ -155,8 +155,8 @@ lift and generalise:
 
 What this template tells us:
 - ✅ The **option** (variant within a family) is already comptime and drives
-  emission — **lift it**: generalise `collectIsTypeVariants` →
-  `collectVariants(familyTag)` and drop the `supportsIsTypeVariants` gate.
+  emission — **lift it**: generalise `collectValidateVariants` →
+  `collectVariants(familyTag)` and drop the `supportsValidateVariants` gate.
 - ❌ The **family** (`'it'`) is hardcoded in the runtime wrapper and
   over-emitted — the `Fn` type-arg promotes it to comptime (the core fix).
 - ♻️ Step 7 is a **duplication** — the runtime re-derives the variant key from
@@ -164,9 +164,9 @@ What this template tells us:
   it from the tuple, collapsing the `createRTFunctionWithOptions` vs
   `createRTFunction` split + `buildVariantKey` into one path.
 
-So the generalisation is: `extractIsTypeOptions` → a generic
+So the generalisation is: `extractValidateOptions` → a generic
 "comptime fn-args → fnId" step (reuse the `comptimeargs` validator for
-const-trace robustness), and `IsTypeVariantSuffix` → one case of the shared
+const-trace robustness), and `ValidateVariantSuffix` → one case of the shared
 `(Fn, comptime-args) → fnId` registry.
 
 **Alignment checkpoint — `createJsonEncoder`/`createJsonDecoder`.** These do NOT
@@ -192,7 +192,7 @@ per-site `fnId` assertions; do not delete it.
 
 **Phase 2 — scanner emits demand**
 - `internal/resolver/scan.go`: when the trailing slot is `InjectTypeFnArgs`,
-  read `Fn` + the relevant `CompTimeArgs` literal (IsTypeOptions / strategy),
+  read `Fn` + the relevant `CompTimeArgs` literal (ValidateOptions / strategy),
   compute the `fnId`, and record it on the Site. `protocol.Site` gains
   `FnId string` (empty ⇒ reflection-only `InjectRunTypeId` site).
 - Preserve the value-first **schema overload** demand (dispatch on `rt.id`);
@@ -211,7 +211,7 @@ per-site `fnId` assertions; do not delete it.
   `for _, runType := range dump.RunTypes` seed with a worklist seeded by the
   sites whose `FnId` maps to the emitter's family (+ option variants), then
   transitively pull in referenced child factories via the `RTDependencies`
-  each entry already reports. Generalise `collectIsTypeVariants` →
+  each entry already reports. Generalise `collectValidateVariants` →
   `collectVariants(familyTag)`.
 - **Back-compat:** empty/legacy demand (no sites carrying `FnId`) ⇒ today's
   all-RunTypes path, so the direct-`Dump{}` renderer unit tests
@@ -239,9 +239,9 @@ families ride the back-compat all-emit path so the tree stays correct.
 
 - **Slice A — foundation + `te` (LANDED).** New marker `InjectTypeFnArgs<T, Fn>`
   + registry, scanner `Site.FnId`, `[id, fnId]` tuple injection, generalised
-  demand-driven emission, runtime tuple-read for `createIsType`/
-  `createGetTypeErrors`. Only `te` (a safe leaf) is demand-scoped; `it` and the
-  rest stay all-emit. `createIsType` already injects `[id,'it']` and works
+  demand-driven emission, runtime tuple-read for `createValidate`/
+  `createGetValidationErrors`. Only `te` (a safe leaf) is demand-scoped; `it` and the
+  rest stay all-emit. `createValidate` already injects `[id,'it']` and works
   against the all-emit `it` cache, so migrating `it` later is a one-line
   `MigratedFamilies` flip once the prerequisites are met.
 - **Slice B — remaining single-family leaves.** Migrate
@@ -253,7 +253,7 @@ families ride the back-compat all-emit path so the tree stays correct.
   (`JsonStrategyFamilies`). Migrate + scope. Update
   `TestResolver_EncoderOptionsShareTypeID`.
 - **Slice D — scope `it` + cleanup.** Builds on the cross-family-edge capture
-  (`docs/CROSS-FAMILY-RT-DEPS.md`): compute the `it` demand as createIsType-site
+  (`docs/CROSS-FAMILY-RT-DEPS.md`): compute the `it` demand as createValidate-site
   closure ∪ the `it_` edges discovered while rendering the other demanded
   families (minimal, default variant), then add `it` to `MigratedFamilies`. Then
   drop `Site.Options` + the `buildVariantKey` duplication; full
@@ -297,13 +297,13 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 - [x] A10 `internal/compiled/typefns/module.go`: `collectFamilyDemand` +
   worklist-seed + transitive closure; back-compat all-emit path; gated by
   `MigratedFamilies` (currently `{te}`).
-- [x] A11 `createRTFunctions.ts`: `createIsType`/`createGetTypeErrors` read the
+- [x] A11 `createRTFunctions.ts`: `createValidate`/`createGetValidationErrors` read the
   `[id, fnId]` tuple via `createTypeFnArgsFunction`.
 - [x] A12 Go overlay (`inline_test.go`) declares `InjectTypeFnArgs` +
-  `createIsType`/`createGetTypeErrors`; emitter tests demand via `createIsType`.
+  `createValidate`/`createGetValidationErrors`; emitter tests demand via `createValidate`.
 - [x] A13 `go test ./internal/...` green; `pnpm test` green (85 files / 5856).
 - [x] A14 Regression `internal/resolver/demand_scope_test.go`: `te_` scoped to
-  `createGetTypeErrors`; reflection/`createIsType` files emit no `te_`; `it`
+  `createGetValidationErrors`; reflection/`createValidate` files emit no `te_`; `it`
   stays all-emit (guarded by `TestDemandScope_ItStaysAllEmit`).
 
 ### Slice B — single-family fan-out (`huk`/`suk`/`uke`/`fmt`, `tb`/`fb`) — `258900d`
@@ -325,9 +325,9 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 - [x] D0 `CrossFamilyItRoots` renders the 14 non-`it` families (Store-bypassed) to
   collect `it_<member>` edges → seeds the `it` demand via `RenderOpts.ExtraRoots`;
   `"it"` added to `MigratedFamilies`. Also fixed a latent map-iteration
-  non-determinism (now sorted) and a stale JS overlay (`inline.ts` createIsType
+  non-determinism (now sorted) and a stale JS overlay (`inline.ts` createValidate
   on the old marker). Union/serialization canary green.
-- [x] D3 `demand_scope_test.go`: reflection-only → no `it_`; `createIsType` →
+- [x] D3 `demand_scope_test.go`: reflection-only → no `it_`; `createValidate` →
   `it_`; `createBinaryEncoder<{a:bigint}|{a:Date}>`-only → `it_<member>` seeded
   cross-family.
 - [x] D5 `gofmt`/`pnpm run lint` clean; `go test ./internal/...` + `pnpm test` green.
@@ -336,10 +336,10 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 
 - [x] D0b Recursive value-first schema passed to `createX` — already covered:
   `packages/ts-go-run-types/test/adapters/circular.test.ts` asserts
-  `createIsType(circularSchema) === createIsType<RecursiveType>()` (value-first id
+  `createValidate(circularSchema) === createValidate<RecursiveType>()` (value-first id
   converges with type-first under demand-scoping), plus `composeBuilders.test.ts`
   validates a recursive linked-list. No new test needed.
-- [x] D1 Removed the dead `Site.Options` + `collectIsTypeVariants` /
+- [x] D1 Removed the dead `Site.Options` + `collectValidateVariants` /
   `variantSuffixFromOptions` machinery across Go + JS (`d6a2e4b`). `buildVariantKey`
   kept (simplified to `(prefix,id)`; still used by `lookupRTFn` for plain lookups).
 - [x] D2 Back-compat all-emit branch kept as the documented "no call-site demand"

@@ -92,7 +92,7 @@ A function opts into compile-time id injection by declaring `id?: InjectRunTypeI
 
 - The static helper `getRunTypeId<T>(id?)` shipped from `@mionjs/ts-go-run-types` — explicit type, no value.
 - The reflection helper `reflectRunTypeId<T>(value, id?)` — `T` inferred from a runtime value.
-- Any user-defined wrapper that propagates the marker — `function isType<T>(v, id?: InjectRunTypeId<T>)`.
+- Any user-defined wrapper that propagates the marker — `function validate<T>(v, id?: InjectRunTypeId<T>)`.
 
 Detection requires both:
 
@@ -103,10 +103,10 @@ A call inside a generic body where the marker's `T` is the wrapper's own free ty
 
 ### The second marker — `InjectTypeFnArgs<T, Fn>` and demand-driven caches
 
-`InjectRunTypeId<T>` covers **reflection-only** sites (`getRunTypeId`, `reflectRunTypeId`, value-first RT builders, `createMockType`) and injects a bare `"<typeId>"` string. The `createX<T>()` factory family (`createIsType`, `createGetTypeErrors`, the unknown-keys group, `createJsonEncoder`/`createJsonDecoder`, `createBinaryEncoder`/`createBinaryDecoder`) instead declares a trailing `InjectTypeFnArgs<T, Fn>` marker, whose second type argument `Fn` names the function family (`'it'`, `'te'`, `'jsonEncoder'`, …). For those sites the transformer injects a `["<typeId>", "<fnHash>"]` **tuple**:
+`InjectRunTypeId<T>` covers **reflection-only** sites (`getRunTypeId`, `reflectRunTypeId`, value-first RT builders, `createMockType`) and injects a bare `"<typeId>"` string. The `createX<T>()` factory family (`createValidate`, `createGetValidationErrors`, the unknown-keys group, `createJsonEncoder`/`createJsonDecoder`, `createBinaryEncoder`/`createBinaryDecoder`) instead declares a trailing `InjectTypeFnArgs<T, Fn>` marker, whose second type argument `Fn` names the function family (`'it'`, `'te'`, `'jsonEncoder'`, …). For those sites the transformer injects a `["<typeId>", "<fnHash>"]` **tuple**:
 
 - `typeId` — the structural-id hash of `T`, same as the reflection cache.
-- `fnHash` — an **opaque precomputed hash** (length 4, `hash(operationName + sorted comptime-args)`) the scanner computes from `Fn` plus the relevant `CompTimeFnArgs` literal (the `IsTypeOptions` bag for `it`/`te`; the JSON strategy for the encoder/decoder), via the operations registry in [`internal/operations`](../internal/operations/) (`FnHashFor`/`PlainHash`/`Canonical`). Go computes every fnHash — the runtime treats it as an opaque lookup-key prefix and never hashes anything. The injected tuple is the complete demand: it tells the backend exactly what to emit and gives the runtime the exact lookup key, so the runtime no longer re-derives a variant key. The cache key is `<fnHash>_<typeId>`. The canonicalizer is property-order-independent (like the structural type-id, which already sorts object members).
+- `fnHash` — an **opaque precomputed hash** (length 4, `hash(operationName + sorted comptime-args)`) the scanner computes from `Fn` plus the relevant `CompTimeFnArgs` literal (the `ValidateOptions` bag for `it`/`te`; the JSON strategy for the encoder/decoder), via the operations registry in [`internal/operations`](../internal/operations/) (`FnHashFor`/`PlainHash`/`Canonical`). Go computes every fnHash — the runtime treats it as an opaque lookup-key prefix and never hashes anything. The injected tuple is the complete demand: it tells the backend exactly what to emit and gives the runtime the exact lookup key, so the runtime no longer re-derives a variant key. The cache key is `<fnHash>_<typeId>`. The canonicalizer is property-order-independent (like the structural type-id, which already sorts object members).
 
 The `[typeId, fnHash]` literals are computed by `CompTimeFnArgs<T>` — the fn-selecting variant of `CompTimeArgs<T>` (both in [`packages/ts-go-run-types/src/markers.ts`](../packages/ts-go-run-types/src/markers.ts)): it validates literals identically (CTA0xx) but also marks the parameter whose literal value selects the `createX` variant. Plain `CompTimeArgs<T>` stays for other literal params (pure-fn keys, builder configs).
 
@@ -114,7 +114,7 @@ Because each function site now carries structured demand, the per-family cache m
 
 JSON encoder/decoder composition is **Go-emitted**, not assembled at runtime: one COMPOSITE cache entry per (typeId, strategy), keyed by the composite fnHash (see [`internal/compiled/typefns/json_composite.go`](../internal/compiled/typefns/json_composite.go)), wraps the underlying primitives with native JSON. So `createJsonEncoder`/`createJsonDecoder` collapse to the same pure `resolveTupleEntry` lookup as binary — no runtime strategy branching. Per-strategy composite tags live in `constants.jsonCompositeTags` (deliberately NOT in `CacheModules`, so the generated TS mirror is untouched). The disk cache format is **v3** (keys now embed fnHash).
 
-`it` (isType) is the one **cross-family** dependency: the JSON and binary union decoders discriminate members at runtime via `it_<member>.fn(value)` and `typeErrors` delegates child checks to `it_` too. So `it`'s demand is its createIsType-site closure **∪** the `it_<member>` edges every *other* demanded family references — collected by `CrossFamilyItRoots` (which renders each foreign family demand-driven and harvests its captured cross-family deps) and seeded into the `it` render. A file that only serializes a union therefore still gets the per-member `it_` entries its decoder needs at runtime. Full design + rollout history: [docs/DEMAND-DRIVEN-FN-CACHES.md](./DEMAND-DRIVEN-FN-CACHES.md).
+`it` (validate) is the one **cross-family** dependency: the JSON and binary union decoders discriminate members at runtime via `it_<member>.fn(value)` and `validationErrors` delegates child checks to `it_` too. So `it`'s demand is its createValidate-site closure **∪** the `it_<member>` edges every *other* demanded family references — collected by `CrossFamilyItRoots` (which renders each foreign family demand-driven and harvests its captured cross-family deps) and seeded into the `it` render. A file that only serializes a union therefore still gets the per-member `it_` entries its decoder needs at runtime. Full design + rollout history: [docs/DEMAND-DRIVEN-FN-CACHES.md](./DEMAND-DRIVEN-FN-CACHES.md).
 
 ## Package layout
 
@@ -124,7 +124,7 @@ internal/program/                tsconfig + VFS bootstrap
 internal/resolver/               scanFiles + dump dispatch; AST call-walk (walk.go + scan.go)
 internal/marker/                 InjectRunTypeId<T> sentinel detection (name + module check)
 internal/compiled/runtype/       *checker.Type → protocol.RunType projection + JSON/TS renderers + typeid/
-internal/compiled/typefns/       per-fn AOT emitters (isType, typeErrors, JSON, binary, formats, …)
+internal/compiled/typefns/       per-fn AOT emitters (validate, validationErrors, JSON, binary, formats, …)
 internal/compiled/purefns/       pure-fn helpers emitted inline
 internal/protocol/               stdio JSON request/response types
 internal/constants/              cross-package constants, mirrored to TS via cmd/gen-ts-constants
@@ -159,9 +159,9 @@ Owns both the AST call-walk and op dispatch. `walk.go` contains `NodeAt`, `CallE
 
 `Pos` is the byte offset of the closing `)` of the call — the TS-side patcher inserts at that offset. `ParamIndex` is the 0-based slot the injected id goes into; `ArgsCount` is the number of arguments the user already wrote (so the patcher knows whether to pad with `undefined`).
 
-**Reflect-form annotation honoring.** When the value argument is a const-bound identifier with a written type annotation (`const v: T = literal; createIsType(v);`), the resolver reads the annotation directly via `Checker_getTypeFromTypeNode` instead of trusting TypeScript's control-flow-analysis apparent type for `v`. Without this, CFA narrows the binding to its initializer's narrowest type (e.g. `Color.Red` for an enum or `'hello'` for a union), and the reflect-form hash would diverge from the static `createIsType<T>()` form. The walk only fires in the reflect form (no explicit type arguments) and only for `Identifier` arguments — property accesses, function calls, and element accesses don't go through const-binding CFA and don't exhibit the trap.
+**Reflect-form annotation honoring.** When the value argument is a const-bound identifier with a written type annotation (`const v: T = literal; createValidate(v);`), the resolver reads the annotation directly via `Checker_getTypeFromTypeNode` instead of trusting TypeScript's control-flow-analysis apparent type for `v`. Without this, CFA narrows the binding to its initializer's narrowest type (e.g. `Color.Red` for an enum or `'hello'` for a union), and the reflect-form hash would diverge from the static `createValidate<T>()` form. The walk only fires in the reflect form (no explicit type arguments) and only for `Identifier` arguments — property accesses, function calls, and element accesses don't go through const-binding CFA and don't exhibit the trap.
 
-**Function-call argument warning.** The resolver flags `createIsType(getX())` (and any other reflect-form marker call with a `CallExpression` argument) as an anti-pattern: the function is invoked at runtime purely so the type checker can infer `T` from its return type, even though the value is discarded. The validator still works, but the recommended replacement is the static form using `ReturnType<typeof fn>`. The warning surfaces on the response's `markerDiagnostics` channel and the Vite plugin re-emits it through `this.warn` in canonical `tsc --pretty=false` format so VS Code's `$tsc` problem matcher picks it up.
+**Function-call argument warning.** The resolver flags `createValidate(getX())` (and any other reflect-form marker call with a `CallExpression` argument) as an anti-pattern: the function is invoked at runtime purely so the type checker can infer `T` from its return type, even though the value is discarded. The validator still works, but the recommended replacement is the static form using `ReturnType<typeof fn>`. The warning surfaces on the response's `markerDiagnostics` channel and the Vite plugin re-emits it through `this.warn` in canonical `tsc --pretty=false` format so VS Code's `$tsc` problem matcher picks it up.
 
 ### internal/marker
 
@@ -198,7 +198,7 @@ The id is injected at the trailing `InjectRunTypeId<T>` slot. The Go binary retu
 ```
 getRunTypeId<T>()         →   getRunTypeId<T>("<hash>")
 reflectRunTypeId(val)     →   reflectRunTypeId(val, "<hash>")
-isType<T>(v)              →   isType<T>(v, "<hash>")
+validate<T>(v)              →   validate<T>(v, "<hash>")
 ```
 
 Neither built-in helper needs padding (`getRunTypeId` puts the id at slot 0; `reflectRunTypeId` already has `value` at slot 0 and the id at slot 1). The padding mechanism remains in place for user-defined wrappers with additional intermediate parameters.

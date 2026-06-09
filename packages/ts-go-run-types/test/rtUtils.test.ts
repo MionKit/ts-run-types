@@ -38,7 +38,7 @@ describe('rtUtils', () => {
     const testRTCache: TypesFunctionsCache = {
       testRTFn: {
         typeName: 'TestType',
-        fnID: 'isType',
+        fnID: 'validate',
         rtFnHash: 'testRTFn',
         args: {vλl: 'v'},
         defaultParamValues: {vλl: ''},
@@ -137,7 +137,7 @@ describe('rtUtils', () => {
     const firstCache: TypesFunctionsCache = {
       testFn1: {
         typeName: 'TestType1',
-        fnID: 'isType',
+        fnID: 'validate',
         rtFnHash: 'testFn1',
         args: {vλl: 'v'},
         defaultParamValues: {vλl: ''},
@@ -153,7 +153,7 @@ describe('rtUtils', () => {
       testFn1: {
         // Same key as first cache - should NOT overwrite
         typeName: 'TestType2',
-        fnID: 'isType',
+        fnID: 'validate',
         rtFnHash: 'testFn1',
         args: {vλl: 'v'},
         defaultParamValues: {vλl: ''},
@@ -166,7 +166,7 @@ describe('rtUtils', () => {
       testFn2: {
         // New key - should be added
         typeName: 'TestType2',
-        fnID: 'isType',
+        fnID: 'validate',
         rtFnHash: 'testFn2',
         args: {vλl: 'v'},
         defaultParamValues: {vλl: ''},

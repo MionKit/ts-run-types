@@ -70,7 +70,7 @@ func (ctx *InlineContext) CurrentVλl() string {
 //     parent always issues a dependency call instead of inlining.
 //  2. DebugInline → true (env override, mion's getENV branch).
 //  3. KindArray → false (mion comment: "all array are self invoked
-//     for isType and are usually repeated type like string[] or
+//     for validate and are usually repeated type like string[] or
 //     number[] so worth deduplicating").
 //  4. KindObjectLiteral / KindClass / KindTuple / KindUnion → false.
 //     mion only deopts named collections (typeName + family C); we

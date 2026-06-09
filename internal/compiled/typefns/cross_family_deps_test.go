@@ -11,19 +11,19 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// itKey returns the isType cache key `<isType-fnHash>_<id>` the emitter now
-// produces for a same-family / cross-family isType lookup. Slice 4 replaced the
+// itKey returns the validate cache key `<validate-fnHash>_<id>` the emitter now
+// produces for a same-family / cross-family validate lookup. Slice 4 replaced the
 // readable `it_` tag prefix with the opaque, version-isolated fnHash from the
 // operation registry; tests derive the expected key through the same helper the
 // emitter uses so they stay correct across binary versions.
-func itKey(id string) string { return operations.PlainHash("isType") + "_" + id }
+func itKey(id string) string { return operations.PlainHash("validate") + "_" + id }
 
-// itVariantKey returns the isType cache key for the IsTypeOptions variant
+// itVariantKey returns the validate cache key for the ValidateOptions variant
 // identified by `optionNames` — `<variant-fnHash>_<id>` (e.g. the noIsArrayCheck
-// variant). Mirrors variantKey for the isType family without depending on the
+// variant). Mirrors variantKey for the validate family without depending on the
 // CacheModuleSettings plumbing.
 func itVariantKey(optionNames []string, id string) string {
-	itOp, _ := operations.ByName("isType")
+	itOp, _ := operations.ByName("validate")
 	return operations.FnHashFor(itOp, optionNames, "") + "_" + id
 }
 
@@ -57,7 +57,7 @@ func containsStr(haystack []string, needle string) bool {
 //	{ a: bigint }  |  { a: Date }
 //
 // The encoder discriminates the conflicting `a` slot at runtime via the
-// isType validators of the two candidate types — emitting
+// validate validators of the two candidate types — emitting
 // `it_<bigintID>` / `it_<dateID>` cross-family lookups (a synthesized
 // sub-union over the property). This is the union shape that exercises the
 // cross-family `registerRTLookup("it_<member>")` path in BOTH the
@@ -84,7 +84,7 @@ func buildConflictPropUnionFixture() ([]*protocol.RunType, string) {
 // assertUnionCrossFamily renders the union root for the given encoder family
 // and asserts the cross-family discrimination edges land in CrossFamilyDeps
 // (not RTDependencies). The discriminated `a` slot resolves to the two
-// candidate isType validators `it_big` / `it_dat`.
+// candidate validate validators `it_big` / `it_dat`.
 func assertUnionCrossFamily(t *testing.T, emitter Emitter, settings constants.CacheModuleSettings) {
 	t.Helper()
 	runTypes, rootID := buildConflictPropUnionFixture()
@@ -120,19 +120,19 @@ func TestCrossFamilyDeps_UnionPrepareForJson(t *testing.T) {
 
 // TestCrossFamilyDeps_UnionToBinary — same as the prepareForJson sibling but
 // for the toBinary encoder, which also discriminates the conflicting slot via
-// the candidate isType validators.
+// the candidate validate validators.
 func TestCrossFamilyDeps_UnionToBinary(t *testing.T) {
 	assertUnionCrossFamily(t, ToBinaryEmitter{}, constants.CacheModules["toBinary"])
 }
 
-// TestCrossFamilyDeps_IsTypeSameFamilyOnly — a plain object with a nested
+// TestCrossFamilyDeps_ValidateSameFamilyOnly — a plain object with a nested
 // object property compiles the nested child as a same-family dependency call
 // (`it_<child>` funnelled through registerRTLookup by emitDepCall). Because
 // the lookup's prefix matches the walker's own InnerPrefix it is recorded in
 // RTDependencies, NOT CrossFamilyDeps. This pins the no-regression guarantee
 // for the same-family path: registerRTLookup's prefix gate keeps same-family
 // edges out of the cross-family list.
-func TestCrossFamilyDeps_IsTypeSameFamilyOnly(t *testing.T) {
+func TestCrossFamilyDeps_ValidateSameFamilyOnly(t *testing.T) {
 	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	num := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
 	innerProp := &protocol.RunType{ID: "ip", Kind: protocol.KindPropertySignature, Name: "n", IsSafeName: true, Child: makeRef("num")}
@@ -143,18 +143,18 @@ func TestCrossFamilyDeps_IsTypeSameFamilyOnly(t *testing.T) {
 
 	runTypes := []*protocol.RunType{str, num, innerProp, inner, outerPropA, outerPropB, outer}
 	refTable := buildRefTable(runTypes)
-	settings := constants.CacheModules["isType"]
+	settings := constants.CacheModules["validate"]
 	prefix := innerPrefix(settings)
 
-	rendered := renderEntryWithDeps(refTable["outer"], settings, IsTypeEmitter{}, prefix, refTable, RenderOpts{}, "", nil)
+	rendered := renderEntryWithDeps(refTable["outer"], settings, ValidateEmitter{}, prefix, refTable, RenderOpts{}, "", nil)
 	if rendered.line == "" {
-		t.Fatal("expected a non-empty isType entry line for the nested-object fixture")
+		t.Fatal("expected a non-empty validate entry line for the nested-object fixture")
 	}
 	if !containsStr(rendered.deps, itKey("inner")) {
 		t.Errorf("expected same-family child dep %q in RTDependencies, got %v", itKey("inner"), rendered.deps)
 	}
 	if len(rendered.crossFamilyDeps) != 0 {
-		t.Errorf("same-family-only isType entry must have empty CrossFamilyDeps, got %v", rendered.crossFamilyDeps)
+		t.Errorf("same-family-only validate entry must have empty CrossFamilyDeps, got %v", rendered.crossFamilyDeps)
 	}
 }
 
@@ -175,8 +175,8 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 
 	// The exact validator body the union root emits — unchanged by the
 	// cross-family capture. Sub-union dispatch over the conflicting `a` slot
-	// uses the candidate isType lookups. Keys are the opaque per-family fnHashes
-	// (prepareForJson for the root, isType for the discriminator lookups).
+	// uses the candidate validate lookups. Keys are the opaque per-family fnHashes
+	// (prepareForJson for the root, validate for the discriminator lookups).
 	pjUni := operations.PlainHash("prepareForJson") + "_uni"
 	itBig := itKey("big")
 	itDat := itKey("dat")

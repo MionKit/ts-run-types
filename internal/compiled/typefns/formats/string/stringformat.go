@@ -23,7 +23,7 @@ import (
 // disallowedChars, allowedValues, disallowedValues — mion's full
 // StringValidators set, emitted in mion's emitIsType order. The
 // format-transformer arm (trim / lowercase / uppercase / capitalize)
-// is applied by the separate `format` RT-fn, not by isType/typeErrors.
+// is applied by the separate `format` RT-fn, not by validate/validationErrors.
 type stringFormatEmitter struct{}
 
 // formatName is the canonical FormatAnnotation.name the JS-side
@@ -44,10 +44,10 @@ func (stringFormatEmitter) Kind() protocol.ReflectionKind {
 	return protocol.KindString
 }
 
-// EmitIsTypeCheck returns the AND of every active format predicate.
+// EmitValidateCheck returns the AND of every active format predicate.
 // Returns "" when no params constrain the value — the host emitter then
 // keeps its base-kind check as the only validator.
-func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (stringFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -58,7 +58,7 @@ func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation
 	return strings.Join(stringConditions(ctx, params, vλl), " && ")
 }
 
-// stringConditions returns every isType boolean expression for a
+// stringConditions returns every validate boolean expression for a
 // StringFormat param map applied to `vλl`, in mion's emitIsType order:
 // maxLength, minLength, length, pattern, allowedChars, disallowedChars,
 // allowedValues, disallowedValues (stringFormat.runtype.ts:53-79).
@@ -162,7 +162,7 @@ func allowedCharsSource(val string) string {
 
 // disallowedCharsSource builds mion's getDisallowedCharsRegexp source —
 // an unanchored `[<escaped chars>]` that matches if ANY disallowed char
-// is present (the isType condition negates it).
+// is present (the validate condition negates it).
 func disallowedCharsSource(val string) string {
 	return "[" + regexpEscape(val) + "]"
 }
@@ -198,7 +198,7 @@ func lengthErrorStatements(ctx formats.EmitContext, params map[string]any, vλl,
 	return statements
 }
 
-// EmitTypeErrorsCheck emits one `if (failed) er.push(…)` statement
+// EmitValidationErrorsCheck emits one `if (failed) er.push(…)` statement
 // per active length predicate. Each pushes a TypeFormatError with
 // the canonical mion shape:
 //
@@ -207,7 +207,7 @@ func lengthErrorStatements(ctx formats.EmitContext, params map[string]any, vλl,
 // Matches mion's emitIsTypeErrors output (modulo the wrapper-shape
 // param unwrap) so the JS-side runtime sees the same diagnostics
 // regardless of which compiler produced the validator.
-func (stringFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (stringFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}

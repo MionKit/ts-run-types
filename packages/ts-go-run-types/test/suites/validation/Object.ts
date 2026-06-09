@@ -1,40 +1,40 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
-import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const OBJECT = {
   simple_interface: {
     title: 'Simple interface with string and number props',
     description:
       'mion interface.spec.ts "validate object" (simplified to the atomic-prop subset that the current Go port can validate end-to-end)',
-    isTypeNotes: [
+    validateNotes: [
       'Structural typing — extra properties beyond the declared shape PASS.',
       'Each declared property runs the atomic check for its type (number props reject NaN / Infinity).',
     ],
-    isType: () => createIsType<{a: string; b: number}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{a: string; b: number}>>(),
-    isTypeSchema: () => createIsType(RT.object({a: RT.string(), b: RT.number()})),
-    deserializeIsType: () => deserializeIsType<{a: string; b: number}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{a: string; b: number}>(),
+    validateDataOnly: () => createValidate<DataOnly<{a: string; b: number}>>(),
+    validateSchema: () => createValidate(RT.object({a: RT.string(), b: RT.number()})),
+    deserializeValidate: () => deserializeValidate<{a: string; b: number}>(),
+    validateReflect: () => {
       const v: {a: string; b: number} = {a: 'hello', b: 1};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {a: string; b: number} = {a: 'hello', b: 1};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{a: string; b: number}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string; b: number}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({a: RT.string(), b: RT.number()})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; b: number}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{a: string; b: number}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string; b: number}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: RT.string(), b: RT.number()})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string; b: number}>(),
+    getValidationErrorsReflect: () => {
       const v: {a: string; b: number} = {a: 'hello', b: 1};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {a: string; b: number} = {a: 'hello', b: 1};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{a: string; b: number}>(),
     mockTypeReflect: () => {
@@ -78,39 +78,39 @@ export const OBJECT = {
     title: 'Object pinned with `as const` (readonly literal props)',
     description:
       'Object literal pinned with `as const` — every property becomes a readonly literal type. Verifies that the type-id resolution and validator emit handle the readonly-literal-props shape end-to-end and that the static / reflect forms agree.',
-    isTypeNotes:
+    validateNotes:
       '`readonly` is erased at runtime. Every property must strictly === its literal value (name === "john", age === 30) — no looser matches.',
-    isType: () => createIsType<{readonly name: 'john'; readonly age: 30}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{readonly name: 'john'; readonly age: 30}>>(),
+    validate: () => createValidate<{readonly name: 'john'; readonly age: 30}>(),
+    validateDataOnly: () => createValidate<DataOnly<{readonly name: 'john'; readonly age: 30}>>(),
     // `readonly` is part of the structural id, so the value-first model mirrors it
     // with `RT.propMod({readonly: true}, …)` on each prop.
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.object({name: RT.propMod({readonly: true}, RT.literal('john')), age: RT.propMod({readonly: true}, RT.literal(30))})
       ),
-    deserializeIsType: () => deserializeIsType<{readonly name: 'john'; readonly age: 30}>(),
-    isTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<{readonly name: 'john'; readonly age: 30}>(),
+    validateReflect: () => {
       const Usr = {name: 'john', age: 30} as const;
-      return createIsType(Usr);
+      return createValidate(Usr);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const Usr = {name: 'john', age: 30} as const;
-      return deserializeIsType(Usr);
+      return deserializeValidate(Usr);
     },
-    getTypeErrors: () => createGetTypeErrors<{readonly name: 'john'; readonly age: 30}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{readonly name: 'john'; readonly age: 30}>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () => createGetValidationErrors<{readonly name: 'john'; readonly age: 30}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{readonly name: 'john'; readonly age: 30}>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.object({name: RT.propMod({readonly: true}, RT.literal('john')), age: RT.propMod({readonly: true}, RT.literal(30))})
       ),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{readonly name: 'john'; readonly age: 30}>(),
-    getTypeErrorsReflect: () => {
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{readonly name: 'john'; readonly age: 30}>(),
+    getValidationErrorsReflect: () => {
       const Usr = {name: 'john', age: 30} as const;
-      return createGetTypeErrors(Usr);
+      return createGetValidationErrors(Usr);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const Usr = {name: 'john', age: 30} as const;
-      return deserializeGetTypeErrors(Usr);
+      return deserializeGetValidationErrors(Usr);
     },
     mockType: () => createMockType<{readonly name: 'john'; readonly age: 30}>(),
     mockTypeReflect: () => {
@@ -149,46 +149,46 @@ export const OBJECT = {
   object_via_return_type_utility: {
     title: 'Object inferred via ReturnType<typeof factory>',
     description:
-      'Static-form usage of the recommended `ReturnType<typeof fn>` idiom when you have a factory function whose return type you want to validate. The reflect form `createIsType(makeUser())` would invoke the function at runtime purely for type inference — anti-pattern that the resolver now flags as a build-time warning. The reflect-form thunk is intentionally omitted; the diagnostic test in vite-plugin-runtypes covers the warning.',
-    isTypeNotes:
-      'Prefer the static form `createIsType<ReturnType<typeof fn>>()` over `createIsType(fn())` — the latter invokes the function at runtime just to infer its type. The build pipeline emits a warning for the function-call reflect pattern.',
-    isType: () => {
+      'Static-form usage of the recommended `ReturnType<typeof fn>` idiom when you have a factory function whose return type you want to validate. The reflect form `createValidate(makeUser())` would invoke the function at runtime purely for type inference — anti-pattern that the resolver now flags as a build-time warning. The reflect-form thunk is intentionally omitted; the diagnostic test in vite-plugin-runtypes covers the warning.',
+    validateNotes:
+      'Prefer the static form `createValidate<ReturnType<typeof fn>>()` over `createValidate(fn())` — the latter invokes the function at runtime just to infer its type. The build pipeline emits a warning for the function-call reflect pattern.',
+    validate: () => {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
       }
-      return createIsType<ReturnType<typeof makeUser>>();
+      return createValidate<ReturnType<typeof makeUser>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
       }
-      return createIsType<DataOnly<ReturnType<typeof makeUser>>>();
+      return createValidate<DataOnly<ReturnType<typeof makeUser>>>();
     },
-    isTypeSchema: () => createIsType(RT.object({id: RT.number(), name: RT.string()})),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.object({id: RT.number(), name: RT.string()})),
+    deserializeValidate: () => {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
       }
-      return deserializeIsType<ReturnType<typeof makeUser>>();
+      return deserializeValidate<ReturnType<typeof makeUser>>();
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
       }
-      return createGetTypeErrors<ReturnType<typeof makeUser>>();
+      return createGetValidationErrors<ReturnType<typeof makeUser>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
       }
-      return createGetTypeErrors<DataOnly<ReturnType<typeof makeUser>>>();
+      return createGetValidationErrors<DataOnly<ReturnType<typeof makeUser>>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({id: RT.number(), name: RT.string()})),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({id: RT.number(), name: RT.string()})),
+    deserializeGetValidationErrors: () => {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
       }
-      return deserializeGetTypeErrors<ReturnType<typeof makeUser>>();
+      return deserializeGetValidationErrors<ReturnType<typeof makeUser>>();
     },
     mockType: () => {
       function makeUser(): {id: number; name: string} {
@@ -216,30 +216,30 @@ export const OBJECT = {
   object_via_property_access: {
     title: 'Object inferred via property access on a parent shape',
     description:
-      "Reflect form with a property-access argument (`createIsType(outer.user)`). T comes from the property's declared type on the parent shape — property accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
-    isType: () => createIsType<{id: number; name: string}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{id: number; name: string}>>(),
-    isTypeSchema: () => createIsType(RT.object({id: RT.number(), name: RT.string()})),
-    deserializeIsType: () => deserializeIsType<{id: number; name: string}>(),
-    isTypeReflect: () => {
+      "Reflect form with a property-access argument (`createValidate(outer.user)`). T comes from the property's declared type on the parent shape — property accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
+    validate: () => createValidate<{id: number; name: string}>(),
+    validateDataOnly: () => createValidate<DataOnly<{id: number; name: string}>>(),
+    validateSchema: () => createValidate(RT.object({id: RT.number(), name: RT.string()})),
+    deserializeValidate: () => deserializeValidate<{id: number; name: string}>(),
+    validateReflect: () => {
       const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
-      return createIsType(outer.user);
+      return createValidate(outer.user);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
-      return deserializeIsType(outer.user);
+      return deserializeValidate(outer.user);
     },
-    getTypeErrors: () => createGetTypeErrors<{id: number; name: string}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{id: number; name: string}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({id: RT.number(), name: RT.string()})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{id: number; name: string}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{id: number; name: string}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{id: number; name: string}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({id: RT.number(), name: RT.string()})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{id: number; name: string}>(),
+    getValidationErrorsReflect: () => {
       const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
-      return createGetTypeErrors(outer.user);
+      return createGetValidationErrors(outer.user);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
-      return deserializeGetTypeErrors(outer.user);
+      return deserializeGetValidationErrors(outer.user);
     },
     mockType: () => createMockType<{id: number; name: string}>(),
     mockTypeReflect: () => {
@@ -263,30 +263,30 @@ export const OBJECT = {
   object_via_array_access: {
     title: 'Object inferred via array element access',
     description:
-      "Reflect form with an array-element-access argument (`createIsType(items[0])`). T comes from the array's declared element type — indexed accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
-    isType: () => createIsType<{id: number; name: string}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{id: number; name: string}>>(),
-    isTypeSchema: () => createIsType(RT.object({id: RT.number(), name: RT.string()})),
-    deserializeIsType: () => deserializeIsType<{id: number; name: string}>(),
-    isTypeReflect: () => {
+      "Reflect form with an array-element-access argument (`createValidate(items[0])`). T comes from the array's declared element type — indexed accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
+    validate: () => createValidate<{id: number; name: string}>(),
+    validateDataOnly: () => createValidate<DataOnly<{id: number; name: string}>>(),
+    validateSchema: () => createValidate(RT.object({id: RT.number(), name: RT.string()})),
+    deserializeValidate: () => deserializeValidate<{id: number; name: string}>(),
+    validateReflect: () => {
       const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
-      return createIsType(items[0]);
+      return createValidate(items[0]);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
-      return deserializeIsType(items[0]);
+      return deserializeValidate(items[0]);
     },
-    getTypeErrors: () => createGetTypeErrors<{id: number; name: string}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{id: number; name: string}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({id: RT.number(), name: RT.string()})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{id: number; name: string}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{id: number; name: string}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{id: number; name: string}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({id: RT.number(), name: RT.string()})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{id: number; name: string}>(),
+    getValidationErrorsReflect: () => {
       const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
-      return createGetTypeErrors(items[0]);
+      return createGetValidationErrors(items[0]);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
-      return deserializeGetTypeErrors(items[0]);
+      return deserializeGetValidationErrors(items[0]);
     },
     mockType: () => createMockType<{id: number; name: string}>(),
     mockTypeReflect: () => {
@@ -310,31 +310,31 @@ export const OBJECT = {
   interface_with_optional: {
     title: 'Interface with one optional property',
     description: 'optional property — `(v.b === undefined || Number.isFinite(v.b))` per PropertyRunType.emitIsType',
-    isTypeNotes:
+    validateNotes:
       'Optional (`?`) properties may be missing OR explicitly `undefined`. If present, the value must satisfy the declared type — `b: NaN` still fails.',
-    isType: () => createIsType<{a: string; b?: number}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{a: string; b?: number}>>(),
-    isTypeSchema: () => createIsType(RT.object({a: RT.string(), b: RT.optional(RT.number())})),
-    deserializeIsType: () => deserializeIsType<{a: string; b?: number}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{a: string; b?: number}>(),
+    validateDataOnly: () => createValidate<DataOnly<{a: string; b?: number}>>(),
+    validateSchema: () => createValidate(RT.object({a: RT.string(), b: RT.optional(RT.number())})),
+    deserializeValidate: () => deserializeValidate<{a: string; b?: number}>(),
+    validateReflect: () => {
       const v: {a: string; b?: number} = {a: 'x'};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {a: string; b?: number} = {a: 'x'};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{a: string; b?: number}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string; b?: number}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({a: RT.string(), b: RT.optional(RT.number())})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; b?: number}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{a: string; b?: number}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string; b?: number}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: RT.string(), b: RT.optional(RT.number())})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string; b?: number}>(),
+    getValidationErrorsReflect: () => {
       const v: {a: string; b?: number} = {a: 'x'};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {a: string; b?: number} = {a: 'x'};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{a: string; b?: number}>(),
     mockTypeReflect: () => {
@@ -361,30 +361,30 @@ export const OBJECT = {
   interface_with_date: {
     title: 'Interface with a Date property',
     description: 'tests that Date child validates via instanceof inside the AND chain — mion interface.spec.ts ObjectType subset',
-    isTypeNotes: 'Date-typed properties run the atomic `Date` check — Invalid Date instances inside the property fail too.',
-    isType: () => createIsType<{date: Date; name: string}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{date: Date; name: string}>>(),
-    isTypeSchema: () => createIsType(RT.object({date: RT.date(), name: RT.string()})),
-    deserializeIsType: () => deserializeIsType<{date: Date; name: string}>(),
-    isTypeReflect: () => {
+    validateNotes: 'Date-typed properties run the atomic `Date` check — Invalid Date instances inside the property fail too.',
+    validate: () => createValidate<{date: Date; name: string}>(),
+    validateDataOnly: () => createValidate<DataOnly<{date: Date; name: string}>>(),
+    validateSchema: () => createValidate(RT.object({date: RT.date(), name: RT.string()})),
+    deserializeValidate: () => deserializeValidate<{date: Date; name: string}>(),
+    validateReflect: () => {
       const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{date: Date; name: string}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{date: Date; name: string}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({date: RT.date(), name: RT.string()})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{date: Date; name: string}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{date: Date; name: string}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{date: Date; name: string}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({date: RT.date(), name: RT.string()})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{date: Date; name: string}>(),
+    getValidationErrorsReflect: () => {
       const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{date: Date; name: string}>(),
     mockTypeReflect: () => {
@@ -417,36 +417,36 @@ export const OBJECT = {
   interface_with_method: {
     title: 'Interface with a method (function prop skipped from check)',
     description:
-      "mion: objectSkipProps — function-typed properties are skipped from isType (mion's `getRTChild → undefined` for function children). validate({name:'x'}) PASSES even without `cb`.",
-    isTypeNotes: [
-      'TS DIVERGENCE: Function-typed properties are completely IGNORED by isType.',
+      "mion: objectSkipProps — function-typed properties are skipped from validate (mion's `getRTChild → undefined` for function children). validate({name:'x'}) PASSES even without `cb`.",
+    validateNotes: [
+      'TS DIVERGENCE: Function-typed properties are completely IGNORED by validate.',
       'The property may be absent, `undefined`, `null`, a number, a string — anything passes. Even a fresh function is fine.',
       'Rationale: function values cannot be serialized, so the validator (which gates serialization) treats them as out-of-scope.',
-      'If you need to verify a function is actually callable, do it outside isType.',
+      'If you need to verify a function is actually callable, do it outside validate.',
     ],
-    isType: () => createIsType<{name: string; cb: () => any}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{name: string; cb: () => any}>>(),
-    isTypeSchema: () => createIsType(RT.object({name: RT.string(), cb: RT.func([], RT.any())})),
-    deserializeIsType: () => deserializeIsType<{name: string; cb: () => any}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{name: string; cb: () => any}>(),
+    validateDataOnly: () => createValidate<DataOnly<{name: string; cb: () => any}>>(),
+    validateSchema: () => createValidate(RT.object({name: RT.string(), cb: RT.func([], RT.any())})),
+    deserializeValidate: () => deserializeValidate<{name: string; cb: () => any}>(),
+    validateReflect: () => {
       const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{name: string; cb: () => any}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{name: string; cb: () => any}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({name: RT.string(), cb: RT.func([], RT.any())})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{name: string; cb: () => any}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{name: string; cb: () => any}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{name: string; cb: () => any}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({name: RT.string(), cb: RT.func([], RT.any())})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{name: string; cb: () => any}>(),
+    getValidationErrorsReflect: () => {
       const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{name: string; cb: () => any}>(),
     mockTypeReflect: () => {
@@ -467,32 +467,32 @@ export const OBJECT = {
   nested_object: {
     title: 'Interface with a nested object property',
     description: 'nested object — outer + inner AND-chains; mion ObjectType "deep" subset',
-    isTypeNotes:
+    validateNotes:
       'Nested objects are validated recursively. Atomic-level rejections (NaN, Invalid Date) bubble up from the inner shape.',
-    isType: () => createIsType<{a: string; deep: {b: string; c: number}}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{a: string; deep: {b: string; c: number}}>>(),
-    isTypeSchema: () => createIsType(RT.object({a: RT.string(), deep: RT.object({b: RT.string(), c: RT.number()})})),
-    deserializeIsType: () => deserializeIsType<{a: string; deep: {b: string; c: number}}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{a: string; deep: {b: string; c: number}}>(),
+    validateDataOnly: () => createValidate<DataOnly<{a: string; deep: {b: string; c: number}}>>(),
+    validateSchema: () => createValidate(RT.object({a: RT.string(), deep: RT.object({b: RT.string(), c: RT.number()})})),
+    deserializeValidate: () => deserializeValidate<{a: string; deep: {b: string; c: number}}>(),
+    validateReflect: () => {
       const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{a: string; deep: {b: string; c: number}}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string; deep: {b: string; c: number}}>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.object({a: RT.string(), deep: RT.object({b: RT.string(), c: RT.number()})})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; deep: {b: string; c: number}}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{a: string; deep: {b: string; c: number}}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string; deep: {b: string; c: number}}>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.object({a: RT.string(), deep: RT.object({b: RT.string(), c: RT.number()})})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string; deep: {b: string; c: number}}>(),
+    getValidationErrorsReflect: () => {
       const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{a: string; deep: {b: string; c: number}}>(),
     mockTypeReflect: () => {
@@ -527,29 +527,29 @@ export const OBJECT = {
   interface_string_array_prop: {
     title: 'Interface with a string-array property',
     description: 'an array-typed property — exercises the dependency-call layer through an object',
-    isType: () => createIsType<{tags: string[]}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{tags: string[]}>>(),
-    isTypeSchema: () => createIsType(RT.object({tags: RT.array(RT.string())})),
-    deserializeIsType: () => deserializeIsType<{tags: string[]}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{tags: string[]}>(),
+    validateDataOnly: () => createValidate<DataOnly<{tags: string[]}>>(),
+    validateSchema: () => createValidate(RT.object({tags: RT.array(RT.string())})),
+    deserializeValidate: () => deserializeValidate<{tags: string[]}>(),
+    validateReflect: () => {
       const v: {tags: string[]} = {tags: []};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {tags: string[]} = {tags: []};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{tags: string[]}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{tags: string[]}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({tags: RT.array(RT.string())})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{tags: string[]}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{tags: string[]}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{tags: string[]}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({tags: RT.array(RT.string())})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{tags: string[]}>(),
+    getValidationErrorsReflect: () => {
       const v: {tags: string[]} = {tags: []};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {tags: string[]} = {tags: []};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{tags: string[]}>(),
     mockTypeReflect: () => {
@@ -577,58 +577,58 @@ export const OBJECT = {
     title: 'Self-referential interface (linked-list shape)',
     description:
       "mion interface.spec.ts 'validate circular object'. Exercises self-recursive dependency call (mion isSelf branch — `<innerFnName>(v.child)` without `.fn`).",
-    isTypeNotes: 'Self-referential shapes are validated recursively — depth is bounded only by the input value, not the type.',
-    isType: () => {
+    validateNotes: 'Self-referential shapes are validated recursively — depth is bounded only by the input value, not the type.',
+    validate: () => {
       type ICircular = {name: string; child?: ICircular};
-      return createIsType<ICircular>();
+      return createValidate<ICircular>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type ICircular = {name: string; child?: ICircular};
-      return createIsType<DataOnly<ICircular>>();
+      return createValidate<DataOnly<ICircular>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
-      return createIsType(ic);
+      return createValidate(ic);
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       type ICircular = {name: string; child?: ICircular};
-      return deserializeIsType<ICircular>();
+      return deserializeValidate<ICircular>();
     },
-    isTypeReflect: () => {
-      type ICircular = {name: string; child?: ICircular};
-      const v: ICircular = {name: 'root'};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       type ICircular = {name: string; child?: ICircular};
       const v: ICircular = {name: 'root'};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       type ICircular = {name: string; child?: ICircular};
-      return createGetTypeErrors<ICircular>();
+      const v: ICircular = {name: 'root'};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       type ICircular = {name: string; child?: ICircular};
-      return createGetTypeErrors<DataOnly<ICircular>>();
+      return createGetValidationErrors<ICircular>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      type ICircular = {name: string; child?: ICircular};
+      return createGetValidationErrors<DataOnly<ICircular>>();
+    },
+    getValidationErrorsSchema: () => {
       const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
-      return createGetTypeErrors(ic);
+      return createGetValidationErrors(ic);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       type ICircular = {name: string; child?: ICircular};
-      return deserializeGetTypeErrors<ICircular>();
+      return deserializeGetValidationErrors<ICircular>();
     },
-    getTypeErrorsReflect: () => {
-      type ICircular = {name: string; child?: ICircular};
-      const v: ICircular = {name: 'root'};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type ICircular = {name: string; child?: ICircular};
       const v: ICircular = {name: 'root'};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type ICircular = {name: string; child?: ICircular};
+      const v: ICircular = {name: 'root'};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type ICircular = {name: string; child?: ICircular};
@@ -665,57 +665,57 @@ export const OBJECT = {
   circular_interface_on_array: {
     title: 'Self-referential interface via an array-of-self property',
     description: "mion interface.spec.ts 'validate circular interface on array' — circular type traversed via an array property.",
-    isType: () => {
+    validate: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
-      return createIsType<ICircularArray>();
+      return createValidate<ICircularArray>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
-      return createIsType<DataOnly<ICircularArray>>();
+      return createValidate<DataOnly<ICircularArray>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
-      return createIsType(ica);
+      return createValidate(ica);
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
-      return deserializeIsType<ICircularArray>();
+      return deserializeValidate<ICircularArray>();
     },
-    isTypeReflect: () => {
-      type ICircularArray = {name: string; children?: ICircularArray[]};
-      const v: ICircularArray = {name: 'r'};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
       const v: ICircularArray = {name: 'r'};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
-      return createGetTypeErrors<ICircularArray>();
+      const v: ICircularArray = {name: 'r'};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
-      return createGetTypeErrors<DataOnly<ICircularArray>>();
+      return createGetValidationErrors<ICircularArray>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      type ICircularArray = {name: string; children?: ICircularArray[]};
+      return createGetValidationErrors<DataOnly<ICircularArray>>();
+    },
+    getValidationErrorsSchema: () => {
       const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
-      return createGetTypeErrors(ica);
+      return createGetValidationErrors(ica);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
-      return deserializeGetTypeErrors<ICircularArray>();
+      return deserializeGetValidationErrors<ICircularArray>();
     },
-    getTypeErrorsReflect: () => {
-      type ICircularArray = {name: string; children?: ICircularArray[]};
-      const v: ICircularArray = {name: 'r'};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
       const v: ICircularArray = {name: 'r'};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type ICircularArray = {name: string; children?: ICircularArray[]};
+      const v: ICircularArray = {name: 'r'};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
@@ -741,67 +741,67 @@ export const OBJECT = {
     title: 'Self-referential interface buried in a nested object',
     description:
       "mion interface.spec.ts 'validate circular interface on nested object' — circular reference deep inside a property.",
-    isType: () => {
+    validate: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      return createIsType<ICircularDeep>();
+      return createValidate<ICircularDeep>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      return createIsType<DataOnly<ICircularDeep>>();
+      return createValidate<DataOnly<ICircularDeep>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       const icd = RT.circular((self) =>
         RT.object({
           name: RT.string(),
           embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
         })
       );
-      return createIsType(icd);
+      return createValidate(icd);
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      return deserializeIsType<ICircularDeep>();
+      return deserializeValidate<ICircularDeep>();
     },
-    isTypeReflect: () => {
-      type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
       const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      return createGetTypeErrors<ICircularDeep>();
+      const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      return createGetTypeErrors<DataOnly<ICircularDeep>>();
+      return createGetValidationErrors<ICircularDeep>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+      return createGetValidationErrors<DataOnly<ICircularDeep>>();
+    },
+    getValidationErrorsSchema: () => {
       const icd = RT.circular((self) =>
         RT.object({
           name: RT.string(),
           embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
         })
       );
-      return createGetTypeErrors(icd);
+      return createGetValidationErrors(icd);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      return deserializeGetTypeErrors<ICircularDeep>();
+      return deserializeGetValidationErrors<ICircularDeep>();
     },
-    getTypeErrorsReflect: () => {
-      type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
       const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+      const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
@@ -830,33 +830,33 @@ export const OBJECT = {
     title: 'Index signature with string values',
     description:
       "mion indexProperty.spec.ts 'validate index run type' — for-in loop over own keys, value must satisfy the value type.",
-    isTypeNotes: [
+    validateNotes: [
       'Validates own enumerable keys via `for...in` (not inherited). The empty object `{}` is valid.',
       "Every key's value must satisfy the value type — `{ a: 1 }` fails on `{[key: string]: string}`.",
     ],
-    isType: () => createIsType<{[key: string]: string}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{[key: string]: string}>>(),
-    isTypeSchema: () => createIsType(RT.record(RT.string())),
-    deserializeIsType: () => deserializeIsType<{[key: string]: string}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{[key: string]: string}>(),
+    validateDataOnly: () => createValidate<DataOnly<{[key: string]: string}>>(),
+    validateSchema: () => createValidate(RT.record(RT.string())),
+    deserializeValidate: () => deserializeValidate<{[key: string]: string}>(),
+    validateReflect: () => {
       const v: {[key: string]: string} = {};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {[key: string]: string} = {};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{[key: string]: string}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{[key: string]: string}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.string())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: string]: string}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{[key: string]: string}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[key: string]: string}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.string())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[key: string]: string}>(),
+    getValidationErrorsReflect: () => {
       const v: {[key: string]: string} = {};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {[key: string]: string} = {};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{[key: string]: string}>(),
     mockTypeReflect: () => {
@@ -882,33 +882,33 @@ export const OBJECT = {
     title: 'Index signature combined with named properties',
     description:
       "mion indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
-    isType: () => createIsType<{a: string; b: number; [key: string]: string | number}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
-    isTypeSchema: () =>
-      createIsType(RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))),
-    deserializeIsType: () => deserializeIsType<{a: string; b: number; [key: string]: string | number}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{a: string; b: number; [key: string]: string | number}>(),
+    validateDataOnly: () => createValidate<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
+    validateSchema: () =>
+      createValidate(RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))),
+    deserializeValidate: () => deserializeValidate<{a: string; b: number; [key: string]: string | number}>(),
+    validateReflect: () => {
       const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{a: string; b: number; [key: string]: string | number}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () => createGetValidationErrors<{a: string; b: number; [key: string]: string | number}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
       ),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; b: number; [key: string]: string | number}>(),
-    getTypeErrorsReflect: () => {
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string; b: number; [key: string]: string | number}>(),
+    getValidationErrorsReflect: () => {
       const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{a: string; b: number; [key: string]: string | number}>(),
     mockTypeReflect: () => {
@@ -945,29 +945,29 @@ export const OBJECT = {
   index_signature_nested: {
     title: 'Nested index signatures (number leaf values)',
     description: 'mion indexProperty.spec.ts nested rtNested — index sig pointing at another index sig.',
-    isType: () => createIsType<{[key: string]: {[key: string]: number}}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{[key: string]: {[key: string]: number}}>>(),
-    isTypeSchema: () => createIsType(RT.record(RT.record(RT.number()))),
-    deserializeIsType: () => deserializeIsType<{[key: string]: {[key: string]: number}}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{[key: string]: {[key: string]: number}}>(),
+    validateDataOnly: () => createValidate<DataOnly<{[key: string]: {[key: string]: number}}>>(),
+    validateSchema: () => createValidate(RT.record(RT.record(RT.number()))),
+    deserializeValidate: () => deserializeValidate<{[key: string]: {[key: string]: number}}>(),
+    validateReflect: () => {
       const v: {[key: string]: {[key: string]: number}} = {};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {[key: string]: {[key: string]: number}} = {};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{[key: string]: {[key: string]: number}}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{[key: string]: {[key: string]: number}}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.record(RT.number()))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: string]: {[key: string]: number}}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{[key: string]: {[key: string]: number}}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[key: string]: {[key: string]: number}}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.record(RT.number()))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[key: string]: {[key: string]: number}}>(),
+    getValidationErrorsReflect: () => {
       const v: {[key: string]: {[key: string]: number}} = {};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {[key: string]: {[key: string]: number}} = {};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{[key: string]: {[key: string]: number}}>(),
     mockTypeReflect: () => {
@@ -991,29 +991,29 @@ export const OBJECT = {
   index_signature_date_value: {
     title: 'Nested index signatures with Date leaf values',
     description: 'mion indexProperty.spec.ts rtNested2 — Date as the leaf value type.',
-    isType: () => createIsType<{[key: string]: {[key: string]: Date}}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
-    isTypeSchema: () => createIsType(RT.record(RT.record(RT.date()))),
-    deserializeIsType: () => deserializeIsType<{[key: string]: {[key: string]: Date}}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{[key: string]: {[key: string]: Date}}>(),
+    validateDataOnly: () => createValidate<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
+    validateSchema: () => createValidate(RT.record(RT.record(RT.date()))),
+    deserializeValidate: () => deserializeValidate<{[key: string]: {[key: string]: Date}}>(),
+    validateReflect: () => {
       const v: {[key: string]: {[key: string]: Date}} = {};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {[key: string]: {[key: string]: Date}} = {};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{[key: string]: {[key: string]: Date}}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.record(RT.date()))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: string]: {[key: string]: Date}}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{[key: string]: {[key: string]: Date}}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.record(RT.date()))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[key: string]: {[key: string]: Date}}>(),
+    getValidationErrorsReflect: () => {
       const v: {[key: string]: {[key: string]: Date}} = {};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {[key: string]: {[key: string]: Date}} = {};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{[key: string]: {[key: string]: Date}}>(),
     mockTypeReflect: () => {
@@ -1037,7 +1037,7 @@ export const OBJECT = {
     title: 'Index signature on a nested (non-root) object property',
     description:
       "mion indexProperty.spec.ts 'IndexType non root' — index signature attached to a nested (non-root) object property.",
-    isType: () => {
+    validate: () => {
       interface Obj1 {
         a: string;
         [key: string]: string;
@@ -1046,9 +1046,9 @@ export const OBJECT = {
         b: string;
         c: Obj1;
       }
-      return createIsType<Obj2>();
+      return createValidate<Obj2>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Obj1 {
         a: string;
         [key: string]: string;
@@ -1057,11 +1057,11 @@ export const OBJECT = {
         b: string;
         c: Obj1;
       }
-      return createIsType<DataOnly<Obj2>>();
+      return createValidate<DataOnly<Obj2>>();
     },
-    isTypeSchema: () =>
-      createIsType(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
-    deserializeIsType: () => {
+    validateSchema: () =>
+      createValidate(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
+    deserializeValidate: () => {
       interface Obj1 {
         a: string;
         [key: string]: string;
@@ -1070,9 +1070,9 @@ export const OBJECT = {
         b: string;
         c: Obj1;
       }
-      return deserializeIsType<Obj2>();
+      return deserializeValidate<Obj2>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       interface Obj1 {
         a: string;
         [key: string]: string;
@@ -1082,9 +1082,9 @@ export const OBJECT = {
         c: Obj1;
       }
       const v: Obj2 = {b: 'hello', c: {a: 'world'}};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       interface Obj1 {
         a: string;
         [key: string]: string;
@@ -1094,9 +1094,9 @@ export const OBJECT = {
         c: Obj1;
       }
       const v: Obj2 = {b: 'hello', c: {a: 'world'}};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       interface Obj1 {
         a: string;
         [key: string]: string;
@@ -1105,9 +1105,9 @@ export const OBJECT = {
         b: string;
         c: Obj1;
       }
-      return createGetTypeErrors<Obj2>();
+      return createGetValidationErrors<Obj2>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       interface Obj1 {
         a: string;
         [key: string]: string;
@@ -1116,11 +1116,11 @@ export const OBJECT = {
         b: string;
         c: Obj1;
       }
-      return createGetTypeErrors<DataOnly<Obj2>>();
+      return createGetValidationErrors<DataOnly<Obj2>>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
+    deserializeGetValidationErrors: () => {
       interface Obj1 {
         a: string;
         [key: string]: string;
@@ -1129,21 +1129,9 @@ export const OBJECT = {
         b: string;
         c: Obj1;
       }
-      return deserializeGetTypeErrors<Obj2>();
+      return deserializeGetValidationErrors<Obj2>();
     },
-    getTypeErrorsReflect: () => {
-      interface Obj1 {
-        a: string;
-        [key: string]: string;
-      }
-      interface Obj2 {
-        b: string;
-        c: Obj1;
-      }
-      const v: Obj2 = {b: 'hello', c: {a: 'world'}};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Obj1 {
         a: string;
         [key: string]: string;
@@ -1153,7 +1141,19 @@ export const OBJECT = {
         c: Obj1;
       }
       const v: Obj2 = {b: 'hello', c: {a: 'world'}};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface Obj1 {
+        a: string;
+        [key: string]: string;
+      }
+      interface Obj2 {
+        b: string;
+        c: Obj1;
+      }
+      const v: Obj2 = {b: 'hello', c: {a: 'world'}};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Obj1 {
@@ -1198,7 +1198,7 @@ export const OBJECT = {
   function_top_level: {
     title: 'Function type at top level (any function passes)',
     description: "mion FunctionRunType.emitIsType — `typeof v === 'function'`. Param-arity check is deferred (mion-level).",
-    isTypeNotes: [
+    validateNotes: [
       'TS DIVERGENCE: ANY function passes, regardless of signature — arrow functions, async functions, class declarations (typeof === "function") all satisfy `() => void`.',
       'Parameter types and return type are NOT verified at runtime. If you need a specific call shape, validate at the call boundary.',
     ],
@@ -1206,27 +1206,27 @@ export const OBJECT = {
     // the emitter renders as an always-throw factory — the bare-`T` form instead
     // emits a `typeof === 'function'` validator, so the ids cannot converge.
     dataOnlyDivergent: true,
-    isType: () => createIsType<() => void>(),
-    isTypeSchema: () => createIsType(RT.func()),
-    deserializeIsType: () => deserializeIsType<() => void>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<() => void>(),
+    validateSchema: () => createValidate(RT.func()),
+    deserializeValidate: () => deserializeValidate<() => void>(),
+    validateReflect: () => {
       const v: () => void = () => {};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: () => void = () => {};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<() => void>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.func()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<() => void>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<() => void>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.func()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<() => void>(),
+    getValidationErrorsReflect: () => {
       const v: () => void = () => {};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: () => void = () => {};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<() => void>(),
     mockTypeReflect: () => {
@@ -1234,7 +1234,7 @@ export const OBJECT = {
       return createMockType(v);
     },
     // Function kinds return `undefined` from the walker (mion's
-    // behaviour); the result can't satisfy `isType<() => void>` which
+    // behaviour); the result can't satisfy `validate<() => void>` which
     // checks `typeof === 'function'`. Mock still runs without error.
     mockTypeExpect: 'skip',
     getSamples: () => ({
@@ -1258,55 +1258,55 @@ export const OBJECT = {
     title: 'Callable interface (function plus data properties)',
     description:
       'mion interface.spec.ts "validate callable interface" — the emit detects a CallSignature child and switches the typeof guard from `object` to `function`, then AND-chains the remaining properties on top (JS functions can carry properties).',
-    isTypeNotes:
+    validateNotes:
       'Callable interfaces require a function value (`typeof === "function"`) PLUS the declared data properties. JS functions can carry properties; this case validates both halves.',
     // Callable interface: it has a call signature, so DataOnly<T> matches the
     // `(...args) => any` branch and collapses to `never`, whereas the emitter
     // validates it as a function-with-data-props. Ids cannot converge.
     dataOnlyDivergent: true,
-    isType: () => createIsType<{(a: number, b: boolean): string; extra: string}>(),
-    isTypeSchema: () =>
-      createIsType(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
-    deserializeIsType: () => deserializeIsType<{(a: number, b: boolean): string; extra: string}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{(a: number, b: boolean): string; extra: string}>(),
+    validateSchema: () =>
+      createValidate(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
+    deserializeValidate: () => deserializeValidate<{(a: number, b: boolean): string; extra: string}>(),
+    validateReflect: () => {
       const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
         function (_a: number, _b: boolean) {
           return 'x';
         },
         {extra: 'x'}
       );
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
         function (_a: number, _b: boolean) {
           return 'x';
         },
         {extra: 'x'}
       );
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{(a: number, b: boolean): string; extra: string}>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{(a: number, b: boolean): string; extra: string}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{(a: number, b: boolean): string; extra: string}>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{(a: number, b: boolean): string; extra: string}>(),
+    getValidationErrorsReflect: () => {
       const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
         function (_a: number, _b: boolean) {
           return 'x';
         },
         {extra: 'x'}
       );
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
         function (_a: number, _b: boolean) {
           return 'x';
         },
         {extra: 'x'}
       );
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{(a: number, b: boolean): string; extra: string}>(),
     mockTypeReflect: () => {
@@ -1321,7 +1321,7 @@ export const OBJECT = {
     // Callable interface — the runtype is a plain object literal
     // with a CallSignature child, which the walker treats as a
     // skipped method. The mock generates the data properties only,
-    // not the function-ness, so `isType` (which checks `typeof ===
+    // not the function-ness, so `validate` (which checks `typeof ===
     // 'function'`) rejects the result.
     mockTypeExpect: 'skip',
     getSamples: () => ({
@@ -1360,34 +1360,34 @@ export const OBJECT = {
     title: 'Interface with every property optional (plain-object guard)',
     description:
       "mion interface.spec.ts \"validate empty object for ObjectAllOptional type\". The `allOptionalCode` guard `(!Array.isArray(v) && Object.prototype.toString.call(v) === '[object Object]')` is added when every contributing child is optional, so arrays / Date / Map / Set are explicitly rejected (without the guard they'd slip through the bare `typeof === 'object'` check).",
-    isTypeNotes: [
+    validateNotes: [
       'When every property is optional, the empty object `{}` would otherwise pass any non-plain-object input that has `typeof === "object"`.',
       'An extra guard rejects arrays, Date, Map, Set, RegExp, and other non-plain objects via `Object.prototype.toString.call(v) === "[object Object]"`.',
       'This is the ONLY shape kind where the validator enforces "plain object" semantics — see the bare `object` case for the contrast.',
     ],
-    isType: () => createIsType<{a?: string; b?: number}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{a?: string; b?: number}>>(),
-    isTypeSchema: () => createIsType(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.number())})),
-    deserializeIsType: () => deserializeIsType<{a?: string; b?: number}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{a?: string; b?: number}>(),
+    validateDataOnly: () => createValidate<DataOnly<{a?: string; b?: number}>>(),
+    validateSchema: () => createValidate(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.number())})),
+    deserializeValidate: () => deserializeValidate<{a?: string; b?: number}>(),
+    validateReflect: () => {
       const v: {a?: string; b?: number} = {};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {a?: string; b?: number} = {};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{a?: string; b?: number}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a?: string; b?: number}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.number())})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a?: string; b?: number}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{a?: string; b?: number}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a?: string; b?: number}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.number())})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a?: string; b?: number}>(),
+    getValidationErrorsReflect: () => {
       const v: {a?: string; b?: number} = {};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {a?: string; b?: number} = {};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{a?: string; b?: number}>(),
     mockTypeReflect: () => {
@@ -1422,12 +1422,12 @@ export const OBJECT = {
     // `objectLiteral` instead of `class`.
     dataOnlyDivergent: true,
     description:
-      "mion class.spec.ts 'validate class'. ClassRunType inherits InterfaceRunType.emitIsType in mion, so the KindClass+SubKindNone arm in istype.go falls through to emitObjectIsType. The serializer filters synthetic `prototype` members from class projections so the AND chain only includes user-declared properties + methods (methods drop out via the function-skip rule).",
-    isTypeNotes: [
+      "mion class.spec.ts 'validate class'. ClassRunType inherits InterfaceRunType.emitIsType in mion, so the KindClass+SubKindNone arm in istype.go falls through to emitObjectValidate. The serializer filters synthetic `prototype` members from class projections so the AND chain only includes user-declared properties + methods (methods drop out via the function-skip rule).",
+    validateNotes: [
       'Plain object literals matching the class shape PASS — `instanceof` is NOT checked.',
       'Methods are skipped per the function-property rule; only data properties are validated.',
     ],
-    isType: () => {
+    validate: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1439,9 +1439,9 @@ export const OBJECT = {
           return 'unused';
         }
       }
-      return createIsType<MySerializableClass>();
+      return createValidate<MySerializableClass>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1453,9 +1453,9 @@ export const OBJECT = {
           return 'unused';
         }
       }
-      return createIsType<DataOnly<MySerializableClass>>();
+      return createValidate<DataOnly<MySerializableClass>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1467,9 +1467,9 @@ export const OBJECT = {
           return 'unused';
         }
       }
-      return createIsType(RT.classType(MySerializableClass));
+      return createValidate(RT.classType(MySerializableClass));
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1481,9 +1481,9 @@ export const OBJECT = {
           return 'unused';
         }
       }
-      return deserializeIsType<MySerializableClass>();
+      return deserializeValidate<MySerializableClass>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1496,9 +1496,9 @@ export const OBJECT = {
         }
       }
       const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1511,9 +1511,9 @@ export const OBJECT = {
         }
       }
       const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1525,9 +1525,9 @@ export const OBJECT = {
           return 'unused';
         }
       }
-      return createGetTypeErrors<MySerializableClass>();
+      return createGetValidationErrors<MySerializableClass>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1539,9 +1539,9 @@ export const OBJECT = {
           return 'unused';
         }
       }
-      return createGetTypeErrors<DataOnly<MySerializableClass>>();
+      return createGetValidationErrors<DataOnly<MySerializableClass>>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsSchema: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1553,9 +1553,9 @@ export const OBJECT = {
           return 'unused';
         }
       }
-      return createGetTypeErrors(RT.classType(MySerializableClass));
+      return createGetValidationErrors(RT.classType(MySerializableClass));
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1567,24 +1567,9 @@ export const OBJECT = {
           return 'unused';
         }
       }
-      return deserializeGetTypeErrors<MySerializableClass>();
+      return deserializeGetValidationErrors<MySerializableClass>();
     },
-    getTypeErrorsReflect: () => {
-      class MySerializableClass {
-        date: Date;
-        name: string;
-        constructor(date: Date, name: string) {
-          this.date = date;
-          this.name = name;
-        }
-        someMethod() {
-          return 'unused';
-        }
-      }
-      const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       class MySerializableClass {
         date: Date;
         name: string;
@@ -1597,7 +1582,22 @@ export const OBJECT = {
         }
       }
       const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      class MySerializableClass {
+        date: Date;
+        name: string;
+        constructor(date: Date, name: string) {
+          this.date = date;
+          this.name = name;
+        }
+        someMethod() {
+          return 'unused';
+        }
+      }
+      const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       class MySerializableClass {
@@ -1669,18 +1669,18 @@ export const OBJECT = {
     dataOnlyDivergent: true,
     description:
       "mion classRpcError.spec.ts — verifies the standard class projection handles RpcError-shaped classes (the actual @mionjs/core RpcError isn't a built-in node kind; it's a regular class with a literal-true brand + generic type discriminator). We define a local equivalent here to exercise the same shape end-to-end without pulling in the @mionjs/core dependency for a single test.",
-    isTypeNotes: [
+    validateNotes: [
       'Brand property + `type` discriminator + `publicMessage` are all required.',
       '`Error` base-class fields (`message`, `name`, `stack`) are NOT declared on the class shape and so are NOT validated.',
     ],
-    isType: () => {
+    validate: () => {
       // Mirrors @mionjs/core's RpcError public shape:
       //   - `mion@isΣrrθr: true` brand (literal true)
       //   - `type: ErrType` generic discriminator
       //   - `publicMessage: string`
       //   - `id?: string`
       // `message` / `name` / `stack` are intentionally NOT declared
-      // as TS properties (they exist at runtime via Error) so isType
+      // as TS properties (they exist at runtime via Error) so validate
       // doesn't validate them.
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
@@ -1693,9 +1693,9 @@ export const OBJECT = {
           this.id = args.id;
         }
       }
-      return createIsType<RpcError<'test-error'>>();
+      return createValidate<RpcError<'test-error'>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
         public readonly type: ErrType;
@@ -1707,11 +1707,11 @@ export const OBJECT = {
           this.id = args.id;
         }
       }
-      return createIsType<DataOnly<RpcError<'test-error'>>>();
+      return createValidate<DataOnly<RpcError<'test-error'>>>();
     },
     // Generic class → pin the instance type explicitly on `classType` (the
     // documented generic-class form), so it reflects `RpcError<'test-error'>`.
-    isTypeSchema: () => {
+    validateSchema: () => {
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
         public readonly type: ErrType;
@@ -1723,16 +1723,16 @@ export const OBJECT = {
           this.id = args.id;
         }
       }
-      return createIsType(RT.classType<RpcError<'test-error'>>(RpcError));
+      return createValidate(RT.classType<RpcError<'test-error'>>(RpcError));
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       // Mirrors @mionjs/core's RpcError public shape:
       //   - `mion@isΣrrθr: true` brand (literal true)
       //   - `type: ErrType` generic discriminator
       //   - `publicMessage: string`
       //   - `id?: string`
       // `message` / `name` / `stack` are intentionally NOT declared
-      // as TS properties (they exist at runtime via Error) so isType
+      // as TS properties (they exist at runtime via Error) so validate
       // doesn't validate them.
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
@@ -1745,9 +1745,9 @@ export const OBJECT = {
           this.id = args.id;
         }
       }
-      return deserializeIsType<RpcError<'test-error'>>();
+      return deserializeValidate<RpcError<'test-error'>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
         public readonly type: ErrType;
@@ -1760,9 +1760,9 @@ export const OBJECT = {
         }
       }
       const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
         public readonly type: ErrType;
@@ -1775,9 +1775,9 @@ export const OBJECT = {
         }
       }
       const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
         public readonly type: ErrType;
@@ -1789,9 +1789,9 @@ export const OBJECT = {
           this.id = args.id;
         }
       }
-      return createGetTypeErrors<RpcError<'test-error'>>();
+      return createGetValidationErrors<RpcError<'test-error'>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
         public readonly type: ErrType;
@@ -1803,9 +1803,9 @@ export const OBJECT = {
           this.id = args.id;
         }
       }
-      return createGetTypeErrors<DataOnly<RpcError<'test-error'>>>();
+      return createGetValidationErrors<DataOnly<RpcError<'test-error'>>>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsSchema: () => {
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
         public readonly type: ErrType;
@@ -1817,9 +1817,9 @@ export const OBJECT = {
           this.id = args.id;
         }
       }
-      return createGetTypeErrors(RT.classType<RpcError<'test-error'>>(RpcError));
+      return createGetValidationErrors(RT.classType<RpcError<'test-error'>>(RpcError));
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
         public readonly type: ErrType;
@@ -1831,24 +1831,9 @@ export const OBJECT = {
           this.id = args.id;
         }
       }
-      return deserializeGetTypeErrors<RpcError<'test-error'>>();
+      return deserializeGetValidationErrors<RpcError<'test-error'>>();
     },
-    getTypeErrorsReflect: () => {
-      class RpcError<ErrType extends string> {
-        public readonly 'mion@isΣrrθr': true = true;
-        public readonly type: ErrType;
-        public readonly publicMessage: string;
-        public readonly id?: string;
-        constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
-          this.type = args.type;
-          this.publicMessage = args.publicMessage;
-          this.id = args.id;
-        }
-      }
-      const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
         public readonly type: ErrType;
@@ -1861,7 +1846,22 @@ export const OBJECT = {
         }
       }
       const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      class RpcError<ErrType extends string> {
+        public readonly 'mion@isΣrrθr': true = true;
+        public readonly type: ErrType;
+        public readonly publicMessage: string;
+        public readonly id?: string;
+        constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+          this.type = args.type;
+          this.publicMessage = args.publicMessage;
+          this.id = args.id;
+        }
+      }
+      const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       // Mirrors @mionjs/core's RpcError public shape:
@@ -1870,7 +1870,7 @@ export const OBJECT = {
       //   - `publicMessage: string`
       //   - `id?: string`
       // `message` / `name` / `stack` are intentionally NOT declared
-      // as TS properties (they exist at runtime via Error) so isType
+      // as TS properties (they exist at runtime via Error) so validate
       // doesn't validate them.
       class RpcError<ErrType extends string> {
         public readonly 'mion@isΣrrθr': true = true;
@@ -1955,52 +1955,52 @@ export const OBJECT = {
   call_signature_params: {
     title: 'Function parameters extracted via Parameters<F>',
     description:
-      "mion callSignature.spec.ts 'should validate correct parameters' — mion exposes this via `rt.getCallSignature().createRTParamsFunction(RTFunctions.isType)`; our pipeline uses TypeScript's built-in `Parameters<F>` to extract the param tuple as a first-class type and reuses the standard tuple emit. Same observable behavior: the validator accepts `[number, boolean]`, rejects wrong-type args, accepts missing trailing args (treats them as undefined per mion's `v.length <= N` policy), rejects excess args.",
-    isType: () => {
+      "mion callSignature.spec.ts 'should validate correct parameters' — mion exposes this via `rt.getCallSignature().createRTParamsFunction(RTFunctions.validate)`; our pipeline uses TypeScript's built-in `Parameters<F>` to extract the param tuple as a first-class type and reuses the standard tuple emit. Same observable behavior: the validator accepts `[number, boolean]`, rejects wrong-type args, accepts missing trailing args (treats them as undefined per mion's `v.length <= N` policy), rejects excess args.",
+    validate: () => {
       type CallSig = (a: number, b: boolean) => string;
-      return createIsType<Parameters<CallSig>>();
+      return createValidate<Parameters<CallSig>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type CallSig = (a: number, b: boolean) => string;
-      return createIsType<DataOnly<Parameters<CallSig>>>();
+      return createValidate<DataOnly<Parameters<CallSig>>>();
     },
-    isTypeSchema: () => createIsType(RT.parameters(RT.func([RT.number(), RT.boolean()], RT.string()))),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.parameters(RT.func([RT.number(), RT.boolean()], RT.string()))),
+    deserializeValidate: () => {
       type CallSig = (a: number, b: boolean) => string;
-      return deserializeIsType<Parameters<CallSig>>();
+      return deserializeValidate<Parameters<CallSig>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       type CallSig = (a: number, b: boolean) => string;
       const v: Parameters<CallSig> = [1, true];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       type CallSig = (a: number, b: boolean) => string;
       const v: Parameters<CallSig> = [1, true];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       type CallSig = (a: number, b: boolean) => string;
-      return createGetTypeErrors<Parameters<CallSig>>();
+      return createGetValidationErrors<Parameters<CallSig>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       type CallSig = (a: number, b: boolean) => string;
-      return createGetTypeErrors<DataOnly<Parameters<CallSig>>>();
+      return createGetValidationErrors<DataOnly<Parameters<CallSig>>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.parameters(RT.func([RT.number(), RT.boolean()], RT.string()))),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.parameters(RT.func([RT.number(), RT.boolean()], RT.string()))),
+    deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean) => string;
-      return deserializeGetTypeErrors<Parameters<CallSig>>();
+      return deserializeGetValidationErrors<Parameters<CallSig>>();
     },
-    getTypeErrorsReflect: () => {
-      type CallSig = (a: number, b: boolean) => string;
-      const v: Parameters<CallSig> = [1, true];
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type CallSig = (a: number, b: boolean) => string;
       const v: Parameters<CallSig> = [1, true];
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type CallSig = (a: number, b: boolean) => string;
+      const v: Parameters<CallSig> = [1, true];
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type CallSig = (a: number, b: boolean) => string;
@@ -2052,51 +2052,51 @@ export const OBJECT = {
     title: 'Parameters<F> tuple with a trailing optional argument',
     description:
       "mion function.spec.ts 'validate function parameters' — params tuple with a trailing optional. `Parameters<F>` resolves to `[number, boolean, string?]`; the optional slot accepts undefined OR a string.",
-    isType: () => {
+    validate: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
-      return createIsType<Parameters<CallSig>>();
+      return createValidate<Parameters<CallSig>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
-      return createIsType<DataOnly<Parameters<CallSig>>>();
+      return createValidate<DataOnly<Parameters<CallSig>>>();
     },
-    isTypeSchema: () => createIsType(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
+    deserializeValidate: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
-      return deserializeIsType<Parameters<CallSig>>();
+      return deserializeValidate<Parameters<CallSig>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       const v: Parameters<CallSig> = [3, true, 'hello'];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       const v: Parameters<CallSig> = [3, true, 'hello'];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
-      return createGetTypeErrors<Parameters<CallSig>>();
+      return createGetValidationErrors<Parameters<CallSig>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
-      return createGetTypeErrors<DataOnly<Parameters<CallSig>>>();
+      return createGetValidationErrors<DataOnly<Parameters<CallSig>>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
+    deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
-      return deserializeGetTypeErrors<Parameters<CallSig>>();
+      return deserializeGetValidationErrors<Parameters<CallSig>>();
     },
-    getTypeErrorsReflect: () => {
-      type CallSig = (a: number, b: boolean, c?: string) => Date;
-      const v: Parameters<CallSig> = [3, true, 'hello'];
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       const v: Parameters<CallSig> = [3, true, 'hello'];
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type CallSig = (a: number, b: boolean, c?: string) => Date;
+      const v: Parameters<CallSig> = [3, true, 'hello'];
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
@@ -2144,51 +2144,51 @@ export const OBJECT = {
     dataOnlyDivergent: true,
     description:
       "mion function.spec.ts 'validate function with rest parameters' — params tuple ending in a rest segment. `Parameters<F>` resolves to `[number, boolean, ...Date[]]`; all trailing slots must satisfy Date.",
-    isType: () => {
+    validate: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-      return createIsType<Parameters<CallSig>>();
+      return createValidate<Parameters<CallSig>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-      return createIsType<DataOnly<Parameters<CallSig>>>();
+      return createValidate<DataOnly<Parameters<CallSig>>>();
     },
-    isTypeSchema: () => createIsType(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
+    deserializeValidate: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-      return deserializeIsType<Parameters<CallSig>>();
+      return deserializeValidate<Parameters<CallSig>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       const v: Parameters<CallSig> = [3, true];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       const v: Parameters<CallSig> = [3, true];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-      return createGetTypeErrors<Parameters<CallSig>>();
+      return createGetValidationErrors<Parameters<CallSig>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-      return createGetTypeErrors<DataOnly<Parameters<CallSig>>>();
+      return createGetValidationErrors<DataOnly<Parameters<CallSig>>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
+    deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-      return deserializeGetTypeErrors<Parameters<CallSig>>();
+      return deserializeGetValidationErrors<Parameters<CallSig>>();
     },
-    getTypeErrorsReflect: () => {
-      type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-      const v: Parameters<CallSig> = [3, true];
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       const v: Parameters<CallSig> = [3, true];
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+      const v: Parameters<CallSig> = [3, true];
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
@@ -2244,29 +2244,29 @@ export const OBJECT = {
     title: 'Record<UnionKey, V> — resolves to a fixed-property shape',
     description:
       '`Record<K, V>` with a literal-union key resolves to a fixed-property object literal (`{a: V; b: V}`) at the type-checker level — tsgo distributes the union over the property names. Same emit path as a hand-written object literal; each key is a required property of type V.',
-    isType: () => createIsType<Record<'a' | 'b', number>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Record<'a' | 'b', number>>>(),
-    isTypeSchema: () => createIsType(RT.object({a: RT.number(), b: RT.number()})),
-    deserializeIsType: () => deserializeIsType<Record<'a' | 'b', number>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Record<'a' | 'b', number>>(),
+    validateDataOnly: () => createValidate<DataOnly<Record<'a' | 'b', number>>>(),
+    validateSchema: () => createValidate(RT.object({a: RT.number(), b: RT.number()})),
+    deserializeValidate: () => deserializeValidate<Record<'a' | 'b', number>>(),
+    validateReflect: () => {
       const v: Record<'a' | 'b', number> = {a: 1, b: 2};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Record<'a' | 'b', number> = {a: 1, b: 2};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Record<'a' | 'b', number>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Record<'a' | 'b', number>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({a: RT.number(), b: RT.number()})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Record<'a' | 'b', number>>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Record<'a' | 'b', number>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Record<'a' | 'b', number>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: RT.number(), b: RT.number()})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Record<'a' | 'b', number>>(),
+    getValidationErrorsReflect: () => {
       const v: Record<'a' | 'b', number> = {a: 1, b: 2};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Record<'a' | 'b', number> = {a: 1, b: 2};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Record<'a' | 'b', number>>(),
     mockTypeReflect: () => {
@@ -2312,29 +2312,29 @@ export const OBJECT = {
     title: 'Index signature with a union value type',
     description:
       'index signature with union value type — union emit landed; for-in loop applies the union check to every own key.',
-    isType: () => createIsType<{[key: string]: string | number}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{[key: string]: string | number}>>(),
-    isTypeSchema: () => createIsType(RT.record(RT.union([RT.string(), RT.number()]))),
-    deserializeIsType: () => deserializeIsType<{[key: string]: string | number}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{[key: string]: string | number}>(),
+    validateDataOnly: () => createValidate<DataOnly<{[key: string]: string | number}>>(),
+    validateSchema: () => createValidate(RT.record(RT.union([RT.string(), RT.number()]))),
+    deserializeValidate: () => deserializeValidate<{[key: string]: string | number}>(),
+    validateReflect: () => {
       const v: {[key: string]: string | number} = {};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {[key: string]: string | number} = {};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{[key: string]: string | number}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{[key: string]: string | number}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.union([RT.string(), RT.number()]))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: string]: string | number}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{[key: string]: string | number}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[key: string]: string | number}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.union([RT.string(), RT.number()]))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[key: string]: string | number}>(),
+    getValidationErrorsReflect: () => {
       const v: {[key: string]: string | number} = {};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {[key: string]: string | number} = {};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{[key: string]: string | number}>(),
     mockTypeReflect: () => {
@@ -2360,30 +2360,30 @@ export const OBJECT = {
     title: 'Object with a discriminated-union string property',
     description:
       'discriminated union as a property type — union emit handles the literal-string union as an OR-chain of `===` checks.',
-    isType: () => createIsType<{kind: 'a' | 'b'; n: number}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{kind: 'a' | 'b'; n: number}>>(),
-    isTypeSchema: () => createIsType(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: RT.number()})),
-    deserializeIsType: () => deserializeIsType<{kind: 'a' | 'b'; n: number}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{kind: 'a' | 'b'; n: number}>(),
+    validateDataOnly: () => createValidate<DataOnly<{kind: 'a' | 'b'; n: number}>>(),
+    validateSchema: () => createValidate(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: RT.number()})),
+    deserializeValidate: () => deserializeValidate<{kind: 'a' | 'b'; n: number}>(),
+    validateReflect: () => {
       const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{kind: 'a' | 'b'; n: number}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{kind: 'a' | 'b'; n: number}>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: RT.number()})),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{kind: 'a' | 'b'; n: number}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{kind: 'a' | 'b'; n: number}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{kind: 'a' | 'b'; n: number}>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: RT.number()})),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{kind: 'a' | 'b'; n: number}>(),
+    getValidationErrorsReflect: () => {
       const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{kind: 'a' | 'b'; n: number}>(),
     mockTypeReflect: () => {
@@ -2412,37 +2412,37 @@ export const OBJECT = {
     title: 'Interface that extends a parent interface',
     description:
       "TS `interface Child extends Base {…}` — inherited props are merged into the child's RunType.Children by tsgo's GetPropertiesOfType. The validator's emit walks the merged set; runtime behaviour matches a hand-flattened object literal.",
-    isTypeNotes:
+    validateNotes:
       '`extends` is resolved at the type-checker layer — the runtype carries every inherited prop directly in its children list, so the validator does NOT separately walk the parent type.',
-    isType: () => {
+    validate: () => {
       interface Base {
         a: string;
       }
       interface Child extends Base {
         b: number;
       }
-      return createIsType<Child>();
+      return createValidate<Child>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Base {
         a: string;
       }
       interface Child extends Base {
         b: number;
       }
-      return createIsType<DataOnly<Child>>();
+      return createValidate<DataOnly<Child>>();
     },
-    isTypeSchema: () => createIsType(RT.object({a: RT.string(), b: RT.number()})),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.object({a: RT.string(), b: RT.number()})),
+    deserializeValidate: () => {
       interface Base {
         a: string;
       }
       interface Child extends Base {
         b: number;
       }
-      return deserializeIsType<Child>();
+      return deserializeValidate<Child>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       interface Base {
         a: string;
       }
@@ -2450,9 +2450,9 @@ export const OBJECT = {
         b: number;
       }
       const v: Child = {a: 'x', b: 1};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       interface Base {
         a: string;
       }
@@ -2460,47 +2460,37 @@ export const OBJECT = {
         b: number;
       }
       const v: Child = {a: 'x', b: 1};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       interface Base {
         a: string;
       }
       interface Child extends Base {
         b: number;
       }
-      return createGetTypeErrors<Child>();
+      return createGetValidationErrors<Child>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       interface Base {
         a: string;
       }
       interface Child extends Base {
         b: number;
       }
-      return createGetTypeErrors<DataOnly<Child>>();
+      return createGetValidationErrors<DataOnly<Child>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({a: RT.string(), b: RT.number()})),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: RT.string(), b: RT.number()})),
+    deserializeGetValidationErrors: () => {
       interface Base {
         a: string;
       }
       interface Child extends Base {
         b: number;
       }
-      return deserializeGetTypeErrors<Child>();
+      return deserializeGetValidationErrors<Child>();
     },
-    getTypeErrorsReflect: () => {
-      interface Base {
-        a: string;
-      }
-      interface Child extends Base {
-        b: number;
-      }
-      const v: Child = {a: 'x', b: 1};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Base {
         a: string;
       }
@@ -2508,7 +2498,17 @@ export const OBJECT = {
         b: number;
       }
       const v: Child = {a: 'x', b: 1};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface Base {
+        a: string;
+      }
+      interface Child extends Base {
+        b: number;
+      }
+      const v: Child = {a: 'x', b: 1};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Base {
@@ -2558,43 +2558,43 @@ export const OBJECT = {
     dataOnlyDivergent: true,
     description:
       "TS `class Sub extends Base {…}` — same merging as interface inheritance, but on the KindClass branch. Inherited data members appear in the child class's Children alongside its own.",
-    isType: () => {
+    validate: () => {
       class Base {
         a: string = '';
       }
       class Sub extends Base {
         b: number = 0;
       }
-      return createIsType<Sub>();
+      return createValidate<Sub>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       class Base {
         a: string = '';
       }
       class Sub extends Base {
         b: number = 0;
       }
-      return createIsType<DataOnly<Sub>>();
+      return createValidate<DataOnly<Sub>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       class Base {
         a: string = '';
       }
       class Sub extends Base {
         b: number = 0;
       }
-      return createIsType(RT.classType(Sub));
+      return createValidate(RT.classType(Sub));
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       class Base {
         a: string = '';
       }
       class Sub extends Base {
         b: number = 0;
       }
-      return deserializeIsType<Sub>();
+      return deserializeValidate<Sub>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       class Base {
         a: string = '';
       }
@@ -2602,9 +2602,9 @@ export const OBJECT = {
         b: number = 0;
       }
       const v: Sub = new Sub();
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       class Base {
         a: string = '';
       }
@@ -2612,55 +2612,45 @@ export const OBJECT = {
         b: number = 0;
       }
       const v: Sub = new Sub();
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       class Base {
         a: string = '';
       }
       class Sub extends Base {
         b: number = 0;
       }
-      return createGetTypeErrors<Sub>();
+      return createGetValidationErrors<Sub>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       class Base {
         a: string = '';
       }
       class Sub extends Base {
         b: number = 0;
       }
-      return createGetTypeErrors<DataOnly<Sub>>();
+      return createGetValidationErrors<DataOnly<Sub>>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsSchema: () => {
       class Base {
         a: string = '';
       }
       class Sub extends Base {
         b: number = 0;
       }
-      return createGetTypeErrors(RT.classType(Sub));
+      return createGetValidationErrors(RT.classType(Sub));
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       class Base {
         a: string = '';
       }
       class Sub extends Base {
         b: number = 0;
       }
-      return deserializeGetTypeErrors<Sub>();
+      return deserializeGetValidationErrors<Sub>();
     },
-    getTypeErrorsReflect: () => {
-      class Base {
-        a: string = '';
-      }
-      class Sub extends Base {
-        b: number = 0;
-      }
-      const v: Sub = new Sub();
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       class Base {
         a: string = '';
       }
@@ -2668,7 +2658,17 @@ export const OBJECT = {
         b: number = 0;
       }
       const v: Sub = new Sub();
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      class Base {
+        a: string = '';
+      }
+      class Sub extends Base {
+        b: number = 0;
+      }
+      const v: Sub = new Sub();
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       class Base {
@@ -2715,34 +2715,34 @@ export const OBJECT = {
     title: 'Index signature with a number key',
     description:
       '`{[k: number]: T}` — TS lets you declare number-keyed index signatures. JS object keys are always strings at runtime, so the resolver normalises this to the same shape as `{[k: string]: T}` and the validator behaves identically.',
-    isTypeNotes:
+    validateNotes:
       'TS DIVERGENCE: At runtime, all object keys are strings; the number key type constraint is enforced only by the TS compiler. The validator accepts any own enumerable key whose value satisfies T.',
-    isType: () => createIsType<{[k: number]: string}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{[k: number]: string}>>(),
+    validate: () => createValidate<{[k: number]: string}>(),
+    validateDataOnly: () => createValidate<DataOnly<{[k: number]: string}>>(),
     // JS object keys are strings at runtime, so a number-key index sig validates
     // identically to a string-key one — but the key TYPE is part of the structural
     // id, so the value-first model uses an explicit number key to match.
-    isTypeSchema: () => createIsType(RT.record(RT.number(), RT.string())),
-    deserializeIsType: () => deserializeIsType<{[k: number]: string}>(),
-    isTypeReflect: () => {
+    validateSchema: () => createValidate(RT.record(RT.number(), RT.string())),
+    deserializeValidate: () => deserializeValidate<{[k: number]: string}>(),
+    validateReflect: () => {
       const v: {[k: number]: string} = {};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {[k: number]: string} = {};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{[k: number]: string}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{[k: number]: string}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.number(), RT.string())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[k: number]: string}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{[k: number]: string}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[k: number]: string}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.number(), RT.string())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[k: number]: string}>(),
+    getValidationErrorsReflect: () => {
       const v: {[k: number]: string} = {};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {[k: number]: string} = {};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{[k: number]: string}>(),
     mockTypeReflect: () => {

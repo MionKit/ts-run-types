@@ -23,13 +23,13 @@ function spawnWithCache(cacheDir: string): ResolverClient {
   return new ResolverClient(BIN, root, '', {serverMode: true, cacheDir});
 }
 
-async function renderIsTypeFor(client: ResolverClient, files: Record<string, string>): Promise<string> {
+async function renderValidateFor(client: ResolverClient, files: Record<string, string>): Promise<string> {
   const augmented = {'runtypes.d.ts': RUNTYPES_DTS, ...files};
   await client.setSources(augmented);
   const fileNames = Object.keys(augmented).filter((file) => file !== 'runtypes.d.ts');
-  const response = await client.scanFiles(fileNames, {includeCacheSources: ['isType']});
-  if (!response.isTypeCacheSource) throw new Error('no isTypeCacheSource in response');
-  return response.isTypeCacheSource;
+  const response = await client.scanFiles(fileNames, {includeCacheSources: ['validate']});
+  if (!response.validateCacheSource) throw new Error('no validateCacheSource in response');
+  return response.validateCacheSource;
 }
 
 const skipUnlessBinary = hasBinary() ? describe : describe.skip;
@@ -48,10 +48,10 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     const cacheDir = path.join(scratchRoot, 'populates');
     const client = spawnWithCache(cacheDir);
     try {
-      await renderIsTypeFor(client, {
+      await renderValidateFor(client, {
         'user.ts': `
-          import {createIsType} from '@mionjs/ts-go-run-types';
-          export const isStr = createIsType<string>();
+          import {createValidate} from '@mionjs/ts-go-run-types';
+          export const isStr = createValidate<string>();
         `,
       });
     } finally {
@@ -88,16 +88,16 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     const cacheDir = path.join(scratchRoot, 'roundtrip');
     const sources = {
       'roundtrip.ts': `
-        import {createIsType} from '@mionjs/ts-go-run-types';
-        export const a = createIsType<string>();
-        export const b = createIsType<number>();
-        export const c = createIsType<{x: string; y: number}>();
+        import {createValidate} from '@mionjs/ts-go-run-types';
+        export const a = createValidate<string>();
+        export const b = createValidate<number>();
+        export const c = createValidate<{x: string; y: number}>();
       `,
     };
     const clientA = spawnWithCache(cacheDir);
     let first: string;
     try {
-      first = await renderIsTypeFor(clientA, sources);
+      first = await renderValidateFor(clientA, sources);
     } finally {
       clientA.close();
     }
@@ -107,7 +107,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     const clientB = spawnWithCache(cacheDir);
     let second: string;
     try {
-      second = await renderIsTypeFor(clientB, sources);
+      second = await renderValidateFor(clientB, sources);
     } finally {
       clientB.close();
     }
@@ -123,14 +123,14 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     const cacheDirAlt = path.join(scratchRoot, 'fp-alt');
     const sources = {
       'fp.ts': `
-        import {createIsType} from '@mionjs/ts-go-run-types';
-        export const isStr = createIsType<string>();
+        import {createValidate} from '@mionjs/ts-go-run-types';
+        export const isStr = createValidate<string>();
       `,
     };
     const root = path.resolve(__dirname, '../../..');
     const clientDefault = new ResolverClient(BIN, root, '', {serverMode: true, cacheDir: cacheDirDefault});
     try {
-      await renderIsTypeFor(clientDefault, sources);
+      await renderValidateFor(clientDefault, sources);
     } finally {
       clientDefault.close();
     }

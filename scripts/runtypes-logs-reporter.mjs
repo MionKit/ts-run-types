@@ -21,8 +21,8 @@ import {fileURLToPath} from 'node:url';
 //                                                  cacheKind is the field
 //                                                  name minus the
 //                                                  "CacheSource" suffix
-//                                                  (e.g. runType, isType,
-//                                                  typeErrors, pureFns).
+//                                                  (e.g. runType, validate,
+//                                                  validationErrors, pureFns).
 // Every file repeats the input sources at the top so it's self-contained
 // when opened in isolation.
 

@@ -1,14 +1,14 @@
 // @ts-nocheck
 //
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
-// See the banner at the top of `isTypeCache.ts` for the full contract.
+// See the banner at the top of `validateCache.ts` for the full contract.
 //
-// typeErrors cache module. Three-arg shape (vλl / pλth / εrr); each entry
+// validationErrors cache module. Three-arg shape (vλl / pλth / εrr); each entry
 // accumulates errors into `er` and returns it.
 
 'use strict';
 
-/** @typedef {import('../runtypes/types.ts').GetTypeErrorsRTFn} GetTypeErrorsRTFn */
+/** @typedef {import('../runtypes/types.ts').GetValidationErrorsRTFn} GetValidationErrorsRTFn */
 
 /** @param {import('../runtypes/rtUtils.ts').RTUtils} rtUtils */
 export function initCache(rtUtils) {
@@ -27,10 +27,10 @@ export function initCache(rtUtils) {
     alwaysThrowCode,
     alwaysThrowSite
   ) {
-    const fn = isNoop ? noopTypeErrors : undefined;
+    const fn = isNoop ? noopValidationErrors : undefined;
     const resolvedCreateRTFn =
       alwaysThrowCode !== undefined ? rtUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createRTFn;
-    /** @type {GetTypeErrorsRTFn} */
+    /** @type {GetValidationErrorsRTFn} */
     const entry = {
       rtFnHash,
       fnID: 'te',
@@ -51,10 +51,10 @@ export function initCache(rtUtils) {
   void init;
   void k_nRT;
   void k_sIK;
-  function noopTypeErrors(_v, _pth, er) {
+  function noopValidationErrors(_v, _pth, er) {
     return er || [];
   }
-  void noopTypeErrors;
+  void noopValidationErrors;
 
   // #### REPLACE HERE ####
 }

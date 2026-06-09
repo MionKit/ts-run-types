@@ -17,7 +17,7 @@ const mockNumberFormat = (annotation: FormatAnnotation): unknown => {
 registerMockingFunction(RunTypeKind.number, mockNumberFormat);
 
 // mockNumberParams returns a number satisfying every constraint, so the
-// mock round-trips through isType. Mirrors mion's _mock exactly.
+// mock round-trips through validate. Mirrors mion's _mock exactly.
 function mockNumberParams(params: NumberParams): number {
   let min = params.min !== undefined ? numVal(params.min) : -99999;
   let max = params.max !== undefined ? numVal(params.max) : 99999;

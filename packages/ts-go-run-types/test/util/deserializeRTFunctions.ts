@@ -22,7 +22,7 @@
 // HASHED-NAMING NOTE (Slice 4): the deserialize twins now route through the
 // SAME `InjectTypeFnArgs<T, Fn>` marker as the production factories rather than
 // the bare `InjectRunTypeId<T>` reflection marker. Pre-flip they reconstructed
-// the variant cache-key suffix from the explicit `IsTypeOptions` argument; with
+// the variant cache-key suffix from the explicit `ValidateOptions` argument; with
 // opaque fnHashes there is no runtime hashing, so they MUST read the precomputed
 // fnHash the plugin injects (tuple[1]) — identical key derivation to
 // `resolveTupleEntry`. The distinguishing behavior (rebuild from `entry.code`
@@ -30,9 +30,9 @@
 
 import {
   type InjectTypeFnArgs,
-  type IsTypeOptions,
-  type IsTypeFn,
-  type GetTypeErrorsFn,
+  type ValidateOptions,
+  type ValidateFn,
+  type GetValidationErrorsFn,
   type HasUnknownKeysFn,
   type StripUnknownKeysFn,
   type UnknownKeyErrorsFn,
@@ -52,7 +52,7 @@ import type {AnyFn, CompiledTypeFn} from '../../src/runtypes/types.ts';
  *  per-id closure from `entry.code` on every call instead of reading the
  *  materialized `entry.fn`. The plugin injects a `[typeId, fnHash]` tuple at the
  *  trailing slot; the key is `fnHash + '_' + typeId` — the fnHash already folds
- *  the IsTypeOptions variant / strategy the build resolved, so nothing is
+ *  the ValidateOptions variant / strategy the build resolved, so nothing is
  *  recomputed here. Noop entries carry no code; they reuse the pre-populated
  *  `entry.fn`. **/
 function resolveDeserializedEntry<F extends AnyFn>(fnName: string, identityFn: F, val: unknown, args: unknown): F {
@@ -78,8 +78,8 @@ function resolveDeserializedEntry<F extends AnyFn>(fnName: string, identityFn: F
   return buildFactoryFromCode(entry.code)(utils) as F;
 }
 
-/** Three-arg deserialize wrapper for families that honour `IsTypeOptions`
- *  (`deserializeIsType`, `deserializeGetTypeErrors`). The options bag is a
+/** Three-arg deserialize wrapper for families that honour `ValidateOptions`
+ *  (`deserializeValidate`, `deserializeGetValidationErrors`). The options bag is a
  *  compile-time arg folded into the injected fnHash; the runtime ignores it. **/
 function deserializeRTFunctionWithOptions<F extends AnyFn>(
   fnName: string,
@@ -89,13 +89,13 @@ function deserializeRTFunctionWithOptions<F extends AnyFn>(
 }
 
 /** Two-arg deserialize wrapper for families that do NOT honour
- *  `IsTypeOptions` — every non-validator family. **/
+ *  `ValidateOptions` — every non-validator family. **/
 function deserializeRTFunction<F extends AnyFn>(fnName: string, identityFn: F): (val?: unknown, id?: unknown) => F {
   return (val, id) => resolveDeserializedEntry(fnName, identityFn, val, id);
 }
 
 const identityValueFn = (v: unknown) => v;
-const getTypeErrorsIdentity: GetTypeErrorsFn = () => [];
+const getValidationErrorsIdentity: GetValidationErrorsFn = () => [];
 const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 const stringifyJsonIdentity: StringifyJsonFn = (v) => JSON.stringify(v);
 
@@ -103,15 +103,15 @@ const stringifyJsonIdentity: StringifyJsonFn = (v) => JSON.stringify(v);
 // signature the Go-side marker scanner reads to identify call sites. The
 // runtime function is a non-generic JS closure; <T> is type-checker-only.
 
-export const deserializeIsType = deserializeRTFunctionWithOptions<IsTypeFn>(
-  'deserializeIsType',
+export const deserializeValidate = deserializeRTFunctionWithOptions<ValidateFn>(
+  'deserializeValidate',
   (_value): _value is unknown => true
-) as unknown as <T>(val?: T, options?: IsTypeOptions, id?: InjectTypeFnArgs<T, 'it'>) => IsTypeFn;
+) as unknown as <T>(val?: T, options?: ValidateOptions, id?: InjectTypeFnArgs<T, 'it'>) => ValidateFn;
 
-export const deserializeGetTypeErrors = deserializeRTFunctionWithOptions<GetTypeErrorsFn>(
-  'deserializeGetTypeErrors',
-  getTypeErrorsIdentity
-) as unknown as <T>(val?: T, options?: IsTypeOptions, id?: InjectTypeFnArgs<T, 'te'>) => GetTypeErrorsFn;
+export const deserializeGetValidationErrors = deserializeRTFunctionWithOptions<GetValidationErrorsFn>(
+  'deserializeGetValidationErrors',
+  getValidationErrorsIdentity
+) as unknown as <T>(val?: T, options?: ValidateOptions, id?: InjectTypeFnArgs<T, 'te'>) => GetValidationErrorsFn;
 
 export const deserializeHasUnknownKeys = deserializeRTFunction<HasUnknownKeysFn>(
   'deserializeHasUnknownKeys',

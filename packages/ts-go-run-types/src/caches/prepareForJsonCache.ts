@@ -1,7 +1,7 @@
 // @ts-nocheck
 //
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
-// See the banner at the top of `isTypeCache.ts` for the full contract.
+// See the banner at the top of `validateCache.ts` for the full contract.
 //
 // prepareForJson cache module. Each entry transforms a value into a
 // JSON-serializable form. Paired with `restoreFromJsonCache.ts` — round-trip

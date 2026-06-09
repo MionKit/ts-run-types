@@ -13,23 +13,23 @@ import (
 // the brand is lifted off the `Date & {brand}` intersection onto a
 // KindClass/SubKindDate node, min/max bounds validate the same way as the
 // string formats (both date+time components allowed), and the emitted
-// isType carries the bound comparison over the Date's getTime().
+// validate carries the bound comparison over the Date's getTime().
 
 // scanNativeDate builds a getRunTypeId<TypeFormat<Date, 'nativeDate', P>>()
-// snippet and returns the emitted isType source, the scanned RunTypes,
+// snippet and returns the emitted validate source, the scanned RunTypes,
 // and any FMT002 diagnostics.
 func scanNativeDate(t *testing.T, params string) (string, []*protocol.RunType, []diag.Diagnostic) {
 	t.Helper()
-	code := `import {createIsType} from '@mionjs/ts-go-run-types';
+	code := `import {createValidate} from '@mionjs/ts-go-run-types';
 ` + typeFormatBrandDecl + `
-export const _ = createIsType<TypeFormat<Date, 'nativeDate', ` + params + `>>();
+export const _ = createValidate<TypeFormat<Date, 'nativeDate', ` + params + `>>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
 		IncludeRunTypes:     true,
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindIsType},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -40,7 +40,7 @@ export const _ = createIsType<TypeFormat<Date, 'nativeDate', ` + params + `>>();
 			diags = append(diags, d)
 		}
 	}
-	return resp.IsTypeCacheSource, resp.RunTypes, diags
+	return resp.ValidateCacheSource, resp.RunTypes, diags
 }
 
 // findNativeDate returns the RunType carrying the nativeDate annotation.
@@ -70,26 +70,26 @@ func TestNativeDate_BrandLiftedOntoDateNode(t *testing.T) {
 	}
 }
 
-func TestNativeDate_IsTypeEmitsBoundCheck(t *testing.T) {
+func TestNativeDate_ValidateEmitsBoundCheck(t *testing.T) {
 	source, _, _ := scanNativeDate(t, `{min: '2020-01-01T00:00:00'; max: 'now'}`)
 	if !strings.Contains(source, "instanceof Date") {
-		t.Fatalf("expected base Date check in emitted isType, got:\n%s", source)
+		t.Fatalf("expected base Date check in emitted validate, got:\n%s", source)
 	}
 	if !strings.Contains(source, ".getTime()") {
-		t.Fatalf("expected getTime() bound comparison in emitted isType, got:\n%s", source)
+		t.Fatalf("expected getTime() bound comparison in emitted validate, got:\n%s", source)
 	}
 }
 
-// TestNativeDate_IsTypeEmitsExclusiveBoundCheck locks the exclusive
+// TestNativeDate_ValidateEmitsExclusiveBoundCheck locks the exclusive
 // operators: gt emits `>` and lt emits `<` over the Date's getTime() (vs
 // the inclusive `>=`/`<=` for min/max).
-func TestNativeDate_IsTypeEmitsExclusiveBoundCheck(t *testing.T) {
+func TestNativeDate_ValidateEmitsExclusiveBoundCheck(t *testing.T) {
 	source, _, _ := scanNativeDate(t, `{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T00:00:00'}`)
 	if !strings.Contains(source, ".getTime() > ") {
-		t.Fatalf("expected exclusive `> ` for gt in isType, got:\n%s", source)
+		t.Fatalf("expected exclusive `> ` for gt in validate, got:\n%s", source)
 	}
 	if !strings.Contains(source, ".getTime() < ") {
-		t.Fatalf("expected exclusive `< ` for lt in isType, got:\n%s", source)
+		t.Fatalf("expected exclusive `< ` for lt in validate, got:\n%s", source)
 	}
 }
 

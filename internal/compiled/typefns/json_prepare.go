@@ -24,7 +24,7 @@ type PrepareForJsonEmitter struct{}
 
 // Args mirrors mion's `rtArgs.vλl = 'v'` + empty default in
 // run-types/src/constants.functions.ts:45. Same single-arg shape as
-// isType — prepareForJson mutates v in place and returns it.
+// validate — prepareForJson mutates v in place and returns it.
 func (PrepareForJsonEmitter) Args() []ArgSpec {
 	return []ArgSpec{{Key: "vλl", Name: "v", Default: ""}}
 }
@@ -85,7 +85,7 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindTemplateLiteral:
 		// Template literals validate at compile time against a regex
-		// (handled by isType). The value is always a string at runtime,
+		// (handled by validate). The value is always a string at runtime,
 		// so prepareForJson / restoreFromJson are atomic-string-like
 		// (noop). Same emit shape as KindString.
 		return true
@@ -134,7 +134,7 @@ func AnyPrepareForJsonSupported(runTypes []*protocol.RunType) bool {
 }
 
 // IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
-// isType / typeErrors. Mion shares the predicate across all rt fns
+// validate / validationErrors. Mion shares the predicate across all rt fns
 // via BaseRunType.isRTInlined.
 func (PrepareForJsonEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
@@ -142,7 +142,7 @@ func (PrepareForJsonEmitter) IsRTInlined(ctx *InlineContext) bool {
 
 // ReturnName is `v` — prepareForJson mutates the input value (or
 // rebinds via `v = …` for symbol/regexp/bigint), then returns it.
-// Same as isType's return.
+// Same as validate's return.
 func (PrepareForJsonEmitter) ReturnName() string {
 	return "v"
 }
@@ -268,7 +268,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 	case protocol.KindUnion:
 		// Unions encode via the flat-union wire shape (see union_flat.go) —
 		// object members merge into a `[-1, mergedObject]` envelope so
-		// encode skips the per-member isType walk; atomic members keep
+		// encode skips the per-member validate walk; atomic members keep
 		// the `[memberIndex, value]` shape under an all-or-nothing wrap
 		// rule. The non-flat per-member envelope was retired after
 		// benchmarks showed flat wins on every union with object
@@ -560,29 +560,29 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 	return childRT
 }
 
-// unionMemberIsTypeCheck returns a JS expression that checks whether
+// unionMemberValidateCheck returns a JS expression that checks whether
 // the current value (`v`) satisfies `member`'s type. Mirrors mion's
-// `getChildIsTypeWithLooseCheck` (union.ts:56) — the union's dispatch
-// runs each member's isType in declaration order (or safe order),
+// `getChildValidateWithLooseCheck` (union.ts:56) — the union's dispatch
+// runs each member's validate in declaration order (or safe order),
 // taking the first match.
 //
-// Uses a cross-fn lookup into the isType cache via context-item
+// Uses a cross-fn lookup into the validate cache via context-item
 // declaration. The `?.fn(v) ?? true` fallback handles noop kinds
-// (any / unknown) whose isType factories don't exist — their runtime
+// (any / unknown) whose validate factories don't exist — their runtime
 // semantic is "always passes".
 //
-// For all-optional object members (weak types in TS), the bare isType
+// For all-optional object members (weak types in TS), the bare validate
 // would match ANY object (no required props to fail on), so an input
 // like `{c: 1n}` against union `... | {d?: string}` would incorrectly
-// dispatch to the {d?} arm. Mirror mion's getChildIsTypeWithLooseCheck
+// dispatch to the {d?} arm. Mirror mion's getChildValidateWithLooseCheck
 // (union.ts:56-78) by appending a property-presence gate from
 // looseCheckGate — TypeScript's actual weak-type semantic requires
 // at least one of the member's own props to be present, or the value
 // to be an empty object.
-func unionMemberIsTypeCheck(member *protocol.RunType, ctx *EmitContext, v string) string {
-	isTypeHash := operations.PlainHash("isType") + "_" + member.ID
-	ctx.registerRTLookup(isTypeHash)
-	base := "(" + isTypeHash + "?.fn(" + v + ") ?? true)"
+func unionMemberValidateCheck(member *protocol.RunType, ctx *EmitContext, v string) string {
+	validateHash := operations.PlainHash("validate") + "_" + member.ID
+	ctx.registerRTLookup(validateHash)
+	base := "(" + validateHash + "?.fn(" + v + ") ?? true)"
 	gate := looseCheckGate(member, ctx, v)
 	if gate == "" {
 		return base
@@ -590,7 +590,7 @@ func unionMemberIsTypeCheck(member *protocol.RunType, ctx *EmitContext, v string
 	return "(" + base + " && " + gate + ")"
 }
 
-// looseCheckGate mirrors mion's getChildIsTypeWithLooseCheck
+// looseCheckGate mirrors mion's getChildValidateWithLooseCheck
 // (union.ts:56-78). Returns the additional property-presence gate
 // when a union member is an all-optional object-like type with no
 // index signature; returns "" when no gate is needed (member is not
@@ -621,7 +621,7 @@ func looseCheckGate(member *protocol.RunType, ctx *EmitContext, v string) string
 		if child.Kind != protocol.KindProperty && child.Kind != protocol.KindPropertySignature {
 			continue
 		}
-		// One required prop means the bare isType already enforces
+		// One required prop means the bare validate already enforces
 		// presence — no extra gate needed.
 		if !child.Optional {
 			return ""
@@ -703,7 +703,7 @@ func emitNativeIterablePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v 
 	return RTCode{Code: body, Type: CodeS}
 }
 
-// EmitDependencyCall mirrors IsTypeEmitter's, with one twist: a
+// EmitDependencyCall mirrors ValidateEmitter's, with one twist: a
 // prepareForJson dependency call mutates v INSIDE the inner function
 // (e.g. `return v = v.toString()`) so the outer caller must capture
 // the return value to actually see the transformed shape — `v[i0]`

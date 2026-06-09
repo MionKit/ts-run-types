@@ -26,9 +26,9 @@ const typeFormatBrandDecl = `type TypeFormat<Base, Name extends string, Params> 
 // build time (the sample would otherwise feed createMockType an
 // invalid value).
 func TestFormatSamples_MismatchEmitsFMT001(t *testing.T) {
-	code := `import {createIsType} from '@mionjs/ts-go-run-types';
+	code := `import {createValidate} from '@mionjs/ts-go-run-types';
 ` + typeFormatBrandDecl + `
-export const _ = createIsType<TypeFormat<string, 'stringFormat', {
+export const _ = createValidate<TypeFormat<string, 'stringFormat', {
   pattern: {source: '^[0-9]+$'; flags: ''};
   mockSamples: ['42', 'not-a-number', '7'];
 }>>();
@@ -37,7 +37,7 @@ export const _ = createIsType<TypeFormat<string, 'stringFormat', {
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindIsType},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -64,9 +64,9 @@ export const _ = createIsType<TypeFormat<string, 'stringFormat', {
 // TestFormatSamples_AllValidNoDiagnostic — when every sample matches
 // the pattern, no FMT001 fires.
 func TestFormatSamples_AllValidNoDiagnostic(t *testing.T) {
-	code := `import {createIsType} from '@mionjs/ts-go-run-types';
+	code := `import {createValidate} from '@mionjs/ts-go-run-types';
 ` + typeFormatBrandDecl + `
-export const _ = createIsType<TypeFormat<string, 'stringFormat', {
+export const _ = createValidate<TypeFormat<string, 'stringFormat', {
   pattern: {source: '^[0-9]+$'; flags: ''};
   mockSamples: ['42', '7', '007'];
 }>>();
@@ -75,7 +75,7 @@ export const _ = createIsType<TypeFormat<string, 'stringFormat', {
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindIsType},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)

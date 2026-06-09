@@ -132,7 +132,7 @@ func (e temporalFormatEmitter) boundCompare(vλl, bound, op string) string {
 	return e.info.Builtin + ".compare(" + vλl + ", " + e.temporalBoundExpr(bound) + ") " + op + " 0"
 }
 
-func (e temporalFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (e temporalFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -145,7 +145,7 @@ func (e temporalFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnota
 	return strings.Join(checks, " && ")
 }
 
-func (e temporalFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (e temporalFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}

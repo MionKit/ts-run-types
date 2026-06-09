@@ -94,17 +94,17 @@ var boundOps = []struct {
 	{"lt", "<"},
 }
 
-// boundIsTypeChecks returns the AND-able expression for the min/max/gt/lt
+// boundValidateChecks returns the AND-able expression for the min/max/gt/lt
 // comparisons, or "" when no bound is set. The value is converted once
 // (cheap; the JS engine can CSE identical calls).
-func boundIsTypeChecks(ctx formats.EmitContext, params map[string]any, vλl string, kind boundKind, layout string) string {
-	return boundIsTypeChecksFromKey(ctx, params, valueKeyExpr(ctx, vλl, kind, layout), kind, layout)
+func boundValidateChecks(ctx formats.EmitContext, params map[string]any, vλl string, kind boundKind, layout string) string {
+	return boundValidateChecksFromKey(ctx, params, valueKeyExpr(ctx, vλl, kind, layout), kind, layout)
 }
 
-// boundIsTypeChecksFromKey is boundIsTypeChecks with a caller-supplied
+// boundValidateChecksFromKey is boundValidateChecks with a caller-supplied
 // value key expression — used by the native Date emitter, whose value key
 // is the Date's getTime() rather than a parsed string.
-func boundIsTypeChecksFromKey(ctx formats.EmitContext, params map[string]any, valueKey string, kind boundKind, layout string) string {
+func boundValidateChecksFromKey(ctx formats.EmitContext, params map[string]any, valueKey string, kind boundKind, layout string) string {
 	var checks string
 	for _, bound := range boundOps {
 		expr, has := boundExpr(ctx, params, bound.key, kind, layout)

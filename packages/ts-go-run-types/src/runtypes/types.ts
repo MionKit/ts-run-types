@@ -14,8 +14,8 @@ import type {FormatAnnotation} from './formatAnnotation.ts';
 // the modules that own them so the cache-entry typedefs below stay a single
 // source of truth.
 import type {
-  IsTypeFn,
-  GetTypeErrorsFn,
+  ValidateFn,
+  GetValidationErrorsFn,
   HasUnknownKeysFn,
   StripUnknownKeysFn,
   UnknownKeyErrorsFn,
@@ -192,8 +192,8 @@ export type InitializedTypeFn<Fn extends AnyFn = AnyFn> = CompiledTypeFn<Fn> &
 // `@typedef {import('../runtypes/types.ts').<Alias>}`. Several families share an fn
 // shape but occupy distinct cache slots (`ukuw` vs `uku`; `pjs` vs `pj`).
 
-export type IsTypeRTFn = CompiledTypeFn<IsTypeFn>;
-export type GetTypeErrorsRTFn = CompiledTypeFn<GetTypeErrorsFn>;
+export type ValidateRTFn = CompiledTypeFn<ValidateFn>;
+export type GetValidationErrorsRTFn = CompiledTypeFn<GetValidationErrorsFn>;
 export type HasUnknownKeysRTFn = CompiledTypeFn<HasUnknownKeysFn>;
 export type StripUnknownKeysRTFn = CompiledTypeFn<StripUnknownKeysFn>;
 export type UnknownKeyErrorsRTFn = CompiledTypeFn<UnknownKeyErrorsFn>;

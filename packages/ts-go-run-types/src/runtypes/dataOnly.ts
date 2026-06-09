@@ -9,8 +9,8 @@
  *  validator / serialiser produces. Functions, methods, constructors, `Promise`s
  *  / thenables, symbols, and non-serialisable built-ins are stripped; primitives,
  *  `Date` / `RegExp` / `Map` / `Set` / Temporal are kept; arrays, tuples, objects,
- *  and Map/Set key/value types are recursed. It is the type `createIsType<T>()` /
- *  `createGetTypeErrors<T>()` validate, and the natural return shape for data-bound
+ *  and Map/Set key/value types are recursed. It is the type `createValidate<T>()` /
+ *  `createGetValidationErrors<T>()` validate, and the natural return shape for data-bound
  *  APIs (JSON / binary decode).
  *
  *  This lives in its own module because it is load-bearing and exhaustively
@@ -55,12 +55,12 @@ type DataOnlyNative = Date | RegExp | DataOnlyNativeExtra[keyof DataOnlyNativeEx
  *  "the unsupported set"):
  *   - `symbol` — runtime identity, not round-trippable;
  *   - any callable / constructable value (function, method, class value);
- *   - `Promise` / thenables — `isType` validates inbound public-API *data*,
+ *   - `Promise` / thenables — `validate` validates inbound public-API *data*,
  *     which never carries promises; a thenable is not data;
  *   - the non-serialisable built-ins — `ArrayBuffer`/`SharedArrayBuffer`/
  *     `DataView` and every typed array (`Int8Array`…`BigUint64Array`). These are
  *     `SubKindNonSerializable` in the Go emitter, i.e. unsupported for EVERY
- *     family (incl. isType/getTypeErrors): the validator drops them at a
+ *     family (incl. validate/getValidationErrors): the validator drops them at a
  *     property and `alwaysThrow`s at root — exactly the `never` semantics.
  *
  *  (`WeakMap`/`WeakSet` are intentionally absent: a real `Map`/`Set` is
@@ -98,9 +98,9 @@ type DataOnlyStripped =
  *  TS2589 depth cap. **/
 type _DataOnlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
-/** The data-only projection of `T` — the exact shape `createIsType<T>()` /
- *  `createGetTypeErrors<T>()` validate. It walks `T` and DROPS every member the
- *  AOT emitter treats as non-data (see CLAUDE.md "isType contract — serializable
+/** The data-only projection of `T` — the exact shape `createValidate<T>()` /
+ *  `createGetValidationErrors<T>()` validate. It walks `T` and DROPS every member the
+ *  AOT emitter treats as non-data (see CLAUDE.md "validate contract — serializable
  *  data only" + docs/UNSUPPORTED-KINDS.md):
  *   - `DataOnlyStripped` kinds (symbol / function / constructor / promise /
  *     non-serialisable built-ins / `never`) → `never`;

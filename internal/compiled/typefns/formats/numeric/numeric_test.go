@@ -114,32 +114,32 @@ func TestBigIntParam_StripsTrailingN(t *testing.T) {
 	}
 }
 
-// TestBigIntIsType_EmitsBigintLiterals checks the isType comparison uses
+// TestBigIntValidate_EmitsBigintLiterals checks the validate comparison uses
 // `n`-suffixed literals and the modulo uses `=== 0n`.
-func TestBigIntIsType_EmitsBigintLiterals(t *testing.T) {
+func TestBigIntValidate_EmitsBigintLiterals(t *testing.T) {
 	emitter := bigintFormatEmitter{}
-	got := emitter.EmitIsTypeCheck(annotation(bigintFormatName, map[string]any{"max": "100n", "multipleOf": "5n"}), "v", nil)
+	got := emitter.EmitValidateCheck(annotation(bigintFormatName, map[string]any{"max": "100n", "multipleOf": "5n"}), "v", nil)
 	for _, want := range []string{"v <= 100n", "(v % 5n === 0n)"} {
 		if !strings.Contains(got, want) {
-			t.Errorf("isType = %q, want substring %q", got, want)
+			t.Errorf("validate = %q, want substring %q", got, want)
 		}
 	}
 }
 
-// TestNumberIsType_IntegerAndMultipleOf checks integer + multipleOf emit
-// the right predicates and the typeErrors `val` for integer is `true`.
-func TestNumberIsType_IntegerAndMultipleOf(t *testing.T) {
+// TestNumberValidate_IntegerAndMultipleOf checks integer + multipleOf emit
+// the right predicates and the validationErrors `val` for integer is `true`.
+func TestNumberValidate_IntegerAndMultipleOf(t *testing.T) {
 	emitter := numberFormatEmitter{}
 	params := map[string]any{"integer": true, "multipleOf": 5.0}
-	isType := emitter.EmitIsTypeCheck(annotation(numberFormatName, params), "v", nil)
+	validate := emitter.EmitValidateCheck(annotation(numberFormatName, params), "v", nil)
 	for _, want := range []string{"Number.isInteger(v)", "(v % 5 === 0)"} {
-		if !strings.Contains(isType, want) {
-			t.Errorf("isType = %q, want substring %q", isType, want)
+		if !strings.Contains(validate, want) {
+			t.Errorf("validate = %q, want substring %q", validate, want)
 		}
 	}
-	errs := emitter.EmitTypeErrorsCheck(annotation(numberFormatName, params), "v", "pth", "er", nil)
+	errs := emitter.EmitValidationErrorsCheck(annotation(numberFormatName, params), "v", "pth", "er", nil)
 	if !strings.Contains(errs, "'integer'],val:true") {
-		t.Errorf("typeErrors = %q, want integer error val:true", errs)
+		t.Errorf("validationErrors = %q, want integer error val:true", errs)
 	}
 }
 

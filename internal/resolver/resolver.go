@@ -4,7 +4,7 @@
 //
 //   - runtype:  resolves call-site type queries, deduplicates serialized
 //     RunType records, and emits the runTypes cache module.
-//   - typefns: precompiles `isType` validators for cached RunTypes the
+//   - typefns: precompiles `validate` validators for cached RunTypes the
 //     emitter supports.
 //   - purefns: extracts `registerPureFnFactory(...)` bodies and emits
 //     the pureFns cache module.
@@ -61,8 +61,8 @@ type Options struct {
 	// (Cloudflare WorkerD, sandboxed iframes, browser CSP without
 	// `unsafe-eval`) that disallow dynamic-code construction. The
 	// vitest configs set this true so the test suite covers both the
-	// inline-factory path (via createIsType<T>) and the new-Function
-	// path (via deserializeIsType<T>) on every case.
+	// inline-factory path (via createValidate<T>) and the new-Function
+	// path (via deserializeValidate<T>) on every case.
 	EmitCreateRTFn bool
 }
 

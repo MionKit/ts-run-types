@@ -70,7 +70,7 @@ func renderModule(t *testing.T, dump protocol.Dump, fn func(*bytes.Buffer, proto
 // TestPrepareForJsonModule_ObjectUnionMergesProps — the rendered
 // flat-prepare factory for `{a:bigint;b:Date} | {c:number;d:string}` MUST
 // emit a single object branch that walks every merged property and
-// wraps with `[-1, v]`. The factory MUST NOT emit per-member isType
+// wraps with `[-1, v]`. The factory MUST NOT emit per-member validate
 // dispatch for the object members (the whole point of the optimisation).
 func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
@@ -97,9 +97,9 @@ func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 	if !strings.Contains(out, "typeof v === 'object'") {
 		t.Errorf("expected object-branch guard `typeof v === 'object'`; got:\n%s", out)
 	}
-	// No per-object isType dispatch on the union itself.
+	// No per-object validate dispatch on the union itself.
 	if strings.Contains(out, "g_"+itKey("ob1")) || strings.Contains(out, "g_"+itKey("ob2")) {
-		t.Errorf("flat encode should bypass per-object isType dispatch; got:\n%s", out)
+		t.Errorf("flat encode should bypass per-object validate dispatch; got:\n%s", out)
 	}
 }
 
@@ -260,7 +260,7 @@ func TestPrepareForJsonModule_MixedUnionWrapsEveryMember(t *testing.T) {
 // TestPrepareForJsonModule_ConflictingPropSynthesizesSubUnion — when
 // two object members share a property name with different JSON
 // transforms ({a: bigint} | {a: Date}), the merged-prop encoder MUST
-// emit an inline isType dispatch + `[subIdx, value]` wrap on `v.a` so
+// emit an inline validate dispatch + `[subIdx, value]` wrap on `v.a` so
 // the decoder can distinguish them.
 func TestPrepareForJsonModule_ConflictingPropSynthesizesSubUnion(t *testing.T) {
 	bigint := &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}

@@ -8,13 +8,13 @@ Parent: `docs/DEMAND-DRIVEN-FN-CACHES.md` (Slice D prerequisite, item D0pre).
 ## Why
 
 The JSON/binary union decoders discriminate members at runtime via
-`it_<member>.fn(value)`, and `typeErrors` delegates child checks to `it_`. Today
+`it_<member>.fn(value)`, and `validationErrors` delegates child checks to `it_`. Today
 those references are emitted only as **closure-prologue runtime lookups** —
 `registerRTLookup("it_<member>")` (`internal/compiled/typefns/emitter.go:241`)
 emits `const it_<member> = utl.getRT('it_<member>')` and relies on the `it`
 family being all-emit. They are **not** tracked as build-time dependency edges,
 so nothing triggers emission of `it_<member>`. That blocks demand-scoping `it`
-(the final step of the parent plan): scoping `it` to only `createIsType` sites
+(the final step of the parent plan): scoping `it` to only `createValidate` sites
 drops the `it_<member>` entries unions need, silently corrupting round-trips
 (verified: 22 union/binary failures).
 
@@ -51,7 +51,7 @@ change emission/demand behaviour. This is pure capture + plumbing + tests.
 
 2. **`registerRTLookup` records cross-family edges.**
    `emitter.go` `registerRTLookup(childID)` (and only there — it's the single
-   choke point both `emitDepCall` and `unionMemberIsTypeCheck`/typeErrors funnel
+   choke point both `emitDepCall` and `unionMemberValidateCheck`/validationErrors funnel
    through) should, in addition to setting the context item, record `childID` on
    the walker's `CrossFamilyDeps` when it is cross-family. Note `emitDepCall`'s
    same-family calls go through here too, so the prefix check is what filters.
@@ -75,10 +75,10 @@ change emission/demand behaviour. This is pure capture + plumbing + tests.
   discriminator prop) via `PrepareForJsonEmitter` (and `ToBinaryEmitter`); assert
   the captured `CrossFamilyDeps` contain `it_<memberID>` for each union member,
   and that those are NOT also in `RTDependencies` (cross-family stays separate).
-- Render a plain object via `IsTypeEmitter`; assert its same-family child deps
+- Render a plain object via `ValidateEmitter`; assert its same-family child deps
   still land in `RTDependencies` and `CrossFamilyDeps` is empty (no regression to
   the same-family path).
-- A guard that an existing module render (e.g. `TestIsTypeModule_*`) is
+- A guard that an existing module render (e.g. `TestValidateModule_*`) is
   byte-identical — i.e. capture is side-effect-free on output.
 
 ## Constraints / done criteria

@@ -1,19 +1,19 @@
 // format-validation / DateTime — per-variant it() blocks: every DATETIME case
-// yields up to 9 it()s (5 isType + 2 getTypeErrors [format + schema] + 2
+// yields up to 9 it()s (5 validate + 2 getValidationErrors [format + schema] + 2
 // mockType). The format variant uses the format-payload assertion
-// (assertFormatGetTypeErrorsStatic); the schema variant the value-first contract
-// check (assertGetTypeErrorsSchema). The other 3 getTypeErrors forms aren't
+// (assertFormatGetValidationErrorsStatic); the schema variant the value-first contract
+// check (assertGetValidationErrorsSchema). The other 3 getValidationErrors forms aren't
 // exercised by the format-validation suites. Missing thunks → " (not implemented)" suffix.
 import {describe, it} from 'vitest';
 import {DATETIME} from './DateTime.ts';
 import {
-  assertIsTypeStatic,
-  assertIsTypeReflect,
-  assertIsTypeDeserializeStatic,
-  assertIsTypeDeserializeReflect,
-  assertIsTypeSchema,
-  assertFormatGetTypeErrorsStatic,
-  assertGetTypeErrorsSchema,
+  assertValidateStatic,
+  assertValidateReflect,
+  assertValidateDeserializeStatic,
+  assertValidateDeserializeReflect,
+  assertValidateSchema,
+  assertFormatGetValidationErrorsStatic,
+  assertGetValidationErrorsSchema,
   assertMockTypeStatic,
   assertMockTypeReflect,
   titleFor,
@@ -21,14 +21,14 @@ import {
 
 describe('format-validation / DateTime', () => {
   for (const c of Object.values(DATETIME)) {
-    it(titleFor(c, 'isType/static'), () => assertIsTypeStatic(c));
-    it(titleFor(c, 'isType/reflect'), () => assertIsTypeReflect(c));
-    it(titleFor(c, 'isType/deserialize-static'), () => assertIsTypeDeserializeStatic(c));
-    it(titleFor(c, 'isType/deserialize-reflect'), () => assertIsTypeDeserializeReflect(c));
-    it(titleFor(c, 'isType/schema'), () => assertIsTypeSchema(c));
+    it(titleFor(c, 'validate/static'), () => assertValidateStatic(c));
+    it(titleFor(c, 'validate/reflect'), () => assertValidateReflect(c));
+    it(titleFor(c, 'validate/deserialize-static'), () => assertValidateDeserializeStatic(c));
+    it(titleFor(c, 'validate/deserialize-reflect'), () => assertValidateDeserializeReflect(c));
+    it(titleFor(c, 'validate/schema'), () => assertValidateSchema(c));
 
-    it(titleFor(c, 'getTypeErrors/format'), () => assertFormatGetTypeErrorsStatic(c));
-    it(titleFor(c, 'getTypeErrors/schema'), () => assertGetTypeErrorsSchema(c));
+    it(titleFor(c, 'getValidationErrors/format'), () => assertFormatGetValidationErrorsStatic(c));
+    it(titleFor(c, 'getValidationErrors/schema'), () => assertGetValidationErrorsSchema(c));
 
     it(titleFor(c, 'mockType/static'), () => assertMockTypeStatic(c));
     it(titleFor(c, 'mockType/reflect'), () => assertMockTypeReflect(c));

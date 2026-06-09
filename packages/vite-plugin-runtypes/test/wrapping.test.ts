@@ -109,7 +109,7 @@ const b = reflectRunTypeId(s);
   // ---- 17c–17d: user-defined wrappers -----------------------------------
   //
   // User wrappers carry their own trailing InjectRunTypeId<T> slot. The two
-  // arities below — value-arg wrapper (isType) and value-as-T wrapper
+  // arities below — value-arg wrapper (validate) and value-as-T wrapper
   // (nameOf) — are the natural mirrors of the static and reflect helpers
   // and are kept under separate runTest()s.
 
@@ -117,11 +117,11 @@ const b = reflectRunTypeId(s);
     '17c: user-defined wrapper with explicit type argument',
     {
       '17c.ts': `import {type InjectRunTypeId} from '@mionjs/ts-go-run-types';
-function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
-const c = isType<{flag: boolean}>(true);
+const c = validate<{flag: boolean}>(true);
 `,
     },
     async (sources) => {
@@ -130,7 +130,7 @@ const c = isType<{flag: boolean}>(true);
         async ({client}) => {
           const {code: out, sites} = await rewrite('17c.ts', sources['17c.ts'], client);
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/isType<\{flag: boolean\}>\(true, "[A-Za-z0-9]+"\)/);
+          expect(out).toMatch(/validate<\{flag: boolean\}>\(true, "[A-Za-z0-9]+"\)/);
         },
         {reset: true}
       );
@@ -445,11 +445,11 @@ const a = reflectRunTypeId(u, 'manualHash');
     'explicit E: caller passes literal id to a user-defined wrapper — no rewrite',
     {
       'ex_e.ts': `import {type InjectRunTypeId} from '@mionjs/ts-go-run-types';
-function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
-const c = isType<{flag: boolean}>(true, 'manualHash');
+const c = validate<{flag: boolean}>(true, 'manualHash');
 `,
     },
     async (sources) => {
@@ -458,7 +458,7 @@ const c = isType<{flag: boolean}>(true, 'manualHash');
         async ({client}) => {
           const {code: out, sites} = await rewrite('ex_e.ts', sources['ex_e.ts'], client);
           expect(sites.length).toBe(0);
-          expect(out).toContain(`isType<{flag: boolean}>(true, 'manualHash');`);
+          expect(out).toContain(`validate<{flag: boolean}>(true, 'manualHash');`);
         },
         {reset: true}
       );

@@ -4,9 +4,9 @@ import "github.com/mionkit/ts-run-types/internal/protocol"
 
 // Kind-classification predicates shared across the emitters. Relocated from
 // istype.go (where they accreted as de-facto package utilities) so the shared
-// classification logic is discoverable independent of the isType emitter.
+// classification logic is discoverable independent of the validate emitter.
 
-// isObjectLikeKind reports whether kind's isType emit needs the
+// isObjectLikeKind reports whether kind's validate emit needs the
 // shared `typeof === 'object' && !== null` guard before it. Used by
 // the union emit to lift the guard out of the per-child checks.
 func isObjectLikeKind(kind protocol.ReflectionKind) bool {

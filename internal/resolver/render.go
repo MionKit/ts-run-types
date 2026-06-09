@@ -115,31 +115,31 @@ func renderRunTypesModule(dump protocol.Dump) (string, error) {
 	})
 }
 
-// renderIsTypeModule emits the sibling `virtual:runtypes-isType` module —
-// one `export function get_isType_<hash>(utl){…}` factory per cached
+// renderValidateModule emits the sibling `virtual:runtypes-validate` module —
+// one `export function get_validate_<hash>(utl){…}` factory per cached
 // RunType the precompiler knows how to handle. v1 only emits factories
-// for KindString; other kinds are silently skipped (see typefns.IsTypeModule).
-func renderIsTypeModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	// `it` is demand-scoped like every function family, so a createIsType
+// for KindString; other kinds are silently skipped (see typefns.ValidateModule).
+func renderValidateModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
+	// `it` is demand-scoped like every function family, so a createValidate
 	// site alone doesn't pull the `it_<member>` entries the JSON/binary union
-	// decoders + typeErrors child checks reference at runtime. Seed those
+	// decoders + validationErrors child checks reference at runtime. Seed those
 	// missing roots from the cross-family edges the OTHER demanded families keep
 	// — CrossFamilyItRoots renders them (Store-bypassed so the walker always
-	// runs) and returns the bare member ids. The createIsType-site demand is
-	// still handled by the normal demand path inside IsTypeModule.
+	// runs) and returns the bare member ids. The createValidate-site demand is
+	// still handled by the normal demand path inside ValidateModule.
 	opts.ExtraRoots = typefns.CrossFamilyItRoots(dump, opts)
-	return renderToString("renderIsTypeModule", func(w io.Writer) error {
-		return typefns.IsTypeModule(w, dump, opts)
+	return renderToString("renderValidateModule", func(w io.Writer) error {
+		return typefns.ValidateModule(w, dump, opts)
 	})
 }
 
-// renderTypeErrorsModule emits the `virtual:runtypes-typeErrors` module —
-// sibling of renderIsTypeModule, same factory shape with three-arg
+// renderValidationErrorsModule emits the `virtual:runtypes-validationErrors` module —
+// sibling of renderValidateModule, same factory shape with three-arg
 // validators (value, path, errors) that accumulate RunTypeError
-// entries instead of returning a boolean. Backed by typefns.TypeErrorsEmitter.
-func renderTypeErrorsModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderTypeErrorsModule", func(w io.Writer) error {
-		return typefns.TypeErrorsModule(w, dump, opts)
+// entries instead of returning a boolean. Backed by typefns.ValidationErrorsEmitter.
+func renderValidationErrorsModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
+	return renderToString("renderValidationErrorsModule", func(w io.Writer) error {
+		return typefns.ValidationErrorsModule(w, dump, opts)
 	})
 }
 
@@ -214,7 +214,7 @@ func renderStripUnknownKeysModule(dump protocol.Dump, opts typefns.RenderOpts) (
 
 // renderUnknownKeyErrorsModule emits the unknownKeyErrors cache
 // module — error accumulator that records one 'never' RunTypeError per
-// unknown key (same arg shape as typeErrors).
+// unknown key (same arg shape as validationErrors).
 func renderUnknownKeyErrorsModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
 	return renderToString("renderUnknownKeyErrorsModule", func(w io.Writer) error {
 		return typefns.UnknownKeyErrorsModule(w, dump, opts)

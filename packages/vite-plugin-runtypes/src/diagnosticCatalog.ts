@@ -144,13 +144,13 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
   MKR001: {
     headline:
       '`{0}()` is being called at runtime just so the marker can read its return type — side effects, throws, or async work run for nothing.',
-    detail: `Reflect-form markers (\`createIsType(value)\`, \`reflectRunTypeId(value)\`)
+    detail: `Reflect-form markers (\`createValidate(value)\`, \`reflectRunTypeId(value)\`)
 invoke their argument expression at runtime; the value is then discarded —
 only its inferred type is used.
 
 Fix — use the static form with \`ReturnType<>\`:
-  -  const isUser = createIsType({0}());
-+  const isUser = createIsType<ReturnType<typeof {0}>>();
+  -  const isUser = createValidate({0}());
++  const isUser = createValidate<ReturnType<typeof {0}>>();
 
 Fix — pass an existing value of the desired type:
   const existingUser: User = ...;
@@ -168,12 +168,12 @@ bindings whose initializer is itself fully literal are accepted.
 
 Fix — inline at the call site:
 -  const opts = getOpts();
--  const isUser = createIsType<User>(undefined, opts);
-+  const isUser = createIsType<User>(undefined, {mode: 'unsafe'});
+-  const isUser = createValidate<User>(undefined, opts);
++  const isUser = createValidate<User>(undefined, {mode: 'unsafe'});
 
 Fix — use a module-scope const of literals:
   const opts = {mode: 'unsafe'};            // literal initializer ✓
-  const isUser = createIsType<User>(undefined, opts);`,
+  const isUser = createValidate<User>(undefined, opts);`,
   },
 
   CTA002: {
@@ -226,12 +226,12 @@ so a single id can't represent it.
 
 Fix — inline the marker at each concrete call site:
   function isUser(value: unknown) {
-    return createIsType<User>()(value);
+    return createValidate<User>()(value);
   }
 
 Fix — accept a pre-computed id from the caller:
   function makeChecker<T>(id: InjectRunTypeId<T>) {
-    return createIsType<T>(id);
+    return createValidate<T>(id);
   }
   const isUser = makeChecker<User>(getRunTypeId<User>());`,
   },
@@ -430,11 +430,11 @@ Fix:
   FB005: rootThrow('deserialise', NON_SERIALIZABLE_DETAIL, 'from binary'),
   FB006: rootThrow('deserialise', SYMBOL_DETAIL, 'from binary'),
 
-  // isType (IT) — root throws
+  // validate (IT) — root throws
   IT001: rootThrow('validate', NON_SERIALIZABLE_DETAIL),
   IT002: rootThrow('validate', SYMBOL_DETAIL),
 
-  // typeErrors (TE) — root throws
+  // validationErrors (TE) — root throws
   TE001: rootThrow('validate', NON_SERIALIZABLE_DETAIL),
   TE002: rootThrow('validate', SYMBOL_DETAIL),
 
@@ -442,12 +442,12 @@ Fix:
   //
   // These don't throw — they silently exclude one member from the
   // emitter's output. The catalog templates explain WHAT was dropped and
-  // WHY, and point users at the CLAUDE.md "isType contract" section for
+  // WHY, and point users at the CLAUDE.md "validate contract" section for
   // the design rationale.
 
   // Function-typed property dropped (one entry per family, same shape)
-  IT010: dropFunctionProp('isType', 'validated'),
-  TE010: dropFunctionProp('typeErrors', 'checked'),
+  IT010: dropFunctionProp('validate', 'validated'),
+  TE010: dropFunctionProp('validationErrors', 'checked'),
   PJ010: dropFunctionProp('prepareForJson', 'encoded'),
   PJS010: dropFunctionProp('prepareForJsonSafe', 'encoded'),
   RJ010: dropFunctionProp('restoreFromJson', 'decoded'),
@@ -461,8 +461,8 @@ Fix:
   UKW010: dropFunctionProp('unknownKeysToUndefinedWire', 'cleared'),
 
   // Method dropped
-  IT011: dropMethod('isType', 'validated'),
-  TE011: dropMethod('typeErrors', 'checked'),
+  IT011: dropMethod('validate', 'validated'),
+  TE011: dropMethod('validationErrors', 'checked'),
   PJ011: dropMethod('prepareForJson', 'encoded'),
   PJS011: dropMethod('prepareForJsonSafe', 'encoded'),
   RJ011: dropMethod('restoreFromJson', 'decoded'),
@@ -471,8 +471,8 @@ Fix:
   FB011: dropMethod('fromBinary', 'deserialised'),
 
   // Static member dropped
-  IT012: dropStatic('isType', 'validated'),
-  TE012: dropStatic('typeErrors', 'checked'),
+  IT012: dropStatic('validate', 'validated'),
+  TE012: dropStatic('validationErrors', 'checked'),
   PJ012: dropStatic('prepareForJson', 'encoded'),
   PJS012: dropStatic('prepareForJsonSafe', 'encoded'),
   RJ012: dropStatic('restoreFromJson', 'decoded'),
@@ -481,8 +481,8 @@ Fix:
   FB012: dropStatic('fromBinary', 'deserialised'),
 
   // Symbol-keyed property dropped
-  IT013: dropSymbolKeyed('isType', 'validated'),
-  TE013: dropSymbolKeyed('typeErrors', 'checked'),
+  IT013: dropSymbolKeyed('validate', 'validated'),
+  TE013: dropSymbolKeyed('validationErrors', 'checked'),
   PJ013: dropSymbolKeyed('prepareForJson', 'encoded'),
   PJS013: dropSymbolKeyed('prepareForJsonSafe', 'encoded'),
   RJ013: dropSymbolKeyed('restoreFromJson', 'decoded'),
@@ -492,25 +492,25 @@ Fix:
 
   // Root any/unknown — noop validator (Warning)
   IT021: {
-    headline: '`isType` on `any` / `unknown` always returns true — the validator accepts every value.',
+    headline: '`validate` on `any` / `unknown` always returns true — the validator accepts every value.',
     detail: `\`any\` and \`unknown\` describe "anything", so a structural validator has
 nothing to check. The resulting function passes for every input —
 including the ones you probably wanted to reject.
 
 Fix — narrow the type to the actual shape you expect:
-  -  const isUser = createIsType<unknown>();
-+  const isUser = createIsType<User>();`,
+  -  const isUser = createValidate<unknown>();
++  const isUser = createValidate<User>();`,
   },
 
   TE020: {
-    headline: '`typeErrors` on `any` / `unknown` always returns an empty error array — nothing is checked.',
+    headline: '`validationErrors` on `any` / `unknown` always returns an empty error array — nothing is checked.',
     detail: `Same reason as IT021: \`any\` and \`unknown\` describe "anything", so the
 checker has no structure to compare against. The returned error array
 will always be empty.
 
 Fix — narrow the type to the actual shape you expect:
-  -  const errors = createGetTypeErrors<unknown>()(value);
-+  const errors = createGetTypeErrors<User>()(value);`,
+  -  const errors = createGetValidationErrors<unknown>()(value);
++  const errors = createGetValidationErrors<User>()(value);`,
   },
 };
 
@@ -520,7 +520,7 @@ function dropFunctionProp(family: string, verb: string): DiagnosticEntry {
     detail: `\`${family}\` works on JSON-shaped data; functions don't survive JSON, so
 the emitter drops them. The rest of the object's behaviour is unaffected.
 
-This is by design — see the "isType contract — serializable data only"
+This is by design — see the "validate contract — serializable data only"
 section in CLAUDE.md. If you need a stricter checker that fails on
 missing/extra function-typed members, watch the project roadmap.`,
   };

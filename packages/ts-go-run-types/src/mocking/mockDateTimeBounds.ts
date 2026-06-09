@@ -1,5 +1,5 @@
 // Bound-aware mock helpers for the date / time / dateTime string formats
-// and the native Date format. A mock value MUST re-pass isType for the
+// and the native Date format. A mock value MUST re-pass validate for the
 // same type, which means it must satisfy the format's min/max bounds.
 //
 // The validator compares a value's "key" against the bound's key on a

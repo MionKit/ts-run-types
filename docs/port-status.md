@@ -80,8 +80,8 @@ Test infrastructure:
 
 | Family                     | Mion source                                                          | Go emitter                                              | JS factory                                 | Cache tag |
 |----------------------------|----------------------------------------------------------------------|---------------------------------------------------------|--------------------------------------------|-----------|
-| `isType`                   | `nodes/**/emitIsType` + `lib/rtFnCompiler.ts`                       | `internal/compiled/typefns/istype.go`                       | `createIsType` / `deserializeIsType`       | `it`      |
-| `getTypeErrors`            | `nodes/**/emitTypeErrors` + `RTErrorsFnCompiler`                    | `internal/compiled/typefns/typeerrors.go`                   | `createGetTypeErrors` / `deserializeGetTypeErrors` | `te` |
+| `validate`                   | `nodes/**/emitIsType` + `lib/rtFnCompiler.ts`                       | `internal/compiled/typefns/istype.go`                       | `createValidate` / `deserializeValidate`       | `it`      |
+| `getValidationErrors`            | `nodes/**/emitTypeErrors` + `RTErrorsFnCompiler`                    | `internal/compiled/typefns/typeerrors.go`                   | `createGetValidationErrors` / `deserializeGetValidationErrors` | `te` |
 | `prepareForJson`           | `nodes/**/emitPrepareForJson`                                        | `internal/compiled/typefns/json_prepare.go`                 | `createPrepareForJson` / `deserializePrepareForJson` | `pj` |
 | `restoreFromJson`          | `nodes/**/emitRestoreFromJson`                                       | `internal/compiled/typefns/json_restore.go`                 | `createRestoreFromJson` / `deserializeRestoreFromJson` | `rj` |
 | `stringifyJson`            | `rtCompilers/json/stringifyJson.ts` (`createStringifyCompiler`)     | `internal/compiled/typefns/json_stringify.go`                | `createStringifyJson` / `deserializeStringifyJson` | `sj` |
@@ -101,7 +101,7 @@ Per-kind coverage (where ✓ = inline emit, → child = recurses into
 the kind's children via `comp.compile<Fn>`, ✗ = no-op / not
 applicable):
 
-| Kind                    | isType | typeErrors | prepareForJson | restoreFromJson | hasUnknownKeys | stripUnknownKeys | unknownKeyErrors | unknownKeysToUndefined |
+| Kind                    | validate | validationErrors | prepareForJson | restoreFromJson | hasUnknownKeys | stripUnknownKeys | unknownKeyErrors | unknownKeysToUndefined |
 |-------------------------|--------|------------|----------------|------------------|----------------|------------------|------------------|------------------------|
 | string / number / bool  | ✓      | ✓          | ✗ noop         | ✗ noop           | ✗ false        | ✗ noop           | ✗ []             | ✗ noop                 |
 | bigint                  | ✓      | ✓          | ✓ `toString`   | ✓ `BigInt(v)`    | ✗              | ✗                | ✗                | ✗                      |
@@ -282,8 +282,8 @@ The shared suite was originally named `rt-suite` when it carried
 thunks for every RT family. Once the JSON pair was moved to its
 own `serialization/` (because JSON samples need
 `deserializedValues` and the JSON-throws-on-extras contract clashes
-with isType's "extras are valid" semantic), the remaining file only
-covers `isType` and `getTypeErrors` — so it's been renamed to
+with validate's "extras are valid" semantic), the remaining file only
+covers `validate` and `getValidationErrors` — so it's been renamed to
 `validation/` to match its actual scope.
 
 Pure refactor; no behavioral change.
@@ -354,7 +354,7 @@ ECMAScript spec — no throw was ever exercised).
 emitters (mirrors mion's `IndexSignatureRunType.skipRT`
 `indexProperty.ts:30-36`). New shared helper `isSymbolKeyedIndexSig`
 in `internal/compiled/typefns/istype.go`; gate added to prepareForJson,
-restoreFromJson, isType, typeErrors, hasUnknownKeys, stripUnknownKeys,
+restoreFromJson, validate, validationErrors, hasUnknownKeys, stripUnknownKeys,
 unknownKeyErrors, unknownKeysToUndefined.
 
 - **Where**: `serialization/` `RECORDS.multiple_index_props`
@@ -390,11 +390,11 @@ unknownKeyErrors, unknownKeysToUndefined.
 
 **Closed by**: union loose-check port. New `looseCheckGate` helper in
 `internal/compiled/typefns/json_prepare.go` mirrors mion's
-`UnionRunType.getChildIsTypeWithLooseCheck` (`union.ts:56-78`) — for
+`UnionRunType.getChildValidateWithLooseCheck` (`union.ts:56-78`) — for
 an all-optional object member (no required props, no index sig) the
-bare isType is wrapped with a property-presence gate so a value that
+bare validate is wrapped with a property-presence gate so a value that
 shares no declared property with the member fails the arm. Wired
-into `unionMemberIsTypeCheck` (preparefjson) and `emitUnionIsType`
+into `unionMemberValidateCheck` (preparefjson) and `emitUnionValidate`
 (istype) for full mion parity. Arm dispatch in preparefjson now picks
 the correct concrete member before falling back to the weak shape.
 
@@ -409,13 +409,13 @@ the correct concrete member before falling back to the weak shape.
 - **Why mion behaves that way**:
   `mion/packages/run-types/src/nodes/collection/union.ts:114-152`
   `emitPrepareForJson` builds an if/else dispatch over the union
-  members using `getChildIsTypeWithLooseCheck` per arm. The arms
+  members using `getChildValidateWithLooseCheck` per arm. The arms
   are tried in declaration order: `{a: string; aa: boolean}` first,
   then `{b: number}`, then `{c: bigint}` (matches `{c: 1n}` → bigint
   transform applied → JSON.stringify-safe), `{d?: string}` last.
 - **Why we fail**: our union dispatch picks `{d?: string}` BEFORE
   `{c: bigint}` for input `{c: 1n}`. The all-optional arm matches
-  anything (no required props), so our isType-style loose check
+  anything (no required props), so our validate-style loose check
   considers `{c: 1n}` a valid `{d?: string}` (d absent is OK, c is
   treated as an unknown extra), and dispatches to that arm — whose
   prepareForJson is a noop. The bigint never gets transformed.
@@ -424,7 +424,7 @@ the correct concrete member before falling back to the weak shape.
   (more required props) are checked before all-optional ones; (b)
   make the loose check stricter so an arm only matches when at
   least one of its declared props is present in the value. Mion's
-  `getChildIsTypeWithLooseCheck` likely does (b) — its
+  `getChildValidateWithLooseCheck` likely does (b) — its
   implementation lives at `nodes/collection/union.ts`.
 
 ### Failure 4 — `ITERABLES > Set<SmallObject>`
@@ -551,24 +551,24 @@ unaffected (named type aliases continue to disambiguate as before).
   optional self-ref, the recursive dep call shape isn't
   consistently set up. Investigation is open. The race-condition
   flavor of this failure (`object_with_tuple_prop` on
-  isType/getTypeErrors under `pool: threads`) is a separate
+  validate/getValidationErrors under `pool: threads`) is a separate
   parallelism issue, see Failure 9.
 - **Classification**: **BUG** — exact mechanism not yet pinpointed.
   Possibly related to dep-call envelope for self-recursive tuple
   members.
 
-### Failure 9 (flake) — `isType / getTypeErrors > CIRCULAR > Self-referential object whose cycle closes via a tuple property`
+### Failure 9 (flake) — `validate / getValidationErrors > CIRCULAR > Self-referential object whose cycle closes via a tuple property`
 
 **Closed by**: see Failure 8 — same root cause. The original
 "test-infrastructure RACE" classification was wrong: `pool: 'forks'`
 did NOT fix the failures (verified during port-completion).
 Switching workers only changed *which* of the two CircularTuple
 declarations registered last, so the flake symptom shifted between
-serialization, isType, and typeErrors test files but never went
+serialization, validate, and validationErrors test files but never went
 away. The cycle-ref position fix in Failure 8 closes this
 deterministically — `pool` config is not needed.
 
-- **Where**: `test/suites/validation/isType.test.ts` and `getTypeErrors.test.ts`
+- **Where**: `test/suites/validation/validate.test.ts` and `getValidationErrors.test.ts`
   → `validation/` `CIRCULAR.object_with_tuple_prop`
 - **What our test asserts**: `interface CircularTuple { tuple: [bigint, CircularTuple?] }`
   validates correctly. Returns `true` for valid samples, accumulates
@@ -608,8 +608,8 @@ failure, deferred for a separate decision on the extras semantic.
    non-skipping emit corrupted unrelated string/number keys when
    the symbol sig's value type was non-noop (e.g. Date).
 3. ~~**Union loose-check**~~ — DONE; closes Failure 3. Implemented
-   as `looseCheckGate` helper wired into both `unionMemberIsTypeCheck`
-   (preparefjson dispatch) and `emitUnionIsType` (full mion parity).
+   as `looseCheckGate` helper wired into both `unionMemberValidateCheck`
+   (preparefjson dispatch) and `emitUnionValidate` (full mion parity).
 4. ~~**CircularTuple cycle-ref disambiguation**~~ — DONE; closes
    Failures 8 + 9. The flake-classification of Failure 9 was wrong:
    `pool: 'forks'` did not fix it (verified). Real root cause was a

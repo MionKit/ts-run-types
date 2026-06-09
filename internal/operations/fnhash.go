@@ -25,9 +25,9 @@ func fnHashSalt(canonicalKey string) string {
 // an operation + its call-site compile-time args.
 //
 //   - AxisNone:          the bare Name ("prepareForJson").
-//   - AxisIsTypeOptions: Name + "|" + the canonical IsTypeOptions variant suffix
-//     ("isType|", "isType|NL", "isType|NLA"). constants.IsTypeVariantSuffix
-//     emits letters in IsTypeOptions DECLARATION order regardless of optionNames
+//   - AxisValidateOptions: Name + "|" + the canonical ValidateOptions variant suffix
+//     ("validate|", "validate|NL", "validate|NLA"). constants.ValidateVariantSuffix
+//     emits letters in ValidateOptions DECLARATION order regardless of optionNames
 //     order, so {noLiterals,noIsArrayCheck} and {noIsArrayCheck,noLiterals}
 //     produce the same key (the sorted-props invariant — see CLAUDE.md / the
 //     plan). The type-id side already enforces the same discipline via
@@ -39,8 +39,8 @@ func fnHashSalt(canonicalKey string) string {
 // its keys here to preserve order-independence.
 func Canonical(op Operation, optionNames []string, strategy string) string {
 	switch op.Axis {
-	case AxisIsTypeOptions:
-		return op.Name + "|" + constants.IsTypeVariantSuffix(optionNames)
+	case AxisValidateOptions:
+		return op.Name + "|" + constants.ValidateVariantSuffix(optionNames)
 	case AxisJsonStrategy:
 		if strategy == "" {
 			strategy = op.DefaultStrategy
@@ -70,7 +70,7 @@ func FnHashFor(op Operation, optionNames []string, strategy string) string {
 // PlainHash returns the fnHash of an operation's DEFAULT variant (no options /
 // default strategy), looked up by canonical name. Used for cross-family
 // references that always target the plain form — e.g. the union-discriminator
-// `isType` check (PlainHash("isType")) and a walker's own-family InnerPrefix.
+// `validate` check (PlainHash("validate")) and a walker's own-family InnerPrefix.
 // Panics on an unknown name (a programmer error, caught at first call / in tests).
 func PlainHash(name string) string {
 	op, ok := byName[name]
@@ -81,15 +81,15 @@ func PlainHash(name string) string {
 }
 
 // allCanonicalKeys enumerates every canonical key the registry can produce: each
-// AxisNone op once, each AxisIsTypeOptions op over all IsTypeOptions subsets, and
+// AxisNone op once, each AxisValidateOptions op over all ValidateOptions subsets, and
 // each AxisJsonStrategy op over all its strategies. The collision guard hashes
 // this whole set.
 func allCanonicalKeys() []string {
 	var keys []string
 	for _, op := range registry {
 		switch op.Axis {
-		case AxisIsTypeOptions:
-			for _, subset := range isTypeOptionSubsets() {
+		case AxisValidateOptions:
+			for _, subset := range validateOptionSubsets() {
 				keys = append(keys, Canonical(op, subset, ""))
 			}
 		case AxisJsonStrategy:
@@ -103,11 +103,11 @@ func allCanonicalKeys() []string {
 	return keys
 }
 
-// isTypeOptionSubsets returns every subset of the IsTypeOptions names (the power
+// validateOptionSubsets returns every subset of the ValidateOptions names (the power
 // set), so the collision guard covers every variant an it/te call can request.
-func isTypeOptionSubsets() [][]string {
-	names := make([]string, 0, len(constants.IsTypeOptions))
-	for _, opt := range constants.IsTypeOptions {
+func validateOptionSubsets() [][]string {
+	names := make([]string, 0, len(constants.ValidateOptions))
+	for _, opt := range constants.ValidateOptions {
 		names = append(names, opt.Name)
 	}
 	subsets := make([][]string, 0, 1<<len(names))

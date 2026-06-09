@@ -28,7 +28,7 @@ var debugInlineEnv = os.Getenv("DEBUG_RT") == "INLINED"
 // `useArrayAccessor()` + `getChildLiteral()` to assemble the
 // expression — our Go port hands the assembled expression directly.
 //
-// ChildPathLiteral is the same idea but for typeErrors path tracking:
+// ChildPathLiteral is the same idea but for validationErrors path tracking:
 // the JS expression (string literal or variable reference) the NEXT
 // pushed frame contributes to the static access-path array used when
 // building a RunTypeError. Symmetric with ChildAccessor — set by the
@@ -95,20 +95,20 @@ func (o *orderedItems) ordered() []string {
 type Walker struct {
 	// RootType is the entry-point RunType for this rt function.
 	RootType *protocol.RunType
-	// FnName is the inner function name (e.g. "isType_<hash>") that
+	// FnName is the inner function name (e.g. "validate_<hash>") that
 	// lands in the emitted `function <FnName>(<args>){…}`.
 	FnName string
-	// RTFnHash is the namespaced cache key (e.g. "isType_abc123",
-	// "typeErrors_abc123") the renderer uses as the JS-side cache
+	// RTFnHash is the namespaced cache key (e.g. "validate_abc123",
+	// "validationErrors_abc123") the renderer uses as the JS-side cache
 	// key. Namespaced so the same runtype ID can have a distinct
-	// entry per rt fn (isType + typeErrors + …) without colliding
+	// entry per rt fn (validate + validationErrors + …) without colliding
 	// in the global rtFnsCache. Required by EmitDependencyCall to
 	// detect self-recursive calls (childID == RTFnHash → emit
 	// `<hash>(args)` without the `.fn` indirection, mirroring mion's
 	// `isSelf` branch).
 	RTFnHash string
 	// InnerPrefix is the namespacing prefix the current emitter uses
-	// (e.g. "isType_", "typeErrors_"). Set by the renderer after
+	// (e.g. "validate_", "validationErrors_"). Set by the renderer after
 	// NewWalker so dispatch can compose namespaced childIDs and the
 	// renderer's dep tracking is consistent with the factory keys.
 	InnerPrefix string
@@ -124,7 +124,7 @@ type Walker struct {
 	RefTable map[string]*protocol.RunType
 	// Emitter supplies the per-fn args, dispatch, and finalize logic.
 	Emitter Emitter
-	// VariantOptions carries the `IsTypeOptions` set (e.g. {"noLiterals":
+	// VariantOptions carries the `ValidateOptions` set (e.g. {"noLiterals":
 	// true}) for THIS walker only. The renderer fans the same RunType
 	// out across multiple walkers — one plain + one per option-tuple
 	// seen at any call site — so each emit produces a distinct cache
@@ -167,7 +167,7 @@ type Walker struct {
 	// CrossFamilyDeps records the cross-family RT lookups this function
 	// reaches via registerRTLookup — childIDs whose family-tag prefix
 	// differs from this walker's own InnerPrefix (e.g. a prepareForJson /
-	// toBinary / typeErrors body referencing `it_<member>` for union
+	// toBinary / validationErrors body referencing `it_<member>` for union
 	// member discrimination). Same-family lookups already flow through
 	// RTDependencies and are NOT duplicated here. Unlike RTDependencies
 	// this list is NOT consumed by emission/topo decisions today — it is
@@ -270,7 +270,7 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 	if len(args) == 0 {
 		panic("typefns: emitter returned empty Args()")
 	}
-	// fnName is `<innerPrefix><rt.ID>` (e.g. "isType_abc123"); use it
+	// fnName is `<innerPrefix><rt.ID>` (e.g. "validate_abc123"); use it
 	// directly as the namespaced RTFnHash so the cache key matches
 	// the factory registration site. Renderer also sets InnerPrefix
 	// explicitly (so dispatch can build namespaced childIDs for
@@ -391,7 +391,7 @@ func (w *Walker) UpdateDependencies(childHash string, childIsNoop bool) {
 // deduped, when (and only when) it is cross-family — i.e. childID's
 // family-tag prefix differs from this walker's own InnerPrefix. Called from
 // registerRTLookup (the single choke point both emitDepCall's same-family
-// calls and the union/typeErrors cross-family lookups funnel through), so
+// calls and the union/validationErrors cross-family lookups funnel through), so
 // the prefix gate here is what separates the two: same-family lookups stay
 // in RTDependencies (recorded via UpdateDependencies), cross-family ones
 // land here. The InnerPrefix=="" case (hand-constructed walkers in unit
@@ -416,7 +416,7 @@ func (w *Walker) recordCrossFamilyDep(childID string) {
 // (renderer skips noop factories). isUnsupported reports whether the
 // compile reached a kind with no emit implementation — when true,
 // the renderer skips this RunType entirely (no factory at all);
-// the runtime cache miss is caught by createIsType's
+// the runtime cache miss is caught by createValidate's
 // hasRunType-but-no-rt fallback.
 //
 // Mirrors mion's BaseFnCompiler.compile (rtFnCompiler.ts:279) +
@@ -686,8 +686,8 @@ func (w *Walker) handleCodeInterpolation(rt *protocol.RunType, child RTCode, par
 // returnName is the JS identifier to return when a statement-shaped
 // body needs an explicit `return …` appended. Delegates to the
 // emitter's ReturnName() so per-fn divergence stays inside the per-fn
-// file — isType / prepareForJson / format / mock return their first
-// arg (`v`), typeErrors returns its accumulator (`er`).
+// file — validate / prepareForJson / format / mock return their first
+// arg (`v`), validationErrors returns its accumulator (`er`).
 func (w *Walker) returnName() string {
 	return w.Emitter.ReturnName()
 }

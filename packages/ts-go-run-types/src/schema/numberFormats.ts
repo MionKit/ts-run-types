@@ -3,7 +3,7 @@
 // Sibling of atomic.ts's generic `number({…})` leaf: these carry the CONCRETE
 // named alias from `../formats/numberFormats.ts`, so the Go scanner reflects the
 // SAME branded type off each builder's `InjectRunTypeId<…>` brand as the type-first
-// `createIsType<FormatInt8>()` surface and the two converge on one structural id.
+// `createValidate<FormatInt8>()` surface and the two converge on one structural id.
 // All are fixed presets (no user params) → a single no-arg overload via
 // `presetBuilder`. For ad-hoc constraints use `number({min, max, …})`.
 

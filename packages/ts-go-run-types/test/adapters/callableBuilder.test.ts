@@ -7,11 +7,11 @@
 // + members, and the structural id embeds the call signature — so it converges
 // with the type-first callable interface. See src/schema/compose.ts.
 //
-// `createIsType` returns the cached factory for a structural id, so `toBe`
+// `createValidate` returns the cached factory for a structural id, so `toBe`
 // (reference identity) is a same-id (convergence) assertion.
 
 import {describe, expect, it} from 'vitest';
-import {createIsType, type Static} from '@mionjs/ts-go-run-types';
+import {createValidate, type Static} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 
 type CallableIface = {(a: number, b: boolean): string; extra: string};
@@ -20,11 +20,11 @@ describe('value-first callable builder', () => {
   const schema = RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}));
 
   it('converges with the type-first callable interface', () => {
-    expect(createIsType(schema)).toBe(createIsType<CallableIface>());
+    expect(createValidate(schema)).toBe(createValidate<CallableIface>());
   });
 
   it('validates a callable interface (function value PLUS data props)', () => {
-    const isCallable = createIsType(schema);
+    const isCallable = createValidate(schema);
     // The call-signature half is notSupported (functions aren't validated): the
     // emitted validator checks `typeof === 'function'` PLUS the declared props.
     const fnWithExtra = Object.assign((_a: number, _b: boolean) => 'x', {extra: 'x'});

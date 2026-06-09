@@ -100,7 +100,7 @@ export interface StringParams {
   disallowedValues?: DisallowedValuesParam;
   mockSamples?: readonly string[];
   // Transformer flags — applied only by the `createFormatTransform<T>`
-  // RT-fn, NOT by isType / typeErrors validation.
+  // RT-fn, NOT by validate / validationErrors validation.
   trim?: boolean;
   lowercase?: boolean;
   uppercase?: boolean;

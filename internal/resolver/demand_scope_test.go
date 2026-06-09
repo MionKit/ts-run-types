@@ -19,16 +19,16 @@ func initPrefixFor(opName string) string {
 
 // demand_scope_test.go pins the demand-driven invariant for the migrated
 // function families: a function cache contains an entry for a type ONLY when a
-// createX call site of that family references it. `te` (typeErrors) is one
+// createX call site of that family references it. `te` (validationErrors) is one
 // migrated leaf — a type reached only through getRunTypeId (reflection) or
-// through createIsType leaves no te_ entry.
+// through createValidate leaves no te_ entry.
 //
-// `it` (isType) is now demand-scoped too. Because the JSON/binary union
-// decoders + typeErrors discriminate members via `it_<member>` cross-family,
-// its demand is the createIsType-site closure ∪ the `it_<member>` edges the
+// `it` (validate) is now demand-scoped too. Because the JSON/binary union
+// decoders + validationErrors discriminate members via `it_<member>` cross-family,
+// its demand is the createValidate-site closure ∪ the `it_<member>` edges the
 // OTHER demanded families reference (collected by typefns.CrossFamilyItRoots,
 // seeded via RenderOpts.ExtraRoots). So a reflection-only file emits ZERO it_
-// entries, a createIsType file emits them, and a file that ONLY serializes a
+// entries, a createValidate file emits them, and a file that ONLY serializes a
 // (non-merging) union still gets the per-member it_ entries its decoder needs.
 // See docs/DEMAND-DRIVEN-FN-CACHES.md.
 
@@ -41,8 +41,8 @@ func scopeScan(t *testing.T, code string) protocol.Response {
 		IncludeRunTypes: true,
 		IncludeCacheSources: []protocol.CacheKind{
 			protocol.CacheKindRunType,
-			protocol.CacheKindIsType,
-			protocol.CacheKindTypeErrors,
+			protocol.CacheKindValidate,
+			protocol.CacheKindValidationErrors,
 		},
 	})
 	if resp.Error != "" {
@@ -51,9 +51,9 @@ func scopeScan(t *testing.T, code string) protocol.Response {
 	return resp
 }
 
-// TestDemandScope_TypeErrorsScopedToItsCallSites — te_ entries are emitted only
-// for createGetTypeErrors call sites, not for getRunTypeId or createIsType.
-func TestDemandScope_TypeErrorsScopedToItsCallSites(t *testing.T) {
+// TestDemandScope_ValidationErrorsScopedToItsCallSites — te_ entries are emitted only
+// for createGetValidationErrors call sites, not for getRunTypeId or createValidate.
+func TestDemandScope_ValidationErrorsScopedToItsCallSites(t *testing.T) {
 	// Reflection only: no te_.
 	reflect := scopeScan(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 export const _ = getRunTypeId<{a: string; b: number}>();
@@ -61,39 +61,39 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 	if len(reflect.RunTypes) == 0 {
 		t.Fatalf("reflection must still project runtypes for getRunTypeId, got none")
 	}
-	if strings.Contains(reflect.TypeErrorsCacheSource, initPrefixFor("typeErrors")) {
-		t.Errorf("typeErrors cache must be empty for a reflection-only file, got:\n%s", reflect.TypeErrorsCacheSource)
+	if strings.Contains(reflect.ValidationErrorsCacheSource, initPrefixFor("validationErrors")) {
+		t.Errorf("validationErrors cache must be empty for a reflection-only file, got:\n%s", reflect.ValidationErrorsCacheSource)
 	}
 
-	// createIsType demands `it`, not `te` — so still no te_.
-	isType := scopeScan(t, `import {createIsType} from '@mionjs/ts-go-run-types';
-export const _ = createIsType<{a: string}>();
+	// createValidate demands `it`, not `te` — so still no te_.
+	validate := scopeScan(t, `import {createValidate} from '@mionjs/ts-go-run-types';
+export const _ = createValidate<{a: string}>();
 `)
-	if strings.Contains(isType.TypeErrorsCacheSource, initPrefixFor("typeErrors")) {
-		t.Errorf("createIsType must NOT emit a te_ entry, got:\n%s", isType.TypeErrorsCacheSource)
+	if strings.Contains(validate.ValidationErrorsCacheSource, initPrefixFor("validationErrors")) {
+		t.Errorf("createValidate must NOT emit a te_ entry, got:\n%s", validate.ValidationErrorsCacheSource)
 	}
 
-	// createGetTypeErrors demands `te`.
-	typeErrors := scopeScan(t, `import {createGetTypeErrors} from '@mionjs/ts-go-run-types';
-export const _ = createGetTypeErrors<{a: string}>();
+	// createGetValidationErrors demands `te`.
+	validationErrors := scopeScan(t, `import {createGetValidationErrors} from '@mionjs/ts-go-run-types';
+export const _ = createGetValidationErrors<{a: string}>();
 `)
-	if !strings.Contains(typeErrors.TypeErrorsCacheSource, initPrefixFor("typeErrors")) {
-		t.Errorf("createGetTypeErrors must emit a te_ entry, got:\n%s", typeErrors.TypeErrorsCacheSource)
+	if !strings.Contains(validationErrors.ValidationErrorsCacheSource, initPrefixFor("validationErrors")) {
+		t.Errorf("createGetValidationErrors must emit a te_ entry, got:\n%s", validationErrors.ValidationErrorsCacheSource)
 	}
 }
 
-// TestDemandScope_TypeErrorsTransitiveChildren — createGetTypeErrors on a parent
+// TestDemandScope_ValidationErrorsTransitiveChildren — createGetValidationErrors on a parent
 // emits te_ entries for the parent AND its non-inlined children (so dependency
 // calls resolve), even though only the parent has a call site.
-func TestDemandScope_TypeErrorsTransitiveChildren(t *testing.T) {
-	resp := scopeScan(t, `import {createGetTypeErrors} from '@mionjs/ts-go-run-types';
+func TestDemandScope_ValidationErrorsTransitiveChildren(t *testing.T) {
+	resp := scopeScan(t, `import {createGetValidationErrors} from '@mionjs/ts-go-run-types';
 interface Child { c: string }
 interface Parent { child: Child[] }
-export const _ = createGetTypeErrors<Parent>();
+export const _ = createGetValidationErrors<Parent>();
 `)
-	count := strings.Count(resp.TypeErrorsCacheSource, initPrefixFor("typeErrors"))
+	count := strings.Count(resp.ValidationErrorsCacheSource, initPrefixFor("validationErrors"))
 	if count < 2 {
-		t.Errorf("expected the parent + transitive child te_ entries (>=2), got %d:\n%s", count, resp.TypeErrorsCacheSource)
+		t.Errorf("expected the parent + transitive child te_ entries (>=2), got %d:\n%s", count, resp.ValidationErrorsCacheSource)
 	}
 }
 
@@ -111,7 +111,7 @@ func scopeScanBinary(t *testing.T, code string) protocol.Response {
 		IncludeRunTypes: true,
 		IncludeCacheSources: []protocol.CacheKind{
 			protocol.CacheKindRunType,
-			protocol.CacheKindIsType,
+			protocol.CacheKindValidate,
 			protocol.CacheKindToBinary,
 		},
 	})
@@ -122,7 +122,7 @@ func scopeScanBinary(t *testing.T, code string) protocol.Response {
 }
 
 // TestDemandScope_ItScopedReflectionOnly — `it` is now demand-scoped: a
-// getRunTypeId-only (reflection) file emits ZERO it_ entries (no createIsType
+// getRunTypeId-only (reflection) file emits ZERO it_ entries (no createValidate
 // site, no other family referencing it_ cross-family).
 func TestDemandScope_ItScopedReflectionOnly(t *testing.T) {
 	resp := scopeScan(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
@@ -131,26 +131,26 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 	if len(resp.RunTypes) == 0 {
 		t.Fatalf("reflection must still project runtypes for getRunTypeId, got none")
 	}
-	if strings.Contains(resp.IsTypeCacheSource, initPrefixFor("isType")) {
-		t.Errorf("it is now demand-scoped; a reflection-only file must emit no it_ entries, got:\n%s", resp.IsTypeCacheSource)
+	if strings.Contains(resp.ValidateCacheSource, initPrefixFor("validate")) {
+		t.Errorf("it is now demand-scoped; a reflection-only file must emit no it_ entries, got:\n%s", resp.ValidateCacheSource)
 	}
 }
 
-// TestDemandScope_ItScopedToCreateIsType — a createIsType call site demands the
+// TestDemandScope_ItScopedToCreateValidate — a createValidate call site demands the
 // `it` family, so its it_ entry is emitted.
-func TestDemandScope_ItScopedToCreateIsType(t *testing.T) {
-	resp := scopeScan(t, `import {createIsType} from '@mionjs/ts-go-run-types';
-export const _ = createIsType<{a: string}>();
+func TestDemandScope_ItScopedToCreateValidate(t *testing.T) {
+	resp := scopeScan(t, `import {createValidate} from '@mionjs/ts-go-run-types';
+export const _ = createValidate<{a: string}>();
 `)
-	if !strings.Contains(resp.IsTypeCacheSource, initPrefixFor("isType")) {
-		t.Errorf("createIsType must emit an it_ entry, got:\n%s", resp.IsTypeCacheSource)
+	if !strings.Contains(resp.ValidateCacheSource, initPrefixFor("validate")) {
+		t.Errorf("createValidate must emit an it_ entry, got:\n%s", resp.ValidateCacheSource)
 	}
 }
 
 // TestDemandScope_ItSeededByCrossFamilyUnion — the cross-family seeding proof: a
 // file that ONLY serializes a NON-merging union (conflicting shared prop, so
-// the binary union decoder discriminates members via the per-member isType
-// validators) and NEVER calls createIsType MUST still emit it_ entries — the
+// the binary union decoder discriminates members via the per-member validate
+// validators) and NEVER calls createValidate MUST still emit it_ entries — the
 // union members — because CrossFamilyItRoots follows the toBinary entry's
 // crossFamilyDeps into the it demand (RenderOpts.ExtraRoots). Without that
 // seeding the union round-trip silently corrupts (missing it_<member> ⇒
@@ -163,9 +163,9 @@ export const _ = createBinaryEncoder<{a: bigint} | {a: Date}>();
 	if !strings.Contains(resp.ToBinaryCacheSource, initPrefixFor("toBinary")) {
 		t.Fatalf("createBinaryEncoder must emit tb_ entries, got:\n%s", resp.ToBinaryCacheSource)
 	}
-	// The proof: no createIsType site, yet the union's per-member it_ entries
+	// The proof: no createValidate site, yet the union's per-member it_ entries
 	// are seeded from the toBinary entry's cross-family edges.
-	if !strings.Contains(resp.IsTypeCacheSource, initPrefixFor("isType")) {
-		t.Fatalf("cross-family seeding broken: a createBinaryEncoder-only union file must still emit it_ member entries (CrossFamilyItRoots → ExtraRoots), got:\n%s", resp.IsTypeCacheSource)
+	if !strings.Contains(resp.ValidateCacheSource, initPrefixFor("validate")) {
+		t.Fatalf("cross-family seeding broken: a createBinaryEncoder-only union file must still emit it_ member entries (CrossFamilyItRoots → ExtraRoots), got:\n%s", resp.ValidateCacheSource)
 	}
 }

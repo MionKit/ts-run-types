@@ -6,7 +6,7 @@
 //   - Directory name = the short hash (runType.ID) so the filesystem path
 //     is identical to the identifier consumers see in emitted JS.
 //   - File basename = the cache-module Tag (constants.CacheModules[…].Tag),
-//     e.g. "it.json" for isType, "te.json" for typeErrors.
+//     e.g. "it.json" for validate, "te.json" for validationErrors.
 //   - Filename never encodes the version. Version is folded into the typeID
 //     hash itself (see internal/compiled/runtype.Cache.uniqueDict), so
 //     cross-version typeIDs are already distinct paths.

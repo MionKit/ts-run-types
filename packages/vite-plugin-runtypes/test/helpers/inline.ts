@@ -35,14 +35,14 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
   export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export interface IsTypeOptions {
+  export interface ValidateOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
   }
-  export type IsTypeFn = (value: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): IsTypeFn;
-  export function createGetTypeErrors<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'te'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
-  export function deserializeIsType<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): IsTypeFn;
+  export type ValidateFn = (value: unknown) => boolean;
+  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'it'>): ValidateFn;
+  export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'te'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
+  export function deserializeValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'it'>): ValidateFn;
   export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
   export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'};
