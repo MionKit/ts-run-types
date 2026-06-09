@@ -58,19 +58,6 @@ const (
 	CodePJSSymbolKeyedDropped  = "PJS013"
 )
 
-// prepareForJsonSafePreserve family.
-const (
-	CodePJPNeverRoot           = "PJP001"
-	CodePJPNonSerializableRoot = "PJP002"
-	CodePJPFunctionRoot        = "PJP003"
-	CodePJPArrayElement        = "PJP004"
-	CodePJPSymbolRoot          = "PJP005"
-	CodePJPFunctionPropDropped = "PJP010"
-	CodePJPMethodDropped       = "PJP011"
-	CodePJPStaticDropped       = "PJP012"
-	CodePJPSymbolKeyedDropped  = "PJP013"
-)
-
 // restoreFromJson family.
 const (
 	CodeRJNeverRoot           = "RJ001"
@@ -154,7 +141,7 @@ const (
 
 // Class-serializer family (CLS) — advisory, Warning severity. Emitted once
 // per named plain user class (KindClass + SubKindNone) reached by a
-// serialization family (pj / pjs / pjsp / rj / sj / tb / fb) when NO custom
+// serialization family (pj / pjs / rj / sj / tb / fb) when NO custom
 // serializer is registered for the class name: the class is serialized
 // structurally (declared props in, prototype-less plain object out). The
 // user can register a custom (de)serializer via registerClassSerializer to
@@ -172,7 +159,6 @@ func init() {
 		CodeTENonSerializableRoot, CodeTESymbolRoot,
 		CodePJNeverRoot, CodePJNonSerializableRoot, CodePJFunctionRoot, CodePJArrayElement, CodePJSymbolRoot,
 		CodePJSNeverRoot, CodePJSNonSerializableRoot, CodePJSFunctionRoot, CodePJSArrayElement, CodePJSSymbolRoot,
-		CodePJPNeverRoot, CodePJPNonSerializableRoot, CodePJPFunctionRoot, CodePJPArrayElement, CodePJPSymbolRoot,
 		CodeRJNeverRoot, CodeRJNonSerializableRoot, CodeRJFunctionRoot, CodeRJArrayElement, CodeRJSymbolRoot,
 		CodeSJNeverRoot, CodeSJNonSerializableRoot, CodeSJFunctionRoot, CodeSJArrayElement, CodeSJSymbolRoot,
 		CodeTBNeverRoot, CodeTBNonSerializableRoot, CodeTBFunctionRoot, CodeTBArrayElement, CodeTBNonSerializableElem, CodeTBSymbolRoot,
@@ -187,7 +173,6 @@ func init() {
 		CodeTEFunctionPropDropped, CodeTEMethodDropped, CodeTEStaticDropped, CodeTESymbolKeyedDropped,
 		CodePJFunctionPropDropped, CodePJMethodDropped, CodePJStaticDropped, CodePJSymbolKeyedDropped,
 		CodePJSFunctionPropDropped, CodePJSMethodDropped, CodePJSStaticDropped, CodePJSSymbolKeyedDropped,
-		CodePJPFunctionPropDropped, CodePJPMethodDropped, CodePJPStaticDropped, CodePJPSymbolKeyedDropped,
 		CodeRJFunctionPropDropped, CodeRJMethodDropped, CodeRJStaticDropped, CodeRJSymbolKeyedDropped,
 		CodeSJFunctionPropDropped, CodeSJMethodDropped, CodeSJStaticDropped, CodeSJSymbolKeyedDropped,
 		CodeTBFunctionPropDropped, CodeTBMethodDropped, CodeTBStaticDropped, CodeTBSymbolKeyedDropped,

@@ -289,9 +289,9 @@ func (ctx *EmitContext) AddPureFnDependency(namespace, fnName, filePath string) 
 // DiagSlot identifies a RT-throw / silent-skip site by its semantic
 // shape rather than its per-family code. Emitters expose a DiagCodeFor
 // map keyed by these slots so that emit code shared across multiple
-// emitters (e.g. json_prepare_safe.go used by both PrepareForJsonSafe
-// and PrepareForJsonSafePreserve) emits diagnostics under the correct
-// per-family prefix.
+// emitters (e.g. json_prepare_safe.go shared by the isType / typeErrors
+// drop-slot machinery) emits diagnostics under the correct per-family
+// prefix.
 type DiagSlot string
 
 const (

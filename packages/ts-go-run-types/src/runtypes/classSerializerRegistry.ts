@@ -6,7 +6,7 @@
  * ######## */
 
 // Custom (de)serializer registry for user-defined classes, keyed by class
-// name. The JSON (pj / pjs / pjsp / rj / sj) and binary (tb / fb) families
+// name. The JSON (pj / pjs / rj / sj) and binary (tb / fb) families
 // consult this registry for plain user classes (KindClass + SubKindNone):
 // when a serializer is registered for the class name the emitted factory
 // routes through it instead of the structural object emit; when none is

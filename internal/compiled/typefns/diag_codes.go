@@ -109,32 +109,6 @@ func (PrepareForJsonSafeEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string 
 	return prepareForJsonSafeRootCodes.codeFor(leaf)
 }
 
-var prepareForJsonSafePreserveCodes = map[DiagSlot]string{
-	SlotNeverRoot:           diag.CodePJPNeverRoot,
-	SlotNonSerializableRoot: diag.CodePJPNonSerializableRoot,
-	SlotFunctionRoot:        diag.CodePJPFunctionRoot,
-	SlotArrayElement:        diag.CodePJPArrayElement,
-	SlotFunctionPropDropped: diag.CodePJPFunctionPropDropped,
-	SlotMethodDropped:       diag.CodePJPMethodDropped,
-	SlotStaticDropped:       diag.CodePJPStaticDropped,
-	SlotSymbolKeyedDropped:  diag.CodePJPSymbolKeyedDropped,
-}
-
-func (PrepareForJsonSafePreserveEmitter) DiagCodeFor(slot DiagSlot) string {
-	return prepareForJsonSafePreserveCodes[slot]
-}
-
-var prepareForJsonSafePreserveRootCodes = rootCodeMap{
-	never:           diag.CodePJPNeverRoot,
-	nonSerializable: diag.CodePJPNonSerializableRoot,
-	function:        diag.CodePJPFunctionRoot,
-	symbol:          diag.CodePJPSymbolRoot,
-}
-
-func (PrepareForJsonSafePreserveEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
-	return prepareForJsonSafePreserveRootCodes.codeFor(leaf)
-}
-
 var restoreFromJsonCodes = map[DiagSlot]string{
 	SlotNeverRoot:           diag.CodeRJNeverRoot,
 	SlotNonSerializableRoot: diag.CodeRJNonSerializableRoot,

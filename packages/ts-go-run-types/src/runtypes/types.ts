@@ -190,7 +190,7 @@ export type InitializedTypeFn<Fn extends AnyFn = AnyFn> = CompiledTypeFn<Fn> &
 // Per-family RTCompiledFn aliases — one per cache module under `src/caches/`.
 // The cache skeletons are `@ts-nocheck`'d JS and reach these via JSDoc
 // `@typedef {import('../runtypes/types.ts').<Alias>}`. Several families share an fn
-// shape but occupy distinct cache slots (`ukuw` vs `uku`; `pjs`/`pjsp` vs `pj`).
+// shape but occupy distinct cache slots (`ukuw` vs `uku`; `pjs` vs `pj`).
 
 export type IsTypeRTFn = CompiledTypeFn<IsTypeFn>;
 export type GetTypeErrorsRTFn = CompiledTypeFn<GetTypeErrorsFn>;
@@ -201,7 +201,6 @@ export type UnknownKeysToUndefinedRTFn = CompiledTypeFn<UnknownKeysToUndefinedFn
 export type UnknownKeysToUndefinedWireRTFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
 export type PrepareForJsonRTFn = CompiledTypeFn<PrepareForJsonFn>;
 export type PrepareForJsonSafeRTFn = CompiledTypeFn<PrepareForJsonFn>;
-export type PrepareForJsonSafePreserveRTFn = CompiledTypeFn<PrepareForJsonFn>;
 export type RestoreFromJsonRTFn = CompiledTypeFn<RestoreFromJsonFn>;
 export type StringifyJsonRTFn = CompiledTypeFn<StringifyJsonFn>;
 export type ToBinaryRTFn = CompiledTypeFn<ToBinaryFn>;

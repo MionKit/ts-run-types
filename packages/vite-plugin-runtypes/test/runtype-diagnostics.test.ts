@@ -200,7 +200,7 @@ export const _r = createJsonDecoder<[number, () => void]>();
       });
       const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
       // One per-family error code per emitter — PJ003 / PJS003 /
-      // PJP003 / RJ003 / SJ003 — all on the same function-root leaf.
+      // RJ003 / SJ003 — all on the same function-root leaf.
       expect(codes, [...codes].join(',')).toContain('PJ003');
       expect(codes).toContain('PJS003');
       expect(codes).toContain('RJ003');
