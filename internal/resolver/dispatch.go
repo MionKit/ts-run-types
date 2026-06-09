@@ -225,7 +225,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			}
 			if wantPureFns {
 				renderStart := time.Now()
-				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, pureFnEntries, true)
+				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, resolver.pureFnFileCache, pureFnEntries, true)
 				if pureFnsErr != nil {
 					return protocol.Response{Error: pureFnsErr.Error()}
 				}
@@ -304,7 +304,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		}
 		if noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns) {
 			renderStart := time.Now()
-			pureFnsRendered, pureFnsDiagnostics, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, nil, false)
+			pureFnsRendered, pureFnsDiagnostics, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, resolver.pureFnFileCache, nil, false)
 			if pureFnsErr != nil {
 				return protocol.Response{Error: pureFnsErr.Error()}
 			}
@@ -406,7 +406,7 @@ func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []puref
 	if resolver.Program == nil || len(files) == 0 {
 		return nil, nil, nil, false
 	}
-	entries, diagnostics = purefns.ExtractFromProgram(resolver.checker, resolver.marker, resolver.Program, files)
+	entries, diagnostics = purefns.ExtractFromProgramCached(resolver.checker, resolver.marker, resolver.Program, files, resolver.pureFnFileCache)
 	for _, entry := range entries {
 		key := entry.Key()
 		if existing, ok := resolver.pureFnHashes[key]; !ok || existing != entry.BodyHash {

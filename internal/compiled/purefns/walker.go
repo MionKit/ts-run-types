@@ -57,6 +57,42 @@ type SourceFileLookup interface {
 	SourceFile(absPath string) *ast.SourceFile
 }
 
+// FileCache memoizes per-file extraction results for the lifetime of ONE
+// Program — source files are immutable within a Program, so a file's raw
+// entries/diagnostics never change between requests. Only the per-file AST
+// walk + purity checks are cached; the cross-file fold (dedup + PFE9004
+// collision detection) is set-dependent and re-runs cheaply on every call.
+// The resolver owns one instance and drops it on Program swap / reset.
+// Not safe for concurrent use (same constraint as the package).
+type FileCache struct {
+	entries map[string][]Entry
+	diags   map[string][]diag.Diagnostic
+}
+
+// NewFileCache returns an empty per-Program extraction memo.
+func NewFileCache() *FileCache {
+	return &FileCache{entries: map[string][]Entry{}, diags: map[string][]diag.Diagnostic{}}
+}
+
+func (cache *FileCache) get(filePath string) ([]Entry, []diag.Diagnostic, bool) {
+	if cache == nil {
+		return nil, nil, false
+	}
+	entries, ok := cache.entries[filePath]
+	if !ok {
+		return nil, nil, false
+	}
+	return entries, cache.diags[filePath], true
+}
+
+func (cache *FileCache) put(filePath string, entries []Entry, diagnostics []diag.Diagnostic) {
+	if cache == nil {
+		return
+	}
+	cache.entries[filePath] = entries
+	cache.diags[filePath] = diagnostics
+}
+
 // ExtractFromProgram walks every file in `files`, finds calls to
 // `registerPureFnFactory(...)` whose resolved signature carries the
 // expected marker brands (CompTimeArgs<string> × 2 + PureFunction<F>
@@ -88,16 +124,27 @@ type SourceFileLookup interface {
 // Order: entries sorted by Key (alphabetical); diagnostics sorted by Site
 // (filepath, line, col) — both deterministic for stable test fixtures.
 func ExtractFromProgram(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, files []string) ([]Entry, []diag.Diagnostic) {
+	return ExtractFromProgramCached(typeChecker, markerOpts, lookup, files, nil)
+}
+
+// ExtractFromProgramCached is ExtractFromProgram with an optional per-Program
+// FileCache: cached files skip the AST walk + purity checks entirely, fresh
+// files are extracted and stored. A nil cache degrades to the uncached path.
+func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, files []string, cache *FileCache) ([]Entry, []diag.Diagnostic) {
 	var entries []Entry
 	var diagnostics []diag.Diagnostic
 	seen := map[string]int{} // key → index in entries (the winner)
 
 	for _, filePath := range files {
-		sourceFile := lookup.SourceFile(filePath)
-		if sourceFile == nil {
-			continue
+		fileEntries, fileDiags, cached := cache.get(filePath)
+		if !cached {
+			sourceFile := lookup.SourceFile(filePath)
+			if sourceFile == nil {
+				continue
+			}
+			fileEntries, fileDiags = extractFromSourceFile(typeChecker, markerOpts, sourceFile)
+			cache.put(filePath, fileEntries, fileDiags)
 		}
-		fileEntries, fileDiags := extractFromSourceFile(typeChecker, markerOpts, sourceFile)
 		diagnostics = append(diagnostics, fileDiags...)
 		for _, entry := range fileEntries {
 			if winnerIdx, dup := seen[entry.Key()]; dup {

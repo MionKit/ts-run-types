@@ -260,7 +260,7 @@ func renderFromBinaryModule(dump protocol.Dump, opts typefns.RenderOpts) (string
 // program and runs the extractor itself (the OpDump path). Returns the
 // rendered source plus any wire-shaped diagnostics from the in-place
 // extraction.
-func renderPureFnsModule(typeChecker *checker.Checker, markerOpts marker.Options, prog *program.Program, entries []purefns.Entry, ranExtraction bool) (string, []diag.Diagnostic, error) {
+func renderPureFnsModule(typeChecker *checker.Checker, markerOpts marker.Options, prog *program.Program, fileCache *purefns.FileCache, entries []purefns.Entry, ranExtraction bool) (string, []diag.Diagnostic, error) {
 	if prog == nil {
 		return "", nil, nil
 	}
@@ -274,7 +274,7 @@ func renderPureFnsModule(typeChecker *checker.Checker, markerOpts marker.Options
 			}
 			walkFiles = append(walkFiles, sf.FileName())
 		}
-		entries, diagnostics = purefns.ExtractFromProgram(typeChecker, markerOpts, prog, walkFiles)
+		entries, diagnostics = purefns.ExtractFromProgramCached(typeChecker, markerOpts, prog, walkFiles, fileCache)
 	}
 
 	rendered, err := renderToString("renderPureFnsModule", func(w io.Writer) error {
