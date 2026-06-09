@@ -29,6 +29,14 @@ becomes somethign like
 export type IsTypeFn<T> = (value: T) => value is DataOnly<T>;
 ```
 
+**DONE (two stages).**
+
+- **Stage 1 (typing).** `IsTypeFn<T = unknown>` is now `(value: unknown) => value is DataOnly<T>`, and `createIsType<T>()` returns `IsTypeFn<T>` (both overloads). `DataOnly` is exported from the package root. The default `unknown` keeps the bare `IsTypeFn` alias (`DataOnly<unknown>` ≡ `unknown`) a plain boolean-shaped guard for the cache typedefs. `getTypeErrors` has no narrowing surface, so its signature is unchanged. `DataOnly<T>` itself was rewritten to traverse like `SubstituteSelf` and drop exactly what the emitter drops: functions/methods/constructors → `never`, symbol-typed values + symbol-keyed props + `never`-typed props dropped, primitives / `Date`/native / `Map`/`Set`/`Promise` / arrays / TUPLES (slots + modifiers preserved) recurse, `any`/`unknown` pass through.
+
+- **Stage 2 (verification).** Each validation + format-validation case got `isTypeDataOnly` / `getTypeErrorsDataOnly` thunks (`createIsType<DataOnly<T>>()`), asserted to produce the SAME sample verdicts as the bare-`T` form by `assertDataOnlyEquivalence` (`test/suites/id-integrity/dataonly.test.ts`). This is a BEHAVIOURAL check, not a cached-factory `.toBe`: the emitter keeps each dropped member as a `notSupported` node, so the structural ids legitimately differ even when the validators agree. ~215/257 cases converge, proving `DataOnly` matches the emitter for the common structural data shapes (objects, unions, plain tuples, arrays, maps, sets, primitives, dropped functions/methods/symbols). The cases that CAN'T converge are flagged `dataOnlyDivergent` with rationale: native-identity leaves (`Temporal.*` + `Temporal.X & {brand}` formats), nominal `class` types, root-level `never`-collapsing kinds (bare function / callable / symbol), and degenerate tuple shapes (trailing rest, self-ref, function slot). These are types the emitter validates by native/nominal identity, which a purely structural `DataOnly` mapping cannot mirror.
+
+- Production `createIsType` / `createGetTypeErrors` still pass the raw `T` (NOT `DataOnly<T>`) — `DataOnly` stays a typing-and-verification device, never on the AOT hot path, per the note above about parsing cost.
+
 ## maybe the encode json function with mutate strategy does not need the stripe version
 
 the jsonPropare function with mutate strate might defaul to strip types, we coul ensure the cloned objects are based on the type shape rather than clonning the object

@@ -45,6 +45,16 @@ export interface ValidationCase {
   deserializeIsType?: Thunk<IsTypeFn>;
   /** Reflect-form companion to `deserializeIsType`. **/
   deserializeIsTypeReflect?: Thunk<IsTypeFn>;
+  /** DATA-ONLY form: `() => createIsType<DataOnly<T>>()` — the SAME `T` as
+   *  `isType`, wrapped in `DataOnly<…>`. Proves the `DataOnly` type mapping
+   *  drops exactly what the AOT validator emitter drops: a `DataOnly<T>` call
+   *  site must resolve to the SAME structural id (hence the SAME cached
+   *  factory, by reference) as the bare-`T` call site. Asserted in the
+   *  id-integrity DataOnly suite via `.toBe(isType())`. Wrap `DataOnly` at the
+   *  literal call site (NOT behind a generic helper) — the plugin resolves the
+   *  type argument where it is written. Set `dataOnlyDivergent` for the
+   *  root-level non-data kinds whose ids cannot converge. **/
+  isTypeDataOnly?: Thunk<IsTypeFn>;
   /** SCHEMA form: `() => createIsType(<value-first builder schema>)`. Builds
    *  the validator from a `define` builder result (a `RunType` value) instead of
    *  reflecting a type — the value-first authoring path. Run against the same
@@ -70,6 +80,10 @@ export interface ValidationCase {
   deserializeGetTypeErrors?: Thunk<GetTypeErrorsFn>;
   /** Reflect-form companion to `deserializeGetTypeErrors`. */
   deserializeGetTypeErrorsReflect?: Thunk<GetTypeErrorsFn>;
+  /** DATA-ONLY form: `() => createGetTypeErrors<DataOnly<T>>()`. Companion to
+   *  `isTypeDataOnly` for the getTypeErrors family — must resolve the SAME
+   *  cached factory as the bare-`T` `getTypeErrors` thunk. **/
+  getTypeErrorsDataOnly?: Thunk<GetTypeErrorsFn>;
   /** SCHEMA form: `() => createGetTypeErrors(<value-first builder schema>)`.
    *  Companion to `isTypeSchema` for the getTypeErrors family. Required on every
    *  case; supports the same `'not-supported'` sentinel for a case whose schema
@@ -115,6 +129,26 @@ export interface ValidationCase {
    *  `noIsArrayCheck` are NOT divergent — they converge once the schema thunk
    *  mirrors the same option, e.g. `createIsType(RT.literal(2), {noLiterals: true})`.) **/
   idDivergent?: boolean;
+
+  /** Opt a case out of the DataOnly-equivalence suite
+   *  (`assertDataOnlyEquivalence`): `createIsType<DataOnly<T>>()` is KNOWN not to
+   *  validate the same way as `createIsType<T>()`, by design, because `DataOnly`
+   *  is a purely STRUCTURAL projection and `T` is validated by NATIVE or NOMINAL
+   *  identity (which a structural mapping can't preserve), or `T` has a shape the
+   *  mapping can't reconstruct. Known divergent families:
+   *   - root-level non-data kinds where `DataOnly<T>` collapses to `never`
+   *     (bare function type, callable interface, `symbol`);
+   *   - native-identity leaves the emitter treats atomically but `DataOnly`
+   *     maps structurally (the TC39 `Temporal.*` types and `Temporal.X & {brand}`
+   *     format types);
+   *   - nominal `class` types (DataOnly projects the instance to a plain object,
+   *     so the validated kind becomes `objectLiteral` instead of `class`);
+   *   - degenerate tuple shapes the homomorphic mapped type can't preserve
+   *     (a trailing rest `...T[]`, a self-referential slot, or a function slot
+   *     the emitter keeps as a `notSupported`/`undefined` node).
+   *  Leave UNSET for every case that SHOULD converge so a DataOnly↔emitter
+   *  regression surfaces as a failure. **/
+  dataOnlyDivergent?: boolean;
 
   /** Pure sample data — same for every adapter. */
   getSamples: () => {valid: unknown[]; invalid: unknown[]};

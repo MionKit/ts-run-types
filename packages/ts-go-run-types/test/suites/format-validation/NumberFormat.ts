@@ -1,6 +1,6 @@
 import type {FormatValidationCase} from './types.ts';
 import '@mionjs/ts-go-run-types/formats';
-import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {FormatNumber, FormatInteger, FormatFloat, FormatInt8, FormatUInt8} from '@mionjs/ts-go-run-types/formats';
 
@@ -8,8 +8,10 @@ export const NUMBER_FORMAT = {
   number_max: {
     title: 'FormatNumber<{max: 100}> — inclusive upper bound',
     isType: () => createIsType<FormatNumber<{max: 100}>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<FormatNumber<{max: 100}>>>(),
     isTypeSchema: () => createIsType(RT.number({max: 100})),
     getTypeErrors: () => createGetTypeErrors<FormatNumber<{max: 100}>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatNumber<{max: 100}>>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.number({max: 100})),
     mockType: () => createMockType<FormatNumber<{max: 100}>>(),
     getSamples: () => ({valid: [100, 0, -50], invalid: [101, '5']}),
@@ -18,8 +20,10 @@ export const NUMBER_FORMAT = {
   number_min: {
     title: 'FormatNumber<{min: 0}> — inclusive lower bound',
     isType: () => createIsType<FormatNumber<{min: 0}>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<FormatNumber<{min: 0}>>>(),
     isTypeSchema: () => createIsType(RT.number({min: 0})),
     getTypeErrors: () => createGetTypeErrors<FormatNumber<{min: 0}>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatNumber<{min: 0}>>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.number({min: 0})),
     mockType: () => createMockType<FormatNumber<{min: 0}>>(),
     getSamples: () => ({valid: [0, 1, 9999], invalid: [-1]}),
@@ -28,8 +32,10 @@ export const NUMBER_FORMAT = {
   number_lt: {
     title: 'FormatNumber<{lt: 10}> — exclusive upper bound',
     isType: () => createIsType<FormatNumber<{lt: 10}>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<FormatNumber<{lt: 10}>>>(),
     isTypeSchema: () => createIsType(RT.number({lt: 10})),
     getTypeErrors: () => createGetTypeErrors<FormatNumber<{lt: 10}>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatNumber<{lt: 10}>>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.number({lt: 10})),
     mockType: () => createMockType<FormatNumber<{lt: 10}>>(),
     getSamples: () => ({valid: [9, 0, -100], invalid: [10, 11]}),
@@ -41,8 +47,10 @@ export const NUMBER_FORMAT = {
   number_gt: {
     title: 'FormatNumber<{gt: 0}> — exclusive lower bound',
     isType: () => createIsType<FormatNumber<{gt: 0}>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<FormatNumber<{gt: 0}>>>(),
     isTypeSchema: () => createIsType(RT.number({gt: 0})),
     getTypeErrors: () => createGetTypeErrors<FormatNumber<{gt: 0}>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatNumber<{gt: 0}>>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.number({gt: 0})),
     mockType: () => createMockType<FormatNumber<{gt: 0}>>(),
     getSamples: () => ({valid: [1, 100], invalid: [0, -1]}),
@@ -54,8 +62,10 @@ export const NUMBER_FORMAT = {
   number_integer: {
     title: 'FormatInteger — whole numbers only',
     isType: () => createIsType<FormatInteger>(),
+    isTypeDataOnly: () => createIsType<DataOnly<FormatInteger>>(),
     isTypeSchema: () => createIsType(RT.integer()),
     getTypeErrors: () => createGetTypeErrors<FormatInteger>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatInteger>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.integer()),
     mockType: () => createMockType<FormatInteger>(),
     getSamples: () => ({valid: [0, 1, -1, 42], invalid: [1.5, 3.14]}),
@@ -67,8 +77,10 @@ export const NUMBER_FORMAT = {
   number_float: {
     title: 'FormatFloat — non-integer only',
     isType: () => createIsType<FormatFloat>(),
+    isTypeDataOnly: () => createIsType<DataOnly<FormatFloat>>(),
     isTypeSchema: () => createIsType(RT.float()),
     getTypeErrors: () => createGetTypeErrors<FormatFloat>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatFloat>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.float()),
     mockType: () => createMockType<FormatFloat>(),
     getSamples: () => ({valid: [1.5, -0.5, 3.14], invalid: [1, 0, -2]}),
@@ -81,8 +93,10 @@ export const NUMBER_FORMAT = {
   number_multipleOf: {
     title: 'FormatNumber<{multipleOf: 5}> — divisible by 5',
     isType: () => createIsType<FormatNumber<{multipleOf: 5}>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<FormatNumber<{multipleOf: 5}>>>(),
     isTypeSchema: () => createIsType(RT.number({multipleOf: 5})),
     getTypeErrors: () => createGetTypeErrors<FormatNumber<{multipleOf: 5}>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatNumber<{multipleOf: 5}>>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.number({multipleOf: 5})),
     mockType: () => createMockType<FormatNumber<{multipleOf: 5}>>(),
     getSamples: () => ({valid: [0, 5, 10, -15], invalid: [3, 7]}),
@@ -94,8 +108,10 @@ export const NUMBER_FORMAT = {
   number_combined: {
     title: 'FormatNumber<{min:0; max:100; integer:true; multipleOf:5}> — all constraints',
     isType: () => createIsType<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>>(),
     isTypeSchema: () => createIsType(RT.number({min: 0, max: 100, integer: true, multipleOf: 5})),
     getTypeErrors: () => createGetTypeErrors<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.number({min: 0, max: 100, integer: true, multipleOf: 5})),
     mockType: () => createMockType<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
     getSamples: () => ({valid: [0, 5, 50, 100], invalid: [-5, 105, 7, 2.5]}),
@@ -109,8 +125,10 @@ export const NUMBER_FORMAT = {
   number_int8: {
     title: 'FormatInt8 — signed 8-bit range',
     isType: () => createIsType<FormatInt8>(),
+    isTypeDataOnly: () => createIsType<DataOnly<FormatInt8>>(),
     isTypeSchema: () => createIsType(RT.int8()),
     getTypeErrors: () => createGetTypeErrors<FormatInt8>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatInt8>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.int8()),
     mockType: () => createMockType<FormatInt8>(),
     getSamples: () => ({valid: [-128, 0, 127], invalid: [128, -129, 1.5]}),
@@ -123,8 +141,10 @@ export const NUMBER_FORMAT = {
   number_uint8: {
     title: 'FormatUInt8 — unsigned 8-bit range',
     isType: () => createIsType<FormatUInt8>(),
+    isTypeDataOnly: () => createIsType<DataOnly<FormatUInt8>>(),
     isTypeSchema: () => createIsType(RT.uint8()),
     getTypeErrors: () => createGetTypeErrors<FormatUInt8>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatUInt8>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.uint8()),
     mockType: () => createMockType<FormatUInt8>(),
     getSamples: () => ({valid: [0, 128, 255], invalid: [256, -1]}),

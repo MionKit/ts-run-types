@@ -233,23 +233,59 @@ interface FormData {
 // prettier-ignore
 type Native = Date | RegExp | URL | URLSearchParams | Blob | File | FileList | FormData | ArrayBuffer | SharedArrayBuffer | DataView | Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;
 
-/** Mapping type that strips methods and keeps data properties. Handles
- *  Date, plain objects, classes, arrays, Map, Set. */
-export type DataOnly<T> = T extends object
-  ? T extends Native
+/** The serialisable projection of `T` — the exact shape `createIsType<T>()` /
+ *  `createGetTypeErrors<T>()` validate. It traverses every node like
+ *  `SubstituteSelf` but, instead of substituting, DROPS every member the AOT
+ *  emitter treats as non-data (see CLAUDE.md "isType contract — serializable
+ *  data only"):
+ *   - functions / methods / constructors → `never` (drop at property position);
+ *   - `symbol`-typed values and symbol-keyed properties → dropped;
+ *   - `never`-typed properties → dropped;
+ *   - primitives, `Date`/`RegExp`/native, `Map`/`Set`, arrays, and TUPLES
+ *     (slot structure + optional/readonly modifiers preserved) recurse;
+ *   - `any` / `unknown` pass through unchanged (the emitter keeps the broad
+ *     kinds).
+ *
+ *  Modifiers (`readonly`, optional `?`) survive because the object/tuple
+ *  branches use homomorphic mapped types (`keyof T`). A property is dropped iff
+ *  its recursively-projected value collapses to `never` OR its key is a symbol —
+ *  this single rule subsumes "drop functions" (`DataOnly<fn>` is `never`).
+ *
+ *  Root-level non-data kinds (a bare function type, a callable interface, a
+ *  `symbol`) collapse to `never` here, which the emitter renders as an
+ *  always-throw factory rather than the value-position drop — those cases are
+ *  intentionally `DataOnly`-divergent (the structural ids cannot converge). */
+export type DataOnly<T> = unknown extends T // `any` / `unknown` — keep broad kinds
+  ? T
+  : T extends string | number | boolean | bigint | null | undefined
     ? T
-    : T extends (...args: any[]) => any
+    : T extends symbol
       ? never
-      : T extends new (...args: any[]) => any
-        ? never
-        : T extends Array<infer U>
-          ? Array<DataOnly<U>>
-          : T extends Map<infer K, infer V>
-            ? Map<DataOnly<K>, DataOnly<V>>
-            : T extends Set<infer U>
-              ? Set<DataOnly<U>>
-              : {[K in keyof T as T[K] extends (...args: any[]) => any ? never : K]: DataOnly<T[K]>}
-  : T;
+      : T extends Native
+        ? T
+        : T extends (...args: any[]) => any
+          ? never
+          : T extends abstract new (...args: any[]) => any
+            ? never
+            : T extends Map<infer K, infer V>
+              ? Map<DataOnly<K>, DataOnly<V>>
+              : T extends Set<infer U>
+                ? Set<DataOnly<U>>
+                : T extends Promise<infer U> // validated as a thenable; wrapped type recurses
+                  ? Promise<DataOnly<U>>
+                  : T extends ReadonlyArray<unknown>
+                    ? number extends T['length'] // array (open length) vs tuple (fixed)
+                      ? T extends ReadonlyArray<infer E>
+                        ? DataOnly<E>[]
+                        : never
+                      : {-readonly [K in keyof T]: DataOnly<T[K]>} // tuple — preserve slots
+                    : T extends object
+                      ? {
+                          [K in keyof T as K extends symbol ? never : [DataOnly<T[K]>] extends [never] ? never : K]: DataOnly<
+                            T[K]
+                          >;
+                        }
+                      : T;
 
 export type DeserializeClassFn<C extends InstanceType<AnyClass>> = (deserialized: DataOnly<C>) => C;
 

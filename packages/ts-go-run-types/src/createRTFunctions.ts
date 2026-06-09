@@ -17,7 +17,7 @@ import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonS
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {getRTUtils, isRunTypeSchema} from './runtypes/rtUtils.ts';
-import type {AnyFn, RunType} from './runtypes/types.ts';
+import type {AnyFn, RunType, DataOnly} from './runtypes/types.ts';
 import type {CompTimeFnArgs, InjectTypeFnArgs} from './index.ts';
 
 // =============================================================================
@@ -39,8 +39,14 @@ export interface IsTypeOptions {
   noIsArrayCheck?: boolean;
 }
 
-/** Validator function returned by `createIsType<T>()`. **/
-export type IsTypeFn = (value: unknown) => boolean;
+/** Validator function returned by `createIsType<T>()`. The type guard narrows
+ *  to `DataOnly<T>` — the serialisable projection of `T` the validator actually
+ *  enforces (non-data members like functions / methods / symbols are silently
+ *  dropped from the validated shape; see CLAUDE.md "isType contract"). `T`
+ *  defaults to `unknown` so the bare `IsTypeFn` alias (`DataOnly<unknown>` ≡
+ *  `unknown`) stays a plain `(value) => boolean`-shaped guard for the cache
+ *  typedefs that don't carry a source type. **/
+export type IsTypeFn<T = unknown> = (value: unknown) => value is DataOnly<T>;
 
 /** Mirror of mion's RunTypeError shape. Map / Set emitters add
  *  `{key, index, failed: 'mapKey' | 'mapValue'}` path segments. **/
@@ -254,12 +260,19 @@ const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 //   - VALUE / static form `createIsType<T>()` / `createIsType(value)`.
 // Both share the runtime impl (`val`/`schema` @slot0 ignored, options @slot1,
 // injected id @slot2).
-export const createIsType = createTypeFnArgsFunction<IsTypeFn>('createIsType', 'it', () => true) as unknown as (<T>(
+export const createIsType = createTypeFnArgsFunction<IsTypeFn>(
+  'createIsType',
+  'it',
+  // The runtime fallback is a plain `() => true`; `IsTypeFn` is now a type
+  // guard, so cast through `unknown` (a direct cast is rejected — a boolean fn
+  // doesn't structurally overlap a type predicate).
+  (() => true) as unknown as IsTypeFn
+) as unknown as (<T>(
   schema: RunType<T>,
   options?: CompTimeFnArgs<IsTypeOptions>,
   id?: InjectTypeFnArgs<T, 'it'>
-) => IsTypeFn) &
-  (<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>) => IsTypeFn);
+) => IsTypeFn<T>) &
+  (<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>) => IsTypeFn<T>);
 
 export const createGetTypeErrors = createTypeFnArgsFunction<GetTypeErrorsFn>(
   'createGetTypeErrors',
