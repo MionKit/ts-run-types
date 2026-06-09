@@ -180,7 +180,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			continue
 		}
 		paramType := checker.Checker_getTypeOfSymbol(resolver.checker, paramSymbol)
-		kind, typeArg, matched := marker.DetectAny(resolver.checker, paramType, resolver.marker)
+		kind, typeArg, matched := resolver.detectMarker(paramType)
 		if !matched {
 			continue
 		}
@@ -517,7 +517,7 @@ func (resolver *Resolver) enclosedByInjectionMarker(call *ast.Node) bool {
 			continue
 		}
 		paramType := checker.Checker_getTypeOfSymbol(resolver.checker, lastParam)
-		kind, _, matched := marker.DetectAny(resolver.checker, paramType, resolver.marker)
+		kind, _, matched := resolver.detectMarker(paramType)
 		if matched && (kind == marker.KindInjectRunTypeId || kind == marker.KindInjectTypeFnArgs) {
 			return true
 		}
