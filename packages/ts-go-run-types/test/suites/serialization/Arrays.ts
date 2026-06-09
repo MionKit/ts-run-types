@@ -7,8 +7,6 @@ export const ARRAYS = {
     title: 'array',
     mutateEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<string[]>(),
     directEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<string[]>(),
     preserveDecoder: () => createJsonDecoder<string[]>(undefined, {strategy: 'preserve'}),
@@ -24,8 +22,6 @@ export const ARRAYS = {
     title: 'array of dates',
     mutateEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<Date[]>(),
     directEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<Date[]>(),
     preserveDecoder: () => createJsonDecoder<Date[]>(undefined, {strategy: 'preserve'}),
@@ -43,8 +39,6 @@ export const ARRAYS = {
     title: 'undefined is serialized as null in array',
     mutateEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<undefined[]>(),
     directEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<undefined[]>(),
     preserveDecoder: () => createJsonDecoder<undefined[]>(undefined, {strategy: 'preserve'}),
@@ -60,8 +54,6 @@ export const ARRAYS = {
     title: 'multi dimensional array',
     mutateEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<string[][]>(),
     directEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<string[][]>(),
     preserveDecoder: () => createJsonDecoder<string[][]>(undefined, {strategy: 'preserve'}),
@@ -78,8 +70,6 @@ export const ARRAYS = {
     description: 'symbol[] should throw at RT-compile time per mion semantic.',
     mutateEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<symbol[]>(),
     directEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<symbol[]>(),
     preserveDecoder: () => createJsonDecoder<symbol[]>(undefined, {strategy: 'preserve'}),
@@ -103,14 +93,6 @@ export const ARRAYS = {
     cloneEncoder: () => {
       type CircularArray = CircularArray[];
       return createJsonEncoder<CircularArray>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      type CircularArray = CircularArray[];
-      return createJsonEncoder<CircularArray>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      type CircularArray = CircularArray[];
-      return createJsonEncoder<CircularArray>();
     },
     directEncoder: () => {
       type CircularArray = CircularArray[];

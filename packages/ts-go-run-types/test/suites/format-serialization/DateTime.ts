@@ -35,11 +35,6 @@ export const DATETIME = {
       createJsonEncoder<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>
       createJsonEncoder<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {
-        strategy: 'stripMutate',
-      }),
-    stripCloneEncoder: () => createJsonEncoder<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     directEncoder: () =>
       createJsonEncoder<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
@@ -64,12 +59,6 @@ export const DATETIME = {
       createJsonEncoder<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(undefined, {
         strategy: 'clone',
       }),
-    stripMutateEncoder: () =>
-      createJsonEncoder<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(undefined, {
-        strategy: 'stripMutate',
-      }),
-    stripCloneEncoder: () =>
-      createJsonEncoder<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     directEncoder: () =>
       createJsonEncoder<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(undefined, {
         strategy: 'direct',
@@ -96,9 +85,6 @@ export const DATETIME = {
       createJsonEncoder<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>
       createJsonEncoder<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     directEncoder: () =>
       createJsonEncoder<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
@@ -119,9 +105,6 @@ export const DATETIME = {
       createJsonEncoder<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>
       createJsonEncoder<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     directEncoder: () =>
       createJsonEncoder<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
@@ -146,12 +129,6 @@ export const DATETIME = {
       createJsonEncoder<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {
         strategy: 'clone',
       }),
-    stripMutateEncoder: () =>
-      createJsonEncoder<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {
-        strategy: 'stripMutate',
-      }),
-    stripCloneEncoder: () =>
-      createJsonEncoder<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     directEncoder: () =>
       createJsonEncoder<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {
         strategy: 'direct',
@@ -166,10 +143,8 @@ export const DATETIME = {
       createBinaryEncoder<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     binaryDecoder: () =>
       createBinaryDecoder<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
-    schemaEncoder: () =>
-      createJsonEncoder(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
-    schemaDecoder: () =>
-      createJsonDecoder(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     schemaBinaryDecoder: () =>
@@ -183,9 +158,6 @@ export const DATETIME = {
       createJsonEncoder<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>
       createJsonEncoder<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     directEncoder: () =>
       createJsonEncoder<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
@@ -212,13 +184,6 @@ export const DATETIME = {
         undefined,
         {strategy: 'clone'}
       ),
-    stripMutateEncoder: () =>
-      createJsonEncoder<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(
-        undefined,
-        {strategy: 'stripMutate'}
-      ),
-    stripCloneEncoder: () =>
-      createJsonEncoder<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     directEncoder: () =>
       createJsonEncoder<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(
         undefined,

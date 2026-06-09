@@ -1081,7 +1081,7 @@ func TestResolver_EncoderOptionsShareTypeID(t *testing.T) {
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
-  export type JsonEncoderOptions = {strategy?: 'clone' | 'stripClone' | 'mutate' | 'stripMutate' | 'direct'};
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'};
   export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
 }
 `
@@ -1113,11 +1113,11 @@ createJsonEncoder<string>(undefined, {strategy: 'direct'});
 	}
 	// The fnId (tuple[1]) is now the opaque COMPOSITE fnHash the scanner
 	// computes per (jsonEncoder, strategy) — the no-options call defaults to
-	// stripClone, the others carry their literal strategy. Assert equality to
+	// clone, the others carry their literal strategy. Assert equality to
 	// operations.FnHashFor (NOT a hardcoded hash) so the test stays correct
 	// across version-isolated hashes.
 	encoderOp, _ := operations.ByName("jsonEncoder")
-	for _, strategy := range []string{"stripClone", "mutate", "direct"} {
+	for _, strategy := range []string{"clone", "mutate", "direct"} {
 		want := operations.FnHashFor(encoderOp, nil, strategy)
 		if !fnIDs[want] {
 			t.Errorf("expected a site with fnId %q (jsonEncoder/%s), got %v", want, strategy, fnIDs)

@@ -7,8 +7,6 @@ export const RECORDS = {
     title: 'index property',
     mutateEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{[key: string]: string}>(),
     directEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{[key: string]: string}>(),
     preserveDecoder: () => createJsonDecoder<{[key: string]: string}>(undefined, {strategy: 'preserve'}),
@@ -24,8 +22,6 @@ export const RECORDS = {
     title: 'interface with a single property and index property',
     mutateEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(),
     directEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(),
     preserveDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(undefined, {strategy: 'preserve'}),
@@ -42,9 +38,6 @@ export const RECORDS = {
     mutateEncoder: () =>
       createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(),
     directEncoder: () =>
       createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(),
@@ -53,13 +46,21 @@ export const RECORDS = {
     binaryEncoder: () => createBinaryEncoder<{a: string; b: number; [key: string]: string | number}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b: number; [key: string]: string | number}>(),
     schemaEncoder: () =>
-      createJsonEncoder(RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))),
+      createJsonEncoder(
+        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+      ),
     schemaDecoder: () =>
-      createJsonDecoder(RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))),
+      createJsonDecoder(
+        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+      ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))),
+      createBinaryEncoder(
+        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+      ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))),
+      createBinaryDecoder(
+        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+      ),
     getTestData: () => ({values: [{key1: 'value1', key2: 'value2', a: 'extra1', b: 123}]}),
   },
   multiple_index_props: {
@@ -68,11 +69,6 @@ export const RECORDS = {
       createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>
       createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {
-        strategy: 'stripMutate',
-      }),
-    stripCloneEncoder: () => createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
     directEncoder: () =>
       createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
@@ -108,8 +104,6 @@ export const RECORDS = {
     title: 'index property nested',
     mutateEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(),
     directEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(),
     preserveDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'preserve'}),
@@ -125,8 +119,6 @@ export const RECORDS = {
     title: 'index property nested with Date values',
     mutateEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(),
     directEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(),
     preserveDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'preserve'}),
@@ -151,8 +143,6 @@ export const RECORDS = {
     title: 'index property with bigint values',
     mutateEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{[key: string]: bigint}>(),
     directEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{[key: string]: bigint}>(),
     preserveDecoder: () => createJsonDecoder<{[key: string]: bigint}>(undefined, {strategy: 'preserve'}),
@@ -173,9 +163,6 @@ export const RECORDS = {
     title: 'index property non-root',
     mutateEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(),
     directEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(),
     preserveDecoder: () =>

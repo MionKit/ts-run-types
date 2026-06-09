@@ -7,8 +7,6 @@ export const TEMPLATE_LITERALS = {
     title: 'template literal as string type',
     mutateEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<`api/users/${number}`>(),
     directEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<`api/users/${number}`>(),
     preserveDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {strategy: 'preserve'}),
@@ -33,9 +31,6 @@ export const TEMPLATE_LITERALS = {
     title: 'template literal as object property type',
     mutateEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(),
     directEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(),
     preserveDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'preserve'}),
@@ -59,8 +54,6 @@ export const TEMPLATE_LITERALS = {
     title: 'template literal as index signature key',
     mutateEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(),
     directEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(),
     preserveDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'preserve'}),
@@ -78,9 +71,6 @@ export const TEMPLATE_LITERALS = {
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
     directEncoder: () =>
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),

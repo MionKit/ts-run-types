@@ -8,10 +8,10 @@ import (
 
 // expectedCanonicalKeyCount is a canary: 13 AxisNone ops (7 public leaf + 6
 // internal primitives) × 1, plus 2 IsTypeOptions ops × 4 subsets, plus
-// jsonEncoder's 5 + jsonDecoder's 2 strategies = 13 + 8 + 7. If this trips,
+// jsonEncoder's 3 + jsonDecoder's 2 strategies = 13 + 8 + 5. If this trips,
 // an operation was added/removed without updating the count (and you should
 // re-confirm the collision guard still holds).
-const expectedCanonicalKeyCount = 13 + 8 + 7
+const expectedCanonicalKeyCount = 13 + 8 + 5
 
 func TestFnHashCollisionFree(t *testing.T) {
 	// Runs at init too, but assert here so the failure is a test, not a panic.

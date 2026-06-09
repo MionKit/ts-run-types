@@ -37,7 +37,13 @@ package disk
 // now embeds an opaque fnHash (e.g. `WMk0_<id>`) instead of the readable family
 // tag (`it_<id>`). v2 files bake the old tag-based keys, so a hit would feed the
 // runtime keys it no longer registers — they must become misses.
-const FormatVersion = 3
+//
+// v4 redefines the `clone` JSON-encoder strategy: its composite body now wraps
+// prepareForJsonSafe (shape-derived strip) instead of prepareForJsonSafePreserve
+// (preserve extras), while its fnHash is unchanged (the strategy token "clone" is
+// the same). A v3 `jeCL` entry bakes the old preserve body, so a hit would emit
+// the wrong (extras-preserving) encoder — it must become a miss.
+const FormatVersion = 4
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can

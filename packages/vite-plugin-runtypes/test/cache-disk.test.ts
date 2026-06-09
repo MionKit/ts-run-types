@@ -72,10 +72,12 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 3
-    // for the hashed-naming flip (Slice 4): every cached key now embeds an
-    // opaque fnHash, so v2's tag-based keys (`it_<id>`) are incompatible misses.
-    expect(parsed.version).toBe(3);
+    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 4
+    // when the `clone` JSON-encoder strategy was redefined to wrap
+    // prepareForJsonSafe (shape-derived strip) instead of the removed
+    // prepareForJsonSafePreserve, while keeping the same fnHash — so stale v3
+    // `jeCL` entries must miss. (v3 was the hashed-naming flip.)
+    expect(parsed.version).toBe(4);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.line).toBe('string');

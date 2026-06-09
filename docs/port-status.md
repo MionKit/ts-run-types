@@ -41,7 +41,7 @@ Closed since the prior snapshot:
 
 mion ships two paths for `T → JSON-string` with intentionally-
 different extras semantics; we mirror both. The current public API
-consolidates these under `createJsonEncoder<T>(val?, {strategy?:'stripClone'|'clone'|'stripMutate'|'mutate'|'direct'}, id?)`
+consolidates these under `createJsonEncoder<T>(val?, {strategy?:'clone'|'mutate'|'direct'}, id?)` (`clone`, the default, is shape-derived and strips undeclared keys by construction — the old `stripClone`/`stripMutate` variants were removed as redundant)
 and `createJsonDecoder<T>(val?, {strategy?:'strip'|'preserve'}, id?)`. Mapping from
 the older names: the unsafe path (`createUnsafeJsonStringify` /
 `createUnsafeJsonParse`) corresponds to `strategy:'mutate'`;
