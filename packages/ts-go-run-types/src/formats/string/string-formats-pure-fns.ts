@@ -1,5 +1,5 @@
 // Registration module for every pure fn the Go-side format emitters
-// reach via `utl.getPureFn('mionFormats::<name>')`. Each cpf_* below
+// reach via `utl.getPureFn('mionFormats::<name>')`. Each pf_* below
 // is registered at module load; importing this file from
 // `src/formats/index.ts` (the `@mionjs/ts-go-run-types/formats`
 // subpath surface) is enough to guarantee the registrations happen
@@ -9,19 +9,19 @@
 // minus the deepkit-coupled `getPureFn` typing — our utl is the
 // runtime helper exported from @mionjs/ts-go-run-types.
 //
-// Phase 3 ships cpf_isUUID. Subsequent phases append more.
+// Phase 3 ships pf_isUUID. Subsequent phases append more.
 
 import {registerPureFnFactory} from '../../runtypes/pureFn.ts';
 import type {RTUtils} from '../../runtypes/rtUtils.ts';
 
 // FormatParams_UUID — the wire-shape params object the Go emitter
-// passes to cpf_isUUID at runtime. Mirrors mion's FormatParams_UUID
+// passes to pf_isUUID at runtime. Mirrors mion's FormatParams_UUID
 // keeping only what the validator needs.
 interface FormatParams_UUID {
   version: string;
 }
 
-// cpf_isUUID — port of mion's same-named pure fn. Length + dash
+// pf_isUUID — port of mion's same-named pure fn. Length + dash
 // positions + version digit at slot 14 + hex character class on
 // every other slot. Matches the runtime behaviour of the canonical
 // UUIDv4 / UUIDv7 patterns without pulling in a regex engine.

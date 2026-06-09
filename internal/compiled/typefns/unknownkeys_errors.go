@@ -142,7 +142,7 @@ func (UnknownKeyErrorsEmitter) Finalize(rawCode string) (string, bool) {
 	return code, false
 }
 
-// callUnknownKeyErr builds the JS call to cpf_newRunTypeErr that
+// callUnknownKeyErr builds the JS call to pf_newRunTypeErr that
 // appends a 'never' error for an unknown key. `extra` is the key
 // variable (since the key is a runtime value, not a static name).
 func callUnknownKeyErr(ctx *EmitContext, extra string) string {
@@ -261,7 +261,7 @@ func emitIndexSignatureUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) 
 // MapKeyRunType.getStaticPathLiteral / MapValueRunType.getStaticPathLiteral)
 // before recursing into the wrapped child's unknownKeyErrors emit. The
 // child's emit (object/property/etc) emits its own per-error
-// `cpf_newRunTypeErr(pth, er, 'never', [...static path..., extra])`.
+// `pf_newRunTypeErr(pth, er, 'never', [...static path..., extra])`.
 //
 // When every wrapped child compiles to a noop (atomic Map<string,
 // number>), the loop body is empty so we elide the iteration entirely.

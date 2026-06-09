@@ -13,14 +13,14 @@
 import {registerPureFnFactory} from '../../runtypes/pureFn.ts';
 import type {RTUtils} from '../../runtypes/rtUtils.ts';
 
-// IsDateStringFn — shape the base cpf_isDateString resolves to, used to
+// IsDateStringFn — shape the base pf_isDateString resolves to, used to
 // type the getPureFn lookups in the layout wrappers below.
 type IsDateStringFn = (year: string | undefined, month: string, day?: string) => boolean;
 type SegmentFn = (segment: string) => boolean;
 
 // ############### Date pure fns ###############
 //
-// cpf_isDateString is the base leap-year-aware validator; the six
+// pf_isDateString is the base leap-year-aware validator; the six
 // layout wrappers split on '-' and delegate. Wrappers reach the base fn
 // via utl.getPureFn so the Go extractor records the transitive dep.
 

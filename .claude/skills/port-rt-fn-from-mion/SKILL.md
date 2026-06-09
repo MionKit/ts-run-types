@@ -124,7 +124,7 @@ into the plan file covering:
   triggers the `validation/` → `rt-suite.ts` rename — see
   step 8; note: the rt-suite rename did not stick in the current tree —
   the active suites are `validation/` + `serialization/`
-  + format suites; a further rename is a separate decision)
+  - format suites; a further rename is a separate decision)
 - The verification commands from step 14, including the round-trip
   assertion for each serializer pair.
 
@@ -173,6 +173,7 @@ Don't split kind logic across per-kind files — the convention is
 If the function needs path tracking (e.g. errors need to report
 "where in the value"), use the path-tracking infrastructure already
 on `EmitContext`:
+
 - `ctx.SetChildPathLiteral(literal)` — set BEFORE `ctx.CompileChild`,
   attaches a path segment to the next-pushed frame
 - `ctx.AccessPathLiteral(extra)` — get the current path as a JS
@@ -185,12 +186,12 @@ plumbing exactly:
 
 - `internal/constants/constants.go` — add `<fnname>` entry to the
   `CacheModules` map with `Name: "<fnname>Module"` and `VarPrefix:
-  "<fnname>_"`
+"<fnname>_"`
 - `internal/cachetpl/splice.go` — add a `Skeleton<FnName>` constant
   pointing at `<fnname>Cache.ts`
 - `internal/protocol/protocol.go` — add `CacheKind<FnName> CacheKind
-  = "<fnname>"`; add `<FnName>CacheSource string` and `Added<FnName>
-  bool` to `Response`; extend `MarshalJSON` to surface both
+= "<fnname>"`; add `<FnName>CacheSource string` and `Added<FnName>
+bool` to `Response`; extend `MarshalJSON` to surface both
 - `internal/resolver/dispatch.go` — wire `want<FnName>` flag mirroring
   `wantIsType`; honour `CacheKind<FnName>` in `OpScanFiles` + `OpDump`;
   set `Added<FnName>` and populate `<FnName>CacheSource`
@@ -198,8 +199,8 @@ plumbing exactly:
   that calls into the new emitter
 - `internal/compiled/typefns/module.go` — add `<FnName>Module(w, dump)`
   one-liner that calls `RenderFnModule(w, dump,
-  CacheModules["<fnname>"], <FnName>Emitter{}, "<fnname>_",
-  cachetpl.Skeleton<FnName>)` plus `Any<FnName>Supported(runTypes)`
+CacheModules["<fnname>"], <FnName>Emitter{}, "<fnname>_",
+cachetpl.Skeleton<FnName>)` plus `Any<FnName>Supported(runTypes)`
   helper alongside `AnyValidateSupported`
 
 ## Step 7 — JS-side adapter
@@ -228,7 +229,7 @@ Three new files + two edits:
   new cache. **Load-order matters**: if the new fn uses pure fns,
   import `pureFn.ts` BEFORE the new factory module. Pure fns must
   register first, otherwise the cache's `createRTFn` closures fail
-  with `cpf_<name> is not a function` at runtime. Then re-export
+  with `pf_<name> is not a function` at runtime. Then re-export
   `create<FnName>`, `deserialize<FnName>`, and any new types
   (`<FnName>Fn` etc.)
 
@@ -416,19 +417,23 @@ pnpm run pre-publish-test
 ## Reference files (read-only citations)
 
 **Mion source of truth:**
+
 - `mion/packages/run-types/src/nodes/**/emit<Fn>.ts`
 - `mion/packages/run-types/src/lib/rtFnCompiler.ts`
 
 **Existing Go emitters as templates:**
+
 - `internal/compiled/typefns/validate.go`
 - `internal/compiled/typefns/validationerrors.go`
 
 **Walker + emitter interface:**
+
 - `internal/compiled/typefns/walker.go`
 - `internal/compiled/typefns/emitter.go`
 - `internal/compiled/typefns/module.go`
 
 **Cache registration:**
+
 - `internal/constants/constants.go`
 - `internal/cachetpl/splice.go`
 - `internal/protocol/protocol.go`
@@ -436,22 +441,27 @@ pnpm run pre-publish-test
 - `internal/resolver/render.go`
 
 **JS adapter templates:**
+
 - `packages/ts-go-run-types/src/createRTFunctions.ts` (exports `createValidate`, `createGetValidationErrors`, `createJsonEncoder`, `createJsonDecoder`, and format helpers)
 - `packages/ts-go-run-types/src/createBinary.ts` (exports `createBinaryEncoder`, `createBinaryDecoder`)
 
 **Cache skeletons:**
+
 - `packages/ts-go-run-types/src/caches/validateCache.ts`
 - `packages/ts-go-run-types/src/caches/getValidationErrorsCache.ts`
 - `packages/ts-go-run-types/src/caches/skeletons.go`
 
 **Index:**
+
 - `packages/ts-go-run-types/src/index.ts`
 
 **Vite plugin:**
+
 - `packages/vite-plugin-runtypes/src/index.ts`
 - `packages/vite-plugin-runtypes/src/protocol.ts`
 
 **Test suite + adapters:**
+
 - `packages/ts-go-run-types/test/suites/validation/` (isType/getTypeErrors)
 - `packages/ts-go-run-types/test/suites/serialization/` (JSON families)
 - `packages/ts-go-run-types/test/suites/validation/isType.test.ts`

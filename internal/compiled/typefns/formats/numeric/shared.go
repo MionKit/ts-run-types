@@ -32,7 +32,7 @@ func mustBigInt(decimal string) *big.Int {
 // shape is shared but the helper is package-private there, and the
 // numeric error `val` rendering differs (numbers / `true` / bigint
 // literals rather than quoted strings). Emitted INLINE rather than via a
-// pure fn for the same reason the string version is — the cpf_formatErr
+// pure fn for the same reason the string version is — the pf_formatErr
 // pure fn isn't part of a consumer's program.
 //
 // paramValLiteral is the already-rendered JS value (an unquoted number,

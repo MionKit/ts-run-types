@@ -10,8 +10,8 @@ import (
 // date/time/dateTime/native-Date value. Absolute bounds are baked as a
 // precomputed number on the runtime scale (epoch ms for date/dateTime/
 // Date, ms-of-day for time); relative `now±P…` bounds emit a call to
-// cpf_relativeNowKey(spec, scale) so JS owns the calendar arithmetic at
-// check time. The value side uses cpf_dateStrToMs / cpf_timeStrToMs to
+// pf_relativeNowKey(spec, scale) so JS owns the calendar arithmetic at
+// check time. The value side uses pf_dateStrToMs / pf_timeStrToMs to
 // convert the string to the same scale; the native-Date emitter passes
 // the Date's getTime() directly (see nativeDate.go) and so does NOT use
 // these string converters.
@@ -33,7 +33,7 @@ func scaleFor(kind boundKind) string {
 }
 
 // boundExpr renders the JS expression a bound compares against: a baked
-// number for an absolute literal, or cpf_relativeNowKey(spec, scale) for
+// number for an absolute literal, or pf_relativeNowKey(spec, scale) for
 // a relative spec. ok=false when the bound is absent.
 func boundExpr(ctx formats.EmitContext, params map[string]any, key string, kind boundKind, layout string) (string, bool) {
 	bound, present := stringParam(params, key)

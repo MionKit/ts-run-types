@@ -330,7 +330,7 @@ func (w *Walker) setChildPathLiteral(literal string) {
 
 // accessPath returns the non-empty PathLiteral segments from the
 // current stack in push order. Used by typeerrors emitters to build
-// the static access-path argument when calling cpf_newRunTypeErr.
+// the static access-path argument when calling pf_newRunTypeErr.
 // Returns the literals as raw JS expressions (e.g. ["'name'", "i0",
 // "0"]) so callers can fold in extra trailing segments before joining.
 func (w *Walker) accessPath() []string {

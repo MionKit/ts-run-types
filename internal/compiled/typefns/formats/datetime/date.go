@@ -9,9 +9,9 @@ import (
 
 // dateEmitter implements the format named "date" — FormatStringDate<P>.
 // The `format` param selects one of six date-parsing pure fns
-// (cpf_isDateString_YMD / _DMY / _MDY / _YM / _MD / _DM); optional
+// (pf_isDateString_YMD / _DMY / _MDY / _YM / _MD / _DM); optional
 // min/max bounds AND a comparison against a baked epoch-ms (absolute) or
-// cpf_relativeNowKey (relative) value. Moved here from the string
+// pf_relativeNowKey (relative) value. Moved here from the string
 // package so it can share bounds.go / literals.go with the time,
 // dateTime and native-Date emitters.
 type dateEmitter struct{}
