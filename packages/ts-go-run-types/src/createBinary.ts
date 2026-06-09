@@ -89,7 +89,11 @@ export function createBinaryEncoder<T>(
     );
   }
   const cacheKey = options?.cacheKey ?? effectiveId;
-  const encodeFn = lookupRTFn<ToBinaryFn>('createBinaryEncoder', fnId ?? 'tb', effectiveId, noopToBinaryFn);
+  // fnId is the opaque toBinary fnHash the plugin injects; when the plugin is
+  // inactive the `effectiveId === undefined` guard above already threw, so the
+  // empty-string fallback only feeds lookupRTFn's registered-but-no-factory →
+  // identity path. No static `'tb'` tag exists post-hashing.
+  const encodeFn = lookupRTFn<ToBinaryFn>('createBinaryEncoder', fnId ?? '', effectiveId, noopToBinaryFn);
   return (value, serializer) => {
     const ownsSer = serializer === undefined;
     const ser = serializer ?? createDataViewSerializer(cacheKey);
@@ -128,9 +132,11 @@ export function createBinaryDecoder<T>(
     );
   }
   const cacheKey = options?.cacheKey ?? effectiveId;
+  // See createBinaryEncoder: fnId is the opaque fromBinary fnHash; the empty
+  // fallback only reaches lookupRTFn's identity path. No static `'fb'` tag.
   const decodeFn = lookupRTFn<FromBinaryFn<T>>(
     'createBinaryDecoder',
-    fnId ?? 'fb',
+    fnId ?? '',
     effectiveId,
     noopFromBinaryFn as FromBinaryFn<T>
   );

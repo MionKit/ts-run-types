@@ -114,6 +114,71 @@ var CacheModules = CacheModuleGroup{
 	},
 }
 
+// JSON composite family tags — one per (jsonEncoder|jsonDecoder, strategy).
+//
+// A composite entry wraps the underlying primitives (pj/pjs/pjsp/sj/uku/rj/ukuw)
+// with native JSON and is keyed by the strategy's composite fnHash. It does NOT
+// get a CacheModules entry: composites emit no type-walking factory and ride the
+// prepareForJson / restoreFromJson module bodies (already loaded into rtUtils),
+// so there is no virtual module / VarPrefix to mirror. Each strategy DOES need
+// its own short tag so the on-disk cache basename (`<typehash>/<tag>.json`) is
+// distinct — two strategies of one type must not collide on a single `je.json`.
+//
+// jsonCompositeTags maps "op|strategy" → tag. JsonCompositeByTag reverses it so
+// the composite emitter recovers (operation, strategy) from a demand's tag.
+var jsonCompositeTags = map[string]string{
+	"jsonEncoder|clone":       "jeCL",
+	"jsonEncoder|stripClone":  "jeSC",
+	"jsonEncoder|mutate":      "jeMU",
+	"jsonEncoder|stripMutate": "jeSM",
+	"jsonEncoder|direct":      "jeDI",
+	"jsonDecoder|strip":       "jdST",
+	"jsonDecoder|preserve":    "jdPR",
+}
+
+// JsonComposite identifies one JSON composite family: the operation name
+// (jsonEncoder / jsonDecoder) and its strategy. Recovered from a family Tag via
+// JsonCompositeByTag so the composite emitter knows which fixed body to emit.
+type JsonComposite struct {
+	OpName   string
+	Strategy string
+}
+
+var jsonCompositeByTag = func() map[string]JsonComposite {
+	out := make(map[string]JsonComposite, len(jsonCompositeTags))
+	for key, tag := range jsonCompositeTags {
+		parts := splitPipe(key)
+		out[tag] = JsonComposite{OpName: parts[0], Strategy: parts[1]}
+	}
+	return out
+}()
+
+// splitPipe splits "op|strategy" into its two halves. Local helper to avoid a
+// strings import in this file's var initialiser.
+func splitPipe(key string) [2]string {
+	for i := 0; i < len(key); i++ {
+		if key[i] == '|' {
+			return [2]string{key[:i], key[i+1:]}
+		}
+	}
+	return [2]string{key, ""}
+}
+
+// JsonCompositeTag returns the per-strategy family Tag for a JSON composite
+// operation + strategy (used as the on-disk cache basename and the demand's
+// FamilyTag).
+func JsonCompositeTag(opName, strategy string) (string, bool) {
+	tag, ok := jsonCompositeTags[opName+"|"+strategy]
+	return tag, ok
+}
+
+// JsonCompositeByTag returns the (operation, strategy) a composite family Tag
+// represents, or ok=false when the tag is not a JSON composite.
+func JsonCompositeByTag(tag string) (JsonComposite, bool) {
+	composite, ok := jsonCompositeByTag[tag]
+	return composite, ok
+}
+
 // IsTypeOption describes one entry in the `IsTypeOptions` bag — the
 // call-site options that parameterise the generated isType / typeErrors
 // validator without affecting the structural type id. Each entry pairs
@@ -172,51 +237,6 @@ func IsTypeVariantSuffix(names []string) string {
 		return ""
 	}
 	return suffix
-}
-
-// CompFnAxis classifies the compile-time option axis that refines a createX
-// function's injected fnId beyond its base cache-family tag. The InjectTypeFnArgs
-// marker scanner reads the relevant call-site literal per axis to compute the
-// precise fnId it injects.
-type CompFnAxis int
-
-const (
-	// CompFnAxisNone — fnId is exactly the base family tag (huk, suk, …); no
-	// compile-time option refines it.
-	CompFnAxisNone CompFnAxis = iota
-	// CompFnAxisIsTypeOptions — fnId is baseTag + IsTypeVariantSuffix (it, te).
-	CompFnAxisIsTypeOptions
-	// CompFnAxisJsonStrategy — fnId is the JSON strategy token; the families it
-	// demands come from JsonStrategyFamilies (jsonEncoder / jsonDecoder).
-	CompFnAxisJsonStrategy
-)
-
-// CompFn describes one createX function the InjectTypeFnArgs<T, Fn> marker's Fn
-// type-arg can name. Key is the literal Fn value the factory declares (e.g.
-// "it", "jsonEncoder"); BaseTag is the cache family tag for the non-composite
-// axes; DefaultStrategy is applied when a JSON call omits the options literal.
-type CompFn struct {
-	Key             string
-	BaseTag         string
-	Axis            CompFnAxis
-	DefaultStrategy string
-}
-
-// CompFns is the registry of every createX function, keyed by its Fn token —
-// the single source of truth the scanner (fnId emit), the emitter (demand), and
-// the TS runtime (mirrored via gen-ts-constants) all route through.
-var CompFns = map[string]CompFn{
-	"it":          {Key: "it", BaseTag: "it", Axis: CompFnAxisIsTypeOptions},
-	"te":          {Key: "te", BaseTag: "te", Axis: CompFnAxisIsTypeOptions},
-	"huk":         {Key: "huk", BaseTag: "huk", Axis: CompFnAxisNone},
-	"suk":         {Key: "suk", BaseTag: "suk", Axis: CompFnAxisNone},
-	"uke":         {Key: "uke", BaseTag: "uke", Axis: CompFnAxisNone},
-	"uku":         {Key: "uku", BaseTag: "uku", Axis: CompFnAxisNone},
-	"fmt":         {Key: "fmt", BaseTag: "fmt", Axis: CompFnAxisNone},
-	"tb":          {Key: "tb", BaseTag: "tb", Axis: CompFnAxisNone},
-	"fb":          {Key: "fb", BaseTag: "fb", Axis: CompFnAxisNone},
-	"jsonEncoder": {Key: "jsonEncoder", Axis: CompFnAxisJsonStrategy, DefaultStrategy: "stripClone"},
-	"jsonDecoder": {Key: "jsonDecoder", Axis: CompFnAxisJsonStrategy, DefaultStrategy: "strip"},
 }
 
 // JsonStrategyFamilies maps a JSON strategy token to the cache family tags it
@@ -283,29 +303,6 @@ var MigratedFamilies = map[string]bool{
 // demand-driven (InjectTypeFnArgs) path.
 func IsFamilyMigrated(tag string) bool {
 	return MigratedFamilies[tag]
-}
-
-// ResolveFnId computes the injected fnId token for a function key plus the
-// compile-time args parsed at the call site. optionNames is the set of true
-// IsTypeOptions names (CompFnAxisIsTypeOptions); strategy is the JSON strategy
-// literal (CompFnAxisJsonStrategy; "" ⇒ the function's default). ok is false
-// when fnKey isn't a registered createX function.
-func ResolveFnId(fnKey string, optionNames []string, strategy string) (string, bool) {
-	fn, ok := CompFns[fnKey]
-	if !ok {
-		return "", false
-	}
-	switch fn.Axis {
-	case CompFnAxisIsTypeOptions:
-		return fn.BaseTag + IsTypeVariantSuffix(optionNames), true
-	case CompFnAxisJsonStrategy:
-		if strategy == "" {
-			strategy = fn.DefaultStrategy
-		}
-		return strategy, true
-	default:
-		return fn.BaseTag, true
-	}
 }
 
 // Version is the binary version, injected at build time via

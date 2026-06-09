@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/constants"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -580,7 +580,7 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 // at least one of the member's own props to be present, or the value
 // to be an empty object.
 func unionMemberIsTypeCheck(member *protocol.RunType, ctx *EmitContext, v string) string {
-	isTypeHash := constants.CacheModules["isType"].Tag + "_" + member.ID
+	isTypeHash := operations.PlainHash("isType") + "_" + member.ID
 	ctx.registerRTLookup(isTypeHash)
 	base := "(" + isTypeHash + "?.fn(" + v + ") ?? true)"
 	gate := looseCheckGate(member, ctx, v)

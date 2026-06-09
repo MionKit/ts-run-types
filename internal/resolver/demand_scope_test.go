@@ -4,8 +4,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
+
+// initPrefixFor returns the `init('<plainFnHash>_` prefix the demand-driven
+// renderer emits for a family's default-variant entries. Slice 4 replaced the
+// readable family tag (`it_`, `te_`, `tb_`) with the opaque, version-isolated
+// fnHash from the operation registry, so these scope assertions derive the
+// prefix through the same helper the emitter uses.
+func initPrefixFor(opName string) string {
+	return "init('" + operations.PlainHash(opName) + "_"
+}
 
 // demand_scope_test.go pins the demand-driven invariant for the migrated
 // function families: a function cache contains an entry for a type ONLY when a
@@ -51,7 +61,7 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 	if len(reflect.RunTypes) == 0 {
 		t.Fatalf("reflection must still project runtypes for getRunTypeId, got none")
 	}
-	if strings.Contains(reflect.TypeErrorsCacheSource, "init('te_") {
+	if strings.Contains(reflect.TypeErrorsCacheSource, initPrefixFor("typeErrors")) {
 		t.Errorf("typeErrors cache must be empty for a reflection-only file, got:\n%s", reflect.TypeErrorsCacheSource)
 	}
 
@@ -59,7 +69,7 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 	isType := scopeScan(t, `import {createIsType} from '@mionjs/ts-go-run-types';
 export const _ = createIsType<{a: string}>();
 `)
-	if strings.Contains(isType.TypeErrorsCacheSource, "init('te_") {
+	if strings.Contains(isType.TypeErrorsCacheSource, initPrefixFor("typeErrors")) {
 		t.Errorf("createIsType must NOT emit a te_ entry, got:\n%s", isType.TypeErrorsCacheSource)
 	}
 
@@ -67,7 +77,7 @@ export const _ = createIsType<{a: string}>();
 	typeErrors := scopeScan(t, `import {createGetTypeErrors} from '@mionjs/ts-go-run-types';
 export const _ = createGetTypeErrors<{a: string}>();
 `)
-	if !strings.Contains(typeErrors.TypeErrorsCacheSource, "init('te_") {
+	if !strings.Contains(typeErrors.TypeErrorsCacheSource, initPrefixFor("typeErrors")) {
 		t.Errorf("createGetTypeErrors must emit a te_ entry, got:\n%s", typeErrors.TypeErrorsCacheSource)
 	}
 }
@@ -81,7 +91,7 @@ interface Child { c: string }
 interface Parent { child: Child[] }
 export const _ = createGetTypeErrors<Parent>();
 `)
-	count := strings.Count(resp.TypeErrorsCacheSource, "init('te_")
+	count := strings.Count(resp.TypeErrorsCacheSource, initPrefixFor("typeErrors"))
 	if count < 2 {
 		t.Errorf("expected the parent + transitive child te_ entries (>=2), got %d:\n%s", count, resp.TypeErrorsCacheSource)
 	}
@@ -121,7 +131,7 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 	if len(resp.RunTypes) == 0 {
 		t.Fatalf("reflection must still project runtypes for getRunTypeId, got none")
 	}
-	if strings.Contains(resp.IsTypeCacheSource, "init('it_") {
+	if strings.Contains(resp.IsTypeCacheSource, initPrefixFor("isType")) {
 		t.Errorf("it is now demand-scoped; a reflection-only file must emit no it_ entries, got:\n%s", resp.IsTypeCacheSource)
 	}
 }
@@ -132,7 +142,7 @@ func TestDemandScope_ItScopedToCreateIsType(t *testing.T) {
 	resp := scopeScan(t, `import {createIsType} from '@mionjs/ts-go-run-types';
 export const _ = createIsType<{a: string}>();
 `)
-	if !strings.Contains(resp.IsTypeCacheSource, "init('it_") {
+	if !strings.Contains(resp.IsTypeCacheSource, initPrefixFor("isType")) {
 		t.Errorf("createIsType must emit an it_ entry, got:\n%s", resp.IsTypeCacheSource)
 	}
 }
@@ -150,12 +160,12 @@ func TestDemandScope_ItSeededByCrossFamilyUnion(t *testing.T) {
 export const _ = createBinaryEncoder<{a: bigint} | {a: Date}>();
 `)
 	// Sanity: the binary family IS demanded by createBinaryEncoder.
-	if !strings.Contains(resp.ToBinaryCacheSource, "init('tb_") {
+	if !strings.Contains(resp.ToBinaryCacheSource, initPrefixFor("toBinary")) {
 		t.Fatalf("createBinaryEncoder must emit tb_ entries, got:\n%s", resp.ToBinaryCacheSource)
 	}
 	// The proof: no createIsType site, yet the union's per-member it_ entries
 	// are seeded from the toBinary entry's cross-family edges.
-	if !strings.Contains(resp.IsTypeCacheSource, "init('it_") {
+	if !strings.Contains(resp.IsTypeCacheSource, initPrefixFor("isType")) {
 		t.Fatalf("cross-family seeding broken: a createBinaryEncoder-only union file must still emit it_ member entries (CrossFamilyItRoots → ExtraRoots), got:\n%s", resp.IsTypeCacheSource)
 	}
 }

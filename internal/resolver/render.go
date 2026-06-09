@@ -145,8 +145,12 @@ func renderTypeErrorsModule(dump protocol.Dump, opts typefns.RenderOpts) (string
 
 // renderPrepareForJsonModule emits the prepareForJson cache module —
 // the JSON serializer half of the round-trip pair. Backed by
-// typefns.PrepareForJsonEmitter.
+// typefns.PrepareForJsonEmitter. The JSON-encoder composite `init(…)` lines
+// (createJsonEncoder's per-strategy entries) ride this module's body via
+// ExtraBodyLines — both are loaded into the same rtUtils, and the composite
+// references the prepareForJson / stringifyJson / uku primitives by fnHash.
 func renderPrepareForJsonModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
+	opts.ExtraBodyLines = typefns.JsonEncoderModule(dump, opts)
 	return renderToString("renderPrepareForJsonModule", func(w io.Writer) error {
 		return typefns.PrepareForJsonModule(w, dump, opts)
 	})
@@ -162,8 +166,12 @@ func renderFormatTransformModule(dump protocol.Dump, opts typefns.RenderOpts) (s
 
 // renderRestoreFromJsonModule emits the restoreFromJson cache module —
 // the JSON deserializer half of the round-trip pair. Backed by
-// typefns.RestoreFromJsonEmitter.
+// typefns.RestoreFromJsonEmitter. The JSON-decoder composite `init(…)` lines
+// (createJsonDecoder's per-strategy entries) ride this module's body via
+// ExtraBodyLines — the composite references the restoreFromJson / ukuWire
+// primitives by fnHash.
 func renderRestoreFromJsonModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
+	opts.ExtraBodyLines = typefns.JsonDecoderModule(dump, opts)
 	return renderToString("renderRestoreFromJsonModule", func(w io.Writer) error {
 		return typefns.RestoreFromJsonModule(w, dump, opts)
 	})

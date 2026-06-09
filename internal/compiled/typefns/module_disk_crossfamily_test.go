@@ -9,6 +9,7 @@ import (
 
 	"github.com/mionkit/ts-run-types/internal/cache/disk"
 	"github.com/mionkit/ts-run-types/internal/constants"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -64,7 +65,7 @@ func TestRenderFnModule_DiskCache_CrossFamilyRoundTrip(t *testing.T) {
 	if len(wantCross) == 0 {
 		t.Fatalf("fixture precondition: expected the fresh walk to capture cross-family edges, got none")
 	}
-	for _, want := range []string{"it_big", "it_dat"} {
+	for _, want := range []string{itKey("big"), itKey("dat")} {
 		if !containsStr(first.crossFamilyDeps, want) {
 			t.Fatalf("fresh render missing cross-family edge %q (got %v)", want, first.crossFamilyDeps)
 		}
@@ -86,10 +87,11 @@ func TestRenderFnModule_DiskCache_CrossFamilyRoundTrip(t *testing.T) {
 	if len(entry.CrossFamilyRefs) != len(wantCross) {
 		t.Fatalf("persisted CrossFamilyRefs count: got %d (%+v) want %d", len(entry.CrossFamilyRefs), entry.CrossFamilyRefs, len(wantCross))
 	}
+	wantPrefix := operations.PlainHash("isType") + "_"
 	gotRefDeps := make([]string, 0, len(entry.CrossFamilyRefs))
 	for _, ref := range entry.CrossFamilyRefs {
-		if ref.Prefix != "it_" {
-			t.Errorf("CrossFamilyRef prefix: got %q want %q", ref.Prefix, "it_")
+		if ref.Prefix != wantPrefix {
+			t.Errorf("CrossFamilyRef prefix: got %q want %q", ref.Prefix, wantPrefix)
 		}
 		// StructuralID must match the lookup's structural id for the bare hash
 		// (the drift anchor); the reader revalidates against it.
@@ -215,7 +217,7 @@ func TestRenderFnModule_DiskCache_CrossFamilyHashDriftMiss(t *testing.T) {
 		t.Errorf("cross-family hash drift should miss, but stale line was returned: %q", rendered.line)
 	}
 	// The fresh walk re-derives the real edges (with the current member hashes).
-	for _, want := range []string{"it_dat"} {
+	for _, want := range []string{itKey("dat")} {
 		if !containsStr(rendered.crossFamilyDeps, want) {
 			t.Errorf("post-miss render missing fresh cross-family edge %q (got %v)", want, rendered.crossFamilyDeps)
 		}

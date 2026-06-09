@@ -18,9 +18,11 @@ type Demand struct {
 // by its InjectTypeFnArgs Fn token, refined by the call-site options / strategy:
 //
 //   - AxisIsTypeOptions: one entry, the requested variant of the family (it/te).
-//   - AxisJsonStrategy:  one entry per composed primitive family
-//     (constants.JsonStrategyFamilies), defaulting an empty strategy to the
-//     operation's DefaultStrategy.
+//   - AxisJsonStrategy:  the composite entry (the per-strategy jsonEncoder /
+//     jsonDecoder family, keyed by the strategy's composite fnHash) PLUS one
+//     entry per composed primitive family (constants.JsonStrategyFamilies). The
+//     composite body looks up those primitives by their fnHash, so both must be
+//     demanded. Empty strategy defaults to the operation's DefaultStrategy.
 //   - AxisNone:          one plain entry.
 //
 // Reflection-only sites (unknown fnKey) yield nil. This is the forward
@@ -42,9 +44,17 @@ func DemandFor(fnKey string, optionNames []string, strategy string) []Demand {
 		if strategy == "" {
 			strategy = op.DefaultStrategy
 		}
-		families := constants.JsonStrategyFamilies[strategy]
-		demands := make([]Demand, 0, len(families))
-		for _, tag := range families {
+		var demands []Demand
+		// The composite entry itself — routes to the composite emitter via its
+		// per-strategy family tag and is keyed by the composite fnHash.
+		if compositeTag, ok := constants.JsonCompositeTag(op.Name, strategy); ok {
+			demands = append(demands, Demand{
+				FamilyTag: compositeTag,
+				FnHash:    FnHashFor(op, nil, strategy),
+			})
+		}
+		// The primitive families the composite body references.
+		for _, tag := range constants.JsonStrategyFamilies[strategy] {
 			primitive, ok := byFamilyT[tag]
 			if !ok {
 				continue

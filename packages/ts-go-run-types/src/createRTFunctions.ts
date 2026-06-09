@@ -16,7 +16,7 @@ import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.t
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
-import {getRTUtils, isRunTypeSchema, lookupRTFn} from './runtypes/rtUtils.ts';
+import {getRTUtils, isRunTypeSchema} from './runtypes/rtUtils.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
 import type {CompTimeFnArgs, InjectTypeFnArgs} from './index.ts';
 
@@ -318,23 +318,28 @@ export const createFormatTransform = createRTFunction<FormatTransformFn<unknown>
 // =============================================================================
 // JSON encode / decode — the only two public JSON entry functions.
 //
-// Each composes one or two underlying RT primitives based on the runtime
-// `strategy`. The `strategy` is NOT folded into the typeid, so every encoder
-// shape against the same `T` shares one type id; the runtime picks the right
-// family (`sj` / `pj` / `pjs` / `pjsp` + optional `uku` compose) from it.
+// Composition moved to the Go backend (Slice 4): the plugin emits one composite
+// cache entry per (typeId, strategy) — keyed by the strategy's opaque composite
+// fnHash — that wraps the underlying RT primitives (prepareForJson /
+// stringifyJson / unknownKeysToUndefined / restoreFromJson / ukuWire) with
+// native JSON. So both factories collapse to the same pure `resolveTupleEntry`
+// lookup as binary: the injected `[typeId, fnId]` tuple's `fnId` is the composite
+// fnHash, and the runtime just resolves `<fnId>_<typeId>`. No runtime strategy
+// branching, no per-primitive `lookupRTFn` composition.
 // =============================================================================
 
 const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
+const jsonParseFallback: JsonDecoderFn = (s) => JSON.parse(s);
 
 /** Returns a JSON encoder for `T`. Default `strategy: 'stripClone'`. See
  *  `JsonEncoderStrategy` for the full matrix. Accepts either a value-first
  *  schema (`createJsonEncoder(rt)`) or the value/static form.
  *
  *  The trailing slot is the `InjectTypeFnArgs` marker — the plugin injects a
- *  `[typeId, fnId]` tuple where `fnId` IS the comptime-resolved strategy token
- *  (the scanner reads `options.strategy` at build time, defaulting non-literals).
- *  The runtime derives `strategy` from the tuple, NOT from `options`, so the
- *  composed families always match what the backend actually emitted. **/
+ *  `[typeId, fnId]` tuple where `fnId` IS the composite fnHash the backend
+ *  computed from the comptime-resolved `strategy`. The runtime resolves that
+ *  composite entry directly; the fallback (`JSON.stringify`) covers the
+ *  no-plugin case. **/
 export function createJsonEncoder<T>(
   schema: RunType<T>,
   options?: CompTimeFnArgs<JsonEncoderOptions>,
@@ -350,42 +355,7 @@ export function createJsonEncoder<T>(
   options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn {
-  const tuple = id as unknown as [string, string] | undefined;
-  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
-  if (effectiveId === undefined) {
-    throw new Error(
-      'createJsonEncoder(): no id injected. vite-plugin-runtypes must be active for createJsonEncoder to dispatch to a precompiled factory.'
-    );
-  }
-  const strategy = (tuple?.[1] as JsonEncoderStrategy | undefined) ?? 'stripClone';
-
-  if (strategy === 'direct') {
-    return lookupRTFn<JsonEncoderFn>('createJsonEncoder', 'sj', effectiveId, jsonStringifyFallback);
-  }
-
-  // clone strategies — non-mutating. `pjs` strips undeclared keys; `pjsp` is the
-  // same clone codegen with a `...v` spread so undeclared keys survive.
-  if (strategy === 'stripClone') {
-    const prepareSafeFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', effectiveId, identityValueFn);
-    return (value) => JSON.stringify(prepareSafeFn(value));
-  }
-  if (strategy === 'clone') {
-    const prepareSafePreserveFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjsp', effectiveId, identityValueFn);
-    return (value) => JSON.stringify(prepareSafePreserveFn(value));
-  }
-
-  // mutate strategies — transform declared leaves in place.
-  const prepareFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pj', effectiveId, identityValueFn);
-  if (strategy === 'mutate') {
-    return (value) => JSON.stringify(prepareFn(value));
-  }
-  // stripMutate: uku sets undeclared keys to undefined, pj transforms declared
-  // leaves, then JSON.stringify skips undefined-valued keys naturally.
-  const ukuFn = lookupRTFn<UnknownKeysToUndefinedFn>('createJsonEncoder', 'uku', effectiveId, identityValueFn);
-  return (value) => {
-    ukuFn(value);
-    return JSON.stringify(prepareFn(value));
-  };
+  return resolveTupleEntry<JsonEncoderFn>('createJsonEncoder', '', jsonStringifyFallback, valOrSchema, id);
 }
 
 /** Returns a JSON decoder for `T`. Default `strategy: 'strip'` — undeclared
@@ -394,8 +364,9 @@ export function createJsonEncoder<T>(
  *  value/static form.
  *
  *  As with the encoder, the trailing `InjectTypeFnArgs` slot carries the
- *  `[typeId, fnId]` tuple whose `fnId` IS the comptime-resolved strategy token;
- *  the runtime reads `strategy` from the tuple, not from `options`. **/
+ *  `[typeId, fnId]` tuple whose `fnId` is the composite fnHash; the runtime
+ *  resolves that entry directly. The fallback (`JSON.parse`) covers the
+ *  no-plugin case. **/
 export function createJsonDecoder<T>(
   schema: RunType<T>,
   options?: CompTimeFnArgs<JsonDecoderOptions>,
@@ -411,22 +382,7 @@ export function createJsonDecoder<T>(
   options?: CompTimeFnArgs<JsonDecoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonDecoder'>
 ): JsonDecoderFn<T> {
-  const tuple = id as unknown as [string, string] | undefined;
-  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
-  if (effectiveId === undefined) {
-    throw new Error(
-      'createJsonDecoder(): no id injected. vite-plugin-runtypes must be active for createJsonDecoder to dispatch to a precompiled factory.'
-    );
-  }
-  const strategy = (tuple?.[1] as JsonDecoderStrategy | undefined) ?? 'strip';
-  const restoreFn = lookupRTFn<RestoreFromJsonFn>('createJsonDecoder', 'rj', effectiveId, identityValueFn);
-  if (strategy === 'preserve') {
-    return (serialized) => restoreFn(JSON.parse(serialized)) as T;
-  }
-  // strip — ukuWire (not public uku): union-arm emit reaches into the flat-union
-  // wire wrapper `[-1, mergedObject]` instead of corrupting its `0`/`1` indices.
-  const ukuFn = lookupRTFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'ukuw', effectiveId, identityValueFn);
-  return (serialized) => restoreFn(ukuFn(JSON.parse(serialized))) as T;
+  return resolveTupleEntry<JsonDecoderFn<T>>('createJsonDecoder', '', jsonParseFallback as JsonDecoderFn<T>, valOrSchema, id);
 }
 
 // =============================================================================
