@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/microsoft/typescript-go/shim/compiler"
@@ -118,11 +119,46 @@ func elapsedMs(start time.Time) float64 {
 // Returns the first render error in familyRenders order. Shared by the
 // OpScanFiles (scoped dump) and OpDump (full dump) branches — `wants`
 // folds each branch's request-filter semantics.
+//
+// Renders are checker-free pure functions of (dump, RefTable, opts), so
+// by default the requested non-validate families run concurrently (see
+// renderFamiliesParallel); validate always renders last and serially —
+// its CrossFamilyValRoots collection passes read the entries the other
+// families' renders populated.
 func (resolver *Resolver) renderFamilies(wants func(protocol.CacheKind) bool, dump protocol.Dump, rtOpts typefns.RenderOpts, metrics *protocol.Metrics, response *protocol.Response) error {
+	requested := make([]familyRender, 0, len(familyRenders))
 	for _, family := range familyRenders {
-		if !wants(family.kind) {
-			continue
+		if wants(family.kind) {
+			requested = append(requested, family)
 		}
+	}
+	if len(requested) == 0 {
+		return nil
+	}
+	// familyRenders orders validate last, so when requested it is the
+	// final entry — everything before it may fan out.
+	nonValidate := requested
+	if requested[len(requested)-1].kind == protocol.CacheKindValidate {
+		nonValidate = requested[:len(requested)-1]
+	}
+	if resolver.parallelRenderEnabled() && len(nonValidate) >= 2 {
+		return resolver.renderFamiliesParallel(requested, nonValidate, dump, rtOpts, metrics, response)
+	}
+	return renderFamiliesSerial(requested, dump, rtOpts, metrics, response)
+}
+
+// parallelRenderEnabled reports whether family renders may fan out.
+// Parallel is the default; SingleThreaded means "no concurrency at all",
+// covering renders too even though they never touch a checker.
+func (resolver *Resolver) parallelRenderEnabled() bool {
+	return !resolver.opts.DisableParallelRender && !resolver.opts.SingleThreaded
+}
+
+// renderFamiliesSerial is the sequential render loop — the serial scan
+// path's contract and the fallback when fewer than two non-validate
+// families are requested.
+func renderFamiliesSerial(requested []familyRender, dump protocol.Dump, rtOpts typefns.RenderOpts, metrics *protocol.Metrics, response *protocol.Response) error {
+	for _, family := range requested {
 		renderStart := time.Now()
 		body, renderErr := family.render(dump, rtOpts)
 		if renderErr != nil {
@@ -132,6 +168,89 @@ func (resolver *Resolver) renderFamilies(wants func(protocol.CacheKind) bool, du
 			metrics.RenderMs[string(family.kind)] = elapsedMs(renderStart)
 		}
 		family.assign(response, body)
+	}
+	return nil
+}
+
+// renderFamiliesParallel fans the non-validate family renders out across
+// goroutines, then joins in familyRenders order and renders validate
+// serially. Each goroutine gets a value copy of rtOpts with the three
+// dispatch-shared mutable fields sharded: its own DiagSink slice, a fresh
+// EntryRenderCache, and a fresh FactsTable (everything else — RefTable,
+// ProvenanceSites, Store, Lookup — is read-only or internally safe during
+// renders). The join then, per family in deterministic order: first error
+// wins, RenderMs recorded (values overlap wall-clock; their sum exceeds
+// elapsed time), response slot assigned, shard diagnostics appended (==
+// the sequential order), and the Entry/Facts shards merged into the
+// dispatch opts so validate's CrossFamilyValRoots collection passes see
+// the same entries a sequential dispatch would have cached.
+//
+// On a family error, sibling renders have already run (unlike the serial
+// loop, which stops at the first failure) — their work is discarded with
+// the error response; disk-store writes are atomic and idempotent, so the
+// extra renders leave no inconsistent state behind.
+func (resolver *Resolver) renderFamiliesParallel(requested, nonValidate []familyRender, dump protocol.Dump, rtOpts typefns.RenderOpts, metrics *protocol.Metrics, response *protocol.Response) error {
+	type familyResult struct {
+		body     string
+		err      error
+		renderMs float64
+	}
+	results := make([]familyResult, len(nonValidate))
+	familyDiagnostics := make([][]diag.Diagnostic, len(nonValidate))
+	entryShards := make([]*typefns.EntryRenderCache, len(nonValidate))
+	factShards := make([]*typefns.FactsTable, len(nonValidate))
+	var waitGroup sync.WaitGroup
+	for familyIndex, family := range nonValidate {
+		entryShards[familyIndex] = typefns.NewEntryRenderCache()
+		factShards[familyIndex] = typefns.NewFactsTable()
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					results[familyIndex].err = fmt.Errorf("render %s: %v", family.kind, recovered)
+				}
+			}()
+			shardOpts := rtOpts
+			// Keep the EntryCache write gate intact: a per-family sink only
+			// when the dispatch wired a live one.
+			if rtOpts.DiagSink != nil {
+				shardOpts.DiagSink = &familyDiagnostics[familyIndex]
+			}
+			shardOpts.EntryCache = entryShards[familyIndex]
+			shardOpts.Facts = factShards[familyIndex]
+			renderStart := time.Now()
+			body, renderErr := family.render(dump, shardOpts)
+			results[familyIndex] = familyResult{body: body, err: renderErr, renderMs: elapsedMs(renderStart)}
+		}()
+	}
+	waitGroup.Wait()
+	for familyIndex, family := range nonValidate {
+		result := results[familyIndex]
+		if result.err != nil {
+			return result.err
+		}
+		if metrics != nil {
+			metrics.RenderMs[string(family.kind)] = result.renderMs
+		}
+		family.assign(response, result.body)
+		if rtOpts.DiagSink != nil && len(familyDiagnostics[familyIndex]) > 0 {
+			*rtOpts.DiagSink = append(*rtOpts.DiagSink, familyDiagnostics[familyIndex]...)
+		}
+		rtOpts.EntryCache.Merge(entryShards[familyIndex])
+		rtOpts.Facts.Merge(factShards[familyIndex])
+	}
+	if len(requested) > len(nonValidate) {
+		validate := requested[len(requested)-1]
+		renderStart := time.Now()
+		body, renderErr := validate.render(dump, rtOpts)
+		if renderErr != nil {
+			return renderErr
+		}
+		if metrics != nil {
+			metrics.RenderMs[string(validate.kind)] = elapsedMs(renderStart)
+		}
+		validate.assign(response, body)
 	}
 	return nil
 }

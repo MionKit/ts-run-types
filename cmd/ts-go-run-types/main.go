@@ -46,10 +46,13 @@ Options:
     --hash-length N     short-id length for type hashes (default 6)
     --literal-hash-length N  short-id length for literal-typed hashes (default 5)
     --single-threaded   force single-checker mode (useful for tests);
-                        also disables the parallel marker scan
+                        also disables the parallel scan + renders
     --no-parallel-scan  disable the parallel marker scan (parallel is the
                         default: multi-file scanFiles requests analyze
                         call sites concurrently across the checker pool)
+    --no-parallel-render disable the parallel cache renders (parallel is
+                        the default: requested non-validate cache families
+                        render concurrently; validate always renders last)
     --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
                              before the request stream; build an inferred
                              Program whose source files come from that map
@@ -83,6 +86,7 @@ func main() {
 		literalHashLength  int
 		singleThreaded     bool
 		noParallelScan     bool
+		noParallelRender   bool
 		inlineSourcesStdin bool
 		inlineServer       bool
 		cacheDir           string
@@ -103,6 +107,8 @@ func main() {
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
 	flag.BoolVar(&noParallelScan, "no-parallel-scan", false,
 		"disable the parallel marker scan (parallel is the default)")
+	flag.BoolVar(&noParallelRender, "no-parallel-render", false,
+		"disable the parallel cache renders (parallel is the default)")
 	flag.BoolVar(&inlineSourcesStdin, "inline-sources-stdin", false,
 		"read {\"sources\":{relpath:content}} from stdin before the request stream")
 	flag.BoolVar(&inlineServer, "inline-server", false,
@@ -178,14 +184,15 @@ func main() {
 	stdoutEnc := json.NewEncoder(stdoutBuf)
 
 	resolverOpts := resolver.Options{
-		HashLength:          hashLength,
-		LiteralHashLength:   literalHashLength,
-		Marker:              marker.Options{},
-		Cwd:                 absCwd,
-		SingleThreaded:      singleThreaded,
-		DisableParallelScan: noParallelScan,
-		CacheDir:            cacheDir,
-		EmitCreateRTFn:      emitCacheFunctions,
+		HashLength:            hashLength,
+		LiteralHashLength:     literalHashLength,
+		Marker:                marker.Options{},
+		Cwd:                   absCwd,
+		SingleThreaded:        singleThreaded,
+		DisableParallelScan:   noParallelScan,
+		DisableParallelRender: noParallelRender,
+		CacheDir:              cacheDir,
+		EmitCreateRTFn:        emitCacheFunctions,
 	}
 
 	var r *resolver.Resolver

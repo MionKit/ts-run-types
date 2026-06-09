@@ -128,6 +128,22 @@ func (cache *EntryRenderCache) put(key string, entry entryRender) {
 	cache.entries[key] = entry
 }
 
+// Merge folds every entry from other into cache. Used by the parallel
+// render path: each family render compiles against its own shard (Go maps
+// are not safe for concurrent writes, even to distinct keys), and the
+// dispatcher merges the shards back after the join — before the validate
+// render's CrossFamilyValRoots collection passes read them. Keys are
+// family-disjoint (`<fnHash>_<typeID>` with a per-family fnHash), so the
+// union is collision-free. Nil-safe on both sides.
+func (cache *EntryRenderCache) Merge(other *EntryRenderCache) {
+	if cache == nil || other == nil {
+		return
+	}
+	for key, entry := range other.entries {
+		cache.entries[key] = entry
+	}
+}
+
 // validateFamilyTag identifies the `it` family for the EntryCache write gate
 // in renderEntryWithDeps — validate renders last and is never a collection
 // source, so caching its entries is pure overhead.
