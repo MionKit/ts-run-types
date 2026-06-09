@@ -53,7 +53,7 @@ type jsonCompositeFamily struct {
 var (
 	jsonEncoderFamily = jsonCompositeFamily{
 		opName: "jsonEncoder",
-		tags:   []string{"jeCL", "jeSC", "jeMU", "jeSM", "jeDI"},
+		tags:   []string{"jeCL", "jeMU", "jeDI"},
 	}
 	jsonDecoderFamily = jsonCompositeFamily{
 		opName: "jsonDecoder",
@@ -184,19 +184,15 @@ func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey st
 		case "direct":
 			resolve("sjFn", "stringifyJson", stringifyFallback)
 			body = "return sjFn(v);"
-		case "stripClone":
+		case "clone":
+			// Shape-derived clone (prepareForJsonSafe builds a NEW value from the
+			// declared shape) — undeclared keys are dropped by construction, so the
+			// clone is stripped without a separate strip pass.
 			resolve("pjsFn", "prepareForJsonSafe", identity)
 			body = "return JSON.stringify(pjsFn(v));"
-		case "clone":
-			resolve("pjspFn", "prepareForJsonSafePreserve", identity)
-			body = "return JSON.stringify(pjspFn(v));"
 		case "mutate":
 			resolve("pjFn", "prepareForJson", identity)
 			body = "return JSON.stringify(pjFn(v));"
-		case "stripMutate":
-			resolve("ukuFn", "unknownKeysToUndefined", identity)
-			resolve("pjFn", "prepareForJson", identity)
-			body = "ukuFn(v); return JSON.stringify(pjFn(v));"
 		}
 		innerFn = "function " + entryKey + "(v){" + body + "}"
 	case "jsonDecoder":

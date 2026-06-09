@@ -21,18 +21,6 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'clone'});
     },
-    stripMutateEncoder: () => {
-      function fnNoOptional(a: number, b: boolean, c: string): Date {
-        return new Date(a);
-      }
-      return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      function fnNoOptional(a: number, b: boolean, c: string): Date {
-        return new Date(a);
-      }
-      return createJsonEncoder<Parameters<typeof fnNoOptional>>();
-    },
     directEncoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
@@ -92,22 +80,6 @@ export const FUNCTIONS = {
         return 1n;
       }
       return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      function fnOptionalParams(a: Date, b?: boolean): bigint {
-        void a;
-        void b;
-        return 1n;
-      }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      function fnOptionalParams(a: Date, b?: boolean): bigint {
-        void a;
-        void b;
-        return 1n;
-      }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>();
     },
     directEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -178,24 +150,6 @@ export const FUNCTIONS = {
         return new Date(0);
       }
       return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      function fnOptionalParam(a: number, b: boolean, c?: string): Date {
-        void a;
-        void b;
-        void c;
-        return new Date(0);
-      }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      function fnOptionalParam(a: number, b: boolean, c?: string): Date {
-        void a;
-        void b;
-        void c;
-        return new Date(0);
-      }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParam>>();
     },
     directEncoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
@@ -268,24 +222,6 @@ export const FUNCTIONS = {
         return new Date(0);
       }
       return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
-        void rest;
-        void a;
-        void b;
-        return new Date(0);
-      }
-      return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
-        void rest;
-        void a;
-        void b;
-        return new Date(0);
-      }
-      return createJsonEncoder<Parameters<typeof fnRestParams>>();
     },
     directEncoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -362,22 +298,6 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'clone'});
     },
-    stripMutateEncoder: () => {
-      function fnOptionalParams(a: Date, b?: boolean): bigint {
-        void a;
-        void b;
-        return 1n;
-      }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      function fnOptionalParams(a: Date, b?: boolean): bigint {
-        void a;
-        void b;
-        return 1n;
-      }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>();
-    },
     directEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
         void a;
@@ -446,22 +366,6 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'clone'});
     },
-    stripMutateEncoder: () => {
-      function fnOptionalParams(a: Date, b?: boolean): bigint {
-        void a;
-        void b;
-        return 1n;
-      }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      function fnOptionalParams(a: Date, b?: boolean): bigint {
-        void a;
-        void b;
-        return 1n;
-      }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParams>>();
-    },
     directEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
         void a;
@@ -525,20 +429,6 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'clone'});
     },
-    stripMutateEncoder: () => {
-      function fnOnlyRestParams(...rest: number[]): Date {
-        void rest;
-        return new Date(0);
-      }
-      return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      function fnOnlyRestParams(...rest: number[]): Date {
-        void rest;
-        return new Date(0);
-      }
-      return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>();
-    },
     directEncoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
@@ -600,24 +490,6 @@ export const FUNCTIONS = {
         return new Date(0);
       }
       return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
-        void a;
-        void b;
-        void c;
-        return new Date(0);
-      }
-      return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
-        void a;
-        void b;
-        void c;
-        return new Date(0);
-      }
-      return createJsonEncoder<Parameters<typeof fnWithCallback>>();
     },
     directEncoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -697,24 +569,6 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'clone'});
     },
-    stripMutateEncoder: () => {
-      function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
-        void a;
-        void b;
-        void c;
-        return Promise.resolve(new Date(0));
-      }
-      return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
-        void a;
-        void b;
-        void c;
-        return Promise.resolve(new Date(0));
-      }
-      return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>();
-    },
     directEncoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
         void a;
@@ -789,24 +643,6 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'clone'});
     },
-    stripMutateEncoder: () => {
-      function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
-        void a;
-        void b;
-        void c;
-        return () => new Date(0);
-      }
-      return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
-        void a;
-        void b;
-        void c;
-        return () => new Date(0);
-      }
-      return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>();
-    },
     directEncoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
         void a;
@@ -864,9 +700,6 @@ export const FUNCTIONS = {
     title: 'call signature params',
     mutateEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(),
     directEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(),
     preserveDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'preserve'}),
@@ -883,9 +716,6 @@ export const FUNCTIONS = {
     title: 'call signature return',
     mutateEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(),
     directEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
     preserveDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'preserve'}),

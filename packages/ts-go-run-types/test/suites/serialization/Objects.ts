@@ -27,28 +27,6 @@ export const OBJECTS = {
         "weird prop name \n?>'\\\t\r": string;
         optionalString?: string;
       }>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<{
-        startDate: Date;
-        quantity: number;
-        name: string;
-        nullValue: null;
-        big: bigint;
-        stringArray: string[];
-        "weird prop name \n?>'\\\t\r": string;
-        optionalString?: string;
-      }>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () =>
-      createJsonEncoder<{
-        startDate: Date;
-        quantity: number;
-        name: string;
-        nullValue: null;
-        big: bigint;
-        stringArray: string[];
-        "weird prop name \n?>'\\\t\r": string;
-        optionalString?: string;
-      }>(),
     directEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
@@ -194,28 +172,6 @@ export const OBJECTS = {
         };
       return createJsonEncoder<ManyOptional>(undefined, {strategy: 'clone'});
     },
-    stripMutateEncoder: () => {
-      type N = number;
-      // prettier-ignore
-      type ManyOptional = {
-          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
-          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
-          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
-          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
-        };
-      return createJsonEncoder<ManyOptional>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      type N = number;
-      // prettier-ignore
-      type ManyOptional = {
-          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
-          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
-          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
-          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
-        };
-      return createJsonEncoder<ManyOptional>();
-    },
     directEncoder: () => {
       type N = number;
       // prettier-ignore
@@ -275,10 +231,38 @@ export const OBJECTS = {
       const n = () => RT.optional(RT.number());
       return createJsonEncoder(
         RT.object({
-          a0: n(), a1: n(), a2: n(), a3: n(), a4: n(), a5: n(), a6: n(), a7: n(),
-          a8: n(), a9: n(), a10: n(), a11: n(), a12: n(), a13: n(), a14: n(), a15: n(),
-          b0: n(), b1: n(), b2: n(), b3: n(), b4: n(), b5: n(), b6: n(), b7: n(),
-          b8: n(), b9: n(), b10: n(), b11: n(), b12: n(), b13: n(), b14: n(), b15: n(),
+          a0: n(),
+          a1: n(),
+          a2: n(),
+          a3: n(),
+          a4: n(),
+          a5: n(),
+          a6: n(),
+          a7: n(),
+          a8: n(),
+          a9: n(),
+          a10: n(),
+          a11: n(),
+          a12: n(),
+          a13: n(),
+          a14: n(),
+          a15: n(),
+          b0: n(),
+          b1: n(),
+          b2: n(),
+          b3: n(),
+          b4: n(),
+          b5: n(),
+          b6: n(),
+          b7: n(),
+          b8: n(),
+          b9: n(),
+          b10: n(),
+          b11: n(),
+          b12: n(),
+          b13: n(),
+          b14: n(),
+          b15: n(),
         })
       );
     },
@@ -286,10 +270,38 @@ export const OBJECTS = {
       const n = () => RT.optional(RT.number());
       return createJsonDecoder(
         RT.object({
-          a0: n(), a1: n(), a2: n(), a3: n(), a4: n(), a5: n(), a6: n(), a7: n(),
-          a8: n(), a9: n(), a10: n(), a11: n(), a12: n(), a13: n(), a14: n(), a15: n(),
-          b0: n(), b1: n(), b2: n(), b3: n(), b4: n(), b5: n(), b6: n(), b7: n(),
-          b8: n(), b9: n(), b10: n(), b11: n(), b12: n(), b13: n(), b14: n(), b15: n(),
+          a0: n(),
+          a1: n(),
+          a2: n(),
+          a3: n(),
+          a4: n(),
+          a5: n(),
+          a6: n(),
+          a7: n(),
+          a8: n(),
+          a9: n(),
+          a10: n(),
+          a11: n(),
+          a12: n(),
+          a13: n(),
+          a14: n(),
+          a15: n(),
+          b0: n(),
+          b1: n(),
+          b2: n(),
+          b3: n(),
+          b4: n(),
+          b5: n(),
+          b6: n(),
+          b7: n(),
+          b8: n(),
+          b9: n(),
+          b10: n(),
+          b11: n(),
+          b12: n(),
+          b13: n(),
+          b14: n(),
+          b15: n(),
         })
       );
     },
@@ -297,10 +309,38 @@ export const OBJECTS = {
       const n = () => RT.optional(RT.number());
       return createBinaryEncoder(
         RT.object({
-          a0: n(), a1: n(), a2: n(), a3: n(), a4: n(), a5: n(), a6: n(), a7: n(),
-          a8: n(), a9: n(), a10: n(), a11: n(), a12: n(), a13: n(), a14: n(), a15: n(),
-          b0: n(), b1: n(), b2: n(), b3: n(), b4: n(), b5: n(), b6: n(), b7: n(),
-          b8: n(), b9: n(), b10: n(), b11: n(), b12: n(), b13: n(), b14: n(), b15: n(),
+          a0: n(),
+          a1: n(),
+          a2: n(),
+          a3: n(),
+          a4: n(),
+          a5: n(),
+          a6: n(),
+          a7: n(),
+          a8: n(),
+          a9: n(),
+          a10: n(),
+          a11: n(),
+          a12: n(),
+          a13: n(),
+          a14: n(),
+          a15: n(),
+          b0: n(),
+          b1: n(),
+          b2: n(),
+          b3: n(),
+          b4: n(),
+          b5: n(),
+          b6: n(),
+          b7: n(),
+          b8: n(),
+          b9: n(),
+          b10: n(),
+          b11: n(),
+          b12: n(),
+          b13: n(),
+          b14: n(),
+          b15: n(),
         })
       );
     },
@@ -308,10 +348,38 @@ export const OBJECTS = {
       const n = () => RT.optional(RT.number());
       return createBinaryDecoder(
         RT.object({
-          a0: n(), a1: n(), a2: n(), a3: n(), a4: n(), a5: n(), a6: n(), a7: n(),
-          a8: n(), a9: n(), a10: n(), a11: n(), a12: n(), a13: n(), a14: n(), a15: n(),
-          b0: n(), b1: n(), b2: n(), b3: n(), b4: n(), b5: n(), b6: n(), b7: n(),
-          b8: n(), b9: n(), b10: n(), b11: n(), b12: n(), b13: n(), b14: n(), b15: n(),
+          a0: n(),
+          a1: n(),
+          a2: n(),
+          a3: n(),
+          a4: n(),
+          a5: n(),
+          a6: n(),
+          a7: n(),
+          a8: n(),
+          a9: n(),
+          a10: n(),
+          a11: n(),
+          a12: n(),
+          a13: n(),
+          a14: n(),
+          a15: n(),
+          b0: n(),
+          b1: n(),
+          b2: n(),
+          b3: n(),
+          b4: n(),
+          b5: n(),
+          b6: n(),
+          b7: n(),
+          b8: n(),
+          b9: n(),
+          b10: n(),
+          b11: n(),
+          b12: n(),
+          b13: n(),
+          b14: n(),
+          b15: n(),
         })
       );
     },
@@ -356,42 +424,6 @@ export const OBJECTS = {
         }
       }
       return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      class MySerializableClass {
-        name: string;
-        surname: string;
-        id: number;
-        startDate: Date;
-        constructor() {
-          this.name = 'John';
-          this.surname = 'Doe';
-          this.id = 0;
-          this.startDate = new Date('2000-08-06T02:13:00.000Z');
-        }
-        getFullName() {
-          return `${this.name} ${this.surname}`;
-        }
-      }
-      return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      class MySerializableClass {
-        name: string;
-        surname: string;
-        id: number;
-        startDate: Date;
-        constructor() {
-          this.name = 'John';
-          this.surname = 'Doe';
-          this.id = 0;
-          this.startDate = new Date('2000-08-06T02:13:00.000Z');
-        }
-        getFullName() {
-          return `${this.name} ${this.surname}`;
-        }
-      }
-      return createJsonEncoder<MySerializableClass>();
     },
     directEncoder: () => {
       class MySerializableClass {
@@ -596,24 +628,6 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'clone'});
     },
-    stripMutateEncoder: () => {
-      class BaseClass {
-        baseProp: string = 'base';
-      }
-      class ExtendedClass extends BaseClass {
-        extendedProp: string = 'extended';
-      }
-      return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      class BaseClass {
-        baseProp: string = 'base';
-      }
-      class ExtendedClass extends BaseClass {
-        extendedProp: string = 'extended';
-      }
-      return createJsonEncoder<ExtendedClass>();
-    },
     directEncoder: () => {
       class BaseClass {
         baseProp: string = 'base';
@@ -736,34 +750,6 @@ export const OBJECTS = {
         }
       }
       return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      class NonSerializableClass {
-        constructor(
-          public name: string,
-          public surname: string,
-          public id: number,
-          public startDate: Date
-        ) {}
-        getFullName() {
-          return `${this.name} ${this.surname}`;
-        }
-      }
-      return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      class NonSerializableClass {
-        constructor(
-          public name: string,
-          public surname: string,
-          public id: number,
-          public startDate: Date
-        ) {}
-        getFullName() {
-          return `${this.name} ${this.surname}`;
-        }
-      }
-      return createJsonEncoder<NonSerializableClass>();
     },
     directEncoder: () => {
       class NonSerializableClass {
@@ -912,8 +898,6 @@ export const OBJECTS = {
     title: 'undefined is omitted in object prop',
     mutateEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(),
     directEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(),
     preserveDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'preserve'}),
@@ -932,8 +916,6 @@ export const OBJECTS = {
     title: 'optional properties order',
     mutateEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{a: string; b?: string}>(),
     directEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{a: string; b?: string}>(),
     preserveDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {strategy: 'preserve'}),
@@ -949,8 +931,6 @@ export const OBJECTS = {
     title: 'all optional fields',
     mutateEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<{a?: string; b?: string}>(),
     directEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{a?: string; b?: string}>(),
     preserveDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {strategy: 'preserve'}),
@@ -992,32 +972,6 @@ export const OBJECTS = {
         deep: {a: string; b: number};
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<{
-        startDate: Date;
-        quantity: number;
-        name: string;
-        nullValue: null;
-        stringArray: string[];
-        bigInt: bigint;
-        optionalString?: string;
-        "weird prop name \n?>'\\\t\r": string;
-        deep: {a: string; b: number};
-        '?other weird p': {c: string; d: number};
-      }>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () =>
-      createJsonEncoder<{
-        startDate: Date;
-        quantity: number;
-        name: string;
-        nullValue: null;
-        stringArray: string[];
-        bigInt: bigint;
-        optionalString?: string;
-        "weird prop name \n?>'\\\t\r": string;
-        deep: {a: string; b: number};
-        '?other weird p': {c: string; d: number};
-      }>(),
     directEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
@@ -1211,20 +1165,6 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ICircular>(undefined, {strategy: 'clone'});
     },
-    stripMutateEncoder: () => {
-      interface ICircular {
-        name: string;
-        child?: ICircular;
-      }
-      return createJsonEncoder<ICircular>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      interface ICircular {
-        name: string;
-        child?: ICircular;
-      }
-      return createJsonEncoder<ICircular>();
-    },
     directEncoder: () => {
       interface ICircular {
         name: string;
@@ -1293,20 +1233,6 @@ export const OBJECTS = {
         children?: ICircularArray[];
       }
       return createJsonEncoder<ICircularArray>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      interface ICircularArray {
-        name: string;
-        children?: ICircularArray[];
-      }
-      return createJsonEncoder<ICircularArray>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      interface ICircularArray {
-        name: string;
-        children?: ICircularArray[];
-      }
-      return createJsonEncoder<ICircularArray>();
     },
     directEncoder: () => {
       interface ICircularArray {
@@ -1389,28 +1315,6 @@ export const OBJECTS = {
         };
       }
       return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {
-          hello: string;
-          child?: ICircularDeep;
-        };
-      }
-      return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {
-          hello: string;
-          child?: ICircularDeep;
-        };
-      }
-      return createJsonEncoder<ICircularDeep>();
     },
     directEncoder: () => {
       interface ICircularDeep {
@@ -1527,30 +1431,6 @@ export const OBJECTS = {
         ciChild: ICircularDeep;
       }
       return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {hello: string; child?: ICircularDeep};
-      }
-      interface RootNotCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-      }
-      return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {hello: string; child?: ICircularDeep};
-      }
-      interface RootNotCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-      }
-      return createJsonEncoder<RootNotCircular>();
     },
     directEncoder: () => {
       interface ICircularDeep {
@@ -1697,48 +1577,6 @@ export const OBJECTS = {
         ciDate: ICircularDate;
       }
       return createJsonEncoder<RootCircular>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {hello: string; child?: ICircularDeep};
-      }
-      interface ICircularDate {
-        date: Date;
-        month: number;
-        year: number;
-        embedded?: ICircularDate;
-        deep?: ICircularDeep;
-      }
-      interface RootCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-        ciRoort?: RootCircular;
-        ciDate: ICircularDate;
-      }
-      return createJsonEncoder<RootCircular>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {hello: string; child?: ICircularDeep};
-      }
-      interface ICircularDate {
-        date: Date;
-        month: number;
-        year: number;
-        embedded?: ICircularDate;
-        deep?: ICircularDeep;
-      }
-      interface RootCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-        ciRoort?: RootCircular;
-        ciDate: ICircularDate;
-      }
-      return createJsonEncoder<RootCircular>();
     },
     directEncoder: () => {
       interface ICircularDeep {
@@ -1938,20 +1776,6 @@ export const OBJECTS = {
         methodProp: () => any;
       }
       return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      interface ObjectWithMethods {
-        name: string;
-        methodProp: () => any;
-      }
-      return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      interface ObjectWithMethods {
-        name: string;
-        methodProp: () => any;
-      }
-      return createJsonEncoder<ObjectWithMethods>();
     },
     directEncoder: () => {
       interface ObjectWithMethods {

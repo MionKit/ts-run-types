@@ -185,7 +185,7 @@ export const _ = createIsType<unknown>();
 
   register('propagates function-typed tuple slot as alwaysThrow under prepareForJson', async () => {
     // pj/pjs/rj/sj are demand-driven: seed pj via createJsonEncoder(mutate), pjs
-    // via the default stripClone, sj via direct, and rj via createJsonDecoder.
+    // via the default clone (shape-derived strip), sj via direct, and rj via createJsonDecoder.
     const sources = {
       'fn-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from '@mionjs/ts-go-run-types';
 export const _ = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'mutate'});
