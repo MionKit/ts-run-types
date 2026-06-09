@@ -445,7 +445,7 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		}
 	}
 
-	if len(dump.Sites) > 0 && constants.IsFamilyMigrated(settings.Tag) {
+	if len(dump.Sites) > 0 {
 		// Demand-driven: emit only the (root, variant) entries the createX call
 		// sites request for this family, plus the transitive closure of child
 		// factories they reference. This is the over-emission fix — a type only

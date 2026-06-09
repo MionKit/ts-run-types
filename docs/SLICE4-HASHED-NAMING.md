@@ -1,5 +1,7 @@
 # Slice 4 — atomic hashed-naming flip + JSON-composite-in-Go
 
+> **Historical working doc.** This slice landed: the readable-tag scheme (`constants.ResolveFnId`/`CompFns`, tokens like `stripMutate`) was replaced by the opaque-`fnHash` scheme — the `internal/operations` registry as single source of truth, structured `protocol.Site.Demand`, `<fnHash>_<typeId>` cache keys, and Go-emitted JSON-composite entries. See [CLAUDE.md](../CLAUDE.md) → "Two injection markers + demand-driven function caches" for the current model. The notes below describe the in-progress flip, not the final API.
+
 Parent plan: `/root/.claude/plans/inherited-cuddling-nova.md` (§4–§5, "the atomic
 flip"). Slices 1–3 are DONE and on the branch. This is the riskiest slice and
 must land atomically (a half-flip mismatches scanner/emitter/runtime).

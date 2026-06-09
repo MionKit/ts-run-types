@@ -1,5 +1,7 @@
 # Demand-driven function caches (`InjectTypeFnArgs` marker)
 
+> **Superseded (historical).** The readable family/variant-tag fnId scheme described below (`CompFns`, `MigratedFamilies`, `ResolveFnId`/`DemandsForFnId`, readable tokens like `itNL`/`stripMutate`) was later replaced by an **opaque precomputed `fnHash`** scheme: the `internal/operations` registry as the single source of truth, structured demand on `protocol.Site.Demand`, and Go-emitted JSON-composite cache entries. See [CLAUDE.md](../CLAUDE.md) → "Two injection markers + demand-driven function caches" for the current model. The demand-driven *behaviour* this doc designed is still accurate; only the identity/naming scheme changed.
+
 Status: **DONE** — every function family is demand-scoped (Slices A–D landed on
 `claude/dreamy-cori-cT1be`: `106cfc1`, `2f971f8`, `258900d`, `7bb023f`,
 `b0798ef`). A `getRunTypeId<T>()`-only file now emits zero function-cache
