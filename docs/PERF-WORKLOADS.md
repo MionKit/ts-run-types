@@ -147,7 +147,8 @@ Full walks over the **checker.Type graph**: `typeid.Compute` (+cycle sub-walk) a
 
 ## 6. Ranked candidate list (Step 3 input) — profile-ranked
 
-Measured on the Step-2 system (commit `9b395b0` baselines, see `bench/results/`):
+Measured on the Step-2 system (baselines captured at commit `9b395b0`; raw files are
+regenerable via `scripts/bench-compile.mjs` into the gitignored `bench/results/`):
 
 - **Render/all micro-bench**: `RenderFnModule` 38.7% CPU cum and **80.9% of alloc_space** (527MB); `renderValidateModule` 20% CPU of which **`CrossFamilyValRoots` 16%** (13 discarded renders); GC workers ≈35% CPU (churn-bound); `purefns.findCalls` 8.7% CPU — OpDump re-extracts purefns over ALL program files per dump (`render.go:renderPureFnsModule` with `ranExtraction=false`).
 - **ScanWithCaches/large**: `Walker.dispatch` 34.6% of alloc objects (per-node `EmitContext` + `orderedItems` maps + dep strings); `Walker.Compile` 17% CPU.

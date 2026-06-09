@@ -28,6 +28,9 @@ yarn-error.log*
 /logs/
 /gendocs/
 
+# Benchmark output (raw harness logs; aggregated summaries live in docs/)
+/bench/results/
+
 # IDE / editor
 # Track shared workspace settings/extensions, ignore user-specific files.
 .vscode/*
