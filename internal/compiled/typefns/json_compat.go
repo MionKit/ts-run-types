@@ -211,16 +211,19 @@ const (
 
 // literalFlavour returns the litFlavour for a KindLiteral RunType. bigint
 // takes priority over symbol (matching the set-membership order the emitters
-// used), then a regexp-shaped Literal map, else primitive.
+// used), then a regexp-shaped Literal map, else primitive. Linear scan —
+// Flags holds at most a couple of entries, a map per call was pure churn.
 func literalFlavour(rt *protocol.RunType) litFlavour {
-	flagSet := make(map[string]bool, len(rt.Flags))
+	hasSymbol := false
 	for _, flag := range rt.Flags {
-		flagSet[flag] = true
+		if flag == "bigint" {
+			return litBigInt
+		}
+		if flag == "symbol" {
+			hasSymbol = true
+		}
 	}
-	if flagSet["bigint"] {
-		return litBigInt
-	}
-	if flagSet["symbol"] {
+	if hasSymbol {
 		return litSymbol
 	}
 	return litPrimitive
