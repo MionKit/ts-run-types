@@ -83,7 +83,51 @@ type RenderOpts struct {
 	// module. The cross-family it-collection passes never set this (their output
 	// is discarded), so it does not perturb the it-seeding pipeline.
 	ExtraBodyLines string
+	// EntryCache, when non-nil, memoizes compiled (family-variant, typeID)
+	// entries for the lifetime of ONE dispatch. Real family renders (live
+	// DiagSink) populate it after compiling; CrossFamilyValRoots' collection
+	// passes (DiagSink nil'd) read it, so a family that renders for real in
+	// the same dispatch is never walked a second time just to harvest its
+	// val_ edges. Writes are gated on DiagSink != nil — an entry must never
+	// enter the cache from a diag-suppressed pass, or a later real render
+	// reusing it would silently drop its diagnostics. The dispatcher orders
+	// the validate render LAST so every requested family's real render runs
+	// before the collection passes need it.
+	EntryCache *EntryRenderCache
 }
+
+// EntryRenderCache is the per-dispatch memo for compiled cache-module
+// entries, keyed by the namespaced variant cache key (`<fnHash>_<typeID>`),
+// which is unique per (family, variant, type). Opaque so callers outside
+// typefns can only create and thread it.
+type EntryRenderCache struct {
+	entries map[string]entryRender
+}
+
+// NewEntryRenderCache returns an empty per-dispatch entry memo.
+func NewEntryRenderCache() *EntryRenderCache {
+	return &EntryRenderCache{entries: map[string]entryRender{}}
+}
+
+func (cache *EntryRenderCache) get(key string) (entryRender, bool) {
+	if cache == nil {
+		return entryRender{}, false
+	}
+	entry, ok := cache.entries[key]
+	return entry, ok
+}
+
+func (cache *EntryRenderCache) put(key string, entry entryRender) {
+	if cache == nil {
+		return
+	}
+	cache.entries[key] = entry
+}
+
+// validateFamilyTag identifies the `it` family for the EntryCache write gate
+// in renderEntryWithDeps — validate renders last and is never a collection
+// source, so caching its entries is pure overhead.
+var validateFamilyTag = constants.CacheModules["validate"].Tag
 
 // familyOp recovers the operation that emits entries under a cache-module's
 // family Tag (e.g. "verr" → the validationErrors operation). The fnHash naming scheme
@@ -684,6 +728,25 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	factoryName := variantFactoryName(settings, variantSuffix, variantOptions, runType.ID)
 	innerName := variantKey(settings, variantSuffix, variantOptions, runType.ID)
 
+	// Per-dispatch memo: a family already rendered for real in this dispatch
+	// (its compile emitted any diagnostics then) is reused as-is by the
+	// CrossFamilyValRoots collection passes — same line / deps / cross-family
+	// edges a fresh walk would produce. See RenderOpts.EntryCache.
+	if cached, hit := opts.EntryCache.get(innerName); hit {
+		return cached
+	}
+	// cacheEntry gates writes on a live DiagSink so diag-suppressed
+	// collection passes never seed the memo (their compiles drop
+	// diagnostics a later real render must still emit). The validate
+	// family never writes: it renders LAST and is excluded from the
+	// collection passes, so its entries have no possible reader.
+	cacheEntry := func(entry entryRender) entryRender {
+		if opts.DiagSink != nil && settings.Tag != validateFamilyTag {
+			opts.EntryCache.put(innerName, entry)
+		}
+		return entry
+	}
+
 	if variantSuffix == "" {
 		if cachedLine, cachedDeps, cachedCrossFamilyDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
 			// Disk-cache hit: the walker never runs, but the entry's
@@ -692,7 +755,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			// the hit returns the same crossFamilyDeps a fresh walk would —
 			// the demand-collection pass observes the val_<member> edges
 			// without re-rendering.
-			return entryRender{line: cachedLine, deps: cachedDeps, crossFamilyDeps: cachedCrossFamilyDeps}
+			return cacheEntry(entryRender{line: cachedLine, deps: cachedDeps, crossFamilyDeps: cachedCrossFamilyDeps})
 		}
 	}
 
@@ -740,10 +803,10 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 					// or cross-family edges to persist.
 					writeCachedEntry(runType, settings, innerPrefix, line, nil, nil, opts)
 				}
-				return entryRender{line: line}
+				return cacheEntry(entryRender{line: line})
 			}
 		}
-		return entryRender{}
+		return cacheEntry(entryRender{})
 	}
 	// Noop factories emit a SHORT-FORM init line: only the cache key,
 	// typeName, and isNoop=true are passed. The JS-side init() builds
@@ -767,7 +830,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			// cross-family lookups are registered.
 			writeCachedEntry(runType, settings, innerPrefix, line, nil, nil, opts)
 		}
-		return entryRender{line: line}
+		return cacheEntry(entryRender{line: line})
 	}
 	createRTFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
 	// The 3rd arg (`code`) carries the factory BODY — the contents
@@ -807,7 +870,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	if variantSuffix == "" {
 		writeCachedEntry(runType, settings, innerPrefix, line, deps, crossFamilyDeps, opts)
 	}
-	return entryRender{line: line, deps: deps, crossFamilyDeps: crossFamilyDeps}
+	return cacheEntry(entryRender{line: line, deps: deps, crossFamilyDeps: crossFamilyDeps})
 }
 
 // tryReadCachedEntry attempts to load a previously cached (line, deps,
