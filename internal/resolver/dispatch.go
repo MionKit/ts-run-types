@@ -28,12 +28,15 @@ type familyRender struct {
 	assign func(response *protocol.Response, body string)
 }
 
+// familyRenders is ordered with validate LAST on purpose: renderValidateModule
+// runs CrossFamilyValRoots, whose collection passes reuse the per-dispatch
+// EntryRenderCache that the OTHER families' real renders populate. Rendering
+// validate after every other requested family turns those 13 collection
+// renders into cache hits whenever the family was requested anyway.
 var familyRenders = []familyRender{
 	{protocol.CacheKindRunType,
 		func(dump protocol.Dump, _ typefns.RenderOpts) (string, error) { return renderRunTypesModule(dump) },
 		func(response *protocol.Response, body string) { response.RunTypeCacheSource = body }},
-	{protocol.CacheKindValidate, renderValidateModule,
-		func(response *protocol.Response, body string) { response.ValidateCacheSource = body }},
 	{protocol.CacheKindValidationErrors, renderValidationErrorsModule,
 		func(response *protocol.Response, body string) { response.ValidationErrorsCacheSource = body }},
 	{protocol.CacheKindPrepareForJson, renderPrepareForJsonModule,
@@ -60,6 +63,8 @@ var familyRenders = []familyRender{
 		func(response *protocol.Response, body string) { response.FromBinaryCacheSource = body }},
 	{protocol.CacheKindFormatTransform, renderFormatTransformModule,
 		func(response *protocol.Response, body string) { response.FormatTransformCacheSource = body }},
+	{protocol.CacheKindValidate, renderValidateModule,
+		func(response *protocol.Response, body string) { response.ValidateCacheSource = body }},
 }
 
 // Dispatch routes a request to the correct handler. When the request sets
