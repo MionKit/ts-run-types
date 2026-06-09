@@ -368,28 +368,34 @@ export type DataOnly<T, Depth extends number = 8> = Depth extends 0
           // check each catches BOTH the mutable and readonly forms (the inner
           // `Map` / `Set` test preserves the original variant) — two conditionals
           // instead of four keeps the per-type cost down.
-          T extends ReadonlyMap<infer K, infer V>
-          ? T extends Map<any, any>
-            ? Map<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
-            : ReadonlyMap<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
-          : T extends ReadonlySet<infer U>
-            ? T extends Set<any>
-              ? Set<DataOnly<U, _DataOnlyDepth[Depth]>>
-              : ReadonlySet<DataOnly<U, _DataOnlyDepth[Depth]>>
-            : T extends readonly unknown[]
-              ? {-readonly [K in keyof T]: DataOnly<T[K], _DataOnlyDepth[Depth]>} // array + tuple
-              : T extends object
-                ? object extends T
-                  ? T // broad `object` / `{}` — keep (the emitter accepts the broad kind)
-                  : {
-                      // plain object — drop symbol keys + never-valued (⊇ method) props
-                      [K in keyof T as K extends symbol
+          T extends ReadonlyMap<any, any> | ReadonlySet<any>
+          ? // GATE: one non-`infer` assignability check filters out every
+            // non-collection (the common case) in a single step — the `infer`
+            // extraction below only runs for actual Maps/Sets. Inside, the
+            // `Map`/`Set` test preserves the mutable-vs-readonly variant.
+            T extends ReadonlyMap<infer K, infer V>
+            ? T extends Map<any, any>
+              ? Map<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
+              : ReadonlyMap<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
+            : T extends ReadonlySet<infer U>
+              ? T extends Set<any>
+                ? Set<DataOnly<U, _DataOnlyDepth[Depth]>>
+                : ReadonlySet<DataOnly<U, _DataOnlyDepth[Depth]>>
+              : never // unreachable — gate guarantees Map or Set
+          : T extends readonly unknown[]
+            ? {-readonly [K in keyof T]: DataOnly<T[K], _DataOnlyDepth[Depth]>} // array + tuple
+            : T extends object
+              ? object extends T
+                ? T // broad `object` / `{}` — keep (the emitter accepts the broad kind)
+                : {
+                    // plain object — drop symbol keys + never-valued (⊇ method) props
+                    [K in keyof T as K extends symbol
+                      ? never
+                      : [DataOnly<T[K], _DataOnlyDepth[Depth]>] extends [never]
                         ? never
-                        : [DataOnly<T[K], _DataOnlyDepth[Depth]>] extends [never]
-                          ? never
-                          : K]: DataOnly<T[K], _DataOnlyDepth[Depth]>;
-                    }
-                : T;
+                        : K]: DataOnly<T[K], _DataOnlyDepth[Depth]>;
+                  }
+              : T;
 // #endregion dataonly-extract
 
 export type DeserializeClassFn<C extends InstanceType<AnyClass>> = (deserialized: DataOnly<C>) => C;
