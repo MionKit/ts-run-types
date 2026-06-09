@@ -10,8 +10,9 @@ benchmarks; no assertion was weakened).
 Measurement system: `internal/resolver/bench_test.go` (go benchmarks, compared with
 `benchstat -count=6`, all quoted deltas p=0.002 unless noted), and
 `scripts/bench-compile.mjs` (per-case micro tier + whole-suite macro tier over the four FE
-suites). Baseline artifacts: `bench/results/baseline.json` + `go-bench-baseline.txt`
-(commit `9b395b0`); final: `bench/results/final.json` + `go-bench-final.txt`.
+suites). Raw result files land in the gitignored `bench/results/` (regenerate via the
+Reproduce section below); the baseline was captured at commit `9b395b0`, the final run at
+the Step-4 wrap-up commit. The aggregated numbers in this doc are the durable record.
 
 ## Cumulative result (final vs pre-optimization baseline)
 
