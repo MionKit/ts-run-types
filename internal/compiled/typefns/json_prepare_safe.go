@@ -561,7 +561,20 @@ func jsonObjectKeyLiteral(name string, isSafeName bool) string {
 // always involves an object/class node so the conservative answer is
 // "not extra-proof" — we'll clone, which is correct).
 func isExtraProof(rt *protocol.RunType, ctx *EmitContext) bool {
-	return extraProofRecursive(rt, ctx, make(map[string]struct{}))
+	if rt != nil && rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(factExtraProof, rt.ID); known {
+			return verdict
+		}
+	}
+	result := extraProofRecursive(rt, ctx, make(map[string]struct{}))
+	// Only completed top-level walks are stored — see the matching note
+	// on isJsonCompatible; the in-walk value of an intermediate node may
+	// depend on a cycle-back assumption for an ancestor still on the
+	// stack.
+	if rt != nil && rt.ID != "" {
+		ctx.walker.factsStore(factExtraProof, rt.ID, result)
+	}
+	return result
 }
 
 func extraProofRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[string]struct{}) bool {
@@ -569,6 +582,9 @@ func extraProofRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[str
 		return false
 	}
 	if rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(factExtraProof, rt.ID); known {
+			return verdict
+		}
 		if _, seen := visited[rt.ID]; seen {
 			return false
 		}

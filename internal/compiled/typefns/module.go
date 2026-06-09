@@ -83,6 +83,10 @@ type RenderOpts struct {
 	// module. The cross-family it-collection passes never set this (their output
 	// is discarded), so it does not perturb the it-seeding pipeline.
 	ExtraBodyLines string
+	// Facts, when non-nil, memoizes the canonical-node subtree predicates
+	// (isJsonCompatible / isExtraProof) across every render of one
+	// dispatch. See FactsTable.
+	Facts *FactsTable
 	// EntryCache, when non-nil, memoizes compiled (family-variant, typeID)
 	// entries for the lifetime of ONE dispatch. Real family renders (live
 	// DiagSink) populate it after compiling; CrossFamilyValRoots' collection
@@ -761,6 +765,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 
 	walker := NewWalker(runType, innerName, emitter)
 	walker.RefTable = refTable
+	walker.facts = opts.Facts
 	// InnerPrefix lets dispatch namespace child cache keys consistently
 	// with the factory registration's first arg (innerName below).
 	// Variant walkers still set this to the plain tag (e.g. `val_`) so
