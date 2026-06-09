@@ -130,6 +130,13 @@ export const NATIVE = {
 
   promise_string: {
     title: 'Promise — thenable check, wrapped type not validated',
+    // `DataOnly` STRIPS Promise (a thenable is not data — see DataOnly in
+    // runtypes/types.ts), so `DataOnly<Promise<string>>` is `never` and the
+    // DataOnly validator collapses to an always-throw, diverging from the bare
+    // form's thenable check. (The matching emitter change — make `isType` itself
+    // drop Promise like symbol/method — is tracked separately; until then the
+    // bare `isType` still thenable-validates, so this stays divergent.)
+    dataOnlyDivergent: true,
     description:
       "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below). prepareForJson/restoreFromJson throw at RT compile (mion's nodes/native/promise.ts).",
     isTypeNotes: [

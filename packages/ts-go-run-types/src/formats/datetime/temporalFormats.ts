@@ -84,3 +84,25 @@ export interface TemporalBaseByFormatName {
   temporalPlainMonthDay: Temporal.PlainMonthDay;
   temporalDuration: Temporal.Duration;
 }
+
+// ─────────────────────── DataOnly augmentation ──────────────────────
+// Opt the 8 TC39 Temporal types into `DataOnly`'s KEEP set so
+// `DataOnly<Temporal.Instant>` stays `Temporal.Instant` — the RT validates
+// Temporal by `instanceof` / native identity, NOT by structural projection
+// (see `DataOnly` in runtypes/types.ts). This augmentation lives HERE, in the
+// lib-coupled `formats/temporal` subpath that already names `Temporal.*`, so
+// core `runtypes/types.ts` never forces the Temporal lib on non-Temporal
+// consumers. Only the VALUE union `DataOnlyNativeExtra[keyof …]` is read by
+// `DataOnly`; the keys are arbitrary labels.
+declare module '../../runtypes/types.ts' {
+  interface DataOnlyNativeExtra {
+    temporalInstant: Temporal.Instant;
+    temporalZonedDateTime: Temporal.ZonedDateTime;
+    temporalPlainDate: Temporal.PlainDate;
+    temporalPlainTime: Temporal.PlainTime;
+    temporalPlainDateTime: Temporal.PlainDateTime;
+    temporalPlainYearMonth: Temporal.PlainYearMonth;
+    temporalPlainMonthDay: Temporal.PlainMonthDay;
+    temporalDuration: Temporal.Duration;
+  }
+}
