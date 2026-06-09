@@ -3,8 +3,8 @@ package diag
 // Marker-scanner codes (MKRxxx). Issued by the resolver when a marker call
 // compiles correctly but uses an anti-pattern.
 const (
-	CodeMarkerFunctionCallArg       = "MKR001"
-	CodeMarkerFreeTypeParameter     = "MKR003"
+	CodeMarkerFunctionCallArg         = "MKR001"
+	CodeMarkerFreeTypeParameter       = "MKR003"
 	CodeValidateOptionsNoLiteralsNoop = "MKR004"
 	CodeValidateOptionsNoArrayNoop    = "MKR005"
 )

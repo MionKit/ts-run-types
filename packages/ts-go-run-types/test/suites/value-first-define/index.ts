@@ -469,7 +469,8 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
       };
       return createValidate(v);
     },
-    deserializeValidate: () => deserializeValidate<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
+    deserializeValidate: () =>
+      deserializeValidate<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
     deserializeValidateReflect: () => {
       const v = {profile: {name: 'abc'}, settings: {theme: 'dark'}} as unknown as {
         profile: Static<typeof ProfileModel>;
@@ -477,7 +478,8 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
       };
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
+    getValidationErrors: () =>
+      createGetValidationErrors<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
     getSamples: () => ({
       valid: [
         {profile: {name: 'abc'}, settings: {theme: 'dark'}},

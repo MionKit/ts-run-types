@@ -352,8 +352,8 @@ type CacheKind string
 
 const (
 	CacheKindRunType                    CacheKind = "runType"
-	CacheKindValidate                     CacheKind = "validate"
-	CacheKindValidationErrors                 CacheKind = "validationErrors"
+	CacheKindValidate                   CacheKind = "validate"
+	CacheKindValidationErrors           CacheKind = "validationErrors"
 	CacheKindPrepareForJson             CacheKind = "prepareForJson"
 	CacheKindRestoreFromJson            CacheKind = "restoreFromJson"
 	CacheKindStringifyJson              CacheKind = "stringifyJson"

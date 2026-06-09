@@ -101,7 +101,9 @@ export const TUPLE = {
     getValidationErrors: () => createGetValidationErrors<[Date, number, string, null, string[], bigint]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[Date, number, string, null, string[], bigint]>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
+      createGetValidationErrors(
+        RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])
+      ),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[Date, number, string, null, string[], bigint]>(),
     getValidationErrorsReflect: () => {
       const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];

@@ -45,13 +45,13 @@ The cache module is a flat list of `export const t_<hash> = {…}` declarations.
 
 ## Options
 
-| Option            | Default                         | Description                                                                |
-| ----------------- | ------------------------------- | -------------------------------------------------------------------------- |
-| `binary`          | — (required)                    | Path to the compiled `ts-go-run-types` Go binary.                          |
-| `cwd`             | Vite's root                     | Project root used to resolve `tsconfig` and source paths                   |
-| `tsconfig`        | `"tsconfig.json"`               | tsconfig, relative to `cwd`.                                               |
+| Option            | Default                           | Description                                                                |
+| ----------------- | --------------------------------- | -------------------------------------------------------------------------- |
+| `binary`          | — (required)                      | Path to the compiled `ts-go-run-types` Go binary.                          |
+| `cwd`             | Vite's root                       | Project root used to resolve `tsconfig` and source paths                   |
+| `tsconfig`        | `"tsconfig.json"`                 | tsconfig, relative to `cwd`.                                               |
 | `markers`         | `[getTypeInfo, validate, router]` | Marker functions to rewrite.                                               |
-| `virtualModuleId` | `"virtual:runtypes-cache"`      | Virtual module id exposing one `export const t_<hash>` per cached RunType. |
+| `virtualModuleId` | `"virtual:runtypes-cache"`        | Virtual module id exposing one `export const t_<hash>` per cached RunType. |
 
 ## Status
 

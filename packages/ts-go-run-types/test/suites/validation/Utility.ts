@@ -359,7 +359,9 @@ export const UTILITY = {
       return createGetValidationErrors<DataOnly<Pick<Person, 'name' | 'createdAt'>>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name', 'createdAt'])),
+      createGetValidationErrors(
+        RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name', 'createdAt'])
+      ),
     deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
@@ -449,7 +451,8 @@ export const UTILITY = {
       }
       return createValidate<DataOnly<Omit<Person, 'age'>>>();
     },
-    validateSchema: () => createValidate(RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['age'])),
+    validateSchema: () =>
+      createValidate(RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['age'])),
     deserializeValidate: () => {
       interface Person {
         name: string;
@@ -628,7 +631,8 @@ export const UTILITY = {
       return deserializeValidate(v);
     },
     getValidationErrors: () => createGetValidationErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
         RT.extract(
@@ -636,7 +640,8 @@ export const UTILITY = {
           RT.union([RT.literal('name'), RT.literal('createdAt')])
         )
       ),
-    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     getValidationErrorsReflect: () => {
       const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
       return createGetValidationErrors(v);
@@ -1208,7 +1213,8 @@ export const UTILITY = {
     description: 'Omit preserves the optionality of remaining properties — resolves to {b?: number; c: boolean}.',
     validate: () => createValidate<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     validateDataOnly: () => createValidate<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
-    validateSchema: () => createValidate(RT.omit(RT.object({a: RT.string(), b: RT.optional(RT.number()), c: RT.boolean()}), ['a'])),
+    validateSchema: () =>
+      createValidate(RT.omit(RT.object({a: RT.string(), b: RT.optional(RT.number()), c: RT.boolean()}), ['a'])),
     deserializeValidate: () => deserializeValidate<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     validateReflect: () => {
       const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
@@ -1320,7 +1326,8 @@ export const UTILITY = {
       }
       return createGetValidationErrors<DataOnly<keyof Person>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
     deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
@@ -2097,7 +2104,8 @@ export const UTILITY = {
       type Wrap<T> = T extends any ? {w: T} : never;
       return createGetValidationErrors<DataOnly<Wrap<string | number>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
     deserializeGetValidationErrors: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       return deserializeGetValidationErrors<Wrap<string | number>>();
