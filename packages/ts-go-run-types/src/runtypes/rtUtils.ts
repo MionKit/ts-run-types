@@ -199,7 +199,7 @@ function initPureFunction(compiled: CompiledPureFunction): asserts compiled is R
 }
 
 /** Canonical cache key for an RT entry — `<prefix>_<id>`. The variant
- *  axis (e.g. `itNA`) is pre-computed into the injected `fnId` at scan
+ *  axis (e.g. `valNA`) is pre-computed into the injected `fnId` at scan
  *  time and passed in as `prefix`, so this is a plain concatenation. **/
 export function buildVariantKey(prefix: string, id: string): string {
   return prefix + '_' + id;

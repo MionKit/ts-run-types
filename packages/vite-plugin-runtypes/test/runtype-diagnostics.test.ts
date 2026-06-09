@@ -96,7 +96,7 @@ export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 
   register('emits child-position warning for function-typed property under validate', async () => {
     // `it` is demand-driven, so seed it via createValidate (a reflection-only
-    // getRunTypeId would emit no it_ entry and thus no validate diagnostic).
+    // getRunTypeId would emit no val_ entry and thus no validate diagnostic).
     const sources = {
       'fn-prop.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 interface User { name: string; onClick: () => void; }
@@ -108,7 +108,7 @@ export const _ = createValidate<User>();
         includeCacheSources: ['validate'],
       });
       const diags = runtypeDiagsOf(response);
-      const dropped = diags.find((d) => (d.code === 'IT010' || d.code === 'IT011') && d.args?.[0] === 'onClick');
+      const dropped = diags.find((d) => (d.code === 'VL010' || d.code === 'VL011') && d.args?.[0] === 'onClick');
       expect(dropped, JSON.stringify(diags, null, 2)).toBeDefined();
       expect(dropped!.severity).toBe(Severity.Warning);
     });
@@ -132,7 +132,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
     });
   });
 
-  register('emits TE020 warning diagnostic for validationErrors on root any/unknown', async () => {
+  register('emits VE020 warning diagnostic for validationErrors on root any/unknown', async () => {
     const sources = {
       'any.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 export const _ = getRunTypeId<any>();
@@ -143,8 +143,8 @@ export const _ = getRunTypeId<any>();
         includeCacheSources: ['validationErrors'],
       });
       const diags = runtypeDiagsOf(response);
-      const warning = diags.find((d) => d.code === 'TE020');
-      // TE020 surfaces as Warning (not Info): root any/unknown is an
+      const warning = diags.find((d) => d.code === 'VE020');
+      // VE020 surfaces as Warning (not Info): root any/unknown is an
       // intentional escape hatch but a validator that accepts every
       // value is still a UX surprise worth flagging visibly.
       if (warning) {
@@ -153,9 +153,9 @@ export const _ = getRunTypeId<any>();
     });
   });
 
-  register('emits IT021 warning diagnostic for validate on root any/unknown', async () => {
+  register('emits VL021 warning diagnostic for validate on root any/unknown', async () => {
     // `it` is demand-driven, so seed it via createValidate<unknown>() (a
-    // reflection-only getRunTypeId would emit no it_ entry, no IT021).
+    // reflection-only getRunTypeId would emit no val_ entry, no VL021).
     const sources = {
       'any-istype.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 export const _ = createValidate<unknown>();
@@ -166,8 +166,8 @@ export const _ = createValidate<unknown>();
         includeCacheSources: ['validate'],
       });
       const diags = runtypeDiagsOf(response);
-      const warning = diags.find((d) => d.code === 'IT021');
-      // IT021 is the validate-family parallel to TE020 — root any/unknown
+      const warning = diags.find((d) => d.code === 'VL021');
+      // VL021 is the validate-family parallel to VE020 — root any/unknown
       // produces a validator that returns true for every value; surface
       // a warning so the user knows the schema is no longer enforced.
       expect(warning).toBeDefined();
@@ -269,7 +269,7 @@ export const _b = createBinaryEncoder<[number, symbol]>();
   // emit shape.
   register('default emit (no inline createRTFn) renders `u` as arg-7 and omits g_<hash>(utl)', async () => {
     // `it` is demand-driven, so seed it via createValidate<User>() — a
-    // reflection-only getRunTypeId would emit no it_ entries to inspect.
+    // reflection-only getRunTypeId would emit no val_ entries to inspect.
     const sources = {
       'mini.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 interface User { name: string; age: number; tags: string[]; }

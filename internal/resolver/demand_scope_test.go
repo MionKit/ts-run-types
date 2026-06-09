@@ -10,7 +10,7 @@ import (
 
 // initPrefixFor returns the `init('<plainFnHash>_` prefix the demand-driven
 // renderer emits for a family's default-variant entries. Slice 4 replaced the
-// readable family tag (`it_`, `te_`, `tb_`) with the opaque, version-isolated
+// readable family tag (`val_`, `verr_`, `tb_`) with the opaque, version-isolated
 // fnHash from the operation registry, so these scope assertions derive the
 // prefix through the same helper the emitter uses.
 func initPrefixFor(opName string) string {
@@ -21,15 +21,15 @@ func initPrefixFor(opName string) string {
 // function families: a function cache contains an entry for a type ONLY when a
 // createX call site of that family references it. `te` (validationErrors) is one
 // migrated leaf — a type reached only through getRunTypeId (reflection) or
-// through createValidate leaves no te_ entry.
+// through createValidate leaves no verr_ entry.
 //
 // `it` (validate) is now demand-scoped too. Because the JSON/binary union
-// decoders + validationErrors discriminate members via `it_<member>` cross-family,
-// its demand is the createValidate-site closure ∪ the `it_<member>` edges the
-// OTHER demanded families reference (collected by typefns.CrossFamilyItRoots,
-// seeded via RenderOpts.ExtraRoots). So a reflection-only file emits ZERO it_
+// decoders + validationErrors discriminate members via `val_<member>` cross-family,
+// its demand is the createValidate-site closure ∪ the `val_<member>` edges the
+// OTHER demanded families reference (collected by typefns.CrossFamilyValRoots,
+// seeded via RenderOpts.ExtraRoots). So a reflection-only file emits ZERO val_
 // entries, a createValidate file emits them, and a file that ONLY serializes a
-// (non-merging) union still gets the per-member it_ entries its decoder needs.
+// (non-merging) union still gets the per-member val_ entries its decoder needs.
 // See docs/DEMAND-DRIVEN-FN-CACHES.md.
 
 func scopeScan(t *testing.T, code string) protocol.Response {
@@ -51,10 +51,10 @@ func scopeScan(t *testing.T, code string) protocol.Response {
 	return resp
 }
 
-// TestDemandScope_ValidationErrorsScopedToItsCallSites — te_ entries are emitted only
+// TestDemandScope_ValidationErrorsScopedToItsCallSites — verr_ entries are emitted only
 // for createGetValidationErrors call sites, not for getRunTypeId or createValidate.
 func TestDemandScope_ValidationErrorsScopedToItsCallSites(t *testing.T) {
-	// Reflection only: no te_.
+	// Reflection only: no verr_.
 	reflect := scopeScan(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 export const _ = getRunTypeId<{a: string; b: number}>();
 `)
@@ -65,12 +65,12 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 		t.Errorf("validationErrors cache must be empty for a reflection-only file, got:\n%s", reflect.ValidationErrorsCacheSource)
 	}
 
-	// createValidate demands `it`, not `te` — so still no te_.
+	// createValidate demands `it`, not `te` — so still no verr_.
 	validate := scopeScan(t, `import {createValidate} from '@mionjs/ts-go-run-types';
 export const _ = createValidate<{a: string}>();
 `)
 	if strings.Contains(validate.ValidationErrorsCacheSource, initPrefixFor("validationErrors")) {
-		t.Errorf("createValidate must NOT emit a te_ entry, got:\n%s", validate.ValidationErrorsCacheSource)
+		t.Errorf("createValidate must NOT emit a verr_ entry, got:\n%s", validate.ValidationErrorsCacheSource)
 	}
 
 	// createGetValidationErrors demands `te`.
@@ -78,12 +78,12 @@ export const _ = createValidate<{a: string}>();
 export const _ = createGetValidationErrors<{a: string}>();
 `)
 	if !strings.Contains(validationErrors.ValidationErrorsCacheSource, initPrefixFor("validationErrors")) {
-		t.Errorf("createGetValidationErrors must emit a te_ entry, got:\n%s", validationErrors.ValidationErrorsCacheSource)
+		t.Errorf("createGetValidationErrors must emit a verr_ entry, got:\n%s", validationErrors.ValidationErrorsCacheSource)
 	}
 }
 
 // TestDemandScope_ValidationErrorsTransitiveChildren — createGetValidationErrors on a parent
-// emits te_ entries for the parent AND its non-inlined children (so dependency
+// emits verr_ entries for the parent AND its non-inlined children (so dependency
 // calls resolve), even though only the parent has a call site.
 func TestDemandScope_ValidationErrorsTransitiveChildren(t *testing.T) {
 	resp := scopeScan(t, `import {createGetValidationErrors} from '@mionjs/ts-go-run-types';
@@ -93,14 +93,14 @@ export const _ = createGetValidationErrors<Parent>();
 `)
 	count := strings.Count(resp.ValidationErrorsCacheSource, initPrefixFor("validationErrors"))
 	if count < 2 {
-		t.Errorf("expected the parent + transitive child te_ entries (>=2), got %d:\n%s", count, resp.ValidationErrorsCacheSource)
+		t.Errorf("expected the parent + transitive child verr_ entries (>=2), got %d:\n%s", count, resp.ValidationErrorsCacheSource)
 	}
 }
 
 // scopeScanBinary mirrors scopeScan but also opts into the toBinary cache body
-// so a cross-family test can assert the `it_` seeding driven by a binary-only
+// so a cross-family test can assert the `val_` seeding driven by a binary-only
 // (createBinaryEncoder) file — the binary union decoder references the per-
-// member it_ validators, and CrossFamilyItRoots must seed them into the it
+// member val_ validators, and CrossFamilyValRoots must seed them into the it
 // demand.
 func scopeScanBinary(t *testing.T, code string) protocol.Response {
 	t.Helper()
@@ -122,8 +122,8 @@ func scopeScanBinary(t *testing.T, code string) protocol.Response {
 }
 
 // TestDemandScope_ItScopedReflectionOnly — `it` is now demand-scoped: a
-// getRunTypeId-only (reflection) file emits ZERO it_ entries (no createValidate
-// site, no other family referencing it_ cross-family).
+// getRunTypeId-only (reflection) file emits ZERO val_ entries (no createValidate
+// site, no other family referencing val_ cross-family).
 func TestDemandScope_ItScopedReflectionOnly(t *testing.T) {
 	resp := scopeScan(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 export const _ = getRunTypeId<{a: string; b: number}>();
@@ -132,28 +132,28 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 		t.Fatalf("reflection must still project runtypes for getRunTypeId, got none")
 	}
 	if strings.Contains(resp.ValidateCacheSource, initPrefixFor("validate")) {
-		t.Errorf("it is now demand-scoped; a reflection-only file must emit no it_ entries, got:\n%s", resp.ValidateCacheSource)
+		t.Errorf("it is now demand-scoped; a reflection-only file must emit no val_ entries, got:\n%s", resp.ValidateCacheSource)
 	}
 }
 
 // TestDemandScope_ItScopedToCreateValidate — a createValidate call site demands the
-// `it` family, so its it_ entry is emitted.
+// `it` family, so its val_ entry is emitted.
 func TestDemandScope_ItScopedToCreateValidate(t *testing.T) {
 	resp := scopeScan(t, `import {createValidate} from '@mionjs/ts-go-run-types';
 export const _ = createValidate<{a: string}>();
 `)
 	if !strings.Contains(resp.ValidateCacheSource, initPrefixFor("validate")) {
-		t.Errorf("createValidate must emit an it_ entry, got:\n%s", resp.ValidateCacheSource)
+		t.Errorf("createValidate must emit an val_ entry, got:\n%s", resp.ValidateCacheSource)
 	}
 }
 
 // TestDemandScope_ItSeededByCrossFamilyUnion — the cross-family seeding proof: a
 // file that ONLY serializes a NON-merging union (conflicting shared prop, so
 // the binary union decoder discriminates members via the per-member validate
-// validators) and NEVER calls createValidate MUST still emit it_ entries — the
-// union members — because CrossFamilyItRoots follows the toBinary entry's
+// validators) and NEVER calls createValidate MUST still emit val_ entries — the
+// union members — because CrossFamilyValRoots follows the toBinary entry's
 // crossFamilyDeps into the it demand (RenderOpts.ExtraRoots). Without that
-// seeding the union round-trip silently corrupts (missing it_<member> ⇒
+// seeding the union round-trip silently corrupts (missing val_<member> ⇒
 // `?? true` ⇒ first member always matches).
 func TestDemandScope_ItSeededByCrossFamilyUnion(t *testing.T) {
 	resp := scopeScanBinary(t, `import {createBinaryEncoder} from '@mionjs/ts-go-run-types';
@@ -163,9 +163,9 @@ export const _ = createBinaryEncoder<{a: bigint} | {a: Date}>();
 	if !strings.Contains(resp.ToBinaryCacheSource, initPrefixFor("toBinary")) {
 		t.Fatalf("createBinaryEncoder must emit tb_ entries, got:\n%s", resp.ToBinaryCacheSource)
 	}
-	// The proof: no createValidate site, yet the union's per-member it_ entries
+	// The proof: no createValidate site, yet the union's per-member val_ entries
 	// are seeded from the toBinary entry's cross-family edges.
 	if !strings.Contains(resp.ValidateCacheSource, initPrefixFor("validate")) {
-		t.Fatalf("cross-family seeding broken: a createBinaryEncoder-only union file must still emit it_ member entries (CrossFamilyItRoots → ExtraRoots), got:\n%s", resp.ValidateCacheSource)
+		t.Fatalf("cross-family seeding broken: a createBinaryEncoder-only union file must still emit val_ member entries (CrossFamilyValRoots → ExtraRoots), got:\n%s", resp.ValidateCacheSource)
 	}
 }

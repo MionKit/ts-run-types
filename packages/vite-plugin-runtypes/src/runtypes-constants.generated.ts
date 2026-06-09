@@ -23,8 +23,8 @@ export const CACHE_MODULES = {
   unknownKeyErrors: {name: "unknownKeyErrorsModule", varPrefix: "g_uke_", tag: "uke"},
   unknownKeysToUndefined: {name: "unknownKeysToUndefinedModule", varPrefix: "g_uku_", tag: "uku"},
   unknownKeysToUndefinedWire: {name: "unknownKeysToUndefinedWireModule", varPrefix: "g_ukuw_", tag: "ukuw"},
-  validate: {name: "validateModule", varPrefix: "g_it_", tag: "it"},
-  validationErrors: {name: "validationErrorsModule", varPrefix: "g_te_", tag: "te"},
+  validate: {name: "validateModule", varPrefix: "g_val_", tag: "val"},
+  validationErrors: {name: "validationErrorsModule", varPrefix: "g_verr_", tag: "verr"},
 } as const satisfies Record<string, CacheModuleSettings>;
 
 export const FORMATTRANSFORM_VAR_PREFIX = "g_fmt_";
@@ -69,12 +69,12 @@ export const UNKNOWNKEYSTOUNDEFINED_TAG = "uku";
 export const UNKNOWNKEYSTOUNDEFINEDWIRE_VAR_PREFIX = "g_ukuw_";
 export const UNKNOWNKEYSTOUNDEFINEDWIRE_MODULE_NAME = "unknownKeysToUndefinedWireModule";
 export const UNKNOWNKEYSTOUNDEFINEDWIRE_TAG = "ukuw";
-export const VALIDATE_VAR_PREFIX = "g_it_";
+export const VALIDATE_VAR_PREFIX = "g_val_";
 export const VALIDATE_MODULE_NAME = "validateModule";
-export const VALIDATE_TAG = "it";
-export const VALIDATIONERRORS_VAR_PREFIX = "g_te_";
+export const VALIDATE_TAG = "val";
+export const VALIDATIONERRORS_VAR_PREFIX = "g_verr_";
 export const VALIDATIONERRORS_MODULE_NAME = "validationErrorsModule";
-export const VALIDATIONERRORS_TAG = "te";
+export const VALIDATIONERRORS_TAG = "verr";
 
 export const REFLECTION_SUB_KIND = {
   mapKey: 1801,

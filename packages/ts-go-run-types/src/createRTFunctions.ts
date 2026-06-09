@@ -34,7 +34,7 @@ export interface ValidateOptions {
    *  (`literal 'a'` → any string, `literal 2` → any finite number). **/
   noLiterals?: boolean;
   /** Skip the leading `Array.isArray(v)` guard on array validators.
-   *  The variant cache key changes (e.g. `it_<id>` → `itNA_<id>`) so
+   *  The variant cache key changes (e.g. `val_<id>` → `valNA_<id>`) so
    *  the same type id can serve both the guarded and unguarded factory. **/
   noIsArrayCheck?: boolean;
 }
@@ -261,7 +261,7 @@ const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 // injected id @slot2).
 export const createValidate = createTypeFnArgsFunction<ValidateFn>(
   'createValidate',
-  'it',
+  'val',
   // The runtime fallback is a plain `() => true`; `ValidateFn` is now a type
   // guard, so cast through `unknown` (a direct cast is rejected — a boolean fn
   // doesn't structurally overlap a type predicate).
@@ -269,20 +269,20 @@ export const createValidate = createTypeFnArgsFunction<ValidateFn>(
 ) as unknown as (<T>(
   schema: RunType<T>,
   options?: CompTimeFnArgs<ValidateOptions>,
-  id?: InjectTypeFnArgs<T, 'it'>
+  id?: InjectTypeFnArgs<T, 'val'>
 ) => ValidateFn<T>) &
-  (<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'it'>) => ValidateFn<T>);
+  (<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>) => ValidateFn<T>);
 
 export const createGetValidationErrors = createTypeFnArgsFunction<GetValidationErrorsFn>(
   'createGetValidationErrors',
-  'te',
+  'verr',
   getValidationErrorsIdentity
 ) as unknown as (<T>(
   schema: RunType<T>,
   options?: CompTimeFnArgs<ValidateOptions>,
-  id?: InjectTypeFnArgs<T, 'te'>
+  id?: InjectTypeFnArgs<T, 'verr'>
 ) => GetValidationErrorsFn) &
-  (<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'te'>) => GetValidationErrorsFn);
+  (<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>) => GetValidationErrorsFn);
 
 // ValidateOptions does not affect these families' validators — the
 // options bag is exclusive to `createValidate` / `createGetValidationErrors`.

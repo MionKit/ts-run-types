@@ -81,7 +81,7 @@ type Related struct {
 // Diagnostic is the single wire shape for everything the Go binary
 // emits. The Family discriminator carries which subsystem produced it
 // (purefn extractor, marker scanner, runtype RT compiler); the Code is
-// the stable identifier (PFE9001, MKR001, IT010, SJ001, …) and Severity
+// the stable identifier (PFE9001, MKR001, VL010, SJ001, …) and Severity
 // classifies impact.
 //
 // The user-facing message is NOT carried on the wire. Per-code message

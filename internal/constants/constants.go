@@ -10,7 +10,7 @@ package constants
 type CacheModuleSettings struct {
 	Name      string // function/export identifier (e.g. "runTypesModule")
 	VarPrefix string // identifier prefix for emitted `export const <prefix><hash>`
-	Tag       string // short family tag for emitted inner-fn name + fnID (e.g. "te" → inner "te_<hash>", fnID "te")
+	Tag       string // short family tag for emitted inner-fn name + fnID (e.g. "verr" → inner "verr_<hash>", fnID "verr")
 }
 
 // CacheModuleGroup mirrors mion's RTFunctionsGroup pattern: a map of named
@@ -34,13 +34,13 @@ var CacheModules = CacheModuleGroup{
 	},
 	"validate": {
 		Name:      "validateModule",
-		VarPrefix: "g_it_",
-		Tag:       "it",
+		VarPrefix: "g_val_",
+		Tag:       "val",
 	},
 	"validationErrors": {
 		Name:      "validationErrorsModule",
-		VarPrefix: "g_te_",
-		Tag:       "te",
+		VarPrefix: "g_verr_",
+		Tag:       "verr",
 	},
 	"prepareForJson": {
 		Name:      "prepareForJsonModule",
@@ -176,7 +176,7 @@ func JsonCompositeByTag(tag string) (JsonComposite, bool) {
 // call-site options that parameterise the generated validate / validationErrors
 // validator without affecting the structural type id. Each entry pairs
 // the option's JS-side property name with a single-letter token used to
-// build the variant cache-key suffix (`itNL_<id>`, `itNA_<id>`,
+// build the variant cache-key suffix (`itNL_<id>`, `valNA_<id>`,
 // `itNLA_<id>`, …). The same table drives the Go scanner's option
 // extraction, the emitter's variant fan-out, and (via gen-ts-constants)
 // the JS runtime's cache-key construction.

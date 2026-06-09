@@ -67,7 +67,7 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 		t.Fatalf("first render: %v", err)
 	}
 
-	cachePath := filepath.Join(root, "fp1", "abc123", "it.json")
+	cachePath := filepath.Join(root, "fp1", "abc123", "val.json")
 	raw, err := os.ReadFile(cachePath)
 	if err != nil {
 		t.Fatalf("expected cache file at %s, got %v", cachePath, err)
@@ -82,8 +82,8 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 	if entry.StructuralID != "1:atomic" {
 		t.Errorf("cache StructuralID: got %q want %q", entry.StructuralID, "1:atomic")
 	}
-	if !strings.Contains(entry.Line, itKey("abc123")) {
-		t.Errorf("cache Line missing innerName %q: %q", itKey("abc123"), entry.Line)
+	if !strings.Contains(entry.Line, valKey("abc123")) {
+		t.Errorf("cache Line missing innerName %q: %q", valKey("abc123"), entry.Line)
 	}
 
 	var second bytes.Buffer
@@ -97,7 +97,7 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 	// Mutate the cached Line and re-render. The marker must appear in
 	// the output, proving the read path is actually consulted on
 	// subsequent renders (instead of every call recomputing fresh).
-	entry.Line = "init('it_abc123','CACHE_MARKER_SENTINEL',undefined,true);"
+	entry.Line = "init('val_abc123','CACHE_MARKER_SENTINEL',undefined,true);"
 	mutated, _ := json.Marshal(entry)
 	if err := os.WriteFile(cachePath, mutated, 0o644); err != nil {
 		t.Fatal(err)
@@ -124,14 +124,14 @@ func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 
 	// Pre-seed a cache entry whose ChildRefs references a hash that the
 	// current lookup does NOT have — simulating cross-build drift.
-	cachePath := filepath.Join(root, "fp1", "abc123", "it.json")
+	cachePath := filepath.Join(root, "fp1", "abc123", "val.json")
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	stale := disk.RTEntry{
 		Format:       disk.FormatVersion,
 		StructuralID: "1:atomic",
-		Line:         "init('it_abc123','STALE_MARKER',undefined,true);",
+		Line:         "init('val_abc123','STALE_MARKER',undefined,true);",
 		ChildRefs: []disk.ChildRef{
 			// "ghostStructural" was never registered with the lookup
 			// → HashForStructural returns "" → cache miss.
@@ -185,12 +185,12 @@ func TestRenderFnModule_DiskCache_HeaderStructuralMismatch(t *testing.T) {
 	// claims abc123 → "9:something-else". Mismatch → miss.
 	lookup.set("abc123", "1:atomic")
 
-	cachePath := filepath.Join(root, "fp1", "abc123", "it.json")
+	cachePath := filepath.Join(root, "fp1", "abc123", "val.json")
 	_ = os.MkdirAll(filepath.Dir(cachePath), 0o755)
 	stale := disk.RTEntry{
 		Format:       disk.FormatVersion,
 		StructuralID: "9:something-else",
-		Line:         "init('it_abc123','STALE_MARKER',undefined,true);",
+		Line:         "init('val_abc123','STALE_MARKER',undefined,true);",
 	}
 	raw, _ := json.Marshal(stale)
 	_ = os.WriteFile(cachePath, raw, 0o644)

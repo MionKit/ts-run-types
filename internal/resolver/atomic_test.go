@@ -1582,7 +1582,7 @@ createValidate<{a: string}>(undefined, {noIsArrayCheck: true});
 // form is now an ordinary `createValidate` OVERLOAD taking a `RunType<T>` first arg
 // (`createValidate(array(string()))`). It must resolve to the SAME structural id as
 // the marker form (`createValidate<string[]>()`) — `T` is inferred from the
-// schema's `RunType<T>` and reflected off the trailing `InjectTypeFnArgs<T, 'it'>`,
+// schema's `RunType<T>` and reflected off the trailing `InjectTypeFnArgs<T, 'val'>`,
 // no `schema.id` read, no builder ref-trace — AND its options ride the call's own
 // slot, folded into the injected fnId variant suffix. The createValidate call IS the
 // injection marker, so the nested `array(string())` builder is skipped (enclosed);
@@ -1595,8 +1595,8 @@ func TestResolver_SchemaForm_ConvergesAndObservesOptions(t *testing.T) {
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export interface RunType<T = unknown> {id: string; readonly __rtType?: {t: T}}
-  export function createValidate<T>(schema: RunType<T>, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
+  export function createValidate<T>(schema: RunType<T>, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
   export function string(id?: InjectRunTypeId<string>): RunType<string>;
   export function array<T>(item: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<T[]>): RunType<T[]>;
 }
@@ -1627,7 +1627,7 @@ createValidate(array(string()), {noIsArrayCheck: true});
 	}
 	// The options bag rides the schema-overload call's own slot, folded into
 	// the injected FnId — now the opaque validate variant fnHash for the
-	// noIsArrayCheck option set (NOT the readable `itNA` token). Assert equality
+	// noIsArrayCheck option set (NOT the readable `valNA` token). Assert equality
 	// to operations.FnHashFor so the test stays correct across versions.
 	validateOp, _ := operations.ByName("validate")
 	wantVariant := operations.FnHashFor(validateOp, []string{"noIsArrayCheck"}, "")

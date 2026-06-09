@@ -27,7 +27,7 @@ export type InjectRunTypeId<T> = string & {
  * Trailing-slot injection marker for the `createX` factories. Like
  * `InjectRunTypeId<T>` the transformer fills the `id?` parameter at build time,
  * but `InjectTypeFnArgs` carries a second type argument `Fn` naming the function
- * family (`'it'`, `'te'`, `'jsonEncoder'`, …). The injected value is a
+ * family (`'val'`, `'verr'`, `'jsonEncoder'`, …). The injected value is a
  * `[typeId, fnId]` tuple, so the Go backend emits only the demanded function
  * cache and the runtime resolves the precise factory without recomputing a key.
  *

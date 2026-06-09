@@ -49,12 +49,12 @@ must land atomically (a half-flip mismatches scanner/emitter/runtime).
   by construction (an it-walker's own union edges start with its own fhash;
   foreign families' it-edges don't).
 
-### 2. Cross-family `it_` references
+### 2. Cross-family `val_` references
 - `json_prepare.go` `unionMemberValidateCheck` and `typeerrors.go` build the
-  union-discriminator / child validate lookup name. Replace the literal `it_`
+  union-discriminator / child validate lookup name. Replace the literal `val_`
   (`constants.CacheModules["validate"].Tag + "_"`) with
   `operations.PlainHash("validate") + "_"`.
-- `module.go` `CrossFamilyItRoots` strips `"it_"` to recover bare member ids;
+- `module.go` `CrossFamilyValRoots` strips `"val_"` to recover bare member ids;
   replace with stripping `operations.PlainHash("validate") + "_"`.
 
 ### 3. JSON composite codegen in Go (the new piece)
@@ -86,7 +86,7 @@ Today there is NO jsonEncoder/jsonDecoder cache entry. Add composite entries so
   disk basename per strategy (two strategies of one type must not collide on
   `<id>/<tag>.json`). Simplest: per-strategy composite tags in
   `constants.CacheModules` (e.g. `jeSC/jeCL/jeMU/jeSM/jeDI`, `jdST/jdPR`) and map
-  each to its emitter+strategy. Composites do NOT walk types, emit no `it_`
+  each to its emitter+strategy. Composites do NOT walk types, emit no `val_`
   edges, and must NOT be added to the cross-family it-source list.
 
 ### 4. Scanner → inject fhash (scan.go)

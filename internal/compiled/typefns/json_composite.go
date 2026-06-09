@@ -28,7 +28,7 @@ import (
 // SCANNER pulls both the composite tag AND every referenced primitive into the
 // site's demand (operations.DemandFor), so the composite body only references
 // entries the primitive modules also render. Composites do NOT walk types and
-// emit no `it_<member>` cross-family edges, so they are absent from the
+// emit no `val_<member>` cross-family edges, so they are absent from the
 // cross-family it-source list.
 //
 // Delivery: the composite `init(…)` lines are folded into the prepareForJson
