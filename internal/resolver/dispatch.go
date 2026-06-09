@@ -150,12 +150,6 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
 		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
-		// rtDiagnostics is the sink the walker appends to at every
-		// RTThrow / silent-skip site reached during the cache renders
-		// below. Single sink covers every render in this dispatch so a
-		// single shared throw-site emits one diag per call site.
-		var rtDiagnostics []diag.Diagnostic
-		rtOpts := resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
 		response := protocol.Response{
 			Sites:                           sites,
 			Replacements:                    pureFnReplacements,
@@ -187,6 +181,23 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			if wantsCache(request.IncludeCacheSources, family.kind) {
 				anyCache = true
 				break
+			}
+		}
+		// rtDiagnostics is the sink the walker appends to at every
+		// RTThrow / silent-skip site reached during the cache renders
+		// below. Single sink covers every render in this dispatch so a
+		// single shared throw-site emits one diag per call site. The
+		// render opts (provenance line/col conversion + full ref table +
+		// per-dispatch entry memo) are built ONLY when a render will
+		// actually run — the plain rewrite-pipeline scan (no cache
+		// sources requested) skips all of that work.
+		var rtDiagnostics []diag.Diagnostic
+		var rtOpts typefns.RenderOpts
+		if anyCache {
+			rtOptsStart := time.Now()
+			rtOpts = resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
+			if metrics != nil {
+				metrics.PrepMs += elapsedMs(rtOptsStart)
 			}
 		}
 		if request.IncludeRunTypes || anyCache {
@@ -254,18 +265,29 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			RunTypes: fullDump.RunTypes,
 			Sites:    fullDump.Sites,
 		}
-		// rtDiagnostics is the RT-render diagnostic sink for this dump.
-		// Mirrors the OpScanFiles branch — one sink shared across every
-		// per-kind render, flushed into response.Diagnostics once all
-		// renders have completed.
-		var rtDiagnostics []diag.Diagnostic
-		rtOpts := resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
 		// Per-kind opt-in mirrors OpScanFiles. When IncludeCacheSources is
 		// omitted, callers get every cache source (legacy "give me
 		// everything" behavior preserved). When set, only the requested
 		// kinds are rendered — lets the Vite plugin's transform() ask
 		// for just the one cache it's serving in this hook call.
 		noFilter := len(request.IncludeCacheSources) == 0
+		anyFamily := noFilter
+		for _, family := range familyRenders {
+			if anyFamily {
+				break
+			}
+			anyFamily = wantsCache(request.IncludeCacheSources, family.kind)
+		}
+		// rtDiagnostics is the RT-render diagnostic sink for this dump.
+		// Mirrors the OpScanFiles branch — one sink shared across every
+		// per-kind render, flushed into response.Diagnostics once all
+		// renders have completed. Built lazily: a pureFns-only dump
+		// doesn't need provenance or the ref table.
+		var rtDiagnostics []diag.Diagnostic
+		var rtOpts typefns.RenderOpts
+		if anyFamily {
+			rtOpts = resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
+		}
 		for _, family := range familyRenders {
 			if !noFilter && !wantsCache(request.IncludeCacheSources, family.kind) {
 				continue

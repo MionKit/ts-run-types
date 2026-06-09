@@ -126,6 +126,23 @@ func NewCache(typeChecker *checker.Checker, opts Options) *Cache {
 // Size returns the number of distinct types currently interned.
 func (cache *Cache) Size() int { return len(cache.nodes) }
 
+// putNode finalizes a canonical entry: stamps the derived Family /
+// NotSupported fields once (entries are immutable after intern, so the
+// old per-Dump re-stamp was pure recompute) and registers the node in
+// the type table + insertion order.
+func (cache *Cache) putNode(id string, node *protocol.RunType) {
+	protocol.PopulateFamily(node)
+	cache.nodes[id] = node
+	cache.insertOrder = append(cache.insertOrder, id)
+}
+
+// NodesView returns the live id→node table for read-only ref resolution
+// (the typefns walkers' RefTable). Callers MUST NOT mutate the map or
+// the nodes — the cache keeps ownership and keeps inserting on later
+// scans. Family/NotSupported are stamped at intern time (putNode), so
+// entries are render-ready without a per-dispatch PopulateFamily pass.
+func (cache *Cache) NodesView() map[string]*protocol.RunType { return cache.nodes }
+
 // Clear drops every interned type and resets the hash dictionaries. Used by
 // the resolver when a `resetCache` op arrives, or implicitly when a fresh
 // session is established. Safe to call concurrently with… nothing — the
@@ -176,9 +193,7 @@ func (cache *Cache) Dump() []*protocol.RunType {
 	sort.Strings(ids)
 	out := make([]*protocol.RunType, 0, len(ids))
 	for _, id := range ids {
-		node := cache.nodes[id]
-		protocol.PopulateFamily(node)
-		out = append(out, node)
+		out = append(out, cache.nodes[id])
 	}
 	return out
 }
@@ -192,7 +207,6 @@ func (cache *Cache) Added(before int) []*protocol.RunType {
 	out := make([]*protocol.RunType, 0, len(cache.insertOrder)-before)
 	for _, id := range cache.insertOrder[before:] {
 		if node, ok := cache.nodes[id]; ok {
-			protocol.PopulateFamily(node)
 			out = append(out, node)
 		}
 	}
@@ -236,8 +250,7 @@ func (cache *Cache) SerializeAtomicKind(kind protocol.ReflectionKind) string {
 		id = "x_at_" + hashid.QuickHash(structural, cache.opts.literalHashLength(), "")
 	}
 	cache.intern(structural, id)
-	cache.nodes[id] = &protocol.RunType{ID: id, Kind: kind}
-	cache.insertOrder = append(cache.insertOrder, id)
+	cache.putNode(id, &protocol.RunType{ID: id, Kind: kind})
 	return id
 }
 
@@ -253,9 +266,7 @@ func (cache *Cache) SerializeTopLevel(tsType *checker.Type) *protocol.RunType {
 // has been interned. Backs the OpResolveID query op for callers walking a
 // member type's child KindRef slots.
 func (cache *Cache) NodeByID(id string) *protocol.RunType {
-	node := cache.nodes[id]
-	protocol.PopulateFamily(node)
-	return node
+	return cache.nodes[id]
 }
 
 // RecordFileID associates id with file in the per-file scope map. Called by
@@ -354,7 +365,6 @@ func (cache *Cache) NodesForIDs(ids []string) []*protocol.RunType {
 	out := make([]*protocol.RunType, 0, len(ids))
 	for _, id := range ids {
 		if node := cache.nodes[id]; node != nil {
-			protocol.PopulateFamily(node)
 			out = append(out, node)
 		}
 	}
@@ -401,8 +411,7 @@ func (cache *Cache) assignID(tsType *checker.Type) string {
 	cache.intern(structural, id)
 
 	// Reserve the slot before projecting so cycles see the id.
-	cache.nodes[id] = &protocol.RunType{ID: id, Kind: typeid.KindOf(cache.typeChecker, tsType)}
-	cache.insertOrder = append(cache.insertOrder, id)
+	cache.putNode(id, &protocol.RunType{ID: id, Kind: typeid.KindOf(cache.typeChecker, tsType)})
 
 	// Mark this id in-progress so a back-edge during projection (a child that
 	// resolves back to this same id) flags it circular. Applied to the final
@@ -413,6 +422,9 @@ func (cache *Cache) assignID(tsType *checker.Type) string {
 	if cache.circularIDs[id] && node != nil {
 		node.IsCircular = true
 	}
+	// Replace the placeholder in place (insertOrder already holds id) and
+	// stamp the final node's Family/NotSupported fields.
+	protocol.PopulateFamily(node)
 	cache.nodes[id] = node
 	return id
 }
@@ -429,8 +441,7 @@ func (cache *Cache) internEmpty(kind protocol.ReflectionKind, markerName string)
 		id = "x_" + markerName
 	}
 	cache.intern(structural, id)
-	cache.nodes[id] = &protocol.RunType{ID: id, Kind: kind, Flags: []string{markerName}}
-	cache.insertOrder = append(cache.insertOrder, id)
+	cache.putNode(id, &protocol.RunType{ID: id, Kind: kind, Flags: []string{markerName}})
 	return id
 }
 
@@ -804,8 +815,7 @@ func (cache *Cache) projectTuple(tsType *checker.Type, node *protocol.RunType) {
 		}
 		member.ID = memberID
 		cache.intern(structural, memberID)
-		cache.nodes[memberID] = member
-		cache.insertOrder = append(cache.insertOrder, memberID)
+		cache.putNode(memberID, member)
 		node.Children = append(node.Children, protocol.NewRef(memberID))
 	}
 }
@@ -968,8 +978,7 @@ func (cache *Cache) newNativeParameter(parentID string, index int, name string, 
 	}
 	wrapper.ID = wrapperID
 	cache.intern(structural, wrapperID)
-	cache.nodes[wrapperID] = wrapper
-	cache.insertOrder = append(cache.insertOrder, wrapperID)
+	cache.putNode(wrapperID, wrapper)
 	return protocol.NewRef(wrapperID)
 }
 
@@ -1036,8 +1045,7 @@ func (cache *Cache) projectMembersInto(
 		}
 		indexNode.ID = indexID
 		cache.intern(structural, indexID)
-		cache.nodes[indexID] = indexNode
-		cache.insertOrder = append(cache.insertOrder, indexID)
+		cache.putNode(indexID, indexNode)
 		node.Children = append(node.Children, protocol.NewRef(indexID))
 	}
 	for i, signature := range callSignatures {
@@ -1050,8 +1058,7 @@ func (cache *Cache) projectMembersInto(
 		}
 		callNode.ID = callID
 		cache.intern(structural, callID)
-		cache.nodes[callID] = callNode
-		cache.insertOrder = append(cache.insertOrder, callID)
+		cache.putNode(callID, callNode)
 		node.Children = append(node.Children, protocol.NewRef(callID))
 	}
 }
@@ -1110,8 +1117,7 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 	}
 	member.ID = memberID
 	cache.intern(structural, memberID)
-	cache.nodes[memberID] = member
-	cache.insertOrder = append(cache.insertOrder, memberID)
+	cache.putNode(memberID, member)
 	parent.Children = append(parent.Children, protocol.NewRef(memberID))
 }
 
@@ -1147,8 +1153,7 @@ func (cache *Cache) projectSignatureInto(signature *checker.Signature, node *pro
 		}
 		parameter.ID = paramID
 		cache.intern(structural, paramID)
-		cache.nodes[paramID] = parameter
-		cache.insertOrder = append(cache.insertOrder, paramID)
+		cache.putNode(paramID, parameter)
 		node.Parameters = append(node.Parameters, protocol.NewRef(paramID))
 	}
 	node.Return = cache.Serialize(cache.typeChecker.GetReturnTypeOfSignature(signature))
