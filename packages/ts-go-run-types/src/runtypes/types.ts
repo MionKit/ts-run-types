@@ -230,6 +230,10 @@ interface FormData {
   readonly __webFormData?: never;
 }
 
+// #region dataonly-extract — the `DataOnly` machinery below is extracted
+// VERBATIM by test/types/dataonlyHarness.ts (sliced between these markers) to
+// build the per-branch instantiation-budget test. Keep the region
+// self-contained: it may reference only `lib` types + its own declarations.
 // prettier-ignore
 type Native = Date | RegExp | URL | URLSearchParams | Blob | File | FileList | FormData | ArrayBuffer | SharedArrayBuffer | DataView | Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;
 
@@ -344,6 +348,7 @@ export type DataOnly<T, Depth extends number = 8> = Depth extends 0
                       : K]: DataOnly<T[K], _DataOnlyDepth[Depth]>;
                 }
             : T;
+// #endregion dataonly-extract
 
 export type DeserializeClassFn<C extends InstanceType<AnyClass>> = (deserialized: DataOnly<C>) => C;
 
