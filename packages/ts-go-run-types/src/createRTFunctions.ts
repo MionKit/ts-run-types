@@ -385,18 +385,27 @@ export function createJsonDecoder<T>(
   schema: RunType<T>,
   options?: CompTimeFnArgs<JsonDecoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonDecoder'>
-): JsonDecoderFn<T>;
+): JsonDecoderFn<DataOnly<T>>;
 export function createJsonDecoder<T>(
   val?: T,
   options?: CompTimeFnArgs<JsonDecoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonDecoder'>
-): JsonDecoderFn<T>;
+): JsonDecoderFn<DataOnly<T>>;
 export function createJsonDecoder<T>(
   valOrSchema?: T | RunType<T>,
   options?: CompTimeFnArgs<JsonDecoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonDecoder'>
-): JsonDecoderFn<T> {
-  return resolveTupleEntry<JsonDecoderFn<T>>('createJsonDecoder', '', jsonParseFallback as JsonDecoderFn<T>, valOrSchema, id);
+): JsonDecoderFn<DataOnly<T>> {
+  // A decoded value is reconstructed from JSON, so it only ever holds
+  // serialisable data — the return is the data-only projection `DataOnly<T>`
+  // (identity on clean DTOs). Runtime is unchanged; this is the type boundary.
+  return resolveTupleEntry<JsonDecoderFn<DataOnly<T>>>(
+    'createJsonDecoder',
+    '',
+    jsonParseFallback as JsonDecoderFn<DataOnly<T>>,
+    valOrSchema,
+    id
+  );
 }
 
 // =============================================================================

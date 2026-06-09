@@ -18,6 +18,7 @@ import {
   type BinaryInput,
 } from './runtypes/dataView.ts';
 import type {InjectTypeFnArgs} from './index.ts';
+import type {DataOnly} from './runtypes/dataOnly.ts';
 
 // =============================================================================
 // Type definitions
@@ -112,17 +113,17 @@ export function createBinaryDecoder<T>(
   schema: RunType<T>,
   options?: BinaryDecoderOptions,
   id?: InjectTypeFnArgs<T, 'fb'>
-): BinaryDecoderFn<T>;
+): BinaryDecoderFn<DataOnly<T>>;
 export function createBinaryDecoder<T>(
   val?: T,
   options?: BinaryDecoderOptions,
   id?: InjectTypeFnArgs<T, 'fb'>
-): BinaryDecoderFn<T>;
+): BinaryDecoderFn<DataOnly<T>>;
 export function createBinaryDecoder<T>(
   valOrSchema?: T | RunType<T>,
   options?: BinaryDecoderOptions,
   id?: InjectTypeFnArgs<T, 'fb'>
-): BinaryDecoderFn<T> {
+): BinaryDecoderFn<DataOnly<T>> {
   const tuple = id as unknown as [string, string] | undefined;
   const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
   const fnId = tuple?.[1];
@@ -140,7 +141,11 @@ export function createBinaryDecoder<T>(
     effectiveId,
     noopFromBinaryFn as FromBinaryFn<T>
   );
-  return (input) => {
+  // A decoded value is reconstructed from bytes, so it only ever holds
+  // serialisable data — the return is the data-only projection `DataOnly<T>`
+  // (identity on clean DTOs). The runtime value is unchanged; the single cast
+  // is the type boundary bridging the `=> T` decodeFn to the projected return.
+  return ((input) => {
     // Distinguish DataViewDeserializer from raw buffer by the `desString` method.
     let des: DataViewDeserializer;
     if (input && typeof (input as DataViewDeserializer).desString === 'function') {
@@ -149,7 +154,7 @@ export function createBinaryDecoder<T>(
       des = createDataViewDeserializer(cacheKey, input as BinaryInput);
     }
     return decodeFn(undefined, des);
-  };
+  }) as BinaryDecoderFn<DataOnly<T>>;
 }
 
 // =============================================================================
