@@ -13,14 +13,23 @@
 //
 // Marker scanning works the same as for the production factories — the
 // Vite plugin walks every call site whose resolved signature has a
-// trailing `id?: InjectRunTypeId<T>` slot, regardless of where the function is
-// declared. The vitest config's `tsconfig.test.json` puts `test/**` in the
-// plugin's scan scope, so calls to `deserializeXxx<T>()` from test files
-// get the same compile-time id injection that `createXxx<T>()` calls do.
+// trailing `id?: InjectTypeFnArgs<T, Fn>` slot, regardless of where the
+// function is declared. The vitest config's `tsconfig.test.json` puts
+// `test/**` in the plugin's scan scope, so calls to `deserializeXxx<T>()`
+// from test files get the same compile-time `[typeId, fnHash]` tuple
+// injection that `createXxx<T>()` calls do.
+//
+// HASHED-NAMING NOTE (Slice 4): the deserialize twins now route through the
+// SAME `InjectTypeFnArgs<T, Fn>` marker as the production factories rather than
+// the bare `InjectRunTypeId<T>` reflection marker. Pre-flip they reconstructed
+// the variant cache-key suffix from the explicit `IsTypeOptions` argument; with
+// opaque fnHashes there is no runtime hashing, so they MUST read the precomputed
+// fnHash the plugin injects (tuple[1]) — identical key derivation to
+// `resolveTupleEntry`. The distinguishing behavior (rebuild from `entry.code`
+// instead of reading the materialized `entry.fn`) is unchanged.
 
 import {
-  getRTUtils,
-  type InjectRunTypeId,
+  type InjectTypeFnArgs,
   type IsTypeOptions,
   type IsTypeFn,
   type GetTypeErrorsFn,
@@ -36,51 +45,31 @@ import {
 // deserialize twins that exercise the per-primitive `entry.code`
 // round-trip.
 import type {PrepareForJsonFn, RestoreFromJsonFn, StringifyJsonFn} from '../../src/createRTFunctions.ts';
-import {buildFactoryFromCode, buildVariantKey} from '../../src/runtypes/rtUtils.ts';
-import {buildIsTypeVariantSuffix} from '../../src/runtypes/isTypeOptionsConstants.generated.ts';
+import {getRTUtils, isRunTypeSchema, buildFactoryFromCode} from '../../src/runtypes/rtUtils.ts';
 import type {AnyFn, CompiledTypeFn} from '../../src/runtypes/types.ts';
 
-/** Test-side variant-suffix builder. Production resolves the variant
- *  (`itNL`, `itNA`, …) at scan time and bakes it into the injected fnId, so
- *  `rtUtils.buildVariantKey` is a plain `<prefix>_<id>`. The deserialize twins
- *  use the reflection marker (`InjectRunTypeId<T>`, no fnId tuple), so they
- *  reconstruct the suffix from the explicit `IsTypeOptions` argument here —
- *  byte-for-byte the same suffix the Go emitter used (via the shared generated
- *  `buildIsTypeVariantSuffix`). **/
-function variantSuffixFromOptions(options: Record<string, unknown> | undefined): string {
-  if (!options) return '';
-  const names: string[] = [];
-  for (const key of Object.keys(options)) {
-    if (options[key] === true) names.push(key);
-  }
-  if (names.length === 0) return '';
-  return buildIsTypeVariantSuffix(names);
-}
-
-/** Test-side mirror of the production `resolveTupleEntry`. Rebuilds the
- *  per-id closure from `entry.code` on every call instead of reading
- *  the materialized `entry.fn` straight off rtUtils. Noop entries
- *  carry no code; they reuse the cache module's pre-populated
- *  `entry.fn`. The variant axis (e.g. `itNA`) is derived from the
- *  explicit `IsTypeOptions` argument and folded into the cache-key
- *  prefix — the reflection-marker twins carry no fnId tuple. **/
-function resolveDeserializedEntry<F extends AnyFn>(
-  fnName: string,
-  prefix: string,
-  identityFn: F,
-  id: string | undefined,
-  options: Record<string, unknown> | undefined
-): F {
-  if (id === undefined) {
+/** Test-side mirror of the production `resolveTupleEntry`, but rebuilding the
+ *  per-id closure from `entry.code` on every call instead of reading the
+ *  materialized `entry.fn`. The plugin injects a `[typeId, fnHash]` tuple at the
+ *  trailing slot; the key is `fnHash + '_' + typeId` — the fnHash already folds
+ *  the IsTypeOptions variant / strategy the build resolved, so nothing is
+ *  recomputed here. Noop entries carry no code; they reuse the pre-populated
+ *  `entry.fn`. **/
+function resolveDeserializedEntry<F extends AnyFn>(fnName: string, identityFn: F, val: unknown, args: unknown): F {
+  const tuple = args as [string, string] | undefined;
+  const injectedId = tuple ? tuple[0] : undefined;
+  const fnId = tuple ? tuple[1] : undefined;
+  const effectiveId = isRunTypeSchema(val) ? val.id : injectedId;
+  if (effectiveId === undefined) {
     throw new Error(
       `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
     );
   }
   const utils = getRTUtils();
-  const key = buildVariantKey(prefix + variantSuffixFromOptions(options), id);
+  const key = (fnId ?? '') + '_' + effectiveId;
   const entry = utils.getRT(key) as CompiledTypeFn | undefined;
   if (!entry) {
-    if (utils.hasRunType(id)) return identityFn;
+    if (utils.hasRunType(effectiveId)) return identityFn;
     throw new Error(
       `${fnName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
     );
@@ -90,30 +79,19 @@ function resolveDeserializedEntry<F extends AnyFn>(
 }
 
 /** Three-arg deserialize wrapper for families that honour `IsTypeOptions`
- *  (`deserializeIsType`, `deserializeGetTypeErrors`). The options bag drives
- *  the variant cache-key suffix. **/
+ *  (`deserializeIsType`, `deserializeGetTypeErrors`). The options bag is a
+ *  compile-time arg folded into the injected fnHash; the runtime ignores it. **/
 function deserializeRTFunctionWithOptions<F extends AnyFn>(
   fnName: string,
-  prefix: string,
   identityFn: F
-): (val?: unknown, options?: unknown, id?: string) => F {
-  return (val, options, id) => {
-    void val;
-    return resolveDeserializedEntry(fnName, prefix, identityFn, id, options as Record<string, unknown> | undefined);
-  };
+): (val?: unknown, options?: unknown, id?: unknown) => F {
+  return (val, _options, id) => resolveDeserializedEntry(fnName, identityFn, val, id);
 }
 
 /** Two-arg deserialize wrapper for families that do NOT honour
  *  `IsTypeOptions` — every non-validator family. **/
-function deserializeRTFunction<F extends AnyFn>(
-  fnName: string,
-  prefix: string,
-  identityFn: F
-): (val?: unknown, id?: string) => F {
-  return (val, id) => {
-    void val;
-    return resolveDeserializedEntry(fnName, prefix, identityFn, id, undefined);
-  };
+function deserializeRTFunction<F extends AnyFn>(fnName: string, identityFn: F): (val?: unknown, id?: unknown) => F {
+  return (val, id) => resolveDeserializedEntry(fnName, identityFn, val, id);
 }
 
 const identityValueFn = (v: unknown) => v;
@@ -125,58 +103,48 @@ const stringifyJsonIdentity: StringifyJsonFn = (v) => JSON.stringify(v);
 // signature the Go-side marker scanner reads to identify call sites. The
 // runtime function is a non-generic JS closure; <T> is type-checker-only.
 
-export const deserializeIsType = deserializeRTFunctionWithOptions<IsTypeFn>('deserializeIsType', 'it', () => true) as unknown as <
-  T,
->(
+export const deserializeIsType = deserializeRTFunctionWithOptions<IsTypeFn>('deserializeIsType', () => true) as unknown as <T>(
   val?: T,
   options?: IsTypeOptions,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'it'>
 ) => IsTypeFn;
 
 export const deserializeGetTypeErrors = deserializeRTFunctionWithOptions<GetTypeErrorsFn>(
   'deserializeGetTypeErrors',
-  'te',
   getTypeErrorsIdentity
-) as unknown as <T>(val?: T, options?: IsTypeOptions, id?: InjectRunTypeId<T>) => GetTypeErrorsFn;
+) as unknown as <T>(val?: T, options?: IsTypeOptions, id?: InjectTypeFnArgs<T, 'te'>) => GetTypeErrorsFn;
 
 export const deserializeHasUnknownKeys = deserializeRTFunction<HasUnknownKeysFn>(
   'deserializeHasUnknownKeys',
-  'huk',
   () => false
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => HasUnknownKeysFn;
+) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn;
 
 export const deserializeStripUnknownKeys = deserializeRTFunction<StripUnknownKeysFn>(
   'deserializeStripUnknownKeys',
-  'suk',
   identityValueFn
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => StripUnknownKeysFn;
+) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'suk'>) => StripUnknownKeysFn;
 
 export const deserializeUnknownKeyErrors = deserializeRTFunction<UnknownKeyErrorsFn>(
   'deserializeUnknownKeyErrors',
-  'uke',
   unknownKeyErrorsIdentity
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => UnknownKeyErrorsFn;
+) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>) => UnknownKeyErrorsFn;
 
 export const deserializeUnknownKeysToUndefined = deserializeRTFunction<UnknownKeysToUndefinedFn>(
   'deserializeUnknownKeysToUndefined',
-  'uku',
   identityValueFn
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn;
+) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn;
 
 export const deserializePrepareForJson = deserializeRTFunction<PrepareForJsonFn>(
   'deserializePrepareForJson',
-  'pj',
   identityValueFn
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => PrepareForJsonFn;
+) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'pj'>) => PrepareForJsonFn;
 
 export const deserializeRestoreFromJson = deserializeRTFunction<RestoreFromJsonFn>(
   'deserializeRestoreFromJson',
-  'rj',
   identityValueFn
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => RestoreFromJsonFn;
+) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'rj'>) => RestoreFromJsonFn;
 
 export const deserializeStringifyJson = deserializeRTFunction<StringifyJsonFn>(
   'deserializeStringifyJson',
-  'sj',
   stringifyJsonIdentity
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => StringifyJsonFn;
+) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'sj'>) => StringifyJsonFn;

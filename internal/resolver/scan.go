@@ -379,30 +379,28 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	}, diagnostics, true
 }
 
-// computeFnId resolves the precise injected fnId token for a createX call site,
-// dispatching on the function's compile-time option axis (see
-// constants.CompFns). Empty fnKey (a reflection-only InjectRunTypeId site)
-// yields "".
+// computeFnId resolves the opaque fnHash the transformer injects as the 2nd
+// tuple element for a createX call site. Routed through operations.FnHashFor so
+// the scanner and the emitter compute the SAME hash: for a JSON family it is the
+// COMPOSITE fnHash (the per-strategy jsonEncoder/jsonDecoder entry the runtime
+// looks up); for it/te the IsTypeOptions variant fnHash; for a leaf/binary
+// family the plain fnHash. operations.Canonical reads only the axis-relevant
+// input (strategy for JSON, option names for it/te, neither otherwise), so the
+// single call covers every axis. Empty fnKey (a reflection-only InjectRunTypeId
+// site) yields "".
 func computeFnId(fnKey string, options isTypeOptions, call *ast.Node, lastIndex, argsCount int) string {
 	if fnKey == "" {
 		return ""
 	}
-	fn, known := constants.CompFns[fnKey]
+	op, known := operations.ByFnKey(fnKey)
 	if !known {
 		return ""
 	}
-	switch fn.Axis {
-	case constants.CompFnAxisJsonStrategy:
-		strategy := extractStrategyOption(call, lastIndex, argsCount)
-		fnId, _ := constants.ResolveFnId(fnKey, nil, strategy)
-		return fnId
-	case constants.CompFnAxisIsTypeOptions:
-		fnId, _ := constants.ResolveFnId(fnKey, options.Names(), "")
-		return fnId
-	default:
-		fnId, _ := constants.ResolveFnId(fnKey, nil, "")
-		return fnId
+	strategy := ""
+	if op.Axis == operations.AxisJsonStrategy {
+		strategy = extractStrategyOption(call, lastIndex, argsCount)
 	}
+	return operations.FnHashFor(op, options.Names(), strategy)
 }
 
 // computeFnDemand returns the structured cache-entry demand for a createX call

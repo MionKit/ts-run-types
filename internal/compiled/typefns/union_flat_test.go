@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -80,8 +81,9 @@ func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 		return PrepareForJsonModule(w, d, RenderOpts{EmitCreateRTFn: true})
 	})
 
-	if !strings.Contains(out, "g_pj_uni") {
-		t.Fatalf("expected the prepareForJson union factory g_pj_uni in rendered module:\n%s", out)
+	pjUniFactory := "g_" + operations.PlainHash("prepareForJson") + "_uni"
+	if !strings.Contains(out, pjUniFactory) {
+		t.Fatalf("expected the prepareForJson union factory %s in rendered module:\n%s", pjUniFactory, out)
 	}
 	if !strings.Contains(out, "[-1, v]") {
 		t.Errorf("expected `[-1, v]` envelope in object branch; got:\n%s", out)
@@ -96,7 +98,7 @@ func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 		t.Errorf("expected object-branch guard `typeof v === 'object'`; got:\n%s", out)
 	}
 	// No per-object isType dispatch on the union itself.
-	if strings.Contains(out, "g_it_ob1") || strings.Contains(out, "g_it_ob2") {
+	if strings.Contains(out, "g_"+itKey("ob1")) || strings.Contains(out, "g_"+itKey("ob2")) {
 		t.Errorf("flat encode should bypass per-object isType dispatch; got:\n%s", out)
 	}
 }

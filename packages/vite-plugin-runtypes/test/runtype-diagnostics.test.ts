@@ -205,12 +205,14 @@ export const _r = createJsonDecoder<[number, () => void]>();
       expect(codes).toContain('PJS003');
       expect(codes).toContain('RJ003');
       expect(codes).toContain('SJ003');
-      // Cache module must wire the tuple's `pj_<hash>` entry as
+      // Cache module must wire the tuple's prepareForJson entry as
       // alwaysThrow so calling `createJsonEncoder<[number, () => void]>()`
       // throws at the first lookup. The 8th positional arg on init()
-      // is the alwaysThrowCode — verify it's present for the tuple.
+      // is the alwaysThrowCode — verify it's present for the tuple. Slice 4:
+      // the entry key is `<fnHash>_<id>` (opaque per-family hash), so the
+      // prefix is matched generically rather than the readable `pj_` tag.
       const pj = response.prepareForJsonCacheSource ?? '';
-      expect(pj).toMatch(/init\('pj_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'PJ003'/);
+      expect(pj).toMatch(/init\('[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'PJ003'/);
     });
   });
 
@@ -229,8 +231,9 @@ export const _d = createBinaryDecoder<[string, () => number]>();
       const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
       expect(codes).toContain('TB003');
       expect(codes).toContain('FB003');
+      // Slice 4: entry key is the opaque `<fnHash>_<id>`, matched generically.
       const tb = response.toBinaryCacheSource ?? '';
-      expect(tb).toMatch(/init\('tb_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'TB003'/);
+      expect(tb).toMatch(/init\('[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'TB003'/);
     });
   });
 
@@ -273,14 +276,24 @@ interface User { name: string; age: number; tags: string[]; }
 export const _ = createIsType<User>();
 `,
     };
+    // Slice 4: the isType family prefix is the opaque fnHash the scanner
+    // injected into the createIsType site's `fnId`, not the readable `it`
+    // tag. Captured from the first scan so both the inline-factory and the
+    // one-shot init-line assertions stay correct across version-isolated hashes.
+    let itPrefix = '';
     await withInlineSources(sources, async ({client}) => {
       const inlineOn = await client.scanFiles(Object.keys(sources), {
         includeCacheSources: ['isType'],
       });
       const inlineOnBody = inlineOn.isTypeCacheSource ?? '';
+      const itSite = inlineOn.sites.find((s) => s.fnId);
+      if (!itSite?.fnId) throw new Error('expected a createIsType site with an injected fnId');
+      itPrefix = itSite.fnId;
       // The default shared client runs with emitCacheFunctions=true so
       // we get the inline factory here as a baseline.
-      expect(inlineOnBody, 'shared client should emit the inline factory').toMatch(/function g_it_[A-Za-z0-9]+\(utl\)/);
+      expect(inlineOnBody, 'shared client should emit the inline factory').toMatch(
+        new RegExp('function g_' + itPrefix + '_[A-Za-z0-9]+\\(utl\\)')
+      );
     });
 
     // Spin up a one-shot client with the production default
@@ -296,17 +309,21 @@ export const _ = createIsType<User>();
       });
       const body = response.isTypeCacheSource ?? '';
       // arg-7 should be the `u` alias for every non-noop, non-
-      // alwaysThrow entry. Sanity-check by scanning init lines.
-      const initLines = body.split('\n').filter((line) => line.startsWith("init('it_"));
+      // alwaysThrow entry. Sanity-check by scanning init lines — keyed by the
+      // opaque isType fnHash prefix (`<itPrefix>_<id>`).
+      const initPrefix = "init('" + itPrefix + '_';
+      const initLines = body.split('\n').filter((line) => line.startsWith(initPrefix));
       expect(initLines.length, 'expected at least one init line for User').toBeGreaterThan(0);
       for (const line of initLines) {
-        // Noop entries use the 4-arg short form `init('it_X','...',undefined,true);`
+        // Noop entries use the 4-arg short form `init('<itPrefix>_X','...',undefined,true);`
         // — skip those.
         if (line.includes(',undefined,true);')) continue;
         expect(line, `default emit must end with ",u);" — got: ${line}`).toMatch(/,u\);$/);
       }
       // And the closure-form must be completely absent under the default.
-      expect(body, 'default emit must NOT contain function g_it_<hash>(utl)').not.toMatch(/function g_it_[A-Za-z0-9]+\(utl\)/);
+      expect(body, 'default emit must NOT contain the inline factory closure').not.toMatch(
+        new RegExp('function g_' + itPrefix + '_[A-Za-z0-9]+\\(utl\\)')
+      );
     } finally {
       oneShot.close();
     }

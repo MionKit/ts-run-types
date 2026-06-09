@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -164,7 +165,10 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	if rootSiteID == "" {
 		t.Fatalf("expected at least one site for the User marker call")
 	}
-	rootInit := "init('pj_" + rootSiteID + "',"
+	// Slice 4: the entry key is `<prepareForJson-fnHash>_<id>` (opaque per-family
+	// hash), not the readable `pj_` tag. Derive the prefix via the operation
+	// registry so the assertion stays correct across version-isolated hashes.
+	rootInit := "init('" + operations.PlainHash("prepareForJson") + "_" + rootSiteID + "',"
 	if !strings.Contains(resp.PrepareForJsonCacheSource, rootInit) {
 		t.Errorf("expected PrepareForJson cache to contain User init line %q, got:\n%s", rootInit, resp.PrepareForJsonCacheSource)
 	}

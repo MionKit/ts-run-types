@@ -92,14 +92,20 @@ var registry = []Operation{
 		Strategies:      []string{"strip", "preserve"},
 	},
 
-	// Internal-only primitives — no createX marker; reachable only as JSON
-	// composite dependencies (pj/pjs/pjsp/rj/sj/ukuw) or cross-family edges.
-	{Name: "prepareForJson", FamilyTag: "pj", Axis: AxisNone},
-	{Name: "prepareForJsonSafe", FamilyTag: "pjs", Axis: AxisNone},
-	{Name: "prepareForJsonSafePreserve", FamilyTag: "pjsp", Axis: AxisNone},
-	{Name: "restoreFromJson", FamilyTag: "rj", Axis: AxisNone},
-	{Name: "stringifyJson", FamilyTag: "sj", Axis: AxisNone},
-	{Name: "unknownKeysToUndefinedWire", FamilyTag: "ukuw", Axis: AxisNone},
+	// Internal primitives — no PUBLIC createX factory, reachable as JSON
+	// composite dependencies (pj/pjs/pjsp/rj/sj/ukuw) or cross-family edges. They
+	// carry an FnKey equal to their family tag so the TEST-ONLY deserialize twins
+	// (deserializePrepareForJson / deserializeRestoreFromJson / …) can route an
+	// InjectTypeFnArgs<T, '<tag>'> marker through the SAME fnHash path as the
+	// production factories — there is no runtime hashing, so a deserialize twin
+	// for an internal primitive must read the plugin-injected plain fnHash rather
+	// than reconstruct it. Public stays false (no user-facing factory names them).
+	{Name: "prepareForJson", FamilyTag: "pj", Axis: AxisNone, FnKey: "pj"},
+	{Name: "prepareForJsonSafe", FamilyTag: "pjs", Axis: AxisNone, FnKey: "pjs"},
+	{Name: "prepareForJsonSafePreserve", FamilyTag: "pjsp", Axis: AxisNone, FnKey: "pjsp"},
+	{Name: "restoreFromJson", FamilyTag: "rj", Axis: AxisNone, FnKey: "rj"},
+	{Name: "stringifyJson", FamilyTag: "sj", Axis: AxisNone, FnKey: "sj"},
+	{Name: "unknownKeysToUndefinedWire", FamilyTag: "ukuw", Axis: AxisNone, FnKey: "ukuw"},
 }
 
 var (
