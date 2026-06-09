@@ -17,7 +17,8 @@ import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonS
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {getRTUtils, isRunTypeSchema} from './runtypes/rtUtils.ts';
-import type {AnyFn, RunType, DataOnly} from './runtypes/types.ts';
+import type {AnyFn, RunType} from './runtypes/types.ts';
+import type {DataOnly} from './runtypes/dataOnly.ts';
 import type {CompTimeFnArgs, InjectTypeFnArgs} from './index.ts';
 
 // =============================================================================
