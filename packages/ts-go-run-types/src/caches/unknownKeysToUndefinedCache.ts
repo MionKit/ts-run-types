@@ -1,7 +1,7 @@
 // @ts-nocheck
 //
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
-// See the banner at the top of `isTypeCache.ts` for the full contract.
+// See the banner at the top of `validateCache.ts` for the full contract.
 //
 // unknownKeysToUndefined cache module. Each entry sets unknown properties to
 // `undefined` (vs `strip`, which deletes them).

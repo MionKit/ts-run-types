@@ -3,7 +3,7 @@
 // function hash (fnHash) is computed.
 //
 // An operation is a named unit of work the backend can render for a given type
-// (isType validation, prepareForJson transform, a per-strategy JSON encoder,
+// (validate validation, prepareForJson transform, a per-strategy JSON encoder,
 // …). Each operation has a canonical Name, the emitted-entry FamilyTag, and the
 // compile-time option Axis that refines it. The scanner resolves a createX call
 // site to its operation (+ the call-site comptime args) and injects
@@ -28,8 +28,8 @@ const (
 	// AxisNone — the operation takes no compile-time option; its canonical key
 	// is exactly its Name.
 	AxisNone Axis = iota
-	// AxisIsTypeOptions — refined by the IsTypeOptions bag (isType / typeErrors).
-	AxisIsTypeOptions
+	// AxisValidateOptions — refined by the ValidateOptions bag (validate / validationErrors).
+	AxisValidateOptions
 	// AxisJsonStrategy — refined by the JSON strategy token (jsonEncoder /
 	// jsonDecoder); the operation is composite (one emitted entry per strategy).
 	AxisJsonStrategy
@@ -38,7 +38,7 @@ const (
 // Operation describes one renderable RT operation.
 type Operation struct {
 	// Name is the canonical operation name and the stable hash input — e.g.
-	// "isType", "prepareForJson", "jsonEncoder". NEVER change a Name without
+	// "validate", "prepareForJson", "jsonEncoder". NEVER change a Name without
 	// understanding that it changes every fnHash (and thus invalidates caches).
 	Name string
 	// FamilyTag is the emitted-entry family tag (the disk-cache basename and the
@@ -65,9 +65,9 @@ type Operation struct {
 // plus 5 internal-only primitives the JSON composites and cross-family edges
 // reference. Order is not load-bearing (everything is keyed by Name / FnKey).
 var registry = []Operation{
-	// Public — validators (IsTypeOptions axis).
-	{Name: "isType", FamilyTag: "it", Axis: AxisIsTypeOptions, Public: true, FnKey: "it"},
-	{Name: "typeErrors", FamilyTag: "te", Axis: AxisIsTypeOptions, Public: true, FnKey: "te"},
+	// Public — validators (ValidateOptions axis).
+	{Name: "validate", FamilyTag: "it", Axis: AxisValidateOptions, Public: true, FnKey: "it"},
+	{Name: "validationErrors", FamilyTag: "te", Axis: AxisValidateOptions, Public: true, FnKey: "te"},
 
 	// Public — option-less leaf families.
 	{Name: "hasUnknownKeys", FamilyTag: "huk", Axis: AxisNone, Public: true, FnKey: "huk"},

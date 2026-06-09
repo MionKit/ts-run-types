@@ -12,7 +12,7 @@ import (
 // NumberRunTypeFormat (packages/type-formats/src/number/numberFormat.runtype.ts).
 //
 // Surface: integer / float, min / max / lt / gt, multipleOf — emitted in
-// mion's emitIsType order. Beyond isType / typeErrors / validateParams it
+// mion's emitIsType order. Beyond validate / validationErrors / validateParams it
 // also implements formats.BinaryEncoder / BinaryDecoder: the binary
 // serializer packs an integer into the narrowest of int8/16/32 (signed
 // or unsigned) its min/max allows, falling back to the base float64 arm
@@ -42,18 +42,18 @@ func (numberFormatEmitter) Kind() protocol.ReflectionKind {
 	return protocol.KindNumber
 }
 
-// EmitIsTypeCheck returns the AND of every active number predicate, in
+// EmitValidateCheck returns the AND of every active number predicate, in
 // mion's emitIsType order (numberFormat.runtype.ts:40-81): integer/float,
 // max, min, lt, gt, multipleOf. Returns "" when no params constrain the
 // value — the host keeps its base Number.isFinite check.
-func (numberFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+func (numberFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
 	return strings.Join(numberConditions(annotation.Params, vλl), " && ")
 }
 
-// numberConditions returns the isType boolean expressions for a number
+// numberConditions returns the validate boolean expressions for a number
 // param map applied to `vλl`.
 func numberConditions(params map[string]any, vλl string) []string {
 	var conditions []string
@@ -80,12 +80,12 @@ func numberConditions(params map[string]any, vλl string) []string {
 	return conditions
 }
 
-// EmitTypeErrorsCheck emits one `if (failed) <push error>` statement per
+// EmitValidationErrorsCheck emits one `if (failed) <push error>` statement per
 // active predicate, in mion's emitIsTypeErrors order
 // (numberFormat.runtype.ts:83-125). integer/float tag the error `val`
 // with the literal `true`; the range/multipleOf params tag it with the
 // bound.
-func (numberFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
+func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}

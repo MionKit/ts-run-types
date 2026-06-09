@@ -26,7 +26,7 @@ func pureFnAlias(ctx formats.EmitContext, fnName string) string {
 
 // formatErrCall emits a statement that pushes the canonical nested
 // RunTypeError — `{expected, path, format: {name, formatPath, val}}` —
-// onto the errors array. This is the shape the base typeErrors path
+// onto the errors array. This is the shape the base validationErrors path
 // (cpf_newRunTypeErr) and consumers expect (mirrors mion's cpf_formatErr
 // output); a bare `{name, formatPath, val}` push would not conform to
 // RunTypeError and is invisible to consumers reading `.path`/`.format`.

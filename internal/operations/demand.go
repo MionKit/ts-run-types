@@ -17,7 +17,7 @@ type Demand struct {
 // DemandFor returns the cache-entry demands for a createX call site identified
 // by its InjectTypeFnArgs Fn token, refined by the call-site options / strategy:
 //
-//   - AxisIsTypeOptions: one entry, the requested variant of the family (it/te).
+//   - AxisValidateOptions: one entry, the requested variant of the family (it/te).
 //   - AxisJsonStrategy:  the composite entry (the per-strategy jsonEncoder /
 //     jsonDecoder family, keyed by the strategy's composite fnHash) PLUS one
 //     entry per composed primitive family (constants.JsonStrategyFamilies). The
@@ -33,10 +33,10 @@ func DemandFor(fnKey string, optionNames []string, strategy string) []Demand {
 		return nil
 	}
 	switch op.Axis {
-	case AxisIsTypeOptions:
+	case AxisValidateOptions:
 		return []Demand{{
 			FamilyTag:     op.FamilyTag,
-			VariantSuffix: constants.IsTypeVariantSuffix(optionNames),
+			VariantSuffix: constants.ValidateVariantSuffix(optionNames),
 			Options:       optionNames,
 			FnHash:        FnHashFor(op, optionNames, ""),
 		}}

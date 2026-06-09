@@ -16,11 +16,11 @@ func init() {
 func (urlEmitter) Name() string                  { return "url" }
 func (urlEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
 
-func (urlEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
-	return namedPatternIsType(ctx, annotation, vλl)
+func (urlEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+	return namedPatternValidate(ctx, annotation, vλl)
 }
 
-func (urlEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (urlEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	return namedPatternErrors(ctx, annotation, vλl, pathExpr, errorsArr, "url")
 }
 

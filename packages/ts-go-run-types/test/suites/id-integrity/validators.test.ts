@@ -1,8 +1,8 @@
 // id-integrity / validators — for EVERY validation + format-validation case,
-// assert the value-first schema form (`createIsType(RT.x())`) and the type-first
-// form (`createIsType<T>()`) resolve to the SAME cached factory, i.e. the same
+// assert the value-first schema form (`createValidate(RT.x())`) and the type-first
+// form (`createValidate<T>()`) resolve to the SAME cached factory, i.e. the same
 // structural type id (and therefore the same cached runtype). Reuses each case's
-// existing isType / isTypeSchema / getTypeErrors / getTypeErrorsSchema thunks —
+// existing validate / validateSchema / getValidationErrors / getValidationErrorsSchema thunks —
 // no per-case data added. See util/idIntegrityAsserts.ts for the mechanism.
 
 import {describe, it} from 'vitest';

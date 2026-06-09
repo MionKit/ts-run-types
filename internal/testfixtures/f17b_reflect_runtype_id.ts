@@ -14,11 +14,11 @@ const b = reflectRunTypeId(s);
 // 17bc — user-defined wrapper. Same opt-in rule as f17 — the trailing
 // `id?: InjectRunTypeId<T>` is what the scanner looks at; the callee identity
 // is irrelevant.
-function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
-const c = isType<{flag: boolean}>(true);
+const c = validate<{flag: boolean}>(true);
 
 // 17bd — wrapper with T inferred from a value argument.
 function nameOf<T>(_val: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {

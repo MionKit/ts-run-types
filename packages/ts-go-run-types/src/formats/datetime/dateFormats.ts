@@ -3,7 +3,7 @@
 // date/time formats use (./dateTimeParams.ts), so a Date field and a
 // string-date field read identically. Validation is emitted on the Go
 // side (internal/compiled/typefns/formats/datetime/nativeDate.go) inside
-// isType / getTypeErrors; serialization needs no new work — Date already
+// validate / getValidationErrors; serialization needs no new work — Date already
 // round-trips through the default serialisers.
 //
 // `TypeFormat` IS imported as a value (not `import type`) to keep each

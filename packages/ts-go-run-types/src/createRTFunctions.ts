@@ -3,8 +3,8 @@
 // generic; only the cache-key prefix, identity fallback, and return type
 // vary per family. The rtUtils singleton is the only cache.
 
-import {initCache as initIsTypeCache} from './caches/isTypeCache.ts';
-import {initCache as initGetTypeErrorsCache} from './caches/getTypeErrorsCache.ts';
+import {initCache as initValidateCache} from './caches/validateCache.ts';
+import {initCache as initGetValidationErrorsCache} from './caches/getValidationErrorsCache.ts';
 import {initCache as initHasUnknownKeysCache} from './caches/hasUnknownKeysCache.ts';
 import {initCache as initStripUnknownKeysCache} from './caches/stripUnknownKeysCache.ts';
 import {initCache as initUnknownKeyErrorsCache} from './caches/unknownKeyErrorsCache.ts';
@@ -25,11 +25,11 @@ import type {CompTimeFnArgs, InjectTypeFnArgs} from './index.ts';
 // =============================================================================
 
 /** Subset of mion's RunTypeOptions that parameterises the generated
- *  `isType` / `getTypeErrors` validators (NOT a property of the type itself).
+ *  `validate` / `getValidationErrors` validators (NOT a property of the type itself).
  *  Pass an OBJECT LITERAL at the call site — the Go-side marker scanner reads
  *  the values at build time and routes the call to a per-option variant of
  *  the validator factory (same structural type id, distinct function id). **/
-export interface IsTypeOptions {
+export interface ValidateOptions {
   /** Literal validators degrade to their base-type check
    *  (`literal 'a'` → any string, `literal 2` → any finite number). **/
   noLiterals?: boolean;
@@ -39,14 +39,14 @@ export interface IsTypeOptions {
   noIsArrayCheck?: boolean;
 }
 
-/** Validator function returned by `createIsType<T>()`. The type guard narrows
+/** Validator function returned by `createValidate<T>()`. The type guard narrows
  *  to `DataOnly<T>` — the serialisable projection of `T` the validator actually
  *  enforces (non-data members like functions / methods / symbols are silently
- *  dropped from the validated shape; see CLAUDE.md "isType contract"). `T`
- *  defaults to `unknown` so the bare `IsTypeFn` alias (`DataOnly<unknown>` ≡
+ *  dropped from the validated shape; see CLAUDE.md "validate contract"). `T`
+ *  defaults to `unknown` so the bare `ValidateFn` alias (`DataOnly<unknown>` ≡
  *  `unknown`) stays a plain `(value) => boolean`-shaped guard for the cache
  *  typedefs that don't carry a source type. **/
-export type IsTypeFn<T = unknown> = (value: unknown) => value is DataOnly<T>;
+export type ValidateFn<T = unknown> = (value: unknown) => value is DataOnly<T>;
 
 /** Mirror of mion's RunTypeError shape. Map / Set emitters add
  *  `{key, index, failed: 'mapKey' | 'mapValue'}` path segments. **/
@@ -69,9 +69,9 @@ export interface RunTypeError {
   format?: TypeFormatError;
 }
 
-/** Validator returned by `createGetTypeErrors<T>()`. Caller-optional `path`
+/** Validator returned by `createGetValidationErrors<T>()`. Caller-optional `path`
  *  and `errors` slots so the validator can be chained or pre-seeded. **/
-export type GetTypeErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment[], errors?: RunTypeError[]) => RunTypeError[];
+export type GetValidationErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment[], errors?: RunTypeError[]) => RunTypeError[];
 
 /** Options bag for HasUnknownKeysFn. When `checkNonRTProps` is true the
  *  known-keys list expands to include children the RT skipped. **/
@@ -160,8 +160,8 @@ export type JsonDecoderOptions = {strategy?: JsonDecoderStrategy};
 // are built lazily by materializeRTFn on first getRT() lookup.
 
 const _utils = getRTUtils();
-initIsTypeCache(_utils);
-initGetTypeErrorsCache(_utils);
+initValidateCache(_utils);
+initGetValidationErrorsCache(_utils);
 initHasUnknownKeysCache(_utils);
 initStripUnknownKeysCache(_utils);
 initUnknownKeyErrorsCache(_utils);
@@ -182,7 +182,7 @@ initFormatTransformCache(_utils);
 /** Resolves the per-(id, fnId) closure for a createX factory routed through the
  *  InjectTypeFnArgs marker. The plugin injects a `[typeId, fnId]` tuple at the
  *  trailing slot; this reads it and resolves `fnId + '_' + typeId` directly —
- *  the fnId already encodes the family (+ IsTypeOptions variant for it/te, e.g.
+ *  the fnId already encodes the family (+ ValidateOptions variant for it/te, e.g.
  *  `it`, `itNL`), so no key is recomputed here (this replaces the old
  *  `buildVariantKey` round-trip). Slot 0 (`val`) may be a value-first schema
  *  whose runtime `.id` overrides the injected typeId (correct even for recursive
@@ -215,7 +215,7 @@ function resolveTupleEntry<F extends AnyFn>(
 }
 
 /** Returns the per-(id, fnId) closure for an option-carrying createX factory
- *  (`createIsType` / `createGetTypeErrors`, 3-arg `(val, options, args)`). The
+ *  (`createValidate` / `createGetValidationErrors`, 3-arg `(val, options, args)`). The
  *  injected `[typeId, fnId]` tuple sits at the trailing slot; options @slot1 are
  *  baked into the fnId at build time so the runtime ignores them. **/
 function createTypeFnArgsFunction<F extends AnyFn>(
@@ -227,7 +227,7 @@ function createTypeFnArgsFunction<F extends AnyFn>(
 }
 
 /** Returns the per-(id, fnId) closure for a leaf family that does NOT honour
- *  `IsTypeOptions` — every non-validator factory (`createHasUnknownKeys`,
+ *  `ValidateOptions` — every non-validator factory (`createHasUnknownKeys`,
  *  `createStripUnknownKeys`, `createUnknownKeyErrors`,
  *  `createUnknownKeysToUndefined`, `createFormatTransform`). The injected
  *  `[typeId, fnId]` tuple sits at slot 1; the fnId is the plain family tag (no
@@ -246,46 +246,46 @@ function createRTFunction<F extends AnyFn>(fnName: string, prefix: string, ident
 // =============================================================================
 
 const identityValueFn = (v: unknown) => v;
-const getTypeErrorsIdentity: GetTypeErrorsFn = () => [];
+const getValidationErrorsIdentity: GetValidationErrorsFn = () => [];
 const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 
 // Two overloads, schema form FIRST (TS resolves intersected call signatures
 // top-to-bottom, and a `RunType<T>` arg must be tried before the `val?: T`
 // reflection form, which would otherwise absorb it as `T = RunType<…>`):
-//   - SCHEMA form `createIsType(rt)` — a value-first builder schema. `T` is
+//   - SCHEMA form `createValidate(rt)` — a value-first builder schema. `T` is
 //     inferred from `rt: RunType<T>` and reflected off the trailing
 //     `InjectRunTypeId<T>`, exactly like the type/value forms. No `schema.id`
 //     read, no ref-tracing — the call IS the injection site.
-//   - VALUE / static form `createIsType<T>()` / `createIsType(value)`.
+//   - VALUE / static form `createValidate<T>()` / `createValidate(value)`.
 // Both share the runtime impl (`val`/`schema` @slot0 ignored, options @slot1,
 // injected id @slot2).
-export const createIsType = createTypeFnArgsFunction<IsTypeFn>(
-  'createIsType',
+export const createValidate = createTypeFnArgsFunction<ValidateFn>(
+  'createValidate',
   'it',
-  // The runtime fallback is a plain `() => true`; `IsTypeFn` is now a type
+  // The runtime fallback is a plain `() => true`; `ValidateFn` is now a type
   // guard, so cast through `unknown` (a direct cast is rejected — a boolean fn
   // doesn't structurally overlap a type predicate).
-  (() => true) as unknown as IsTypeFn
+  (() => true) as unknown as ValidateFn
 ) as unknown as (<T>(
   schema: RunType<T>,
-  options?: CompTimeFnArgs<IsTypeOptions>,
+  options?: CompTimeFnArgs<ValidateOptions>,
   id?: InjectTypeFnArgs<T, 'it'>
-) => IsTypeFn<T>) &
-  (<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>) => IsTypeFn<T>);
+) => ValidateFn<T>) &
+  (<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'it'>) => ValidateFn<T>);
 
-export const createGetTypeErrors = createTypeFnArgsFunction<GetTypeErrorsFn>(
-  'createGetTypeErrors',
+export const createGetValidationErrors = createTypeFnArgsFunction<GetValidationErrorsFn>(
+  'createGetValidationErrors',
   'te',
-  getTypeErrorsIdentity
+  getValidationErrorsIdentity
 ) as unknown as (<T>(
   schema: RunType<T>,
-  options?: CompTimeFnArgs<IsTypeOptions>,
+  options?: CompTimeFnArgs<ValidateOptions>,
   id?: InjectTypeFnArgs<T, 'te'>
-) => GetTypeErrorsFn) &
-  (<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'te'>) => GetTypeErrorsFn);
+) => GetValidationErrorsFn) &
+  (<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'te'>) => GetValidationErrorsFn);
 
-// IsTypeOptions does not affect these families' validators — the
-// options bag is exclusive to `createIsType` / `createGetTypeErrors`.
+// ValidateOptions does not affect these families' validators — the
+// options bag is exclusive to `createValidate` / `createGetValidationErrors`.
 // Leaving the slot here would let callers pass values that the Go
 // emitter silently ignores; dropping it surfaces the limitation at
 // the type-checker level.
@@ -414,8 +414,8 @@ export function createJsonDecoder<T>(
 type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
 const hot = (import.meta as unknown as {hot?: HMR}).hot;
 if (hot) {
-  hot.accept('./caches/isTypeCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/getTypeErrorsCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/validateCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/getValidationErrorsCache.ts', (m) => m?.initCache?.(getRTUtils()));
   hot.accept('./caches/hasUnknownKeysCache.ts', (m) => m?.initCache?.(getRTUtils()));
   hot.accept('./caches/stripUnknownKeysCache.ts', (m) => m?.initCache?.(getRTUtils()));
   hot.accept('./caches/unknownKeyErrorsCache.ts', (m) => m?.initCache?.(getRTUtils()));

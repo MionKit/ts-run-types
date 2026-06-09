@@ -48,7 +48,7 @@ const (
 	// the demanded function family.
 	KindInjectTypeFnArgs
 	// KindCompTimeFnArgs brands the parameter whose literal value selects the
-	// createX function variant (the IsTypeOptions bag for isType/typeErrors, the
+	// createX function variant (the ValidateOptions bag for validate/validationErrors, the
 	// JSON strategy for the encoder/decoder). Same literal-only validation as
 	// KindCompTimeArgs, but it ALSO tells the scanner which parameter to read
 	// when computing the injected fnHash.

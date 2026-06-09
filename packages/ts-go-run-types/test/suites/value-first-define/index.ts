@@ -6,14 +6,14 @@
 // Each model is authored with `RT.object({...})`. Every builder returns the
 // generic `RunType<…>` node, so `typeof Model` is that node and
 // `Static<typeof Model>` recovers the model type — which is fed to
-// `createIsType` / `createGetTypeErrors`, the SAME path as the type-first
+// `createValidate` / `createGetValidationErrors`, the SAME path as the type-first
 // surface, proving the value-first front-end lowers to the identical RunType
 // graph (same-hash convergence is asserted across all suites in
 // test/suites/id-integrity/).
 //
 // Per the CLAUDE.md marker-coverage rule every case carries BOTH forms:
-//   - static  `createIsType<Static<typeof Model>>()`
-//   - reflect `createIsType(value)` where `value` is a runtime object whose
+//   - static  `createValidate<Static<typeof Model>>()`
+//   - reflect `createValidate(value)` where `value` is a runtime object whose
 //     declared type is `Static<typeof Model>` (the format brand can't be
 //     constructed from a plain literal, so the value is cast — discarded at
 //     runtime, only its static type drives `T` inference).
@@ -23,35 +23,35 @@
 // (registers the format mock fns + pure-fns the emitted validators reach).
 
 import {
-  createIsType,
-  createGetTypeErrors,
+  createValidate,
+  createGetValidationErrors,
   registerFormatPattern,
   type Static,
-  type GetTypeErrorsFn,
+  type GetValidationErrorsFn,
 } from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
-import {deserializeIsType} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate} from '../../util/deserializeRTFunctions.ts';
 import '@mionjs/ts-go-run-types/formats';
 
-/** isType validator field shape, widened to the plain boolean-returning call
- *  shape. `IsTypeFn<T>` is an invariantly-checked type guard (`value is
- *  DataOnly<T>`), so a concrete `IsTypeFn<SomeModel>` does NOT flow into a bare
- *  `IsTypeFn` (`IsTypeFn<unknown>`) field; the boolean supertype every
- *  `IsTypeFn<T>` satisfies sidesteps that. Mirrors `IsTypeThunk` in
+/** validate validator field shape, widened to the plain boolean-returning call
+ *  shape. `ValidateFn<T>` is an invariantly-checked type guard (`value is
+ *  DataOnly<T>`), so a concrete `ValidateFn<SomeModel>` does NOT flow into a bare
+ *  `ValidateFn` (`ValidateFn<unknown>`) field; the boolean supertype every
+ *  `ValidateFn<T>` satisfies sidesteps that. Mirrors `ValidateThunk` in
  *  `../validation/types.ts`. **/
-type AnyIsTypeFn = (value: unknown) => boolean;
+type AnyValidateFn = (value: unknown) => boolean;
 
-/** A value-first case: the four isType thunks (static / reflect / their
- *  deserialize companions), a getTypeErrors thunk, and the shared samples.
+/** A value-first case: the four validate thunks (static / reflect / their
+ *  deserialize companions), a getValidationErrors thunk, and the shared samples.
  *  Reuses the same field names as `ValidationCase` so it can flow through the
  *  shared adapter helpers. **/
 export interface ValueFirstCase {
   title: string;
-  isType: () => AnyIsTypeFn;
-  isTypeReflect: () => AnyIsTypeFn;
-  deserializeIsType: () => AnyIsTypeFn;
-  deserializeIsTypeReflect: () => AnyIsTypeFn;
-  getTypeErrors: () => GetTypeErrorsFn;
+  validate: () => AnyValidateFn;
+  validateReflect: () => AnyValidateFn;
+  deserializeValidate: () => AnyValidateFn;
+  deserializeValidateReflect: () => AnyValidateFn;
+  getValidationErrors: () => GetValidationErrorsFn;
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
 }
 
@@ -130,7 +130,7 @@ const RegexModel = RT.object({
 const NOW = Date.now();
 
 // Reflect-form thunks are written INLINE per case (never via a generic
-// helper): the scanner skips any `createIsType` call where `T` carries a free
+// helper): the scanner skips any `createValidate` call where `T` carries a free
 // type parameter, so the model type must be concrete at the literal call site.
 // The value is cast (the format brand isn't constructible from a plain
 // literal) and discarded at runtime — only its declared type drives `T`.
@@ -138,8 +138,8 @@ const NOW = Date.now();
 export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
   flat_mixed: {
     title: 'flat model — string/number/date constraints across many fields',
-    isType: () => createIsType<Static<typeof UserModel>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Static<typeof UserModel>>(),
+    validateReflect: () => {
       const v = {
         username: 'alice',
         code: 'AB12',
@@ -151,10 +151,10 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
         level: 10,
         bornBefore: new Date(NOW - 1000),
       } as unknown as Static<typeof UserModel>;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsType: () => deserializeIsType<Static<typeof UserModel>>(),
-    deserializeIsTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<Static<typeof UserModel>>(),
+    deserializeValidateReflect: () => {
       const v = {
         username: 'alice',
         code: 'AB12',
@@ -166,9 +166,9 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
         level: 10,
         bornBefore: new Date(NOW - 1000),
       } as unknown as Static<typeof UserModel>;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Static<typeof UserModel>>(),
+    getValidationErrors: () => createGetValidationErrors<Static<typeof UserModel>>(),
     getSamples: () => ({
       valid: [
         {
@@ -273,17 +273,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   string_features: {
     title: 'string fields — length / minLength / maxLength / allowedValues',
-    isType: () => createIsType<Static<typeof StringModel>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Static<typeof StringModel>>(),
+    validateReflect: () => {
       const v = {short: 'ab', long: 'abc', exact: 'ABCD', pick: 'red'} as unknown as Static<typeof StringModel>;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsType: () => deserializeIsType<Static<typeof StringModel>>(),
-    deserializeIsTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<Static<typeof StringModel>>(),
+    deserializeValidateReflect: () => {
       const v = {short: 'ab', long: 'abc', exact: 'ABCD', pick: 'red'} as unknown as Static<typeof StringModel>;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Static<typeof StringModel>>(),
+    getValidationErrors: () => createGetValidationErrors<Static<typeof StringModel>>(),
     getSamples: () => ({
       valid: [
         {short: '', long: 'abc', exact: 'ABCD', pick: 'red'},
@@ -300,17 +300,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   number_features: {
     title: 'number fields — bounds / exclusive / integer / float / multipleOf',
-    isType: () => createIsType<Static<typeof NumberModel>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Static<typeof NumberModel>>(),
+    validateReflect: () => {
       const v = {bounded: 5, exclusive: 5, whole: 3, fractional: 1.5, divisible: 9} as unknown as Static<typeof NumberModel>;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsType: () => deserializeIsType<Static<typeof NumberModel>>(),
-    deserializeIsTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<Static<typeof NumberModel>>(),
+    deserializeValidateReflect: () => {
       const v = {bounded: 5, exclusive: 5, whole: 3, fractional: 1.5, divisible: 9} as unknown as Static<typeof NumberModel>;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Static<typeof NumberModel>>(),
+    getValidationErrors: () => createGetValidationErrors<Static<typeof NumberModel>>(),
     getSamples: () => ({
       valid: [
         {bounded: 0, exclusive: 1, whole: 3, fractional: 1.5, divisible: 0},
@@ -328,17 +328,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   date_bounds: {
     title: 'date fields — relative now bound + absolute window',
-    isType: () => createIsType<Static<typeof DateModel>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Static<typeof DateModel>>(),
+    validateReflect: () => {
       const v = {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')} as unknown as Static<typeof DateModel>;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsType: () => deserializeIsType<Static<typeof DateModel>>(),
-    deserializeIsTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<Static<typeof DateModel>>(),
+    deserializeValidateReflect: () => {
       const v = {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')} as unknown as Static<typeof DateModel>;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Static<typeof DateModel>>(),
+    getValidationErrors: () => createGetValidationErrors<Static<typeof DateModel>>(),
     getSamples: () => ({
       valid: [
         {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')},
@@ -354,17 +354,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   regex_patterns: {
     title: 'regex — inline {source, flags, mockSamples} and registerFormatPattern, via the value channel',
-    isType: () => createIsType<Static<typeof RegexModel>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Static<typeof RegexModel>>(),
+    validateReflect: () => {
       const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as Static<typeof RegexModel>;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsType: () => deserializeIsType<Static<typeof RegexModel>>(),
-    deserializeIsTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<Static<typeof RegexModel>>(),
+    deserializeValidateReflect: () => {
       const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as Static<typeof RegexModel>;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Static<typeof RegexModel>>(),
+    getValidationErrors: () => createGetValidationErrors<Static<typeof RegexModel>>(),
     getSamples: () => ({
       valid: [
         {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'},
@@ -380,17 +380,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   optional_fields: {
     title: 'optional — `RT.optional(...)` fields may be absent; present ones validate',
-    isType: () => createIsType<Static<typeof OptionalModel>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Static<typeof OptionalModel>>(),
+    validateReflect: () => {
       const v = {id: 'AB12'} as unknown as Static<typeof OptionalModel>;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsType: () => deserializeIsType<Static<typeof OptionalModel>>(),
-    deserializeIsTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<Static<typeof OptionalModel>>(),
+    deserializeValidateReflect: () => {
       const v = {id: 'AB12'} as unknown as Static<typeof OptionalModel>;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Static<typeof OptionalModel>>(),
+    getValidationErrors: () => createGetValidationErrors<Static<typeof OptionalModel>>(),
     getSamples: () => ({
       valid: [
         {id: 'AB12'}, // both optionals absent
@@ -407,17 +407,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   scalars: {
     title: 'scalars — boolean (no params) + bigint (bigint-valued bounds)',
-    isType: () => createIsType<Static<typeof ScalarModel>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Static<typeof ScalarModel>>(),
+    validateReflect: () => {
       const v = {active: true, count: 5n, even: 4n} as unknown as Static<typeof ScalarModel>;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsType: () => deserializeIsType<Static<typeof ScalarModel>>(),
-    deserializeIsTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<Static<typeof ScalarModel>>(),
+    deserializeValidateReflect: () => {
       const v = {active: true, count: 5n, even: 4n} as unknown as Static<typeof ScalarModel>;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Static<typeof ScalarModel>>(),
+    getValidationErrors: () => createGetValidationErrors<Static<typeof ScalarModel>>(),
     getSamples: () => ({
       valid: [
         {active: true, count: 0n, even: 0n},
@@ -434,17 +434,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   temporal: {
     title: 'temporal — Instant (min bound) + optional PlainDate (max bound)',
-    isType: () => createIsType<Static<typeof TemporalModel>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Static<typeof TemporalModel>>(),
+    validateReflect: () => {
       const v = {at: Temporal.Now.instant()} as unknown as Static<typeof TemporalModel>;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsType: () => deserializeIsType<Static<typeof TemporalModel>>(),
-    deserializeIsTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<Static<typeof TemporalModel>>(),
+    deserializeValidateReflect: () => {
       const v = {at: Temporal.Now.instant()} as unknown as Static<typeof TemporalModel>;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Static<typeof TemporalModel>>(),
+    getValidationErrors: () => createGetValidationErrors<Static<typeof TemporalModel>>(),
     getSamples: () => ({
       valid: [
         {at: Temporal.Instant.from('2021-06-15T00:00:00Z')}, // after min, day absent
@@ -461,23 +461,23 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   nested: {
     title: 'nested — value-first models composed inside a parent object',
-    isType: () => createIsType<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
+    validateReflect: () => {
       const v = {profile: {name: 'abc'}, settings: {theme: 'dark'}} as unknown as {
         profile: Static<typeof ProfileModel>;
         settings: Static<typeof SettingsModel>;
       };
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsType: () => deserializeIsType<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
-    deserializeIsTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
+    deserializeValidateReflect: () => {
       const v = {profile: {name: 'abc'}, settings: {theme: 'dark'}} as unknown as {
         profile: Static<typeof ProfileModel>;
         settings: Static<typeof SettingsModel>;
       };
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
+    getValidationErrors: () => createGetValidationErrors<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
     getSamples: () => ({
       valid: [
         {profile: {name: 'abc'}, settings: {theme: 'dark'}},

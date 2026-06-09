@@ -1,34 +1,34 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
-import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const CIRCULAR = {
   object_full_mion_shape: {
     title: 'Self-referential object with optional self-ref and Date prop',
     description:
       "mion circularRefs.spec.ts 'Circular object' — full mion fixture (number + string + self-ref + Date). Exercises the same self-recursive dependency call as OBJECT.circular_interface but pins the exact mion shape.",
-    isTypeNotes:
+    validateNotes:
       'Self-referential shapes are validated recursively. Atomic rules apply at every level (NaN at `n`, Invalid Date at `d`, etc.).',
-    isType: () => {
+    validate: () => {
       interface Circular {
         n: number;
         s: string;
         c?: Circular;
         d?: Date;
       }
-      return createIsType<Circular>();
+      return createValidate<Circular>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Circular {
         n: number;
         s: string;
         c?: Circular;
         d?: Date;
       }
-      return createIsType<DataOnly<Circular>>();
+      return createValidate<DataOnly<Circular>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       const cir = RT.circular((self) =>
         RT.object({
           n: RT.number(),
@@ -37,28 +37,18 @@ export const CIRCULAR = {
           d: RT.optional(RT.date()),
         })
       );
-      return createIsType(cir);
+      return createValidate(cir);
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface Circular {
         n: number;
         s: string;
         c?: Circular;
         d?: Date;
       }
-      return deserializeIsType<Circular>();
+      return deserializeValidate<Circular>();
     },
-    isTypeReflect: () => {
-      interface Circular {
-        n: number;
-        s: string;
-        c?: Circular;
-        d?: Date;
-      }
-      const v: Circular = {n: 1, s: 'hello'};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface Circular {
         n: number;
         s: string;
@@ -66,27 +56,37 @@ export const CIRCULAR = {
         d?: Date;
       }
       const v: Circular = {n: 1, s: 'hello'};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface Circular {
         n: number;
         s: string;
         c?: Circular;
         d?: Date;
       }
-      return createGetTypeErrors<Circular>();
+      const v: Circular = {n: 1, s: 'hello'};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface Circular {
         n: number;
         s: string;
         c?: Circular;
         d?: Date;
       }
-      return createGetTypeErrors<DataOnly<Circular>>();
+      return createGetValidationErrors<Circular>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      interface Circular {
+        n: number;
+        s: string;
+        c?: Circular;
+        d?: Date;
+      }
+      return createGetValidationErrors<DataOnly<Circular>>();
+    },
+    getValidationErrorsSchema: () => {
       const cir = RT.circular((self) =>
         RT.object({
           n: RT.number(),
@@ -95,28 +95,18 @@ export const CIRCULAR = {
           d: RT.optional(RT.date()),
         })
       );
-      return createGetTypeErrors(cir);
+      return createGetValidationErrors(cir);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface Circular {
         n: number;
         s: string;
         c?: Circular;
         d?: Date;
       }
-      return deserializeGetTypeErrors<Circular>();
+      return deserializeGetValidationErrors<Circular>();
     },
-    getTypeErrorsReflect: () => {
-      interface Circular {
-        n: number;
-        s: string;
-        c?: Circular;
-        d?: Date;
-      }
-      const v: Circular = {n: 1, s: 'hello'};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Circular {
         n: number;
         s: string;
@@ -124,7 +114,17 @@ export const CIRCULAR = {
         d?: Date;
       }
       const v: Circular = {n: 1, s: 'hello'};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface Circular {
+        n: number;
+        s: string;
+        c?: Circular;
+        d?: Date;
+      }
+      const v: Circular = {n: 1, s: 'hello'};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Circular {
@@ -181,57 +181,57 @@ export const CIRCULAR = {
     title: 'Self-referential array whose union element includes the array itself',
     description:
       "mion circularRefs.spec.ts 'Circular array + union' — self-recursive array whose element type is a union including the array itself. Closes the cycle via Array → Union → Array.",
-    isTypeSchema: () => {
+    validateSchema: () => {
       const cu = RT.circular((self) => RT.array(RT.union([self, RT.date(), RT.number(), RT.string()])));
-      return createIsType(cu);
+      return createValidate(cu);
     },
-    isType: () => {
+    validate: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createIsType<CuArray>();
+      return createValidate<CuArray>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createIsType<DataOnly<CuArray>>();
+      return createValidate<DataOnly<CuArray>>();
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return deserializeIsType<CuArray>();
+      return deserializeValidate<CuArray>();
     },
-    isTypeReflect: () => {
-      type CuArray = (CuArray | Date | number | string)[];
-      const v: CuArray = [];
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       type CuArray = (CuArray | Date | number | string)[];
       const v: CuArray = [];
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createGetTypeErrors<CuArray>();
+      const v: CuArray = [];
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createGetTypeErrors<DataOnly<CuArray>>();
+      return createGetValidationErrors<CuArray>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      type CuArray = (CuArray | Date | number | string)[];
+      return createGetValidationErrors<DataOnly<CuArray>>();
+    },
+    getValidationErrorsSchema: () => {
       const cu = RT.circular((self) => RT.array(RT.union([self, RT.date(), RT.number(), RT.string()])));
-      return createGetTypeErrors(cu);
+      return createGetValidationErrors(cu);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return deserializeGetTypeErrors<CuArray>();
+      return deserializeGetValidationErrors<CuArray>();
     },
-    getTypeErrorsReflect: () => {
-      type CuArray = (CuArray | Date | number | string)[];
-      const v: CuArray = [];
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type CuArray = (CuArray | Date | number | string)[];
       const v: CuArray = [];
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type CuArray = (CuArray | Date | number | string)[];
+      const v: CuArray = [];
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type CuArray = (CuArray | Date | number | string)[];
@@ -267,7 +267,7 @@ export const CIRCULAR = {
       // index 2 is [{a,b}] — the inner array fails the union check
       // (its element doesn't match any arm), so the OUTER union
       // reports one error at index 2 (union emit doesn't recurse —
-      // it's a boolean delegation to isType per mion semantic).
+      // it's a boolean delegation to validate per mion semantic).
       [{path: [2], expected: 'union'}],
       [{path: [], expected: 'array'}],
       [{path: [], expected: 'array'}],
@@ -282,77 +282,77 @@ export const CIRCULAR = {
     title: 'Self-referential object whose cycle closes via a tuple property',
     description:
       "mion circularRefs.spec.ts 'Circular object with tuple' — cycle closed via a tuple-typed property. Same mechanism as TUPLE.tuple_circular but the recursion goes through an object → tuple boundary.",
-    isType: () => {
+    validate: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createIsType<CircularTuple>();
+      return createValidate<CircularTuple>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createIsType<DataOnly<CircularTuple>>();
+      return createValidate<DataOnly<CircularTuple>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       const ct = RT.circular((self) => RT.object({tuple: RT.tuple([RT.bigint()], [self])}));
-      return createIsType(ct);
+      return createValidate(ct);
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return deserializeIsType<CircularTuple>();
+      return deserializeValidate<CircularTuple>();
     },
-    isTypeReflect: () => {
-      interface CircularTuple {
-        tuple: [bigint, CircularTuple?];
-      }
-      const v: CircularTuple = {tuple: [1n]};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
       const v: CircularTuple = {tuple: [1n]};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createGetTypeErrors<CircularTuple>();
+      const v: CircularTuple = {tuple: [1n]};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createGetTypeErrors<DataOnly<CircularTuple>>();
+      return createGetValidationErrors<CircularTuple>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      interface CircularTuple {
+        tuple: [bigint, CircularTuple?];
+      }
+      return createGetValidationErrors<DataOnly<CircularTuple>>();
+    },
+    getValidationErrorsSchema: () => {
       const ct = RT.circular((self) => RT.object({tuple: RT.tuple([RT.bigint()], [self])}));
-      return createGetTypeErrors(ct);
+      return createGetValidationErrors(ct);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return deserializeGetTypeErrors<CircularTuple>();
+      return deserializeGetValidationErrors<CircularTuple>();
     },
-    getTypeErrorsReflect: () => {
-      interface CircularTuple {
-        tuple: [bigint, CircularTuple?];
-      }
-      const v: CircularTuple = {tuple: [1n]};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
       const v: CircularTuple = {tuple: [1n]};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface CircularTuple {
+        tuple: [bigint, CircularTuple?];
+      }
+      const v: CircularTuple = {tuple: [1n]};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface CircularTuple {
@@ -404,77 +404,77 @@ export const CIRCULAR = {
     title: 'Self-referential object whose cycle closes via an index signature',
     description:
       "mion circularRefs.spec.ts 'Circular Object with index property' — cycle closed via an index-signature value type. Exercises the index-signature for-in loop calling back into the same validator.",
-    isType: () => {
+    validate: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createIsType<CircularIndex>();
+      return createValidate<CircularIndex>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createIsType<DataOnly<CircularIndex>>();
+      return createValidate<DataOnly<CircularIndex>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       const ci = RT.circular((self) => RT.object({index: RT.record(self)}));
-      return createIsType(ci);
+      return createValidate(ci);
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return deserializeIsType<CircularIndex>();
+      return deserializeValidate<CircularIndex>();
     },
-    isTypeReflect: () => {
-      interface CircularIndex {
-        index: {[key: string]: CircularIndex};
-      }
-      const v: CircularIndex = {index: {}};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
       const v: CircularIndex = {index: {}};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createGetTypeErrors<CircularIndex>();
+      const v: CircularIndex = {index: {}};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createGetTypeErrors<DataOnly<CircularIndex>>();
+      return createGetValidationErrors<CircularIndex>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      interface CircularIndex {
+        index: {[key: string]: CircularIndex};
+      }
+      return createGetValidationErrors<DataOnly<CircularIndex>>();
+    },
+    getValidationErrorsSchema: () => {
       const ci = RT.circular((self) => RT.object({index: RT.record(self)}));
-      return createGetTypeErrors(ci);
+      return createGetValidationErrors(ci);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return deserializeGetTypeErrors<CircularIndex>();
+      return deserializeGetValidationErrors<CircularIndex>();
     },
-    getTypeErrorsReflect: () => {
-      interface CircularIndex {
-        index: {[key: string]: CircularIndex};
-      }
-      const v: CircularIndex = {index: {}};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
       const v: CircularIndex = {index: {}};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface CircularIndex {
+        index: {[key: string]: CircularIndex};
+      }
+      const v: CircularIndex = {index: {}};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface CircularIndex {
@@ -509,7 +509,7 @@ export const CIRCULAR = {
       [{path: ['index', 'a', 'index'], expected: 'objectLiteral'}],
       // new Date() — Date doesn't have an `index` prop matching the shape.
       // It IS a plain `typeof === 'object' && !== null` — but
-      // missing `index` prop → typeErrors at ['index'].
+      // missing `index` prop → validationErrors at ['index'].
       [{path: ['index'], expected: 'objectLiteral'}],
       [{path: [], expected: 'objectLiteral'}],
       [{path: [], expected: 'objectLiteral'}],
@@ -523,19 +523,19 @@ export const CIRCULAR = {
     title: 'Self-referential object with the cycle buried four levels deep',
     description:
       "mion circularRefs.spec.ts 'Circular Object with deep nested properties' — cycle closed via four levels of nested object properties. Stresses the dependency-call layer when the self-ref is buried deep in an anonymous-shape chain.",
-    isType: () => {
+    validate: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createIsType<CircularDeep>();
+      return createValidate<CircularDeep>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createIsType<DataOnly<CircularDeep>>();
+      return createValidate<DataOnly<CircularDeep>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       const cd = RT.circular((self) =>
         RT.object({
           deep1: RT.object({
@@ -543,41 +543,41 @@ export const CIRCULAR = {
           }),
         })
       );
-      return createIsType(cd);
+      return createValidate(cd);
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return deserializeIsType<CircularDeep>();
+      return deserializeValidate<CircularDeep>();
     },
-    isTypeReflect: () => {
-      interface CircularDeep {
-        deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-      }
-      const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
       const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createGetTypeErrors<CircularDeep>();
+      const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createGetTypeErrors<DataOnly<CircularDeep>>();
+      return createGetValidationErrors<CircularDeep>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      interface CircularDeep {
+        deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+      }
+      return createGetValidationErrors<DataOnly<CircularDeep>>();
+    },
+    getValidationErrorsSchema: () => {
       const cd = RT.circular((self) =>
         RT.object({
           deep1: RT.object({
@@ -585,27 +585,27 @@ export const CIRCULAR = {
           }),
         })
       );
-      return createGetTypeErrors(cd);
+      return createGetValidationErrors(cd);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return deserializeGetTypeErrors<CircularDeep>();
+      return deserializeGetValidationErrors<CircularDeep>();
     },
-    getTypeErrorsReflect: () => {
-      interface CircularDeep {
-        deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-      }
-      const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
       const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface CircularDeep {
+        deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+      }
+      const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface CircularDeep {
@@ -660,7 +660,7 @@ export const CIRCULAR = {
     title: 'Non-circular root holding a circular child interface',
     description:
       "mion interface.spec.ts 'Interface with nested circular type where root is not the circular ref' — RootNotCircular is a flat shape (literal discriminator + one prop) whose ciChild property is a self-referential ICircularDeep. Pins the case where the dependency-call layer kicks in BELOW the root rather than at the root itself.",
-    isType: () => {
+    validate: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -670,9 +670,9 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createIsType<RootNotCircular>();
+      return createValidate<RootNotCircular>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -682,9 +682,9 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createIsType<DataOnly<RootNotCircular>>();
+      return createValidate<DataOnly<RootNotCircular>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       // The recursive child is a `circular(...)`; the non-circular root is a plain
       // schema referencing it — no hand-written types at all.
       const icd = RT.circular((self) =>
@@ -695,9 +695,9 @@ export const CIRCULAR = {
         })
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
-      return createIsType(root);
+      return createValidate(root);
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -707,25 +707,9 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return deserializeIsType<RootNotCircular>();
+      return deserializeValidate<RootNotCircular>();
     },
-    isTypeReflect: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {hello: string; child?: ICircularDeep};
-      }
-      interface RootNotCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-      }
-      const v: RootNotCircular = {
-        isRoot: true,
-        ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-      };
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -739,9 +723,9 @@ export const CIRCULAR = {
         isRoot: true,
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
       };
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -751,9 +735,13 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createGetTypeErrors<RootNotCircular>();
+      const v: RootNotCircular = {
+        isRoot: true,
+        ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+      };
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -763,9 +751,21 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createGetTypeErrors<DataOnly<RootNotCircular>>();
+      return createGetValidationErrors<RootNotCircular>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface RootNotCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+      }
+      return createGetValidationErrors<DataOnly<RootNotCircular>>();
+    },
+    getValidationErrorsSchema: () => {
       const icd = RT.circular((self) =>
         RT.object({
           name: RT.string(),
@@ -774,9 +774,9 @@ export const CIRCULAR = {
         })
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
-      return createGetTypeErrors(root);
+      return createGetValidationErrors(root);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -786,25 +786,9 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return deserializeGetTypeErrors<RootNotCircular>();
+      return deserializeGetValidationErrors<RootNotCircular>();
     },
-    getTypeErrorsReflect: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {hello: string; child?: ICircularDeep};
-      }
-      interface RootNotCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-      }
-      const v: RootNotCircular = {
-        isRoot: true,
-        ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-      };
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -818,7 +802,23 @@ export const CIRCULAR = {
         isRoot: true,
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
       };
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface RootNotCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+      }
+      const v: RootNotCircular = {
+        isRoot: true,
+        ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+      };
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface ICircularDeep {
@@ -910,7 +910,7 @@ export const CIRCULAR = {
     title: 'Multiple circular types cross-referenced from a non-circular root',
     description:
       "mion interface.spec.ts 'Interface with nested circular + multiple circular' — RootCircular carries an optional self-ref AND two distinct circular siblings (ICircularDeep, ICircularDate), and ICircularDate also references ICircularDeep. Stresses the resolver / dependency-call layer when more than one recursive type is in flight at once and the cycles cross.",
-    isType: () => {
+    validate: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -929,9 +929,9 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createIsType<RootCircular>();
+      return createValidate<RootCircular>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -950,9 +950,9 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createIsType<DataOnly<RootCircular>>();
+      return createValidate<DataOnly<RootCircular>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       // Mutual recursion, no types: each type's OWN back-edge uses `self`;
       // cross-references to an already-declared run-type are plain const refs.
       const icd = RT.circular((self) =>
@@ -979,9 +979,9 @@ export const CIRCULAR = {
           ciDate: icDate,
         })
       );
-      return createIsType(root);
+      return createValidate(root);
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1000,35 +1000,9 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return deserializeIsType<RootCircular>();
+      return deserializeValidate<RootCircular>();
     },
-    isTypeReflect: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {hello: string; child?: ICircularDeep};
-      }
-      interface ICircularDate {
-        date: Date;
-        month: number;
-        year: number;
-        embedded?: ICircularDate;
-        deep?: ICircularDeep;
-      }
-      interface RootCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-        ciRoort?: RootCircular;
-        ciDate: ICircularDate;
-      }
-      const v: RootCircular = {
-        isRoot: true,
-        ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-        ciDate: {date: new Date(), month: 1, year: 2021},
-      };
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1052,9 +1026,9 @@ export const CIRCULAR = {
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
         ciDate: {date: new Date(), month: 1, year: 2021},
       };
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1073,9 +1047,14 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createGetTypeErrors<RootCircular>();
+      const v: RootCircular = {
+        isRoot: true,
+        ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+        ciDate: {date: new Date(), month: 1, year: 2021},
+      };
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1094,9 +1073,30 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createGetTypeErrors<DataOnly<RootCircular>>();
+      return createGetValidationErrors<RootCircular>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface ICircularDate {
+        date: Date;
+        month: number;
+        year: number;
+        embedded?: ICircularDate;
+        deep?: ICircularDeep;
+      }
+      interface RootCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+        ciRoort?: RootCircular;
+        ciDate: ICircularDate;
+      }
+      return createGetValidationErrors<DataOnly<RootCircular>>();
+    },
+    getValidationErrorsSchema: () => {
       const icd = RT.circular((self) =>
         RT.object({
           name: RT.string(),
@@ -1121,9 +1121,9 @@ export const CIRCULAR = {
           ciDate: icDate,
         })
       );
-      return createGetTypeErrors(root);
+      return createGetValidationErrors(root);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1142,35 +1142,9 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return deserializeGetTypeErrors<RootCircular>();
+      return deserializeGetValidationErrors<RootCircular>();
     },
-    getTypeErrorsReflect: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {hello: string; child?: ICircularDeep};
-      }
-      interface ICircularDate {
-        date: Date;
-        month: number;
-        year: number;
-        embedded?: ICircularDate;
-        deep?: ICircularDeep;
-      }
-      interface RootCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-        ciRoort?: RootCircular;
-        ciDate: ICircularDate;
-      }
-      const v: RootCircular = {
-        isRoot: true,
-        ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-        ciDate: {date: new Date(), month: 1, year: 2021},
-      };
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1194,7 +1168,33 @@ export const CIRCULAR = {
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
         ciDate: {date: new Date(), month: 1, year: 2021},
       };
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface ICircularDate {
+        date: Date;
+        month: number;
+        year: number;
+        embedded?: ICircularDate;
+        deep?: ICircularDeep;
+      }
+      interface RootCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+        ciRoort?: RootCircular;
+        ciDate: ICircularDate;
+      }
+      const v: RootCircular = {
+        isRoot: true,
+        ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+        ciDate: {date: new Date(), month: 1, year: 2021},
+      };
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface ICircularDeep {

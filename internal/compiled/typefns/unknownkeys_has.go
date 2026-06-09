@@ -33,7 +33,7 @@ func (HasUnknownKeysEmitter) Args() []ArgSpec {
 }
 
 // Supports gates the renderer's top-level loop. Same set as the
-// prepareForJson / typeErrors emitters in Phase 0 (every kind a
+// prepareForJson / validationErrors emitters in Phase 0 (every kind a
 // real codegen pass will need to either handle or transparently
 // no-op). Atomic kinds emit empty body via Emit and Finalize folds
 // that to `return false` for the noop case.

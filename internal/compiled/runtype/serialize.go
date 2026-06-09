@@ -1226,7 +1226,7 @@ func enumMembers(tsType *checker.Type) []enumMember {
 	// enum semantics — the previous serializer left these as nil because
 	// "tsgo's evaluator would handle it" wasn't wired in. Doing it here
 	// keeps the enum.spec.ts case `enum Color {Red, Green='green', Blue=2}`
-	// resolving Red=0 (instead of null) so the RT isType chain
+	// resolving Red=0 (instead of null) so the RT validate chain
 	// `v === 0 || v === 'green' || v === 2` matches Color.Red at runtime.
 	var nextAuto int64
 	for i := range out {

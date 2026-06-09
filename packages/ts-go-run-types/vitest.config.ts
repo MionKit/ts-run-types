@@ -9,7 +9,7 @@ const REPO_ROOT = resolve(HERE, '../..');
 
 // Mirrors mion's run-types/vitest.config.ts shape: install the runtype
 // transformer as a Vite plugin so test source files (which import
-// `createIsType` and friends from `@mionjs/ts-go-run-types`) get
+// `createValidate` and friends from `@mionjs/ts-go-run-types`) get
 // rewritten with the resolved runtype id at compile time, AND the
 // three cache modules under `caches/*.ts` get their bodies overlaid by
 // the plugin's `transform()` hook with the Go binary's rendered output.
@@ -38,9 +38,9 @@ export default defineConfig({
       tsconfig: 'tsconfig.test.json',
       // Force the inline-factory emit on for the test run so suites cover
       // BOTH materialisation paths on every case:
-      //   - createIsType<T>() / createXxx<T>() → reads entry.createRTFn
+      //   - createValidate<T>() / createXxx<T>() → reads entry.createRTFn
       //     (the inline closure baked in by the Go renderer)
-      //   - deserializeIsType<T>() / deserializeXxx<T>() → ignores the
+      //   - deserializeValidate<T>() / deserializeXxx<T>() → ignores the
       //     inline closure and rebuilds the factory from entry.code via
       //     `new Function('utl', code)`.
       // The production default leaves this off so emitted modules are

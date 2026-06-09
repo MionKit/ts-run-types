@@ -11,7 +11,7 @@ import (
 // function — accumulator that records one RunTypeError of expected
 // `'never'` per unknown key. Ported from mion's emitUnknownKeyErrors.
 //
-// Arg shape mirrors typeErrors: (v, pth=[], er=[]). Returns `er`.
+// Arg shape mirrors validationErrors: (v, pth=[], er=[]). Returns `er`.
 type UnknownKeyErrorsEmitter struct{}
 
 func (UnknownKeyErrorsEmitter) Args() []ArgSpec {
@@ -146,7 +146,7 @@ func (UnknownKeyErrorsEmitter) Finalize(rawCode string) (string, bool) {
 // appends a 'never' error for an unknown key. `extra` is the key
 // variable (since the key is a runtime value, not a static name).
 func callUnknownKeyErr(ctx *EmitContext, extra string) string {
-	ctx.AddPureFnDependency("mion", "newRunTypeErr", typeErrorsPureFnFilePath)
+	ctx.AddPureFnDependency("mion", "newRunTypeErr", validationErrorsPureFnFilePath)
 	key := pureFnAlias("newRunTypeErr")
 	if !ctx.HasContextItem(key) {
 		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('mion::newRunTypeErr')")

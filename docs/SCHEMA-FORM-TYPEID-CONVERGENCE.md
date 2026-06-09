@@ -5,12 +5,12 @@
 > holds the composers + `object`, and `static.ts` holds the type helpers (incl.
 > `LeafType`); `TypeFromRT` is now `Static`. File line numbers below are approximate.
 
-> **Status: LANDED — schema form is now a `createIsType` overload.** Convergence
-> still holds (`createIsType(RT.array(RT.string()))` resolves the same id as
-> `createIsType<string[]>()`), but the mechanism changed when `CompTimeRunType`
+> **Status: LANDED — schema form is now a `createValidate` overload.** Convergence
+> still holds (`createValidate(RT.array(RT.string()))` resolves the same id as
+> `createValidate<string[]>()`), but the mechanism changed when `CompTimeRunType`
 > ref-tracing + demand emission were reverted. The schema form is no longer a
-> separate `createIsTypeFor` function; it is an OVERLOAD of `createIsType` /
-> `createGetTypeErrors` taking a `RunType<T>` first arg. `T` is reflected off the
+> separate `createValidateFor` function; it is an OVERLOAD of `createValidate` /
+> `createGetValidationErrors` taking a `RunType<T>` first arg. `T` is reflected off the
 > trailing `InjectRunTypeId<T>` like the type-first marker (so options ride the
 > call's OWN slot — no `schemaFormOptions` builder-fold, which was removed), while
 > the runtime dispatches on the schema's `.id` (`isRunTypeSchema` in
@@ -23,26 +23,26 @@
 
 ## Problem
 
-`createIsType<string[]>()` and `createIsTypeFor(RT.array(RT.string()))`
+`createValidate<string[]>()` and `createValidateFor(RT.array(RT.string()))`
 should resolve to the **same** structural type id — they validate the
 same `string[]`. Today they don't:
 
 | call | resolved TS type the scanner sees | structural id |
 | --- | --- | --- |
-| `createIsType<string[]>()` | `string[]` | `dZPrjl` |
-| `createIsTypeFor(RT.array(RT.string()))` | `Array<FormatString<{}>>` | `C0wQGO` |
+| `createValidate<string[]>()` | `string[]` | `dZPrjl` |
+| `createValidateFor(RT.array(RT.string()))` | `Array<FormatString<{}>>` | `C0wQGO` |
 
 The same divergence exists for **every parameterised format builder
 when called with no params** — `RT.number()`, `RT.bigint()`,
 `RT.date()`, every `RT.temporal.*()`. As long as the validators behave
 identically on the wire the cache duplication is invisible; it only
-broke open when the `IsTypeOptions` refactor introduced variant cache
+broke open when the `ValidateOptions` refactor introduced variant cache
 entries keyed by the marker-form id, and the schema-form lookup
 missed them.
 
 The reaction at the time was a Go-side workaround (the
 schema-form scan path + `EmitOnly` Site mechanism — see
-[IS-TYPE-OPTIONS.md §3](IS-TYPE-OPTIONS.md)). That solved the symptom
+[VALIDATE-OPTIONS.md §3](VALIDATE-OPTIONS.md)). That solved the symptom
 but left the underlying duplication in the cache.
 
 ## Root cause
@@ -105,7 +105,7 @@ After the fix:
 - `RT.string({maxLength: 5})` → overload 2 → `RunType<LeafType<…>>` →
   branded id (unchanged from today).
 - `RT.array(RT.string())` → item is `RunType<string>` → T = `string` →
-  `RunType<string[]>` → same id as `createIsType<string[]>()`.
+  `RunType<string[]>` → same id as `createValidate<string[]>()`.
 
 ### Patcher slot-index handling
 
@@ -189,13 +189,13 @@ code and should be removed.
 
 - **Replaced** `schemaFormVariantSite` with `schemaFormOptions`: rather
   than emit a second `EmitOnly` Site, it returns the enclosing
-  `createIsTypeFor` / `createTypeErrorsFor` options, which `scanCall` ORs
+  `createValidateFor` / `createValidationErrorsFor` options, which `scanCall` ORs
   onto the **builder's own** injection Site before returning it. The
   builder owns the id (the only id correct for AST-harvested regex
   literals and recursively-interned schemas); the option set just rides
   along, so the emitter materialises the variant under the converged id.
 - **Kept** `isSchemaFormFactory` (resolved-signature name + package gate)
-  and `readIsTypeOptionsLiteral` (options-literal parser) — both are used
+  and `readValidateOptionsLiteral` (options-literal parser) — both are used
   by `schemaFormOptions`.
 - **Removed** the extra-Site append block in `dispatchScanFiles`'s
   callback — one Site per call again.
@@ -203,8 +203,8 @@ code and should be removed.
 > Why not delete outright (as first sketched): the overloads fix the
 > *id duplication*, but schema-form functions have no `InjectRunTypeId`
 > slot, so the scanner never sees their options on the normal path. The
-> fold is what lets a standalone `createIsTypeFor(schema, {opt})`
-> materialise its variant. Making `createIsTypeFor` itself a marker was
+> fold is what lets a standalone `createValidateFor(schema, {opt})`
+> materialise its variant. Making `createValidateFor` itself a marker was
 > tried and rejected: deriving its id from the schema's *type* loses the
 > regex `source`/`flags` (type is just `RegExp`) and diverges on
 > recursive consts.
@@ -239,13 +239,13 @@ Tests don't need to change.
 
 ### What does NOT change
 
-The bulk of the `IsTypeOptions` refactor is independent of this fix
+The bulk of the `ValidateOptions` refactor is independent of this fix
 and stays as-is:
 
 - The variant fan-out in [module.go](../internal/compiled/typefns/module.go)
-  (`collectIsTypeVariants`, the per-(typeid, variant) inner loop,
+  (`collectValidateVariants`, the per-(typeid, variant) inner loop,
   variant cache-key construction).
-- The `IsTypeVariantSuffix` table in
+- The `ValidateVariantSuffix` table in
   [constants.go](../internal/constants/constants.go) and its JS
   mirror.
 - The JS-side `buildVariantKey` / `lookupRTFn` variant arg in
@@ -280,16 +280,16 @@ and stays as-is:
 
 1. Spike on one builder (`string`) in a branch. Verify TS overload
    resolution, run the full test suite, observe whether
-   `createIsTypeFor(RT.string()) === createIsType<string>()`.
+   `createValidateFor(RT.string()) === createValidate<string>()`.
 2. If green, repeat for `number`, `bigint`, `date`.
 3. Refactor `temporalBuilder` to overload the factory's return type
    per call shape (or split into six explicit two-overload exports).
 4. Run the full Go + JS test suite. The `string_array_noIsArrayCheck`
-   suite case + the `isTypeOptionsDispatch.test.ts` schema-form
+   suite case + the `validateOptionsDispatch.test.ts` schema-form
    convergence tests are the canaries.
 5. Delete the Go-side workarounds listed in §1-§3 above. Add a Go
    test that asserts `dump.Sites` contains NO `EmitOnly` entries for
    the schema-form fixtures (compile-time guard once the field is
    gone).
-6. Update [IS-TYPE-OPTIONS.md](IS-TYPE-OPTIONS.md) §3 "TO REVISIT" to
+6. Update [VALIDATE-OPTIONS.md](VALIDATE-OPTIONS.md) §3 "TO REVISIT" to
    "DONE — see [SCHEMA-FORM-TYPEID-CONVERGENCE.md]".

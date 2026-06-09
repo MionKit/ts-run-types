@@ -759,10 +759,10 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 		if !ok {
 			return RTCode{Code: "", Type: CodeNS}
 		}
-		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
-		guard := isTypeExpr
+		validateExpr := unionMemberValidateCheck(m.Resolved, ctx, v)
+		guard := validateExpr
 		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = objectGuard(v, isTypeExpr)
+			guard = objectGuard(v, validateExpr)
 		}
 		var resultExpr string
 		if layout.AtomicNeedsTuple {
@@ -820,10 +820,10 @@ func emitMergedPropPrepareSafe(mp FlatMergedProp, accessor string, ctx *EmitCont
 		if !ok {
 			return "", false
 		}
-		isTypeExpr := unionMemberIsTypeCheck(cand.Resolved, ctx, accessor)
-		guard := isTypeExpr
+		validateExpr := unionMemberValidateCheck(cand.Resolved, ctx, accessor)
+		guard := validateExpr
 		if isObjectLikeKind(cand.Resolved.Kind) {
-			guard = objectGuard(accessor, isTypeExpr)
+			guard = objectGuard(accessor, validateExpr)
 		}
 		arms = append(arms, "if ("+guard+") return ["+strconv.Itoa(i)+", "+candExpr+"];")
 	}

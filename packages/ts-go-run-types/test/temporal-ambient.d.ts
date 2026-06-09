@@ -8,7 +8,7 @@
 // `interface X` + `const X: XConstructor` (with `prototype: X`), exactly how
 // lib.esnext.temporal.d.ts declares them and how `Date` is declared.
 //
-// Keep the member surface minimal but realistic — enough that isType /
+// Keep the member surface minimal but realistic — enough that validate /
 // serialization codegen can reference toJSON()/from()/compare()/equals() and
 // the per-type getters used by mock builders.
 

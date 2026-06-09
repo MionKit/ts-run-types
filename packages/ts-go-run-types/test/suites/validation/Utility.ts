@@ -1,101 +1,101 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
-import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const UTILITY = {
   partial: {
     title: 'Partial<T> — all props become optional',
     description:
       'mion utility/partial.spec.ts — all properties become optional. Resolves to {name?: string; age?: number; createdAt?: Date}; reuses the object emit with allOptionalCode array-rejection guard.',
-    isTypeNotes:
+    validateNotes:
       'Resolves to an all-optional object shape, so the `allOptionalCode` guard kicks in: arrays, Date, Map, Set, RegExp are rejected at the top level even though `{}` is valid. Present properties still run their atomic checks (Invalid Date in `createdAt` fails).',
-    isType: () => {
+    validate: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createIsType<Partial<Person>>();
+      return createValidate<Partial<Person>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createIsType<DataOnly<Partial<Person>>>();
+      return createValidate<DataOnly<Partial<Person>>>();
     },
-    isTypeSchema: () => createIsType(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
+    deserializeValidate: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return deserializeIsType<Partial<Person>>();
+      return deserializeValidate<Partial<Person>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Partial<Person> = {};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Partial<Person> = {};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createGetTypeErrors<Partial<Person>>();
+      return createGetValidationErrors<Partial<Person>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createGetTypeErrors<DataOnly<Partial<Person>>>();
+      return createGetValidationErrors<DataOnly<Partial<Person>>>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
+    deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return deserializeGetTypeErrors<Partial<Person>>();
+      return deserializeGetValidationErrors<Partial<Person>>();
     },
-    getTypeErrorsReflect: () => {
-      interface Person {
-        name: string;
-        age: number;
-        createdAt: Date;
-      }
-      const v: Partial<Person> = {};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Partial<Person> = {};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      const v: Partial<Person> = {};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Person {
@@ -151,97 +151,97 @@ export const UTILITY = {
     title: 'Required<T> — all optional props become required',
     description:
       'mion utility/required.spec.ts — all properties become required. Resolves to a plain object literal; reuses the object emit.',
-    isType: () => {
+    validate: () => {
       interface MaybePerson {
         name?: string;
         age?: number;
         createdAt?: Date;
       }
-      return createIsType<Required<MaybePerson>>();
+      return createValidate<Required<MaybePerson>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface MaybePerson {
         name?: string;
         age?: number;
         createdAt?: Date;
       }
-      return createIsType<DataOnly<Required<MaybePerson>>>();
+      return createValidate<DataOnly<Required<MaybePerson>>>();
     },
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.required(RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())}))
       ),
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface MaybePerson {
         name?: string;
         age?: number;
         createdAt?: Date;
       }
-      return deserializeIsType<Required<MaybePerson>>();
+      return deserializeValidate<Required<MaybePerson>>();
     },
-    isTypeReflect: () => {
-      interface MaybePerson {
-        name?: string;
-        age?: number;
-        createdAt?: Date;
-      }
-      const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface MaybePerson {
         name?: string;
         age?: number;
         createdAt?: Date;
       }
       const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface MaybePerson {
         name?: string;
         age?: number;
         createdAt?: Date;
       }
-      return createGetTypeErrors<Required<MaybePerson>>();
+      const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface MaybePerson {
         name?: string;
         age?: number;
         createdAt?: Date;
       }
-      return createGetTypeErrors<DataOnly<Required<MaybePerson>>>();
+      return createGetValidationErrors<Required<MaybePerson>>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsDataOnly: () => {
+      interface MaybePerson {
+        name?: string;
+        age?: number;
+        createdAt?: Date;
+      }
+      return createGetValidationErrors<DataOnly<Required<MaybePerson>>>();
+    },
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.required(RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())}))
       ),
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface MaybePerson {
         name?: string;
         age?: number;
         createdAt?: Date;
       }
-      return deserializeGetTypeErrors<Required<MaybePerson>>();
+      return deserializeGetValidationErrors<Required<MaybePerson>>();
     },
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface MaybePerson {
         name?: string;
         age?: number;
         createdAt?: Date;
       }
       const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       interface MaybePerson {
         name?: string;
         age?: number;
         createdAt?: Date;
       }
       const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface MaybePerson {
@@ -296,95 +296,95 @@ export const UTILITY = {
   pick: {
     title: 'Pick<T, K> — keeps only the named properties',
     description: 'mion utility/pick.spec.ts — selects a subset of properties. Resolves to {name: string; createdAt: Date}.',
-    isTypeNotes:
+    validateNotes:
       'Resolves to a fixed-property object with only the picked keys. Extra properties on the input still pass (structural typing).',
-    isType: () => {
+    validate: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createIsType<Pick<Person, 'name' | 'createdAt'>>();
+      return createValidate<Pick<Person, 'name' | 'createdAt'>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createIsType<DataOnly<Pick<Person, 'name' | 'createdAt'>>>();
+      return createValidate<DataOnly<Pick<Person, 'name' | 'createdAt'>>>();
     },
-    isTypeSchema: () =>
-      createIsType(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name', 'createdAt'])),
-    deserializeIsType: () => {
+    validateSchema: () =>
+      createValidate(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name', 'createdAt'])),
+    deserializeValidate: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return deserializeIsType<Pick<Person, 'name' | 'createdAt'>>();
+      return deserializeValidate<Pick<Person, 'name' | 'createdAt'>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createGetTypeErrors<Pick<Person, 'name' | 'createdAt'>>();
+      return createGetValidationErrors<Pick<Person, 'name' | 'createdAt'>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createGetTypeErrors<DataOnly<Pick<Person, 'name' | 'createdAt'>>>();
+      return createGetValidationErrors<DataOnly<Pick<Person, 'name' | 'createdAt'>>>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name', 'createdAt'])),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name', 'createdAt'])),
+    deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return deserializeGetTypeErrors<Pick<Person, 'name' | 'createdAt'>>();
+      return deserializeGetValidationErrors<Pick<Person, 'name' | 'createdAt'>>();
     },
-    getTypeErrorsReflect: () => {
-      interface Person {
-        name: string;
-        age: number;
-        createdAt: Date;
-      }
-      const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Person {
@@ -431,94 +431,94 @@ export const UTILITY = {
   omit: {
     title: 'Omit<T, K> — drops the named properties',
     description: 'mion utility/omit.spec.ts — removes selected properties. Resolves to {name: string; createdAt: Date}.',
-    isTypeNotes:
+    validateNotes:
       'Resolves to the original shape minus the omitted keys. The omitted property can still appear on the input — structural typing accepts extras.',
-    isType: () => {
+    validate: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createIsType<Omit<Person, 'age'>>();
+      return createValidate<Omit<Person, 'age'>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createIsType<DataOnly<Omit<Person, 'age'>>>();
+      return createValidate<DataOnly<Omit<Person, 'age'>>>();
     },
-    isTypeSchema: () => createIsType(RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['age'])),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['age'])),
+    deserializeValidate: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return deserializeIsType<Omit<Person, 'age'>>();
+      return deserializeValidate<Omit<Person, 'age'>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createGetTypeErrors<Omit<Person, 'age'>>();
+      return createGetValidationErrors<Omit<Person, 'age'>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createGetTypeErrors<DataOnly<Omit<Person, 'age'>>>();
+      return createGetValidationErrors<DataOnly<Omit<Person, 'age'>>>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['age'])),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['age'])),
+    deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return deserializeGetTypeErrors<Omit<Person, 'age'>>();
+      return deserializeGetValidationErrors<Omit<Person, 'age'>>();
     },
-    getTypeErrorsReflect: () => {
-      interface Person {
-        name: string;
-        age: number;
-        createdAt: Date;
-      }
-      const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Person {
@@ -556,33 +556,33 @@ export const UTILITY = {
   exclude_atomic: {
     title: 'Exclude<U, X> on a string-literal union',
     description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
-    isType: () => createIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Exclude<'name' | 'age' | 'createdAt', 'age'>>>(),
-    isTypeSchema: () =>
-      createIsType(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]), RT.literal('age'))),
-    deserializeIsType: () => deserializeIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+    validateDataOnly: () => createValidate<DataOnly<Exclude<'name' | 'age' | 'createdAt', 'age'>>>(),
+    validateSchema: () =>
+      createValidate(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]), RT.literal('age'))),
+    deserializeValidate: () => deserializeValidate<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+    validateReflect: () => {
       const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Exclude<'name' | 'age' | 'createdAt', 'age'>>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () => createGetValidationErrors<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Exclude<'name' | 'age' | 'createdAt', 'age'>>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]), RT.literal('age'))
       ),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
-    getTypeErrorsReflect: () => {
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+    getValidationErrorsReflect: () => {
       const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
     mockTypeReflect: () => {
@@ -609,41 +609,41 @@ export const UTILITY = {
     title: 'Extract<U, X> on a string-literal union',
     description:
       'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
-    isType: () => createIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
-    isTypeSchema: () =>
-      createIsType(
+    validate: () => createValidate<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+    validateDataOnly: () => createValidate<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
+    validateSchema: () =>
+      createValidate(
         RT.extract(
           RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]),
           RT.union([RT.literal('name'), RT.literal('createdAt')])
         )
       ),
-    deserializeIsType: () => deserializeIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-    isTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+    validateReflect: () => {
       const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () => createGetValidationErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.extract(
           RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]),
           RT.union([RT.literal('name'), RT.literal('createdAt')])
         )
       ),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-    getTypeErrorsReflect: () => {
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+    getValidationErrorsReflect: () => {
       const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     mockTypeReflect: () => {
@@ -669,22 +669,22 @@ export const UTILITY = {
   exclude_from_object_union: {
     title: 'Exclude<U, X> on a discriminated object union',
     description: 'mion utility/exclude.spec.ts (object union) — excludes object members from a discriminated union.',
-    isType: () => {
+    validate: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
-      return createIsType<Exclude<Shape, {kind: 'circle'}>>();
+      return createValidate<Exclude<Shape, {kind: 'circle'}>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
-      return createIsType<DataOnly<Exclude<Shape, {kind: 'circle'}>>>();
+      return createValidate<DataOnly<Exclude<Shape, {kind: 'circle'}>>>();
     },
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.exclude(
           RT.union([
             RT.object({kind: RT.literal('circle'), radius: RT.number()}),
@@ -694,45 +694,45 @@ export const UTILITY = {
           RT.object({kind: RT.literal('circle')})
         )
       ),
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
-      return deserializeIsType<Exclude<Shape, {kind: 'circle'}>>();
+      return deserializeValidate<Exclude<Shape, {kind: 'circle'}>>();
     },
-    isTypeReflect: () => {
-      type Shape =
-        | {kind: 'circle'; radius: number}
-        | {kind: 'square'; x: number}
-        | {kind: 'triangle'; base: number; height: number};
-      const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
       const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
-      return createGetTypeErrors<Exclude<Shape, {kind: 'circle'}>>();
+      const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
-      return createGetTypeErrors<DataOnly<Exclude<Shape, {kind: 'circle'}>>>();
+      return createGetValidationErrors<Exclude<Shape, {kind: 'circle'}>>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsDataOnly: () => {
+      type Shape =
+        | {kind: 'circle'; radius: number}
+        | {kind: 'square'; x: number}
+        | {kind: 'triangle'; base: number; height: number};
+      return createGetValidationErrors<DataOnly<Exclude<Shape, {kind: 'circle'}>>>();
+    },
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.exclude(
           RT.union([
             RT.object({kind: RT.literal('circle'), radius: RT.number()}),
@@ -742,28 +742,28 @@ export const UTILITY = {
           RT.object({kind: RT.literal('circle')})
         )
       ),
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
-      return deserializeGetTypeErrors<Exclude<Shape, {kind: 'circle'}>>();
+      return deserializeGetValidationErrors<Exclude<Shape, {kind: 'circle'}>>();
     },
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
       const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
       const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type Shape =
@@ -809,31 +809,31 @@ export const UTILITY = {
   non_nullable: {
     title: 'NonNullable<T> — strips null and undefined from a union',
     description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
-    isType: () => createIsType<NonNullable<string | number | null | undefined>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<NonNullable<string | number | null | undefined>>>(),
-    isTypeSchema: () =>
-      createIsType(RT.nonNullable(RT.union([RT.string(), RT.number(), RT.literal(null), RT.literal(undefined)]))),
-    deserializeIsType: () => deserializeIsType<NonNullable<string | number | null | undefined>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<NonNullable<string | number | null | undefined>>(),
+    validateDataOnly: () => createValidate<DataOnly<NonNullable<string | number | null | undefined>>>(),
+    validateSchema: () =>
+      createValidate(RT.nonNullable(RT.union([RT.string(), RT.number(), RT.literal(null), RT.literal(undefined)]))),
+    deserializeValidate: () => deserializeValidate<NonNullable<string | number | null | undefined>>(),
+    validateReflect: () => {
       const v: NonNullable<string | number | null | undefined> = 'hello';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: NonNullable<string | number | null | undefined> = 'hello';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<NonNullable<string | number | null | undefined>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<NonNullable<string | number | null | undefined>>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.nonNullable(RT.union([RT.string(), RT.number(), RT.literal(null), RT.literal(undefined)]))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<NonNullable<string | number | null | undefined>>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<NonNullable<string | number | null | undefined>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<NonNullable<string | number | null | undefined>>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.nonNullable(RT.union([RT.string(), RT.number(), RT.literal(null), RT.literal(undefined)]))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<NonNullable<string | number | null | undefined>>(),
+    getValidationErrorsReflect: () => {
       const v: NonNullable<string | number | null | undefined> = 'hello';
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: NonNullable<string | number | null | undefined> = 'hello';
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<NonNullable<string | number | null | undefined>>(),
     mockTypeReflect: () => {
@@ -858,51 +858,51 @@ export const UTILITY = {
   return_type: {
     title: 'ReturnType<F> — extracts the return type of a function',
     description: "mion utility/params-return.spec.ts — extracts a function's return type. Resolves to Date.",
-    isType: () => {
+    validate: () => {
       type Fn = (a: number, b: boolean) => Date;
-      return createIsType<ReturnType<Fn>>();
+      return createValidate<ReturnType<Fn>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type Fn = (a: number, b: boolean) => Date;
-      return createIsType<DataOnly<ReturnType<Fn>>>();
+      return createValidate<DataOnly<ReturnType<Fn>>>();
     },
-    isTypeSchema: () => createIsType(RT.returnType(RT.func([RT.number(), RT.boolean()], RT.date()))),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.returnType(RT.func([RT.number(), RT.boolean()], RT.date()))),
+    deserializeValidate: () => {
       type Fn = (a: number, b: boolean) => Date;
-      return deserializeIsType<ReturnType<Fn>>();
+      return deserializeValidate<ReturnType<Fn>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       type Fn = (a: number, b: boolean) => Date;
       const v: ReturnType<Fn> = new Date();
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       type Fn = (a: number, b: boolean) => Date;
       const v: ReturnType<Fn> = new Date();
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       type Fn = (a: number, b: boolean) => Date;
-      return createGetTypeErrors<ReturnType<Fn>>();
+      return createGetValidationErrors<ReturnType<Fn>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       type Fn = (a: number, b: boolean) => Date;
-      return createGetTypeErrors<DataOnly<ReturnType<Fn>>>();
+      return createGetValidationErrors<DataOnly<ReturnType<Fn>>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.returnType(RT.func([RT.number(), RT.boolean()], RT.date()))),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.returnType(RT.func([RT.number(), RT.boolean()], RT.date()))),
+    deserializeGetValidationErrors: () => {
       type Fn = (a: number, b: boolean) => Date;
-      return deserializeGetTypeErrors<ReturnType<Fn>>();
+      return deserializeGetValidationErrors<ReturnType<Fn>>();
     },
-    getTypeErrorsReflect: () => {
-      type Fn = (a: number, b: boolean) => Date;
-      const v: ReturnType<Fn> = new Date();
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type Fn = (a: number, b: boolean) => Date;
       const v: ReturnType<Fn> = new Date();
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type Fn = (a: number, b: boolean) => Date;
+      const v: ReturnType<Fn> = new Date();
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type Fn = (a: number, b: boolean) => Date;
@@ -933,81 +933,81 @@ export const UTILITY = {
     title: 'Readonly<T> — readonly bit erased at runtime',
     description:
       'Readonly<T> marks properties readonly at the TS layer; the readonly bit is erased at runtime so the validator behaves identically to the source object. Regression check.',
-    isType: () => {
+    validate: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return createIsType<Readonly<Person>>();
+      return createValidate<Readonly<Person>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return createIsType<DataOnly<Readonly<Person>>>();
+      return createValidate<DataOnly<Readonly<Person>>>();
     },
-    isTypeSchema: () => createIsType(RT.readonly(RT.object({name: RT.string(), age: RT.number()}))),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.readonly(RT.object({name: RT.string(), age: RT.number()}))),
+    deserializeValidate: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return deserializeIsType<Readonly<Person>>();
+      return deserializeValidate<Readonly<Person>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       interface Person {
         name: string;
         age: number;
       }
       const v: Readonly<Person> = {name: 'John', age: 30};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       interface Person {
         name: string;
         age: number;
       }
       const v: Readonly<Person> = {name: 'John', age: 30};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return createGetTypeErrors<Readonly<Person>>();
+      return createGetValidationErrors<Readonly<Person>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return createGetTypeErrors<DataOnly<Readonly<Person>>>();
+      return createGetValidationErrors<DataOnly<Readonly<Person>>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.readonly(RT.object({name: RT.string(), age: RT.number()}))),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.readonly(RT.object({name: RT.string(), age: RT.number()}))),
+    deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return deserializeGetTypeErrors<Readonly<Person>>();
+      return deserializeGetValidationErrors<Readonly<Person>>();
     },
-    getTypeErrorsReflect: () => {
-      interface Person {
-        name: string;
-        age: number;
-      }
-      const v: Readonly<Person> = {name: 'John', age: 30};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Person {
         name: string;
         age: number;
       }
       const v: Readonly<Person> = {name: 'John', age: 30};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface Person {
+        name: string;
+        age: number;
+      }
+      const v: Readonly<Person> = {name: 'John', age: 30};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Person {
@@ -1056,105 +1056,105 @@ export const UTILITY = {
     title: 'Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)',
     description:
       'Intersection that flips a property\'s optionality — `Partial<Person>` makes all props optional, then `& Required<Pick<Person, "name">>` re-requires only `name`. tsgo resolves the intersection to {name: string; age?: number; createdAt?: Date}; reuses the object emit.',
-    isTypeNotes:
+    validateNotes:
       "Intersections of utility types resolve at the type-checker layer to a single flat object shape. Use this pattern to flip a specific property's optionality without re-declaring the whole type.",
-    isType: () => {
+    validate: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createIsType<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      return createValidate<Partial<Person> & Required<Pick<Person, 'name'>>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createIsType<DataOnly<Partial<Person> & Required<Pick<Person, 'name'>>>>();
+      return createValidate<DataOnly<Partial<Person> & Required<Pick<Person, 'name'>>>>();
     },
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.intersection(
           RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()})),
           RT.required(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name']))
         )
       ),
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return deserializeIsType<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      return deserializeValidate<Partial<Person> & Required<Pick<Person, 'name'>>>();
     },
-    isTypeReflect: () => {
-      interface Person {
-        name: string;
-        age: number;
-        createdAt: Date;
-      }
-      const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createGetTypeErrors<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createGetTypeErrors<DataOnly<Partial<Person> & Required<Pick<Person, 'name'>>>>();
+      return createGetValidationErrors<Partial<Person> & Required<Pick<Person, 'name'>>>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createGetValidationErrors<DataOnly<Partial<Person> & Required<Pick<Person, 'name'>>>>();
+    },
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.intersection(
           RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()})),
           RT.required(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name']))
         )
       ),
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return deserializeGetTypeErrors<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      return deserializeGetValidationErrors<Partial<Person> & Required<Pick<Person, 'name'>>>();
     },
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Person {
@@ -1206,30 +1206,30 @@ export const UTILITY = {
   omit_keeping_optional: {
     title: 'Omit<T, K> preserves optionality of remaining props',
     description: 'Omit preserves the optionality of remaining properties — resolves to {b?: number; c: boolean}.',
-    isType: () => createIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
-    isTypeSchema: () => createIsType(RT.omit(RT.object({a: RT.string(), b: RT.optional(RT.number()), c: RT.boolean()}), ['a'])),
-    deserializeIsType: () => deserializeIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+    validateDataOnly: () => createValidate<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
+    validateSchema: () => createValidate(RT.omit(RT.object({a: RT.string(), b: RT.optional(RT.number()), c: RT.boolean()}), ['a'])),
+    deserializeValidate: () => deserializeValidate<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+    validateReflect: () => {
       const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.omit(RT.object({a: RT.string(), b: RT.optional(RT.number()), c: RT.boolean()}), ['a'])),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.omit(RT.object({a: RT.string(), b: RT.optional(RT.number()), c: RT.boolean()}), ['a'])),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+    getValidationErrorsReflect: () => {
       const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     mockTypeReflect: () => {
@@ -1259,93 +1259,93 @@ export const UTILITY = {
     title: 'keyof T — resolves to a union of string-literal keys',
     description:
       '`keyof Person` where Person has `name: string; age: number; createdAt: Date` resolves to the union `"name" | "age" | "createdAt"`. The validator is the union of three string literals.',
-    isTypeNotes:
+    validateNotes:
       '`keyof T` is resolved at the type-checker layer to a union of the prop names as literals. Validation is identical to a hand-written string literal union.',
-    isType: () => {
+    validate: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createIsType<keyof Person>();
+      return createValidate<keyof Person>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createIsType<DataOnly<keyof Person>>();
+      return createValidate<DataOnly<keyof Person>>();
     },
-    isTypeSchema: () => createIsType(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
+    deserializeValidate: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return deserializeIsType<keyof Person>();
+      return deserializeValidate<keyof Person>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: keyof Person = 'name';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: keyof Person = 'name';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createGetTypeErrors<keyof Person>();
+      return createGetValidationErrors<keyof Person>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return createGetTypeErrors<DataOnly<keyof Person>>();
+      return createGetValidationErrors<DataOnly<keyof Person>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
+    deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
-      return deserializeGetTypeErrors<keyof Person>();
+      return deserializeGetValidationErrors<keyof Person>();
     },
-    getTypeErrorsReflect: () => {
-      interface Person {
-        name: string;
-        age: number;
-        createdAt: Date;
-      }
-      const v: keyof Person = 'name';
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Person {
         name: string;
         age: number;
         createdAt: Date;
       }
       const v: keyof Person = 'name';
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      const v: keyof Person = 'name';
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Person {
@@ -1383,49 +1383,49 @@ export const UTILITY = {
     title: 'typeof variable — type query on a runtime value',
     description:
       "`typeof config` where `config` is a bound value resolves to the value's static type. Without `as const` the type is widened (`url: string`, `port: number`); with `as const` it pins to literals. This case verifies the widened path.",
-    isTypeNotes:
+    validateNotes:
       '`typeof <variable>` reads the declared / inferred type of a value. Validation runs against the resolved shape; the value itself is discarded at type-check time.',
-    isType: () => {
+    validate: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return createIsType<typeof config>();
+      return createValidate<typeof config>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return createIsType<DataOnly<typeof config>>();
+      return createValidate<DataOnly<typeof config>>();
     },
-    isTypeSchema: () => createIsType(RT.object({url: RT.string(), port: RT.number()})),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.object({url: RT.string(), port: RT.number()})),
+    deserializeValidate: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return deserializeIsType<typeof config>();
+      return deserializeValidate<typeof config>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return createIsType(config);
+      return createValidate(config);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return deserializeIsType(config);
+      return deserializeValidate(config);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return createGetTypeErrors<typeof config>();
+      return createGetValidationErrors<typeof config>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return createGetTypeErrors<DataOnly<typeof config>>();
+      return createGetValidationErrors<DataOnly<typeof config>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({url: RT.string(), port: RT.number()})),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({url: RT.string(), port: RT.number()})),
+    deserializeGetValidationErrors: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return deserializeGetTypeErrors<typeof config>();
+      return deserializeGetValidationErrors<typeof config>();
     },
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return createGetTypeErrors(config);
+      return createGetValidationErrors(config);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return deserializeGetTypeErrors(config);
+      return deserializeGetValidationErrors(config);
     },
     mockType: () => {
       const config = {url: 'http://example.com', port: 8080};
@@ -1461,81 +1461,81 @@ export const UTILITY = {
     title: 'Indexed access type — Person["name"] resolves to string',
     description:
       '`T[K]` reads the value type of a property. `Person["name"]` resolves to `string` at the type-checker layer; the validator is identical to the atomic `string` shape. Pins the resolution path through the cache.',
-    isType: () => {
+    validate: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return createIsType<Person['name']>();
+      return createValidate<Person['name']>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return createIsType<DataOnly<Person['name']>>();
+      return createValidate<DataOnly<Person['name']>>();
     },
-    isTypeSchema: () => createIsType(RT.string()),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.string()),
+    deserializeValidate: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return deserializeIsType<Person['name']>();
+      return deserializeValidate<Person['name']>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       interface Person {
         name: string;
         age: number;
       }
       const v: Person['name'] = 'x';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       interface Person {
         name: string;
         age: number;
       }
       const v: Person['name'] = 'x';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return createGetTypeErrors<Person['name']>();
+      return createGetValidationErrors<Person['name']>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return createGetTypeErrors<DataOnly<Person['name']>>();
+      return createGetValidationErrors<DataOnly<Person['name']>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string()),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string()),
+    deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
         age: number;
       }
-      return deserializeGetTypeErrors<Person['name']>();
+      return deserializeGetValidationErrors<Person['name']>();
     },
-    getTypeErrorsReflect: () => {
-      interface Person {
-        name: string;
-        age: number;
-      }
-      const v: Person['name'] = 'x';
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Person {
         name: string;
         age: number;
       }
       const v: Person['name'] = 'x';
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface Person {
+        name: string;
+        age: number;
+      }
+      const v: Person['name'] = 'x';
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Person {
@@ -1568,51 +1568,51 @@ export const UTILITY = {
     title: 'Conditional type — T extends string ? boolean : number',
     description:
       '`T extends U ? X : Y` resolves at the type-checker layer to either X or Y depending on T. `IsString<"hello">` resolves to `boolean` here. Validation pins that the conditional threads through to the resolved shape.',
-    isType: () => {
+    validate: () => {
       type IsString<T> = T extends string ? boolean : number;
-      return createIsType<IsString<'hello'>>();
+      return createValidate<IsString<'hello'>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type IsString<T> = T extends string ? boolean : number;
-      return createIsType<DataOnly<IsString<'hello'>>>();
+      return createValidate<DataOnly<IsString<'hello'>>>();
     },
-    isTypeSchema: () => createIsType(RT.boolean()),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.boolean()),
+    deserializeValidate: () => {
       type IsString<T> = T extends string ? boolean : number;
-      return deserializeIsType<IsString<'hello'>>();
+      return deserializeValidate<IsString<'hello'>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       type IsString<T> = T extends string ? boolean : number;
       const v: IsString<'hello'> = true;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       type IsString<T> = T extends string ? boolean : number;
       const v: IsString<'hello'> = true;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       type IsString<T> = T extends string ? boolean : number;
-      return createGetTypeErrors<IsString<'hello'>>();
+      return createGetValidationErrors<IsString<'hello'>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       type IsString<T> = T extends string ? boolean : number;
-      return createGetTypeErrors<DataOnly<IsString<'hello'>>>();
+      return createGetValidationErrors<DataOnly<IsString<'hello'>>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.boolean()),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.boolean()),
+    deserializeGetValidationErrors: () => {
       type IsString<T> = T extends string ? boolean : number;
-      return deserializeGetTypeErrors<IsString<'hello'>>();
+      return deserializeGetValidationErrors<IsString<'hello'>>();
     },
-    getTypeErrorsReflect: () => {
-      type IsString<T> = T extends string ? boolean : number;
-      const v: IsString<'hello'> = true;
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type IsString<T> = T extends string ? boolean : number;
       const v: IsString<'hello'> = true;
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type IsString<T> = T extends string ? boolean : number;
+      const v: IsString<'hello'> = true;
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type IsString<T> = T extends string ? boolean : number;
@@ -1641,95 +1641,95 @@ export const UTILITY = {
     title: 'Custom mapped type — {[K in keyof T]: T[K] | null}',
     description:
       'A user-authored mapped type that augments every prop with `| null`. Tests that resolver + emit thread custom mapped types correctly; Partial / Required / Pick etc. exercise the same machinery via the built-in utility paths.',
-    isType: () => {
+    validate: () => {
       interface Source {
         a: string;
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
-      return createIsType<Nullable<Source>>();
+      return createValidate<Nullable<Source>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Source {
         a: string;
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
-      return createIsType<DataOnly<Nullable<Source>>>();
+      return createValidate<DataOnly<Nullable<Source>>>();
     },
-    isTypeSchema: () =>
-      createIsType(RT.object({a: RT.union([RT.string(), RT.literal(null)]), b: RT.union([RT.number(), RT.literal(null)])})),
-    deserializeIsType: () => {
+    validateSchema: () =>
+      createValidate(RT.object({a: RT.union([RT.string(), RT.literal(null)]), b: RT.union([RT.number(), RT.literal(null)])})),
+    deserializeValidate: () => {
       interface Source {
         a: string;
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
-      return deserializeIsType<Nullable<Source>>();
+      return deserializeValidate<Nullable<Source>>();
     },
-    isTypeReflect: () => {
-      interface Source {
-        a: string;
-        b: number;
-      }
-      type Nullable<T> = {[K in keyof T]: T[K] | null};
-      const v: Nullable<Source> = {a: 'x', b: 1};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface Source {
         a: string;
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
       const v: Nullable<Source> = {a: 'x', b: 1};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface Source {
         a: string;
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
-      return createGetTypeErrors<Nullable<Source>>();
+      const v: Nullable<Source> = {a: 'x', b: 1};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface Source {
         a: string;
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
-      return createGetTypeErrors<DataOnly<Nullable<Source>>>();
+      return createGetValidationErrors<Nullable<Source>>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsDataOnly: () => {
+      interface Source {
+        a: string;
+        b: number;
+      }
+      type Nullable<T> = {[K in keyof T]: T[K] | null};
+      return createGetValidationErrors<DataOnly<Nullable<Source>>>();
+    },
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.object({a: RT.union([RT.string(), RT.literal(null)]), b: RT.union([RT.number(), RT.literal(null)])})
       ),
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface Source {
         a: string;
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
-      return deserializeGetTypeErrors<Nullable<Source>>();
+      return deserializeGetValidationErrors<Nullable<Source>>();
     },
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Source {
         a: string;
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
       const v: Nullable<Source> = {a: 'x', b: 1};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       interface Source {
         a: string;
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
       const v: Nullable<Source> = {a: 'x', b: 1};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Source {
@@ -1778,9 +1778,9 @@ export const UTILITY = {
     title: 'Mapped type whose value is a conditional — per-prop shape diverges',
     description:
       '`{[K in keyof T]: FieldFor<T[K]>}` where `FieldFor<X>` is a conditional that produces a different object shape for each input type. The resolver evaluates the conditional per prop at the type-checker layer, so each prop ends up with its own concrete (and different) validator. Stress-tests the "two-different-validations-from-one-mapping" pattern.',
-    isTypeNotes:
+    validateNotes:
       'Each prop ends up with a structurally distinct shape — `name` validates as a text field, `age` as a number field, `admin` as a checkbox. The validator emits independent per-prop checks.',
-    isType: () => {
+    validate: () => {
       type FieldFor<T> = T extends string
         ? {kind: 'text'; value: string}
         : T extends number
@@ -1794,9 +1794,9 @@ export const UTILITY = {
         admin: boolean;
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-      return createIsType<UserForm>();
+      return createValidate<UserForm>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type FieldFor<T> = T extends string
         ? {kind: 'text'; value: string}
         : T extends number
@@ -1810,17 +1810,17 @@ export const UTILITY = {
         admin: boolean;
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-      return createIsType<DataOnly<UserForm>>();
+      return createValidate<DataOnly<UserForm>>();
     },
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.object({
           name: RT.object({kind: RT.literal('text'), value: RT.string()}),
           age: RT.object({kind: RT.literal('number'), value: RT.number(), min: RT.optional(RT.number())}),
           admin: RT.object({kind: RT.literal('checkbox'), value: RT.boolean()}),
         })
       ),
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       type FieldFor<T> = T extends string
         ? {kind: 'text'; value: string}
         : T extends number
@@ -1834,30 +1834,9 @@ export const UTILITY = {
         admin: boolean;
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-      return deserializeIsType<UserForm>();
+      return deserializeValidate<UserForm>();
     },
-    isTypeReflect: () => {
-      type FieldFor<T> = T extends string
-        ? {kind: 'text'; value: string}
-        : T extends number
-          ? {kind: 'number'; value: number; min?: number}
-          : T extends boolean
-            ? {kind: 'checkbox'; value: boolean}
-            : never;
-      interface User {
-        name: string;
-        age: number;
-        admin: boolean;
-      }
-      type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-      const v: UserForm = {
-        name: {kind: 'text', value: 'x'},
-        age: {kind: 'number', value: 1},
-        admin: {kind: 'checkbox', value: true},
-      };
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       type FieldFor<T> = T extends string
         ? {kind: 'text'; value: string}
         : T extends number
@@ -1876,9 +1855,9 @@ export const UTILITY = {
         age: {kind: 'number', value: 1},
         admin: {kind: 'checkbox', value: true},
       };
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       type FieldFor<T> = T extends string
         ? {kind: 'text'; value: string}
         : T extends number
@@ -1892,9 +1871,14 @@ export const UTILITY = {
         admin: boolean;
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-      return createGetTypeErrors<UserForm>();
+      const v: UserForm = {
+        name: {kind: 'text', value: 'x'},
+        age: {kind: 'number', value: 1},
+        admin: {kind: 'checkbox', value: true},
+      };
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       type FieldFor<T> = T extends string
         ? {kind: 'text'; value: string}
         : T extends number
@@ -1908,17 +1892,33 @@ export const UTILITY = {
         admin: boolean;
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-      return createGetTypeErrors<DataOnly<UserForm>>();
+      return createGetValidationErrors<UserForm>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsDataOnly: () => {
+      type FieldFor<T> = T extends string
+        ? {kind: 'text'; value: string}
+        : T extends number
+          ? {kind: 'number'; value: number; min?: number}
+          : T extends boolean
+            ? {kind: 'checkbox'; value: boolean}
+            : never;
+      interface User {
+        name: string;
+        age: number;
+        admin: boolean;
+      }
+      type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+      return createGetValidationErrors<DataOnly<UserForm>>();
+    },
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.object({
           name: RT.object({kind: RT.literal('text'), value: RT.string()}),
           age: RT.object({kind: RT.literal('number'), value: RT.number(), min: RT.optional(RT.number())}),
           admin: RT.object({kind: RT.literal('checkbox'), value: RT.boolean()}),
         })
       ),
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       type FieldFor<T> = T extends string
         ? {kind: 'text'; value: string}
         : T extends number
@@ -1932,9 +1932,9 @@ export const UTILITY = {
         admin: boolean;
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-      return deserializeGetTypeErrors<UserForm>();
+      return deserializeGetValidationErrors<UserForm>();
     },
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type FieldFor<T> = T extends string
         ? {kind: 'text'; value: string}
         : T extends number
@@ -1953,9 +1953,9 @@ export const UTILITY = {
         age: {kind: 'number', value: 1},
         admin: {kind: 'checkbox', value: true},
       };
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       type FieldFor<T> = T extends string
         ? {kind: 'text'; value: string}
         : T extends number
@@ -1974,7 +1974,7 @@ export const UTILITY = {
         age: {kind: 'number', value: 1},
         admin: {kind: 'checkbox', value: true},
       };
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type FieldFor<T> = T extends string
@@ -2066,51 +2066,51 @@ export const UTILITY = {
     title: 'Distributive conditional — `Wrap<string | number>` → `{w:string} | {w:number}`',
     description:
       'When a conditional type is applied to a generic union, TS distributes the conditional over each member, producing a union of the per-arm results. `T extends any ? {w: T} : never` applied to `string | number` resolves to `{w: string} | {w: number}`. Validator dispatches through the union emit.',
-    isType: () => {
+    validate: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
-      return createIsType<Wrap<string | number>>();
+      return createValidate<Wrap<string | number>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
-      return createIsType<DataOnly<Wrap<string | number>>>();
+      return createValidate<DataOnly<Wrap<string | number>>>();
     },
-    isTypeSchema: () => createIsType(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
+    deserializeValidate: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
-      return deserializeIsType<Wrap<string | number>>();
+      return deserializeValidate<Wrap<string | number>>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       const v: Wrap<string | number> = {w: 'x'};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       const v: Wrap<string | number> = {w: 'x'};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
-      return createGetTypeErrors<Wrap<string | number>>();
+      return createGetValidationErrors<Wrap<string | number>>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
-      return createGetTypeErrors<DataOnly<Wrap<string | number>>>();
+      return createGetValidationErrors<DataOnly<Wrap<string | number>>>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
+    deserializeGetValidationErrors: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
-      return deserializeGetTypeErrors<Wrap<string | number>>();
+      return deserializeGetValidationErrors<Wrap<string | number>>();
     },
-    getTypeErrorsReflect: () => {
-      type Wrap<T> = T extends any ? {w: T} : never;
-      const v: Wrap<string | number> = {w: 'x'};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       const v: Wrap<string | number> = {w: 'x'};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type Wrap<T> = T extends any ? {w: T} : never;
+      const v: Wrap<string | number> = {w: 'x'};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
@@ -2139,26 +2139,26 @@ export const UTILITY = {
     title: 'DeepPartial<T> — recursive mapped type with nested optionality',
     description:
       '`type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]}`. Recursively makes every nested object-typed property optional. The resolver evaluates the recursion at the type-checker layer; the validator sees the fully flattened all-optional-deep shape.',
-    isTypeNotes:
+    validateNotes:
       'Every nested object becomes all-optional. The `allOptionalCode` guard fires at every level so non-plain-object inputs (arrays, Date, …) are rejected even though the all-optional shape would otherwise accept them.',
-    isType: () => {
+    validate: () => {
       interface Settings {
         display: {theme: 'light' | 'dark'; brightness: number};
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-      return createIsType<DeepPartial<Settings>>();
+      return createValidate<DeepPartial<Settings>>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Settings {
         display: {theme: 'light' | 'dark'; brightness: number};
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-      return createIsType<DataOnly<DeepPartial<Settings>>>();
+      return createValidate<DataOnly<DeepPartial<Settings>>>();
     },
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.object({
           display: RT.optional(
             RT.object({
@@ -2169,50 +2169,50 @@ export const UTILITY = {
           audio: RT.optional(RT.object({volume: RT.optional(RT.number()), muted: RT.optional(RT.boolean())})),
         })
       ),
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface Settings {
         display: {theme: 'light' | 'dark'; brightness: number};
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-      return deserializeIsType<DeepPartial<Settings>>();
+      return deserializeValidate<DeepPartial<Settings>>();
     },
-    isTypeReflect: () => {
-      interface Settings {
-        display: {theme: 'light' | 'dark'; brightness: number};
-        audio: {volume: number; muted: boolean};
-      }
-      type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-      const v: DeepPartial<Settings> = {};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface Settings {
         display: {theme: 'light' | 'dark'; brightness: number};
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
       const v: DeepPartial<Settings> = {};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface Settings {
         display: {theme: 'light' | 'dark'; brightness: number};
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-      return createGetTypeErrors<DeepPartial<Settings>>();
+      const v: DeepPartial<Settings> = {};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface Settings {
         display: {theme: 'light' | 'dark'; brightness: number};
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-      return createGetTypeErrors<DataOnly<DeepPartial<Settings>>>();
+      return createGetValidationErrors<DeepPartial<Settings>>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsDataOnly: () => {
+      interface Settings {
+        display: {theme: 'light' | 'dark'; brightness: number};
+        audio: {volume: number; muted: boolean};
+      }
+      type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+      return createGetValidationErrors<DataOnly<DeepPartial<Settings>>>();
+    },
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.object({
           display: RT.optional(
             RT.object({
@@ -2223,31 +2223,31 @@ export const UTILITY = {
           audio: RT.optional(RT.object({volume: RT.optional(RT.number()), muted: RT.optional(RT.boolean())})),
         })
       ),
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface Settings {
         display: {theme: 'light' | 'dark'; brightness: number};
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-      return deserializeGetTypeErrors<DeepPartial<Settings>>();
+      return deserializeGetValidationErrors<DeepPartial<Settings>>();
     },
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Settings {
         display: {theme: 'light' | 'dark'; brightness: number};
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
       const v: DeepPartial<Settings> = {};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       interface Settings {
         display: {theme: 'light' | 'dark'; brightness: number};
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
       const v: DeepPartial<Settings> = {};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Settings {

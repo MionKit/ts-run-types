@@ -12,7 +12,7 @@ import (
 // BigIntRunTypeFormat (packages/type-formats/src/bigint/bigIntFormat.runtype.ts).
 //
 // Surface: min / max / lt / gt, multipleOf — emitted in mion's order with
-// bigint literals (`100n`). Beyond isType / typeErrors / validateParams it
+// bigint literals (`100n`). Beyond validate / validationErrors / validateParams it
 // implements formats.BinaryEncoder / BinaryDecoder: when min AND max both
 // fit signed (Int64) or unsigned (UInt64) 64-bit, the value packs into 8
 // bytes via setBigInt64 / setBigUint64; otherwise it falls back to the
@@ -37,18 +37,18 @@ func (bigintFormatEmitter) Kind() protocol.ReflectionKind {
 	return protocol.KindBigInt
 }
 
-// EmitIsTypeCheck returns the AND of every active bigint predicate, in
+// EmitValidateCheck returns the AND of every active bigint predicate, in
 // mion's emitIsType order (bigIntFormat.runtype.ts:46-79): max, min, lt,
 // gt, multipleOf — each with a `…n` literal. Returns "" when no params
 // constrain the value (host keeps its base `typeof v === 'bigint'`).
-func (bigintFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+func (bigintFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
 	return strings.Join(bigintConditions(annotation.Params, vλl), " && ")
 }
 
-// bigintConditions returns the isType boolean expressions for a bigint
+// bigintConditions returns the validate boolean expressions for a bigint
 // param map applied to `vλl`.
 func bigintConditions(params map[string]any, vλl string) []string {
 	var conditions []string
@@ -70,11 +70,11 @@ func bigintConditions(params map[string]any, vλl string) []string {
 	return conditions
 }
 
-// EmitTypeErrorsCheck emits one `if (failed) <push error>` statement per
+// EmitValidationErrorsCheck emits one `if (failed) <push error>` statement per
 // active predicate, in mion's emitIsTypeErrors order
 // (bigIntFormat.runtype.ts:81-115). The error `val` carries the bigint
 // literal (`…n`).
-func (bigintFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
+func (bigintFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}

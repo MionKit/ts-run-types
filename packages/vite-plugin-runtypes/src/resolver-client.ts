@@ -101,7 +101,7 @@ export interface ScanFilesOptions {
 // so callers can filter or group. Replacements are byte-range rewrites
 // for the user's source (pure-fn factory-arg-to-null); the plugin
 // applies them in `rewrite.ts` alongside Site insertions. runTypes /
-// runTypeCacheSource / isTypeCacheSource / pureFnsCacheSource are
+// runTypeCacheSource / validateCacheSource / pureFnsCacheSource are
 // populated only when the corresponding kind was opted into via
 // includeCacheSources (or `'all'`).
 export interface ScanFilesResult {
@@ -109,8 +109,8 @@ export interface ScanFilesResult {
   replacements?: Replacement[];
   runTypes?: RunType[];
   runTypeCacheSource?: string;
-  isTypeCacheSource?: string;
-  typeErrorsCacheSource?: string;
+  validateCacheSource?: string;
+  validationErrorsCacheSource?: string;
   prepareForJsonCacheSource?: string;
   restoreFromJsonCacheSource?: string;
   stringifyJsonCacheSource?: string;
@@ -127,8 +127,8 @@ export interface ScanFilesResult {
   diagnostics?: import('./protocol.ts').Diagnostic[];
   // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
   addedRunTypes?: boolean;
-  addedIsType?: boolean;
-  addedTypeErrors?: boolean;
+  addedValidate?: boolean;
+  addedValidationErrors?: boolean;
   addedPrepareForJson?: boolean;
   addedRestoreFromJson?: boolean;
   addedStringifyJson?: boolean;
@@ -184,8 +184,8 @@ abstract class ResolverClientBase implements ResolverConnection {
       replacements: resp.replacements,
       runTypes: resp.runTypes,
       runTypeCacheSource: resp.runTypeCacheSource,
-      isTypeCacheSource: resp.isTypeCacheSource,
-      typeErrorsCacheSource: resp.typeErrorsCacheSource,
+      validateCacheSource: resp.validateCacheSource,
+      validationErrorsCacheSource: resp.validationErrorsCacheSource,
       prepareForJsonCacheSource: resp.prepareForJsonCacheSource,
       restoreFromJsonCacheSource: resp.restoreFromJsonCacheSource,
       stringifyJsonCacheSource: resp.stringifyJsonCacheSource,
@@ -201,8 +201,8 @@ abstract class ResolverClientBase implements ResolverConnection {
       pureFnsCacheSource: resp.pureFnsCacheSource,
       diagnostics: resp.diagnostics,
       addedRunTypes: resp.addedRunTypes,
-      addedIsType: resp.addedIsType,
-      addedTypeErrors: resp.addedTypeErrors,
+      addedValidate: resp.addedValidate,
+      addedValidationErrors: resp.addedValidationErrors,
       addedPrepareForJson: resp.addedPrepareForJson,
       addedRestoreFromJson: resp.addedRestoreFromJson,
       addedStringifyJson: resp.addedStringifyJson,

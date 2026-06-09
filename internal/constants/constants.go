@@ -21,7 +21,7 @@ type CacheModuleGroup map[string]CacheModuleSettings
 // CacheModules is the registry of every emitted cache-module shape.
 //
 // `VarPrefix` is retained as the prefix the renderer uses for inner
-// closure names inside the body of an isType validator (mion's
+// closure names inside the body of an validate validator (mion's
 // printClosure convention — outer "get_<fnName>" wraps inner "<fnName>"
 // at rtFnCompiler.ts:732). After the move to the splice-based emitter
 // the prefix is NOT used to key cache entries any more: every cache is
@@ -32,13 +32,13 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "t_",
 		Tag:       "t",
 	},
-	"isType": {
-		Name:      "isTypeModule",
+	"validate": {
+		Name:      "validateModule",
 		VarPrefix: "g_it_",
 		Tag:       "it",
 	},
-	"typeErrors": {
-		Name:      "typeErrorsModule",
+	"validationErrors": {
+		Name:      "validationErrorsModule",
 		VarPrefix: "g_te_",
 		Tag:       "te",
 	},
@@ -172,45 +172,45 @@ func JsonCompositeByTag(tag string) (JsonComposite, bool) {
 	return composite, ok
 }
 
-// IsTypeOption describes one entry in the `IsTypeOptions` bag — the
-// call-site options that parameterise the generated isType / typeErrors
+// ValidateOption describes one entry in the `ValidateOptions` bag — the
+// call-site options that parameterise the generated validate / validationErrors
 // validator without affecting the structural type id. Each entry pairs
 // the option's JS-side property name with a single-letter token used to
 // build the variant cache-key suffix (`itNL_<id>`, `itNA_<id>`,
 // `itNLA_<id>`, …). The same table drives the Go scanner's option
 // extraction, the emitter's variant fan-out, and (via gen-ts-constants)
 // the JS runtime's cache-key construction.
-type IsTypeOption struct {
+type ValidateOption struct {
 	Name   string // JS property name, e.g. "noLiterals"
 	Letter string // single uppercase letter appended to the variant suffix, e.g. "L"
 }
 
-// IsTypeOptions is the ordered registry of supported `IsTypeOptions`
+// ValidateOptions is the ordered registry of supported `ValidateOptions`
 // keys. Order is load-bearing: the variant suffix concatenates letters
 // in this order so existing variant keys stay stable as new options
 // append to the tail (declaration-order, not alphabetic).
 //
 // To add a new option:
 //  1. Append an entry here.
-//  2. Add the field to `IsTypeOptions` in
+//  2. Add the field to `ValidateOptions` in
 //     packages/ts-go-run-types/src/createRTFunctions.ts.
 //  3. Teach the Go scanner to read it and the emitters to honour it.
 //  4. Regenerate the TS mirror (`pnpm run gen:ts-constants`).
-var IsTypeOptions = []IsTypeOption{
+var ValidateOptions = []ValidateOption{
 	{Name: "noLiterals", Letter: "L"},
 	{Name: "noIsArrayCheck", Letter: "A"},
 }
 
-// IsTypeVariantSuffix returns the canonical variant suffix for a sorted
-// list of option NAMES (subset of `IsTypeOptions[*].Name`). Empty input
+// ValidateVariantSuffix returns the canonical variant suffix for a sorted
+// list of option NAMES (subset of `ValidateOptions[*].Name`). Empty input
 // → empty suffix (the plain key). Unknown names are silently skipped —
 // callers (scanner / emitter) should validate ahead of time.
 //
-// The suffix shape is `N` + concatenated letters in `IsTypeOptions`
+// The suffix shape is `N` + concatenated letters in `ValidateOptions`
 // declaration order. Example: `["noLiterals", "noIsArrayCheck"]` →
 // `"NLA"`. The leading `N` ("No") disambiguates the variant prefix
 // from a plain `<tag>_<id>` key.
-func IsTypeVariantSuffix(names []string) string {
+func ValidateVariantSuffix(names []string) string {
 	if len(names) == 0 {
 		return ""
 	}
@@ -220,7 +220,7 @@ func IsTypeVariantSuffix(names []string) string {
 	}
 	suffix := "N"
 	hit := false
-	for _, opt := range IsTypeOptions {
+	for _, opt := range ValidateOptions {
 		if present[opt.Name] {
 			suffix += opt.Letter
 			hit = true

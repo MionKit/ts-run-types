@@ -70,20 +70,20 @@ type Emitter interface {
 	// rejects entries whose Kind doesn't match the host RunType.
 	Kind() protocol.ReflectionKind
 
-	// EmitIsTypeCheck returns a JS expression (no `return`) evaluating
+	// EmitValidateCheck returns a JS expression (no `return`) evaluating
 	// to true when `vλl` satisfies the format constraints in
 	// annotation.Params. ctx lets the emitter declare pure-fn
 	// dependencies + hoist alias declarations into the factory's
 	// prologue. Empty return means "no additional check beyond the
 	// base-kind validator".
-	EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx EmitContext) string
+	EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx EmitContext) string
 
-	// EmitTypeErrorsCheck returns a JS statement that, when executed,
+	// EmitValidationErrorsCheck returns a JS statement that, when executed,
 	// pushes a TypeFormatError onto the errors array (named
 	// errorsArr) for `vλl` at `pathExpr` if the value fails this
 	// format. Empty return means "no format-specific error — the
 	// caller's base-kind error path is sufficient".
-	EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx EmitContext) string
+	EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx EmitContext) string
 }
 
 // ParamValidator is an OPTIONAL Emitter capability: formats that have

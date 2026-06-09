@@ -1,6 +1,6 @@
 import type {FormatValidationCase} from './types.ts';
 import '@mionjs/ts-go-run-types/formats';
-import {createIsType, createGetTypeErrors, createMockType, registerFormatPattern, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, createMockType, registerFormatPattern, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {
   FormatString,
@@ -48,24 +48,24 @@ export const STRING_FORMAT = {
   // ─────────────────────────── FormatString ───────────────────────
   string_maxLength: {
     title: 'FormatString maxLength — bounds the upper length',
-    isType: () => createIsType<FormatString<{maxLength: 5}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{maxLength: 5}>>>(),
-    isTypeSchema: () => createIsType(RT.string({maxLength: 5})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{maxLength: 5}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatString<{maxLength: 5}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({maxLength: 5})),
+    validate: () => createValidate<FormatString<{maxLength: 5}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{maxLength: 5}>>>(),
+    validateSchema: () => createValidate(RT.string({maxLength: 5})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{maxLength: 5}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{maxLength: 5}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({maxLength: 5})),
     mockType: () => createMockType<FormatString<{maxLength: 5}>>(),
     getSamples: () => ({valid: ['', 'hello'], invalid: ['hello!', 42]}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 5}, null],
   },
   string_minLength: {
     title: 'FormatString minLength — bounds the lower length',
-    isType: () => createIsType<FormatString<{minLength: 3}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{minLength: 3}>>>(),
-    isTypeSchema: () => createIsType(RT.string({minLength: 3})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{minLength: 3}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatString<{minLength: 3}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({minLength: 3})),
+    validate: () => createValidate<FormatString<{minLength: 3}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{minLength: 3}>>>(),
+    validateSchema: () => createValidate(RT.string({minLength: 3})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{minLength: 3}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{minLength: 3}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({minLength: 3})),
     mockType: () => createMockType<FormatString<{minLength: 3}>>(),
     getSamples: () => ({valid: ['abc', 'abcd'], invalid: ['ab', '']}),
     expectedFormatErrors: () => [
@@ -75,12 +75,12 @@ export const STRING_FORMAT = {
   },
   string_length: {
     title: 'FormatString length — exact length only',
-    isType: () => createIsType<FormatString<{length: 4}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{length: 4}>>>(),
-    isTypeSchema: () => createIsType(RT.string({length: 4})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{length: 4}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatString<{length: 4}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({length: 4})),
+    validate: () => createValidate<FormatString<{length: 4}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{length: 4}>>>(),
+    validateSchema: () => createValidate(RT.string({length: 4})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{length: 4}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{length: 4}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({length: 4})),
     mockType: () => createMockType<FormatString<{length: 4}>>(),
     getSamples: () => ({valid: ['abcd'], invalid: ['abc', 'abcde']}),
     expectedFormatErrors: () => [
@@ -90,12 +90,12 @@ export const STRING_FORMAT = {
   },
   string_range: {
     title: 'FormatString minLength + maxLength — bounds both ends',
-    isType: () => createIsType<FormatString<{minLength: 2; maxLength: 4}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{minLength: 2; maxLength: 4}>>>(),
-    isTypeSchema: () => createIsType(RT.string({minLength: 2, maxLength: 4})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{minLength: 2; maxLength: 4}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatString<{minLength: 2; maxLength: 4}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({minLength: 2, maxLength: 4})),
+    validate: () => createValidate<FormatString<{minLength: 2; maxLength: 4}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{minLength: 2; maxLength: 4}>>>(),
+    validateSchema: () => createValidate(RT.string({minLength: 2, maxLength: 4})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{minLength: 2; maxLength: 4}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{minLength: 2; maxLength: 4}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({minLength: 2, maxLength: 4})),
     mockType: () => createMockType<FormatString<{minLength: 2; maxLength: 4}>>(),
     getSamples: () => ({valid: ['ab', 'abcd'], invalid: ['a', 'abcde']}),
     expectedFormatErrors: () => [
@@ -105,49 +105,49 @@ export const STRING_FORMAT = {
   },
   string_allowedChars: {
     title: 'FormatString allowedChars — only the allowed set passes',
-    isType: () => createIsType<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>>(),
-    isTypeSchema: () => createIsType(RT.string({allowedChars: {val: '0123456789abcdef'}})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({allowedChars: {val: '0123456789abcdef'}})),
+    validate: () => createValidate<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>>(),
+    validateSchema: () => createValidate(RT.string({allowedChars: {val: '0123456789abcdef'}})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedChars: {val: '0123456789abcdef'}})),
     mockType: () => createMockType<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
     getSamples: () => ({valid: ['deadbeef', '0042'], invalid: ['xyz', 'dead beef', '']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}, null, null],
   },
   string_allowedChars_ignoreCase: {
     title: 'FormatString allowedChars ignoreCase — folds case',
-    isType: () => createIsType<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>>(),
-    isTypeSchema: () => createIsType(RT.string({allowedChars: {val: 'abc', ignoreCase: true}})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({allowedChars: {val: 'abc', ignoreCase: true}})),
+    validate: () => createValidate<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>>(),
+    validateSchema: () => createValidate(RT.string({allowedChars: {val: 'abc', ignoreCase: true}})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedChars: {val: 'abc', ignoreCase: true}})),
     mockType: () => createMockType<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     getSamples: () => ({valid: ['ABC', 'aAbBcC'], invalid: ['abcd']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}],
   },
   string_allowedChars_literal: {
     title: 'FormatString allowedChars — regex-special chars treated literally',
-    isType: () => createIsType<FormatString<{allowedChars: {val: '.-'}}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{allowedChars: {val: '.-'}}>>>(),
-    isTypeSchema: () => createIsType(RT.string({allowedChars: {val: '.-'}})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{allowedChars: {val: '.-'}}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatString<{allowedChars: {val: '.-'}}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({allowedChars: {val: '.-'}})),
+    validate: () => createValidate<FormatString<{allowedChars: {val: '.-'}}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedChars: {val: '.-'}}>>>(),
+    validateSchema: () => createValidate(RT.string({allowedChars: {val: '.-'}})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{allowedChars: {val: '.-'}}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{allowedChars: {val: '.-'}}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedChars: {val: '.-'}})),
     mockType: () => createMockType<FormatString<{allowedChars: {val: '.-'}}>>(),
     getSamples: () => ({valid: ['...---'], invalid: ['a']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}],
   },
   string_disallowedChars: {
     title: 'FormatString disallowedChars — rejects any disallowed char',
-    isType: () => createIsType<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>>(),
-    isTypeSchema: () => createIsType(RT.string({disallowedChars: {val: '!@#', mockSamples: 'abc'}})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({disallowedChars: {val: '!@#', mockSamples: 'abc'}})),
+    validate: () => createValidate<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>>(),
+    validateSchema: () => createValidate(RT.string({disallowedChars: {val: '!@#', mockSamples: 'abc'}})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({disallowedChars: {val: '!@#', mockSamples: 'abc'}})),
     mockType: () => createMockType<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
     getSamples: () => ({valid: ['hello'], invalid: ['hi!', 'a@b']}),
     expectedFormatErrors: () => [
@@ -157,37 +157,37 @@ export const STRING_FORMAT = {
   },
   string_allowedValues: {
     title: 'FormatString allowedValues — enum-like exact match',
-    isType: () => createIsType<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>>(),
-    isTypeSchema: () => createIsType(RT.string({allowedValues: {val: ['red', 'green', 'blue']}})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({allowedValues: {val: ['red', 'green', 'blue']}})),
+    validate: () => createValidate<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>>(),
+    validateSchema: () => createValidate(RT.string({allowedValues: {val: ['red', 'green', 'blue']}})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedValues: {val: ['red', 'green', 'blue']}})),
     mockType: () => createMockType<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
     getSamples: () => ({valid: ['red', 'blue'], invalid: ['yellow', 'RED', 'redgreen']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}, null, null],
   },
   string_allowedValues_ignoreCase: {
     title: 'FormatString allowedValues ignoreCase — folds case across the set',
-    isType: () => createIsType<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
-    isTypeSchema: () => createIsType(RT.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
+    validate: () => createValidate<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
+    validateSchema: () => createValidate(RT.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
     mockType: () => createMockType<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     getSamples: () => ({valid: ['RED', 'Green'], invalid: ['blue']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}],
   },
   string_allowedValues_escaped: {
     title: 'FormatString allowedValues — regex-special chars matched literally',
-    isType: () => createIsType<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
-    isTypeSchema: () => createIsType(RT.string({allowedValues: {val: ['a.b', 'c+d']}})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({allowedValues: {val: ['a.b', 'c+d']}})),
+    validate: () => createValidate<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
+    validateSchema: () => createValidate(RT.string({allowedValues: {val: ['a.b', 'c+d']}})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedValues: {val: ['a.b', 'c+d']}})),
     mockType: () => createMockType<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     getSamples: () => ({valid: ['a.b', 'c+d'], invalid: ['axb', 'ccd']}),
     expectedFormatErrors: () => [
@@ -197,16 +197,16 @@ export const STRING_FORMAT = {
   },
   string_disallowedValues: {
     title: 'FormatString disallowedValues — rejects the listed values',
-    isType: () => createIsType<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>>(),
-    isTypeSchema: () => createIsType(RT.string({disallowedValues: {val: ['admin', 'root'], mockSamples: ['alice', 'bob']}})),
-    getTypeErrors: () =>
-      createGetTypeErrors<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.string({disallowedValues: {val: ['admin', 'root'], mockSamples: ['alice', 'bob']}})),
+    validate: () => createValidate<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>>(),
+    validateSchema: () => createValidate(RT.string({disallowedValues: {val: ['admin', 'root'], mockSamples: ['alice', 'bob']}})),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.string({disallowedValues: {val: ['admin', 'root'], mockSamples: ['alice', 'bob']}})),
     mockType: () => createMockType<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
     getSamples: () => ({valid: ['alice'], invalid: ['admin', 'root']}),
     expectedFormatErrors: () => [
@@ -216,13 +216,13 @@ export const STRING_FORMAT = {
   },
   string_customErrorMessage: {
     title: 'FormatString allowedValues — custom errorMessage surfaces as format.val',
-    isType: () => createIsType<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>>(),
-    isTypeSchema: () => createIsType(RT.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
-    getTypeErrors: () => createGetTypeErrors<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
+    validate: () => createValidate<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>>(),
+    validateSchema: () => createValidate(RT.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
+    getValidationErrors: () => createGetValidationErrors<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
     mockType: () => createMockType<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     getSamples: () => ({valid: ['a', 'b'], invalid: ['c']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'pick a or b'}],
@@ -231,24 +231,24 @@ export const STRING_FORMAT = {
   // ─────────────────────── Default string formats ─────────────────
   alpha: {
     title: 'FormatAlpha — letters only',
-    isType: () => createIsType<FormatAlpha>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatAlpha>>(),
-    isTypeSchema: () => createIsType(RT.alpha()),
-    getTypeErrors: () => createGetTypeErrors<FormatAlpha>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatAlpha>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.alpha()),
+    validate: () => createValidate<FormatAlpha>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatAlpha>>(),
+    validateSchema: () => createValidate(RT.alpha()),
+    getValidationErrors: () => createGetValidationErrors<FormatAlpha>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatAlpha>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.alpha()),
     mockType: () => createMockType<FormatAlpha>(),
     getSamples: () => ({valid: ['Hello', 'abcXYZ'], invalid: ['hello1', 'hi there', '']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid pattern'}, null, null],
   },
   alphaNumeric: {
     title: 'FormatAlphaNumeric — letters and digits',
-    isType: () => createIsType<FormatAlphaNumeric>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatAlphaNumeric>>(),
-    isTypeSchema: () => createIsType(RT.alphaNumeric()),
-    getTypeErrors: () => createGetTypeErrors<FormatAlphaNumeric>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatAlphaNumeric>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.alphaNumeric()),
+    validate: () => createValidate<FormatAlphaNumeric>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatAlphaNumeric>>(),
+    validateSchema: () => createValidate(RT.alphaNumeric()),
+    getValidationErrors: () => createGetValidationErrors<FormatAlphaNumeric>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatAlphaNumeric>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.alphaNumeric()),
     mockType: () => createMockType<FormatAlphaNumeric>(),
     getSamples: () => ({valid: ['abc123', 'ABC', '123'], invalid: ['a-b', 'a b']}),
     expectedFormatErrors: () => [
@@ -258,12 +258,12 @@ export const STRING_FORMAT = {
   },
   numeric: {
     title: 'FormatNumeric — digits only',
-    isType: () => createIsType<FormatNumeric>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatNumeric>>(),
-    isTypeSchema: () => createIsType(RT.numeric()),
-    getTypeErrors: () => createGetTypeErrors<FormatNumeric>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatNumeric>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.numeric()),
+    validate: () => createValidate<FormatNumeric>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatNumeric>>(),
+    validateSchema: () => createValidate(RT.numeric()),
+    getValidationErrors: () => createGetValidationErrors<FormatNumeric>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatNumeric>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.numeric()),
     mockType: () => createMockType<FormatNumeric>(),
     getSamples: () => ({valid: ['12345', '007'], invalid: ['12.3', '12a']}),
     expectedFormatErrors: () => [
@@ -273,12 +273,12 @@ export const STRING_FORMAT = {
   },
   alpha_withLength: {
     title: 'FormatAlpha with maxLength — char class plus length bound',
-    isType: () => createIsType<FormatAlpha<{maxLength: 3}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatAlpha<{maxLength: 3}>>>(),
-    isTypeSchema: () => createIsType(RT.alpha({maxLength: 3})),
-    getTypeErrors: () => createGetTypeErrors<FormatAlpha<{maxLength: 3}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatAlpha<{maxLength: 3}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.alpha({maxLength: 3})),
+    validate: () => createValidate<FormatAlpha<{maxLength: 3}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatAlpha<{maxLength: 3}>>>(),
+    validateSchema: () => createValidate(RT.alpha({maxLength: 3})),
+    getValidationErrors: () => createGetValidationErrors<FormatAlpha<{maxLength: 3}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatAlpha<{maxLength: 3}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.alpha({maxLength: 3})),
     mockType: () => createMockType<FormatAlpha<{maxLength: 3}>>(),
     getSamples: () => ({valid: ['abc'], invalid: ['abcd', 'a1']}),
     expectedFormatErrors: () => [
@@ -288,12 +288,12 @@ export const STRING_FORMAT = {
   },
   lowercase_validate: {
     title: 'FormatLowercase — transformer-only, validates as a plain string',
-    isType: () => createIsType<FormatLowercase>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatLowercase>>(),
-    isTypeSchema: () => createIsType(RT.lowercase()),
-    getTypeErrors: () => createGetTypeErrors<FormatLowercase>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatLowercase>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.lowercase()),
+    validate: () => createValidate<FormatLowercase>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatLowercase>>(),
+    validateSchema: () => createValidate(RT.lowercase()),
+    getValidationErrors: () => createGetValidationErrors<FormatLowercase>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatLowercase>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.lowercase()),
     mockType: () => createMockType<FormatLowercase>(),
     getSamples: () => ({valid: ['already lower', 'HasUpper'], invalid: [42]}),
     expectedFormatErrors: () => [null],
@@ -302,24 +302,24 @@ export const STRING_FORMAT = {
   // ─────────────────────────────── UUID ───────────────────────────
   uuidv4: {
     title: 'FormatUUIDv4 — accepts v4, rejects v7 and malformed',
-    isType: () => createIsType<FormatUUIDv4>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatUUIDv4>>(),
-    isTypeSchema: () => createIsType(RT.uuidv4()),
-    getTypeErrors: () => createGetTypeErrors<FormatUUIDv4>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatUUIDv4>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.uuidv4()),
+    validate: () => createValidate<FormatUUIDv4>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatUUIDv4>>(),
+    validateSchema: () => createValidate(RT.uuidv4()),
+    getValidationErrors: () => createGetValidationErrors<FormatUUIDv4>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatUUIDv4>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.uuidv4()),
     mockType: () => createMockType<FormatUUIDv4>(),
     getSamples: () => ({valid: [V4], invalid: [V7, 'not-a-uuid', '', V4.replace(/-/g, ''), 123]}),
     expectedFormatErrors: () => [{name: 'uuid', val: '4'}, {name: 'uuid', val: '4'}, null, null, null],
   },
   uuidv7: {
     title: 'FormatUUIDv7 — accepts v7, rejects v4',
-    isType: () => createIsType<FormatUUIDv7>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatUUIDv7>>(),
-    isTypeSchema: () => createIsType(RT.uuidv7()),
-    getTypeErrors: () => createGetTypeErrors<FormatUUIDv7>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatUUIDv7>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.uuidv7()),
+    validate: () => createValidate<FormatUUIDv7>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatUUIDv7>>(),
+    validateSchema: () => createValidate(RT.uuidv7()),
+    getValidationErrors: () => createGetValidationErrors<FormatUUIDv7>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatUUIDv7>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.uuidv7()),
     mockType: () => createMockType<FormatUUIDv7>(),
     getSamples: () => ({valid: [V7], invalid: [V4]}),
     expectedFormatErrors: () => [{name: 'uuid', val: '7'}],
@@ -328,12 +328,12 @@ export const STRING_FORMAT = {
   // ─────────────────────────────── Date ───────────────────────────
   date_iso: {
     title: 'FormatStringDate — ISO / YYYY-MM-DD (default)',
-    isType: () => createIsType<FormatStringDate>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatStringDate>>(),
-    isTypeSchema: () => createIsType(RT.stringDate()),
-    getTypeErrors: () => createGetTypeErrors<FormatStringDate>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatStringDate>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.stringDate()),
+    validate: () => createValidate<FormatStringDate>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatStringDate>>(),
+    validateSchema: () => createValidate(RT.stringDate()),
+    getValidationErrors: () => createGetValidationErrors<FormatStringDate>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatStringDate>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringDate()),
     mockType: () => createMockType<FormatStringDate>(),
     getSamples: () => ({
       valid: ['2024-02-29', '2026-05-28', '0001-01-01'],
@@ -343,12 +343,12 @@ export const STRING_FORMAT = {
   },
   date_DMY: {
     title: 'FormatStringDate — DD-MM-YYYY layout',
-    isType: () => createIsType<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatStringDate<{format: 'DD-MM-YYYY'}>>>(),
-    isTypeSchema: () => createIsType(RT.stringDate({format: 'DD-MM-YYYY'})),
-    getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatStringDate<{format: 'DD-MM-YYYY'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.stringDate({format: 'DD-MM-YYYY'})),
+    validate: () => createValidate<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatStringDate<{format: 'DD-MM-YYYY'}>>>(),
+    validateSchema: () => createValidate(RT.stringDate({format: 'DD-MM-YYYY'})),
+    getValidationErrors: () => createGetValidationErrors<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatStringDate<{format: 'DD-MM-YYYY'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringDate({format: 'DD-MM-YYYY'})),
     mockType: () => createMockType<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
     getSamples: () => ({valid: ['29-02-2024'], invalid: ['2024-02-29', '31-04-2024']}),
     expectedFormatErrors: () => [
@@ -358,12 +358,12 @@ export const STRING_FORMAT = {
   },
   date_YM: {
     title: 'FormatStringDate — YYYY-MM layout (no day)',
-    isType: () => createIsType<FormatStringDate<{format: 'YYYY-MM'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatStringDate<{format: 'YYYY-MM'}>>>(),
-    isTypeSchema: () => createIsType(RT.stringDate({format: 'YYYY-MM'})),
-    getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'YYYY-MM'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatStringDate<{format: 'YYYY-MM'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.stringDate({format: 'YYYY-MM'})),
+    validate: () => createValidate<FormatStringDate<{format: 'YYYY-MM'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatStringDate<{format: 'YYYY-MM'}>>>(),
+    validateSchema: () => createValidate(RT.stringDate({format: 'YYYY-MM'})),
+    getValidationErrors: () => createGetValidationErrors<FormatStringDate<{format: 'YYYY-MM'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatStringDate<{format: 'YYYY-MM'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringDate({format: 'YYYY-MM'})),
     mockType: () => createMockType<FormatStringDate<{format: 'YYYY-MM'}>>(),
     getSamples: () => ({valid: ['2024-02'], invalid: ['2024-13', '2024-02-29']}),
     expectedFormatErrors: () => [
@@ -373,28 +373,28 @@ export const STRING_FORMAT = {
   },
   date_MD: {
     title: 'FormatStringDate — MM-DD layout (no year)',
-    isType: () => createIsType<FormatStringDate<{format: 'MM-DD'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatStringDate<{format: 'MM-DD'}>>>(),
-    isTypeSchema: () => createIsType(RT.stringDate({format: 'MM-DD'})),
-    getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'MM-DD'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatStringDate<{format: 'MM-DD'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.stringDate({format: 'MM-DD'})),
+    validate: () => createValidate<FormatStringDate<{format: 'MM-DD'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatStringDate<{format: 'MM-DD'}>>>(),
+    validateSchema: () => createValidate(RT.stringDate({format: 'MM-DD'})),
+    getValidationErrors: () => createGetValidationErrors<FormatStringDate<{format: 'MM-DD'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatStringDate<{format: 'MM-DD'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringDate({format: 'MM-DD'})),
     mockType: () => createMockType<FormatStringDate<{format: 'MM-DD'}>>(),
     getSamples: () => ({valid: ['02-29'], invalid: ['13-01']}),
     expectedFormatErrors: () => [{name: 'date', val: 'MM-DD'}],
   },
   date_minMax_absolute: {
     title: 'FormatStringDate — absolute min/max bounds (inclusive)',
-    isType: () => createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>>(),
-    isTypeSchema: () => createIsType(RT.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
-    getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
+    validate: () => createValidate<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>>(),
+    validateSchema: () => createValidate(RT.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
+    getValidationErrors: () => createGetValidationErrors<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
     // mockType must respect the bounds — assertMockType re-validates every
-    // generated value through isType, so an out-of-range mock would fail.
+    // generated value through validate, so an out-of-range mock would fail.
     mockType: () => createMockType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     getSamples: () => ({
       valid: ['2020-01-01', '2020-06-15', '2020-12-31'],
@@ -409,12 +409,12 @@ export const STRING_FORMAT = {
   // ─────────────────────────────── Time ───────────────────────────
   time_iso: {
     title: 'FormatStringTime — ISO (default, tz-aware)',
-    isType: () => createIsType<FormatStringTime>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatStringTime>>(),
-    isTypeSchema: () => createIsType(RT.stringTime()),
-    getTypeErrors: () => createGetTypeErrors<FormatStringTime>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatStringTime>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.stringTime()),
+    validate: () => createValidate<FormatStringTime>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatStringTime>>(),
+    validateSchema: () => createValidate(RT.stringTime()),
+    getValidationErrors: () => createGetValidationErrors<FormatStringTime>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatStringTime>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringTime()),
     mockType: () => createMockType<FormatStringTime>(),
     getSamples: () => ({
       valid: ['12:30:45Z', '12:30:45.123Z', '12:30:45+05:30', '00:00:00-08:00'],
@@ -428,36 +428,36 @@ export const STRING_FORMAT = {
   },
   time_HHmmss: {
     title: 'FormatStringTime — HH:mm:ss fixed layout',
-    isType: () => createIsType<FormatStringTime<{format: 'HH:mm:ss'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatStringTime<{format: 'HH:mm:ss'}>>>(),
-    isTypeSchema: () => createIsType(RT.stringTime({format: 'HH:mm:ss'})),
-    getTypeErrors: () => createGetTypeErrors<FormatStringTime<{format: 'HH:mm:ss'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatStringTime<{format: 'HH:mm:ss'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.stringTime({format: 'HH:mm:ss'})),
+    validate: () => createValidate<FormatStringTime<{format: 'HH:mm:ss'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatStringTime<{format: 'HH:mm:ss'}>>>(),
+    validateSchema: () => createValidate(RT.stringTime({format: 'HH:mm:ss'})),
+    getValidationErrors: () => createGetValidationErrors<FormatStringTime<{format: 'HH:mm:ss'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatStringTime<{format: 'HH:mm:ss'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringTime({format: 'HH:mm:ss'})),
     mockType: () => createMockType<FormatStringTime<{format: 'HH:mm:ss'}>>(),
     getSamples: () => ({valid: ['23:59:59'], invalid: ['99:99:99', '23:59', '24:00:00']}),
     expectedFormatErrors: () => [{name: 'time', val: 'HH:mm:ss'}, null, null],
   },
   time_HHmmss_ms: {
     title: 'FormatStringTime — HH:mm:ss[.mmm] optional milliseconds',
-    isType: () => createIsType<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>>(),
-    isTypeSchema: () => createIsType(RT.stringTime({format: 'HH:mm:ss[.mmm]'})),
-    getTypeErrors: () => createGetTypeErrors<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.stringTime({format: 'HH:mm:ss[.mmm]'})),
+    validate: () => createValidate<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>>(),
+    validateSchema: () => createValidate(RT.stringTime({format: 'HH:mm:ss[.mmm]'})),
+    getValidationErrors: () => createGetValidationErrors<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringTime({format: 'HH:mm:ss[.mmm]'})),
     mockType: () => createMockType<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     getSamples: () => ({valid: ['12:30:45', '12:30:45.999'], invalid: ['12:30:45.9999']}),
     expectedFormatErrors: () => [{name: 'time', val: 'HH:mm:ss[.mmm]'}],
   },
   time_minMax_absolute: {
     title: 'FormatStringTime — absolute min/max bounds (business hours)',
-    isType: () => createIsType<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>>(),
-    isTypeSchema: () => createIsType(RT.stringTime({format: 'HH:mm', min: '09:00', max: '17:00'})),
-    getTypeErrors: () => createGetTypeErrors<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.stringTime({format: 'HH:mm', min: '09:00', max: '17:00'})),
+    validate: () => createValidate<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>>(),
+    validateSchema: () => createValidate(RT.stringTime({format: 'HH:mm', min: '09:00', max: '17:00'})),
+    getValidationErrors: () => createGetValidationErrors<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringTime({format: 'HH:mm', min: '09:00', max: '17:00'})),
     mockType: () => createMockType<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     getSamples: () => ({
       valid: ['09:00', '12:30', '17:00'],
@@ -472,12 +472,12 @@ export const STRING_FORMAT = {
   // ───────────────────────────── DateTime ─────────────────────────
   dateTime_default: {
     title: 'FormatStringDateTime — default (ISO date T ISO time)',
-    isType: () => createIsType<FormatStringDateTime>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatStringDateTime>>(),
-    isTypeSchema: () => createIsType(RT.stringDateTime()),
-    getTypeErrors: () => createGetTypeErrors<FormatStringDateTime>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatStringDateTime>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.stringDateTime()),
+    validate: () => createValidate<FormatStringDateTime>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatStringDateTime>>(),
+    validateSchema: () => createValidate(RT.stringDateTime()),
+    getValidationErrors: () => createGetValidationErrors<FormatStringDateTime>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatStringDateTime>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringDateTime()),
     mockType: () => createMockType<FormatStringDateTime>(),
     getSamples: () => ({
       valid: ['2024-02-29T12:30:45Z', '2026-05-28T00:00:00.500+02:00'],
@@ -487,18 +487,18 @@ export const STRING_FORMAT = {
   },
   dateTime_custom: {
     title: 'FormatStringDateTime — custom nested layouts + splitChar',
-    isType: () => createIsType<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>>(),
-    isTypeSchema: () => createIsType(RT.stringDateTime({date: {format: 'DD-MM-YYYY'}, time: {format: 'HH:mm'}, splitChar: ' '})),
-    getTypeErrors: () =>
-      createGetTypeErrors<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<
+    validate: () => createValidate<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>>(),
+    validateSchema: () => createValidate(RT.stringDateTime({date: {format: 'DD-MM-YYYY'}, time: {format: 'HH:mm'}, splitChar: ' '})),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<
         DataOnly<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>
       >(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.stringDateTime({date: {format: 'DD-MM-YYYY'}, time: {format: 'HH:mm'}, splitChar: ' '})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.stringDateTime({date: {format: 'DD-MM-YYYY'}, time: {format: 'HH:mm'}, splitChar: ' '})),
     mockType: () =>
       createMockType<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     getSamples: () => ({
@@ -513,8 +513,8 @@ export const STRING_FORMAT = {
   },
   dateTime_minMax_absolute: {
     title: 'FormatStringDateTime — absolute min/max bounds',
-    isType: () =>
-      createIsType<
+    validate: () =>
+      createValidate<
         FormatStringDateTime<{
           date: {format: 'YYYY-MM-DD'};
           time: {format: 'HH:mm:ss'};
@@ -523,8 +523,8 @@ export const STRING_FORMAT = {
           max: '2020-12-31T23:59:59';
         }>
       >(),
-    isTypeDataOnly: () =>
-      createIsType<
+    validateDataOnly: () =>
+      createValidate<
         DataOnly<
           FormatStringDateTime<{
             date: {format: 'YYYY-MM-DD'};
@@ -535,8 +535,8 @@ export const STRING_FORMAT = {
           }>
         >
       >(),
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.stringDateTime({
           date: {format: 'YYYY-MM-DD'},
           time: {format: 'HH:mm:ss'},
@@ -545,8 +545,8 @@ export const STRING_FORMAT = {
           max: '2020-12-31T23:59:59',
         })
       ),
-    getTypeErrors: () =>
-      createGetTypeErrors<
+    getValidationErrors: () =>
+      createGetValidationErrors<
         FormatStringDateTime<{
           date: {format: 'YYYY-MM-DD'};
           time: {format: 'HH:mm:ss'};
@@ -555,8 +555,8 @@ export const STRING_FORMAT = {
           max: '2020-12-31T23:59:59';
         }>
       >(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<
         DataOnly<
           FormatStringDateTime<{
             date: {format: 'YYYY-MM-DD'};
@@ -567,8 +567,8 @@ export const STRING_FORMAT = {
           }>
         >
       >(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.stringDateTime({
           date: {format: 'YYYY-MM-DD'},
           time: {format: 'HH:mm:ss'},
@@ -600,12 +600,12 @@ export const STRING_FORMAT = {
   // ──────────────────────────────── IP ────────────────────────────
   ipv4: {
     title: 'FormatIPv4 — dotted-quad addresses',
-    isType: () => createIsType<FormatIPv4>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatIPv4>>(),
-    isTypeSchema: () => createIsType(RT.ipv4()),
-    getTypeErrors: () => createGetTypeErrors<FormatIPv4>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatIPv4>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.ipv4()),
+    validate: () => createValidate<FormatIPv4>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatIPv4>>(),
+    validateSchema: () => createValidate(RT.ipv4()),
+    getValidationErrors: () => createGetValidationErrors<FormatIPv4>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatIPv4>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.ipv4()),
     mockType: () => createMockType<FormatIPv4>(),
     getSamples: () => ({
       valid: ['192.168.0.1', '0.0.0.0', '255.255.255.255'],
@@ -615,12 +615,12 @@ export const STRING_FORMAT = {
   },
   ipv6: {
     title: 'FormatIPv6 — colon-separated, loopback allowed',
-    isType: () => createIsType<FormatIPv6>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatIPv6>>(),
-    isTypeSchema: () => createIsType(RT.ipv6()),
-    getTypeErrors: () => createGetTypeErrors<FormatIPv6>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatIPv6>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.ipv6()),
+    validate: () => createValidate<FormatIPv6>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatIPv6>>(),
+    validateSchema: () => createValidate(RT.ipv6()),
+    getValidationErrors: () => createGetValidationErrors<FormatIPv6>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatIPv6>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.ipv6()),
     mockType: () => createMockType<FormatIPv6>(),
     getSamples: () => ({valid: ['2001:db8:0:0:0:0:0:1', '::1', 'fe80::1'], invalid: ['192.168.0.1', '12345::1']}),
     expectedFormatErrors: () => [
@@ -630,36 +630,36 @@ export const STRING_FORMAT = {
   },
   ip_any: {
     title: 'FormatIP — accepts both v4 and v6',
-    isType: () => createIsType<FormatIP>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatIP>>(),
-    isTypeSchema: () => createIsType(RT.ip()),
-    getTypeErrors: () => createGetTypeErrors<FormatIP>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatIP>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.ip()),
+    validate: () => createValidate<FormatIP>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatIP>>(),
+    validateSchema: () => createValidate(RT.ip()),
+    getValidationErrors: () => createGetValidationErrors<FormatIP>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatIP>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.ip()),
     mockType: () => createMockType<FormatIP>(),
     getSamples: () => ({valid: ['10.0.0.1', '2001:db8::1'], invalid: ['definitely not an ip']}),
     expectedFormatErrors: () => [{name: 'ip', val: 'any'}],
   },
   ipv4_port: {
     title: 'FormatIPv4WithPort — v4 with port',
-    isType: () => createIsType<FormatIPv4WithPort>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatIPv4WithPort>>(),
-    isTypeSchema: () => createIsType(RT.ipv4WithPort()),
-    getTypeErrors: () => createGetTypeErrors<FormatIPv4WithPort>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatIPv4WithPort>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.ipv4WithPort()),
+    validate: () => createValidate<FormatIPv4WithPort>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatIPv4WithPort>>(),
+    validateSchema: () => createValidate(RT.ipv4WithPort()),
+    getValidationErrors: () => createGetValidationErrors<FormatIPv4WithPort>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatIPv4WithPort>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.ipv4WithPort()),
     mockType: () => createMockType<FormatIPv4WithPort>(),
     getSamples: () => ({valid: ['192.168.0.1:8080'], invalid: ['192.168.0.1:70000']}),
     expectedFormatErrors: () => [{name: 'ip', val: 4}],
   },
   ipv6_port: {
     title: 'FormatIPv6WithPort — v6 with bracketed port',
-    isType: () => createIsType<FormatIPv6WithPort>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatIPv6WithPort>>(),
-    isTypeSchema: () => createIsType(RT.ipv6WithPort()),
-    getTypeErrors: () => createGetTypeErrors<FormatIPv6WithPort>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatIPv6WithPort>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.ipv6WithPort()),
+    validate: () => createValidate<FormatIPv6WithPort>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatIPv6WithPort>>(),
+    validateSchema: () => createValidate(RT.ipv6WithPort()),
+    getValidationErrors: () => createGetValidationErrors<FormatIPv6WithPort>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatIPv6WithPort>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.ipv6WithPort()),
     mockType: () => createMockType<FormatIPv6WithPort>(),
     getSamples: () => ({valid: ['[2001:db8::1]:443'], invalid: ['[2001:db8::1]:99999']}),
     expectedFormatErrors: () => [{name: 'ip', val: 6}],
@@ -668,12 +668,12 @@ export const STRING_FORMAT = {
   // ────────────────────────────── Domain ──────────────────────────
   domain: {
     title: 'FormatDomain — standard',
-    isType: () => createIsType<FormatDomain>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatDomain>>(),
-    isTypeSchema: () => createIsType(RT.domain()),
-    getTypeErrors: () => createGetTypeErrors<FormatDomain>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatDomain>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.domain()),
+    validate: () => createValidate<FormatDomain>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatDomain>>(),
+    validateSchema: () => createValidate(RT.domain()),
+    getValidationErrors: () => createGetValidationErrors<FormatDomain>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatDomain>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.domain()),
     mockType: () => createMockType<FormatDomain>(),
     getSamples: () => ({
       valid: ['mion.io', 'example.com', 'sub.example.co.uk', 'a-b.example.org'],
@@ -683,12 +683,12 @@ export const STRING_FORMAT = {
   },
   domainStrict: {
     title: 'FormatDomainStrict — names/tld decomposition, maxParts, hyphen-edge',
-    isType: () => createIsType<FormatDomainStrict>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatDomainStrict>>(),
-    isTypeSchema: () => createIsType(RT.domainStrict()),
-    getTypeErrors: () => createGetTypeErrors<FormatDomainStrict>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatDomainStrict>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.domainStrict()),
+    validate: () => createValidate<FormatDomainStrict>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatDomainStrict>>(),
+    validateSchema: () => createValidate(RT.domainStrict()),
+    getValidationErrors: () => createGetValidationErrors<FormatDomainStrict>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatDomainStrict>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.domainStrict()),
     mockType: () => createMockType<FormatDomainStrict>(),
     getSamples: () => ({
       valid: ['mion.io', 'sub.example.com', 'aa.bb.cc.dd.ee.com'],
@@ -700,12 +700,12 @@ export const STRING_FORMAT = {
   // ─────────────────────────────── Email ──────────────────────────
   email: {
     title: 'FormatEmail — standard',
-    isType: () => createIsType<FormatEmail>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatEmail>>(),
-    isTypeSchema: () => createIsType(RT.email()),
-    getTypeErrors: () => createGetTypeErrors<FormatEmail>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatEmail>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.email()),
+    validate: () => createValidate<FormatEmail>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatEmail>>(),
+    validateSchema: () => createValidate(RT.email()),
+    getValidationErrors: () => createGetValidationErrors<FormatEmail>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatEmail>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.email()),
     mockType: () => createMockType<FormatEmail>(),
     getSamples: () => ({
       valid: ['john@example.com', 'jane.doe@mion.io', 'ab@cd.co', 'user+tag@sub.example.org'],
@@ -715,24 +715,24 @@ export const STRING_FORMAT = {
   },
   emailPunycode: {
     title: 'FormatEmailPunycode — accepts punycode-tld domains',
-    isType: () => createIsType<FormatEmailPunycode>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatEmailPunycode>>(),
-    isTypeSchema: () => createIsType(RT.emailPunycode()),
-    getTypeErrors: () => createGetTypeErrors<FormatEmailPunycode>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatEmailPunycode>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.emailPunycode()),
+    validate: () => createValidate<FormatEmailPunycode>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatEmailPunycode>>(),
+    validateSchema: () => createValidate(RT.emailPunycode()),
+    getValidationErrors: () => createGetValidationErrors<FormatEmailPunycode>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatEmailPunycode>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.emailPunycode()),
     mockType: () => createMockType<FormatEmailPunycode>(),
     getSamples: () => ({valid: ['john@example.xn--fiqs8s'], invalid: ['not-an-email']}),
     expectedFormatErrors: () => [{name: 'email'}],
   },
   emailStrict: {
     title: 'FormatEmailStrict — localPart + domain decomposition',
-    isType: () => createIsType<FormatEmailStrict>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatEmailStrict>>(),
-    isTypeSchema: () => createIsType(RT.emailStrict()),
-    getTypeErrors: () => createGetTypeErrors<FormatEmailStrict>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatEmailStrict>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.emailStrict()),
+    validate: () => createValidate<FormatEmailStrict>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatEmailStrict>>(),
+    validateSchema: () => createValidate(RT.emailStrict()),
+    getValidationErrors: () => createGetValidationErrors<FormatEmailStrict>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatEmailStrict>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.emailStrict()),
     mockType: () => createMockType<FormatEmailStrict>(),
     getSamples: () => ({
       valid: ['john@example.com', 'jane.doe@mion.io'],
@@ -744,12 +744,12 @@ export const STRING_FORMAT = {
   // ──────────────────────────────── URL ───────────────────────────
   url: {
     title: 'FormatUrl — standard (http/ftp/ws schemes)',
-    isType: () => createIsType<FormatUrl>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatUrl>>(),
-    isTypeSchema: () => createIsType(RT.url()),
-    getTypeErrors: () => createGetTypeErrors<FormatUrl>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatUrl>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.url()),
+    validate: () => createValidate<FormatUrl>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatUrl>>(),
+    validateSchema: () => createValidate(RT.url()),
+    getValidationErrors: () => createGetValidationErrors<FormatUrl>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatUrl>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.url()),
     mockType: () => createMockType<FormatUrl>(),
     getSamples: () => ({
       valid: ['https://example.com', 'http://mion.io/path?q=1', 'ftp://files.example.org', 'wss://socket.example.com'],
@@ -759,24 +759,24 @@ export const STRING_FORMAT = {
   },
   urlHttp: {
     title: 'FormatUrlHttp — http(s) only',
-    isType: () => createIsType<FormatUrlHttp>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatUrlHttp>>(),
-    isTypeSchema: () => createIsType(RT.urlHttp()),
-    getTypeErrors: () => createGetTypeErrors<FormatUrlHttp>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatUrlHttp>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.urlHttp()),
+    validate: () => createValidate<FormatUrlHttp>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatUrlHttp>>(),
+    validateSchema: () => createValidate(RT.urlHttp()),
+    getValidationErrors: () => createGetValidationErrors<FormatUrlHttp>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatUrlHttp>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.urlHttp()),
     mockType: () => createMockType<FormatUrlHttp>(),
     getSamples: () => ({valid: ['https://example.com', 'http://example.com'], invalid: ['ftp://example.com']}),
     expectedFormatErrors: () => [{name: 'url'}],
   },
   urlFile: {
     title: 'FormatUrlFile — file URLs',
-    isType: () => createIsType<FormatUrlFile>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatUrlFile>>(),
-    isTypeSchema: () => createIsType(RT.urlFile()),
-    getTypeErrors: () => createGetTypeErrors<FormatUrlFile>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatUrlFile>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.urlFile()),
+    validate: () => createValidate<FormatUrlFile>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatUrlFile>>(),
+    validateSchema: () => createValidate(RT.urlFile()),
+    getValidationErrors: () => createGetValidationErrors<FormatUrlFile>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatUrlFile>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.urlFile()),
     mockType: () => createMockType<FormatUrlFile>(),
     getSamples: () => ({valid: ['file:///etc/hosts'], invalid: ['https://example.com']}),
     expectedFormatErrors: () => [{name: 'url'}],
@@ -785,22 +785,22 @@ export const STRING_FORMAT = {
   // ─────────────────── registerFormatPattern ──────────────────
   pattern_slug: {
     title: 'registerFormatPattern — slug regex recovered from the call site',
-    isType: () => createIsType<Slug>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Slug>>(),
+    validate: () => createValidate<Slug>(),
+    validateDataOnly: () => createValidate<DataOnly<Slug>>(),
     // Value-first can't reference the OPAQUE `registerFormatPattern` result
     // (its source/flags erase to `string`), so the schema re-authors the same
     // regex inline. The pattern's {source, flags} ARE part of the structural id,
     // so `flags: ''` must be supplied explicitly to match the type-first form.
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.string({
           pattern: {source: '^[a-z0-9-]+$', flags: '', mockSamples: ['my-slug', 'abc', 'a-b-c'], message: 'must be a slug'},
         })
       ),
-    getTypeErrors: () => createGetTypeErrors<Slug>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Slug>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () => createGetValidationErrors<Slug>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Slug>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.string({
           pattern: {source: '^[a-z0-9-]+$', flags: '', mockSamples: ['my-slug', 'abc', 'a-b-c'], message: 'must be a slug'},
         })
@@ -819,14 +819,14 @@ export const STRING_FORMAT = {
   },
   pattern_hex: {
     title: 'registerFormatPattern — {source, flags} overload (case-insensitive)',
-    isType: () => createIsType<Hex>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Hex>>(),
-    isTypeSchema: () =>
-      createIsType(RT.string({pattern: {source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef', '0042']}})),
-    getTypeErrors: () => createGetTypeErrors<Hex>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Hex>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.string({pattern: {source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef', '0042']}})),
+    validate: () => createValidate<Hex>(),
+    validateDataOnly: () => createValidate<DataOnly<Hex>>(),
+    validateSchema: () =>
+      createValidate(RT.string({pattern: {source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef', '0042']}})),
+    getValidationErrors: () => createGetValidationErrors<Hex>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Hex>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.string({pattern: {source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef', '0042']}})),
     mockType: () => createMockType<Hex>(),
     getSamples: () => ({valid: ['0042', 'DEADbeef'], invalid: ['xyz', '']}),
     expectedFormatErrors: () => [

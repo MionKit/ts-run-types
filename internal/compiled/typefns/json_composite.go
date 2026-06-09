@@ -97,7 +97,7 @@ func renderJsonCompositeLines(dump protocol.Dump, opts RenderOpts, family jsonCo
 		}
 		// Demand for this composite tag: the scanner records one SiteDemand per
 		// createJsonEncoder/Decoder site whose strategy maps to this tag. Dedup is
-		// by id (the composite has no IsTypeOptions-style sub-variant).
+		// by id (the composite has no ValidateOptions-style sub-variant).
 		demand := collectFamilyDemand(dump.Sites, tag)
 		ids := make([]string, 0, len(demand))
 		for id := range demand {

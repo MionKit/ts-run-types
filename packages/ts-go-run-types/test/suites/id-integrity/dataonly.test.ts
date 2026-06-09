@@ -1,8 +1,8 @@
 // id-integrity / DataOnly — for EVERY validation + format-validation case,
-// assert the validator built from `createIsType<DataOnly<T>>()` (and the
-// getTypeErrors companion) produces the SAME verdicts on the case's samples as
-// the bare-`T` form. Reuses each case's existing isTypeDataOnly /
-// getTypeErrorsDataOnly thunks + samples + getExpectedErrors — no new per-case
+// assert the validator built from `createValidate<DataOnly<T>>()` (and the
+// getValidationErrors companion) produces the SAME verdicts on the case's samples as
+// the bare-`T` form. Reuses each case's existing validateDataOnly /
+// getValidationErrorsDataOnly thunks + samples + getExpectedErrors — no new per-case
 // data. Equivalent verdicts ⇒ the `DataOnly<T>` type mapping drops exactly the
 // members the validator emitter drops. (Behavioural, not factory-identity: the
 // emitter keeps dropped members as `notSupported` nodes, so the ids legitimately
@@ -22,7 +22,7 @@ function register(suiteName: string, suite: Record<string, Record<string, Valida
   }
 }
 
-describe('id-integrity / DataOnly — createIsType<DataOnly<T>>() validates the same samples as createIsType<T>()', () => {
+describe('id-integrity / DataOnly — createValidate<DataOnly<T>>() validates the same samples as createValidate<T>()', () => {
   register('validation', VALIDATION_SUITE);
   register('format-validation', FORMAT_VALIDATION_SUITE);
 });

@@ -3,7 +3,7 @@
 // type id) for every case, reusing each case's EXISTING thunks (no new per-case
 // data). Two reuse mechanisms, one per suite family:
 //
-//  - validators (isType / getTypeErrors): `createIsType` returns the CACHED
+//  - validators (validate / getValidationErrors): `createValidate` returns the CACHED
 //    factory for a structural id, so reference identity (`toBe`) between the
 //    schema-form factory and the type-form factory IS a same-id assertion — the
 //    proven `.toBe` cached-factory idiom, generalised here to every case. Same
@@ -16,9 +16,9 @@
 //
 // Compile options (`noLiterals` / `noIsArrayCheck`) are folded into the cached
 // factory's variant key, so an option-bearing type-first form converges only with
-// a schema form that passes the SAME options — e.g. `createIsType<2>(…,
+// a schema form that passes the SAME options — e.g. `createValidate<2>(…,
 // {noLiterals: true})` resolves the `itNL_<literal-2 id>` variant, matched by
-// `createIsType(RT.literal(2), {noLiterals: true})`, NOT by plain `RT.number()`.
+// `createValidate(RT.literal(2), {noLiterals: true})`, NOT by plain `RT.number()`.
 // The validation cases mirror their options on the schema thunk, so no special
 // casing is needed here.
 
@@ -34,33 +34,33 @@ function resolveThunk<T>(thunk: Thunk<T> | undefined): (() => T) | undefined {
 
 /** Validator id-integrity: the value-first schema form and the type-first form
  *  must resolve to the SAME cached factory (reference identity) for both the
- *  isType and getTypeErrors families. Skips factoryThrows (both forms throw at
+ *  validate and getValidationErrors families. Skips factoryThrows (both forms throw at
  *  build), idDivergent (known not to converge by design), and any case missing
  *  one of the two forms (`'not-supported'` / omitted). **/
 export function assertValidatorIdIntegrity(c: ValidationCase): void {
   if (c.factoryThrows) return;
   if (c.idDivergent) return;
 
-  const isType = resolveThunk(c.isType);
-  const isTypeSchema = resolveThunk(c.isTypeSchema);
-  if (isType && isTypeSchema) {
+  const validate = resolveThunk(c.validate);
+  const validateSchema = resolveThunk(c.validateSchema);
+  if (validate && validateSchema) {
     expect(
-      isTypeSchema(),
-      `${c.title}: isType — value-first schema and type-first must resolve the SAME cached factory (same structural id)`
-    ).toBe(isType());
+      validateSchema(),
+      `${c.title}: validate — value-first schema and type-first must resolve the SAME cached factory (same structural id)`
+    ).toBe(validate());
   }
 
-  const getTypeErrors = resolveThunk(c.getTypeErrors);
-  const getTypeErrorsSchema = resolveThunk(c.getTypeErrorsSchema);
-  if (getTypeErrors && getTypeErrorsSchema) {
+  const getValidationErrors = resolveThunk(c.getValidationErrors);
+  const getValidationErrorsSchema = resolveThunk(c.getValidationErrorsSchema);
+  if (getValidationErrors && getValidationErrorsSchema) {
     expect(
-      getTypeErrorsSchema(),
-      `${c.title}: getTypeErrors — value-first schema and type-first must resolve the SAME cached factory (same structural id)`
-    ).toBe(getTypeErrors());
+      getValidationErrorsSchema(),
+      `${c.title}: getValidationErrors — value-first schema and type-first must resolve the SAME cached factory (same structural id)`
+    ).toBe(getValidationErrors());
   }
 }
 
-/** DataOnly-equivalence: the validator built from `createIsType<DataOnly<T>>()`
+/** DataOnly-equivalence: the validator built from `createValidate<DataOnly<T>>()`
  *  must produce the SAME verdicts on the case's samples as the bare-`T`
  *  validator — proving the `DataOnly` type mapping drops exactly the members
  *  the validator emitter drops.
@@ -84,9 +84,9 @@ export function assertDataOnlyEquivalence(c: ValidationCase): void {
 
   const {valid, invalid} = c.getSamples();
 
-  const isTypeDataOnly = resolveThunk(c.isTypeDataOnly);
-  if (isTypeDataOnly) {
-    const isValid = isTypeDataOnly();
+  const validateDataOnly = resolveThunk(c.validateDataOnly);
+  if (validateDataOnly) {
+    const isValid = validateDataOnly();
     valid.forEach((v, i) => {
       expect(isValid(v), `${c.title} [dataOnly]: valid[${i}] should pass`).toBe(true);
     });
@@ -95,9 +95,9 @@ export function assertDataOnlyEquivalence(c: ValidationCase): void {
     });
   }
 
-  const getTypeErrorsDataOnly = resolveThunk(c.getTypeErrorsDataOnly);
-  if (getTypeErrorsDataOnly) {
-    const getErr = getTypeErrorsDataOnly();
+  const getValidationErrorsDataOnly = resolveThunk(c.getValidationErrorsDataOnly);
+  if (getValidationErrorsDataOnly) {
+    const getErr = getValidationErrorsDataOnly();
     // When the case pins an exact expected-errors table (type-first validation
     // cases), assert deep-equality. Format-validation cases instead carry
     // `expectedFormatErrors` (format payloads, no `getExpectedErrors`) — for

@@ -10,9 +10,9 @@
 // the reflect thunks annotate a runtime value with the concrete type.
 
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
-import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
 
@@ -22,33 +22,33 @@ export const DATETIME = {
   date: {
     title: 'Date instance (rejects Invalid Date)',
     description: 'Invalid Date instances (getTime() === NaN) rejected',
-    isTypeNotes: [
+    validateNotes: [
       'Must be an actual Date instance (instanceof Date).',
       'Invalid Date instances are rejected — e.g., `new Date("not-a-date")` or `new Date(NaN)`, whose `.getTime()` returns NaN.',
     ],
-    isType: () => createIsType<Date>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Date>>(),
-    isTypeSchema: () => createIsType(RT.date()),
-    deserializeIsType: () => deserializeIsType<Date>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Date>(),
+    validateDataOnly: () => createValidate<DataOnly<Date>>(),
+    validateSchema: () => createValidate(RT.date()),
+    deserializeValidate: () => deserializeValidate<Date>(),
+    validateReflect: () => {
       const v: Date = new Date();
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Date = new Date();
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Date>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Date>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.date()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Date>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Date>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.date()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Date>(),
+    getValidationErrorsReflect: () => {
       const v: Date = new Date();
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Date = new Date();
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Date>(),
     mockTypeReflect: () => {
@@ -65,32 +65,32 @@ export const DATETIME = {
   instant: {
     title: 'Temporal.Instant',
     // Temporal types are validated by native identity; DataOnly's structural
-    // object projection mangles them, so createIsType<DataOnly<T>>() diverges.
+    // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isTypeNotes: 'Must be a Temporal.Instant instance (instanceof).',
-    isType: () => createIsType<Temporal.Instant>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Temporal.Instant>>(),
-    isTypeSchema: () => createIsType(RT.temporal.instant()),
-    deserializeIsType: () => deserializeIsType<Temporal.Instant>(),
-    isTypeReflect: () => {
+    validateNotes: 'Must be a Temporal.Instant instance (instanceof).',
+    validate: () => createValidate<Temporal.Instant>(),
+    validateDataOnly: () => createValidate<DataOnly<Temporal.Instant>>(),
+    validateSchema: () => createValidate(RT.temporal.instant()),
+    deserializeValidate: () => deserializeValidate<Temporal.Instant>(),
+    validateReflect: () => {
       const v: Temporal.Instant = T.Instant.from('2020-01-15T10:30:00Z');
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Temporal.Instant = T.Instant.from('2020-01-15T10:30:00Z');
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Temporal.Instant>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Temporal.Instant>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.instant()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Temporal.Instant>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Temporal.Instant>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.Instant>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.instant()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.Instant>(),
+    getValidationErrorsReflect: () => {
       const v: Temporal.Instant = T.Instant.from('2020-01-15T10:30:00Z');
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Temporal.Instant = T.Instant.from('2020-01-15T10:30:00Z');
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Temporal.Instant>(),
     mockTypeReflect: () => {
@@ -107,32 +107,32 @@ export const DATETIME = {
   zonedDateTime: {
     title: 'Temporal.ZonedDateTime',
     // Temporal types are validated by native identity; DataOnly's structural
-    // object projection mangles them, so createIsType<DataOnly<T>>() diverges.
+    // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isTypeNotes: 'Must be a Temporal.ZonedDateTime instance (instanceof).',
-    isType: () => createIsType<Temporal.ZonedDateTime>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Temporal.ZonedDateTime>>(),
-    isTypeSchema: () => createIsType(RT.temporal.zonedDateTime()),
-    deserializeIsType: () => deserializeIsType<Temporal.ZonedDateTime>(),
-    isTypeReflect: () => {
+    validateNotes: 'Must be a Temporal.ZonedDateTime instance (instanceof).',
+    validate: () => createValidate<Temporal.ZonedDateTime>(),
+    validateDataOnly: () => createValidate<DataOnly<Temporal.ZonedDateTime>>(),
+    validateSchema: () => createValidate(RT.temporal.zonedDateTime()),
+    deserializeValidate: () => deserializeValidate<Temporal.ZonedDateTime>(),
+    validateReflect: () => {
       const v: Temporal.ZonedDateTime = T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]');
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Temporal.ZonedDateTime = T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]');
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Temporal.ZonedDateTime>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Temporal.ZonedDateTime>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.zonedDateTime()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Temporal.ZonedDateTime>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Temporal.ZonedDateTime>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.ZonedDateTime>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.zonedDateTime()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.ZonedDateTime>(),
+    getValidationErrorsReflect: () => {
       const v: Temporal.ZonedDateTime = T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]');
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Temporal.ZonedDateTime = T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]');
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Temporal.ZonedDateTime>(),
     mockTypeReflect: () => {
@@ -149,32 +149,32 @@ export const DATETIME = {
   plainDate: {
     title: 'Temporal.PlainDate',
     // Temporal types are validated by native identity; DataOnly's structural
-    // object projection mangles them, so createIsType<DataOnly<T>>() diverges.
+    // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isTypeNotes: 'Must be a Temporal.PlainDate instance (instanceof).',
-    isType: () => createIsType<Temporal.PlainDate>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Temporal.PlainDate>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate()),
-    deserializeIsType: () => deserializeIsType<Temporal.PlainDate>(),
-    isTypeReflect: () => {
+    validateNotes: 'Must be a Temporal.PlainDate instance (instanceof).',
+    validate: () => createValidate<Temporal.PlainDate>(),
+    validateDataOnly: () => createValidate<DataOnly<Temporal.PlainDate>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate()),
+    deserializeValidate: () => deserializeValidate<Temporal.PlainDate>(),
+    validateReflect: () => {
       const v: Temporal.PlainDate = T.PlainDate.from('2020-08-24');
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Temporal.PlainDate = T.PlainDate.from('2020-08-24');
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Temporal.PlainDate>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Temporal.PlainDate>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Temporal.PlainDate>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Temporal.PlainDate>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.PlainDate>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.PlainDate>(),
+    getValidationErrorsReflect: () => {
       const v: Temporal.PlainDate = T.PlainDate.from('2020-08-24');
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Temporal.PlainDate = T.PlainDate.from('2020-08-24');
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Temporal.PlainDate>(),
     mockTypeReflect: () => {
@@ -191,32 +191,32 @@ export const DATETIME = {
   plainTime: {
     title: 'Temporal.PlainTime',
     // Temporal types are validated by native identity; DataOnly's structural
-    // object projection mangles them, so createIsType<DataOnly<T>>() diverges.
+    // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isTypeNotes: 'Must be a Temporal.PlainTime instance (instanceof).',
-    isType: () => createIsType<Temporal.PlainTime>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Temporal.PlainTime>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainTime()),
-    deserializeIsType: () => deserializeIsType<Temporal.PlainTime>(),
-    isTypeReflect: () => {
+    validateNotes: 'Must be a Temporal.PlainTime instance (instanceof).',
+    validate: () => createValidate<Temporal.PlainTime>(),
+    validateDataOnly: () => createValidate<DataOnly<Temporal.PlainTime>>(),
+    validateSchema: () => createValidate(RT.temporal.plainTime()),
+    deserializeValidate: () => deserializeValidate<Temporal.PlainTime>(),
+    validateReflect: () => {
       const v: Temporal.PlainTime = T.PlainTime.from('19:39:09');
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Temporal.PlainTime = T.PlainTime.from('19:39:09');
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Temporal.PlainTime>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Temporal.PlainTime>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainTime()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Temporal.PlainTime>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Temporal.PlainTime>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.PlainTime>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainTime()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.PlainTime>(),
+    getValidationErrorsReflect: () => {
       const v: Temporal.PlainTime = T.PlainTime.from('19:39:09');
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Temporal.PlainTime = T.PlainTime.from('19:39:09');
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Temporal.PlainTime>(),
     mockTypeReflect: () => {
@@ -233,32 +233,32 @@ export const DATETIME = {
   plainDateTime: {
     title: 'Temporal.PlainDateTime',
     // Temporal types are validated by native identity; DataOnly's structural
-    // object projection mangles them, so createIsType<DataOnly<T>>() diverges.
+    // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isTypeNotes: 'Must be a Temporal.PlainDateTime instance (instanceof).',
-    isType: () => createIsType<Temporal.PlainDateTime>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Temporal.PlainDateTime>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDateTime()),
-    deserializeIsType: () => deserializeIsType<Temporal.PlainDateTime>(),
-    isTypeReflect: () => {
+    validateNotes: 'Must be a Temporal.PlainDateTime instance (instanceof).',
+    validate: () => createValidate<Temporal.PlainDateTime>(),
+    validateDataOnly: () => createValidate<DataOnly<Temporal.PlainDateTime>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDateTime()),
+    deserializeValidate: () => deserializeValidate<Temporal.PlainDateTime>(),
+    validateReflect: () => {
       const v: Temporal.PlainDateTime = T.PlainDateTime.from('1995-12-07T15:00:00');
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Temporal.PlainDateTime = T.PlainDateTime.from('1995-12-07T15:00:00');
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Temporal.PlainDateTime>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Temporal.PlainDateTime>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDateTime()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Temporal.PlainDateTime>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Temporal.PlainDateTime>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.PlainDateTime>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDateTime()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.PlainDateTime>(),
+    getValidationErrorsReflect: () => {
       const v: Temporal.PlainDateTime = T.PlainDateTime.from('1995-12-07T15:00:00');
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Temporal.PlainDateTime = T.PlainDateTime.from('1995-12-07T15:00:00');
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Temporal.PlainDateTime>(),
     mockTypeReflect: () => {
@@ -275,32 +275,32 @@ export const DATETIME = {
   plainYearMonth: {
     title: 'Temporal.PlainYearMonth',
     // Temporal types are validated by native identity; DataOnly's structural
-    // object projection mangles them, so createIsType<DataOnly<T>>() diverges.
+    // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isTypeNotes: 'Must be a Temporal.PlainYearMonth instance (instanceof).',
-    isType: () => createIsType<Temporal.PlainYearMonth>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Temporal.PlainYearMonth>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainYearMonth()),
-    deserializeIsType: () => deserializeIsType<Temporal.PlainYearMonth>(),
-    isTypeReflect: () => {
+    validateNotes: 'Must be a Temporal.PlainYearMonth instance (instanceof).',
+    validate: () => createValidate<Temporal.PlainYearMonth>(),
+    validateDataOnly: () => createValidate<DataOnly<Temporal.PlainYearMonth>>(),
+    validateSchema: () => createValidate(RT.temporal.plainYearMonth()),
+    deserializeValidate: () => deserializeValidate<Temporal.PlainYearMonth>(),
+    validateReflect: () => {
       const v: Temporal.PlainYearMonth = T.PlainYearMonth.from('2020-10');
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Temporal.PlainYearMonth = T.PlainYearMonth.from('2020-10');
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Temporal.PlainYearMonth>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Temporal.PlainYearMonth>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainYearMonth()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Temporal.PlainYearMonth>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Temporal.PlainYearMonth>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.PlainYearMonth>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainYearMonth()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.PlainYearMonth>(),
+    getValidationErrorsReflect: () => {
       const v: Temporal.PlainYearMonth = T.PlainYearMonth.from('2020-10');
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Temporal.PlainYearMonth = T.PlainYearMonth.from('2020-10');
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Temporal.PlainYearMonth>(),
     mockTypeReflect: () => {
@@ -320,32 +320,32 @@ export const DATETIME = {
   plainMonthDay: {
     title: 'Temporal.PlainMonthDay',
     // Temporal types are validated by native identity; DataOnly's structural
-    // object projection mangles them, so createIsType<DataOnly<T>>() diverges.
+    // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isTypeNotes: 'Must be a Temporal.PlainMonthDay instance (instanceof).',
-    isType: () => createIsType<Temporal.PlainMonthDay>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Temporal.PlainMonthDay>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainMonthDay()),
-    deserializeIsType: () => deserializeIsType<Temporal.PlainMonthDay>(),
-    isTypeReflect: () => {
+    validateNotes: 'Must be a Temporal.PlainMonthDay instance (instanceof).',
+    validate: () => createValidate<Temporal.PlainMonthDay>(),
+    validateDataOnly: () => createValidate<DataOnly<Temporal.PlainMonthDay>>(),
+    validateSchema: () => createValidate(RT.temporal.plainMonthDay()),
+    deserializeValidate: () => deserializeValidate<Temporal.PlainMonthDay>(),
+    validateReflect: () => {
       const v: Temporal.PlainMonthDay = T.PlainMonthDay.from('07-14');
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Temporal.PlainMonthDay = T.PlainMonthDay.from('07-14');
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Temporal.PlainMonthDay>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Temporal.PlainMonthDay>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainMonthDay()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Temporal.PlainMonthDay>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Temporal.PlainMonthDay>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.PlainMonthDay>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainMonthDay()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.PlainMonthDay>(),
+    getValidationErrorsReflect: () => {
       const v: Temporal.PlainMonthDay = T.PlainMonthDay.from('07-14');
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Temporal.PlainMonthDay = T.PlainMonthDay.from('07-14');
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Temporal.PlainMonthDay>(),
     mockTypeReflect: () => {
@@ -362,32 +362,32 @@ export const DATETIME = {
   duration: {
     title: 'Temporal.Duration',
     // Temporal types are validated by native identity; DataOnly's structural
-    // object projection mangles them, so createIsType<DataOnly<T>>() diverges.
+    // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isTypeNotes: 'Must be a Temporal.Duration instance (instanceof).',
-    isType: () => createIsType<Temporal.Duration>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Temporal.Duration>>(),
-    isTypeSchema: () => createIsType(RT.temporal.duration()),
-    deserializeIsType: () => deserializeIsType<Temporal.Duration>(),
-    isTypeReflect: () => {
+    validateNotes: 'Must be a Temporal.Duration instance (instanceof).',
+    validate: () => createValidate<Temporal.Duration>(),
+    validateDataOnly: () => createValidate<DataOnly<Temporal.Duration>>(),
+    validateSchema: () => createValidate(RT.temporal.duration()),
+    deserializeValidate: () => deserializeValidate<Temporal.Duration>(),
+    validateReflect: () => {
       const v: Temporal.Duration = T.Duration.from('P1Y2M10DT2H30M');
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Temporal.Duration = T.Duration.from('P1Y2M10DT2H30M');
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Temporal.Duration>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Temporal.Duration>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.duration()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Temporal.Duration>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Temporal.Duration>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.Duration>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.duration()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.Duration>(),
+    getValidationErrorsReflect: () => {
       const v: Temporal.Duration = T.Duration.from('P1Y2M10DT2H30M');
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Temporal.Duration = T.Duration.from('P1Y2M10DT2H30M');
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Temporal.Duration>(),
     mockTypeReflect: () => {

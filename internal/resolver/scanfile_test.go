@@ -91,7 +91,7 @@ func TestScanFile_F17_StaticGetRunTypeId(t *testing.T) {
 		[]struct{ needle, desc string }{
 			{"getRunTypeId<{id: number; name: string}>()", "17a: static, explicit object type"},
 			{"getRunTypeId<string>()", "17b: static, primitive type"},
-			{"isType<{flag: boolean}>(true)", "17c: user wrapper, explicit T"},
+			{"validate<{flag: boolean}>(true)", "17c: user wrapper, explicit T"},
 			{"nameOf({kind: 'node', value: 42})", "17d: user wrapper, inferred T"},
 		},
 		[]string{
@@ -111,7 +111,7 @@ func TestScanFile_F17b_ReflectRunTypeId(t *testing.T) {
 		[]struct{ needle, desc string }{
 			{"reflectRunTypeId(u)", "17ba: reflect, T inferred from object literal"},
 			{"reflectRunTypeId(s)", "17bb: reflect, T inferred from primitive"},
-			{"isType<{flag: boolean}>(true)", "17bc: user wrapper, explicit T"},
+			{"validate<{flag: boolean}>(true)", "17bc: user wrapper, explicit T"},
 			{"nameOf({kind: 'node', value: 42})", "17bd: user wrapper, inferred T"},
 		},
 		[]string{
@@ -136,11 +136,11 @@ getRunTypeId<{id: number; name: string}>('manualHash');
 getRunTypeId<string>('manualHash');
 
 // 18c — user-defined wrapper, caller already supplies the id.
-function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
-isType<{flag: boolean}>(true, 'manualHash');
+validate<{flag: boolean}>(true, 'manualHash');
 `
 	r := setupInline(t, map[string]string{"test.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
@@ -166,11 +166,11 @@ const s: string = 'hello';
 reflectRunTypeId(s, 'manualHash');
 
 // 18bc — user-defined wrapper, caller already supplies the id.
-function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
-isType<{flag: boolean}>(true, 'manualHash');
+validate<{flag: boolean}>(true, 'manualHash');
 `
 	r := setupInline(t, map[string]string{"test.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
@@ -192,11 +192,11 @@ getRunTypeId<{id: number; name: string}>();
 
 getRunTypeId<string>();
 
-function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
-isType<{flag: boolean}>(true);
+validate<{flag: boolean}>(true);
 `
 	assertIdempotent(t, code)
 }
@@ -211,11 +211,11 @@ reflectRunTypeId(u);
 const s: string = 'hello';
 reflectRunTypeId(s);
 
-function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
-isType<{flag: boolean}>(true);
+validate<{flag: boolean}>(true);
 `
 	assertIdempotent(t, code)
 }

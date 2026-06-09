@@ -1,7 +1,7 @@
 // @ts-nocheck
 //
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
-// See the banner at the top of `isTypeCache.ts` for the full contract.
+// See the banner at the top of `validateCache.ts` for the full contract.
 //
 // unknownKeysToUndefinedWire cache module. Decoder-internal sibling of uku.
 // Differs only at union nodes: detects the wire wrapper `[idx, value]` at

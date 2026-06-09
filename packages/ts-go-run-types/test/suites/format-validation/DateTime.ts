@@ -23,7 +23,7 @@
 
 import type {FormatValidationCase} from './types.ts';
 import '@mionjs/ts-go-run-types/formats';
-import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {FormatDate} from '@mionjs/ts-go-run-types/formats';
 import type {
@@ -41,13 +41,13 @@ export const DATETIME = {
   // ═══════════════════════════ FormatDate (native JS Date) ══════════════════
   date_minmax: {
     title: 'FormatDate<{min,max}> — inclusive edges pass, one step outside fails',
-    isType: () => createIsType<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
-    isTypeSchema: () => createIsType(RT.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
-    getTypeErrors: () => createGetTypeErrors<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    validate: () => createValidate<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
+    validateSchema: () => createValidate(RT.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    getValidationErrors: () => createGetValidationErrors<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     mockType: () => createMockType<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     getSamples: () => ({
       valid: [new Date(Date.UTC(2020, 0, 1, 0, 0, 0)), new Date(Date.UTC(2020, 11, 31, 23, 59, 59))],
@@ -57,13 +57,13 @@ export const DATETIME = {
   },
   date_gtlt: {
     title: 'FormatDate<{gt,lt}> — exclusive edges rejected, interior passes',
-    isType: () => createIsType<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
-    isTypeSchema: () => createIsType(RT.date({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
-    getTypeErrors: () => createGetTypeErrors<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.date({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
+    validate: () => createValidate<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
+    validateSchema: () => createValidate(RT.date({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
+    getValidationErrors: () => createGetValidationErrors<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.date({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
     mockType: () => createMockType<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     getSamples: () => ({
       valid: [new Date(Date.UTC(2020, 5, 15))],
@@ -74,13 +74,13 @@ export const DATETIME = {
   },
   date_min_lt: {
     title: 'FormatDate<{min,lt}> — inclusive lower + exclusive upper',
-    isType: () => createIsType<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
-    isTypeSchema: () => createIsType(RT.date({min: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
-    getTypeErrors: () => createGetTypeErrors<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.date({min: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
+    validate: () => createValidate<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
+    validateSchema: () => createValidate(RT.date({min: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
+    getValidationErrors: () => createGetValidationErrors<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.date({min: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
     getSamples: () => ({
       valid: [new Date(Date.UTC(2020, 0, 1, 0, 0, 0)), new Date(Date.UTC(2020, 5, 15))],
       invalid: [new Date(Date.UTC(2019, 11, 31, 23, 59, 59)), new Date(Date.UTC(2020, 11, 31, 23, 59, 59))],
@@ -92,12 +92,12 @@ export const DATETIME = {
   },
   date_max_now: {
     title: 'FormatDate<{max: now}> — rejects the future (relative)',
-    isType: () => createIsType<FormatDate<{max: 'now'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatDate<{max: 'now'}>>>(),
-    isTypeSchema: () => createIsType(RT.date({max: 'now'})),
-    getTypeErrors: () => createGetTypeErrors<FormatDate<{max: 'now'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatDate<{max: 'now'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.date({max: 'now'})),
+    validate: () => createValidate<FormatDate<{max: 'now'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatDate<{max: 'now'}>>>(),
+    validateSchema: () => createValidate(RT.date({max: 'now'})),
+    getValidationErrors: () => createGetValidationErrors<FormatDate<{max: 'now'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatDate<{max: 'now'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.date({max: 'now'})),
     mockType: () => createMockType<FormatDate<{min: 'now-P1Y'; max: 'now'}>>(),
     getSamples: () => ({
       valid: [new Date('2020-01-01T00:00:00Z')],
@@ -107,12 +107,12 @@ export const DATETIME = {
   },
   date_rel_window: {
     title: 'FormatDate<{min: now-P1000Y, max: now+P1000Y}> — relative window (Y, both components allowed)',
-    isType: () => createIsType<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    isTypeSchema: () => createIsType(RT.date({min: 'now-P1000Y', max: 'now+P1000Y'})),
-    getTypeErrors: () => createGetTypeErrors<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.date({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    validate: () => createValidate<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    validateSchema: () => createValidate(RT.date({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    getValidationErrors: () => createGetValidationErrors<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.date({min: 'now-P1000Y', max: 'now+P1000Y'})),
     mockType: () => createMockType<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [new Date(Date.UTC(2020, 5, 15))],
@@ -125,12 +125,12 @@ export const DATETIME = {
   },
   date_rel_datetime_components: {
     title: 'FormatDate<{min: now-P1000YT12H}> — relative with both date + time components',
-    isType: () => createIsType<FormatDate<{min: 'now-P1000YT12H'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatDate<{min: 'now-P1000YT12H'}>>>(),
-    isTypeSchema: () => createIsType(RT.date({min: 'now-P1000YT12H'})),
-    getTypeErrors: () => createGetTypeErrors<FormatDate<{min: 'now-P1000YT12H'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatDate<{min: 'now-P1000YT12H'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.date({min: 'now-P1000YT12H'})),
+    validate: () => createValidate<FormatDate<{min: 'now-P1000YT12H'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatDate<{min: 'now-P1000YT12H'}>>>(),
+    validateSchema: () => createValidate(RT.date({min: 'now-P1000YT12H'})),
+    getValidationErrors: () => createGetValidationErrors<FormatDate<{min: 'now-P1000YT12H'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatDate<{min: 'now-P1000YT12H'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.date({min: 'now-P1000YT12H'})),
     getSamples: () => ({
       valid: [new Date(Date.UTC(2020, 5, 15))],
       invalid: [new Date(Date.UTC(1000, 0, 1))],
@@ -143,17 +143,17 @@ export const DATETIME = {
     title: 'FormatTemporalInstant<{min,max}> — inclusive edges',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.temporal.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
+    validate: () => createValidate<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.temporal.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
     mockType: () => createMockType<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     getSamples: () => ({
       valid: [T.Instant.from('2020-01-01T00:00:00Z'), T.Instant.from('2020-12-31T23:59:59Z')],
@@ -169,16 +169,16 @@ export const DATETIME = {
     title: 'FormatTemporalInstant<{gt,lt}> — exclusive edges rejected',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
+    validate: () => createValidate<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
     mockType: () => createMockType<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
     getSamples: () => ({
       valid: [T.Instant.from('2020-06-15T12:00:00Z')],
@@ -194,15 +194,15 @@ export const DATETIME = {
     title: 'FormatTemporalInstant<{min: now-PT8760000H, max: now+PT8760000H}> — relative (time components only)',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
+    validate: () => createValidate<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
     mockType: () => createMockType<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
     getSamples: () => ({
       valid: [T.Instant.from('2020-06-15T12:00:00Z')],
@@ -219,14 +219,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{min,max}> — inclusive edges',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
     mockType: () => createMockType<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-01-01'), T.PlainDate.from('2020-12-31')],
@@ -242,14 +242,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{gt,lt}> — exclusive edges rejected, next day inside passes',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
     mockType: () => createMockType<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-01-02'), T.PlainDate.from('2020-12-30')],
@@ -265,14 +265,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{min,lt}> — inclusive lower + exclusive upper',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
     mockType: () => createMockType<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-01-01'), T.PlainDate.from('2020-01-09')],
@@ -287,14 +287,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{gt,max}> — exclusive lower + inclusive upper',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
     mockType: () => createMockType<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-01-02'), T.PlainDate.from('2020-01-10')],
@@ -309,14 +309,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{min}> — lower bound only',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{min: '2020-01-01'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({min: '2020-01-01'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{min: '2020-01-01'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({min: '2020-01-01'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{min: '2020-01-01'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({min: '2020-01-01'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({min: '2020-01-01'})),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-01-01'), T.PlainDate.from('2099-12-31')],
       invalid: [T.PlainDate.from('2019-12-31')],
@@ -327,14 +327,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{max}> — upper bound only',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{max: '2020-12-31'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{max: '2020-12-31'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({max: '2020-12-31'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{max: '2020-12-31'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{max: '2020-12-31'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({max: '2020-12-31'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{max: '2020-12-31'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{max: '2020-12-31'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({max: '2020-12-31'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{max: '2020-12-31'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{max: '2020-12-31'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({max: '2020-12-31'})),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-12-31'), T.PlainDate.from('1900-01-01')],
       invalid: [T.PlainDate.from('2021-01-01')],
@@ -345,14 +345,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{gt}> — exclusive lower bound only',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{gt: '2020-01-01'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({gt: '2020-01-01'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{gt: '2020-01-01'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({gt: '2020-01-01'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{gt: '2020-01-01'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({gt: '2020-01-01'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({gt: '2020-01-01'})),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-01-02')],
       invalid: [T.PlainDate.from('2020-01-01'), T.PlainDate.from('2019-12-31')],
@@ -366,14 +366,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{lt}> — exclusive upper bound only',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{lt: '2020-12-31'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{lt: '2020-12-31'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({lt: '2020-12-31'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{lt: '2020-12-31'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{lt: '2020-12-31'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({lt: '2020-12-31'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{lt: '2020-12-31'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{lt: '2020-12-31'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({lt: '2020-12-31'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{lt: '2020-12-31'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{lt: '2020-12-31'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({lt: '2020-12-31'})),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-12-30')],
       invalid: [T.PlainDate.from('2020-12-31'), T.PlainDate.from('2021-06-01')],
@@ -387,14 +387,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{min: now-P1000Y, max: now+P1000Y}> — relative window (Y)',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
     mockType: () => createMockType<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-06-15')],
@@ -409,14 +409,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{min: now-P100Y6M15D}> — relative Y/M/D components',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({min: 'now-P100Y6M15D'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({min: 'now-P100Y6M15D'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({min: 'now-P100Y6M15D'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({min: 'now-P100Y6M15D'})),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-06-15')],
       invalid: [T.PlainDate.from('1800-01-01')],
@@ -427,14 +427,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDate<{min: now-P52200W}> — relative W component',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDate<{min: 'now-P52200W'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDate<{min: 'now-P52200W'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDate({min: 'now-P52200W'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDate<{min: 'now-P52200W'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDate<{min: 'now-P52200W'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDate({min: 'now-P52200W'})),
+    validate: () => createValidate<FormatTemporalPlainDate<{min: 'now-P52200W'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: 'now-P52200W'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDate({min: 'now-P52200W'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: 'now-P52200W'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: 'now-P52200W'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({min: 'now-P52200W'})),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-06-15')],
       invalid: [T.PlainDate.from('0500-01-01')],
@@ -447,14 +447,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainTime<{min,max}> — inclusive edges (business hours)',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
+    validate: () => createValidate<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
     mockType: () => createMockType<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     getSamples: () => ({
       valid: [T.PlainTime.from('09:00:00'), T.PlainTime.from('17:00:00')],
@@ -470,14 +470,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainTime<{gt,lt}> — exclusive edges rejected',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainTime({gt: '09:00:00', lt: '17:00:00'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainTime({gt: '09:00:00', lt: '17:00:00'})),
+    validate: () => createValidate<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainTime({gt: '09:00:00', lt: '17:00:00'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainTime({gt: '09:00:00', lt: '17:00:00'})),
     mockType: () => createMockType<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
     getSamples: () => ({
       valid: [T.PlainTime.from('09:00:01'), T.PlainTime.from('16:59:59')],
@@ -495,18 +495,18 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDateTime<{min,max}> — inclusive edges',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
-    getTypeErrors: () =>
-      createGetTypeErrors<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    validate: () => createValidate<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     mockType: () => createMockType<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     getSamples: () => ({
       valid: [T.PlainDateTime.from('2020-01-01T00:00:00'), T.PlainDateTime.from('2020-12-31T23:59:59')],
@@ -522,18 +522,18 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDateTime<{gt,lt}> — exclusive edges rejected',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDateTime({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
-    getTypeErrors: () =>
-      createGetTypeErrors<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.temporal.plainDateTime({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
+    validate: () => createValidate<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDateTime({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.temporal.plainDateTime({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
     mockType: () => createMockType<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     getSamples: () => ({
       valid: [T.PlainDateTime.from('2020-06-15T12:00:00')],
@@ -549,15 +549,15 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDateTime<{min: now-P1000Y, max: now+P1000Y}> — relative window',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    validate: () => createValidate<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
     mockType: () => createMockType<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [T.PlainDateTime.from('2020-06-15T12:00:00')],
@@ -572,14 +572,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainDateTime<{min: now-P500YT12H}> — relative date + time components',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainDateTime({min: 'now-P500YT12H'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainDateTime({min: 'now-P500YT12H'})),
+    validate: () => createValidate<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainDateTime({min: 'now-P500YT12H'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDateTime({min: 'now-P500YT12H'})),
     getSamples: () => ({
       valid: [T.PlainDateTime.from('2020-06-15T12:00:00')],
       invalid: [T.PlainDateTime.from('1000-01-01T00:00:00')],
@@ -592,14 +592,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainYearMonth<{min,max}> — inclusive edges',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
+    validate: () => createValidate<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
     mockType: () => createMockType<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     getSamples: () => ({
       valid: [T.PlainYearMonth.from('2020-01'), T.PlainYearMonth.from('2020-12')],
@@ -615,14 +615,14 @@ export const DATETIME = {
     title: 'FormatTemporalPlainYearMonth<{gt,lt}> — exclusive edges rejected',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
+    validate: () => createValidate<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
     mockType: () => createMockType<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
     getSamples: () => ({
       valid: [T.PlainYearMonth.from('2020-02'), T.PlainYearMonth.from('2020-11')],
@@ -638,15 +638,15 @@ export const DATETIME = {
     title: 'FormatTemporalPlainYearMonth<{min: now-P1000Y, max: now+P1000Y}> — relative (Y/M)',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    validate: () => createValidate<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
     mockType: () => createMockType<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [T.PlainYearMonth.from('2020-06')],
@@ -663,21 +663,21 @@ export const DATETIME = {
     title: 'FormatTemporalZonedDateTime<{min,max}> — inclusive edges',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>>(),
-    isTypeSchema: () =>
-      createIsType(RT.temporal.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
-    getTypeErrors: () =>
-      createGetTypeErrors<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<
+    validate: () => createValidate<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>>(),
+    validateSchema: () =>
+      createValidate(RT.temporal.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<
         DataOnly<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>
       >(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.temporal.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.temporal.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
     mockType: () =>
       createMockType<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     getSamples: () => ({
@@ -694,20 +694,20 @@ export const DATETIME = {
     title: 'FormatTemporalZonedDateTime<{gt,lt}> — exclusive edges rejected',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.zonedDateTime({gt: '2020-01-01T00:00:00[UTC]', lt: '2020-12-31T23:59:59[UTC]'})),
-    getTypeErrors: () =>
-      createGetTypeErrors<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<
+    validate: () => createValidate<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.zonedDateTime({gt: '2020-01-01T00:00:00[UTC]', lt: '2020-12-31T23:59:59[UTC]'})),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<
         DataOnly<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>
       >(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.temporal.zonedDateTime({gt: '2020-01-01T00:00:00[UTC]', lt: '2020-12-31T23:59:59[UTC]'})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.temporal.zonedDateTime({gt: '2020-01-01T00:00:00[UTC]', lt: '2020-12-31T23:59:59[UTC]'})),
     mockType: () =>
       createMockType<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
     getSamples: () => ({
@@ -724,15 +724,15 @@ export const DATETIME = {
     title: 'FormatTemporalZonedDateTime<{min: now-P1000Y, max: now+P1000Y}> — relative window',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
-    // createIsType<DataOnly<T>>() diverges.
+    // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    isType: () => createIsType<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    isTypeSchema: () => createIsType(RT.temporal.zonedDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
-    getTypeErrors: () => createGetTypeErrors<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.zonedDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    validate: () => createValidate<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    validateDataOnly: () => createValidate<DataOnly<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    validateSchema: () => createValidate(RT.temporal.zonedDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    getValidationErrors: () => createGetValidationErrors<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.zonedDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
     mockType: () => createMockType<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]')],

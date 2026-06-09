@@ -1,40 +1,40 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
-import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const UNION = {
   atomic_union: {
     title: 'Union of common atomic types (with Date and bigint)',
     description: 'mion union.spec.ts "validate union" — Atomic Union suite',
-    isTypeNotes: [
+    validateNotes: [
       'Validates as an OR-chain — first matching arm wins.',
       'Each arm runs its full atomic check: numbers reject NaN / Infinity, Dates reject Invalid Date, etc.',
     ],
-    isType: () => createIsType<Date | number | string | null | bigint>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Date | number | string | null | bigint>>(),
-    isTypeSchema: () => createIsType(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
-    deserializeIsType: () => deserializeIsType<Date | number | string | null | bigint>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Date | number | string | null | bigint>(),
+    validateDataOnly: () => createValidate<DataOnly<Date | number | string | null | bigint>>(),
+    validateSchema: () => createValidate(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
+    deserializeValidate: () => deserializeValidate<Date | number | string | null | bigint>(),
+    validateReflect: () => {
       const v: Date | number | string | null | bigint = 123;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Date | number | string | null | bigint = 123;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Date | number | string | null | bigint>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Date | number | string | null | bigint>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date | number | string | null | bigint>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Date | number | string | null | bigint>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Date | number | string | null | bigint>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Date | number | string | null | bigint>(),
+    getValidationErrorsReflect: () => {
       const v: Date | number | string | null | bigint = 123;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Date | number | string | null | bigint = 123;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Date | number | string | null | bigint>(),
     mockTypeReflect: () => {
@@ -60,30 +60,30 @@ export const UNION = {
   string_literal_union: {
     title: 'Union of string literals (case-sensitive)',
     description: 'mion union.spec.ts "validate union discriminator string"',
-    isTypeNotes: 'Literal string unions are case-sensitive. Only the exact strings declared in the union pass.',
-    isType: () => createIsType<'UNO' | 'DOS' | 'TRES'>(),
-    isTypeDataOnly: () => createIsType<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
-    isTypeSchema: () => createIsType(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
-    deserializeIsType: () => deserializeIsType<'UNO' | 'DOS' | 'TRES'>(),
-    isTypeReflect: () => {
+    validateNotes: 'Literal string unions are case-sensitive. Only the exact strings declared in the union pass.',
+    validate: () => createValidate<'UNO' | 'DOS' | 'TRES'>(),
+    validateDataOnly: () => createValidate<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
+    validateSchema: () => createValidate(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
+    deserializeValidate: () => deserializeValidate<'UNO' | 'DOS' | 'TRES'>(),
+    validateReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<'UNO' | 'DOS' | 'TRES'>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<'UNO' | 'DOS' | 'TRES'>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<'UNO' | 'DOS' | 'TRES'>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<'UNO' | 'DOS' | 'TRES'>(),
+    getValidationErrorsReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<'UNO' | 'DOS' | 'TRES'>(),
     mockTypeReflect: () => {
@@ -111,11 +111,11 @@ export const UNION = {
     title: 'Large union (8 heterogeneous arms) — value-first infer fallback',
     description:
       'Past the 4 positional union() overloads, the value-first builder routes through the recursive UnionOf<T> infer fallback. 8 arms (literals + primitives + a {a}/{a;b} subset+superset pair) verify the fallback BOTH generates a correct validator AND converges on the type-first union id — preserving the subset/superset arms (no subtype collapse) at depth 8.',
-    isType: () => createIsType<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>>(),
-    isTypeSchema: () =>
-      createIsType(
+    validate: () => createValidate<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>>(),
+    validateSchema: () =>
+      createValidate(
         RT.union([
           RT.literal('a'),
           RT.literal('b'),
@@ -127,22 +127,22 @@ export const UNION = {
           RT.object({c: RT.bigint()}),
         ])
       ),
-    deserializeIsType: () =>
-      deserializeIsType<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
-    isTypeReflect: () => {
+    deserializeValidate: () =>
+      deserializeValidate<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    validateReflect: () => {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () =>
-      createGetTypeErrors<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () =>
+      createGetValidationErrors<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.union([
           RT.literal('a'),
           RT.literal('b'),
@@ -154,15 +154,15 @@ export const UNION = {
           RT.object({c: RT.bigint()}),
         ])
       ),
-    deserializeGetTypeErrors: () =>
-      deserializeGetTypeErrors<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
-    getTypeErrorsReflect: () => {
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    getValidationErrorsReflect: () => {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     mockTypeReflect: () => {
@@ -187,29 +187,29 @@ export const UNION = {
 
   string_or_number: {
     title: 'Two-arm union of string and number',
-    isType: () => createIsType<string | number>(),
-    isTypeDataOnly: () => createIsType<DataOnly<string | number>>(),
-    isTypeSchema: () => createIsType(RT.union([RT.string(), RT.number()])),
-    deserializeIsType: () => deserializeIsType<string | number>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<string | number>(),
+    validateDataOnly: () => createValidate<DataOnly<string | number>>(),
+    validateSchema: () => createValidate(RT.union([RT.string(), RT.number()])),
+    deserializeValidate: () => deserializeValidate<string | number>(),
+    validateReflect: () => {
       const v: string | number = 'hello';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: string | number = 'hello';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<string | number>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string | number>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.string(), RT.number()])),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | number>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<string | number>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string | number>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.union([RT.string(), RT.number()])),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<string | number>(),
+    getValidationErrorsReflect: () => {
       const v: string | number = 'hello';
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: string | number = 'hello';
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<string | number>(),
     mockTypeReflect: () => {
@@ -235,32 +235,32 @@ export const UNION = {
   union_of_array_types: {
     title: 'Union of array types (whole-array dispatch)',
     description: 'mion union.spec.ts "Union Arr"',
-    isTypeNotes:
+    validateNotes:
       'Mixed-element arrays (e.g., `["a", 1]`) FAIL — no single arm matches the whole array. The union is over array types, not element types.',
-    isType: () => createIsType<string[] | number[] | boolean[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<string[] | number[] | boolean[]>>(),
-    isTypeSchema: () => createIsType(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean())])),
-    deserializeIsType: () => deserializeIsType<string[] | number[] | boolean[]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<string[] | number[] | boolean[]>(),
+    validateDataOnly: () => createValidate<DataOnly<string[] | number[] | boolean[]>>(),
+    validateSchema: () => createValidate(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean())])),
+    deserializeValidate: () => deserializeValidate<string[] | number[] | boolean[]>(),
+    validateReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<string[] | number[] | boolean[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string[] | number[] | boolean[]>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean())])),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[] | number[] | boolean[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<string[] | number[] | boolean[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string[] | number[] | boolean[]>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean())])),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<string[] | number[] | boolean[]>(),
+    getValidationErrorsReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<string[] | number[] | boolean[]>(),
     mockTypeReflect: () => {
@@ -286,31 +286,31 @@ export const UNION = {
   array_of_union: {
     title: 'Array whose element type is a union',
     description: 'mion union.spec.ts "Arr with union of types"',
-    isTypeNotes:
+    validateNotes:
       'Each element runs the full union OR-chain independently. Mixed-type arrays pass as long as every element matches some arm.',
-    isType: () => createIsType<(string | bigint | boolean | Date)[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<(string | bigint | boolean | Date)[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
-    deserializeIsType: () => deserializeIsType<(string | bigint | boolean | Date)[]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<(string | bigint | boolean | Date)[]>(),
+    validateDataOnly: () => createValidate<DataOnly<(string | bigint | boolean | Date)[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
+    deserializeValidate: () => deserializeValidate<(string | bigint | boolean | Date)[]>(),
+    validateReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<(string | bigint | boolean | Date)[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<(string | bigint | boolean | Date)[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<(string | bigint | boolean | Date)[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<(string | bigint | boolean | Date)[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<(string | bigint | boolean | Date)[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<(string | bigint | boolean | Date)[]>(),
+    getValidationErrorsReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<(string | bigint | boolean | Date)[]>(),
     mockTypeReflect: () => {
@@ -345,35 +345,35 @@ export const UNION = {
     title: 'Union of disjoint object shapes',
     description:
       "mion union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
-    isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
-    isTypeSchema: () =>
-      createIsType(
+    validate: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+    validateDataOnly: () => createValidate<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
+    validateSchema: () =>
+      createValidate(
         RT.union([RT.object({a: RT.string(), aa: RT.boolean()}), RT.object({b: RT.number()}), RT.object({c: RT.bigint()})])
       ),
-    deserializeIsType: () => deserializeIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
-    isTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+    validateReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () => createGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.union([RT.object({a: RT.string(), aa: RT.boolean()}), RT.object({b: RT.number()}), RT.object({c: RT.bigint()})])
       ),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
-    getTypeErrorsReflect: () => {
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+    getValidationErrorsReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     mockTypeReflect: () => {
@@ -404,37 +404,37 @@ export const UNION = {
     title: 'Discriminated union (shared kind literal, different payloads)',
     description:
       'mion union.spec.ts "Union with discriminator property" — the OR-chain is semantically correct; the discriminator-aware optimization (early-return on the discriminator literal) is a separate emit-shape concern handled later.',
-    isTypeNotes:
+    validateNotes:
       'Each arm is validated in full; the discriminator literal narrows which arm matches. A value passes if it fully satisfies AT LEAST ONE arm.',
-    isType: () => createIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{kind: 'a'; n: number} | {kind: 'b'; s: string}>>(),
-    isTypeSchema: () =>
-      createIsType(
+    validate: () => createValidate<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+    validateDataOnly: () => createValidate<DataOnly<{kind: 'a'; n: number} | {kind: 'b'; s: string}>>(),
+    validateSchema: () =>
+      createValidate(
         RT.union([RT.object({kind: RT.literal('a'), n: RT.number()}), RT.object({kind: RT.literal('b'), s: RT.string()})])
       ),
-    deserializeIsType: () => deserializeIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
-    isTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+    validateReflect: () => {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{kind: 'a'; n: number} | {kind: 'b'; s: string}>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () => createGetValidationErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{kind: 'a'; n: number} | {kind: 'b'; s: string}>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.union([RT.object({kind: RT.literal('a'), n: RT.number()}), RT.object({kind: RT.literal('b'), s: RT.string()})])
       ),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
-    getTypeErrorsReflect: () => {
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+    getValidationErrorsReflect: () => {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
     mockTypeReflect: () => {
@@ -475,8 +475,8 @@ export const UNION = {
     title: 'Self-referential union via object and array arms',
     description:
       'mion union.spec.ts "Union circular". Handled via always-non-inlined Union + Object + Array (no IsCircular detection needed; the dependency-call layer terminates via the lazy-init two-phase cache registration).',
-    isTypeNotes: 'Self-recursive unions traverse the cycle until the input value bottoms out at an atomic arm.',
-    isTypeSchema: () => {
+    validateNotes: 'Self-recursive unions traverse the cycle until the input value bottoms out at an atomic arm.',
+    validateSchema: () => {
       const uc = RT.circular((self) =>
         RT.union([
           RT.date(),
@@ -486,39 +486,39 @@ export const UNION = {
           RT.array(self),
         ])
       );
-      return createIsType(uc);
+      return createValidate(uc);
     },
-    isType: () => {
+    validate: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createIsType<UnionC>();
+      return createValidate<UnionC>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createIsType<DataOnly<UnionC>>();
+      return createValidate<DataOnly<UnionC>>();
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return deserializeIsType<UnionC>();
+      return deserializeValidate<UnionC>();
     },
-    isTypeReflect: () => {
-      type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      const v: UnionC = 'hello';
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       const v: UnionC = 'hello';
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createGetTypeErrors<UnionC>();
+      const v: UnionC = 'hello';
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createGetTypeErrors<DataOnly<UnionC>>();
+      return createGetValidationErrors<UnionC>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+      return createGetValidationErrors<DataOnly<UnionC>>();
+    },
+    getValidationErrorsSchema: () => {
       const uc = RT.circular((self) =>
         RT.union([
           RT.date(),
@@ -528,21 +528,21 @@ export const UNION = {
           RT.array(self),
         ])
       );
-      return createGetTypeErrors(uc);
+      return createGetValidationErrors(uc);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return deserializeGetTypeErrors<UnionC>();
+      return deserializeGetValidationErrors<UnionC>();
     },
-    getTypeErrorsReflect: () => {
-      type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      const v: UnionC = 'hello';
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       const v: UnionC = 'hello';
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+      const v: UnionC = 'hello';
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -573,55 +573,55 @@ export const UNION = {
     title: 'Union of object arms each carrying a method',
     description:
       'mion union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
-    isType: () => createIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{name: string; getName(): string} | {age: number; getAge(): number}>>(),
-    isTypeSchema: () =>
-      createIsType(
+    validate: () => createValidate<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+    validateDataOnly: () => createValidate<DataOnly<{name: string; getName(): string} | {age: number; getAge(): number}>>(),
+    validateSchema: () =>
+      createValidate(
         RT.union([
           RT.object({name: RT.string(), getName: RT.func([], RT.string())}),
           RT.object({age: RT.number(), getAge: RT.func([], RT.number())}),
         ])
       ),
-    deserializeIsType: () => deserializeIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
-    isTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+    validateReflect: () => {
       const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
         name: 'x',
         getName: () => 'x',
       };
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
         name: 'x',
         getName: () => 'x',
       };
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{name: string; getName(): string} | {age: number; getAge(): number}>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<{name: string; getName(): string} | {age: number; getAge(): number}>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () => createGetValidationErrors<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<{name: string; getName(): string} | {age: number; getAge(): number}>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.union([
           RT.object({name: RT.string(), getName: RT.func([], RT.string())}),
           RT.object({age: RT.number(), getAge: RT.func([], RT.number())}),
         ])
       ),
-    deserializeGetTypeErrors: () =>
-      deserializeGetTypeErrors<{name: string; getName(): string} | {age: number; getAge(): number}>(),
-    getTypeErrorsReflect: () => {
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+    getValidationErrorsReflect: () => {
       const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
         name: 'x',
         getName: () => 'x',
       };
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
         name: 'x',
         getName: () => 'x',
       };
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     mockTypeReflect: () => {
@@ -652,29 +652,29 @@ export const UNION = {
     title: 'Intersection of object shapes (resolved to one merged shape)',
     description:
       'mion intersection.spec.ts — tsgo / deepkit resolves intersections to ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection that needs validation. Runtime behavior matches `{a: string; b: number}` byte-for-byte.',
-    isType: () => createIsType<{a: string} & {b: number}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{a: string} & {b: number}>>(),
-    isTypeSchema: () => createIsType(RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}))),
-    deserializeIsType: () => deserializeIsType<{a: string} & {b: number}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{a: string} & {b: number}>(),
+    validateDataOnly: () => createValidate<DataOnly<{a: string} & {b: number}>>(),
+    validateSchema: () => createValidate(RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}))),
+    deserializeValidate: () => deserializeValidate<{a: string} & {b: number}>(),
+    validateReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{a: string} & {b: number}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string} & {b: number}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string} & {b: number}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{a: string} & {b: number}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string} & {b: number}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string} & {b: number}>(),
+    getValidationErrorsReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{a: string} & {b: number}>(),
     mockTypeReflect: () => {
@@ -688,7 +688,7 @@ export const UNION = {
       ],
       invalid: [{a: 'x'}, {b: 1}, null, {a: 1, b: 1}, {a: 'x', b: 'not number'}, undefined, {a: 'x', b: NaN}, {}],
     }),
-    // Intersection resolved to `{a: string; b: number}` — typeErrors
+    // Intersection resolved to `{a: string; b: number}` — validationErrors
     // is the merged object shape's per-property check.
     getExpectedErrors: () => [
       [{path: ['b'], expected: 'number'}],
@@ -711,45 +711,45 @@ export const UNION = {
     title: 'Union where one arm carries an index signature',
     description:
       "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
-    isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
-    isTypeSchema: () =>
-      createIsType(
+    validate: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+    validateDataOnly: () => createValidate<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
+    validateSchema: () =>
+      createValidate(
         RT.union([
           RT.object({a: RT.string(), aa: RT.boolean()}),
           RT.object({b: RT.number()}),
           RT.intersection(RT.record(RT.bigint()), RT.object({c: RT.bigint()})),
         ])
       ),
-    deserializeIsType: () => deserializeIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
-    isTypeReflect: () => {
+    deserializeValidate: () => deserializeValidate<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+    validateReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () => createGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.union([
           RT.object({a: RT.string(), aa: RT.boolean()}),
           RT.object({b: RT.number()}),
           RT.intersection(RT.record(RT.bigint()), RT.object({c: RT.bigint()})),
         ])
       ),
-    deserializeGetTypeErrors: () =>
-      deserializeGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
-    getTypeErrorsReflect: () => {
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+    getValidationErrorsReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     mockTypeReflect: () => {
@@ -785,60 +785,60 @@ export const UNION = {
     title: 'Discriminated union sharing one prop with arm-dependent type',
     description:
       "mion union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
-    isType: () => createIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
-    isTypeDataOnly: () =>
-      createIsType<DataOnly<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>>(),
-    isTypeSchema: () =>
-      createIsType(
+    validate: () => createValidate<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>>(),
+    validateSchema: () =>
+      createValidate(
         RT.union([
           RT.object({type: RT.literal('a'), prop: RT.boolean()}),
           RT.object({type: RT.literal('b'), prop: RT.number()}),
           RT.object({type: RT.literal('c'), prop: RT.string()}),
         ])
       ),
-    deserializeIsType: () =>
-      deserializeIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
-    isTypeReflect: () => {
+    deserializeValidate: () =>
+      deserializeValidate<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+    validateReflect: () => {
       const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
         type: 'a',
         prop: true,
       };
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
         type: 'a',
         prop: true,
       };
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () =>
-      createGetTypeErrors<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<DataOnly<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>>(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrors: () =>
+      createGetValidationErrors<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.union([
           RT.object({type: RT.literal('a'), prop: RT.boolean()}),
           RT.object({type: RT.literal('b'), prop: RT.number()}),
           RT.object({type: RT.literal('c'), prop: RT.string()}),
         ])
       ),
-    deserializeGetTypeErrors: () =>
-      deserializeGetTypeErrors<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
-    getTypeErrorsReflect: () => {
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+    getValidationErrorsReflect: () => {
       const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
         type: 'a',
         prop: true,
       };
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
         type: 'a',
         prop: true,
       };
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
     mockTypeReflect: () => {
@@ -881,14 +881,14 @@ export const UNION = {
     title: 'Union mixing array types and object shapes',
     description:
       "mion union.spec.ts 'Union Mixed' — arrays and objects in the same union; the OR-chain dispatches on shape (Array.isArray vs object typeof).",
-    isType: () =>
-      createIsType<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
-    isTypeDataOnly: () =>
-      createIsType<
+    validate: () =>
+      createValidate<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+    validateDataOnly: () =>
+      createValidate<
         DataOnly<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>
       >(),
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.union([
           RT.array(RT.string()),
           RT.array(RT.number()),
@@ -898,32 +898,32 @@ export const UNION = {
           RT.object({c: RT.bigint(), aa: RT.literal('string')}),
         ])
       ),
-    deserializeIsType: () =>
-      deserializeIsType<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
-    isTypeReflect: () => {
+    deserializeValidate: () =>
+      deserializeValidate<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+    validateReflect: () => {
       const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
         'a',
         'b',
         'c',
       ];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
         'a',
         'b',
         'c',
       ];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () =>
-      createGetTypeErrors<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<
+    getValidationErrors: () =>
+      createGetValidationErrors<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<
         DataOnly<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>
       >(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.union([
           RT.array(RT.string()),
           RT.array(RT.number()),
@@ -933,25 +933,25 @@ export const UNION = {
           RT.object({c: RT.bigint(), aa: RT.literal('string')}),
         ])
       ),
-    deserializeGetTypeErrors: () =>
-      deserializeGetTypeErrors<
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<
         string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
       >(),
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
         'a',
         'b',
         'c',
       ];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
         'a',
         'b',
         'c',
       ];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () =>
       createMockType<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
@@ -996,29 +996,29 @@ export const UNION = {
     title: 'Union of shapes sharing a prop with different value types',
     description:
       "mion union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
-    isType: () => createIsType<{a: boolean} | {a: number}>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{a: boolean} | {a: number}>>(),
-    isTypeSchema: () => createIsType(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
-    deserializeIsType: () => deserializeIsType<{a: boolean} | {a: number}>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<{a: boolean} | {a: number}>(),
+    validateDataOnly: () => createValidate<DataOnly<{a: boolean} | {a: number}>>(),
+    validateSchema: () => createValidate(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
+    deserializeValidate: () => deserializeValidate<{a: boolean} | {a: number}>(),
+    validateReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{a: boolean} | {a: number}>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: boolean} | {a: number}>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: boolean} | {a: number}>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{a: boolean} | {a: number}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: boolean} | {a: number}>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: boolean} | {a: number}>(),
+    getValidationErrorsReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{a: boolean} | {a: number}>(),
     mockTypeReflect: () => {
@@ -1044,16 +1044,16 @@ export const UNION = {
     title: 'Union mixing arrays, plain objects, and index-signature shapes',
     description:
       "mion union.spec.ts 'Union mixed with index property' — arrays + objects (some with index signatures) in the same union.",
-    isType: () =>
-      createIsType<
+    validate: () =>
+      createValidate<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint}
       >(),
-    isTypeDataOnly: () =>
-      createIsType<
+    validateDataOnly: () =>
+      createValidate<
         DataOnly<
           | string[]
           | {a: string; aa: boolean}
@@ -1062,8 +1062,8 @@ export const UNION = {
           | {[key: string]: bigint; b: bigint}
         >
       >(),
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.union([
           RT.array(RT.string()),
           RT.object({a: RT.string(), aa: RT.boolean()}),
@@ -1072,42 +1072,42 @@ export const UNION = {
           RT.intersection(RT.record(RT.bigint()), RT.object({b: RT.bigint()})),
         ])
       ),
-    deserializeIsType: () =>
-      deserializeIsType<
+    deserializeValidate: () =>
+      deserializeValidate<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint}
       >(),
-    isTypeReflect: () => {
+    validateReflect: () => {
       const v:
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint} = ['a'];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v:
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint} = ['a'];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () =>
-      createGetTypeErrors<
+    getValidationErrors: () =>
+      createGetValidationErrors<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint}
       >(),
-    getTypeErrorsDataOnly: () =>
-      createGetTypeErrors<
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<
         DataOnly<
           | string[]
           | {a: string; aa: boolean}
@@ -1116,8 +1116,8 @@ export const UNION = {
           | {[key: string]: bigint; b: bigint}
         >
       >(),
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.union([
           RT.array(RT.string()),
           RT.object({a: RT.string(), aa: RT.boolean()}),
@@ -1126,31 +1126,31 @@ export const UNION = {
           RT.intersection(RT.record(RT.bigint()), RT.object({b: RT.bigint()})),
         ])
       ),
-    deserializeGetTypeErrors: () =>
-      deserializeGetTypeErrors<
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint}
       >(),
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       const v:
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint} = ['a'];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v:
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint} = ['a'];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () =>
       createMockType<
@@ -1193,31 +1193,31 @@ export const UNION = {
     title: 'Union with an `any` arm (collapses to any)',
     description:
       "mion union.spec.ts 'support union with any type' — tsgo collapses `T | any` to `any`, so any value passes (the validator is effectively a no-op true).",
-    isTypeNotes:
+    validateNotes:
       '`T | any` collapses to `any` at the type-checker layer — the validator becomes a no-op that always returns true. `T | unknown` behaves the same way. If you want a real fallback that still narrows, use a concrete sibling type.',
-    isType: () => createIsType<string | any>(),
-    isTypeDataOnly: () => createIsType<DataOnly<string | any>>(),
-    isTypeSchema: () => createIsType(RT.any()),
-    deserializeIsType: () => deserializeIsType<string | any>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<string | any>(),
+    validateDataOnly: () => createValidate<DataOnly<string | any>>(),
+    validateSchema: () => createValidate(RT.any()),
+    deserializeValidate: () => deserializeValidate<string | any>(),
+    validateReflect: () => {
       const v: string | any = 'hello';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: string | any = 'hello';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<string | any>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string | any>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.any()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | any>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<string | any>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string | any>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.any()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<string | any>(),
+    getValidationErrorsReflect: () => {
       const v: string | any = 'hello';
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: string | any = 'hello';
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<string | any>(),
     mockTypeReflect: () => {
@@ -1236,29 +1236,29 @@ export const UNION = {
     title: 'Union with an `unknown` arm (collapses to unknown)',
     description:
       "mion union.spec.ts 'support union with unknown type' — tsgo collapses `T | unknown` to `unknown`, so any value passes.",
-    isType: () => createIsType<string | unknown>(),
-    isTypeDataOnly: () => createIsType<DataOnly<string | unknown>>(),
-    isTypeSchema: () => createIsType(RT.unknown()),
-    deserializeIsType: () => deserializeIsType<string | unknown>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<string | unknown>(),
+    validateDataOnly: () => createValidate<DataOnly<string | unknown>>(),
+    validateSchema: () => createValidate(RT.unknown()),
+    deserializeValidate: () => deserializeValidate<string | unknown>(),
+    validateReflect: () => {
       const v: string | unknown = 'hello';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: string | unknown = 'hello';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<string | unknown>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string | unknown>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.unknown()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | unknown>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<string | unknown>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string | unknown>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.unknown()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<string | unknown>(),
+    getValidationErrorsReflect: () => {
       const v: string | unknown = 'hello';
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: string | unknown = 'hello';
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<string | unknown>(),
     mockTypeReflect: () => {
@@ -1276,9 +1276,9 @@ export const UNION = {
     title: 'Union with the smaller arm declared before its superset',
     description:
       "mion union.spec.ts 'sortUnreachableTypes' — `{a}` defined before `{a; b}`. Both arms must be reachable: matching SmallObj must not swallow LargeObj-shaped inputs (semantically the same since either arm matching returns true, but pins the regression).",
-    isTypeNotes:
+    validateNotes:
       'When one arm is a subset of another (e.g., `{a}` and `{a; b}`), any value satisfying the smaller arm passes — even if extra props would also satisfy the larger arm. Order in the type union does not affect the result.',
-    isType: () => {
+    validate: () => {
       interface SmallObj {
         a: string;
       }
@@ -1286,9 +1286,9 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return createIsType<SmallObj | LargeObj>();
+      return createValidate<SmallObj | LargeObj>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface SmallObj {
         a: string;
       }
@@ -1296,10 +1296,10 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return createIsType<DataOnly<SmallObj | LargeObj>>();
+      return createValidate<DataOnly<SmallObj | LargeObj>>();
     },
-    isTypeSchema: () => createIsType(RT.union([RT.object({a: RT.string()}), RT.object({a: RT.string(), b: RT.number()})])),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.union([RT.object({a: RT.string()}), RT.object({a: RT.string(), b: RT.number()})])),
+    deserializeValidate: () => {
       interface SmallObj {
         a: string;
       }
@@ -1307,9 +1307,9 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return deserializeIsType<SmallObj | LargeObj>();
+      return deserializeValidate<SmallObj | LargeObj>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       interface SmallObj {
         a: string;
       }
@@ -1318,9 +1318,9 @@ export const UNION = {
         b: number;
       }
       const v: SmallObj | LargeObj = {a: 'hello'};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       interface SmallObj {
         a: string;
       }
@@ -1329,9 +1329,9 @@ export const UNION = {
         b: number;
       }
       const v: SmallObj | LargeObj = {a: 'hello'};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       interface SmallObj {
         a: string;
       }
@@ -1339,9 +1339,9 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return createGetTypeErrors<SmallObj | LargeObj>();
+      return createGetValidationErrors<SmallObj | LargeObj>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       interface SmallObj {
         a: string;
       }
@@ -1349,11 +1349,11 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return createGetTypeErrors<DataOnly<SmallObj | LargeObj>>();
+      return createGetValidationErrors<DataOnly<SmallObj | LargeObj>>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.union([RT.object({a: RT.string()}), RT.object({a: RT.string(), b: RT.number()})])),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.union([RT.object({a: RT.string()}), RT.object({a: RT.string(), b: RT.number()})])),
+    deserializeGetValidationErrors: () => {
       interface SmallObj {
         a: string;
       }
@@ -1361,20 +1361,9 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return deserializeGetTypeErrors<SmallObj | LargeObj>();
+      return deserializeGetValidationErrors<SmallObj | LargeObj>();
     },
-    getTypeErrorsReflect: () => {
-      interface SmallObj {
-        a: string;
-      }
-      interface LargeObj {
-        a: string;
-        b: number;
-      }
-      const v: SmallObj | LargeObj = {a: 'hello'};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface SmallObj {
         a: string;
       }
@@ -1383,7 +1372,18 @@ export const UNION = {
         b: number;
       }
       const v: SmallObj | LargeObj = {a: 'hello'};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      interface SmallObj {
+        a: string;
+      }
+      interface LargeObj {
+        a: string;
+        b: number;
+      }
+      const v: SmallObj | LargeObj = {a: 'hello'};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface SmallObj {
@@ -1426,7 +1426,7 @@ export const UNION = {
     title: 'Union with a three-level subset chain',
     description:
       "mion union.spec.ts 'multiple levels of subset relationships' — three arms, each a strict superset of the previous.",
-    isType: () => {
+    validate: () => {
       interface Tiny {
         x: string;
       }
@@ -1439,9 +1439,9 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return createIsType<Tiny | Medium | Large>();
+      return createValidate<Tiny | Medium | Large>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Tiny {
         x: string;
       }
@@ -1454,17 +1454,17 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return createIsType<DataOnly<Tiny | Medium | Large>>();
+      return createValidate<DataOnly<Tiny | Medium | Large>>();
     },
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.union([
           RT.object({x: RT.string()}),
           RT.object({x: RT.string(), y: RT.number()}),
           RT.object({x: RT.string(), y: RT.number(), z: RT.boolean()}),
         ])
       ),
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface Tiny {
         x: string;
       }
@@ -1477,25 +1477,9 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return deserializeIsType<Tiny | Medium | Large>();
+      return deserializeValidate<Tiny | Medium | Large>();
     },
-    isTypeReflect: () => {
-      interface Tiny {
-        x: string;
-      }
-      interface Medium {
-        x: string;
-        y: number;
-      }
-      interface Large {
-        x: string;
-        y: number;
-        z: boolean;
-      }
-      const v: Tiny | Medium | Large = {x: 'hello'};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface Tiny {
         x: string;
       }
@@ -1509,9 +1493,9 @@ export const UNION = {
         z: boolean;
       }
       const v: Tiny | Medium | Large = {x: 'hello'};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface Tiny {
         x: string;
       }
@@ -1524,9 +1508,10 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return createGetTypeErrors<Tiny | Medium | Large>();
+      const v: Tiny | Medium | Large = {x: 'hello'};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface Tiny {
         x: string;
       }
@@ -1539,17 +1524,32 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return createGetTypeErrors<DataOnly<Tiny | Medium | Large>>();
+      return createGetValidationErrors<Tiny | Medium | Large>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsDataOnly: () => {
+      interface Tiny {
+        x: string;
+      }
+      interface Medium {
+        x: string;
+        y: number;
+      }
+      interface Large {
+        x: string;
+        y: number;
+        z: boolean;
+      }
+      return createGetValidationErrors<DataOnly<Tiny | Medium | Large>>();
+    },
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.union([
           RT.object({x: RT.string()}),
           RT.object({x: RT.string(), y: RT.number()}),
           RT.object({x: RT.string(), y: RT.number(), z: RT.boolean()}),
         ])
       ),
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface Tiny {
         x: string;
       }
@@ -1562,9 +1562,9 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return deserializeGetTypeErrors<Tiny | Medium | Large>();
+      return deserializeGetValidationErrors<Tiny | Medium | Large>();
     },
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Tiny {
         x: string;
       }
@@ -1578,9 +1578,9 @@ export const UNION = {
         z: boolean;
       }
       const v: Tiny | Medium | Large = {x: 'hello'};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       interface Tiny {
         x: string;
       }
@@ -1594,7 +1594,7 @@ export const UNION = {
         z: boolean;
       }
       const v: Tiny | Medium | Large = {x: 'hello'};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Tiny {
@@ -1648,7 +1648,7 @@ export const UNION = {
     title: 'Union mixing a subset pair with a disjoint arm',
     description:
       "mion union.spec.ts 'mixed related and unrelated types' — Base and Extended are subset-related, Unrelated is disjoint.",
-    isType: () => {
+    validate: () => {
       interface Base {
         id: string;
       }
@@ -1659,9 +1659,9 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return createIsType<Base | Extended | Unrelated>();
+      return createValidate<Base | Extended | Unrelated>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       interface Base {
         id: string;
       }
@@ -1672,13 +1672,13 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return createIsType<DataOnly<Base | Extended | Unrelated>>();
+      return createValidate<DataOnly<Base | Extended | Unrelated>>();
     },
-    isTypeSchema: () =>
-      createIsType(
+    validateSchema: () =>
+      createValidate(
         RT.union([RT.object({id: RT.string()}), RT.object({id: RT.string(), name: RT.string()}), RT.object({value: RT.number()})])
       ),
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       interface Base {
         id: string;
       }
@@ -1689,23 +1689,9 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return deserializeIsType<Base | Extended | Unrelated>();
+      return deserializeValidate<Base | Extended | Unrelated>();
     },
-    isTypeReflect: () => {
-      interface Base {
-        id: string;
-      }
-      interface Extended {
-        id: string;
-        name: string;
-      }
-      interface Unrelated {
-        value: number;
-      }
-      const v: Base | Extended | Unrelated = {id: '123'};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       interface Base {
         id: string;
       }
@@ -1717,9 +1703,9 @@ export const UNION = {
         value: number;
       }
       const v: Base | Extended | Unrelated = {id: '123'};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       interface Base {
         id: string;
       }
@@ -1730,9 +1716,10 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return createGetTypeErrors<Base | Extended | Unrelated>();
+      const v: Base | Extended | Unrelated = {id: '123'};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       interface Base {
         id: string;
       }
@@ -1743,13 +1730,26 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return createGetTypeErrors<DataOnly<Base | Extended | Unrelated>>();
+      return createGetValidationErrors<Base | Extended | Unrelated>();
     },
-    getTypeErrorsSchema: () =>
-      createGetTypeErrors(
+    getValidationErrorsDataOnly: () => {
+      interface Base {
+        id: string;
+      }
+      interface Extended {
+        id: string;
+        name: string;
+      }
+      interface Unrelated {
+        value: number;
+      }
+      return createGetValidationErrors<DataOnly<Base | Extended | Unrelated>>();
+    },
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(
         RT.union([RT.object({id: RT.string()}), RT.object({id: RT.string(), name: RT.string()}), RT.object({value: RT.number()})])
       ),
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       interface Base {
         id: string;
       }
@@ -1760,9 +1760,9 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return deserializeGetTypeErrors<Base | Extended | Unrelated>();
+      return deserializeGetValidationErrors<Base | Extended | Unrelated>();
     },
-    getTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       interface Base {
         id: string;
       }
@@ -1774,9 +1774,9 @@ export const UNION = {
         value: number;
       }
       const v: Base | Extended | Unrelated = {id: '123'};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       interface Base {
         id: string;
       }
@@ -1788,7 +1788,7 @@ export const UNION = {
         value: number;
       }
       const v: Base | Extended | Unrelated = {id: '123'};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       interface Base {

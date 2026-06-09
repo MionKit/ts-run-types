@@ -34,13 +34,13 @@ not**. A regex literal always widens to `RegExp`.
 
 ## The problem: id is not a pure function of `T` (verified)
 
-Runtime factory identity (`createIsType<T>()` returns the cached factory for `T`'s
+Runtime factory identity (`createValidate<T>()` returns the cached factory for `T`'s
 id, so `===` is id-equality):
 
 ```
-createIsType<typeof /abc/i>()  →  it_D1Bjh   ┐
-createIsType<typeof /xyz/>()   →  it_XNnRL   ├─ three DIFFERENT ids …
-createIsType<RegExp>()         →  it_kCssiW  ┘
+createValidate<typeof /abc/i>()  →  it_D1Bjh   ┐
+createValidate<typeof /xyz/>()   →  it_XNnRL   ├─ three DIFFERENT ids …
+createValidate<RegExp>()         →  it_kCssiW  ┘
 ```
 
 …even though `typeof /abc/i`, `typeof /xyz/`, and `RegExp` are **the same type** to
@@ -51,13 +51,13 @@ The divergence is **whole-type only**. A regex literal _nested_ in a member does
 **not** harvest — it collapses to "any RegExp" and converges:
 
 ```
-createIsType<{r: typeof /abc/i}>()  ┐
-createIsType<{r: typeof /xyz/}>()   ├─ all the SAME id (it_e4m0Ms)
-createIsType<{r: RegExp}>()         ┘
+createValidate<{r: typeof /abc/i}>()  ┐
+createValidate<{r: typeof /xyz/}>()   ├─ all the SAME id (it_e4m0Ms)
+createValidate<{r: RegExp}>()         ┘
 ```
 
 So the feature only ever fires when a regex literal is the **entire** type
-argument (`createIsType<typeof reg>()` / `getRunTypeId<typeof /…/>()`), plus the
+argument (`createValidate<typeof reg>()` / `getRunTypeId<typeof /…/>()`), plus the
 value-first `regexp({source, flags})` builder. It's narrow — but where it fires,
 it violates "id ≡ f(T)".
 
@@ -66,7 +66,7 @@ it violates "id ≡ f(T)".
 TS can't carry the pattern in `T` (it's just `RegExp`), so the source+flags are
 recovered out-of-band and stored as a **synthetic `KindLiteral` node**:
 
-- **Type-first** (`createIsType<typeof /abc/i>()`): the scanner **AST-harvests**
+- **Type-first** (`createValidate<typeof /abc/i>()`): the scanner **AST-harvests**
   the literal from the call's type argument —
   [`scan.go`](../internal/resolver/scan.go) `resolveRegexLiteralSource` →
   `traceRegexLiteral` (walks `typeof reg` → the `const reg = /abc/i` initializer) →
@@ -128,7 +128,7 @@ become dead once no `KindLiteral` regexp node is produced:
   path via `traceRegexpExpr`), not the RegExp-instance literal.
 - [`Atomic.ts`](../packages/ts-go-run-types/test/suites/validation/Atomic.ts):
   `literal_regexp_simple` + the escaped-source case — remove, or convert to "any
-  RegExp" (`createIsType<RegExp>()` / `regexp()`).
+  RegExp" (`createValidate<RegExp>()` / `regexp()`).
 - [`typesafety.test.ts`](../packages/ts-go-run-types/test/typesafety.test.ts): the
   `regexp({source, flags})` / `RegexLiteralType` assertions (~321–324).
 - Any mocking / serialization suite cases keyed on a specific regex pattern.
@@ -199,7 +199,7 @@ removing the feature changes nothing.
 
 ## Behavioral impact
 
-- `createIsType<typeof /abc/i>()` becomes equivalent to `createIsType<RegExp>()`
+- `createValidate<typeof /abc/i>()` becomes equivalent to `createValidate<RegExp>()`
   (matches any RegExp instance) — and now shares its id (id ≡ f(T) restored).
 - `RT.regexp()` is unchanged (always was "any RegExp").
 - `RT.regexp({source, flags})` is removed → a compile error at call sites; migrate

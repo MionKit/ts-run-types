@@ -14,7 +14,7 @@ may declare. For any such **"dirty" `T`**, `=> T` is **unsound**: the type promi
 members the value does not have, so calling e.g. a method on a decoded value
 type-checks but throws at runtime.
 
-This is sharper than `isType`, where over-promising is harmless — a decoder hands
+This is sharper than `validate`, where over-promising is harmless — a decoder hands
 back a real object the caller will consume as `T`.
 
 ## Proposal
@@ -43,7 +43,7 @@ the TypeScript signature tell the truth about what the decoder returns.
 - **OUT — encoders** (`createJsonEncoder` / `createBinaryEncoder`): they take `T`
   as *input* (you pass your real object; non-data is dropped at emit), so the input
   type stays `T`.
-- **OUT — `isType` / `getTypeErrors`:** separate discussion; `DataOnly` there is the
+- **OUT — `validate` / `getValidationErrors`:** separate discussion; `DataOnly` there is the
   identity on data and lower value.
 - **OUT — emitter semantics, diagnostics, unknown-key families:** unchanged.
 
@@ -91,7 +91,7 @@ routing every return value through it scales linearly and reuse is effectively f
    [`test/types/decodeReturnType.test.ts`](../packages/ts-go-run-types/test/types/decodeReturnType.test.ts).
 4. **Previously-reverted change**: no revert commit found in history; nothing tied to
    it needed re-touching.
-5. **Docs**: this spec + the CLAUDE.md "isType contract" section note the projection.
+5. **Docs**: this spec + the CLAUDE.md "validate contract" section note the projection.
    README has no decode examples, so nothing to amend there.
 
 ## Acceptance — met

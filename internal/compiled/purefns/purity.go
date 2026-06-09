@@ -60,7 +60,7 @@ func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, 
 	// before the body ever reaches `new Function`. We bail before
 	// dispatching on the more specific node kinds so the children
 	// (which can carry more nested TypeReferences) are also skipped.
-	if isTypeOnlyKind(node.Kind) {
+	if validateOnlyKind(node.Kind) {
 		return
 	}
 
@@ -68,7 +68,7 @@ func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, 
 	// function returns. The parent node still descends into name +
 	// initializer / body via ForEachChild, but we filter the Type field
 	// here by inspecting the parent relationship.
-	if node.Parent != nil && isTypeAnnotationSlot(node) {
+	if node.Parent != nil && validateAnnotationSlot(node) {
 		return
 	}
 
@@ -354,10 +354,10 @@ func isReferenceIdentifier(node *ast.Node) bool {
 	return true
 }
 
-// isTypeOnlyKind returns true for AST node kinds that exist only as
+// validateOnlyKind returns true for AST node kinds that exist only as
 // part of a type annotation — their subtrees never produce runtime
 // references and must be skipped by the purity walker.
-func isTypeOnlyKind(kind ast.Kind) bool {
+func validateOnlyKind(kind ast.Kind) bool {
 	switch kind {
 	case ast.KindTypeReference,
 		ast.KindUnionType, ast.KindIntersectionType,
@@ -377,11 +377,11 @@ func isTypeOnlyKind(kind ast.Kind) bool {
 	return false
 }
 
-// isTypeAnnotationSlot reports whether node sits in a field that holds
+// validateAnnotationSlot reports whether node sits in a field that holds
 // a TypeNode on its parent — e.g. `: Type` on a Parameter / Variable
 // declaration / Function return. Such children are skipped wholesale
 // so identifier references inside the type don't get walked.
-func isTypeAnnotationSlot(node *ast.Node) bool {
+func validateAnnotationSlot(node *ast.Node) bool {
 	parent := node.Parent
 	if parent == nil {
 		return false

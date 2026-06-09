@@ -11,7 +11,7 @@ import {defaultMockOptions} from './constants.mock.ts';
 import type {MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './mockTypes.ts';
 
 /** Returns a mock-value generator for `T`. Each call produces a fresh value
- *  that passes `isType<T>`. Options merge: call < factory < defaults. Accepts
+ *  that passes `validate<T>`. Options merge: call < factory < defaults. Accepts
  *  either a value-first schema (`createMockType(rt)`) or the value/static form.
  *  Throws if the Vite plugin isn't active (no `id` injected). **/
 export function createMockType<T>(schema: RunType<T>, options?: RunTypeMockOptions, id?: InjectRunTypeId<T>): MockTypeFn<T>;

@@ -12,11 +12,11 @@ const b = getRunTypeId<string>();
 // 17c — user-defined wrapper. The trailing `id?: InjectRunTypeId<T>` opts the
 // function into transformer injection at every call site, just like
 // getRunTypeId itself.
-function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
-const c = isType<{flag: boolean}>(true);
+const c = validate<{flag: boolean}>(true);
 
 // 17d — wrapper used with T inferred from an argument.
 function nameOf<T>(_val: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {

@@ -202,10 +202,10 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 // KindSymbol — `getRunTypeId<symbol>()` produces an alwaysThrow factory
 // (or its per-family equivalent code) across every RT family.
 func TestDiag_SymbolUnsupported_PerFamily(t *testing.T) {
-	// isType seeds `it` (all-emit); pj/sj/tb are demand-driven, so seed pj via
+	// validate seeds `it` (all-emit); pj/sj/tb are demand-driven, so seed pj via
 	// createJsonEncoder(mutate), sj via createJsonEncoder(direct), tb via createBinaryEncoder.
-	const code = `import {createIsType, createJsonEncoder, createBinaryEncoder} from '@mionjs/ts-go-run-types';
-export const _ = createIsType<symbol>();
+	const code = `import {createValidate, createJsonEncoder, createBinaryEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createValidate<symbol>();
 export const _p = createJsonEncoder<symbol>(undefined, {strategy: 'mutate'});
 export const _s = createJsonEncoder<symbol>(undefined, {strategy: 'direct'});
 export const _b = createBinaryEncoder<symbol>();
@@ -215,7 +215,7 @@ export const _b = createBinaryEncoder<symbol>();
 		Op:    protocol.OpScanFiles,
 		Files: []string{"s.ts"},
 		IncludeCacheSources: []protocol.CacheKind{
-			protocol.CacheKindIsType,
+			protocol.CacheKindValidate,
 			protocol.CacheKindPrepareForJson,
 			protocol.CacheKindStringifyJson,
 			protocol.CacheKindToBinary,
@@ -268,16 +268,16 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 // is not validated. The exact code (IT010 vs IT011) depends on whether
 // TypeScript parses the member as a method or a property — both flow
 // through the same family prefix (IT) so consumers can grep by prefix.
-func TestDiag_SilentSkip_FunctionMember_IsType(t *testing.T) {
-	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
+func TestDiag_SilentSkip_FunctionMember_Validate(t *testing.T) {
+	const code = `import {createValidate} from '@mionjs/ts-go-run-types';
 interface User { name: string; onClick: () => void; }
-export const _ = createIsType<User>();
+export const _ = createValidate<User>();
 `
 	r := setupInline(t, map[string]string{"u.ts": code})
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"u.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindIsType},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)

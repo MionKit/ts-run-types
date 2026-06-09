@@ -4,7 +4,7 @@
 // `string({…})` leaf: where `string()` carries an inline `FormatString<P>`, these
 // carry the CONCRETE named alias from `../formats/…`, so the Go scanner reflects
 // the SAME branded type off each builder's `InjectRunTypeId<…>` brand as the
-// type-first `createIsType<FormatEmail>()` surface and the two converge on one
+// type-first `createValidate<FormatEmail>()` surface and the two converge on one
 // structural id (no Go-side change — these resolve type-first already).
 //
 // Two builder shapes (mirroring atomic.ts):
@@ -77,7 +77,7 @@ export const alphaNumeric = presetBuilder<FormatAlphaNumeric>('stringFormat');
 /** Digits-only string (`FormatNumeric`). **/
 export const numeric = presetBuilder<FormatNumeric>('stringFormat');
 /** Lowercase string (`FormatLowercase`) — the transform applies only via
- *  `createFormatTransform`; isType validates it as a plain string. **/
+ *  `createFormatTransform`; validate validates it as a plain string. **/
 export const lowercase = presetBuilder<FormatLowercase>('stringFormat');
 /** Uppercase string (`FormatUppercase`). **/
 export const uppercase = presetBuilder<FormatUppercase>('stringFormat');

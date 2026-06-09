@@ -1,17 +1,17 @@
 // Value-first enum builder — `RT.enum(...)` accepts a TS `enum` OR an enum-like
 // record, and carries the value-UNION (`E[keyof E]`). It validates exactly the
 // enum's values, but resolves to a UNION (kind union), NOT the named `KindEnum`,
-// so it does NOT converge with the type-first `createIsType<Enum>()` — by design
+// so it does NOT converge with the type-first `createValidate<Enum>()` — by design
 // (a value-first builder can't reconstruct the nominal enum's member-name
 // metadata; the enum id-integrity cases are flagged `idDivergent`). See the
 // builder doc in src/schema/atomic.ts.
 //
-// `createIsType` returns the cached factory for a structural id, so `toBe`
+// `createValidate` returns the cached factory for a structural id, so `toBe`
 // (reference identity) is a same-id assertion and `not.toBe` is a different-id
 // assertion.
 
 import {describe, expect, it} from 'vitest';
-import {createIsType, type Static} from '@mionjs/ts-go-run-types';
+import {createValidate, type Static} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 
 enum Mixed {
@@ -22,7 +22,7 @@ enum Mixed {
 
 describe('value-first enum builder', () => {
   it('enum-object form validates the enum values (numeric + string members)', () => {
-    const isMixed = createIsType(RT.enum(Mixed));
+    const isMixed = createValidate(RT.enum(Mixed));
     // Numeric members (`Red = 0`, `Blue = 2`) must validate too — regression guard
     // for the numeric-enum-literal value projection (it used to emit the member
     // NAME, so `isMixed(0)` wrongly returned false).
@@ -31,22 +31,22 @@ describe('value-first enum builder', () => {
   });
 
   it('enum-like record form validates the same values', () => {
-    const isRec = createIsType(RT.enum({Red: 0, Green: 'green', Blue: 2}));
+    const isRec = createValidate(RT.enum({Red: 0, Green: 'green', Blue: 2}));
     for (const v of [0, 'green', 2]) expect(isRec(v), `accept ${String(v)}`).toBe(true);
     for (const v of [1, 3, 'Red', true, null]) expect(isRec(v), `reject ${String(v)}`).toBe(false);
   });
 
   it('both forms ARE the value-union — converge with the equivalent literal union', () => {
-    const literalUnion = createIsType(RT.union([RT.literal(0), RT.literal('green'), RT.literal(2)]));
+    const literalUnion = createValidate(RT.union([RT.literal(0), RT.literal('green'), RT.literal(2)]));
     // Enum-object and record forms resolve to the SAME cached factory as the
     // hand-written literal union (the numeric-enum-literal value fix makes
     // `Mixed.Red`'s id match plain `0`).
-    expect(createIsType(RT.enum(Mixed)), 'enum-object form').toBe(literalUnion);
-    expect(createIsType(RT.enum({Red: 0, Green: 'green', Blue: 2})), 'record form').toBe(literalUnion);
+    expect(createValidate(RT.enum(Mixed)), 'enum-object form').toBe(literalUnion);
+    expect(createValidate(RT.enum({Red: 0, Green: 'green', Blue: 2})), 'record form').toBe(literalUnion);
   });
 
   it('does NOT converge with the type-first KindEnum (idDivergent by design)', () => {
-    expect(createIsType(RT.enum(Mixed))).not.toBe(createIsType<Mixed>());
+    expect(createValidate(RT.enum(Mixed))).not.toBe(createValidate<Mixed>());
   });
 
   it('Static recovers a type assignment-equivalent to the enum', () => {

@@ -42,7 +42,7 @@ func ipVersion(params map[string]any) string {
 	return "any"
 }
 
-// ipCheckExpr builds the boolean isType expression for the resolved
+// ipCheckExpr builds the boolean validate expression for the resolved
 // version. v4/v6 emit a single call; 'any' ORs both.
 func ipCheckExpr(params map[string]any, vλl string, ctx formats.EmitContext) string {
 	literal := jsParamsLiteral(params)
@@ -58,14 +58,14 @@ func ipCheckExpr(params map[string]any, vλl string, ctx formats.EmitContext) st
 	}
 }
 
-func (ipEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (ipEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
 	return ipCheckExpr(annotation.Params, vλl, ctx)
 }
 
-func (ipEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (ipEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}

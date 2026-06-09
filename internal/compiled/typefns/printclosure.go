@@ -20,13 +20,13 @@ import "strings"
 //	}
 //
 // `'use strict';` is NOT emitted per-factory — it lives at module top
-// in the rendered virtual:runtypes-isType output (see module.go's
-// isTypeFactoryPreambleLines). Strict mode propagates lexically into
+// in the rendered virtual:runtypes-validate output (see module.go's
+// validateFactoryPreambleLines). Strict mode propagates lexically into
 // every nested closure, so the per-factory directive would be redundant
 // and inflate the wire size of every entry.
 //
 // `factoryName` is the outer (exported) function name — e.g.
-// "get_isType_<hash>". The caller owns the prefix convention (mion uses
+// "get_validate_<hash>". The caller owns the prefix convention (mion uses
 // "get_" to disambiguate the outer factory from the inner validator;
 // the same name is shared on the validator itself).
 //
