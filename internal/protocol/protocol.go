@@ -385,6 +385,47 @@ type Request struct {
 	Sources             map[string]string `json:"sources,omitempty"`
 	IncludeRunTypes     bool              `json:"includeRunTypes,omitempty"`
 	IncludeCacheSources []CacheKind       `json:"includeCacheSources,omitempty"`
+	// IncludeMetrics opts the response into the Metrics block: tsgo
+	// extendedDiagnostics-style checker counters, per-phase wall times,
+	// and Go memory deltas. Zero measurement cost when unset — the
+	// dispatcher skips every ReadMemStats / stopwatch entirely.
+	IncludeMetrics bool `json:"includeMetrics,omitempty"`
+}
+
+// Metrics is the per-op performance block, populated only when
+// Request.IncludeMetrics is set. The first group mirrors tsc's
+// `--extendedDiagnostics` counters, read straight off the tsgo Program
+// (the shim exposes typescript-go's exported stats methods); they are
+// post-op absolutes — tsgo checks lazily, so the numbers reflect all
+// checker work forced so far in this Program's lifetime. The second
+// group is wall time per pipeline phase of THIS op. The third group is
+// Go runtime memory: Alloc*/Mallocs/NumGC are deltas over the op
+// (churn), HeapAlloc/HeapInuse are post-op snapshots (retention).
+type Metrics struct {
+	Files          int `json:"files,omitempty"`
+	Lines          int `json:"lines,omitempty"`
+	Identifiers    int `json:"identifiers,omitempty"`
+	Symbols        int `json:"symbols,omitempty"`
+	Types          int `json:"types,omitempty"`
+	Instantiations int `json:"instantiations,omitempty"`
+
+	SetSourcesMs float64 `json:"setSourcesMs,omitempty"`
+	MarkerScanMs float64 `json:"markerScanMs,omitempty"`
+	PureFnsMs    float64 `json:"pureFnsMs,omitempty"`
+	// PrepMs is the per-dispatch response prep: added-flag passes,
+	// provenance line/col conversion, and the full ref-table build.
+	PrepMs       float64            `json:"prepMs,omitempty"`
+	ScopedDumpMs float64            `json:"scopedDumpMs,omitempty"`
+	RenderMs     map[string]float64 `json:"renderMs,omitempty"`
+	TotalMs      float64            `json:"totalMs,omitempty"`
+
+	AllocBytes uint64 `json:"allocBytes,omitempty"`
+	Mallocs    uint64 `json:"mallocs,omitempty"`
+	NumGC      uint32 `json:"numGC,omitempty"`
+	HeapAlloc  uint64 `json:"heapAlloc,omitempty"`
+	HeapInuse  uint64 `json:"heapInuse,omitempty"`
+
+	CacheNodes int `json:"cacheNodes,omitempty"`
 }
 
 // Response is returned per request. ID is the hash key into the shared
@@ -537,7 +578,10 @@ type Response struct {
 	// tsgo bind + typecheck + Emit() pass on the resolver's current
 	// source overlay, in milliseconds. Zero for every other op.
 	TsCompileMs float64 `json:"tsCompileMs,omitempty"`
-	Error       string  `json:"error,omitempty"`
+	// Metrics is the per-op performance block. Nil (omitted from the
+	// wire) unless the request set IncludeMetrics.
+	Metrics *Metrics `json:"metrics,omitempty"`
+	Error   string   `json:"error,omitempty"`
 }
 
 // Site records one transformer-injection point. Pos is the byte offset of
@@ -728,6 +772,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.TsCompileMs > 0 {
 		out["tsCompileMs"] = response.TsCompileMs
+	}
+	if response.Metrics != nil {
+		out["metrics"] = response.Metrics
 	}
 	if response.Error != "" {
 		out["error"] = response.Error

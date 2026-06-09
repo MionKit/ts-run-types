@@ -288,6 +288,39 @@ export interface Request {
   // opt-in lets callers pay only for what they need; `'all'` is the
   // shortcut for every kind.
   includeCacheSources?: CacheKind[];
+  // Opts the response into the `metrics` block: tsgo extendedDiagnostics
+  // counters, per-phase wall times, and Go memory deltas. Mirrors the
+  // Go-side Request.IncludeMetrics; zero measurement cost when unset.
+  includeMetrics?: boolean;
+}
+
+// Metrics mirrors the Go-side protocol.Metrics — populated on a response
+// only when the request set includeMetrics. The counter group mirrors
+// tsc's `--extendedDiagnostics` (files / lines / identifiers / symbols /
+// types / instantiations), read off the live tsgo Program post-op. The
+// *Ms group is wall time per pipeline phase of the op; renderMs is keyed
+// by cache kind. allocBytes / mallocs / numGC are deltas over the op;
+// heapAlloc / heapInuse are post-op snapshots.
+export interface Metrics {
+  files?: number;
+  lines?: number;
+  identifiers?: number;
+  symbols?: number;
+  types?: number;
+  instantiations?: number;
+  setSourcesMs?: number;
+  markerScanMs?: number;
+  pureFnsMs?: number;
+  prepMs?: number;
+  scopedDumpMs?: number;
+  renderMs?: Record<string, number>;
+  totalMs?: number;
+  allocBytes?: number;
+  mallocs?: number;
+  numGC?: number;
+  heapAlloc?: number;
+  heapInuse?: number;
+  cacheNodes?: number;
 }
 
 export interface Response {
@@ -409,6 +442,9 @@ export interface Response {
   // orchestrators record this alongside scanFiles latency to show the
   // pure-TypeScript compile cost next to ts-go-run-types' own work.
   tsCompileMs?: number;
+  // Per-op performance block; present only when the request set
+  // includeMetrics.
+  metrics?: Metrics;
   error?: string;
 }
 
