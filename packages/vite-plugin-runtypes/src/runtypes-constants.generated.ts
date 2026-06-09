@@ -123,32 +123,3 @@ export const NON_SERIALIZABLE_GLOBALS = [
   "AsyncGeneratorFunction",
   "AsyncIterator",
 ] as const;
-
-export interface IsTypeOptionEntry {
-  readonly name: string;
-  readonly letter: string;
-}
-
-export const IS_TYPE_OPTIONS: readonly IsTypeOptionEntry[] = [
-  {name: "noLiterals", letter: "L"},
-  {name: "noIsArrayCheck", letter: "A"},
-] as const;
-
-/** Canonical variant suffix for an unordered set of true IsTypeOptions
- *  names. Returns the empty string when the set is empty (the plain
- *  cache key). The suffix is `N` + concatenated letters in declaration
- *  order — must agree byte-for-byte with the Go-side
- *  `constants.IsTypeVariantSuffix`. */
-export function buildIsTypeVariantSuffix(names: readonly string[]): string {
-  if (names.length === 0) return '';
-  const present = new Set(names);
-  let suffix = 'N';
-  let hit = false;
-  for (const entry of IS_TYPE_OPTIONS) {
-    if (present.has(entry.name)) {
-      suffix += entry.letter;
-      hit = true;
-    }
-  }
-  return hit ? suffix : '';
-}

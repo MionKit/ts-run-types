@@ -30,7 +30,7 @@ func initPrefixFor(opName string) string {
 // seeded via RenderOpts.ExtraRoots). So a reflection-only file emits ZERO it_
 // entries, a createIsType file emits them, and a file that ONLY serializes a
 // (non-merging) union still gets the per-member it_ entries its decoder needs.
-// See constants.MigratedFamilies and docs/DEMAND-DRIVEN-FN-CACHES.md.
+// See docs/DEMAND-DRIVEN-FN-CACHES.md.
 
 func scopeScan(t *testing.T, code string) protocol.Response {
 	t.Helper()
