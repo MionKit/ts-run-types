@@ -23,27 +23,27 @@ import (
 //
 // Note: when the lib IS loaded, `Temporal.PlainDate` resolves to a real
 // (non-any) type, so this fires nothing — zero cost for correct setups.
-func (resolver *Resolver) detectTemporalNotLoaded(file string, call *ast.Node) []diag.Diagnostic {
+func detectTemporalNotLoaded(scanChecker *checker.Checker, file string, call *ast.Node) []diag.Diagnostic {
 	callExpression := call.AsCallExpression()
 	if callExpression == nil || callExpression.TypeArguments == nil {
 		return nil
 	}
 	var diagnostics []diag.Diagnostic
 	for _, typeArgNode := range callExpression.TypeArguments.Nodes {
-		resolver.walkTemporalRefs(file, typeArgNode, &diagnostics)
+		walkTemporalRefs(scanChecker, file, typeArgNode, &diagnostics)
 	}
 	return diagnostics
 }
 
 // walkTemporalRefs recurses a type-node subtree, emitting TMP001 for every
 // `Temporal.<Name>` reference that resolved to `any`.
-func (resolver *Resolver) walkTemporalRefs(file string, node *ast.Node, out *[]diag.Diagnostic) {
+func walkTemporalRefs(scanChecker *checker.Checker, file string, node *ast.Node, out *[]diag.Diagnostic) {
 	if node == nil {
 		return
 	}
 	if ast.IsTypeReferenceNode(node) {
 		if name, ok := temporalQualifiedName(node); ok {
-			refType := checker.Checker_getTypeFromTypeNode(resolver.checker, node)
+			refType := checker.Checker_getTypeFromTypeNode(scanChecker, node)
 			if refType != nil && checker.Type_flags(refType)&checker.TypeFlagsAny != 0 {
 				sourceFile := ast.GetSourceFileOfNode(node)
 				if sourceFile != nil {
@@ -59,7 +59,7 @@ func (resolver *Resolver) walkTemporalRefs(file string, node *ast.Node, out *[]d
 		}
 	}
 	node.ForEachChild(func(child *ast.Node) bool {
-		resolver.walkTemporalRefs(file, child, out)
+		walkTemporalRefs(scanChecker, file, child, out)
 		return false
 	})
 }
