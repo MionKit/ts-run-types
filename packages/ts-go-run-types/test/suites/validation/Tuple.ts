@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -11,6 +11,7 @@ export const TUPLE = {
       'Each slot runs the atomic check for its declared type.',
     ],
     isType: () => createIsType<[string, number]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[string, number]>>(),
     isTypeSchema: () => createIsType(RT.tuple([RT.string(), RT.number()])),
     deserializeIsType: () => deserializeIsType<[string, number]>(),
     isTypeReflect: () => {
@@ -22,6 +23,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[string, number]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[string, number]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.string(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number]>(),
     getTypeErrorsReflect: () => {
@@ -84,6 +86,7 @@ export const TUPLE = {
     title: 'Six-element heterogeneous tuple (mion fixture)',
     description: 'mion tuple.spec.ts "validate tuple"',
     isType: () => createIsType<[Date, number, string, null, string[], bigint]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[Date, number, string, null, string[], bigint]>>(),
     isTypeSchema: () =>
       createIsType(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
     deserializeIsType: () => deserializeIsType<[Date, number, string, null, string[], bigint]>(),
@@ -96,6 +99,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[Date, number, string, null, string[], bigint]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[Date, number, string, null, string[], bigint]>>(),
     getTypeErrorsSchema: () =>
       createGetTypeErrors(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[Date, number, string, null, string[], bigint]>(),
@@ -143,6 +147,7 @@ export const TUPLE = {
     isTypeNotes:
       'Optional tuple slots may be absent OR explicitly `undefined`. Trailing-only — TS grammar disallows `[A, B?, C]` (required after optional).',
     isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[number, bigint?, boolean?, number?]>>(),
     isTypeSchema: () => createIsType(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
     deserializeIsType: () => deserializeIsType<[number, bigint?, boolean?, number?]>(),
     isTypeReflect: () => {
@@ -154,6 +159,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[number, bigint?, boolean?, number?]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[number, bigint?, boolean?, number?]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, bigint?, boolean?, number?]>(),
     getTypeErrorsReflect: () => {
@@ -192,6 +198,7 @@ export const TUPLE = {
     title: 'Tuple as array element (tuple inside array dependency call)',
     description: 'array of tuples — exercises tuple inside array dependency call',
     isType: () => createIsType<[string, number][]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[string, number][]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.tuple([RT.string(), RT.number()]))),
     deserializeIsType: () => deserializeIsType<[string, number][]>(),
     isTypeReflect: () => {
@@ -203,6 +210,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[string, number][]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[string, number][]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.tuple([RT.string(), RT.number()]))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number][]>(),
     getTypeErrorsReflect: () => {
@@ -249,11 +257,16 @@ export const TUPLE = {
 
   tuple_rest: {
     title: 'Tuple with a trailing rest segment',
+    // DataOnly's homomorphic tuple mapping can't preserve a trailing rest
+    // (`...T[]`) element — the reconstructed shape widens and accepts inputs the
+    // emitter rejects.
+    dataOnlyDivergent: true,
     description:
       "mion tuple.spec.ts 'validate tuple with rest parameter'. Rest TupleMembers (Flags=['rest']) emit a for-loop starting at the member's Position and iterating to v.length, validating every element against the wrapped type. The tuple's length-bound check is skipped (rest absorbs extras).",
     isTypeNotes:
       'A trailing rest segment absorbs any number of trailing elements (including zero). Each trailing element must satisfy the rest type.',
     isType: () => createIsType<[number, ...string[]]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[number, ...string[]]>>(),
     isTypeSchema: () => createIsType(RT.tuple([RT.number()], RT.string())),
     deserializeIsType: () => deserializeIsType<[number, ...string[]]>(),
     isTypeReflect: () => {
@@ -265,6 +278,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[number, ...string[]]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[number, ...string[]]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.number()], RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, ...string[]]>(),
     getTypeErrorsReflect: () => {
@@ -305,11 +319,18 @@ export const TUPLE = {
 
   tuple_circular: {
     title: 'Self-referential tuple via trailing optional self-ref',
+    // The self-referential tuple shape doesn't survive DataOnly's recursive
+    // homomorphic mapping (the self-ref slot widens), so verdicts diverge.
+    dataOnlyDivergent: true,
     description:
       'mion tuple.spec.ts circular tuple. Same mechanism as circular array — Tuple is always non-inlined, the self-recursive dependency call closes the cycle via the isSelf branch.',
     isType: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createIsType<TupleCircular>();
+    },
+    isTypeDataOnly: () => {
+      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+      return createIsType<DataOnly<TupleCircular>>();
     },
     // A ROOT-level recursive tuple can't be authored value-first — `Recursive<[…,
     // Self?]>` hits TS2589 (TS can't build a recursive tuple type via the mapping).
@@ -334,6 +355,10 @@ export const TUPLE = {
     getTypeErrors: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createGetTypeErrors<TupleCircular>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+      return createGetTypeErrors<DataOnly<TupleCircular>>();
     },
     deserializeGetTypeErrors: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -398,6 +423,7 @@ export const TUPLE = {
     description:
       "Multiple trailing optionals — TS grammar requires optionals to come after required elements (`[A, B?, C]` is a TS error), so the canonical 'optional middle' form is a chain of trailing optionals. Each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.",
     isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[number, bigint?, boolean?, number?]>>(),
     isTypeSchema: () => createIsType(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
     deserializeIsType: () => deserializeIsType<[number, bigint?, boolean?, number?]>(),
     isTypeReflect: () => {
@@ -409,6 +435,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[number, bigint?, boolean?, number?]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[number, bigint?, boolean?, number?]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, bigint?, boolean?, number?]>(),
     getTypeErrorsReflect: () => {
@@ -466,6 +493,7 @@ export const TUPLE = {
     description:
       "Named tuple labels — `[name: string, age: number]` is the same shape as `[string, number]` at runtime (labels are TS-only metadata, erased at emit). Carried as a regression check that label syntax doesn't affect the validator shape.",
     isType: () => createIsType<[name: string, age: number]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[name: string, age: number]>>(),
     isTypeSchema: () => createIsType(RT.tuple([RT.string(), RT.number()])),
     deserializeIsType: () => deserializeIsType<[name: string, age: number]>(),
     isTypeReflect: () => {
@@ -477,6 +505,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[name: string, age: number]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[name: string, age: number]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.string(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[name: string, age: number]>(),
     getTypeErrorsReflect: () => {
@@ -520,6 +549,10 @@ export const TUPLE = {
 
   tuple_with_non_serializable: {
     title: 'Tuple with a function slot (must be undefined)',
+    // The emitter keeps a function tuple slot as a `notSupported` node that
+    // validates `undefined`; DataOnly maps the slot to `never`, so the projected
+    // tuple `[string, never]` rejects the valid `[..., undefined]` samples.
+    dataOnlyDivergent: true,
     description:
       "mion serialization-suite TUPLES.tuple_with_non_serializable. Function-typed tuple members emit `v[i] === undefined` per mion's non-serializable handling. The function slot must be absent or explicitly undefined; any other value (a real function, a string, …) fails.",
     isTypeNotes: [
@@ -527,6 +560,7 @@ export const TUPLE = {
       'This is the opposite of the object-property case (where function-typed props are skipped entirely): tuples enforce `=== undefined` because tuple position is structural.',
     ],
     isType: () => createIsType<[number, () => any]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[number, () => any]>>(),
     isTypeSchema: () => createIsType(RT.tuple([RT.number(), RT.func([], RT.any())])),
     deserializeIsType: () => deserializeIsType<[number, () => any]>(),
     isTypeReflect: () => {
@@ -538,6 +572,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[number, () => any]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[number, () => any]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.number(), RT.func([], RT.any())])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, () => any]>(),
     getTypeErrorsReflect: () => {
@@ -585,6 +620,7 @@ export const TUPLE = {
     description:
       "Zero-length tuple — the validator accepts only `[]` (Array.isArray + length === 0). Edge case for the tuple emit; mirrors mion's `children.length === 0` branch.",
     isType: () => createIsType<[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[]>>(),
     isTypeSchema: () => createIsType(RT.tuple([])),
     deserializeIsType: () => deserializeIsType<[]>(),
     isTypeReflect: () => {
@@ -596,6 +632,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[]>(),
     getTypeErrorsReflect: () => {
@@ -631,6 +668,7 @@ export const TUPLE = {
     description:
       'One-slot tuple — corner case for the length-bound check (length must be exactly 1 modulo optional / rest). Exercises the same emit shape as multi-element tuples but with a single member.',
     isType: () => createIsType<[string]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[string]>>(),
     isTypeSchema: () => createIsType(RT.tuple([RT.string()])),
     deserializeIsType: () => deserializeIsType<[string]>(),
     isTypeReflect: () => {
@@ -642,6 +680,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[string]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[string]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.string()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string]>(),
     getTypeErrorsReflect: () => {
@@ -680,6 +719,7 @@ export const TUPLE = {
     description:
       '`readonly [T, U]` — readonly modifier on a tuple type. As with arrays, the readonly bit is TS-only and erased at runtime; the validator is identical to the bare `[T, U]` shape.',
     isType: () => createIsType<readonly [string, number]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<readonly [string, number]>>(),
     isTypeSchema: () => createIsType(RT.tuple([RT.string(), RT.number()])),
     deserializeIsType: () => deserializeIsType<readonly [string, number]>(),
     isTypeReflect: () => {
@@ -691,6 +731,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<readonly [string, number]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<readonly [string, number]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.string(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<readonly [string, number]>(),
     getTypeErrorsReflect: () => {

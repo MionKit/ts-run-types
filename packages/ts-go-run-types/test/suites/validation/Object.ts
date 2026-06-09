@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -13,6 +13,7 @@ export const OBJECT = {
       'Each declared property runs the atomic check for its type (number props reject NaN / Infinity).',
     ],
     isType: () => createIsType<{a: string; b: number}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{a: string; b: number}>>(),
     isTypeSchema: () => createIsType(RT.object({a: RT.string(), b: RT.number()})),
     deserializeIsType: () => deserializeIsType<{a: string; b: number}>(),
     isTypeReflect: () => {
@@ -24,6 +25,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{a: string; b: number}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string; b: number}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({a: RT.string(), b: RT.number()})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; b: number}>(),
     getTypeErrorsReflect: () => {
@@ -79,6 +81,7 @@ export const OBJECT = {
     isTypeNotes:
       '`readonly` is erased at runtime. Every property must strictly === its literal value (name === "john", age === 30) — no looser matches.',
     isType: () => createIsType<{readonly name: 'john'; readonly age: 30}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{readonly name: 'john'; readonly age: 30}>>(),
     // `readonly` is part of the structural id, so the value-first model mirrors it
     // with `RT.propMod({readonly: true}, …)` on each prop.
     isTypeSchema: () =>
@@ -95,6 +98,7 @@ export const OBJECT = {
       return deserializeIsType(Usr);
     },
     getTypeErrors: () => createGetTypeErrors<{readonly name: 'john'; readonly age: 30}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{readonly name: 'john'; readonly age: 30}>>(),
     getTypeErrorsSchema: () =>
       createGetTypeErrors(
         RT.object({name: RT.propMod({readonly: true}, RT.literal('john')), age: RT.propMod({readonly: true}, RT.literal(30))})
@@ -154,6 +158,12 @@ export const OBJECT = {
       }
       return createIsType<ReturnType<typeof makeUser>>();
     },
+    isTypeDataOnly: () => {
+      function makeUser(): {id: number; name: string} {
+        return {id: 1, name: 'john'};
+      }
+      return createIsType<DataOnly<ReturnType<typeof makeUser>>>();
+    },
     isTypeSchema: () => createIsType(RT.object({id: RT.number(), name: RT.string()})),
     deserializeIsType: () => {
       function makeUser(): {id: number; name: string} {
@@ -166,6 +176,12 @@ export const OBJECT = {
         return {id: 1, name: 'john'};
       }
       return createGetTypeErrors<ReturnType<typeof makeUser>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      function makeUser(): {id: number; name: string} {
+        return {id: 1, name: 'john'};
+      }
+      return createGetTypeErrors<DataOnly<ReturnType<typeof makeUser>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({id: RT.number(), name: RT.string()})),
     deserializeGetTypeErrors: () => {
@@ -202,6 +218,7 @@ export const OBJECT = {
     description:
       "Reflect form with a property-access argument (`createIsType(outer.user)`). T comes from the property's declared type on the parent shape — property accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
     isType: () => createIsType<{id: number; name: string}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{id: number; name: string}>>(),
     isTypeSchema: () => createIsType(RT.object({id: RT.number(), name: RT.string()})),
     deserializeIsType: () => deserializeIsType<{id: number; name: string}>(),
     isTypeReflect: () => {
@@ -213,6 +230,7 @@ export const OBJECT = {
       return deserializeIsType(outer.user);
     },
     getTypeErrors: () => createGetTypeErrors<{id: number; name: string}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{id: number; name: string}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({id: RT.number(), name: RT.string()})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{id: number; name: string}>(),
     getTypeErrorsReflect: () => {
@@ -247,6 +265,7 @@ export const OBJECT = {
     description:
       "Reflect form with an array-element-access argument (`createIsType(items[0])`). T comes from the array's declared element type — indexed accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
     isType: () => createIsType<{id: number; name: string}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{id: number; name: string}>>(),
     isTypeSchema: () => createIsType(RT.object({id: RT.number(), name: RT.string()})),
     deserializeIsType: () => deserializeIsType<{id: number; name: string}>(),
     isTypeReflect: () => {
@@ -258,6 +277,7 @@ export const OBJECT = {
       return deserializeIsType(items[0]);
     },
     getTypeErrors: () => createGetTypeErrors<{id: number; name: string}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{id: number; name: string}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({id: RT.number(), name: RT.string()})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{id: number; name: string}>(),
     getTypeErrorsReflect: () => {
@@ -293,6 +313,7 @@ export const OBJECT = {
     isTypeNotes:
       'Optional (`?`) properties may be missing OR explicitly `undefined`. If present, the value must satisfy the declared type — `b: NaN` still fails.',
     isType: () => createIsType<{a: string; b?: number}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{a: string; b?: number}>>(),
     isTypeSchema: () => createIsType(RT.object({a: RT.string(), b: RT.optional(RT.number())})),
     deserializeIsType: () => deserializeIsType<{a: string; b?: number}>(),
     isTypeReflect: () => {
@@ -304,6 +325,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{a: string; b?: number}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string; b?: number}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({a: RT.string(), b: RT.optional(RT.number())})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; b?: number}>(),
     getTypeErrorsReflect: () => {
@@ -341,6 +363,7 @@ export const OBJECT = {
     description: 'tests that Date child validates via instanceof inside the AND chain — mion interface.spec.ts ObjectType subset',
     isTypeNotes: 'Date-typed properties run the atomic `Date` check — Invalid Date instances inside the property fail too.',
     isType: () => createIsType<{date: Date; name: string}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{date: Date; name: string}>>(),
     isTypeSchema: () => createIsType(RT.object({date: RT.date(), name: RT.string()})),
     deserializeIsType: () => deserializeIsType<{date: Date; name: string}>(),
     isTypeReflect: () => {
@@ -352,6 +375,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{date: Date; name: string}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{date: Date; name: string}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({date: RT.date(), name: RT.string()})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{date: Date; name: string}>(),
     getTypeErrorsReflect: () => {
@@ -401,6 +425,7 @@ export const OBJECT = {
       'If you need to verify a function is actually callable, do it outside isType.',
     ],
     isType: () => createIsType<{name: string; cb: () => any}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{name: string; cb: () => any}>>(),
     isTypeSchema: () => createIsType(RT.object({name: RT.string(), cb: RT.func([], RT.any())})),
     deserializeIsType: () => deserializeIsType<{name: string; cb: () => any}>(),
     isTypeReflect: () => {
@@ -412,6 +437,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{name: string; cb: () => any}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{name: string; cb: () => any}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({name: RT.string(), cb: RT.func([], RT.any())})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{name: string; cb: () => any}>(),
     getTypeErrorsReflect: () => {
@@ -444,6 +470,7 @@ export const OBJECT = {
     isTypeNotes:
       'Nested objects are validated recursively. Atomic-level rejections (NaN, Invalid Date) bubble up from the inner shape.',
     isType: () => createIsType<{a: string; deep: {b: string; c: number}}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{a: string; deep: {b: string; c: number}}>>(),
     isTypeSchema: () => createIsType(RT.object({a: RT.string(), deep: RT.object({b: RT.string(), c: RT.number()})})),
     deserializeIsType: () => deserializeIsType<{a: string; deep: {b: string; c: number}}>(),
     isTypeReflect: () => {
@@ -455,6 +482,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{a: string; deep: {b: string; c: number}}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string; deep: {b: string; c: number}}>>(),
     getTypeErrorsSchema: () =>
       createGetTypeErrors(RT.object({a: RT.string(), deep: RT.object({b: RT.string(), c: RT.number()})})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; deep: {b: string; c: number}}>(),
@@ -500,6 +528,7 @@ export const OBJECT = {
     title: 'Interface with a string-array property',
     description: 'an array-typed property — exercises the dependency-call layer through an object',
     isType: () => createIsType<{tags: string[]}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{tags: string[]}>>(),
     isTypeSchema: () => createIsType(RT.object({tags: RT.array(RT.string())})),
     deserializeIsType: () => deserializeIsType<{tags: string[]}>(),
     isTypeReflect: () => {
@@ -511,6 +540,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{tags: string[]}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{tags: string[]}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({tags: RT.array(RT.string())})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{tags: string[]}>(),
     getTypeErrorsReflect: () => {
@@ -552,6 +582,10 @@ export const OBJECT = {
       type ICircular = {name: string; child?: ICircular};
       return createIsType<ICircular>();
     },
+    isTypeDataOnly: () => {
+      type ICircular = {name: string; child?: ICircular};
+      return createIsType<DataOnly<ICircular>>();
+    },
     isTypeSchema: () => {
       const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
       return createIsType(ic);
@@ -573,6 +607,10 @@ export const OBJECT = {
     getTypeErrors: () => {
       type ICircular = {name: string; child?: ICircular};
       return createGetTypeErrors<ICircular>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type ICircular = {name: string; child?: ICircular};
+      return createGetTypeErrors<DataOnly<ICircular>>();
     },
     getTypeErrorsSchema: () => {
       const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
@@ -631,6 +669,10 @@ export const OBJECT = {
       type ICircularArray = {name: string; children?: ICircularArray[]};
       return createIsType<ICircularArray>();
     },
+    isTypeDataOnly: () => {
+      type ICircularArray = {name: string; children?: ICircularArray[]};
+      return createIsType<DataOnly<ICircularArray>>();
+    },
     isTypeSchema: () => {
       const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
       return createIsType(ica);
@@ -652,6 +694,10 @@ export const OBJECT = {
     getTypeErrors: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
       return createGetTypeErrors<ICircularArray>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type ICircularArray = {name: string; children?: ICircularArray[]};
+      return createGetTypeErrors<DataOnly<ICircularArray>>();
     },
     getTypeErrorsSchema: () => {
       const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
@@ -699,6 +745,10 @@ export const OBJECT = {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
       return createIsType<ICircularDeep>();
     },
+    isTypeDataOnly: () => {
+      type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+      return createIsType<DataOnly<ICircularDeep>>();
+    },
     isTypeSchema: () => {
       const icd = RT.circular((self) =>
         RT.object({
@@ -725,6 +775,10 @@ export const OBJECT = {
     getTypeErrors: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
       return createGetTypeErrors<ICircularDeep>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+      return createGetTypeErrors<DataOnly<ICircularDeep>>();
     },
     getTypeErrorsSchema: () => {
       const icd = RT.circular((self) =>
@@ -781,6 +835,7 @@ export const OBJECT = {
       "Every key's value must satisfy the value type — `{ a: 1 }` fails on `{[key: string]: string}`.",
     ],
     isType: () => createIsType<{[key: string]: string}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{[key: string]: string}>>(),
     isTypeSchema: () => createIsType(RT.record(RT.string())),
     deserializeIsType: () => deserializeIsType<{[key: string]: string}>(),
     isTypeReflect: () => {
@@ -792,6 +847,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{[key: string]: string}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{[key: string]: string}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: string]: string}>(),
     getTypeErrorsReflect: () => {
@@ -827,6 +883,7 @@ export const OBJECT = {
     description:
       "mion indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
     isType: () => createIsType<{a: string; b: number; [key: string]: string | number}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
     isTypeSchema: () =>
       createIsType(RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))),
     deserializeIsType: () => deserializeIsType<{a: string; b: number; [key: string]: string | number}>(),
@@ -839,6 +896,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{a: string; b: number; [key: string]: string | number}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
     getTypeErrorsSchema: () =>
       createGetTypeErrors(
         RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
@@ -888,6 +946,7 @@ export const OBJECT = {
     title: 'Nested index signatures (number leaf values)',
     description: 'mion indexProperty.spec.ts nested rtNested — index sig pointing at another index sig.',
     isType: () => createIsType<{[key: string]: {[key: string]: number}}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{[key: string]: {[key: string]: number}}>>(),
     isTypeSchema: () => createIsType(RT.record(RT.record(RT.number()))),
     deserializeIsType: () => deserializeIsType<{[key: string]: {[key: string]: number}}>(),
     isTypeReflect: () => {
@@ -899,6 +958,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{[key: string]: {[key: string]: number}}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{[key: string]: {[key: string]: number}}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.record(RT.number()))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: string]: {[key: string]: number}}>(),
     getTypeErrorsReflect: () => {
@@ -932,6 +992,7 @@ export const OBJECT = {
     title: 'Nested index signatures with Date leaf values',
     description: 'mion indexProperty.spec.ts rtNested2 — Date as the leaf value type.',
     isType: () => createIsType<{[key: string]: {[key: string]: Date}}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
     isTypeSchema: () => createIsType(RT.record(RT.record(RT.date()))),
     deserializeIsType: () => deserializeIsType<{[key: string]: {[key: string]: Date}}>(),
     isTypeReflect: () => {
@@ -943,6 +1004,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{[key: string]: {[key: string]: Date}}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.record(RT.date()))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: string]: {[key: string]: Date}}>(),
     getTypeErrorsReflect: () => {
@@ -985,6 +1047,17 @@ export const OBJECT = {
         c: Obj1;
       }
       return createIsType<Obj2>();
+    },
+    isTypeDataOnly: () => {
+      interface Obj1 {
+        a: string;
+        [key: string]: string;
+      }
+      interface Obj2 {
+        b: string;
+        c: Obj1;
+      }
+      return createIsType<DataOnly<Obj2>>();
     },
     isTypeSchema: () =>
       createIsType(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
@@ -1033,6 +1106,17 @@ export const OBJECT = {
         c: Obj1;
       }
       return createGetTypeErrors<Obj2>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Obj1 {
+        a: string;
+        [key: string]: string;
+      }
+      interface Obj2 {
+        b: string;
+        c: Obj1;
+      }
+      return createGetTypeErrors<DataOnly<Obj2>>();
     },
     getTypeErrorsSchema: () =>
       createGetTypeErrors(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
@@ -1118,6 +1202,10 @@ export const OBJECT = {
       'TS DIVERGENCE: ANY function passes, regardless of signature — arrow functions, async functions, class declarations (typeof === "function") all satisfy `() => void`.',
       'Parameter types and return type are NOT verified at runtime. If you need a specific call shape, validate at the call boundary.',
     ],
+    // Root-level function type: DataOnly<() => void> collapses to `never`, which
+    // the emitter renders as an always-throw factory — the bare-`T` form instead
+    // emits a `typeof === 'function'` validator, so the ids cannot converge.
+    dataOnlyDivergent: true,
     isType: () => createIsType<() => void>(),
     isTypeSchema: () => createIsType(RT.func()),
     deserializeIsType: () => deserializeIsType<() => void>(),
@@ -1172,6 +1260,10 @@ export const OBJECT = {
       'mion interface.spec.ts "validate callable interface" — the emit detects a CallSignature child and switches the typeof guard from `object` to `function`, then AND-chains the remaining properties on top (JS functions can carry properties).',
     isTypeNotes:
       'Callable interfaces require a function value (`typeof === "function"`) PLUS the declared data properties. JS functions can carry properties; this case validates both halves.',
+    // Callable interface: it has a call signature, so DataOnly<T> matches the
+    // `(...args) => any` branch and collapses to `never`, whereas the emitter
+    // validates it as a function-with-data-props. Ids cannot converge.
+    dataOnlyDivergent: true,
     isType: () => createIsType<{(a: number, b: boolean): string; extra: string}>(),
     isTypeSchema: () =>
       createIsType(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
@@ -1274,6 +1366,7 @@ export const OBJECT = {
       'This is the ONLY shape kind where the validator enforces "plain object" semantics — see the bare `object` case for the contrast.',
     ],
     isType: () => createIsType<{a?: string; b?: number}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{a?: string; b?: number}>>(),
     isTypeSchema: () => createIsType(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.number())})),
     deserializeIsType: () => deserializeIsType<{a?: string; b?: number}>(),
     isTypeReflect: () => {
@@ -1285,6 +1378,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{a?: string; b?: number}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a?: string; b?: number}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.number())})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a?: string; b?: number}>(),
     getTypeErrorsReflect: () => {
@@ -1323,6 +1417,10 @@ export const OBJECT = {
 
   class_simple: {
     title: 'Class with two atomic props (instance or plain match)',
+    // The emitter validates a class type with the nominal `class` kind; DataOnly
+    // maps the instance to a plain object shape, so the validator reports
+    // `objectLiteral` instead of `class`.
+    dataOnlyDivergent: true,
     description:
       "mion class.spec.ts 'validate class'. ClassRunType inherits InterfaceRunType.emitIsType in mion, so the KindClass+SubKindNone arm in istype.go falls through to emitObjectIsType. The serializer filters synthetic `prototype` members from class projections so the AND chain only includes user-declared properties + methods (methods drop out via the function-skip rule).",
     isTypeNotes: [
@@ -1342,6 +1440,20 @@ export const OBJECT = {
         }
       }
       return createIsType<MySerializableClass>();
+    },
+    isTypeDataOnly: () => {
+      class MySerializableClass {
+        date: Date;
+        name: string;
+        constructor(date: Date, name: string) {
+          this.date = date;
+          this.name = name;
+        }
+        someMethod() {
+          return 'unused';
+        }
+      }
+      return createIsType<DataOnly<MySerializableClass>>();
     },
     isTypeSchema: () => {
       class MySerializableClass {
@@ -1414,6 +1526,20 @@ export const OBJECT = {
         }
       }
       return createGetTypeErrors<MySerializableClass>();
+    },
+    getTypeErrorsDataOnly: () => {
+      class MySerializableClass {
+        date: Date;
+        name: string;
+        constructor(date: Date, name: string) {
+          this.date = date;
+          this.name = name;
+        }
+        someMethod() {
+          return 'unused';
+        }
+      }
+      return createGetTypeErrors<DataOnly<MySerializableClass>>();
     },
     getTypeErrorsSchema: () => {
       class MySerializableClass {
@@ -1538,6 +1664,9 @@ export const OBJECT = {
 
   rpc_error_class: {
     title: 'RpcError-shaped class with branded discriminator',
+    // Nominal `class` kind (see class_simple) — DataOnly's structural projection
+    // can't preserve class identity, so the validated kind diverges.
+    dataOnlyDivergent: true,
     description:
       "mion classRpcError.spec.ts — verifies the standard class projection handles RpcError-shaped classes (the actual @mionjs/core RpcError isn't a built-in node kind; it's a regular class with a literal-true brand + generic type discriminator). We define a local equivalent here to exercise the same shape end-to-end without pulling in the @mionjs/core dependency for a single test.",
     isTypeNotes: [
@@ -1565,6 +1694,20 @@ export const OBJECT = {
         }
       }
       return createIsType<RpcError<'test-error'>>();
+    },
+    isTypeDataOnly: () => {
+      class RpcError<ErrType extends string> {
+        public readonly 'mion@isΣrrθr': true = true;
+        public readonly type: ErrType;
+        public readonly publicMessage: string;
+        public readonly id?: string;
+        constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+          this.type = args.type;
+          this.publicMessage = args.publicMessage;
+          this.id = args.id;
+        }
+      }
+      return createIsType<DataOnly<RpcError<'test-error'>>>();
     },
     // Generic class → pin the instance type explicitly on `classType` (the
     // documented generic-class form), so it reflects `RpcError<'test-error'>`.
@@ -1647,6 +1790,20 @@ export const OBJECT = {
         }
       }
       return createGetTypeErrors<RpcError<'test-error'>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      class RpcError<ErrType extends string> {
+        public readonly 'mion@isΣrrθr': true = true;
+        public readonly type: ErrType;
+        public readonly publicMessage: string;
+        public readonly id?: string;
+        constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+          this.type = args.type;
+          this.publicMessage = args.publicMessage;
+          this.id = args.id;
+        }
+      }
+      return createGetTypeErrors<DataOnly<RpcError<'test-error'>>>();
     },
     getTypeErrorsSchema: () => {
       class RpcError<ErrType extends string> {
@@ -1803,6 +1960,10 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean) => string;
       return createIsType<Parameters<CallSig>>();
     },
+    isTypeDataOnly: () => {
+      type CallSig = (a: number, b: boolean) => string;
+      return createIsType<DataOnly<Parameters<CallSig>>>();
+    },
     isTypeSchema: () => createIsType(RT.parameters(RT.func([RT.number(), RT.boolean()], RT.string()))),
     deserializeIsType: () => {
       type CallSig = (a: number, b: boolean) => string;
@@ -1821,6 +1982,10 @@ export const OBJECT = {
     getTypeErrors: () => {
       type CallSig = (a: number, b: boolean) => string;
       return createGetTypeErrors<Parameters<CallSig>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type CallSig = (a: number, b: boolean) => string;
+      return createGetTypeErrors<DataOnly<Parameters<CallSig>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.parameters(RT.func([RT.number(), RT.boolean()], RT.string()))),
     deserializeGetTypeErrors: () => {
@@ -1891,6 +2056,10 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return createIsType<Parameters<CallSig>>();
     },
+    isTypeDataOnly: () => {
+      type CallSig = (a: number, b: boolean, c?: string) => Date;
+      return createIsType<DataOnly<Parameters<CallSig>>>();
+    },
     isTypeSchema: () => createIsType(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
     deserializeIsType: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
@@ -1909,6 +2078,10 @@ export const OBJECT = {
     getTypeErrors: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return createGetTypeErrors<Parameters<CallSig>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type CallSig = (a: number, b: boolean, c?: string) => Date;
+      return createGetTypeErrors<DataOnly<Parameters<CallSig>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
     deserializeGetTypeErrors: () => {
@@ -1966,11 +2139,18 @@ export const OBJECT = {
 
   call_signature_params_with_rest: {
     title: 'Parameters<F> tuple with a trailing rest segment',
+    // `Parameters<F>` is a tuple with a trailing rest; DataOnly's homomorphic
+    // tuple mapping can't preserve the rest element (see Tuple.tuple_rest).
+    dataOnlyDivergent: true,
     description:
       "mion function.spec.ts 'validate function with rest parameters' — params tuple ending in a rest segment. `Parameters<F>` resolves to `[number, boolean, ...Date[]]`; all trailing slots must satisfy Date.",
     isType: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return createIsType<Parameters<CallSig>>();
+    },
+    isTypeDataOnly: () => {
+      type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+      return createIsType<DataOnly<Parameters<CallSig>>>();
     },
     isTypeSchema: () => createIsType(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
     deserializeIsType: () => {
@@ -1990,6 +2170,10 @@ export const OBJECT = {
     getTypeErrors: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return createGetTypeErrors<Parameters<CallSig>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+      return createGetTypeErrors<DataOnly<Parameters<CallSig>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
     deserializeGetTypeErrors: () => {
@@ -2061,6 +2245,7 @@ export const OBJECT = {
     description:
       '`Record<K, V>` with a literal-union key resolves to a fixed-property object literal (`{a: V; b: V}`) at the type-checker level — tsgo distributes the union over the property names. Same emit path as a hand-written object literal; each key is a required property of type V.',
     isType: () => createIsType<Record<'a' | 'b', number>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<Record<'a' | 'b', number>>>(),
     isTypeSchema: () => createIsType(RT.object({a: RT.number(), b: RT.number()})),
     deserializeIsType: () => deserializeIsType<Record<'a' | 'b', number>>(),
     isTypeReflect: () => {
@@ -2072,6 +2257,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Record<'a' | 'b', number>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Record<'a' | 'b', number>>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({a: RT.number(), b: RT.number()})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Record<'a' | 'b', number>>(),
     getTypeErrorsReflect: () => {
@@ -2127,6 +2313,7 @@ export const OBJECT = {
     description:
       'index signature with union value type — union emit landed; for-in loop applies the union check to every own key.',
     isType: () => createIsType<{[key: string]: string | number}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{[key: string]: string | number}>>(),
     isTypeSchema: () => createIsType(RT.record(RT.union([RT.string(), RT.number()]))),
     deserializeIsType: () => deserializeIsType<{[key: string]: string | number}>(),
     isTypeReflect: () => {
@@ -2138,6 +2325,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{[key: string]: string | number}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{[key: string]: string | number}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.union([RT.string(), RT.number()]))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: string]: string | number}>(),
     getTypeErrorsReflect: () => {
@@ -2173,6 +2361,7 @@ export const OBJECT = {
     description:
       'discriminated union as a property type — union emit handles the literal-string union as an OR-chain of `===` checks.',
     isType: () => createIsType<{kind: 'a' | 'b'; n: number}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{kind: 'a' | 'b'; n: number}>>(),
     isTypeSchema: () => createIsType(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: RT.number()})),
     deserializeIsType: () => deserializeIsType<{kind: 'a' | 'b'; n: number}>(),
     isTypeReflect: () => {
@@ -2184,6 +2373,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{kind: 'a' | 'b'; n: number}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{kind: 'a' | 'b'; n: number}>>(),
     getTypeErrorsSchema: () =>
       createGetTypeErrors(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: RT.number()})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{kind: 'a' | 'b'; n: number}>(),
@@ -2233,6 +2423,15 @@ export const OBJECT = {
       }
       return createIsType<Child>();
     },
+    isTypeDataOnly: () => {
+      interface Base {
+        a: string;
+      }
+      interface Child extends Base {
+        b: number;
+      }
+      return createIsType<DataOnly<Child>>();
+    },
     isTypeSchema: () => createIsType(RT.object({a: RT.string(), b: RT.number()})),
     deserializeIsType: () => {
       interface Base {
@@ -2271,6 +2470,15 @@ export const OBJECT = {
         b: number;
       }
       return createGetTypeErrors<Child>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Base {
+        a: string;
+      }
+      interface Child extends Base {
+        b: number;
+      }
+      return createGetTypeErrors<DataOnly<Child>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({a: RT.string(), b: RT.number()})),
     deserializeGetTypeErrors: () => {
@@ -2345,6 +2553,9 @@ export const OBJECT = {
 
   class_inheritance: {
     title: 'Class that extends a parent class',
+    // Nominal `class` kind (see class_simple) — DataOnly's structural projection
+    // can't preserve class identity, so the validated kind diverges.
+    dataOnlyDivergent: true,
     description:
       "TS `class Sub extends Base {…}` — same merging as interface inheritance, but on the KindClass branch. Inherited data members appear in the child class's Children alongside its own.",
     isType: () => {
@@ -2355,6 +2566,15 @@ export const OBJECT = {
         b: number = 0;
       }
       return createIsType<Sub>();
+    },
+    isTypeDataOnly: () => {
+      class Base {
+        a: string = '';
+      }
+      class Sub extends Base {
+        b: number = 0;
+      }
+      return createIsType<DataOnly<Sub>>();
     },
     isTypeSchema: () => {
       class Base {
@@ -2402,6 +2622,15 @@ export const OBJECT = {
         b: number = 0;
       }
       return createGetTypeErrors<Sub>();
+    },
+    getTypeErrorsDataOnly: () => {
+      class Base {
+        a: string = '';
+      }
+      class Sub extends Base {
+        b: number = 0;
+      }
+      return createGetTypeErrors<DataOnly<Sub>>();
     },
     getTypeErrorsSchema: () => {
       class Base {
@@ -2489,6 +2718,7 @@ export const OBJECT = {
     isTypeNotes:
       'TS DIVERGENCE: At runtime, all object keys are strings; the number key type constraint is enforced only by the TS compiler. The validator accepts any own enumerable key whose value satisfies T.',
     isType: () => createIsType<{[k: number]: string}>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{[k: number]: string}>>(),
     // JS object keys are strings at runtime, so a number-key index sig validates
     // identically to a string-key one — but the key TYPE is part of the structural
     // id, so the value-first model uses an explicit number key to match.
@@ -2503,6 +2733,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{[k: number]: string}>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{[k: number]: string}>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.number(), RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[k: number]: string}>(),
     getTypeErrorsReflect: () => {

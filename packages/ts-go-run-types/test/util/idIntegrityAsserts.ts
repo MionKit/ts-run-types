@@ -60,6 +60,73 @@ export function assertValidatorIdIntegrity(c: ValidationCase): void {
   }
 }
 
+/** DataOnly-equivalence: the validator built from `createIsType<DataOnly<T>>()`
+ *  must produce the SAME verdicts on the case's samples as the bare-`T`
+ *  validator — proving the `DataOnly` type mapping drops exactly the members
+ *  the validator emitter drops.
+ *
+ *  This is a BEHAVIOURAL check, not a cached-factory identity (`.toBe`) check:
+ *  the emitter keeps each dropped member as a `notSupported` node in the
+ *  reflected tree (so reflection stays complete), so `DataOnly<{a; fn}>` and
+ *  the raw `{a; fn}` validate identically yet carry DIFFERENT structural ids —
+ *  different cache entries, different factory objects. Equivalent verdicts on
+ *  the samples is the meaningful, emitter-faithful assertion: if `DataOnly`
+ *  failed to drop a member (or dropped one it shouldn't), a `valid`/`invalid`
+ *  sample's verdict would flip.
+ *
+ *  Skips `factoryThrows` (the bare-`T` factory throws at build) and
+ *  `dataOnlyDivergent` (root-level non-data kinds where `DataOnly<T>` collapses
+ *  to `never`, so its factory throws instead of validating), plus any case
+ *  missing a DataOnly thunk. **/
+export function assertDataOnlyEquivalence(c: ValidationCase): void {
+  if (c.factoryThrows) return;
+  if (c.dataOnlyDivergent) return;
+
+  const {valid, invalid} = c.getSamples();
+
+  const isTypeDataOnly = resolveThunk(c.isTypeDataOnly);
+  if (isTypeDataOnly) {
+    const isValid = isTypeDataOnly();
+    valid.forEach((v, i) => {
+      expect(isValid(v), `${c.title} [dataOnly]: valid[${i}] should pass`).toBe(true);
+    });
+    invalid.forEach((v, i) => {
+      expect(isValid(v), `${c.title} [dataOnly]: invalid[${i}] should fail`).toBe(false);
+    });
+  }
+
+  const getTypeErrorsDataOnly = resolveThunk(c.getTypeErrorsDataOnly);
+  if (getTypeErrorsDataOnly) {
+    const getErr = getTypeErrorsDataOnly();
+    // When the case pins an exact expected-errors table (type-first validation
+    // cases), assert deep-equality. Format-validation cases instead carry
+    // `expectedFormatErrors` (format payloads, no `getExpectedErrors`) — for
+    // those, assert the CONTRACT (valid → no errors, invalid → ≥1 error), which
+    // still proves DataOnly didn't change the validated shape.
+    if (c.getExpectedErrors) {
+      const expected = c.getExpectedErrors();
+      if (expected.length !== invalid.length) {
+        throw new Error(
+          `case ${c.title}: getExpectedErrors length (${expected.length}) must match invalid samples (${invalid.length})`
+        );
+      }
+      valid.forEach((v, i) => {
+        expect(getErr(v), `${c.title} [dataOnly]: valid[${i}] → no errors`).toEqual([]);
+      });
+      invalid.forEach((v, i) => {
+        expect(getErr(v), `${c.title} [dataOnly]: invalid[${i}]`).toEqual(expected[i]);
+      });
+    } else {
+      valid.forEach((v, i) => {
+        expect(getErr(v), `${c.title} [dataOnly]: valid[${i}] → no errors`).toEqual([]);
+      });
+      invalid.forEach((v, i) => {
+        expect(getErr(v).length, `${c.title} [dataOnly]: invalid[${i}] → ≥1 error`).toBeGreaterThan(0);
+      });
+    }
+  }
+}
+
 /** Serializer id-integrity: the value-first schema encoder must produce output
  *  identical to the type-first encoder (same default strategy) — json strings
  *  byte-for-byte, binary buffers byte-for-byte. Identical wire output ⇒ the two
