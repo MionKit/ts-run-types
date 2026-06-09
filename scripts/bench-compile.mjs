@@ -56,10 +56,35 @@ function argValue(flag, fallback) {
   const i = argv.indexOf(flag);
   return i >= 0 && argv[i + 1] ? argv[i + 1] : fallback;
 }
-const LABEL = argValue('--label', QUICK ? 'quick' : 'full');
+// Spawn mode selects the binary's parallelism configuration:
+//   st       — `--single-threaded` (one pool checker; the historical
+//              baseline every pre-parallel measurement used)
+//   serial   — multi-checker pool, `--no-parallel-scan --no-parallel-render`
+//              (isolates pool/program cost from the fan-out itself)
+//   parallel — default spawn, the shipped behavior (harness default)
+const SPAWN_MODE = argValue('--spawn-mode', 'parallel');
+if (!['st', 'serial', 'parallel'].includes(SPAWN_MODE)) {
+  console.error(`unknown --spawn-mode '${SPAWN_MODE}' (expected st | serial | parallel)`);
+  process.exit(1);
+}
+const LABEL = argValue('--label', `${QUICK ? 'quick' : 'full'}-${SPAWN_MODE}`);
 const CYCLES = Number(argValue('--cycles', QUICK ? '3' : '5'));
 const MACRO_CYCLES = Number(argValue('--macro-cycles', QUICK ? '1' : '2'));
 const OUT_PATH = argValue('--out', path.join(REPO_ROOT, 'bench/results', `${LABEL}.json`));
+
+// Extra binary flags for the macro tier's direct spawn, per mode.
+function spawnModeArgs() {
+  if (SPAWN_MODE === 'st') return ['--single-threaded'];
+  if (SPAWN_MODE === 'serial') return ['--no-parallel-scan', '--no-parallel-render'];
+  return [];
+}
+
+// ResolverClient option fragment for the micro tier (inline-server mode
+// builds inferred multi-checker programs, so `st` collapses to the serial
+// opt-outs there).
+function spawnModeClientOptions() {
+  return SPAWN_MODE === 'parallel' ? {} : {parallelScan: false, parallelRender: false};
+}
 
 // ---------------------------------------------------------------------------
 // Micro-tier configuration. Per suite: which thunk fields to bench, which
@@ -197,7 +222,7 @@ async function runMicro() {
     }
   }
 
-  const client = new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true});
+  const client = new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true, ...spawnModeClientOptions()});
   const results = {};
   const phaseStart = performance.now();
   let done = 0;
@@ -282,7 +307,7 @@ const MACRO_SUITES = ['validation', 'serialization', 'format-validation', 'forma
 // ResolverClient could do this too, but here we also want the spawn→first-
 // response latency (program parse+bind happens before the serve loop).
 function spawnTsconfigClient() {
-  const child = spawn(BIN, ['--one-shot', '--cwd', PACKAGE_ROOT, '--tsconfig', 'tsconfig.test.json', '--single-threaded'], {
+  const child = spawn(BIN, ['--one-shot', '--cwd', PACKAGE_ROOT, '--tsconfig', 'tsconfig.test.json', ...spawnModeArgs()], {
     stdio: ['pipe', 'pipe', 'inherit'],
   });
   const lines = createInterface({input: child.stdout});
@@ -392,6 +417,7 @@ async function main() {
     meta: {
       label: LABEL,
       quick: QUICK,
+      spawnMode: SPAWN_MODE,
       cycles: CYCLES,
       macroCycles: MACRO_CYCLES,
       sha: gitSha(),
