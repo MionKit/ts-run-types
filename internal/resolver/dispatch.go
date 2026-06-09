@@ -113,6 +113,29 @@ func elapsedMs(start time.Time) float64 {
 	return float64(time.Since(start).Microseconds()) / 1000.0
 }
 
+// renderFamilies runs every requested family render against dump, timing
+// each into metrics and assigning the rendered body to its response slot.
+// Returns the first render error in familyRenders order. Shared by the
+// OpScanFiles (scoped dump) and OpDump (full dump) branches — `wants`
+// folds each branch's request-filter semantics.
+func (resolver *Resolver) renderFamilies(wants func(protocol.CacheKind) bool, dump protocol.Dump, rtOpts typefns.RenderOpts, metrics *protocol.Metrics, response *protocol.Response) error {
+	for _, family := range familyRenders {
+		if !wants(family.kind) {
+			continue
+		}
+		renderStart := time.Now()
+		body, renderErr := family.render(dump, rtOpts)
+		if renderErr != nil {
+			return renderErr
+		}
+		if metrics != nil {
+			metrics.RenderMs[string(family.kind)] = elapsedMs(renderStart)
+		}
+		family.assign(response, body)
+	}
+	return nil
+}
+
 // dispatch is the un-instrumented op switch. metrics may be nil (the
 // no-IncludeMetrics fast path); phase recordings are guarded per site.
 func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.Metrics) protocol.Response {
@@ -215,19 +238,11 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			if request.IncludeRunTypes {
 				response.RunTypes = scoped.RunTypes
 			}
-			for _, family := range familyRenders {
-				if !wantsCache(request.IncludeCacheSources, family.kind) {
-					continue
-				}
-				renderStart := time.Now()
-				body, renderErr := family.render(scoped, rtOpts)
-				if renderErr != nil {
-					return protocol.Response{Error: renderErr.Error()}
-				}
-				if metrics != nil {
-					metrics.RenderMs[string(family.kind)] = elapsedMs(renderStart)
-				}
-				family.assign(&response, body)
+			wants := func(kind protocol.CacheKind) bool {
+				return wantsCache(request.IncludeCacheSources, kind)
+			}
+			if renderErr := resolver.renderFamilies(wants, scoped, rtOpts, metrics, &response); renderErr != nil {
+				return protocol.Response{Error: renderErr.Error()}
 			}
 			if wantPureFns {
 				renderStart := time.Now()
@@ -294,19 +309,11 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		if anyFamily {
 			rtOpts = resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
 		}
-		for _, family := range familyRenders {
-			if !noFilter && !wantsCache(request.IncludeCacheSources, family.kind) {
-				continue
-			}
-			renderStart := time.Now()
-			body, renderErr := family.render(fullDump, rtOpts)
-			if renderErr != nil {
-				return protocol.Response{Error: renderErr.Error()}
-			}
-			if metrics != nil {
-				metrics.RenderMs[string(family.kind)] = elapsedMs(renderStart)
-			}
-			family.assign(&response, body)
+		wants := func(kind protocol.CacheKind) bool {
+			return noFilter || wantsCache(request.IncludeCacheSources, kind)
+		}
+		if renderErr := resolver.renderFamilies(wants, fullDump, rtOpts, metrics, &response); renderErr != nil {
+			return protocol.Response{Error: renderErr.Error()}
 		}
 		if noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns) {
 			renderStart := time.Now()
