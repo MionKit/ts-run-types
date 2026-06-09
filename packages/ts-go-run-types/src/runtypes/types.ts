@@ -248,8 +248,9 @@ export interface DataOnlyNativeExtra {}
 
 /** Built-in classes `DataOnly` KEEPS verbatim — only the ones the AOT validator
  *  checks by IDENTITY (`instanceof`): `Date` (SubKindDate) and `RegExp` (real
- *  `instanceof RegExp` emit). `Map`/`Set` are kept separately in the keep-union
- *  below. The augmentable `DataOnlyNativeExtra` tail folds in Temporal; with
+ *  `instanceof RegExp` emit). `Map`/`Set` have their own branches below (kept as
+ *  `Map`/`Set` with key/value type args projected). The augmentable
+ *  `DataOnlyNativeExtra` tail folds in Temporal; with
  *  nothing augmenting it the tail is `never`, so this is just `Date | RegExp`.
  *
  *  Deliberately NOT here (the old broad `Native` union grouped them wrongly):
@@ -326,8 +327,9 @@ type _DataOnlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
  *
  *  HOST / built-in CLASSES — what is deliberately handled where (see
  *  `DataOnlyNative` / `DataOnlyStripped` above for the why):
- *   - KEPT by identity: `Date`, `RegExp`, `Map`, `Set` (+ Temporal via the
- *     `DataOnlyNativeExtra` augmentation) — the validator checks these directly;
+ *   - KEPT by identity: `Date`, `RegExp` (+ Temporal via the `DataOnlyNativeExtra`
+ *     augmentation) — the validator checks these directly; `Map`/`Set` are kept as
+ *     `Map`/`Set` but with their key/value type args recursively projected;
  *   - STRIPPED to `never`: `ArrayBuffer`, `SharedArrayBuffer`, `DataView` and
  *     every typed array — non-serialisable in the emitter;
  *   - LEFT OUT (not enumerated): every OTHER class — `URL`, `URLSearchParams`,
@@ -338,9 +340,10 @@ type _DataOnlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
  *
  *  Implementation: NO `infer` — every arm is a bare `extends` test or a
  *  homomorphic `{[K in keyof T]: …}` map (which preserves array/tuple structure
- *  and `readonly`/`?` modifiers for free). `Map`/`Set` are kept verbatim rather
- *  than recursed: they are validation-supported and their type args don't change
- *  the validator's structural id in practice.
+ *  and `readonly`/`?` modifiers for free). `Map`/`Set` keep the collection type
+ *  but RECURSE into their key/value type args — the validator/decoder produces
+ *  children checked against (or rebuilt as) their data-only schema, so a value's
+ *  methods/Promises/non-data members are stripped just like anywhere else.
  *
  *  Recursion is BOUNDED by the `Depth` budget (`_DataOnlyDepth` decrement): a
  *  self- or mutually-referential type resolves to a finite instantiation rather
@@ -356,31 +359,37 @@ export type DataOnly<T, Depth extends number = 8> = Depth extends 0
     ? T // any / unknown — keep the broad kinds
     : T extends DataOnlyStripped
       ? never // symbol / fn / ctor / thenable — strip
-      : T extends
-            | string
-            | number
-            | boolean
-            | bigint
-            | null
-            | undefined
-            | DataOnlyNative
-            | ReadonlyMap<any, any>
-            | ReadonlySet<any>
-        ? T // primitive / native (+ Temporal) / Map / Set (incl. readonly) — keep verbatim
-        : T extends readonly unknown[]
-          ? {-readonly [K in keyof T]: DataOnly<T[K], _DataOnlyDepth[Depth]>} // array + tuple
-          : T extends object
-            ? object extends T
-              ? T // broad `object` / `{}` — keep (the emitter accepts the broad kind)
-              : {
-                  // plain object — drop symbol keys + never-valued (⊇ method) props
-                  [K in keyof T as K extends symbol
-                    ? never
-                    : [DataOnly<T[K], _DataOnlyDepth[Depth]>] extends [never]
-                      ? never
-                      : K]: DataOnly<T[K], _DataOnlyDepth[Depth]>;
-                }
-            : T;
+      : T extends string | number | boolean | bigint | null | undefined | DataOnlyNative
+        ? T // primitive / native (+ Temporal) — keep verbatim
+        : // Map / Set keep the COLLECTION but PROJECT keys & values: the validator
+          // iterates and checks each child against its data-only schema (and a
+          // decoder rebuilds children from JSON/bytes), so a value's methods /
+          // Promises / non-data members are gone. One `ReadonlyMap` / `ReadonlySet`
+          // check each catches BOTH the mutable and readonly forms (the inner
+          // `Map` / `Set` test preserves the original variant) — two conditionals
+          // instead of four keeps the per-type cost down.
+          T extends ReadonlyMap<infer K, infer V>
+          ? T extends Map<any, any>
+            ? Map<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
+            : ReadonlyMap<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
+          : T extends ReadonlySet<infer U>
+            ? T extends Set<any>
+              ? Set<DataOnly<U, _DataOnlyDepth[Depth]>>
+              : ReadonlySet<DataOnly<U, _DataOnlyDepth[Depth]>>
+            : T extends readonly unknown[]
+              ? {-readonly [K in keyof T]: DataOnly<T[K], _DataOnlyDepth[Depth]>} // array + tuple
+              : T extends object
+                ? object extends T
+                  ? T // broad `object` / `{}` — keep (the emitter accepts the broad kind)
+                  : {
+                      // plain object — drop symbol keys + never-valued (⊇ method) props
+                      [K in keyof T as K extends symbol
+                        ? never
+                        : [DataOnly<T[K], _DataOnlyDepth[Depth]>] extends [never]
+                          ? never
+                          : K]: DataOnly<T[K], _DataOnlyDepth[Depth]>;
+                    }
+                : T;
 // #endregion dataonly-extract
 
 export type DeserializeClassFn<C extends InstanceType<AnyClass>> = (deserialized: DataOnly<C>) => C;
