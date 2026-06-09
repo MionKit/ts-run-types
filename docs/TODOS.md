@@ -14,7 +14,7 @@ if this is correct we need to ensure the golang backend reads the params and gen
 
 ## make DataOnly more general and reflect actual validation logic, (in fact we could make validate an scenario of this)
 
-DataOnly type in packages/ts-go-run-types/src/runtypes/types.ts should work exactly as the data that is validated and serialized,
+DataOnly type in packages/ts-go-run-types/src/runtypes/dataOnly.ts should work exactly as the data that is validated and serialized,
 so maybe we can properly fix the type mapping and make sure is the exact same shape that is validated and serialized.
 
 sp maybe

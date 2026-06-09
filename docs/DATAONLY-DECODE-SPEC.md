@@ -24,7 +24,7 @@ Annotate the decode return as the data-only projection:
 - `createJsonDecoder<T>()` → `JsonDecoderFn<DataOnly<T>>`
 - `createBinaryDecoder<T>()` → `(bytes) => DataOnly<T>`
 
-`DataOnly<T>` ([`src/runtypes/types.ts`](../packages/ts-go-run-types/src/runtypes/types.ts))
+`DataOnly<T>` ([`src/runtypes/dataOnly.ts`](../packages/ts-go-run-types/src/runtypes/dataOnly.ts))
 is the exact shape the AOT validator/serialiser produces: keeps primitives /
 `Date` / `RegExp` / `Map` / `Set` / Temporal, strips functions / constructors /
 `Promise` / symbols / non-serialisable built-ins, projects plain & host classes
