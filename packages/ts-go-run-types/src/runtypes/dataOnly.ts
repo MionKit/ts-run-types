@@ -132,8 +132,9 @@ type _DataOnlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
  *  collection type but RECURSE into their key/value type args — the
  *  validator/decoder produces children checked against (or rebuilt as) their
  *  data-only schema, so a value's methods/Promises/non-data members are stripped
- *  just like anywhere else; a single non-`infer` gate keeps that off the path for
- *  every non-collection.
+ *  just like anywhere else; cheap non-`infer` `ReadonlyMap`/`ReadonlySet` gates
+ *  keep the inference off the path for every non-collection (and stop a Set from
+ *  paying a wasted Map inference, or vice-versa).
  *
  *  Recursion is BOUNDED by the `Depth` budget (`_DataOnlyDepth` decrement): a
  *  self- or mutually-referential type resolves to a finite instantiation rather
@@ -154,36 +155,36 @@ export type DataOnly<T, Depth extends number = 8> = Depth extends 0
         : // Map / Set keep the COLLECTION but PROJECT keys & values: the validator
           // iterates and checks each child against its data-only schema (and a
           // decoder rebuilds children from JSON/bytes), so a value's methods /
-          // Promises / non-data members are gone. One `ReadonlyMap` / `ReadonlySet`
-          // check each catches BOTH the mutable and readonly forms (the inner
-          // `Map` / `Set` test preserves the original variant) — two conditionals
-          // instead of four keeps the per-type cost down.
-          T extends ReadonlyMap<any, any> | ReadonlySet<any>
-          ? // GATE: one non-`infer` assignability check filters out every
-            // non-collection (the common case) in a single step — the `infer`
-            // extraction below only runs for actual Maps/Sets. Inside, the
-            // `Map`/`Set` test preserves the mutable-vs-readonly variant.
-            T extends ReadonlyMap<infer K, infer V>
+          // Promises / non-data members are gone. SEPARATE non-`infer` gates for
+          // `ReadonlyMap` and `ReadonlySet`: the cheap `<any, any>` check filters
+          // out non-collections, and a Set never pays a wasted `ReadonlyMap` *infer*
+          // (nor a Map a wasted `ReadonlySet` infer). The `infer` runs only once
+          // the gate has confirmed the kind; the inner `Map`/`Set` test preserves
+          // the mutable-vs-readonly variant.
+          T extends ReadonlyMap<any, any>
+          ? T extends ReadonlyMap<infer K, infer V>
             ? T extends Map<any, any>
               ? Map<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
               : ReadonlyMap<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
-            : T extends ReadonlySet<infer U>
+            : never // unreachable — gate guarantees a Map
+          : T extends ReadonlySet<any>
+            ? T extends ReadonlySet<infer U>
               ? T extends Set<any>
                 ? Set<DataOnly<U, _DataOnlyDepth[Depth]>>
                 : ReadonlySet<DataOnly<U, _DataOnlyDepth[Depth]>>
-              : never // unreachable — gate guarantees Map or Set
-          : T extends readonly unknown[]
-            ? {-readonly [K in keyof T]: DataOnly<T[K], _DataOnlyDepth[Depth]>} // array + tuple
-            : T extends object
-              ? object extends T
-                ? T // broad `object` / `{}` — keep (the emitter accepts the broad kind)
-                : {
-                    // plain object — drop symbol keys + never-valued (⊇ method) props
-                    [K in keyof T as K extends symbol
-                      ? never
-                      : [DataOnly<T[K], _DataOnlyDepth[Depth]>] extends [never]
+              : never // unreachable — gate guarantees a Set
+            : T extends readonly unknown[]
+              ? {-readonly [K in keyof T]: DataOnly<T[K], _DataOnlyDepth[Depth]>} // array + tuple
+              : T extends object
+                ? object extends T
+                  ? T // broad `object` / `{}` — keep (the emitter accepts the broad kind)
+                  : {
+                      // plain object — drop symbol keys + never-valued (⊇ method) props
+                      [K in keyof T as K extends symbol
                         ? never
-                        : K]: DataOnly<T[K], _DataOnlyDepth[Depth]>;
-                  }
-              : T;
+                        : [DataOnly<T[K], _DataOnlyDepth[Depth]>] extends [never]
+                          ? never
+                          : K]: DataOnly<T[K], _DataOnlyDepth[Depth]>;
+                    }
+                : T;
 // #endregion dataonly-extract
