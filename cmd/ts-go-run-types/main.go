@@ -13,6 +13,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/pprof"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 
@@ -79,6 +81,8 @@ func main() {
 		inlineServer       bool
 		cacheDir           string
 		emitCacheFunctions bool
+		pprofCPU           string
+		pprofHeap          string
 		help               bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
@@ -101,6 +105,10 @@ func main() {
 		"emit the inline createRTFn closure on every cache entry alongside the body string. "+
 			"Default false — the JS side rebuilds the factory from `code` via `new Function` on first lookup. "+
 			"Set true for runtimes that disallow dynamic code (Cloudflare WorkerD, browser CSP without unsafe-eval).")
+	flag.StringVar(&pprofCPU, "pprof-cpu", "",
+		"write a CPU profile to PATH, covering the whole serve loop (started at boot, stopped at exit)")
+	flag.StringVar(&pprofHeap, "pprof-heap", "",
+		"write a heap profile to PATH at exit (after a final GC)")
 	flag.BoolVar(&help, "help", false, "show help")
 	flag.BoolVar(&help, "h", false, "show help")
 	flag.Parse()
@@ -108,6 +116,34 @@ func main() {
 	if help {
 		flag.Usage()
 		return
+	}
+
+	if pprofCPU != "" {
+		cpuFile, err := os.Create(pprofCPU)
+		if err != nil {
+			fatal("pprof-cpu: %v", err)
+		}
+		if err := pprof.StartCPUProfile(cpuFile); err != nil {
+			fatal("pprof-cpu: %v", err)
+		}
+		defer func() {
+			pprof.StopCPUProfile()
+			cpuFile.Close()
+		}()
+	}
+	if pprofHeap != "" {
+		defer func() {
+			heapFile, err := os.Create(pprofHeap)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "pprof-heap: %v\n", err)
+				return
+			}
+			defer heapFile.Close()
+			runtime.GC()
+			if err := pprof.WriteHeapProfile(heapFile); err != nil {
+				fmt.Fprintf(os.Stderr, "pprof-heap: %v\n", err)
+			}
+		}()
 	}
 
 	cwd := cwdFlag
