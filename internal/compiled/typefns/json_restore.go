@@ -167,7 +167,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		case protocol.SubKindDate:
 			return RTCode{Code: v + " = new Date(" + v + ")", Type: CodeE}
 		case protocol.SubKindNone:
-			structural := emitObjectRestoreFromJson(rt, ctx, v)
+			structural := emitObjectJsonChildren(rt, ctx)
 			return wrapRestoreWithClassSerializer(rt, ctx, v, structural)
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableRestoreFromJson(rt, ctx, v)
@@ -186,7 +186,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindObjectLiteral:
-		return emitObjectRestoreFromJson(rt, ctx, v)
+		return emitObjectJsonChildren(rt, ctx)
 
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return emitPropertyRestoreFromJson(rt, ctx, v)
@@ -262,39 +262,6 @@ func emitLiteralRestoreFromJson(rt *protocol.RunType, v string) RTCode {
 	}
 	// Primitive literal — noop.
 	return RTCode{Code: "", Type: CodeS}
-}
-
-// emitObjectRestoreFromJson — sibling of emitObjectPrepareForJson
-// (json_prepare.go). Mirrors mion's
-// nodes/collection/interface.ts:emitRestoreFromJson.
-func emitObjectRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
-	var parts []string
-	for _, child := range rt.Children {
-		resolved := ctx.ResolveRef(child)
-		if resolved == nil {
-			continue
-		}
-		if resolved.IsStatic {
-			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
-			continue
-		}
-		if isFunctionLikeKind(resolved.Kind) {
-			ctx.EmitDiagnosticSlot(SlotMethodDropped, memberLabel(resolved))
-			continue
-		}
-		childRT := ctx.CompileChild(child, CodeS)
-		if childRT.Type == CodeNS {
-			return RTCode{Code: "", Type: CodeNS}
-		}
-		if childRT.Code == "" {
-			continue
-		}
-		parts = append(parts, childRT.Code)
-	}
-	if len(parts) == 0 {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
 }
 
 // emitPropertyRestoreFromJson — sibling of emitPropertyPrepareForJson.
