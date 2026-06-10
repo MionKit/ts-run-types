@@ -58,11 +58,14 @@ export type Static<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] :
  *  guard NARROWS, it does not intersect, so `P` flows through unchanged and no
  *  spurious `min?/max?: string | undefined` is injected into the reflected
  *  params. **/
-export interface LeafTypeByFormatName<P extends object> {
-  stringFormat: TypeFormat<string, 'stringFormat', P>;
-  numberFormat: TypeFormat<number, 'numberFormat', P>;
-  bigintFormat: TypeFormat<bigint, 'bigintFormat', P>;
-  nativeDate: TypeFormat<Date, 'nativeDate', P>;
+export interface LeafTypeByFormatName<P extends object, BrandName extends string = never> {
+  stringFormat: TypeFormat<string, 'stringFormat', P, BrandName>;
+  numberFormat: TypeFormat<number, 'numberFormat', P, BrandName>;
+  bigintFormat: TypeFormat<bigint, 'bigintFormat', P, BrandName>;
+  nativeDate: TypeFormat<Date, 'nativeDate', P, BrandName>;
+  // Temporal leaves don't thread `BrandName` yet — value-first temporal branding
+  // is a follow-up (the hand-rolled `FormatTemporal*` aliases + the generic
+  // `temporalBuilder` need the same brand slot). Unbranded today.
   temporalInstant: P extends MinMax ? FormatTemporalInstant<P> : never;
   temporalZonedDateTime: P extends MinMax ? FormatTemporalZonedDateTime<P> : never;
   temporalPlainDate: P extends MinMax ? FormatTemporalPlainDate<P> : never;
@@ -74,9 +77,29 @@ export interface LeafTypeByFormatName<P extends object> {
 /** Every leaf format brand name (the keys of `LeafTypeByFormatName`). **/
 export type LeafFormatName = keyof LeafTypeByFormatName<Record<string, never>>;
 
-/** The branded leaf type for a format `Name` with params `P` — the builders'
- *  carried `RunType<…>` type and the type the scanner reflects off the brand. **/
-export type LeafType<Name extends LeafFormatName, P extends object> = LeafTypeByFormatName<P>[Name];
+/** The branded leaf type for a format `Name` with params `P` and optional nominal
+ *  `BrandName` — the builders' carried `RunType<…>` type and the type the scanner
+ *  reflects off the brand. `BrandName` defaults to `never` (no brand): an unbranded
+ *  leaf is a transparent annotation (mutually assignable with its base), while
+ *  passing a brand (via the value-first `brand(name)` tag) opts INTO the nominal
+ *  `Format*<P, BrandName>`. **/
+export type LeafType<Name extends LeafFormatName, P extends object, BrandName extends string = never> = LeafTypeByFormatName<
+  P,
+  BrandName
+>[Name];
+
+/** The tag `brand(name)` produces — a distinct carrier for a value-first format
+ *  brand name. Its OBJECT shape (not a bare string) is what lets the builder's
+ *  brand slot sit BEFORE the trailing injected id without the two colliding: a
+ *  plain string is assignable to `InjectRunTypeId`, a `BrandArg` is not, so
+ *  overload resolution can't confuse the user's brand with the plugin's id. The
+ *  carried `B` flows into the leaf's `LeafType<…, B>` → `TypeFormat<…, B>`
+ *  BrandName, so a branded value-first leaf reflects the SAME nominal
+ *  `Format*<P, B>` the type-first surface does and converges on its structural
+ *  id. **/
+export interface BrandArg<B extends string> {
+  readonly __rtBrandName: B;
+}
 
 // ───────────────────────── Property modifiers ───────────────────────
 

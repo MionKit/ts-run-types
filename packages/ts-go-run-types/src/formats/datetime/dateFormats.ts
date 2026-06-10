@@ -19,11 +19,24 @@ import type {MinMax, DateTimeBound} from './dateTimeParams.ts';
 // Invalid Date (NaN) is always rejected by the base check.
 export type FormatParams_NativeDate = MinMax<DateTimeBound>;
 
-// FormatDate — the branded `Date` alias users annotate with, e.g.
+// FormatDate — the `Date` format alias users annotate with, e.g.
 // `FormatDate<{min: 'now'}>` (no past dates) or
-// `FormatDate<{min: '2020-01-01T00:00:00'; max: 'now'}>`.
+// `FormatDate<{min: '2020-01-01T00:00:00'; max: 'now'}>`. Like the other base
+// formats (`FormatString` / `FormatNumber` / `FormatBigInt`) it is TRANSPARENT by
+// default — a plain `Date` flows in and out with no cast — and takes an optional
+// user-facing `BrandName` to opt INTO a nominal type (`FormatDate<P, 'CreatedAt'>`),
+// matching the value-first `date(P, brand('CreatedAt'))` builder. The previous
+// hardcoded `'nativeDate'` brand arg was vestigial (the scanner ignores BrandName
+// and reads `__rtFormatName` off the sentinel) until TypeFormat began honoring
+// BrandName; leaving it would have made every `FormatDate<P>` spuriously nominal
+// and split it from its transparent value-first builder.
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export type FormatDate<P extends FormatParams_NativeDate = {}> = TypeFormat<Date, 'nativeDate', P, 'nativeDate'>;
+export type FormatDate<P extends FormatParams_NativeDate = {}, BrandName extends string = never> = TypeFormat<
+  Date,
+  'nativeDate',
+  P,
+  BrandName
+>;
 
 // Convenience aliases mirroring the common "must be in the past / future"
 // constraints. `now` is the current instant at validation time.
