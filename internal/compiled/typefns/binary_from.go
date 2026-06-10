@@ -39,18 +39,6 @@ func (FromBinaryEmitter) Supports(rt *protocol.RunType) bool {
 	return ToBinaryEmitter{}.Supports(rt)
 }
 
-// AnyFromBinarySupported reports whether at least one runtype in the
-// slice is supported.
-func AnyFromBinarySupported(runTypes []*protocol.RunType) bool {
-	emitter := FromBinaryEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 func (FromBinaryEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }

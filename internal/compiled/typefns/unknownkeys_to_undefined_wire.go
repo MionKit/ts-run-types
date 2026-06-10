@@ -30,16 +30,6 @@ func (UnknownKeysToUndefinedWireEmitter) Supports(rt *protocol.RunType) bool {
 	return UnknownKeysToUndefinedEmitter{}.Supports(rt)
 }
 
-func AnyUnknownKeysToUndefinedWireSupported(runTypes []*protocol.RunType) bool {
-	emitter := UnknownKeysToUndefinedWireEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 func (UnknownKeysToUndefinedWireEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return UnknownKeysToUndefinedEmitter{}.IsRTInlined(ctx)
 }

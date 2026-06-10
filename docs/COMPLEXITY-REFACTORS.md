@@ -30,7 +30,7 @@
 | S4 | `purefns/walker.go:472` vs `resolver/scan.go:911` (+6 site-building blocks) | naive O(bytes) `lineCol` duplicates the optimized line-map `scanLineCol`; repeated Pos/End→`diag.Site` blocks | new tiny `internal/textpos`: `LineCol` + `NodeSite`; purefns gets the line-map win | −55 | low | landed |
 | S5 | `typefns/module.go:206-356` | partial registry (`familyConfig` + `crossFamilyItSourceFamilies`) duplicates the wrapper triples | `FamilySpec` registry in `typefns/families.go` (order load-bearing, validate LAST) | +55/−45 | low | landed |
 | S6 | `resolver/render.go` + `resolver/dispatch.go:295-312` | 11 trivial render wrappers; 14-line `Added*`/`AnyXxxSupported` block | drive renders + added-flags from the registry | −70 | medium | landed |
-| S7 | typefns family files | 14 `XxxModule` + 14 `AnyXxxSupported` thin wrappers (sole callers: resolver, handled in S6) | delete; tests use `FamilyByKey(...)` | −280 | low | pending |
+| S7 | typefns family files | 14 `XxxModule` + 14 `AnyXxxSupported` thin wrappers (sole callers: resolver, handled in S6) | delete; tests use `FamilyByKey(...)` | −280 | low | landed |
 | S8 | `protocol/protocol.go:654-783` | ~45 repetitive conditional map-sets in `Response.MarshalJSON` | two hand-written closure tables + fill loops (keys NOT derived — wire definition) | −40 | low | pending |
 | E1 | `unknownkeys_{errors:25,has:40,strip:21,to_undefined:20}.go` | 4 `Supports` bodies byte-identical (has differs by 2 comments; wire already delegates) | one shared `unknownKeysSupports`, 5 delegating methods | −135 | low | pending |
 | E2 | `json_prepare.go:348-376` vs `json_restore.go:283-311` | `emitObjectPrepareForJson` ≡ `emitObjectRestoreFromJson` (name-only diff, same package) | single shared func; both emitters call it | −29 | low | pending |
@@ -94,3 +94,5 @@ switches and the render engine** — reviewed and intentionally kept:
 | S4 | refactor(textpos): shared LineCol/NodeSite for resolver + purefns | −60 | neutral (wall +0.8%, go +0.4%, alloc 0.0%) |
 | S5 | refactor(typefns): introduce the FamilySpec registry | +100/−55 | neutral-to-better (wall −2.9%, go −7.4%, alloc −0.0%) |
 | S6 | refactor(resolver): drive family renders and added-flags from the registry | −75 | neutral (wall +0.3%, go −1.0%, alloc +0.2%) |
+| fix | fix(resolver): keep the transform-gated AddedFormatTransform signal | +3 | n/a (semantic guard; new regression test in families_test.go) |
+| S7 | refactor(typefns): drop the per-family Module/AnySupported wrappers | −245 | neutral (wall −0.3%, go −0.9%, alloc +0.1%) |

@@ -114,19 +114,6 @@ func (ValidationErrorsEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
-// AnyValidationErrorsSupported reports whether at least one runtype in the
-// slice is supported by the ValidationErrors emitter. Used by the resolver
-// to set the AddedValidationErrors wire signal alongside AddedValidate.
-func AnyValidationErrorsSupported(runTypes []*protocol.RunType) bool {
-	emitter := ValidationErrorsEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 // IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
 // validate (mion shares the predicate across all rt fns via
 // BaseRunType.isRTInlined).

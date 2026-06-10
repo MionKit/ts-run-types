@@ -88,19 +88,6 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
-// AnyRestoreFromJsonSupported reports whether at least one runtype in
-// the slice is supported by the RestoreFromJsonEmitter. Sibling of
-// AnyPrepareForJsonSupported.
-func AnyRestoreFromJsonSupported(runTypes []*protocol.RunType) bool {
-	emitter := RestoreFromJsonEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 // IsRTInlined delegates to DefaultIsRTInlined.
 func (RestoreFromJsonEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
