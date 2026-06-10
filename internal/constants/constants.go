@@ -191,10 +191,12 @@ type ValidateOption struct {
 // append to the tail (declaration-order, not alphabetic).
 //
 // To add a new option:
-//  1. Append an entry here.
+//  1. Append an entry here — the scanner's extraction is table-driven
+//     off this registry, so the option is read automatically.
 //  2. Add the field to `ValidateOptions` in
 //     packages/ts-go-run-types/src/createRTFunctions.ts.
-//  3. Teach the Go scanner to read it and the emitters to honour it.
+//  3. Teach the emitters to honour it (plus any per-option scanner
+//     semantics, e.g. a noop-option diagnostic in analyzeCall).
 //  4. Regenerate the TS mirror (`pnpm run gen:ts-constants`).
 var ValidateOptions = []ValidateOption{
 	{Name: "noLiterals", Letter: "L"},
