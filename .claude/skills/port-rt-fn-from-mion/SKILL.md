@@ -181,7 +181,7 @@ on `EmitContext`:
 
 ## Step 6 — Cache module registration
 
-Five short mechanical edits. Mirror the `isType` / `typeErrors`
+Four short mechanical edits. Mirror the `isType` / `typeErrors`
 plumbing exactly:
 
 - `internal/constants/constants.go` — add `<fnname>` entry to the
@@ -191,17 +191,19 @@ plumbing exactly:
   pointing at `<fnname>Cache.ts`
 - `internal/protocol/protocol.go` — add `CacheKind<FnName> CacheKind
 = "<fnname>"`; add `<FnName>CacheSource string` and `Added<FnName>
-bool` to `Response`; extend `MarshalJSON` to surface both
-- `internal/resolver/dispatch.go` — wire `want<FnName>` flag mirroring
-  `wantIsType`; honour `CacheKind<FnName>` in `OpScanFiles` + `OpDump`;
-  set `Added<FnName>` and populate `<FnName>CacheSource`
-- `internal/resolver/render.go` — add `render<FnName>Module(dump)`
-  that calls into the new emitter
-- `internal/compiled/typefns/module.go` — add `<FnName>Module(w, dump)`
-  one-liner that calls `RenderFnModule(w, dump,
-CacheModules["<fnname>"], <FnName>Emitter{}, "<fnname>_",
-cachetpl.Skeleton<FnName>)` plus `Any<FnName>Supported(runTypes)`
-  helper alongside `AnyValidateSupported`
+bool` to `Response`; add one row each to the `responseAddedFlags` /
+`responseCacheSources` wire tables (MarshalJSON reads them)
+- `internal/compiled/typefns/families.go` — add a
+  `family("<fnname>", <FnName>Emitter{}, cachetpl.Skeleton<FnName>)`
+  row to `Families` (BEFORE the validate row — validate must stay
+  last); `FamilySpec.Render` / `FamilySpec.AnySupported` replace the
+  old per-family `<FnName>Module` / `Any<FnName>Supported` wrappers
+- `internal/resolver/dispatch.go` — add a `familyRenders` row: `kind`,
+  `render: renderFamilyModule("<fnname>")` (or a named wrapper in
+  render.go if the family needs ExtraRoots / ExtraBodyLines
+  pre-steps), `assign`, `anySupported:
+typefns.FamilyByKey("<fnname>").AnySupported` and `setAdded` — that
+  row drives both the render and the `Added<FnName>` flag
 
 ## Step 7 — JS-side adapter
 
