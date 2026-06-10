@@ -206,7 +206,10 @@ func specForKind(specs []Spec, kind Kind) (Spec, bool) {
 	return Spec{}, false
 }
 
-func matchAliasSpec(tsType *checker.Type, spec Spec) (*checker.Type, bool) {
+// aliasForSpec returns tsType's alias when its symbol name and declaring
+// module match spec — the shared first layer of every alias-based marker
+// match (DetectAny's Kind matching, the InjectTypeFnArgs fn-key read).
+func aliasForSpec(tsType *checker.Type, spec Spec) (*checker.TypeAlias, bool) {
 	alias := checker.Type_alias(tsType)
 	if alias == nil {
 		return nil, false
@@ -216,6 +219,14 @@ func matchAliasSpec(tsType *checker.Type, spec Spec) (*checker.Type, bool) {
 		return nil, false
 	}
 	if !DeclaredInModule(symbol, spec.Module) {
+		return nil, false
+	}
+	return alias, true
+}
+
+func matchAliasSpec(tsType *checker.Type, spec Spec) (*checker.Type, bool) {
+	alias, ok := aliasForSpec(tsType, spec)
+	if !ok {
 		return nil, false
 	}
 	typeArguments := alias.TypeArguments()
@@ -259,15 +270,8 @@ func FnKeyForInjectTypeFnArgs(typeChecker *checker.Checker, paramType *checker.T
 // alias as its string-literal value. Returns ok=false unless tsType carries the
 // matching alias with a string-literal 2nd type argument.
 func fnKeyFromAlias(tsType *checker.Type, spec Spec) (string, bool) {
-	alias := checker.Type_alias(tsType)
-	if alias == nil {
-		return "", false
-	}
-	symbol := alias.Symbol()
-	if symbol == nil || symbol.Name != spec.Name {
-		return "", false
-	}
-	if !DeclaredInModule(symbol, spec.Module) {
+	alias, ok := aliasForSpec(tsType, spec)
+	if !ok {
 		return "", false
 	}
 	typeArguments := alias.TypeArguments()
