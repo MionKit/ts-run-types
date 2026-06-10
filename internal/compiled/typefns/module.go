@@ -319,40 +319,6 @@ func FormatTransformModule(writer io.Writer, dump protocol.Dump, opts RenderOpts
 	return RenderFnModule(writer, dump, settings, FormatTransformEmitter{}, innerPrefix(settings), cachetpl.SkeletonFormatTransform, opts)
 }
 
-// familyConfig bundles the (settings, emitter, skeleton) triple that
-// uniquely identifies one cache family render. The per-family XxxModule
-// wrappers above each spell out the same triple inline; CrossFamilyValRoots
-// needs to iterate a SET of families, so it reuses this slice instead.
-type familyConfig struct {
-	settings constants.CacheModuleSettings
-	emitter  Emitter
-	skeleton string
-}
-
-// crossFamilyItSourceFamilies lists every family whose render can reference an
-// `val_<member>` cross-family edge — i.e. every migrated function family EXCEPT
-// `it` itself (the target), `runTypes` (reflection, no function body), and
-// `pureFns` (rendered by a different package). CrossFamilyValRoots renders each
-// of these demand-driven (output discarded) to harvest the `val_` edges they
-// keep, so the `it` family's demand covers the union decoders / validationErrors
-// child checks even when `it` is demand-scoped. Mirrors the family triples the
-// XxxModule wrappers above declare.
-var crossFamilyItSourceFamilies = []familyConfig{
-	{constants.CacheModules["validationErrors"], ValidationErrorsEmitter{}, cachetpl.SkeletonValidationErrors},
-	{constants.CacheModules["prepareForJson"], PrepareForJsonEmitter{}, cachetpl.SkeletonPrepareForJson},
-	{constants.CacheModules["restoreFromJson"], RestoreFromJsonEmitter{}, cachetpl.SkeletonRestoreFromJson},
-	{constants.CacheModules["stringifyJson"], StringifyJsonEmitter{}, cachetpl.SkeletonStringifyJson},
-	{constants.CacheModules["prepareForJsonSafe"], PrepareForJsonSafeEmitter{}, cachetpl.SkeletonPrepareForJsonSafe},
-	{constants.CacheModules["hasUnknownKeys"], HasUnknownKeysEmitter{}, cachetpl.SkeletonHasUnknownKeys},
-	{constants.CacheModules["stripUnknownKeys"], StripUnknownKeysEmitter{}, cachetpl.SkeletonStripUnknownKeys},
-	{constants.CacheModules["unknownKeyErrors"], UnknownKeyErrorsEmitter{}, cachetpl.SkeletonUnknownKeyErrors},
-	{constants.CacheModules["unknownKeysToUndefined"], UnknownKeysToUndefinedEmitter{}, cachetpl.SkeletonUnknownKeysToUndefined},
-	{constants.CacheModules["unknownKeysToUndefinedWire"], UnknownKeysToUndefinedWireEmitter{}, cachetpl.SkeletonUnknownKeysToUndefinedWire},
-	{constants.CacheModules["toBinary"], ToBinaryEmitter{}, cachetpl.SkeletonToBinary},
-	{constants.CacheModules["fromBinary"], FromBinaryEmitter{}, cachetpl.SkeletonFromBinary},
-	{constants.CacheModules["formatTransform"], FormatTransformEmitter{}, cachetpl.SkeletonFormatTransform},
-}
-
 // CrossFamilyValRoots renders every NON-it migrated family demand-driven (output
 // discarded) to collect the val_<member> cross-family edges they reference, and
 // returns the bare member type-ids. Seeds the it family's demand so union
@@ -367,7 +333,13 @@ var crossFamilyItSourceFamilies = []familyConfig{
 // (and the other families' real renders) already surface.
 func CrossFamilyValRoots(dump protocol.Dump, opts RenderOpts) []string {
 	var sink []string
-	for _, family := range crossFamilyItSourceFamilies {
+	// Every registry family except `it` itself (the target; runTypes and
+	// pureFns aren't typefns families to begin with) can reference a
+	// val_<member> cross-family edge.
+	for _, spec := range Families {
+		if spec.Key == "validate" {
+			continue
+		}
 		collectOpts := opts
 		collectOpts.DiagSink = nil
 		collectOpts.CrossFamilySink = &sink
@@ -375,7 +347,7 @@ func CrossFamilyValRoots(dump protocol.Dump, opts RenderOpts) []string {
 		// Errors here only affect the discarded body; the real per-family
 		// render (with diagnostics + disk cache) runs separately. io.Discard
 		// never errors, so this is effectively infallible.
-		_ = RenderFnModule(io.Discard, dump, family.settings, family.emitter, innerPrefix(family.settings), family.skeleton, collectOpts)
+		_ = spec.Render(io.Discard, dump, collectOpts)
 	}
 	itPrefix := operations.PlainHash("validate") + "_"
 	seen := make(map[string]bool, len(sink))
