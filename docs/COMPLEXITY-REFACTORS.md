@@ -200,3 +200,10 @@ Remaining intentional split: the type-channel readers (`literalParamsFromType` /
 and stay with the structural-id machinery; purefns' factory-local symbol table hop
 (deps.go) is factory-scoped by nature and already falls back to
 comptimeargs.ResolveLiteralString.
+
+Addendum (pass 4): the type-channel readers moved too — `comptimeargs.TypeLiteralValue` /
+`TypeLiteralObject` (with `TypeValueOptions{PropertyOverride, NonLiteralFallback}`) are the
+generic literal-TYPE → Go-value walk; typeid binds its format-domain policy (pattern
+escape hatch, TypeToString cache-identity fallback) on top. comptimeargs is now the single
+module for comptime literals on both channels: AST value expressions (validate + trace +
+extract) and literal types (extract — the type system already did validation/resolution).
