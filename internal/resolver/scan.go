@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -16,6 +15,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-run-types/internal/textpos"
 )
 
 func (resolver *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
@@ -377,11 +377,9 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		if sourceFile == nil {
 			return pendingCall{}, diagnostics, false
 		}
-		startLine, startCol := scanLineCol(sourceFile, call.Pos())
-		endLine, endCol := scanLineCol(sourceFile, call.End())
 		diagnostics = append(diagnostics, diag.New(
 			diag.CodeMarkerFreeTypeParameter,
-			diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
+			textpos.NodeSite(file, sourceFile, call),
 		))
 		return pendingCall{}, diagnostics, false
 	}
@@ -761,11 +759,9 @@ func (state scanState) checkPureFunction(file string, argumentNode *ast.Node) []
 		if sourceFile == nil {
 			return nil
 		}
-		startLine, startCol := scanLineCol(sourceFile, failingNode.Pos())
-		endLine, endCol := scanLineCol(sourceFile, failingNode.End())
 		return []diag.Diagnostic{diag.New(
 			diag.CodePureFunctionNotLiteral,
-			diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
+			textpos.NodeSite(file, sourceFile, failingNode),
 		)}
 	}
 	sourceFile := ast.GetSourceFileOfNode(fnNode)
@@ -791,9 +787,7 @@ func (state scanState) checkCompTimeArgs(file string, argumentNode *ast.Node) (d
 	if sourceFile == nil {
 		return diag.Diagnostic{}, false
 	}
-	startLine, startCol := scanLineCol(sourceFile, failingNode.Pos())
-	endLine, endCol := scanLineCol(sourceFile, failingNode.End())
-	site := diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol}
+	site := textpos.NodeSite(file, sourceFile, failingNode)
 	switch result.Kind {
 	case comptimeargs.FailDepthExceeded:
 		return diag.New(diag.CodeCompTimeArgsDepthExceeded, site), true
@@ -818,12 +812,7 @@ func (resolver *Resolver) noopValidateOptionDiag(file string, call *ast.Node, la
 	if optionsNode := extractValidateOptionsCandidate(call, lastIndex, argsCount); optionsNode != nil {
 		anchor = optionsNode
 	}
-	startLine, startCol := scanLineCol(sourceFile, anchor.Pos())
-	endLine, endCol := scanLineCol(sourceFile, anchor.End())
-	return diag.New(
-		code,
-		diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
-	), true
+	return diag.New(code, textpos.NodeSite(file, sourceFile, anchor)), true
 }
 
 // extractValidateOptionsCandidate returns the AST node at the options
@@ -872,12 +861,10 @@ func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.No
 	if sourceFile == nil {
 		return diag.Diagnostic{}, false
 	}
-	startLine, startCol := scanLineCol(sourceFile, callArg.Pos())
-	endLine, endCol := scanLineCol(sourceFile, callArg.End())
 	fnName := callExpressionName(callArg)
 	return diag.New(
 		diag.CodeMarkerFunctionCallArg,
-		diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
+		textpos.NodeSite(file, sourceFile, callArg),
 		fnName,
 	), true
 }
@@ -906,24 +893,6 @@ func callExpressionName(callNode *ast.Node) string {
 		return propertyAccess.Name().Text()
 	}
 	return "<anonymous>"
-}
-
-// scanLineCol returns (1-based line, 1-based column) for byte offset pos
-// inside sourceFile. Backed by the SourceFile's lazily-computed (and
-// per-file cached) ECMA line map + binary search — the previous
-// implementation re-walked the file's bytes up to pos on every call,
-// which made per-dispatch provenance O(sites × file size).
-func scanLineCol(sourceFile *ast.SourceFile, pos int) (int, int) {
-	if pos > len(sourceFile.Text()) {
-		pos = len(sourceFile.Text())
-	}
-	lineMap := sourceFile.ECMALineMap()
-	// Greatest index whose line start is <= pos.
-	idx := sort.Search(len(lineMap), func(i int) bool { return int(lineMap[i]) > pos }) - 1
-	if idx < 0 {
-		return 1, pos + 1
-	}
-	return idx + 1, pos - int(lineMap[idx]) + 1
 }
 
 // declaredTypeFromIdentifier returns the resolved type of the type annotation
