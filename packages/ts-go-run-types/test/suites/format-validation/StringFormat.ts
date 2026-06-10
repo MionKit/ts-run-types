@@ -1,10 +1,10 @@
-// Reflect-form thunks author a value of the (now transparent) format type — a
-// trivial `''` suffices, since the value only drives `T` inference and is
-// discarded at runtime. The getValidationErrors reflect/deserialize forms are
-// `'not-supported'`: the format-validation runner exercises getValidationErrors
-// ONLY via the format-payload (`getValidationErrors/format`) and schema variants
-// (no exact-error table), so those call shapes add no format-specific coverage and
-// aren't registered — the sentinel keeps the required-thunk contract explicit.
+// Reflect-form thunks author a REAL example value of the (now transparent) format
+// type — the case's first valid sample (e.g. 100n, 9, 'john@example.com'). The value
+// only drives `T` inference and is discarded at runtime, but a realistic literal keeps
+// these snippets self-explanatory and safe to lift into docs. Every form is exercised:
+// validate + getValidationErrors (static / reflect / deserialize-static /
+// deserialize-reflect) + mockType; the getValidationErrors format-payload forms assert
+// the exact format error survives every resolution path.
 import type {FormatValidationCase} from './types.ts';
 import '@mionjs/ts-go-run-types/formats';
 import {
@@ -14,7 +14,7 @@ import {
   registerFormatPattern,
   type DataOnly,
 } from '@mionjs/ts-go-run-types';
-import {deserializeValidate} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {
   FormatString,
@@ -64,19 +64,25 @@ export const STRING_FORMAT = {
     title: 'FormatString maxLength — bounds the upper length',
     validate: () => createValidate<FormatString<{maxLength: 5}>>(),
     validateReflect: () => {
-      const v: FormatString<{maxLength: 5}> = '';
+      const v: FormatString<{maxLength: 5}> = 'hello';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{maxLength: 5}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{maxLength: 5}> = '';
+      const v: FormatString<{maxLength: 5}> = 'hello';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{maxLength: 5}> = 'hello';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatString<{maxLength: 5}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{maxLength: 5}> = 'hello';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{maxLength: 5}> = '';
+      const v: FormatString<{maxLength: 5}> = 'hello';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{maxLength: 5}>>>(),
@@ -92,19 +98,25 @@ export const STRING_FORMAT = {
     title: 'FormatString minLength — bounds the lower length',
     validate: () => createValidate<FormatString<{minLength: 3}>>(),
     validateReflect: () => {
-      const v: FormatString<{minLength: 3}> = '';
+      const v: FormatString<{minLength: 3}> = 'abc';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{minLength: 3}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{minLength: 3}> = '';
+      const v: FormatString<{minLength: 3}> = 'abc';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{minLength: 3}> = 'abc';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatString<{minLength: 3}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{minLength: 3}> = 'abc';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{minLength: 3}> = '';
+      const v: FormatString<{minLength: 3}> = 'abc';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{minLength: 3}>>>(),
@@ -123,19 +135,25 @@ export const STRING_FORMAT = {
     title: 'FormatString length — exact length only',
     validate: () => createValidate<FormatString<{length: 4}>>(),
     validateReflect: () => {
-      const v: FormatString<{length: 4}> = '';
+      const v: FormatString<{length: 4}> = 'abcd';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{length: 4}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{length: 4}> = '';
+      const v: FormatString<{length: 4}> = 'abcd';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{length: 4}> = 'abcd';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatString<{length: 4}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{length: 4}> = 'abcd';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{length: 4}> = '';
+      const v: FormatString<{length: 4}> = 'abcd';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{length: 4}>>>(),
@@ -154,19 +172,25 @@ export const STRING_FORMAT = {
     title: 'FormatString minLength + maxLength — bounds both ends',
     validate: () => createValidate<FormatString<{minLength: 2; maxLength: 4}>>(),
     validateReflect: () => {
-      const v: FormatString<{minLength: 2; maxLength: 4}> = '';
+      const v: FormatString<{minLength: 2; maxLength: 4}> = 'ab';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{minLength: 2; maxLength: 4}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{minLength: 2; maxLength: 4}> = '';
+      const v: FormatString<{minLength: 2; maxLength: 4}> = 'ab';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{minLength: 2; maxLength: 4}> = 'ab';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatString<{minLength: 2; maxLength: 4}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{minLength: 2; maxLength: 4}> = 'ab';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{minLength: 2; maxLength: 4}> = '';
+      const v: FormatString<{minLength: 2; maxLength: 4}> = 'ab';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{minLength: 2; maxLength: 4}>>>(),
@@ -185,19 +209,26 @@ export const STRING_FORMAT = {
     title: 'FormatString allowedChars — only the allowed set passes',
     validate: () => createValidate<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
     validateReflect: () => {
-      const v: FormatString<{allowedChars: {val: '0123456789abcdef'}}> = '';
+      const v: FormatString<{allowedChars: {val: '0123456789abcdef'}}> = 'deadbeef';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{allowedChars: {val: '0123456789abcdef'}}> = '';
+      const v: FormatString<{allowedChars: {val: '0123456789abcdef'}}> = 'deadbeef';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{allowedChars: {val: '0123456789abcdef'}}> = 'deadbeef';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{allowedChars: {val: '0123456789abcdef'}}> = 'deadbeef';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{allowedChars: {val: '0123456789abcdef'}}> = '';
+      const v: FormatString<{allowedChars: {val: '0123456789abcdef'}}> = 'deadbeef';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>>(),
@@ -214,19 +245,26 @@ export const STRING_FORMAT = {
     title: 'FormatString allowedChars ignoreCase — folds case',
     validate: () => createValidate<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     validateReflect: () => {
-      const v: FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}> = '';
+      const v: FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}> = 'ABC';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}> = '';
+      const v: FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}> = 'ABC';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}> = 'ABC';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}> = 'ABC';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}> = '';
+      const v: FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}> = 'ABC';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>>(),
@@ -243,19 +281,25 @@ export const STRING_FORMAT = {
     title: 'FormatString allowedChars — regex-special chars treated literally',
     validate: () => createValidate<FormatString<{allowedChars: {val: '.-'}}>>(),
     validateReflect: () => {
-      const v: FormatString<{allowedChars: {val: '.-'}}> = '';
+      const v: FormatString<{allowedChars: {val: '.-'}}> = '...---';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{allowedChars: {val: '.-'}}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{allowedChars: {val: '.-'}}> = '';
+      const v: FormatString<{allowedChars: {val: '.-'}}> = '...---';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{allowedChars: {val: '.-'}}> = '...---';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatString<{allowedChars: {val: '.-'}}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{allowedChars: {val: '.-'}}> = '...---';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{allowedChars: {val: '.-'}}> = '';
+      const v: FormatString<{allowedChars: {val: '.-'}}> = '...---';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedChars: {val: '.-'}}>>>(),
@@ -271,19 +315,26 @@ export const STRING_FORMAT = {
     title: 'FormatString disallowedChars — rejects any disallowed char',
     validate: () => createValidate<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
     validateReflect: () => {
-      const v: FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = '';
+      const v: FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = 'hello';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = '';
+      const v: FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = 'hello';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = 'hello';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = 'hello';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = '';
+      const v: FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = 'hello';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>>(),
@@ -303,19 +354,26 @@ export const STRING_FORMAT = {
     title: 'FormatString allowedValues — enum-like exact match',
     validate: () => createValidate<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
     validateReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}> = '';
+      const v: FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}> = 'red';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}> = '';
+      const v: FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}> = 'red';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}> = 'red';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}> = 'red';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}> = '';
+      const v: FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}> = 'red';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>>(),
@@ -332,19 +390,26 @@ export const STRING_FORMAT = {
     title: 'FormatString allowedValues ignoreCase — folds case across the set',
     validate: () => createValidate<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     validateReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = '';
+      const v: FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = 'RED';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = '';
+      const v: FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = 'RED';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = 'RED';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = 'RED';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = '';
+      const v: FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = 'RED';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
@@ -363,19 +428,25 @@ export const STRING_FORMAT = {
     title: 'FormatString allowedValues — regex-special chars matched literally',
     validate: () => createValidate<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     validateReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['a.b', 'c+d']}}> = '';
+      const v: FormatString<{allowedValues: {val: ['a.b', 'c+d']}}> = 'a.b';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['a.b', 'c+d']}}> = '';
+      const v: FormatString<{allowedValues: {val: ['a.b', 'c+d']}}> = 'a.b';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{allowedValues: {val: ['a.b', 'c+d']}}> = 'a.b';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{allowedValues: {val: ['a.b', 'c+d']}}> = 'a.b';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['a.b', 'c+d']}}> = '';
+      const v: FormatString<{allowedValues: {val: ['a.b', 'c+d']}}> = 'a.b';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
@@ -395,20 +466,27 @@ export const STRING_FORMAT = {
     title: 'FormatString disallowedValues — rejects the listed values',
     validate: () => createValidate<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
     validateReflect: () => {
-      const v: FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = '';
+      const v: FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = 'alice';
       return createValidate(v);
     },
     deserializeValidate: () =>
       deserializeValidate<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = '';
+      const v: FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = 'alice';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = 'alice';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = 'alice';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = '';
+      const v: FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = 'alice';
       return createMockType(v);
     },
     validateDataOnly: () =>
@@ -433,20 +511,27 @@ export const STRING_FORMAT = {
     title: 'FormatString allowedValues — custom errorMessage surfaces as format.val',
     validate: () => createValidate<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     validateReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = '';
+      const v: FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = 'a';
       return createValidate(v);
     },
     deserializeValidate: () =>
       deserializeValidate<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = '';
+      const v: FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = 'a';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = 'a';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = 'a';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = '';
+      const v: FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = 'a';
       return createMockType(v);
     },
     validateDataOnly: () =>
@@ -468,19 +553,25 @@ export const STRING_FORMAT = {
     title: 'FormatAlpha — letters only',
     validate: () => createValidate<FormatAlpha>(),
     validateReflect: () => {
-      const v: FormatAlpha = '';
+      const v: FormatAlpha = 'Hello';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatAlpha>(),
     deserializeValidateReflect: () => {
-      const v: FormatAlpha = '';
+      const v: FormatAlpha = 'Hello';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatAlpha = 'Hello';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatAlpha>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatAlpha = 'Hello';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatAlpha = '';
+      const v: FormatAlpha = 'Hello';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatAlpha>>(),
@@ -496,19 +587,25 @@ export const STRING_FORMAT = {
     title: 'FormatAlphaNumeric — letters and digits',
     validate: () => createValidate<FormatAlphaNumeric>(),
     validateReflect: () => {
-      const v: FormatAlphaNumeric = '';
+      const v: FormatAlphaNumeric = 'abc123';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatAlphaNumeric>(),
     deserializeValidateReflect: () => {
-      const v: FormatAlphaNumeric = '';
+      const v: FormatAlphaNumeric = 'abc123';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatAlphaNumeric = 'abc123';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatAlphaNumeric>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatAlphaNumeric = 'abc123';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatAlphaNumeric = '';
+      const v: FormatAlphaNumeric = 'abc123';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatAlphaNumeric>>(),
@@ -527,19 +624,25 @@ export const STRING_FORMAT = {
     title: 'FormatNumeric — digits only',
     validate: () => createValidate<FormatNumeric>(),
     validateReflect: () => {
-      const v: FormatNumeric = '';
+      const v: FormatNumeric = '12345';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatNumeric>(),
     deserializeValidateReflect: () => {
-      const v: FormatNumeric = '';
+      const v: FormatNumeric = '12345';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatNumeric = '12345';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatNumeric>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatNumeric = '12345';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatNumeric = '';
+      const v: FormatNumeric = '12345';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatNumeric>>(),
@@ -558,19 +661,25 @@ export const STRING_FORMAT = {
     title: 'FormatAlpha with maxLength — char class plus length bound',
     validate: () => createValidate<FormatAlpha<{maxLength: 3}>>(),
     validateReflect: () => {
-      const v: FormatAlpha<{maxLength: 3}> = '';
+      const v: FormatAlpha<{maxLength: 3}> = 'abc';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatAlpha<{maxLength: 3}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatAlpha<{maxLength: 3}> = '';
+      const v: FormatAlpha<{maxLength: 3}> = 'abc';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatAlpha<{maxLength: 3}> = 'abc';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatAlpha<{maxLength: 3}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatAlpha<{maxLength: 3}> = 'abc';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatAlpha<{maxLength: 3}> = '';
+      const v: FormatAlpha<{maxLength: 3}> = 'abc';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatAlpha<{maxLength: 3}>>>(),
@@ -589,19 +698,25 @@ export const STRING_FORMAT = {
     title: 'FormatLowercase — transformer-only, validates as a plain string',
     validate: () => createValidate<FormatLowercase>(),
     validateReflect: () => {
-      const v: FormatLowercase = '';
+      const v: FormatLowercase = 'already lower';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatLowercase>(),
     deserializeValidateReflect: () => {
-      const v: FormatLowercase = '';
+      const v: FormatLowercase = 'already lower';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatLowercase = 'already lower';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatLowercase>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatLowercase = 'already lower';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatLowercase = '';
+      const v: FormatLowercase = 'already lower';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatLowercase>>(),
@@ -619,19 +734,25 @@ export const STRING_FORMAT = {
     title: 'FormatUUIDv4 — accepts v4, rejects v7 and malformed',
     validate: () => createValidate<FormatUUIDv4>(),
     validateReflect: () => {
-      const v: FormatUUIDv4 = '';
+      const v: FormatUUIDv4 = V4;
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatUUIDv4>(),
     deserializeValidateReflect: () => {
-      const v: FormatUUIDv4 = '';
+      const v: FormatUUIDv4 = V4;
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatUUIDv4 = V4;
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatUUIDv4>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatUUIDv4 = V4;
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatUUIDv4 = '';
+      const v: FormatUUIDv4 = V4;
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatUUIDv4>>(),
@@ -647,19 +768,25 @@ export const STRING_FORMAT = {
     title: 'FormatUUIDv7 — accepts v7, rejects v4',
     validate: () => createValidate<FormatUUIDv7>(),
     validateReflect: () => {
-      const v: FormatUUIDv7 = '';
+      const v: FormatUUIDv7 = V7;
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatUUIDv7>(),
     deserializeValidateReflect: () => {
-      const v: FormatUUIDv7 = '';
+      const v: FormatUUIDv7 = V7;
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatUUIDv7 = V7;
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatUUIDv7>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatUUIDv7 = V7;
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatUUIDv7 = '';
+      const v: FormatUUIDv7 = V7;
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatUUIDv7>>(),
@@ -677,19 +804,25 @@ export const STRING_FORMAT = {
     title: 'FormatStringDate — ISO / YYYY-MM-DD (default)',
     validate: () => createValidate<FormatStringDate>(),
     validateReflect: () => {
-      const v: FormatStringDate = '';
+      const v: FormatStringDate = '2024-02-29';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatStringDate>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringDate = '';
+      const v: FormatStringDate = '2024-02-29';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringDate = '2024-02-29';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatStringDate>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringDate = '2024-02-29';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringDate = '';
+      const v: FormatStringDate = '2024-02-29';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatStringDate>>(),
@@ -708,19 +841,25 @@ export const STRING_FORMAT = {
     title: 'FormatStringDate — DD-MM-YYYY layout',
     validate: () => createValidate<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
     validateReflect: () => {
-      const v: FormatStringDate<{format: 'DD-MM-YYYY'}> = '';
+      const v: FormatStringDate<{format: 'DD-MM-YYYY'}> = '29-02-2024';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringDate<{format: 'DD-MM-YYYY'}> = '';
+      const v: FormatStringDate<{format: 'DD-MM-YYYY'}> = '29-02-2024';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringDate<{format: 'DD-MM-YYYY'}> = '29-02-2024';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringDate<{format: 'DD-MM-YYYY'}> = '29-02-2024';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringDate<{format: 'DD-MM-YYYY'}> = '';
+      const v: FormatStringDate<{format: 'DD-MM-YYYY'}> = '29-02-2024';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatStringDate<{format: 'DD-MM-YYYY'}>>>(),
@@ -739,19 +878,25 @@ export const STRING_FORMAT = {
     title: 'FormatStringDate — YYYY-MM layout (no day)',
     validate: () => createValidate<FormatStringDate<{format: 'YYYY-MM'}>>(),
     validateReflect: () => {
-      const v: FormatStringDate<{format: 'YYYY-MM'}> = '';
+      const v: FormatStringDate<{format: 'YYYY-MM'}> = '2024-02';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatStringDate<{format: 'YYYY-MM'}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringDate<{format: 'YYYY-MM'}> = '';
+      const v: FormatStringDate<{format: 'YYYY-MM'}> = '2024-02';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringDate<{format: 'YYYY-MM'}> = '2024-02';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatStringDate<{format: 'YYYY-MM'}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringDate<{format: 'YYYY-MM'}> = '2024-02';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringDate<{format: 'YYYY-MM'}> = '';
+      const v: FormatStringDate<{format: 'YYYY-MM'}> = '2024-02';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatStringDate<{format: 'YYYY-MM'}>>>(),
@@ -770,19 +915,25 @@ export const STRING_FORMAT = {
     title: 'FormatStringDate — MM-DD layout (no year)',
     validate: () => createValidate<FormatStringDate<{format: 'MM-DD'}>>(),
     validateReflect: () => {
-      const v: FormatStringDate<{format: 'MM-DD'}> = '';
+      const v: FormatStringDate<{format: 'MM-DD'}> = '02-29';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatStringDate<{format: 'MM-DD'}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringDate<{format: 'MM-DD'}> = '';
+      const v: FormatStringDate<{format: 'MM-DD'}> = '02-29';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringDate<{format: 'MM-DD'}> = '02-29';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatStringDate<{format: 'MM-DD'}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringDate<{format: 'MM-DD'}> = '02-29';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringDate<{format: 'MM-DD'}> = '';
+      const v: FormatStringDate<{format: 'MM-DD'}> = '02-29';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatStringDate<{format: 'MM-DD'}>>>(),
@@ -798,20 +949,27 @@ export const STRING_FORMAT = {
     title: 'FormatStringDate — absolute min/max bounds (inclusive)',
     validate: () => createValidate<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     validateReflect: () => {
-      const v: FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '';
+      const v: FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '2020-01-01';
       return createValidate(v);
     },
     deserializeValidate: () =>
       deserializeValidate<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '';
+      const v: FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '2020-01-01';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '2020-01-01';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '2020-01-01';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '';
+      const v: FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '2020-01-01';
       return createMockType(v);
     },
     validateDataOnly: () =>
@@ -841,19 +999,25 @@ export const STRING_FORMAT = {
     title: 'FormatStringTime — ISO (default, tz-aware)',
     validate: () => createValidate<FormatStringTime>(),
     validateReflect: () => {
-      const v: FormatStringTime = '';
+      const v: FormatStringTime = '12:30:45Z';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatStringTime>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringTime = '';
+      const v: FormatStringTime = '12:30:45Z';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringTime = '12:30:45Z';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatStringTime>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringTime = '12:30:45Z';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringTime = '';
+      const v: FormatStringTime = '12:30:45Z';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatStringTime>>(),
@@ -876,19 +1040,25 @@ export const STRING_FORMAT = {
     title: 'FormatStringTime — HH:mm:ss fixed layout',
     validate: () => createValidate<FormatStringTime<{format: 'HH:mm:ss'}>>(),
     validateReflect: () => {
-      const v: FormatStringTime<{format: 'HH:mm:ss'}> = '';
+      const v: FormatStringTime<{format: 'HH:mm:ss'}> = '23:59:59';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatStringTime<{format: 'HH:mm:ss'}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringTime<{format: 'HH:mm:ss'}> = '';
+      const v: FormatStringTime<{format: 'HH:mm:ss'}> = '23:59:59';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringTime<{format: 'HH:mm:ss'}> = '23:59:59';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatStringTime<{format: 'HH:mm:ss'}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringTime<{format: 'HH:mm:ss'}> = '23:59:59';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringTime<{format: 'HH:mm:ss'}> = '';
+      const v: FormatStringTime<{format: 'HH:mm:ss'}> = '23:59:59';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatStringTime<{format: 'HH:mm:ss'}>>>(),
@@ -904,19 +1074,25 @@ export const STRING_FORMAT = {
     title: 'FormatStringTime — HH:mm:ss[.mmm] optional milliseconds',
     validate: () => createValidate<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     validateReflect: () => {
-      const v: FormatStringTime<{format: 'HH:mm:ss[.mmm]'}> = '';
+      const v: FormatStringTime<{format: 'HH:mm:ss[.mmm]'}> = '12:30:45';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringTime<{format: 'HH:mm:ss[.mmm]'}> = '';
+      const v: FormatStringTime<{format: 'HH:mm:ss[.mmm]'}> = '12:30:45';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringTime<{format: 'HH:mm:ss[.mmm]'}> = '12:30:45';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringTime<{format: 'HH:mm:ss[.mmm]'}> = '12:30:45';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringTime<{format: 'HH:mm:ss[.mmm]'}> = '';
+      const v: FormatStringTime<{format: 'HH:mm:ss[.mmm]'}> = '12:30:45';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>>(),
@@ -932,19 +1108,26 @@ export const STRING_FORMAT = {
     title: 'FormatStringTime — absolute min/max bounds (business hours)',
     validate: () => createValidate<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     validateReflect: () => {
-      const v: FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '';
+      const v: FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '09:00';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '';
+      const v: FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '09:00';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '09:00';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '09:00';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '';
+      const v: FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '09:00';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>>(),
@@ -969,19 +1152,25 @@ export const STRING_FORMAT = {
     title: 'FormatStringDateTime — default (ISO date T ISO time)',
     validate: () => createValidate<FormatStringDateTime>(),
     validateReflect: () => {
-      const v: FormatStringDateTime = '';
+      const v: FormatStringDateTime = '2024-02-29T12:30:45Z';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatStringDateTime>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringDateTime = '';
+      const v: FormatStringDateTime = '2024-02-29T12:30:45Z';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringDateTime = '2024-02-29T12:30:45Z';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatStringDateTime>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringDateTime = '2024-02-29T12:30:45Z';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringDateTime = '';
+      const v: FormatStringDateTime = '2024-02-29T12:30:45Z';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatStringDateTime>>(),
@@ -1001,20 +1190,29 @@ export const STRING_FORMAT = {
     validate: () =>
       createValidate<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     validateReflect: () => {
-      const v: FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '';
+      const v: FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '29-02-2024 23:59';
       return createValidate(v);
     },
     deserializeValidate: () =>
       deserializeValidate<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '';
+      const v: FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '29-02-2024 23:59';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '29-02-2024 23:59';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<
+        FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>
+      >(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '29-02-2024 23:59';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '';
+      const v: FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '29-02-2024 23:59';
       return createMockType(v);
     },
     validateDataOnly: () =>
@@ -1083,9 +1281,36 @@ export const STRING_FORMAT = {
       }> = '';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatStringDateTime<{
+        date: {format: 'YYYY-MM-DD'};
+        time: {format: 'HH:mm:ss'};
+        splitChar: 'T';
+        min: '2020-01-01T00:00:00';
+        max: '2020-12-31T23:59:59';
+      }> = '2020-01-01T00:00:00';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<
+        FormatStringDateTime<{
+          date: {format: 'YYYY-MM-DD'};
+          time: {format: 'HH:mm:ss'};
+          splitChar: 'T';
+          min: '2020-01-01T00:00:00';
+          max: '2020-12-31T23:59:59';
+        }>
+      >(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatStringDateTime<{
+        date: {format: 'YYYY-MM-DD'};
+        time: {format: 'HH:mm:ss'};
+        splitChar: 'T';
+        min: '2020-01-01T00:00:00';
+        max: '2020-12-31T23:59:59';
+      }> = '2020-01-01T00:00:00';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
       const v: FormatStringDateTime<{
         date: {format: 'YYYY-MM-DD'};
@@ -1175,19 +1400,25 @@ export const STRING_FORMAT = {
     title: 'FormatIPv4 — dotted-quad addresses',
     validate: () => createValidate<FormatIPv4>(),
     validateReflect: () => {
-      const v: FormatIPv4 = '';
+      const v: FormatIPv4 = '192.168.0.1';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatIPv4>(),
     deserializeValidateReflect: () => {
-      const v: FormatIPv4 = '';
+      const v: FormatIPv4 = '192.168.0.1';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatIPv4 = '192.168.0.1';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatIPv4>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatIPv4 = '192.168.0.1';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatIPv4 = '';
+      const v: FormatIPv4 = '192.168.0.1';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatIPv4>>(),
@@ -1206,19 +1437,25 @@ export const STRING_FORMAT = {
     title: 'FormatIPv6 — colon-separated, loopback allowed',
     validate: () => createValidate<FormatIPv6>(),
     validateReflect: () => {
-      const v: FormatIPv6 = '';
+      const v: FormatIPv6 = '2001:db8:0:0:0:0:0:1';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatIPv6>(),
     deserializeValidateReflect: () => {
-      const v: FormatIPv6 = '';
+      const v: FormatIPv6 = '2001:db8:0:0:0:0:0:1';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatIPv6 = '2001:db8:0:0:0:0:0:1';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatIPv6>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatIPv6 = '2001:db8:0:0:0:0:0:1';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatIPv6 = '';
+      const v: FormatIPv6 = '2001:db8:0:0:0:0:0:1';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatIPv6>>(),
@@ -1237,19 +1474,25 @@ export const STRING_FORMAT = {
     title: 'FormatIP — accepts both v4 and v6',
     validate: () => createValidate<FormatIP>(),
     validateReflect: () => {
-      const v: FormatIP = '';
+      const v: FormatIP = '10.0.0.1';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatIP>(),
     deserializeValidateReflect: () => {
-      const v: FormatIP = '';
+      const v: FormatIP = '10.0.0.1';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatIP = '10.0.0.1';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatIP>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatIP = '10.0.0.1';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatIP = '';
+      const v: FormatIP = '10.0.0.1';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatIP>>(),
@@ -1265,19 +1508,25 @@ export const STRING_FORMAT = {
     title: 'FormatIPv4WithPort — v4 with port',
     validate: () => createValidate<FormatIPv4WithPort>(),
     validateReflect: () => {
-      const v: FormatIPv4WithPort = '';
+      const v: FormatIPv4WithPort = '192.168.0.1:8080';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatIPv4WithPort>(),
     deserializeValidateReflect: () => {
-      const v: FormatIPv4WithPort = '';
+      const v: FormatIPv4WithPort = '192.168.0.1:8080';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatIPv4WithPort = '192.168.0.1:8080';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatIPv4WithPort>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatIPv4WithPort = '192.168.0.1:8080';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatIPv4WithPort = '';
+      const v: FormatIPv4WithPort = '192.168.0.1:8080';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatIPv4WithPort>>(),
@@ -1293,19 +1542,25 @@ export const STRING_FORMAT = {
     title: 'FormatIPv6WithPort — v6 with bracketed port',
     validate: () => createValidate<FormatIPv6WithPort>(),
     validateReflect: () => {
-      const v: FormatIPv6WithPort = '';
+      const v: FormatIPv6WithPort = '[2001:db8::1]:443';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatIPv6WithPort>(),
     deserializeValidateReflect: () => {
-      const v: FormatIPv6WithPort = '';
+      const v: FormatIPv6WithPort = '[2001:db8::1]:443';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatIPv6WithPort = '[2001:db8::1]:443';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatIPv6WithPort>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatIPv6WithPort = '[2001:db8::1]:443';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatIPv6WithPort = '';
+      const v: FormatIPv6WithPort = '[2001:db8::1]:443';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatIPv6WithPort>>(),
@@ -1323,19 +1578,25 @@ export const STRING_FORMAT = {
     title: 'FormatDomain — standard',
     validate: () => createValidate<FormatDomain>(),
     validateReflect: () => {
-      const v: FormatDomain = '';
+      const v: FormatDomain = 'mion.io';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatDomain>(),
     deserializeValidateReflect: () => {
-      const v: FormatDomain = '';
+      const v: FormatDomain = 'mion.io';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatDomain = 'mion.io';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatDomain>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatDomain = 'mion.io';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatDomain = '';
+      const v: FormatDomain = 'mion.io';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatDomain>>(),
@@ -1354,19 +1615,25 @@ export const STRING_FORMAT = {
     title: 'FormatDomainStrict — names/tld decomposition, maxParts, hyphen-edge',
     validate: () => createValidate<FormatDomainStrict>(),
     validateReflect: () => {
-      const v: FormatDomainStrict = '';
+      const v: FormatDomainStrict = 'mion.io';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatDomainStrict>(),
     deserializeValidateReflect: () => {
-      const v: FormatDomainStrict = '';
+      const v: FormatDomainStrict = 'mion.io';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatDomainStrict = 'mion.io';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatDomainStrict>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatDomainStrict = 'mion.io';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatDomainStrict = '';
+      const v: FormatDomainStrict = 'mion.io';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatDomainStrict>>(),
@@ -1387,19 +1654,25 @@ export const STRING_FORMAT = {
     title: 'FormatEmail — standard',
     validate: () => createValidate<FormatEmail>(),
     validateReflect: () => {
-      const v: FormatEmail = '';
+      const v: FormatEmail = 'john@example.com';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatEmail>(),
     deserializeValidateReflect: () => {
-      const v: FormatEmail = '';
+      const v: FormatEmail = 'john@example.com';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatEmail = 'john@example.com';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatEmail>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatEmail = 'john@example.com';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatEmail = '';
+      const v: FormatEmail = 'john@example.com';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatEmail>>(),
@@ -1418,19 +1691,25 @@ export const STRING_FORMAT = {
     title: 'FormatEmailPunycode — accepts punycode-tld domains',
     validate: () => createValidate<FormatEmailPunycode>(),
     validateReflect: () => {
-      const v: FormatEmailPunycode = '';
+      const v: FormatEmailPunycode = 'john@example.xn--fiqs8s';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatEmailPunycode>(),
     deserializeValidateReflect: () => {
-      const v: FormatEmailPunycode = '';
+      const v: FormatEmailPunycode = 'john@example.xn--fiqs8s';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatEmailPunycode = 'john@example.xn--fiqs8s';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatEmailPunycode>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatEmailPunycode = 'john@example.xn--fiqs8s';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatEmailPunycode = '';
+      const v: FormatEmailPunycode = 'john@example.xn--fiqs8s';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatEmailPunycode>>(),
@@ -1446,19 +1725,25 @@ export const STRING_FORMAT = {
     title: 'FormatEmailStrict — localPart + domain decomposition',
     validate: () => createValidate<FormatEmailStrict>(),
     validateReflect: () => {
-      const v: FormatEmailStrict = '';
+      const v: FormatEmailStrict = 'john@example.com';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatEmailStrict>(),
     deserializeValidateReflect: () => {
-      const v: FormatEmailStrict = '';
+      const v: FormatEmailStrict = 'john@example.com';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatEmailStrict = 'john@example.com';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatEmailStrict>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatEmailStrict = 'john@example.com';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatEmailStrict = '';
+      const v: FormatEmailStrict = 'john@example.com';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatEmailStrict>>(),
@@ -1479,19 +1764,25 @@ export const STRING_FORMAT = {
     title: 'FormatUrl — standard (http/ftp/ws schemes)',
     validate: () => createValidate<FormatUrl>(),
     validateReflect: () => {
-      const v: FormatUrl = '';
+      const v: FormatUrl = 'https://example.com';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatUrl>(),
     deserializeValidateReflect: () => {
-      const v: FormatUrl = '';
+      const v: FormatUrl = 'https://example.com';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatUrl = 'https://example.com';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatUrl>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatUrl = 'https://example.com';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatUrl = '';
+      const v: FormatUrl = 'https://example.com';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatUrl>>(),
@@ -1510,19 +1801,25 @@ export const STRING_FORMAT = {
     title: 'FormatUrlHttp — http(s) only',
     validate: () => createValidate<FormatUrlHttp>(),
     validateReflect: () => {
-      const v: FormatUrlHttp = '';
+      const v: FormatUrlHttp = 'https://example.com';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatUrlHttp>(),
     deserializeValidateReflect: () => {
-      const v: FormatUrlHttp = '';
+      const v: FormatUrlHttp = 'https://example.com';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatUrlHttp = 'https://example.com';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatUrlHttp>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatUrlHttp = 'https://example.com';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatUrlHttp = '';
+      const v: FormatUrlHttp = 'https://example.com';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatUrlHttp>>(),
@@ -1538,19 +1835,25 @@ export const STRING_FORMAT = {
     title: 'FormatUrlFile — file URLs',
     validate: () => createValidate<FormatUrlFile>(),
     validateReflect: () => {
-      const v: FormatUrlFile = '';
+      const v: FormatUrlFile = 'file:///etc/hosts';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatUrlFile>(),
     deserializeValidateReflect: () => {
-      const v: FormatUrlFile = '';
+      const v: FormatUrlFile = 'file:///etc/hosts';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatUrlFile = 'file:///etc/hosts';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatUrlFile>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatUrlFile = 'file:///etc/hosts';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatUrlFile = '';
+      const v: FormatUrlFile = 'file:///etc/hosts';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatUrlFile>>(),
@@ -1568,19 +1871,25 @@ export const STRING_FORMAT = {
     title: 'registerFormatPattern — slug regex recovered from the call site',
     validate: () => createValidate<Slug>(),
     validateReflect: () => {
-      const v: Slug = '';
+      const v: Slug = 'my-slug';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<Slug>(),
     deserializeValidateReflect: () => {
-      const v: Slug = '';
+      const v: Slug = 'my-slug';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: Slug = 'my-slug';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Slug>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: Slug = 'my-slug';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: Slug = '';
+      const v: Slug = 'my-slug';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<Slug>>(),
@@ -1618,19 +1927,25 @@ export const STRING_FORMAT = {
     title: 'registerFormatPattern — {source, flags} overload (case-insensitive)',
     validate: () => createValidate<Hex>(),
     validateReflect: () => {
-      const v: Hex = '';
+      const v: Hex = '0042';
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<Hex>(),
     deserializeValidateReflect: () => {
-      const v: Hex = '';
+      const v: Hex = '0042';
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: Hex = '0042';
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Hex>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: Hex = '0042';
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: Hex = '';
+      const v: Hex = '0042';
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<Hex>>(),
