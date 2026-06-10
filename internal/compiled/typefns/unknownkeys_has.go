@@ -88,18 +88,6 @@ func (HasUnknownKeysEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
-// AnyHasUnknownKeysSupported reports whether at least one runtype in
-// the slice is supported.
-func AnyHasUnknownKeysSupported(runTypes []*protocol.RunType) bool {
-	emitter := HasUnknownKeysEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 func (HasUnknownKeysEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }

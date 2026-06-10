@@ -69,16 +69,6 @@ func (UnknownKeyErrorsEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
-func AnyUnknownKeyErrorsSupported(runTypes []*protocol.RunType) bool {
-	emitter := UnknownKeyErrorsEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 func (UnknownKeyErrorsEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }

@@ -114,20 +114,6 @@ func (ValidateEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
-// AnyValidateSupported reports whether at least one of `runTypes` is
-// supported by the Validate emitter. Used by the resolver to set the
-// AddedValidate wire signal independently of AddedRunTypes — a runtype
-// can be added without the validate cache changing (unsupported kind).
-func AnyValidateSupported(runTypes []*protocol.RunType) bool {
-	emitter := ValidateEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 // IsRTInlined delegates to DefaultIsRTInlined. Mion's
 // run-types/src/lib/baseRunTypes.ts:52 defines the predicate ONCE
 // for every rt fn (no per-class overrides exist in the upstream

@@ -168,7 +168,7 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 	dump := protocol.Dump{RunTypes: runTypes}
 
 	var buf bytes.Buffer
-	if err := PrepareForJsonModule(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
+	if err := FamilyByKey("prepareForJson").Render(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
 		t.Fatalf("PrepareForJsonModule: %v", err)
 	}
 	out := buf.String()
@@ -199,7 +199,7 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 
 	// Determinism: a second render produces byte-identical output.
 	var buf2 bytes.Buffer
-	if err := PrepareForJsonModule(&buf2, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
+	if err := FamilyByKey("prepareForJson").Render(&buf2, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
 		t.Fatalf("PrepareForJsonModule (second render): %v", err)
 	}
 	if buf2.String() != out {

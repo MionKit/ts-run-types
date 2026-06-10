@@ -20,7 +20,7 @@ import (
 func renderToString(t *testing.T, dump protocol.Dump) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := ValidateModule(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
+	if err := FamilyByKey("validate").Render(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
 		t.Fatalf("ValidateModule: %v", err)
 	}
 	return buf.String()
@@ -33,7 +33,7 @@ func renderToString(t *testing.T, dump protocol.Dump) string {
 func renderToStringDefault(t *testing.T, dump protocol.Dump) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := ValidateModule(&buf, dump, RenderOpts{}); err != nil {
+	if err := FamilyByKey("validate").Render(&buf, dump, RenderOpts{}); err != nil {
 		t.Fatalf("ValidateModule: %v", err)
 	}
 	return buf.String()

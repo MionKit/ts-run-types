@@ -65,16 +65,6 @@ func (StripUnknownKeysEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
-func AnyStripUnknownKeysSupported(runTypes []*protocol.RunType) bool {
-	emitter := StripUnknownKeysEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 func (StripUnknownKeysEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }

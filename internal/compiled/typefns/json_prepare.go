@@ -120,19 +120,6 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
-// AnyPrepareForJsonSupported reports whether at least one runtype in
-// the slice is supported by the PrepareForJsonEmitter. Used by the
-// resolver to set AddedPrepareForJson independently of AddedRunTypes.
-func AnyPrepareForJsonSupported(runTypes []*protocol.RunType) bool {
-	emitter := PrepareForJsonEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 // IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
 // validate / validationErrors. Mion shares the predicate across all rt fns
 // via BaseRunType.isRTInlined.

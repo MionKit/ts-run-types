@@ -63,7 +63,7 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 	opts := RenderOpts{Store: store, Lookup: lookup}
 
 	var first bytes.Buffer
-	if err := ValidateModule(&first, dump, opts); err != nil {
+	if err := FamilyByKey("validate").Render(&first, dump, opts); err != nil {
 		t.Fatalf("first render: %v", err)
 	}
 
@@ -87,7 +87,7 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 	}
 
 	var second bytes.Buffer
-	if err := ValidateModule(&second, dump, opts); err != nil {
+	if err := FamilyByKey("validate").Render(&second, dump, opts); err != nil {
 		t.Fatalf("second render: %v", err)
 	}
 	if first.String() != second.String() {
@@ -103,7 +103,7 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	var third bytes.Buffer
-	if err := ValidateModule(&third, dump, opts); err != nil {
+	if err := FamilyByKey("validate").Render(&third, dump, opts); err != nil {
 		t.Fatalf("third render: %v", err)
 	}
 	if !strings.Contains(third.String(), "CACHE_MARKER_SENTINEL") {
@@ -149,7 +149,7 @@ func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 		},
 	}
 	var out bytes.Buffer
-	if err := ValidateModule(&out, dump, RenderOpts{Store: store, Lookup: lookup}); err != nil {
+	if err := FamilyByKey("validate").Render(&out, dump, RenderOpts{Store: store, Lookup: lookup}); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	if strings.Contains(out.String(), "STALE_MARKER") {
@@ -199,7 +199,7 @@ func TestRenderFnModule_DiskCache_HeaderStructuralMismatch(t *testing.T) {
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
 	var out bytes.Buffer
-	if err := ValidateModule(&out, dump, RenderOpts{Store: store, Lookup: lookup}); err != nil {
+	if err := FamilyByKey("validate").Render(&out, dump, RenderOpts{Store: store, Lookup: lookup}); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(out.String(), "STALE_MARKER") {

@@ -89,18 +89,6 @@ func (StringifyJsonEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
-// AnyStringifyJsonSupported reports whether at least one runtype in
-// the slice is supported by the StringifyJsonEmitter.
-func AnyStringifyJsonSupported(runTypes []*protocol.RunType) bool {
-	emitter := StringifyJsonEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 // IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
 // prepareForJson.
 func (StringifyJsonEmitter) IsRTInlined(ctx *InlineContext) bool {
