@@ -57,24 +57,24 @@ func (numberFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotati
 // param map applied to `vλl`.
 func numberConditions(params map[string]any, vλl string) []string {
 	var conditions []string
-	if value, ok := boolParam(params, "integer"); ok && value {
+	if value, ok := formats.ReadBoolParam(params, "integer"); ok && value {
 		conditions = append(conditions, "Number.isInteger("+vλl+")")
-	} else if value, ok := boolParam(params, "float"); ok && value {
+	} else if value, ok := formats.ReadBoolParam(params, "float"); ok && value {
 		conditions = append(conditions, "!Number.isInteger("+vλl+")")
 	}
-	if value, ok := readNumberParam(params, "max"); ok {
+	if value, ok := formats.ReadNumberParam(params, "max"); ok {
 		conditions = append(conditions, vλl+" <= "+formats.FormatNumber(value))
 	}
-	if value, ok := readNumberParam(params, "min"); ok {
+	if value, ok := formats.ReadNumberParam(params, "min"); ok {
 		conditions = append(conditions, vλl+" >= "+formats.FormatNumber(value))
 	}
-	if value, ok := readNumberParam(params, "lt"); ok {
+	if value, ok := formats.ReadNumberParam(params, "lt"); ok {
 		conditions = append(conditions, vλl+" < "+formats.FormatNumber(value))
 	}
-	if value, ok := readNumberParam(params, "gt"); ok {
+	if value, ok := formats.ReadNumberParam(params, "gt"); ok {
 		conditions = append(conditions, vλl+" > "+formats.FormatNumber(value))
 	}
-	if value, ok := readNumberParam(params, "multipleOf"); ok {
+	if value, ok := formats.ReadNumberParam(params, "multipleOf"); ok {
 		conditions = append(conditions, "("+vλl+" % "+formats.FormatNumber(value)+" === 0)")
 	}
 	return conditions
@@ -91,30 +91,30 @@ func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Format
 	}
 	params := annotation.Params
 	var statements []string
-	if value, ok := boolParam(params, "integer"); ok && value {
+	if value, ok := formats.ReadBoolParam(params, "integer"); ok && value {
 		statements = append(statements,
 			"if (!Number.isInteger("+vλl+")) "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "integer", "true"))
-	} else if value, ok := boolParam(params, "float"); ok && value {
+	} else if value, ok := formats.ReadBoolParam(params, "float"); ok && value {
 		statements = append(statements,
 			"if (Number.isInteger("+vλl+")) "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "float", "true"))
 	}
-	if value, ok := readNumberParam(params, "max"); ok {
+	if value, ok := formats.ReadNumberParam(params, "max"); ok {
 		statements = append(statements,
 			"if ("+vλl+" > "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "max", formats.FormatNumber(value)))
 	}
-	if value, ok := readNumberParam(params, "min"); ok {
+	if value, ok := formats.ReadNumberParam(params, "min"); ok {
 		statements = append(statements,
 			"if ("+vλl+" < "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "min", formats.FormatNumber(value)))
 	}
-	if value, ok := readNumberParam(params, "lt"); ok {
+	if value, ok := formats.ReadNumberParam(params, "lt"); ok {
 		statements = append(statements,
 			"if ("+vλl+" >= "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "lt", formats.FormatNumber(value)))
 	}
-	if value, ok := readNumberParam(params, "gt"); ok {
+	if value, ok := formats.ReadNumberParam(params, "gt"); ok {
 		statements = append(statements,
 			"if ("+vλl+" <= "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "gt", formats.FormatNumber(value)))
 	}
-	if value, ok := readNumberParam(params, "multipleOf"); ok {
+	if value, ok := formats.ReadNumberParam(params, "multipleOf"); ok {
 		statements = append(statements,
 			"if (("+vλl+" % "+formats.FormatNumber(value)+" !== 0)) "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "multipleOf", formats.FormatNumber(value)))
 	}
@@ -130,10 +130,10 @@ func (numberFormatEmitter) EmitToBinary(annotation *protocol.FormatAnnotation, v
 		return ""
 	}
 	params := annotation.Params
-	if isFloat, ok := boolParam(params, "float"); ok && isFloat {
+	if isFloat, ok := formats.ReadBoolParam(params, "float"); ok && isFloat {
 		return "" // float → base float64 arm
 	}
-	if isInt, ok := boolParam(params, "integer"); !ok || !isInt {
+	if isInt, ok := formats.ReadBoolParam(params, "integer"); !ok || !isInt {
 		return "" // not an integer brand → base float64 arm
 	}
 	switch integerType(params) {
@@ -163,10 +163,10 @@ func (numberFormatEmitter) EmitFromBinary(annotation *protocol.FormatAnnotation,
 		return ""
 	}
 	params := annotation.Params
-	if isFloat, ok := boolParam(params, "float"); ok && isFloat {
+	if isFloat, ok := formats.ReadBoolParam(params, "float"); ok && isFloat {
 		return ""
 	}
-	if isInt, ok := boolParam(params, "integer"); !ok || !isInt {
+	if isInt, ok := formats.ReadBoolParam(params, "integer"); !ok || !isInt {
 		return ""
 	}
 	switch integerType(params) {
@@ -208,11 +208,11 @@ const (
 // (FormatInteger / FormatPositiveInt) lands on float64.
 func integerType(params map[string]any) integerKind {
 	min := float64(minSafeInteger)
-	if value, ok := readNumberParam(params, "min"); ok {
+	if value, ok := formats.ReadNumberParam(params, "min"); ok {
 		min = value
 	}
 	max := float64(maxSafeInteger)
-	if value, ok := readNumberParam(params, "max"); ok {
+	if value, ok := formats.ReadNumberParam(params, "max"); ok {
 		max = value
 	}
 	switch {
@@ -246,8 +246,8 @@ func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 	params := annotation.Params
 	var errs []string
 
-	integer, _ := boolParam(params, "integer")
-	float, _ := boolParam(params, "float")
+	integer, _ := formats.ReadBoolParam(params, "integer")
+	float, _ := formats.ReadBoolParam(params, "float")
 	if integer && float {
 		errs = append(errs, "NumberFormat: cannot specify both `integer` and `float`")
 	}
@@ -263,18 +263,18 @@ func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 		errs = append(errs, "NumberFormat: cannot specify more than one of `max` or `lt`")
 	}
 
-	min, hasMin := readNumberParam(params, "min")
-	max, hasMax := readNumberParam(params, "max")
+	min, hasMin := formats.ReadNumberParam(params, "min")
+	max, hasMax := formats.ReadNumberParam(params, "max")
 	if hasMin && min != 0 && hasMax && max != 0 && min > max {
 		errs = append(errs, "NumberFormat: `min` cannot be greater than `max`")
 	}
-	gt, hasGt := readNumberParam(params, "gt")
-	lt, hasLt := readNumberParam(params, "lt")
+	gt, hasGt := formats.ReadNumberParam(params, "gt")
+	lt, hasLt := formats.ReadNumberParam(params, "lt")
 	if hasGt && gt != 0 && hasLt && lt != 0 && gt >= lt {
 		errs = append(errs, "NumberFormat: `gt` cannot be greater than or equal to `lt`")
 	}
 
-	if multipleOf, ok := readNumberParam(params, "multipleOf"); ok {
+	if multipleOf, ok := formats.ReadNumberParam(params, "multipleOf"); ok {
 		if multipleOf <= 0 {
 			errs = append(errs, "NumberFormat: `multipleOf` must be greater than 0")
 		} else if multipleOf != float64(int64(multipleOf)) {
@@ -290,7 +290,7 @@ func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 // numberTruthy returns 1 when the param is present AND its value is
 // non-zero (mion's `[…].filter(Boolean)` drops 0), else 0.
 func numberTruthy(params map[string]any, key string) int {
-	if value, ok := readNumberParam(params, key); ok && value != 0 {
+	if value, ok := formats.ReadNumberParam(params, key); ok && value != 0 {
 		return 1
 	}
 	return 0

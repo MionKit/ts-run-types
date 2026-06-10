@@ -94,13 +94,13 @@ func stringConditions(ctx formats.EmitContext, params map[string]any, vλl strin
 // emitter and the named-pattern (domain/email/url) emitters.
 func lengthConditions(params map[string]any, vλl string) []string {
 	var conditions []string
-	if value, ok := readNumberParam(params, "maxLength"); ok {
+	if value, ok := formats.ReadNumberParam(params, "maxLength"); ok {
 		conditions = append(conditions, vλl+".length <= "+formats.FormatNumber(value))
 	}
-	if value, ok := readNumberParam(params, "minLength"); ok {
+	if value, ok := formats.ReadNumberParam(params, "minLength"); ok {
 		conditions = append(conditions, vλl+".length >= "+formats.FormatNumber(value))
 	}
-	if value, ok := readNumberParam(params, "length"); ok {
+	if value, ok := formats.ReadNumberParam(params, "length"); ok {
 		conditions = append(conditions, vλl+".length === "+formats.FormatNumber(value))
 	}
 	return conditions
@@ -183,15 +183,15 @@ func valuesSource(vals []string) string {
 // emitted format error (stringFormat / domain / email / url …).
 func lengthErrorStatements(ctx formats.EmitContext, params map[string]any, vλl, pathExpr, errorsArr, fmtName string) []string {
 	var statements []string
-	if value, ok := readNumberParam(params, "maxLength"); ok {
+	if value, ok := formats.ReadNumberParam(params, "maxLength"); ok {
 		statements = append(statements,
 			"if ("+vλl+".length > "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "maxLength", formats.FormatNumber(value)))
 	}
-	if value, ok := readNumberParam(params, "minLength"); ok {
+	if value, ok := formats.ReadNumberParam(params, "minLength"); ok {
 		statements = append(statements,
 			"if ("+vλl+".length < "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "minLength", formats.FormatNumber(value)))
 	}
-	if value, ok := readNumberParam(params, "length"); ok {
+	if value, ok := formats.ReadNumberParam(params, "length"); ok {
 		statements = append(statements,
 			"if ("+vλl+".length !== "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "length", formats.FormatNumber(value)))
 	}
@@ -311,7 +311,7 @@ func readReplaceParam(params map[string]any, key string) (search, replace string
 // boolParam reads a boolean transformer flag (trim / lowercase / …),
 // defaulting to false when absent or non-bool.
 func boolParam(params map[string]any, key string) bool {
-	value, _ := params[key].(bool)
+	value, _ := formats.ReadBoolParam(params, key)
 	return value
 }
 
@@ -326,9 +326,9 @@ func (stringFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 	}
 	params := annotation.Params
 	var errs []string
-	_, hasLength := readNumberParam(params, "length")
-	maxLen, hasMax := readNumberParam(params, "maxLength")
-	minLen, hasMin := readNumberParam(params, "minLength")
+	_, hasLength := formats.ReadNumberParam(params, "length")
+	maxLen, hasMax := formats.ReadNumberParam(params, "maxLength")
+	minLen, hasMin := formats.ReadNumberParam(params, "minLength")
 	if hasLength && (hasMax || hasMin) {
 		errs = append(errs, "StringFormat: `length` cannot be combined with `maxLength` or `minLength`")
 	}
@@ -373,33 +373,4 @@ func paramHasMockSamples(params map[string]any, key string) bool {
 		return len(samples) > 0
 	}
 	return false
-}
-
-// readNumberParam extracts a numeric param value. Returns (0, false)
-// when the key is absent or carries a non-numeric value. Accepts
-// float64 (the canonical JSON-decoded representation), int variants,
-// and stringified numbers (the typeid scanner emits the literal as a
-// stringified type when the value is too large for float64).
-func readNumberParam(params map[string]any, key string) (float64, bool) {
-	raw, ok := params[key]
-	if !ok {
-		return 0, false
-	}
-	switch typed := raw.(type) {
-	case float64:
-		return typed, true
-	case float32:
-		return float64(typed), true
-	case int:
-		return float64(typed), true
-	case int32:
-		return float64(typed), true
-	case int64:
-		return float64(typed), true
-	case string:
-		if value, err := strconv.ParseFloat(typed, 64); err == nil {
-			return value, true
-		}
-	}
-	return 0, false
 }
