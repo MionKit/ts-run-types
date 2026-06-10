@@ -3,37 +3,14 @@ package typefns
 import (
 	"strings"
 
+	"github.com/mionkit/ts-run-types/internal/jsquote"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// quoteJS produces a single-quoted JS string literal, escaping the
-// characters single-quote JS evaluation cares about. Single quotes are
-// chosen so the surrounding JSON envelope (when this output is embedded
-// in a serialized cache) keeps its escape budget small — same rationale
-// as internal/emit/runtypes_module.go's quoteJS.
-func quoteJS(s string) string {
-	var b strings.Builder
-	b.Grow(len(s) + 2)
-	b.WriteByte('\'')
-	for _, r := range s {
-		switch r {
-		case '\\':
-			b.WriteString(`\\`)
-		case '\'':
-			b.WriteString(`\'`)
-		case '\n':
-			b.WriteString(`\n`)
-		case '\r':
-			b.WriteString(`\r`)
-		case '\t':
-			b.WriteString(`\t`)
-		default:
-			b.WriteRune(r)
-		}
-	}
-	b.WriteByte('\'')
-	return b.String()
-}
+// quoteJS produces a single-quoted JS string literal — package-local
+// shorthand for the shared jsquote.Single (this package quotes on
+// nearly every emit line).
+func quoteJS(s string) string { return jsquote.Single(s) }
 
 // stringSliceJS renders xs as a JS array literal of quoted strings.
 // Empty/nil slices become `[]` (not `null`) so the rendered J(...) arg
