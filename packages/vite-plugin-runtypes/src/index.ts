@@ -27,6 +27,13 @@ export interface PluginOptions {
   // vitest config to keep test runs from populating the project tree
   // with cache artifacts.
   cacheDir?: string | false;
+  // Parallelism opt-outs. The Go binary parallelizes its marker scan
+  // (across the tsgo checker pool) and its cache-family renders by
+  // default; pass `false` to force the corresponding serial path
+  // (--no-parallel-scan / --no-parallel-render). Output is equivalent
+  // either way — these exist for benchmarking baselines and debugging.
+  parallelScan?: boolean;
+  parallelRender?: boolean;
 }
 
 // MARKER_MODULE is the fixed package every marker brand is declared in.
@@ -98,6 +105,8 @@ export default function runtypes(options: PluginOptions) {
       resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         cacheDir,
         emitCacheFunctions: options.emitCacheFunctions ?? false,
+        parallelScan: options.parallelScan,
+        parallelRender: options.parallelRender,
       });
     },
 

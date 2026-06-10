@@ -134,7 +134,12 @@ Then send the same JSON ops to `/tmp/ts-go-run-types.sock` from another process.
 --out-ts PATH                 also write self-wired TS module on dump
 --hash-length N               default 6 (types)
 --literal-hash-length N       default 5 (literals)
---single-threaded             disable parallel walk (debugging)
+--single-threaded             one pool checker, no concurrency anywhere
+                              (debugging / historical bench baseline)
+--no-parallel-scan            serial marker scan (parallel across the
+                              checker pool is the default)
+--no-parallel-render          sequential cache-family renders (parallel
+                              fan-out is the default)
 ```
 
 ---

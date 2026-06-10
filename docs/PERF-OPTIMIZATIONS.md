@@ -88,11 +88,83 @@ of a ~5.5ms unit) and sub-millisecond Go-side readings sit inside that tier's no
 | Structural id → fixed-width hash key (C13) | remaining retention (`collectionID` strings ≈6% of process) is real but the change touches dedup semantics + disk-cache verification; deferred until a workload demands it |
 | EmitContext full pooling beyond LIFO reuse | parent-held contexts make general pooling alias-prone; LIFO variant captured most of the win safely |
 
+## Parallelization (post-Step-4): scan across the checker pool + render fan-out
+
+Two parallel tracks, **enabled by default**, landed after the single-threaded Step-3 work.
+Opt-outs: `--no-parallel-scan`, `--no-parallel-render`, or `--single-threaded` (one pool
+checker, no concurrency anywhere — the historical bench baseline). The Vite plugin
+mirrors them as `parallelScan` / `parallelRender` options (default on). Output is
+equivalent either way; the serial paths remain the automatic fallback (single file,
+single checker group, fewer than two non-validate families, file-resolve errors) and
+daemon mode serializes dispatches across connections.
+
+**Track A — marker scan across the checker pool.** tsgo's Program owns a pool of 4
+checkers (1 under `--single-threaded`); the scan previously ran every file through
+checker[0]. `dispatchScanFilesParallel` partitions the request by the pool's own
+file→checker association and runs the checker-bound analysis (`analyzeCall`: signature
+resolution, marker detection with per-checker verdict memos, comptime/purity checks,
+diagnostics) concurrently — one goroutine per checker group, never sharing a checker.
+A serial commit phase then replays results in exact request order: projection via
+`Cache.AssignIDUnder` (the cache walks each type under the checker that materialized
+it — upstream contract: types from different checkers never mix; the checker-independent
+structural-id layer is the cross-checker dedup point), Site assembly, per-file scope
+recording. Because commits run in request order, hash-dict interning and every wire id
+are byte-identical to a serial scan. Equivalence is pinned by
+`internal/resolver/scan_parallel_test.go` (full responses, dumps, diagnostics order,
+cross-checker dedup, determinism, error parity) and `go test -race`. The work also
+surfaced and fixed a pre-existing instability: late-bound symbol-keyed member names
+(`Date[Symbol.toPrimitive]` → `\xFE@toPrimitive@<checkerSymbolId>`) embedded a
+checker-instance counter in wire names/structural ids; `stableMemberName` strips it in
+both the serializer and typeid (cross-session ids for such members are now stable too).
+Theoretical caveat: a union's emitted child ORDER comes from the projecting checker's
+`Distributed()` order, so parallel output could legally differ from serial in member
+order (behaviorally equivalent; same variance already exists across sessions). Not
+observed on the equivalence fixtures — the byte-equality asserts pass as-is.
+
+**Track B — cache-family render fan-out.** Family renders are checker-free pure
+functions of (dump, RefTable, opts). `renderFamilies` fans the requested non-validate
+families out as goroutines, each with a value copy of RenderOpts sharding the mutable
+fields: per-family DiagSink (appended in familyRenders order at the join — sequential
+order preserved), per-family `EntryRenderCache` shard (keys are family-disjoint, so
+shards forfeit no reuse; merged at the join), per-family `FactsTable` shard (merged at
+the join). Validate still renders last and serially against the merged entry cache, so
+`CrossFamilyValRoots`' collection-pass hit profile is unchanged, with zero locks.
+A shared lock-guarded FactsTable was tried and rejected: RWMutex reader contention on
+the hot per-node lookup path cost more than the per-family recompute (59 vs 49 summed
+CPU-ms on the serialization macro) — the shards version also keeps the code lock-free.
+Byte-exact equivalence pinned by `internal/resolver/render_parallel_test.go`.
+
+Metrics note: in parallel mode the per-family `Metrics.RenderMs` values overlap in
+wall-clock, so their SUM (what `bench-compile.mjs` reports as a suite's `renderMs`)
+reads as render CPU-ms, not elapsed time — judge render wall impact via
+`goTotalMs − markerScanMs` or `BenchmarkRender` vs `BenchmarkRenderParallel`.
+
+Measured (quick macro tier, 3 cycles, 4-core container; `st` = the historical
+`--single-threaded` spawn all Step-3/4 numbers used; `parallel` = default spawn):
+
+| suite | markerScanMs st → parallel | Go dispatch st → parallel | wall st → parallel |
+| --- | --- | --- | --- |
+| validation (2254 sites) | 353 → 230ms (**1.53×**) | 371 → 245ms (**1.51×**) | 399 → 272ms (1.46×) |
+| serialization (1503 sites) | 421 → 296ms (**1.42×**) | 453 → 321ms (**1.41×**) | 486 → 358ms (1.36×) |
+| format-validation (670 sites) | 83 → 72ms (1.16×) | 92 → 79ms (1.16×) | 111 → 103ms (1.08×) |
+| format-serialization (297 sites) | 33 → 30ms (1.11×) | 38 → 33ms (1.15×) | 53 → 52ms (1.03×) |
+
+`serial` (multi-checker pool, both opt-outs) tracks `st` within noise on dispatch
+metrics — the win comes from the fan-out, not the pool. Retention: end-of-suite
+heapAlloc moved −10MB…+31MB vs `st` (the per-checker lazy type state is bounded by what
+each checker actually scans). Go micro benches measure the WARM-rescan shape (checkers
+already forced; per-iteration resets clear only our caches): there the fan-out is a
+small tax at low file counts (`ScanMultiFile/files8` 0.85×) and parity at files16 —
+real warm increments are single-file scans, which take the serial path anyway. The
+render fan-out micro: `BenchmarkRenderParallel/all` 1.28× vs `BenchmarkRender/all`.
+
 ## Reproduce
 
 ```
 go test ./internal/resolver -bench=. -benchmem -run='^$' -count=6   # micro
-node scripts/bench-compile.mjs --quick                              # suite tiers
+node scripts/bench-compile.mjs --quick                              # suite tiers (default: parallel spawn)
+node scripts/bench-compile.mjs --quick --spawn-mode st              # historical single-threaded baseline
+node scripts/bench-compile.mjs --quick --spawn-mode serial          # multi-checker pool, parallel off
 node scripts/bench-compare.mjs bench/results/baseline.json bench/results/<label>.json
 bin/ts-go-run-types --pprof-cpu cpu.out --pprof-heap heap.out ...   # profiles
 ```
