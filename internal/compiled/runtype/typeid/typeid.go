@@ -399,13 +399,13 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 	// redundant. Strip it before computing the child id so a RECURSIVE optional
 	// self/cross-reference closes on the inner object — not on a wrapping union node
 	// — matching the serializer (serialize.go projects optional members through
-	// stripUndefined for the same reason). Without this the structural id and the
+	// StripUndefined for the same reason). Without this the structural id and the
 	// projected runtype node disagree on the optional child's shape, and a recursive
 	// optional property's cycle back-edge binds inconsistently ($23 `T | undefined`
 	// wrapper vs $30 object) between the type-first and value-first authoring paths.
 	childType := propertyType
 	if optional {
-		childType = stripUndefined(childType)
+		childType = StripUndefined(childType)
 	}
 	child := computer.Compute(childType)
 	return memberID(int(kind), memberName, optional, child) + readonlyBit(readonly)
@@ -522,17 +522,18 @@ func (computer *Computer) childIDs(types []*checker.Type) []string {
 	return out
 }
 
-// stripUndefined returns the lone non-undefined member of a `T | undefined` union
+// StripUndefined returns the lone non-undefined member of a `T | undefined` union
 // (so an optional property's child closes on the inner type). Returns tsType
 // unchanged when it isn't a union, or when removing `undefined` leaves zero or 2+
-// members. Replicated from internal/compiled/runtype/serialize.go (the typeid
-// subpackage can't import its parent without an import cycle) — keep them in sync.
-func stripUndefined(tsType *checker.Type) *checker.Type {
+// members. Shared with the parent runtype package (which imports typeid; the
+// reverse import would cycle).
+func StripUndefined(tsType *checker.Type) *checker.Type {
 	if tsType == nil || tsType.Flags()&checker.TypeFlagsUnion == 0 {
 		return tsType
 	}
-	kept := make([]*checker.Type, 0)
-	for _, part := range tsType.Distributed() {
+	parts := tsType.Distributed()
+	kept := make([]*checker.Type, 0, len(parts))
+	for _, part := range parts {
 		if part.Flags()&checker.TypeFlagsUndefined != 0 {
 			continue
 		}

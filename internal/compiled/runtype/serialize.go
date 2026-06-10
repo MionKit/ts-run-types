@@ -838,7 +838,7 @@ func (cache *Cache) projectTuple(tsType *checker.Type, node *protocol.RunType) {
 		// shape keeps the optional bit on the TupleMember and the inner type
 		// stays `T` — strip undefined when the element is optional.
 		if elementFlags&checker.ElementFlagsOptional != 0 && elementType != nil {
-			elementType = stripUndefined(elementType)
+			elementType = typeid.StripUndefined(elementType)
 		}
 		position := i
 		member := &protocol.RunType{
@@ -1165,7 +1165,7 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 		// union node. Mirrors the tuple-member treatment at projectTuple.
 		childType := propertyType
 		if member.Optional {
-			childType = stripUndefined(childType)
+			childType = typeid.StripUndefined(childType)
 		}
 		member.Child = cache.Serialize(childType)
 	}
@@ -1202,7 +1202,7 @@ func (cache *Cache) projectSignatureInto(signature *checker.Signature, node *pro
 		// in appendProperty and projectTuple.
 		childType := paramType
 		if parameter.Optional {
-			childType = stripUndefined(childType)
+			childType = typeid.StripUndefined(childType)
 		}
 		parameter.Child = cache.Serialize(childType)
 		applyParameterDefault(parameter, paramSymbol)
@@ -1411,24 +1411,6 @@ func isClass(tsType *checker.Type) bool {
 		}
 	}
 	return false
-}
-
-func stripUndefined(tsType *checker.Type) *checker.Type {
-	if tsType == nil || tsType.Flags()&checker.TypeFlagsUnion == 0 {
-		return tsType
-	}
-	parts := tsType.Distributed()
-	kept := make([]*checker.Type, 0, len(parts))
-	for _, part := range parts {
-		if part.Flags()&checker.TypeFlagsUndefined != 0 {
-			continue
-		}
-		kept = append(kept, part)
-	}
-	if len(kept) == 1 {
-		return kept[0]
-	}
-	return tsType
 }
 
 func parseNumberLiteral(text string) any {
