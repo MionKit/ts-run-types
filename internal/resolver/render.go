@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
@@ -116,10 +117,22 @@ func renderRunTypesModule(dump protocol.Dump) (string, error) {
 	})
 }
 
-// renderValidateModule emits the sibling `virtual:runtypes-validate` module —
-// one `export function get_validate_<hash>(utl){…}` factory per cached
-// RunType the precompiler knows how to handle. v1 only emits factories
-// for KindString; other kinds are silently skipped (see typefns.ValidateModule).
+// renderFamilyModule builds the render closure for one registry family.
+// The error label "render<Key>Module" matches the old per-family wrapper
+// names byte-for-byte, so wrapped error text is unchanged.
+func renderFamilyModule(key string) func(protocol.Dump, typefns.RenderOpts) (string, error) {
+	spec := typefns.FamilyByKey(key)
+	label := "render" + strings.ToUpper(key[:1]) + key[1:] + "Module"
+	return func(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
+		return renderToString(label, func(w io.Writer) error {
+			return spec.Render(w, dump, opts)
+		})
+	}
+}
+
+// renderValidateModule emits the `virtual:runtypes-validate` module —
+// one factory per cached RunType the precompiler knows how to handle.
+// Not a plain renderFamilyModule closure: validate seeds ExtraRoots first.
 func renderValidateModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
 	// `it` is demand-scoped like every function family, so a createValidate
 	// site alone doesn't pull the `val_<member>` entries the JSON/binary union
@@ -127,133 +140,35 @@ func renderValidateModule(dump protocol.Dump, opts typefns.RenderOpts) (string, 
 	// missing roots from the cross-family edges the OTHER demanded families keep
 	// — CrossFamilyValRoots renders them (Store-bypassed so the walker always
 	// runs) and returns the bare member ids. The createValidate-site demand is
-	// still handled by the normal demand path inside ValidateModule.
+	// still handled by the normal demand path inside the family render.
 	opts.ExtraRoots = typefns.CrossFamilyValRoots(dump, opts)
 	return renderToString("renderValidateModule", func(w io.Writer) error {
-		return typefns.ValidateModule(w, dump, opts)
-	})
-}
-
-// renderValidationErrorsModule emits the `virtual:runtypes-validationErrors` module —
-// sibling of renderValidateModule, same factory shape with three-arg
-// validators (value, path, errors) that accumulate RunTypeError
-// entries instead of returning a boolean. Backed by typefns.ValidationErrorsEmitter.
-func renderValidationErrorsModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderValidationErrorsModule", func(w io.Writer) error {
-		return typefns.ValidationErrorsModule(w, dump, opts)
+		return typefns.FamilyByKey("validate").Render(w, dump, opts)
 	})
 }
 
 // renderPrepareForJsonModule emits the prepareForJson cache module —
-// the JSON serializer half of the round-trip pair. Backed by
-// typefns.PrepareForJsonEmitter. The JSON-encoder composite `init(…)` lines
-// (createJsonEncoder's per-strategy entries) ride this module's body via
-// ExtraBodyLines — both are loaded into the same rtUtils, and the composite
-// references the prepareForJson / stringifyJson / uku primitives by fnHash.
+// the JSON serializer half of the round-trip pair. The JSON-encoder
+// composite `init(…)` lines (createJsonEncoder's per-strategy entries)
+// ride this module's body via ExtraBodyLines — both are loaded into the
+// same rtUtils, and the composite references the prepareForJson /
+// stringifyJson / uku primitives by fnHash.
 func renderPrepareForJsonModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
 	opts.ExtraBodyLines = typefns.JsonEncoderModule(dump, opts)
 	return renderToString("renderPrepareForJsonModule", func(w io.Writer) error {
-		return typefns.PrepareForJsonModule(w, dump, opts)
-	})
-}
-
-// renderFormatTransformModule emits the `format` cache module — the value-transform
-// family (createFormatTransform<T>). Backed by typefns.FormatTransformEmitter.
-func renderFormatTransformModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderFormatTransformModule", func(w io.Writer) error {
-		return typefns.FormatTransformModule(w, dump, opts)
+		return typefns.FamilyByKey("prepareForJson").Render(w, dump, opts)
 	})
 }
 
 // renderRestoreFromJsonModule emits the restoreFromJson cache module —
-// the JSON deserializer half of the round-trip pair. Backed by
-// typefns.RestoreFromJsonEmitter. The JSON-decoder composite `init(…)` lines
-// (createJsonDecoder's per-strategy entries) ride this module's body via
-// ExtraBodyLines — the composite references the restoreFromJson / ukuWire
-// primitives by fnHash.
+// the JSON deserializer half of the round-trip pair. The JSON-decoder
+// composite `init(…)` lines (createJsonDecoder's per-strategy entries)
+// ride this module's body via ExtraBodyLines — the composite references
+// the restoreFromJson / ukuWire primitives by fnHash.
 func renderRestoreFromJsonModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
 	opts.ExtraBodyLines = typefns.JsonDecoderModule(dump, opts)
 	return renderToString("renderRestoreFromJsonModule", func(w io.Writer) error {
-		return typefns.RestoreFromJsonModule(w, dump, opts)
-	})
-}
-
-// renderStringifyJsonModule emits the stringifyJson cache module —
-// mion's single-pass JSON serialiser that walks the type and emits
-// the JSON string directly. Backed by typefns.StringifyJsonEmitter.
-func renderStringifyJsonModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderStringifyJsonModule", func(w io.Writer) error {
-		return typefns.StringifyJsonModule(w, dump, opts)
-	})
-}
-
-// renderPrepareForJsonSafeModule emits the prepareForJsonSafe cache
-// module — non-mutating sibling of renderPrepareForJsonModule.
-func renderPrepareForJsonSafeModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderPrepareForJsonSafeModule", func(w io.Writer) error {
-		return typefns.PrepareForJsonSafeModule(w, dump, opts)
-	})
-}
-
-// renderHasUnknownKeysModule emits the hasUnknownKeys cache module —
-// boolean predicate per mion's emitHasUnknownKeys (returns true when
-// the value has properties outside the schema). Backed by
-// typefns.HasUnknownKeysEmitter.
-func renderHasUnknownKeysModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderHasUnknownKeysModule", func(w io.Writer) error {
-		return typefns.HasUnknownKeysModule(w, dump, opts)
-	})
-}
-
-// renderStripUnknownKeysModule emits the stripUnknownKeys cache
-// module — mutator that deletes unknown keys from the value.
-func renderStripUnknownKeysModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderStripUnknownKeysModule", func(w io.Writer) error {
-		return typefns.StripUnknownKeysModule(w, dump, opts)
-	})
-}
-
-// renderUnknownKeyErrorsModule emits the unknownKeyErrors cache
-// module — error accumulator that records one 'never' RunTypeError per
-// unknown key (same arg shape as validationErrors).
-func renderUnknownKeyErrorsModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderUnknownKeyErrorsModule", func(w io.Writer) error {
-		return typefns.UnknownKeyErrorsModule(w, dump, opts)
-	})
-}
-
-// renderUnknownKeysToUndefinedModule emits the
-// unknownKeysToUndefined cache module — mutator that sets unknown
-// keys to undefined (instead of deleting them).
-func renderUnknownKeysToUndefinedModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderUnknownKeysToUndefinedModule", func(w io.Writer) error {
-		return typefns.UnknownKeysToUndefinedModule(w, dump, opts)
-	})
-}
-
-// renderUnknownKeysToUndefinedWireModule emits the decoder-internal
-// ukuWire cache module — sibling of uku that emits the wire-format
-// reach-into-v[1] strip at union nodes.
-func renderUnknownKeysToUndefinedWireModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderUnknownKeysToUndefinedWireModule", func(w io.Writer) error {
-		return typefns.UnknownKeysToUndefinedWireModule(w, dump, opts)
-	})
-}
-
-// renderToBinaryModule emits the toBinary cache module — binary
-// serializer half of the round-trip pair. Backed by typefns.ToBinaryEmitter.
-func renderToBinaryModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderToBinaryModule", func(w io.Writer) error {
-		return typefns.ToBinaryModule(w, dump, opts)
-	})
-}
-
-// renderFromBinaryModule emits the fromBinary cache module — binary
-// deserializer half of the round-trip pair. Backed by
-// typefns.FromBinaryEmitter.
-func renderFromBinaryModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderFromBinaryModule", func(w io.Writer) error {
-		return typefns.FromBinaryModule(w, dump, opts)
+		return typefns.FamilyByKey("restoreFromJson").Render(w, dump, opts)
 	})
 }
 
