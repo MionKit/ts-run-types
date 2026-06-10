@@ -35,13 +35,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
 4. At build end, the plugin emits `virtual:runtypes-cache` — a flat list of `export const t_<hash> = {…}` declarations forming a reflection-shape, fully-knotted `Type` graph. Runtimes read entries via `import * as cache from 'virtual:runtypes-cache'` then `cache[RUNTYPES_VAR_PREFIX + id]` (the prefix is generated from [internal/constants/constants.go](internal/constants/constants.go)).
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design, and the per-kind guides:
-
-- [docs/atomic-types.md](docs/atomic-types.md) — primitives, regex, literals, enums, `Date` — with TypeScript narrowing quirks.
-- [docs/member-types.md](docs/member-types.md) — single-typed members: `Array`, `Property`, `Method`.
-- [docs/collection-types.md](docs/collection-types.md) — multi-typed containers: tuples, unions, intersections, promises, functions, object literals, classes, recursive types.
-
-For the family-by-family comparison against the original `@mionjs/run-types` / `@mionjs/type-formats` (what's ported, where we deliberately diverge, mismatches, missed optimisations, and test-coverage gaps), see the **port audit** in [docs/audit/](docs/audit/00-overview.md).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — execution model, the sentinel markers, the reflection shape, and the parity record against the original `@mionjs/run-types` / `@mionjs/type-formats` (the port is complete; the intentional divergences are listed there and in [docs/ROADMAP.md](docs/ROADMAP.md)).
 
 ### Data flow
 
@@ -166,10 +160,7 @@ internal/                        Go pipeline (program, resolver, marker,
 packages/ts-go-run-types/        @mionjs/ts-go-run-types — marker type + helpers
 packages/vite-plugin-runtypes/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
-docs/ARCHITECTURE.md             detailed design
-docs/atomic-types.md             per-kind reference for primitives + literals + enums
-docs/member-types.md             per-kind reference for single-typed members (array, property, method)
-docs/collection-types.md         per-kind reference for multi-typed containers
+docs/ARCHITECTURE.md             detailed design + @mionjs/run-types parity record
 docs/ROADMAP.md                  scope + known lossy mappings
 scripts/                         publish / unpublish / pre-publish-test / pack
 pnpm-workspace.yaml              workspace + supply-chain hardening

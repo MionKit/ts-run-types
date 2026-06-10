@@ -146,7 +146,7 @@ The Go test suite ([`internal/testfixtures/runtypes.d.ts`](internal/testfixtures
 
 ## Two injection markers + demand-driven function caches
 
-There are **two** trailing-slot injection markers (both in [`packages/ts-go-run-types/src/markers.ts`](packages/ts-go-run-types/src/markers.ts)). Full design write-up: [`docs/DEMAND-DRIVEN-FN-CACHES.md`](docs/DEMAND-DRIVEN-FN-CACHES.md).
+There are **two** trailing-slot injection markers (both in [`packages/ts-go-run-types/src/markers.ts`](packages/ts-go-run-types/src/markers.ts)). Design write-up: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) → "The second marker — `InjectTypeFnArgs<T, Fn>` and demand-driven caches".
 
 - `InjectRunTypeId<T>` — **reflection-only** sites (`getRunTypeId`, `reflectRunTypeId`, value-first RT builders, `createMockType`). Injects a bare `"<typeId>"` string and drives the `runTypes` reflection cache (1:1 on shape, no options — unchanged).
 - `InjectTypeFnArgs<T, Fn>` — **every `createX<T>()` factory** (`createValidate`, `createGetValidationErrors`, the `huk`/`suk`/`uke`/`uku`/`fmt` group, `createJsonEncoder`/`createJsonDecoder`, `createBinaryEncoder`/`createBinaryDecoder`). Injects a `["<typeId>", "<fnHash>"]` tuple, where `fnHash` is an **opaque precomputed hash** (length 4 — `hash(operationName + sorted comptime-args)`) the scanner computes from `Fn` + the call-site `CompTimeFnArgs` literal (the `ValidateOptions` bag for `it`/`te`, the JSON strategy for the encoder/decoder). Go computes every fnHash; the runtime treats `fnId` as an opaque lookup-key prefix — **no runtime hashing**. The tuple is the complete demand: it tells the backend exactly what to emit AND gives the runtime the exact lookup key — no key re-derivation.
@@ -169,7 +169,7 @@ This same rule applies to the JSON / binary serialisation families: a property t
 
 The clean line: **Warning = expected drop, the user should know but it's fine**. **Error = will throw at runtime, build must fail**.
 
-**Decoders return the data-only projection.** `createJsonDecoder<T>()` and `createBinaryDecoder<T>()` return `DataOnly<T>` (the `// #region dataonly-extract` type in [`src/runtypes/dataOnly.ts`](packages/ts-go-run-types/src/runtypes/dataOnly.ts)), NOT bare `T`. A decoded value is reconstructed from JSON/bytes, so it can only ever hold serialisable data — the old `=> T` over-promised methods/`Promise`s/symbols the value doesn't have (calling them type-checked but threw). On a clean DTO `DataOnly<T> ≡ T`, so nothing changes. The projection lives on the **factory overload return** (`JsonDecoderFn<DataOnly<T>>` / `BinaryDecoderFn<DataOnly<T>>`), not on the `JsonDecoderFn`/`BinaryDecoderFn` aliases (those stay `=> T`) — see [docs/DATAONLY-DECODE-SPEC.md](docs/DATAONLY-DECODE-SPEC.md). **Encoders are unchanged** (they take `T` as input). This is purely a type-level annotation: no runtime or emitter change.
+**Decoders return the data-only projection.** `createJsonDecoder<T>()` and `createBinaryDecoder<T>()` return `DataOnly<T>` (the `// #region dataonly-extract` type in [`src/runtypes/dataOnly.ts`](packages/ts-go-run-types/src/runtypes/dataOnly.ts)), NOT bare `T`. A decoded value is reconstructed from JSON/bytes, so it can only ever hold serialisable data — the old `=> T` over-promised methods/`Promise`s/symbols the value doesn't have (calling them type-checked but threw). On a clean DTO `DataOnly<T> ≡ T`, so nothing changes. The projection lives on the **factory overload return** (`JsonDecoderFn<DataOnly<T>>` / `BinaryDecoderFn<DataOnly<T>>`), not on the `JsonDecoderFn`/`BinaryDecoderFn` aliases (those stay `=> T`). **Encoders are unchanged** (they take `T` as input). This is purely a type-level annotation: no runtime or emitter change.
 
 Future direction (out of scope for the current code): we may refine the return type to `ValidateFn<DataOnly<T>>` (where `DataOnly<T>` strips non-serialisable members from the type), rename `createValidate` → `createIsDataType`, or introduce a separate stricter `createIsFullType` that errors instead of dropping. Discuss in [docs/ROADMAP.md](docs/ROADMAP.md) before changing — current callers depend on the silent-drop semantics.
 
@@ -177,6 +177,5 @@ Future direction (out of scope for the current code): we may refine the return t
 
 - [README.md](README.md) — project overview, how-it-works, usage, CLI flags
 - [CONTRIBUTORS.md](CONTRIBUTORS.md) — full contributor setup, patch management workflow, dev-loop recipes, troubleshooting table
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed design, execution model, the sentinel marker, lossy mappings
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed design, execution model, the sentinel markers, lossy mappings, and the `@mionjs/run-types` parity record (the port is complete; intentional divergences listed there)
 - [docs/ROADMAP.md](docs/ROADMAP.md) — scope + known lossy mappings
-- [docs/UNSUPPORTED-KINDS.md](docs/UNSUPPORTED-KINDS.md) — the unified throw architecture, which kinds are unsupported and why, the two-rule property-vs-non-property model
