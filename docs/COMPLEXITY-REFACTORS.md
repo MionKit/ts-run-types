@@ -28,7 +28,7 @@
 | S2 | `typefns/emitter.go:420` + `typefns/module.go:1238` | `joinComma` ≡ `joinArgs` (same package) | keep `joinArgs`, add len-0/1 fast paths, delete `joinComma` | −20 | low | landed |
 | S3 | `formats/{string,datetime,numeric}/shared.go` | `formatErrCall` ×3, `formatNumber` ×2, `pureFnAlias` ×2 byte-identical | exported helpers in formats root (`formats/emit.go`) | −50 | low | landed |
 | S4 | `purefns/walker.go:472` vs `resolver/scan.go:911` (+6 site-building blocks) | naive O(bytes) `lineCol` duplicates the optimized line-map `scanLineCol`; repeated Pos/End→`diag.Site` blocks | new tiny `internal/textpos`: `LineCol` + `NodeSite`; purefns gets the line-map win | −55 | low | landed |
-| S5 | `typefns/module.go:206-356` | partial registry (`familyConfig` + `crossFamilyItSourceFamilies`) duplicates the wrapper triples | `FamilySpec` registry in `typefns/families.go` (order load-bearing, validate LAST) | +55/−45 | low | pending |
+| S5 | `typefns/module.go:206-356` | partial registry (`familyConfig` + `crossFamilyItSourceFamilies`) duplicates the wrapper triples | `FamilySpec` registry in `typefns/families.go` (order load-bearing, validate LAST) | +55/−45 | low | landed |
 | S6 | `resolver/render.go` + `resolver/dispatch.go:295-312` | 11 trivial render wrappers; 14-line `Added*`/`AnyXxxSupported` block | drive renders + added-flags from the registry | −70 | medium | pending |
 | S7 | typefns family files | 14 `XxxModule` + 14 `AnyXxxSupported` thin wrappers (sole callers: resolver, handled in S6) | delete; tests use `FamilyByKey(...)` | −280 | low | pending |
 | S8 | `protocol/protocol.go:654-783` | ~45 repetitive conditional map-sets in `Response.MarshalJSON` | two hand-written closure tables + fill loops (keys NOT derived — wire definition) | −40 | low | pending |
@@ -92,3 +92,4 @@ switches and the render engine** — reviewed and intentionally kept:
 | S2 | refactor(typefns): fold joinComma into joinArgs | −20 | neutral (wall +2.7%, go −0.8%, alloc −0.0%) |
 | S3 | refactor(formats): share FormatErrCall/FormatNumber/PureFnAlias in the formats root | −60 | neutral (wall −2.7%, go −3.4%, alloc 0.0%) |
 | S4 | refactor(textpos): shared LineCol/NodeSite for resolver + purefns | −60 | neutral (wall +0.8%, go +0.4%, alloc 0.0%) |
+| S5 | refactor(typefns): introduce the FamilySpec registry | +100/−55 | neutral-to-better (wall −2.9%, go −7.4%, alloc −0.0%) |
