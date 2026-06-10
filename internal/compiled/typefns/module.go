@@ -1234,10 +1234,15 @@ func boolJS(b bool) string {
 
 // joinArgs concatenates positional args with bare commas. The
 // createRTFn arg is multi-line; padding around commas would not align
-// readably across long entries, so emit them flush.
+// readably across long entries, so emit them flush. Also used for
+// path-literal segments (EmitContext.AccessPathLiteral) — the len-1
+// fast path keeps that common single-segment case allocation-free.
 func joinArgs(args []string) string {
-	if len(args) == 0 {
+	switch len(args) {
+	case 0:
 		return ""
+	case 1:
+		return args[0]
 	}
 	total := len(args) - 1
 	for _, a := range args {
