@@ -76,7 +76,7 @@ func (ipEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation
 		versionLiteral = version
 	}
 	return "if (!(" + check + ")) " +
-		formatErrCall(ctx, pathExpr, errorsArr, "string", "ip", "version", versionLiteral)
+		formats.FormatErrCall(pathExpr, errorsArr, "string", "ip", "version", versionLiteral)
 }
 
 // EmitFormatTransform lowercases the IP (mion ip.runtype.ts:44 —

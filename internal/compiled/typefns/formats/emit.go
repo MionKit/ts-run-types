@@ -1,0 +1,57 @@
+package formats
+
+import "strconv"
+
+// FormatErrCall emits a statement that pushes the canonical nested
+// RunTypeError — `{expected, path, format: {name, formatPath, val}}` —
+// onto the errors array. This is the shape the base validationErrors path
+// (pf_newRunTypeErr) and consumers expect (mirrors mion's pf_formatErr
+// output); a bare `{name, formatPath, val}` push would not conform to
+// RunTypeError and is invisible to consumers reading `.path`/`.format`.
+//
+// Emitted INLINE rather than via a pure fn: the pf_formatErr pure fn
+// lives in the marker package's run-types-pure-fns.ts, which isn't part
+// of a consumer's program (nothing imports it), so a getPureFn lookup
+// would resolve to undefined at runtime. The inline object literal has
+// no such dependency.
+//
+// paramValLiteral is the already-rendered JS value — a quoted string for
+// the string formats; an unquoted number, the literal `true`, or a `…n`
+// bigint literal for the numeric ones. pathExpr is the runtime path arg
+// (`pth`); path is copied (`[...pth]`) so each pushed error owns its
+// array. formatPath is `[paramName]`.
+func FormatErrCall(pathExpr, errorsArr, expected, fmtName, paramName, paramValLiteral string) string {
+	path := pathExpr
+	if path == "" {
+		path = "pth"
+	}
+	return errorsArr + ".push({expected:'" + expected + "',path:[..." + path + "]," +
+		"format:{name:'" + fmtName + "',formatPath:['" + paramName + "'],val:" + paramValLiteral + "}})"
+}
+
+// FormatNumber stringifies a float64 in the same way JSON does
+// (`1` vs `1.0` both → "1"). Used in the emitted JS source so the
+// validator's bound matches what tsgo saw at type-resolution time.
+func FormatNumber(value float64) string {
+	if value == float64(int64(value)) {
+		return strconv.FormatInt(int64(value), 10)
+	}
+	return strconv.FormatFloat(value, 'g', -1, 64)
+}
+
+// PureFnAlias registers a pure-fn dependency in the `mionFormats`
+// namespace, hoists the `const pf_<fnName> = utl.getPureFn(...)`
+// declaration into the factory prologue (deduped), and returns the
+// alias the emitted body uses. filePath is the canonical source path
+// the resolver registers the package's pure fns under — each format
+// subpackage binds its own via a 1-line local wrapper. Transitive deps
+// the wrapper fn calls internally are picked up by the JS-side pure-fn
+// extractor, not declared here.
+func PureFnAlias(ctx EmitContext, fnName, filePath string) string {
+	ctx.AddPureFnDependency("mionFormats", fnName, filePath)
+	alias := "pf_" + fnName
+	if !ctx.HasContextItem(alias) {
+		ctx.SetContextItem(alias, "const "+alias+" = utl.getPureFn('mionFormats::"+fnName+"')")
+	}
+	return alias
+}

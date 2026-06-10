@@ -8,46 +8,11 @@ import (
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
 )
 
-// pureFnAlias registers a pure-fn dependency in the `mionFormats`
-// namespace, hoists the `const pf_<fnName> = utl.getPureFn(...)`
-// declaration into the factory prologue (deduped), and returns the
-// alias the emitted body uses. Shared by every string-format emitter
-// that dispatches to a pure fn (uuid / date / time / ip / domain /
-// email / url). Transitive deps the wrapper fn calls internally are
-// picked up by the JS-side pure-fn extractor, not declared here.
+// pureFnAlias binds this package's pure-fn source path into the shared
+// formats.PureFnAlias helper — used by every string-format emitter that
+// dispatches to a pure fn (uuid / date / time / ip / domain / email / url).
 func pureFnAlias(ctx formats.EmitContext, fnName string) string {
-	ctx.AddPureFnDependency("mionFormats", fnName, typeFormatsPureFnFilePath)
-	alias := "pf_" + fnName
-	if !ctx.HasContextItem(alias) {
-		ctx.SetContextItem(alias, "const "+alias+" = utl.getPureFn('mionFormats::"+fnName+"')")
-	}
-	return alias
-}
-
-// formatErrCall emits a statement that pushes the canonical nested
-// RunTypeError — `{expected, path, format: {name, formatPath, val}}` —
-// onto the errors array. This is the shape the base validationErrors path
-// (pf_newRunTypeErr) and consumers expect (mirrors mion's pf_formatErr
-// output); a bare `{name, formatPath, val}` push would not conform to
-// RunTypeError and is invisible to consumers reading `.path`/`.format`.
-//
-// Emitted INLINE rather than via a pure fn: the pf_formatErr pure fn
-// lives in the marker package's run-types-pure-fns.ts, which isn't part
-// of a consumer's program (nothing imports it), so a getPureFn lookup
-// would resolve to undefined at runtime. The inline object literal has
-// no such dependency.
-//
-// paramValLiteral is the already-rendered JS value (an unquoted number,
-// or a quoted string). pathExpr is the runtime path arg (`pth`); path is
-// copied (`[...pth]`) so each pushed error owns its array. formatPath is
-// `[paramName]`.
-func formatErrCall(_ formats.EmitContext, pathExpr, errorsArr, expected, fmtName, paramName, paramValLiteral string) string {
-	path := pathExpr
-	if path == "" {
-		path = "pth"
-	}
-	return errorsArr + ".push({expected:'" + expected + "',path:[..." + path + "]," +
-		"format:{name:'" + fmtName + "',formatPath:['" + paramName + "'],val:" + paramValLiteral + "}})"
+	return formats.PureFnAlias(ctx, fnName, typeFormatsPureFnFilePath)
 }
 
 // regexpEscape mirrors mion's utils.ts regexpEscape exactly —

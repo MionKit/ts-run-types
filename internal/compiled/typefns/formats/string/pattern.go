@@ -88,7 +88,7 @@ func namedPatternErrors(ctx formats.EmitContext, annotation *protocol.FormatAnno
 	if source, flags, ok := recoverPattern(annotation.Params); ok {
 		test := emitPatternTest(ctx, source, flags, vλl)
 		statements = append(statements,
-			"if (!("+test+")) "+formatErrCall(ctx, pathExpr, errorsArr, "string", name, "pattern", "'pattern'"))
+			"if (!("+test+")) "+formats.FormatErrCall(pathExpr, errorsArr, "string", name, "pattern", "'pattern'"))
 	}
 	return strings.Join(statements, ";")
 }

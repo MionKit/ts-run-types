@@ -82,23 +82,23 @@ func (bigintFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Format
 	var statements []string
 	if literal, ok := bigIntLiteral(params, "max"); ok {
 		statements = append(statements,
-			"if ("+vλl+" > "+literal+") "+formatErrCall(pathExpr, errorsArr, "bigint", bigintFormatName, "max", literal))
+			"if ("+vλl+" > "+literal+") "+formats.FormatErrCall(pathExpr, errorsArr, "bigint", bigintFormatName, "max", literal))
 	}
 	if literal, ok := bigIntLiteral(params, "min"); ok {
 		statements = append(statements,
-			"if ("+vλl+" < "+literal+") "+formatErrCall(pathExpr, errorsArr, "bigint", bigintFormatName, "min", literal))
+			"if ("+vλl+" < "+literal+") "+formats.FormatErrCall(pathExpr, errorsArr, "bigint", bigintFormatName, "min", literal))
 	}
 	if literal, ok := bigIntLiteral(params, "lt"); ok {
 		statements = append(statements,
-			"if ("+vλl+" >= "+literal+") "+formatErrCall(pathExpr, errorsArr, "bigint", bigintFormatName, "lt", literal))
+			"if ("+vλl+" >= "+literal+") "+formats.FormatErrCall(pathExpr, errorsArr, "bigint", bigintFormatName, "lt", literal))
 	}
 	if literal, ok := bigIntLiteral(params, "gt"); ok {
 		statements = append(statements,
-			"if ("+vλl+" <= "+literal+") "+formatErrCall(pathExpr, errorsArr, "bigint", bigintFormatName, "gt", literal))
+			"if ("+vλl+" <= "+literal+") "+formats.FormatErrCall(pathExpr, errorsArr, "bigint", bigintFormatName, "gt", literal))
 	}
 	if literal, ok := bigIntLiteral(params, "multipleOf"); ok {
 		statements = append(statements,
-			"if (("+vλl+" % "+literal+" !== 0n)) "+formatErrCall(pathExpr, errorsArr, "bigint", bigintFormatName, "multipleOf", literal))
+			"if (("+vλl+" % "+literal+" !== 0n)) "+formats.FormatErrCall(pathExpr, errorsArr, "bigint", bigintFormatName, "multipleOf", literal))
 	}
 	return strings.Join(statements, ";")
 }
