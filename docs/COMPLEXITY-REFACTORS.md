@@ -152,3 +152,31 @@ check (legitimately narrower than the full parameter walk, reuses the verdict me
 
 Net: −60 LOC, bench neutral (wall +1.2% / go −1.7% / alloc +0.1%, quick run), and the
 "add a ValidateOption" workflow drops its hand-edit-the-scanner step.
+
+## Pass 3 — format-params pipeline (type-first vs value-first)
+
+Audit question: do type-level format params (`FormatString<{maxLength: 5}>`) and
+value-first brands share one reconstruction + validation path?
+
+**Yes — single-sourced by design (verified, unchanged):** both paths resolve through the
+checker type to the same `__rtFormatName`/`__rtFormatParams` sentinels →
+`typeid.FormatAnnotationFromType` → one wire `FormatAnnotation{Name, Params}` consumed by
+every format emitter. The only AST-level recovery (regex patterns, whose source erases to
+`RegExp` in the type channel) is also one function (`formatPatternFromSymbol`) handling
+both the `typeof p` type-first shape and the value-initializer value-first shape, with a
+convergence test pinning that both forms hash to one id. Cross-param invariants run
+through one `ValidateParams` emitter hook surfaced as FMT002 from a single place; the
+per-format invariant bodies are deliberately mion-faithful ports (not copy-paste).
+
+**Fixed in this pass:**
+
+| id | what | fix |
+| --- | --- | --- |
+| F1 | `readNumberParam` defined in both string and numeric format packages **with drift** (meta-object unwrap in numeric only); `boolParam` doubled with different signatures | shared `formats.ReadNumberParam` / `ReadBoolParam` / `ParamVal` (meta-unwrap superset; identity for all currently-typeable inputs) |
+| F2 | `typeid.unwrapExpr` was comptimeargs' wrapper-unwrap minus `satisfies` — a value-first `pattern: ({…} satisfies X)` passed CompTimeArgs validation but silently dropped at recovery | exported shared `comptimeargs.UnwrapWrappers`; pinned by `TestFormatPattern_ValueFirstSatisfiesObject` |
+| F3 | `typeid.constInitializerOf` re-implemented the symbol→const-declaration walk | exported `comptimeargs.EachConstVariableDeclaration`; typeid keeps its import-alias resolution on top |
+
+Kept as-is: per-format `ValidateParams` bodies (mion parity, including the numberTruthy
+falsy-zero quirks); datetime's bound readers (string-duration domain, not numeric params);
+comptimeargs' same-module-only const policy vs typeid's import-alias-following recovery
+(different policy by design — the walk is shared, the symbol resolution differs).
