@@ -23,50 +23,7 @@ func (UnknownKeyErrorsEmitter) Args() []ArgSpec {
 }
 
 func (UnknownKeyErrorsEmitter) Supports(rt *protocol.RunType) bool {
-	if rt == nil {
-		return false
-	}
-	switch rt.Kind {
-	case protocol.KindAny, protocol.KindUnknown,
-		protocol.KindVoid,
-		protocol.KindNull, protocol.KindUndefined,
-		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
-		protocol.KindBigInt, protocol.KindSymbol,
-		protocol.KindObject, protocol.KindRegexp,
-		protocol.KindLiteral, protocol.KindEnum,
-		protocol.KindNever, protocol.KindTemplateLiteral:
-		return true
-	case protocol.KindObjectLiteral:
-		return true
-	case protocol.KindClass:
-		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone,
-			protocol.SubKindMap, protocol.SubKindSet,
-			protocol.SubKindNonSerializable:
-			return true
-		}
-		return protocol.IsTemporalSubKind(rt.SubKind)
-	case protocol.KindArray:
-		return rt.Child != nil
-	case protocol.KindTuple:
-		return true
-	case protocol.KindTupleMember:
-		return true
-	case protocol.KindProperty, protocol.KindPropertySignature:
-		return true
-	case protocol.KindIndexSignature:
-		return true
-	case protocol.KindUnion:
-		return len(rt.Children) > 0
-	case protocol.KindIntersection:
-		return true
-	case protocol.KindPromise:
-		return true
-	case protocol.KindFunction, protocol.KindMethod,
-		protocol.KindMethodSignature, protocol.KindCallSignature:
-		return true
-	}
-	return false
+	return unknownKeysSupports(rt)
 }
 
 func (UnknownKeyErrorsEmitter) IsRTInlined(ctx *InlineContext) bool {
@@ -99,7 +56,7 @@ func (UnknownKeyErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Co
 	case protocol.KindArray:
 		return emitArrayUnknownKeys(rt, ctx, true)
 	case protocol.KindTuple:
-		return emitTupleUnknownKeyErrors(rt, ctx)
+		return emitTupleUnknownKeysRecurse(rt, ctx)
 	case protocol.KindTupleMember:
 		return emitTupleMemberUnknownKeys(rt, ctx, true)
 	case protocol.KindIndexSignature:
@@ -170,26 +127,6 @@ func emitObjectUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 		return RTCode{Code: "", Type: CodeS}
 	}
 	return RTCode{Code: combined, Type: CodeS}
-}
-
-func emitTupleUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
-	if len(rt.Children) == 0 {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	var parts []string
-	for _, child := range rt.Children {
-		childRT := ctx.CompileChild(child, CodeS)
-		if childRT.Type == CodeNS {
-			continue
-		}
-		if childRT.Code != "" {
-			parts = append(parts, childRT.Code)
-		}
-	}
-	if len(parts) == 0 {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
 }
 
 // emitIndexSignatureUnknownKeyErrors ports mion's
