@@ -9,6 +9,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
+	"github.com/mionkit/ts-run-types/internal/comptimeargs"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -194,23 +195,14 @@ func constInitializerOf(typeChecker *checker.Checker, node *ast.Node) *ast.Node 
 	// `typeof importedConst` resolves to the import-alias symbol whose
 	// declaration is the import specifier, not the const — follow the
 	// alias to the original (e.g. a pattern const in string-patterns.ts
-	// referenced from stringFormats.ts).
+	// referenced from stringFormats.ts), then run the shared const walk.
 	symbol = resolveImportAlias(typeChecker, symbol)
-	for _, declaration := range symbol.Declarations {
-		if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
-			continue
-		}
-		parent := declaration.Parent
-		if parent == nil || parent.Flags&ast.NodeFlagsConst == 0 {
-			continue
-		}
-		variableDeclaration := declaration.AsVariableDeclaration()
-		if variableDeclaration == nil {
-			continue
-		}
-		return variableDeclaration.Initializer
-	}
-	return nil
+	var initializer *ast.Node
+	comptimeargs.EachConstVariableDeclaration(symbol, func(variableDeclaration *ast.VariableDeclaration) bool {
+		initializer = variableDeclaration.Initializer
+		return false
+	})
+	return initializer
 }
 
 // formatPatternFromCall extracts the resolved literal fields from a
@@ -227,22 +219,6 @@ func formatPatternFromCall(typeChecker *checker.Checker, call *ast.Node) (map[st
 		return nil, false
 	}
 	return formatPatternFromObjectLiteral(typeChecker, argument)
-}
-
-// unwrapExpr strips `as`/parenthesised wrappers off a value expression so
-// the recovery below sees the underlying literal / identifier / call.
-func unwrapExpr(node *ast.Node) *ast.Node {
-	for node != nil {
-		switch node.Kind {
-		case ast.KindAsExpression:
-			node = node.AsAsExpression().Expression
-		case ast.KindParenthesizedExpression:
-			node = node.AsParenthesizedExpression().Expression
-		default:
-			return node
-		}
-	}
-	return node
 }
 
 // propertyInitializer returns the value expression a property declaration
@@ -272,7 +248,9 @@ func propertyInitializer(declaration *ast.Node) *ast.Node {
 // pattern symbol's declaration is the original value AST node, so the literal
 // is recoverable here even though the property's TYPE is `RegExp`.
 func formatPatternFromInitializer(typeChecker *checker.Checker, initializer *ast.Node, depth int) (map[string]any, bool) {
-	node := unwrapExpr(initializer)
+	// comptimeargs' wrapper set (`as` / parens / `satisfies`) — recovery must
+	// accept exactly what the CompTimeArgs validation accepted upstream.
+	node := comptimeargs.UnwrapWrappers(initializer)
 	if node == nil || depth > 16 {
 		return nil, false
 	}

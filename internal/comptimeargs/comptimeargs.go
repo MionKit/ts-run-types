@@ -90,7 +90,7 @@ func CheckLiteral(typeChecker *checker.Checker, node *ast.Node, depth int, build
 	if depth > DepthCap {
 		return Result{Ok: false, Kind: FailDepthExceeded, Reason: "depth cap exceeded", FailingNode: node}
 	}
-	unwrapped := unwrapWrappers(node)
+	unwrapped := UnwrapWrappers(node)
 	if unwrapped == nil {
 		return Result{Ok: false, Kind: FailNonLiteral, Reason: "nil node", FailingNode: node}
 	}
@@ -136,7 +136,7 @@ func checkLiteralFunctionRecursive(typeChecker *checker.Checker, node *ast.Node,
 	if depth > DepthCap {
 		return nil, Result{Ok: false, Kind: FailDepthExceeded, Reason: "depth cap exceeded", FailingNode: node}
 	}
-	unwrapped := unwrapWrappers(node)
+	unwrapped := UnwrapWrappers(node)
 	if unwrapped == nil {
 		return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "nil node", FailingNode: node}
 	}
@@ -201,7 +201,7 @@ func resolveLiteralStringRecursive(typeChecker *checker.Checker, node *ast.Node,
 	if depth > DepthCap {
 		return nil, Result{Ok: false, Kind: FailDepthExceeded, Reason: "depth cap exceeded", FailingNode: node}
 	}
-	unwrapped := unwrapWrappers(node)
+	unwrapped := UnwrapWrappers(node)
 	if unwrapped == nil {
 		return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "nil node", FailingNode: node}
 	}
@@ -218,7 +218,13 @@ func resolveLiteralStringRecursive(typeChecker *checker.Checker, node *ast.Node,
 	return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "not a string literal", FailingNode: unwrapped}
 }
 
-func unwrapWrappers(node *ast.Node) *ast.Node {
+// UnwrapWrappers strips `as T`, parenthesised and `satisfies T` wrappers
+// off an expression, returning the underlying node (nil for nil/malformed
+// input). Exported because every AST-level literal recovery must agree on
+// the wrapper set — the typeid format-param recovery shares it so a
+// `satisfies`-wrapped value-first param behaves exactly like the
+// CompTimeArgs validation that accepted it.
+func UnwrapWrappers(node *ast.Node) *ast.Node {
 	for node != nil {
 		switch node.Kind {
 		case ast.KindAsExpression:
@@ -340,7 +346,7 @@ func checkPrefixUnary(typeChecker *checker.Checker, node *ast.Node, depth int) R
 	if prefixUnary.Operator != ast.KindPlusToken && prefixUnary.Operator != ast.KindMinusToken {
 		return Result{Ok: false, Kind: FailForbiddenConstruct, Reason: "unary operator other than + / -", FailingNode: node}
 	}
-	operand := unwrapWrappers(prefixUnary.Operand)
+	operand := UnwrapWrappers(prefixUnary.Operand)
 	if operand == nil {
 		return Result{Ok: false, Kind: FailNonLiteral, Reason: "nil prefix-unary operand", FailingNode: node}
 	}
@@ -378,7 +384,14 @@ func eachConstVariableDeclaration(typeChecker *checker.Checker, identifier *ast.
 	if typeChecker == nil || identifier == nil {
 		return
 	}
-	symbol := typeChecker.GetSymbolAtLocation(identifier)
+	EachConstVariableDeclaration(typeChecker.GetSymbolAtLocation(identifier), visit)
+}
+
+// EachConstVariableDeclaration is the symbol-level walk behind the
+// identifier form — exported so callers that resolve the symbol
+// themselves first (e.g. the typeid format-param recovery, which follows
+// import aliases before walking) reuse the same const filter.
+func EachConstVariableDeclaration(symbol *ast.Symbol, visit func(*ast.VariableDeclaration) bool) {
 	if symbol == nil {
 		return
 	}
