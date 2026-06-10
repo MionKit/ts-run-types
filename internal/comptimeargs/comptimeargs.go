@@ -368,21 +368,19 @@ func traceIdentifier(typeChecker *checker.Checker, node *ast.Node, depth int, bu
 	return CheckLiteral(typeChecker, initializer, depth+1, builderCall)
 }
 
-// resolveConstInitializer returns the initializer expression of the
-// `const` variable declaration the identifier resolves to, or
-// (nil, false) when the identifier doesn't resolve, isn't a
-// VariableDeclaration, isn't `const`, or has no initializer.
-//
-// Mirrors the resolver-side resolveRegexLiteral const-chain trace:
-// `let` / `var` are rejected because they can be reassigned, so the
-// initializer no longer determines the value at the call site.
-func resolveConstInitializer(typeChecker *checker.Checker, identifier *ast.Node) (*ast.Node, bool) {
+// eachConstVariableDeclaration walks the `const` VariableDeclarations of
+// the identifier's symbol, calling visit on each until it returns false.
+// `let` / `var` are skipped because they can be reassigned, so neither
+// the initializer nor the annotation determines the value at the call
+// site. The single symbol→declarations walk behind resolveConstInitializer
+// and ConstTypeAnnotation.
+func eachConstVariableDeclaration(typeChecker *checker.Checker, identifier *ast.Node, visit func(*ast.VariableDeclaration) bool) {
 	if typeChecker == nil || identifier == nil {
-		return nil, false
+		return
 	}
 	symbol := typeChecker.GetSymbolAtLocation(identifier)
 	if symbol == nil {
-		return nil, false
+		return
 	}
 	for _, declaration := range symbol.Declarations {
 		if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
@@ -393,12 +391,49 @@ func resolveConstInitializer(typeChecker *checker.Checker, identifier *ast.Node)
 			continue
 		}
 		variableDecl := declaration.AsVariableDeclaration()
-		if variableDecl == nil || variableDecl.Initializer == nil {
+		if variableDecl == nil {
 			continue
 		}
-		return variableDecl.Initializer, true
+		if !visit(variableDecl) {
+			return
+		}
 	}
-	return nil, false
+}
+
+// resolveConstInitializer returns the initializer expression of the
+// `const` variable declaration the identifier resolves to, or
+// (nil, false) when the identifier doesn't resolve, isn't a
+// VariableDeclaration, isn't `const`, or has no initializer.
+//
+// Mirrors the resolver-side resolveRegexLiteral const-chain trace.
+func resolveConstInitializer(typeChecker *checker.Checker, identifier *ast.Node) (*ast.Node, bool) {
+	var initializer *ast.Node
+	eachConstVariableDeclaration(typeChecker, identifier, func(variableDecl *ast.VariableDeclaration) bool {
+		if variableDecl.Initializer == nil {
+			return true
+		}
+		initializer = variableDecl.Initializer
+		return false
+	})
+	return initializer, initializer != nil
+}
+
+// ConstTypeAnnotation returns the written type-annotation node of the
+// `const` variable declaration the identifier resolves to, or
+// (nil, false) when there is no const binding or it carries no
+// annotation. Exported for the resolver's reflect-form annotation
+// honoring (`const v: T = literal; createValidate(v)` reads `T`, not
+// CFA's narrowed apparent type).
+func ConstTypeAnnotation(typeChecker *checker.Checker, identifier *ast.Node) (*ast.Node, bool) {
+	var typeNode *ast.Node
+	eachConstVariableDeclaration(typeChecker, identifier, func(variableDecl *ast.VariableDeclaration) bool {
+		if variableDecl.Type == nil {
+			return true
+		}
+		typeNode = variableDecl.Type
+		return false
+	})
+	return typeNode, typeNode != nil
 }
 
 // forbiddenConstructName returns the short label used in CTA003
