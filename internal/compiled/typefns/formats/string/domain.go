@@ -131,10 +131,10 @@ func domainValidateExprFor(ctx formats.EmitContext, params map[string]any, valEx
 	b.WriteString("start = pos + 1; count++;")
 	b.WriteString("}")
 	if maxParts, ok := readNumberParam(params, "maxParts"); ok {
-		b.WriteString("if (count > " + formatNumber(maxParts) + ") return false;")
+		b.WriteString("if (count > " + formats.FormatNumber(maxParts) + ") return false;")
 	}
 	if minParts, ok := readNumberParam(params, "minParts"); ok {
-		b.WriteString("if (count < " + formatNumber(minParts) + ") return false;")
+		b.WriteString("if (count < " + formats.FormatNumber(minParts) + ") return false;")
 	}
 	b.WriteString("const tld = s.substring(start);")
 	if tldConds != "" {
@@ -169,7 +169,7 @@ func domainErrorsBlockFor(ctx formats.EmitContext, params map[string]any, valExp
 	b.WriteString("name = s.substring(start, pos);")
 	if !hasAllowedValues(namesParams) {
 		b.WriteString("if (name.startsWith('-') || name.endsWith('-')) " +
-			formatErrCall(ctx, pathExpr, errorsArr, "string", "domain", "hyphen", "'name'") + ";")
+			formats.FormatErrCall(pathExpr, errorsArr, "string", "domain", "hyphen", "'name'") + ";")
 	}
 	if nameErrs != "" {
 		b.WriteString(nameErrs + ";")
@@ -178,12 +178,12 @@ func domainErrorsBlockFor(ctx formats.EmitContext, params map[string]any, valExp
 	b.WriteString("}")
 	b.WriteString("count++;")
 	if maxParts, ok := readNumberParam(params, "maxParts"); ok {
-		b.WriteString("if (count > " + formatNumber(maxParts) + ") " +
-			formatErrCall(ctx, pathExpr, errorsArr, "string", "domain", "maxParts", formatNumber(maxParts)) + ";")
+		b.WriteString("if (count > " + formats.FormatNumber(maxParts) + ") " +
+			formats.FormatErrCall(pathExpr, errorsArr, "string", "domain", "maxParts", formats.FormatNumber(maxParts)) + ";")
 	}
 	if minParts, ok := readNumberParam(params, "minParts"); ok {
-		b.WriteString("if (count < " + formatNumber(minParts) + ") " +
-			formatErrCall(ctx, pathExpr, errorsArr, "string", "domain", "minParts", formatNumber(minParts)) + ";")
+		b.WriteString("if (count < " + formats.FormatNumber(minParts) + ") " +
+			formats.FormatErrCall(pathExpr, errorsArr, "string", "domain", "minParts", formats.FormatNumber(minParts)) + ";")
 	}
 	b.WriteString("const tld = s.substring(start);")
 	if tldErrs != "" {

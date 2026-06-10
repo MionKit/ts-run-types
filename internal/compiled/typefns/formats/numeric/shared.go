@@ -26,29 +26,6 @@ func mustBigInt(decimal string) *big.Int {
 	return value
 }
 
-// formatErrCall emits a statement that pushes the canonical nested
-// RunTypeError — `{expected, path, format: {name, formatPath, val}}` —
-// onto the errors array. Duplicated from formats/string/shared.go: the
-// shape is shared but the helper is package-private there, and the
-// numeric error `val` rendering differs (numbers / `true` / bigint
-// literals rather than quoted strings). Emitted INLINE rather than via a
-// pure fn for the same reason the string version is — the pf_formatErr
-// pure fn isn't part of a consumer's program.
-//
-// paramValLiteral is the already-rendered JS value (an unquoted number,
-// the literal `true`, or a `…n` bigint literal). expected is the base
-// kind name ('number' | 'bigint'). pathExpr is the runtime path arg
-// (`pth`); path is copied (`[...pth]`) so each pushed error owns its
-// array. formatPath is `[paramName]`.
-func formatErrCall(pathExpr, errorsArr, expected, fmtName, paramName, paramValLiteral string) string {
-	path := pathExpr
-	if path == "" {
-		path = "pth"
-	}
-	return errorsArr + ".push({expected:'" + expected + "',path:[..." + path + "]," +
-		"format:{name:'" + fmtName + "',formatPath:['" + paramName + "'],val:" + paramValLiteral + "}})"
-}
-
 // readNumberParam extracts a numeric param value, UNWRAPPING the
 // `{val, errorMessage, desc}` meta-object shape first (mion's paramVal,
 // utils.ts:12-14). Returns (0, false) when the key is absent or carries a
@@ -97,16 +74,6 @@ func boolParam(params map[string]any, key string) (value, present bool) {
 		return false, false
 	}
 	return boolVal, true
-}
-
-// formatNumber stringifies a float64 the way JSON does (`1` vs `1.0` both
-// → "1"), so the emitted JS bound matches what tsgo saw at
-// type-resolution time. Copy of formats/string/shared.go formatNumber.
-func formatNumber(value float64) string {
-	if value == float64(int64(value)) {
-		return strconv.FormatInt(int64(value), 10)
-	}
-	return strconv.FormatFloat(value, 'g', -1, 64)
 }
 
 // bigIntRawString returns a bigint param's raw decimal digits (trailing

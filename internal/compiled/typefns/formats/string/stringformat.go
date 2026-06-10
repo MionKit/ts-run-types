@@ -95,13 +95,13 @@ func stringConditions(ctx formats.EmitContext, params map[string]any, vλl strin
 func lengthConditions(params map[string]any, vλl string) []string {
 	var conditions []string
 	if value, ok := readNumberParam(params, "maxLength"); ok {
-		conditions = append(conditions, vλl+".length <= "+formatNumber(value))
+		conditions = append(conditions, vλl+".length <= "+formats.FormatNumber(value))
 	}
 	if value, ok := readNumberParam(params, "minLength"); ok {
-		conditions = append(conditions, vλl+".length >= "+formatNumber(value))
+		conditions = append(conditions, vλl+".length >= "+formats.FormatNumber(value))
 	}
 	if value, ok := readNumberParam(params, "length"); ok {
-		conditions = append(conditions, vλl+".length === "+formatNumber(value))
+		conditions = append(conditions, vλl+".length === "+formats.FormatNumber(value))
 	}
 	return conditions
 }
@@ -185,15 +185,15 @@ func lengthErrorStatements(ctx formats.EmitContext, params map[string]any, vλl,
 	var statements []string
 	if value, ok := readNumberParam(params, "maxLength"); ok {
 		statements = append(statements,
-			"if ("+vλl+".length > "+formatNumber(value)+") "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "maxLength", formatNumber(value)))
+			"if ("+vλl+".length > "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "maxLength", formats.FormatNumber(value)))
 	}
 	if value, ok := readNumberParam(params, "minLength"); ok {
 		statements = append(statements,
-			"if ("+vλl+".length < "+formatNumber(value)+") "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "minLength", formatNumber(value)))
+			"if ("+vλl+".length < "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "minLength", formats.FormatNumber(value)))
 	}
 	if value, ok := readNumberParam(params, "length"); ok {
 		statements = append(statements,
-			"if ("+vλl+".length !== "+formatNumber(value)+") "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "length", formatNumber(value)))
+			"if ("+vλl+".length !== "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "length", formats.FormatNumber(value)))
 	}
 	return statements
 }
@@ -230,27 +230,27 @@ func stringErrorStatements(ctx formats.EmitContext, params map[string]any, vλl,
 	if source, flags, ok := recoverPattern(params); ok {
 		test := emitPatternTest(ctx, source, flags, vλl)
 		statements = append(statements,
-			"if (!("+test+")) "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "pattern", messageLiteral(params, "pattern")))
+			"if (!("+test+")) "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "pattern", messageLiteral(params, "pattern")))
 	}
 	if val, flags, ok := readCharParam(params, "allowedChars"); ok {
 		test := emitPatternTest(ctx, allowedCharsSource(val), flags, vλl)
 		statements = append(statements,
-			"if (!("+test+")) "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "allowedChars", messageLiteral(params, "allowedChars")))
+			"if (!("+test+")) "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "allowedChars", messageLiteral(params, "allowedChars")))
 	}
 	if val, flags, ok := readCharParam(params, "disallowedChars"); ok {
 		test := emitPatternTest(ctx, disallowedCharsSource(val), flags, vλl)
 		statements = append(statements,
-			"if ("+test+") "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "disallowedChars", messageLiteral(params, "disallowedChars")))
+			"if ("+test+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "disallowedChars", messageLiteral(params, "disallowedChars")))
 	}
 	if vals, flags, ok := readValuesParam(params, "allowedValues"); ok {
 		test := emitPatternTest(ctx, valuesSource(vals), flags, vλl)
 		statements = append(statements,
-			"if (!("+test+")) "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "allowedValues", messageLiteral(params, "allowedValues")))
+			"if (!("+test+")) "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "allowedValues", messageLiteral(params, "allowedValues")))
 	}
 	if vals, flags, ok := readValuesParam(params, "disallowedValues"); ok {
 		test := emitPatternTest(ctx, valuesSource(vals), flags, vλl)
 		statements = append(statements,
-			"if ("+test+") "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "disallowedValues", messageLiteral(params, "disallowedValues")))
+			"if ("+test+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "disallowedValues", messageLiteral(params, "disallowedValues")))
 	}
 	return statements
 }
@@ -402,14 +402,4 @@ func readNumberParam(params map[string]any, key string) (float64, bool) {
 		}
 	}
 	return 0, false
-}
-
-// formatNumber stringifies a float64 in the same way JSON does
-// (`1` vs `1.0` both → "1"). Used in the emitted JS source so the
-// validator's bound matches what tsgo saw at type-resolution time.
-func formatNumber(value float64) string {
-	if value == float64(int64(value)) {
-		return strconv.FormatInt(int64(value), 10)
-	}
-	return strconv.FormatFloat(value, 'g', -1, 64)
 }

@@ -67,7 +67,7 @@ func (uuidEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotati
 	aliasKey := pureFnAlias(ctx, "isUUID")
 	call := aliasKey + "(" + vλl + ",{version:" + strconv.Quote(version) + "})"
 	return "if (!(" + call + ")) " +
-		formatErrCall(ctx, pathExpr, errorsArr, "string", "uuid", "version", strconv.Quote(version))
+		formats.FormatErrCall(pathExpr, errorsArr, "string", "uuid", "version", strconv.Quote(version))
 }
 
 // ValidateParams ports mion's UUID validateParams: the version must be

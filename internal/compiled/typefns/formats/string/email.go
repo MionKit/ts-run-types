@@ -100,7 +100,7 @@ func emailErrorsBlockFor(ctx formats.EmitContext, params map[string]any, valExpr
 	}
 	b.WriteString("const atPos = e.lastIndexOf('@');")
 	b.WriteString("if (atPos === -1) " +
-		formatErrCall(ctx, pathExpr, errorsArr, "string", "email", "@", "'Email missing @ symbol'") + ";")
+		formats.FormatErrCall(pathExpr, errorsArr, "string", "email", "@", "'Email missing @ symbol'") + ";")
 	b.WriteString("else {")
 	b.WriteString("const localPart = e.substring(0, atPos);")
 	b.WriteString("const domain = e.substring(atPos + 1);")

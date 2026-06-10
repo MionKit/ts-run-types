@@ -153,7 +153,7 @@ func (e temporalFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Fo
 	for _, bound := range temporalBoundOps {
 		if value, ok := stringParam(annotation.Params, bound.key); ok && value != "" {
 			stmts = append(stmts, "if (!("+e.boundCompare(vλl, value, bound.op)+")) "+
-				formatErrCall(pathExpr, errorsArr, e.info.Builtin, e.info.FormatName, bound.key, strconv.Quote(value)))
+				formats.FormatErrCall(pathExpr, errorsArr, e.info.Builtin, e.info.FormatName, bound.key, strconv.Quote(value)))
 		}
 	}
 	return strings.Join(stmts, ";")
