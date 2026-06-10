@@ -1,9 +1,9 @@
 // format-validation / StringFormat — per-variant it() blocks: every STRING_FORMAT
-// case yields up to 9 it()s (5 validate + 2 getValidationErrors [format + schema] +
-// 2 mockType). The format variant uses the format-payload assertion
-// (assertFormatGetValidationErrorsStatic); the schema variant the value-first contract
-// check (assertGetValidationErrorsSchema). The other 3 getValidationErrors forms aren't
-// exercised by the format-validation suites. Missing thunks → " (not implemented)" suffix.
+// case yields 12 it()s (5 validate + 5 getValidationErrors + 2 mockType). The five
+// getValidationErrors forms are the format payload across static / reflect /
+// deserialize-static / deserialize-reflect (assertFormatGetValidationErrors*, proving
+// the format error survives every type-resolution path) plus the value-first schema
+// contract (assertGetValidationErrorsSchema). Missing thunks → " (not implemented)" suffix.
 import {describe, it} from 'vitest';
 import {STRING_FORMAT} from './StringFormat.ts';
 import {
@@ -13,6 +13,9 @@ import {
   assertValidateDeserializeReflect,
   assertValidateSchema,
   assertFormatGetValidationErrorsStatic,
+  assertFormatGetValidationErrorsReflect,
+  assertFormatGetValidationErrorsDeserializeStatic,
+  assertFormatGetValidationErrorsDeserializeReflect,
   assertGetValidationErrorsSchema,
   assertMockTypeStatic,
   assertMockTypeReflect,
@@ -28,6 +31,9 @@ describe('format-validation / StringFormat', () => {
     it(titleFor(c, 'validate/schema'), () => assertValidateSchema(c));
 
     it(titleFor(c, 'getValidationErrors/format'), () => assertFormatGetValidationErrorsStatic(c));
+    it(titleFor(c, 'getValidationErrors/reflect'), () => assertFormatGetValidationErrorsReflect(c));
+    it(titleFor(c, 'getValidationErrors/deserialize-static'), () => assertFormatGetValidationErrorsDeserializeStatic(c));
+    it(titleFor(c, 'getValidationErrors/deserialize-reflect'), () => assertFormatGetValidationErrorsDeserializeReflect(c));
     it(titleFor(c, 'getValidationErrors/schema'), () => assertGetValidationErrorsSchema(c));
 
     it(titleFor(c, 'mockType/static'), () => assertMockTypeStatic(c));

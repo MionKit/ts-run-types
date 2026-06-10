@@ -1,14 +1,14 @@
-// Reflect-form thunks author a value of the (now transparent) format type — a
-// trivial `0n` suffices, since the value only drives `T` inference and is
-// discarded at runtime. The getValidationErrors reflect/deserialize forms are
-// `'not-supported'`: the format-validation runner exercises getValidationErrors
-// ONLY via the format-payload (`getValidationErrors/format`) and schema variants
-// (no exact-error table), so those call shapes add no format-specific coverage and
-// aren't registered — the sentinel keeps the required-thunk contract explicit.
+// Reflect-form thunks author a REAL example value of the (now transparent) format
+// type — the case's first valid sample (e.g. 100n, 9, 'john@example.com'). The value
+// only drives `T` inference and is discarded at runtime, but a realistic literal keeps
+// these snippets self-explanatory and safe to lift into docs. Every form is exercised:
+// validate + getValidationErrors (static / reflect / deserialize-static /
+// deserialize-reflect) + mockType; the getValidationErrors format-payload forms assert
+// the exact format error survives every resolution path.
 import type {FormatValidationCase} from './types.ts';
 import '@mionjs/ts-go-run-types/formats';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
-import {deserializeValidate} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {FormatBigInt, FormatBigInt64, FormatBigUInt64} from '@mionjs/ts-go-run-types/formats';
 
@@ -17,19 +17,25 @@ export const BIGINT_FORMAT = {
     title: 'FormatBigInt<{max: 100n}> — inclusive upper bound',
     validate: () => createValidate<FormatBigInt<{max: 100n}>>(),
     validateReflect: () => {
-      const v: FormatBigInt<{max: 100n}> = 0n;
+      const v: FormatBigInt<{max: 100n}> = 100n;
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatBigInt<{max: 100n}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatBigInt<{max: 100n}> = 0n;
+      const v: FormatBigInt<{max: 100n}> = 100n;
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatBigInt<{max: 100n}> = 100n;
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatBigInt<{max: 100n}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatBigInt<{max: 100n}> = 100n;
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatBigInt<{max: 100n}> = 0n;
+      const v: FormatBigInt<{max: 100n}> = 100n;
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatBigInt<{max: 100n}>>>(),
@@ -53,9 +59,15 @@ export const BIGINT_FORMAT = {
       const v: FormatBigInt<{min: 0n}> = 0n;
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatBigInt<{min: 0n}> = 0n;
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatBigInt<{min: 0n}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatBigInt<{min: 0n}> = 0n;
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
       const v: FormatBigInt<{min: 0n}> = 0n;
       return createMockType(v);
@@ -73,19 +85,25 @@ export const BIGINT_FORMAT = {
     title: 'FormatBigInt<{lt: 10n}> — exclusive upper bound',
     validate: () => createValidate<FormatBigInt<{lt: 10n}>>(),
     validateReflect: () => {
-      const v: FormatBigInt<{lt: 10n}> = 0n;
+      const v: FormatBigInt<{lt: 10n}> = 9n;
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatBigInt<{lt: 10n}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatBigInt<{lt: 10n}> = 0n;
+      const v: FormatBigInt<{lt: 10n}> = 9n;
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatBigInt<{lt: 10n}> = 9n;
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatBigInt<{lt: 10n}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatBigInt<{lt: 10n}> = 9n;
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatBigInt<{lt: 10n}> = 0n;
+      const v: FormatBigInt<{lt: 10n}> = 9n;
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatBigInt<{lt: 10n}>>>(),
@@ -104,19 +122,25 @@ export const BIGINT_FORMAT = {
     title: 'FormatBigInt<{gt: 0n}> — exclusive lower bound',
     validate: () => createValidate<FormatBigInt<{gt: 0n}>>(),
     validateReflect: () => {
-      const v: FormatBigInt<{gt: 0n}> = 0n;
+      const v: FormatBigInt<{gt: 0n}> = 1n;
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatBigInt<{gt: 0n}>>(),
     deserializeValidateReflect: () => {
-      const v: FormatBigInt<{gt: 0n}> = 0n;
+      const v: FormatBigInt<{gt: 0n}> = 1n;
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatBigInt<{gt: 0n}> = 1n;
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatBigInt<{gt: 0n}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatBigInt<{gt: 0n}> = 1n;
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatBigInt<{gt: 0n}> = 0n;
+      const v: FormatBigInt<{gt: 0n}> = 1n;
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatBigInt<{gt: 0n}>>>(),
@@ -143,9 +167,15 @@ export const BIGINT_FORMAT = {
       const v: FormatBigInt<{multipleOf: 5n}> = 0n;
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatBigInt<{multipleOf: 5n}> = 0n;
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatBigInt<{multipleOf: 5n}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatBigInt<{multipleOf: 5n}> = 0n;
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
       const v: FormatBigInt<{multipleOf: 5n}> = 0n;
       return createMockType(v);
@@ -174,9 +204,15 @@ export const BIGINT_FORMAT = {
       const v: FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}> = 0n;
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}> = 0n;
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}> = 0n;
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
       const v: FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}> = 0n;
       return createMockType(v);
@@ -199,19 +235,25 @@ export const BIGINT_FORMAT = {
     title: 'FormatBigInt64 — full signed 64-bit range',
     validate: () => createValidate<FormatBigInt64>(),
     validateReflect: () => {
-      const v: FormatBigInt64 = 0n;
+      const v: FormatBigInt64 = -9223372036854775808n;
       return createValidate(v);
     },
     deserializeValidate: () => deserializeValidate<FormatBigInt64>(),
     deserializeValidateReflect: () => {
-      const v: FormatBigInt64 = 0n;
+      const v: FormatBigInt64 = -9223372036854775808n;
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatBigInt64 = -9223372036854775808n;
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatBigInt64>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatBigInt64 = -9223372036854775808n;
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
-      const v: FormatBigInt64 = 0n;
+      const v: FormatBigInt64 = -9223372036854775808n;
       return createMockType(v);
     },
     validateDataOnly: () => createValidate<DataOnly<FormatBigInt64>>(),
@@ -241,9 +283,15 @@ export const BIGINT_FORMAT = {
       const v: FormatBigUInt64 = 0n;
       return deserializeValidate(v);
     },
-    getValidationErrorsReflect: 'not-supported',
-    deserializeGetValidationErrors: 'not-supported',
-    deserializeGetValidationErrorsReflect: 'not-supported',
+    getValidationErrorsReflect: () => {
+      const v: FormatBigUInt64 = 0n;
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<FormatBigUInt64>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: FormatBigUInt64 = 0n;
+      return deserializeGetValidationErrors(v);
+    },
     mockTypeReflect: () => {
       const v: FormatBigUInt64 = 0n;
       return createMockType(v);
