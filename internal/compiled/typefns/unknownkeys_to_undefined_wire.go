@@ -27,7 +27,7 @@ func (UnknownKeysToUndefinedWireEmitter) Args() []ArgSpec {
 }
 
 func (UnknownKeysToUndefinedWireEmitter) Supports(rt *protocol.RunType) bool {
-	return UnknownKeysToUndefinedEmitter{}.Supports(rt)
+	return unknownKeysSupports(rt)
 }
 
 func (UnknownKeysToUndefinedWireEmitter) IsRTInlined(ctx *InlineContext) bool {
