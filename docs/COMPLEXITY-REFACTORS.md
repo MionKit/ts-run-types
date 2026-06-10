@@ -180,3 +180,23 @@ Kept as-is: per-format `ValidateParams` bodies (mion parity, including the numbe
 falsy-zero quirks); datetime's bound readers (string-duration domain, not numeric params);
 comptimeargs' same-module-only const policy vs typeid's import-alias-following recovery
 (different policy by design — the walk is shared, the symbol resolution differs).
+
+## Pass 4 — comptime-literal resolution centralized in `internal/comptimeargs`
+
+`internal/comptimeargs` is now the single module for ALL comptime-literal work — the
+validation side (CheckLiteral / CheckLiteralFunction / ResolveLiteralString, forbidden
+JS constructs), the ref-resolution side (UnwrapWrappers, EachConstVariableDeclaration,
+resolveConstInitializer same-module policy, ResolveImportAlias cross-module hop,
+DepthCap), and the value-extraction side (values.go: StringLiteralValue,
+StringArrayLiteralValue, TraceRegexpLiteral, SplitRegexpLiteralText). typeid's
+format-param recovery dropped its four local copies (one was missing `satisfies`, one
+was a third const-walk, one a literal "Copy of scan.go's" comment); the resolver's
+options/strategy extraction (CompTimeFnArgs values) now unwraps through the same helper
+its validation uses — fixing `{noLiterals: true} as const` being validated but silently
+not extracted (pinned by TestResolver_ValidateOptions_AsConstExtracted).
+
+Remaining intentional split: the type-channel readers (`literalParamsFromType` /
+`literalValueFromType` in typeid/formats.go) convert literal *checker.Types* — not AST —
+and stay with the structural-id machinery; purefns' factory-local symbol table hop
+(deps.go) is factory-scoped by nature and already falls back to
+comptimeargs.ResolveLiteralString.
