@@ -1,4 +1,4 @@
-import type {ResolverClient} from './resolver-client.ts';
+import type {SiteScanner} from './scan-batcher.ts';
 import type {Replacement, Site} from './protocol.ts';
 
 // Rewritten carries the patched source + the sites and replacements
@@ -28,7 +28,7 @@ export interface Rewritten {
 // internally indexes its source files by byte), so we operate on a
 // Buffer rather than a JS string — UTF-16 code-unit math would skew on
 // any multibyte char like an em-dash in a comment.
-export async function rewrite(file: string, code: string, resolver: ResolverClient): Promise<Rewritten> {
+export async function rewrite(file: string, code: string, resolver: SiteScanner): Promise<Rewritten> {
   const result = await resolver.scanFiles([file]);
   const sites = result.sites;
   const replacements = result.replacements ?? [];
