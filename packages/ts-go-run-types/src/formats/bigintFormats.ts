@@ -37,9 +37,9 @@ export type FormatBigInt<P extends BigIntParams = {}, BrandName extends string =
 // Default bigint formats — ported from mion's defaultBigNumberFormats.ts.
 // FormatBigInt64 / FormatBigUInt64 SET the min/max that select the 8-byte
 // binary packing; the others fall back to decimal-string serialization.
-export type FormatBigPositive = FormatBigInt<{min: 0n}, 'bigPositive'>;
-export type FormatBigNegative = FormatBigInt<{max: 0n}, 'bigNegative'>;
-export type FormatBigPositiveInt = FormatBigInt<{min: 0n; multipleOf: 1n}, 'bigPositiveInt'>;
-export type FormatBigNegativeInt = FormatBigInt<{max: 0n; multipleOf: 1n}, 'bigNegativeInt'>;
-export type FormatBigInt64 = FormatBigInt<{min: -9223372036854775808n; max: 9223372036854775807n}, 'bigInt64'>;
-export type FormatBigUInt64 = FormatBigInt<{min: 0n; max: 18446744073709551615n}, 'bigUInt64'>;
+export type FormatBigPositive = FormatBigInt<{min: 0n}>;
+export type FormatBigNegative = FormatBigInt<{max: 0n}>;
+export type FormatBigPositiveInt = FormatBigInt<{min: 0n; multipleOf: 1n}>;
+export type FormatBigNegativeInt = FormatBigInt<{max: 0n; multipleOf: 1n}>;
+export type FormatBigInt64 = FormatBigInt<{min: -9223372036854775808n; max: 9223372036854775807n}>;
+export type FormatBigUInt64 = FormatBigInt<{min: 0n; max: 18446744073709551615n}>;

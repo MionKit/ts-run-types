@@ -167,8 +167,8 @@ export type FormatCapitalize<P extends StringParams = {}> = FormatString<P & {ca
 export interface FormatParams_UUID {
   version: '4' | '7';
 }
-export type FormatUUIDv4 = TypeFormat<string, 'uuid', {version: '4'}, 'uuid'>;
-export type FormatUUIDv7 = TypeFormat<string, 'uuid', {version: '7'}, 'uuid'>;
+export type FormatUUIDv4 = TypeFormat<string, 'uuid', {version: '4'}, never>;
+export type FormatUUIDv7 = TypeFormat<string, 'uuid', {version: '7'}, never>;
 
 // ──────────────────── Date / Time / DateTime ────────────────────────
 //
@@ -186,7 +186,7 @@ export interface FormatParams_IP {
   allowPort?: boolean;
 }
 type DEFAULT_IP_PARAMS = {version: 'any'; allowLocalHost: true};
-export type FormatIP<P extends FormatParams_IP = DEFAULT_IP_PARAMS> = TypeFormat<string, 'ip', P, 'ip'>;
+export type FormatIP<P extends FormatParams_IP = DEFAULT_IP_PARAMS> = TypeFormat<string, 'ip', P, never>;
 export type FormatIPv4 = FormatIP<{version: 4; allowLocalHost: true}>;
 export type FormatIPv6 = FormatIP<{version: 6; allowLocalHost: true}>;
 export type FormatIPWithPort = FormatIP<{version: 'any'; allowLocalHost: true; allowPort: true}>;
@@ -219,18 +219,18 @@ export interface FormatParams_Domain {
   tld?: DomainPartParams;
 }
 
-export type FormatDomain = TypeFormat<string, 'domain', {pattern: typeof DOMAIN_PATTERN; maxLength: 253; minLength: 5}, 'domain'>;
+export type FormatDomain = TypeFormat<string, 'domain', {pattern: typeof DOMAIN_PATTERN; maxLength: 253; minLength: 5}, never>;
 export type FormatDomainUnicode = TypeFormat<
   string,
   'domain',
   {pattern: typeof DOMAIN_UNICODE_PATTERN; maxLength: 253; minLength: 5},
-  'domain'
+  never
 >;
 export type FormatDomainPunycode = TypeFormat<
   string,
   'domain',
   {pattern: typeof DOMAIN_PUNYCODE_PATTERN; maxLength: 253; minLength: 5},
-  'domain'
+  never
 >;
 
 export type DEFAULT_STRICT_DOMAIN_PARAMS = {
@@ -243,7 +243,7 @@ export type DEFAULT_STRICT_DOMAIN_PARAMS = {
 };
 // FormatDomainStrict — ≤6 labels, ≥2 parts, no hyphen-edge labels,
 // alphabetical tld.
-export type FormatDomainStrict = TypeFormat<string, 'domain', DEFAULT_STRICT_DOMAIN_PARAMS, 'domain'>;
+export type FormatDomainStrict = TypeFormat<string, 'domain', DEFAULT_STRICT_DOMAIN_PARAMS, never>;
 
 // ─────────────────────────────── Email ──────────────────────────────
 
@@ -257,12 +257,12 @@ export interface FormatParams_Email {
   domain?: FormatParams_Domain;
 }
 
-export type FormatEmail = TypeFormat<string, 'email', {pattern: typeof EMAIL_PATTERN; maxLength: 254; minLength: 7}, 'email'>;
+export type FormatEmail = TypeFormat<string, 'email', {pattern: typeof EMAIL_PATTERN; maxLength: 254; minLength: 7}, never>;
 export type FormatEmailPunycode = TypeFormat<
   string,
   'email',
   {pattern: typeof EMAIL_PUNYCODE_PATTERN; maxLength: 254; minLength: 7},
-  'email'
+  never
 >;
 
 export type DEFAULT_STRICT_EMAIL_PARAMS = {
@@ -280,7 +280,7 @@ export type DEFAULT_STRICT_EMAIL_PARAMS = {
 };
 // FormatEmailStrict — split on the last '@'; local part rejects spaces /
 // brackets / aliasing chars; domain validated strictly.
-export type FormatEmailStrict = TypeFormat<string, 'email', DEFAULT_STRICT_EMAIL_PARAMS, 'email'>;
+export type FormatEmailStrict = TypeFormat<string, 'email', DEFAULT_STRICT_EMAIL_PARAMS, never>;
 
 // ──────────────────────────────── URL ───────────────────────────────
 
@@ -289,6 +289,6 @@ export interface FormatParams_Url {
   mockSamples?: readonly string[];
 }
 
-export type FormatUrl = TypeFormat<string, 'url', {pattern: typeof URL_PATTERN; maxLength: 2048}, 'url'>;
-export type FormatUrlHttp = TypeFormat<string, 'url', {pattern: typeof URL_HTTP_PATTERN; maxLength: 2048}, 'url'>;
-export type FormatUrlFile = TypeFormat<string, 'url', {pattern: typeof URL_FILE_PATTERN; maxLength: 2048}, 'url'>;
+export type FormatUrl = TypeFormat<string, 'url', {pattern: typeof URL_PATTERN; maxLength: 2048}, never>;
+export type FormatUrlHttp = TypeFormat<string, 'url', {pattern: typeof URL_HTTP_PATTERN; maxLength: 2048}, never>;
+export type FormatUrlFile = TypeFormat<string, 'url', {pattern: typeof URL_FILE_PATTERN; maxLength: 2048}, never>;
