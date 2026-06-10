@@ -791,7 +791,10 @@ export const ATOMIC = {
 
   regexp: {
     title: 'RegExp instance',
-    validateNotes: 'Must be an actual RegExp instance (`instanceof RegExp`). A string like `"/abc/"` does NOT satisfy.',
+    validateNotes: [
+      'Must be an actual RegExp instance (`instanceof RegExp`). A string like `"/abc/"` does NOT satisfy.',
+      'The getValidationErrors and mockType REFLECT forms are not supported: a reflect value `const v: RegExp = /abc/` narrows to the literal-regex type `/abc/`, dispatching to the regexp-literal arm — getValidationErrors would then report `expected: "literal"` instead of `"regexp"`, and mockType would resolve a regexp-literal runtype. The validate reflect forms survive because the validator body coincides on the samples; only the kindname-reporting paths diverge.',
+    ],
     validate: () => createValidate<RegExp>(),
     validateDataOnly: () => createValidate<DataOnly<RegExp>>(),
     validateSchema: () => createValidate(RT.regexp()),
@@ -808,19 +811,13 @@ export const ATOMIC = {
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<RegExp>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.regexp()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<RegExp>(),
-    // Reflect thunks omitted: `const v: RegExp = /abc/` narrows to the
-    // literal-regex type T = /abc/, which produces `expected: 'literal'`
-    // instead of `'regexp'` and diverges from the static form. The
-    // validate validator's body coincides for valid + invalid samples
-    // so validate tests pass; validationErrors reports the kindname directly
-    // and the divergence surfaces. Cases that DON'T narrow (Date,
-    // symbol(...)) keep their reflect form.
-    // Reflect thunks omitted for the same narrowing reason as getValidationErrors
-    // above — `const v: RegExp = /abc/` narrows to the literal-regex type
-    // and would dispatch to the regexp-literal arm instead.
+    // Reflect forms for the kindname-reporting paths are deliberately opted out
+    // (see validateNotes): `const v: RegExp = /abc/` narrows to the literal-regex
+    // type and dispatches to the regexp-literal arm, diverging from the static form.
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
     mockType: () => createMockType<RegExp>(),
-    // mockTypeReflect omitted for the same narrowing reason — would
-    // resolve to a regexp-literal runtype.
+    mockTypeReflect: 'not-supported',
     getSamples: () => ({
       valid: [/abc/, new RegExp('abc')],
       invalid: [undefined, 42, 'hello', null, '/abc/', {}],
