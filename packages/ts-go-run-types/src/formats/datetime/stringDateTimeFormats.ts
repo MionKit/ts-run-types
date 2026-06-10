@@ -28,7 +28,7 @@ export interface FormatParams_Date extends MinMax<DateBound> {
   format: DateFmt;
 }
 export type DEFAULT_DATE_PARAMS = {format: 'ISO'};
-export type FormatStringDate<P extends Partial<FormatParams_Date> = DEFAULT_DATE_PARAMS> = TypeFormat<string, 'date', P, 'date'>;
+export type FormatStringDate<P extends Partial<FormatParams_Date> = DEFAULT_DATE_PARAMS> = TypeFormat<string, 'date', P, never>;
 
 // ─────────────────────────────── Time ───────────────────────────────
 
@@ -45,7 +45,7 @@ export type FormatStringTime<P extends Partial<FormatParams_Time> = DEFAULT_TIME
   string,
   'time',
   P,
-  'time'
+  never
 >;
 
 // ───────────────────────────── DateTime ─────────────────────────────
@@ -70,5 +70,5 @@ export type FormatStringDateTime<P extends Partial<FormatParams_DateTime> = DEFA
   string,
   'dateTime',
   P,
-  'dateTime'
+  never
 >;

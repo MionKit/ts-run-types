@@ -40,15 +40,15 @@ export type FormatNumber<P extends NumberParams = {}, BrandName extends string =
 // Default number formats — ported from mion's defaultNumberFormats.ts.
 // The fixed-width int formats SET the min/max that drive the binary
 // packing optimization (FormatInt8 → 1 byte, FormatUInt16 → 2 bytes, …).
-export type FormatInteger = FormatNumber<{integer: true}, 'integer'>;
-export type FormatFloat = FormatNumber<{float: true}, 'float'>;
-export type FormatPositive = FormatNumber<{min: 0}, 'positive'>;
-export type FormatNegative = FormatNumber<{max: 0}, 'negative'>;
-export type FormatPositiveInt = FormatNumber<{min: 0; integer: true}, 'positiveInt'>;
-export type FormatNegativeInt = FormatNumber<{max: 0; integer: true}, 'negativeInt'>;
-export type FormatInt8 = FormatNumber<{integer: true; min: -128; max: 127}, 'int8'>;
-export type FormatInt16 = FormatNumber<{integer: true; min: -32768; max: 32767}, 'int16'>;
-export type FormatInt32 = FormatNumber<{integer: true; min: -2147483648; max: 2147483647}, 'int32'>;
-export type FormatUInt8 = FormatNumber<{integer: true; min: 0; max: 255}, 'uint8'>;
-export type FormatUInt16 = FormatNumber<{integer: true; min: 0; max: 65535}, 'uint16'>;
-export type FormatUInt32 = FormatNumber<{integer: true; min: 0; max: 4294967295}, 'uint32'>;
+export type FormatInteger = FormatNumber<{integer: true}>;
+export type FormatFloat = FormatNumber<{float: true}>;
+export type FormatPositive = FormatNumber<{min: 0}>;
+export type FormatNegative = FormatNumber<{max: 0}>;
+export type FormatPositiveInt = FormatNumber<{min: 0; integer: true}>;
+export type FormatNegativeInt = FormatNumber<{max: 0; integer: true}>;
+export type FormatInt8 = FormatNumber<{integer: true; min: -128; max: 127}>;
+export type FormatInt16 = FormatNumber<{integer: true; min: -32768; max: 32767}>;
+export type FormatInt32 = FormatNumber<{integer: true; min: -2147483648; max: 2147483647}>;
+export type FormatUInt8 = FormatNumber<{integer: true; min: 0; max: 255}>;
+export type FormatUInt16 = FormatNumber<{integer: true; min: 0; max: 65535}>;
+export type FormatUInt32 = FormatNumber<{integer: true; min: 0; max: 4294967295}>;
