@@ -8,6 +8,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/comptimeargs"
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/marker"
+	"github.com/mionkit/ts-run-types/internal/textpos"
 )
 
 // Entry is the in-Go shape that mirrors TS-side `Entry`.
@@ -431,18 +432,7 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 
 // siteFromNode builds a 1-based diag.Site for the node's start/end.
 func siteFromNode(sourceFile *ast.SourceFile, node *ast.Node) diag.Site {
-	if node == nil {
-		return diag.Site{}
-	}
-	startLine, startCol := lineCol(sourceFile, node.Pos())
-	endLine, endCol := lineCol(sourceFile, node.End())
-	return diag.Site{
-		FilePath:  sourceFile.FileName(),
-		StartLine: startLine,
-		StartCol:  startCol,
-		EndLine:   endLine,
-		EndCol:    endCol,
-	}
+	return textpos.NodeSite(sourceFile.FileName(), sourceFile, node)
 }
 
 // siteFromCall is siteFromNode anchored at a CallExpression's callee position
@@ -459,7 +449,7 @@ func siteFromFile(sourceFile *ast.SourceFile, pos int) diag.Site {
 	if sourceFile == nil {
 		return diag.Site{}
 	}
-	line, col := lineCol(sourceFile, pos)
+	line, col := textpos.LineCol(sourceFile, pos)
 	return diag.Site{
 		FilePath:  sourceFile.FileName(),
 		StartLine: line,
@@ -467,24 +457,4 @@ func siteFromFile(sourceFile *ast.SourceFile, pos int) diag.Site {
 		EndLine:   line,
 		EndCol:    col,
 	}
-}
-
-// lineCol returns (1-based line, 1-based column) for byte offset pos.
-// Computed by scanning the source text — straightforward and avoids
-// pulling in the scanner shim for one helper.
-func lineCol(sourceFile *ast.SourceFile, pos int) (int, int) {
-	src := sourceFile.Text()
-	if pos > len(src) {
-		pos = len(src)
-	}
-	line, col := 1, 1
-	for i := 0; i < pos; i++ {
-		if src[i] == '\n' {
-			line++
-			col = 1
-		} else {
-			col++
-		}
-	}
-	return line, col
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-run-types/internal/textpos"
 )
 
 // detectTemporalNotLoaded scans the explicit type-argument syntax of a marker
@@ -47,11 +48,9 @@ func walkTemporalRefs(scanChecker *checker.Checker, file string, node *ast.Node,
 			if refType != nil && checker.Type_flags(refType)&checker.TypeFlagsAny != 0 {
 				sourceFile := ast.GetSourceFileOfNode(node)
 				if sourceFile != nil {
-					startLine, startCol := scanLineCol(sourceFile, node.Pos())
-					endLine, endCol := scanLineCol(sourceFile, node.End())
 					*out = append(*out, diag.New(
 						diag.CodeTemporalNotLoaded,
-						diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
+						textpos.NodeSite(file, sourceFile, node),
 						name,
 					))
 				}
