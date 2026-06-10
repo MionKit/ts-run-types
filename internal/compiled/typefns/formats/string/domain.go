@@ -68,13 +68,13 @@ func (domainEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []str
 	if (hasNames || hasTld) && hasPattern {
 		errs = append(errs, "FormatDomain: cannot combine `pattern` with `names`/`tld`")
 	}
-	if value, ok := readNumberParam(params, "maxLength"); ok && value > 253 {
+	if value, ok := formats.ReadNumberParam(params, "maxLength"); ok && value > 253 {
 		errs = append(errs, "FormatDomain: `maxLength` cannot be greater than 253")
 	}
-	if value, ok := readNumberParam(params, "maxParts"); ok && value < 2 {
+	if value, ok := formats.ReadNumberParam(params, "maxParts"); ok && value < 2 {
 		errs = append(errs, "FormatDomain: `maxParts` cannot be less than 2")
 	}
-	if value, ok := readNumberParam(params, "minParts"); ok && value < 2 {
+	if value, ok := formats.ReadNumberParam(params, "minParts"); ok && value < 2 {
 		errs = append(errs, "FormatDomain: `minParts` cannot be less than 2")
 	}
 	return errs
@@ -130,10 +130,10 @@ func domainValidateExprFor(ctx formats.EmitContext, params map[string]any, valEx
 	}
 	b.WriteString("start = pos + 1; count++;")
 	b.WriteString("}")
-	if maxParts, ok := readNumberParam(params, "maxParts"); ok {
+	if maxParts, ok := formats.ReadNumberParam(params, "maxParts"); ok {
 		b.WriteString("if (count > " + formats.FormatNumber(maxParts) + ") return false;")
 	}
-	if minParts, ok := readNumberParam(params, "minParts"); ok {
+	if minParts, ok := formats.ReadNumberParam(params, "minParts"); ok {
 		b.WriteString("if (count < " + formats.FormatNumber(minParts) + ") return false;")
 	}
 	b.WriteString("const tld = s.substring(start);")
@@ -177,11 +177,11 @@ func domainErrorsBlockFor(ctx formats.EmitContext, params map[string]any, valExp
 	b.WriteString("start = pos + 1; count++;")
 	b.WriteString("}")
 	b.WriteString("count++;")
-	if maxParts, ok := readNumberParam(params, "maxParts"); ok {
+	if maxParts, ok := formats.ReadNumberParam(params, "maxParts"); ok {
 		b.WriteString("if (count > " + formats.FormatNumber(maxParts) + ") " +
 			formats.FormatErrCall(pathExpr, errorsArr, "string", "domain", "maxParts", formats.FormatNumber(maxParts)) + ";")
 	}
-	if minParts, ok := readNumberParam(params, "minParts"); ok {
+	if minParts, ok := formats.ReadNumberParam(params, "minParts"); ok {
 		b.WriteString("if (count < " + formats.FormatNumber(minParts) + ") " +
 			formats.FormatErrCall(pathExpr, errorsArr, "string", "domain", "minParts", formats.FormatNumber(minParts)) + ";")
 	}

@@ -9,6 +9,8 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+
+	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
 )
 
 // 64-bit range bounds for the bigint binary optimization, parsed once.
@@ -26,56 +28,6 @@ func mustBigInt(decimal string) *big.Int {
 	return value
 }
 
-// readNumberParam extracts a numeric param value, UNWRAPPING the
-// `{val, errorMessage, desc}` meta-object shape first (mion's paramVal,
-// utils.ts:12-14). Returns (0, false) when the key is absent or carries a
-// non-numeric value. Accepts float64 (the canonical JSON-decoded form),
-// int variants, and stringified numbers.
-func readNumberParam(params map[string]any, key string) (float64, bool) {
-	raw, ok := params[key]
-	if !ok {
-		return 0, false
-	}
-	if obj, isMap := raw.(map[string]any); isMap {
-		raw = obj["val"]
-	}
-	switch typed := raw.(type) {
-	case float64:
-		return typed, true
-	case float32:
-		return float64(typed), true
-	case int:
-		return float64(typed), true
-	case int32:
-		return float64(typed), true
-	case int64:
-		return float64(typed), true
-	case string:
-		if value, err := strconv.ParseFloat(typed, 64); err == nil {
-			return value, true
-		}
-	}
-	return 0, false
-}
-
-// boolParam reads a boolean param (integer / float), unwrapping the
-// `{val, …}` meta-object. Returns (value, present); present is false when
-// the key is absent or its (unwrapped) value isn't a bool.
-func boolParam(params map[string]any, key string) (value, present bool) {
-	raw, ok := params[key]
-	if !ok {
-		return false, false
-	}
-	if obj, isMap := raw.(map[string]any); isMap {
-		raw = obj["val"]
-	}
-	boolVal, isBool := raw.(bool)
-	if !isBool {
-		return false, false
-	}
-	return boolVal, true
-}
-
 // bigIntRawString returns a bigint param's raw decimal digits (trailing
 // `n` stripped), unwrapping the `{val, …}` meta object. Bigint params
 // arrive as strings via tsgo's TypeToString — typically with a trailing
@@ -86,10 +38,7 @@ func bigIntRawString(params map[string]any, key string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	if obj, isMap := raw.(map[string]any); isMap {
-		raw = obj["val"]
-	}
-	switch typed := raw.(type) {
+	switch typed := formats.ParamVal(raw).(type) {
 	case string:
 		return strings.TrimSuffix(typed, "n"), true
 	case float64:
