@@ -22,7 +22,7 @@ function check(snippet: string, budget: number): number {
   const r = measureSubstituteSelf(snippet);
   expect(r.errors, `snippet should type-check cleanly:\n${snippet}\n→ ${r.errors.join('\n  ')}`).toEqual([]);
   // eslint-disable-next-line no-console
-  console.log(`    net=${String(r.netInstantiations).padStart(4)}  budget=${budget}`);
+  //console.log(`    net=${String(r.netInstantiations).padStart(4)}  budget=${budget}`);
   expect(
     r.netInstantiations,
     `net instantiations (${r.netInstantiations}) exceeded budget (${budget}) — possible SubstituteSelf cost regression`
