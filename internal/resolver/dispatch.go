@@ -104,9 +104,12 @@ var familyRenders = []familyRender{
 		anySupported: typefns.FamilyByKey("fromBinary").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedFromBinary = added }},
 	{kind: protocol.CacheKindFormatTransform,
-		render:       renderFamilyModule("formatTransform"),
-		assign:       func(response *protocol.Response, body string) { response.FormatTransformCacheSource = body },
-		anySupported: typefns.FamilyByKey("formatTransform").AnySupported,
+		render: renderFamilyModule("formatTransform"),
+		assign: func(response *protocol.Response, body string) { response.FormatTransformCacheSource = body },
+		// NOT the registry generic: FormatTransformEmitter.Supports is true for
+		// everything (identity is a valid transform), so the added-flag gates on
+		// an actual value-transforming format instead.
+		anySupported: typefns.AnyFormatTransformSupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedFormatTransform = added }},
 	{kind: protocol.CacheKindValidate,
 		render:       renderValidateModule,
