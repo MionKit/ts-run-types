@@ -6,6 +6,7 @@ import (
 
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/jsquote"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -100,7 +101,7 @@ func namedPatternErrors(ctx formats.EmitContext, annotation *protocol.FormatAnno
 func emitPatternTest(ctx formats.EmitContext, source, flags, vλl string) string {
 	reVar := ctx.NextLocalVar("reFmt")
 	if !ctx.HasContextItem(reVar) {
-		construct := "const " + reVar + " = new RegExp(" + quoteJSDoubleLocal(source) + ", " + quoteJSDoubleLocal(flags) + ")"
+		construct := "const " + reVar + " = new RegExp(" + jsquote.Double(source) + ", " + jsquote.Double(flags) + ")"
 		ctx.SetContextItem(reVar, construct)
 	}
 	return reVar + ".test(" + vλl + ")"
@@ -143,32 +144,4 @@ func re2Pattern(source, flags string) string {
 		return source
 	}
 	return "(?" + inline.String() + ")" + source
-}
-
-// quoteJSDoubleLocal is a package-local copy of typefns.quoteJSDouble —
-// a double-quoted JS string encoder (double quotes keep backslash-dense
-// regex sources readable). Kept here to avoid exporting the typefns
-// helper across the package boundary.
-func quoteJSDoubleLocal(value string) string {
-	var builder strings.Builder
-	builder.Grow(len(value) + 2)
-	builder.WriteByte('"')
-	for _, r := range value {
-		switch r {
-		case '\\':
-			builder.WriteString(`\\`)
-		case '"':
-			builder.WriteString(`\"`)
-		case '\n':
-			builder.WriteString(`\n`)
-		case '\r':
-			builder.WriteString(`\r`)
-		case '\t':
-			builder.WriteString(`\t`)
-		default:
-			builder.WriteRune(r)
-		}
-	}
-	builder.WriteByte('"')
-	return builder.String()
 }

@@ -33,7 +33,7 @@
 | S7 | typefns family files | 14 `XxxModule` + 14 `AnyXxxSupported` thin wrappers (sole callers: resolver, handled in S6) | delete; tests use `FamilyByKey(...)` | −280 | low | landed |
 | S8 | `protocol/protocol.go:654-783` | ~45 repetitive conditional map-sets in `Response.MarshalJSON` | two hand-written closure tables + fill loops (keys NOT derived — wire definition) | −40 | low | landed |
 | E1 | `unknownkeys_{errors:25,has:40,strip:21,to_undefined:20}.go` | 4 `Supports` bodies byte-identical (has differs by 2 comments; wire already delegates) | one shared `unknownKeysSupports`, 5 delegating methods | −135 | low | landed |
-| E2 | `json_prepare.go:348-376` vs `json_restore.go:283-311` | `emitObjectPrepareForJson` ≡ `emitObjectRestoreFromJson` (name-only diff, same package) | single shared func; both emitters call it | −29 | low | pending |
+| E2 | `json_prepare.go:348-376` vs `json_restore.go:283-311` | `emitObjectPrepareForJson` ≡ `emitObjectRestoreFromJson` (name-only diff, same package) | single shared func; both emitters call it | −29 | low | landed |
 | E3 | `typefns/quote.go:14` + `purefns/module.go:109`; `typefns/accessors.go:29` + `formats/string/pattern.go:152` | `quoteJS` ×2 and `quoteJSDouble` ×2 byte-identical cross-package copies (comments admit "copy to avoid cross-package edge") | tiny `internal/jsquote` leaf package; **runtype/module.go:338 `quoteJS` is a different impl (strconv.Quote escaping) — excluded** | −40 | low | landed |
 | E4 | `unknownkeys_errors.go:185` vs `unknownkeys_strip.go:161` | 19-line helper pair, 2 diff lines | fold into `unknownkeys_shared.go` if name-only | −19 | low | landed (with E1) |
 
@@ -98,3 +98,5 @@ switches and the render engine** — reviewed and intentionally kept:
 | S7 | refactor(typefns): drop the per-family Module/AnySupported wrappers | −245 | neutral (wall −0.3%, go −0.9%, alloc +0.1%) |
 | S8 | refactor(protocol): table-driven Response.MarshalJSON | −35 | neutral (wall −0.9%, go −4.7%, alloc +0.2%) |
 | E1+E4 | refactor(typefns): share the unknownkeys Supports gate + tuple recursion | −160 | neutral (wall −1.5%, go −2.3%, alloc +0.2%) |
+| E2 | refactor(typefns): merge the twin JSON object child walks | −31 | neutral (shared bench with E3) |
+| E3 | refactor(jsquote): one canonical JS string-literal quoter | −55 | neutral (wall −1.9%, go −4.9%, alloc +0.2%) |
