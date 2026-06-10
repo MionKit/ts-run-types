@@ -29,7 +29,7 @@ import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 import type {StringParams, StringParamsValueFirst} from '../formats/string/stringFormats.ts';
 import type {NumberParams} from '../formats/numberFormats.ts';
 import type {BigIntParams} from '../formats/bigintFormats.ts';
-import type {LeafType} from './static.ts';
+import type {LeafType, BrandArg} from './static.ts';
 
 // ───────────────────────────── builderResult ────────────────────────
 //
@@ -54,6 +54,28 @@ export function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: un
   return carrier as RunType<T>;
 }
 
+/** Brand tag for the value-first leaf builders — `string({…}, brand('UserId'))`
+ *  opts the leaf INTO a nominal `Format*<P, 'UserId'>` (matching the type-first
+ *  `FormatString<P, 'UserId'>`). The tag is TS-only: the Go scanner reads the
+ *  brand off the reflected `LeafType<…, B>`, NOT off this object, so at runtime
+ *  the builder discards it and resolves the injected id as usual. It rides BEFORE
+ *  the trailing id slot — an object, never confused with the id string. **/
+export function brand<const B extends string>(name: B): BrandArg<B> {
+  return {__rtBrandName: name};
+}
+
+/** Recovers the plugin-injected id from a leaf builder's args. The plugin appends
+ *  the resolved id as the TRAILING argument; the optional params (object) and
+ *  brand (object) slots before it are never strings, so the id is simply the last
+ *  string argument. Before injection (no id arg) there is no string → `undefined`,
+ *  and the builder falls back to the carrier. **/
+export function lastInjectedId(...args: unknown[]): string | undefined {
+  for (let i = args.length - 1; i >= 0; i--) {
+    if (typeof args[i] === 'string') return args[i] as string;
+  }
+  return undefined;
+}
+
 /** Builds a no-param preset builder for a FIXED named format `T` (e.g.
  *  `FormatEmail`, `FormatInt8`). The returned function's only param is the injected
  *  `InjectRunTypeId<T>` brand, so the scanner reflects `T` and the value-first id
@@ -66,21 +88,25 @@ export function presetBuilder<T>(tag: string): (id?: InjectRunTypeId<T>) => RunT
 
 // ───────────────────────────── Leaf builders ────────────────────────
 //
-// Each parameterised leaf builder is TWO overloads: the no-params call returns
-// the PLAIN base type (`RunType<string>`), so a value-first leaf converges on the
-// SAME structural id as the type-first plain type and as a marker-form
-// `createValidate<string>()`; the params-present call returns the branded
-// `RunType<LeafType<…>>`. A single impl discriminates on the first arg — the
-// injected id (a string) lands at slot 0 for the no-params overload, at slot 1
-// for the params-present overload (the Go scanner derives each from the resolved
-// overload's signature). The branded default `P = Record<string, never>` is GONE
-// on purpose: defaulting it re-introduced the brand on `string()` and split the
-// cache (see docs/SCHEMA-FORM-TYPEID-CONVERGENCE.md). The `const` type parameter
-// is the ONLY narrowing mechanism: it keeps `{maxLength: 50}` as `50`, not
-// `number`, so the literal survives into the brand.
+// Each parameterised scalar leaf builder is THREE overloads:
+//   1. no-params       `string()`                 → PLAIN base `RunType<string>`
+//   2. params-only     `string({maxLength: 5})`   → transparent `RunType<FormatString<P>>`
+//   3. params + brand  `string({…}, brand('Id'))` → nominal `RunType<FormatString<P, 'Id'>>`
+// The no-params call converges on the SAME structural id as the type-first plain
+// type and a marker-form `createValidate<string>()`. A single impl resolves the
+// injected id as the TRAILING string arg (`lastInjectedId`): it lands at slot 0
+// (no-params), slot 1 (params), or slot 2 (params + brand), and the Go scanner
+// derives the slot from the resolved overload's signature (trailing param). The
+// brand rides slot 1 as a `BrandArg` OBJECT, so it never collides with the id
+// string. The branded default `P = Record<string, never>` is GONE on purpose:
+// defaulting it re-introduced the brand on `string()` and split the cache (see
+// docs/SCHEMA-FORM-TYPEID-CONVERGENCE.md). The `const` type parameters are the ONLY
+// narrowing mechanism: they keep `{maxLength: 50}` as `50` (not `number`) and the
+// brand `'Id'` as a string literal, so both survive into the reflected type.
 
 /** A string field builder. `string()` → `RunType<string>` (plain, converges with
- *  type-first `string`); `string({maxLength: 5})` → branded `RunType<FormatString<P>>`.
+ *  type-first `string`); `string({maxLength: 5})` → transparent `RunType<FormatString<P>>`;
+ *  `string({maxLength: 5}, brand('UserId'))` → nominal `RunType<FormatString<P, 'UserId'>>`.
  *  Params are `StringParamsValueFirst`: like `StringParams` but `pattern` is the
  *  inline `{source, flags?, mockSamples, …}` literal ONLY — not the opaque
  *  `FormatPattern` value (whose source/flags erase to `string`), so the reflected
@@ -90,36 +116,62 @@ export function string<const P extends StringParamsValueFirst>(
   formatParams: CompTimeArgs<P>,
   id?: InjectRunTypeId<LeafType<'stringFormat', P>>
 ): RunType<LeafType<'stringFormat', P>>;
-export function string(formatParamsOrId?: StringParams | InjectRunTypeId<string>, id?: InjectRunTypeId<string>): RunType<string> {
+export function string<const P extends StringParamsValueFirst, const B extends string>(
+  formatParams: CompTimeArgs<P>,
+  brandTag: BrandArg<B>,
+  id?: InjectRunTypeId<LeafType<'stringFormat', P, B>>
+): RunType<LeafType<'stringFormat', P, B>>;
+export function string(
+  formatParamsOrId?: StringParams | InjectRunTypeId<string>,
+  brandOrId?: BrandArg<string> | InjectRunTypeId<string>,
+  id?: InjectRunTypeId<string>
+): RunType<string> {
   const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
-  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
-  return builderResult(injectedId, {type: 'string', formatParams});
+  return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'string', formatParams});
 }
 
 /** A number field builder. `number()` → `RunType<number>`; `number({min: 0})` →
- *  branded `RunType<FormatNumber<P>>`. **/
+ *  transparent `RunType<FormatNumber<P>>`; `number({min: 0}, brand('Age'))` →
+ *  nominal `RunType<FormatNumber<P, 'Age'>>`. **/
 export function number(id?: InjectRunTypeId<number>): RunType<number>;
 export function number<const P extends NumberParams>(
   formatParams: CompTimeArgs<P>,
   id?: InjectRunTypeId<LeafType<'numberFormat', P>>
 ): RunType<LeafType<'numberFormat', P>>;
-export function number(formatParamsOrId?: NumberParams | InjectRunTypeId<number>, id?: InjectRunTypeId<number>): RunType<number> {
+export function number<const P extends NumberParams, const B extends string>(
+  formatParams: CompTimeArgs<P>,
+  brandTag: BrandArg<B>,
+  id?: InjectRunTypeId<LeafType<'numberFormat', P, B>>
+): RunType<LeafType<'numberFormat', P, B>>;
+export function number(
+  formatParamsOrId?: NumberParams | InjectRunTypeId<number>,
+  brandOrId?: BrandArg<string> | InjectRunTypeId<number>,
+  id?: InjectRunTypeId<number>
+): RunType<number> {
   const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
-  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
-  return builderResult(injectedId, {type: 'number', formatParams});
+  return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'number', formatParams});
 }
 
 /** A bigint field builder. `bigint()` → `RunType<bigint>`; `bigint({min: 0n})` →
- *  branded `RunType<FormatBigInt<P>>`. **/
+ *  transparent `RunType<FormatBigInt<P>>`; `bigint({min: 0n}, brand('Balance'))` →
+ *  nominal `RunType<FormatBigInt<P, 'Balance'>>`. **/
 export function bigint(id?: InjectRunTypeId<bigint>): RunType<bigint>;
 export function bigint<const P extends BigIntParams>(
   formatParams: CompTimeArgs<P>,
   id?: InjectRunTypeId<LeafType<'bigintFormat', P>>
 ): RunType<LeafType<'bigintFormat', P>>;
-export function bigint(formatParamsOrId?: BigIntParams | InjectRunTypeId<bigint>, id?: InjectRunTypeId<bigint>): RunType<bigint> {
+export function bigint<const P extends BigIntParams, const B extends string>(
+  formatParams: CompTimeArgs<P>,
+  brandTag: BrandArg<B>,
+  id?: InjectRunTypeId<LeafType<'bigintFormat', P, B>>
+): RunType<LeafType<'bigintFormat', P, B>>;
+export function bigint(
+  formatParamsOrId?: BigIntParams | InjectRunTypeId<bigint>,
+  brandOrId?: BrandArg<string> | InjectRunTypeId<bigint>,
+  id?: InjectRunTypeId<bigint>
+): RunType<bigint> {
   const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
-  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
-  return builderResult(injectedId, {type: 'bigint', formatParams});
+  return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'bigint', formatParams});
 }
 
 /** A boolean builder — no params, no format brand (kind boolean). Returns

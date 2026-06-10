@@ -21,7 +21,34 @@ import (
 const (
 	formatNameProp   = "__rtFormatName"
 	formatParamsProp = "__rtFormatParams"
+	// formatBrandProp marks the OPTIONAL nominal-brand member of a TypeFormat
+	// (mion's `BrandName` convention): `Base & {sentinels} & {__rtFormatBrand: B}`.
+	// It is a PURE TS-level discriminator — the scanner reads only the two
+	// sentinels above for the FormatAnnotation and ignores the brand — so a
+	// branded format and its unbranded twin must resolve ONE structural id.
+	formatBrandProp = "__rtFormatBrand"
 )
+
+// IsFormatBrandMember reports whether tsType is a pure TypeFormat nominal-brand
+// member — an object whose ONLY property is `__rtFormatBrand`. tsgo keeps the
+// `Base & {sentinels} & {__rtFormatBrand}` intersection as distinct object
+// members; the sentinel member is lifted into the FormatAnnotation, but this
+// brand-only member carries no validation semantics, so both intersection-collapse
+// passes (serialize side + structural-id side) must SKIP it. Leaving it in would
+// decorate the node with a TypeMeta entry / fold a brand id into the structural
+// key — fragmenting the cache so a branded format no longer dedups with its
+// unbranded twin, and shifting the id of every predefined `Format*` whose alias
+// carries a brand name.
+func IsFormatBrandMember(typeChecker *checker.Checker, tsType *checker.Type) bool {
+	if tsType == nil || typeChecker == nil {
+		return false
+	}
+	properties := typeChecker.GetPropertiesOfType(tsType)
+	if len(properties) != 1 {
+		return false
+	}
+	return properties[0].Name == formatBrandProp
+}
 
 // FormatAnnotationFromType inspects an object-literal *checker.Type for the
 // two sentinel properties (formatNameProp / formatParamsProp) and returns

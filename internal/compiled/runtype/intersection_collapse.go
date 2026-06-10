@@ -101,6 +101,12 @@ func (cache *Cache) collapseIntersection(tsType *checker.Type, node *protocol.Ru
 				node.FormatAnnotation = annotation
 				continue
 			}
+			// Pure `{__rtFormatBrand}` nominal-brand member — TS-only, no runtime
+			// footprint; skip it so it doesn't decorate the node (keeping the wire
+			// output + id identical to the unbranded twin). See IsFormatBrandMember.
+			if typeid.IsFormatBrandMember(cache.typeChecker, objectMember) {
+				continue
+			}
 			node.TypeMeta = append(node.TypeMeta, cache.Serialize(objectMember))
 		}
 		return

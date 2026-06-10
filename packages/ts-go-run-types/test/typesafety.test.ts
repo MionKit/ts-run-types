@@ -17,7 +17,7 @@ import {describe, expect, test} from 'vitest';
 import {getRunTypeId, reflectRunTypeId} from '../src/index.ts';
 import type {RunType, Static} from '../src/index.ts';
 import * as RT from '../src/schema/index.ts';
-import type {FormatString, FormatNumber} from '../src/formats/index.ts';
+import type {FormatString, FormatNumber, FormatBigInt, FormatDate} from '../src/formats/index.ts';
 
 // Reference the assertion bodies from a real test so they don't get
 // flagged as dead code by lint. The body is never invoked.
@@ -30,6 +30,7 @@ test('type-only assertions are referenced (no runtime work here)', () => {
   expect(typeof assertionsNewBuilders).toBe('function');
   expect(typeof assertionsComposerExactInference).toBe('function');
   expect(typeof assertionsFormatBranding).toBe('function');
+  expect(typeof assertionsValueFirstBranding).toBe('function');
 });
 
 // Runtime contract: the markers throw at runtime when no id is injected
@@ -370,6 +371,26 @@ function assertionsFormatBranding(): void {
     void _toBase;
   };
   void _brandedFlowsOut;
+
+  // The SAME default-transparent / brand-nominal rule holds for the other base
+  // formats. `FormatDate` is the explicit regression guard: it previously
+  // hardcoded a `'nativeDate'` BrandName arg (dead while TypeFormat ignored
+  // BrandName) that, once BrandName was honored, made every `FormatDate<P>`
+  // spuriously nominal and split it from the transparent value-first `date()`
+  // builder. A plain `Date` / `bigint` must flow into the UNbranded form…
+  const _dateIntoFormat: FormatDate<{max: 'now'}> = new Date();
+  const _formatIntoDate: Date = _dateIntoFormat;
+  const _bigIntoFormat: FormatBigInt<{min: 0n}> = 0n;
+  void _dateIntoFormat;
+  void _formatIntoDate;
+  void _bigIntoFormat;
+  // …and be REJECTED by the brand-named (nominal) form.
+  // @ts-expect-error — a plain Date is not assignable to a BRAND-NAMED date format.
+  const _brandedDate: FormatDate<{max: 'now'}, 'CreatedAt'> = new Date();
+  // @ts-expect-error — a plain bigint is not assignable to a BRAND-NAMED bigint format.
+  const _brandedBig: FormatBigInt<{min: 0n}, 'Balance'> = 0n;
+  void _brandedDate;
+  void _brandedBig;
 }
 
 // Exact (invariant) type equality — `(<T>() => T extends A ? 1 : 2)` paired both
@@ -416,4 +437,78 @@ function assertionsComposerExactInference(): void {
   // array: the simple-generic shape stays exact under the brand.
   const _arr = RT.array(RT.boolean());
   assertExact<Static<typeof _arr>, boolean[]>(true);
+}
+
+// Value-first leaf branding — the `string` / `number` / `bigint` / `date`
+// builders carry the SAME default-transparent / brand-nominal semantics as the
+// type-first `Format*` aliases. `brand(name)` is the opt-in: without it the leaf
+// is transparent; with it the leaf is the nominal `Format*<P, B>`.
+//
+// Asserted by assignability (+ `@ts-expect-error` for the nominal rejections)
+// rather than `assertExact`: the `const P` capture adds a `readonly` modifier to
+// the params, so the value-first `Static<…>` differs from the type-first alias by
+// `readonly` only — id-irrelevant (the scanner canonicalises params), but enough
+// to fail exact equality. Mutual assignability is `readonly`-tolerant and still
+// proves the two authoring paths converge on one interchangeable type; the
+// `@ts-expect-error` lines independently prove the brand is actually applied (a
+// missing brand would make them assignable → an "unused directive" failure).
+function assertionsValueFirstBranding(): void {
+  // DEFAULT (no brand tag) → TRANSPARENT: base value flows in AND out, and the
+  // leaf is mutually assignable with the UNbranded type-first alias (convergence).
+  const codeStr = RT.string({minLength: 1});
+  const _strIn: Static<typeof codeStr> = 'hello';
+  const _strOut: string = _strIn;
+  const _vfToTypeFirst: FormatString<{minLength: 1}> = _strIn; // value-first → type-first
+  const _typeFirstToVf: Static<typeof codeStr> = _vfToTypeFirst; // type-first → value-first
+  void _strIn;
+  void _strOut;
+  void _vfToTypeFirst;
+  void _typeFirstToVf;
+
+  const createdAt = RT.date({max: 'now'});
+  const _dateIn: Static<typeof createdAt> = new Date(); // transparent: plain Date flows in
+  const _dateVfToTf: FormatDate<{max: 'now'}> = _dateIn;
+  const numLeaf = RT.number({min: 0});
+  const bigLeaf = RT.bigint({min: 0n});
+  const _numIn: Static<typeof numLeaf> = 42; // number leaf transparent
+  const _bigIn: Static<typeof bigLeaf> = 0n; // bigint leaf transparent
+  void _dateIn;
+  void _dateVfToTf;
+  void _numIn;
+  void _bigIn;
+
+  // BRANDED (brand tag) → NOMINAL: a bare base value no longer satisfies it (the
+  // REQUIRED `__rtFormatBrand` marker is missing). One `@ts-expect-error` per base
+  // builder proves the tag actually brands the carried type. (Builders bound to a
+  // const first — `typeof` type queries reject inline call expressions.)
+  const userId = RT.string({minLength: 1}, RT.brand('UserId'));
+  const ageBrand = RT.number({min: 0}, RT.brand('Age'));
+  const balanceBrand = RT.bigint({min: 0n}, RT.brand('Balance'));
+  const createdBrand = RT.date({max: 'now'}, RT.brand('CreatedAt'));
+  // @ts-expect-error — nominal: a plain string is not assignable to a branded string leaf.
+  const _brandedStr: Static<typeof userId> = 'hello';
+  // @ts-expect-error — nominal: a plain number is not assignable to a branded number leaf.
+  const _brandedNum: Static<typeof ageBrand> = 42;
+  // @ts-expect-error — nominal: a plain bigint is not assignable to a branded bigint leaf.
+  const _brandedBig: Static<typeof balanceBrand> = 0n;
+  // @ts-expect-error — nominal: a plain Date is not assignable to a branded date leaf.
+  const _brandedDate: Static<typeof createdBrand> = new Date();
+  void _brandedStr;
+  void _brandedNum;
+  void _brandedBig;
+  void _brandedDate;
+
+  // The branded leaf converges with the type-first `Format*<P, 'UserId'>` (mutually
+  // assignable) and still flows OUT to the unbranded form + base (brand = refinement).
+  const _brandFlows = (b: Static<typeof userId>): void => {
+    const _toTypeFirstBranded: FormatString<{minLength: 1}, 'UserId'> = b;
+    const _backToVf: Static<typeof userId> = _toTypeFirstBranded;
+    const _toUnbranded: FormatString<{minLength: 1}> = b;
+    const _toBase: string = b;
+    void _toTypeFirstBranded;
+    void _backToVf;
+    void _toUnbranded;
+    void _toBase;
+  };
+  void _brandFlows;
 }

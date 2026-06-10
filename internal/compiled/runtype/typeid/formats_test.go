@@ -169,6 +169,51 @@ getRunTypeId<Branded>();
 	}
 }
 
+// TestFormatAnnotation_BrandNameIsIdNeutral pins that the optional TypeFormat
+// `BrandName` is a PURE TS-level discriminator: a branded format and its
+// unbranded twin resolve ONE structural id, the brand never lands in TypeMeta,
+// and the FormatAnnotation is identical. The brand NAME itself is irrelevant to
+// the id. Guards the IsFormatBrandMember skip in both intersection-collapse passes
+// — without it the `{__rtFormatBrand}` member fragments the id (a branded format
+// would stop deduping with its unbranded twin, and every predefined `Format*`
+// whose alias carries a brand name would shift id).
+func TestFormatAnnotation_BrandNameIsIdNeutral(t *testing.T) {
+	unbranded := runFormatScan(t, `
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import type {TypeFormat} from '@mionjs/ts-go-run-types';
+type Plain = TypeFormat<string, 'fixture', {maxLength: 10}>;
+getRunTypeId<Plain>();
+`)
+	branded := runFormatScan(t, `
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import type {TypeFormat} from '@mionjs/ts-go-run-types';
+type Branded = TypeFormat<string, 'fixture', {maxLength: 10}, 'MyBrand'>;
+getRunTypeId<Branded>();
+`)
+	if branded.ID != unbranded.ID {
+		t.Fatalf("BrandName must be id-neutral; branded %q != unbranded %q", branded.ID, unbranded.ID)
+	}
+	if len(branded.TypeMeta) != 0 {
+		t.Fatalf("brand member must NOT appear in TypeMeta, got %d entries", len(branded.TypeMeta))
+	}
+	if branded.FormatAnnotation == nil || branded.FormatAnnotation.Name != "fixture" {
+		t.Fatalf("branded format must carry the same FormatAnnotation (name=fixture), got %+v", branded.FormatAnnotation)
+	}
+	if got, ok := branded.FormatAnnotation.Params["maxLength"]; !ok || got != float64(10) {
+		t.Fatalf("branded format params must match unbranded; got maxLength=%v ok=%v", got, ok)
+	}
+	// A DIFFERENT brand name is just as id-neutral — the name never enters the id.
+	otherBrand := runFormatScan(t, `
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import type {TypeFormat} from '@mionjs/ts-go-run-types';
+type Other = TypeFormat<string, 'fixture', {maxLength: 10}, 'OtherBrand'>;
+getRunTypeId<Other>();
+`)
+	if otherBrand.ID != unbranded.ID {
+		t.Fatalf("a different BrandName must also be id-neutral; %q != %q", otherBrand.ID, unbranded.ID)
+	}
+}
+
 func TestFormatAnnotation_StructuralKey_Canonicalises(t *testing.T) {
 	a := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
 		Name:   "fixture",

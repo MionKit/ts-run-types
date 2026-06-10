@@ -10,12 +10,15 @@
 // the atomic leaves (`literal` / `regexp` / `symbol`), the top / bottom kinds
 // (`any` / `unknown` / `never` / `void`; `voidType` aliased as `void` for a
 // natural `RT.void()`), the class-instance builder, and the enum builder
-// (`enumType` aliased as `enum` for a natural `RT.enum(MyEnum)`).
+// (`enumType` aliased as `enum` for a natural `RT.enum(MyEnum)`). `brand(name)` is
+// the nominal-brand tag for the scalar/date leaf builders (`string({…},
+// brand('UserId'))` → `FormatString<P, 'UserId'>`).
 export {
   string,
   number,
   boolean,
   bigint,
+  brand,
   literal,
   regexp,
   symbol,
@@ -135,7 +138,7 @@ export {
 export {bigPositive, bigNegative, bigPositiveInt, bigNegativeInt, bigInt64, bigUInt64} from './bigintFormats.ts';
 
 // Type-level helpers the builders carry (all in static.ts).
-export type {PropModifiers, MapTuple, TemplatePart, AssembleTemplate} from './static.ts';
+export type {PropModifiers, MapTuple, TemplatePart, AssembleTemplate, BrandArg} from './static.ts';
 
 // Populate the run-type registry. The value-first builders resolve live RunType
 // nodes from `runTypesCache` at runtime, so the `/schema` surface must initialise
