@@ -18,15 +18,20 @@ import (
 )
 
 // familyRender bundles one dump-driven cache-family render: the wire kind it
-// answers to, the render wrapper from render.go, and the Response slot the
-// body lands in. Shared by the OpScanFiles (scoped dump) and OpDump (full
-// dump) branches — the only per-op differences are the dump that seeds the
-// render and the want-gate. pureFns is NOT here: it renders from extractor
-// entries, not from a Dump (see the renderPureFnsModule call sites).
+// answers to, the render wrapper, the Response slot the body lands in, and
+// the registry hooks for the per-scan added-flag (nil for runType — its flag
+// is len(added)>0, computed by the caller). Shared by the OpScanFiles (scoped
+// dump) and OpDump (full dump) branches — the only per-op differences are the
+// dump that seeds the render and the want-gate. pureFns is NOT here: it
+// renders from extractor entries, not from a Dump (see the
+// renderPureFnsModule call sites). This table is the resolver-side family
+// enumeration; the typefns side lives in typefns.Families.
 type familyRender struct {
-	kind   protocol.CacheKind
-	render func(dump protocol.Dump, opts typefns.RenderOpts) (string, error)
-	assign func(response *protocol.Response, body string)
+	kind         protocol.CacheKind
+	render       func(dump protocol.Dump, opts typefns.RenderOpts) (string, error)
+	assign       func(response *protocol.Response, body string)
+	anySupported func(runTypes []*protocol.RunType) bool
+	setAdded     func(response *protocol.Response, added bool)
 }
 
 // familyRenders is ordered with validate LAST on purpose: renderValidateModule
@@ -35,37 +40,79 @@ type familyRender struct {
 // validate after every other requested family turns those 13 collection
 // renders into cache hits whenever the family was requested anyway.
 var familyRenders = []familyRender{
-	{protocol.CacheKindRunType,
-		func(dump protocol.Dump, _ typefns.RenderOpts) (string, error) { return renderRunTypesModule(dump) },
-		func(response *protocol.Response, body string) { response.RunTypeCacheSource = body }},
-	{protocol.CacheKindValidationErrors, renderValidationErrorsModule,
-		func(response *protocol.Response, body string) { response.ValidationErrorsCacheSource = body }},
-	{protocol.CacheKindPrepareForJson, renderPrepareForJsonModule,
-		func(response *protocol.Response, body string) { response.PrepareForJsonCacheSource = body }},
-	{protocol.CacheKindRestoreFromJson, renderRestoreFromJsonModule,
-		func(response *protocol.Response, body string) { response.RestoreFromJsonCacheSource = body }},
-	{protocol.CacheKindStringifyJson, renderStringifyJsonModule,
-		func(response *protocol.Response, body string) { response.StringifyJsonCacheSource = body }},
-	{protocol.CacheKindPrepareForJsonSafe, renderPrepareForJsonSafeModule,
-		func(response *protocol.Response, body string) { response.PrepareForJsonSafeCacheSource = body }},
-	{protocol.CacheKindHasUnknownKeys, renderHasUnknownKeysModule,
-		func(response *protocol.Response, body string) { response.HasUnknownKeysCacheSource = body }},
-	{protocol.CacheKindStripUnknownKeys, renderStripUnknownKeysModule,
-		func(response *protocol.Response, body string) { response.StripUnknownKeysCacheSource = body }},
-	{protocol.CacheKindUnknownKeyErrors, renderUnknownKeyErrorsModule,
-		func(response *protocol.Response, body string) { response.UnknownKeyErrorsCacheSource = body }},
-	{protocol.CacheKindUnknownKeysToUndefined, renderUnknownKeysToUndefinedModule,
-		func(response *protocol.Response, body string) { response.UnknownKeysToUndefinedCacheSource = body }},
-	{protocol.CacheKindUnknownKeysToUndefinedWire, renderUnknownKeysToUndefinedWireModule,
-		func(response *protocol.Response, body string) { response.UnknownKeysToUndefinedWireCacheSource = body }},
-	{protocol.CacheKindToBinary, renderToBinaryModule,
-		func(response *protocol.Response, body string) { response.ToBinaryCacheSource = body }},
-	{protocol.CacheKindFromBinary, renderFromBinaryModule,
-		func(response *protocol.Response, body string) { response.FromBinaryCacheSource = body }},
-	{protocol.CacheKindFormatTransform, renderFormatTransformModule,
-		func(response *protocol.Response, body string) { response.FormatTransformCacheSource = body }},
-	{protocol.CacheKindValidate, renderValidateModule,
-		func(response *protocol.Response, body string) { response.ValidateCacheSource = body }},
+	{kind: protocol.CacheKindRunType,
+		render: func(dump protocol.Dump, _ typefns.RenderOpts) (string, error) { return renderRunTypesModule(dump) },
+		assign: func(response *protocol.Response, body string) { response.RunTypeCacheSource = body }},
+	{kind: protocol.CacheKindValidationErrors,
+		render:       renderFamilyModule("validationErrors"),
+		assign:       func(response *protocol.Response, body string) { response.ValidationErrorsCacheSource = body },
+		anySupported: typefns.FamilyByKey("validationErrors").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedValidationErrors = added }},
+	{kind: protocol.CacheKindPrepareForJson,
+		render:       renderPrepareForJsonModule,
+		assign:       func(response *protocol.Response, body string) { response.PrepareForJsonCacheSource = body },
+		anySupported: typefns.FamilyByKey("prepareForJson").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedPrepareForJson = added }},
+	{kind: protocol.CacheKindRestoreFromJson,
+		render:       renderRestoreFromJsonModule,
+		assign:       func(response *protocol.Response, body string) { response.RestoreFromJsonCacheSource = body },
+		anySupported: typefns.FamilyByKey("restoreFromJson").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedRestoreFromJson = added }},
+	{kind: protocol.CacheKindStringifyJson,
+		render:       renderFamilyModule("stringifyJson"),
+		assign:       func(response *protocol.Response, body string) { response.StringifyJsonCacheSource = body },
+		anySupported: typefns.FamilyByKey("stringifyJson").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedStringifyJson = added }},
+	{kind: protocol.CacheKindPrepareForJsonSafe,
+		render:       renderFamilyModule("prepareForJsonSafe"),
+		assign:       func(response *protocol.Response, body string) { response.PrepareForJsonSafeCacheSource = body },
+		anySupported: typefns.FamilyByKey("prepareForJsonSafe").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedPrepareForJsonSafe = added }},
+	{kind: protocol.CacheKindHasUnknownKeys,
+		render:       renderFamilyModule("hasUnknownKeys"),
+		assign:       func(response *protocol.Response, body string) { response.HasUnknownKeysCacheSource = body },
+		anySupported: typefns.FamilyByKey("hasUnknownKeys").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedHasUnknownKeys = added }},
+	{kind: protocol.CacheKindStripUnknownKeys,
+		render:       renderFamilyModule("stripUnknownKeys"),
+		assign:       func(response *protocol.Response, body string) { response.StripUnknownKeysCacheSource = body },
+		anySupported: typefns.FamilyByKey("stripUnknownKeys").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedStripUnknownKeys = added }},
+	{kind: protocol.CacheKindUnknownKeyErrors,
+		render:       renderFamilyModule("unknownKeyErrors"),
+		assign:       func(response *protocol.Response, body string) { response.UnknownKeyErrorsCacheSource = body },
+		anySupported: typefns.FamilyByKey("unknownKeyErrors").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeyErrors = added }},
+	{kind: protocol.CacheKindUnknownKeysToUndefined,
+		render:       renderFamilyModule("unknownKeysToUndefined"),
+		assign:       func(response *protocol.Response, body string) { response.UnknownKeysToUndefinedCacheSource = body },
+		anySupported: typefns.FamilyByKey("unknownKeysToUndefined").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeysToUndefined = added }},
+	{kind: protocol.CacheKindUnknownKeysToUndefinedWire,
+		render:       renderFamilyModule("unknownKeysToUndefinedWire"),
+		assign:       func(response *protocol.Response, body string) { response.UnknownKeysToUndefinedWireCacheSource = body },
+		anySupported: typefns.FamilyByKey("unknownKeysToUndefinedWire").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeysToUndefinedWire = added }},
+	{kind: protocol.CacheKindToBinary,
+		render:       renderFamilyModule("toBinary"),
+		assign:       func(response *protocol.Response, body string) { response.ToBinaryCacheSource = body },
+		anySupported: typefns.FamilyByKey("toBinary").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedToBinary = added }},
+	{kind: protocol.CacheKindFromBinary,
+		render:       renderFamilyModule("fromBinary"),
+		assign:       func(response *protocol.Response, body string) { response.FromBinaryCacheSource = body },
+		anySupported: typefns.FamilyByKey("fromBinary").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedFromBinary = added }},
+	{kind: protocol.CacheKindFormatTransform,
+		render:       renderFamilyModule("formatTransform"),
+		assign:       func(response *protocol.Response, body string) { response.FormatTransformCacheSource = body },
+		anySupported: typefns.FamilyByKey("formatTransform").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedFormatTransform = added }},
+	{kind: protocol.CacheKindValidate,
+		render:       renderValidateModule,
+		assign:       func(response *protocol.Response, body string) { response.ValidateCacheSource = body },
+		anySupported: typefns.FamilyByKey("validate").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedValidate = added }},
 }
 
 // Dispatch routes a request to the correct handler. When the request sets
@@ -293,25 +340,19 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		addedRunTypes := len(added) > 0
 		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
 		response := protocol.Response{
-			Sites:                           sites,
-			Replacements:                    pureFnReplacements,
-			AddedRunTypes:                   addedRunTypes,
-			AddedValidate:                   addedRunTypes && typefns.AnyValidateSupported(added),
-			AddedValidationErrors:           addedRunTypes && typefns.AnyValidationErrorsSupported(added),
-			AddedPrepareForJson:             addedRunTypes && typefns.AnyPrepareForJsonSupported(added),
-			AddedRestoreFromJson:            addedRunTypes && typefns.AnyRestoreFromJsonSupported(added),
-			AddedStringifyJson:              addedRunTypes && typefns.AnyStringifyJsonSupported(added),
-			AddedPrepareForJsonSafe:         addedRunTypes && typefns.AnyPrepareForJsonSafeSupported(added),
-			AddedHasUnknownKeys:             addedRunTypes && typefns.AnyHasUnknownKeysSupported(added),
-			AddedStripUnknownKeys:           addedRunTypes && typefns.AnyStripUnknownKeysSupported(added),
-			AddedUnknownKeyErrors:           addedRunTypes && typefns.AnyUnknownKeyErrorsSupported(added),
-			AddedUnknownKeysToUndefined:     addedRunTypes && typefns.AnyUnknownKeysToUndefinedSupported(added),
-			AddedUnknownKeysToUndefinedWire: addedRunTypes && typefns.AnyUnknownKeysToUndefinedWireSupported(added),
-			AddedToBinary:                   addedRunTypes && typefns.AnyToBinarySupported(added),
-			AddedFromBinary:                 addedRunTypes && typefns.AnyFromBinarySupported(added),
-			AddedFormatTransform:            addedRunTypes && typefns.AnyFormatTransformSupported(added),
-			AddedPureFns:                    addedPureFns,
-			Diagnostics:                     combinedDiagnostics,
+			Sites:         sites,
+			Replacements:  pureFnReplacements,
+			AddedRunTypes: addedRunTypes,
+			AddedPureFns:  addedPureFns,
+			Diagnostics:   combinedDiagnostics,
+		}
+		// Per-family added flags, one shallow Supports pass each (the
+		// addedRunTypes short-circuit skips all passes on no-change scans).
+		for _, family := range familyRenders {
+			if family.setAdded == nil {
+				continue
+			}
+			family.setAdded(&response, addedRunTypes && family.anySupported(added))
 		}
 		// The full added-node payload is attached only when the caller
 		// opted into type payloads — the Vite plugin and the bench client
