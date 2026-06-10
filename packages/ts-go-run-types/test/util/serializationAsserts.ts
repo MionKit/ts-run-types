@@ -203,16 +203,20 @@ export function assertDirectStripRoundTrip(c: SerializationCase): void {
  *  `deserializedValues` override when the round-trip is asymmetric).
  *  Requires `binaryEncoder` + `binaryDecoder` thunks to be present. **/
 export function assertBinaryRoundTrip(c: SerializationCase): void {
+  const encThunk = resolveSchemaThunk(c.binaryEncoder);
+  const decThunk = resolveSchemaThunk(c.binaryDecoder);
+  if (!encThunk || !decThunk) return; // 'not-supported' → binary opted out for this case
+
   const factoryThrows = c.binaryFactoryThrows ?? c.factoryThrows ?? false;
   if (factoryThrows) {
-    expect(() => c.binaryEncoder!(), `${c.title}: binaryEncoder factory must throw`).toThrow();
-    expect(() => c.binaryDecoder!(), `${c.title}: binaryDecoder factory must throw`).toThrow();
+    expect(() => encThunk(), `${c.title}: binaryEncoder factory must throw`).toThrow();
+    expect(() => decThunk(), `${c.title}: binaryDecoder factory must throw`).toThrow();
     return;
   }
 
   const bestEffort = c.roundTripBestEffort ?? false;
-  const encode = c.binaryEncoder!();
-  const decode = c.binaryDecoder!();
+  const encode = encThunk();
+  const decode = decThunk();
   const testDataThunk = c.getBinaryTestData ?? c.getTestDataForStringify ?? c.getTestData;
   const {values, deserializedValues} = testDataThunk();
   const byteSizes = c.getBinaryByteSizes?.();

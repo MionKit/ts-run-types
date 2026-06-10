@@ -26,7 +26,15 @@ export type Thunk<T> = (() => T) | 'not-supported';
 type AnyValidateFn = (value: unknown) => boolean;
 type ValidateThunk = Thunk<AnyValidateFn>;
 
-/** One atomic-type case in the shared suite. */
+/** One atomic-type case in the shared suite.
+ *
+ *  HARDENING CONTRACT: every testing-function thunk below is REQUIRED — a case
+ *  must declare each one as either a real thunk OR the `'not-supported'`
+ *  sentinel (the variant is then a documented opt-out; explain the reason in
+ *  `validateNotes`). This guarantees every `createX` form is consciously
+ *  accounted for per case rather than silently missing. Only non-thunk metadata
+ *  (`description`, `validateNotes`, `getExpectedErrors`, `mockTypeExpect`, and
+ *  the divergence/throw flags) stays optional. */
 export interface ValidationCase {
   title: string;
   description?: string;
@@ -42,22 +50,22 @@ export interface ValidationCase {
   validateNotes?: string | string[];
   /** Plugin-rewritten thunk returning the validate validator — STATIC
    *  form. Caller supplies `T` explicitly via the type argument. */
-  validate?: ValidateThunk;
+  validate: ValidateThunk;
   /** Plugin-rewritten thunk returning the validate validator — REFLECT
    *  form. Calls `createValidate(value)` with a runtime value annotated
    *  to type T; the type checker infers T from the annotation, the
    *  value itself is discarded at runtime. Paired with `validate` per
    *  the CLAUDE.md "Marker test coverage rule" to verify both call
    *  shapes produce the same validator end-to-end. **/
-  validateReflect?: ValidateThunk;
+  validateReflect: ValidateThunk;
   /** Plugin-rewritten thunk returning the validator rebuilt from the
    *  serialized `RTCompiledFnData.code` body via
    *  `new Function('utl', code)(rtUtils)` — exercises the
    *  serialize → deserialize round-trip the over-the-wire cache uses.
    *  Same call shape as `validate` (static form). **/
-  deserializeValidate?: ValidateThunk;
+  deserializeValidate: ValidateThunk;
   /** Reflect-form companion to `deserializeValidate`. **/
-  deserializeValidateReflect?: ValidateThunk;
+  deserializeValidateReflect: ValidateThunk;
   /** DATA-ONLY form: `() => createValidate<DataOnly<T>>()` — the SAME `T` as
    *  `validate`, wrapped in `DataOnly<…>`. Proves the `DataOnly` type mapping
    *  drops exactly what the AOT validator emitter drops: a `DataOnly<T>` call
@@ -67,7 +75,7 @@ export interface ValidationCase {
    *  literal call site (NOT behind a generic helper) — the plugin resolves the
    *  type argument where it is written. Set `dataOnlyDivergent` for the
    *  root-level non-data kinds whose ids cannot converge. **/
-  validateDataOnly?: ValidateThunk;
+  validateDataOnly: ValidateThunk;
   /** SCHEMA form: `() => createValidate(<value-first builder schema>)`. Builds
    *  the validator from a `define` builder result (a `RunType` value) instead of
    *  reflecting a type — the value-first authoring path. Run against the same
@@ -81,22 +89,22 @@ export interface ValidationCase {
    *  STATIC form. Caller supplies `T` explicitly. Same dispatch and
    *  caching as `validate` but the validator returns `RunTypeError[]`
    *  instead of a boolean (matches mion's `RTFunctions.validationErrors`). */
-  getValidationErrors?: Thunk<GetValidationErrorsFn>;
+  getValidationErrors: Thunk<GetValidationErrorsFn>;
   /** Plugin-rewritten thunk returning the getValidationErrors validator —
    *  REFLECT form. `T` inferred from a runtime value's declared type. */
-  getValidationErrorsReflect?: Thunk<GetValidationErrorsFn>;
+  getValidationErrorsReflect: Thunk<GetValidationErrorsFn>;
   /** Plugin-rewritten thunk returning the getValidationErrors validator
    *  rebuilt from the serialized `RTCompiledFnData.code` body via
    *  `new Function('utl', code)(rtUtils)` — exercises the
    *  serialize → deserialize round-trip the over-the-wire cache uses.
    *  Same call shape as `getValidationErrors` (static form). */
-  deserializeGetValidationErrors?: Thunk<GetValidationErrorsFn>;
+  deserializeGetValidationErrors: Thunk<GetValidationErrorsFn>;
   /** Reflect-form companion to `deserializeGetValidationErrors`. */
-  deserializeGetValidationErrorsReflect?: Thunk<GetValidationErrorsFn>;
+  deserializeGetValidationErrorsReflect: Thunk<GetValidationErrorsFn>;
   /** DATA-ONLY form: `() => createGetValidationErrors<DataOnly<T>>()`. Companion to
    *  `validateDataOnly` for the getValidationErrors family — must resolve the SAME
    *  cached factory as the bare-`T` `getValidationErrors` thunk. **/
-  getValidationErrorsDataOnly?: Thunk<GetValidationErrorsFn>;
+  getValidationErrorsDataOnly: Thunk<GetValidationErrorsFn>;
   /** SCHEMA form: `() => createGetValidationErrors(<value-first builder schema>)`.
    *  Companion to `validateSchema` for the getValidationErrors family. Required on every
    *  case; supports the same `'not-supported'` sentinel for a case whose schema
@@ -112,10 +120,10 @@ export interface ValidationCase {
   /** Plugin-rewritten thunk returning the mock generator — STATIC
    *  form. Caller supplies `T` explicitly. The adapter generates N
    *  values (default 20) and asserts each passes `validate<T>()`. */
-  mockType?: Thunk<MockTypeFn<unknown>>;
+  mockType: Thunk<MockTypeFn<unknown>>;
   /** Plugin-rewritten thunk returning the mock generator — REFLECT
    *  form. `T` inferred from a runtime value's declared type. */
-  mockTypeReflect?: Thunk<MockTypeFn<unknown>>;
+  mockTypeReflect: Thunk<MockTypeFn<unknown>>;
   /** Adapter expectation for the mock case:
    *  - `'value'` (default) — every generated value must pass `validate<T>()`.
    *  - `'throw'` — calling the mock fn must throw (e.g. `never`).

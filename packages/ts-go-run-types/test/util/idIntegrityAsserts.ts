@@ -156,10 +156,11 @@ export function assertSerializerIdIntegrity(c: SerializationCase): void {
   }
 
   const schemaBinaryEncoder = resolveThunk(c.schemaBinaryEncoder);
+  const typeBinaryEncoder = resolveThunk(c.binaryEncoder);
   const binaryFactoryThrows = c.binaryFactoryThrows ?? c.factoryThrows ?? false;
-  if (schemaBinaryEncoder && c.binaryEncoder && !binaryFactoryThrows) {
+  if (schemaBinaryEncoder && typeBinaryEncoder && !binaryFactoryThrows) {
     const schemaEncode = schemaBinaryEncoder();
-    const typeEncode = c.binaryEncoder();
+    const typeEncode = typeBinaryEncoder();
     const {values} = (c.getBinaryTestData ?? c.getTestDataForStringify ?? c.getTestData)();
     values.forEach((reference, i) => {
       const fromSchema = new Uint8Array(schemaEncode(deepCloneForRoundTrip(reference)));

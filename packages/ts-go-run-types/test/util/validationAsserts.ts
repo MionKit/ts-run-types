@@ -16,13 +16,14 @@ import {expect} from 'vitest';
 import type {Thunk, ValidationCase} from '../suites/validation/types.ts';
 import type {FormatValidationCase} from '../suites/format-validation/types.ts';
 
-/** Assert-input shape: a {@link ValidationCase} whose schema-form thunks
- *  (`validateSchema` / `getValidationErrorsSchema`) may be ABSENT. The suites enforce
- *  those fields via `satisfies Record<string, ValidationCase>`; the asserts only
- *  READ them (skipping when absent), so the minimal `ValueFirstCase` mirror used
- *  by the value-first-define suite can still flow through the shared helpers. **/
-export type AssertableCase = Omit<ValidationCase, 'validateSchema' | 'getValidationErrorsSchema'> &
-  Partial<Pick<ValidationCase, 'validateSchema' | 'getValidationErrorsSchema'>>;
+/** Assert-input shape: a {@link ValidationCase} with every thunk field made
+ *  OPTIONAL (only `title` + `getSamples` stay required). The suites enforce the
+ *  full required-thunk contract via `satisfies Record<string, ValidationCase>`;
+ *  the asserts only READ the thunks (skipping any that are absent or
+ *  `'not-supported'` via `resolveThunk`), so the minimal `ValueFirstCase` mirror
+ *  used by the value-first-define suite — which intentionally carries a subset —
+ *  can still flow through the shared helpers. **/
+export type AssertableCase = Partial<ValidationCase> & Pick<ValidationCase, 'title' | 'getSamples'>;
 
 /** Number of values to draw per mock case. Larger = better coverage;
  *  smaller = faster CI. 20 is enough to surface most random-pool drift

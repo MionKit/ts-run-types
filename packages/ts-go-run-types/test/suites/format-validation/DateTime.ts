@@ -1,3 +1,9 @@
+// Reflect-form thunks author a representative value of the (now transparent) format
+// type — a Date / Temporal.X instance whose only role is to drive `T` inference; it
+// is discarded at runtime. The getValidationErrors reflect/deserialize forms are
+// `'not-supported'` (the runner exercises getValidationErrors only via the
+// format-payload + schema variants). Cases whose open/exclusive bounds can't be
+// mocked carry `mockType: 'not-supported'` (they already omitted a mock — now explicit).
 // format-validation / DateTime — the date/time FORMAT family: `FormatDate<P>`
 // (native JS Date) plus the 6 orderable `FormatTemporal*<P>` types. This suite
 // exercises the bound machinery thoroughly:
@@ -24,6 +30,7 @@
 import type {FormatValidationCase} from './types.ts';
 import '@mionjs/ts-go-run-types/formats';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {deserializeValidate} from '../../util/deserializeRTFunctions.ts';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {FormatDate} from '@mionjs/ts-go-run-types/formats';
 import type {
@@ -42,6 +49,22 @@ export const DATETIME = {
   date_minmax: {
     title: 'FormatDate<{min,max}> — inclusive edges pass, one step outside fails',
     validate: () => createValidate<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    validateReflect: () => {
+      const v: FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> = new Date();
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> = new Date();
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> = new Date();
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
     validateSchema: () => createValidate(RT.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     getValidationErrors: () => createGetValidationErrors<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
@@ -58,6 +81,22 @@ export const DATETIME = {
   date_gtlt: {
     title: 'FormatDate<{gt,lt}> — exclusive edges rejected, interior passes',
     validate: () => createValidate<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    validateReflect: () => {
+      const v: FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> = new Date();
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> = new Date();
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> = new Date();
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
     validateSchema: () => createValidate(RT.date({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
     getValidationErrors: () => createGetValidationErrors<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
@@ -75,6 +114,20 @@ export const DATETIME = {
   date_min_lt: {
     title: 'FormatDate<{min,lt}> — inclusive lower + exclusive upper',
     validate: () => createValidate<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    validateReflect: () => {
+      const v: FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> = new Date();
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> = new Date();
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockType: 'not-supported',
+    mockTypeReflect: 'not-supported',
     validateDataOnly: () => createValidate<DataOnly<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
     validateSchema: () => createValidate(RT.date({min: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
     getValidationErrors: () => createGetValidationErrors<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
@@ -93,6 +146,22 @@ export const DATETIME = {
   date_max_now: {
     title: 'FormatDate<{max: now}> — rejects the future (relative)',
     validate: () => createValidate<FormatDate<{max: 'now'}>>(),
+    validateReflect: () => {
+      const v: FormatDate<{max: 'now'}> = new Date();
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatDate<{max: 'now'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatDate<{max: 'now'}> = new Date();
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatDate<{max: 'now'}> = new Date();
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatDate<{max: 'now'}>>>(),
     validateSchema: () => createValidate(RT.date({max: 'now'})),
     getValidationErrors: () => createGetValidationErrors<FormatDate<{max: 'now'}>>(),
@@ -108,6 +177,22 @@ export const DATETIME = {
   date_rel_window: {
     title: 'FormatDate<{min: now-P1000Y, max: now+P1000Y}> — relative window (Y, both components allowed)',
     validate: () => createValidate<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    validateReflect: () => {
+      const v: FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = new Date();
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = new Date();
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = new Date();
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(RT.date({min: 'now-P1000Y', max: 'now+P1000Y'})),
     getValidationErrors: () => createGetValidationErrors<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
@@ -126,6 +211,20 @@ export const DATETIME = {
   date_rel_datetime_components: {
     title: 'FormatDate<{min: now-P1000YT12H}> — relative with both date + time components',
     validate: () => createValidate<FormatDate<{min: 'now-P1000YT12H'}>>(),
+    validateReflect: () => {
+      const v: FormatDate<{min: 'now-P1000YT12H'}> = new Date();
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatDate<{min: 'now-P1000YT12H'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatDate<{min: 'now-P1000YT12H'}> = new Date();
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockType: 'not-supported',
+    mockTypeReflect: 'not-supported',
     validateDataOnly: () => createValidate<DataOnly<FormatDate<{min: 'now-P1000YT12H'}>>>(),
     validateSchema: () => createValidate(RT.date({min: 'now-P1000YT12H'})),
     getValidationErrors: () => createGetValidationErrors<FormatDate<{min: 'now-P1000YT12H'}>>(),
@@ -146,6 +245,26 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}> =
+        T.Instant.from('2020-06-15T12:00:00Z');
+      return createValidate(v);
+    },
+    deserializeValidate: () =>
+      deserializeValidate<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}> =
+        T.Instant.from('2020-06-15T12:00:00Z');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}> =
+        T.Instant.from('2020-06-15T12:00:00Z');
+      return createMockType(v);
+    },
     validateDataOnly: () =>
       createValidate<DataOnly<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>>(),
     validateSchema: () => createValidate(RT.temporal.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
@@ -173,6 +292,26 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}> =
+        T.Instant.from('2020-06-15T12:00:00Z');
+      return createValidate(v);
+    },
+    deserializeValidate: () =>
+      deserializeValidate<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}> =
+        T.Instant.from('2020-06-15T12:00:00Z');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}> =
+        T.Instant.from('2020-06-15T12:00:00Z');
+      return createMockType(v);
+    },
     validateDataOnly: () =>
       createValidate<DataOnly<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>>(),
     validateSchema: () => createValidate(RT.temporal.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
@@ -200,6 +339,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}> = T.Instant.from('2020-06-15T12:00:00Z');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}> = T.Instant.from('2020-06-15T12:00:00Z');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}> = T.Instant.from('2020-06-15T12:00:00Z');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>>(),
     validateSchema: () => createValidate(RT.temporal.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
@@ -226,6 +381,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
@@ -250,6 +421,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
@@ -274,6 +461,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}> = T.PlainDate.from('2020-06-15');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
@@ -297,6 +500,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}> = T.PlainDate.from('2020-06-15');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
@@ -320,6 +539,20 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{min: '2020-01-01'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: '2020-01-01'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{min: '2020-01-01'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: '2020-01-01'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockType: 'not-supported',
+    mockTypeReflect: 'not-supported',
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({min: '2020-01-01'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'}>>(),
@@ -338,6 +571,20 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{max: '2020-12-31'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{max: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{max: '2020-12-31'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{max: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockType: 'not-supported',
+    mockTypeReflect: 'not-supported',
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{max: '2020-12-31'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({max: '2020-12-31'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{max: '2020-12-31'}>>(),
@@ -356,6 +603,20 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{gt: '2020-01-01'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{gt: '2020-01-01'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{gt: '2020-01-01'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{gt: '2020-01-01'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockType: 'not-supported',
+    mockTypeReflect: 'not-supported',
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({gt: '2020-01-01'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'}>>(),
@@ -377,6 +638,20 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{lt: '2020-12-31'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{lt: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{lt: '2020-12-31'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{lt: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockType: 'not-supported',
+    mockTypeReflect: 'not-supported',
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{lt: '2020-12-31'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({lt: '2020-12-31'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{lt: '2020-12-31'}>>(),
@@ -398,6 +673,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainDate.from('2020-06-15');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
@@ -421,6 +712,20 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockType: 'not-supported',
+    mockTypeReflect: 'not-supported',
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({min: 'now-P100Y6M15D'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>(),
@@ -439,6 +744,20 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDate<{min: 'now-P52200W'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: 'now-P52200W'}> = T.PlainDate.from('2020-06-15');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDate<{min: 'now-P52200W'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDate<{min: 'now-P52200W'}> = T.PlainDate.from('2020-06-15');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockType: 'not-supported',
+    mockTypeReflect: 'not-supported',
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: 'now-P52200W'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({min: 'now-P52200W'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: 'now-P52200W'}>>(),
@@ -459,6 +778,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}> = T.PlainTime.from('12:00:00');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}> = T.PlainTime.from('12:00:00');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}> = T.PlainTime.from('12:00:00');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
@@ -483,6 +818,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}> = T.PlainTime.from('12:00:00');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}> = T.PlainTime.from('12:00:00');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}> = T.PlainTime.from('12:00:00');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainTime({gt: '09:00:00', lt: '17:00:00'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
@@ -509,6 +860,26 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> =
+        T.PlainDateTime.from('2020-06-15T12:00:00');
+      return createValidate(v);
+    },
+    deserializeValidate: () =>
+      deserializeValidate<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> =
+        T.PlainDateTime.from('2020-06-15T12:00:00');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> =
+        T.PlainDateTime.from('2020-06-15T12:00:00');
+      return createMockType(v);
+    },
     validateDataOnly: () =>
       createValidate<DataOnly<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
@@ -538,6 +909,26 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> =
+        T.PlainDateTime.from('2020-06-15T12:00:00');
+      return createValidate(v);
+    },
+    deserializeValidate: () =>
+      deserializeValidate<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> =
+        T.PlainDateTime.from('2020-06-15T12:00:00');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> =
+        T.PlainDateTime.from('2020-06-15T12:00:00');
+      return createMockType(v);
+    },
     validateDataOnly: () =>
       createValidate<DataOnly<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDateTime({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
@@ -565,6 +956,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainDateTime.from('2020-06-15T12:00:00');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainDateTime.from('2020-06-15T12:00:00');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainDateTime.from('2020-06-15T12:00:00');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
@@ -588,6 +995,20 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}> = T.PlainDateTime.from('2020-06-15T12:00:00');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}> = T.PlainDateTime.from('2020-06-15T12:00:00');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockType: 'not-supported',
+    mockTypeReflect: 'not-supported',
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDateTime({min: 'now-P500YT12H'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>(),
@@ -608,6 +1029,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}> = T.PlainYearMonth.from('2020-06');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}> = T.PlainYearMonth.from('2020-06');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}> = T.PlainYearMonth.from('2020-06');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
@@ -632,6 +1069,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}> = T.PlainYearMonth.from('2020-06');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}> = T.PlainYearMonth.from('2020-06');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}> = T.PlainYearMonth.from('2020-06');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
@@ -656,6 +1109,22 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainYearMonth.from('2020-06');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainYearMonth.from('2020-06');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainYearMonth.from('2020-06');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
@@ -683,6 +1152,26 @@ export const DATETIME = {
     dataOnlyDivergent: true,
     validate: () =>
       createValidate<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}> =
+        T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
+      return createValidate(v);
+    },
+    deserializeValidate: () =>
+      deserializeValidate<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}> =
+        T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}> =
+        T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
+      return createMockType(v);
+    },
     validateDataOnly: () =>
       createValidate<DataOnly<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>>(),
     validateSchema: () =>
@@ -717,6 +1206,26 @@ export const DATETIME = {
     dataOnlyDivergent: true,
     validate: () =>
       createValidate<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}> =
+        T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
+      return createValidate(v);
+    },
+    deserializeValidate: () =>
+      deserializeValidate<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}> =
+        T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}> =
+        T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
+      return createMockType(v);
+    },
     validateDataOnly: () =>
       createValidate<DataOnly<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>>(),
     validateSchema: () =>
@@ -748,6 +1257,25 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    validateReflect: () => {
+      const v: FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}> =
+        T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}> =
+        T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}> =
+        T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(RT.temporal.zonedDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
