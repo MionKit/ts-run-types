@@ -29,6 +29,7 @@ test('type-only assertions are referenced (no runtime work here)', () => {
   expect(typeof assertionsComposers).toBe('function');
   expect(typeof assertionsNewBuilders).toBe('function');
   expect(typeof assertionsComposerExactInference).toBe('function');
+  expect(typeof assertionsFormatBranding).toBe('function');
 });
 
 // Runtime contract: the markers throw at runtime when no id is injected
@@ -337,6 +338,38 @@ function assertionsNewBuilders(): void {
     RT.number(),
   ]);
   void _tplUni;
+}
+
+function assertionsFormatBranding(): void {
+  // Formats are TRANSPARENT by default — an UNbranded `FormatString<P>` stays
+  // mutually assignable with its base `string` (the sentinels are optional on
+  // TypeFormat). This is the property that lets a plain value flow into a
+  // format-typed slot — and a reflected value drive `T` inference — with NO
+  // cast. Both directions must compile WITHOUT a directive; a regression to the
+  // old required-prop (always-branded) shape makes the first line fail.
+  const _strIntoFormat: FormatString<{maxLength: 5}> = 'hello';
+  const _formatIntoStr: string = _strIntoFormat;
+  const _numIntoFormat: FormatNumber<{min: 0}> = 42;
+  void _strIntoFormat;
+  void _formatIntoStr;
+  void _numIntoFormat;
+
+  // Passing a brand NAME opts INTO a nominal type: a bare primitive no longer
+  // satisfies it (the REQUIRED `__rtFormatBrand` marker is missing), so the
+  // compiler forces the value through a validation/cast boundary.
+  // @ts-expect-error — a plain string is not assignable to a BRAND-NAMED format.
+  const _branded: FormatString<{maxLength: 5}, 'UserCode'> = 'hello';
+  void _branded;
+
+  // A branded value still flows OUT to the unbranded format and to its base —
+  // the brand is a refinement, not an incompatible type.
+  const _brandedFlowsOut = (branded: FormatString<{maxLength: 5}, 'UserCode'>): void => {
+    const _toUnbranded: FormatString<{maxLength: 5}> = branded;
+    const _toBase: string = branded;
+    void _toUnbranded;
+    void _toBase;
+  };
+  void _brandedFlowsOut;
 }
 
 // Exact (invariant) type equality — `(<T>() => T extends A ? 1 : 2)` paired both

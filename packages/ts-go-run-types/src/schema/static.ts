@@ -219,13 +219,18 @@ export type TemplatePart = string | RunType;
  *  string part contributes its own literal text. **/
 type Interpolatable = string | number | bigint | boolean | null | undefined;
 
-/** Strips a value-first leaf's FORMAT brand (`{__rtFormatName, __rtFormatParams}`
+/** Strips a value-first leaf's FORMAT tag (`{__rtFormatName, __rtFormatParams}`
  *  carried by `number()`/`string()`/`bigint()`) back to its base primitive, so a
  *  placeholder converges with the type-first PLAIN `${number}` / `${string}` —
- *  otherwise the brand leaks into the template-literal type and the scanner
- *  reflects a different (permissive) shape. Literals and unions carry no brand and
- *  pass through unchanged, so `literal('a')` stays `'a'`. **/
-type Unbrand<X> = X extends {__rtFormatName: string; __rtFormatParams: object}
+ *  otherwise the tag leaks into the template-literal type and the scanner
+ *  reflects a different (permissive) shape. Literals and unions carry no tag and
+ *  pass through unchanged, so `literal('a')` stays `'a'`.
+ *
+ *  Detection is by KEY PRESENCE (`'__rtFormatName' extends keyof X`), not a
+ *  required-property `extends` check: the sentinels are optional on `TypeFormat`
+ *  (so a format stays assignable from its base), and an optional prop does not
+ *  satisfy a required-prop constraint — but the key is still present in `keyof`. **/
+type Unbrand<X> = '__rtFormatName' extends keyof X
   ? X extends string
     ? string
     : X extends number
