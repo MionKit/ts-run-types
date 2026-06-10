@@ -31,10 +31,10 @@
 | S5 | `typefns/module.go:206-356` | partial registry (`familyConfig` + `crossFamilyItSourceFamilies`) duplicates the wrapper triples | `FamilySpec` registry in `typefns/families.go` (order load-bearing, validate LAST) | +55/−45 | low | landed |
 | S6 | `resolver/render.go` + `resolver/dispatch.go:295-312` | 11 trivial render wrappers; 14-line `Added*`/`AnyXxxSupported` block | drive renders + added-flags from the registry | −70 | medium | landed |
 | S7 | typefns family files | 14 `XxxModule` + 14 `AnyXxxSupported` thin wrappers (sole callers: resolver, handled in S6) | delete; tests use `FamilyByKey(...)` | −280 | low | landed |
-| S8 | `protocol/protocol.go:654-783` | ~45 repetitive conditional map-sets in `Response.MarshalJSON` | two hand-written closure tables + fill loops (keys NOT derived — wire definition) | −40 | low | pending |
+| S8 | `protocol/protocol.go:654-783` | ~45 repetitive conditional map-sets in `Response.MarshalJSON` | two hand-written closure tables + fill loops (keys NOT derived — wire definition) | −40 | low | landed |
 | E1 | `unknownkeys_{errors:25,has:40,strip:21,to_undefined:20}.go` | 4 `Supports` bodies byte-identical (has differs by 2 comments; wire already delegates) | one shared `unknownKeysSupports`, 5 delegating methods | −135 | low | pending |
 | E2 | `json_prepare.go:348-376` vs `json_restore.go:283-311` | `emitObjectPrepareForJson` ≡ `emitObjectRestoreFromJson` (name-only diff, same package) | single shared func; both emitters call it | −29 | low | pending |
-| E3 | `typefns/quote.go:14` + `purefns/module.go:109`; `typefns/accessors.go:29` + `formats/string/pattern.go:152` | `quoteJS` ×2 and `quoteJSDouble` ×2 byte-identical cross-package copies (comments admit "copy to avoid cross-package edge") | tiny `internal/jsquote` leaf package; **runtype/module.go:338 `quoteJS` is a different impl (strconv.Quote escaping) — excluded** | −40 | low | pending |
+| E3 | `typefns/quote.go:14` + `purefns/module.go:109`; `typefns/accessors.go:29` + `formats/string/pattern.go:152` | `quoteJS` ×2 and `quoteJSDouble` ×2 byte-identical cross-package copies (comments admit "copy to avoid cross-package edge") | tiny `internal/jsquote` leaf package; **runtype/module.go:338 `quoteJS` is a different impl (strconv.Quote escaping) — excluded** | −40 | low | landed |
 | E4 | `unknownkeys_errors.go:185` vs `unknownkeys_strip.go:161` | 19-line helper pair, 2 diff lines | fold into `unknownkeys_shared.go` if name-only | −19 | low | pending |
 
 ## Tool findings — clone groups (dupl -t 100), triage
@@ -96,3 +96,4 @@ switches and the render engine** — reviewed and intentionally kept:
 | S6 | refactor(resolver): drive family renders and added-flags from the registry | −75 | neutral (wall +0.3%, go −1.0%, alloc +0.2%) |
 | fix | fix(resolver): keep the transform-gated AddedFormatTransform signal | +3 | n/a (semantic guard; new regression test in families_test.go) |
 | S7 | refactor(typefns): drop the per-family Module/AnySupported wrappers | −245 | neutral (wall −0.3%, go −0.9%, alloc +0.1%) |
+| S8 | refactor(protocol): table-driven Response.MarshalJSON | −35 | neutral (wall −0.9%, go −4.7%, alloc +0.2%) |
