@@ -29,8 +29,9 @@ export interface Rewritten {
 //      extractor swaps the factory argument of every
 //      `registerPureFnFactory(ns, fn, factory)` call for the pure fn's
 //      entry-module binding; `importFrom` names the module).
-//   3. One import block at offset 0 covering every binding the edits
-//      above reference, deduped per specifier:
+//   3. One single-line import block at offset 0 covering every binding the
+//      edits above reference, deduped per specifier (all statements joined
+//      on ONE line — see buildImportBlock for the source-map rationale):
 //      `import {e as __rt_<basename>} from 'virtual:rt/<basename>.js';`
 //
 // All edits are sorted right-to-left by start position and applied in
@@ -104,8 +105,14 @@ function siteBinding(site: Site): string {
 
 // buildImportBlock collects every entry-module import the rewritten file
 // needs — one per distinct site basename plus one per replacement carrying
-// an importFrom specifier — and renders the deduped import statements.
-// Deterministic order (sorted by specifier) keeps rewrites byte-stable.
+// an importFrom specifier — and renders the deduped import statements as a
+// SINGLE physical line. Deterministic order (sorted by specifier) keeps
+// rewrites byte-stable. The single line matters for debuggability: the
+// rewrite works on a Buffer (not a MagicString), so transform() returns
+// `map: null` and Vite does not re-map our edits — the user's original
+// source shifts down by however many lines we prepend. Collapsing the whole
+// block onto one line caps that drift at exactly 1 line (instead of N) until
+// the MagicString-based source-map work lands.
 function buildImportBlock(sites: Site[], replacements: Replacement[]): string {
   const bySpecifier = new Map<string, string>();
   for (const site of sites) {
@@ -118,11 +125,10 @@ function buildImportBlock(sites: Site[], replacements: Replacement[]): string {
   }
   if (bySpecifier.size === 0) return '';
   const specifiers = [...bySpecifier.keys()].sort();
-  let block = '';
-  for (const specifier of specifiers) {
-    block += `import {${ENTRY_EXPORT_NAME} as ${bySpecifier.get(specifier)}} from '${specifier}';\n`;
-  }
-  return block;
+  const statements = specifiers.map(
+    (specifier) => `import {${ENTRY_EXPORT_NAME} as ${bySpecifier.get(specifier)}} from '${specifier}';`
+  );
+  return statements.join(' ') + '\n';
 }
 
 // buildInsertion produces the text to splice in just before the call's
