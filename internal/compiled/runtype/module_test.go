@@ -172,12 +172,12 @@ func TestCycle(t *testing.T) {
 	if !strings.Contains(moduleB, `import {e as d1} from 'virtual:rt/A1.js';`) {
 		t.Errorf("B1 must import its cycle peer, got:\n%s", moduleB)
 	}
-	// Cycle members share a level → alphabetical: A1 before B1 in both thunks.
-	if !strings.Contains(moduleA, "const deps=()=>[e,d1];") {
-		t.Errorf("A1 deps thunk should order [A1,B1] (self first alphabetically), got:\n%s", moduleA)
+	// Direct deps precede self in both thunks (self is always last).
+	if !strings.Contains(moduleA, "const deps=()=>[d1,e];") {
+		t.Errorf("A1 deps thunk should order [B1,A1] (self last), got:\n%s", moduleA)
 	}
 	if !strings.Contains(moduleB, "const deps=()=>[d1,e];") {
-		t.Errorf("B1 deps thunk should order [A1,B1], got:\n%s", moduleB)
+		t.Errorf("B1 deps thunk should order [A1,B1] (self last), got:\n%s", moduleB)
 	}
 	if !strings.Contains(moduleA, `c('A1').child = c('B1');`) || !strings.Contains(moduleB, `c('B1').child = c('A1');`) {
 		t.Errorf("expected both cycle ref assignments via c() accessor:\nA1:\n%s\nB1:\n%s", moduleA, moduleB)

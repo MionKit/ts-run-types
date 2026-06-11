@@ -15,19 +15,19 @@
 //
 // Every tuple shares the same fixed head: slot 0 discriminates the layout
 // (the numeric kinds below, or the QUOTED family tag string for type-fn
-// entries), slot 1 is a lazy thunk returning the entry's full transitive dep
-// closure (leaves-first, self included), slot 2 is the runtype footer
+// entries), slot 1 is a lazy thunk returning the entry's DIRECT dependency
+// tuples (leaves-first by level, self last), slot 2 is the runtype footer
 // initializer (or undefined), slot 3 is always the cache key. The remaining
 // slots mirror the pre-migration `rt(…)` / `init(…)` / `factory(…)` call
 // interiors byte-for-byte; the Go side trims trailing-undefined slots, which
 // the derived tuple types model as optional tails.
 //
-// `initFromTuple` registers a tuple's whole closure in two phases: register
-// every deps() tuple not yet present (children first — deps() is
-// level-ordered), then run each newly-registered runtype tuple's `ini`. Ref
-// slots therefore always resolve against registered entries, and fn-factory
-// materialisation stays lazy (materializeRTFn on first getRT), so cycles keep
-// working exactly as before.
+// `initFromTuple` registers a tuple's whole closure in two phases: walk the
+// deps() thunks recursively (post-order with a processed-keys guard, so
+// children register before parents and cycles terminate), then run each
+// newly-registered runtype tuple's `ini`. Ref slots therefore always resolve
+// against registered entries, and fn-factory materialisation stays lazy
+// (materializeRTFn on first getRT), so cycles keep working exactly as before.
 
 import {getRTUtils} from './rtUtils.ts';
 import type {RTUtils} from './rtUtils.ts';
@@ -44,9 +44,10 @@ const KIND_MISSING = 3;
  *  type id at a createX call site. **/
 export const FN_HASH_LEN = 4;
 
-/** Lazy dependency thunk — slot 1 of every tuple. Returns the entry's full
- *  transitive closure INCLUDING itself; lazy so module-level import cycles
- *  and the self-reference never hit TDZ. **/
+/** Lazy dependency thunk — slot 1 of every tuple. Returns the entry's DIRECT
+ *  dependency tuples plus itself (self last); lazy so module-level import
+ *  cycles and the self-reference never hit TDZ. The transitive closure is
+ *  reached by walking the dep tuples' own thunks (see initFromTuple). **/
 export type EntryDepsThunk = () => readonly EntryTuple[];
 
 /** Runtype footer initializer — slot 2 of runtype tuples. Patches the
@@ -350,33 +351,41 @@ const familyMeta: Record<string, FamilyMeta> = {
 // Tuple registration
 // =============================================================================
 
-// Roots whose closure already registered — the per-factory-call fast path.
-const processedRoots = new Set<string>();
+// Keys whose subtree already registered — prunes the recursive walk both
+// within a call (cycle guard) and across calls (overlapping closures).
+const processedKeys = new Set<string>();
 
-/** Registers `root`'s full dependency closure into rtUtils (children first),
- *  then runs each newly-registered runtype tuple's footer initializer.
- *  Idempotent per root key; safe across overlapping closures (per-entry
- *  registration is skipped when the key is already present). **/
+/** Registers `root`'s full dependency closure into rtUtils (children first,
+ *  via the recursive deps() walk), then runs each newly-registered runtype
+ *  tuple's footer initializer. Idempotent per key; safe across overlapping
+ *  closures (processed subtrees are skipped without re-walking). **/
 export function initFromTuple(root: EntryTuple): void {
   if (isMissingTuple(root)) return;
   if (!isEntryTuple(root)) return;
-  const rootKey = entryTupleKey(root);
-  if (processedRoots.has(rootKey)) return;
-  processedRoots.add(rootKey);
-
   const utils = getRTUtils();
-  const deps = (root[SLOT_DEPS] as EntryDepsThunk)();
   const fresh: EntryTuple[] = [];
-  for (const dep of deps) {
-    if (!isEntryTuple(dep) || isMissingTuple(dep)) continue;
-    if (registerTuple(utils, dep)) fresh.push(dep);
-  }
+  collectClosure(root, utils, fresh);
   // Phase 2: footer initializers — every referenced entry now exists, so the
   // `c(id)` registry lookups inside each ini body resolve, including cycles.
   for (const tuple of fresh) {
     const ini = tuple[2] as RunTypeIni | undefined;
     if (typeof ini === 'function') ini(utils);
   }
+}
+
+// collectClosure walks a tuple's deps() thunks post-order: deps register
+// before their dependents, the processed-keys guard terminates cycles (and
+// skips subtrees an earlier root already registered), and every newly
+// registered tuple lands in `fresh` for the caller's phase-2 ini pass.
+function collectClosure(tuple: unknown, utils: RTUtils, fresh: EntryTuple[]): void {
+  if (!isEntryTuple(tuple) || isMissingTuple(tuple)) return;
+  const key = entryTupleKey(tuple);
+  if (processedKeys.has(key)) return;
+  processedKeys.add(key);
+  for (const dep of (tuple[SLOT_DEPS] as EntryDepsThunk)()) {
+    if (dep !== tuple) collectClosure(dep, utils, fresh);
+  }
+  if (registerTuple(utils, tuple)) fresh.push(tuple);
 }
 
 /** Registers a single tuple in the cache matching its kind. Returns true when

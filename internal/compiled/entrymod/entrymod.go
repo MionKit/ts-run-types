@@ -5,10 +5,10 @@
 //
 // Module shape (every kind):
 //
-//	import {e as d1} from 'virtual:rt/<dep1>.js';
+//	import {e as d1} from 'virtual:rt/<dep1>.js';   // DIRECT deps only
 //	…
 //	const u=undefined;
-//	const deps=()=>[d1,…,e];                 // lazy: cycles / self-ref never hit TDZ
+//	const deps=()=>[d1,…,dN,e];              // lazy: cycles / self-ref never hit TDZ
 //	function ini(rtu){const c=(id)=>rtu.useRunType(id);<footer>}  // runtype only
 //	export const e=[<kindSlot>,deps,<ini|u>,<positional args…>];
 //
@@ -17,16 +17,25 @@
 // type-fn entries), slot 1 the deps thunk, slot 2 the initEntry fn (or u),
 // slot 3+ the same positional args the per-family `init(…)` / `rt(…)` /
 // `factory(…)` calls passed before the migration (slot 3 is always the cache
-// key). The JS-side `initFromTuple` consumer registers tuples in two phases:
-// register every deps() tuple not yet present (children first — deps() is
-// level-ordered), then run each newly-registered tuple's `ini`.
+// key). The JS-side `initFromTuple` consumer walks the deps() thunks
+// RECURSIVELY (post-order, visited-set guarded) and registers in two phases:
+// register every unseen tuple in the closure (children before parents), then
+// run each newly-registered tuple's `ini`.
 //
-// Ordering invariant: imports and deps() entries are LEAVES-FIRST by
-// dependency level (level 0 = no deps), alphabetical by key within a level.
-// Cycles are collapsed to one level via Tarjan SCC (members ordered
-// alphabetically), which keeps the output deterministic — cycle members only
-// reference each other through `ini`/registry lookups that run after the
-// whole registration phase, so intra-SCC order is correctness-neutral.
+// Imports and deps() carry the DIRECT dependencies only — never the flattened
+// transitive closure. ESM loads the closure transitively through the dep
+// modules' own imports, and the runtime recursion re-walks the same edges, so
+// flattening bought nothing but O(closure) text per module (quadratic over a
+// dense graph — measured 6x wire payload and 2-4x render time on the real
+// suites before this was fixed).
+//
+// Ordering invariant: a module's import block and deps() entries are
+// LEAVES-FIRST by dependency level (level 0 = no deps), alphabetical by key
+// within a level, self always last. Cycles are collapsed to one level via
+// Tarjan SCC (members ordered alphabetically), which keeps the output
+// deterministic — cycle members only reference each other through
+// `ini`/registry lookups that run after the whole registration phase, so
+// intra-SCC order is correctness-neutral.
 package entrymod
 
 import (
@@ -413,37 +422,24 @@ func sortedDeps(entry *Entry) []string {
 	return out
 }
 
-// closureOf returns the transitive dep closure of entry (self included),
-// sorted leaves-first by level then alphabetically — the exact order both the
-// import block and the deps() thunk emit.
-func closureOf(graph Graph, entry *Entry, order levels) ([]string, error) {
-	visited := map[string]bool{entry.Key: true}
-	queue := []string{entry.Key}
-	for len(queue) > 0 {
-		key := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-		node := graph[key]
-		if node == nil {
-			return nil, fmt.Errorf("entrymod: entry %q references missing dep %q (cascade/stub pass skipped?)", entry.Key, key)
-		}
-		for _, dep := range sortedDeps(node) {
-			if !visited[dep] {
-				visited[dep] = true
-				queue = append(queue, dep)
-			}
+// directDeps returns entry's direct deps (self excluded, deduped), sorted
+// leaves-first by level then alphabetically — the exact order both the import
+// block and the deps() thunk emit. A dep with no graph entry is a programmer
+// error (the cascade/stub passes guarantee resolvability before Render).
+func directDeps(graph Graph, entry *Entry, order levels) ([]string, error) {
+	deps := sortedDeps(entry)
+	for _, dep := range deps {
+		if graph[dep] == nil {
+			return nil, fmt.Errorf("entrymod: entry %q references missing dep %q (cascade/stub pass skipped?)", entry.Key, dep)
 		}
 	}
-	closure := make([]string, 0, len(visited))
-	for key := range visited {
-		closure = append(closure, key)
-	}
-	sort.Slice(closure, func(i, j int) bool {
-		if order[closure[i]] != order[closure[j]] {
-			return order[closure[i]] < order[closure[j]]
+	sort.SliceStable(deps, func(i, j int) bool {
+		if order[deps[i]] != order[deps[j]] {
+			return order[deps[i]] < order[deps[j]]
 		}
-		return closure[i] < closure[j]
+		return deps[i] < deps[j]
 	})
-	return closure, nil
+	return deps, nil
 }
 
 // renderModule emits one entry's module source.
@@ -458,42 +454,29 @@ func renderModule(graph Graph, entry *Entry, order levels) (string, error) {
 		return body.String(), nil
 	}
 
-	closure, err := closureOf(graph, entry, order)
+	deps, err := directDeps(graph, entry, order)
 	if err != nil {
 		return "", err
 	}
 
-	// Import block — closure minus self, in closure order. Binding names are
-	// positional (d1…dN); the export name is fixed so importers always rename.
-	bindings := make(map[string]string, len(closure))
-	importIndex := 0
-	for _, key := range closure {
-		if key == entry.Key {
-			continue
-		}
-		importIndex++
-		binding := "d" + strconv.Itoa(importIndex)
-		bindings[key] = binding
+	// Import block — the direct deps, in (level, alpha) order. Binding names
+	// are positional (d1…dN); the export name is fixed so importers always
+	// rename.
+	for i, key := range deps {
 		target := graph[key]
-		body.WriteString("import {" + constants.EntryExportName + " as " + binding + "} from " +
+		body.WriteString("import {" + constants.EntryExportName + " as d" + strconv.Itoa(i+1) + "} from " +
 			jsquote.Single(ImportSpecifier(ModuleName(target.Key, target.Kind))) + ";\n")
 	}
 
 	body.WriteString("const u=undefined;\n")
 
-	// deps() thunk — closure order, self referenced via the export binding.
+	// deps() thunk — direct deps in import order, self last via the export
+	// binding (the runtime's recursive walk skips it).
 	body.WriteString("const deps=()=>[")
-	for i, key := range closure {
-		if i > 0 {
-			body.WriteByte(',')
-		}
-		if key == entry.Key {
-			body.WriteString(constants.EntryExportName)
-		} else {
-			body.WriteString(bindings[key])
-		}
+	for i := range deps {
+		body.WriteString("d" + strconv.Itoa(i+1) + ",")
 	}
-	body.WriteString("];\n")
+	body.WriteString(constants.EntryExportName + "];\n")
 
 	// initEntry — runtype footer scoped to this entry; `c` resolves through
 	// the registry so patched slots hold the materialized singletons, never
