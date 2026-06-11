@@ -13,9 +13,10 @@
 //   - Compile latency (compileMs): spawn a dedicated serverMode
 //     ResolverClient, synthesise a .ts file wrapping the case body
 //     around the right create* import, drive reset + setSources +
-//     scanFiles with the matching includeCacheSources kind for
-//     COMPILE_CYCLES rounds, record scanFiles wall time. Measures the
-//     ts-go-run-types marker scan + cache emit phase.
+//     scanFiles with includeEntryModules for COMPILE_CYCLES rounds,
+//     record scanFiles wall time. Measures the ts-go-run-types marker
+//     scan + per-entry module collection phase (demand-driven: only the
+//     families the probe's call sites request render).
 //   - Pure-TS compile latency (tsCompileMs): same setSources +
 //     tsCompile op, which runs the embedded tsgo through bind +
 //     typecheck + Emit() without touching the marker scanner. The two
@@ -32,6 +33,15 @@ import path from 'node:path';
 import url from 'node:url';
 import {performance} from 'node:perf_hooks';
 import {createServer} from 'vite';
+// Node 22 has no native `Temporal` (unflagged in Node 26 / ES2026). The
+// vitest run installs the polyfill via test/setup.ts; this script loads the
+// same suites OUTSIDE vitest, so it must install it itself — the Temporal
+// cases' getSamples / emitted runtime code reference `globalThis.Temporal`.
+import {Temporal} from 'temporal-polyfill';
+if (typeof globalThis.Temporal === 'undefined') {
+  globalThis.Temporal = Temporal;
+}
+
 import runtypesPlugin from '../packages/vite-plugin-runtypes/dist/index.js';
 import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-client.js';
 
@@ -43,32 +53,20 @@ const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
 const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
 const OUT_PATH = path.join(REPO_ROOT, 'gendocs/serialization-suite.json');
 const MD_PATH = path.join(REPO_ROOT, 'gendocs/serialization-suite.md');
-const FN_FIELDS = [
-  'safeEncoder',
-  'clonePreserveEncoder',
-  'mutateStripEncoder',
-  'safeDirectEncoder',
-  'unsafeEncoder',
-  'safeDecoder',
-  'unsafeDecoder',
-];
+const FN_FIELDS = ['cloneEncoder', 'mutateEncoder', 'directEncoder', 'stripDecoder', 'preserveDecoder'];
 
-// One API descriptor per measured shape. Five encoders cover the
-// (strategy, stripExtras) matrix exposed by JsonEncoderOptions:
-//   safe       → strategy='clone',  stripExtras=true   (pjs)
-//   clone-pres → strategy='clone',  stripExtras=false  (pjsp)
-//   mutate-str → strategy='mutate', stripExtras=true   (uku + pj compose)
-//   unsafe     → strategy='mutate', stripExtras=false  (pj)
-//   direct     → strategy='direct'                     (sj)
-// Two decoders cover stripExtras true / false.
+// One API descriptor per measured shape. Three encoders cover the
+// JsonEncoderStrategy axis exposed by createJsonEncoder:
+//   clone  → strategy='clone'  (pjs — shape-derived, strips by construction; default)
+//   mutate → strategy='mutate' (pj — in place, preserves extras)
+//   direct → strategy='direct' (sj — single-pass stringify)
+// Two decoders cover the JsonDecoderStrategy axis (strip / preserve).
 const APIS = [
-  {key: 'safe', kind: 'encode', factory: 'safeEncoder', cacheKind: 'prepareForJsonSafe'},
-  {key: 'clone-preserve', kind: 'encode', factory: 'clonePreserveEncoder', cacheKind: 'prepareForJsonSafePreserve'},
-  {key: 'mutate-strip', kind: 'encode', factory: 'mutateStripEncoder', cacheKind: 'prepareForJson'},
-  {key: 'unsafe', kind: 'encode', factory: 'unsafeEncoder', cacheKind: 'prepareForJson'},
-  {key: 'direct', kind: 'encode', factory: 'safeDirectEncoder', cacheKind: 'stringifyJson'},
-  {key: 'safe-decode', kind: 'decode', factory: 'safeDecoder', cacheKind: 'restoreFromJson'},
-  {key: 'unsafe-decode', kind: 'decode', factory: 'unsafeDecoder', cacheKind: 'restoreFromJson'},
+  {key: 'clone', kind: 'encode', factory: 'cloneEncoder'},
+  {key: 'mutate', kind: 'encode', factory: 'mutateEncoder'},
+  {key: 'direct', kind: 'encode', factory: 'directEncoder'},
+  {key: 'strip-decode', kind: 'decode', factory: 'stripDecoder'},
+  {key: 'preserve-decode', kind: 'decode', factory: 'preserveDecoder'},
 ];
 
 // Workload knobs. Tune at the top — no CLI flags for now.
@@ -82,31 +80,39 @@ const COMPILE_CYCLES = 3;
 // suite's RUNTYPES_DTS, extended with the JSON serializer signatures.
 const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
+  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
   export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export interface RunTypeOptions {
+  export interface ValidateOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
-    strictTypes?: boolean;
   }
-  export type PrepareForJsonFn = (v: unknown) => unknown;
-  export type RestoreFromJsonFn = (v: unknown) => unknown;
-  export type StringifyJsonFn = (v: unknown) => string | undefined;
-  export function createPrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): PrepareForJsonFn;
-  export function createRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): RestoreFromJsonFn;
-  export function createStringifyJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): StringifyJsonFn;
-  export function deserializePrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): PrepareForJsonFn;
-  export function deserializeRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): RestoreFromJsonFn;
+  export type ValidateFn = (value: unknown) => boolean;
+  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
+  export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'};
+  export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
+  export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
+  export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
+  export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
+  export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
 }
 `;
 
 // UPPER_SNAKE group name -> PascalCase data-file basename ('CIRCULAR_REFS' -> 'CircularRefs').
 function groupToFile(group) {
-  return group
+  const pascal = group
     .toLowerCase()
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join('');
+  // Resolve case-insensitively against the suite dir — group keys flatten
+  // word boundaries ('DATETIME' would otherwise miss DateTime.ts).
+  const wanted = `${pascal.toLowerCase()}.ts`;
+  const actual = fs.readdirSync(SUITE_DIR).find((name) => name.toLowerCase() === wanted);
+  return actual ? actual.slice(0, -3) : pascal;
 }
 
 // The suite is split one file per group under SUITE_DIR, so the body extractor
@@ -327,7 +333,7 @@ function benchOneApi(caseObj, api) {
   // use getTestDataForStringify when present (single-pass stringifyJson
   // handles the some-broad-types samples differently than the
   // prepareForJson family).
-  const useStringifyData = api.factory === 'safeDirectEncoder' && typeof caseObj.getTestDataForStringify === 'function';
+  const useStringifyData = api.factory === 'directEncoder' && typeof caseObj.getTestDataForStringify === 'function';
   const selectValues = useStringifyData ? (c) => c.getTestDataForStringify().values : (c) => c.getTestData().values;
 
   // First fetch a single sample to size the pool (large shapes get a
@@ -395,10 +401,10 @@ function benchOneApi(caseObj, api) {
   if (caseObj.safeAdapterStringifyJsonNotParseable) return null;
   let encodedPool;
   try {
-    // Use the safe (default) encoder to produce the pre-encoded JSON
-    // pool for decode benching. Pure-function shape, no mutation, same
-    // wire output as the other strip-extras encoders.
-    const stringify = caseObj.safeEncoder();
+    // Use the clone (default) encoder to produce the pre-encoded JSON
+    // pool for decode benching. Pure-function shape, no mutation, strips
+    // by construction — the wire shape decoders expect.
+    const stringify = caseObj.cloneEncoder();
     const encodePool = buildPool(caseObj, selectValues, poolSize);
     encodedPool = buildEncodedPool(stringify, encodePool);
     // Filter to entries the decoder can actually parse + restore. Drops
@@ -406,7 +412,8 @@ function benchOneApi(caseObj, api) {
     // produced something JSON.parse rejects.
     encodedPool = encodedPool.filter((s) => {
       try {
-        factoryFn(JSON.parse(s));
+        // Decoders take the JSON STRING (they parse internally).
+        factoryFn(s);
         return true;
       } catch {
         return false;
@@ -416,7 +423,7 @@ function benchOneApi(caseObj, api) {
   } catch (err) {
     return {pass: false, error: `decode pool build failed: ${err.message}`};
   }
-  const decodeFn = (s) => factoryFn(JSON.parse(s));
+  const decodeFn = (s) => factoryFn(s);
   const pass = roundTripSanity(caseObj, api, encodedPool[0], decodeFn);
   const runs = benchOpsPerSecPooled(decodeFn, encodedPool, OPS_CYCLES, iters, OPS_WARMUP);
   return {pass, opsPerSec: statsOf(runs)};
@@ -500,7 +507,7 @@ async function runCompilePhase(metrics, bodies) {
         await client.reset();
         await client.setSources(sourcesMap);
         const scanStart = performance.now();
-        await client.scanFiles([relpath], {includeCacheSources: [api.cacheKind]});
+        await client.scanFiles([relpath], {includeEntryModules: true});
         compileTimes.push(performance.now() - scanStart);
         totalRpcs += 2;
       }
@@ -562,7 +569,7 @@ function renderMarkdown(out) {
       // ts-compile and compile are per-source-file — pick the first
       // non-null value across the APIs (they're rendered against the
       // same synthetic file). The compile column reuses each API's own
-      // compileMs (varies slightly by cacheKind requested).
+      // compileMs (entry collection is demand-driven per probe).
       let tsCompile = null;
       let compile = null;
       for (const api of APIS) {

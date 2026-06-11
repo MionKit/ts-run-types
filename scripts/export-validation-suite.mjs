@@ -26,8 +26,18 @@ import path from 'node:path';
 import url from 'node:url';
 import {performance} from 'node:perf_hooks';
 import {createServer} from 'vite';
+// Node 22 has no native `Temporal` (unflagged in Node 26 / ES2026). The
+// vitest run installs the polyfill via test/setup.ts; this script loads the
+// same suites OUTSIDE vitest, so it must install it itself — the Temporal
+// cases' getSamples / emitted runtime code reference `globalThis.Temporal`.
+import {Temporal} from 'temporal-polyfill';
+if (typeof globalThis.Temporal === 'undefined') {
+  globalThis.Temporal = Temporal;
+}
+
 import runtypesPlugin from '../packages/vite-plugin-runtypes/dist/index.js';
 import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-client.js';
+import {CACHE_MODULES} from '../packages/vite-plugin-runtypes/dist/runtypes-constants.generated.js';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -40,18 +50,12 @@ const MD_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.md');
 const FN_FIELDS = ['validate', 'validateReflect', 'getSamples'];
 const APIS = ['validate', 'validateReflect'];
 
-// Cache module the validation bench actually needs rendered per
-// compile cycle. Both API forms (static `validate` + reflection
-// `validateReflect`) share the same validate cache — the runtime distinction
-// is the call-site shape, not the RT factory. Asking the resolver for
-// just this cache (instead of `['all']`) keeps compileMs measuring the
-// work the validation suite is actually about — not the cost of
-// rendering 12 unrelated cache modules.
-const COMPILE_CACHE_KINDS = ['validate'];
-
-// Cache modules the dump artifact under gendocs/cases/ needs. Captured
-// once per case in an extra untimed scan after the COMPILE_CYCLES loop.
-const DUMP_CACHE_KINDS = ['runType', 'validate', 'pureFns'];
+// Per-kind cache selection is gone with the per-entry virtual modules:
+// `includeEntryModules: true` collects every family the file's call sites
+// demand — which for these synthetic createValidate-only probes is the
+// validate closure (plus runtype nodes and pure fns), i.e. the same work the
+// production transform performs. compileMs therefore measures the real
+// per-file scan + entry collection cost.
 
 // Workload knobs. Tune at the top — no CLI flags for now.
 const OPS_CYCLES = 10;
@@ -61,28 +65,44 @@ const COMPILE_CYCLES = 3;
 
 // Ambient overlay so the synthetic compile-pass files can `import` the marker
 // package without a real package.json lookup. Mirrors RUNTYPES_DTS in
-// packages/vite-plugin-runtypes/test/helpers/inline.ts.
+// packages/vite-plugin-runtypes/test/helpers/inline.ts — createX signatures
+// MUST carry the InjectTypeFnArgs marker or the scanner records no demand and
+// the compile probes render zero fn entries.
 const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
+  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
   export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export interface RunTypeOptions {
+  export interface ValidateOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
-    strictTypes?: boolean;
   }
   export type ValidateFn = (value: unknown) => boolean;
-  export function createValidate<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): Promise<ValidateFn>;
+  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
+  export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'};
+  export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
+  export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
+  export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
+  export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
+  export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
 }
 `;
 
 // UPPER_SNAKE group name -> PascalCase data-file basename ('TEMPLATE_LITERAL' -> 'TemplateLiteral').
 function groupToFile(group) {
-  return group
+  const pascal = group
     .toLowerCase()
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join('');
+  // Resolve case-insensitively against the suite dir — group keys flatten
+  // word boundaries ('DATETIME' would otherwise miss DateTime.ts).
+  const wanted = `${pascal.toLowerCase()}.ts`;
+  const actual = fs.readdirSync(SUITE_DIR).find((name) => name.toLowerCase() === wanted);
+  return actual ? actual.slice(0, -3) : pascal;
 }
 
 // The suite is split one file per group under SUITE_DIR, so the body extractor
@@ -294,10 +314,10 @@ async function runCompilePhase(metrics, bodies) {
         await client.reset();
         await client.setSources(sourcesMap);
         const scanStart = performance.now();
-        // Only the validate cache — that's the work the validation suite
-        // is actually about. `['all']` would conflate the per-case
-        // validate cost with rendering 12 unrelated cache modules.
-        await client.scanFiles([relpath], {includeCacheSources: COMPILE_CACHE_KINDS});
+        // Entry collection is demand-driven: the synthetic probe only calls
+        // createValidate, so this renders the validate closure (plus runtype
+        // nodes / pure fns) — the work the validation suite is about.
+        await client.scanFiles([relpath], {includeEntryModules: true});
         compileTimes.push(performance.now() - scanStart);
         totalRpcs += 2;
       }
@@ -305,15 +325,15 @@ async function runCompilePhase(metrics, bodies) {
       metrics[category][caseKey][api] ??= {};
       metrics[category][caseKey][api].compileMs = statsOf(compileTimes);
       metrics[category][caseKey][api].tsCompileMs = statsOf(tsCompileTimes);
-      // Untimed extra scan to capture the dump artifacts. Asks for the
-      // runType + validate + pureFns cache modules writeCaseDump consumes.
-      // Skipped after the first API — the synth file is the same
-      // regardless of which call shape the API uses, so the cache
-      // modules are identical and one dump per case is enough.
+      // Untimed extra scan to capture the dump artifacts — the per-entry
+      // virtual modules writeCaseDump groups by cache kind. Skipped after
+      // the first API — the synth file is the same regardless of which call
+      // shape the API uses, so the entry modules are identical and one dump
+      // per case is enough.
       if (api === APIS[0]) {
         await client.reset();
         await client.setSources(sourcesMap);
-        const dumpResp = await client.scanFiles([relpath], {includeCacheSources: DUMP_CACHE_KINDS});
+        const dumpResp = await client.scanFiles([relpath], {includeEntryModules: true});
         totalRpcs += 1;
         modulesWritten += writeCaseDump(casesDir, category, caseKey, api, dumpResp);
       }
@@ -325,23 +345,39 @@ async function runCompilePhase(metrics, bodies) {
   return {totalRpcs, modulesWritten, wallMs: performance.now() - startWall};
 }
 
-// Dumps the daemon-rendered cache modules for one (case, api) under
-// gendocs/cases/<category>__<caseKey>__<api>/. Sources are plain JS
-// (per internal/emit/runtypes_module.go), so we use the .js extension.
+// Dumps the daemon-rendered entry modules for one (case, api) under
+// gendocs/cases/<category>__<caseKey>__<api>/, grouped by cache kind
+// (`runType.js`, `validate.js`, `pureFns.js`, …) with one banner per
+// virtual module. The kind is sniffed off each tuple's slot 0; family tags
+// map back to their CacheModules key via the generated constants mirror.
+const keyByFamilyTag = Object.fromEntries(Object.entries(CACHE_MODULES).map(([key, settings]) => [settings.tag, key]));
+
+function entryKindOf(source) {
+  const match = source.match(/export const e=\[(?:'([^']+)'|(\d+))[,\]]/);
+  if (!match) return 'unknown';
+  if (match[1] !== undefined) return keyByFamilyTag[match[1]] ?? match[1];
+  return {0: 'runType', 2: 'pureFns', 3: 'missing'}[match[2]] ?? 'unknown';
+}
+
 function writeCaseDump(casesDir, category, caseKey, api, resp) {
   const dir = path.join(casesDir, `${safe(category)}__${safe(caseKey)}__${api}`);
   fs.mkdirSync(dir, {recursive: true});
+  const groups = {};
+  for (const [basename, source] of Object.entries(resp.entryModules ?? {})) {
+    if (typeof source !== 'string' || source.length === 0) continue;
+    (groups[entryKindOf(source)] ??= []).push([basename, source]);
+  }
   let n = 0;
-  for (const [field, file] of [
-    ['runTypeCacheSource', 'runTypes.js'],
-    ['validateCacheSource', 'validate.js'],
-    ['pureFnsCacheSource', 'pureFns.js'],
-  ]) {
-    const body = resp[field];
-    if (typeof body === 'string' && body.length > 0) {
-      fs.writeFileSync(path.join(dir, file), body);
-      n += 1;
+  for (const [kind, modules] of Object.entries(groups)) {
+    modules.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    const parts = [];
+    for (const [basename, source] of modules) {
+      parts.push(`// === virtual:rt/${basename}.js ===`);
+      parts.push(source.endsWith('\n') ? source.slice(0, -1) : source);
+      parts.push('');
     }
+    fs.writeFileSync(path.join(dir, `${kind}.js`), parts.join('\n'));
+    n += 1;
   }
   return n;
 }
