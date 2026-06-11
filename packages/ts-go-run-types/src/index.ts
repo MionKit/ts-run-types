@@ -21,19 +21,9 @@ export {type RunType} from './runtypes/types.ts';
 export {type DataOnly} from './runtypes/dataOnly.ts';
 export {type Static} from './schema/static.ts';
 
-// Populate the run-type registry from the precompiled cache module before any
-// consumer queries it. Idempotent — re-running overwrites entries by id.
-import {initCache as initRunTypesCache} from './caches/runTypesCache.ts';
-import {getRTUtils as _getRTUtilsForInit} from './runtypes/rtUtils.ts';
-initRunTypesCache(_getRTUtilsForInit());
-
-type _HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
-const _hot = (import.meta as unknown as {hot?: _HMR}).hot;
-if (_hot) {
-  _hot.accept('./caches/runTypesCache.ts', (newMod) => {
-    newMod?.initCache?.(_getRTUtilsForInit());
-  });
-}
+// Run-type registration is per-entry now: each marker call site imports its
+// type's virtual entry module and registers it (plus transitive children) on
+// first use — there is no monolithic cache module to populate up front.
 
 // `pureFn.ts` MUST evaluate before any cache factory that references pure-fn
 // helpers (e.g. validationErrors needs `mion::newRunTypeErr`).

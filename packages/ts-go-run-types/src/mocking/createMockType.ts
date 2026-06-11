@@ -4,6 +4,7 @@
 // cache; the walker reads `runTypesCache` and generates values at runtime.
 
 import {getRTUtils, isRunTypeSchema} from '../runtypes/rtUtils.ts';
+import {entryTupleKey, initFromTuple, isEntryTuple} from '../runtypes/entryTuple.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId} from '../index.ts';
 import {mockRunType} from './mockType.ts';
@@ -21,7 +22,14 @@ export function createMockType<T>(
   options?: RunTypeMockOptions,
   id?: InjectRunTypeId<T>
 ): MockTypeFn<T> {
-  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : id;
+  let injectedId: string | undefined = id;
+  if (isEntryTuple(id)) {
+    // The plugin injects the runtype's entry-module tuple — register the
+    // type graph and recover the id string.
+    initFromTuple(id);
+    injectedId = entryTupleKey(id);
+  }
+  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : injectedId;
   if (effectiveId === undefined) {
     throw new Error(
       'createMockType(): no id injected. vite-plugin-runtypes must be active for createMockType to resolve the runtype graph.'

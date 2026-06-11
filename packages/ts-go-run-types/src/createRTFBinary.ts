@@ -1,13 +1,11 @@
 // Binary I/O public surface — separated from `createRTFunctions.ts` so
-// bundlers can leave the binary subtree (encoder, decoder, the two binary
-// cache modules, DataView helper classes) out of bundles that never touch
-// `createBinaryEncoder` / `createBinaryDecoder`. Loading this module is what
-// registers the binary entries on the rtUtils singleton.
+// bundlers can leave the binary subtree (encoder, decoder, DataView helper
+// classes) out of bundles that never touch `createBinaryEncoder` /
+// `createBinaryDecoder`. Entries arrive as per-entry virtual-module tuples
+// injected at each call site (see runtypes/entryTuple.ts).
 
-import {initCache as initToBinaryCache} from './caches/toBinaryCache.ts';
-import {initCache as initFromBinaryCache} from './caches/fromBinaryCache.ts';
-import {getRTUtils} from './runtypes/rtUtils.ts';
-import {isRunTypeSchema, lookupRTFn} from './runtypes/rtUtils.ts';
+import {isRunTypeSchema} from './runtypes/rtUtils.ts';
+import {entryTupleKey, isEntryTuple, resolveEntryTupleFn, FN_HASH_LEN} from './runtypes/entryTuple.ts';
 import type {RunType} from './runtypes/types.ts';
 import {
   createDataViewSerializer,
@@ -54,19 +52,22 @@ export interface BinaryDecoderOptions {
 }
 
 // =============================================================================
-// Cache initialisation — side effect on module load.
-// =============================================================================
-
-const _utils = getRTUtils();
-initToBinaryCache(_utils);
-initFromBinaryCache(_utils);
-
-// =============================================================================
 // Public binary encode / decode entry functions.
 // =============================================================================
 
 const noopToBinaryFn: ToBinaryFn = (_v, Ser) => Ser;
 const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
+
+// binarySizingKey derives the adaptive-sizing bucket from the schema id or the
+// injected tuple's `<fnHash>_<typeId>` key — the bare type id, so every
+// encoder/decoder for the same `T` shares size history (the pre-migration
+// default). Falls back to 'unknown' when the plugin is inactive (the resolve
+// call right after throws anyway).
+function binarySizingKey(schemaId: string | undefined, injected: unknown): string {
+  if (schemaId !== undefined) return schemaId;
+  if (isEntryTuple(injected)) return entryTupleKey(injected).slice(FN_HASH_LEN + 1);
+  return 'unknown';
+}
 
 /** Returns a binary encoder for `T`. Accepts either a value-first schema
  *  (`createBinaryEncoder(rt)`) or the value/static form. **/
@@ -81,20 +82,9 @@ export function createBinaryEncoder<T>(
   options?: BinaryEncoderOptions,
   id?: InjectTypeFnArgs<T, 'tb'>
 ): BinaryEncoderFn {
-  const tuple = id as unknown as [string, string] | undefined;
-  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
-  const fnId = tuple?.[1];
-  if (effectiveId === undefined) {
-    throw new Error(
-      'createBinaryEncoder(): no id injected. vite-plugin-runtypes must be active for createBinaryEncoder to dispatch to a precompiled factory.'
-    );
-  }
-  const cacheKey = options?.cacheKey ?? effectiveId;
-  // fnId is the opaque toBinary fnHash the plugin injects; when the plugin is
-  // inactive the `effectiveId === undefined` guard above already threw, so the
-  // empty-string fallback only feeds lookupRTFn's registered-but-no-factory →
-  // identity path. No static `'tb'` tag exists post-hashing.
-  const encodeFn = lookupRTFn<ToBinaryFn>('createBinaryEncoder', fnId ?? '', effectiveId, noopToBinaryFn);
+  const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
+  const cacheKey = options?.cacheKey ?? binarySizingKey(schemaId, id);
+  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinaryEncoder', noopToBinaryFn, schemaId, id);
   return (value, serializer) => {
     const ownsSer = serializer === undefined;
     const ser = serializer ?? createDataViewSerializer(cacheKey);
@@ -124,22 +114,13 @@ export function createBinaryDecoder<T>(
   options?: BinaryDecoderOptions,
   id?: InjectTypeFnArgs<T, 'fb'>
 ): BinaryDecoderFn<DataOnly<T>> {
-  const tuple = id as unknown as [string, string] | undefined;
-  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
-  const fnId = tuple?.[1];
-  if (effectiveId === undefined) {
-    throw new Error(
-      'createBinaryDecoder(): no id injected. vite-plugin-runtypes must be active for createBinaryDecoder to dispatch to a precompiled factory.'
-    );
-  }
-  const cacheKey = options?.cacheKey ?? effectiveId;
-  // See createBinaryEncoder: fnId is the opaque fromBinary fnHash; the empty
-  // fallback only reaches lookupRTFn's identity path. No static `'fb'` tag.
-  const decodeFn = lookupRTFn<FromBinaryFn<T>>(
+  const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
+  const cacheKey = options?.cacheKey ?? binarySizingKey(schemaId, id);
+  const decodeFn = resolveEntryTupleFn<FromBinaryFn<T>>(
     'createBinaryDecoder',
-    fnId ?? '',
-    effectiveId,
-    noopFromBinaryFn as FromBinaryFn<T>
+    noopFromBinaryFn as FromBinaryFn<T>,
+    schemaId,
+    id
   );
   // A decoded value is reconstructed from bytes, so it only ever holds
   // serialisable data — the return is the data-only projection `DataOnly<T>`
@@ -155,15 +136,4 @@ export function createBinaryDecoder<T>(
     }
     return decodeFn(undefined, des);
   }) as BinaryDecoderFn<DataOnly<T>>;
-}
-
-// =============================================================================
-// HMR — refresh binary entries when their cache modules re-evaluate.
-// =============================================================================
-
-type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
-const hot = (import.meta as unknown as {hot?: HMR}).hot;
-if (hot) {
-  hot.accept('./caches/toBinaryCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/fromBinaryCache.ts', (m) => m?.initCache?.(getRTUtils()));
 }
