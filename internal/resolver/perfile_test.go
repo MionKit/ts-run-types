@@ -26,7 +26,7 @@ getRunTypeId<{a: number}>();
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
 		IncludeRunTypes:     true,
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindAll},
+		IncludeEntryModules: true,
 	})
 	if respA.Error != "" {
 		t.Fatalf("scanFiles a.ts: %s", respA.Error)
@@ -39,7 +39,7 @@ getRunTypeId<{a: number}>();
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"b.ts"},
 		IncludeRunTypes:     true,
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindAll},
+		IncludeEntryModules: true,
 	})
 	if respB.Error != "" {
 		t.Fatalf("scanFiles b.ts: %s", respB.Error)
@@ -51,9 +51,13 @@ getRunTypeId<{a: number}>();
 	if !containsID(respB.RunTypes, idB) {
 		t.Fatalf("scanFiles([b.ts]) missing its own id %q", idB)
 	}
-	// runTypeCacheSource scoping mirrors runTypes scoping.
-	if strings.Contains(respB.RunTypeCacheSource, idA) {
-		t.Fatalf("scanFiles([b.ts]) runTypeCacheSource mentions a.ts's id %q; projection must be request-scoped", idA)
+	// EntryModules scoping mirrors runTypes scoping — no module keyed by (or
+	// importing) a.ts's id may appear in b.ts's projection.
+	if _, leaked := respB.EntryModules[idA]; leaked {
+		t.Fatalf("scanFiles([b.ts]) EntryModules contains a.ts's runtype module %q; projection must be request-scoped", idA)
+	}
+	if strings.Contains(allEntrySources(respB), idA) {
+		t.Fatalf("scanFiles([b.ts]) entry modules mention a.ts's id %q; projection must be request-scoped", idA)
 	}
 
 	// scanFiles([a, b]) — single request, both files, both ids present.
@@ -61,7 +65,7 @@ getRunTypeId<{a: number}>();
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts", "b.ts"},
 		IncludeRunTypes:     true,
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindAll},
+		IncludeEntryModules: true,
 	})
 	if respAB.Error != "" {
 		t.Fatalf("scanFiles [a, b]: %s", respAB.Error)
@@ -241,17 +245,16 @@ getRunTypeId<{a: number}>();
 	if !containsID(dumpResp.RunTypes, idB) {
 		t.Fatalf("dump missing b.ts's id %q (expected full in-memory cache)", idB)
 	}
-	if dumpResp.RunTypeCacheSource == "" {
-		t.Fatalf("dump: expected populated runTypeCacheSource")
+	if len(dumpResp.EntryModules) == 0 {
+		t.Fatalf("dump: expected populated entryModules")
 	}
-	// The dump must contain factory calls for every interned id so
-	// consumers re-evaluating the module body see the full cache. With
-	// the splice-based emitter we look for `rt('<id>',` lines.
-	if !strings.Contains(dumpResp.RunTypeCacheSource, "rt('"+idA+"',") {
-		t.Fatalf("dump runTypeCacheSource missing rt(...) call for id %q:\n%s", idA, dumpResp.RunTypeCacheSource)
+	// The dump must contain one runtype entry module per interned id so
+	// consumers can resolve any virtual specifier against the full cache.
+	if _, ok := dumpResp.EntryModules[idA]; !ok {
+		t.Fatalf("dump entryModules missing runtype module for id %q", idA)
 	}
-	if !strings.Contains(dumpResp.RunTypeCacheSource, "rt('"+idB+"',") {
-		t.Fatalf("dump runTypeCacheSource missing rt(...) call for id %q:\n%s", idB, dumpResp.RunTypeCacheSource)
+	if _, ok := dumpResp.EntryModules[idB]; !ok {
+		t.Fatalf("dump entryModules missing runtype module for id %q", idB)
 	}
 }
 

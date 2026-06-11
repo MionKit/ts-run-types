@@ -26,7 +26,7 @@ export const _ = createValidate<TypeFormat<Temporal.` + typ + `, '` + formatName
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scan: %s", resp.Error)
@@ -37,7 +37,7 @@ export const _ = createValidate<TypeFormat<Temporal.` + typ + `, '` + formatName
 			diags = append(diags, d)
 		}
 	}
-	return resp.ValidateCacheSource, diags
+	return familyEntrySources(resp, "validate"), diags
 }
 
 func TestTemporalFormat_EmitsCompareCheck(t *testing.T) {

@@ -25,14 +25,17 @@ export const _ = registerPureFnFactory('mion', 'foo', function (utl) {
 	if entry.FilePath == "" {
 		t.Fatalf("FilePath should be populated, got empty")
 	}
-	// Replacements() should produce a single null-out record matching
+	// Replacements() should produce a single binding-swap record matching
 	// those bounds.
 	reps := Replacements(entries)
 	if len(reps) != 1 {
 		t.Fatalf("expected 1 replacement, got %d (%+v)", len(reps), reps)
 	}
-	if reps[0].Text != "null" {
-		t.Errorf("expected text 'null', got %q", reps[0].Text)
+	if reps[0].Text != "__rt_pf$2Fmion$2Ffoo" {
+		t.Errorf("expected the entry-module binding, got %q", reps[0].Text)
+	}
+	if reps[0].ImportFrom != "virtual:rt/pf/mion/foo.js" {
+		t.Errorf("expected the virtual specifier, got %q", reps[0].ImportFrom)
 	}
 	if reps[0].Start != entry.FactoryArgStart || reps[0].End != entry.FactoryArgEnd {
 		t.Errorf("replacement bounds %d..%d don't match entry %d..%d",
@@ -41,14 +44,14 @@ export const _ = registerPureFnFactory('mion', 'foo', function (utl) {
 	if reps[0].File != entry.FilePath {
 		t.Errorf("replacement file %q != entry file %q", reps[0].File, entry.FilePath)
 	}
-	// Spot-check: applying the replacement to the source should
-	// produce text containing `registerPureFnFactory('mion', 'foo', null)`.
+	// Spot-check: applying the replacement to the source should swap the
+	// factory literal for the imported tuple binding.
 	rewritten := source[:reps[0].Start] + reps[0].Text + source[reps[0].End:]
 	// The factory-arg byte range includes its leading trivia (the space
-	// after the comma), so the rewrite collapses to `'foo',null` rather
-	// than `'foo', null` — both forms parse identically.
-	if !strings.Contains(rewritten, "registerPureFnFactory('mion', 'foo',null)") {
-		t.Errorf("rewritten source missing nulled-out call form:\n%s", rewritten)
+	// after the comma), so the rewrite collapses to `'foo',<binding>` rather
+	// than `'foo', <binding>` — both forms parse identically.
+	if !strings.Contains(rewritten, "registerPureFnFactory('mion', 'foo',__rt_pf$2Fmion$2Ffoo)") {
+		t.Errorf("rewritten source missing binding-swapped call form:\n%s", rewritten)
 	}
 }
 

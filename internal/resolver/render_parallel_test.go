@@ -41,10 +41,11 @@ func TestParallelRender_EquivalentToSerial(t *testing.T) {
 	serialResponse := serial.Dispatch(scanAllRequest(files))
 	parallelResponse := parallel.Dispatch(scanAllRequest(files))
 
-	// Sanity: the validate render (cross-family seeded, renders last) and
-	// at least one fanned-out family must have produced bodies.
-	if parallelResponse.ValidateCacheSource == "" || parallelResponse.PrepareForJsonCacheSource == "" {
-		t.Fatalf("expected validate + prepareForJson cache sources to render")
+	// Sanity: the validate family and at least one other demanded family must
+	// have produced entries (the fixture demands createValidate +
+	// createJsonDecoder, whose strip strategy seeds restoreFromJson).
+	if !hasFamilyEntry(parallelResponse, "validate") || !hasFamilyEntry(parallelResponse, "restoreFromJson") {
+		t.Fatalf("expected validate + restoreFromJson entries to render")
 	}
 
 	serialJSON := responseJSON(t, serialResponse)
@@ -113,28 +114,4 @@ func renderMsKeys(metrics *protocol.Metrics) string {
 	}
 	sort.Strings(keys)
 	return strings.Join(keys, ",")
-}
-
-// TestParallelRender_DegeneratesToSerial pins the fallback shapes: a
-// single requested family and a validate-only request both take the
-// sequential loop (fewer than two non-validate families) and must match
-// the serial configuration exactly.
-func TestParallelRender_DegeneratesToSerial(t *testing.T) {
-	sources := parallelFixtureSources()
-	files := parallelFixtureFiles()
-
-	for _, kinds := range [][]protocol.CacheKind{
-		{protocol.CacheKindRunType},
-		{protocol.CacheKindValidate},
-		{protocol.CacheKindRunType, protocol.CacheKindValidate},
-	} {
-		serial := setupRenderResolver(t, sources, true)
-		parallel := setupRenderResolver(t, sources, false)
-		request := protocol.Request{Op: protocol.OpScanFiles, Files: files, IncludeCacheSources: kinds}
-		serialJSON := responseJSON(t, serial.Dispatch(request))
-		parallelJSON := responseJSON(t, parallel.Dispatch(request))
-		if serialJSON != parallelJSON {
-			t.Fatalf("degenerate render request %v diverged between modes", kinds)
-		}
-	}
 }
