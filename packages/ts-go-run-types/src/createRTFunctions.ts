@@ -16,6 +16,8 @@ import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.t
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {getRTUtils, isRunTypeSchema} from './runtypes/rtUtils.ts';
+import {initDependencies} from './runtypes/registrar.ts';
+import type {EntryTuple} from './runtypes/registrar.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
 import type {DataOnly} from './runtypes/dataOnly.ts';
 import type {CompTimeFnArgs, InjectTypeFnArgs} from './index.ts';
@@ -195,9 +197,12 @@ function resolveTupleEntry<F extends AnyFn>(
   val: unknown,
   args: unknown
 ): F {
-  const tuple = args as [string, string] | undefined;
+  const tuple = args as [string, string, (readonly EntryTuple[])?] | undefined;
   const injectedId = tuple ? tuple[0] : undefined;
   const fnId = tuple ? tuple[1] : undefined;
+  // Module mode: slot 2 carries the imported per-entry module tuples for this
+  // site's full closure — register-if-absent, then the lookup below hits.
+  if (tuple?.[2]) initDependencies(getRTUtils(), tuple[2]);
   const effectiveId = isRunTypeSchema(val) ? val.id : injectedId;
   if (effectiveId === undefined) {
     throw new Error(

@@ -42,6 +42,20 @@ export type InjectTypeFnArgs<T, Fn extends string> = string & {
   readonly __mionInjectTypeFnArgsFn?: Fn;
 };
 
+/**
+ * Graph-demand trailing-slot injection marker — the data sibling of
+ * `InjectRunTypeId<T>`, used by every consumer of the RunType node GRAPH
+ * (`createMockType`, the schema builders). The transformer fills the slot like
+ * `InjectRunTypeId`, but the site additionally demands the type's RunType data
+ * modules: in module mode the injected value is a `[typeId, deps]` pair whose
+ * deps are the imported per-node entry tuples, registered through the runtime
+ * registrar on first use. Reflection-only sites (`getRunTypeId` /
+ * `reflectRunTypeId`) keep `InjectRunTypeId` — bare string, no modules.
+ */
+export type InjectRunTypeData<T> = string & {
+  readonly __mionInjectRunTypeDataBrand?: T;
+};
+
 // NOTE: `any` is intentionally PERMITTED — there is no type-level `any` guard.
 // `getRunTypeId<any>()` resolves a normal id; the runtime fn is a noop validator
 // (accepts everything) and a best-effort serializer that emits a build-time

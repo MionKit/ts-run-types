@@ -4,8 +4,9 @@
 // cache; the walker reads `runTypesCache` and generates values at runtime.
 
 import {getRTUtils, isRunTypeSchema} from '../runtypes/rtUtils.ts';
+import {resolveInjectedData} from '../runtypes/registrar.ts';
 import type {RunType} from '../runtypes/types.ts';
-import type {InjectRunTypeId} from '../index.ts';
+import type {InjectRunTypeData} from '../index.ts';
 import {mockRunType} from './mockType.ts';
 import {defaultMockOptions} from './constants.mock.ts';
 import type {MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './mockTypes.ts';
@@ -13,15 +14,17 @@ import type {MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './m
 /** Returns a mock-value generator for `T`. Each call produces a fresh value
  *  that passes `validate<T>`. Options merge: call < factory < defaults. Accepts
  *  either a value-first schema (`createMockType(rt)`) or the value/static form.
- *  Throws if the Vite plugin isn't active (no `id` injected). **/
-export function createMockType<T>(schema: RunType<T>, options?: RunTypeMockOptions, id?: InjectRunTypeId<T>): MockTypeFn<T>;
-export function createMockType<T>(val?: T, options?: RunTypeMockOptions, id?: InjectRunTypeId<T>): MockTypeFn<T>;
+ *  Throws if the Vite plugin isn't active (no `id` injected). The trailing slot
+ *  is the graph-demand marker: in module mode the injected `[typeId, deps]`
+ *  registers the type's RunType data closure before the graph lookup. **/
+export function createMockType<T>(schema: RunType<T>, options?: RunTypeMockOptions, id?: InjectRunTypeData<T>): MockTypeFn<T>;
+export function createMockType<T>(val?: T, options?: RunTypeMockOptions, id?: InjectRunTypeData<T>): MockTypeFn<T>;
 export function createMockType<T>(
   valOrSchema?: T | RunType<T>,
   options?: RunTypeMockOptions,
-  id?: InjectRunTypeId<T>
+  id?: InjectRunTypeData<T>
 ): MockTypeFn<T> {
-  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : id;
+  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : resolveInjectedData(getRTUtils(), id);
   if (effectiveId === undefined) {
     throw new Error(
       'createMockType(): no id injected. vite-plugin-runtypes must be active for createMockType to resolve the runtype graph.'

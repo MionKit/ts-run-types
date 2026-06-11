@@ -12,8 +12,9 @@
 // static.ts, so this file is runtime-only.
 
 import {builderResult, lastInjectedId} from './atomic.ts';
+import {isInjectedData} from '../runtypes/registrar.ts';
 import type {RunType} from '../runtypes/types.ts';
-import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
+import type {InjectRunTypeData, CompTimeArgs} from '../markers.ts';
 import type {FormatParams_NativeDate} from '../formats/datetime/dateFormats.ts';
 import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
 import type {LeafType, BrandArg, TemporalFormatByTag, TemporalBaseByTag, TemporalBuilderFn} from './static.ts';
@@ -29,22 +30,22 @@ import type {LeafType, BrandArg, TemporalFormatByTag, TemporalBaseByTag, Tempora
 /** A native-`Date` field builder. `date()` → `RunType<Date>`; `date({max: 'now'})`
  *  → transparent `RunType<FormatDate<P>>`; `date({max: 'now'}, brand('CreatedAt'))`
  *  → nominal `RunType<FormatDate<P, 'CreatedAt'>>`. **/
-export function date(id?: InjectRunTypeId<Date>): RunType<Date>;
+export function date(id?: InjectRunTypeData<Date>): RunType<Date>;
 export function date<const P extends FormatParams_NativeDate>(
   formatParams: CompTimeArgs<P>,
-  id?: InjectRunTypeId<LeafType<'nativeDate', P>>
+  id?: InjectRunTypeData<LeafType<'nativeDate', P>>
 ): RunType<LeafType<'nativeDate', P>>;
 export function date<const P extends FormatParams_NativeDate, const B extends string>(
   formatParams: CompTimeArgs<P>,
   brandTag: BrandArg<B>,
-  id?: InjectRunTypeId<LeafType<'nativeDate', P, B>>
+  id?: InjectRunTypeData<LeafType<'nativeDate', P, B>>
 ): RunType<LeafType<'nativeDate', P, B>>;
 export function date(
-  formatParamsOrId?: FormatParams_NativeDate | InjectRunTypeId<Date>,
-  brandOrId?: BrandArg<string> | InjectRunTypeId<Date>,
-  id?: InjectRunTypeId<Date>
+  formatParamsOrId?: FormatParams_NativeDate | InjectRunTypeData<Date>,
+  brandOrId?: BrandArg<string> | InjectRunTypeData<Date>,
+  id?: InjectRunTypeData<Date>
 ): RunType<Date> {
-  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const formatParams = typeof formatParamsOrId === 'object' && !isInjectedData(formatParamsOrId) ? formatParamsOrId : {};
   return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'date', formatParams});
 }
 
@@ -58,12 +59,17 @@ export function date(
 
 function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag): TemporalBuilderFn<Tag> {
   const build = (
-    formatParamsOrId?: MinMax | InjectRunTypeId<TemporalBaseByTag[Tag]>,
-    id?: InjectRunTypeId<TemporalBaseByTag[Tag]>
+    formatParamsOrId?: MinMax | InjectRunTypeData<TemporalBaseByTag[Tag]>,
+    id?: InjectRunTypeData<TemporalBaseByTag[Tag]>
   ): RunType<TemporalBaseByTag[Tag]> => {
-    const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
-    const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
-    return builderResult(injectedId, {type: tag, formatParams});
+    // The no-params overload puts the injected value at slot 0 — a bare id
+    // string or the module-mode `[typeId, deps]` pair (also typeof 'object',
+    // so the params check must exclude it).
+    const formatParams = typeof formatParamsOrId === 'object' && !isInjectedData(formatParamsOrId) ? formatParamsOrId : {};
+    return builderResult(lastInjectedId(formatParamsOrId, id) as InjectRunTypeData<TemporalBaseByTag[Tag]> | undefined, {
+      type: tag,
+      formatParams,
+    });
   };
   return build as TemporalBuilderFn<Tag>;
 }
@@ -74,8 +80,8 @@ function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag
  *  `createValidate<Temporal.PlainMonthDay>()` / `<Temporal.Duration>()` form. **/
 function temporalInstanceBuilder<Tag extends 'temporal.plainMonthDay' | 'temporal.duration'>(
   tag: Tag
-): (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>) => RunType<TemporalBaseByTag[Tag]> {
-  return (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>) => builderResult(id, {type: tag, formatParams: {}});
+): (id?: InjectRunTypeData<TemporalBaseByTag[Tag]>) => RunType<TemporalBaseByTag[Tag]> {
+  return (id?: InjectRunTypeData<TemporalBaseByTag[Tag]>) => builderResult(id, {type: tag, formatParams: {}});
 }
 
 /** Temporal field builders, namespaced to mirror the `Temporal.X` API

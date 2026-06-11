@@ -12,7 +12,7 @@
 // The leaf builder's carried `T` is sourced from the leaf reverse map
 // (static.ts `LeafType`) keyed by format name — the single place the format→type
 // mapping lives. The Go scanner reflects the SAME branded type off the builder's
-// `InjectRunTypeId<…>` brand as the type-first surface, so a value-first leaf and
+// `InjectRunTypeData<…>` brand as the type-first surface, so a value-first leaf and
 // the hand-written `Format*<P>` form converge on one structural id; the runtime
 // then resolves the same precompiled factory (see createValidate).
 //
@@ -24,8 +24,9 @@
 // the validation engine.
 
 import {getRTUtils} from '../runtypes/rtUtils.ts';
+import {isInjectedData, resolveInjectedData} from '../runtypes/registrar.ts';
 import type {RunType} from '../runtypes/types.ts';
-import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
+import type {InjectRunTypeData, CompTimeArgs} from '../markers.ts';
 import type {StringParams, StringParamsValueFirst} from '../formats/string/stringFormats.ts';
 import type {NumberParams} from '../formats/numberFormats.ts';
 import type {BigIntParams} from '../formats/bigintFormats.ts';
@@ -34,7 +35,7 @@ import type {LeafType, BrandArg} from './static.ts';
 // ───────────────────────────── builderResult ────────────────────────
 //
 // Each builder is an INJECTABLE MARKER (Tier 2): the trailing
-// `id?: InjectRunTypeId<…>` is filled by vite-plugin-runtypes with the resolved
+// `id?: InjectRunTypeData<…>` is filled by vite-plugin-runtypes with the resolved
 // structural id, and the body returns the LIVE RunType node for it
 // (`getRunType(id)`) — the exact node the type compiler produces for the
 // equivalent written type. A builder nested inside a composer is skipped by the
@@ -42,13 +43,16 @@ import type {LeafType, BrandArg} from './static.ts';
 // returns the carrier the composer discards.
 
 /** Resolves the live RunType node for an injected marker id — the exact node
- *  the type compiler produces for the builder's return type. With no id (the
- *  builder is nested inside a composer, so the scanner skipped it) or before the
- *  cache module has loaded, it returns the `carrier` the enclosing composer
- *  discards. **/
-export function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: unknown): RunType<T> {
-  if (id !== undefined) {
-    const runType = getRTUtils().getRunType(id);
+ *  the type compiler produces for the builder's return type. The injected value
+ *  is the bare id string (no-modules mode) or the module-mode `[typeId, deps]`
+ *  pair, whose deps closure registers before the lookup. With no id (the
+ *  builder is nested inside a composer, so the scanner skipped it) or before
+ *  the data entries have registered, it returns the `carrier` the enclosing
+ *  composer discards. **/
+export function builderResult<T>(id: InjectRunTypeData<T> | undefined, carrier: unknown): RunType<T> {
+  const resolvedId = resolveInjectedData(getRTUtils(), id);
+  if (resolvedId !== undefined) {
+    const runType = getRTUtils().getRunType(resolvedId);
     if (runType) return runType as RunType<T>;
   }
   return carrier as RunType<T>;
@@ -65,25 +69,29 @@ export function brand<const B extends string>(name: B): BrandArg<B> {
 }
 
 /** Recovers the plugin-injected id from a leaf builder's args. The plugin appends
- *  the resolved id as the TRAILING argument; the optional params (object) and
- *  brand (object) slots before it are never strings, so the id is simply the last
- *  string argument. Before injection (no id arg) there is no string → `undefined`,
- *  and the builder falls back to the carrier. **/
+ *  the injected value as the TRAILING argument — a bare id string, or the
+ *  module-mode `[typeId, deps]` pair (registered on sight). The optional params
+ *  (object) and brand (object) slots before it are never strings nor
+ *  `[string, array]` pairs, so scanning from the end is unambiguous. Before
+ *  injection (no id arg) there is no match → `undefined`, and the builder falls
+ *  back to the carrier. **/
 export function lastInjectedId(...args: unknown[]): string | undefined {
   for (let i = args.length - 1; i >= 0; i--) {
-    if (typeof args[i] === 'string') return args[i] as string;
+    const arg = args[i];
+    if (typeof arg === 'string') return arg;
+    if (isInjectedData(arg)) return resolveInjectedData(getRTUtils(), arg);
   }
   return undefined;
 }
 
 /** Builds a no-param preset builder for a FIXED named format `T` (e.g.
  *  `FormatEmail`, `FormatInt8`). The returned function's only param is the injected
- *  `InjectRunTypeId<T>` brand, so the scanner reflects `T` and the value-first id
+ *  `InjectRunTypeData<T>` brand, so the scanner reflects `T` and the value-first id
  *  matches the type-first alias. Used by the predefined-format builder files
  *  (stringFormats.ts / numberFormats.ts / bigintFormats.ts); `tag` is the Go
  *  format name, carried only on the fallback carrier. **/
-export function presetBuilder<T>(tag: string): (id?: InjectRunTypeId<T>) => RunType<T> {
-  return (id?: InjectRunTypeId<T>) => builderResult(id, {type: tag, formatParams: {}});
+export function presetBuilder<T>(tag: string): (id?: InjectRunTypeData<T>) => RunType<T> {
+  return (id?: InjectRunTypeData<T>) => builderResult(id, {type: tag, formatParams: {}});
 }
 
 // ───────────────────────────── Leaf builders ────────────────────────
@@ -111,72 +119,72 @@ export function presetBuilder<T>(tag: string): (id?: InjectRunTypeId<T>) => RunT
  *  inline `{source, flags?, mockSamples, …}` literal ONLY — not the opaque
  *  `FormatPattern` value (whose source/flags erase to `string`), so the reflected
  *  `T` keeps the pattern literals and the value-first id stays faithful. **/
-export function string(id?: InjectRunTypeId<string>): RunType<string>;
+export function string(id?: InjectRunTypeData<string>): RunType<string>;
 export function string<const P extends StringParamsValueFirst>(
   formatParams: CompTimeArgs<P>,
-  id?: InjectRunTypeId<LeafType<'stringFormat', P>>
+  id?: InjectRunTypeData<LeafType<'stringFormat', P>>
 ): RunType<LeafType<'stringFormat', P>>;
 export function string<const P extends StringParamsValueFirst, const B extends string>(
   formatParams: CompTimeArgs<P>,
   brandTag: BrandArg<B>,
-  id?: InjectRunTypeId<LeafType<'stringFormat', P, B>>
+  id?: InjectRunTypeData<LeafType<'stringFormat', P, B>>
 ): RunType<LeafType<'stringFormat', P, B>>;
 export function string(
-  formatParamsOrId?: StringParams | InjectRunTypeId<string>,
-  brandOrId?: BrandArg<string> | InjectRunTypeId<string>,
-  id?: InjectRunTypeId<string>
+  formatParamsOrId?: StringParams | InjectRunTypeData<string>,
+  brandOrId?: BrandArg<string> | InjectRunTypeData<string>,
+  id?: InjectRunTypeData<string>
 ): RunType<string> {
-  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const formatParams = typeof formatParamsOrId === 'object' && !isInjectedData(formatParamsOrId) ? formatParamsOrId : {};
   return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'string', formatParams});
 }
 
 /** A number field builder. `number()` → `RunType<number>`; `number({min: 0})` →
  *  transparent `RunType<FormatNumber<P>>`; `number({min: 0}, brand('Age'))` →
  *  nominal `RunType<FormatNumber<P, 'Age'>>`. **/
-export function number(id?: InjectRunTypeId<number>): RunType<number>;
+export function number(id?: InjectRunTypeData<number>): RunType<number>;
 export function number<const P extends NumberParams>(
   formatParams: CompTimeArgs<P>,
-  id?: InjectRunTypeId<LeafType<'numberFormat', P>>
+  id?: InjectRunTypeData<LeafType<'numberFormat', P>>
 ): RunType<LeafType<'numberFormat', P>>;
 export function number<const P extends NumberParams, const B extends string>(
   formatParams: CompTimeArgs<P>,
   brandTag: BrandArg<B>,
-  id?: InjectRunTypeId<LeafType<'numberFormat', P, B>>
+  id?: InjectRunTypeData<LeafType<'numberFormat', P, B>>
 ): RunType<LeafType<'numberFormat', P, B>>;
 export function number(
-  formatParamsOrId?: NumberParams | InjectRunTypeId<number>,
-  brandOrId?: BrandArg<string> | InjectRunTypeId<number>,
-  id?: InjectRunTypeId<number>
+  formatParamsOrId?: NumberParams | InjectRunTypeData<number>,
+  brandOrId?: BrandArg<string> | InjectRunTypeData<number>,
+  id?: InjectRunTypeData<number>
 ): RunType<number> {
-  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const formatParams = typeof formatParamsOrId === 'object' && !isInjectedData(formatParamsOrId) ? formatParamsOrId : {};
   return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'number', formatParams});
 }
 
 /** A bigint field builder. `bigint()` → `RunType<bigint>`; `bigint({min: 0n})` →
  *  transparent `RunType<FormatBigInt<P>>`; `bigint({min: 0n}, brand('Balance'))` →
  *  nominal `RunType<FormatBigInt<P, 'Balance'>>`. **/
-export function bigint(id?: InjectRunTypeId<bigint>): RunType<bigint>;
+export function bigint(id?: InjectRunTypeData<bigint>): RunType<bigint>;
 export function bigint<const P extends BigIntParams>(
   formatParams: CompTimeArgs<P>,
-  id?: InjectRunTypeId<LeafType<'bigintFormat', P>>
+  id?: InjectRunTypeData<LeafType<'bigintFormat', P>>
 ): RunType<LeafType<'bigintFormat', P>>;
 export function bigint<const P extends BigIntParams, const B extends string>(
   formatParams: CompTimeArgs<P>,
   brandTag: BrandArg<B>,
-  id?: InjectRunTypeId<LeafType<'bigintFormat', P, B>>
+  id?: InjectRunTypeData<LeafType<'bigintFormat', P, B>>
 ): RunType<LeafType<'bigintFormat', P, B>>;
 export function bigint(
-  formatParamsOrId?: BigIntParams | InjectRunTypeId<bigint>,
-  brandOrId?: BrandArg<string> | InjectRunTypeId<bigint>,
-  id?: InjectRunTypeId<bigint>
+  formatParamsOrId?: BigIntParams | InjectRunTypeData<bigint>,
+  brandOrId?: BrandArg<string> | InjectRunTypeData<bigint>,
+  id?: InjectRunTypeData<bigint>
 ): RunType<bigint> {
-  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const formatParams = typeof formatParamsOrId === 'object' && !isInjectedData(formatParamsOrId) ? formatParamsOrId : {};
   return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'bigint', formatParams});
 }
 
 /** A boolean builder — no params, no format brand (kind boolean). Returns
  *  `RunType<boolean>`. **/
-export function boolean(id?: InjectRunTypeId<boolean>): RunType<boolean> {
+export function boolean(id?: InjectRunTypeData<boolean>): RunType<boolean> {
   return builderResult(id, {type: 'boolean', formatParams: {}});
 }
 
@@ -184,10 +192,10 @@ export function boolean(id?: InjectRunTypeId<boolean>): RunType<boolean> {
  *  `literal(10n)`, `literal(true)`, `literal(null)`, `literal(undefined)`. The
  *  `const V` narrows the argument to its literal type (so `literal(true)` is
  *  `RunType<true>`, not `RunType<boolean>`); the scanner reflects that literal
- *  off the `InjectRunTypeId<V>` brand. **/
+ *  off the `InjectRunTypeData<V>` brand. **/
 export function literal<const V extends string | number | bigint | boolean | null | undefined>(
   value: V,
-  id?: InjectRunTypeId<V>
+  id?: InjectRunTypeData<V>
 ): RunType<V> {
   return builderResult(id, {type: 'literal', literal: value});
 }
@@ -198,7 +206,7 @@ export function literal<const V extends string | number | bigint | boolean | nul
  *  form: it would make the structural id depend on data absent from `T`, breaking
  *  the id ≡ f(T) invariant. To validate a STRING against a pattern, use
  *  `string({pattern: {source, flags, mockSamples}})`. **/
-export function regexp(id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
+export function regexp(id?: InjectRunTypeData<RegExp>): RunType<RegExp> {
   return builderResult(id, {type: 'regexp', formatParams: {}});
 }
 
@@ -207,37 +215,37 @@ export function regexp(id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
  *  emits an unsupported validator (docs/UNSUPPORTED-KINDS.md) — a standalone
  *  `createValidate(symbol())` throws the same way the type-first `symbol` case
  *  does. **/
-export function symbol(id?: InjectRunTypeId<symbol>): RunType<symbol> {
+export function symbol(id?: InjectRunTypeData<symbol>): RunType<symbol> {
   return builderResult(id, {type: 'symbol', formatParams: {}});
 }
 
 // Top / bottom atomic builders — `any` / `unknown` / `never` / `void`. Dedicated
-// builders: each carries its kind off the trailing `InjectRunTypeId<…>` brand, so
+// builders: each carries its kind off the trailing `InjectRunTypeData<…>` brand, so
 // the scanner reflects the SAME kind as the type-first `createValidate<any>()` /
 // `<never>` / … surface and the value-first form converges on one structural id.
 
 /** An `any` builder — `any()` → `RunType<any>` (no-op validator; every value
  *  passes). **/
-export function any(id?: InjectRunTypeId<any>): RunType<any> {
+export function any(id?: InjectRunTypeData<any>): RunType<any> {
   return builderResult(id, {type: 'any', formatParams: {}});
 }
 
 /** An `unknown` builder — `unknown()` → `RunType<unknown>` (every value passes,
  *  same as `any`). **/
-export function unknown(id?: InjectRunTypeId<unknown>): RunType<unknown> {
+export function unknown(id?: InjectRunTypeData<unknown>): RunType<unknown> {
   return builderResult(id, {type: 'unknown', formatParams: {}});
 }
 
 /** A `never` builder — `never()` → `RunType<never>` (no value passes; the
  *  validator returns `false` for every input). **/
-export function never(id?: InjectRunTypeId<never>): RunType<never> {
+export function never(id?: InjectRunTypeData<never>): RunType<never> {
   return builderResult(id, {type: 'never', formatParams: {}});
 }
 
 /** A `void` builder — `voidType()` → `RunType<void>` (accepts `undefined`,
  *  rejects `null`). The function can't be named `void` (reserved word); the
  *  `/schema` index also re-exports it as `void` so `RT.void()` reads naturally. **/
-export function voidType(id?: InjectRunTypeId<void>): RunType<void> {
+export function voidType(id?: InjectRunTypeData<void>): RunType<void> {
   return builderResult(id, {type: 'void', formatParams: {}});
 }
 
@@ -251,7 +259,7 @@ export function voidType(id?: InjectRunTypeId<void>): RunType<void> {
  *  reference). **/
 export function classType<Instance>(
   ctor: abstract new (...args: any[]) => Instance,
-  id?: InjectRunTypeId<Instance>
+  id?: InjectRunTypeData<Instance>
 ): RunType<Instance> {
   return builderResult(id, {type: 'class', ctor});
 }
@@ -274,7 +282,7 @@ export function classType<Instance>(
  *  be named `enum` — reserved word — same as `voidType`/`classType`). **/
 export function enumType<const E extends Record<string, string | number>>(
   enumObject: E,
-  id?: InjectRunTypeId<E[keyof E]>
+  id?: InjectRunTypeData<E[keyof E]>
 ): RunType<E[keyof E]> {
   return builderResult(id, {type: 'enum', members: enumObject});
 }

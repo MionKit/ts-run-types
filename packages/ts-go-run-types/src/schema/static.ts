@@ -15,7 +15,7 @@
 
 import {TypeFormat} from '../runtypes/typeFormat.ts';
 import type {RunType} from '../runtypes/types.ts';
-import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
+import type {InjectRunTypeData, CompTimeArgs} from '../markers.ts';
 import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
 import type {
   FormatTemporalInstant,
@@ -91,7 +91,7 @@ export type LeafType<Name extends LeafFormatName, P extends object, BrandName ex
 /** The tag `brand(name)` produces — a distinct carrier for a value-first format
  *  brand name. Its OBJECT shape (not a bare string) is what lets the builder's
  *  brand slot sit BEFORE the trailing injected id without the two colliding: a
- *  plain string is assignable to `InjectRunTypeId`, a `BrandArg` is not, so
+ *  plain string is assignable to `InjectRunTypeData`, a `BrandArg` is not, so
  *  overload resolution can't confuse the user's brand with the plugin's id. The
  *  carried `B` flows into the leaf's `LeafType<…, B>` → `TypeFormat<…, B>`
  *  BrandName, so a branded value-first leaf reflects the SAME nominal
@@ -137,7 +137,7 @@ export type IsReadonly<V> = V extends {__propMod: {readonly: true}} ? true : fal
  *  `propMod(...)` field places the key per its modifiers. `FieldOf` unwraps each
  *  field's `RunType<…>` to its format type; empty groups collapse (`& {}`) so an
  *  all-required-mutable object converges with the plain type-first object. Shared
- *  by `object`'s return type and its `InjectRunTypeId<…>` marker param. **/
+ *  by `object`'s return type and its `InjectRunTypeData<…>` marker param. **/
 export type ObjectType<C> = {
   -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
 } & {
@@ -184,10 +184,10 @@ export interface TemporalBaseByTag {
 /** Overloaded shape of each `temporal.<name>` builder — the no-params/plain ↔
  *  params/branded split shared by the scalar leaves. **/
 export interface TemporalBuilderFn<Tag extends keyof TemporalFormatByTag<MinMax>> {
-  (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>): RunType<TemporalBaseByTag[Tag]>;
+  (id?: InjectRunTypeData<TemporalBaseByTag[Tag]>): RunType<TemporalBaseByTag[Tag]>;
   <const P extends MinMax>(
     formatParams: CompTimeArgs<P>,
-    id?: InjectRunTypeId<TemporalFormatByTag<P>[Tag]>
+    id?: InjectRunTypeData<TemporalFormatByTag<P>[Tag]>
   ): RunType<TemporalFormatByTag<P>[Tag]>;
 }
 

@@ -8,6 +8,8 @@ import {initCache as initToBinaryCache} from './caches/toBinaryCache.ts';
 import {initCache as initFromBinaryCache} from './caches/fromBinaryCache.ts';
 import {getRTUtils} from './runtypes/rtUtils.ts';
 import {isRunTypeSchema, lookupRTFn} from './runtypes/rtUtils.ts';
+import {initDependencies} from './runtypes/registrar.ts';
+import type {EntryTuple} from './runtypes/registrar.ts';
 import type {RunType} from './runtypes/types.ts';
 import {
   createDataViewSerializer,
@@ -81,9 +83,11 @@ export function createBinaryEncoder<T>(
   options?: BinaryEncoderOptions,
   id?: InjectTypeFnArgs<T, 'tb'>
 ): BinaryEncoderFn {
-  const tuple = id as unknown as [string, string] | undefined;
+  const tuple = id as unknown as [string, string, (readonly EntryTuple[])?] | undefined;
   const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
   const fnId = tuple?.[1];
+  // Module mode: slot 2 carries the site's imported entry-module closure.
+  if (tuple?.[2]) initDependencies(getRTUtils(), tuple[2]);
   if (effectiveId === undefined) {
     throw new Error(
       'createBinaryEncoder(): no id injected. vite-plugin-runtypes must be active for createBinaryEncoder to dispatch to a precompiled factory.'
@@ -124,9 +128,11 @@ export function createBinaryDecoder<T>(
   options?: BinaryDecoderOptions,
   id?: InjectTypeFnArgs<T, 'fb'>
 ): BinaryDecoderFn<DataOnly<T>> {
-  const tuple = id as unknown as [string, string] | undefined;
+  const tuple = id as unknown as [string, string, (readonly EntryTuple[])?] | undefined;
   const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
   const fnId = tuple?.[1];
+  // See createBinaryEncoder — module-mode closure registration.
+  if (tuple?.[2]) initDependencies(getRTUtils(), tuple[2]);
   if (effectiveId === undefined) {
     throw new Error(
       'createBinaryDecoder(): no id injected. vite-plugin-runtypes must be active for createBinaryDecoder to dispatch to a precompiled factory.'

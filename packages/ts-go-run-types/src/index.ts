@@ -1,6 +1,7 @@
 // Public entry point for @mionjs/ts-go-run-types.
 export {
   type InjectRunTypeId,
+  type InjectRunTypeData,
   type InjectTypeFnArgs,
   type CompTimeArgs,
   type CompTimeFnArgs,

@@ -1,8 +1,8 @@
 // Utility-type builders — value-first authoring of the standard-library utility
 // generics: Partial / Required / Pick / Omit / Exclude / Extract / NonNullable /
 // Readonly / ReturnType, plus Parameters. Each returns the generic `RunType<…>`
-// for the APPLIED utility type via the trailing `InjectRunTypeId` marker: the
-// brand `InjectRunTypeId<UtilityType<…>>` carries the resolved utility type, and
+// for the APPLIED utility type via the trailing `InjectRunTypeData` marker: the
+// brand `InjectRunTypeData<UtilityType<…>>` carries the resolved utility type, and
 // tsgo natively resolves Partial / Pick / Omit / … to a concrete shape BEFORE the
 // Go scanner computes the structural id — so `createValidate(partial(model))`
 // converges with the type-first `createValidate<Partial<T>>()` on one structural id
@@ -11,7 +11,7 @@
 
 import {builderResult} from './atomic.ts';
 import type {RunType} from '../runtypes/types.ts';
-import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
+import type {InjectRunTypeData, CompTimeArgs} from '../markers.ts';
 
 // Each child run-type / key-array param is branded `CompTimeArgs<…>` — these
 // builders' children ride the carrier and are discarded at runtime (the injected
@@ -22,12 +22,12 @@ import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 // preserves inference — no `const`/spread juggling like the variadic composers.
 
 /** `Partial<T>` — every property optional. **/
-export function partial<T>(model: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<Partial<T>>): RunType<Partial<T>> {
+export function partial<T>(model: CompTimeArgs<RunType<T>>, id?: InjectRunTypeData<Partial<T>>): RunType<Partial<T>> {
   return builderResult(id, {type: 'partial', child: model});
 }
 
 /** `Required<T>` — every property required. **/
-export function required<T>(model: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<Required<T>>): RunType<Required<T>> {
+export function required<T>(model: CompTimeArgs<RunType<T>>, id?: InjectRunTypeData<Required<T>>): RunType<Required<T>> {
   return builderResult(id, {type: 'required', child: model});
 }
 
@@ -35,12 +35,12 @@ export function required<T>(model: CompTimeArgs<RunType<T>>, id?: InjectRunTypeI
  *  `readonly` (reserved word), so it's `readonlyType` here and the `/define`
  *  index re-exports it as `readonly` so `RT.readonly(model)` reads naturally —
  *  same pattern as `voidType` → `void`. **/
-export function readonlyType<T>(model: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<Readonly<T>>): RunType<Readonly<T>> {
+export function readonlyType<T>(model: CompTimeArgs<RunType<T>>, id?: InjectRunTypeData<Readonly<T>>): RunType<Readonly<T>> {
   return builderResult(id, {type: 'readonly', child: model});
 }
 
 /** `NonNullable<T>` — strips `null | undefined` from a union. **/
-export function nonNullable<T>(rt: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<NonNullable<T>>): RunType<NonNullable<T>> {
+export function nonNullable<T>(rt: CompTimeArgs<RunType<T>>, id?: InjectRunTypeData<NonNullable<T>>): RunType<NonNullable<T>> {
   return builderResult(id, {type: 'nonNullable', child: rt});
 }
 
@@ -49,7 +49,7 @@ export function nonNullable<T>(rt: CompTimeArgs<RunType<T>>, id?: InjectRunTypeI
  *  the id through the existing reflection. **/
 export function returnType<F extends (...args: any[]) => any>(
   fnRt: CompTimeArgs<RunType<F>>,
-  id?: InjectRunTypeId<ReturnType<F>>
+  id?: InjectRunTypeData<ReturnType<F>>
 ): RunType<ReturnType<F>> {
   return builderResult(id, {type: 'returnType', child: fnRt});
 }
@@ -60,7 +60,7 @@ export function returnType<F extends (...args: any[]) => any>(
 export function pick<T, const K extends readonly (keyof T)[]>(
   model: CompTimeArgs<RunType<T>>,
   keys: CompTimeArgs<K>,
-  id?: InjectRunTypeId<Pick<T, K[number]>>
+  id?: InjectRunTypeData<Pick<T, K[number]>>
 ): RunType<Pick<T, K[number]>> {
   return builderResult(id, {type: 'pick', child: model, keys});
 }
@@ -69,7 +69,7 @@ export function pick<T, const K extends readonly (keyof T)[]>(
 export function omit<T, const K extends readonly (keyof T)[]>(
   model: CompTimeArgs<RunType<T>>,
   keys: CompTimeArgs<K>,
-  id?: InjectRunTypeId<Omit<T, K[number]>>
+  id?: InjectRunTypeData<Omit<T, K[number]>>
 ): RunType<Omit<T, K[number]>> {
   return builderResult(id, {type: 'omit', child: model, keys});
 }
@@ -81,7 +81,7 @@ export function omit<T, const K extends readonly (keyof T)[]>(
 export function exclude<U, X>(
   union: CompTimeArgs<RunType<U>>,
   removed: CompTimeArgs<RunType<X>>,
-  id?: InjectRunTypeId<Exclude<U, X>>
+  id?: InjectRunTypeData<Exclude<U, X>>
 ): RunType<Exclude<U, X>> {
   return builderResult(id, {type: 'exclude', child: union, excluded: removed});
 }
@@ -90,7 +90,7 @@ export function exclude<U, X>(
 export function extract<U, X>(
   union: CompTimeArgs<RunType<U>>,
   extracted: CompTimeArgs<RunType<X>>,
-  id?: InjectRunTypeId<Extract<U, X>>
+  id?: InjectRunTypeData<Extract<U, X>>
 ): RunType<Extract<U, X>> {
   return builderResult(id, {type: 'extract', child: union, extracted});
 }
@@ -103,7 +103,7 @@ export function extract<U, X>(
  *  reflects through the existing tuple path. **/
 export function parameters<F extends (...args: any[]) => any>(
   fnRt: CompTimeArgs<RunType<F>>,
-  id?: InjectRunTypeId<Parameters<F>>
+  id?: InjectRunTypeData<Parameters<F>>
 ): RunType<Parameters<F>> {
   return builderResult(id, {type: 'parameters', child: fnRt});
 }

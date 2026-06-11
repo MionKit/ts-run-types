@@ -2,7 +2,7 @@
 // `map` / `set` / `promise` / `circular` / `self` / `func` / `templateLiteral`, plus the
 // `object` assembler and the `propMod` / `optional` property modifiers. Each
 // takes child `RunType` schemas and returns the generic `RunType<…>` for the
-// COMPOSED type, via the same trailing-`InjectRunTypeId` marker every builder
+// COMPOSED type, via the same trailing-`InjectRunTypeData` marker every builder
 // uses: the Go scanner reflects the whole composed type off the brand (collapsing
 // intersections, distributing unions, …) and the runtime returns that reflected
 // node. Nested child builders are skipped by the scanner — they exist only to
@@ -34,8 +34,9 @@
 // and its variable-arity fallback keeps the `[...T]` spread for `UnionOf<T>`.
 
 import {builderResult} from './atomic.ts';
+import {isInjectedData} from '../runtypes/registrar.ts';
 import type {RunType} from '../runtypes/types.ts';
-import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
+import type {InjectRunTypeData, CompTimeArgs} from '../markers.ts';
 import type {
   Static,
   MapTuple,
@@ -51,7 +52,7 @@ import type {
 } from './static.ts';
 
 /** An array builder — `array(string())` → `RunType<string[]>`. **/
-export function array<T>(item: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<T[]>): RunType<T[]> {
+export function array<T>(item: CompTimeArgs<RunType<T>>, id?: InjectRunTypeData<T[]>): RunType<T[]> {
   return builderResult(id, {type: 'array', child: item});
 }
 
@@ -75,51 +76,55 @@ export function array<T>(item: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<T[
  *  carrier only. **/
 export function tuple<const T extends readonly RunType[]>(
   items: CompTimeArgs<T>,
-  id?: InjectRunTypeId<MapTuple<T>>
+  id?: InjectRunTypeData<MapTuple<T>>
 ): RunType<MapTuple<T>>;
 export function tuple<const T extends readonly RunType[], const O extends readonly RunType[]>(
   items: CompTimeArgs<T>,
   optionalItems: CompTimeArgs<O>,
-  id?: InjectRunTypeId<[...MapTuple<T>, ...Partial<MapTuple<O>>]>
+  id?: InjectRunTypeData<[...MapTuple<T>, ...Partial<MapTuple<O>>]>
 ): RunType<[...MapTuple<T>, ...Partial<MapTuple<O>>]>;
 export function tuple<const T extends readonly RunType[], const O extends readonly RunType[], R>(
   items: CompTimeArgs<T>,
   optionalItems: CompTimeArgs<O>,
   rest: CompTimeArgs<RunType<R>>,
-  id?: InjectRunTypeId<[...MapTuple<T>, ...Partial<MapTuple<O>>, ...R[]]>
+  id?: InjectRunTypeData<[...MapTuple<T>, ...Partial<MapTuple<O>>, ...R[]]>
 ): RunType<[...MapTuple<T>, ...Partial<MapTuple<O>>, ...R[]]>;
 export function tuple<const T extends readonly RunType[], R>(
   items: CompTimeArgs<T>,
   rest: CompTimeArgs<RunType<R>>,
-  id?: InjectRunTypeId<[...MapTuple<T>, ...R[]]>
+  id?: InjectRunTypeData<[...MapTuple<T>, ...R[]]>
 ): RunType<[...MapTuple<T>, ...R[]]>;
 export function tuple(
   items: readonly RunType[],
-  arg2?: readonly RunType[] | RunType | InjectRunTypeId<unknown>,
-  arg3?: RunType | InjectRunTypeId<unknown>,
-  arg4?: InjectRunTypeId<unknown>
+  arg2?: readonly RunType[] | RunType | InjectRunTypeData<unknown>,
+  arg3?: RunType | InjectRunTypeData<unknown>,
+  arg4?: InjectRunTypeData<unknown>
 ): RunType {
   // Disambiguate positional args at runtime:
   //   arg2 — optional-items list (Array) | legacy rest element (RunType object)
-  //          | injected id (string)
-  //   arg3 — rest element (RunType object) | injected id (string)
-  //   arg4 — injected id (string)
+  //          | injected value (string, or module-mode `[typeId, deps]` pair)
+  //   arg3 — rest element (RunType object) | injected value
+  //   arg4 — injected value
+  // The injected-pair check runs BEFORE the Array/object checks — the pair is
+  // both an array and an object, so positional discrimination would misread it.
   let optionalChildren: readonly RunType[] | undefined;
   let rest: RunType | undefined;
-  let injectedId: InjectRunTypeId<unknown> | undefined;
-  if (Array.isArray(arg2)) {
+  let injectedId: InjectRunTypeData<unknown> | undefined;
+  if (isInjectedData(arg2)) {
+    injectedId = arg2 as unknown as InjectRunTypeData<unknown>;
+  } else if (Array.isArray(arg2)) {
     optionalChildren = arg2;
-    if (typeof arg3 === 'object' && arg3 !== null) {
+    if (!isInjectedData(arg3) && typeof arg3 === 'object' && arg3 !== null) {
       rest = arg3 as RunType;
       injectedId = arg4;
     } else {
-      injectedId = arg3 as InjectRunTypeId<unknown> | undefined;
+      injectedId = arg3 as InjectRunTypeData<unknown> | undefined;
     }
   } else if (typeof arg2 === 'object' && arg2 !== null) {
     rest = arg2 as RunType;
-    injectedId = arg3 as InjectRunTypeId<unknown> | undefined;
+    injectedId = arg3 as InjectRunTypeData<unknown> | undefined;
   } else {
-    injectedId = arg2 as InjectRunTypeId<unknown> | undefined;
+    injectedId = arg2 as InjectRunTypeData<unknown> | undefined;
   }
   return builderResult(injectedId, {type: 'tuple', children: items, optionalChildren, rest});
 }
@@ -139,15 +144,15 @@ export function tuple(
  *  very wide unions, where `UnionOf`'s non-tail recursion nears TS's depth wall.) **/
 export function union<A, B>(
   members: CompTimeArgs<readonly [RunType<A>, RunType<B>]>,
-  id?: InjectRunTypeId<A | B>
+  id?: InjectRunTypeData<A | B>
 ): RunType<A | B>;
 export function union<A, B, C>(
   members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>]>,
-  id?: InjectRunTypeId<A | B | C>
+  id?: InjectRunTypeData<A | B | C>
 ): RunType<A | B | C>;
 export function union<A, B, C, D>(
   members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>]>,
-  id?: InjectRunTypeId<A | B | C | D>
+  id?: InjectRunTypeData<A | B | C | D>
 ): RunType<A | B | C | D>;
 // Variable-arity fallback (5+ members) — recursive `UnionOf<T>`. Captures the
 // member tuple with `const T` (not a `readonly [...T]` spread, which the
@@ -155,9 +160,9 @@ export function union<A, B, C, D>(
 // UnionOf needs to recurse).
 export function union<const T extends readonly RunType[]>(
   members: CompTimeArgs<T>,
-  id?: InjectRunTypeId<UnionOf<T>>
+  id?: InjectRunTypeData<UnionOf<T>>
 ): RunType<UnionOf<T>>;
-export function union(members: readonly RunType[], id?: InjectRunTypeId<unknown>): RunType {
+export function union(members: readonly RunType[], id?: InjectRunTypeData<unknown>): RunType {
   return builderResult(id, {type: 'union', children: members});
 }
 
@@ -165,7 +170,7 @@ export function union(members: readonly RunType[], id?: InjectRunTypeId<unknown>
  *   - Positional (1–4 members): `intersection(a, b, …)` → `RunType<A & B & …>`.
  *     Omitted slots default to `unknown` and vanish (`X & unknown = X`); the plugin
  *     pads the unused slots with `undefined` so the injected id lands on the trailing
- *     `InjectRunTypeId` parameter.
+ *     `InjectRunTypeData` parameter.
  *   - Array (5+ members): `intersection([a, b, …])` → `RunType<IntersectionOf<T>>`.
  *     A positional builder + a TRAILING injected id can't go variadic (JS rest
  *     params must be last), so wider intersections use the array form — the same
@@ -178,22 +183,22 @@ export function intersection<A, B = unknown, C = unknown, D = unknown>(
   b?: CompTimeArgs<RunType<B>>,
   c?: CompTimeArgs<RunType<C>>,
   d?: CompTimeArgs<RunType<D>>,
-  id?: InjectRunTypeId<A & B & C & D>
+  id?: InjectRunTypeData<A & B & C & D>
 ): RunType<A & B & C & D>;
 export function intersection<const T extends readonly RunType[]>(
   members: CompTimeArgs<T>,
-  id?: InjectRunTypeId<IntersectionOf<T>>
+  id?: InjectRunTypeData<IntersectionOf<T>>
 ): RunType<IntersectionOf<T>>;
 export function intersection(
   arg1: RunType | readonly RunType[],
-  arg2?: RunType | InjectRunTypeId<unknown>,
+  arg2?: RunType | InjectRunTypeData<unknown>,
   arg3?: RunType,
   arg4?: RunType,
-  arg5?: InjectRunTypeId<unknown>
+  arg5?: InjectRunTypeData<unknown>
 ): RunType {
   // Array form (5+ / variadic path): members in arg1, the injected id in arg2.
   if (Array.isArray(arg1)) {
-    return builderResult(arg2 as InjectRunTypeId<unknown> | undefined, {type: 'intersection', children: arg1});
+    return builderResult(arg2 as InjectRunTypeData<unknown> | undefined, {type: 'intersection', children: arg1});
   }
   // Positional form (1–4): members a–d (unused slots are `undefined`), the injected
   // id padded to the trailing slot (arg5).
@@ -212,20 +217,20 @@ export function intersection(
  *     template-literal pattern) becomes the index-signature key. **/
 export function record<V>(
   valueSchema: CompTimeArgs<RunType<V>>,
-  id?: InjectRunTypeId<Record<string, V>>
+  id?: InjectRunTypeData<Record<string, V>>
 ): RunType<Record<string, V>>;
 export function record<K extends string | number, V>(
   keySchema: CompTimeArgs<RunType<K>>,
   valueSchema: CompTimeArgs<RunType<V>>,
-  id?: InjectRunTypeId<Record<K, V>>
+  id?: InjectRunTypeData<Record<K, V>>
 ): RunType<Record<K, V>>;
-export function record(arg1: RunType, arg2?: RunType | InjectRunTypeId<unknown>, arg3?: InjectRunTypeId<unknown>): RunType {
+export function record(arg1: RunType, arg2?: RunType | InjectRunTypeData<unknown>, arg3?: InjectRunTypeData<unknown>): RunType {
   // A RunType OBJECT second arg is the (key, value) form; a string (injected id) or
   // undefined is the value-only form (key defaults to string).
   if (typeof arg2 === 'object' && arg2 !== null) {
     return builderResult(arg3, {type: 'record', index: arg1, child: arg2 as RunType});
   }
-  return builderResult(arg2 as InjectRunTypeId<unknown> | undefined, {type: 'record', child: arg1});
+  return builderResult(arg2 as InjectRunTypeData<unknown> | undefined, {type: 'record', child: arg1});
 }
 
 /** A `Map` builder — `map(string(), number())` → `RunType<Map<string, number>>`.
@@ -233,20 +238,20 @@ export function record(arg1: RunType, arg2?: RunType | InjectRunTypeId<unknown>,
 export function map<K, V>(
   keySchema: CompTimeArgs<RunType<K>>,
   valueSchema: CompTimeArgs<RunType<V>>,
-  id?: InjectRunTypeId<Map<K, V>>
+  id?: InjectRunTypeData<Map<K, V>>
 ): RunType<Map<K, V>> {
   return builderResult(id, {type: 'map', index: keySchema, child: valueSchema});
 }
 
 /** A `Set` builder — `set(string())` → `RunType<Set<string>>`. Each member is
  *  validated against the value schema. **/
-export function set<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRunTypeId<Set<V>>): RunType<Set<V>> {
+export function set<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRunTypeData<Set<V>>): RunType<Set<V>> {
   return builderResult(id, {type: 'set', child: valueSchema});
 }
 
 /** The self-reference placeholder for `circular((self) => …)` — marks where a
  *  recursive type points back to itself. Only meaningful inside `circular(...)`. **/
-export function self(id?: InjectRunTypeId<Self>): RunType<Self> {
+export function self(id?: InjectRunTypeData<Self>): RunType<Self> {
   return builderResult(id, {type: 'self'});
 }
 
@@ -261,7 +266,7 @@ export function self(id?: InjectRunTypeId<Self>): RunType<Self> {
  *  another already-declared run-type are plain const references. **/
 export function circular<Body>(
   callback: CompTimeArgs<(self: RunType<Self>) => RunType<Body>>,
-  id?: InjectRunTypeId<Recursive<Body>>
+  id?: InjectRunTypeData<Recursive<Body>>
 ): RunType<Recursive<Body>> {
   return builderResult(id, {type: 'circular', child: callback(self())});
 }
@@ -269,7 +274,7 @@ export function circular<Body>(
 /** A `Promise` builder — `promise(string())` → `RunType<Promise<string>>`.
  *  Validates the thenable shape (the resolved value type is not checked at
  *  runtime — a pending promise's value isn't available synchronously). **/
-export function promise<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRunTypeId<Promise<V>>): RunType<Promise<V>> {
+export function promise<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRunTypeData<Promise<V>>): RunType<Promise<V>> {
   return builderResult(id, {type: 'promise', child: valueSchema});
 }
 
@@ -293,19 +298,19 @@ export function promise<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRun
 export function func<R extends RunType = RunType<void>>(
   params?: CompTimeArgs<readonly []>,
   ret?: CompTimeArgs<R>,
-  id?: InjectRunTypeId<() => Static<R>>
+  id?: InjectRunTypeData<() => Static<R>>
 ): RunType<() => Static<R>>;
 export function func<const P extends readonly RunType[] = [], R extends RunType = RunType<void>>(
   params?: CompTimeArgs<P>,
   ret?: CompTimeArgs<R>,
-  id?: InjectRunTypeId<(...args: MapTuple<P>) => Static<R>>
+  id?: InjectRunTypeData<(...args: MapTuple<P>) => Static<R>>
 ): RunType<(...args: MapTuple<P>) => Static<R>>;
 export function func<T extends readonly unknown[], R extends RunType = RunType<void>>(
   paramsTuple: CompTimeArgs<RunType<T>>,
   ret?: CompTimeArgs<R>,
-  id?: InjectRunTypeId<(...args: T) => Static<R>>
+  id?: InjectRunTypeData<(...args: T) => Static<R>>
 ): RunType<(...args: T) => Static<R>>;
-export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType, id?: InjectRunTypeId<unknown>): RunType {
+export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType, id?: InjectRunTypeData<unknown>): RunType {
   // An ARRAY first arg is the array form (a list of positional param RunTypes); a
   // RunType OBJECT first arg is the tuple form (a single params-tuple RunType whose
   // carried T is the param tuple — lets optional/rest params be authored via
@@ -329,7 +334,7 @@ export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType
 export function callable<Fn, Props>(
   fn: CompTimeArgs<RunType<Fn>>,
   iface: CompTimeArgs<RunType<Props>>,
-  id?: InjectRunTypeId<Fn & Props>
+  id?: InjectRunTypeData<Fn & Props>
 ): RunType<Fn & Props> {
   return builderResult(id, {type: 'intersection', children: [fn, iface]});
 }
@@ -347,7 +352,7 @@ export function callable<Fn, Props>(
  *  parts ride the carrier only. **/
 export function templateLiteral<const P extends readonly TemplatePart[]>(
   parts: CompTimeArgs<P>,
-  id?: InjectRunTypeId<AssembleTemplate<P>>
+  id?: InjectRunTypeData<AssembleTemplate<P>>
 ): RunType<AssembleTemplate<P>> {
   return builderResult(id, {type: 'templateLiteral', children: parts});
 }
@@ -394,7 +399,7 @@ export function optional<const F>(field: CompTimeArgs<F>): PropModCarrier<{optio
  *  the enclosing `object` marker reflects the whole shape. **/
 export function object<const C extends Record<string, unknown>>(
   config: CompTimeArgs<C>,
-  id?: InjectRunTypeId<ObjectType<C>>
+  id?: InjectRunTypeData<ObjectType<C>>
 ): RunType<ObjectType<C>> {
   return builderResult<ObjectType<C>>(id, config);
 }
