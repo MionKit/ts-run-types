@@ -146,7 +146,7 @@ export interface WithInlineOpts {
   // When true, sends a `reset` op before installing the new sources.
   // `reset` wipes EVERYTHING (cache, sites, Program, overlay). With
   // per-request projection, most tests don't need it: scanFiles already
-  // scopes its runTypes / runTypeCacheSource response to the request's
+  // scopes its runTypes / entryModules response to the request's
   // files, independent of anything else in the cache. Kept for tests
   // that want a guaranteed-empty global cache (e.g. dump assertions).
   reset?: boolean;
