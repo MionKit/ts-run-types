@@ -87,27 +87,28 @@ function spawnModeClientOptions() {
 }
 
 // ---------------------------------------------------------------------------
-// Micro-tier configuration. Per suite: which thunk fields to bench, which
-// marker functions the synthetic wrapper must import, and which cache kinds
-// the scanFiles request renders. Bodies for these fields are self-contained
+// Micro-tier configuration. Per suite: which thunk fields to bench and which
+// marker functions the synthetic wrapper must import. Entry collection is
+// demand-driven, so each scanFiles request renders exactly the families the
+// probe's call sites request. Bodies for these fields are self-contained
 // (the format-* suites are NOT — they go through the macro tier only).
 // ---------------------------------------------------------------------------
 const MICRO_SUITES = [
   {
     suite: 'validation',
     apis: [
-      {field: 'validate', kinds: ['validate']},
-      {field: 'validateReflect', kinds: ['validate']},
-      {field: 'getValidationErrors', kinds: ['validationErrors']},
+      {field: 'validate'},
+      {field: 'validateReflect'},
+      {field: 'getValidationErrors'},
     ],
     imports: ['createValidate', 'createGetValidationErrors'],
   },
   {
     suite: 'serialization',
     apis: [
-      {field: 'cloneEncoder', kinds: ['all']},
-      {field: 'stripDecoder', kinds: ['all']},
-      {field: 'binaryEncoder', kinds: ['all']},
+      {field: 'cloneEncoder'},
+      {field: 'stripDecoder'},
+      {field: 'binaryEncoder'},
     ],
     imports: ['createJsonEncoder', 'createJsonDecoder', 'createBinaryEncoder', 'createBinaryDecoder'],
   },
@@ -216,7 +217,7 @@ async function runMicro() {
         for (const api of cfg.apis) {
           const body = bodies[caseKey]?.[api.field];
           if (typeof body !== 'string') continue;
-          units.push({suite: cfg.suite, group: identifier, caseKey, api: api.field, kinds: api.kinds, imports: cfg.imports, body});
+          units.push({suite: cfg.suite, group: identifier, caseKey, api: api.field, imports: cfg.imports, body});
         }
       }
     }
@@ -250,7 +251,7 @@ async function runMicro() {
           await client.reset();
           await client.setSources(sources);
           const t0 = performance.now();
-          const resp = await client.scanFiles([relpath], {includeCacheSources: unit.kinds, includeMetrics: true});
+          const resp = await client.scanFiles([relpath], {includeEntryModules: true, includeMetrics: true});
           const elapsed = performance.now() - t0;
           if (c === 0) continue; // warmup cycle (first-touch disk/JIT noise)
           wall.push(elapsed);
@@ -355,7 +356,7 @@ async function runMacro() {
         await client.request({op: 'resolveId', id: '__ping__'});
         programLoad.push(performance.now() - spawnT0);
         const t0 = performance.now();
-        const resp = await client.request({op: 'scanFiles', files, includeCacheSources: ['all'], includeMetrics: true});
+        const resp = await client.request({op: 'scanFiles', files, includeEntryModules: true, includeMetrics: true});
         wall.push(performance.now() - t0);
         if (resp.error) throw new Error(resp.error);
         const m = resp.metrics ?? {};

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {CACHE_MODULES} from '../packages/vite-plugin-runtypes/dist/runtypes-constants.generated.js';
 
 // Vitest reporter that mirrors `runTest` / `runFiles` invocations to disk.
 // Activated via `pnpm test:logs` (which stacks `--reporter=default` for the
@@ -9,22 +10,21 @@ import {fileURLToPath} from 'node:url';
 // packages/vite-plugin-runtypes/test/helpers/inline.ts attach
 // `task.meta.mionRunTypes = {title, sources, mode, responses}`; this
 // reporter walks the task tree on completion and emits one .ts file PER
-// CACHE per test under a three-level layout — bucketed by source test
-// file, then by test title, then split per cache kind:
-//   logs/<testFile>/<titleSlug>/daemon.ts        — daemon response with
-//                                                  every *CacheSource
-//                                                  field stripped (plus
-//                                                  the input sources).
-//   logs/<testFile>/<titleSlug>/<cacheKind>.ts   — one file per non-empty
-//                                                  *CacheSource field on
-//                                                  the response;
-//                                                  cacheKind is the field
-//                                                  name minus the
-//                                                  "CacheSource" suffix
-//                                                  (e.g. runType, validate,
-//                                                  validationErrors, pureFns).
-// Every file repeats the input sources at the top so it's self-contained
-// when opened in isolation.
+// CACHE KIND per test under a three-level layout — bucketed by source test
+// file, then by test title, then split per kind:
+//   logs/<testFile>/<titleSlug>/daemon.ts        — daemon response with the
+//                                                  entryModules map stripped
+//                                                  (plus the input sources).
+//   logs/<testFile>/<titleSlug>/<cacheKind>.ts   — the response's per-entry
+//                                                  virtual modules grouped by
+//                                                  cache kind (runType,
+//                                                  validate, …, pureFns),
+//                                                  one banner per module.
+// The kind of each entry module is sniffed off its tuple's slot 0 (numeric
+// for runtype / pure-fn / missing entries, the family tag string for fn
+// entries); family tags map back to their CacheModules key via the generated
+// constants mirror. Every file repeats the input sources at the top so it's
+// self-contained when opened in isolation.
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -70,11 +70,11 @@ function renderSourcesHeader(meta) {
 }
 
 // renderDaemonFile builds the `<slug>.daemon.ts` body: input sources
-// followed by the response(s) with every *CacheSource field stripped.
+// followed by the response(s) with the entryModules map stripped.
 function renderDaemonFile(meta) {
   const parts = renderSourcesHeader(meta);
   const responses = meta.responses ?? [];
-  const stripped = responses.map(stripCacheSources);
+  const stripped = responses.map(stripEntryModules);
   parts.push('// === daemon response ===');
   if (responses.length === 0) {
     parts.push('// (no evalCacheFor / scanFiles call recorded for this test)');
@@ -88,54 +88,63 @@ function renderDaemonFile(meta) {
   return parts.join('\n');
 }
 
-// renderCacheFile builds a single per-cache file body: input sources at
-// the top so the file is self-contained, then a banner naming the cache
-// (with response index when more than one response was recorded), then
-// the rendered cache module body verbatim.
-function renderCacheFile(meta, fieldName, body, responseIdx, responseCount) {
+// renderCacheFile builds a single per-kind file body: input sources at
+// the top so the file is self-contained, then one banner + verbatim module
+// source per entry module of that kind (with response index when more than
+// one response was recorded).
+function renderCacheFile(meta, kind, modules, responseIdx, responseCount) {
   const parts = renderSourcesHeader(meta);
-  const label = responseCount > 1 ? `${fieldName} [${responseIdx}]` : fieldName;
-  parts.push(`// === ${label} ===`);
-  parts.push(body.endsWith('\n') ? body.slice(0, -1) : body);
-  parts.push('');
+  for (const [basename, body] of modules) {
+    const label = responseCount > 1 ? `virtual:rt/${basename}.js [${responseIdx}]` : `virtual:rt/${basename}.js`;
+    parts.push(`// === ${label} ===`);
+    parts.push(body.endsWith('\n') ? body.slice(0, -1) : body);
+    parts.push('');
+  }
+  void kind;
   return parts.join('\n');
 }
 
-// isCacheSourceField reports whether a daemon-response field carries a
-// rendered virtual-module body. Every cache kind names its field
-// "<kind>CacheSource", so a suffix check covers the whole family
-// without enumerating each one — new kinds light up automatically.
-function isCacheSourceField(name) {
-  return typeof name === 'string' && name.endsWith('CacheSource');
+// keyByFamilyTag inverts the generated CACHE_MODULES registry so an entry
+// module's family tag ('val', 'verr', …) maps back to its readable kind name
+// ('validate', 'validationErrors', …). JSON-composite tags (jeCL, jdST, …)
+// have no CacheModules row and fall through to the tag itself.
+const keyByFamilyTag = Object.fromEntries(Object.entries(CACHE_MODULES).map(([key, settings]) => [settings.tag, key]));
+
+// entryKindOf sniffs an entry module's cache kind off its exported tuple's
+// slot 0 — numeric (0 runtype / 2 pure fn / 3 missing stub) or the quoted
+// family tag string for fn entries.
+function entryKindOf(source) {
+  const match = source.match(/export const e=\[(?:'([^']+)'|(\d+))[,\]]/);
+  if (!match) return 'unknown';
+  if (match[1] !== undefined) return keyByFamilyTag[match[1]] ?? match[1];
+  return {0: 'runType', 2: 'pureFns', 3: 'missing'}[match[2]] ?? 'unknown';
 }
 
-// cacheKindOf returns the short kind name used in output filenames —
-// the field name minus its "CacheSource" suffix (e.g. "runTypeCacheSource"
-// → "runType"). New cache kinds light up automatically as long as they
-// follow the same naming convention.
-function cacheKindOf(fieldName) {
-  return fieldName.slice(0, -'CacheSource'.length);
-}
-
-function stripCacheSources(response) {
+function stripEntryModules(response) {
   if (!response || typeof response !== 'object') return response;
   const out = {};
   for (const [key, value] of Object.entries(response)) {
-    if (isCacheSourceField(key)) continue;
+    if (key === 'entryModules') continue;
     out[key] = value;
   }
   return out;
 }
 
-function collectCacheSources(response) {
-  const out = {};
-  if (!response || typeof response !== 'object') return out;
-  for (const [key, value] of Object.entries(response)) {
-    if (!isCacheSourceField(key)) continue;
-    if (typeof value !== 'string' || value.length === 0) continue;
-    out[key] = value;
+// collectCacheGroups buckets a response's entry modules by cache kind,
+// sorted by basename within each group for stable output.
+function collectCacheGroups(response) {
+  const groups = {};
+  const entryModules = response?.entryModules;
+  if (!entryModules || typeof entryModules !== 'object') return groups;
+  for (const [basename, source] of Object.entries(entryModules)) {
+    if (typeof source !== 'string' || source.length === 0) continue;
+    const kind = entryKindOf(source);
+    (groups[kind] ??= []).push([basename, source]);
   }
-  return out;
+  for (const modules of Object.values(groups)) {
+    modules.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  }
+  return groups;
 }
 
 export default class RunTypesLogsReporter {
@@ -169,19 +178,16 @@ export default class RunTypesLogsReporter {
       fs.writeFileSync(path.join(testDir, 'daemon.ts'), renderDaemonFile(meta));
       written++;
 
-      // 2) one file per non-empty cache-source body, per response.
+      // 2) one file per cache kind with that kind's entry modules, per
+      // response.
       const responses = meta.responses ?? [];
       responses.forEach((response, responseIdx) => {
-        const caches = collectCacheSources(response);
-        for (const [fieldName, body] of Object.entries(caches)) {
-          const kind = cacheKindOf(fieldName);
+        const groups = collectCacheGroups(response);
+        for (const [kind, modules] of Object.entries(groups)) {
           // When more than one response, suffix the kind with the index
           // so the files don't collide.
           const basename = responses.length > 1 ? `${kind}.${responseIdx}` : kind;
-          fs.writeFileSync(
-            path.join(testDir, `${basename}.ts`),
-            renderCacheFile(meta, fieldName, body, responseIdx, responses.length)
-          );
+          fs.writeFileSync(path.join(testDir, `${basename}.ts`), renderCacheFile(meta, kind, modules, responseIdx, responses.length));
           written++;
         }
       });
