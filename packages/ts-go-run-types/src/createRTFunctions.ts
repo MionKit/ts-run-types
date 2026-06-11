@@ -230,10 +230,10 @@ export const createGetValidationErrors = createTypeFnArgsFunction<GetValidationE
 // emitter silently ignores; dropping it surfaces the limitation at
 // the type-checker level.
 
-export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>(
-  'createHasUnknownKeys',
-  () => false
-) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn) &
+export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>('createHasUnknownKeys', () => false) as unknown as (<T>(
+  schema: RunType<T>,
+  id?: InjectTypeFnArgs<T, 'huk'>
+) => HasUnknownKeysFn) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn);
 
 export const createStripUnknownKeys = createRTFunction<StripUnknownKeysFn>(

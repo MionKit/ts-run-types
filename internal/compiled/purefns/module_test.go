@@ -30,7 +30,7 @@ func TestCollectEntries_SingleEntry(t *testing.T) {
 	}
 	// 6-arg tail: key, bodyHash, paramNames, code, pureFnDependencies, createPureFn.
 	// createPureFn is the inline `function(utl){<code>}` literal templated from `code`.
-	want := "'mion::asJSONString','aBcDeFgHiJkLmN',[],'return function _f() {};',[],function(utl){return function _f() {};}"
+	want := "'mion::asJSONString','aBcDeFgHiJkLmN',[],'return function _f() {};',[],function(){return function _f() {};}"
 	if entry.ArgsText != want {
 		t.Errorf("ArgsText mismatch:\n got: %s\nwant: %s", entry.ArgsText, want)
 	}

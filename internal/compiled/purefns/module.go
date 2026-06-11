@@ -32,7 +32,7 @@ func CollectEntries(entries []Entry) entrymod.Graph {
 			paramNamesJS(entry.ParamNames),
 			jsquote.Single(entry.Code),
 			depKeysJS(entry.PureFnDependencies),
-			createPureFnJS(entry.Code),
+			createPureFnJS(entry.Code, entry.ParamNames),
 		}
 		// Pure-fn deps are SOFT: a dep outside the collected set stubs out
 		// instead of cascading — its real registration happens at its own
@@ -78,12 +78,18 @@ func Replacements(entries []Entry) []protocol.Replacement {
 }
 
 // createPureFnJS templates the type-stripped factory body into a
-// `function(utl){<code>}` expression. The body is wrapped in parens so
-// it parses as a function expression when emitted as a call argument.
-func createPureFnJS(code string) string {
+// `function(<params>){<code>}` expression using the AUTHOR's parameter
+// names — the body references the factory's own rtUtils binding (e.g.
+// `jUtils.getPureFn(…)`), so the literal must redeclare exactly those
+// params for the closure to resolve. The runtime invokes it with the
+// rtUtils singleton as the single argument (initPureFunction).
+func createPureFnJS(code string, paramNames []string) string {
+	params := strings.Join(paramNames, ",")
 	var b strings.Builder
-	b.Grow(len(code) + 20)
-	b.WriteString("function(utl){")
+	b.Grow(len(code) + len(params) + 20)
+	b.WriteString("function(")
+	b.WriteString(params)
+	b.WriteString("){")
 	b.WriteString(code)
 	b.WriteByte('}')
 	return b.String()

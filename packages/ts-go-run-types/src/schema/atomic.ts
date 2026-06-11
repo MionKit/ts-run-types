@@ -24,6 +24,7 @@
 // the validation engine.
 
 import {getRTUtils} from '../runtypes/rtUtils.ts';
+import {entryTupleKey, initFromTuple, isEntryTuple} from '../runtypes/entryTuple.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 import type {StringParams, StringParamsValueFirst} from '../formats/string/stringFormats.ts';
@@ -47,8 +48,16 @@ import type {LeafType, BrandArg} from './static.ts';
  *  cache module has loaded, it returns the `carrier` the enclosing composer
  *  discards. **/
 export function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: unknown): RunType<T> {
-  if (id !== undefined) {
-    const runType = getRTUtils().getRunType(id);
+  // The plugin injects the runtype's ENTRY-MODULE TUPLE — register the type
+  // graph (children included) and recover the id string. A bare string id
+  // keeps working for callers that pre-resolved it.
+  let resolvedId: string | undefined = typeof id === 'string' ? id : undefined;
+  if (isEntryTuple(id)) {
+    initFromTuple(id);
+    resolvedId = entryTupleKey(id);
+  }
+  if (resolvedId !== undefined) {
+    const runType = getRTUtils().getRunType(resolvedId);
     if (runType) return runType as RunType<T>;
   }
   return carrier as RunType<T>;
@@ -71,7 +80,15 @@ export function brand<const B extends string>(name: B): BrandArg<B> {
  *  and the builder falls back to the carrier. **/
 export function lastInjectedId(...args: unknown[]): string | undefined {
   for (let i = args.length - 1; i >= 0; i--) {
-    if (typeof args[i] === 'string') return args[i] as string;
+    const arg = args[i];
+    if (typeof arg === 'string') return arg;
+    if (isEntryTuple(arg)) {
+      // Entry-module tuple: register the type graph and hand back its id —
+      // the params (plain object) and brand (plain object) slots before it
+      // are never arrays, so tuple detection is unambiguous.
+      initFromTuple(arg);
+      return entryTupleKey(arg);
+    }
   }
   return undefined;
 }
@@ -94,7 +111,7 @@ export function presetBuilder<T>(tag: string): (id?: InjectRunTypeId<T>) => RunT
 //   3. params + brand  `string({…}, brand('Id'))` → nominal `RunType<FormatString<P, 'Id'>>`
 // The no-params call converges on the SAME structural id as the type-first plain
 // type and a marker-form `createValidate<string>()`. A single impl resolves the
-// injected id as the TRAILING string arg (`lastInjectedId`): it lands at slot 0
+// injected entry tuple as the TRAILING arg (`lastInjectedId`): it lands at slot 0
 // (no-params), slot 1 (params), or slot 2 (params + brand), and the Go scanner
 // derives the slot from the resolved overload's signature (trailing param). The
 // brand rides slot 1 as a `BrandArg` OBJECT, so it never collides with the id

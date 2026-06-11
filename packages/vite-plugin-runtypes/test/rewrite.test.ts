@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {rewrite} from '../src/rewrite.ts';
 import {ReflectionKind, type RunType} from '../src/protocol.ts';
-import {BIN, runTest, withInlineSources, RUNTYPES_DTS} from './helpers/inline.ts';
+import {BIN, runTest, withInlineSources, RUNTYPES_DTS, evalEntryModules, instantiateRunTypes} from './helpers/inline.ts';
 
 function findMember(types: RunType[], root: RunType, name: string): RunType | undefined {
   for (const ref of root.children ?? []) {
@@ -30,8 +30,10 @@ getRunTypeId<User>();
         expect(sites.length).toBe(1);
         expect(typeof sites[0].id).toBe('string');
         expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
-        // Static form has no preceding arguments — the injected id sits in slot 0.
-        expect(out).toContain(`getRunTypeId<User>(${JSON.stringify(sites[0].id)});`);
+        // Static form has no preceding arguments — the injected entry-module
+        // binding sits in slot 0, with the matching import at offset 0.
+        expect(out).toContain(`import {e as __rt_${sites[0].id}} from 'virtual:rt/${sites[0].id}.js';`);
+        expect(out).toContain(`getRunTypeId<User>(__rt_${sites[0].id});`);
       });
     }
   );
@@ -51,8 +53,9 @@ reflectRunTypeId(u);
 
         expect(sites.length).toBe(1);
         expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
-        // Reflect form: `u` is arg 0, the injected id is arg 1.
-        expect(out).toContain(`reflectRunTypeId(u, ${JSON.stringify(sites[0].id)});`);
+        // Reflect form: `u` is arg 0, the injected binding is arg 1.
+        expect(out).toContain(`import {e as __rt_${sites[0].id}} from 'virtual:rt/${sites[0].id}.js';`);
+        expect(out).toContain(`reflectRunTypeId(u, __rt_${sites[0].id});`);
       });
     }
   );
@@ -229,36 +232,21 @@ const myAPI = reflectRunTypeId(routes);
   );
 
   async function assertCacheModuleHasSayHelloRoot(sources: Record<string, string>, file: string) {
-    const cacheSource = await withInlineSources(sources, async ({client}) => {
+    const entryModules = await withInlineSources(sources, async ({client}) => {
       await rewrite(file, sources[file], client);
       const dump = await client.dump();
-      return dump.runTypeCacheSource ?? '';
+      return dump.entryModules ?? {};
     });
 
-    // Splice-based emitter — one `rt('id', …);` call per entry inside
-    // the skeleton's exported initCache() function.
-    expect(cacheSource).toMatch(/rt\('[A-Za-z0-9_]+',\d+/);
-    expect(cacheSource).toContain('export function initCache');
+    // Per-entry emitter — one virtual module per runtype, tuple-shaped.
+    const moduleSources = Object.values(entryModules);
+    expect(moduleSources.length).toBeGreaterThan(0);
+    expect(moduleSources.some((s) => /export const e=\[0,deps,/.test(s))).toBe(true);
 
-    // Evaluate the module body the same way evalCacheFor does: strip
-    // top-level `export`s and call `initCache(rtUtils)` against a stub
-    // that records each `addRunType` call and serves `useRunType` from
-    // the same table.
-    const stripped = cacheSource.replace(/^\s*export\s+function\s+/gm, 'function ');
-    const registered: Record<string, Record<string, any>> = {};
-    const stub = {
-      addRunType(id: string, rt: Record<string, any>) {
-        registered[id] = rt;
-      },
-      useRunType(id: string) {
-        const e = registered[id];
-        if (!e) throw new Error(`stub useRunType: missing id ${id}`);
-        return e;
-      },
-    };
-    const factory = new Function(`${stripped}\nreturn initCache;`);
-    const initCache = factory() as (rtUtils: typeof stub) => void;
-    initCache(stub);
+    // Evaluate the modules the same way evalCacheFor does and instantiate
+    // the runtype tuples against the stub registry.
+    const tuples = evalEntryModules(entryModules);
+    const registered = instantiateRunTypes(tuples);
     const entries = Object.values(registered).filter(
       (t): t is Record<string, any> => t !== null && typeof t === 'object' && 'kind' in t
     );
@@ -284,7 +272,7 @@ const myAPI = reflectRunTypeId(routes);
   // hoist + skip gate; the body short-circuits to a raw spawnSync since this
   // test bypasses the in-process ResolverClient entirely.
   runTest(
-    "CLI --out-ts produces a parseable module identical in shape to the plugin's output",
+    "CLI --out-modules writes per-entry modules identical in shape to the plugin's output",
     {
       'router.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 const sayHello = (name: string): string => 'Hello ' + name;
@@ -293,19 +281,22 @@ const myAPI = reflectRunTypeId(routes);
 `,
     },
     async (sources) => {
-      const tmp = path.join(__dirname, '.tmp-cache.ts');
+      const tmpDir = path.join(__dirname, '.tmp-modules');
       const handshake = JSON.stringify({sources: {'runtypes.d.ts': RUNTYPES_DTS, 'router.ts': sources['router.ts']}}) + '\n';
       const request = JSON.stringify({op: 'scanFiles', files: ['router.ts']}) + '\n';
-      const out = spawnSync(BIN, ['--cwd', path.resolve(__dirname, '../../..'), '--inline-sources-stdin', '--out-ts', tmp], {
-        input: handshake + request,
-      });
+      const out = spawnSync(
+        BIN,
+        ['--cwd', path.resolve(__dirname, '../../..'), '--inline-sources-stdin', '--out-modules', tmpDir],
+        {
+          input: handshake + request,
+        }
+      );
       expect(out.status).toBe(0);
-      const generated = fs.readFileSync(tmp, 'utf8');
-      // Splice-based emitter — output should include the skeleton's
-      // initCache() shell and at least one rt(…) factory call.
-      expect(generated).toContain('export function initCache');
-      expect(generated).toMatch(/rt\('[A-Za-z0-9_]+',\d+/);
-      fs.unlinkSync(tmp);
+      const written = fs.readdirSync(tmpDir).filter((name) => name.endsWith('.js'));
+      expect(written.length).toBeGreaterThan(0);
+      const sample = fs.readFileSync(path.join(tmpDir, written[0]), 'utf8');
+      expect(sample).toContain('export const e=[');
+      fs.rmSync(tmpDir, {recursive: true, force: true});
     }
   );
 });

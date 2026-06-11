@@ -34,7 +34,7 @@ const a = getRunTypeId<{id: number; name: string}>();
           expect(sites.length).toBe(1);
           expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
           // No preceding args — injected id sits in slot 0.
-          expect(out).toMatch(/getRunTypeId<\{id: number; name: string\}>\("[A-Za-z0-9]+"\);/);
+          expect(out).toMatch(/getRunTypeId<\{id: number; name: string\}>\(__rt_[A-Za-z0-9]+\);/);
         },
         {reset: true}
       );
@@ -56,7 +56,7 @@ const a = reflectRunTypeId(u);
           const {code: out, sites} = await rewrite('17a_reflect.ts', sources['17a_reflect.ts'], client);
           expect(sites.length).toBe(1);
           expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
-          expect(out).toContain(`reflectRunTypeId(u, ${JSON.stringify(sites[0].id)});`);
+          expect(out).toContain(`reflectRunTypeId(u, __rt_${sites[0].id});`);
         },
         {reset: true}
       );
@@ -78,7 +78,7 @@ const b = getRunTypeId<string>();
         async ({client}) => {
           const {code: out, sites} = await rewrite('17b_static.ts', sources['17b_static.ts'], client);
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/getRunTypeId<string>\("[A-Za-z0-9]+"\)/);
+          expect(out).toMatch(/getRunTypeId<string>\(__rt_[A-Za-z0-9]+\)/);
         },
         {reset: true}
       );
@@ -99,7 +99,7 @@ const b = reflectRunTypeId(s);
         async ({client}) => {
           const {code: out, sites} = await rewrite('17b_reflect.ts', sources['17b_reflect.ts'], client);
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/reflectRunTypeId\(s, "[A-Za-z0-9]+"\)/);
+          expect(out).toMatch(/reflectRunTypeId\(s, __rt_[A-Za-z0-9]+\)/);
         },
         {reset: true}
       );
@@ -130,7 +130,7 @@ const c = validate<{flag: boolean}>(true);
         async ({client}) => {
           const {code: out, sites} = await rewrite('17c.ts', sources['17c.ts'], client);
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/validate<\{flag: boolean\}>\(true, "[A-Za-z0-9]+"\)/);
+          expect(out).toMatch(/validate<\{flag: boolean\}>\(true, __rt_[A-Za-z0-9]+\)/);
         },
         {reset: true}
       );
@@ -154,7 +154,7 @@ const d = nameOf({kind: 'node', value: 42});
         async ({client}) => {
           const {code: out, sites} = await rewrite('17d.ts', sources['17d.ts'], client);
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/nameOf\(\{kind: 'node', value: 42\}, "[A-Za-z0-9]+"\)/);
+          expect(out).toMatch(/nameOf\(\{kind: 'node', value: 42\}, __rt_[A-Za-z0-9]+\)/);
         },
         {reset: true}
       );
@@ -305,7 +305,7 @@ const x = getTypeIdWrapper<{a: number}>();
           // Outer call (getTypeIdWrapper<{a: number}>()) is concrete-T → 1 site.
           // Inner call (getRunTypeId<T>(id)) has free T → skipped.
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/getTypeIdWrapper<\{a: number\}>\("[A-Za-z0-9]+"\)/);
+          expect(out).toMatch(/getTypeIdWrapper<\{a: number\}>\(__rt_[A-Za-z0-9]+\)/);
           expect(out).toContain(`return getRunTypeId<T>(id);`);
         },
         {reset: true}
@@ -332,7 +332,7 @@ const x = reflectWrapper({a: 1});
           // Inner call (reflectRunTypeId<T>(value, id)) has free T AND id slot
           // is already filled by the parameter — either reason skips it.
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/reflectWrapper\(\{a: 1\}, "[A-Za-z0-9]+"\)/);
+          expect(out).toMatch(/reflectWrapper\(\{a: 1\}, __rt_[A-Za-z0-9]+\)/);
           expect(out).toContain(`return reflectRunTypeId<T>(value, id);`);
         },
         {reset: true}
@@ -360,7 +360,7 @@ const y = outer({k: 'v'});
         async ({client}) => {
           const {code: out, sites} = await rewrite('pt_b.ts', sources['pt_b.ts'], client);
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/outer\(\{k: 'v'\}, "[A-Za-z0-9]+"\)/);
+          expect(out).toMatch(/outer\(\{k: 'v'\}, __rt_[A-Za-z0-9]+\)/);
           expect(out).toContain(`return inner(v, id);`);
         },
         {reset: true}
@@ -390,7 +390,7 @@ const z = outer({n: 7});
           // Outer call: concrete T → 1 site.
           // inner(v) inside outer's body: T is outer's free type parameter → skipped.
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/outer\(\{n: 7\}, "[A-Za-z0-9]+"\)/);
+          expect(out).toMatch(/outer\(\{n: 7\}, __rt_[A-Za-z0-9]+\)/);
           expect(out).toContain(`return inner(v);`);
         },
         {reset: true}
