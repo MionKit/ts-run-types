@@ -19,6 +19,10 @@ import {it, type TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.ts';
 import {rewrite} from '../../src/rewrite.ts';
 import {type Site, type RunType} from '../../src/protocol.ts';
+// The production module-mode registrar — imported from the marker package's
+// source so evalCacheFor registers entry tuples with the exact two-pass
+// semantics consumers get at runtime.
+import {initDependencies} from '../../../ts-go-run-types/src/runtypes/registrar.ts';
 
 const ROOT = path.resolve(__dirname, '../../../..');
 export const BIN = path.resolve(ROOT, 'bin/ts-go-run-types');
@@ -29,6 +33,8 @@ export const hasBinary = (): boolean => fs.existsSync(BIN);
 // fake `@mionjs/ts-go-run-types` module.
 export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export type InjectRunTypeData<T> = string & {readonly __mionInjectRunTypeDataBrand?: T};
+  export function createMockType<T>(val?: T, options?: unknown, id?: InjectRunTypeData<T>): () => T;
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
@@ -192,57 +198,64 @@ export interface EvaluatedCache {
   sites: Site[];
 }
 
-// Full pipeline: scan every test source in ONE scanFiles request. The
-// Go side projects runTypes / runTypeCacheSource over exactly those
-// files, independent of anything else in the cache. The rendered module
-// body (skeleton + spliced factory calls) is evaluated through
-// `new Function`, its `initCache` export is invoked, and the populated
-// cache object is returned.
+// Full pipeline (module mode): scan every test source in ONE scanFiles
+// request, then fetch the per-node `t_<id>` data modules for every site's
+// type via resolveModules (which pulls each transitive ref closure too).
+// The module tuples are registered through the REAL runtime registrar
+// (initDependencies — two-pass declare-then-link, runtime values via each
+// module's gated initEntry) against a local stub registry, so the shapes
+// the tests assert on are exactly what production consumers see.
 export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts = {}): Promise<EvaluatedCache> {
   return withInlineSources(
     sources,
     async ({client, sources: augmented}) => {
       const files = Object.keys(augmented).filter((file) => file !== 'runtypes.d.ts');
       if (files.length === 0) throw new Error('evalCacheFor: no source files to scan');
-      const response = await client.scanFiles(files, {includeCacheSources: ['all']});
+      const response = await client.scanFiles(files, {includeModules: true});
       recordResponse(response);
-      const {runTypeCacheSource} = response;
-      if (!runTypeCacheSource) throw new Error('evalCacheFor: resolver returned no runTypeCacheSource');
-      return {byHash: evalRunTypesModule(runTypeCacheSource) as Record<string, RunType>, sites: response.sites ?? []};
+      const sites = response.sites ?? [];
+      const ids = [...new Set(sites.map((site) => site.id))];
+      if (ids.length === 0) return {byHash: {}, sites};
+      const dataModules = await client.resolveModules(ids.map((id) => `t_${id}`));
+      return {byHash: evalDataModules(dataModules), sites};
     },
     opts
   );
 }
 
-// evalRunTypesModule evaluates the rendered runtypes cache module body
-// (skeleton + spliced rt(...) / c('id').slot assignments) via
-// `new Function` against a stub rtUtils that records every `addRunType`
-// call into a local table and serves `useRunType` lookups from that
-// same table. Returns the populated cache object.
-function evalRunTypesModule(source: string): Record<string, RunType> {
-  const registered: Record<string, RunType> = {};
+// evalDataModules evaluates per-node `t_<id>` module sources into entry
+// tuples and registers them through the production registrar against a
+// data-only stub rtUtils. Returns the populated `{[id]: RunType}` table.
+function evalDataModules(modules: Record<string, string>): Record<string, RunType> {
+  const table: Record<string, RunType> = {};
   const stub = {
+    hasRunType: (id: string) => table[id] !== undefined,
     addRunType(id: string, runType: RunType) {
-      registered[id] = runType;
+      table[id] = runType;
+      return runType;
     },
     useRunType(id: string): RunType {
-      const entry = registered[id];
+      const entry = table[id];
       if (!entry) throw new Error(`stub useRunType: no entry for ${id}`);
       return entry;
     },
+    hasRTFn: () => false,
+    addToRTCache() {},
+    alwaysThrowFactory: (code: string) => () => {
+      throw new Error(`stub alwaysThrow ${code}`);
+    },
   };
-  const stripped = stripExports(source);
-  const factory = new Function(`${stripped}\nreturn initCache;`);
-  const initCache = factory() as (rtUtils: typeof stub) => void;
-  initCache(stub);
-  return registered;
+  const tuples = Object.values(modules).map(evalEntryModule);
+  initDependencies(stub as unknown as Parameters<typeof initDependencies>[0], tuples as Parameters<typeof initDependencies>[1]);
+  return table;
 }
 
-// stripExports rewrites `export function …` to `function …` so the
-// skeleton body evaluates inside a `new Function` script body (which
-// doesn't accept `export` syntax).
-function stripExports(source: string): string {
-  return source.replace(/^\s*export\s+function\s+/gm, 'function ');
+// evalEntryModule evaluates one per-entry virtual-module source (pure data:
+// prologue + optional initEntry fn + `export const entry = […]`) into its
+// tuple via `new Function` — `export` stripped so the body runs as a script.
+export function evalEntryModule(source: string): unknown[] {
+  const stripped = source.replace(/^export const entry = /m, 'const entry = ');
+  return new Function(`${stripped}\nreturn entry;`)() as unknown[];
 }
 
 // Look up the resolved RunType for a given source file in an evaluated cache.
