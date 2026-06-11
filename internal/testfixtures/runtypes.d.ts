@@ -26,4 +26,9 @@ declare module '@mionjs/ts-go-run-types' {
   // expression AND must pass the purity rules (no closures, no this, no
   // await/yield, no forbidden globals).
   export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
+
+  // Graph-demand trailing-slot brand (createMockType, schema builders) —
+  // injects like InjectRunTypeId but additionally demands the RunType data
+  // module closure in module mode.
+  export type InjectRunTypeData<T> = string & {readonly __mionInjectRunTypeDataBrand?: T};
 }

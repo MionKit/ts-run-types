@@ -287,6 +287,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	var injectionTypeArgument *checker.Type
 	var injectionMatched bool
 	var injectionFnKey string
+	var injectionWantsData bool
 	for paramIndex := 0; paramIndex <= lastIndex; paramIndex++ {
 		paramSymbol := parameters[paramIndex]
 		if paramSymbol == nil {
@@ -305,6 +306,17 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 			if paramIndex == lastIndex {
 				injectionTypeArgument = typeArg
 				injectionMatched = true
+			}
+		case marker.KindInjectRunTypeData:
+			// Graph-demand trailing-slot marker (createMockType, schema
+			// builders): same injection contract as InjectRunTypeId, but the
+			// site demands the RunType DATA module closure — the demand is
+			// stamped after the loop so the plugin hoists `t_<id>` module
+			// imports and injects `[typeId, [deps]]`.
+			if paramIndex == lastIndex {
+				injectionTypeArgument = typeArg
+				injectionMatched = true
+				injectionWantsData = true
 			}
 		case marker.KindInjectTypeFnArgs:
 			// createX trailing-slot marker. Same injection contract as
@@ -473,6 +485,12 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	// which an opaque hash can't support). Reflection sites (InjectRunTypeId)
 	// leave injectionFnKey empty → no FnId, no function demand.
 	fnId, demand := computeSiteFn(injectionFnKey, options, call, lastIndex, argsCount)
+	// Graph-demand sites (InjectRunTypeData) carry no fnId — the injected
+	// value stays keyed by the bare type id — but demand the RunType data
+	// family so module-mode closure assembly emits their `t_<id>` closure.
+	if injectionWantsData && len(demand) == 0 {
+		demand = []protocol.SiteDemand{{FamilyTag: runTypeDataFamilyTag}}
+	}
 	return pendingCall{
 		file: file,
 		// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
@@ -635,7 +653,7 @@ func (state scanState) enclosedByInjectionMarker(call *ast.Node) bool {
 		}
 		paramType := checker.Checker_getTypeOfSymbol(state.scanChecker, lastParam)
 		kind, _, matched := state.detectMarker(paramType)
-		if matched && (kind == marker.KindInjectRunTypeId || kind == marker.KindInjectTypeFnArgs) {
+		if matched && (kind == marker.KindInjectRunTypeId || kind == marker.KindInjectTypeFnArgs || kind == marker.KindInjectRunTypeData) {
 			return true
 		}
 	}

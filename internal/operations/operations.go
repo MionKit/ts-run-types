@@ -137,6 +137,7 @@ func init() {
 	// same fnHash at FnHashLen — the user's "closed system" guarantee. See
 	// mustBeCollisionFree in fnhash.go.
 	mustBeCollisionFree()
+	buildByFnHash()
 }
 
 // ByName returns the operation with the given canonical name.

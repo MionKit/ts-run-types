@@ -385,11 +385,21 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// sources requested) skips all of that work.
 		var rtDiagnostics []diag.Diagnostic
 		var rtOpts typefns.RenderOpts
-		if anyCache {
+		if anyCache || request.IncludeModules {
 			rtOptsStart := time.Now()
 			rtOpts = resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
 			if metrics != nil {
 				metrics.PrepMs += elapsedMs(rtOptsStart)
+			}
+		}
+		// Module mode: assemble each site's per-entry module closure (fills
+		// Site.Deps in place on the response's slice) and attach the union
+		// module map. Walker diagnostics ride the shared rtDiagnostics sink.
+		if request.IncludeModules && len(response.Sites) > 0 {
+			modulesStart := time.Now()
+			response.Modules = resolver.AssembleSiteClosures(response.Sites, rtOpts)
+			if metrics != nil {
+				metrics.RenderMs["modules"] = elapsedMs(modulesStart)
 			}
 		}
 		if request.IncludeRunTypes || anyCache {
@@ -510,6 +520,25 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			return protocol.Response{}
 		}
 		return protocol.Response{RunTypes: []*protocol.RunType{runType}}
+	case protocol.OpResolveModules:
+		// Cache-miss fallback for the plugin's virtual-module load() hook —
+		// e.g. a dev-server restart with a warm client graph requests a
+		// module before any scan ran. The eager program scan mirrors OpDump:
+		// a cold request must see every interned type before rendering.
+		if resolver.Program == nil {
+			return protocol.Response{Error: "resolveModules: no Program loaded — call setSources first"}
+		}
+		if len(request.Keys) == 0 {
+			return protocol.Response{OK: true}
+		}
+		resolver.scanAllProgramFiles()
+		var moduleDiagnostics []diag.Diagnostic
+		moduleOpts := resolver.rtRenderOpts(&moduleDiagnostics, resolver.buildProvenanceSites())
+		return protocol.Response{
+			OK:          true,
+			Modules:     resolver.ResolveModuleKeys(request.Keys, moduleOpts),
+			Diagnostics: moduleDiagnostics,
+		}
 	case protocol.OpTsCompile:
 		ms, err := resolver.dispatchTsCompile()
 		if err != nil {

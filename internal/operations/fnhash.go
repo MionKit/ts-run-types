@@ -80,6 +80,55 @@ func PlainHash(name string) string {
 	return FnHashFor(op, nil, "")
 }
 
+// Resolved is the reverse-lookup result for an fnHash: the operation plus the
+// call-site compile-time args that produced the hash. VariantSuffix is the
+// canonical ValidateOptions suffix ("" for the plain variant); OptionNames is the
+// matching option-name subset; Strategy is the JSON strategy token (empty for
+// non-JSON operations).
+type Resolved struct {
+	Op            Operation
+	OptionNames   []string
+	VariantSuffix string
+	Strategy      string
+}
+
+// byFnHash maps every producible fnHash back to its (operation, args) origin.
+// The operation set is finite and closed, and mustBeCollisionFree proves the
+// hashes are distinct, so the map is total and unambiguous. Built at init by
+// the same enumeration the collision guard hashes.
+var byFnHash map[string]Resolved
+
+func buildByFnHash() {
+	byFnHash = make(map[string]Resolved)
+	for _, op := range registry {
+		switch op.Axis {
+		case AxisValidateOptions:
+			for _, subset := range validateOptionSubsets() {
+				byFnHash[FnHashFor(op, subset, "")] = Resolved{
+					Op:            op,
+					OptionNames:   subset,
+					VariantSuffix: constants.ValidateVariantSuffix(subset),
+				}
+			}
+		case AxisJsonStrategy:
+			for _, strategy := range op.Strategies {
+				byFnHash[FnHashFor(op, nil, strategy)] = Resolved{Op: op, Strategy: strategy}
+			}
+		default:
+			byFnHash[FnHashFor(op, nil, "")] = Resolved{Op: op}
+		}
+	}
+}
+
+// ByFnHash resolves an opaque fnHash (the prefix of a `<fnHash>_<typeId>` cache
+// key) back to its operation + compile-time args. Used by the per-entry module
+// renderer to recover what to render from a bare module key. ok=false for a
+// string no registry combination produces.
+func ByFnHash(fnHash string) (Resolved, bool) {
+	resolved, ok := byFnHash[fnHash]
+	return resolved, ok
+}
+
 // allCanonicalKeys enumerates every canonical key the registry can produce: each
 // AxisNone op once, each AxisValidateOptions op over all ValidateOptions subsets, and
 // each AxisJsonStrategy op over all its strategies. The collision guard hashes

@@ -250,6 +250,17 @@ var JsonStrategyFamilies = map[string][]string{
 	"preserve": {"rj"},
 }
 
+// VirtualModulePrefix is the specifier prefix for the per-entry virtual
+// modules the Vite plugin serves (module mode). A cache entry with key K
+// (`<fnHash>_<typeId>` for fn entries, `t_<typeId>` for RunType data nodes)
+// is importable as `<VirtualModulePrefix><K><VirtualModuleExt>` — e.g.
+// `virtual:runtypes/aB3x_Lrjx.js`. Mirrored to TS via gen-ts-constants so
+// the rewriter (import emission) and the plugin (resolveId/load) agree.
+const VirtualModulePrefix = "virtual:runtypes/"
+
+// VirtualModuleExt is the extension suffix on every virtual-module specifier.
+const VirtualModuleExt = ".js"
+
 // Version is the binary version, injected at build time via
 //
 //	-ldflags "-X github.com/mionkit/ts-run-types/internal/constants.Version=<v>"

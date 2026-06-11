@@ -76,6 +76,11 @@ export const VALIDATIONERRORS_VAR_PREFIX = 'g_verr_';
 export const VALIDATIONERRORS_MODULE_NAME = 'validationErrorsModule';
 export const VALIDATIONERRORS_TAG = 'verr';
 
+// Virtual-module specifier scheme for module mode — one ES module per
+// cache entry, served by the plugin's resolveId/load hooks.
+export const VIRTUAL_RUNTYPES_PREFIX = 'virtual:runtypes/';
+export const VIRTUAL_RUNTYPES_EXT = '.js';
+
 export const REFLECTION_SUB_KIND = {
   mapKey: 1801,
   mapValue: 1802,

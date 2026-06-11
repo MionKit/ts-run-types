@@ -53,6 +53,14 @@ const (
 	// KindCompTimeArgs, but it ALSO tells the scanner which parameter to read
 	// when computing the injected fnHash.
 	KindCompTimeFnArgs
+	// KindInjectRunTypeData is the graph-demand trailing-slot marker
+	// (createMockType, schema builders). Same trailing-id injection contract
+	// as KindInjectRunTypeId, but the site demands the RunType DATA module
+	// closure (family tag "t") so the plugin injects `[typeId, [deps]]` and
+	// hoists the per-node virtual-module imports. Reflection-only sites
+	// (getRunTypeId / reflectRunTypeId) keep KindInjectRunTypeId — bare
+	// string, no modules.
+	KindInjectRunTypeData
 )
 
 // DefaultName is the symbol name the resolver looks for for the
@@ -73,6 +81,10 @@ const DefaultCompTimeFnArgsName = "CompTimeFnArgs"
 
 // DefaultPureFunctionName is the symbol name for the PureFunction brand.
 const DefaultPureFunctionName = "PureFunction"
+
+// DefaultInjectRunTypeDataName is the symbol name for the graph-demand
+// trailing-slot marker (InjectRunTypeData<T>).
+const DefaultInjectRunTypeDataName = "InjectRunTypeData"
 
 // DefaultModule is the package the marker types must be declared in.
 const DefaultModule = "@mionjs/ts-go-run-types"
@@ -101,11 +113,12 @@ type Spec struct {
 // public TypeScript declarations in
 // packages/ts-go-run-types/src/markers.ts.
 const (
-	BrandInjectRunTypeId  = "__mionInjectRunTypeIdBrand"
-	BrandCompTimeArgs     = "__mionCompTimeArgsBrand"
-	BrandCompTimeFnArgs   = "__mionCompTimeFnArgsBrand"
-	BrandPureFunction     = "__mionPureFunctionBrand"
-	BrandInjectTypeFnArgs = "__mionInjectTypeFnArgsBrand"
+	BrandInjectRunTypeId   = "__mionInjectRunTypeIdBrand"
+	BrandCompTimeArgs      = "__mionCompTimeArgsBrand"
+	BrandCompTimeFnArgs    = "__mionCompTimeFnArgsBrand"
+	BrandPureFunction      = "__mionPureFunctionBrand"
+	BrandInjectTypeFnArgs  = "__mionInjectTypeFnArgsBrand"
+	BrandInjectRunTypeData = "__mionInjectRunTypeDataBrand"
 )
 
 // DefaultSpecs returns the canonical marker set: one spec per supported
@@ -117,6 +130,7 @@ func DefaultSpecs() []Spec {
 		{Name: DefaultCompTimeFnArgsName, Module: DefaultModule, Kind: KindCompTimeFnArgs, BrandProperty: BrandCompTimeFnArgs},
 		{Name: DefaultPureFunctionName, Module: DefaultModule, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
 		{Name: DefaultInjectTypeFnArgsName, Module: DefaultModule, Kind: KindInjectTypeFnArgs, BrandProperty: BrandInjectTypeFnArgs},
+		{Name: DefaultInjectRunTypeDataName, Module: DefaultModule, Kind: KindInjectRunTypeData, BrandProperty: BrandInjectRunTypeData},
 	}
 }
 

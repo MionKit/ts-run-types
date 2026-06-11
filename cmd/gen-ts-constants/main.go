@@ -83,6 +83,12 @@ func buildVitePluginConstants() string {
 	}
 
 	out.WriteString("\n")
+	out.WriteString("// Virtual-module specifier scheme for module mode — one ES module per\n")
+	out.WriteString("// cache entry, served by the plugin's resolveId/load hooks.\n")
+	out.WriteString(fmt.Sprintf("export const VIRTUAL_RUNTYPES_PREFIX = %q;\n", constants.VirtualModulePrefix))
+	out.WriteString(fmt.Sprintf("export const VIRTUAL_RUNTYPES_EXT = %q;\n", constants.VirtualModuleExt))
+
+	out.WriteString("\n")
 	writeReflectionSubKind(out)
 	out.WriteString("\n")
 	writeNonSerializableGlobals(out)

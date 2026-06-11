@@ -342,6 +342,14 @@ const (
 	// existing scanFiles latency. Caller seeds sources via OpSetSources
 	// first (same precondition as OpScanFiles).
 	OpTsCompile = "tsCompile"
+	// OpResolveModules renders the per-entry virtual modules for the
+	// requested Keys (module mode). Unknown keys are silently omitted from
+	// the response's Modules map — the plugin's load() hook reports the
+	// stale-module condition with build context the binary doesn't have.
+	// Used as the cache-miss fallback when Vite requests a virtual module
+	// the plugin's in-memory map doesn't hold (e.g. a dev-server restart
+	// with a warm client graph).
+	OpResolveModules = "resolveModules"
 )
 
 // CacheKind enumerates the rendered cache-module bodies callers can opt into
@@ -385,6 +393,14 @@ type Request struct {
 	Sources             map[string]string `json:"sources,omitempty"`
 	IncludeRunTypes     bool              `json:"includeRunTypes,omitempty"`
 	IncludeCacheSources []CacheKind       `json:"includeCacheSources,omitempty"`
+	// IncludeModules opts a scanFiles response into module mode: every
+	// site's Deps closure is assembled and the response's Modules map
+	// carries the rendered per-entry module source for every key in those
+	// closures.
+	IncludeModules bool `json:"includeModules,omitempty"`
+	// Keys is the OpResolveModules input — the per-entry module keys to
+	// render.
+	Keys []string `json:"keys,omitempty"`
 	// IncludeMetrics opts the response into the Metrics block: tsgo
 	// extendedDiagnostics-style checker counters, per-phase wall times,
 	// and Go memory deltas. Zero measurement cost when unset — the
@@ -565,6 +581,11 @@ type Response struct {
 	// Populated on OpDump and on OpScanFiles when the caller opts into
 	// CacheKindPureFns / CacheKindAll via IncludeCacheSources.
 	PureFnsCacheSource string `json:"pureFnsCacheSource,omitempty"`
+	// Modules maps per-entry virtual-module keys to their rendered ES-module
+	// source (module mode). Populated on OpScanFiles when the request set
+	// IncludeModules (scoped to the request sites' Deps closures) and on
+	// OpResolveModules (scoped to Request.Keys; unknown keys omitted).
+	Modules map[string]string `json:"modules,omitempty"`
 	// Diagnostics carries every non-fatal diagnostic the Go binary
 	// emits — pure-fn extractor (PFE9xxx), marker scanner (MKRxxx),
 	// RT compiler (IT/TE/PJ/…/FB) — through one wire channel. The
@@ -609,6 +630,13 @@ type Site struct {
 	// reversible. One entry for a simple family / it-te variant; several for a
 	// composite JSON strategy. Empty for reflection-only sites.
 	Demand []SiteDemand `json:"demand,omitempty"`
+	// Deps is the site's full flattened transitive module-key closure
+	// (module mode): every per-entry virtual module the rewritten call site
+	// must import, leafs-first with the demanded root keys last, deduped.
+	// Populated only when the request set IncludeModules. Fn keys are
+	// `<fnHash>_<typeId>`; data-node keys are `t_<typeId>`. Empty for
+	// bare-string reflection sites (no module demand).
+	Deps []string `json:"deps,omitempty"`
 }
 
 // SiteDemand is one cache entry a createX site requires: the family + variant to

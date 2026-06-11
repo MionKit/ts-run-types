@@ -211,7 +211,14 @@ func isFooterLiteral(runType *protocol.RunType) bool {
 // writeFooter fills runType's reference-bearing fields and runtime-special
 // values into the module-local `cache` table.
 func writeFooter(buffer *strings.Builder, runType *protocol.RunType) {
-	name := cacheRef(runType.ID)
+	writeFooterTo(buffer, runType, cacheRef(runType.ID))
+}
+
+// writeFooterTo is writeFooter with an explicit receiver expression — the
+// aggregate module passes `c('<id>')`, the per-entry module renderer passes
+// the local `s` bound inside its initEntry wrapper. Ref slots resolve through
+// `c(...)` (rtUtils.useRunType) in both shapes.
+func writeFooterTo(buffer *strings.Builder, runType *protocol.RunType, name string) {
 	if runType.Child != nil {
 		buffer.WriteString(fmt.Sprintf("%s.child = %s;\n", name, derefExpr(runType.Child)))
 	}
