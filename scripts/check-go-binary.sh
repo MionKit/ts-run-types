@@ -36,39 +36,42 @@ if ! command -v go >/dev/null 2>&1; then
   fail "Go toolchain not found on PATH (needed to build $BIN)."
 fi
 
-echo -e "${YELLOW}→ Checking ts-go-run-types staleness (version=$VERSION)...${NC}"
+echo -e "${YELLOW}→ Checking ts-go-run-types (version=$VERSION)...${NC}"
 
-# Build a reference binary into a temp path (cache-hot, sub-second) so we
-# can compare its embedded build ID against the on-disk binary. `go list
-# .Stale` is unreliable here because we build with `-o` to a custom
+# Fast path: when the binary is missing we KNOW we're about to build,
+# so announce it upfront and build straight into $BIN — no temp dance.
+if [ ! -f "$BIN" ]; then
+  echo -e "${YELLOW}→ Building ts-go-run-types ($BIN does not exist; this may take a moment on a cold cache)...${NC}"
+  mkdir -p "$(dirname "$BIN")"
+  if ! go build -ldflags "$LDFLAGS" -o "$BIN" "$PKG"; then
+    fail "Build failed."
+  fi
+  echo -e "${GREEN}✓ Built $BIN.${NC}"
+  exit 0
+fi
+
+# Binary exists — compare its build ID against a reference build to
+# detect staleness. We have to compile the reference to read its build
+# ID (`go list .Stale` is unreliable when we build with `-o` to a custom
 # location instead of $GOBIN, so it always reports "not installed but
-# available in build cache".
+# available in build cache"). Cache-hot this is sub-second; cold or
+# after a source edit it's the real build cost — announce that so the
+# log doesn't sit silent for a few seconds.
+echo -e "${YELLOW}→ Verifying $BIN matches current source (rebuilding if stale)...${NC}"
 TMP_BIN="$(mktemp)"
 trap 'rm -f "$TMP_BIN"' EXIT
 if ! go build -ldflags "$LDFLAGS" -o "$TMP_BIN" "$PKG"; then
   fail "Reference build failed."
 fi
 
-stale=0
-reason=""
-if [ ! -f "$BIN" ]; then
-  stale=1
-  reason="$BIN does not exist"
-else
-  disk_id="$(go tool buildid "$BIN" 2>/dev/null || true)"
-  ref_id="$(go tool buildid "$TMP_BIN" 2>/dev/null || true)"
-  if [ -z "$disk_id" ] || [ -z "$ref_id" ]; then
-    fail "Could not read build IDs from $BIN or reference binary."
-  fi
-  if [ "$disk_id" != "$ref_id" ]; then
-    stale=1
-    reason="$BIN is stale (build ID mismatch)"
-  fi
+disk_id="$(go tool buildid "$BIN" 2>/dev/null || true)"
+ref_id="$(go tool buildid "$TMP_BIN" 2>/dev/null || true)"
+if [ -z "$disk_id" ] || [ -z "$ref_id" ]; then
+  fail "Could not read build IDs from $BIN or reference binary."
 fi
 
-if [ "$stale" -eq 1 ]; then
-  echo -e "${YELLOW}→ Building ts-go-run-types ($reason)...${NC}"
-  mkdir -p "$(dirname "$BIN")"
+if [ "$disk_id" != "$ref_id" ]; then
+  echo -e "${YELLOW}→ Replacing $BIN (stale: build ID mismatch)...${NC}"
   mv "$TMP_BIN" "$BIN"
   echo -e "${GREEN}✓ Built $BIN.${NC}"
 else
