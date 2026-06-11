@@ -122,21 +122,6 @@ export interface ScanFilesResult {
   sites: Site[];
   replacements?: Replacement[];
   runTypes?: RunType[];
-  runTypeCacheSource?: string;
-  validateCacheSource?: string;
-  validationErrorsCacheSource?: string;
-  prepareForJsonCacheSource?: string;
-  restoreFromJsonCacheSource?: string;
-  stringifyJsonCacheSource?: string;
-  prepareForJsonSafeCacheSource?: string;
-  hasUnknownKeysCacheSource?: string;
-  stripUnknownKeysCacheSource?: string;
-  unknownKeyErrorsCacheSource?: string;
-  unknownKeysToUndefinedCacheSource?: string;
-  unknownKeysToUndefinedWireCacheSource?: string;
-  toBinaryCacheSource?: string;
-  fromBinaryCacheSource?: string;
-  formatTransformCacheSource?: string;
   pureFnsCacheSource?: string;
   // Module mode: per-entry virtual-module sources covering every key in the
   // request sites' deps closures. Batch-scoped (not per-file projected) —
@@ -145,20 +130,6 @@ export interface ScanFilesResult {
   diagnostics?: import('./protocol.ts').Diagnostic[];
   // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
   addedRunTypes?: boolean;
-  addedValidate?: boolean;
-  addedValidationErrors?: boolean;
-  addedPrepareForJson?: boolean;
-  addedRestoreFromJson?: boolean;
-  addedStringifyJson?: boolean;
-  addedPrepareForJsonSafe?: boolean;
-  addedHasUnknownKeys?: boolean;
-  addedStripUnknownKeys?: boolean;
-  addedUnknownKeyErrors?: boolean;
-  addedUnknownKeysToUndefined?: boolean;
-  addedUnknownKeysToUndefinedWire?: boolean;
-  addedToBinary?: boolean;
-  addedFromBinary?: boolean;
-  addedFormatTransform?: boolean;
   addedPureFns?: boolean;
   // Present only when the request set includeMetrics.
   metrics?: Metrics;
@@ -207,38 +178,9 @@ abstract class ResolverClientBase implements ResolverConnection {
       replacements: resp.replacements,
       runTypes: resp.runTypes,
       modules: resp.modules,
-      runTypeCacheSource: resp.runTypeCacheSource,
-      validateCacheSource: resp.validateCacheSource,
-      validationErrorsCacheSource: resp.validationErrorsCacheSource,
-      prepareForJsonCacheSource: resp.prepareForJsonCacheSource,
-      restoreFromJsonCacheSource: resp.restoreFromJsonCacheSource,
-      stringifyJsonCacheSource: resp.stringifyJsonCacheSource,
-      prepareForJsonSafeCacheSource: resp.prepareForJsonSafeCacheSource,
-      hasUnknownKeysCacheSource: resp.hasUnknownKeysCacheSource,
-      stripUnknownKeysCacheSource: resp.stripUnknownKeysCacheSource,
-      unknownKeyErrorsCacheSource: resp.unknownKeyErrorsCacheSource,
-      unknownKeysToUndefinedCacheSource: resp.unknownKeysToUndefinedCacheSource,
-      unknownKeysToUndefinedWireCacheSource: resp.unknownKeysToUndefinedWireCacheSource,
-      toBinaryCacheSource: resp.toBinaryCacheSource,
-      fromBinaryCacheSource: resp.fromBinaryCacheSource,
-      formatTransformCacheSource: resp.formatTransformCacheSource,
       pureFnsCacheSource: resp.pureFnsCacheSource,
       diagnostics: resp.diagnostics,
       addedRunTypes: resp.addedRunTypes,
-      addedValidate: resp.addedValidate,
-      addedValidationErrors: resp.addedValidationErrors,
-      addedPrepareForJson: resp.addedPrepareForJson,
-      addedRestoreFromJson: resp.addedRestoreFromJson,
-      addedStringifyJson: resp.addedStringifyJson,
-      addedPrepareForJsonSafe: resp.addedPrepareForJsonSafe,
-      addedHasUnknownKeys: resp.addedHasUnknownKeys,
-      addedStripUnknownKeys: resp.addedStripUnknownKeys,
-      addedUnknownKeyErrors: resp.addedUnknownKeyErrors,
-      addedUnknownKeysToUndefined: resp.addedUnknownKeysToUndefined,
-      addedUnknownKeysToUndefinedWire: resp.addedUnknownKeysToUndefinedWire,
-      addedToBinary: resp.addedToBinary,
-      addedFromBinary: resp.addedFromBinary,
-      addedFormatTransform: resp.addedFormatTransform,
       addedPureFns: resp.addedPureFns,
       metrics: resp.metrics,
     };

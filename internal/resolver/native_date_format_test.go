@@ -6,6 +6,7 @@ import (
 
 	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/all"
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -15,9 +16,9 @@ import (
 // string formats (both date+time components allowed), and the emitted
 // validate carries the bound comparison over the Date's getTime().
 
-// scanNativeDate builds a getRunTypeId<TypeFormat<Date, 'nativeDate', P>>()
-// snippet and returns the emitted validate source, the scanned RunTypes,
-// and any FMT002 diagnostics.
+// scanNativeDate builds a createValidate<TypeFormat<Date, 'nativeDate', P>>()
+// snippet and returns the compiled validate root module body, the scanned
+// RunTypes, and any FMT002 diagnostics.
 func scanNativeDate(t *testing.T, params string) (string, []*protocol.RunType, []diag.Diagnostic) {
 	t.Helper()
 	code := `import {createValidate} from '@mionjs/ts-go-run-types';
@@ -26,10 +27,10 @@ export const _ = createValidate<TypeFormat<Date, 'nativeDate', ` + params + `>>(
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"a.ts"},
-		IncludeRunTypes:     true,
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
+		Op:              protocol.OpScanFiles,
+		Files:           []string{"a.ts"},
+		IncludeRunTypes: true,
+		IncludeModules:  true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -40,7 +41,11 @@ export const _ = createValidate<TypeFormat<Date, 'nativeDate', ` + params + `>>(
 			diags = append(diags, d)
 		}
 	}
-	return resp.ValidateCacheSource, resp.RunTypes, diags
+	var source string
+	if len(resp.Sites) > 0 {
+		source = resp.Modules[operations.PlainHash("validate")+"_"+resp.Sites[0].ID]
+	}
+	return source, resp.RunTypes, diags
 }
 
 // findNativeDate returns the RunType carrying the nativeDate annotation.
@@ -93,32 +98,38 @@ func TestNativeDate_ValidateEmitsExclusiveBoundCheck(t *testing.T) {
 	}
 }
 
-// TestNativeDate_RunTypeCacheCarriesFormatAnnotation locks in that the
-// reflection cache module (virtual:runtypes-cache, what reflectRunTypeId /
-// getRunTypeId consumers read) stores `formatAnnotation` on the
-// KindClass/Date node exactly as it does for atomic string formats — the
-// kind-agnostic writeFooter path in compiled/runtype/module.go plus the
-// brand lift in collapseIntersection. A regression here would silently
-// strip format metadata from native-Date runtypes.
-func TestNativeDate_RunTypeCacheCarriesFormatAnnotation(t *testing.T) {
-	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+// TestNativeDate_RunTypeDataModuleCarriesFormatAnnotation locks in that the
+// per-node data module (what graph-consuming markers like createMockType
+// load) stores `formatAnnotation` on the KindClass/Date node exactly as it
+// does for atomic string formats — the kind-agnostic footer path in
+// compiled/runtype plus the brand lift in collapseIntersection. A regression
+// here would silently strip format metadata from native-Date runtypes.
+func TestNativeDate_RunTypeDataModuleCarriesFormatAnnotation(t *testing.T) {
+	code := `import {createMockType} from '@mionjs/ts-go-run-types';
 ` + typeFormatBrandDecl + `
-export const _ = getRunTypeId<TypeFormat<Date, 'nativeDate', {min: 'now'}>>();
+export const _ = createMockType<TypeFormat<Date, 'nativeDate', {min: 'now'}>>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindRunType},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"a.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scan: %s", resp.Error)
 	}
-	if !strings.Contains(resp.RunTypeCacheSource, ".formatAnnotation = ") {
-		t.Fatalf("branded Date runType cache missing formatAnnotation assignment:\n%s", resp.RunTypeCacheSource)
+	if len(resp.Sites) != 1 {
+		t.Fatalf("expected one createMockType site, got %d", len(resp.Sites))
 	}
-	if !strings.Contains(resp.RunTypeCacheSource, `"name":"nativeDate"`) {
-		t.Fatalf("formatAnnotation present but missing nativeDate name:\n%s", resp.RunTypeCacheSource)
+	dataModule := resp.Modules["t_"+resp.Sites[0].ID]
+	if dataModule == "" {
+		t.Fatalf("branded Date data module missing, modules: %d", len(resp.Modules))
+	}
+	if !strings.Contains(dataModule, ".formatAnnotation = ") {
+		t.Fatalf("branded Date data module missing formatAnnotation assignment:\n%s", dataModule)
+	}
+	if !strings.Contains(dataModule, `"name":"nativeDate"`) {
+		t.Fatalf("formatAnnotation present but missing nativeDate name:\n%s", dataModule)
 	}
 }
 

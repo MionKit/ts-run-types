@@ -1,5 +1,20 @@
 # Architecture
 
+> **⚠️ Module-mode update (per-entry virtual modules).** Sections of this
+> document describing the aggregated `virtual:runtypes-cache` /
+> per-family cache modules predate the module-mode redesign: every cache
+> entry (fn entries `<fnHash>_<typeId>`, JSON composites, RunType data
+> nodes `t_<typeId>`) is now served as its own `virtual:runtypes/<key>.js`
+> pure-data module, imported at rewritten call sites (EOF-hoisted) and
+> registered at runtime through
+> `packages/ts-go-run-types/src/runtypes/registrar.ts` (two-pass
+> declare-then-link). Cross-family demand (`CrossFamilyValRoots`) is now a
+> plain import edge followed by the closure assembler
+> (`internal/resolver/modules.go`); the pureFns cache is the only
+> aggregate overlay left. See CLAUDE.md "Rewrite mechanics (module mode)"
+> for the current contract.
+
+
 `ts-go-run-types` is a compile-time **type resolver** for [mion runtypes](https://github.com/mionkit) targeting **TypeScript 7 / tsgo**. It provides a native side-channel into tsgo's type checker for tools (Vite plugin, codegen, test harness) that need to know a TypeScript type at a specific call site without relying on the legacy custom-transformer API (which the Go port does not expose; see [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516)).
 
 ## Big picture

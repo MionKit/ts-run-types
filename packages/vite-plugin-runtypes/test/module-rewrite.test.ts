@@ -45,7 +45,9 @@ describe('vite-plugin-runtypes / module-mode rewrite', () => {
       // Tuple shape: [id, fnId, [rt1, …, rtN]] with the root binding LAST
       // (deps are leafs-first, root last).
       const bindings = site.deps!.map((_, index) => `rt${index + 1}`);
-      expect(out).toContain(`createValidate<User>(undefined, undefined, ["${site.id}", "${site.fnId}", [${bindings.join(', ')}]]);`);
+      expect(out).toContain(
+        `createValidate<User>(undefined, undefined, ["${site.id}", "${site.fnId}", [${bindings.join(', ')}]]);`
+      );
       // One EOF import per dep key, in deps order, binding the module's `entry`.
       for (let index = 0; index < site.deps!.length; index++) {
         expect(out).toContain(`import {entry as rt${index + 1}} from '${VIRTUAL_RUNTYPES_PREFIX}${site.deps![index]}.js';`);

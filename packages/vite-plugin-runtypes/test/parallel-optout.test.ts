@@ -27,14 +27,13 @@ describe.skipIf(!hasBinary())('parallelism opt-outs', () => {
     });
     try {
       await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, 'optout.ts': SOURCE});
-      const response = await client.scanFiles(['optout.ts'], {includeCacheSources: ['all']});
+      const response = await client.scanFiles(['optout.ts'], {includeModules: true});
       // One site per marker call: createValidate + static + reflect forms.
       expect(response.sites).toHaveLength(3);
       const ids = new Set(response.sites.map((site) => site.id));
       // All three calls resolve the same User shape — one wire id.
       expect(ids.size).toBe(1);
-      expect(response.validateCacheSource).toBeTruthy();
-      expect(response.runTypeCacheSource).toBeTruthy();
+      expect(Object.keys(response.modules ?? {}).length).toBeGreaterThan(0);
     } finally {
       client.close();
     }

@@ -3,18 +3,6 @@
 // generic; only the cache-key prefix, identity fallback, and return type
 // vary per family. The rtUtils singleton is the only cache.
 
-import {initCache as initValidateCache} from './caches/validateCache.ts';
-import {initCache as initGetValidationErrorsCache} from './caches/getValidationErrorsCache.ts';
-import {initCache as initHasUnknownKeysCache} from './caches/hasUnknownKeysCache.ts';
-import {initCache as initStripUnknownKeysCache} from './caches/stripUnknownKeysCache.ts';
-import {initCache as initUnknownKeyErrorsCache} from './caches/unknownKeyErrorsCache.ts';
-import {initCache as initUnknownKeysToUndefinedCache} from './caches/unknownKeysToUndefinedCache.ts';
-import {initCache as initUnknownKeysToUndefinedWireCache} from './caches/unknownKeysToUndefinedWireCache.ts';
-import {initCache as initPrepareForJsonCache} from './caches/prepareForJsonCache.ts';
-import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCache.ts';
-import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
-import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
-import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {getRTUtils, isRunTypeSchema} from './runtypes/rtUtils.ts';
 import {initDependencies} from './runtypes/registrar.ts';
 import type {EntryTuple} from './runtypes/registrar.ts';
@@ -155,29 +143,6 @@ export type JsonDecoderStrategy = 'strip' | 'preserve';
 export type JsonDecoderOptions = {strategy?: JsonDecoderStrategy};
 
 // =============================================================================
-// Cache bootstrap
-// =============================================================================
-// initCache is idempotent (addToRTCache overwrites by rtFnHash), so HMR can
-// safely re-run any of these. Each call only registers entries; fn closures
-// are built lazily by materializeRTFn on first getRT() lookup.
-
-const _utils = getRTUtils();
-initValidateCache(_utils);
-initGetValidationErrorsCache(_utils);
-initHasUnknownKeysCache(_utils);
-initStripUnknownKeysCache(_utils);
-initUnknownKeyErrorsCache(_utils);
-initUnknownKeysToUndefinedCache(_utils);
-initUnknownKeysToUndefinedWireCache(_utils);
-initPrepareForJsonCache(_utils);
-initRestoreFromJsonCache(_utils);
-initStringifyJsonCache(_utils);
-initPrepareForJsonSafeCache(_utils);
-initFormatTransformCache(_utils);
-// Binary cache init lives in `./createBinary.ts` so binary cache modules
-// don't get pulled into bundles that never reference the binary encoder/decoder.
-
-// =============================================================================
 // Private generic factories
 // =============================================================================
 
@@ -213,9 +178,13 @@ function resolveTupleEntry<F extends AnyFn>(
   const key = (fnId ?? fallbackPrefix) + '_' + effectiveId;
   const entry = utils.getRT(key);
   if (entry) return entry.fn as F;
-  if (utils.hasRunType(effectiveId)) return identityFn;
+  // No identity fallback: every supported entry arrives as a module (noop
+  // entries included), and unsupported kinds register alwaysThrow factories
+  // with build diagnostics — a miss here means the closure dropped the
+  // entry (or a stale schema id), which the build log explains.
+  void identityFn;
   throw new Error(
-    `${fnName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
+    `${fnName}(): no precompiled entry for "${key}". The vite-plugin-runtypes build must be active and the type supported (see build diagnostics).`
   );
 }
 
@@ -409,26 +378,4 @@ export function createJsonDecoder<T>(
     valOrSchema,
     id
   );
-}
-
-// =============================================================================
-// HMR — refresh the RT registry whenever any cache module re-evaluates.
-// Tree-shaken at bundle time. Binary HMR lives in `./createBinary.ts`.
-// =============================================================================
-
-type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
-const hot = (import.meta as unknown as {hot?: HMR}).hot;
-if (hot) {
-  hot.accept('./caches/validateCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/getValidationErrorsCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/hasUnknownKeysCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/stripUnknownKeysCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/unknownKeyErrorsCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/unknownKeysToUndefinedCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/unknownKeysToUndefinedWireCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/prepareForJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/restoreFromJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/prepareForJsonSafeCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/formatTransformCache.ts', (m) => m?.initCache?.(getRTUtils()));
 }

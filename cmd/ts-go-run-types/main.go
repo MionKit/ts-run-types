@@ -1,7 +1,6 @@
 // Command ts-go-run-types answers compile-time type-reflection queries for
 // mion runtypes. It holds a typescript-go Program + checker in memory and
 // speaks newline-delimited JSON on stdio, or writes the dump straight to
-// disk via --out-json / --out-ts.
 package main
 
 import (
@@ -19,7 +18,6 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
 	// Blank-import the format-emitter aggregator so every concrete
 	// format (stringFormat, uuid, …) registers with the formats
 	// registry before the resolver starts handing out RunTypes.
@@ -42,7 +40,6 @@ Options:
     --daemon            listen on a Unix socket for persistent serving
     --socket PATH       socket path (default: /tmp/ts-go-run-types.sock)
     --out-json PATH     after stdin is drained, write the cache as JSON to PATH
-    --out-ts   PATH     after stdin is drained, write the runtime cache JS module to PATH
     --hash-length N     short-id length for type hashes (default 6)
     --literal-hash-length N  short-id length for literal-typed hashes (default 5)
     --single-threaded   force single-checker mode (useful for tests);
@@ -81,7 +78,6 @@ func main() {
 		daemon             bool
 		socketPath         string
 		outJSON            string
-		outTS              string
 		hashLength         int
 		literalHashLength  int
 		singleThreaded     bool
@@ -101,7 +97,6 @@ func main() {
 	flag.BoolVar(&daemon, "daemon", false, "daemon Unix-socket mode")
 	flag.StringVar(&socketPath, "socket", "/tmp/ts-go-run-types.sock", "Unix socket path")
 	flag.StringVar(&outJSON, "out-json", "", "write cache as JSON to PATH after stdin EOF")
-	flag.StringVar(&outTS, "out-ts", "", "write runtime cache JS module to PATH after stdin EOF")
 	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 6)")
 	flag.IntVar(&literalHashLength, "literal-hash-length", 0, "short-id length for literal hashes (0 = default 5)")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
@@ -261,11 +256,6 @@ func main() {
 	if outJSON != "" {
 		if err := writeFile(outJSON, dump.WriteJSON); err != nil {
 			fatal("out-json: %v", err)
-		}
-	}
-	if outTS != "" {
-		if err := writeFile(outTS, func(w io.Writer) error { return runtype.RunTypesModule(w, dump) }); err != nil {
-			fatal("out-ts: %v", err)
 		}
 	}
 }

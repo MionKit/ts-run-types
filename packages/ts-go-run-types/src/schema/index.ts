@@ -139,21 +139,3 @@ export {bigPositive, bigNegative, bigPositiveInt, bigNegativeInt, bigInt64, bigU
 
 // Type-level helpers the builders carry (all in static.ts).
 export type {PropModifiers, MapTuple, TemplatePart, AssembleTemplate, BrandArg} from './static.ts';
-
-// Populate the run-type registry. The value-first builders resolve live RunType
-// nodes from `runTypesCache` at runtime, so the `/schema` surface must initialise
-// it the same way the root entry (src/index.ts) does — otherwise a consumer
-// importing ONLY `/schema` gets an empty cache and the builders fall back to their
-// carriers. Idempotent: re-running overwrites entries by id, so importing both
-// root and `/schema` is safe.
-import {initCache as initRunTypesCache} from '../caches/runTypesCache.ts';
-import {getRTUtils as _getRTUtilsForInit} from '../runtypes/rtUtils.ts';
-initRunTypesCache(_getRTUtilsForInit());
-
-type _HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
-const _hot = (import.meta as unknown as {hot?: _HMR}).hot;
-if (_hot) {
-  _hot.accept('../caches/runTypesCache.ts', (newMod) => {
-    newMod?.initCache?.(_getRTUtilsForInit());
-  });
-}

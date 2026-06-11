@@ -39,7 +39,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['prepareForJson'],
+        includeModules: true,
       });
       const diags = runtypeDiagsOf(response);
       const pjNever = diags.find((d) => d.code === 'PJ001');
@@ -64,7 +64,7 @@ export const _b = createBinaryEncoder<never>();
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['prepareForJson', 'stringifyJson', 'toBinary'],
+        includeModules: true,
       });
       const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
       expect(codes, [...codes].join(',')).toContain('PJ001');
@@ -85,7 +85,7 @@ export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['prepareForJson'],
+        includeModules: true,
       });
       const neverDiags = runtypeDiagsOf(response).filter((d) => d.code === 'PJ001');
       expect(neverDiags).toHaveLength(3);
@@ -105,7 +105,7 @@ export const _ = createValidate<User>();
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['validate'],
+        includeModules: true,
       });
       const diags = runtypeDiagsOf(response);
       const dropped = diags.find((d) => (d.code === 'VL010' || d.code === 'VL011') && d.args?.[0] === 'onClick');
@@ -123,7 +123,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['prepareForJson'],
+        includeModules: true,
       });
       const diagnostic = runtypeDiagsOf(response).find((d) => d.code === 'PJ001');
       expect(diagnostic).toBeDefined();
@@ -140,7 +140,7 @@ export const _ = getRunTypeId<any>();
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['validationErrors'],
+        includeModules: true,
       });
       const diags = runtypeDiagsOf(response);
       const warning = diags.find((d) => d.code === 'VE020');
@@ -163,7 +163,7 @@ export const _ = createValidate<unknown>();
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['validate'],
+        includeModules: true,
       });
       const diags = runtypeDiagsOf(response);
       const warning = diags.find((d) => d.code === 'VL021');
@@ -196,7 +196,7 @@ export const _r = createJsonDecoder<[number, () => void]>();
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['prepareForJson', 'prepareForJsonSafe', 'restoreFromJson', 'stringifyJson'],
+        includeModules: true,
       });
       const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
       // One per-family error code per emitter — PJ003 / PJS003 /
@@ -205,14 +205,14 @@ export const _r = createJsonDecoder<[number, () => void]>();
       expect(codes).toContain('PJS003');
       expect(codes).toContain('RJ003');
       expect(codes).toContain('SJ003');
-      // Cache module must wire the tuple's prepareForJson entry as
+      // The tuple's prepareForJson entry module must register as
       // alwaysThrow so calling `createJsonEncoder<[number, () => void]>()`
-      // throws at the first lookup. The 8th positional arg on init()
-      // is the alwaysThrowCode — verify it's present for the tuple. Slice 4:
-      // the entry key is `<fnHash>_<id>` (opaque per-family hash), so the
-      // prefix is matched generically rather than the readable `pj_` tag.
-      const pj = response.prepareForJsonCacheSource ?? '';
-      expect(pj).toMatch(/init\('[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'PJ003'/);
+      // throws at the first lookup. Module wire form: slot 8 of the entry
+      // array is the alwaysThrowCode.
+      const pjThrowModule = Object.values(response.modules ?? {}).find((source) =>
+        source.includes(",'pj','tuple',u,false,u,u,u,'PJ003'")
+      );
+      expect(pjThrowModule, JSON.stringify(Object.keys(response.modules ?? {}))).toBeDefined();
     });
   });
 
@@ -226,14 +226,15 @@ export const _d = createBinaryDecoder<[string, () => number]>();
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['toBinary', 'fromBinary'],
+        includeModules: true,
       });
       const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
       expect(codes).toContain('TB003');
       expect(codes).toContain('FB003');
-      // Slice 4: entry key is the opaque `<fnHash>_<id>`, matched generically.
-      const tb = response.toBinaryCacheSource ?? '';
-      expect(tb).toMatch(/init\('[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'TB003'/);
+      const tbThrowModule = Object.values(response.modules ?? {}).find((source) =>
+        source.includes(",'tb','tuple',u,false,u,u,u,'TB003'")
+      );
+      expect(tbThrowModule, JSON.stringify(Object.keys(response.modules ?? {}))).toBeDefined();
     });
   });
 
@@ -250,7 +251,7 @@ export const _b = createBinaryEncoder<[number, symbol]>();
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['prepareForJson', 'toBinary'],
+        includeModules: true,
       });
       const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
       expect(codes).toContain('PJ005');
@@ -283,14 +284,14 @@ export const _ = createValidate<User>();
     let itPrefix = '';
     await withInlineSources(sources, async ({client}) => {
       const inlineOn = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['validate'],
+        includeModules: true,
       });
-      const inlineOnBody = inlineOn.validateCacheSource ?? '';
       const itSite = inlineOn.sites.find((s) => s.fnId);
       if (!itSite?.fnId) throw new Error('expected a createValidate site with an injected fnId');
       itPrefix = itSite.fnId;
+      const inlineOnBody = Object.values(inlineOn.modules ?? {}).join('\n');
       // The default shared client runs with emitCacheFunctions=true so
-      // we get the inline factory here as a baseline.
+      // we get the inline factory here as a baseline (slot 7 of the array).
       expect(inlineOnBody, 'shared client should emit the inline factory').toMatch(
         new RegExp('function g_' + itPrefix + '_[A-Za-z0-9]+\\(utl\\)')
       );
@@ -305,22 +306,16 @@ export const _ = createValidate<User>();
     try {
       await oneShot.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...sources});
       const response = await oneShot.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['validate'],
+        includeModules: true,
       });
-      const body = response.validateCacheSource ?? '';
-      // arg-7 should be the `u` alias for every non-noop, non-
-      // alwaysThrow entry. Sanity-check by scanning init lines — keyed by the
-      // opaque validate fnHash prefix (`<itPrefix>_<id>`).
-      const initPrefix = "init('" + itPrefix + '_';
-      const initLines = body.split('\n').filter((line) => line.startsWith(initPrefix));
-      expect(initLines.length, 'expected at least one init line for User').toBeGreaterThan(0);
-      for (const line of initLines) {
-        // Noop entries use the 4-arg short form `init('<itPrefix>_X','...',undefined,true);`
-        // — skip those.
-        if (line.includes(',undefined,true);')) continue;
-        expect(line, `default emit must end with ",u);" — got: ${line}`).toMatch(/,u\);$/);
-      }
-      // And the closure-form must be completely absent under the default.
+      // Default emit: the entry array carries only the body `code` string —
+      // the createRTFn slot is trailing-trimmed away, so the inline closure
+      // form must be completely absent from every validate module.
+      const body = Object.entries(response.modules ?? {})
+        .filter(([key]) => key.startsWith(itPrefix + '_'))
+        .map(([, source]) => source)
+        .join('\n');
+      expect(body.length, 'expected at least one validate module for User').toBeGreaterThan(0);
       expect(body, 'default emit must NOT contain the inline factory closure').not.toMatch(
         new RegExp('function g_' + itPrefix + '_[A-Za-z0-9]+\\(utl\\)')
       );

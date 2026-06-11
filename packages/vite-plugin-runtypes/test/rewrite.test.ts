@@ -1,10 +1,7 @@
 import {describe, expect} from 'vitest';
-import path from 'node:path';
-import fs from 'node:fs';
-import {spawnSync} from 'node:child_process';
 import {rewrite} from '../src/rewrite.ts';
 import {ReflectionKind, type RunType} from '../src/protocol.ts';
-import {BIN, runTest, withInlineSources, RUNTYPES_DTS} from './helpers/inline.ts';
+import {evalCacheFor, runTest, withInlineSources} from './helpers/inline.ts';
 
 function findMember(types: RunType[], root: RunType, name: string): RunType | undefined {
   for (const ref of root.children ?? []) {
@@ -229,37 +226,13 @@ const myAPI = reflectRunTypeId(routes);
   );
 
   async function assertCacheModuleHasSayHelloRoot(sources: Record<string, string>, file: string) {
-    const cacheSource = await withInlineSources(sources, async ({client}) => {
-      await rewrite(file, sources[file], client);
-      const dump = await client.dump();
-      return dump.runTypeCacheSource ?? '';
-    });
-
-    // Splice-based emitter — one `rt('id', …);` call per entry inside
-    // the skeleton's exported initCache() function.
-    expect(cacheSource).toMatch(/rt\('[A-Za-z0-9_]+',\d+/);
-    expect(cacheSource).toContain('export function initCache');
-
-    // Evaluate the module body the same way evalCacheFor does: strip
-    // top-level `export`s and call `initCache(rtUtils)` against a stub
-    // that records each `addRunType` call and serves `useRunType` from
-    // the same table.
-    const stripped = cacheSource.replace(/^\s*export\s+function\s+/gm, 'function ');
-    const registered: Record<string, Record<string, any>> = {};
-    const stub = {
-      addRunType(id: string, rt: Record<string, any>) {
-        registered[id] = rt;
-      },
-      useRunType(id: string) {
-        const e = registered[id];
-        if (!e) throw new Error(`stub useRunType: missing id ${id}`);
-        return e;
-      },
-    };
-    const factory = new Function(`${stripped}\nreturn initCache;`);
-    const initCache = factory() as (rtUtils: typeof stub) => void;
-    initCache(stub);
-    const entries = Object.values(registered).filter(
+    // Module mode: the knotted graph comes from the per-node `t_<id>` data
+    // modules, registered through the production registrar — evalCacheFor
+    // wraps exactly that pipeline.
+    const cache = await evalCacheFor(sources);
+    const site = cache.sites.find((s) => s.file === file);
+    expect(site).toBeDefined();
+    const entries = Object.values(cache.byHash).filter(
       (t): t is Record<string, any> => t !== null && typeof t === 'object' && 'kind' in t
     );
     expect(entries.length).toBeGreaterThan(0);
@@ -275,37 +248,7 @@ const myAPI = reflectRunTypeId(routes);
     // Every cached RunType must carry its `id` (the primary cache handle).
     for (const t of entries) {
       expect(typeof t.id).toBe('string');
-      expect(t.id.length).toBeGreaterThan(0);
+      expect((t.id as string).length).toBeGreaterThan(0);
     }
   }
-
-  // CLI round-trip via spawnSync — kept as a single test (one form is
-  // sufficient to verify the binary boundary). Uses runTest for the source
-  // hoist + skip gate; the body short-circuits to a raw spawnSync since this
-  // test bypasses the in-process ResolverClient entirely.
-  runTest(
-    "CLI --out-ts produces a parseable module identical in shape to the plugin's output",
-    {
-      'router.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
-const sayHello = (name: string): string => 'Hello ' + name;
-const routes = {sayHello};
-const myAPI = reflectRunTypeId(routes);
-`,
-    },
-    async (sources) => {
-      const tmp = path.join(__dirname, '.tmp-cache.ts');
-      const handshake = JSON.stringify({sources: {'runtypes.d.ts': RUNTYPES_DTS, 'router.ts': sources['router.ts']}}) + '\n';
-      const request = JSON.stringify({op: 'scanFiles', files: ['router.ts']}) + '\n';
-      const out = spawnSync(BIN, ['--cwd', path.resolve(__dirname, '../../..'), '--inline-sources-stdin', '--out-ts', tmp], {
-        input: handshake + request,
-      });
-      expect(out.status).toBe(0);
-      const generated = fs.readFileSync(tmp, 'utf8');
-      // Splice-based emitter — output should include the skeleton's
-      // initCache() shell and at least one rt(…) factory call.
-      expect(generated).toContain('export function initCache');
-      expect(generated).toMatch(/rt\('[A-Za-z0-9_]+',\d+/);
-      fs.unlinkSync(tmp);
-    }
-  );
 });

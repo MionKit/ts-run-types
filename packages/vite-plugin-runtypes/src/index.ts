@@ -174,7 +174,10 @@ export default function runtypes(options: PluginOptions) {
 
     async load(this: any, id: string) {
       if (!id.startsWith('\0' + VIRTUAL_RUNTYPES_PREFIX)) return null;
-      const key = id.slice(1 + VIRTUAL_RUNTYPES_PREFIX.length, id.endsWith(VIRTUAL_RUNTYPES_EXT) ? -VIRTUAL_RUNTYPES_EXT.length : undefined);
+      const key = id.slice(
+        1 + VIRTUAL_RUNTYPES_PREFIX.length,
+        id.endsWith(VIRTUAL_RUNTYPES_EXT) ? -VIRTUAL_RUNTYPES_EXT.length : undefined
+      );
       let source = moduleSources.get(key);
       if (source === undefined && resolver) {
         const fetched = await resolver.resolveModules([key]);
@@ -324,43 +327,8 @@ export default function runtypes(options: PluginOptions) {
 }
 
 // pickCacheSource pulls the rendered body field matching `kind` off a
-// dump response. Centralised so the transform hook stays terse.
-function pickCacheSource(
-  dump: {
-    runTypeCacheSource?: string;
-    validateCacheSource?: string;
-    validationErrorsCacheSource?: string;
-    prepareForJsonCacheSource?: string;
-    restoreFromJsonCacheSource?: string;
-    stringifyJsonCacheSource?: string;
-    prepareForJsonSafeCacheSource?: string;
-    hasUnknownKeysCacheSource?: string;
-    stripUnknownKeysCacheSource?: string;
-    unknownKeyErrorsCacheSource?: string;
-    unknownKeysToUndefinedCacheSource?: string;
-    unknownKeysToUndefinedWireCacheSource?: string;
-    toBinaryCacheSource?: string;
-    fromBinaryCacheSource?: string;
-    formatTransformCacheSource?: string;
-    pureFnsCacheSource?: string;
-  },
-  kind: CacheKind
-): string | undefined {
-  if (kind === 'runType') return dump.runTypeCacheSource;
-  if (kind === 'validate') return dump.validateCacheSource;
-  if (kind === 'validationErrors') return dump.validationErrorsCacheSource;
-  if (kind === 'prepareForJson') return dump.prepareForJsonCacheSource;
-  if (kind === 'restoreFromJson') return dump.restoreFromJsonCacheSource;
-  if (kind === 'stringifyJson') return dump.stringifyJsonCacheSource;
-  if (kind === 'prepareForJsonSafe') return dump.prepareForJsonSafeCacheSource;
-  if (kind === 'hasUnknownKeys') return dump.hasUnknownKeysCacheSource;
-  if (kind === 'stripUnknownKeys') return dump.stripUnknownKeysCacheSource;
-  if (kind === 'unknownKeyErrors') return dump.unknownKeyErrorsCacheSource;
-  if (kind === 'unknownKeysToUndefined') return dump.unknownKeysToUndefinedCacheSource;
-  if (kind === 'unknownKeysToUndefinedWire') return dump.unknownKeysToUndefinedWireCacheSource;
-  if (kind === 'toBinary') return dump.toBinaryCacheSource;
-  if (kind === 'fromBinary') return dump.fromBinaryCacheSource;
-  if (kind === 'formatTransform') return dump.formatTransformCacheSource;
+// dump response — pureFns is the only aggregate overlay left in module mode.
+function pickCacheSource(dump: {pureFnsCacheSource?: string}, kind: CacheKind): string | undefined {
   if (kind === 'pureFns') return dump.pureFnsCacheSource;
   return undefined;
 }

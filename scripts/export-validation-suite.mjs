@@ -1,4 +1,13 @@
 #!/usr/bin/env node
+
+// MODULE-MODE MIGRATION PENDING: the aggregate cache-source responses this
+// exporter consumed (runTypeCacheSource / validateCacheSource / ...) were
+// removed with the per-entry virtual-module redesign. The downstream
+// mion-benchmarks artifact format must be redesigned against the `modules`
+// payload before this exporter can run again.
+console.error('export suite: disabled pending module-mode artifact migration (see docs/ROADMAP.md)');
+process.exit(1);
+
 // Generates gendocs/validation-suite.json from VALIDATION_SUITE.
 //
 // Pipeline:

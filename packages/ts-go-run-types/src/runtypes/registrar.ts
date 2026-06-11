@@ -137,7 +137,9 @@ function registerFnFromTuple(utl: RTUtils, entry: FnEntryTuple, tag: string): vo
   const family = FAMILIES[tag];
   if (!family) throw new Error(`registrar: unknown family tag "${tag}" on entry "${rtFnHash}"`);
   const resolvedCreateRTFn =
-    alwaysThrowCode !== undefined ? (utl.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) as unknown as (utl: RTUtils) => AnyFn) : createRTFn;
+    alwaysThrowCode !== undefined
+      ? (utl.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) as unknown as (utl: RTUtils) => AnyFn)
+      : createRTFn;
   const compiled: CompiledTypeFn = {
     rtFnHash,
     fnID: family.fnID,

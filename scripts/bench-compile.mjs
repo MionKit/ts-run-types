@@ -17,7 +17,8 @@
 //   (all four suites, including format-validation / format-serialization
 //   whose case bodies reference module-scope consts and therefore can't be
 //   extracted per-case). One fresh binary per cycle; scans every data file
-//   of the suite in a single scanFiles request with includeCacheSources all.
+//   of the suite in a single scanFiles request with includeModules (module
+//   mode: per-entry module assembly replaces the aggregate family renders).
 //   This is the holdout against per-case overfitting — its shape matches the
 //   real vite workload.
 //
@@ -250,7 +251,7 @@ async function runMicro() {
           await client.reset();
           await client.setSources(sources);
           const t0 = performance.now();
-          const resp = await client.scanFiles([relpath], {includeCacheSources: unit.kinds, includeMetrics: true});
+          const resp = await client.scanFiles([relpath], {includeModules: true, includeMetrics: true});
           const elapsed = performance.now() - t0;
           if (c === 0) continue; // warmup cycle (first-touch disk/JIT noise)
           wall.push(elapsed);
@@ -355,7 +356,7 @@ async function runMacro() {
         await client.request({op: 'resolveId', id: '__ping__'});
         programLoad.push(performance.now() - spawnT0);
         const t0 = performance.now();
-        const resp = await client.request({op: 'scanFiles', files, includeCacheSources: ['all'], includeMetrics: true});
+        const resp = await client.request({op: 'scanFiles', files, includeModules: true, includeMetrics: true});
         wall.push(performance.now() - t0);
         if (resp.error) throw new Error(resp.error);
         const m = resp.metrics ?? {};

@@ -28,21 +28,6 @@ const MarkerLine = "// #### REPLACE HERE ####"
 // Skeleton names — match the file names under
 // packages/ts-go-run-types/src/caches/.
 const (
-	SkeletonRunTypes                   = "runTypesCache.ts"
-	SkeletonValidate                   = "validateCache.ts"
-	SkeletonValidationErrors           = "getValidationErrorsCache.ts"
-	SkeletonPrepareForJson             = "prepareForJsonCache.ts"
-	SkeletonRestoreFromJson            = "restoreFromJsonCache.ts"
-	SkeletonStringifyJson              = "stringifyJsonCache.ts"
-	SkeletonPrepareForJsonSafe         = "prepareForJsonSafeCache.ts"
-	SkeletonHasUnknownKeys             = "hasUnknownKeysCache.ts"
-	SkeletonStripUnknownKeys           = "stripUnknownKeysCache.ts"
-	SkeletonUnknownKeyErrors           = "unknownKeyErrorsCache.ts"
-	SkeletonUnknownKeysToUndefined     = "unknownKeysToUndefinedCache.ts"
-	SkeletonUnknownKeysToUndefinedWire = "unknownKeysToUndefinedWireCache.ts"
-	SkeletonToBinary                   = "toBinaryCache.ts"
-	SkeletonFromBinary                 = "fromBinaryCache.ts"
-	SkeletonFormatTransform            = "formatTransformCache.ts"
 	SkeletonPureFns                    = "pureFnsCache.ts"
 )
 

@@ -54,9 +54,10 @@ func TestSpliceInto_DuplicateMarker(t *testing.T) {
 }
 
 func TestSplice_EmbeddedSkeletonsLoadable(t *testing.T) {
-	// Sanity check: every named skeleton resolves through the embedded FS
-	// and contains the marker.
-	for _, name := range []string{SkeletonRunTypes, SkeletonValidate, SkeletonPureFns} {
+	// Sanity check: the remaining named skeleton (module mode keeps only
+	// pureFns as an aggregate module) resolves through the embedded FS and
+	// contains the marker.
+	for _, name := range []string{SkeletonPureFns} {
 		out, err := Splice(name, "/* generated */")
 		if err != nil {
 			t.Errorf("Splice(%q): %v", name, err)

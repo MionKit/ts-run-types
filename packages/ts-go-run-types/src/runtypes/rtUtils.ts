@@ -217,9 +217,12 @@ export function lookupRTFn<F extends AnyFn>(callerName: string, prefix: string, 
   const key = buildVariantKey(prefix, id);
   const entry = utils.getRT(key) as CompiledTypeFn | undefined;
   if (entry) return entry.fn as F;
-  if (utils.hasRunType(id)) return identityFn;
+  // No identity fallback (module mode): noop entries register with a real
+  // identity fn and unsupported kinds register alwaysThrow factories, so a
+  // miss is a dropped/stale closure — surfaced loudly.
+  void identityFn;
   throw new Error(
-    `${callerName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
+    `${callerName}(): no precompiled entry for "${key}". The vite-plugin-runtypes build must be active and the type supported (see build diagnostics).`
   );
 }
 

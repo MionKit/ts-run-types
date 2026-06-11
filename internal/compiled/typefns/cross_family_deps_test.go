@@ -1,12 +1,10 @@
 package typefns
 
 import (
-	"bytes"
 	"sort"
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -27,10 +25,9 @@ func itVariantKey(optionNames []string, id string) string {
 	return operations.FnHashFor(itOp, optionNames, "") + "_" + id
 }
 
-// buildRefTable indexes every RunType by id so renderEntryWithDeps and the
+// buildRefTable indexes every RunType by id so CompileEntryModule and the
 // walker can deref the KindRef child slots (the wire form every composite
-// uses — see internal/protocol). Mirrors the per-request table RenderFnModule
-// builds.
+// uses — see internal/protocol). Mirrors the resolver's full session table.
 func buildRefTable(runTypes []*protocol.RunType) map[string]*protocol.RunType {
 	table := make(map[string]*protocol.RunType, len(runTypes))
 	for _, rt := range runTypes {
@@ -81,31 +78,29 @@ func buildConflictPropUnionFixture() ([]*protocol.RunType, string) {
 	return []*protocol.RunType{bigint, date, propABig, propADat, obj1, obj2, union}, "uni"
 }
 
-// assertUnionCrossFamily renders the union root for the given encoder family
+// assertUnionCrossFamily compiles the union root for the given encoder family
 // and asserts the cross-family discrimination edges land in CrossFamilyDeps
-// (not RTDependencies). The discriminated `a` slot resolves to the two
-// candidate validate validators `val_big` / `val_dat`.
-func assertUnionCrossFamily(t *testing.T, emitter Emitter, settings constants.CacheModuleSettings) {
+// (not RTDeps). The discriminated `a` slot resolves to the two candidate
+// validate validators `val_big` / `val_dat`.
+func assertUnionCrossFamily(t *testing.T, familyKey string) {
 	t.Helper()
 	runTypes, rootID := buildConflictPropUnionFixture()
 	refTable := buildRefTable(runTypes)
-	prefix := innerPrefix(settings)
 
-	rendered := renderEntryWithDeps(refTable[rootID], settings, emitter, prefix, refTable, RenderOpts{}, "", nil)
-	if rendered.line == "" {
-		t.Fatalf("%T: expected a non-empty entry line for the conflict-prop union", emitter)
+	slots := CompileEntryModule(familyKey, refTable[rootID], refTable, RenderOpts{}, "", nil)
+	if slots.Skip || slots.Code == "" {
+		t.Fatalf("%s: expected a code-bearing entry for the conflict-prop union, got %+v", familyKey, slots)
 	}
 
 	for _, want := range []string{valKey("big"), valKey("dat")} {
-		if !containsStr(rendered.crossFamilyDeps, want) {
-			t.Errorf("%T: CrossFamilyDeps %v missing cross-family edge %q", emitter, rendered.crossFamilyDeps, want)
+		if !containsStr(slots.CrossFamilyDeps, want) {
+			t.Errorf("%s: CrossFamilyDeps %v missing cross-family edge %q", familyKey, slots.CrossFamilyDeps, want)
 		}
 		// Cross-family edges MUST stay out of the same-family dependency
-		// list — the dangling-dep cascade keys on RTDependencies and would
-		// wrongly drop this entry if an `val_*` (foreign-family) hash leaked
-		// in.
-		if containsStr(rendered.deps, want) {
-			t.Errorf("%T: cross-family edge %q must NOT appear in RTDependencies %v", emitter, want, rendered.deps)
+		// list — same-family RTDeps drive the same-family wiring and would
+		// double-count a `val_*` (foreign-family) hash leaking in.
+		if containsStr(slots.RTDeps, want) {
+			t.Errorf("%s: cross-family edge %q must NOT appear in RTDeps %v", familyKey, want, slots.RTDeps)
 		}
 	}
 }
@@ -113,25 +108,25 @@ func assertUnionCrossFamily(t *testing.T, emitter Emitter, settings constants.Ca
 // TestCrossFamilyDeps_UnionPrepareForJson — the prepareForJson encoder for a
 // union whose members discriminate a conflicting property at runtime records
 // the `val_<candidate>` lookups as cross-family edges, separate from the
-// (empty here) same-family RTDependencies.
+// (empty here) same-family RTDeps.
 func TestCrossFamilyDeps_UnionPrepareForJson(t *testing.T) {
-	assertUnionCrossFamily(t, PrepareForJsonEmitter{}, constants.CacheModules["prepareForJson"])
+	assertUnionCrossFamily(t, "prepareForJson")
 }
 
 // TestCrossFamilyDeps_UnionToBinary — same as the prepareForJson sibling but
 // for the toBinary encoder, which also discriminates the conflicting slot via
 // the candidate validate validators.
 func TestCrossFamilyDeps_UnionToBinary(t *testing.T) {
-	assertUnionCrossFamily(t, ToBinaryEmitter{}, constants.CacheModules["toBinary"])
+	assertUnionCrossFamily(t, "toBinary")
 }
 
 // TestCrossFamilyDeps_ValidateSameFamilyOnly — a plain object with a nested
 // object property compiles the nested child as a same-family dependency call
 // (`val_<child>` funnelled through registerRTLookup by emitDepCall). Because
 // the lookup's prefix matches the walker's own InnerPrefix it is recorded in
-// RTDependencies, NOT CrossFamilyDeps. This pins the no-regression guarantee
-// for the same-family path: registerRTLookup's prefix gate keeps same-family
-// edges out of the cross-family list.
+// RTDeps, NOT CrossFamilyDeps. This pins the no-regression guarantee for the
+// same-family path: registerRTLookup's prefix gate keeps same-family edges
+// out of the cross-family list.
 func TestCrossFamilyDeps_ValidateSameFamilyOnly(t *testing.T) {
 	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	num := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
@@ -143,35 +138,32 @@ func TestCrossFamilyDeps_ValidateSameFamilyOnly(t *testing.T) {
 
 	runTypes := []*protocol.RunType{str, num, innerProp, inner, outerPropA, outerPropB, outer}
 	refTable := buildRefTable(runTypes)
-	settings := constants.CacheModules["validate"]
-	prefix := innerPrefix(settings)
 
-	rendered := renderEntryWithDeps(refTable["outer"], settings, ValidateEmitter{}, prefix, refTable, RenderOpts{}, "", nil)
-	if rendered.line == "" {
-		t.Fatal("expected a non-empty validate entry line for the nested-object fixture")
+	slots := CompileEntryModule("validate", refTable["outer"], refTable, RenderOpts{}, "", nil)
+	if slots.Skip || slots.Code == "" {
+		t.Fatalf("expected a code-bearing validate entry for the nested-object fixture, got %+v", slots)
 	}
-	if !containsStr(rendered.deps, valKey("inner")) {
-		t.Errorf("expected same-family child dep %q in RTDependencies, got %v", valKey("inner"), rendered.deps)
+	if !containsStr(slots.RTDeps, valKey("inner")) {
+		t.Errorf("expected same-family child dep %q in RTDeps, got %v", valKey("inner"), slots.RTDeps)
 	}
-	if len(rendered.crossFamilyDeps) != 0 {
-		t.Errorf("same-family-only validate entry must have empty CrossFamilyDeps, got %v", rendered.crossFamilyDeps)
+	if len(slots.CrossFamilyDeps) != 0 {
+		t.Errorf("same-family-only validate entry must have empty CrossFamilyDeps, got %v", slots.CrossFamilyDeps)
 	}
 }
 
 // TestCrossFamilyDeps_CaptureIsByteIdentical — capturing cross-family edges
-// must not perturb the emitted module bytes. Renders the conflict-prop union's
-// prepareForJson module and asserts the validator body (with the `val_big` /
-// `val_dat` dispatch) is present byte-for-byte; capture is a pure side-channel
-// on the walker, so the spliced `init(…)` output is unchanged.
+// must not perturb the compiled body bytes. Compiles the conflict-prop
+// union's prepareForJson entry and asserts the validator body (with the
+// `val_big` / `val_dat` dispatch) is present byte-for-byte in slots.Code;
+// capture is a pure side-channel on the walker.
 func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
-	runTypes, _ := buildConflictPropUnionFixture()
-	dump := protocol.Dump{RunTypes: runTypes}
+	runTypes, rootID := buildConflictPropUnionFixture()
+	refTable := buildRefTable(runTypes)
 
-	var buf bytes.Buffer
-	if err := FamilyByKey("prepareForJson").Render(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
-		t.Fatalf("PrepareForJsonModule: %v", err)
+	slots := CompileEntryModule("prepareForJson", refTable[rootID], refTable, RenderOpts{}, "", nil)
+	if slots.Skip || slots.Code == "" {
+		t.Fatalf("expected a code-bearing pj entry for the conflict-prop union, got %+v", slots)
 	}
-	out := buf.String()
 
 	// The exact validator body the union root emits — unchanged by the
 	// cross-family capture. Sub-union dispatch over the conflicting `a` slot
@@ -184,26 +176,23 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 		"{if ((" + itBig + "?.fn(v.a) ?? true)) {v.a = v.a.toString();v.a = [0, v.a]} " +
 		"else if ((typeof v.a === 'object' && v.a !== null && (" + itDat + "?.fn(v.a) ?? true))) " +
 		"{v.a = [1, v.a]};v = [-1, v]} else { throw new Error(fuEncErr) } return v}"
-	if !strings.Contains(out, wantBody) {
-		t.Errorf("expected the union validator body unchanged after capture:\nwant substring:\n%s\ngot module:\n%s", wantBody, out)
+	if !strings.Contains(slots.Code, wantBody) {
+		t.Errorf("expected the union validator body unchanged after capture:\nwant substring:\n%s\ngot body:\n%s", wantBody, slots.Code)
 	}
 
-	// The cross-family lookups appear in the closure prologue as getRT
+	// The cross-family lookups appear in the body prologue as getRT
 	// context-item declarations exactly as before (the registration the
 	// capture piggy-backs on).
 	for _, want := range []string{"const " + itBig + " = utl.getRT('" + itBig + "')", "const " + itDat + " = utl.getRT('" + itDat + "')"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("expected getRT prologue %q in rendered module:\n%s", want, out)
+		if !strings.Contains(slots.Code, want) {
+			t.Errorf("expected getRT prologue %q in compiled body:\n%s", want, slots.Code)
 		}
 	}
 
-	// Determinism: a second render produces byte-identical output.
-	var buf2 bytes.Buffer
-	if err := FamilyByKey("prepareForJson").Render(&buf2, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
-		t.Fatalf("PrepareForJsonModule (second render): %v", err)
-	}
-	if buf2.String() != out {
-		t.Error("module render is non-deterministic after cross-family capture")
+	// Determinism: a second compile produces byte-identical slots.
+	second := CompileEntryModule("prepareForJson", refTable[rootID], refTable, RenderOpts{}, "", nil)
+	if second.Code != slots.Code || FormatEntryArray(second) != FormatEntryArray(slots) {
+		t.Error("entry compile is non-deterministic after cross-family capture")
 	}
 }
 

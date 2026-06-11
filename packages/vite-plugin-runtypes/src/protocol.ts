@@ -255,24 +255,7 @@ export interface FormatAnnotation {
 // into on a scanFiles request via Request.includeCacheSources. Mirrors
 // the Go-side protocol.CacheKind. `'all'` is a forward-compatible
 // shortcut: when present every other kind is treated as requested.
-export type CacheKind =
-  | 'runType'
-  | 'validate'
-  | 'validationErrors'
-  | 'prepareForJson'
-  | 'restoreFromJson'
-  | 'stringifyJson'
-  | 'prepareForJsonSafe'
-  | 'hasUnknownKeys'
-  | 'stripUnknownKeys'
-  | 'unknownKeyErrors'
-  | 'unknownKeysToUndefined'
-  | 'unknownKeysToUndefinedWire'
-  | 'toBinary'
-  | 'fromBinary'
-  | 'formatTransform'
-  | 'pureFns'
-  | 'all';
+export type CacheKind = 'pureFns' | 'all';
 
 export interface Request {
   op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId' | 'tsCompile' | 'resolveModules';
@@ -341,41 +324,12 @@ export interface Response {
   // Acknowledgement for ops that don't return data (setSources / resetCache).
   ok?: true;
   added?: RunType[];
-  // Per-cache "did this scan change anything?" signals consumed by the
-  // Vite plugin's handleHotUpdate. `addedRunTypes` is true when this
-  // scan interned new RunTypes; `addedValidate` when at least one of
-  // those is supported by the Validate emitter; `addedPureFns` when
-  // any pure-fn entry's bodyHash flipped or appeared.
+  // "Did this scan change anything?" signals consumed by the Vite
+  // plugin's handleHotUpdate. `addedRunTypes` is true when this scan
+  // interned new RunTypes; `addedPureFns` when any pure-fn entry's
+  // bodyHash flipped or appeared. (Per-family flags died with the
+  // aggregate overlays — virtual modules are content-addressed.)
   addedRunTypes?: boolean;
-  addedValidate?: boolean;
-  // Sibling of addedValidate — true when at least one newly-interned
-  // RunType has a supported emitTypeErrors arm, so the validationErrors
-  // cache module needs invalidating.
-  addedValidationErrors?: boolean;
-  // Sibling of addedValidate for the JSON serializer pair. Set when at
-  // least one newly-interned RunType has a supported emit arm in the
-  // matching emitter — the Vite plugin invalidates each cache module
-  // independently based on its own flag.
-  addedPrepareForJson?: boolean;
-  addedRestoreFromJson?: boolean;
-  addedStringifyJson?: boolean;
-  addedPrepareForJsonSafe?: boolean;
-  // Siblings of addedValidate for the unknown-keys family ported from
-  // mion's emitHasUnknownKeys et al. Set when at least one newly-interned
-  // RunType has a supported emit arm in the matching emitter.
-  addedHasUnknownKeys?: boolean;
-  addedStripUnknownKeys?: boolean;
-  addedUnknownKeyErrors?: boolean;
-  addedUnknownKeysToUndefined?: boolean;
-  addedUnknownKeysToUndefinedWire?: boolean;
-  // Siblings of addedValidate for the binary serializer pair. Set when at
-  // least one newly-interned RunType has a supported emit arm in the
-  // matching emitter.
-  addedToBinary?: boolean;
-  addedFromBinary?: boolean;
-  // Sibling of addedValidate for the `format` transform family — true when
-  // a newly-interned RunType carries a value-transforming format.
-  addedFormatTransform?: boolean;
   addedPureFns?: boolean;
   sites?: Site[];
   // Replacements is the byte-range rewrite list the Vite plugin
@@ -386,55 +340,7 @@ export interface Response {
   // (no duplication in the user bundle).
   replacements?: Replacement[];
   runTypes?: RunType[];
-  // Always populated by `dump`; populated by `scanFiles` when the request
-  // opts into `'runType'` (or `'all'`) via includeCacheSources. The body
-  // is a JS module exporting one `export const <RUNTYPES_VAR_PREFIX><hash>
-  // = {…}` per cached RunType; consumers `import * as cache from
-  // 'virtual:runtypes-cache'` and look entries up by
-  // `cache[RUNTYPES_VAR_PREFIX + id]`.
-  runTypeCacheSource?: string;
-  // Sibling of `runTypeCacheSource` carrying the precompiled validate
-  // validator factories. Body shape:
-  //   export function get_validate_<hash>(utl){…}
-  // Consumers import the factory and invoke it themselves with whatever
-  // `utl` they want bound into the closure — the module never
-  // pre-invokes a factory. Populated by `dump` and on `scanFiles` when
-  // the caller opts into `'validate'` (or `'all'`).
-  validateCacheSource?: string;
-  // Sibling of `validateCacheSource` carrying the precompiled validationErrors
-  // validator factories. Body shape:
-  //   export function get_validationErrors_<hash>(utl){…}
-  // Same consumer pattern as validateCacheSource — populated by `dump`
-  // and on `scanFiles` when the caller opts into `'validationErrors'`
-  // (or `'all'`).
-  validationErrorsCacheSource?: string;
-  // Siblings of `validateCacheSource` for the JSON serializer pair. Same
-  // factory shape, same consumer pattern — populated by `dump` and on
-  // `scanFiles` when the caller opts into the matching cache kind
-  // (or `'all'`).
-  prepareForJsonCacheSource?: string;
-  restoreFromJsonCacheSource?: string;
-  stringifyJsonCacheSource?: string;
-  prepareForJsonSafeCacheSource?: string;
-  // Siblings of `validateCacheSource` for the unknown-keys family —
-  // bodies of the four cache modules emitted by the matching emitters.
-  // Same factory shape, same consumer pattern — populated by `dump` and
-  // on `scanFiles` when the caller opts into the matching cache kind
-  // (or `'all'`).
-  hasUnknownKeysCacheSource?: string;
-  stripUnknownKeysCacheSource?: string;
-  unknownKeyErrorsCacheSource?: string;
-  unknownKeysToUndefinedCacheSource?: string;
-  unknownKeysToUndefinedWireCacheSource?: string;
-  // Siblings of validateCacheSource for the binary serializer pair —
-  // bodies of the toBinary / fromBinary cache modules. Same factory
-  // shape, same consumer pattern.
-  toBinaryCacheSource?: string;
-  fromBinaryCacheSource?: string;
-  // Sibling of validateCacheSource for the `format` transform family
-  // (createFormatTransform<T>). Same factory shape, same consumer pattern.
-  formatTransformCacheSource?: string;
-  // Sibling of `runTypeCacheSource` carrying the pure-fn cache the Go
+  // The pure-fn cache module body the Go
   // binary extracted from every `registerPureFnFactory(<ns>, <fnName>,
   // <factory>)` call. Body is a sequence of `factory(key, bodyHash,
   // paramNames, code, pureFnDependencies, createPureFn)` calls — the

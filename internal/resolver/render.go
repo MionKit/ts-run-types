@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
-	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/marker"
@@ -108,69 +106,10 @@ func renderToString(label string, write func(io.Writer) error) (string, error) {
 	return buf.String(), nil
 }
 
-// renderRunTypesModule emits the JS runTypes cache module for dump. The
-// runtype package is the single source of truth; the plugin no longer
-// renders the module on the JS side.
-func renderRunTypesModule(dump protocol.Dump) (string, error) {
-	return renderToString("renderRunTypesModule", func(w io.Writer) error {
-		return runtype.RunTypesModule(w, dump)
-	})
-}
 
-// renderFamilyModule builds the render closure for one registry family.
-// The error label "render<Key>Module" matches the old per-family wrapper
-// names byte-for-byte, so wrapped error text is unchanged.
-func renderFamilyModule(key string) func(protocol.Dump, typefns.RenderOpts) (string, error) {
-	spec := typefns.FamilyByKey(key)
-	label := "render" + strings.ToUpper(key[:1]) + key[1:] + "Module"
-	return func(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-		return renderToString(label, func(w io.Writer) error {
-			return spec.Render(w, dump, opts)
-		})
-	}
-}
 
-// renderValidateModule emits the `virtual:runtypes-validate` module —
-// one factory per cached RunType the precompiler knows how to handle.
-// Not a plain renderFamilyModule closure: validate seeds ExtraRoots first.
-func renderValidateModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	// `it` is demand-scoped like every function family, so a createValidate
-	// site alone doesn't pull the `val_<member>` entries the JSON/binary union
-	// decoders + validationErrors child checks reference at runtime. Seed those
-	// missing roots from the cross-family edges the OTHER demanded families keep
-	// — CrossFamilyValRoots renders them (Store-bypassed so the walker always
-	// runs) and returns the bare member ids. The createValidate-site demand is
-	// still handled by the normal demand path inside the family render.
-	opts.ExtraRoots = typefns.CrossFamilyValRoots(dump, opts)
-	return renderToString("renderValidateModule", func(w io.Writer) error {
-		return typefns.FamilyByKey("validate").Render(w, dump, opts)
-	})
-}
 
-// renderPrepareForJsonModule emits the prepareForJson cache module —
-// the JSON serializer half of the round-trip pair. The JSON-encoder
-// composite `init(…)` lines (createJsonEncoder's per-strategy entries)
-// ride this module's body via ExtraBodyLines — both are loaded into the
-// same rtUtils, and the composite references the prepareForJson /
-// stringifyJson / uku primitives by fnHash.
-func renderPrepareForJsonModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	opts.ExtraBodyLines = typefns.JsonEncoderModule(dump, opts)
-	return renderToString("renderPrepareForJsonModule", func(w io.Writer) error {
-		return typefns.FamilyByKey("prepareForJson").Render(w, dump, opts)
-	})
-}
 
-// renderRestoreFromJsonModule emits the restoreFromJson cache module —
-// the JSON deserializer half of the round-trip pair. The JSON-decoder
-// composite `init(…)` lines (createJsonDecoder's per-strategy entries)
-// ride this module's body via ExtraBodyLines — the composite references
-// the restoreFromJson / ukuWire primitives by fnHash.
-func renderRestoreFromJsonModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	opts.ExtraBodyLines = typefns.JsonDecoderModule(dump, opts)
-	return renderToString("renderRestoreFromJsonModule", func(w io.Writer) error {
-		return typefns.FamilyByKey("restoreFromJson").Render(w, dump, opts)
-	})
-}
 
 // renderPureFnsModule renders the pureFns cache-module body for the
 // program. When `entries` is non-nil it's used directly (the

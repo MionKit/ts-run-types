@@ -6,6 +6,7 @@ import (
 
 	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/all"
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -14,8 +15,8 @@ import (
 // the Temporal SubKind AND the FormatAnnotation; the emitter validates
 // relative bounds (per-type component restriction) and emits compare() checks.
 
-// scanTemporalFormat builds getRunTypeId<TypeFormat<Temporal.<typ>, fmt, P>>()
-// and returns the validate source + FMT002 diagnostics.
+// scanTemporalFormat builds createValidate<TypeFormat<Temporal.<typ>, fmt, P>>()
+// and returns the compiled validate root module body + FMT002 diagnostics.
 func scanTemporalFormat(t *testing.T, typ, formatName, params string) (string, []diag.Diagnostic) {
 	t.Helper()
 	code := `import {createValidate} from '@mionjs/ts-go-run-types';
@@ -24,9 +25,9 @@ export const _ = createValidate<TypeFormat<Temporal.` + typ + `, '` + formatName
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"a.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scan: %s", resp.Error)
@@ -37,7 +38,11 @@ export const _ = createValidate<TypeFormat<Temporal.` + typ + `, '` + formatName
 			diags = append(diags, d)
 		}
 	}
-	return resp.ValidateCacheSource, diags
+	var source string
+	if len(resp.Sites) > 0 {
+		source = resp.Modules[operations.PlainHash("validate")+"_"+resp.Sites[0].ID]
+	}
+	return source, diags
 }
 
 func TestTemporalFormat_EmitsCompareCheck(t *testing.T) {

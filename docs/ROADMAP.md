@@ -188,3 +188,9 @@ The corresponding 10 `13BinaryAllParamsOptional` tests + the `slice function par
 - **A row in "Known gaps"** should always include a concrete approach. If we can't think of one, escalate to "Compiler / resolver features not yet shipped" or "Open questions".
 - **A row in "Compile-time only — what we will never capture"** is a permanent design decision, not a deferral. Don't promote out of it without a redesign discussion.
 - **Implemented work** belongs in the status snapshot, not in a pending list — prune as you ship.
+
+## Module mode — deferred follow-ups
+
+- **Benchmark suite exporters** ([scripts/export-validation-suite.mjs](../scripts/export-validation-suite.mjs), [scripts/export-serialization-suite.mjs](../scripts/export-serialization-suite.mjs)) are disabled pending an artifact-format redesign: they exported the aggregate `runTypeCacheSource` / `validateCacheSource` module bodies the per-entry virtual-module redesign removed. The replacement should concatenate the `modules` payload (entry-tuple arrays) plus a self-contained registrar prelude so downstream mion-benchmarks keeps a single importable artifact per suite.
+- **Per-entry module dedup/grouping**: v1 ships one virtual module per cache entry; wide closures (e.g. a `Date` field pulling the built-in class graph, ~70 `t_` nodes) could group shared subtrees into per-SCC modules to cut import counts. The wire format (entry arrays + registrar) does not change.
+- **Parallel closure assembly**: the deleted per-family parallel render fan-out could return as per-root closure assembly behind the existing `--no-parallel-render` flag if profiles ever show assembly dominating.

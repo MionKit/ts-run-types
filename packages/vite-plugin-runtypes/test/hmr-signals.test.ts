@@ -7,7 +7,7 @@
 //
 // Three scenarios:
 //   1. Fresh scan of a file that introduces a new RunType
-//      → addedRunTypes=true, addedValidate=true (KindString is supported).
+//      → addedRunTypes=true (per-family flags died with the aggregate overlays).
 //   2. Re-scan of the same source content with no changes
 //      → all three signals false (cache hits, no deltas).
 //   3. Adding a `registerPureFnFactory` call to a file
@@ -19,7 +19,7 @@ import {hasBinary, withInlineSources} from './helpers/inline.ts';
 describe('vite-plugin-runtypes / HMR signals on scanFiles', () => {
   const register = hasBinary() ? it : it.skip;
 
-  register('first scan that introduces a new RunType sets addedRunTypes + addedValidate', async () => {
+  register('first scan that introduces a new RunType sets addedRunTypes', async () => {
     const sources = {
       'fresh.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 getRunTypeId<string>();
@@ -30,7 +30,6 @@ getRunTypeId<string>();
       async ({client}) => {
         const response = await client.scanFiles(['fresh.ts']);
         expect(response.addedRunTypes).toBe(true);
-        expect(response.addedValidate).toBe(true);
       },
       {reset: true}
     );
@@ -52,7 +51,6 @@ getRunTypeId<string>();
         // (empty) set, so its delta is false too.
         const second = await client.scanFiles(['idempotent.ts']);
         expect(second.addedRunTypes).toBeFalsy();
-        expect(second.addedValidate).toBeFalsy();
         expect(second.addedPureFns).toBeFalsy();
       },
       {reset: true}

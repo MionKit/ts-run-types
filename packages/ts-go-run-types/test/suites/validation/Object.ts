@@ -1310,8 +1310,7 @@ export const OBJECT = {
       return deserializeValidate(v);
     },
     getValidationErrors: () => createGetValidationErrors<{(a: number, b: boolean): string; extra: string}>(),
-    getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<DataOnly<{(a: number, b: boolean): string; extra: string}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{(a: number, b: boolean): string; extra: string}>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{(a: number, b: boolean): string; extra: string}>(),

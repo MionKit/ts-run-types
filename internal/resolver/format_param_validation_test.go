@@ -10,14 +10,14 @@ import (
 )
 
 // scanForFormatDiagnostics scans `code` and returns the FMT002
-// (invalid-params) diagnostics emitted during the validate render.
+// (invalid-params) diagnostics emitted during the validate module compile.
 func scanForFormatParamDiagnostics(t *testing.T, code string) []diag.Diagnostic {
 	t.Helper()
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"a.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)

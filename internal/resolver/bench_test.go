@@ -21,7 +21,7 @@ import (
 // Stationarity: every iteration that mutates resolver state first restores
 // a fixed starting point (SetProgram resets sites/scannedFiles and clears
 // the pointer cache; Cache().Clear() additionally drops the structural
-// table + hash dicts). Dump-based render benchmarks are stationary as-is.
+// table + hash dicts).
 
 const benchAtomicTS = `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 export const a = createValidate<string>();
@@ -87,21 +87,21 @@ var benchFixtures = []struct {
 	{"large", benchLargeTS},
 }
 
-func benchScanRequest(files []string, kinds []protocol.CacheKind) protocol.Request {
-	return protocol.Request{Op: protocol.OpScanFiles, Files: files, IncludeCacheSources: kinds}
+func benchScanRequest(files []string, includeModules bool) protocol.Request {
+	return protocol.Request{Op: protocol.OpScanFiles, Files: files, IncludeModules: includeModules}
 }
 
 // BenchmarkScan_ColdCache measures the full our-side pipeline per scan —
 // AST walk, marker detection, structural-id computation, projection,
 // purefn extraction, response prep — with a warm checker and a cold
-// resolver cache. No cache sources requested (the Vite transform shape).
+// resolver cache. No modules requested (the Vite rewrite-transform shape).
 func BenchmarkScan_ColdCache(b *testing.B) {
 	for _, fixture := range benchFixtures {
 		b.Run(fixture.name, func(b *testing.B) {
 			r := setupInline(b, map[string]string{"a.ts": fixture.code})
 			prog := r.Program
 			files := []string{"a.ts"}
-			if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+			if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 				b.Fatalf("warmup scan: %s", resp.Error)
 			}
 			b.ReportAllocs()
@@ -111,7 +111,7 @@ func BenchmarkScan_ColdCache(b *testing.B) {
 					b.Fatalf("SetProgram: %v", err)
 				}
 				r.Cache().Clear()
-				if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+				if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 					b.Fatalf("scan: %s", resp.Error)
 				}
 			}
@@ -130,7 +130,7 @@ func BenchmarkScan_WarmCache(b *testing.B) {
 			r := setupInline(b, map[string]string{"a.ts": fixture.code})
 			prog := r.Program
 			files := []string{"a.ts"}
-			if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+			if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 				b.Fatalf("warmup scan: %s", resp.Error)
 			}
 			b.ReportAllocs()
@@ -139,7 +139,7 @@ func BenchmarkScan_WarmCache(b *testing.B) {
 				if err := r.SetProgram(prog); err != nil {
 					b.Fatalf("SetProgram: %v", err)
 				}
-				if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+				if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 					b.Fatalf("scan: %s", resp.Error)
 				}
 			}
@@ -147,58 +147,22 @@ func BenchmarkScan_WarmCache(b *testing.B) {
 	}
 }
 
-// BenchmarkRender measures the dump-driven cache renders over a session
-// holding all bench fixtures. `validate` exposes the CrossFamilyValRoots
-// collection passes; `all` renders every family (the cache-module
-// transform shape). Stationary: the session is scanned once, renders are
-// pure reads.
-func BenchmarkRender(b *testing.B) {
-	sources := map[string]string{
-		"object.ts": benchObjectTS,
-		"union.ts":  benchUnionTS,
-		"large.ts":  benchLargeTS,
-	}
-	variants := []struct {
-		name  string
-		kinds []protocol.CacheKind
-	}{
-		{"validateOnly", []protocol.CacheKind{protocol.CacheKindValidate}},
-		{"runTypeOnly", []protocol.CacheKind{protocol.CacheKindRunType}},
-		{"all", []protocol.CacheKind{protocol.CacheKindAll}},
-	}
-	for _, variant := range variants {
-		b.Run(variant.name, func(b *testing.B) {
-			r := setupInline(b, sources)
-			if resp := r.Dispatch(benchScanRequest([]string{"object.ts", "union.ts", "large.ts"}, nil)); resp.Error != "" {
-				b.Fatalf("warmup scan: %s", resp.Error)
-			}
-			req := protocol.Request{Op: protocol.OpDump, IncludeCacheSources: variant.kinds}
-			if resp := r.Dispatch(req); resp.Error != "" {
-				b.Fatalf("warmup dump: %s", resp.Error)
-			}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				if resp := r.Dispatch(req); resp.Error != "" {
-					b.Fatalf("dump: %s", resp.Error)
-				}
-			}
-		})
-	}
-}
-
-// BenchmarkScanWithCaches measures the scanFiles-with-cache-sources shape
-// the bench harness and tests drive (scan + scoped projection + per-family
-// renders in one dispatch), per fixture, all families.
-func BenchmarkScanWithCaches(b *testing.B) {
-	kinds := []protocol.CacheKind{protocol.CacheKindAll}
+// BenchmarkScanModules measures the module-mode scanFiles shape the Vite
+// plugin drives (scan + per-entry module compile + closure assembly in one
+// dispatch), per fixture. Cold resolver cache per iteration, warm checker —
+// the delta against BenchmarkScan_ColdCache sizes the module-render track.
+func BenchmarkScanModules(b *testing.B) {
 	for _, fixture := range benchFixtures {
 		b.Run(fixture.name, func(b *testing.B) {
 			r := setupInline(b, map[string]string{"a.ts": fixture.code})
 			prog := r.Program
 			files := []string{"a.ts"}
-			if resp := r.Dispatch(benchScanRequest(files, kinds)); resp.Error != "" {
-				b.Fatalf("warmup scan: %s", resp.Error)
+			warmup := r.Dispatch(benchScanRequest(files, true))
+			if warmup.Error != "" {
+				b.Fatalf("warmup scan: %s", warmup.Error)
+			}
+			if len(warmup.Modules) == 0 {
+				b.Fatalf("fixture %s rendered no modules — bench would measure nothing", fixture.name)
 			}
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -207,11 +171,48 @@ func BenchmarkScanWithCaches(b *testing.B) {
 					b.Fatalf("SetProgram: %v", err)
 				}
 				r.Cache().Clear()
-				if resp := r.Dispatch(benchScanRequest(files, kinds)); resp.Error != "" {
+				if resp := r.Dispatch(benchScanRequest(files, true)); resp.Error != "" {
 					b.Fatalf("scan: %s", resp.Error)
 				}
 			}
 		})
+	}
+}
+
+// BenchmarkResolveModules measures the OpResolveModules path (the plugin's
+// virtual-module cache-miss fallback): render one site's root key plus its
+// transitive closure against a warm, fully-scanned session. Stationary —
+// renders are pure functions of the session cache.
+func BenchmarkResolveModules(b *testing.B) {
+	sources := map[string]string{
+		"object.ts": benchObjectTS,
+		"union.ts":  benchUnionTS,
+		"large.ts":  benchLargeTS,
+	}
+	r := setupInline(b, sources)
+	scan := r.Dispatch(benchScanRequest([]string{"object.ts", "union.ts", "large.ts"}, true))
+	if scan.Error != "" {
+		b.Fatalf("warmup scan: %s", scan.Error)
+	}
+	keys := make([]string, 0, len(scan.Sites))
+	for _, site := range scan.Sites {
+		if len(site.Deps) > 0 {
+			keys = append(keys, site.Deps[len(site.Deps)-1])
+		}
+	}
+	if len(keys) == 0 {
+		b.Fatalf("no module roots collected from warmup scan")
+	}
+	req := protocol.Request{Op: protocol.OpResolveModules, Keys: keys}
+	if resp := r.Dispatch(req); resp.Error != "" || len(resp.Modules) == 0 {
+		b.Fatalf("warmup resolveModules: err=%q modules=%d", resp.Error, len(resp.Modules))
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if resp := r.Dispatch(req); resp.Error != "" {
+			b.Fatalf("resolveModules: %s", resp.Error)
+		}
 	}
 }
 
@@ -241,11 +242,11 @@ func benchMultiFileSources(n int) (map[string]string, []string) {
 }
 
 // BenchmarkScanMultiFile measures one multi-file scanFiles dispatch (no
-// cache sources — the rewrite-pipeline shape) in three configurations:
-// serialST (single-threaded program — the historical bench baseline),
-// serialMT (4-checker pool, parallel disabled — isolates pool/program
-// cost), and parallelMT (4-checker pool, parallel scan on — the shipped
-// default). Cold resolver cache per iteration, warm checkers, mirroring
+// modules — the rewrite-pipeline shape) in three configurations: serialST
+// (single-threaded program — the historical bench baseline), serialMT
+// (4-checker pool, parallel scan disabled — isolates pool/program cost),
+// and parallelMT (4-checker pool, parallel scan on — the shipped default).
+// Cold resolver cache per iteration, warm checkers, mirroring
 // BenchmarkScan_ColdCache.
 func BenchmarkScanMultiFile(b *testing.B) {
 	modes := []struct {
@@ -258,7 +259,6 @@ func BenchmarkScanMultiFile(b *testing.B) {
 		}},
 		{"serialMT", func(_ *program.Options, resolverOpts *resolver.Options) {
 			resolverOpts.DisableParallelScan = true
-			resolverOpts.DisableParallelRender = true
 		}},
 		{"parallelMT", nil},
 	}
@@ -268,7 +268,7 @@ func BenchmarkScanMultiFile(b *testing.B) {
 			b.Run(fmt.Sprintf("files%d/%s", fileCount, mode.name), func(b *testing.B) {
 				r := setupInlineWith(b, sources, mode.mutate)
 				prog := r.Program
-				if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+				if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 					b.Fatalf("warmup scan: %s", resp.Error)
 				}
 				b.ReportAllocs()
@@ -278,50 +278,11 @@ func BenchmarkScanMultiFile(b *testing.B) {
 						b.Fatalf("SetProgram: %v", err)
 					}
 					r.Cache().Clear()
-					if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+					if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 						b.Fatalf("scan: %s", resp.Error)
 					}
 				}
 			})
 		}
-	}
-}
-
-// BenchmarkRenderParallel is BenchmarkRender with the render fan-out on
-// (scan stays serial so the fan-out is the only variable). Compare against
-// BenchmarkRender's matching variants to size the render-track win.
-func BenchmarkRenderParallel(b *testing.B) {
-	sources := map[string]string{
-		"object.ts": benchObjectTS,
-		"union.ts":  benchUnionTS,
-		"large.ts":  benchLargeTS,
-	}
-	variants := []struct {
-		name  string
-		kinds []protocol.CacheKind
-	}{
-		{"validateOnly", []protocol.CacheKind{protocol.CacheKindValidate}},
-		{"all", []protocol.CacheKind{protocol.CacheKindAll}},
-	}
-	for _, variant := range variants {
-		b.Run(variant.name, func(b *testing.B) {
-			r := setupInlineWith(b, sources, func(_ *program.Options, resolverOpts *resolver.Options) {
-				resolverOpts.DisableParallelScan = true
-			})
-			if resp := r.Dispatch(benchScanRequest([]string{"object.ts", "union.ts", "large.ts"}, nil)); resp.Error != "" {
-				b.Fatalf("warmup scan: %s", resp.Error)
-			}
-			req := protocol.Request{Op: protocol.OpDump, IncludeCacheSources: variant.kinds}
-			if resp := r.Dispatch(req); resp.Error != "" {
-				b.Fatalf("warmup dump: %s", resp.Error)
-			}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				if resp := r.Dispatch(req); resp.Error != "" {
-					b.Fatalf("dump: %s", resp.Error)
-				}
-			}
-		})
 	}
 }

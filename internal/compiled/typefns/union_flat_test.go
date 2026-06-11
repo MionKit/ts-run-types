@@ -1,7 +1,6 @@
 package typefns
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 
@@ -58,32 +57,38 @@ func buildBigIntDateUnionFixture() []*protocol.RunType {
 	}
 }
 
-func renderModule(t *testing.T, dump protocol.Dump, fn func(*bytes.Buffer, protocol.Dump) error) string {
+// compileUnionRoot compiles familyKey's entry for rootID over the fixture's
+// runtype set and returns the slots. slots.Code carries the raw factory body
+// (no escaping), so the fragment assertions below stay readable.
+func compileUnionRoot(t *testing.T, familyKey string, runTypes []*protocol.RunType, rootID string) EntrySlots {
 	t.Helper()
-	var buf bytes.Buffer
-	if err := fn(&buf, dump); err != nil {
-		t.Fatalf("module render: %v", err)
+	refTable := buildRefTable(runTypes)
+	root := refTable[rootID]
+	if root == nil {
+		t.Fatalf("rootID %q not present in fixture", rootID)
 	}
-	return buf.String()
+	if !FamilyByKey(familyKey).Emitter.Supports(root) {
+		t.Fatalf("%s emitter does not support root %q", familyKey, rootID)
+	}
+	slots := CompileEntryModule(familyKey, root, refTable, RenderOpts{}, "", nil)
+	if slots.Skip || slots.Code == "" {
+		t.Fatalf("%s: expected a code-bearing entry for %q, got %+v", familyKey, rootID, slots)
+	}
+	return slots
 }
 
-// TestPrepareForJsonModule_ObjectUnionMergesProps — the rendered
-// flat-prepare factory for `{a:bigint;b:Date} | {c:number;d:string}` MUST
+// TestPrepareForJsonModule_ObjectUnionMergesProps — the compiled
+// flat-prepare body for `{a:bigint;b:Date} | {c:number;d:string}` MUST
 // emit a single object branch that walks every merged property and
-// wraps with `[-1, v]`. The factory MUST NOT emit per-member validate
+// wraps with `[-1, v]`. The body MUST NOT emit per-member validate
 // dispatch for the object members (the whole point of the optimisation).
 func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
-	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
-	// EmitCreateRTFn=true so the body assertions below match the
-	// un-escaped form inside the `function g_pj_uni(utl){…}` closure.
-	// See module_test.go's renderToString comment for the rationale.
-	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return FamilyByKey("prepareForJson").Render(w, d, RenderOpts{EmitCreateRTFn: true})
-	})
+	slots := compileUnionRoot(t, "prepareForJson", buildBigIntDateUnionFixture(), "uni")
+	out := slots.Code
 
-	pjUniFactory := "g_" + operations.PlainHash("prepareForJson") + "_uni"
-	if !strings.Contains(out, pjUniFactory) {
-		t.Fatalf("expected the prepareForJson union factory %s in rendered module:\n%s", pjUniFactory, out)
+	pjUniKey := operations.PlainHash("prepareForJson") + "_uni"
+	if slots.Key != pjUniKey {
+		t.Fatalf("expected the prepareForJson union entry key %s, got %s", pjUniKey, slots.Key)
 	}
 	if !strings.Contains(out, "[-1, v]") {
 		t.Errorf("expected `[-1, v]` envelope in object branch; got:\n%s", out)
@@ -97,23 +102,24 @@ func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 	if !strings.Contains(out, "typeof v === 'object'") {
 		t.Errorf("expected object-branch guard `typeof v === 'object'`; got:\n%s", out)
 	}
-	// No per-object validate dispatch on the union itself.
-	if strings.Contains(out, "g_"+valKey("ob1")) || strings.Contains(out, "g_"+valKey("ob2")) {
+	// No per-object validate dispatch on the union itself — neither inline
+	// `val_<member>.fn(…)` calls nor cross-family edges are recorded.
+	if strings.Contains(out, valKey("ob1")) || strings.Contains(out, valKey("ob2")) {
 		t.Errorf("flat encode should bypass per-object validate dispatch; got:\n%s", out)
+	}
+	if len(slots.CrossFamilyDeps) != 0 {
+		t.Errorf("merged-prop union must record no cross-family edges, got %v", slots.CrossFamilyDeps)
 	}
 }
 
-// TestRestoreFromJsonModule_ObjectUnionDecodesFlat — the rendered
-// flat-restore factory unconditionally unwraps the `[idx, value]`
+// TestRestoreFromJsonModule_ObjectUnionDecodesFlat — the compiled
+// flat-restore body unconditionally unwraps the `[idx, value]`
 // envelope (no runtime shape gate) and dispatches via `idx === -1` for
 // the merged-object branch. Under the all-or-nothing wrap rule the
 // decoder knows the wire shape at compile time so the fragile
 // length-2 + typeof-number heuristic is gone.
 func TestRestoreFromJsonModule_ObjectUnionDecodesFlat(t *testing.T) {
-	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
-	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return FamilyByKey("restoreFromJson").Render(w, d, RenderOpts{})
-	})
+	out := compileUnionRoot(t, "restoreFromJson", buildBigIntDateUnionFixture(), "uni").Code
 
 	if strings.Contains(out, "Array.isArray(v) && v.length === 2 && typeof v[0] === 'number'") {
 		t.Errorf("optimised emit must NOT use the length-2 + typeof[0]==='number' shape gate — it false-positives on legitimate raw values; got:\n%s", out)
@@ -133,19 +139,14 @@ func TestRestoreFromJsonModule_ObjectUnionDecodesFlat(t *testing.T) {
 }
 
 // TestStringifyJsonModule_ObjectUnionEmitsFlatEnvelope — the
-// rendered flat-stringify factory MUST emit the `'[-1,'+…+']'` envelope
+// compiled flat-stringify body MUST emit the `'[-1,'+…+']'` envelope
 // for the object branch. The fixture has two disjoint members
 // `{a:bigint; b:Date} | {c:number; d:string}` — no shared properties,
 // so every merged prop is optional from the union's perspective. The
 // emit uses the slice(1) trick to strip the leading comma after
 // conditional concat (one comma is prepended per populated branch).
 func TestStringifyJsonModule_ObjectUnionEmitsFlatEnvelope(t *testing.T) {
-	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
-	// EmitCreateRTFn=true so the body assertions match the
-	// un-escaped form inside the inline factory closure.
-	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return FamilyByKey("stringifyJson").Render(w, d, RenderOpts{EmitCreateRTFn: true})
-	})
+	out := compileUnionRoot(t, "stringifyJson", buildBigIntDateUnionFixture(), "uni").Code
 
 	if !strings.Contains(out, "'[-1,'") {
 		t.Errorf("expected `'[-1,'` envelope prefix; got:\n%s", out)
@@ -189,14 +190,12 @@ func TestStringifyJsonModule_RequiredPropsSkipUndefinedGuard(t *testing.T) {
 		Children:          []*protocol.RunType{makeRef("obA"), makeRef("obB"), makeRef("obC")},
 		SafeUnionChildren: []*protocol.RunType{makeRef("obA"), makeRef("obB"), makeRef("obC")},
 	}
-	dump := protocol.Dump{RunTypes: []*protocol.RunType{
+	runTypes := []*protocol.RunType{
 		str, date, litA, litB, litC,
 		pdA, pdB, pdC, pnA, pnB, pnC, pdaA, pdaB, pdaC,
 		obA, obB, obC, union,
-	}}
-	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return FamilyByKey("stringifyJson").Render(w, d, RenderOpts{})
-	})
+	}
+	out := compileUnionRoot(t, "stringifyJson", runTypes, "uni").Code
 
 	// No per-property undefined guard in the union root's emit — every
 	// prop is required across all members.
@@ -237,10 +236,7 @@ func TestPrepareForJsonModule_MixedUnionWrapsEveryMember(t *testing.T) {
 		Children:          []*protocol.RunType{makeRef("str"), makeRef("ob1")},
 		SafeUnionChildren: []*protocol.RunType{makeRef("str"), makeRef("ob1")},
 	}
-	dump := protocol.Dump{RunTypes: []*protocol.RunType{str, bigint, propA, obj, union}}
-	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return FamilyByKey("prepareForJson").Render(w, d, RenderOpts{})
-	})
+	out := compileUnionRoot(t, "prepareForJson", []*protocol.RunType{str, bigint, propA, obj, union}, "uni").Code
 
 	// Object branch exists so string member MUST wrap too — every
 	// encoded value must be unambiguously [idx, value] on the wire.
@@ -274,10 +270,7 @@ func TestPrepareForJsonModule_ConflictingPropSynthesizesSubUnion(t *testing.T) {
 		Children:          []*protocol.RunType{makeRef("ob1"), makeRef("ob2")},
 		SafeUnionChildren: []*protocol.RunType{makeRef("ob1"), makeRef("ob2")},
 	}
-	dump := protocol.Dump{RunTypes: []*protocol.RunType{bigint, date, propABig, propADat, obj1, obj2, union}}
-	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return FamilyByKey("prepareForJson").Render(w, d, RenderOpts{})
-	})
+	out := compileUnionRoot(t, "prepareForJson", []*protocol.RunType{bigint, date, propABig, propADat, obj1, obj2, union}, "uni").Code
 
 	if !strings.Contains(out, "v.a = [0, v.a]") {
 		t.Errorf("expected inline sub-union wrap `[0, v.a]` for conflicting prop; got:\n%s", out)

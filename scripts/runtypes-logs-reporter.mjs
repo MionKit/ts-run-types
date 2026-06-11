@@ -122,6 +122,7 @@ function stripCacheSources(response) {
   const out = {};
   for (const [key, value] of Object.entries(response)) {
     if (isCacheSourceField(key)) continue;
+    if (key === 'modules') continue; // module-mode per-entry sources — same bulk rationale
     out[key] = value;
   }
   return out;

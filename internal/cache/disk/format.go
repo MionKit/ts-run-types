@@ -43,7 +43,14 @@ package disk
 // (preserve extras), while its fnHash is unchanged (the strategy token "clone" is
 // the same). A v3 `jeCL` entry bakes the old preserve body, so a hit would emit
 // the wrong (extras-preserving) encoder — it must become a miss.
-const FormatVersion = 4
+// v5 is module mode: `Line` now stores the per-entry MODULE ARRAY literal
+// (`['<key>','<tag>',…]` — the body WrapEntryModule wraps) instead of the
+// aggregate `init(…);` statement, the file basename is the entry's fnHash
+// (variants and JSON composites get distinct basenames), and every
+// dependency — same-family and cross-family alike — is persisted as a
+// CrossFamilyRef carrying its full `<fnHash>_` prefix (ChildRefs is no
+// longer written). v4 files bake init-statement bodies, so they must miss.
+const FormatVersion = 5
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can
@@ -85,9 +92,10 @@ type RTEntry struct {
 	// equal this value; any mismatch (hash drift / collision extension)
 	// is a miss.
 	StructuralID string `json:"structuralID"`
-	// Line is the raw `init('<innerName>', …);` JS statement as
-	// rendered. No placeholders: hashes are baked in. Reusing the line
-	// directly requires every ChildRef to still resolve.
+	// Line is the per-entry module ARRAY literal as rendered (the
+	// FormatEntryArray output WrapEntryModule wraps into the served
+	// module). No placeholders: hashes are baked in. Reusing the line
+	// directly requires every persisted dep ref to still resolve.
 	Line string `json:"line"`
 	// ChildRefs is one entry per RT-dependency hash baked into Line
 	// (the `val_<childHash>` namespaced ids in walker.RTDependencies).

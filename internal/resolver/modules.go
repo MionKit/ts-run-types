@@ -2,6 +2,8 @@ package resolver
 
 import (
 	"sort"
+
+	"github.com/mionkit/ts-run-types/internal/cache/disk"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
@@ -192,6 +194,12 @@ func (session *moduleSession) renderKey(key string) (string, []string, bool) {
 	if node == nil {
 		return "", nil, false
 	}
+	// Disk cache (v5): one file per (typeID, fnHash). A hit skips the
+	// walker entirely; the persisted deps re-validate against hash drift
+	// exactly like the body's baked keys.
+	if line, deps, hit := session.tryReadModuleEntry(typeID, fnHash); hit {
+		return typefns.WrapEntryModule(line), deps, true
+	}
 	if resolved.Op.Axis == operations.AxisJsonStrategy {
 		tag, ok := constants.JsonCompositeTag(resolved.Op.Name, resolved.Strategy)
 		if !ok {
@@ -201,7 +209,9 @@ func (session *moduleSession) renderKey(key string) (string, []string, bool) {
 		if !ok {
 			return "", nil, false
 		}
-		return typefns.WrapEntryModule(typefns.FormatEntryArray(slots)), slots.RTDeps, true
+		line := typefns.FormatEntryArray(slots)
+		session.writeModuleEntry(typeID, fnHash, line, slots.RTDeps)
+		return typefns.WrapEntryModule(line), slots.RTDeps, true
 	}
 	if !typefns.FamilyByKey(resolved.Op.Name).Emitter.Supports(node) {
 		return "", nil, false
@@ -211,7 +221,81 @@ func (session *moduleSession) renderKey(key string) (string, []string, bool) {
 		return "", nil, false
 	}
 	deps := append(append([]string(nil), slots.RTDeps...), slots.CrossFamilyDeps...)
-	return typefns.WrapEntryModule(typefns.FormatEntryArray(slots)), deps, true
+	line := typefns.FormatEntryArray(slots)
+	session.writeModuleEntry(typeID, fnHash, line, deps)
+	return typefns.WrapEntryModule(line), deps, true
+}
+
+// tryReadModuleEntry loads a previously cached (line, deps) pair from the
+// disk store. Miss on any verification failure: no store wired, missing
+// file, stale format, header structural-id mismatch, or any dep whose
+// structural id no longer maps to the hash baked into the body.
+func (session *moduleSession) tryReadModuleEntry(typeID, fnHash string) (string, []string, bool) {
+	store, lookup := session.opts.Store, session.opts.Lookup
+	if store == nil || lookup == nil {
+		return "", nil, false
+	}
+	expectedStructural := lookup.StructuralForHash(typeID)
+	if expectedStructural == "" {
+		return "", nil, false
+	}
+	entry, ok, err := store.ReadRT(typeID, fnHash)
+	if err != nil || !ok || entry == nil || entry.StructuralID != expectedStructural {
+		return "", nil, false
+	}
+	deps := make([]string, 0, len(entry.CrossFamilyRefs))
+	for _, ref := range entry.CrossFamilyRefs {
+		currentHash := lookup.HashForStructural(ref.StructuralID)
+		if currentHash == "" || currentHash != ref.Hash {
+			return "", nil, false
+		}
+		deps = append(deps, ref.Prefix+currentHash)
+	}
+	return entry.Line, deps, true
+}
+
+// writeModuleEntry persists a freshly-rendered (line, deps) pair. Every dep
+// — same-family, cross-family, composite primitive — is stored as a
+// prefix-carrying CrossFamilyRef so the reader can revalidate and
+// reconstruct it uniformly. Best-effort: failures are swallowed (the disk
+// layer logs FS misconfigurations once).
+func (session *moduleSession) writeModuleEntry(typeID, fnHash, line string, deps []string) {
+	store, lookup := session.opts.Store, session.opts.Lookup
+	if store == nil || lookup == nil {
+		return
+	}
+	structural := lookup.StructuralForHash(typeID)
+	if structural == "" {
+		return
+	}
+	refs := make([]disk.CrossFamilyRef, 0, len(deps))
+	for _, dep := range deps {
+		prefix, bareHash, ok := splitDepKey(dep)
+		if !ok {
+			return
+		}
+		depStructural := lookup.StructuralForHash(bareHash)
+		if depStructural == "" {
+			return
+		}
+		refs = append(refs, disk.CrossFamilyRef{Prefix: prefix, StructuralID: depStructural, Hash: bareHash})
+	}
+	_ = store.WriteRT(typeID, fnHash, disk.RTEntry{
+		Format:          disk.FormatVersion,
+		StructuralID:    structural,
+		Line:            line,
+		CrossFamilyRefs: refs,
+	})
+}
+
+// splitDepKey splits a module key into its `<fnHash>_` prefix and bare type
+// hash. ok=false when there is no separator.
+func splitDepKey(key string) (prefix string, bareHash string, ok bool) {
+	index := strings.IndexByte(key, '_')
+	if index <= 0 || index == len(key)-1 {
+		return "", "", false
+	}
+	return key[:index+1], key[index+1:], true
 }
 
 // cascadeFailures drops every module holding an edge to a failed key, to

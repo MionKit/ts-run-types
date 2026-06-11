@@ -6,60 +6,13 @@ package runtype
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/cachetpl"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// RunTypesModule writes the runtime artifact: the hand-authored
-// skeleton at packages/ts-go-run-types/src/caches/runTypesCache.ts with
-// the marker comment replaced by:
-//
-//   - one `rt(id, …);` factory call per cached RunType, which
-//     materialises an entry in the module-local `cache` table; and
-//   - direct ref-assignment statements `cache['id'].child = cache['id2'];`
-//     mirroring the previous emitter's footer block — only the accessor
-//     changed (cache['id'] vs the legacy `t_<id>` const).
-//
-// Footer-only literals (bigint, symbol, regexp) and built-in classType
-// references continue to land in the second pass exactly as before, so
-// downstream consumers see equivalent runtime objects.
-func RunTypesModule(writer io.Writer, dump protocol.Dump) error {
-	var body strings.Builder
-	body.WriteString("const u = undefined;\n")
-
-	// Pass 1: one rt(…) call per entry. Mirrors the previous emitter's
-	// `export const t_<hash> = RT(…)` line, modulo the entry storage.
-	for _, runType := range dump.RunTypes {
-		if runType == nil {
-			continue
-		}
-		args := renderFactoryArgs(runType)
-		body.WriteString(fmt.Sprintf("rt(%s);\n", strings.Join(args, ",")))
-	}
-
-	// Pass 2: ref assignments. Same special-cases the legacy footer
-	// handled — built-in class refs, bigint / symbol / regexp literals,
-	// and every ref-bearing slot.
-	body.WriteString("// --- knot refs and runtime values ---\n")
-	for _, runType := range dump.RunTypes {
-		if runType == nil {
-			continue
-		}
-		writeFooter(&body, runType)
-	}
-
-	out, err := cachetpl.Splice(cachetpl.SkeletonRunTypes, body.String())
-	if err != nil {
-		return err
-	}
-	_, err = io.WriteString(writer, out)
-	return err
-}
 
 // renderFactoryArgs builds the positional-arg slice for one `rt(…)` call,
 // then trims trailing `u` entries so the call stays compact. The first two

@@ -2,37 +2,6 @@ package typefns
 
 import "testing"
 
-// TestEntryRenderCache_Merge pins the shard-merge semantics the parallel
-// render path relies on: nil-safety on both sides, disjoint union, and
-// idempotent same-key overwrites.
-func TestEntryRenderCache_Merge(t *testing.T) {
-	var nilCache *EntryRenderCache
-	nilCache.Merge(NewEntryRenderCache()) // must not panic
-	target := NewEntryRenderCache()
-	target.Merge(nil) // must not panic
-
-	target.put("valAB_x1", entryRender{line: "a"})
-	shard := NewEntryRenderCache()
-	shard.put("pjCD_x2", entryRender{line: "b"})
-	target.Merge(shard)
-	if entry, ok := target.get("valAB_x1"); !ok || entry.line != "a" {
-		t.Fatalf("merge dropped pre-existing entry: %+v ok=%v", entry, ok)
-	}
-	if entry, ok := target.get("pjCD_x2"); !ok || entry.line != "b" {
-		t.Fatalf("merge missed shard entry: %+v ok=%v", entry, ok)
-	}
-
-	// Same-key merge (only possible when both shards compiled the same
-	// (family, variant, type), which yields the same compiled entry) —
-	// last write wins and the cache stays consistent.
-	duplicate := NewEntryRenderCache()
-	duplicate.put("pjCD_x2", entryRender{line: "b"})
-	target.Merge(duplicate)
-	if entry, ok := target.get("pjCD_x2"); !ok || entry.line != "b" {
-		t.Fatalf("idempotent same-key merge broke entry: %+v ok=%v", entry, ok)
-	}
-}
-
 // TestFactsTable_Merge pins the predicate-shard merge: nil-safety,
 // per-kind union, and conflict-free same-key verdicts.
 func TestFactsTable_Merge(t *testing.T) {

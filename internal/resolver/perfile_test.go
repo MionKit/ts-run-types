@@ -12,21 +12,22 @@ import (
 // session. scanFiles([a]) → only a's ids; scanFiles([b]) → only b's ids;
 // scanFiles([a, b]) → union of both. The cache holds entries for every
 // scanned file (dump exposes the whole thing), but the request's
-// runTypes/runTypeCacheSource projection only sees the listed files.
+// runTypes/Modules projection only sees the listed files. createMockType
+// demands the `t` data family, so the module map carries observable keys.
 func TestPerRequestScope_FilesOnly(t *testing.T) {
-	const aSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-getRunTypeId<string>();
+	const aSrc = `import {createMockType} from '@mionjs/ts-go-run-types';
+createMockType<string>();
 `
-	const bSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-getRunTypeId<{a: number}>();
+	const bSrc = `import {createMockType} from '@mionjs/ts-go-run-types';
+createMockType<{a: number}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc})
 
 	respA := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"a.ts"},
-		IncludeRunTypes:     true,
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindAll},
+		Op:              protocol.OpScanFiles,
+		Files:           []string{"a.ts"},
+		IncludeRunTypes: true,
+		IncludeModules:  true,
 	})
 	if respA.Error != "" {
 		t.Fatalf("scanFiles a.ts: %s", respA.Error)
@@ -36,10 +37,10 @@ getRunTypeId<{a: number}>();
 	// scanFiles([b]) — the projection should NOT include a's ids, even though
 	// a was scanned just above and the cache still holds those entries.
 	respB := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"b.ts"},
-		IncludeRunTypes:     true,
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindAll},
+		Op:              protocol.OpScanFiles,
+		Files:           []string{"b.ts"},
+		IncludeRunTypes: true,
+		IncludeModules:  true,
 	})
 	if respB.Error != "" {
 		t.Fatalf("scanFiles b.ts: %s", respB.Error)
@@ -51,17 +52,22 @@ getRunTypeId<{a: number}>();
 	if !containsID(respB.RunTypes, idB) {
 		t.Fatalf("scanFiles([b.ts]) missing its own id %q", idB)
 	}
-	// runTypeCacheSource scoping mirrors runTypes scoping.
-	if strings.Contains(respB.RunTypeCacheSource, idA) {
-		t.Fatalf("scanFiles([b.ts]) runTypeCacheSource mentions a.ts's id %q; projection must be request-scoped", idA)
+	// Module-map scoping mirrors runTypes scoping: only b's closure renders.
+	if respB.Modules["t_"+idB] == "" {
+		t.Fatalf("scanFiles([b.ts]) missing its own data module t_%s", idB)
+	}
+	for key := range respB.Modules {
+		if strings.Contains(key, idA) {
+			t.Fatalf("scanFiles([b.ts]) module map mentions a.ts's id %q; projection must be request-scoped", idA)
+		}
 	}
 
 	// scanFiles([a, b]) — single request, both files, both ids present.
 	respAB := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"a.ts", "b.ts"},
-		IncludeRunTypes:     true,
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindAll},
+		Op:              protocol.OpScanFiles,
+		Files:           []string{"a.ts", "b.ts"},
+		IncludeRunTypes: true,
+		IncludeModules:  true,
 	})
 	if respAB.Error != "" {
 		t.Fatalf("scanFiles [a, b]: %s", respAB.Error)
@@ -241,17 +247,18 @@ getRunTypeId<{a: number}>();
 	if !containsID(dumpResp.RunTypes, idB) {
 		t.Fatalf("dump missing b.ts's id %q (expected full in-memory cache)", idB)
 	}
-	if dumpResp.RunTypeCacheSource == "" {
-		t.Fatalf("dump: expected populated runTypeCacheSource")
+	// The module-mode equivalent: resolveModules can render the data module
+	// for EVERY interned id, regardless of which file the latest scan asked
+	// about — the session cache is the source, not the last projection.
+	resolved := r.Dispatch(protocol.Request{Op: protocol.OpResolveModules, Keys: []string{"t_" + idA, "t_" + idB}})
+	if resolved.Error != "" {
+		t.Fatalf("resolveModules: %s", resolved.Error)
 	}
-	// The dump must contain factory calls for every interned id so
-	// consumers re-evaluating the module body see the full cache. With
-	// the splice-based emitter we look for `rt('<id>',` lines.
-	if !strings.Contains(dumpResp.RunTypeCacheSource, "rt('"+idA+"',") {
-		t.Fatalf("dump runTypeCacheSource missing rt(...) call for id %q:\n%s", idA, dumpResp.RunTypeCacheSource)
+	if resolved.Modules["t_"+idA] == "" {
+		t.Fatalf("resolveModules missing data module for id %q (expected full in-memory cache)", idA)
 	}
-	if !strings.Contains(dumpResp.RunTypeCacheSource, "rt('"+idB+"',") {
-		t.Fatalf("dump runTypeCacheSource missing rt(...) call for id %q:\n%s", idB, dumpResp.RunTypeCacheSource)
+	if resolved.Modules["t_"+idB] == "" {
+		t.Fatalf("resolveModules missing data module for id %q (expected full in-memory cache)", idB)
 	}
 }
 

@@ -3,13 +3,12 @@ package typefns
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-run-types/internal/constants"
 )
 
 // TestFamilies_RegistryRoundTrip — every registry row resolves a real
 // CacheModules entry, FamilyByKey round-trips it, and validate stays the
-// LAST row (the dispatcher renders families in registry order so the
-// CrossFamilyValRoots collection passes hit the per-dispatch entry memo).
+// LAST row (the registry order is load-bearing — see the Families doc).
 func TestFamilies_RegistryRoundTrip(t *testing.T) {
 	if len(Families) != 14 {
 		t.Fatalf("expected 14 type-walking families, got %d", len(Families))
@@ -27,19 +26,34 @@ func TestFamilies_RegistryRoundTrip(t *testing.T) {
 	}
 }
 
-// TestAddedFormatTransform_GatesOnTransform — the resolver's
-// AddedFormatTransform signal must use the transform-gated
-// AnyFormatTransformSupported predicate, NOT FamilySpec.AnySupported:
-// FormatTransformEmitter.Supports is true for every runtype (identity is
-// a valid transform), which would fire the HMR signal on every scan.
-func TestAddedFormatTransform_GatesOnTransform(t *testing.T) {
-	plainString := []*protocol.RunType{{ID: "x", Kind: protocol.KindString}}
-	if AnyFormatTransformSupported(plainString) {
-		t.Fatalf("plain string runtype must not trip the formatTransform added-gate")
+// TestFamilies_EveryCacheModulesFamilyHasRow — every type-walking
+// constants.CacheModules entry (everything except runTypes/pureFns, which
+// aren't typefns families) has a registry row.
+func TestFamilies_EveryCacheModulesFamilyHasRow(t *testing.T) {
+	for key := range constants.CacheModules {
+		if key == "runTypes" || key == "pureFns" {
+			continue
+		}
+		found := false
+		for _, spec := range Families {
+			if spec.Key == key {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("CacheModules family %q has no Families registry row", key)
+		}
 	}
-	// Precondition the special case exists for: the generic registry pass
-	// accepts everything. If this ever flips, the dispatch.go override can go.
-	if !FamilyByKey("formatTransform").AnySupported(plainString) {
-		t.Fatalf("generic AnySupported no longer accepts everything — revisit the added-gate special case")
-	}
+}
+
+// TestFamilyByKey_PanicsOnUnknown — resolver wiring is static, so a typo
+// must die loudly at lookup time rather than render an empty family.
+func TestFamilyByKey_PanicsOnUnknown(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("FamilyByKey on an unknown key must panic")
+		}
+	}()
+	FamilyByKey("notAFamily")
 }

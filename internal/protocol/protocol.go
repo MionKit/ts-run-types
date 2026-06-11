@@ -359,23 +359,8 @@ const (
 type CacheKind string
 
 const (
-	CacheKindRunType                    CacheKind = "runType"
-	CacheKindValidate                   CacheKind = "validate"
-	CacheKindValidationErrors           CacheKind = "validationErrors"
-	CacheKindPrepareForJson             CacheKind = "prepareForJson"
-	CacheKindRestoreFromJson            CacheKind = "restoreFromJson"
-	CacheKindStringifyJson              CacheKind = "stringifyJson"
-	CacheKindPrepareForJsonSafe         CacheKind = "prepareForJsonSafe"
-	CacheKindHasUnknownKeys             CacheKind = "hasUnknownKeys"
-	CacheKindStripUnknownKeys           CacheKind = "stripUnknownKeys"
-	CacheKindUnknownKeyErrors           CacheKind = "unknownKeyErrors"
-	CacheKindUnknownKeysToUndefined     CacheKind = "unknownKeysToUndefined"
-	CacheKindUnknownKeysToUndefinedWire CacheKind = "unknownKeysToUndefinedWire"
-	CacheKindToBinary                   CacheKind = "toBinary"
-	CacheKindFromBinary                 CacheKind = "fromBinary"
-	CacheKindFormatTransform            CacheKind = "formatTransform"
-	CacheKindPureFns                    CacheKind = "pureFns"
-	CacheKindAll                        CacheKind = "all"
+	CacheKindPureFns CacheKind = "pureFns"
+	CacheKindAll     CacheKind = "all"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
@@ -465,28 +450,22 @@ type Response struct {
 	// is supported by the Validate emitter — i.e. the validate cache module
 	// would render at least one new entry. Set independently of
 	// AddedRunTypes so cache-by-cache invalidation stays surgical.
-	AddedValidate bool `json:"addedValidate,omitempty"`
 	// AddedValidationErrors mirrors AddedValidate but for the ValidationErrors emitter —
 	// true when at least one newly-interned RunType has a supported
 	// emitTypeErrors arm. Lets the Vite plugin's handleHotUpdate
 	// invalidate the validationErrors cache module independently of the
 	// validate / runTypes modules.
-	AddedValidationErrors bool `json:"addedValidationErrors,omitempty"`
 	// AddedPrepareForJson / AddedRestoreFromJson mirror AddedValidate for
 	// the JSON serializer pair. True when at least one newly-interned
 	// RunType has a supported emit arm in the corresponding emitter.
-	AddedPrepareForJson  bool `json:"addedPrepareForJson,omitempty"`
-	AddedRestoreFromJson bool `json:"addedRestoreFromJson,omitempty"`
 	// AddedStringifyJson mirrors AddedPrepareForJson for the
 	// stringifyJson emitter — single-pass JSON.stringify that walks
 	// the type rather than `v`. Set per emitter so the Vite plugin
 	// invalidates the stringifyJson cache module independently.
-	AddedStringifyJson bool `json:"addedStringifyJson,omitempty"`
 	// AddedPrepareForJsonSafe mirrors AddedPrepareForJson for the safe-encode
 	// family — non-mutating sibling that strips undeclared properties and
 	// returns a new value. Pairs with the existing RestoreFromJson decoder
 	// (wire format identical to prepareForJson + JSON.stringify).
-	AddedPrepareForJsonSafe bool `json:"addedPrepareForJsonSafe,omitempty"`
 	// AddedHasUnknownKeys / AddedStripUnknownKeys / AddedUnknownKeyErrors
 	// / AddedUnknownKeysToUndefined mirror AddedValidate for the
 	// unknown-keys family ported from mion's
@@ -494,23 +473,15 @@ type Response struct {
 	// emitUnknownKeysToUndefined methods on InterfaceRunType. Set per
 	// emitter so the Vite plugin invalidates each cache module
 	// independently on user-file changes.
-	AddedHasUnknownKeys         bool `json:"addedHasUnknownKeys,omitempty"`
-	AddedStripUnknownKeys       bool `json:"addedStripUnknownKeys,omitempty"`
-	AddedUnknownKeyErrors       bool `json:"addedUnknownKeyErrors,omitempty"`
-	AddedUnknownKeysToUndefined bool `json:"addedUnknownKeysToUndefined,omitempty"`
 	// AddedUnknownKeysToUndefinedWire — sibling of AddedUnknownKeysToUndefined
 	// for the decoder-internal ukuWire family. Same Supports surface as
 	// uku (every supported runtype yields a ukuw entry too).
-	AddedUnknownKeysToUndefinedWire bool `json:"addedUnknownKeysToUndefinedWire,omitempty"`
 	// AddedToBinary / AddedFromBinary mirror AddedPrepareForJson for the
 	// binary serializer pair. True when at least one newly-interned
 	// RunType has a supported emit arm in the corresponding emitter.
-	AddedToBinary   bool `json:"addedToBinary,omitempty"`
-	AddedFromBinary bool `json:"addedFromBinary,omitempty"`
 	// AddedFormatTransform mirrors AddedValidate for the `format` transform emitter —
 	// true when a newly-interned RunType carries a value-transforming
 	// format (string transform / domain/ip/url lowercasing).
-	AddedFormatTransform bool `json:"addedFormatTransform,omitempty"`
 	// AddedPureFns is true when the scan introduced (or modified) at
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
@@ -518,7 +489,6 @@ type Response struct {
 	Sites              []Site        `json:"sites,omitempty"`
 	Replacements       []Replacement `json:"replacements,omitempty"`
 	RunTypes           []*RunType    `json:"runTypes,omitempty"`
-	RunTypeCacheSource string        `json:"runTypeCacheSource,omitempty"`
 	// ValidateCacheSource is the rendered body of the `virtual:runtypes-validate`
 	// module — one `export function get_validate_<hash>(utl){…}` factory
 	// per cached RunType the precompiler knows how to handle. Sibling of
@@ -526,50 +496,36 @@ type Response struct {
 	// for OpDump, scoped to request files for OpScanFiles when the
 	// caller opts into CacheKindValidate / CacheKindAll via
 	// IncludeCacheSources).
-	ValidateCacheSource string `json:"validateCacheSource,omitempty"`
 	// ValidationErrorsCacheSource is the rendered body of the
 	// `virtual:runtypes-validationErrors` module — one
 	// `factory(rtFnHash, typeName, code, isNoop, deps, …)` call per
 	// cached RunType the precompiler's ValidationErrorsEmitter knows how to
 	// handle. Sibling of ValidateCacheSource, same projection semantics.
-	ValidationErrorsCacheSource string `json:"validationErrorsCacheSource,omitempty"`
 	// PrepareForJsonCacheSource / RestoreFromJsonCacheSource are the
 	// rendered bodies of the JSON serializer/deserializer pair. Same
 	// factory shape and projection semantics as ValidateCacheSource.
-	PrepareForJsonCacheSource  string `json:"prepareForJsonCacheSource,omitempty"`
-	RestoreFromJsonCacheSource string `json:"restoreFromJsonCacheSource,omitempty"`
 	// StringifyJsonCacheSource is the rendered body of the
 	// `virtual:runtypes-stringifyJson` module — single-pass RT that
 	// walks the type and emits a JSON string directly. Sibling of
 	// PrepareForJsonCacheSource; same factory shape and projection
 	// semantics.
-	StringifyJsonCacheSource string `json:"stringifyJsonCacheSource,omitempty"`
 	// PrepareForJsonSafeCacheSource carries the rendered body of the
 	// safe-encode family — non-mutating sibling of PrepareForJsonCacheSource.
-	PrepareForJsonSafeCacheSource string `json:"prepareForJsonSafeCacheSource,omitempty"`
 	// HasUnknownKeysCacheSource / StripUnknownKeysCacheSource /
 	// UnknownKeyErrorsCacheSource / UnknownKeysToUndefinedCacheSource
 	// are the rendered bodies of the unknown-keys family — the four
 	// RT functions ported from mion's emitHasUnknownKeys et al. Same
 	// factory shape and projection semantics as ValidateCacheSource.
-	HasUnknownKeysCacheSource         string `json:"hasUnknownKeysCacheSource,omitempty"`
-	StripUnknownKeysCacheSource       string `json:"stripUnknownKeysCacheSource,omitempty"`
-	UnknownKeyErrorsCacheSource       string `json:"unknownKeyErrorsCacheSource,omitempty"`
-	UnknownKeysToUndefinedCacheSource string `json:"unknownKeysToUndefinedCacheSource,omitempty"`
 	// UnknownKeysToUndefinedWireCacheSource — rendered body of the
 	// decoder-internal ukuWire family. Carries the wire-format-aware
 	// emit (wrapper-peel + reach-into-v[1] for union nodes); identical
 	// to UnknownKeysToUndefinedCacheSource for non-union runtypes.
-	UnknownKeysToUndefinedWireCacheSource string `json:"unknownKeysToUndefinedWireCacheSource,omitempty"`
 	// ToBinaryCacheSource / FromBinaryCacheSource — rendered bodies of
 	// the binary serializer/deserializer pair. Same factory shape and
 	// projection semantics as PrepareForJsonCacheSource.
-	ToBinaryCacheSource   string `json:"toBinaryCacheSource,omitempty"`
-	FromBinaryCacheSource string `json:"fromBinaryCacheSource,omitempty"`
 	// FormatTransformCacheSource is the rendered body of the `virtual:runtypes-format`
 	// module — the `format` transform RT family (createFormatTransform<T>). Same
 	// factory shape and projection semantics as ValidateCacheSource.
-	FormatTransformCacheSource string `json:"formatTransformCacheSource,omitempty"`
 	// PureFnsCacheSource is the rendered body of the
 	// `virtual:runtypes-pure-fns` module — one
 	// `factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn)`
@@ -687,20 +643,6 @@ var responseAddedFlags = []struct {
 	get func(*Response) bool
 }{
 	{"addedRunTypes", func(response *Response) bool { return response.AddedRunTypes }},
-	{"addedValidate", func(response *Response) bool { return response.AddedValidate }},
-	{"addedValidationErrors", func(response *Response) bool { return response.AddedValidationErrors }},
-	{"addedPrepareForJson", func(response *Response) bool { return response.AddedPrepareForJson }},
-	{"addedRestoreFromJson", func(response *Response) bool { return response.AddedRestoreFromJson }},
-	{"addedStringifyJson", func(response *Response) bool { return response.AddedStringifyJson }},
-	{"addedPrepareForJsonSafe", func(response *Response) bool { return response.AddedPrepareForJsonSafe }},
-	{"addedHasUnknownKeys", func(response *Response) bool { return response.AddedHasUnknownKeys }},
-	{"addedStripUnknownKeys", func(response *Response) bool { return response.AddedStripUnknownKeys }},
-	{"addedUnknownKeyErrors", func(response *Response) bool { return response.AddedUnknownKeyErrors }},
-	{"addedUnknownKeysToUndefined", func(response *Response) bool { return response.AddedUnknownKeysToUndefined }},
-	{"addedUnknownKeysToUndefinedWire", func(response *Response) bool { return response.AddedUnknownKeysToUndefinedWire }},
-	{"addedToBinary", func(response *Response) bool { return response.AddedToBinary }},
-	{"addedFromBinary", func(response *Response) bool { return response.AddedFromBinary }},
-	{"addedFormatTransform", func(response *Response) bool { return response.AddedFormatTransform }},
 	{"addedPureFns", func(response *Response) bool { return response.AddedPureFns }},
 }
 
@@ -708,21 +650,6 @@ var responseCacheSources = []struct {
 	key string
 	get func(*Response) string
 }{
-	{"runTypeCacheSource", func(response *Response) string { return response.RunTypeCacheSource }},
-	{"validateCacheSource", func(response *Response) string { return response.ValidateCacheSource }},
-	{"validationErrorsCacheSource", func(response *Response) string { return response.ValidationErrorsCacheSource }},
-	{"prepareForJsonCacheSource", func(response *Response) string { return response.PrepareForJsonCacheSource }},
-	{"restoreFromJsonCacheSource", func(response *Response) string { return response.RestoreFromJsonCacheSource }},
-	{"stringifyJsonCacheSource", func(response *Response) string { return response.StringifyJsonCacheSource }},
-	{"prepareForJsonSafeCacheSource", func(response *Response) string { return response.PrepareForJsonSafeCacheSource }},
-	{"hasUnknownKeysCacheSource", func(response *Response) string { return response.HasUnknownKeysCacheSource }},
-	{"stripUnknownKeysCacheSource", func(response *Response) string { return response.StripUnknownKeysCacheSource }},
-	{"unknownKeyErrorsCacheSource", func(response *Response) string { return response.UnknownKeyErrorsCacheSource }},
-	{"unknownKeysToUndefinedCacheSource", func(response *Response) string { return response.UnknownKeysToUndefinedCacheSource }},
-	{"unknownKeysToUndefinedWireCacheSource", func(response *Response) string { return response.UnknownKeysToUndefinedWireCacheSource }},
-	{"toBinaryCacheSource", func(response *Response) string { return response.ToBinaryCacheSource }},
-	{"fromBinaryCacheSource", func(response *Response) string { return response.FromBinaryCacheSource }},
-	{"formatTransformCacheSource", func(response *Response) string { return response.FormatTransformCacheSource }},
 	{"pureFnsCacheSource", func(response *Response) string { return response.PureFnsCacheSource }},
 }
 

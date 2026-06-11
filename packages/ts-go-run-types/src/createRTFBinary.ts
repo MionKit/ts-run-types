@@ -4,8 +4,6 @@
 // `createBinaryEncoder` / `createBinaryDecoder`. Loading this module is what
 // registers the binary entries on the rtUtils singleton.
 
-import {initCache as initToBinaryCache} from './caches/toBinaryCache.ts';
-import {initCache as initFromBinaryCache} from './caches/fromBinaryCache.ts';
 import {getRTUtils} from './runtypes/rtUtils.ts';
 import {isRunTypeSchema, lookupRTFn} from './runtypes/rtUtils.ts';
 import {initDependencies} from './runtypes/registrar.ts';
@@ -58,10 +56,6 @@ export interface BinaryDecoderOptions {
 // =============================================================================
 // Cache initialisation — side effect on module load.
 // =============================================================================
-
-const _utils = getRTUtils();
-initToBinaryCache(_utils);
-initFromBinaryCache(_utils);
 
 // =============================================================================
 // Public binary encode / decode entry functions.
@@ -161,15 +155,4 @@ export function createBinaryDecoder<T>(
     }
     return decodeFn(undefined, des);
   }) as BinaryDecoderFn<DataOnly<T>>;
-}
-
-// =============================================================================
-// HMR — refresh binary entries when their cache modules re-evaluate.
-// =============================================================================
-
-type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
-const hot = (import.meta as unknown as {hot?: HMR}).hot;
-if (hot) {
-  hot.accept('./caches/toBinaryCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/fromBinaryCache.ts', (m) => m?.initCache?.(getRTUtils()));
 }

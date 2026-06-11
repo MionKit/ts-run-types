@@ -373,3 +373,114 @@ func keysOf(modules map[string]string) []string {
 	}
 	return keys
 }
+
+// TestModules_NestedArrayClosureOrdering — `string[][]` compiles the outer
+// array as a dependency call on the inner array's entry; the closure must
+// order the inner key BEFORE the outer (leafs-first), with the demanded root
+// last. Ports the aggregate renderer's topo-sort coverage onto Site.Deps.
+func TestModules_NestedArrayClosureOrdering_Static(t *testing.T) {
+	resp := scanModules(t, map[string]string{
+		"test.ts": `import {createValidate} from '@mionjs/ts-go-run-types';
+export const isMatrix = createValidate<string[][]>();`,
+	}, "test.ts")
+	site := siteFor(t, resp, "test.ts")
+	valHash := operations.PlainHash("validate")
+	outerKey := valHash + "_" + site.ID
+	outerPos := keyPosition(site.Deps, outerKey)
+	if outerPos != len(site.Deps)-1 {
+		t.Fatalf("outer root %q must be LAST in deps %v", outerKey, site.Deps)
+	}
+	innerKey := ""
+	for _, dep := range site.Deps {
+		if dep != outerKey && strings.HasPrefix(dep, valHash+"_") {
+			innerKey = dep
+		}
+	}
+	if innerKey == "" {
+		t.Fatalf("no inner-array entry in deps %v", site.Deps)
+	}
+	if keyPosition(site.Deps, innerKey) > outerPos {
+		t.Fatalf("inner %q must precede outer %q in %v", innerKey, outerKey, site.Deps)
+	}
+	// The outer module's body resolves the inner through getRT and its deps
+	// slot carries the inner key — self-consistent with the shipped closure.
+	outerSource := resp.Modules[outerKey]
+	if !strings.Contains(outerSource, `utl.getRT(\'`+innerKey+`\')`) {
+		t.Fatalf("outer body must getRT the inner key %q:\n%s", innerKey, outerSource)
+	}
+	if !strings.Contains(outerSource, "['"+innerKey+"']") {
+		t.Fatalf("outer entry array must list the inner dep %q:\n%s", innerKey, outerSource)
+	}
+}
+
+func TestModules_NestedArrayClosureOrdering_Reflect(t *testing.T) {
+	resp := scanModules(t, map[string]string{
+		"test.ts": `import {createValidate} from '@mionjs/ts-go-run-types';
+const matrix: string[][] = [['x']];
+export const isMatrix = createValidate(matrix);`,
+	}, "test.ts")
+	site := siteFor(t, resp, "test.ts")
+	outerKey := operations.PlainHash("validate") + "_" + site.ID
+	if keyPosition(site.Deps, outerKey) != len(site.Deps)-1 {
+		t.Fatalf("reflect-form outer root %q must be last in %v", outerKey, site.Deps)
+	}
+	if len(site.Deps) < 2 {
+		t.Fatalf("reflect-form closure must include the inner-array entry, got %v", site.Deps)
+	}
+}
+
+// TestModules_AlwaysThrowRootStillShips — an unsupported-at-root kind with a
+// registered diag code (symbol → VL002) does NOT cascade out: the entry
+// ships as an alwaysThrow module so the runtime throw carries the catalog
+// code, and the build log carries the matching diagnostic.
+func TestModules_AlwaysThrowRootStillShips(t *testing.T) {
+	resp := scanModules(t, map[string]string{
+		"test.ts": `import {createValidate} from '@mionjs/ts-go-run-types';
+export const isSym = createValidate<symbol>();`,
+	}, "test.ts")
+	site := siteFor(t, resp, "test.ts")
+	rootKey := operations.PlainHash("validate") + "_" + site.ID
+	if keyPosition(site.Deps, rootKey) == -1 {
+		t.Fatalf("alwaysThrow root %q must stay in deps %v", rootKey, site.Deps)
+	}
+	source := resp.Modules[rootKey]
+	if !strings.Contains(source, "'VL002'") {
+		t.Fatalf("alwaysThrow module must carry the diag code slot:\n%s", source)
+	}
+}
+
+// TestModules_ResolveModulesUnrenderableKeysOmitted — the failure marking the
+// dangling-dep cascade keys on: a syntactically valid key whose fnHash is
+// unknown AND a known-fnHash key whose type id was never interned both fail
+// renderKey and are silently omitted (the plugin's load() hook owns the
+// stale-module error message).
+func TestModules_ResolveModulesUnrenderableKeysOmitted(t *testing.T) {
+	r := setupInline(t, map[string]string{
+		"test.ts": `import {createValidate} from '@mionjs/ts-go-run-types';
+export const isStr = createValidate<string>();`,
+	})
+	scan := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}, IncludeModules: true})
+	if scan.Error != "" {
+		t.Fatalf("scanFiles: %s", scan.Error)
+	}
+	site := siteFor(t, scan, "test.ts")
+	valHash := operations.PlainHash("validate")
+	unknownNodeKey := valHash + "_zzzzzz"
+	resolved := r.Dispatch(protocol.Request{Op: protocol.OpResolveModules, Keys: []string{
+		valHash + "_" + site.ID, // renders
+		unknownNodeKey,          // known fnHash, unknown type id
+		"t_zzzzzz",              // data key, unknown type id
+	}})
+	if resolved.Error != "" {
+		t.Fatalf("resolveModules: %s", resolved.Error)
+	}
+	if _, ok := resolved.Modules[unknownNodeKey]; ok {
+		t.Fatalf("known-hash/unknown-node key must be omitted, got %v", keysOf(resolved.Modules))
+	}
+	if _, ok := resolved.Modules["t_zzzzzz"]; ok {
+		t.Fatalf("unknown data key must be omitted, got %v", keysOf(resolved.Modules))
+	}
+	if resolved.Modules[valHash+"_"+site.ID] == "" {
+		t.Fatalf("valid key must still render alongside the omitted ones")
+	}
+}

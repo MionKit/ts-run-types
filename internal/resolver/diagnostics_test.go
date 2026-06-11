@@ -29,9 +29,9 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"a.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -74,9 +74,9 @@ export const _ = createJsonEncoder<() => void>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"f.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"f.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"f.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -110,13 +110,9 @@ export const _b = createBinaryEncoder<never>();
 `
 	r := setupInline(t, map[string]string{"n.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:    protocol.OpScanFiles,
-		Files: []string{"n.ts"},
-		IncludeCacheSources: []protocol.CacheKind{
-			protocol.CacheKindPrepareForJson,
-			protocol.CacheKindStringifyJson,
-			protocol.CacheKindToBinary,
-		},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"n.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -146,18 +142,16 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"u.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"u.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"u.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	// The User factory should still be rendered (not absent) — the never
-	// property is absorbed at the property level. The rendered init line
-	// for the root User type must NOT carry an alwaysThrow code (8th arg).
-	// Find the line referencing the User id (it's the objectLiteral with
-	// children) and assert no 8-arg form.
+	// The User entry should still render (not absent) — the never property
+	// is absorbed at the property level. Its module must NOT carry the
+	// alwaysThrow code slot.
 	var rootSiteID string
 	for _, s := range resp.Sites {
 		rootSiteID = s.ID
@@ -165,21 +159,16 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	if rootSiteID == "" {
 		t.Fatalf("expected at least one site for the User marker call")
 	}
-	// Slice 4: the entry key is `<prepareForJson-fnHash>_<id>` (opaque per-family
+	// The module key is `<prepareForJson-fnHash>_<id>` (opaque per-family
 	// hash), not the readable `pj_` tag. Derive the prefix via the operation
 	// registry so the assertion stays correct across version-isolated hashes.
-	rootInit := "init('" + operations.PlainHash("prepareForJson") + "_" + rootSiteID + "',"
-	if !strings.Contains(resp.PrepareForJsonCacheSource, rootInit) {
-		t.Errorf("expected PrepareForJson cache to contain User init line %q, got:\n%s", rootInit, resp.PrepareForJsonCacheSource)
+	rootKey := operations.PlainHash("prepareForJson") + "_" + rootSiteID
+	rootModule := resp.Modules[rootKey]
+	if rootModule == "" {
+		t.Errorf("expected a rendered pj module for the User root %q, got modules %v", rootKey, len(resp.Modules))
 	}
-	// Locate the User init() and confirm it's not the 8-arg alwaysThrow form.
-	idx := strings.Index(resp.PrepareForJsonCacheSource, rootInit)
-	if idx >= 0 {
-		end := strings.Index(resp.PrepareForJsonCacheSource[idx:], ";")
-		userLine := resp.PrepareForJsonCacheSource[idx : idx+end]
-		if strings.Contains(userLine, "'PJ001'") {
-			t.Errorf("User factory should NOT be alwaysThrow — property absorbs the never child. Got: %s", userLine)
-		}
+	if strings.Contains(rootModule, "'PJ001'") {
+		t.Errorf("User entry should NOT be alwaysThrow — property absorbs the never child. Got: %s", rootModule)
 	}
 	// A PJ001 diagnostic should fire for the absorbed never child.
 	runtype := runtypeDiagsOf(resp.Diagnostics)
@@ -212,14 +201,9 @@ export const _b = createBinaryEncoder<symbol>();
 `
 	r := setupInline(t, map[string]string{"s.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:    protocol.OpScanFiles,
-		Files: []string{"s.ts"},
-		IncludeCacheSources: []protocol.CacheKind{
-			protocol.CacheKindValidate,
-			protocol.CacheKindPrepareForJson,
-			protocol.CacheKindStringifyJson,
-			protocol.CacheKindToBinary,
-		},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"s.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -236,9 +220,9 @@ export const _b = createBinaryEncoder<symbol>();
 	}
 }
 
-// TestDiag_AlwaysThrowEntry_HasCodeOnWire pins the v2 wire format —
-// when a root throws, the rendered init() carries the diag code as
-// the 8th arg, not an inline throwing factory body.
+// TestDiag_AlwaysThrowEntry_HasCodeOnWire pins the wire format — when a
+// root throws, the rendered entry module carries the diag code in the
+// alwaysThrow slot, not an inline throwing factory body.
 func TestDiag_AlwaysThrowEntry_HasCodeOnWire(t *testing.T) {
 	// pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
 	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
@@ -246,18 +230,26 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"n.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"n.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"n.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	if !strings.Contains(resp.PrepareForJsonCacheSource, "'PJ001'") {
-		t.Errorf("expected rendered alwaysThrow init() to carry the 'PJ001' code as 8th arg, got:\n%s", resp.PrepareForJsonCacheSource)
+	var rootSiteID string
+	for _, s := range resp.Sites {
+		rootSiteID = s.ID
 	}
-	if strings.Contains(resp.PrepareForJsonCacheSource, "throw new Error(") {
-		t.Errorf("v2 wire format should not embed inline throw bodies, got:\n%s", resp.PrepareForJsonCacheSource)
+	pjModule := resp.Modules[operations.PlainHash("prepareForJson")+"_"+rootSiteID]
+	if pjModule == "" {
+		t.Fatalf("expected a rendered pj module for the never root, got modules %v", len(resp.Modules))
+	}
+	if !strings.Contains(pjModule, "'PJ001'") {
+		t.Errorf("expected the alwaysThrow entry module to carry the 'PJ001' code, got:\n%s", pjModule)
+	}
+	if strings.Contains(pjModule, "throw new Error(") {
+		t.Errorf("wire format should not embed inline throw bodies, got:\n%s", pjModule)
 	}
 }
 
@@ -275,9 +267,9 @@ export const _ = createValidate<User>();
 `
 	r := setupInline(t, map[string]string{"u.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"u.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"u.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -318,9 +310,9 @@ export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"multi.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:                  protocol.OpScanFiles,
-		Files:               []string{"multi.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+		Op:             protocol.OpScanFiles,
+		Files:          []string{"multi.ts"},
+		IncludeModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)

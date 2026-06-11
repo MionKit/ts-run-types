@@ -45,19 +45,6 @@ func (FormatTransformEmitter) Supports(rt *protocol.RunType) bool {
 	return true
 }
 
-// AnyFormatTransformSupported reports whether at least one runtype in the slice
-// carries a VALUE-TRANSFORMING format. Unlike Supports (true for
-// everything, since identity is valid), this gates the resolver's
-// AddedFormatTransform HMR signal so the format cache is only invalidated for
-// schemas that actually use a transform.
-func AnyFormatTransformSupported(runTypes []*protocol.RunType) bool {
-	for _, rt := range runTypes {
-		if nodeFormatTransform(rt, "v") != "" {
-			return true
-		}
-	}
-	return false
-}
 
 // IsRTInlined delegates to the shared heuristic — same as every other
 // rt fn.

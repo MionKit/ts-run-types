@@ -1,158 +1,101 @@
 package typefns
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/cachetpl"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// renderToString defaults to EmitCreateRTFn=true so body-shape
-// assertions can substring-match against the un-escaped validator body
-// embedded in the `function g_<id>(utl){return function <id>(v){
-// <body>}}` closure. Under the production default (no inline factory)
-// the same body lives only inside the JSON-quoted `code` arg-3 string,
-// making raw-body assertions unreadable. Tests that care about the
-// wire encoding (createRTFn arg-7 token, alwaysThrow, noop shape)
-// explicitly call renderToStringDefault.
-func renderToString(t *testing.T, dump protocol.Dump) string {
+// Per-entry compile assertions over CompileEntryModule (module mode). The
+// old aggregate ValidateModule render is gone; body-shape coverage now reads
+// EntrySlots directly — slots.Code carries the raw (un-escaped) factory body,
+// so substring assertions stay readable. Aggregate-level topo ordering and
+// the dangling-dep cascade are covered at the resolver layer
+// (internal/resolver/modules_test.go).
+
+// compileValidateSlots compiles the validate entry for rootID against the
+// given runtype set. EmitCreateRTFn=true so CreateRTFn-shape tests can read
+// the inline closure; body tests read slots.Code either way.
+func compileValidateSlots(t *testing.T, runTypes []*protocol.RunType, rootID string) EntrySlots {
 	t.Helper()
-	var buf bytes.Buffer
-	if err := FamilyByKey("validate").Render(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
-		t.Fatalf("ValidateModule: %v", err)
+	refTable := buildRefTable(runTypes)
+	root := refTable[rootID]
+	if root == nil {
+		t.Fatalf("rootID %q not present in fixture", rootID)
 	}
-	return buf.String()
+	if !FamilyByKey("validate").Emitter.Supports(root) {
+		t.Fatalf("validate emitter does not support root %q (kind %d)", rootID, root.Kind)
+	}
+	return CompileEntryModule("validate", root, refTable, RenderOpts{EmitCreateRTFn: true}, "", nil)
 }
 
-// renderToStringDefault renders with the production-default
-// (EmitCreateRTFn=false) — arg-7 becomes the `u` alias, the body
-// lives only in the quoted `code` string. Used by the few tests that
-// assert the wire-shape transition between the two emit modes.
-func renderToStringDefault(t *testing.T, dump protocol.Dump) string {
-	t.Helper()
-	var buf bytes.Buffer
-	if err := FamilyByKey("validate").Render(&buf, dump, RenderOpts{}); err != nil {
-		t.Fatalf("ValidateModule: %v", err)
-	}
-	return buf.String()
-}
-
-// TestValidateModule_SkeletonPresent — the rendered body must include the
-// hand-authored skeleton wrappers, with the marker replaced.
-func TestValidateModule_SkeletonPresent(t *testing.T) {
-	out := renderToString(t, protocol.Dump{})
-	for _, fragment := range []string{
-		"'use strict';",
-		"export function initCache(rtUtils)",
-		"function init(",
-		"rtFnHash,",
-		"rtUtils.addToRTCache(entry)",
-	} {
-		if !strings.Contains(out, fragment) {
-			t.Errorf("expected fragment %q in:\n%s", fragment, out)
-		}
-	}
-	if strings.Contains(out, cachetpl.MarkerLine) {
-		t.Errorf("marker line should be replaced, but is still present:\n%s", out)
-	}
-}
-
-func TestValidateModule_NoSideEffectImport(t *testing.T) {
-	out := renderToString(t, protocol.Dump{})
-	if strings.Contains(out, "import ") {
-		t.Errorf("rendered module must not import anything at top-level (pure module), got:\n%s", out)
-	}
-	if strings.Contains(out, "getRTUtils()") {
-		t.Errorf("rendered module must not invoke getRTUtils() — utl is supplied via initCache(rtUtils), got:\n%s", out)
-	}
-}
-
-func TestValidateModule_EmptyDump(t *testing.T) {
-	out := renderToString(t, protocol.Dump{})
-	if strings.Contains(out, "export const") {
-		t.Errorf("module no longer emits named export consts; got:\n%s", out)
-	}
-	if !strings.Contains(out, "export function initCache") {
-		t.Errorf("empty dump must still emit the initCache() function shell, got:\n%s", out)
-	}
-}
-
-func TestValidateModule_SingleEntryShape(t *testing.T) {
-	dump := protocol.Dump{
-		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
-	}
-	// Opt-in (EmitCreateRTFn=true): arg-7 carries the full
-	// `function g_<hash>(utl){…}` declaration. Used by runtimes
-	// without `new Function` and by every body-shape test below.
-	out := renderToString(t, dump)
+// TestCompileValidate_SingleEntrySlots pins the full slot set for a simple
+// atomic entry, plus its FormatEntryArray wire form (EmitCreateRTFn=true:
+// the createRTFn slot carries the inline `function g_<key>(utl){…}` closure).
+func TestCompileValidate_SingleEntrySlots(t *testing.T) {
+	slots := compileValidateSlots(t, []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}}, "abc123")
 	key := valKey("abc123")
-	want := "init(" +
-		"'" + key + "'," +
-		"'string'," +
-		"'return function " + key + "(v){return typeof v === \\'string\\'}'," +
-		"false," +
-		"[]," +
-		"[]," +
-		"function g_" + key + "(utl){return function " + key + "(v){return typeof v === 'string'}}" +
-		");"
-	if !strings.Contains(out, want) {
-		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, out)
+	if slots.Key != key {
+		t.Errorf("Key: got %q want %q", slots.Key, key)
+	}
+	if slots.FamilyTag != "val" {
+		t.Errorf("FamilyTag: got %q want %q", slots.FamilyTag, "val")
+	}
+	if slots.TypeName != "string" {
+		t.Errorf("TypeName: got %q want %q", slots.TypeName, "string")
+	}
+	wantCode := "return function " + key + "(v){return typeof v === 'string'}"
+	if slots.Code != wantCode {
+		t.Errorf("Code:\ngot  %q\nwant %q", slots.Code, wantCode)
+	}
+	wantFactory := "function g_" + key + "(utl){" + wantCode + "}"
+	if slots.CreateRTFn != wantFactory {
+		t.Errorf("CreateRTFn:\ngot  %q\nwant %q", slots.CreateRTFn, wantFactory)
+	}
+	if slots.IsNoop || slots.Skip || slots.ThrowCode != "" {
+		t.Errorf("atomic entry must be plain code-bearing, got %+v", slots)
+	}
+	if len(slots.RTDeps) != 0 || len(slots.PureFnDeps) != 0 {
+		t.Errorf("atomic entry must have no deps, got %+v / %+v", slots.RTDeps, slots.PureFnDeps)
+	}
+	wantArray := "['" + key + "','val','string'," +
+		`'return function ` + key + `(v){return typeof v === \'string\'}',` +
+		"false,u,u," + wantFactory + "]"
+	if got := FormatEntryArray(slots); got != wantArray {
+		t.Errorf("entry array:\ngot  %s\nwant %s", got, wantArray)
 	}
 }
 
-// TestValidateModule_SingleEntryShape_DefaultEmit pins the
-// production-default shape: arg-7 is the `u = undefined` alias and
-// no `function g_<hash>(utl){…}` closure leaks into the module. The
-// body lives only in the quoted `code` arg-3 string; the JS-side
-// materializeRTFn rebuilds the factory via `new Function('utl',
-// code)` on first lookup.
-func TestValidateModule_SingleEntryShape_DefaultEmit(t *testing.T) {
-	dump := protocol.Dump{
-		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
+// TestCompileValidate_DefaultEmitOmitsCreateRTFn pins the production-default
+// shape: the body lives only in Code; no inline factory closure is emitted
+// (the JS-side materializeRTFn rebuilds it via `new Function('utl', code)`).
+func TestCompileValidate_DefaultEmitOmitsCreateRTFn(t *testing.T) {
+	runTypes := []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}}
+	slots := CompileEntryModule("validate", runTypes[0], buildRefTable(runTypes), RenderOpts{}, "", nil)
+	if slots.CreateRTFn != "" {
+		t.Errorf("default emit must NOT inline the createRTFn closure, got %q", slots.CreateRTFn)
 	}
-	out := renderToStringDefault(t, dump)
-	key := valKey("abc123")
-	want := "init(" +
-		"'" + key + "'," +
-		"'string'," +
-		"'return function " + key + "(v){return typeof v === \\'string\\'}'," +
-		"false," +
-		"[]," +
-		"[]," +
-		"u" +
-		");"
-	if !strings.Contains(out, want) {
-		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, out)
-	}
-	if strings.Contains(out, "function g_"+key) {
-		t.Errorf("default emit must NOT inline the createRTFn closure, but found g_%s in:\n%s", key, out)
+	if got := FormatEntryArray(slots); strings.Contains(got, "function g_") {
+		t.Errorf("default-emit entry array must not carry a g_ closure: %s", got)
 	}
 }
 
-// TestValidateModule_AtomicEmitBodies asserts the emit body for each
-// atomic kind we ported from mion. One row per kind keeps the
-// regression surface explicit — drift in any single arm of
-// ValidateEmitter.Emit lands as a focused failure here.
-//
-// Bodies must match the corresponding mion node's emitIsType output
-// (mion-run-types:packages/run-types/src/nodes/atomic/<name>.ts).
-// `return ` prefix is added by the walker / Finalize.
-func TestValidateModule_AtomicEmitBodies(t *testing.T) {
+// TestCompileValidate_AtomicEmitBodies asserts the emit body for each atomic
+// kind we ported from mion. One row per kind keeps the regression surface
+// explicit — drift in any single arm of ValidateEmitter.Emit lands as a
+// focused failure here. Bodies must match the corresponding mion node's
+// emitIsType output (mion-run-types:packages/run-types/src/nodes/atomic/).
+func TestCompileValidate_AtomicEmitBodies(t *testing.T) {
 	rows := []struct {
 		name string
 		rt   *protocol.RunType
-		body string // expected inner-fn body (post-Finalize)
-		noop bool   // true for any/unknown — Finalize collapses to noop, factory is skipped entirely
+		body string // expected substring of slots.Code
+		noop bool   // any/unknown — Finalize collapses to noop
 	}{
 		{"number", &protocol.RunType{ID: "num", Kind: protocol.KindNumber}, "return Number.isFinite(v)", false},
 		{"boolean", &protocol.RunType{ID: "boo", Kind: protocol.KindBoolean}, "return typeof v === 'boolean'", false},
 		{"bigint", &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}, "return typeof v === 'bigint'", false},
-		// KindSymbol is unsupported at root — see docs/UNSUPPORTED-KINDS.md
-		// FAQ. Renderer emits an alwaysThrow factory keyed by VL002,
-		// not a body-bearing validator.
-		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('" + valKey("sym") + "','symbol',undefined,false,undefined,undefined,undefined,'VL002',undefined)", false},
 		{"null", &protocol.RunType{ID: "nul", Kind: protocol.KindNull}, "return v === null", false},
 		{"undefined", &protocol.RunType{ID: "und", Kind: protocol.KindUndefined}, "return typeof v === 'undefined'", false},
 		{"void", &protocol.RunType{ID: "voi", Kind: protocol.KindVoid}, "return v === undefined", false},
@@ -165,36 +108,54 @@ func TestValidateModule_AtomicEmitBodies(t *testing.T) {
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
-			dump := protocol.Dump{RunTypes: []*protocol.RunType{row.rt}}
-			out := renderToString(t, dump)
+			slots := compileValidateSlots(t, []*protocol.RunType{row.rt}, row.rt.ID)
 			if row.noop {
-				// Noop factories use the short-form init: only rtFnHash,
-				// typeName, code=undefined, isNoop=true — no full body or
-				// createRTFn closure. The cache module's init() sees
-				// isNoop and pre-sets `fn` to the family identity. Assert
-				// both: the short-form `init('<id>',...,undefined,true);`
-				// is present, AND no full createRTFn closure leaks in.
-				marker := "init('" + valKey(row.rt.ID) + "',"
-				if !strings.Contains(out, marker) {
-					t.Errorf("noop kind %s expected short-form init line %q in:\n%s", row.name, marker, out)
+				// Noop entries carry no body and no factory closure; the
+				// runtime registrar pre-sets the family identity. Wire form
+				// is the short array: ['<key>','val','<name>',u,true].
+				if !slots.IsNoop {
+					t.Fatalf("kind %s must compile to a noop entry, got %+v", row.name, slots)
 				}
-				if strings.Contains(out, "function g_"+valKey(row.rt.ID)) {
-					t.Errorf("noop kind %s should NOT emit a createRTFn closure, but found g_%s in:\n%s", row.name, valKey(row.rt.ID), out)
+				if slots.Code != "" || slots.CreateRTFn != "" {
+					t.Errorf("noop kind %s must carry no body/closure, got %+v", row.name, slots)
+				}
+				wantArray := "['" + valKey(row.rt.ID) + "','val','" + slots.TypeName + "',u,true]"
+				if got := FormatEntryArray(slots); got != wantArray {
+					t.Errorf("noop entry array: got %s want %s", got, wantArray)
 				}
 				return
 			}
-			if !strings.Contains(out, row.body) {
-				t.Errorf("expected body %q for kind %s in:\n%s", row.body, row.name, out)
+			if slots.IsNoop {
+				t.Fatalf("kind %s unexpectedly noop", row.name)
+			}
+			if !strings.Contains(slots.Code, row.body) {
+				t.Errorf("expected body %q for kind %s in:\n%s", row.body, row.name, slots.Code)
 			}
 		})
 	}
 }
 
-// TestValidateModule_LiteralEmitBodies covers the literal sub-cases
-// (mion:literal.ts:88-105). One row per literal flavour: string,
-// number, boolean, bigint (via Flags), symbol (via Flags + map),
-// regexp (via map).
-func TestValidateModule_LiteralEmitBodies(t *testing.T) {
+// TestCompileValidate_SymbolRootAlwaysThrows — KindSymbol is unsupported at
+// root (see docs/UNSUPPORTED-KINDS.md FAQ): the compile yields an alwaysThrow
+// entry keyed by VL002, not a body-bearing validator.
+func TestCompileValidate_SymbolRootAlwaysThrows(t *testing.T) {
+	slots := compileValidateSlots(t, []*protocol.RunType{{ID: "sym", Kind: protocol.KindSymbol}}, "sym")
+	if slots.ThrowCode != "VL002" {
+		t.Fatalf("symbol root must throw with VL002, got %+v", slots)
+	}
+	if slots.Code != "" || slots.IsNoop || slots.Skip {
+		t.Errorf("alwaysThrow entry must carry no body and not be noop/skip, got %+v", slots)
+	}
+	wantArray := "['" + valKey("sym") + "','val','symbol',u,false,u,u,u,'VL002']"
+	if got := FormatEntryArray(slots); got != wantArray {
+		t.Errorf("alwaysThrow entry array: got %s want %s", got, wantArray)
+	}
+}
+
+// TestCompileValidate_LiteralEmitBodies covers the literal sub-cases
+// (mion:literal.ts:88-105): string, number, boolean, bigint (via Flags),
+// symbol (via Flags + map).
+func TestCompileValidate_LiteralEmitBodies(t *testing.T) {
 	rows := []struct {
 		name string
 		rt   *protocol.RunType
@@ -227,48 +188,35 @@ func TestValidateModule_LiteralEmitBodies(t *testing.T) {
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
-			dump := protocol.Dump{RunTypes: []*protocol.RunType{row.rt}}
-			out := renderToString(t, dump)
-			if !strings.Contains(out, row.body) {
-				t.Errorf("expected body %q for literal %s in:\n%s", row.body, row.name, out)
+			slots := compileValidateSlots(t, []*protocol.RunType{row.rt}, row.rt.ID)
+			if !strings.Contains(slots.Code, row.body) {
+				t.Errorf("expected body %q for literal %s in:\n%s", row.body, row.name, slots.Code)
 			}
 		})
 	}
 }
 
-// TestValidateModule_EnumEmitBody covers KindEnum's mixed-value chain
-// (mion:nodes/atomic/enum.ts:14). Uses the Color enum from
-// enum.spec.ts: {Red=0, Green='green', Blue=2}. The Values slice
-// carries the resolved values in declaration order; chain order
-// follows.
-func TestValidateModule_EnumEmitBody(t *testing.T) {
-	rt := &protocol.RunType{
+// TestCompileValidate_EnumEmitBody covers KindEnum's mixed-value chain
+// (mion:nodes/atomic/enum.ts:14) with the Color enum from enum.spec.ts.
+func TestCompileValidate_EnumEmitBody(t *testing.T) {
+	enum := &protocol.RunType{
 		ID:     "enm",
 		Kind:   protocol.KindEnum,
 		Values: []any{int64(0), "green", int64(2)},
 	}
-	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{rt}})
+	slots := compileValidateSlots(t, []*protocol.RunType{enum}, "enm")
 	want := "return (v === 0 || v === 'green' || v === 2)"
-	if !strings.Contains(out, want) {
-		t.Errorf("expected enum body %q in:\n%s", want, out)
+	if !strings.Contains(slots.Code, want) {
+		t.Errorf("expected enum body %q in:\n%s", want, slots.Code)
 	}
 }
 
-// TestValidateModule_ArrayEmitBody covers KindArray's canonical block
-// (mion:nodes/member/array.ts:emitIsType). The outer array renders an
-// Array.isArray guard, a numbered for-loop, and an inlined child check
-// since the child (string) is atomic — no dependency call needed.
-func TestValidateModule_ArrayEmitBody(t *testing.T) {
-	// emit walks the *protocol.RunType graph as-given (not via cache
-	// resolution) so the Child slot here is inlined as a KindString
-	// rather than a KindRef sentinel — same shape the renderer sees
-	// after the cache materialises children into the parent.
-	dump := protocol.Dump{
-		RunTypes: []*protocol.RunType{
-			{ID: "ar1", Kind: protocol.KindArray, Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}},
-		},
-	}
-	out := renderToString(t, dump)
+// TestCompileValidate_ArrayEmitBody covers KindArray's canonical block
+// (mion:nodes/member/array.ts:emitIsType): Array.isArray guard, numbered
+// for-loop, inlined atomic child check.
+func TestCompileValidate_ArrayEmitBody(t *testing.T) {
+	array := &protocol.RunType{ID: "ar1", Kind: protocol.KindArray, Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}}
+	slots := compileValidateSlots(t, []*protocol.RunType{array}, "ar1")
 	for _, fragment := range []string{
 		"if (!Array.isArray(v)) return false;",
 		"for (let i0 = 0; i0 < v.length; i0++) {",
@@ -276,25 +224,18 @@ func TestValidateModule_ArrayEmitBody(t *testing.T) {
 		"if (!(res0)) return false;",
 		"return true",
 	} {
-		if !strings.Contains(out, fragment) {
-			t.Errorf("expected array body fragment %q in:\n%s", fragment, out)
+		if !strings.Contains(slots.Code, fragment) {
+			t.Errorf("expected array body fragment %q in:\n%s", fragment, slots.Code)
 		}
 	}
 }
 
-// TestValidateModule_NestedArrayDependencyCall covers `string[][]` — the
-// first multi-level case in the suite. The outer array's body must
-// invoke the inner array's pre-compiled validator via the dependency-
-// call layer:
-//
-//   - The outer module's `rtDependencies` arg carries the inner
-//     hash (non-empty `[…]`).
-//   - The outer createRTFn closure has a `const <innerHash> =
-//     utl.getRT('<innerHash>')` context-item line.
-//   - The outer body contains `<innerHash>.fn(v[i0])` at the element
-//     check position.
-//   - Both modules render (inner first, outer second — topo sort).
-func TestValidateModule_NestedArrayDependencyCall(t *testing.T) {
+// TestCompileValidate_NestedArrayDependencyCall covers `string[][]` — the
+// outer array's entry must carry the inner array as a same-family dep:
+// RTDeps holds the inner key, the body's getRT prologue resolves it, and the
+// element check calls `<innerKey>.fn(v[i0])`. (Closure ordering — inner
+// before outer — is a resolver-layer concern; see modules_test.go.)
+func TestCompileValidate_NestedArrayDependencyCall(t *testing.T) {
 	inner := &protocol.RunType{
 		ID:    "inn",
 		Kind:  protocol.KindArray,
@@ -305,278 +246,160 @@ func TestValidateModule_NestedArrayDependencyCall(t *testing.T) {
 		Kind:  protocol.KindArray,
 		Child: &protocol.RunType{ID: "inn", Kind: protocol.KindArray, Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}},
 	}
-	// Cache insertion order is parent-first (outer, inner). Renderer
-	// must reorder to inner-before-outer so the outer's closure can
-	// resolve `utl.getRT('inn')` against an already-registered entry.
-	dump := protocol.Dump{RunTypes: []*protocol.RunType{outer, inner}}
-	out := renderToString(t, dump)
-
+	slots := compileValidateSlots(t, []*protocol.RunType{outer, inner}, "out")
 	innerKey := valKey("inn")
-	innerFactory := "init('" + innerKey + "',"
-	outerFactory := "init('" + valKey("out") + "',"
-	innerIdx := strings.Index(out, innerFactory)
-	outerIdx := strings.Index(out, outerFactory)
-	if innerIdx < 0 {
-		t.Fatalf("inner factory missing in:\n%s", out)
+	if len(slots.RTDeps) != 1 || slots.RTDeps[0] != innerKey {
+		t.Errorf("outer RTDeps must be [%s], got %v", innerKey, slots.RTDeps)
 	}
-	if outerIdx < 0 {
-		t.Fatalf("outer factory missing in:\n%s", out)
+	if !strings.Contains(slots.Code, "const "+innerKey+" = utl.getRT('"+innerKey+"')") {
+		t.Errorf("outer body must declare the getRT context item for the inner hash, got:\n%s", slots.Code)
 	}
-	if innerIdx >= outerIdx {
-		t.Errorf("inner factory must render before outer (topo sort); got innerIdx=%d outerIdx=%d in:\n%s", innerIdx, outerIdx, out)
-	}
-	if !strings.Contains(out, "['"+innerKey+"']") {
-		t.Errorf("outer factory's rtDependencies arg must contain ['%s'], got:\n%s", innerKey, out)
-	}
-	if !strings.Contains(out, "const "+innerKey+" = utl.getRT('"+innerKey+"')") {
-		t.Errorf("outer factory must register context item resolving the inner hash, got:\n%s", out)
-	}
-	if !strings.Contains(out, innerKey+".fn(v[i0])") {
-		t.Errorf("outer body must call inner via `<hash>.fn(args)`, got:\n%s", out)
+	if !strings.Contains(slots.Code, innerKey+".fn(v[i0])") {
+		t.Errorf("outer body must call inner via `<hash>.fn(args)`, got:\n%s", slots.Code)
 	}
 }
 
-// TestValidateModule_ArrayNoIsArrayCheck — when a createValidate site requests the
-// `noIsArrayCheck` ValidateOptions variant for an array runtype, the
-// emitter fans out an extra `valNA_<id>` factory whose body omits the
-// leading `if (!Array.isArray(v)) return false;` guard. A plain
-// createValidate site still emits the guarded `val_<id>` factory. Mirrors
-// mion's `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType. (`it` is
-// demand-scoped: the scanner attaches each site's structured Demand, so the
-// plain `it` entry and the `NA` variant ride distinct SiteDemand entries —
-// not the legacy Site.Options back-compat fan-out.)
-func TestValidateModule_ArrayNoIsArrayCheck(t *testing.T) {
-	dump := protocol.Dump{
-		RunTypes: []*protocol.RunType{
-			{
-				ID:    "an1",
-				Kind:  protocol.KindArray,
-				Child: &protocol.RunType{ID: "str", Kind: protocol.KindString},
-			},
-		},
-		Sites: []protocol.Site{
-			// Plain createValidate<T[]>() — demands the guarded `val_an1`.
-			{File: "call.ts", Pos: 0, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "val"}}},
-			// createValidate<T[]>(undefined, {noIsArrayCheck: true}) — demands
-			// the `valNA_an1` variant whose body omits the Array.isArray guard.
-			{File: "call.ts", Pos: 40, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "val", VariantSuffix: "NA", Options: []string{"noIsArrayCheck"}}}},
-		},
+// TestCompileValidate_ArrayNoIsArrayCheck — the `noIsArrayCheck`
+// ValidateOptions variant compiles under its variant fnHash key with the
+// leading Array.isArray guard stripped; the plain compile keeps the guard.
+// Mirrors mion's `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType.
+func TestCompileValidate_ArrayNoIsArrayCheck(t *testing.T) {
+	runTypes := []*protocol.RunType{{
+		ID:    "an1",
+		Kind:  protocol.KindArray,
+		Child: &protocol.RunType{ID: "str", Kind: protocol.KindString},
+	}}
+	refTable := buildRefTable(runTypes)
+
+	plain := CompileEntryModule("validate", refTable["an1"], refTable, RenderOpts{}, "", nil)
+	if plain.Key != valKey("an1") {
+		t.Errorf("plain key: got %q want %q", plain.Key, valKey("an1"))
 	}
-	out := renderToString(t, dump)
-	plainKey := valKey("an1")
-	variantKeyNA := itVariantKey([]string{"noIsArrayCheck"}, "an1")
-	// Plain `<itHash>_an1` factory MUST keep the guard — the variant key
-	// dispatch is the only path that strips it.
-	if !strings.Contains(out, plainKey) {
-		t.Errorf("plain validate entry must be emitted, got:\n%s", out)
+	if !strings.Contains(plain.Code, "Array.isArray") {
+		t.Errorf("plain validate entry must keep the Array.isArray guard, got:\n%s", plain.Code)
 	}
-	// The noIsArrayCheck-variant factory MUST exist alongside the plain one.
-	if !strings.Contains(out, variantKeyNA) {
-		t.Errorf("variant validate entry %q must be emitted, got:\n%s", variantKeyNA, out)
+
+	variant := CompileEntryModule("validate", refTable["an1"], refTable, RenderOpts{}, "NA", []string{"noIsArrayCheck"})
+	if variant.Key != itVariantKey([]string{"noIsArrayCheck"}, "an1") {
+		t.Errorf("variant key: got %q want %q", variant.Key, itVariantKey([]string{"noIsArrayCheck"}, "an1"))
 	}
-	// The variant body has the for-loop but no Array.isArray guard.
-	// The plain body has both. Find the variant's `init(...)` line and
-	// assert the guard is absent from it.
-	variantLine := extractInitLine(out, variantKeyNA)
-	if variantLine == "" {
-		t.Fatalf("no init('%s', …) line found in:\n%s", variantKeyNA, out)
+	// Variants keep the BASE family tag — the variant axis lives in the key.
+	if variant.FamilyTag != "val" {
+		t.Errorf("variant FamilyTag: got %q want %q", variant.FamilyTag, "val")
 	}
-	if strings.Contains(variantLine, "Array.isArray") {
-		t.Errorf("valNA variant must omit `Array.isArray(…)` guard, got:\n%s", variantLine)
+	if strings.Contains(variant.Code, "Array.isArray") {
+		t.Errorf("valNA variant must omit the Array.isArray guard, got:\n%s", variant.Code)
 	}
-	if !strings.Contains(variantLine, "for (let i0 = 0;") {
-		t.Errorf("valNA variant must still emit element loop, got:\n%s", variantLine)
+	if !strings.Contains(variant.Code, "for (let i0 = 0;") {
+		t.Errorf("valNA variant must still emit the element loop, got:\n%s", variant.Code)
 	}
 }
 
-// extractInitLine returns the substring of `out` corresponding to the
-// `init('<key>', …);` call for the given cache key. Returns "" when
-// no such call is present.
-func extractInitLine(out, key string) string {
-	needle := "init('" + key + "'"
-	start := strings.Index(out, needle)
-	if start < 0 {
-		return ""
-	}
-	end := strings.Index(out[start:], ");")
-	if end < 0 {
-		return out[start:]
-	}
-	return out[start : start+end+2]
-}
-
-// TestValidateModule_InterfaceEmitBody covers KindObjectLiteral —
-// the canonical interface check (`typeof v === 'object' && v !== null`)
-// AND-chained with each PropertySignature child's check. Atomic
-// children inline directly; the resolver normally hands child slots
-// as KindRef sentinels which the walker derefs via the RefTable.
-func TestValidateModule_InterfaceEmitBody(t *testing.T) {
+// TestCompileValidate_InterfaceEmitBody covers KindObjectLiteral — the
+// canonical object guard AND-chained with each PropertySignature child's
+// check; atomic children inline through the RefTable deref.
+func TestCompileValidate_InterfaceEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	numberRT := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
-	propA := &protocol.RunType{
-		ID:         "pA",
-		Kind:       protocol.KindPropertySignature,
-		Name:       "a",
-		IsSafeName: true,
-		Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
-	}
-	propB := &protocol.RunType{
-		ID:         "pB",
-		Kind:       protocol.KindPropertySignature,
-		Name:       "b",
-		IsSafeName: true,
-		Child:      &protocol.RunType{ID: "num", Kind: protocol.KindRef},
-	}
+	propA := &protocol.RunType{ID: "pA", Kind: protocol.KindPropertySignature, Name: "a", IsSafeName: true, Child: makeRef("str")}
+	propB := &protocol.RunType{ID: "pB", Kind: protocol.KindPropertySignature, Name: "b", IsSafeName: true, Child: makeRef("num")}
 	iface := &protocol.RunType{
-		ID:   "if1",
-		Kind: protocol.KindObjectLiteral,
-		Children: []*protocol.RunType{
-			{ID: "pA", Kind: protocol.KindRef},
-			{ID: "pB", Kind: protocol.KindRef},
-		},
+		ID:       "if1",
+		Kind:     protocol.KindObjectLiteral,
+		Children: []*protocol.RunType{makeRef("pA"), makeRef("pB")},
 	}
-	dump := protocol.Dump{RunTypes: []*protocol.RunType{iface, propA, propB, stringRT, numberRT}}
-	out := renderToString(t, dump)
-	if !strings.Contains(out, "init('"+valKey("if1")+"',") {
-		t.Fatalf("interface factory missing in:\n%s", out)
-	}
+	slots := compileValidateSlots(t, []*protocol.RunType{iface, propA, propB, stringRT, numberRT}, "if1")
 	want := "(typeof v === 'object' && v !== null && typeof v.a === 'string' && Number.isFinite(v.b))"
-	if !strings.Contains(out, want) {
-		t.Errorf("expected interface body %q in:\n%s", want, out)
+	if !strings.Contains(slots.Code, want) {
+		t.Errorf("expected interface body %q in:\n%s", want, slots.Code)
 	}
 }
 
-// TestValidateModule_OptionalPropertyEmitBody checks the optional guard
-// wrap — `(v.<name> === undefined || <childCheck>)`. Mirrors mion's
-// PropertyRunType.emitIsType when src.optional is set.
-func TestValidateModule_OptionalPropertyEmitBody(t *testing.T) {
+// TestCompileValidate_OptionalPropertyEmitBody checks the optional guard
+// wrap — `(v.<name> === undefined || <childCheck>)`.
+func TestCompileValidate_OptionalPropertyEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
-	propA := &protocol.RunType{
-		ID:         "pA",
-		Kind:       protocol.KindPropertySignature,
-		Name:       "a",
-		IsSafeName: true,
-		Optional:   true,
-		Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
-	}
+	propA := &protocol.RunType{ID: "pA", Kind: protocol.KindPropertySignature, Name: "a", IsSafeName: true, Optional: true, Child: makeRef("str")}
 	iface := &protocol.RunType{
 		ID:       "if2",
 		Kind:     protocol.KindObjectLiteral,
-		Children: []*protocol.RunType{{ID: "pA", Kind: protocol.KindRef}},
+		Children: []*protocol.RunType{makeRef("pA")},
 	}
-	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{iface, propA, stringRT}})
+	slots := compileValidateSlots(t, []*protocol.RunType{iface, propA, stringRT}, "if2")
 	want := "(v.a === undefined || typeof v.a === 'string')"
-	if !strings.Contains(out, want) {
-		t.Errorf("expected optional-property body %q in:\n%s", want, out)
+	if !strings.Contains(slots.Code, want) {
+		t.Errorf("expected optional-property body %q in:\n%s", want, slots.Code)
 	}
 }
 
-// TestValidateModule_FunctionPropertyDropped — properties whose wrapped
-// value is function-flavoured are dropped from the parent's AND
-// chain. Mirrors mion's `getRTChild → undefined` short-circuit for
-// methods. The interface body therefore reduces to the basic
-// typeof-object guard + the non-function siblings.
-func TestValidateModule_FunctionPropertyDropped(t *testing.T) {
+// TestCompileValidate_FunctionPropertyDropped — function-flavoured
+// properties are dropped from the parent's AND chain (mion's
+// `getRTChild → undefined` short-circuit for methods).
+func TestCompileValidate_FunctionPropertyDropped(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	fnRT := &protocol.RunType{ID: "fn", Kind: protocol.KindFunction}
-	propName := &protocol.RunType{
-		ID:         "pN",
-		Kind:       protocol.KindPropertySignature,
-		Name:       "name",
-		IsSafeName: true,
-		Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
-	}
-	propMethod := &protocol.RunType{
-		ID:         "pM",
-		Kind:       protocol.KindPropertySignature,
-		Name:       "method",
-		IsSafeName: true,
-		Child:      &protocol.RunType{ID: "fn", Kind: protocol.KindRef},
-	}
+	propName := &protocol.RunType{ID: "pN", Kind: protocol.KindPropertySignature, Name: "name", IsSafeName: true, Child: makeRef("str")}
+	propMethod := &protocol.RunType{ID: "pM", Kind: protocol.KindPropertySignature, Name: "method", IsSafeName: true, Child: makeRef("fn")}
 	iface := &protocol.RunType{
-		ID:   "if3",
-		Kind: protocol.KindObjectLiteral,
-		Children: []*protocol.RunType{
-			{ID: "pN", Kind: protocol.KindRef},
-			{ID: "pM", Kind: protocol.KindRef},
-		},
+		ID:       "if3",
+		Kind:     protocol.KindObjectLiteral,
+		Children: []*protocol.RunType{makeRef("pN"), makeRef("pM")},
 	}
-	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{iface, propName, propMethod, stringRT, fnRT}})
-	if strings.Contains(out, "v.method") {
-		t.Errorf("function-typed property should be dropped from AND chain, but v.method appears:\n%s", out)
+	slots := compileValidateSlots(t, []*protocol.RunType{iface, propName, propMethod, stringRT, fnRT}, "if3")
+	if strings.Contains(slots.Code, "v.method") {
+		t.Errorf("function-typed property should be dropped from the AND chain, got:\n%s", slots.Code)
 	}
-	if !strings.Contains(out, "typeof v.name === 'string'") {
-		t.Errorf("non-function sibling should still be checked, got:\n%s", out)
+	if !strings.Contains(slots.Code, "typeof v.name === 'string'") {
+		t.Errorf("non-function sibling should still be checked, got:\n%s", slots.Code)
 	}
 }
 
-// TestValidateModule_IndexSignatureEmitBody covers KindIndexSignature —
-// the for-in iteration over the object's own keys with a value-type
-// check. Mirrors mion's IndexSignatureRunType.emitIsType.
-func TestValidateModule_IndexSignatureEmitBody(t *testing.T) {
+// TestCompileValidate_IndexSignatureEmitBody covers KindIndexSignature — the
+// for-in iteration with a value-type check.
+func TestCompileValidate_IndexSignatureEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
-	idx := &protocol.RunType{
-		ID:    "ix",
-		Kind:  protocol.KindIndexSignature,
-		Child: &protocol.RunType{ID: "str", Kind: protocol.KindRef},
-	}
+	index := &protocol.RunType{ID: "ix", Kind: protocol.KindIndexSignature, Child: makeRef("str")}
 	iface := &protocol.RunType{
 		ID:       "if4",
 		Kind:     protocol.KindObjectLiteral,
-		Children: []*protocol.RunType{{ID: "ix", Kind: protocol.KindRef}},
+		Children: []*protocol.RunType{makeRef("ix")},
 	}
-	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{iface, idx, stringRT}})
+	slots := compileValidateSlots(t, []*protocol.RunType{iface, index, stringRT}, "if4")
 	for _, fragment := range []string{
 		"for (const k0 in v)",
 		"typeof v[k0] === 'string'",
 		"return true",
 	} {
-		if !strings.Contains(out, fragment) {
-			t.Errorf("expected index-signature fragment %q in:\n%s", fragment, out)
+		if !strings.Contains(slots.Code, fragment) {
+			t.Errorf("expected index-signature fragment %q in:\n%s", fragment, slots.Code)
 		}
 	}
 }
 
-// TestValidateModule_FunctionTopLevelEmitBody — a free-standing function
-// runtype emits the bare `typeof === 'function'` check.
-func TestValidateModule_FunctionTopLevelEmitBody(t *testing.T) {
-	dump := protocol.Dump{RunTypes: []*protocol.RunType{{ID: "fn1", Kind: protocol.KindFunction}}}
-	out := renderToString(t, dump)
-	if !strings.Contains(out, "return typeof v === 'function'") {
-		t.Errorf("expected function body in:\n%s", out)
+// TestCompileValidate_FunctionTopLevelEmitBody — a free-standing function
+// runtype emits the bare typeof check.
+func TestCompileValidate_FunctionTopLevelEmitBody(t *testing.T) {
+	slots := compileValidateSlots(t, []*protocol.RunType{{ID: "fn1", Kind: protocol.KindFunction}}, "fn1")
+	if !strings.Contains(slots.Code, "return typeof v === 'function'") {
+		t.Errorf("expected function body in:\n%s", slots.Code)
 	}
 }
 
-// TestValidateModule_TupleEmitBody covers KindTuple. Body shape (CodeRB)
-// is: Array.isArray guard → length-bound guard (when no rest) → per-
-// member check sequence → return true.
-func TestValidateModule_TupleEmitBody(t *testing.T) {
+// TestCompileValidate_TupleEmitBody covers KindTuple: Array.isArray guard,
+// length-bound guard (no rest member), per-member checks.
+func TestCompileValidate_TupleEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	numberRT := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
 	pos0 := 0
 	pos1 := 1
-	member0 := &protocol.RunType{
-		ID:       "m0",
-		Kind:     protocol.KindTupleMember,
-		Position: &pos0,
-		Child:    &protocol.RunType{ID: "str", Kind: protocol.KindRef},
+	member0 := &protocol.RunType{ID: "m0", Kind: protocol.KindTupleMember, Position: &pos0, Child: makeRef("str")}
+	member1 := &protocol.RunType{ID: "m1", Kind: protocol.KindTupleMember, Position: &pos1, Child: makeRef("num")}
+	tuple := &protocol.RunType{
+		ID:       "tp1",
+		Kind:     protocol.KindTuple,
+		Children: []*protocol.RunType{makeRef("m0"), makeRef("m1")},
 	}
-	member1 := &protocol.RunType{
-		ID:       "m1",
-		Kind:     protocol.KindTupleMember,
-		Position: &pos1,
-		Child:    &protocol.RunType{ID: "num", Kind: protocol.KindRef},
-	}
-	tup := &protocol.RunType{
-		ID:   "tp1",
-		Kind: protocol.KindTuple,
-		Children: []*protocol.RunType{
-			{ID: "m0", Kind: protocol.KindRef},
-			{ID: "m1", Kind: protocol.KindRef},
-		},
-	}
-	dump := protocol.Dump{RunTypes: []*protocol.RunType{tup, member0, member1, stringRT, numberRT}}
-	out := renderToString(t, dump)
+	slots := compileValidateSlots(t, []*protocol.RunType{tuple, member0, member1, stringRT, numberRT}, "tp1")
 	for _, fragment := range []string{
 		"if (!Array.isArray(v)) return false;",
 		"if (v.length > 2) return false;",
@@ -584,286 +407,202 @@ func TestValidateModule_TupleEmitBody(t *testing.T) {
 		"(Number.isFinite(v[1]))",
 		"return true",
 	} {
-		if !strings.Contains(out, fragment) {
-			t.Errorf("expected tuple fragment %q in:\n%s", fragment, out)
+		if !strings.Contains(slots.Code, fragment) {
+			t.Errorf("expected tuple fragment %q in:\n%s", fragment, slots.Code)
 		}
 	}
 }
 
-// TestValidateModule_TupleOptionalMember — optional tuple element wraps
+// TestCompileValidate_TupleOptionalMember — optional tuple element wraps
 // with `(v[i] === undefined || (childCheck))`.
-func TestValidateModule_TupleOptionalMember(t *testing.T) {
+func TestCompileValidate_TupleOptionalMember(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	pos0 := 0
-	member0 := &protocol.RunType{
-		ID:       "m0",
-		Kind:     protocol.KindTupleMember,
-		Position: &pos0,
-		Optional: true,
-		Child:    &protocol.RunType{ID: "str", Kind: protocol.KindRef},
-	}
-	tup := &protocol.RunType{
+	member0 := &protocol.RunType{ID: "m0", Kind: protocol.KindTupleMember, Position: &pos0, Optional: true, Child: makeRef("str")}
+	tuple := &protocol.RunType{
 		ID:       "tp2",
 		Kind:     protocol.KindTuple,
-		Children: []*protocol.RunType{{ID: "m0", Kind: protocol.KindRef}},
+		Children: []*protocol.RunType{makeRef("m0")},
 	}
-	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{tup, member0, stringRT}})
+	slots := compileValidateSlots(t, []*protocol.RunType{tuple, member0, stringRT}, "tp2")
 	want := "(v[0] === undefined || (typeof v[0] === 'string'))"
-	if !strings.Contains(out, want) {
-		t.Errorf("expected optional tuple member %q in:\n%s", want, out)
+	if !strings.Contains(slots.Code, want) {
+		t.Errorf("expected optional tuple member %q in:\n%s", want, slots.Code)
 	}
 }
 
-// TestValidateModule_UnionAtomicEmitBody — union of atomic types
-// produces an OR-chain.
-func TestValidateModule_UnionAtomicEmitBody(t *testing.T) {
+// TestCompileValidate_UnionAtomicEmitBody — union of atomic types produces
+// an OR-chain.
+func TestCompileValidate_UnionAtomicEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	numberRT := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
-	un := &protocol.RunType{
-		ID:   "un1",
-		Kind: protocol.KindUnion,
-		Children: []*protocol.RunType{
-			{ID: "str", Kind: protocol.KindRef},
-			{ID: "num", Kind: protocol.KindRef},
-		},
+	union := &protocol.RunType{
+		ID:       "un1",
+		Kind:     protocol.KindUnion,
+		Children: []*protocol.RunType{makeRef("str"), makeRef("num")},
 	}
-	dump := protocol.Dump{RunTypes: []*protocol.RunType{un, stringRT, numberRT}}
-	out := renderToString(t, dump)
+	slots := compileValidateSlots(t, []*protocol.RunType{union, stringRT, numberRT}, "un1")
 	want := "(typeof v === 'string' || Number.isFinite(v))"
-	if !strings.Contains(out, want) {
-		t.Errorf("expected atomic union body %q in:\n%s", want, out)
+	if !strings.Contains(slots.Code, want) {
+		t.Errorf("expected atomic union body %q in:\n%s", want, slots.Code)
 	}
 }
 
-// TestValidateModule_UnionObjectsShareNullGuard — when union members
-// include object-like kinds, the emit lifts the
-// `typeof === 'object' && !== null` guard outside their OR-chain so a
-// null input short-circuits before any property access.
-func TestValidateModule_UnionObjectsShareNullGuard(t *testing.T) {
+// TestCompileValidate_UnionObjectsShareNullGuard — object-like members lift
+// the `typeof === 'object' && !== null` guard outside their OR-chain.
+func TestCompileValidate_UnionObjectsShareNullGuard(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
-	propA := &protocol.RunType{
-		ID:         "pA",
-		Kind:       protocol.KindPropertySignature,
-		Name:       "a",
-		IsSafeName: true,
-		Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
-	}
-	obj1 := &protocol.RunType{
+	propA := &protocol.RunType{ID: "pA", Kind: protocol.KindPropertySignature, Name: "a", IsSafeName: true, Child: makeRef("str")}
+	object := &protocol.RunType{
 		ID:       "ob1",
 		Kind:     protocol.KindObjectLiteral,
-		Children: []*protocol.RunType{{ID: "pA", Kind: protocol.KindRef}},
+		Children: []*protocol.RunType{makeRef("pA")},
 	}
-	un := &protocol.RunType{
-		ID:   "un2",
-		Kind: protocol.KindUnion,
-		Children: []*protocol.RunType{
-			{ID: "str", Kind: protocol.KindRef},
-			{ID: "ob1", Kind: protocol.KindRef},
-		},
+	union := &protocol.RunType{
+		ID:       "un2",
+		Kind:     protocol.KindUnion,
+		Children: []*protocol.RunType{makeRef("str"), makeRef("ob1")},
 	}
-	dump := protocol.Dump{RunTypes: []*protocol.RunType{un, obj1, propA, stringRT}}
-	out := renderToString(t, dump)
-	if !strings.Contains(out, "typeof v === 'object' && v !== null") {
-		t.Errorf("expected shared object-null guard in union body, got:\n%s", out)
+	slots := compileValidateSlots(t, []*protocol.RunType{union, object, propA, stringRT}, "un2")
+	if !strings.Contains(slots.Code, "typeof v === 'object' && v !== null") {
+		t.Errorf("expected shared object-null guard in union body, got:\n%s", slots.Code)
 	}
 }
 
-func TestValidateModule_UnsupportedKindSkipped(t *testing.T) {
-	// KindIntersection stays unsupported — mion resolves intersections
-	// at compile time into ObjectLiteral / Never, so the emitter never
-	// renders an Intersection factory. KindUnion with no children also
-	// degenerates to unsupported. The renderer must skip both
-	// silently rather than panic so kind-by-kind rollout is possible.
-	dump := protocol.Dump{
-		RunTypes: []*protocol.RunType{
-			{ID: "u1", Kind: protocol.KindUnion}, // no children → unsupported
-			{ID: "x1", Kind: protocol.KindIntersection},
-			{ID: "s1", Kind: protocol.KindString},
-		},
+// TestCompileValidate_UnsupportedRootsGatedBySupports — KindIntersection
+// stays unsupported (mion resolves intersections at compile time), and a
+// KindUnion with no children degenerates to unsupported. Both are gated by
+// Emitter.Supports — the resolver never calls CompileEntryModule for them,
+// so no module exists. A supported sibling still compiles.
+func TestCompileValidate_UnsupportedRootsGatedBySupports(t *testing.T) {
+	validate := FamilyByKey("validate").Emitter
+	if validate.Supports(&protocol.RunType{ID: "u1", Kind: protocol.KindUnion}) {
+		t.Error("empty KindUnion must be unsupported")
 	}
-	out := renderToString(t, dump)
-	if strings.Contains(out, "'"+valKey("u1")+"'") {
-		t.Error("empty KindUnion should be skipped (unsupported), but u1 was rendered")
+	if validate.Supports(&protocol.RunType{ID: "x1", Kind: protocol.KindIntersection}) {
+		t.Error("KindIntersection must be unsupported")
 	}
-	if strings.Contains(out, "'"+valKey("x1")+"'") {
-		t.Error("KindIntersection should be skipped (unsupported), but x1 was rendered")
-	}
-	if !strings.Contains(out, "init('"+valKey("s1")+"',") {
-		t.Errorf("KindString should be rendered as factory call, got:\n%s", out)
+	slots := compileValidateSlots(t, []*protocol.RunType{{ID: "s1", Kind: protocol.KindString}}, "s1")
+	if slots.Code == "" {
+		t.Errorf("KindString must compile to a code-bearing entry, got %+v", slots)
 	}
 }
 
-// TestValidateModule_CodeNSPropagation covers the bubble-up semantics
-// the renderer relies on now that the per-entry `subtreeFullySupported`
-// pre-walk is gone. Each row asserts that an unsupported leaf
-// somewhere in the subtree causes the top-level factory to be silently
-// skipped (no panic, no malformed code), while sibling supported
-// entries in the same dump still render normally.
-func TestValidateModule_CodeNSPropagation(t *testing.T) {
+// TestCompileValidate_CodeNSPropagation covers the unsupported-leaf bubble-up
+// semantics per node: a propagating unsupported leaf with no per-family diag
+// code marks the entry Skip (the resolver's cascade then drops dependents);
+// property positions absorb the leaf instead; a NonSerializable class root
+// compiles to an alwaysThrow entry carrying VL001 on the wire.
+func TestCompileValidate_CodeNSPropagation(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
-	// KindIntersection is unsupported at the leaf — used here as a
-	// stand-in for "any future kind without an emit". We could equally
-	// well synthesize a brand-new ReflectionKind value; KindIntersection
-	// has the advantage of being a real cache shape today.
+	// KindIntersection is unsupported at the leaf — a stand-in for "any
+	// future kind without an emit".
 	unsupportedLeaf := &protocol.RunType{ID: "uns", Kind: protocol.KindIntersection}
 
-	t.Run("array_of_unsupported_skipped", func(t *testing.T) {
-		arr := &protocol.RunType{
-			ID:    "ar1",
-			Kind:  protocol.KindArray,
-			Child: &protocol.RunType{ID: "uns", Kind: protocol.KindRef},
-		}
-		dump := protocol.Dump{RunTypes: []*protocol.RunType{arr, unsupportedLeaf, stringRT}}
-		out := renderToString(t, dump)
-		if strings.Contains(out, "init('"+valKey("ar1")+"',") {
-			t.Errorf("array with unsupported child must be skipped, got:\n%s", out)
-		}
-		if !strings.Contains(out, "init('"+valKey("str")+"',") {
-			t.Errorf("supported sibling must still render, got:\n%s", out)
+	t.Run("array_of_unsupported_skips", func(t *testing.T) {
+		array := &protocol.RunType{ID: "ar1", Kind: protocol.KindArray, Child: makeRef("uns")}
+		slots := compileValidateSlots(t, []*protocol.RunType{array, unsupportedLeaf, stringRT}, "ar1")
+		if !slots.Skip {
+			t.Errorf("array of unsupported leaf must compile to Skip, got %+v", slots)
 		}
 	})
 
 	t.Run("object_with_one_unsupported_prop_renders_without_it", func(t *testing.T) {
-		// v2: property positions ABSORB unsupported children rather than
-		// propagating CodeNS to root. The object's emit drops the unsupported
-		// property from its AND chain and still renders for the supported
-		// siblings. See docs/UNSUPPORTED-KINDS.md "How a parent absorbs".
-		propUns := &protocol.RunType{
-			ID:         "pU",
-			Kind:       protocol.KindPropertySignature,
-			Name:       "u",
-			IsSafeName: true,
-			Child:      &protocol.RunType{ID: "uns", Kind: protocol.KindRef},
-		}
-		propOk := &protocol.RunType{
-			ID:         "pO",
-			Kind:       protocol.KindPropertySignature,
-			Name:       "o",
-			IsSafeName: true,
-			Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
-		}
+		// v2: property positions ABSORB unsupported children. The object's
+		// emit drops the unsupported property from its AND chain and still
+		// renders for the supported siblings.
+		propUns := &protocol.RunType{ID: "pU", Kind: protocol.KindPropertySignature, Name: "u", IsSafeName: true, Child: makeRef("uns")}
+		propOk := &protocol.RunType{ID: "pO", Kind: protocol.KindPropertySignature, Name: "o", IsSafeName: true, Child: makeRef("str")}
 		iface := &protocol.RunType{
-			ID:   "if1",
-			Kind: protocol.KindObjectLiteral,
-			Children: []*protocol.RunType{
-				{ID: "pU", Kind: protocol.KindRef},
-				{ID: "pO", Kind: protocol.KindRef},
-			},
+			ID:       "if1",
+			Kind:     protocol.KindObjectLiteral,
+			Children: []*protocol.RunType{makeRef("pU"), makeRef("pO")},
 		}
-		dump := protocol.Dump{RunTypes: []*protocol.RunType{iface, propUns, propOk, unsupportedLeaf, stringRT}}
-		out := renderToString(t, dump)
-		if !strings.Contains(out, "init('"+valKey("if1")+"',") {
-			t.Errorf("object with one unsupported property must still render (absorption), got:\n%s", out)
+		slots := compileValidateSlots(t, []*protocol.RunType{iface, propUns, propOk, unsupportedLeaf, stringRT}, "if1")
+		if slots.Skip || slots.Code == "" {
+			t.Fatalf("object with one unsupported property must still render (absorption), got %+v", slots)
 		}
-		// The body must NOT reference the dropped property's accessor.
-		if strings.Contains(out, "v.u") {
-			t.Errorf("rendered body should not reference dropped property 'u', got:\n%s", out)
+		if strings.Contains(slots.Code, "v.u") {
+			t.Errorf("rendered body should not reference dropped property 'u', got:\n%s", slots.Code)
 		}
-		// The supported sibling's accessor must be present.
-		if !strings.Contains(out, "v.o") {
-			t.Errorf("rendered body should reference surviving property 'o', got:\n%s", out)
+		if !strings.Contains(slots.Code, "v.o") {
+			t.Errorf("rendered body should reference surviving property 'o', got:\n%s", slots.Code)
 		}
 	})
 
-	t.Run("union_with_one_unsupported_member_skipped", func(t *testing.T) {
-		un := &protocol.RunType{
-			ID:   "un1",
-			Kind: protocol.KindUnion,
-			Children: []*protocol.RunType{
-				{ID: "str", Kind: protocol.KindRef},
-				{ID: "uns", Kind: protocol.KindRef},
-			},
+	t.Run("union_with_one_unsupported_member_skips", func(t *testing.T) {
+		union := &protocol.RunType{
+			ID:       "un1",
+			Kind:     protocol.KindUnion,
+			Children: []*protocol.RunType{makeRef("str"), makeRef("uns")},
 		}
-		dump := protocol.Dump{RunTypes: []*protocol.RunType{un, unsupportedLeaf, stringRT}}
-		out := renderToString(t, dump)
-		if strings.Contains(out, "init('"+valKey("un1")+"',") {
-			t.Errorf("union with one unsupported member must be skipped, got:\n%s", out)
+		slots := compileValidateSlots(t, []*protocol.RunType{union, unsupportedLeaf, stringRT}, "un1")
+		if !slots.Skip {
+			t.Errorf("union with one unsupported member must compile to Skip, got %+v", slots)
 		}
 	})
 
-	t.Run("nested_array_of_unsupported_skipped", func(t *testing.T) {
-		// Outer Array[Array[Unsupported]] — the inner array's child
-		// returns CodeNS; inner array propagates; outer array
-		// propagates. Net effect: both inner and outer factories
-		// silently absent from the rendered module.
-		innerArr := &protocol.RunType{
-			ID:    "ai",
-			Kind:  protocol.KindArray,
-			Child: &protocol.RunType{ID: "uns", Kind: protocol.KindRef},
+	t.Run("nested_array_of_unsupported_cascades_via_dep", func(t *testing.T) {
+		// Outer Array[Array[Unsupported]]: the inner array is a non-inlined
+		// composite, so the OUTER entry compiles to a dependency call on it
+		// while the INNER entry itself Skips. The outer's removal is the
+		// resolver cascade's job — its RTDeps edge to the skipped inner is
+		// what the module-mode dangling-dep cascade keys on (see
+		// internal/resolver/modules_test.go).
+		innerArray := &protocol.RunType{ID: "ai", Kind: protocol.KindArray, Child: makeRef("uns")}
+		outerArray := &protocol.RunType{ID: "ao", Kind: protocol.KindArray, Child: makeRef("ai")}
+		runTypes := []*protocol.RunType{outerArray, innerArray, unsupportedLeaf}
+		if slots := compileValidateSlots(t, runTypes, "ai"); !slots.Skip {
+			t.Errorf("inner array of unsupported must Skip, got %+v", slots)
 		}
-		outerArr := &protocol.RunType{
-			ID:    "ao",
-			Kind:  protocol.KindArray,
-			Child: &protocol.RunType{ID: "ai", Kind: protocol.KindRef},
+		outer := compileValidateSlots(t, runTypes, "ao")
+		if outer.Skip {
+			t.Fatalf("outer array compiles as a dep call (cascade happens at the resolver), got Skip")
 		}
-		dump := protocol.Dump{RunTypes: []*protocol.RunType{outerArr, innerArr, unsupportedLeaf}}
-		out := renderToString(t, dump)
-		if strings.Contains(out, "init('"+valKey("ao")+"',") {
-			t.Errorf("outer array of unsupported must be skipped, got:\n%s", out)
-		}
-		if strings.Contains(out, "init('"+valKey("ai")+"',") {
-			t.Errorf("inner array of unsupported must be skipped, got:\n%s", out)
+		if len(outer.RTDeps) != 1 || outer.RTDeps[0] != valKey("ai") {
+			t.Errorf("outer must carry the inner dep edge the cascade keys on, got %v", outer.RTDeps)
 		}
 	})
 
 	t.Run("plain_user_class_with_nonserializable_subkind_throws", func(t *testing.T) {
-		// v2: alwaysThrow init() carries the diag code as the 8th arg
-		// (no embedded throw body). JS side resolves the code to a
-		// message via messageForCode() at materialise time. See
-		// docs/UNSUPPORTED-KINDS.md "Wire format".
-		ns := &protocol.RunType{ID: "ns1", Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable}
-		dump := protocol.Dump{RunTypes: []*protocol.RunType{ns, stringRT}}
-		out := renderToString(t, dump)
-		if !strings.Contains(out, "init('"+valKey("ns1")+"','class',undefined,false,undefined,undefined,undefined,'VL001',undefined)") {
-			t.Errorf("KindClass+SubKindNonSerializable must emit an alwaysThrow init with code VL001, got:\n%s", out)
+		nonSerializable := &protocol.RunType{ID: "ns1", Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable}
+		slots := compileValidateSlots(t, []*protocol.RunType{nonSerializable, stringRT}, "ns1")
+		if slots.ThrowCode != "VL001" {
+			t.Fatalf("KindClass+SubKindNonSerializable must compile to an alwaysThrow entry with VL001, got %+v", slots)
 		}
-		// No inline throwing function body should remain.
-		if strings.Contains(out, "throw new Error(") {
-			t.Errorf("v2 wire format should not embed throw-body strings, got:\n%s", out)
+		array := FormatEntryArray(slots)
+		if !strings.Contains(array, "'VL001'") {
+			t.Errorf("alwaysThrow entry array must carry the diag code, got: %s", array)
 		}
-		if !strings.Contains(out, "init('"+valKey("str")+"',") {
-			t.Errorf("supported sibling must still render, got:\n%s", out)
+		if strings.Contains(array, "throw new Error(") {
+			t.Errorf("v2 wire format must not embed throw-body strings, got: %s", array)
 		}
 	})
 }
 
-func TestValidateModule_NilRunTypeSkipped(t *testing.T) {
-	dump := protocol.Dump{
-		RunTypes: []*protocol.RunType{
-			nil,
-			{ID: "s1", Kind: protocol.KindString},
-			nil,
-		},
+// TestCompileValidate_Deterministic — compiling the same root twice yields
+// identical slots and wire bytes.
+func TestCompileValidate_Deterministic(t *testing.T) {
+	runTypes := []*protocol.RunType{
+		{ID: "a", Kind: protocol.KindString},
+		{ID: "b", Kind: protocol.KindString},
 	}
-	out := renderToString(t, dump)
-	if !strings.Contains(out, "init('"+valKey("s1")+"',") {
-		t.Error("nil entries should be skipped without affecting the real one")
-	}
-}
-
-func TestValidateModule_DeterministicOutput(t *testing.T) {
-	dump := protocol.Dump{
-		RunTypes: []*protocol.RunType{
-			{ID: "a", Kind: protocol.KindString},
-			{ID: "b", Kind: protocol.KindString},
-		},
-	}
-	first := renderToString(t, dump)
-	second := renderToString(t, dump)
-	if first != second {
-		t.Errorf("rendered output is non-deterministic:\nfirst:\n%s\nsecond:\n%s", first, second)
+	first := compileValidateSlots(t, runTypes, "a")
+	second := compileValidateSlots(t, runTypes, "a")
+	if FormatEntryArray(first) != FormatEntryArray(second) {
+		t.Errorf("compile is non-deterministic:\nfirst:  %s\nsecond: %s", FormatEntryArray(first), FormatEntryArray(second))
 	}
 }
 
-func TestValidateModule_TypeNameUsesDeclaredOverride(t *testing.T) {
-	dump := protocol.Dump{
-		RunTypes: []*protocol.RunType{
-			{ID: "x", Kind: protocol.KindString, TypeName: "MyBrandedString"},
-		},
+// TestCompileValidate_TypeNameUsesDeclaredOverride — a declared TypeName
+// lands in the typeName slot.
+func TestCompileValidate_TypeNameUsesDeclaredOverride(t *testing.T) {
+	slots := compileValidateSlots(t, []*protocol.RunType{{ID: "x", Kind: protocol.KindString, TypeName: "MyBrandedString"}}, "x")
+	if slots.TypeName != "MyBrandedString" {
+		t.Errorf("expected declared TypeName override, got %q", slots.TypeName)
 	}
-	out := renderToString(t, dump)
-	if !strings.Contains(out, "'MyBrandedString'") {
-		t.Errorf("expected declared TypeName to land as the J typeName arg, got:\n%s", out)
+	if !strings.Contains(FormatEntryArray(slots), "'MyBrandedString'") {
+		t.Errorf("entry array missing TypeName: %s", FormatEntryArray(slots))
 	}
 }
 
@@ -891,38 +630,5 @@ func TestStringSliceJS_EmptyAndPopulated(t *testing.T) {
 	}
 	if got := stringSliceJS([]string{"a", "b"}); got != "['a','b']" {
 		t.Errorf("two → %q, want ['a','b']", got)
-	}
-}
-
-func TestPureFnDepsJS_EmptyAndPopulated(t *testing.T) {
-	if got := pureFnDepsJS(nil); got != "[]" {
-		t.Errorf("nil → %q, want []", got)
-	}
-	if got := pureFnDepsJS([]protocol.PureFnDep{}); got != "[]" {
-		t.Errorf("empty → %q, want []", got)
-	}
-	// Aliased pure-fns (see purefn_aliases.go) emit a bare identifier
-	// reference to the matching `k_<alias>` module-level const declared
-	// in the cache skeleton; unaliased ones fall back to the quoted
-	// "<ns>::<fn>" literal.
-	deps := []protocol.PureFnDep{
-		{Namespace: "mion", FunctionName: "asJSONString", FilePath: "/abs/run-types-pure-fns.ts"},
-		{Namespace: "mion", FunctionName: "newRunTypeErr", FilePath: "/abs/run-types-pure-fns.ts"},
-	}
-	want := "['mion::asJSONString',k_nRT]"
-	if got := pureFnDepsJS(deps); got != want {
-		t.Errorf("populated → %q, want %q", got, want)
-	}
-}
-
-func TestValidateModule_PureFnDepsRendered(t *testing.T) {
-	deps := pureFnDepsJS([]protocol.PureFnDep{
-		{Namespace: "mion", FunctionName: "asJSONString", FilePath: "/some/abs/run-types-pure-fns.ts"},
-	})
-	if deps != "['mion::asJSONString']" {
-		t.Fatalf("projection mismatch: got %q", deps)
-	}
-	if strings.Contains(deps, "/some/abs/") || strings.Contains(deps, "filePath") {
-		t.Fatalf("filePath must NOT leak into emitted JS, got %q", deps)
 	}
 }
