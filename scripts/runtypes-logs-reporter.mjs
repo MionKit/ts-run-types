@@ -21,9 +21,9 @@ import {CACHE_MODULES} from '../packages/vite-plugin-runtypes/dist/runtypes-cons
 //                                                  validate, …, pureFns),
 //                                                  one banner per module.
 // The kind of each entry module is sniffed off its tuple's slot 0 (numeric
-// for runtype / pure-fn / missing entries, the family tag string for fn
-// entries); family tags map back to their CacheModules key via the generated
-// constants mirror. Every file repeats the input sources at the top so it's
+// for pure-fn / missing entries and the runtype bundle + facades, the family
+// tag string for fn entries); family tags map back to their CacheModules key
+// via the generated constants mirror. Every file repeats the input sources at the top so it's
 // self-contained when opened in isolation.
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -111,13 +111,13 @@ function renderCacheFile(meta, kind, modules, responseIdx, responseCount) {
 const keyByFamilyTag = Object.fromEntries(Object.entries(CACHE_MODULES).map(([key, settings]) => [settings.tag, key]));
 
 // entryKindOf sniffs an entry module's cache kind off its exported tuple's
-// slot 0 — numeric (0 runtype / 2 pure fn / 3 missing stub) or the quoted
-// family tag string for fn entries.
+// slot 0 — numeric (2 pure fn / 3 missing stub / 4 runtype bundle / 5
+// runtype facade) or the quoted family tag string for fn entries.
 function entryKindOf(source) {
   const match = source.match(/export const e=\[(?:'([^']+)'|(\d+))[,\]]/);
   if (!match) return 'unknown';
   if (match[1] !== undefined) return keyByFamilyTag[match[1]] ?? match[1];
-  return {0: 'runType', 2: 'pureFns', 3: 'missing'}[match[2]] ?? 'unknown';
+  return {2: 'pureFns', 3: 'missing', 4: 'runType', 5: 'runType'}[match[2]] ?? 'unknown';
 }
 
 function stripEntryModules(response) {

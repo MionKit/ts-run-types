@@ -82,6 +82,7 @@ export const ENTRY_MODULE_SUFFIX = '.js';
 export const ENTRY_EXPORT_NAME = 'e';
 export const ENTRY_BINDING_PREFIX = '__rt_';
 export const PURE_FN_MODULE_DIR = 'pf';
+export const RUNTYPES_BUNDLE_BASENAME = 'runtypes';
 
 export const REFLECTION_SUB_KIND = {
   mapKey: 1801,

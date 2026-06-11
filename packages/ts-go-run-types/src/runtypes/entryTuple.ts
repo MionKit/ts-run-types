@@ -4,28 +4,38 @@
 // ----------------------------------------------------------------------------
 // The Go binary emits one ES module per cache entry (`virtual:rt/<key>.js`),
 // exporting a positional tuple under the fixed export `e`. Tuples are typed
-// here as RECORD interfaces (`RunTypeRecord` / `FnTypeRecord` / `PureFnRecord`)
-// whose payload fields are Pick'd from the canonical cache-entry types in
-// `types.ts` (`RunType`, `CompiledTypeFn`, `CompiledPureFunction`), so the
-// wire shapes can never drift from the registry shapes. The positional tuple
-// types are DERIVED from the records through the `*_TUPLE_KEYS` arrays — the
-// single source of slot order, mirrored by the emitters in
-// internal/compiled/{entrymod,runtype,typefns,purefns}. Any layout change MUST
-// touch the matching keys array here and the Go emitter together.
+// here as RECORD interfaces (`RunTypeBundleRecord` / `FnTypeRecord` /
+// `PureFnRecord` / …) whose payload fields are Pick'd from the canonical
+// cache-entry types in `types.ts` (`RunType`, `CompiledTypeFn`,
+// `CompiledPureFunction`), so the wire shapes can never drift from the
+// registry shapes. The positional tuple types are DERIVED from the records
+// through the `*_TUPLE_KEYS` arrays — the single source of slot order,
+// mirrored by the emitters in internal/compiled/{entrymod,runtype,typefns,
+// purefns}. Any layout change MUST touch the matching keys array here and
+// the Go emitter together.
 //
 // Every tuple shares the same fixed head: slot 0 discriminates the layout
 // (the numeric kinds below, or the QUOTED family tag string for type-fn
 // entries), slot 1 is a lazy thunk returning the entry's DIRECT dependency
 // tuples (leaves-first by level, self last), slot 2 is the runtype footer
 // initializer (or undefined), slot 3 is always the cache key. The remaining
-// slots mirror the pre-migration `rt(…)` / `init(…)` / `factory(…)` call
-// interiors byte-for-byte; the Go side trims trailing-undefined slots, which
-// the derived tuple types model as optional tails.
+// slots mirror the pre-migration `init(…)` / `factory(…)` call interiors
+// byte-for-byte; the Go side trims trailing-undefined slots, which the
+// derived tuple types model as optional tails.
+//
+// Runtype nodes are special-cased for density: every reflection-demanded
+// node rides as one headless ROW of THE single data-bundle module
+// (`virtual:rt/runtypes.js`, kind 4 — rows in slot 4, ONE combined footer
+// initializer in slot 2, content-hash key in slot 3), and each reflection
+// root gets a tiny facade module (`virtual:rt/<rootId>.js`, kind 5) that
+// imports the bundle and carries the root id in its key slot. Each node
+// exists exactly once app-wide; facades keep the rewrite's binding-only
+// injection working unchanged.
 //
 // `initFromTuple` registers a tuple's whole closure in two phases: walk the
 // deps() thunks recursively (post-order with a processed-keys guard, so
 // children register before parents and cycles terminate), then run each
-// newly-registered runtype tuple's `ini`. Ref slots therefore always resolve
+// newly-registered tuple's `ini`. Ref slots therefore always resolve
 // against registered entries, and fn-factory materialisation stays lazy
 // (materializeRTFn on first getRT), so cycles keep working exactly as before.
 
@@ -34,10 +44,13 @@ import type {RTUtils} from './rtUtils.ts';
 import type {AnyFn, CompiledFnArgs, CompiledFnData, CompiledPureFunction, CompiledTypeFn, RunType} from './types.ts';
 
 // Numeric slot-0 kinds (Go: constants.TupleKind*). Type-fn entries carry their
-// family tag string instead.
-const KIND_RUN_TYPE = 0;
+// family tag string instead. Runtype nodes don't ship as standalone modules:
+// they ride as headless ROWS of the single data bundle (kind 4), aliased per
+// reflection root by facade modules (kind 5).
 const KIND_PURE_FN = 2;
 const KIND_MISSING = 3;
+const KIND_RUN_TYPE_BUNDLE = 4;
+const KIND_RUN_TYPE_FACADE = 5;
 
 /** Fixed character length of every fnHash (Go: operations.FnHashLen). Used to
  *  split `<fnHash>_<typeId>` keys when a value-first schema overrides the
@@ -59,10 +72,11 @@ export type RunTypeIni = (rtu: RTUtils) => void;
 // Entry records — named views of each tuple layout.
 // =============================================================================
 
-// The scalar identification fields a runtype tuple carries, in WIRE ORDER.
-// Pick'd from the canonical RunType so the record reuses its field types; the
-// ref-bearing slots (child / children / …) are NOT here — they start undefined
-// on the registered entry and are patched by the tuple's ini.
+// The scalar identification fields a runtype bundle ROW carries, in WIRE
+// ORDER. Pick'd from the canonical RunType so the record reuses its field
+// types; the ref-bearing slots (child / children / …) are NOT here — they
+// start undefined on the registered entry and are patched by the bundle's
+// combined ini.
 const RUN_TYPE_FIELD_KEYS = [
   'id',
   'kind',
@@ -86,12 +100,34 @@ const RUN_TYPE_FIELD_KEYS = [
   'notSupported',
 ] as const;
 
-/** Named view of a runtype entry tuple: the shared head plus RunType's scalar
- *  identification fields (same names, same types — see RUN_TYPE_FIELD_KEYS). **/
-export interface RunTypeRecord extends Pick<RunType, (typeof RUN_TYPE_FIELD_KEYS)[number]> {
-  entryKind: typeof KIND_RUN_TYPE;
+/** Named view of one runtype ROW inside the data bundle: RunType's scalar
+ *  identification fields in wire order (same names, same types — see
+ *  RUN_TYPE_FIELD_KEYS). Rows carry no tuple head — the bundle module hosts
+ *  the shared deps thunk and the single combined ini. **/
+export type RunTypeRowRecord = Pick<RunType, (typeof RUN_TYPE_FIELD_KEYS)[number]>;
+
+/** Named view of THE runtype data-bundle module (`virtual:rt/runtypes.js`):
+ *  every reflection-demanded node as one headless row plus one combined
+ *  footer initializer. `key` is a CONTENT hash over the row ids — it changes
+ *  exactly when the bundle evolves, so the processed-keys guard re-registers
+ *  new rows after an HMR reload of the (mutable) bundle module. **/
+export interface RunTypeBundleRecord {
+  entryKind: typeof KIND_RUN_TYPE_BUNDLE;
   deps: EntryDepsThunk;
   ini: RunTypeIni | undefined;
+  key: string;
+  rows: readonly RunTypeRow[];
+}
+
+/** Named view of a per-reflection-root facade module
+ *  (`virtual:rt/<rootId>.js`): registers nothing — it carries the root id in
+ *  the key slot and the bundle in its deps thunk, so the rewrite's
+ *  binding-only injection keeps deriving ids from the tuple. **/
+export interface RunTypeFacadeRecord {
+  entryKind: typeof KIND_RUN_TYPE_FACADE;
+  deps: EntryDepsThunk;
+  ini: undefined;
+  key: string;
 }
 
 /** Named view of a type-fn entry tuple: the shared head (slot 0 is the family
@@ -149,14 +185,16 @@ type TupleFrom<R, K extends readonly (keyof R)[]> = {[I in keyof K]: R[K[I]]};
 
 const ENTRY_HEAD_KEYS = ['entryKind', 'deps', 'ini'] as const;
 
-// Go's emitters trim trailing-undefined slots: runtype tuples always carry at
+// Go's emitters trim trailing-undefined slots: runtype rows always carry at
 // least (id, kind); fn tuples at least the noop short form (…, code, isNoop);
-// pure-fn and missing tuples are never trimmed. The REQUIRED/TRIMMED splits
-// below mirror that, so the derived tuple types accept the short forms.
-type RunTypeRequiredKeys = readonly [...typeof ENTRY_HEAD_KEYS, 'id', 'kind'];
-type RunTypeTrimmedKeys = typeof RUN_TYPE_FIELD_KEYS extends readonly [unknown, unknown, ...infer Rest] ? Rest : never;
+// pure-fn, bundle, facade and missing tuples are never trimmed. The
+// REQUIRED/TRIMMED splits below mirror that, so the derived tuple types
+// accept the short forms.
+type RunTypeRowRequiredKeys = readonly ['id', 'kind'];
+type RunTypeRowTrimmedKeys = typeof RUN_TYPE_FIELD_KEYS extends readonly [unknown, unknown, ...infer Rest] ? Rest : never;
 
-export const RUN_TYPE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, ...RUN_TYPE_FIELD_KEYS] as const;
+export const RUN_TYPE_BUNDLE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key', 'rows'] as const;
+export const RUN_TYPE_FACADE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key'] as const;
 
 const FN_TYPE_REQUIRED_KEYS = ['familyTag', 'deps', 'ini', 'rtFnHash', 'typeName', 'code', 'isNoop'] as const;
 const FN_TYPE_TRIMMED_KEYS = [
@@ -180,11 +218,20 @@ export const PURE_FN_TUPLE_KEYS = [
 
 const MISSING_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key'] as const;
 
-/** Positional tuple of a runtype entry module — derived from RunTypeRecord. **/
-export type RunTypeTuple = readonly [
-  ...TupleFrom<RunTypeRecord, RunTypeRequiredKeys>,
-  ...Partial<TupleFrom<RunTypeRecord, RunTypeTrimmedKeys>>,
+/** Positional row of the runtype data bundle — derived from RunTypeRowRecord
+ *  (headless: id at slot 0, kind at slot 1, trailing-undefined slots trimmed). **/
+export type RunTypeRow = readonly [
+  ...TupleFrom<RunTypeRowRecord, RunTypeRowRequiredKeys>,
+  ...Partial<TupleFrom<RunTypeRowRecord, RunTypeRowTrimmedKeys>>,
 ];
+
+/** Positional tuple of the runtype data-bundle module — derived from
+ *  RunTypeBundleRecord. **/
+export type RunTypeBundleTuple = readonly [...TupleFrom<RunTypeBundleRecord, typeof RUN_TYPE_BUNDLE_TUPLE_KEYS>];
+
+/** Positional tuple of a per-root facade module — derived from
+ *  RunTypeFacadeRecord. **/
+export type RunTypeFacadeTuple = readonly [...TupleFrom<RunTypeFacadeRecord, typeof RUN_TYPE_FACADE_TUPLE_KEYS>];
 
 /** Positional tuple of a type-fn entry module — derived from FnTypeRecord. **/
 export type FnTypeTuple = readonly [
@@ -199,18 +246,26 @@ export type PureFnTuple = readonly [...TupleFrom<PureFnRecord, typeof PURE_FN_TU
 export type MissingTuple = readonly [...TupleFrom<MissingRecord, typeof MISSING_TUPLE_KEYS>];
 
 /** One emitted entry-module tuple — the union every consumer handles. **/
-export type EntryTuple = RunTypeTuple | FnTypeTuple | PureFnTuple | MissingTuple;
+export type EntryTuple = RunTypeBundleTuple | RunTypeFacadeTuple | FnTypeTuple | PureFnTuple | MissingTuple;
 
 // Fixed-head slot indexes, pinned at compile time against every keys array so
 // a layout edit that moves a head slot fails the build here, not at runtime.
 const SLOT_KIND = 0;
 const SLOT_DEPS = 1;
 const SLOT_KEY = 3;
-const _pinRunTypeHead: ['entryKind', 'deps', 'ini', 'id'] = [
-  RUN_TYPE_TUPLE_KEYS[SLOT_KIND],
-  RUN_TYPE_TUPLE_KEYS[SLOT_DEPS],
-  RUN_TYPE_TUPLE_KEYS[2],
-  RUN_TYPE_TUPLE_KEYS[SLOT_KEY],
+const SLOT_ROWS = 4;
+const _pinBundleHead: ['entryKind', 'deps', 'ini', 'key', 'rows'] = [
+  RUN_TYPE_BUNDLE_TUPLE_KEYS[SLOT_KIND],
+  RUN_TYPE_BUNDLE_TUPLE_KEYS[SLOT_DEPS],
+  RUN_TYPE_BUNDLE_TUPLE_KEYS[2],
+  RUN_TYPE_BUNDLE_TUPLE_KEYS[SLOT_KEY],
+  RUN_TYPE_BUNDLE_TUPLE_KEYS[SLOT_ROWS],
+];
+const _pinFacadeHead: ['entryKind', 'deps', 'ini', 'key'] = [
+  RUN_TYPE_FACADE_TUPLE_KEYS[SLOT_KIND],
+  RUN_TYPE_FACADE_TUPLE_KEYS[SLOT_DEPS],
+  RUN_TYPE_FACADE_TUPLE_KEYS[2],
+  RUN_TYPE_FACADE_TUPLE_KEYS[SLOT_KEY],
 ];
 const _pinFnTypeHead: ['familyTag', 'deps', 'ini', 'rtFnHash'] = [
   FN_TYPE_TUPLE_KEYS[SLOT_KIND],
@@ -230,7 +285,8 @@ const _pinMissingHead: ['entryKind', 'deps', 'ini', 'key'] = [
   MISSING_TUPLE_KEYS[2],
   MISSING_TUPLE_KEYS[SLOT_KEY],
 ];
-void _pinRunTypeHead;
+void _pinBundleHead;
+void _pinFacadeHead;
 void _pinFnTypeHead;
 void _pinPureFnHead;
 void _pinMissingHead;
@@ -244,16 +300,6 @@ function tupleToRecord<R extends object>(keys: readonly (keyof R)[], tuple: read
     record[keys[index]] = tuple[index];
   }
   return record as R;
-}
-
-// pickRecord projects a subset of a record's fields — used to strip the tuple
-// head off a RunTypeRecord, leaving exactly RunType's identification fields.
-function pickRecord<R extends object, K extends readonly (keyof R)[]>(record: R, keys: K): Pick<R, K[number]> {
-  const out = {} as Record<keyof R, unknown>;
-  for (const key of keys) {
-    out[key] = record[key];
-  }
-  return out as Pick<R, K[number]>;
 }
 
 /** Runtime guard for an injected entry tuple (vs a value-first schema, a
@@ -389,43 +435,54 @@ function collectClosure(tuple: unknown, utils: RTUtils, fresh: EntryTuple[]): vo
 }
 
 /** Registers a single tuple in the cache matching its kind. Returns true when
- *  the entry was newly added (drives the phase-2 ini pass). **/
+ *  at least one entry was newly added (drives the phase-2 ini pass). **/
 function registerTuple(utils: RTUtils, tuple: EntryTuple): boolean {
   const slot0 = tuple[SLOT_KIND];
   if (typeof slot0 === 'string') return registerTypeFnTuple(utils, tuple as FnTypeTuple);
-  if (slot0 === KIND_RUN_TYPE) return registerRunTypeTuple(utils, tuple as RunTypeTuple);
+  if (slot0 === KIND_RUN_TYPE_BUNDLE) return registerRunTypeBundle(utils, tuple as RunTypeBundleTuple);
   if (slot0 === KIND_PURE_FN) return registerPureFnTuple(utils, tuple as PureFnTuple);
-  return false; // KIND_MISSING or unknown future kind — nothing to register.
+  // A facade only carries its root id — the data arrived through its bundle
+  // dep. Missing stubs and unknown future kinds register nothing either.
+  if (slot0 === KIND_RUN_TYPE_FACADE) return false;
+  return false;
 }
 
-// registerRunTypeTuple builds the RunType the runTypesCache skeleton's `rt(…)`
-// factory used to construct: the record's identification fields plus every
-// ref slot pre-set to undefined, patched later by the tuple's ini.
-// `addRunType` overwrites by id, but re-registration is skipped so
-// footer-patched entries are never reset while in use.
-function registerRunTypeTuple(utils: RTUtils, tuple: RunTypeTuple): boolean {
-  const record = tupleToRecord<RunTypeRecord>(RUN_TYPE_TUPLE_KEYS, tuple);
-  if (utils.hasRunType(record.id)) return false;
-  const entry: RunType = {
-    ...pickRecord(record, RUN_TYPE_FIELD_KEYS),
-    child: undefined,
-    index: undefined,
-    return: undefined,
-    indexType: undefined,
-    parameters: undefined,
-    children: undefined,
-    safeUnionChildren: undefined,
-    unionDiscriminators: undefined,
-    typeMeta: undefined,
-    typeArguments: undefined,
-    arguments: undefined,
-    extendsArguments: undefined,
-    implements: undefined,
-    extends: undefined,
-    classType: undefined,
-  };
-  utils.addRunType(record.id, entry);
-  return true;
+// registerRunTypeBundle registers every headless row of the data bundle —
+// the RunTypes the runTypesCache skeleton's `rt(…)` factory used to construct
+// one call at a time: identification fields zipped from wire order plus every
+// ref slot pre-set to undefined, patched later by the bundle's single
+// combined ini. Rows an earlier bundle generation already registered are
+// skipped (footer-patched entries are never reset while in use); the combined
+// ini re-runs over them anyway, which is safe — footer assignments are
+// deterministic constants.
+function registerRunTypeBundle(utils: RTUtils, tuple: RunTypeBundleTuple): boolean {
+  const rows = (tuple[SLOT_ROWS] ?? []) as readonly RunTypeRow[];
+  let added = false;
+  for (const row of rows) {
+    const record = tupleToRecord<RunTypeRowRecord>(RUN_TYPE_FIELD_KEYS, row);
+    if (utils.hasRunType(record.id)) continue;
+    const entry: RunType = {
+      ...record,
+      child: undefined,
+      index: undefined,
+      return: undefined,
+      indexType: undefined,
+      parameters: undefined,
+      children: undefined,
+      safeUnionChildren: undefined,
+      unionDiscriminators: undefined,
+      typeMeta: undefined,
+      typeArguments: undefined,
+      arguments: undefined,
+      extendsArguments: undefined,
+      implements: undefined,
+      extends: undefined,
+      classType: undefined,
+    };
+    utils.addRunType(record.id, entry);
+    added = true;
+  }
+  return added;
 }
 
 // registerTypeFnTuple builds the CompiledTypeFn the per-family cache

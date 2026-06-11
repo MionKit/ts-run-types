@@ -6,15 +6,17 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
+	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// emit collects + renders the per-entry modules for runTypes and returns the
+// emit collects + renders the runtype modules (the bundle plus one facade per
+// root) demanding every listed node as a reflection root, and returns the
 // concatenated sources in sorted-basename order (deterministic, so the
 // byte-equality tests below stay stable).
 func emit(t *testing.T, runTypes []*protocol.RunType) string {
 	t.Helper()
-	modules := emitModules(t, runTypes)
+	modules := emitModules(t, allIDs(runTypes), runTypes)
 	basenames := make([]string, 0, len(modules))
 	for basename := range modules {
 		basenames = append(basenames, basename)
@@ -28,9 +30,15 @@ func emit(t *testing.T, runTypes []*protocol.RunType) string {
 	return all.String()
 }
 
-func emitModules(t *testing.T, runTypes []*protocol.RunType) map[string]string {
+// emitModules runs CollectEntries with the given reflection roots (one bare-id
+// site per root) and renders the resulting graph.
+func emitModules(t *testing.T, roots []string, runTypes []*protocol.RunType) map[string]string {
 	t.Helper()
-	graph := CollectEntries(protocol.Dump{RunTypes: runTypes})
+	sites := make([]protocol.Site, 0, len(roots))
+	for _, root := range roots {
+		sites = append(sites, protocol.Site{ID: root})
+	}
+	graph := CollectEntries(protocol.Dump{RunTypes: runTypes, Sites: sites})
 	modules, err := entrymod.Render(graph)
 	if err != nil {
 		t.Fatalf("entrymod.Render: %v", err)
@@ -38,34 +46,109 @@ func emitModules(t *testing.T, runTypes []*protocol.RunType) map[string]string {
 	return modules
 }
 
+// bundleOf returns the single data-bundle module source.
+func bundleOf(t *testing.T, modules map[string]string) string {
+	t.Helper()
+	source, ok := modules[constants.RunTypesBundleBasename]
+	if !ok {
+		t.Fatalf("no %q bundle module rendered, got %v", constants.RunTypesBundleBasename, keysOfModules(modules))
+	}
+	return source
+}
+
+func allIDs(runTypes []*protocol.RunType) []string {
+	ids := make([]string, 0, len(runTypes))
+	for _, runType := range runTypes {
+		ids = append(ids, runType.ID)
+	}
+	return ids
+}
+
+func keysOfModules(modules map[string]string) []string {
+	keys := make([]string, 0, len(modules))
+	for key := range modules {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func intPtr(n int) *int { return &n }
 
-// TestModuleShape — one module per runtype, tuple head [0,deps,<ini|u>,…],
-// fixed export name.
-func TestModuleShape(t *testing.T) {
-	modules := emitModules(t, []*protocol.RunType{{ID: "x1", Kind: protocol.KindString}})
-	source, ok := modules["x1"]
-	if !ok {
-		t.Fatalf("expected module basename x1, got %v", modules)
+// TestBundleShape — all nodes land as rows of ONE bundle module
+// (`virtual:rt/runtypes.js`) with tuple head [4,deps,<ini|u>,'rts_<hash>',
+// [rows…]], and each root gets a facade module [5,deps,u,'<rootId>'] that
+// imports the bundle.
+func TestBundleShape(t *testing.T) {
+	modules := emitModules(t, []string{"x1"}, []*protocol.RunType{{ID: "x1", Kind: protocol.KindString}})
+	bundle := bundleOf(t, modules)
+	if !strings.Contains(bundle, "export const e=[4,deps,u,'rts_") {
+		t.Errorf("expected bundle tuple head [4,deps,u,'rts_…'], got:\n%s", bundle)
 	}
-	want := "const u=undefined;\nconst deps=()=>[e];\nexport const e=[0,deps,u,'x1',5];\n"
-	if source != want {
-		t.Errorf("module shape mismatch:\n got: %q\nwant: %q", source, want)
+	if !strings.Contains(bundle, ",[['x1',5]]];") {
+		t.Errorf("expected single row [['x1',5]], got:\n%s", bundle)
+	}
+	if strings.Contains(bundle, "import ") {
+		t.Errorf("bundle must have no imports, got:\n%s", bundle)
+	}
+
+	facade, ok := modules["x1"]
+	if !ok {
+		t.Fatalf("expected facade module x1, got %v", keysOfModules(modules))
+	}
+	wantImport := "import {e as d1} from 'virtual:rt/" + constants.RunTypesBundleBasename + ".js';\n"
+	if !strings.HasPrefix(facade, wantImport) {
+		t.Errorf("facade must import the bundle:\n got: %q\nwant prefix: %q", facade, wantImport)
+	}
+	if !strings.Contains(facade, "export const e=[5,deps,u,'x1'];") {
+		t.Errorf("facade tuple mismatch, got:\n%s", facade)
 	}
 }
 
-// TestSimpleAtomic — a single KindString node emits args `'id',5` with
+// TestNoReflectionRoots — a dump without reflection sites emits NO runtype
+// modules at all (createX-only files pay zero reflection payload).
+func TestNoReflectionRoots(t *testing.T) {
+	graph := CollectEntries(protocol.Dump{
+		RunTypes: []*protocol.RunType{{ID: "x1", Kind: protocol.KindString}},
+		Sites:    []protocol.Site{{ID: "x1", FnId: "Qm3p"}}, // createX site, not reflection
+	})
+	if len(graph) != 0 {
+		t.Fatalf("expected empty graph for fn-only sites, got %d entries", len(graph))
+	}
+}
+
+// TestClosureScopedToRoots — only nodes reachable from the demanded roots
+// become rows; unrelated dumped nodes stay out of the bundle.
+func TestClosureScopedToRoots(t *testing.T) {
+	modules := emitModules(t, []string{"root1"}, []*protocol.RunType{
+		{ID: "root1", Kind: protocol.KindProperty, Name: "p", Child: protocol.NewRef("chld1")},
+		{ID: "chld1", Kind: protocol.KindString},
+		{ID: "lone1", Kind: protocol.KindNumber},
+	})
+	bundle := bundleOf(t, modules)
+	if !strings.Contains(bundle, "['chld1',5]") {
+		t.Errorf("closure row chld1 missing:\n%s", bundle)
+	}
+	if strings.Contains(bundle, "lone1") {
+		t.Errorf("unreachable node lone1 must not be a row:\n%s", bundle)
+	}
+	if _, ok := modules["lone1"]; ok {
+		t.Errorf("no facade for an undemanded node")
+	}
+}
+
+// TestSimpleAtomic — a single KindString node emits row `['id',5]` with
 // all trailing `u` args trimmed.
 func TestSimpleAtomic(t *testing.T) {
 	out := emit(t, []*protocol.RunType{{ID: "LrjxT1", Kind: protocol.KindString}})
-	if !strings.Contains(out, `export const e=[0,deps,u,'LrjxT1',5];`) {
-		t.Errorf("expected `[0,deps,u,'LrjxT1',5]` (trailing u trimmed), got:\n%s", out)
+	if !strings.Contains(out, `[['LrjxT1',5]]`) {
+		t.Errorf("expected row `['LrjxT1',5]` (trailing u trimmed), got:\n%s", out)
 	}
 }
 
 // TestStaticForm — Property with IsSafeName=true and Child set: the child ref
-// patches through the per-entry ini(rtu) body and the child module is
-// imported.
+// patches through the bundle's combined ini(rtu) body and the child is a row
+// of the same bundle.
 func TestStaticForm(t *testing.T) {
 	runTypes := []*protocol.RunType{
 		{ID: "LrjxT1", Kind: protocol.KindString},
@@ -77,19 +160,19 @@ func TestStaticForm(t *testing.T) {
 			Child:      protocol.NewRef("LrjxT1"),
 		},
 	}
-	modules := emitModules(t, runTypes)
-	property := modules["BxzL39"]
-	if !strings.Contains(property, `export const e=[0,deps,ini,'BxzL39',15,u,u,'kind',u,u,u,u,u,u,!0];`) {
-		t.Errorf("expected Property tuple `[0,deps,ini,'BxzL39',15,…,!0]`, got:\n%s", property)
+	modules := emitModules(t, []string{"BxzL39"}, runTypes)
+	bundle := bundleOf(t, modules)
+	if !strings.Contains(bundle, `['BxzL39',15,u,u,'kind',u,u,u,u,u,u,!0]`) {
+		t.Errorf("expected Property row `['BxzL39',15,…,!0]`, got:\n%s", bundle)
 	}
-	if !strings.Contains(property, `c('BxzL39').child = c('LrjxT1');`) {
-		t.Errorf("expected ini ref assignment `c('BxzL39').child = c('LrjxT1');`, got:\n%s", property)
+	if !strings.Contains(bundle, `['LrjxT1',5]`) {
+		t.Errorf("expected child row in the same bundle, got:\n%s", bundle)
 	}
-	if !strings.Contains(property, `import {e as d1} from 'virtual:rt/LrjxT1.js';`) {
-		t.Errorf("expected child module import, got:\n%s", property)
+	if !strings.Contains(bundle, `c('BxzL39').child = c('LrjxT1');`) {
+		t.Errorf("expected ini ref assignment `c('BxzL39').child = c('LrjxT1');`, got:\n%s", bundle)
 	}
-	if !strings.Contains(property, "const deps=()=>[d1,e];") {
-		t.Errorf("expected leaves-first deps thunk, got:\n%s", property)
+	if !strings.Contains(bundle, "function ini(rtu){const c=(id)=>rtu.useRunType(id);") {
+		t.Errorf("expected combined ini body, got:\n%s", bundle)
 	}
 }
 
@@ -119,13 +202,13 @@ func TestPositionZeroIsPreserved(t *testing.T) {
 		Name:     "name",
 		Position: intPtr(0),
 	}})
-	if !strings.Contains(out, `export const e=[0,deps,u,'sCSEqy',18,u,u,'name',u,u,u,u,u,u,u,0];`) {
+	if !strings.Contains(out, `['sCSEqy',18,u,u,'name',u,u,u,u,u,u,u,0]`) {
 		t.Errorf("expected position 0 to render as `0`, got:\n%s", out)
 	}
 }
 
 // TestFooterLiteralPassesUForLiteralArg — bigint literal: the `literal`
-// tuple arg is `u` (the ini body handles the construction).
+// row arg is `u` (the ini body handles the construction).
 func TestFooterLiteralPassesUForLiteralArg(t *testing.T) {
 	out := emit(t, []*protocol.RunType{{
 		ID:      "bigID",
@@ -133,7 +216,7 @@ func TestFooterLiteralPassesUForLiteralArg(t *testing.T) {
 		Literal: "42",
 		Flags:   []string{"bigint"},
 	}})
-	if !strings.Contains(out, `,'bigID',13,u,u,u,u`) {
+	if !strings.Contains(out, `['bigID',13,u,u,u,u`) {
 		t.Errorf("expected bigint literal to pass `u` at literal slot, got:\n%s", out)
 	}
 	if !strings.Contains(out, `c('bigID').literal = BigInt('42');`) {
@@ -150,37 +233,51 @@ func TestClassBuiltinUnchanged(t *testing.T) {
 		TypeName: "Date",
 		ClassRef: &protocol.ClassRef{Builtin: "Date"},
 	}})
-	if !strings.Contains(out, `export const e=[0,deps,ini,'dateID',20,u,'Date'];`) {
-		t.Errorf("expected class tuple with typeName, got:\n%s", out)
+	if !strings.Contains(out, `['dateID',20,u,'Date']`) {
+		t.Errorf("expected class row with typeName, got:\n%s", out)
 	}
 	if !strings.Contains(out, `c('dateID').classType = globalThis.Date;`) {
 		t.Errorf("expected ini classType assignment via cache ref, got:\n%s", out)
 	}
 }
 
-// TestCycle — two nodes referencing each other via Child: both modules import
-// each other (SCC members share a level) and both ini bodies patch refs
-// through the registry, never through the imported binding.
+// TestCycle — two nodes referencing each other via Child are rows of the same
+// bundle and both ini patches go through the registry accessor.
 func TestCycle(t *testing.T) {
 	a := &protocol.RunType{ID: "A1", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: protocol.NewRef("B1")}
 	b := &protocol.RunType{ID: "B1", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: protocol.NewRef("A1")}
-	modules := emitModules(t, []*protocol.RunType{a, b})
-	moduleA, moduleB := modules["A1"], modules["B1"]
-	if !strings.Contains(moduleA, `import {e as d1} from 'virtual:rt/B1.js';`) {
-		t.Errorf("A1 must import its cycle peer, got:\n%s", moduleA)
+	modules := emitModules(t, []string{"A1"}, []*protocol.RunType{a, b})
+	bundle := bundleOf(t, modules)
+	if !strings.Contains(bundle, "['A1',15,") || !strings.Contains(bundle, "['B1',15,") {
+		t.Errorf("both cycle members must be rows of the bundle:\n%s", bundle)
 	}
-	if !strings.Contains(moduleB, `import {e as d1} from 'virtual:rt/A1.js';`) {
-		t.Errorf("B1 must import its cycle peer, got:\n%s", moduleB)
+	if !strings.Contains(bundle, `c('A1').child = c('B1');`) || !strings.Contains(bundle, `c('B1').child = c('A1');`) {
+		t.Errorf("expected both cycle ref assignments via c() accessor:\n%s", bundle)
 	}
-	// Direct deps precede self in both thunks (self is always last).
-	if !strings.Contains(moduleA, "const deps=()=>[d1,e];") {
-		t.Errorf("A1 deps thunk should order [B1,A1] (self last), got:\n%s", moduleA)
+}
+
+// TestBundleKeyTracksContent — the bundle's tuple key is a content hash:
+// different row sets must produce different keys (the runtime's
+// processed-keys guard relies on this across HMR evolutions).
+func TestBundleKeyTracksContent(t *testing.T) {
+	keyOf := func(modules map[string]string) string {
+		t.Helper()
+		bundle := bundleOf(t, modules)
+		start := strings.Index(bundle, "'rts_")
+		if start < 0 {
+			t.Fatalf("no bundle key in:\n%s", bundle)
+		}
+		end := strings.Index(bundle[start+1:], "'")
+		return bundle[start+1 : start+1+end]
 	}
-	if !strings.Contains(moduleB, "const deps=()=>[d1,e];") {
-		t.Errorf("B1 deps thunk should order [A1,B1] (self last), got:\n%s", moduleB)
+	one := keyOf(emitModules(t, []string{"a"}, []*protocol.RunType{{ID: "a", Kind: protocol.KindString}}))
+	two := keyOf(emitModules(t, []string{"b"}, []*protocol.RunType{{ID: "b", Kind: protocol.KindNumber}}))
+	same := keyOf(emitModules(t, []string{"a"}, []*protocol.RunType{{ID: "a", Kind: protocol.KindString}}))
+	if one == two {
+		t.Errorf("different row sets share bundle key %q", one)
 	}
-	if !strings.Contains(moduleA, `c('A1').child = c('B1');`) || !strings.Contains(moduleB, `c('B1').child = c('A1');`) {
-		t.Errorf("expected both cycle ref assignments via c() accessor:\nA1:\n%s\nB1:\n%s", moduleA, moduleB)
+	if one != same {
+		t.Errorf("same row set produced different keys: %q vs %q", one, same)
 	}
 }
 
@@ -221,9 +318,9 @@ func TestKnownFieldsCovered(t *testing.T) {
 		Values:       []any{"v"},
 		NotSupported: true,
 	}})
-	expected := `export const e=[0,deps,u,'FULL',20,2004,'TN','NM','L',!0,!0,!0,!0,2,!0,7,!0,['f1'],'D','DEF',{'k':1},['v'],!0];`
+	expected := `['FULL',20,2004,'TN','NM','L',!0,!0,!0,!0,2,!0,7,!0,['f1'],'D','DEF',{'k':1},['v'],!0]`
 	if !strings.Contains(out, expected) {
-		t.Errorf("expected fully-populated tuple:\n  %s\ngot:\n%s", expected, out)
+		t.Errorf("expected fully-populated row:\n  %s\ngot:\n%s", expected, out)
 	}
 }
 
@@ -237,14 +334,14 @@ func TestSubKindRendered(t *testing.T) {
 		TypeName: "Map",
 		ClassRef: &protocol.ClassRef{Builtin: "Map"},
 	}})
-	if !strings.Contains(out, `export const e=[0,deps,ini,'mapID',20,2002,'Map'];`) {
-		t.Errorf("expected class tuple with subKind, got:\n%s", out)
+	if !strings.Contains(out, `['mapID',20,2002,'Map']`) {
+		t.Errorf("expected class row with subKind, got:\n%s", out)
 	}
 }
 
 // TestNoLegacyTopLevelExports — the previous emitters used
 // `export const t_<hash> = …` / `rt(…)` skeleton calls. Make sure neither
-// pattern survives in per-entry modules.
+// pattern survives in the bundle / facade modules.
 func TestNoLegacyTopLevelExports(t *testing.T) {
 	out := emit(t, []*protocol.RunType{{ID: "x", Kind: protocol.KindString}})
 	if strings.Contains(out, "export const t_") {
