@@ -101,6 +101,9 @@ class MessageTransport {
 export interface ScanFilesOptions {
   includeRunTypes?: boolean;
   includeCacheSources?: CacheKind[];
+  // Module mode: assemble each site's per-entry module closure (Site.deps)
+  // and return the rendered module sources in the result's `modules` map.
+  includeModules?: boolean;
   // Opts the result into the per-op `metrics` block (checker counters,
   // per-phase wall times, Go memory deltas). Bench-harness use; the
   // rewrite pipeline never sets it.
@@ -135,6 +138,10 @@ export interface ScanFilesResult {
   fromBinaryCacheSource?: string;
   formatTransformCacheSource?: string;
   pureFnsCacheSource?: string;
+  // Module mode: per-entry virtual-module sources covering every key in the
+  // request sites' deps closures. Batch-scoped (not per-file projected) —
+  // the plugin merges them into its serving map.
+  modules?: Record<string, string>;
   diagnostics?: import('./protocol.ts').Diagnostic[];
   // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
   addedRunTypes?: boolean;
@@ -176,6 +183,7 @@ export interface ResolverConnection {
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
   tsCompile(): Promise<number>;
+  resolveModules(keys: string[]): Promise<Record<string, string>>;
   close(): void;
 }
 
@@ -190,6 +198,7 @@ abstract class ResolverClientBase implements ResolverConnection {
     const req: Request = {op: 'scanFiles', files};
     if (opts.includeRunTypes) req.includeRunTypes = true;
     if (opts.includeCacheSources?.length) req.includeCacheSources = opts.includeCacheSources;
+    if (opts.includeModules) req.includeModules = true;
     if (opts.includeMetrics) req.includeMetrics = true;
     const resp = await this.transport.request(req);
     if (resp.error) throw new Error(`scanFiles [${files.join(', ')}]: ${resp.error}`);
@@ -197,6 +206,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       sites: resp.sites ?? [],
       replacements: resp.replacements,
       runTypes: resp.runTypes,
+      modules: resp.modules,
       runTypeCacheSource: resp.runTypeCacheSource,
       validateCacheSource: resp.validateCacheSource,
       validationErrorsCacheSource: resp.validationErrorsCacheSource,
@@ -262,6 +272,16 @@ abstract class ResolverClientBase implements ResolverConnection {
     const resp = await this.transport.request({op: 'tsCompile'});
     if (resp.error) throw new Error(`tsCompile: ${resp.error}`);
     return resp.tsCompileMs ?? 0;
+  }
+
+  // resolveModules renders the per-entry virtual modules for the requested
+  // keys (plus their transitive closures). Unknown keys are omitted — the
+  // caller owns the missing-module error message. Used as the plugin
+  // load() hook's cache-miss fallback.
+  async resolveModules(keys: string[]): Promise<Record<string, string>> {
+    const resp = await this.transport.request({op: 'resolveModules', keys});
+    if (resp.error) throw new Error(`resolveModules [${keys.join(', ')}]: ${resp.error}`);
+    return resp.modules ?? {};
   }
 
   close(): void {

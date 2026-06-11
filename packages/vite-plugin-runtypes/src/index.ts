@@ -4,6 +4,7 @@ import {ResolverClient} from './resolver-client.ts';
 import {createScanBatcher, type SiteScanner} from './scan-batcher.ts';
 import {rewrite} from './rewrite.ts';
 import {Family, Severity, type CacheKind, type Diagnostic} from './protocol.ts';
+import {VIRTUAL_RUNTYPES_PREFIX, VIRTUAL_RUNTYPES_EXT} from './runtypes-constants.generated.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
@@ -45,32 +46,16 @@ export interface PluginOptions {
 // and pass marker.Options{Specs: [...]}.
 const MARKER_MODULE = '@mionjs/ts-go-run-types';
 
-// CACHE_FILE_RE matches the three on-disk cache module files the plugin
-// transforms in place: `…/caches/runTypesCache.ts` (source mode under
-// vitest) or `…/caches/runTypesCache.js` (built dist mode in production).
-// The same regex matches both flavours so the plugin doesn't have to
-// resolve the package's `exports` map at startup. Anchored on the
-// `/caches/` parent dir to avoid colliding with same-named files
-// outside the marker package.
-const CACHE_FILE_RE =
-  /[/\\]caches[/\\](runTypesCache|validateCache|getValidationErrorsCache|prepareForJsonCache|restoreFromJsonCache|stringifyJsonCache|prepareForJsonSafeCache|hasUnknownKeysCache|stripUnknownKeysCache|unknownKeyErrorsCache|unknownKeysToUndefinedCache|unknownKeysToUndefinedWireCache|toBinaryCache|fromBinaryCache|formatTransformCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
+// CACHE_FILE_RE matches the ONE remaining on-disk cache module the plugin
+// transforms in place: `…/caches/pureFnsCache.ts` (source mode under vitest)
+// or `…/caches/pureFnsCache.js` (built dist mode in production). Pure fns
+// are a bounded shared library extracted from `registerPureFnFactory`
+// calls, so they keep the aggregated overlay; every per-type cache entry
+// (fn families + RunType data nodes) is served as a per-entry virtual
+// module instead — see the resolveId/load hooks below.
+const CACHE_FILE_RE = /[/\\]caches[/\\](pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
 
 const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
-  runTypesCache: 'runType',
-  validateCache: 'validate',
-  getValidationErrorsCache: 'validationErrors',
-  prepareForJsonCache: 'prepareForJson',
-  restoreFromJsonCache: 'restoreFromJson',
-  stringifyJsonCache: 'stringifyJson',
-  prepareForJsonSafeCache: 'prepareForJsonSafe',
-  hasUnknownKeysCache: 'hasUnknownKeys',
-  stripUnknownKeysCache: 'stripUnknownKeys',
-  unknownKeyErrorsCache: 'unknownKeyErrors',
-  unknownKeysToUndefinedCache: 'unknownKeysToUndefined',
-  unknownKeysToUndefinedWireCache: 'unknownKeysToUndefinedWire',
-  toBinaryCache: 'toBinary',
-  fromBinaryCache: 'fromBinary',
-  formatTransformCache: 'formatTransform',
   pureFnsCache: 'pureFns',
 };
 
@@ -80,13 +65,17 @@ export default function runtypes(options: PluginOptions) {
   // Batches concurrent per-file transform scans into multi-file
   // dispatches — see scan-batcher.ts. Rebuilt per resolver.
   let scanner: SiteScanner | null = null;
-  // One all-kinds dump shared by every cache-module transform of a build
-  // pass. Rendering all 16 caches in a single dispatch (shared
-  // per-dispatch entry cache, parallel render fan-out, one wire payload)
-  // replaces 16 separate dispatches that each re-walked the program and
-  // re-ran validate's cross-family collection passes against a cold
-  // cache. Invalidated whenever session state may have moved: an HMR
-  // edit, or a transform scan reporting new types.
+  // Per-entry virtual-module sources keyed by module key (`<fnHash>_<id>`,
+  // `t_<id>`). Populated from every scan response's batch-scoped `modules`
+  // map; served by the load() hook. Modules are content-addressed
+  // (structural, version-salted keys) and immutable, so entries are never
+  // invalidated — a type edit mints NEW keys via the re-transformed user
+  // file, and orphans simply stop being imported.
+  const moduleSources = new Map<string, string>();
+  // One pureFns dump shared by every pureFnsCache transform of a build
+  // pass (the only aggregate overlay left in module mode). Invalidated
+  // whenever session state may have moved: an HMR edit, or a transform
+  // scan reporting new pure fns.
   let dumpAllMemo: Promise<Awaited<ReturnType<ResolverClient['dump']>>> | null = null;
   // True once the memoized dump's response has arrived. While it is
   // still in flight, invalidation signals are ignored: the resolver pipe
@@ -97,7 +86,7 @@ export default function runtypes(options: PluginOptions) {
   function dumpAll() {
     if (!dumpAllMemo) {
       dumpAllSettled = false;
-      dumpAllMemo = resolver!.dump().then(
+      dumpAllMemo = resolver!.dump({includeCacheSources: ['pureFns']}).then(
         (dump) => {
           dumpAllSettled = true;
           return dump;
@@ -147,12 +136,19 @@ export default function runtypes(options: PluginOptions) {
         parallelRender: options.parallelRender,
       });
       dumpAllMemo = null;
+      moduleSources.clear();
       scanner = createScanBatcher(async (files) => {
-        const result = await resolver!.scanFiles(files);
-        // New types reaching the session after the all-kinds dump was
-        // memoized would leave cache-module bodies stale — drop the memo
-        // so the next cache transform re-dumps.
-        if (result.addedRunTypes || result.addedPureFns) invalidateDumpAll();
+        const result = await resolver!.scanFiles(files, {includeModules: true});
+        // Module mode: every scan carries the per-entry module sources for
+        // its sites' closures — merge them into the serving map (batch-
+        // scoped side channel; the per-file projection keeps them intact).
+        if (result.modules) {
+          for (const [key, source] of Object.entries(result.modules)) moduleSources.set(key, source);
+        }
+        // New pure fns reaching the session after the pureFns dump was
+        // memoized would leave its body stale — drop the memo so the next
+        // pureFnsCache transform re-dumps.
+        if (result.addedPureFns) invalidateDumpAll();
         return result;
       });
     },
@@ -162,6 +158,36 @@ export default function runtypes(options: PluginOptions) {
       resolver = null;
       scanner = null;
       dumpAllMemo = null;
+      moduleSources.clear();
+    },
+
+    // Per-entry virtual modules — `virtual:runtypes/<key>.js`. resolveId
+    // claims the scheme with the `\0` rollup convention (keeps other
+    // plugins and the optimizer away); load serves the source from the
+    // in-memory map, falling back to a resolveModules round-trip for keys
+    // the current session hasn't rendered yet (e.g. a dev-server restart
+    // with a warm client graph re-requesting a module before any scan).
+    resolveId(this: any, id: string) {
+      if (id.startsWith(VIRTUAL_RUNTYPES_PREFIX)) return '\0' + id;
+      return null;
+    },
+
+    async load(this: any, id: string) {
+      if (!id.startsWith('\0' + VIRTUAL_RUNTYPES_PREFIX)) return null;
+      const key = id.slice(1 + VIRTUAL_RUNTYPES_PREFIX.length, id.endsWith(VIRTUAL_RUNTYPES_EXT) ? -VIRTUAL_RUNTYPES_EXT.length : undefined);
+      let source = moduleSources.get(key);
+      if (source === undefined && resolver) {
+        const fetched = await resolver.resolveModules([key]);
+        for (const [fetchedKey, fetchedSource] of Object.entries(fetched)) moduleSources.set(fetchedKey, fetchedSource);
+        source = moduleSources.get(key);
+      }
+      if (source === undefined) {
+        throw new Error(
+          `vite-plugin-runtypes: no module for "${key}" — the importing file references a stale virtual module. ` +
+            `Re-save the importing file (or restart the dev server) so its imports are rewritten against the current types.`
+        );
+      }
+      return {code: source, map: null};
     },
 
     async transform(this: any, code: string, id: string) {
@@ -246,16 +272,22 @@ export default function runtypes(options: PluginOptions) {
         }
       }
 
-      // The program (and therefore every cache body) may have moved —
+      // The program (and therefore the pureFns body) may have moved —
       // force the next cache-module transform to re-dump. Unconditional:
       // setSources swapped the Program, so even an in-flight dump is
       // against stale state.
       dumpAllMemo = null;
       let result;
       try {
-        result = await resolver.scanFiles([rel], {includeCacheSources: ['all']});
+        result = await resolver.scanFiles([rel], {includeModules: true});
       } catch {
         return;
+      }
+      // Merge the rescan's module closures so the re-transformed file's
+      // imports resolve without a resolveModules round-trip. Existing keys
+      // are content-addressed and immutable — overwriting is a no-op.
+      if (result.modules) {
+        for (const [key, source] of Object.entries(result.modules)) moduleSources.set(key, source);
       }
 
       // Every diagnostic flows through one wire field now; the Family
@@ -270,31 +302,17 @@ export default function runtypes(options: PluginOptions) {
       // recoverable from the thrown error too.
       surfaceDiagnostics(this, result.diagnostics ?? [], () => true, {halt: false});
 
+      // Module mode: per-entry virtual modules are content-addressed and
+      // immutable, so they are NEVER invalidated — a type edit mints new
+      // keys, and the changed user file (already in ctx.modules) re-imports
+      // them when its transform re-runs. The pureFns aggregate is the only
+      // overlay left to invalidate when the scan grew it.
       const invalidated: any[] = [];
       const moduleGraph = ctx.server?.moduleGraph;
-      if (moduleGraph) {
-        const kindsToInvalidate: CacheKind[] = [];
-        if (result.addedRunTypes) kindsToInvalidate.push('runType');
-        if (result.addedValidate) kindsToInvalidate.push('validate');
-        if (result.addedValidationErrors) kindsToInvalidate.push('validationErrors');
-        if (result.addedPrepareForJson) kindsToInvalidate.push('prepareForJson');
-        if (result.addedRestoreFromJson) kindsToInvalidate.push('restoreFromJson');
-        if (result.addedStringifyJson) kindsToInvalidate.push('stringifyJson');
-        if (result.addedPrepareForJsonSafe) kindsToInvalidate.push('prepareForJsonSafe');
-        if (result.addedHasUnknownKeys) kindsToInvalidate.push('hasUnknownKeys');
-        if (result.addedStripUnknownKeys) kindsToInvalidate.push('stripUnknownKeys');
-        if (result.addedUnknownKeyErrors) kindsToInvalidate.push('unknownKeyErrors');
-        if (result.addedUnknownKeysToUndefined) kindsToInvalidate.push('unknownKeysToUndefined');
-        if (result.addedUnknownKeysToUndefinedWire) kindsToInvalidate.push('unknownKeysToUndefinedWire');
-        if (result.addedToBinary) kindsToInvalidate.push('toBinary');
-        if (result.addedFromBinary) kindsToInvalidate.push('fromBinary');
-        if (result.addedFormatTransform) kindsToInvalidate.push('formatTransform');
-        if (result.addedPureFns) kindsToInvalidate.push('pureFns');
-        for (const kind of kindsToInvalidate) {
-          const cacheId = cacheModuleIds[kind];
-          if (!cacheId) continue;
-          const mod = moduleGraph.getModuleById(cacheId);
-          if (!mod) continue;
+      if (moduleGraph && result.addedPureFns) {
+        const cacheId = cacheModuleIds['pureFns'];
+        const mod = cacheId ? moduleGraph.getModuleById(cacheId) : undefined;
+        if (mod) {
           moduleGraph.invalidateModule(mod);
           invalidated.push(mod);
         }

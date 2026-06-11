@@ -212,6 +212,12 @@ export interface Site {
   // demand is Go-internal emit metadata (which cache entries this site requires)
   // serialized onto the Site; the plugin does not read it. Mirrored for accuracy.
   demand?: SiteDemand[];
+  // deps is the site's flattened transitive virtual-module key closure
+  // (module mode; populated when the request set includeModules): every
+  // per-entry module the rewritten call must import, leafs-first with the
+  // demanded roots last. The patcher hoists one import per key and folds the
+  // imported bindings into the injected tuple. Absent for bare-id sites.
+  deps?: string[];
 }
 
 // SiteDemand mirrors Go protocol.SiteDemand — emit metadata only; the plugin
@@ -269,7 +275,7 @@ export type CacheKind =
   | 'all';
 
 export interface Request {
-  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId' | 'tsCompile';
+  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId' | 'tsCompile' | 'resolveModules';
   // scanFiles only — the files to scan in this request. The response's
   // sites cover every listed file (each tagged with .file); when the
   // include* flags are set, runTypes / runTypeCacheSource are projected
@@ -288,6 +294,13 @@ export interface Request {
   // opt-in lets callers pay only for what they need; `'all'` is the
   // shortcut for every kind.
   includeCacheSources?: CacheKind[];
+  // scanFiles only — module mode: assemble each site's per-entry module
+  // closure (Site.deps) and return the rendered module sources in the
+  // response's `modules` map.
+  includeModules?: boolean;
+  // resolveModules only — the per-entry virtual-module keys to render.
+  // Unknown keys are silently omitted from the response.
+  keys?: string[];
   // Opts the response into the `metrics` block: tsgo extendedDiagnostics
   // counters, per-phase wall times, and Go memory deltas. Mirrors the
   // Go-side Request.IncludeMetrics; zero measurement cost when unset.
@@ -430,6 +443,11 @@ export interface Response {
   // runtime home of every pure-fn body. Populated by `dump` and on
   // `scanFiles` when the caller opts into `'pureFns'` (or `'all'`).
   pureFnsCacheSource?: string;
+  // Modules maps per-entry virtual-module keys to their rendered ES-module
+  // source (module mode). Populated on scanFiles when the request set
+  // includeModules (scoped to the request sites' deps closures) and on
+  // resolveModules (the requested keys + their transitive closures).
+  modules?: Record<string, string>;
   // Diagnostics carries every non-fatal diagnostic the Go binary emits —
   // pure-fn extractor (PFE9xxx), marker scanner (MKRxxx), RT compiler
   // (IT/TE/PJ/…/FB). The Family discriminator on each entry tells the

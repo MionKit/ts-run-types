@@ -760,6 +760,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 			out[source.key] = body
 		}
 	}
+	if len(response.Modules) > 0 {
+		out["modules"] = response.Modules
+	}
 	if len(response.Diagnostics) > 0 {
 		out["diagnostics"] = response.Diagnostics
 	}
