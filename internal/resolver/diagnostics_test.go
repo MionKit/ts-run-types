@@ -110,8 +110,8 @@ export const _b = createBinaryEncoder<never>();
 `
 	r := setupInline(t, map[string]string{"n.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:    protocol.OpScanFiles,
-		Files: []string{"n.ts"},
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"n.ts"},
 		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
@@ -204,8 +204,8 @@ export const _b = createBinaryEncoder<symbol>();
 `
 	r := setupInline(t, map[string]string{"s.ts": code})
 	resp := r.Dispatch(protocol.Request{
-		Op:    protocol.OpScanFiles,
-		Files: []string{"s.ts"},
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"s.ts"},
 		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {

@@ -475,7 +475,7 @@ type Response struct {
 	// AddedPureFns is true when the scan introduced (or modified) at
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
-	AddedPureFns       bool          `json:"addedPureFns,omitempty"`
+	AddedPureFns bool          `json:"addedPureFns,omitempty"`
 	Sites        []Site        `json:"sites,omitempty"`
 	Replacements []Replacement `json:"replacements,omitempty"`
 	RunTypes     []*RunType    `json:"runTypes,omitempty"`
@@ -602,7 +602,6 @@ var responseAddedFlags = []struct {
 	{"addedFormatTransform", func(response *Response) bool { return response.AddedFormatTransform }},
 	{"addedPureFns", func(response *Response) bool { return response.AddedPureFns }},
 }
-
 
 // MarshalJSON serialises Response. ID is emitted only when HasID is true so
 // dump responses (which don't resolve a single id) don't carry a misleading "".
