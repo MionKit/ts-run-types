@@ -1,11 +1,11 @@
-// End-to-end acceptance test for the pureFns virtual module. Drives the
+// End-to-end acceptance test for the pure-fn entry modules. Drives the
 // Go binary over inline sources, then verifies:
 //
-//   1. response.pureFnsCacheSource exports `factory(...)` calls keyed
-//      by "<namespace>::<functionID>" with structurally-valid entries
+//   1. response.entryModules carries one `pf/<ns>/<fn>` module per
+//      extracted pure fn, with structurally-valid tuple entries
 //      including the inline `createPureFn` literal.
-//   2. response.replacements carries one byte-range null-out per
-//      accepted call site.
+//   2. response.replacements swaps each factory argument for the entry
+//      module's import binding (importFrom names the module).
 //   3. response.diagnostics (filtered to PureFn family) surfaces PFE9xxx
 //      diagnostics for bad-shape calls (non-literal args, body-hash
 //      collisions, etc.).
@@ -15,7 +15,7 @@
 import {describe, expect, it} from 'vitest';
 import {formatTscDiagnostic} from '../src/index.ts';
 import {Family, Severity, type Diagnostic} from '../src/protocol.ts';
-import {hasBinary, withInlineSources} from './helpers/inline.ts';
+import {hasBinary, withInlineSources, evalEntryModules} from './helpers/inline.ts';
 
 // runtypesDts is the ambient marker declaration prepended to every
 // fixture below. registerPureFnFactory's discovery is now marker-driven
@@ -56,21 +56,28 @@ interface PureFnEntry {
   fn: unknown;
 }
 
-// evalPureFnsModule strips `export`s from the rendered module,
-// evaluates its `initCache(rtUtils)` export against a stub that
-// records every `addPureFn(key, entry)` call, and returns the
-// populated flat cache (`{ 'ns::name': CompiledPureFunction-ish }`).
-function evalPureFnsModule(source: string): Record<string, PureFnEntry> {
+// evalPureFnEntries evaluates every entry module, picks the pure-fn-kind
+// tuples (slot 0 === 2), and builds the flat cache the pre-migration
+// `initCache` consumer produced (`{ 'ns::name': CompiledPureFunction-ish }`).
+// Tuple tail (slot 3+): key, bodyHash, paramNames, code, pureFnDependencies,
+// createPureFn — mirrors registerPureFnTuple in the marker package.
+function evalPureFnEntries(entryModules: Record<string, string>): Record<string, PureFnEntry> {
   const registered: Record<string, PureFnEntry> = {};
-  const stub = {
-    addPureFn(key: string, entry: PureFnEntry) {
-      registered[key] = entry;
-    },
-  };
-  const stripped = source.replace(/^\s*export\s+function\s+/gm, 'function ');
-  const factory = new Function(`${stripped}\nreturn initCache;`);
-  const initCache = factory() as (rtUtils: typeof stub) => void;
-  initCache(stub);
+  for (const tuple of Object.values(evalEntryModules(entryModules))) {
+    if (!Array.isArray(tuple) || tuple[0] !== 2) continue;
+    const key = tuple[3] as string;
+    const sep = key.indexOf('::');
+    registered[key] = {
+      namespace: sep >= 0 ? key.slice(0, sep) : '',
+      fnName: sep >= 0 ? key.slice(sep + 2) : key,
+      bodyHash: tuple[4] as string,
+      paramNames: tuple[5] as string[],
+      code: tuple[6] as string,
+      pureFnDependencies: tuple[7] as string[],
+      createPureFn: tuple[8],
+      fn: undefined,
+    };
+  }
   return registered;
 }
 
@@ -93,11 +100,11 @@ export const b = registerPureFnFactory('mion', 'safeKey', function () {
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      expect(response.pureFnsCacheSource).toBeDefined();
+      const response = await client.scanFiles(Object.keys(sources), {includeEntryModules: true});
+      expect(response.entryModules).toBeDefined();
       expect(pureFnDiagsOf(response)).toEqual([]);
 
-      const pureFns = evalPureFnsModule(response.pureFnsCacheSource!);
+      const pureFns = evalPureFnEntries(response.entryModules!);
       expect(Object.keys(pureFns).sort()).toEqual(['mion::asJSONString', 'mion::safeKey']);
 
       const asJSON = pureFns['mion::asJSONString'];
@@ -120,7 +127,7 @@ export const b = registerPureFnFactory('mion', 'safeKey', function () {
     });
   });
 
-  register('emits Replacement entries that null out each factory argument', async () => {
+  register('emits Replacement entries that swap each factory argument for the entry binding', async () => {
     const sources = {
       'src.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 export const _ = registerPureFnFactory('mion', 'foo', function () {
@@ -132,9 +139,10 @@ export const _ = registerPureFnFactory('mion', 'foo', function () {
       const response = await client.scanFiles(Object.keys(sources));
       const reps = response.replacements ?? [];
       expect(reps.length).toBe(1);
-      expect(reps[0].text).toBe('null');
+      expect(reps[0].text).toBe('__rt_pf$2Fmion$2Ffoo');
+      expect(reps[0].importFrom).toBe('virtual:rt/pf/mion/foo.js');
       expect(reps[0].end).toBeGreaterThan(reps[0].start);
-      // Verify the rewrite produces a syntactically clean nulled-out
+      // Verify the rewrite produces a syntactically clean binding-swapped
       // call form when applied to the source.
       const buf = Buffer.from(sources['src.ts'], 'utf8');
       const after = Buffer.concat([
@@ -142,7 +150,7 @@ export const _ = registerPureFnFactory('mion', 'foo', function () {
         Buffer.from(reps[0].text, 'utf8'),
         buf.subarray(reps[0].end),
       ]).toString('utf8');
-      expect(after).toContain("registerPureFnFactory('mion', 'foo',null)");
+      expect(after).toContain("registerPureFnFactory('mion', 'foo',__rt_pf$2Fmion$2Ffoo)");
     });
   });
 
@@ -157,8 +165,8 @@ export const _ = registerPureFnFactory('mion', 'consumer', function (utl: RTUtil
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const pureFns = evalPureFnsModule(response.pureFnsCacheSource!);
+      const response = await client.scanFiles(Object.keys(sources), {includeEntryModules: true});
+      const pureFns = evalPureFnEntries(response.entryModules!);
       expect(pureFns['mion::consumer'].pureFnDependencies).toEqual(['mion::dep']);
     });
   });
@@ -171,7 +179,7 @@ export const x = registerPureFnFactory(getNs(), 'fn', function () { return funct
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
+      const response = await client.scanFiles(Object.keys(sources), {includeEntryModules: true});
       // CompTimeArgs<string> brand on the namespace param fires a CTA0xx
       // diagnostic from the marker layer (resolver.scanCall) — the exact
       // sub-code depends on the failure mode (CTA001 non-literal, CTA003
@@ -193,7 +201,7 @@ export const x = registerPureFnFactory('mion', 'fn', externalFn);
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
+      const response = await client.scanFiles(Object.keys(sources), {includeEntryModules: true});
       // PureFunction<F> brand on the factory param emits PFN001 from
       // the marker layer when the arg isn't an inline arrow/function
       // expression (or const-bound binding to one).
@@ -218,7 +226,7 @@ export const b = registerPureFnFactory('mion', 'collideFn', function () {
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
+      const response = await client.scanFiles(Object.keys(sources), {includeEntryModules: true});
       const collisions = pureFnDiagsOf(response).filter((d) => d.code === 'PFE9004');
       expect(collisions.length).toBe(1);
 
@@ -229,8 +237,8 @@ export const b = registerPureFnFactory('mion', 'collideFn', function () {
       // it into the headline ("Duplicate registerPureFnFactory for `X`…").
       expect(collision.args).toEqual(['mion::collideFn']);
 
-      // Virtual module still loads, with the first-occurrence winner.
-      const pureFns = evalPureFnsModule(response.pureFnsCacheSource!);
+      // Entry module still loads, with the first-occurrence winner.
+      const pureFns = evalPureFnEntries(response.entryModules!);
       expect(pureFns['mion::collideFn']).toBeDefined();
     });
   });
@@ -246,7 +254,7 @@ export const x = registerPureFnFactory('mion', 'evilFn', function () {
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
+      const response = await client.scanFiles(Object.keys(sources), {includeEntryModules: true});
       const diags = pureFnDiagsOf(response);
       const evalDiag = diags.find((d) => d.code === 'PFE9010' && d.args?.[0] === 'eval');
       expect(evalDiag).toBeDefined();
@@ -272,7 +280,7 @@ export const x = registerPureFnFactory('mion', 'rounder', function () {
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
+      const response = await client.scanFiles(Object.keys(sources), {includeEntryModules: true});
       const diags = pureFnDiagsOf(response);
       const closureDiag = diags.find((d) => d.code === 'PFE9011' && d.args?.[0] === 'PRECISION');
       expect(closureDiag).toBeDefined();

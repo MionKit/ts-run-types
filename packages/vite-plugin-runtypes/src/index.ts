@@ -3,7 +3,8 @@ import {renderHeadline} from './diagnosticCatalog.ts';
 import {ResolverClient} from './resolver-client.ts';
 import {createScanBatcher, type SiteScanner} from './scan-batcher.ts';
 import {rewrite} from './rewrite.ts';
-import {Family, Severity, type CacheKind, type Diagnostic} from './protocol.ts';
+import {Family, Severity, type Diagnostic} from './protocol.ts';
+import {ENTRY_MODULE_SUFFIX, VIRTUAL_MODULE_PREFIX} from './runtypes-constants.generated.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
@@ -29,8 +30,8 @@ export interface PluginOptions {
   // with cache artifacts.
   cacheDir?: string | false;
   // Parallelism opt-outs. The Go binary parallelizes its marker scan
-  // (across the tsgo checker pool) and its cache-family renders by
-  // default; pass `false` to force the corresponding serial path
+  // (across the tsgo checker pool) and its per-family entry collection
+  // by default; pass `false` to force the corresponding serial path
   // (--no-parallel-scan / --no-parallel-render). Output is equivalent
   // either way — these exist for benchmarking baselines and debugging.
   parallelScan?: boolean;
@@ -45,34 +46,10 @@ export interface PluginOptions {
 // and pass marker.Options{Specs: [...]}.
 const MARKER_MODULE = '@mionjs/ts-go-run-types';
 
-// CACHE_FILE_RE matches the three on-disk cache module files the plugin
-// transforms in place: `…/caches/runTypesCache.ts` (source mode under
-// vitest) or `…/caches/runTypesCache.js` (built dist mode in production).
-// The same regex matches both flavours so the plugin doesn't have to
-// resolve the package's `exports` map at startup. Anchored on the
-// `/caches/` parent dir to avoid colliding with same-named files
-// outside the marker package.
-const CACHE_FILE_RE =
-  /[/\\]caches[/\\](runTypesCache|validateCache|getValidationErrorsCache|prepareForJsonCache|restoreFromJsonCache|stringifyJsonCache|prepareForJsonSafeCache|hasUnknownKeysCache|stripUnknownKeysCache|unknownKeyErrorsCache|unknownKeysToUndefinedCache|unknownKeysToUndefinedWireCache|toBinaryCache|fromBinaryCache|formatTransformCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
-
-const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
-  runTypesCache: 'runType',
-  validateCache: 'validate',
-  getValidationErrorsCache: 'validationErrors',
-  prepareForJsonCache: 'prepareForJson',
-  restoreFromJsonCache: 'restoreFromJson',
-  stringifyJsonCache: 'stringifyJson',
-  prepareForJsonSafeCache: 'prepareForJsonSafe',
-  hasUnknownKeysCache: 'hasUnknownKeys',
-  stripUnknownKeysCache: 'stripUnknownKeys',
-  unknownKeyErrorsCache: 'unknownKeyErrors',
-  unknownKeysToUndefinedCache: 'unknownKeysToUndefined',
-  unknownKeysToUndefinedWireCache: 'unknownKeysToUndefinedWire',
-  toBinaryCache: 'toBinary',
-  fromBinaryCache: 'fromBinary',
-  formatTransformCache: 'formatTransform',
-  pureFnsCache: 'pureFns',
-};
+// Rollup convention: prefix resolved virtual ids with \0 so other plugins
+// (and Vite's own resolver) leave them alone. The public specifier the
+// rewrite injects stays the bare `virtual:rt/<basename>.js`.
+const RESOLVED_VIRTUAL_PREFIX = '\0' + VIRTUAL_MODULE_PREFIX;
 
 export default function runtypes(options: PluginOptions) {
   let resolver: ResolverClient | null = null;
@@ -80,13 +57,11 @@ export default function runtypes(options: PluginOptions) {
   // Batches concurrent per-file transform scans into multi-file
   // dispatches — see scan-batcher.ts. Rebuilt per resolver.
   let scanner: SiteScanner | null = null;
-  // One all-kinds dump shared by every cache-module transform of a build
-  // pass. Rendering all 16 caches in a single dispatch (shared
-  // per-dispatch entry cache, parallel render fan-out, one wire payload)
-  // replaces 16 separate dispatches that each re-walked the program and
-  // re-ran validate's cross-family collection passes against a cold
-  // cache. Invalidated whenever session state may have moved: an HMR
-  // edit, or a transform scan reporting new types.
+  // One full dump shared by every virtual-module load of a build pass.
+  // The dump carries the complete `entryModules` map (every cache entry
+  // the session knows), so N module loads share one wire payload.
+  // Invalidated whenever session state may have moved: an HMR edit, or
+  // a transform scan reporting new types.
   let dumpAllMemo: Promise<Awaited<ReturnType<ResolverClient['dump']>>> | null = null;
   // True once the memoized dump's response has arrived. While it is
   // still in flight, invalidation signals are ignored: the resolver pipe
@@ -94,9 +69,14 @@ export default function runtypes(options: PluginOptions) {
   // necessarily REQUESTED before it — the pending dump already sees that
   // scan's types and stays valid.
   let dumpAllSettled = false;
+  // One-shot guard for surfacing the dump's diagnostics: virtual-module
+  // loads share the memoized dump, and re-warning the same diagnostics on
+  // every entry load would flood the terminal.
+  let dumpDiagnosticsSurfaced = false;
   function dumpAll() {
     if (!dumpAllMemo) {
       dumpAllSettled = false;
+      dumpDiagnosticsSurfaced = false;
       dumpAllMemo = resolver!.dump().then(
         (dump) => {
           dumpAllSettled = true;
@@ -114,10 +94,6 @@ export default function runtypes(options: PluginOptions) {
     if (dumpAllMemo && !dumpAllSettled) return;
     dumpAllMemo = null;
   }
-  // Resolved absolute ids of the three cache modules — stashed when the
-  // transform hook first sees each one. handleHotUpdate uses these to
-  // look the modules up in Vite's module graph and invalidate them.
-  const cacheModuleIds: Partial<Record<CacheKind, string>> = {};
 
   return {
     name: 'vite-plugin-runtypes',
@@ -149,9 +125,9 @@ export default function runtypes(options: PluginOptions) {
       dumpAllMemo = null;
       scanner = createScanBatcher(async (files) => {
         const result = await resolver!.scanFiles(files);
-        // New types reaching the session after the all-kinds dump was
-        // memoized would leave cache-module bodies stale — drop the memo
-        // so the next cache transform re-dumps.
+        // New types reaching the session after the dump was memoized
+        // would leave the entryModules map stale — drop the memo so the
+        // next virtual-module load re-dumps.
         if (result.addedRunTypes || result.addedPureFns) invalidateDumpAll();
         return result;
       });
@@ -164,45 +140,56 @@ export default function runtypes(options: PluginOptions) {
       dumpAllMemo = null;
     },
 
+    // Every cache entry is its own virtual module: `virtual:rt/<basename>.js`.
+    // Entry modules are side-effect-free (a tuple export plus imports) and
+    // content-addressed — ids embed the binary version, so a given module's
+    // source never changes and Rollup may tree-shake unreferenced ones freely.
+    resolveId(this: any, source: string) {
+      if (source.startsWith(VIRTUAL_MODULE_PREFIX)) {
+        return {id: '\0' + source, moduleSideEffects: false};
+      }
+      return null;
+    },
+
+    async load(this: any, id: string) {
+      if (!id.startsWith(RESOLVED_VIRTUAL_PREFIX)) return null;
+      if (!resolver) return null;
+      let basename = id.slice(RESOLVED_VIRTUAL_PREFIX.length);
+      if (basename.endsWith(ENTRY_MODULE_SUFFIX)) basename = basename.slice(0, -ENTRY_MODULE_SUFFIX.length);
+      const dump = await dumpAll();
+      // Surface the dump's diagnostics once per memoized dump. Pure-fn
+      // extraction errors halt the build (same contract the pureFns cache
+      // transform enforced pre-migration); RT-render diagnostics flow through
+      // the scanFiles path during transforms, so only PureFn-family entries
+      // are halt-checked here.
+      if (!dumpDiagnosticsSurfaced) {
+        dumpDiagnosticsSurfaced = true;
+        surfaceDiagnostics(this, dump.diagnostics ?? [], (d) => d.family === Family.PureFn, {halt: true});
+      }
+      const source = dump.entryModules?.[basename];
+      if (source === undefined) {
+        this.error?.(
+          `vite-plugin-runtypes: no entry module for "${basename}" — the import was injected by a marker rewrite, ` +
+            `but the resolver session doesn't know that entry. This usually means the importing file was rewritten ` +
+            `against a different resolver session (stale dev-server state); restarting the dev server resolves it.`
+        );
+        return null;
+      }
+      return {code: source, map: null};
+    },
+
     async transform(this: any, code: string, id: string) {
       if (!resolver) return null;
-
-      // Cache module file? Replace its body in-place with the Go binary's
-      // rendered cache source for the matching kind. The on-disk
-      // skeleton is the legitimate empty-state fallback when the plugin
-      // isn't active; the transform only overlays it when it has data.
-      const cacheMatch = CACHE_FILE_RE.exec(id);
-      if (cacheMatch) {
-        const kind = CACHE_KIND_BY_FILE[cacheMatch[1]];
-        cacheModuleIds[kind] = id;
-        const dump = await dumpAll();
-        // Diagnostic surfacing. The shared all-kinds dump carries EVERY
-        // family's render diagnostics, so surfacing must reproduce what
-        // the old per-kind dumps exposed:
-        //   - `pureFns` cache: PureFn-family diagnostics (identical to
-        //     the old pureFns-only dump), halting on Error severity.
-        //   - everything else: nothing. The old runType-only dump carried
-        //     no family-render diagnostics (the runTypes module render has
-        //     no walker), and the other kinds' transforms discarded
-        //     theirs. Family-render warnings/errors keep flowing through
-        //     the scanFiles paths (handleHotUpdate re-emits on every
-        //     edit with soft severity routing) and through the runtime
-        //     alwaysThrow factories the suites assert against — blanket
-        //     halt-surfacing them here would fail builds on types whose
-        //     throw-at-runtime behavior is intentional.
-        if (kind === 'pureFns') {
-          surfaceDiagnostics(this, dump.diagnostics ?? [], (d) => d.family === Family.PureFn, {halt: true});
-        }
-        const body = pickCacheSource(dump, kind);
-        if (!body) return null;
-        return {code: body, map: null};
-      }
-
+      if (id.startsWith(RESOLVED_VIRTUAL_PREFIX)) return null;
       if (!/\.[mc]?[jt]sx?$/.test(id)) return null;
       // Short-circuit: a file that doesn't reference the marker module
       // can't contain rewritable sites. Cheap textual check before the
-      // round-trip to the resolver.
-      if (!code.includes(MARKER_MODULE)) return null;
+      // round-trip to the resolver. `registerPureFnFactory` is checked
+      // separately because the marker package's OWN sources call it via
+      // relative imports (no package-name string in the file) — and with
+      // per-entry modules the factory-arg rewrite at those sites IS the
+      // runtime registration of the built-in pure fns.
+      if (!code.includes(MARKER_MODULE) && !code.includes('registerPureFnFactory')) return null;
 
       const rel = path.relative(options.cwd ?? process.cwd(), id);
       const result = await rewrite(rel, code, scanner ?? resolver);
@@ -215,23 +202,16 @@ export default function runtypes(options: PluginOptions) {
     //   1. Push the new contents into the resolver (full Program rebuild
     //      under the hood — single biggest HMR cost; tracked in
     //      docs/ROADMAP.md as a follow-up for incremental rebind).
-    //   2. Re-scan the changed file so the cache is up to date AND we
-    //      get per-cache "did this scan change anything?" signals.
-    //   3. Invalidate only the cache modules whose backing data grew
-    //      (addedRunTypes / addedValidate / addedPureFns), then return
-    //      the changed user file batched with those invalidated modules
-    //      so Vite ships them in a single HMR message. The cache
-    //      module's `accept` callback fires before the user file's swap,
-    //      so any new hash id rewritten into the user file already has
-    //      a backing rtUtils entry.
+    //   2. Re-scan the changed file so the session is up to date and the
+    //      editor's problem panel refreshes.
+    //   3. Drop the dump memo. Entry modules themselves never need
+    //      invalidating — they are content-addressed (an edited type is a
+    //      NEW id, so the re-transformed user file imports a new virtual
+    //      module and the old one simply goes unreferenced).
     async handleHotUpdate(this: any, ctx: any) {
       if (!resolver) return;
       const file: string = ctx.file;
       if (!file || !/\.[mc]?[jt]sx?$/.test(file)) return;
-      // Editing one of the cache module skeletons itself is a developer-
-      // tool moment, not a runtime update — let Vite's default HMR
-      // handle it (the transform hook will overlay the new body).
-      if (CACHE_FILE_RE.test(file)) return;
 
       const rel = path.relative(cwdAbs || process.cwd(), file);
       const content = typeof ctx.read === 'function' ? await ctx.read() : undefined;
@@ -246,14 +226,14 @@ export default function runtypes(options: PluginOptions) {
         }
       }
 
-      // The program (and therefore every cache body) may have moved —
-      // force the next cache-module transform to re-dump. Unconditional:
+      // The program (and therefore every entry-module body) may have moved —
+      // force the next virtual-module load to re-dump. Unconditional:
       // setSources swapped the Program, so even an in-flight dump is
       // against stale state.
       dumpAllMemo = null;
       let result;
       try {
-        result = await resolver.scanFiles([rel], {includeCacheSources: ['all']});
+        result = await resolver.scanFiles([rel]);
       } catch {
         return;
       }
@@ -269,82 +249,8 @@ export default function runtypes(options: PluginOptions) {
       // alwaysThrow factory carries source context so the call-site is
       // recoverable from the thrown error too.
       surfaceDiagnostics(this, result.diagnostics ?? [], () => true, {halt: false});
-
-      const invalidated: any[] = [];
-      const moduleGraph = ctx.server?.moduleGraph;
-      if (moduleGraph) {
-        const kindsToInvalidate: CacheKind[] = [];
-        if (result.addedRunTypes) kindsToInvalidate.push('runType');
-        if (result.addedValidate) kindsToInvalidate.push('validate');
-        if (result.addedValidationErrors) kindsToInvalidate.push('validationErrors');
-        if (result.addedPrepareForJson) kindsToInvalidate.push('prepareForJson');
-        if (result.addedRestoreFromJson) kindsToInvalidate.push('restoreFromJson');
-        if (result.addedStringifyJson) kindsToInvalidate.push('stringifyJson');
-        if (result.addedPrepareForJsonSafe) kindsToInvalidate.push('prepareForJsonSafe');
-        if (result.addedHasUnknownKeys) kindsToInvalidate.push('hasUnknownKeys');
-        if (result.addedStripUnknownKeys) kindsToInvalidate.push('stripUnknownKeys');
-        if (result.addedUnknownKeyErrors) kindsToInvalidate.push('unknownKeyErrors');
-        if (result.addedUnknownKeysToUndefined) kindsToInvalidate.push('unknownKeysToUndefined');
-        if (result.addedUnknownKeysToUndefinedWire) kindsToInvalidate.push('unknownKeysToUndefinedWire');
-        if (result.addedToBinary) kindsToInvalidate.push('toBinary');
-        if (result.addedFromBinary) kindsToInvalidate.push('fromBinary');
-        if (result.addedFormatTransform) kindsToInvalidate.push('formatTransform');
-        if (result.addedPureFns) kindsToInvalidate.push('pureFns');
-        for (const kind of kindsToInvalidate) {
-          const cacheId = cacheModuleIds[kind];
-          if (!cacheId) continue;
-          const mod = moduleGraph.getModuleById(cacheId);
-          if (!mod) continue;
-          moduleGraph.invalidateModule(mod);
-          invalidated.push(mod);
-        }
-      }
-      if (invalidated.length === 0) return;
-      return [...(ctx.modules ?? []), ...invalidated];
     },
   };
-}
-
-// pickCacheSource pulls the rendered body field matching `kind` off a
-// dump response. Centralised so the transform hook stays terse.
-function pickCacheSource(
-  dump: {
-    runTypeCacheSource?: string;
-    validateCacheSource?: string;
-    validationErrorsCacheSource?: string;
-    prepareForJsonCacheSource?: string;
-    restoreFromJsonCacheSource?: string;
-    stringifyJsonCacheSource?: string;
-    prepareForJsonSafeCacheSource?: string;
-    hasUnknownKeysCacheSource?: string;
-    stripUnknownKeysCacheSource?: string;
-    unknownKeyErrorsCacheSource?: string;
-    unknownKeysToUndefinedCacheSource?: string;
-    unknownKeysToUndefinedWireCacheSource?: string;
-    toBinaryCacheSource?: string;
-    fromBinaryCacheSource?: string;
-    formatTransformCacheSource?: string;
-    pureFnsCacheSource?: string;
-  },
-  kind: CacheKind
-): string | undefined {
-  if (kind === 'runType') return dump.runTypeCacheSource;
-  if (kind === 'validate') return dump.validateCacheSource;
-  if (kind === 'validationErrors') return dump.validationErrorsCacheSource;
-  if (kind === 'prepareForJson') return dump.prepareForJsonCacheSource;
-  if (kind === 'restoreFromJson') return dump.restoreFromJsonCacheSource;
-  if (kind === 'stringifyJson') return dump.stringifyJsonCacheSource;
-  if (kind === 'prepareForJsonSafe') return dump.prepareForJsonSafeCacheSource;
-  if (kind === 'hasUnknownKeys') return dump.hasUnknownKeysCacheSource;
-  if (kind === 'stripUnknownKeys') return dump.stripUnknownKeysCacheSource;
-  if (kind === 'unknownKeyErrors') return dump.unknownKeyErrorsCacheSource;
-  if (kind === 'unknownKeysToUndefined') return dump.unknownKeysToUndefinedCacheSource;
-  if (kind === 'unknownKeysToUndefinedWire') return dump.unknownKeysToUndefinedWireCacheSource;
-  if (kind === 'toBinary') return dump.toBinaryCacheSource;
-  if (kind === 'fromBinary') return dump.fromBinaryCacheSource;
-  if (kind === 'formatTransform') return dump.formatTransformCacheSource;
-  if (kind === 'pureFns') return dump.pureFnsCacheSource;
-  return undefined;
 }
 
 // surfaceDiagnostics routes a diagnostic list through Rollup's plugin
@@ -419,10 +325,10 @@ function severityLabel(s: Severity): string {
 
 export type {PluginOptions as Options};
 export {
-  RUNTYPES_VAR_PREFIX,
-  RUNTYPES_MODULE_NAME,
-  VALIDATE_VAR_PREFIX,
-  VALIDATE_MODULE_NAME,
+  VIRTUAL_MODULE_PREFIX,
+  ENTRY_MODULE_SUFFIX,
+  ENTRY_EXPORT_NAME,
+  ENTRY_BINDING_PREFIX,
   CACHE_MODULES,
   type CacheModuleSettings,
 } from './runtypes-constants.generated.ts';

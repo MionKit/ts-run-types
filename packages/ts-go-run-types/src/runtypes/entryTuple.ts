@@ -89,7 +89,7 @@ const noopIdentity = (v: unknown) => v;
 const noopErrors = (_v: unknown, _pth: unknown, er: unknown) => er || [];
 const noopStringify = (v: unknown) => JSON.stringify(v);
 const noopToBinary = (_v: unknown, Ser: unknown) => Ser;
-const noopFromBinary = (ret: unknown, _Des: unknown) => ret;
+const noopFromBinary = (ret: unknown) => ret;
 
 const valueArgs = () => ({vλl: 'v'}) as CompiledFnArgs;
 const valueDefaults = () => ({vλl: undefined}) as unknown as CompiledFnArgs;

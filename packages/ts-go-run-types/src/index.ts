@@ -28,6 +28,12 @@ export {type Static} from './schema/static.ts';
 // `pureFn.ts` MUST evaluate before any cache factory that references pure-fn
 // helpers (e.g. validationErrors needs `mion::newRunTypeErr`).
 export {registerPureFnFactory} from './runtypes/pureFn.ts';
+// Side-effect import: the `mion::` built-in pure fns (newRunTypeErr,
+// getUnknownKeysFromArray, …) register at their own registerPureFnFactory
+// call sites now — there is no monolithic pureFnsCache module delivering
+// their bodies — so the package entry MUST load the registration file
+// before any materialised factory calls utl.getPureFn('mion::…').
+import './runtypes/pure-fns-utils.ts';
 
 // Custom class serializer registry — register a serialize/deserialize pair
 // for a user-defined class so the JSON + binary families route through it

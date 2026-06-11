@@ -27,9 +27,15 @@ async function renderValidateFor(client: ResolverClient, files: Record<string, s
   const augmented = {'runtypes.d.ts': RUNTYPES_DTS, ...files};
   await client.setSources(augmented);
   const fileNames = Object.keys(augmented).filter((file) => file !== 'runtypes.d.ts');
-  const response = await client.scanFiles(fileNames, {includeCacheSources: ['validate']});
-  if (!response.validateCacheSource) throw new Error('no validateCacheSource in response');
-  return response.validateCacheSource;
+  const response = await client.scanFiles(fileNames, {includeEntryModules: true});
+  const entryModules = response.entryModules ?? {};
+  // Concatenate the validate-family entry modules (sorted by key) — the
+  // per-entry equivalent of the pre-migration single validate body, byte-
+  // stable across runs for the determinism assertions below.
+  const keys = Object.keys(entryModules).sort();
+  const body = keys.map((key) => `// ${key}\n` + entryModules[key]).join('\n');
+  if (!body) throw new Error('no entry modules in response');
+  return body;
 }
 
 const skipUnlessBinary = hasBinary() ? describe : describe.skip;
@@ -77,11 +83,12 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     // prepareForJsonSafe (shape-derived strip) instead of the removed
     // prepareForJsonSafePreserve, while keeping the same fnHash — so stale v3
     // `jeCL` entries must miss. (v3 was the hashed-naming flip.)
-    expect(parsed.version).toBe(4);
+    expect(parsed.version).toBe(5);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
-    expect(typeof parsed.line).toBe('string');
-    expect(parsed.line).toMatch(/^init\(/);
+    expect(typeof parsed.argsText).toBe('string');
+    // v5 payload is the tuple ARGUMENT TEXT — cache key first, no init() wrapper.
+    expect(parsed.argsText).toMatch(/^'[A-Za-z0-9]+_[A-Za-z0-9]+',/);
   });
 
   it('second spawn against the same cache reproduces byte-identical output', async () => {

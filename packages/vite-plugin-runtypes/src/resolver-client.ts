@@ -2,7 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import {createConnection, type Socket} from 'node:net';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
-import type {CacheKind, Metrics, Replacement, Request, Response, RunType, Site} from './protocol.ts';
+import type {Metrics, Replacement, Request, Response, RunType, Site} from './protocol.ts';
 
 export interface ResolverClientOptions {
   // When set, the resolver is spawned with --inline-sources-stdin and the
@@ -93,14 +93,13 @@ class MessageTransport {
   }
 }
 
-// ScanFilesOptions opts the scanFiles call into returning runTypes / one
-// or more pre-rendered cache module bodies projected over the request's
-// files. Both fields are off by default so the rewrite pipeline (which
-// only needs site offsets) pays nothing extra. Pass `['all']` to
-// includeCacheSources for the legacy "give me everything" behavior.
+// ScanFilesOptions opts the scanFiles call into returning runTypes / the
+// per-entry virtual modules projected over the request's files. Both
+// fields are off by default so the rewrite pipeline (which only needs
+// site offsets) pays nothing extra.
 export interface ScanFilesOptions {
   includeRunTypes?: boolean;
-  includeCacheSources?: CacheKind[];
+  includeEntryModules?: boolean;
   // Opts the result into the per-op `metrics` block (checker counters,
   // per-phase wall times, Go memory deltas). Bench-harness use; the
   // rewrite pipeline never sets it.
@@ -110,31 +109,14 @@ export interface ScanFilesOptions {
 // ScanFilesResult is the shape returned by scanFiles. Sites are flat —
 // every site detected across the request's files, each tagged with .file
 // so callers can filter or group. Replacements are byte-range rewrites
-// for the user's source (pure-fn factory-arg-to-null); the plugin
+// for the user's source (pure-fn factory-arg-to-binding); the plugin
 // applies them in `rewrite.ts` alongside Site insertions. runTypes /
-// runTypeCacheSource / validateCacheSource / pureFnsCacheSource are
-// populated only when the corresponding kind was opted into via
-// includeCacheSources (or `'all'`).
+// entryModules are populated only when opted into.
 export interface ScanFilesResult {
   sites: Site[];
   replacements?: Replacement[];
   runTypes?: RunType[];
-  runTypeCacheSource?: string;
-  validateCacheSource?: string;
-  validationErrorsCacheSource?: string;
-  prepareForJsonCacheSource?: string;
-  restoreFromJsonCacheSource?: string;
-  stringifyJsonCacheSource?: string;
-  prepareForJsonSafeCacheSource?: string;
-  hasUnknownKeysCacheSource?: string;
-  stripUnknownKeysCacheSource?: string;
-  unknownKeyErrorsCacheSource?: string;
-  unknownKeysToUndefinedCacheSource?: string;
-  unknownKeysToUndefinedWireCacheSource?: string;
-  toBinaryCacheSource?: string;
-  fromBinaryCacheSource?: string;
-  formatTransformCacheSource?: string;
-  pureFnsCacheSource?: string;
+  entryModules?: Record<string, string>;
   diagnostics?: import('./protocol.ts').Diagnostic[];
   // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
   addedRunTypes?: boolean;
@@ -157,22 +139,12 @@ export interface ScanFilesResult {
   metrics?: Metrics;
 }
 
-// DumpOptions opts the dump call into returning only a subset of
-// cache-module bodies. With no opts, dump returns every cache source
-// (legacy "give me everything" behavior). Passing a non-empty
-// `includeCacheSources` restricts the response to the requested kinds —
-// the Vite plugin uses this to ask for just the cache it's serving in
-// a given transform() call.
-export interface DumpOptions {
-  includeCacheSources?: CacheKind[];
-}
-
 // Common operation surface. Spawn-based and socket-based clients both
 // implement this interface so consumers can be typed against the connection
 // without caring which transport is in use.
 export interface ResolverConnection {
   scanFiles(files: string[], opts?: ScanFilesOptions): Promise<ScanFilesResult>;
-  dump(opts?: DumpOptions): Promise<Response>;
+  dump(): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
   tsCompile(): Promise<number>;
@@ -189,7 +161,7 @@ abstract class ResolverClientBase implements ResolverConnection {
     if (files.length === 0) throw new Error('scanFiles: files must be non-empty');
     const req: Request = {op: 'scanFiles', files};
     if (opts.includeRunTypes) req.includeRunTypes = true;
-    if (opts.includeCacheSources?.length) req.includeCacheSources = opts.includeCacheSources;
+    if (opts.includeEntryModules) req.includeEntryModules = true;
     if (opts.includeMetrics) req.includeMetrics = true;
     const resp = await this.transport.request(req);
     if (resp.error) throw new Error(`scanFiles [${files.join(', ')}]: ${resp.error}`);
@@ -197,22 +169,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       sites: resp.sites ?? [],
       replacements: resp.replacements,
       runTypes: resp.runTypes,
-      runTypeCacheSource: resp.runTypeCacheSource,
-      validateCacheSource: resp.validateCacheSource,
-      validationErrorsCacheSource: resp.validationErrorsCacheSource,
-      prepareForJsonCacheSource: resp.prepareForJsonCacheSource,
-      restoreFromJsonCacheSource: resp.restoreFromJsonCacheSource,
-      stringifyJsonCacheSource: resp.stringifyJsonCacheSource,
-      prepareForJsonSafeCacheSource: resp.prepareForJsonSafeCacheSource,
-      hasUnknownKeysCacheSource: resp.hasUnknownKeysCacheSource,
-      stripUnknownKeysCacheSource: resp.stripUnknownKeysCacheSource,
-      unknownKeyErrorsCacheSource: resp.unknownKeyErrorsCacheSource,
-      unknownKeysToUndefinedCacheSource: resp.unknownKeysToUndefinedCacheSource,
-      unknownKeysToUndefinedWireCacheSource: resp.unknownKeysToUndefinedWireCacheSource,
-      toBinaryCacheSource: resp.toBinaryCacheSource,
-      fromBinaryCacheSource: resp.fromBinaryCacheSource,
-      formatTransformCacheSource: resp.formatTransformCacheSource,
-      pureFnsCacheSource: resp.pureFnsCacheSource,
+      entryModules: resp.entryModules,
       diagnostics: resp.diagnostics,
       addedRunTypes: resp.addedRunTypes,
       addedValidate: resp.addedValidate,
@@ -234,10 +191,8 @@ abstract class ResolverClientBase implements ResolverConnection {
     };
   }
 
-  async dump(opts: DumpOptions = {}): Promise<Response> {
-    const req: Request = {op: 'dump'};
-    if (opts.includeCacheSources?.length) req.includeCacheSources = opts.includeCacheSources;
-    return this.transport.request(req);
+  async dump(): Promise<Response> {
+    return this.transport.request({op: 'dump'});
   }
 
   async setSources(sources: Record<string, string>): Promise<void> {

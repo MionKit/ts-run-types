@@ -224,15 +224,19 @@ export interface SiteDemand {
 }
 
 // Replacement is a byte-range rewrite on a source file: replace
-// [start, end) with text. Used by the pure-fn extractor to null out
-// the factory argument of every `registerPureFnFactory(ns, fn,
-// factory)` call so the canonical fn body lives only in the emitted
-// pureFns cache module.
+// [start, end) with text. Used by the pure-fn extractor to swap the
+// factory argument of every `registerPureFnFactory(ns, fn, factory)`
+// call for the pure fn's entry-module import binding, so the canonical
+// fn body lives only in the emitted entry module.
 export interface Replacement {
   file: string;
   start: number;
   end: number;
   text: string;
+  // When non-empty, the virtual-module specifier the rewrite must import
+  // (renaming the module's fixed export to `text`) for the substituted
+  // expression to resolve — e.g. `virtual:rt/pf/mion/foo.js`.
+  importFrom?: string;
 }
 
 // FormatAnnotation carries the (name, params) pair extracted from a
@@ -244,29 +248,6 @@ export interface FormatAnnotation {
   name: string;
   params?: Record<string, unknown>;
 }
-
-// CacheKind enumerates the rendered cache-module bodies callers can opt
-// into on a scanFiles request via Request.includeCacheSources. Mirrors
-// the Go-side protocol.CacheKind. `'all'` is a forward-compatible
-// shortcut: when present every other kind is treated as requested.
-export type CacheKind =
-  | 'runType'
-  | 'validate'
-  | 'validationErrors'
-  | 'prepareForJson'
-  | 'restoreFromJson'
-  | 'stringifyJson'
-  | 'prepareForJsonSafe'
-  | 'hasUnknownKeys'
-  | 'stripUnknownKeys'
-  | 'unknownKeyErrors'
-  | 'unknownKeysToUndefined'
-  | 'unknownKeysToUndefinedWire'
-  | 'toBinary'
-  | 'fromBinary'
-  | 'formatTransform'
-  | 'pureFns'
-  | 'all';
 
 export interface Request {
   op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId' | 'tsCompile';
@@ -283,11 +264,10 @@ export interface Request {
   // scanFiles only — when set, the response includes a runTypes slice
   // covering the request's files.
   includeRunTypes?: boolean;
-  // scanFiles only — the rendered cache-module bodies the caller wants
-  // populated in the response, scoped to the request's files. Per-kind
-  // opt-in lets callers pay only for what they need; `'all'` is the
-  // shortcut for every kind.
-  includeCacheSources?: CacheKind[];
+  // scanFiles only — when set, the response carries the per-entry virtual
+  // module map (entryModules) scoped to the request's files. `dump` always
+  // carries the full session's modules.
+  includeEntryModules?: boolean;
   // Opts the response into the `metrics` block: tsgo extendedDiagnostics
   // counters, per-phase wall times, and Go memory deltas. Mirrors the
   // Go-side Request.IncludeMetrics; zero measurement cost when unset.
@@ -368,68 +348,18 @@ export interface Response {
   // Replacements is the byte-range rewrite list the Vite plugin
   // applies alongside Sites in `rewrite.ts`. The pure-fn extractor
   // emits one entry per accepted `registerPureFnFactory(ns, fn,
-  // factory)` call: replace the factory argument with `null` so the
-  // canonical fn body lives only in the emitted pureFns cache module
-  // (no duplication in the user bundle).
+  // factory)` call: swap the factory argument for the entry-module
+  // import binding (importFrom carries the specifier) so the canonical
+  // fn body lives only in the emitted entry module.
   replacements?: Replacement[];
   runTypes?: RunType[];
-  // Always populated by `dump`; populated by `scanFiles` when the request
-  // opts into `'runType'` (or `'all'`) via includeCacheSources. The body
-  // is a JS module exporting one `export const <RUNTYPES_VAR_PREFIX><hash>
-  // = {…}` per cached RunType; consumers `import * as cache from
-  // 'virtual:runtypes-cache'` and look entries up by
-  // `cache[RUNTYPES_VAR_PREFIX + id]`.
-  runTypeCacheSource?: string;
-  // Sibling of `runTypeCacheSource` carrying the precompiled validate
-  // validator factories. Body shape:
-  //   export function get_validate_<hash>(utl){…}
-  // Consumers import the factory and invoke it themselves with whatever
-  // `utl` they want bound into the closure — the module never
-  // pre-invokes a factory. Populated by `dump` and on `scanFiles` when
-  // the caller opts into `'validate'` (or `'all'`).
-  validateCacheSource?: string;
-  // Sibling of `validateCacheSource` carrying the precompiled validationErrors
-  // validator factories. Body shape:
-  //   export function get_validationErrors_<hash>(utl){…}
-  // Same consumer pattern as validateCacheSource — populated by `dump`
-  // and on `scanFiles` when the caller opts into `'validationErrors'`
-  // (or `'all'`).
-  validationErrorsCacheSource?: string;
-  // Siblings of `validateCacheSource` for the JSON serializer pair. Same
-  // factory shape, same consumer pattern — populated by `dump` and on
-  // `scanFiles` when the caller opts into the matching cache kind
-  // (or `'all'`).
-  prepareForJsonCacheSource?: string;
-  restoreFromJsonCacheSource?: string;
-  stringifyJsonCacheSource?: string;
-  prepareForJsonSafeCacheSource?: string;
-  // Siblings of `validateCacheSource` for the unknown-keys family —
-  // bodies of the four cache modules emitted by the matching emitters.
-  // Same factory shape, same consumer pattern — populated by `dump` and
-  // on `scanFiles` when the caller opts into the matching cache kind
-  // (or `'all'`).
-  hasUnknownKeysCacheSource?: string;
-  stripUnknownKeysCacheSource?: string;
-  unknownKeyErrorsCacheSource?: string;
-  unknownKeysToUndefinedCacheSource?: string;
-  unknownKeysToUndefinedWireCacheSource?: string;
-  // Siblings of validateCacheSource for the binary serializer pair —
-  // bodies of the toBinary / fromBinary cache modules. Same factory
-  // shape, same consumer pattern.
-  toBinaryCacheSource?: string;
-  fromBinaryCacheSource?: string;
-  // Sibling of validateCacheSource for the `format` transform family
-  // (createFormatTransform<T>). Same factory shape, same consumer pattern.
-  formatTransformCacheSource?: string;
-  // Sibling of `runTypeCacheSource` carrying the pure-fn cache the Go
-  // binary extracted from every `registerPureFnFactory(<ns>, <fnName>,
-  // <factory>)` call. Body is a sequence of `factory(key, bodyHash,
-  // paramNames, code, pureFnDependencies, createPureFn)` calls — the
-  // `createPureFn` argument is an inline function literal templated
-  // from the same `code` string, so the cache module is the canonical
-  // runtime home of every pure-fn body. Populated by `dump` and on
-  // `scanFiles` when the caller opts into `'pureFns'` (or `'all'`).
-  pureFnsCacheSource?: string;
+  // One rendered ES-module source per cache entry, keyed by module
+  // BASENAME (the `<basename>` of `virtual:rt/<basename>.js` — the cache
+  // key for runtype / type-fn entries, the `pf/<ns>/<fn>` encoding for
+  // pure fns). The plugin serves these verbatim from its virtual-module
+  // load hook. Always populated by `dump`; populated by `scanFiles` when
+  // the request sets includeEntryModules (scoped to the request's files).
+  entryModules?: Record<string, string>;
   // Diagnostics carries every non-fatal diagnostic the Go binary emits —
   // pure-fn extractor (PFE9xxx), marker scanner (MKRxxx), RT compiler
   // (IT/TE/PJ/…/FB). The Family discriminator on each entry tells the
