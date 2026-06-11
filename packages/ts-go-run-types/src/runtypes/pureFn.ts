@@ -5,24 +5,22 @@
  * The software is provided "as is", without warranty of any kind.
  * ######## */
 
-import {initCache as initPureFnsCache} from '../caches/pureFnsCache.ts';
 import type {CompiledPureFunction, PureFunctionFactory} from './types.ts';
 import {getRTUtils, pureFnKey} from './rtUtils.ts';
+import {initFromTuple, isEntryTuple, type EntryTuple} from './entryTuple.ts';
 import type {CompTimeArgs, PureFunction as PureFunctionMarker} from '../markers.ts';
 
-// Populate the pure-fn cache. The cache module is the canonical runtime home
-// of every pure-fn body; the user's `registerPureFnFactory(ns, fn, factory)`
-// call is rewritten by the Vite plugin to pass `null` as the factory argument.
-initPureFnsCache(getRTUtils());
-
 /**
- * Looks up the `CompiledPureFunction` the Go binary registered for
- * (namespace, functionID). The contract is encoded in the parameter brands
- * (`CompTimeArgs` + `PureFunction`), so the Go scanner discovers calls via
- * the brands — renaming or reordering parameters does NOT break extraction.
+ * Registers / looks up the `CompiledPureFunction` for (namespace, functionID).
+ * The contract is encoded in the parameter brands (`CompTimeArgs` +
+ * `PureFunction`), so the Go scanner discovers calls via the brands —
+ * renaming or reordering parameters does NOT break extraction.
  *
- * Pass a non-null factory to override `createPureFn` at runtime — used by
- * tests and dev-tools for hot-replace. Production code passes `null`.
+ * The Vite plugin rewrites the factory argument to the pure fn's entry-module
+ * tuple (imported at the top of the file), so calling this at module load IS
+ * the registration: the tuple's dep closure (other pure fns it calls) loads
+ * and registers with it. A plain factory function is the dev-tool override
+ * path — it requires the entry to already exist and hot-swaps its closure.
  */
 export function registerPureFnFactory(
   namespace: CompTimeArgs<string>,
@@ -30,6 +28,13 @@ export function registerPureFnFactory(
   createPureFn: PureFunctionMarker<PureFunctionFactory> | null
 ): CompiledPureFunction {
   const key = pureFnKey(namespace, functionID);
+  if (isEntryTuple(createPureFn)) {
+    initFromTuple(createPureFn as EntryTuple);
+    const registered = getRTUtils().getCompiledPureFn(key);
+    if (registered) return registered;
+    // Fall through to the no-entry error below — a tuple that doesn't
+    // register its own key is an emitter bug worth surfacing loudly.
+  }
   const existing = getRTUtils().getCompiledPureFn(key);
   if (!existing) {
     throw new Error(
@@ -39,19 +44,10 @@ export function registerPureFnFactory(
         `recent edits.`
     );
   }
-  if (createPureFn) {
-    // Manual override — dev-tool only. The build rewrite always passes null.
+  if (createPureFn && !isEntryTuple(createPureFn)) {
+    // Manual override — dev-tool only. The build rewrite injects the tuple.
     existing.createPureFn = createPureFn;
     existing.fn = undefined;
   }
   return existing;
-}
-
-// HMR: re-register every entry against the live rtUtils on cache reload.
-type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
-const hot = (import.meta as unknown as {hot?: HMR}).hot;
-if (hot) {
-  hot.accept('../caches/pureFnsCache.ts', (newMod) => {
-    newMod?.initCache?.(getRTUtils());
-  });
 }
