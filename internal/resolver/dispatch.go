@@ -5,115 +5,80 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/microsoft/typescript-go/shim/compiler"
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
 	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
+	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// familyRender bundles one dump-driven cache-family render: the wire kind it
-// answers to, the render wrapper, the Response slot the body lands in, and
-// the registry hooks for the per-scan added-flag (nil for runType — its flag
-// is len(added)>0, computed by the caller). Shared by the OpScanFiles (scoped
-// dump) and OpDump (full dump) branches — the only per-op differences are the
-// dump that seeds the render and the want-gate. pureFns is NOT here: it
-// renders from extractor entries, not from a Dump (see the
-// renderPureFnsModule call sites). This table is the resolver-side family
-// enumeration; the typefns side lives in typefns.Families.
-type familyRender struct {
-	kind         protocol.CacheKind
-	render       func(dump protocol.Dump, opts typefns.RenderOpts) (string, error)
-	assign       func(response *protocol.Response, body string)
+// familyAddedFlag wires one family's per-scan added-flag: the pre-flight
+// Supports probe plus the Response setter. pureFns / runTypes are not here —
+// their flags come from the extractor / cache delta directly.
+type familyAddedFlag struct {
+	key          string
 	anySupported func(runTypes []*protocol.RunType) bool
 	setAdded     func(response *protocol.Response, added bool)
 }
 
-// familyRenders is ordered with validate LAST on purpose: renderValidateModule
-// runs CrossFamilyValRoots, whose collection passes reuse the per-dispatch
-// EntryRenderCache that the OTHER families' real renders populate. Rendering
-// validate after every other requested family turns those 13 collection
-// renders into cache hits whenever the family was requested anyway.
-var familyRenders = []familyRender{
-	{kind: protocol.CacheKindRunType,
-		render: func(dump protocol.Dump, _ typefns.RenderOpts) (string, error) { return renderRunTypesModule(dump) },
-		assign: func(response *protocol.Response, body string) { response.RunTypeCacheSource = body }},
-	{kind: protocol.CacheKindValidationErrors,
-		render:       renderFamilyModule("validationErrors"),
-		assign:       func(response *protocol.Response, body string) { response.ValidationErrorsCacheSource = body },
+// familyAddedFlags enumerates the per-family added-flag wiring consumed by the
+// Vite plugin's scan-change signals (and hmr-signals tests). Probe order is
+// cosmetic — each row runs one shallow Supports pass over the scan's added
+// nodes.
+var familyAddedFlags = []familyAddedFlag{
+	{key: "validationErrors",
 		anySupported: typefns.FamilyByKey("validationErrors").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedValidationErrors = added }},
-	{kind: protocol.CacheKindPrepareForJson,
-		render:       renderPrepareForJsonModule,
-		assign:       func(response *protocol.Response, body string) { response.PrepareForJsonCacheSource = body },
+	{key: "prepareForJson",
 		anySupported: typefns.FamilyByKey("prepareForJson").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedPrepareForJson = added }},
-	{kind: protocol.CacheKindRestoreFromJson,
-		render:       renderRestoreFromJsonModule,
-		assign:       func(response *protocol.Response, body string) { response.RestoreFromJsonCacheSource = body },
+	{key: "restoreFromJson",
 		anySupported: typefns.FamilyByKey("restoreFromJson").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedRestoreFromJson = added }},
-	{kind: protocol.CacheKindStringifyJson,
-		render:       renderFamilyModule("stringifyJson"),
-		assign:       func(response *protocol.Response, body string) { response.StringifyJsonCacheSource = body },
+	{key: "stringifyJson",
 		anySupported: typefns.FamilyByKey("stringifyJson").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedStringifyJson = added }},
-	{kind: protocol.CacheKindPrepareForJsonSafe,
-		render:       renderFamilyModule("prepareForJsonSafe"),
-		assign:       func(response *protocol.Response, body string) { response.PrepareForJsonSafeCacheSource = body },
+	{key: "prepareForJsonSafe",
 		anySupported: typefns.FamilyByKey("prepareForJsonSafe").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedPrepareForJsonSafe = added }},
-	{kind: protocol.CacheKindHasUnknownKeys,
-		render:       renderFamilyModule("hasUnknownKeys"),
-		assign:       func(response *protocol.Response, body string) { response.HasUnknownKeysCacheSource = body },
+	{key: "hasUnknownKeys",
 		anySupported: typefns.FamilyByKey("hasUnknownKeys").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedHasUnknownKeys = added }},
-	{kind: protocol.CacheKindStripUnknownKeys,
-		render:       renderFamilyModule("stripUnknownKeys"),
-		assign:       func(response *protocol.Response, body string) { response.StripUnknownKeysCacheSource = body },
+	{key: "stripUnknownKeys",
 		anySupported: typefns.FamilyByKey("stripUnknownKeys").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedStripUnknownKeys = added }},
-	{kind: protocol.CacheKindUnknownKeyErrors,
-		render:       renderFamilyModule("unknownKeyErrors"),
-		assign:       func(response *protocol.Response, body string) { response.UnknownKeyErrorsCacheSource = body },
+	{key: "unknownKeyErrors",
 		anySupported: typefns.FamilyByKey("unknownKeyErrors").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeyErrors = added }},
-	{kind: protocol.CacheKindUnknownKeysToUndefined,
-		render:       renderFamilyModule("unknownKeysToUndefined"),
-		assign:       func(response *protocol.Response, body string) { response.UnknownKeysToUndefinedCacheSource = body },
+	{key: "unknownKeysToUndefined",
 		anySupported: typefns.FamilyByKey("unknownKeysToUndefined").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeysToUndefined = added }},
-	{kind: protocol.CacheKindUnknownKeysToUndefinedWire,
-		render:       renderFamilyModule("unknownKeysToUndefinedWire"),
-		assign:       func(response *protocol.Response, body string) { response.UnknownKeysToUndefinedWireCacheSource = body },
+	{key: "unknownKeysToUndefinedWire",
 		anySupported: typefns.FamilyByKey("unknownKeysToUndefinedWire").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeysToUndefinedWire = added }},
-	{kind: protocol.CacheKindToBinary,
-		render:       renderFamilyModule("toBinary"),
-		assign:       func(response *protocol.Response, body string) { response.ToBinaryCacheSource = body },
+	{key: "toBinary",
 		anySupported: typefns.FamilyByKey("toBinary").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedToBinary = added }},
-	{kind: protocol.CacheKindFromBinary,
-		render:       renderFamilyModule("fromBinary"),
-		assign:       func(response *protocol.Response, body string) { response.FromBinaryCacheSource = body },
+	{key: "fromBinary",
 		anySupported: typefns.FamilyByKey("fromBinary").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedFromBinary = added }},
-	{kind: protocol.CacheKindFormatTransform,
-		render: renderFamilyModule("formatTransform"),
-		assign: func(response *protocol.Response, body string) { response.FormatTransformCacheSource = body },
-		// NOT the registry generic: FormatTransformEmitter.Supports is true for
-		// everything (identity is a valid transform), so the added-flag gates on
-		// an actual value-transforming format instead.
+	// NOT the registry generic: FormatTransformEmitter.Supports is true for
+	// everything (identity is a valid transform), so the added-flag gates on
+	// an actual value-transforming format instead.
+	{key: "formatTransform",
 		anySupported: typefns.AnyFormatTransformSupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedFormatTransform = added }},
-	{kind: protocol.CacheKindValidate,
-		render:       renderValidateModule,
-		assign:       func(response *protocol.Response, body string) { response.ValidateCacheSource = body },
+	{key: "validate",
 		anySupported: typefns.FamilyByKey("validate").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedValidate = added }},
 }
@@ -164,145 +129,225 @@ func elapsedMs(start time.Time) float64 {
 	return float64(time.Since(start).Microseconds()) / 1000.0
 }
 
-// renderFamilies runs every requested family render against dump, timing
-// each into metrics and assigning the rendered body to its response slot.
-// Returns the first render error in familyRenders order. Shared by the
-// OpScanFiles (scoped dump) and OpDump (full dump) branches — `wants`
-// folds each branch's request-filter semantics.
-//
-// Renders are checker-free pure functions of (dump, RefTable, opts), so
-// by default the requested non-validate families run concurrently (see
-// renderFamiliesParallel); validate always renders last and serially —
-// its CrossFamilyValRoots collection passes read the entries the other
-// families' renders populated.
-func (resolver *Resolver) renderFamilies(wants func(protocol.CacheKind) bool, dump protocol.Dump, rtOpts typefns.RenderOpts, metrics *protocol.Metrics, response *protocol.Response) error {
-	requested := make([]familyRender, 0, len(familyRenders))
-	for _, family := range familyRenders {
-		if wants(family.kind) {
-			requested = append(requested, family)
-		}
+// collectEntryModules runs the full per-entry pipeline against dump: runtype
+// node entries for every dumped type, demand-driven family entries (parallel
+// fan-out preserved), JSON composites, pure fns, the cross-family fixpoint,
+// the global dangling-dep cascade, and missing stubs for demanded keys that
+// didn't survive. Returns the rendered modules keyed by module BASENAME.
+func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns.RenderOpts, pureFnGraph entrymod.Graph, metrics *protocol.Metrics) (map[string]string, error) {
+	graph := runtype.CollectEntries(dump)
+
+	familyGraphs, err := resolver.collectFamilies(dump, rtOpts, metrics)
+	if err != nil {
+		return nil, err
 	}
-	if len(requested) == 0 {
-		return nil
+	for _, familyGraph := range familyGraphs {
+		graph.Merge(familyGraph)
 	}
-	// familyRenders orders validate last, so when requested it is the
-	// final entry — everything before it may fan out.
-	nonValidate := requested
-	if requested[len(requested)-1].kind == protocol.CacheKindValidate {
-		nonValidate = requested[:len(requested)-1]
+	graph.Merge(typefns.CollectJsonCompositeEntries(dump, rtOpts))
+	graph.Merge(pureFnGraph)
+
+	resolver.resolveCrossFamilyEdges(graph, dump, rtOpts)
+
+	// Dropping an entry whose same-family dep never rendered mirrors the
+	// pre-migration dangling cascade; the demanded roots that fall out (or
+	// never rendered at all — unsupported kinds with no diag code) become
+	// KindMissing stubs so the imports the plugin injected still resolve, and
+	// the runtime degrades to the family identity fn exactly as before.
+	graph.Cascade()
+	graph.AddMissingStubs(demandedEntryKeys(dump.Sites))
+
+	renderStart := time.Now()
+	modules, err := entrymod.Render(graph)
+	if metrics != nil {
+		metrics.RenderMs["entryModules"] = elapsedMs(renderStart)
 	}
-	if resolver.parallelRenderEnabled() && len(nonValidate) >= 2 {
-		return resolver.renderFamiliesParallel(requested, nonValidate, dump, rtOpts, metrics, response)
-	}
-	return renderFamiliesSerial(requested, dump, rtOpts, metrics, response)
+	return modules, err
 }
 
-// parallelRenderEnabled reports whether family renders may fan out.
-// Parallel is the default; SingleThreaded means "no concurrency at all",
-// covering renders too even though they never touch a checker.
-func (resolver *Resolver) parallelRenderEnabled() bool {
-	return !resolver.opts.DisableParallelRender && !resolver.opts.SingleThreaded
-}
-
-// renderFamiliesSerial is the sequential render loop — the serial scan
-// path's contract and the fallback when fewer than two non-validate
-// families are requested.
-func renderFamiliesSerial(requested []familyRender, dump protocol.Dump, rtOpts typefns.RenderOpts, metrics *protocol.Metrics, response *protocol.Response) error {
-	for _, family := range requested {
-		renderStart := time.Now()
-		body, renderErr := family.render(dump, rtOpts)
-		if renderErr != nil {
-			return renderErr
+// collectFamilies runs every type-walking family's per-entry collection.
+// Families fan out across goroutines by default (collects are checker-free
+// pure functions of (dump, RefTable, opts)); each goroutine gets a value copy
+// of rtOpts with the two dispatch-shared mutable fields sharded: its own
+// DiagSink slice and a fresh FactsTable. The join then, per family in
+// registry order: first error wins, RenderMs recorded (values overlap
+// wall-clock; their sum exceeds elapsed time), shard diagnostics appended
+// (== the sequential order), and Facts shards merged into the dispatch opts.
+func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefns.RenderOpts, metrics *protocol.Metrics) ([]entrymod.Graph, error) {
+	families := typefns.Families
+	graphs := make([]entrymod.Graph, len(families))
+	if !resolver.parallelRenderEnabled() || len(families) < 2 {
+		for familyIndex, spec := range families {
+			collectStart := time.Now()
+			graphs[familyIndex] = spec.Collect(dump, rtOpts, nil)
+			if metrics != nil {
+				metrics.RenderMs[spec.Key] = elapsedMs(collectStart)
+			}
 		}
-		if metrics != nil {
-			metrics.RenderMs[string(family.kind)] = elapsedMs(renderStart)
-		}
-		family.assign(response, body)
+		return graphs, nil
 	}
-	return nil
-}
 
-// renderFamiliesParallel fans the non-validate family renders out across
-// goroutines, then joins in familyRenders order and renders validate
-// serially. Each goroutine gets a value copy of rtOpts with the three
-// dispatch-shared mutable fields sharded: its own DiagSink slice, a fresh
-// EntryRenderCache, and a fresh FactsTable (everything else — RefTable,
-// ProvenanceSites, Store, Lookup — is read-only or internally safe during
-// renders). The join then, per family in deterministic order: first error
-// wins, RenderMs recorded (values overlap wall-clock; their sum exceeds
-// elapsed time), response slot assigned, shard diagnostics appended (==
-// the sequential order), and the Entry/Facts shards merged into the
-// dispatch opts so validate's CrossFamilyValRoots collection passes see
-// the same entries a sequential dispatch would have cached.
-//
-// On a family error, sibling renders have already run (unlike the serial
-// loop, which stops at the first failure) — their work is discarded with
-// the error response; disk-store writes are atomic and idempotent, so the
-// extra renders leave no inconsistent state behind.
-func (resolver *Resolver) renderFamiliesParallel(requested, nonValidate []familyRender, dump protocol.Dump, rtOpts typefns.RenderOpts, metrics *protocol.Metrics, response *protocol.Response) error {
 	type familyResult struct {
-		body     string
-		err      error
-		renderMs float64
+		err       error
+		collectMs float64
 	}
-	results := make([]familyResult, len(nonValidate))
-	familyDiagnostics := make([][]diag.Diagnostic, len(nonValidate))
-	entryShards := make([]*typefns.EntryRenderCache, len(nonValidate))
-	factShards := make([]*typefns.FactsTable, len(nonValidate))
+	results := make([]familyResult, len(families))
+	familyDiagnostics := make([][]diag.Diagnostic, len(families))
+	factShards := make([]*typefns.FactsTable, len(families))
 	var waitGroup sync.WaitGroup
-	for familyIndex, family := range nonValidate {
-		entryShards[familyIndex] = typefns.NewEntryRenderCache()
+	for familyIndex, spec := range families {
 		factShards[familyIndex] = typefns.NewFactsTable()
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
 			defer func() {
 				if recovered := recover(); recovered != nil {
-					results[familyIndex].err = fmt.Errorf("render %s: %v", family.kind, recovered)
+					results[familyIndex].err = fmt.Errorf("collect %s: %v", spec.Key, recovered)
 				}
 			}()
 			shardOpts := rtOpts
-			// Keep the EntryCache write gate intact: a per-family sink only
-			// when the dispatch wired a live one.
 			if rtOpts.DiagSink != nil {
 				shardOpts.DiagSink = &familyDiagnostics[familyIndex]
 			}
-			shardOpts.EntryCache = entryShards[familyIndex]
 			shardOpts.Facts = factShards[familyIndex]
-			renderStart := time.Now()
-			body, renderErr := family.render(dump, shardOpts)
-			results[familyIndex] = familyResult{body: body, err: renderErr, renderMs: elapsedMs(renderStart)}
+			collectStart := time.Now()
+			graphs[familyIndex] = spec.Collect(dump, shardOpts, nil)
+			results[familyIndex].collectMs = elapsedMs(collectStart)
 		}()
 	}
 	waitGroup.Wait()
-	for familyIndex, family := range nonValidate {
-		result := results[familyIndex]
-		if result.err != nil {
-			return result.err
+	for familyIndex, spec := range families {
+		if results[familyIndex].err != nil {
+			return nil, results[familyIndex].err
 		}
 		if metrics != nil {
-			metrics.RenderMs[string(family.kind)] = result.renderMs
+			metrics.RenderMs[spec.Key] = results[familyIndex].collectMs
 		}
-		family.assign(response, result.body)
 		if rtOpts.DiagSink != nil && len(familyDiagnostics[familyIndex]) > 0 {
 			*rtOpts.DiagSink = append(*rtOpts.DiagSink, familyDiagnostics[familyIndex]...)
 		}
-		rtOpts.EntryCache.Merge(entryShards[familyIndex])
 		rtOpts.Facts.Merge(factShards[familyIndex])
 	}
-	if len(requested) > len(nonValidate) {
-		validate := requested[len(requested)-1]
-		renderStart := time.Now()
-		body, renderErr := validate.render(dump, rtOpts)
-		if renderErr != nil {
-			return renderErr
+	return graphs, nil
+}
+
+// parallelRenderEnabled reports whether family collects may fan out.
+// Parallel is the default; SingleThreaded means "no concurrency at all",
+// covering collects too even though they never touch a checker.
+func (resolver *Resolver) parallelRenderEnabled() bool {
+	return !resolver.opts.DisableParallelRender && !resolver.opts.SingleThreaded
+}
+
+// familyByPlainHash maps each type-walking family's PLAIN fnHash to its spec —
+// the reverse lookup the cross-family fixpoint needs to route a missing
+// `<fnHash>_<id>` dep to the family that renders it. Cross-family edges always
+// target plain (no-variant) entries, so plain hashes suffice.
+var familyByPlainHash = func() map[string]typefns.FamilySpec {
+	out := make(map[string]typefns.FamilySpec, len(typefns.Families))
+	for _, spec := range typefns.Families {
+		op, ok := operations.ByFamilyTag(spec.Settings.Tag)
+		if !ok {
+			continue
 		}
-		if metrics != nil {
-			metrics.RenderMs[string(validate.kind)] = elapsedMs(renderStart)
-		}
-		validate.assign(response, body)
+		out[operations.PlainHash(op.Name)] = spec
 	}
-	return nil
+	return out
+}()
+
+// resolveCrossFamilyEdges renders, to fixpoint, every foreign-family entry the
+// graph's deps reference but no family demanded directly — the
+// `<valHash>_<member>` lookups union decoders / validationErrors bodies reach at
+// runtime. This replaces the pre-migration CrossFamilyValRoots seeding pass:
+// instead of collecting edges into the validate render, each missing edge is
+// routed to its owning family (via the plain-fnHash reverse map) and collected
+// as a plain root + same-family closure. Sites are stripped from the seed dump
+// so the sub-collect renders ONLY the requested roots (no demand re-render, no
+// duplicate diagnostics).
+//
+// Iteration is bounded: each pass only renders keys that were missing, and the
+// rendered set grows monotonically toward the (finite) session type set. The
+// guard cap is defensive — hitting it leaves the remaining edges to the stub
+// pass, which preserves the build (runtime degrades to identity fallback).
+func (resolver *Resolver) resolveCrossFamilyEdges(graph entrymod.Graph, dump protocol.Dump, rtOpts typefns.RenderOpts) {
+	seedDump := protocol.Dump{RunTypes: dump.RunTypes}
+	for iteration := 0; iteration < 8; iteration++ {
+		missingByFamily := map[string]map[string]bool{}
+		for _, entry := range graph {
+			if entry.Kind != entrymod.KindTypeFn {
+				continue
+			}
+			// Cross-family edges ride SoftDeps (hard Deps are same-family and
+			// always rendered by the family's own collect or cascaded away).
+			for _, dep := range entry.SoftDeps {
+				if dep == "" || dep == entry.Key {
+					continue
+				}
+				if _, ok := graph[dep]; ok {
+					continue
+				}
+				separator := strings.IndexByte(dep, '_')
+				if separator < 0 {
+					continue
+				}
+				spec, ok := familyByPlainHash[dep[:separator]]
+				if !ok {
+					continue
+				}
+				if missingByFamily[spec.Key] == nil {
+					missingByFamily[spec.Key] = map[string]bool{}
+				}
+				missingByFamily[spec.Key][dep[separator+1:]] = true
+			}
+		}
+		if len(missingByFamily) == 0 {
+			return
+		}
+		familyKeys := make([]string, 0, len(missingByFamily))
+		for key := range missingByFamily {
+			familyKeys = append(familyKeys, key)
+		}
+		sort.Strings(familyKeys)
+		progressed := false
+		for _, key := range familyKeys {
+			ids := make([]string, 0, len(missingByFamily[key]))
+			for id := range missingByFamily[key] {
+				ids = append(ids, id)
+			}
+			sort.Strings(ids)
+			before := len(graph)
+			graph.Merge(typefns.FamilyByKey(key).Collect(seedDump, rtOpts, ids))
+			if len(graph) > before {
+				progressed = true
+			}
+		}
+		// No progress means every remaining edge points at an unsupported
+		// type — the stub pass will cover them; looping again would spin.
+		if !progressed {
+			return
+		}
+	}
+}
+
+// demandedEntryKeys lists the entry keys user call sites import: the
+// `<fnHash>_<typeId>` key for every createX site (reflection sites import the
+// runtype entry, which always exists for interned types). The stub pass turns
+// any demanded key that didn't survive collection into a resolvable
+// KindMissing module.
+func demandedEntryKeys(sites []protocol.Site) []string {
+	var keys []string
+	seen := map[string]bool{}
+	for _, site := range sites {
+		if site.ID == "" || site.FnId == "" {
+			continue
+		}
+		key := site.FnId + "_" + site.ID
+		if !seen[key] {
+			seen[key] = true
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // dispatch is the un-instrumented op switch. metrics may be nil (the
@@ -328,9 +373,10 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// Pure-fn extraction runs every scanFiles call: the request's
 		// files may add or modify registerPureFnFactory calls without
 		// producing any new RunTypes, AND every accepted entry yields
-		// one Replacement record the Vite plugin uses to null out the
-		// factory argument in the user's source. Diagnostics flow
-		// unconditionally so editor surfaces update as the user types.
+		// one Replacement record the Vite plugin uses to swap the
+		// factory argument for the entry-module binding in the user's
+		// source. Diagnostics flow unconditionally so editor surfaces
+		// update as the user types.
 		pureFnsStart := time.Now()
 		pureFnEntries, pureFnDiagnostics, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
 		if metrics != nil {
@@ -351,10 +397,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		}
 		// Per-family added flags, one shallow Supports pass each (the
 		// addedRunTypes short-circuit skips all passes on no-change scans).
-		for _, family := range familyRenders {
-			if family.setAdded == nil {
-				continue
-			}
+		for _, family := range familyAddedFlags {
 			family.setAdded(&response, addedRunTypes && family.anySupported(added))
 		}
 		// The full added-node payload is attached only when the caller
@@ -367,32 +410,24 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		if metrics != nil {
 			metrics.PrepMs = elapsedMs(prepStart)
 		}
-		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
-		anyCache := wantPureFns
-		for _, family := range familyRenders {
-			if wantsCache(request.IncludeCacheSources, family.kind) {
-				anyCache = true
-				break
-			}
-		}
 		// rtDiagnostics is the sink the walker appends to at every
-		// RTThrow / silent-skip site reached during the cache renders
-		// below. Single sink covers every render in this dispatch so a
+		// RTThrow / silent-skip site reached during the entry collection
+		// below. Single sink covers every collect in this dispatch so a
 		// single shared throw-site emits one diag per call site. The
-		// render opts (provenance line/col conversion + full ref table +
-		// per-dispatch entry memo) are built ONLY when a render will
-		// actually run — the plain rewrite-pipeline scan (no cache
-		// sources requested) skips all of that work.
+		// render opts (provenance line/col conversion + full ref table)
+		// are built ONLY when collection will actually run — the plain
+		// rewrite-pipeline scan (no entry modules requested) skips all of
+		// that work.
 		var rtDiagnostics []diag.Diagnostic
 		var rtOpts typefns.RenderOpts
-		if anyCache {
+		if request.IncludeEntryModules {
 			rtOptsStart := time.Now()
 			rtOpts = resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
 			if metrics != nil {
 				metrics.PrepMs += elapsedMs(rtOptsStart)
 			}
 		}
-		if request.IncludeRunTypes || anyCache {
+		if request.IncludeRunTypes || request.IncludeEntryModules {
 			scopedStart := time.Now()
 			scoped := resolver.scopedDump(request.Files)
 			if metrics != nil {
@@ -401,22 +436,12 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			if request.IncludeRunTypes {
 				response.RunTypes = scoped.RunTypes
 			}
-			wants := func(kind protocol.CacheKind) bool {
-				return wantsCache(request.IncludeCacheSources, kind)
-			}
-			if renderErr := resolver.renderFamilies(wants, scoped, rtOpts, metrics, &response); renderErr != nil {
-				return protocol.Response{Error: renderErr.Error()}
-			}
-			if wantPureFns {
-				renderStart := time.Now()
-				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, resolver.pureFnFileCache, pureFnEntries, true)
-				if pureFnsErr != nil {
-					return protocol.Response{Error: pureFnsErr.Error()}
+			if request.IncludeEntryModules {
+				modules, modulesErr := resolver.collectEntryModules(scoped, rtOpts, purefns.CollectEntries(pureFnEntries), metrics)
+				if modulesErr != nil {
+					return protocol.Response{Error: modulesErr.Error()}
 				}
-				if metrics != nil {
-					metrics.RenderMs[string(protocol.CacheKindPureFns)] = elapsedMs(renderStart)
-				}
-				response.PureFnsCacheSource = pureFnsRendered
+				response.EntryModules = modules
 			}
 		}
 		// Flush RT diagnostics into the unified response.Diagnostics slice
@@ -426,14 +451,12 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 	case protocol.OpDump:
 		// Ensure every source file in the Program has been scanned for
 		// marker calls before the dump is serialized. Without this,
-		// the Vite plugin's cache module transform — which fires on
-		// the first import of any cache file — may run BEFORE the
-		// user's marker-bearing source files have been transformed
-		// (and therefore scanned). The cache module would then be
-		// rendered with an empty `init(...)` body, even though the
-		// runtypes will appear in the resolver state moments later.
-		// The eager scan amortises any per-file scan that hasn't
-		// happened yet, so OpDump always returns the complete picture.
+		// the Vite plugin's virtual-module load — which fires on the
+		// first import of any entry module — may run BEFORE the user's
+		// marker-bearing source files have been transformed (and
+		// therefore scanned). The eager scan amortises any per-file scan
+		// that hasn't happened yet, so OpDump always returns the
+		// complete picture.
 		scanStart := time.Now()
 		if resolver.Program != nil {
 			resolver.scanAllProgramFiles()
@@ -449,47 +472,21 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			RunTypes: fullDump.RunTypes,
 			Sites:    fullDump.Sites,
 		}
-		// Per-kind opt-in mirrors OpScanFiles. When IncludeCacheSources is
-		// omitted, callers get every cache source (legacy "give me
-		// everything" behavior preserved). When set, only the requested
-		// kinds are rendered — lets the Vite plugin's transform() ask
-		// for just the one cache it's serving in this hook call.
-		noFilter := len(request.IncludeCacheSources) == 0
-		anyFamily := noFilter
-		for _, family := range familyRenders {
-			if anyFamily {
-				break
-			}
-			anyFamily = wantsCache(request.IncludeCacheSources, family.kind)
-		}
-		// rtDiagnostics is the RT-render diagnostic sink for this dump.
-		// Mirrors the OpScanFiles branch — one sink shared across every
-		// per-kind render, flushed into response.Diagnostics once all
-		// renders have completed. Built lazily: a pureFns-only dump
-		// doesn't need provenance or the ref table.
+		// rtDiagnostics mirrors the OpScanFiles branch — one sink shared
+		// across the whole collection, flushed into response.Diagnostics
+		// once the render completes.
 		var rtDiagnostics []diag.Diagnostic
-		var rtOpts typefns.RenderOpts
-		if anyFamily {
-			rtOpts = resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
+		rtOpts := resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
+		pureFnGraph, pureFnsDiagnostics, pureFnsErr := resolver.collectProgramPureFns(metrics)
+		if pureFnsErr != nil {
+			return protocol.Response{Error: pureFnsErr.Error()}
 		}
-		wants := func(kind protocol.CacheKind) bool {
-			return noFilter || wantsCache(request.IncludeCacheSources, kind)
+		response.Diagnostics = append(response.Diagnostics, pureFnsDiagnostics...)
+		modules, modulesErr := resolver.collectEntryModules(fullDump, rtOpts, pureFnGraph, metrics)
+		if modulesErr != nil {
+			return protocol.Response{Error: modulesErr.Error()}
 		}
-		if renderErr := resolver.renderFamilies(wants, fullDump, rtOpts, metrics, &response); renderErr != nil {
-			return protocol.Response{Error: renderErr.Error()}
-		}
-		if noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns) {
-			renderStart := time.Now()
-			pureFnsRendered, pureFnsDiagnostics, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, resolver.pureFnFileCache, nil, false)
-			if pureFnsErr != nil {
-				return protocol.Response{Error: pureFnsErr.Error()}
-			}
-			if metrics != nil {
-				metrics.RenderMs[string(protocol.CacheKindPureFns)] = elapsedMs(renderStart)
-			}
-			response.PureFnsCacheSource = pureFnsRendered
-			response.Diagnostics = append(response.Diagnostics, pureFnsDiagnostics...)
-		}
+		response.EntryModules = modules
 		response.Diagnostics = append(response.Diagnostics, rtDiagnostics...)
 		return response
 	case protocol.OpSetSources:
@@ -568,9 +565,9 @@ func (resolver *Resolver) dispatchSetSources(sources map[string]string) error {
 
 // extractPureFnsForScan runs the pure-fn extractor once per scanFiles
 // request and returns everything downstream code needs: the entries
-// (so renderPureFnsModule doesn't extract a second time), the wire
+// (so the entry-module collection doesn't extract a second time), the wire
 // diagnostics, the byte-range replacements for the user's source
-// (factory-arg-to-null), and a `changed` flag indicating that at
+// (factory-arg-to-binding), and a `changed` flag indicating that at
 // least one entry's bodyHash differs from the session index.
 //
 // The session index (pureFnHashes) is mutated in place so subsequent
@@ -594,22 +591,11 @@ func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []puref
 	return entries, diagnostics, replacements, changed
 }
 
-// wantsCache reports whether a scanFiles caller asked for `kind` — either
-// explicitly or via the CacheKindAll shortcut.
-func wantsCache(requested []protocol.CacheKind, kind protocol.CacheKind) bool {
-	for _, k := range requested {
-		if k == kind || k == protocol.CacheKindAll {
-			return true
-		}
-	}
-	return false
-}
-
 // dispatchTsCompile runs the embedded tsgo through a full bind +
 // typecheck + emit pass on the resolver's current Program. Returns the
 // wall time in milliseconds. The emit output bytes are discarded — we
-// only care about timing. Does NOT walk markers, does NOT render any
-// ts-go-run-types cache modules — this is the pure-TypeScript baseline
+// only care about timing. Does NOT walk markers, does NOT collect any
+// ts-go-run-types entry modules — this is the pure-TypeScript baseline
 // measurement the bench orchestrators record alongside the existing
 // scanFiles latency.
 func (resolver *Resolver) dispatchTsCompile() (float64, error) {

@@ -17,7 +17,7 @@ func scanForFormatParamDiagnostics(t *testing.T, code string) []diag.Diagnostic 
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)

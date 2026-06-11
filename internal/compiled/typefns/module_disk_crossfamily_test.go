@@ -58,8 +58,8 @@ func TestRenderFnModule_DiskCache_CrossFamilyRoundTrip(t *testing.T) {
 
 	// First render: walker runs, writes the entry (with CrossFamilyRefs).
 	first := renderEntryWithDeps(refTable[rootID], settings, PrepareForJsonEmitter{}, prefix, refTable, opts, "", nil)
-	if first.line == "" {
-		t.Fatal("first render produced an empty line for the conflict-prop union")
+	if first.argsText == "" {
+		t.Fatal("first render produced empty args for the conflict-prop union")
 	}
 	wantCross := sortedCopy(first.crossFamilyDeps)
 	if len(wantCross) == 0 {
@@ -104,63 +104,67 @@ func TestRenderFnModule_DiskCache_CrossFamilyRoundTrip(t *testing.T) {
 		t.Errorf("reconstructed deps from CrossFamilyRefs: got %v want %v", got, wantCross)
 	}
 
-	// Second render: must HIT the disk cache (line came back from disk) and
+	// Second render: must HIT the disk cache (args came back from disk) and
 	// return the SAME crossFamilyDeps. Prove the hit by mutating the on-disk
-	// Line to a sentinel — if the walker re-ran we'd never observe it.
-	entry.Line = "init('pj_uni','CACHE_SENTINEL',undefined,true);"
+	// ArgsText to a sentinel — if the walker re-ran we'd never observe it.
+	entry.ArgsText = "'pj_uni','CACHE_SENTINEL',undefined,true"
 	mutated, _ := json.Marshal(entry)
 	if err := os.WriteFile(cachePath, mutated, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	second := renderEntryWithDeps(refTable[rootID], settings, PrepareForJsonEmitter{}, prefix, refTable, opts, "", nil)
-	if second.line != entry.Line {
-		t.Fatalf("second render did not hit the disk cache (line=%q, want the mutated sentinel line)", second.line)
+	if second.argsText != entry.ArgsText {
+		t.Fatalf("second render did not hit the disk cache (args=%q, want the mutated sentinel)", second.argsText)
 	}
 	if got := sortedCopy(second.crossFamilyDeps); !equalStrSlices(got, wantCross) {
 		t.Errorf("cache hit lost cross-family edges: got %v want %v", got, wantCross)
 	}
 }
 
-// TestCrossFamilyValRoots_DiskCacheHit_PreservesRoots — end-to-end at the
-// CrossFamilyValRoots seam. With the bypass removed, the collection pass uses the
-// disk Store; a warm cache (second invocation) must still surface the same
-// `it`-demand roots (the bare member ids of the discrimination edges) as a cold
-// run. This is the behaviour the whole follow-up protects: removing the bypass
-// must NOT drop union roots on a cached build.
-func TestCrossFamilyValRoots_DiskCacheHit_PreservesRoots(t *testing.T) {
+// TestCrossFamilyDeps_DiskCacheHit_PreservesModuleDeps — end-to-end at the
+// collect seam. The cross-family `val_<member>` edges ride each entry's module
+// Deps now (imports), so a warm (disk-cache-hit) collect must surface the same
+// Deps on the union's prepareForJson entry as a cold run. This is the
+// behaviour the persistence protects: a hit must NOT drop union discrimination
+// edges on a cached build — the resolver's cross-family fixpoint reads them.
+func TestCrossFamilyDeps_DiskCacheHit_PreservesModuleDeps(t *testing.T) {
 	root := t.TempDir()
 	store := disk.New(root, "fp1")
 	lookup := newFakeLookup()
 	seedConflictPropUnionLookup(lookup)
 
-	runTypes, _ := buildConflictPropUnionFixture()
+	runTypes, rootID := buildConflictPropUnionFixture()
 	refTable := buildRefTable(runTypes)
-	// CrossFamilyValRoots iterates every non-it family demand-driven; give it a
-	// site whose Demand targets prepareForJson (the "mutate" JSON strategy → `pj`)
-	// for the union so prepareForJson actually emits the union entry (and thus
-	// the val_ discrimination edges).
+	// Demand prepareForJson for the union (the "mutate" JSON strategy → `pj`)
+	// so the collect emits the union entry (and thus the val_ edges).
 	dump := protocol.Dump{
 		RunTypes: runTypes,
 		Sites:    []protocol.Site{{ID: "uni", Demand: []protocol.SiteDemand{{FamilyTag: "pj"}}}},
 	}
 	opts := RenderOpts{Store: store, Lookup: lookup, RefTable: refTable}
 
-	cold := sortedCopy(CrossFamilyValRoots(dump, opts))
-	if len(cold) == 0 {
-		t.Fatalf("cold CrossFamilyValRoots produced no roots; fixture/site precondition broken")
+	rootKey := operations.PlainHash("prepareForJson") + "_" + rootID
+	cold := FamilyByKey("prepareForJson").Collect(dump, opts, nil)
+	coldEntry := cold[rootKey]
+	if coldEntry == nil {
+		t.Fatalf("cold collect missing the union root entry %q", rootKey)
 	}
-	for _, want := range []string{"big", "dat"} {
-		if !containsStr(cold, want) {
-			t.Fatalf("cold roots missing bare member %q (got %v)", want, cold)
+	for _, want := range []string{valKey("big"), valKey("dat")} {
+		if !containsStr(coldEntry.SoftDeps, want) {
+			t.Fatalf("cold SoftDeps missing cross-family edge %q (got %v)", want, coldEntry.SoftDeps)
 		}
 	}
 
-	// Second pass: the per-family entries are now disk-cached, so the walker is
-	// skipped — but the persisted CrossFamilyRefs must reproduce the identical
-	// root set.
-	warm := sortedCopy(CrossFamilyValRoots(dump, opts))
-	if !equalStrSlices(cold, warm) {
-		t.Errorf("warm (disk-cache-hit) roots differ from cold roots:\ncold: %v\nwarm: %v", cold, warm)
+	// Second pass: the per-family entries are now disk-cached, so the walker
+	// is skipped — but the persisted CrossFamilyRefs must reproduce identical
+	// module Deps.
+	warm := FamilyByKey("prepareForJson").Collect(dump, opts, nil)
+	warmEntry := warm[rootKey]
+	if warmEntry == nil {
+		t.Fatalf("warm collect missing the union root entry %q", rootKey)
+	}
+	if !equalStrSlices(sortedCopy(coldEntry.SoftDeps), sortedCopy(warmEntry.SoftDeps)) {
+		t.Errorf("warm (disk-cache-hit) SoftDeps differ from cold SoftDeps:\ncold: %v\nwarm: %v", coldEntry.SoftDeps, warmEntry.SoftDeps)
 	}
 }
 
@@ -186,7 +190,7 @@ func TestRenderFnModule_DiskCache_CrossFamilyHashDriftMiss(t *testing.T) {
 	stale := disk.RTEntry{
 		Format:       disk.FormatVersion,
 		StructuralID: "u:union",
-		Line:         "init('pj_uni','STALE_CROSS_MARKER',undefined,true);",
+		ArgsText:     "'pj_uni','STALE_CROSS_MARKER',undefined,true",
 		CrossFamilyRefs: []disk.CrossFamilyRef{
 			{Prefix: "val_", StructuralID: "b:bigint", Hash: "staleBig"},
 		},
@@ -210,11 +214,11 @@ func TestRenderFnModule_DiskCache_CrossFamilyHashDriftMiss(t *testing.T) {
 
 	settings := constants.CacheModules["prepareForJson"]
 	rendered := renderEntryWithDeps(refTable[rootID], settings, PrepareForJsonEmitter{}, innerPrefix(settings), refTable, RenderOpts{Store: store, Lookup: lookup, RefTable: refTable}, "", nil)
-	if rendered.line == "" {
-		t.Fatal("post-miss render produced empty line")
+	if rendered.argsText == "" {
+		t.Fatal("post-miss render produced empty args")
 	}
-	if contains := rendered.line == stale.Line; contains {
-		t.Errorf("cross-family hash drift should miss, but stale line was returned: %q", rendered.line)
+	if rendered.argsText == stale.ArgsText {
+		t.Errorf("cross-family hash drift should miss, but stale args were returned: %q", rendered.argsText)
 	}
 	// The fresh walk re-derives the real edges (with the current member hashes).
 	for _, want := range []string{valKey("dat")} {
@@ -242,7 +246,7 @@ func TestRenderFnModule_DiskCache_FormatV1IsMiss(t *testing.T) {
 	v1 := map[string]any{
 		"version":      1,
 		"structuralID": "1:atomic",
-		"line":         "init('val_abc123','V1_STALE_MARKER',undefined,true);",
+		"argsText":     "'val_abc123','V1_STALE_MARKER',undefined,true",
 		"childRefs":    []any{},
 	}
 	raw, _ := json.Marshal(v1)
@@ -252,8 +256,8 @@ func TestRenderFnModule_DiskCache_FormatV1IsMiss(t *testing.T) {
 
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}}}
 	rendered := renderEntryWithDeps(dump.RunTypes[0], constants.CacheModules["validate"], ValidateEmitter{}, "val_", buildRefTable(dump.RunTypes), RenderOpts{Store: store, Lookup: lookup}, "", nil)
-	if rendered.line == v1["line"] {
-		t.Errorf("v1 file should be a miss under FormatVersion %d, but the stale v1 line was returned", disk.FormatVersion)
+	if rendered.argsText == v1["argsText"] {
+		t.Errorf("v1 file should be a miss under FormatVersion %d, but the stale v1 args were returned", disk.FormatVersion)
 	}
 
 	// After the miss the renderer rewrites a v2 file the current build accepts.

@@ -1,13 +1,67 @@
 package typefns
 
 import (
-	"bytes"
+	"sort"
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/cachetpl"
+	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
+
+// joinEntries flattens a collected family graph back into the legacy
+// `init(<args>);` line form, children-before-parents (same-family deps first,
+// alphabetical within a level), so the historical body-shape assertions below
+// keep reading naturally. The tuple ArgsText IS the old init-call interior, so
+// only the wrapper is synthesized here. The global dangling-dep cascade runs
+// first — production (resolver.collectEntryModules) always cascades before
+// rendering, so a single-family join must too or it would surface parents
+// whose dropped children make them unservable.
+func joinEntries(t *testing.T, graph entrymod.Graph) string {
+	t.Helper()
+	graph.Cascade()
+	keys := make([]string, 0, len(graph))
+	for key := range graph {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	emitted := make(map[string]bool, len(graph))
+	var lines []string
+	for len(emitted) < len(graph) {
+		progressed := false
+		for _, key := range keys {
+			if emitted[key] {
+				continue
+			}
+			ready := true
+			for _, dep := range graph[key].Deps {
+				if dep == key {
+					continue
+				}
+				if _, inGraph := graph[dep]; inGraph && !emitted[dep] {
+					ready = false
+					break
+				}
+			}
+			if !ready {
+				continue
+			}
+			emitted[key] = true
+			progressed = true
+			lines = append(lines, "init("+graph[key].ArgsText+");")
+		}
+		if !progressed {
+			// Dep cycle (recursive type): flush the remainder alphabetically.
+			for _, key := range keys {
+				if !emitted[key] {
+					emitted[key] = true
+					lines = append(lines, "init("+graph[key].ArgsText+");")
+				}
+			}
+		}
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
 
 // renderToString defaults to EmitCreateRTFn=true so body-shape
 // assertions can substring-match against the un-escaped validator body
@@ -15,67 +69,26 @@ import (
 // <body>}}` closure. Under the production default (no inline factory)
 // the same body lives only inside the JSON-quoted `code` arg-3 string,
 // making raw-body assertions unreadable. Tests that care about the
-// wire encoding (createRTFn arg-7 token, alwaysThrow, noop shape)
+// wire encoding (createRTFn slot token, alwaysThrow, noop shape)
 // explicitly call renderToStringDefault.
 func renderToString(t *testing.T, dump protocol.Dump) string {
 	t.Helper()
-	var buf bytes.Buffer
-	if err := FamilyByKey("validate").Render(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
-		t.Fatalf("ValidateModule: %v", err)
-	}
-	return buf.String()
+	return joinEntries(t, FamilyByKey("validate").Collect(dump, RenderOpts{EmitCreateRTFn: true}, nil))
 }
 
 // renderToStringDefault renders with the production-default
-// (EmitCreateRTFn=false) — arg-7 becomes the `u` alias, the body
-// lives only in the quoted `code` string. Used by the few tests that
+// (EmitCreateRTFn=false) — the createRTFn slot becomes the `u` alias, the
+// body lives only in the quoted `code` string. Used by the few tests that
 // assert the wire-shape transition between the two emit modes.
 func renderToStringDefault(t *testing.T, dump protocol.Dump) string {
 	t.Helper()
-	var buf bytes.Buffer
-	if err := FamilyByKey("validate").Render(&buf, dump, RenderOpts{}); err != nil {
-		t.Fatalf("ValidateModule: %v", err)
-	}
-	return buf.String()
-}
-
-// TestValidateModule_SkeletonPresent — the rendered body must include the
-// hand-authored skeleton wrappers, with the marker replaced.
-func TestValidateModule_SkeletonPresent(t *testing.T) {
-	out := renderToString(t, protocol.Dump{})
-	for _, fragment := range []string{
-		"'use strict';",
-		"export function initCache(rtUtils)",
-		"function init(",
-		"rtFnHash,",
-		"rtUtils.addToRTCache(entry)",
-	} {
-		if !strings.Contains(out, fragment) {
-			t.Errorf("expected fragment %q in:\n%s", fragment, out)
-		}
-	}
-	if strings.Contains(out, cachetpl.MarkerLine) {
-		t.Errorf("marker line should be replaced, but is still present:\n%s", out)
-	}
-}
-
-func TestValidateModule_NoSideEffectImport(t *testing.T) {
-	out := renderToString(t, protocol.Dump{})
-	if strings.Contains(out, "import ") {
-		t.Errorf("rendered module must not import anything at top-level (pure module), got:\n%s", out)
-	}
-	if strings.Contains(out, "getRTUtils()") {
-		t.Errorf("rendered module must not invoke getRTUtils() — utl is supplied via initCache(rtUtils), got:\n%s", out)
-	}
+	return joinEntries(t, FamilyByKey("validate").Collect(dump, RenderOpts{}, nil))
 }
 
 func TestValidateModule_EmptyDump(t *testing.T) {
-	out := renderToString(t, protocol.Dump{})
-	if strings.Contains(out, "export const") {
-		t.Errorf("module no longer emits named export consts; got:\n%s", out)
-	}
-	if !strings.Contains(out, "export function initCache") {
-		t.Errorf("empty dump must still emit the initCache() function shell, got:\n%s", out)
+	graph := FamilyByKey("validate").Collect(protocol.Dump{}, RenderOpts{}, nil)
+	if len(graph) != 0 {
+		t.Errorf("empty dump must collect zero entries, got %d", len(graph))
 	}
 }
 
@@ -901,15 +914,14 @@ func TestPureFnDepsJS_EmptyAndPopulated(t *testing.T) {
 	if got := pureFnDepsJS([]protocol.PureFnDep{}); got != "[]" {
 		t.Errorf("empty → %q, want []", got)
 	}
-	// Aliased pure-fns (see purefn_aliases.go) emit a bare identifier
-	// reference to the matching `k_<alias>` module-level const declared
-	// in the cache skeleton; unaliased ones fall back to the quoted
-	// "<ns>::<fn>" literal.
+	// Every dep is fully quoted — per-entry tuples evaluate in their own
+	// module scope, so the legacy skeleton `k_<alias>` identifier shortcut
+	// is gone (aliases only shorten context-var NAMES inside bodies now).
 	deps := []protocol.PureFnDep{
 		{Namespace: "mion", FunctionName: "asJSONString", FilePath: "/abs/run-types-pure-fns.ts"},
 		{Namespace: "mion", FunctionName: "newRunTypeErr", FilePath: "/abs/run-types-pure-fns.ts"},
 	}
-	want := "['mion::asJSONString',k_nRT]"
+	want := "['mion::asJSONString','mion::newRunTypeErr']"
 	if got := pureFnDepsJS(deps); got != want {
 		t.Errorf("populated → %q, want %q", got, want)
 	}

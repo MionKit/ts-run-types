@@ -1,7 +1,6 @@
 package typefns
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -62,10 +61,7 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 	}
 	opts := RenderOpts{Store: store, Lookup: lookup}
 
-	var first bytes.Buffer
-	if err := FamilyByKey("validate").Render(&first, dump, opts); err != nil {
-		t.Fatalf("first render: %v", err)
-	}
+	first := joinEntries(t, FamilyByKey("validate").Collect(dump, opts, nil))
 
 	cachePath := filepath.Join(root, "fp1", "abc123", "val.json")
 	raw, err := os.ReadFile(cachePath)
@@ -82,32 +78,26 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 	if entry.StructuralID != "1:atomic" {
 		t.Errorf("cache StructuralID: got %q want %q", entry.StructuralID, "1:atomic")
 	}
-	if !strings.Contains(entry.Line, valKey("abc123")) {
-		t.Errorf("cache Line missing innerName %q: %q", valKey("abc123"), entry.Line)
+	if !strings.Contains(entry.ArgsText, valKey("abc123")) {
+		t.Errorf("cache ArgsText missing innerName %q: %q", valKey("abc123"), entry.ArgsText)
 	}
 
-	var second bytes.Buffer
-	if err := FamilyByKey("validate").Render(&second, dump, opts); err != nil {
-		t.Fatalf("second render: %v", err)
-	}
-	if first.String() != second.String() {
-		t.Errorf("cache round-trip changed output:\nfirst:\n%s\nsecond:\n%s", first.String(), second.String())
+	second := joinEntries(t, FamilyByKey("validate").Collect(dump, opts, nil))
+	if first != second {
+		t.Errorf("cache round-trip changed output:\nfirst:\n%s\nsecond:\n%s", first, second)
 	}
 
-	// Mutate the cached Line and re-render. The marker must appear in
+	// Mutate the cached ArgsText and re-render. The marker must appear in
 	// the output, proving the read path is actually consulted on
 	// subsequent renders (instead of every call recomputing fresh).
-	entry.Line = "init('val_abc123','CACHE_MARKER_SENTINEL',undefined,true);"
+	entry.ArgsText = "'val_abc123','CACHE_MARKER_SENTINEL',undefined,true"
 	mutated, _ := json.Marshal(entry)
 	if err := os.WriteFile(cachePath, mutated, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	var third bytes.Buffer
-	if err := FamilyByKey("validate").Render(&third, dump, opts); err != nil {
-		t.Fatalf("third render: %v", err)
-	}
-	if !strings.Contains(third.String(), "CACHE_MARKER_SENTINEL") {
-		t.Errorf("cache read path not exercised — sentinel missing from third render:\n%s", third.String())
+	third := joinEntries(t, FamilyByKey("validate").Collect(dump, opts, nil))
+	if !strings.Contains(third, "CACHE_MARKER_SENTINEL") {
+		t.Errorf("cache read path not exercised — sentinel missing from third render:\n%s", third)
 	}
 }
 
@@ -131,7 +121,7 @@ func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 	stale := disk.RTEntry{
 		Format:       disk.FormatVersion,
 		StructuralID: "1:atomic",
-		Line:         "init('val_abc123','STALE_MARKER',undefined,true);",
+		ArgsText:     "'val_abc123','STALE_MARKER',undefined,true",
 		ChildRefs: []disk.ChildRef{
 			// "ghostStructural" was never registered with the lookup
 			// → HashForStructural returns "" → cache miss.
@@ -148,12 +138,9 @@ func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 			{ID: "abc123", Kind: protocol.KindString},
 		},
 	}
-	var out bytes.Buffer
-	if err := FamilyByKey("validate").Render(&out, dump, RenderOpts{Store: store, Lookup: lookup}); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	if strings.Contains(out.String(), "STALE_MARKER") {
-		t.Errorf("stale cache should have been rejected, but STALE_MARKER appears in:\n%s", out.String())
+	out := joinEntries(t, FamilyByKey("validate").Collect(dump, RenderOpts{Store: store, Lookup: lookup}, nil))
+	if strings.Contains(out, "STALE_MARKER") {
+		t.Errorf("stale cache should have been rejected, but STALE_MARKER appears in:\n%s", out)
 	}
 
 	// After the miss, the renderer should have rewritten the cache
@@ -169,8 +156,8 @@ func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 	if len(fresh.ChildRefs) != 0 {
 		t.Errorf("rewritten entry should have no child refs, got %+v", fresh.ChildRefs)
 	}
-	if strings.Contains(fresh.Line, "STALE_MARKER") {
-		t.Errorf("rewritten entry still has stale marker: %q", fresh.Line)
+	if strings.Contains(fresh.ArgsText, "STALE_MARKER") {
+		t.Errorf("rewritten entry still has stale marker: %q", fresh.ArgsText)
 	}
 }
 
@@ -190,7 +177,7 @@ func TestRenderFnModule_DiskCache_HeaderStructuralMismatch(t *testing.T) {
 	stale := disk.RTEntry{
 		Format:       disk.FormatVersion,
 		StructuralID: "9:something-else",
-		Line:         "init('val_abc123','STALE_MARKER',undefined,true);",
+		ArgsText:     "'val_abc123','STALE_MARKER',undefined,true",
 	}
 	raw, _ := json.Marshal(stale)
 	_ = os.WriteFile(cachePath, raw, 0o644)
@@ -198,11 +185,8 @@ func TestRenderFnModule_DiskCache_HeaderStructuralMismatch(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
-	var out bytes.Buffer
-	if err := FamilyByKey("validate").Render(&out, dump, RenderOpts{Store: store, Lookup: lookup}); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(out.String(), "STALE_MARKER") {
-		t.Errorf("header structural-id mismatch should miss, got:\n%s", out.String())
+	out := joinEntries(t, FamilyByKey("validate").Collect(dump, RenderOpts{Store: store, Lookup: lookup}, nil))
+	if strings.Contains(out, "STALE_MARKER") {
+		t.Errorf("header structural-id mismatch should miss, got:\n%s", out)
 	}
 }

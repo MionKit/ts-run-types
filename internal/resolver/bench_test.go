@@ -87,8 +87,8 @@ var benchFixtures = []struct {
 	{"large", benchLargeTS},
 }
 
-func benchScanRequest(files []string, kinds []protocol.CacheKind) protocol.Request {
-	return protocol.Request{Op: protocol.OpScanFiles, Files: files, IncludeCacheSources: kinds}
+func benchScanRequest(files []string, includeEntryModules bool) protocol.Request {
+	return protocol.Request{Op: protocol.OpScanFiles, Files: files, IncludeEntryModules: includeEntryModules}
 }
 
 // BenchmarkScan_ColdCache measures the full our-side pipeline per scan —
@@ -101,7 +101,7 @@ func BenchmarkScan_ColdCache(b *testing.B) {
 			r := setupInline(b, map[string]string{"a.ts": fixture.code})
 			prog := r.Program
 			files := []string{"a.ts"}
-			if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+			if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 				b.Fatalf("warmup scan: %s", resp.Error)
 			}
 			b.ReportAllocs()
@@ -111,7 +111,7 @@ func BenchmarkScan_ColdCache(b *testing.B) {
 					b.Fatalf("SetProgram: %v", err)
 				}
 				r.Cache().Clear()
-				if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+				if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 					b.Fatalf("scan: %s", resp.Error)
 				}
 			}
@@ -130,7 +130,7 @@ func BenchmarkScan_WarmCache(b *testing.B) {
 			r := setupInline(b, map[string]string{"a.ts": fixture.code})
 			prog := r.Program
 			files := []string{"a.ts"}
-			if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+			if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 				b.Fatalf("warmup scan: %s", resp.Error)
 			}
 			b.ReportAllocs()
@@ -139,7 +139,7 @@ func BenchmarkScan_WarmCache(b *testing.B) {
 				if err := r.SetProgram(prog); err != nil {
 					b.Fatalf("SetProgram: %v", err)
 				}
-				if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+				if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 					b.Fatalf("scan: %s", resp.Error)
 				}
 			}
@@ -158,46 +158,35 @@ func BenchmarkRender(b *testing.B) {
 		"union.ts":  benchUnionTS,
 		"large.ts":  benchLargeTS,
 	}
-	variants := []struct {
-		name  string
-		kinds []protocol.CacheKind
-	}{
-		{"validateOnly", []protocol.CacheKind{protocol.CacheKindValidate}},
-		{"runTypeOnly", []protocol.CacheKind{protocol.CacheKindRunType}},
-		{"all", []protocol.CacheKind{protocol.CacheKindAll}},
-	}
-	for _, variant := range variants {
-		b.Run(variant.name, func(b *testing.B) {
-			r := setupInline(b, sources)
-			if resp := r.Dispatch(benchScanRequest([]string{"object.ts", "union.ts", "large.ts"}, nil)); resp.Error != "" {
-				b.Fatalf("warmup scan: %s", resp.Error)
-			}
-			req := protocol.Request{Op: protocol.OpDump, IncludeCacheSources: variant.kinds}
+	b.Run("all", func(b *testing.B) {
+		r := setupInline(b, sources)
+		if resp := r.Dispatch(benchScanRequest([]string{"object.ts", "union.ts", "large.ts"}, false)); resp.Error != "" {
+			b.Fatalf("warmup scan: %s", resp.Error)
+		}
+		req := protocol.Request{Op: protocol.OpDump}
+		if resp := r.Dispatch(req); resp.Error != "" {
+			b.Fatalf("warmup dump: %s", resp.Error)
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
 			if resp := r.Dispatch(req); resp.Error != "" {
-				b.Fatalf("warmup dump: %s", resp.Error)
+				b.Fatalf("dump: %s", resp.Error)
 			}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				if resp := r.Dispatch(req); resp.Error != "" {
-					b.Fatalf("dump: %s", resp.Error)
-				}
-			}
-		})
-	}
+		}
+	})
 }
 
 // BenchmarkScanWithCaches measures the scanFiles-with-cache-sources shape
 // the bench harness and tests drive (scan + scoped projection + per-family
 // renders in one dispatch), per fixture, all families.
 func BenchmarkScanWithCaches(b *testing.B) {
-	kinds := []protocol.CacheKind{protocol.CacheKindAll}
 	for _, fixture := range benchFixtures {
 		b.Run(fixture.name, func(b *testing.B) {
 			r := setupInline(b, map[string]string{"a.ts": fixture.code})
 			prog := r.Program
 			files := []string{"a.ts"}
-			if resp := r.Dispatch(benchScanRequest(files, kinds)); resp.Error != "" {
+			if resp := r.Dispatch(benchScanRequest(files, true)); resp.Error != "" {
 				b.Fatalf("warmup scan: %s", resp.Error)
 			}
 			b.ReportAllocs()
@@ -207,7 +196,7 @@ func BenchmarkScanWithCaches(b *testing.B) {
 					b.Fatalf("SetProgram: %v", err)
 				}
 				r.Cache().Clear()
-				if resp := r.Dispatch(benchScanRequest(files, kinds)); resp.Error != "" {
+				if resp := r.Dispatch(benchScanRequest(files, true)); resp.Error != "" {
 					b.Fatalf("scan: %s", resp.Error)
 				}
 			}
@@ -268,7 +257,7 @@ func BenchmarkScanMultiFile(b *testing.B) {
 			b.Run(fmt.Sprintf("files%d/%s", fileCount, mode.name), func(b *testing.B) {
 				r := setupInlineWith(b, sources, mode.mutate)
 				prog := r.Program
-				if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+				if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 					b.Fatalf("warmup scan: %s", resp.Error)
 				}
 				b.ReportAllocs()
@@ -278,7 +267,7 @@ func BenchmarkScanMultiFile(b *testing.B) {
 						b.Fatalf("SetProgram: %v", err)
 					}
 					r.Cache().Clear()
-					if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+					if resp := r.Dispatch(benchScanRequest(files, false)); resp.Error != "" {
 						b.Fatalf("scan: %s", resp.Error)
 					}
 				}
@@ -296,32 +285,23 @@ func BenchmarkRenderParallel(b *testing.B) {
 		"union.ts":  benchUnionTS,
 		"large.ts":  benchLargeTS,
 	}
-	variants := []struct {
-		name  string
-		kinds []protocol.CacheKind
-	}{
-		{"validateOnly", []protocol.CacheKind{protocol.CacheKindValidate}},
-		{"all", []protocol.CacheKind{protocol.CacheKindAll}},
-	}
-	for _, variant := range variants {
-		b.Run(variant.name, func(b *testing.B) {
-			r := setupInlineWith(b, sources, func(_ *program.Options, resolverOpts *resolver.Options) {
-				resolverOpts.DisableParallelScan = true
-			})
-			if resp := r.Dispatch(benchScanRequest([]string{"object.ts", "union.ts", "large.ts"}, nil)); resp.Error != "" {
-				b.Fatalf("warmup scan: %s", resp.Error)
-			}
-			req := protocol.Request{Op: protocol.OpDump, IncludeCacheSources: variant.kinds}
-			if resp := r.Dispatch(req); resp.Error != "" {
-				b.Fatalf("warmup dump: %s", resp.Error)
-			}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				if resp := r.Dispatch(req); resp.Error != "" {
-					b.Fatalf("dump: %s", resp.Error)
-				}
-			}
+	b.Run("all", func(b *testing.B) {
+		r := setupInlineWith(b, sources, func(_ *program.Options, resolverOpts *resolver.Options) {
+			resolverOpts.DisableParallelScan = true
 		})
-	}
+		if resp := r.Dispatch(benchScanRequest([]string{"object.ts", "union.ts", "large.ts"}, false)); resp.Error != "" {
+			b.Fatalf("warmup scan: %s", resp.Error)
+		}
+		req := protocol.Request{Op: protocol.OpDump}
+		if resp := r.Dispatch(req); resp.Error != "" {
+			b.Fatalf("warmup dump: %s", resp.Error)
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if resp := r.Dispatch(req); resp.Error != "" {
+				b.Fatalf("dump: %s", resp.Error)
+			}
+		}
+	})
 }

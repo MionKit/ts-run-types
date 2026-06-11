@@ -1,63 +1,60 @@
 package purefns
 
 import (
-	"io"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/cachetpl"
+	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
 	"github.com/mionkit/ts-run-types/internal/jsquote"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// PureFnsModule writes the JS source body for the pureFns cache
-// module: the hand-authored skeleton at
-// packages/ts-go-run-types/src/caches/pureFnsCache.ts with the marker
-// line replaced by one `factory(<key>, <bodyHash>, <paramNames>, <code>,
-// <pureFnDependencies>, <createPureFn>)` call per extracted entry.
+// CollectEntries builds one entrymod.Entry per extracted pure fn. The tuple
+// args mirror the pre-migration `factory(<key>, <bodyHash>, <paramNames>,
+// <code>, <pureFnDependencies>, <createPureFn>)` call interior.
 //
 // The createPureFn argument is an inline `function(utl){…}` literal
 // whose body is the same `code` string templated in directly. The
-// cache module is the canonical runtime home of every pure-fn body —
+// per-entry module is the canonical runtime home of every pure-fn body —
 // the Vite plugin separately rewrites the user's
-// `registerPureFnFactory(ns, fn, factory)` call to pass `null` as the
-// factory argument so the body is not duplicated in the user bundle.
-// See Replacements for the byte-range rewrite list that drives that
-// substitution.
+// `registerPureFnFactory(ns, fn, factory)` call so the factory argument
+// becomes the imported entry binding (see Replacements), and the runtime
+// registers the tuple at that call site.
 //
-// Output is deterministic: entries are emitted in the order they
-// appear in the input slice (ExtractFromProgram already sorts
-// alphabetically by key).
-func PureFnsModule(writer io.Writer, entries []Entry) error {
-	var body strings.Builder
+// Deps carry the entry's pure-fn dependencies (the `utl.usePureFn(<key>)`
+// lookups its body reaches) so importing one pure fn transitively loads the
+// pure fns it calls.
+func CollectEntries(entries []Entry) entrymod.Graph {
+	graph := make(entrymod.Graph, len(entries))
 	for _, entry := range entries {
-		body.WriteString("factory(")
-		body.WriteString(jsquote.Single(entry.Key()))
-		body.WriteByte(',')
-		body.WriteString(jsquote.Single(entry.BodyHash))
-		body.WriteByte(',')
-		body.WriteString(paramNamesJS(entry.ParamNames))
-		body.WriteByte(',')
-		body.WriteString(jsquote.Single(entry.Code))
-		body.WriteByte(',')
-		body.WriteString(depKeysJS(entry.PureFnDependencies))
-		body.WriteByte(',')
-		body.WriteString(createPureFnJS(entry.Code))
-		body.WriteString(");\n")
+		args := []string{
+			jsquote.Single(entry.Key()),
+			jsquote.Single(entry.BodyHash),
+			paramNamesJS(entry.ParamNames),
+			jsquote.Single(entry.Code),
+			depKeysJS(entry.PureFnDependencies),
+			createPureFnJS(entry.Code),
+		}
+		// Pure-fn deps are SOFT: a dep outside the collected set stubs out
+		// instead of cascading — its real registration happens at its own
+		// registerPureFnFactory call site when the defining module loads.
+		graph.Add(&entrymod.Entry{
+			Key:      entry.Key(),
+			Kind:     entrymod.KindPureFn,
+			ArgsText: strings.Join(args, ","),
+			SoftDeps: append([]string(nil), entry.PureFnDependencies...),
+		})
 	}
-	out, err := cachetpl.Splice(cachetpl.SkeletonPureFns, body.String())
-	if err != nil {
-		return err
-	}
-	_, err = io.WriteString(writer, out)
-	return err
+	return graph
 }
 
-// Replacements builds the wire-shaped byte-range rewrites that null
-// out the third argument of every successfully-extracted
-// `registerPureFnFactory(ns, fn, factory)` call. The Vite plugin
-// applies these in `rewrite.ts` so the user's source ends up with
-// `registerPureFnFactory('mion','foo', null)` instead of the original
-// function literal.
+// Replacements builds the wire-shaped byte-range rewrites that swap the third
+// argument of every successfully-extracted `registerPureFnFactory(ns, fn,
+// factory)` call for the pure fn's entry-module import binding. The Vite
+// plugin applies these in `rewrite.ts` (adding the matching import via
+// ImportFrom) so the user's source ends up as
+// `registerPureFnFactory('mion','foo', __rt_pf$2Fmion$2Ffoo)` and the runtime
+// registers the tuple at the call site — the body itself lives only in the
+// entry module.
 //
 // Entries without FactoryArgStart/End populated (e.g. a synthetic
 // Entry built by a test) are skipped — only real extraction
@@ -68,11 +65,13 @@ func Replacements(entries []Entry) []protocol.Replacement {
 		if entry.FilePath == "" || entry.FactoryArgEnd <= entry.FactoryArgStart {
 			continue
 		}
+		basename := entrymod.ModuleName(entry.Key(), entrymod.KindPureFn)
 		out = append(out, protocol.Replacement{
-			File:  entry.FilePath,
-			Start: entry.FactoryArgStart,
-			End:   entry.FactoryArgEnd,
-			Text:  "null",
+			File:       entry.FilePath,
+			Start:      entry.FactoryArgStart,
+			End:        entry.FactoryArgEnd,
+			Text:       entrymod.BindingName(basename),
+			ImportFrom: entrymod.ImportSpecifier(basename),
 		})
 	}
 	return out

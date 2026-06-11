@@ -160,7 +160,7 @@ func scanAllRequest(files []string) protocol.Request {
 		Op:                  protocol.OpScanFiles,
 		Files:               files,
 		IncludeRunTypes:     true,
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindAll},
+		IncludeEntryModules: true,
 	}
 }
 

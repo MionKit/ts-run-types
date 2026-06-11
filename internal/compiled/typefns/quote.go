@@ -33,22 +33,17 @@ func stringSliceJS(xs []string) string {
 // used at walk time to assert the referenced pure-fn exists in source,
 // not part of the runtime contract.
 //
-// For pure-fns with a registered alias (see purefn_aliases.go), each
-// entry is emitted as a bare identifier reference to the matching
-// module-level `k_<alias>` const declared inside the cache skeleton
-// — saves ~20 bytes per occurrence vs the quoted literal. Pure-fns
-// without an alias fall back to the quoted form.
+// Always fully quoted: per-entry tuples evaluate in their own module scope,
+// so the skeleton-scoped `k_<alias>` identifier shortcuts the pre-migration
+// cache modules used are gone (see purefn_aliases.go — the alias table now
+// only shortens context-item variable NAMES inside factory bodies).
 func pureFnDepsJS(deps []protocol.PureFnDep) string {
 	if len(deps) == 0 {
 		return "[]"
 	}
 	parts := make([]string, len(deps))
 	for i, dep := range deps {
-		if _, ok := pureFnAliases[dep.FunctionName]; ok {
-			parts[i] = pureFnKeyVar(dep.FunctionName)
-		} else {
-			parts[i] = quoteJS(dep.Namespace + "::" + dep.FunctionName)
-		}
+		parts[i] = quoteJS(dep.Namespace + "::" + dep.FunctionName)
 	}
 	return "[" + strings.Join(parts, ",") + "]"
 }

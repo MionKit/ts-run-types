@@ -344,47 +344,24 @@ const (
 	OpTsCompile = "tsCompile"
 )
 
-// CacheKind enumerates the rendered cache-module bodies callers can opt into
-// on a scanFiles request via Request.IncludeCacheSources. New kinds are
-// expected as the precompiler grows; CacheKindAll is the forward-compatible
-// "give me everything" shortcut.
-type CacheKind string
-
-const (
-	CacheKindRunType                    CacheKind = "runType"
-	CacheKindValidate                   CacheKind = "validate"
-	CacheKindValidationErrors           CacheKind = "validationErrors"
-	CacheKindPrepareForJson             CacheKind = "prepareForJson"
-	CacheKindRestoreFromJson            CacheKind = "restoreFromJson"
-	CacheKindStringifyJson              CacheKind = "stringifyJson"
-	CacheKindPrepareForJsonSafe         CacheKind = "prepareForJsonSafe"
-	CacheKindHasUnknownKeys             CacheKind = "hasUnknownKeys"
-	CacheKindStripUnknownKeys           CacheKind = "stripUnknownKeys"
-	CacheKindUnknownKeyErrors           CacheKind = "unknownKeyErrors"
-	CacheKindUnknownKeysToUndefined     CacheKind = "unknownKeysToUndefined"
-	CacheKindUnknownKeysToUndefinedWire CacheKind = "unknownKeysToUndefinedWire"
-	CacheKindToBinary                   CacheKind = "toBinary"
-	CacheKindFromBinary                 CacheKind = "fromBinary"
-	CacheKindFormatTransform            CacheKind = "formatTransform"
-	CacheKindPureFns                    CacheKind = "pureFns"
-	CacheKindAll                        CacheKind = "all"
-)
-
 // Request is the union of all query operations (see resolver/dispatch).
 //
 // Files carries the scanFiles op's input — every file the caller wants
 // scanned in this request. The response's Sites carries entries for
 // every listed file (each tagged with .File), and IncludeRunTypes /
-// IncludeCacheSources scope their payload to **this request's Files
+// IncludeEntryModules scope their payload to **this request's Files
 // only**, not to any session-wide accumulation. Callers that want the
 // whole in-memory cache call OpDump.
 type Request struct {
-	Op                  string            `json:"op"`
-	Files               []string          `json:"files,omitempty"`
-	ID                  string            `json:"id,omitempty"`
-	Sources             map[string]string `json:"sources,omitempty"`
-	IncludeRunTypes     bool              `json:"includeRunTypes,omitempty"`
-	IncludeCacheSources []CacheKind       `json:"includeCacheSources,omitempty"`
+	Op              string            `json:"op"`
+	Files           []string          `json:"files,omitempty"`
+	ID              string            `json:"id,omitempty"`
+	Sources         map[string]string `json:"sources,omitempty"`
+	IncludeRunTypes bool              `json:"includeRunTypes,omitempty"`
+	// IncludeEntryModules opts a scanFiles response into the per-entry
+	// virtual-module payload (Response.EntryModules), scoped to this
+	// request's Files. OpDump always carries the full session's modules.
+	IncludeEntryModules bool `json:"includeEntryModules,omitempty"`
 	// IncludeMetrics opts the response into the Metrics block: tsgo
 	// extendedDiagnostics-style checker counters, per-phase wall times,
 	// and Go memory deltas. Zero measurement cost when unset — the
@@ -499,72 +476,17 @@ type Response struct {
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
 	AddedPureFns       bool          `json:"addedPureFns,omitempty"`
-	Sites              []Site        `json:"sites,omitempty"`
-	Replacements       []Replacement `json:"replacements,omitempty"`
-	RunTypes           []*RunType    `json:"runTypes,omitempty"`
-	RunTypeCacheSource string        `json:"runTypeCacheSource,omitempty"`
-	// ValidateCacheSource is the rendered body of the `virtual:runtypes-validate`
-	// module — one `export function get_validate_<hash>(utl){…}` factory
-	// per cached RunType the precompiler knows how to handle. Sibling of
-	// RunTypeCacheSource: populated under the same projection (full cache
-	// for OpDump, scoped to request files for OpScanFiles when the
-	// caller opts into CacheKindValidate / CacheKindAll via
-	// IncludeCacheSources).
-	ValidateCacheSource string `json:"validateCacheSource,omitempty"`
-	// ValidationErrorsCacheSource is the rendered body of the
-	// `virtual:runtypes-validationErrors` module — one
-	// `factory(rtFnHash, typeName, code, isNoop, deps, …)` call per
-	// cached RunType the precompiler's ValidationErrorsEmitter knows how to
-	// handle. Sibling of ValidateCacheSource, same projection semantics.
-	ValidationErrorsCacheSource string `json:"validationErrorsCacheSource,omitempty"`
-	// PrepareForJsonCacheSource / RestoreFromJsonCacheSource are the
-	// rendered bodies of the JSON serializer/deserializer pair. Same
-	// factory shape and projection semantics as ValidateCacheSource.
-	PrepareForJsonCacheSource  string `json:"prepareForJsonCacheSource,omitempty"`
-	RestoreFromJsonCacheSource string `json:"restoreFromJsonCacheSource,omitempty"`
-	// StringifyJsonCacheSource is the rendered body of the
-	// `virtual:runtypes-stringifyJson` module — single-pass RT that
-	// walks the type and emits a JSON string directly. Sibling of
-	// PrepareForJsonCacheSource; same factory shape and projection
-	// semantics.
-	StringifyJsonCacheSource string `json:"stringifyJsonCacheSource,omitempty"`
-	// PrepareForJsonSafeCacheSource carries the rendered body of the
-	// safe-encode family — non-mutating sibling of PrepareForJsonCacheSource.
-	PrepareForJsonSafeCacheSource string `json:"prepareForJsonSafeCacheSource,omitempty"`
-	// HasUnknownKeysCacheSource / StripUnknownKeysCacheSource /
-	// UnknownKeyErrorsCacheSource / UnknownKeysToUndefinedCacheSource
-	// are the rendered bodies of the unknown-keys family — the four
-	// RT functions ported from mion's emitHasUnknownKeys et al. Same
-	// factory shape and projection semantics as ValidateCacheSource.
-	HasUnknownKeysCacheSource         string `json:"hasUnknownKeysCacheSource,omitempty"`
-	StripUnknownKeysCacheSource       string `json:"stripUnknownKeysCacheSource,omitempty"`
-	UnknownKeyErrorsCacheSource       string `json:"unknownKeyErrorsCacheSource,omitempty"`
-	UnknownKeysToUndefinedCacheSource string `json:"unknownKeysToUndefinedCacheSource,omitempty"`
-	// UnknownKeysToUndefinedWireCacheSource — rendered body of the
-	// decoder-internal ukuWire family. Carries the wire-format-aware
-	// emit (wrapper-peel + reach-into-v[1] for union nodes); identical
-	// to UnknownKeysToUndefinedCacheSource for non-union runtypes.
-	UnknownKeysToUndefinedWireCacheSource string `json:"unknownKeysToUndefinedWireCacheSource,omitempty"`
-	// ToBinaryCacheSource / FromBinaryCacheSource — rendered bodies of
-	// the binary serializer/deserializer pair. Same factory shape and
-	// projection semantics as PrepareForJsonCacheSource.
-	ToBinaryCacheSource   string `json:"toBinaryCacheSource,omitempty"`
-	FromBinaryCacheSource string `json:"fromBinaryCacheSource,omitempty"`
-	// FormatTransformCacheSource is the rendered body of the `virtual:runtypes-format`
-	// module — the `format` transform RT family (createFormatTransform<T>). Same
-	// factory shape and projection semantics as ValidateCacheSource.
-	FormatTransformCacheSource string `json:"formatTransformCacheSource,omitempty"`
-	// PureFnsCacheSource is the rendered body of the
-	// `virtual:runtypes-pure-fns` module — one
-	// `factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn)`
-	// call per registered pure function. The module is the canonical
-	// runtime home of every pure-fn body; the Vite plugin separately
-	// rewrites the user's `registerPureFnFactory(ns, fn, factory)` call
-	// to pass `null` as the factory argument (see Replacements) so the
-	// function body is not duplicated in the user bundle.
-	// Populated on OpDump and on OpScanFiles when the caller opts into
-	// CacheKindPureFns / CacheKindAll via IncludeCacheSources.
-	PureFnsCacheSource string `json:"pureFnsCacheSource,omitempty"`
+	Sites        []Site        `json:"sites,omitempty"`
+	Replacements []Replacement `json:"replacements,omitempty"`
+	RunTypes     []*RunType    `json:"runTypes,omitempty"`
+	// EntryModules carries one rendered ES-module source per cache entry,
+	// keyed by module BASENAME (the `<basename>` of `virtual:rt/<basename>.js`
+	// — the cache key for runtype / type-fn entries, the `pf/<ns>/<fn>`
+	// encoding for pure fns). The Vite plugin serves these verbatim from its
+	// virtual-module load hook. Populated on OpDump (full session) and on
+	// OpScanFiles when Request.IncludeEntryModules is set (scoped to the
+	// request's Files).
+	EntryModules map[string]string `json:"entryModules,omitempty"`
 	// Diagnostics carries every non-fatal diagnostic the Go binary
 	// emits — pure-fn extractor (PFE9xxx), marker scanner (MKRxxx),
 	// RT compiler (IT/TE/PJ/…/FB) — through one wire channel. The
@@ -623,15 +545,21 @@ type SiteDemand struct {
 }
 
 // Replacement is a byte-range rewrite on a source file: replace the
-// bytes [Start, End) with Text. Used by the pure-fn extractor to null
-// out the factory argument of every `registerPureFnFactory(ns, fn,
-// factory)` call so the canonical fn body lives only in the emitted
-// pureFns cache module (no duplication in the user bundle).
+// bytes [Start, End) with Text. Used by the pure-fn extractor to swap
+// the factory argument of every `registerPureFnFactory(ns, fn,
+// factory)` call for the pure fn's entry-module import binding, so the
+// canonical fn body lives only in the emitted entry module (no
+// duplication in the user bundle).
 type Replacement struct {
 	File  string `json:"file"`
 	Start int    `json:"start"`
 	End   int    `json:"end"`
 	Text  string `json:"text"`
+	// ImportFrom, when non-empty, is the virtual-module specifier the Vite
+	// plugin must import (renaming the module's fixed export to Text) for
+	// the substituted expression to resolve — e.g.
+	// `virtual:rt/pf/mion/foo.js`. Empty for plain text substitutions.
+	ImportFrom string `json:"importFrom,omitempty"`
 }
 
 // Dump is the build-end manifest written to runtypes-cache.json.
@@ -649,11 +577,10 @@ func (dump Dump) WriteJSON(writer io.Writer) error {
 	return encoder.Encode(dump)
 }
 
-// responseAddedFlags / responseCacheSources are the wire definitions of the
-// per-family Response fields — one row per added-flag bool and per
-// cache-source string. Hand-written on purpose: the wire keys are NOT
-// derivable from constants.CacheModules ("runTypes" maps to addedRunTypes
-// but runTypeCacheSource), and these tables ARE the wire contract.
+// responseAddedFlags is the wire definition of the per-family added-flag
+// Response fields. Hand-written on purpose: the wire keys are NOT derivable
+// from constants.CacheModules ("runTypes" maps to addedRunTypes), and this
+// table IS the wire contract.
 var responseAddedFlags = []struct {
 	key string
 	get func(*Response) bool
@@ -676,27 +603,6 @@ var responseAddedFlags = []struct {
 	{"addedPureFns", func(response *Response) bool { return response.AddedPureFns }},
 }
 
-var responseCacheSources = []struct {
-	key string
-	get func(*Response) string
-}{
-	{"runTypeCacheSource", func(response *Response) string { return response.RunTypeCacheSource }},
-	{"validateCacheSource", func(response *Response) string { return response.ValidateCacheSource }},
-	{"validationErrorsCacheSource", func(response *Response) string { return response.ValidationErrorsCacheSource }},
-	{"prepareForJsonCacheSource", func(response *Response) string { return response.PrepareForJsonCacheSource }},
-	{"restoreFromJsonCacheSource", func(response *Response) string { return response.RestoreFromJsonCacheSource }},
-	{"stringifyJsonCacheSource", func(response *Response) string { return response.StringifyJsonCacheSource }},
-	{"prepareForJsonSafeCacheSource", func(response *Response) string { return response.PrepareForJsonSafeCacheSource }},
-	{"hasUnknownKeysCacheSource", func(response *Response) string { return response.HasUnknownKeysCacheSource }},
-	{"stripUnknownKeysCacheSource", func(response *Response) string { return response.StripUnknownKeysCacheSource }},
-	{"unknownKeyErrorsCacheSource", func(response *Response) string { return response.UnknownKeyErrorsCacheSource }},
-	{"unknownKeysToUndefinedCacheSource", func(response *Response) string { return response.UnknownKeysToUndefinedCacheSource }},
-	{"unknownKeysToUndefinedWireCacheSource", func(response *Response) string { return response.UnknownKeysToUndefinedWireCacheSource }},
-	{"toBinaryCacheSource", func(response *Response) string { return response.ToBinaryCacheSource }},
-	{"fromBinaryCacheSource", func(response *Response) string { return response.FromBinaryCacheSource }},
-	{"formatTransformCacheSource", func(response *Response) string { return response.FormatTransformCacheSource }},
-	{"pureFnsCacheSource", func(response *Response) string { return response.PureFnsCacheSource }},
-}
 
 // MarshalJSON serialises Response. ID is emitted only when HasID is true so
 // dump responses (which don't resolve a single id) don't carry a misleading "".
@@ -727,10 +633,8 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if len(response.RunTypes) > 0 {
 		out["runTypes"] = response.RunTypes
 	}
-	for _, source := range responseCacheSources {
-		if body := source.get(&response); body != "" {
-			out[source.key] = body
-		}
+	if len(response.EntryModules) > 0 {
+		out["entryModules"] = response.EntryModules
 	}
 	if len(response.Diagnostics) > 0 {
 		out["diagnostics"] = response.Diagnostics

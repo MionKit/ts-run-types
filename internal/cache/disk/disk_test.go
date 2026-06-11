@@ -44,7 +44,7 @@ func TestStore_RoundTrip(t *testing.T) {
 	in := RTEntry{
 		Format:       FormatVersion,
 		StructuralID: "5{6,7}",
-		Line:         "init('val_abc123', 'User', '…', false, [], [], function(utl){…});",
+		ArgsText:     "init('val_abc123', 'User', '…', false, [], [], function(utl){…});",
 		ChildRefs: []ChildRef{
 			{StructuralID: "1:atomic", Hash: "xyz"},
 			{StructuralID: "2:atomic", Hash: "qrs"},
@@ -64,8 +64,8 @@ func TestStore_RoundTrip(t *testing.T) {
 	if out.StructuralID != in.StructuralID {
 		t.Errorf("StructuralID: got %q want %q", out.StructuralID, in.StructuralID)
 	}
-	if out.Line != in.Line {
-		t.Errorf("Line: got %q want %q", out.Line, in.Line)
+	if out.ArgsText != in.ArgsText {
+		t.Errorf("ArgsText: got %q want %q", out.ArgsText, in.ArgsText)
 	}
 	if len(out.ChildRefs) != len(in.ChildRefs) {
 		t.Fatalf("ChildRefs len: got %d want %d", len(out.ChildRefs), len(in.ChildRefs))
@@ -114,7 +114,7 @@ func TestStore_ReadMiss(t *testing.T) {
 		}
 		// Format=99 simulates a future incompatible layout; current
 		// binary must refuse to read it.
-		body, _ := json.Marshal(RTEntry{Format: 99, StructuralID: "x", Line: "y"})
+		body, _ := json.Marshal(RTEntry{Format: 99, StructuralID: "x", ArgsText: "y"})
 		if err := os.WriteFile(filepath.Join(dir, "val.json"), body, 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -137,7 +137,7 @@ func TestStore_WriteAtomic(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			entry := RTEntry{Format: FormatVersion, StructuralID: "s", Line: "line"}
+			entry := RTEntry{Format: FormatVersion, StructuralID: "s", ArgsText: "line"}
 			if err := s.WriteRT("typeID", "val", entry); err != nil {
 				t.Errorf("WriteRT[%d]: %v", i, err)
 			}
@@ -152,7 +152,7 @@ func TestStore_WriteAtomic(t *testing.T) {
 	if !ok {
 		t.Fatal("ReadRT miss after concurrent writes")
 	}
-	if out.StructuralID != "s" || out.Line != "line" {
+	if out.StructuralID != "s" || out.ArgsText != "line" {
 		t.Errorf("torn read: %+v", out)
 	}
 }

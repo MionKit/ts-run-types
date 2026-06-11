@@ -29,7 +29,7 @@ export const _ = createValidate<TypeFormat<Date, 'nativeDate', ` + params + `>>(
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
 		IncludeRunTypes:     true,
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -40,7 +40,7 @@ export const _ = createValidate<TypeFormat<Date, 'nativeDate', ` + params + `>>(
 			diags = append(diags, d)
 		}
 	}
-	return resp.ValidateCacheSource, resp.RunTypes, diags
+	return familyEntrySources(resp, "validate"), resp.RunTypes, diags
 }
 
 // findNativeDate returns the RunType carrying the nativeDate annotation.
@@ -109,16 +109,16 @@ export const _ = getRunTypeId<TypeFormat<Date, 'nativeDate', {min: 'now'}>>();
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindRunType},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scan: %s", resp.Error)
 	}
-	if !strings.Contains(resp.RunTypeCacheSource, ".formatAnnotation = ") {
-		t.Fatalf("branded Date runType cache missing formatAnnotation assignment:\n%s", resp.RunTypeCacheSource)
+	if !strings.Contains(allEntrySources(resp), ".formatAnnotation = ") {
+		t.Fatalf("branded Date runType cache missing formatAnnotation assignment:\n%s", allEntrySources(resp))
 	}
-	if !strings.Contains(resp.RunTypeCacheSource, `"name":"nativeDate"`) {
-		t.Fatalf("formatAnnotation present but missing nativeDate name:\n%s", resp.RunTypeCacheSource)
+	if !strings.Contains(allEntrySources(resp), `"name":"nativeDate"`) {
+		t.Fatalf("formatAnnotation present but missing nativeDate name:\n%s", allEntrySources(resp))
 	}
 }
 
