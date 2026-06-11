@@ -356,7 +356,7 @@ function entryKindOf(source) {
   const match = source.match(/export const e=\[(?:'([^']+)'|(\d+))[,\]]/);
   if (!match) return 'unknown';
   if (match[1] !== undefined) return keyByFamilyTag[match[1]] ?? match[1];
-  return {0: 'runType', 2: 'pureFns', 3: 'missing'}[match[2]] ?? 'unknown';
+  return {2: 'pureFns', 3: 'missing', 4: 'runType', 5: 'runType'}[match[2]] ?? 'unknown';
 }
 
 function writeCaseDump(casesDir, category, caseKey, api, resp) {

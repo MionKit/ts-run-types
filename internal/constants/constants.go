@@ -274,15 +274,25 @@ const (
 	// modules (`pf/<ns>/<fn>`), keeping them visually distinct from the hash-
 	// keyed runtype / type-fn modules.
 	PureFnModuleDir = "pf"
+	// RunTypesBundleBasename names the SINGLE runtype data module
+	// (`virtual:rt/runtypes.js`): every reflection-demanded node lives there
+	// as one tuple row, deduplicated app-wide, with per-root facade modules
+	// aliasing into it. Unlike every other entry module it is NOT
+	// content-addressed — the Vite plugin invalidates it when a scan reports
+	// addedRunTypes. The name can't collide with hash-keyed basenames (hash
+	// ids are short) or pure-fn basenames (always under PureFnModuleDir).
+	RunTypesBundleBasename = "runtypes"
 )
 
 // Tuple slot-0 kind discriminators for entry-module tuples. Type-fn entries
 // carry their QUOTED family tag in slot 0 instead of a number, so the runtime
 // discriminates with `typeof t[0] === 'string'`.
 const (
-	TupleKindRunType = 0
-	TupleKindPureFn  = 2
-	TupleKindMissing = 3
+	TupleKindRunType       = 0
+	TupleKindPureFn        = 2
+	TupleKindMissing       = 3
+	TupleKindRunTypeBundle = 4
+	TupleKindRunTypeFacade = 5
 )
 
 // JsonCompositeHostTags maps each JSON-composite family tag to the family
