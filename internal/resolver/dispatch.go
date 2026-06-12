@@ -181,6 +181,7 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns
 			}
 		}
 	}
+	pruneUnreachableTypeFnEntries(graph, demanded)
 
 	renderStart := time.Now()
 	modules, err := entrymod.RenderGrouped(graph, resolver.moduleGrouping())
@@ -383,6 +384,58 @@ func demandedEntryKeys(sites []protocol.Site) ([]string, map[string]string) {
 	}
 	sort.Strings(keys)
 	return keys, tags
+}
+
+// pruneUnreachableTypeFnEntries drops every KindTypeFn entry nothing can
+// load: not a rewrite-injected binding (`demanded` — each site's own
+// `<FnId>_<ID>`, the only fn keys the plugin ever imports directly) and not
+// reachable from a live module through import edges (Deps + SoftDeps,
+// transitively). The noop-elision gate stopped REFERENCING identity entries;
+// this stops EMITTING them — the demand machinery still renders a short-form
+// for every primitive a composite site demands, but once the composite elides
+// its binding the orphan (and anything only it pulled in) cascades out of the
+// module set entirely.
+//
+// Non-typefn kinds are unconditional roots: the runtype bundle/facades load
+// via reflection-site bindings and pure-fn modules via their own injected
+// registration sites — neither rides the fn-site demand list, so reachability
+// over it would under-approximate their liveness.
+func pruneUnreachableTypeFnEntries(graph entrymod.Graph, demanded []string) {
+	live := make(map[string]bool, len(graph))
+	stack := make([]string, 0, len(graph))
+	enqueue := func(key string) {
+		if entry, ok := graph[key]; ok && entry != nil && !live[key] {
+			live[key] = true
+			stack = append(stack, key)
+		}
+	}
+	for key, entry := range graph {
+		if entry != nil && entry.Kind != entrymod.KindTypeFn {
+			enqueue(key)
+		}
+	}
+	for _, key := range demanded {
+		enqueue(key)
+	}
+	for len(stack) > 0 {
+		key := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		entry := graph[key]
+		if entry == nil {
+			continue
+		}
+		for _, dep := range entry.Deps {
+			enqueue(dep)
+		}
+		for _, dep := range entry.SoftDeps {
+			enqueue(dep)
+		}
+	}
+	for key, entry := range graph {
+		if entry != nil && entry.Kind == entrymod.KindTypeFn && !live[key] {
+			delete(graph, key)
+		}
+	}
 }
 
 // moduleGrouping returns the entrymod.Grouping for the resolver's module

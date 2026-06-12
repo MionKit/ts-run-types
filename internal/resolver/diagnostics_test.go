@@ -149,11 +149,14 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	// The User factory should still be rendered (not absent) — the never
-	// property is absorbed at the property level. The rendered init line
-	// for the root User type must NOT carry an alwaysThrow code (8th arg).
-	// Find the line referencing the User id (it's the objectLiteral with
-	// children) and assert no 8-arg form.
+	// Absorption means the User root does NOT become alwaysThrow. With the
+	// never property dropped, the remaining shape (`name: string`) is
+	// JSON-compatible, so the pj entry collapses to the noop short-form,
+	// the jeMU composite elides its binding, and the emission prune drops
+	// the orphan module entirely — absence of every pj module (and of any
+	// 'PJ001' alwaysThrow arg in the payload) IS the absorption evidence.
+	// An unabsorbed never would instead surface as an emitted alwaysThrow
+	// entry referenced by the composite.
 	var rootSiteID string
 	for _, s := range resp.Sites {
 		rootSiteID = s.ID
@@ -161,17 +164,22 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	if rootSiteID == "" {
 		t.Fatalf("expected at least one site for the User marker call")
 	}
-	// The entry key is `<prepareForJson-fnHash>_<id>` (opaque per-family
-	// hash). Derive it via the operation registry so the assertion stays
-	// correct across version-isolated hashes.
-	rootKey := operations.PlainHash("prepareForJson") + "_" + rootSiteID
-	userModule := entryModule(resp, rootKey)
-	if userModule == "" {
-		t.Errorf("expected a PrepareForJson entry module for the User root %q, got keys %v", rootKey, familyEntryKeys(resp, "prepareForJson"))
+	if keys := familyEntryKeys(resp, "prepareForJson"); len(keys) != 0 {
+		t.Errorf("the absorbed-to-identity pj entry must be elided + pruned, got %v", keys)
 	}
-	// Confirm the User tuple is not the alwaysThrow form (diag code arg).
-	if strings.Contains(userModule, "'PJ001'") {
-		t.Errorf("User factory should NOT be alwaysThrow — property absorbs the never child. Got: %s", userModule)
+	// The composite (the injected binding) survives as the bare-stringify
+	// form, with no alwaysThrow code anywhere in the payload.
+	jsonEncoderOp, ok := operations.ByName("jsonEncoder")
+	if !ok {
+		t.Fatal("jsonEncoder operation missing from the registry")
+	}
+	rootKey := operations.FnHashFor(jsonEncoderOp, nil, "mutate") + "_" + rootSiteID
+	userModule := entryModule(resp, rootKey)
+	if !strings.Contains(userModule, "return JSON.stringify(v);") {
+		t.Errorf("jeMU composite for the absorbed User must collapse to bare JSON.stringify, got: %s", userModule)
+	}
+	if all := allEntrySources(resp); strings.Contains(all, "'PJ001'") {
+		t.Errorf("no emitted module may carry the PJ001 alwaysThrow arg — property absorbs the never child. Got:\n%s", all)
 	}
 	// A PJ001 diagnostic should fire for the absorbed never child.
 	runtype := runtypeDiagsOf(resp.Diagnostics)
