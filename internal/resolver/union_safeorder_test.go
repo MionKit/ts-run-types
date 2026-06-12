@@ -34,10 +34,10 @@ getRunTypeId<T>();
 }
 
 func TestUnion_SubsetMember_SortedFirst_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number};
 const v = null as unknown as T;
-reflectRunTypeId(v);
+getRunTypeId(v);
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindUnion {

@@ -1,6 +1,6 @@
 // Wrapping tests — every scenario lives in its own runTest with a
 // self-contained inline source. Each direct-marker scenario has paired
-// _static (getRunTypeId<T>()) and _reflect (reflectRunTypeId(v)) tests per
+// _static (getRunTypeId<T>()) and _reflect (getRunTypeId(v)) tests per
 // the marker test coverage rule (CLAUDE.md). User-defined wrappers and
 // passthrough scenarios are also covered for both wrapper-arity shapes.
 //
@@ -33,8 +33,8 @@ const a = getRunTypeId<{id: number; name: string}>();
           const {code: out, sites} = await rewrite('17a_static.ts', sources['17a_static.ts'], client);
           expect(sites.length).toBe(1);
           expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
-          // No preceding args — injected id sits in slot 0.
-          expect(out).toMatch(/getRunTypeId<\{id: number; name: string\}>\(__rt_[A-Za-z0-9]+\);/);
+          // Value slot stays empty, so the injected id is padded into slot 1.
+          expect(out).toMatch(/getRunTypeId<\{id: number; name: string\}>\(undefined, __rt_[A-Za-z0-9]+\);/);
         },
         {reset: true}
       );
@@ -42,11 +42,11 @@ const a = getRunTypeId<{id: number; name: string}>();
   );
 
   runTest(
-    '17a reflect: reflectRunTypeId(v) — T inferred from value',
+    '17a reflect: getRunTypeId(v) — T inferred from value',
     {
-      '17a_reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      '17a_reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const u = {id: 1, name: 'm'} as {id: number; name: string};
-const a = reflectRunTypeId(u);
+const a = getRunTypeId(u);
 `,
     },
     async (sources) => {
@@ -56,7 +56,7 @@ const a = reflectRunTypeId(u);
           const {code: out, sites} = await rewrite('17a_reflect.ts', sources['17a_reflect.ts'], client);
           expect(sites.length).toBe(1);
           expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
-          expect(out).toContain(`reflectRunTypeId(u, __rt_${sites[0].id});`);
+          expect(out).toContain(`getRunTypeId(u, __rt_${sites[0].id});`);
         },
         {reset: true}
       );
@@ -78,7 +78,7 @@ const b = getRunTypeId<string>();
         async ({client}) => {
           const {code: out, sites} = await rewrite('17b_static.ts', sources['17b_static.ts'], client);
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/getRunTypeId<string>\(__rt_[A-Za-z0-9]+\)/);
+          expect(out).toMatch(/getRunTypeId<string>\(undefined, __rt_[A-Za-z0-9]+\)/);
         },
         {reset: true}
       );
@@ -86,11 +86,11 @@ const b = getRunTypeId<string>();
   );
 
   runTest(
-    '17b reflect: reflectRunTypeId(s) — primitive value',
+    '17b reflect: getRunTypeId(s) — primitive value',
     {
-      '17b_reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      '17b_reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const s: string = 'hello';
-const b = reflectRunTypeId(s);
+const b = getRunTypeId(s);
 `,
     },
     async (sources) => {
@@ -99,7 +99,7 @@ const b = reflectRunTypeId(s);
         async ({client}) => {
           const {code: out, sites} = await rewrite('17b_reflect.ts', sources['17b_reflect.ts'], client);
           expect(sites.length).toBe(1);
-          expect(out).toMatch(/reflectRunTypeId\(s, __rt_[A-Za-z0-9]+\)/);
+          expect(out).toMatch(/getRunTypeId\(s, __rt_[A-Za-z0-9]+\)/);
         },
         {reset: true}
       );
@@ -187,11 +187,11 @@ export {inner};
   );
 
   runTest(
-    '17e reflect: reflectRunTypeId<T>(val) inside generic body with free T — no site',
+    '17e reflect: getRunTypeId<T>(val) inside generic body with free T — no site',
     {
-      '17e_reflect.ts': `import {reflectRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+      '17e_reflect.ts': `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 function inner<T>(val: T): InjectRunTypeId<T> {
-  return reflectRunTypeId<T>(val);
+  return getRunTypeId<T>(val);
 }
 export {inner};
 `,
@@ -202,7 +202,7 @@ export {inner};
         async ({client}) => {
           const {code: out, sites} = await rewrite('17e_reflect.ts', sources['17e_reflect.ts'], client);
           expect(sites.length).toBe(0);
-          expect(out).toContain(`return reflectRunTypeId<T>(val);`);
+          expect(out).toContain(`return getRunTypeId<T>(val);`);
         },
         {reset: true}
       );
@@ -292,7 +292,7 @@ export {a, b};
     {
       'pt_a_static.ts': `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 function getTypeIdWrapper<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
-  return getRunTypeId<T>(id);
+  return getRunTypeId<T>(undefined, id);
 }
 const x = getTypeIdWrapper<{a: number}>();
 `,
@@ -303,10 +303,10 @@ const x = getTypeIdWrapper<{a: number}>();
         async ({client}) => {
           const {code: out, sites} = await rewrite('pt_a_static.ts', sources['pt_a_static.ts'], client);
           // Outer call (getTypeIdWrapper<{a: number}>()) is concrete-T → 1 site.
-          // Inner call (getRunTypeId<T>(id)) has free T → skipped.
+          // Inner call (getRunTypeId<T>(undefined, id)) has free T → skipped.
           expect(sites.length).toBe(1);
           expect(out).toMatch(/getTypeIdWrapper<\{a: number\}>\(__rt_[A-Za-z0-9]+\)/);
-          expect(out).toContain(`return getRunTypeId<T>(id);`);
+          expect(out).toContain(`return getRunTypeId<T>(undefined, id);`);
         },
         {reset: true}
       );
@@ -314,11 +314,11 @@ const x = getTypeIdWrapper<{a: number}>();
   );
 
   runTest(
-    'passthrough A reflect: wrapper forwards id to reflectRunTypeId — outer site only',
+    'passthrough A reflect: wrapper forwards id to getRunTypeId — outer site only',
     {
-      'pt_a_reflect.ts': `import {reflectRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+      'pt_a_reflect.ts': `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 function reflectWrapper<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
-  return reflectRunTypeId<T>(value, id);
+  return getRunTypeId<T>(value, id);
 }
 const x = reflectWrapper({a: 1});
 `,
@@ -329,11 +329,11 @@ const x = reflectWrapper({a: 1});
         async ({client}) => {
           const {code: out, sites} = await rewrite('pt_a_reflect.ts', sources['pt_a_reflect.ts'], client);
           // Outer call (reflectWrapper({a: 1})) is concrete-T → 1 site.
-          // Inner call (reflectRunTypeId<T>(value, id)) has free T AND id slot
+          // Inner call (getRunTypeId<T>(value, id)) has free T AND id slot
           // is already filled by the parameter — either reason skips it.
           expect(sites.length).toBe(1);
           expect(out).toMatch(/reflectWrapper\(\{a: 1\}, __rt_[A-Za-z0-9]+\)/);
-          expect(out).toContain(`return reflectRunTypeId<T>(value, id);`);
+          expect(out).toContain(`return getRunTypeId<T>(value, id);`);
         },
         {reset: true}
       );
@@ -404,7 +404,7 @@ const z = outer({n: 7});
     'explicit D static: caller passes literal id to getRunTypeId — no rewrite',
     {
       'ex_d_static.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-const a = getRunTypeId<{id: number; name: string}>('manualHash');
+const a = getRunTypeId<{id: number; name: string}>(undefined, 'manualHash');
 `,
     },
     async (sources) => {
@@ -413,7 +413,7 @@ const a = getRunTypeId<{id: number; name: string}>('manualHash');
         async ({client}) => {
           const {code: out, sites} = await rewrite('ex_d_static.ts', sources['ex_d_static.ts'], client);
           expect(sites.length).toBe(0);
-          expect(out).toContain(`getRunTypeId<{id: number; name: string}>('manualHash');`);
+          expect(out).toContain(`getRunTypeId<{id: number; name: string}>(undefined, 'manualHash');`);
         },
         {reset: true}
       );
@@ -421,11 +421,11 @@ const a = getRunTypeId<{id: number; name: string}>('manualHash');
   );
 
   runTest(
-    'explicit D reflect: caller passes literal id to reflectRunTypeId — no rewrite',
+    'explicit D reflect: caller passes literal id to getRunTypeId — no rewrite',
     {
-      'ex_d_reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'ex_d_reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const u = {id: 1, name: 'm'} as {id: number; name: string};
-const a = reflectRunTypeId(u, 'manualHash');
+const a = getRunTypeId(u, 'manualHash');
 `,
     },
     async (sources) => {
@@ -434,7 +434,7 @@ const a = reflectRunTypeId(u, 'manualHash');
         async ({client}) => {
           const {code: out, sites} = await rewrite('ex_d_reflect.ts', sources['ex_d_reflect.ts'], client);
           expect(sites.length).toBe(0);
-          expect(out).toContain(`reflectRunTypeId(u, 'manualHash');`);
+          expect(out).toContain(`getRunTypeId(u, 'manualHash');`);
         },
         {reset: true}
       );

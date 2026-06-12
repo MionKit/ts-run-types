@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
@@ -9,7 +9,7 @@ const merged = getRunTypeId<AB>();
 
 // 1b — Reflect form: the same shape resolved via runtime value path.
 declare const mergedValue: AB;
-const mergedReflect = reflectRunTypeId(mergedValue);
+const mergedReflect = getRunTypeId(mergedValue);
 
 // 2 — Interface × object literal also merges.
 interface HasA {

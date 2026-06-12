@@ -158,7 +158,7 @@ The whole toolbelt, in one box
     title: Reflection
     icon: i-lucide-scan-text
     ---
-    `getRunTypeId` / `reflectRunTypeId`, plus function-signature reflection.
+    `getRunTypeId` (static or from a value), plus function-signature reflection.
     ::::
 
     ::::card

@@ -14,7 +14,7 @@ import (
 // Parallel-scan equivalence suite. Every fixture-bearing test follows the
 // marker coverage rule: each scenario exercises both the static form
 // (getRunTypeId<T>() / createX<T>()) and the reflection form
-// (reflectRunTypeId(value) / createX(value)).
+// (getRunTypeId(value) / createX(value)).
 
 // parallelFixtureLarge builds a 24-property interface so at least one
 // group carries projection-heavy work.
@@ -38,7 +38,7 @@ func parallelFixtureLarge() string {
 // reflect-form annotation honoring, and classes/builtins.
 func parallelFixtureSources() map[string]string {
 	return map[string]string{
-		"a_objects.ts": `import {createValidate, createGetValidationErrors, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+		"a_objects.ts": `import {createValidate, createGetValidationErrors, getRunTypeId} from '@mionjs/ts-go-run-types';
 export interface Address {street: string; city: string; zip?: string}
 export interface User {
   id: number;
@@ -54,9 +54,9 @@ export const v = createValidate<User>();
 export const e = createGetValidationErrors<User>();
 export const idStatic = getRunTypeId<Address>();
 const addr: Address = {street: 's', city: 'c'};
-export const idReflect = reflectRunTypeId(addr);
+export const idReflect = getRunTypeId(addr);
 `,
-		"b_unions.ts": `import {createValidate, createJsonEncoder, createJsonDecoder, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+		"b_unions.ts": `import {createValidate, createJsonEncoder, createJsonDecoder, getRunTypeId} from '@mionjs/ts-go-run-types';
 export type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; size: number} | {kind: 'rect'; w: number; h: number};
 export type Mixed = string | number | Date | {a: string} | string[];
 export const v = createValidate<Shape>();
@@ -64,17 +64,17 @@ export const enc = createJsonEncoder<Shape>();
 export const dec = createJsonDecoder<Mixed>();
 export const idStatic = getRunTypeId<Shape>();
 const sh: Shape = {kind: 'circle', radius: 1};
-export const idReflect = reflectRunTypeId(sh);
+export const idReflect = getRunTypeId(sh);
 `,
 		"c_large.ts": parallelFixtureLarge(),
-		"d_shared.ts": `import {createValidate, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+		"d_shared.ts": `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 export interface AddressClone {street: string; city: string; zip?: string}
 export const v = createValidate<AddressClone>();
 export const idStatic = getRunTypeId<AddressClone>();
 const a: AddressClone = {street: 'x', city: 'y'};
-export const idReflect = reflectRunTypeId(a);
+export const idReflect = getRunTypeId(a);
 `,
-		"e_diags.ts": `import {createValidate, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+		"e_diags.ts": `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 export function wrap<T>() { return createValidate<T>(); }
 function make() { return {a: 1}; }
 export const viaCall = createValidate(make());
@@ -82,9 +82,9 @@ export const noopOpt = createValidate<string>(undefined, {noLiterals: true});
 const opts = {noLiterals: true};
 export const nonLiteral = createValidate<string>(undefined, opts);
 const made: {a: number} = {a: 2};
-export const reflected = reflectRunTypeId(made);
+export const reflected = getRunTypeId(made);
 `,
-		"f_enum_literals.ts": `import {createValidate, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+		"f_enum_literals.ts": `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 export enum Color {Red, Green = 'green', Blue = 2}
 export type Route = ` + "`api/user/${number}`" + `;
 export type Pair = [string, number?];
@@ -92,7 +92,7 @@ export const a = getRunTypeId<Color>();
 export const b = createValidate<Route>();
 export const c = createValidate<Pair>();
 const pair: Pair = ['x', 1];
-export const d = reflectRunTypeId(pair);
+export const d = getRunTypeId(pair);
 `,
 		"g_reflect.ts": `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 export type Mode = 'on' | 'off';
@@ -101,7 +101,7 @@ export const fromValue = createValidate(mode);
 export const fromType = createValidate<Mode>();
 export const idStatic = getRunTypeId<Mode>();
 `,
-		"h_classes.ts": `import {createValidate, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+		"h_classes.ts": `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 export class Account {
   id: number = 0;
   name = '';
@@ -113,19 +113,19 @@ export const p = getRunTypeId<Promise<string>>();
 export const r = createValidate<RegExp>();
 export const d = createValidate<Date>();
 const acc = new Account();
-export const idReflect = reflectRunTypeId(acc);
+export const idReflect = getRunTypeId(acc);
 `,
 		// Non-serialisable members silently drop with per-family Warning
 		// diagnostics (VL010 / VE010 / json-family codes) — multiple
 		// families emit RT-render diagnostics for the same type, which
 		// pins the cross-family diagnostic merge order in parallel mode.
-		"i_dropped.ts": `import {createValidate, createGetValidationErrors, createJsonEncoder, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+		"i_dropped.ts": `import {createValidate, createGetValidationErrors, createJsonEncoder, getRunTypeId} from '@mionjs/ts-go-run-types';
 export interface WithFn { name: string; onClick: () => void; }
 export const v = createValidate<WithFn>();
 export const e = createGetValidationErrors<WithFn>();
 export const enc = createJsonEncoder<WithFn>();
 const w: WithFn = {name: 'x', onClick: () => {}};
-export const idReflect = reflectRunTypeId(w);
+export const idReflect = getRunTypeId(w);
 `,
 	}
 }
@@ -237,7 +237,7 @@ func TestParallelScan_Deterministic(t *testing.T) {
 // declared in files assigned to (potentially) different checkers collapse
 // to the same wire id — the structural layer is the cross-checker merge
 // point. Covered in both marker forms via the fixture's getRunTypeId /
-// reflectRunTypeId sites.
+// getRunTypeId sites.
 func TestParallelScan_CrossCheckerDedup(t *testing.T) {
 	sources := parallelFixtureSources()
 	files := parallelFixtureFiles()

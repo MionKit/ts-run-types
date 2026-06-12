@@ -49,11 +49,11 @@ export const _ = createValidate(makeUser());
     });
   });
 
-  register('warns for reflectRunTypeId with a function-call arg too', async () => {
+  register('warns for getRunTypeId with a function-call arg too', async () => {
     const sources = {
-      'reflect-fn.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'reflect-fn.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 function getValue(): string { return 'hello'; }
-export const _ = reflectRunTypeId(getValue());
+export const _ = getRunTypeId(getValue());
 `,
     };
     await withInlineSources(sources, async ({client}) => {

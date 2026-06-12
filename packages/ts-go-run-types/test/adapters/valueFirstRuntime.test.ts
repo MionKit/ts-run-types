@@ -1,21 +1,21 @@
 // Tier-2 — value-first builders as injectable markers. Asserts that a builder
 // CALL returns, AT RUNTIME, the LIVE RunType node the type compiler produces for
 // the equivalent written type: the exact same cached node
-// `getRunType(getRunTypeId<…>())` / `getRunType(reflectRunTypeId(v))` resolves
+// `getRunType(getRunTypeId<…>())` / `getRunType(getRunTypeId(v))` resolves
 // (reference identity — runTypesCache is a singleton per structural id). This is
 // the "builders return a RunType struct, the same one the type compiler returns"
 // guarantee, and the doc's probe #5 (the builder's injected id equals the
 // canonical marker id for its return type).
 //
 // Per the CLAUDE.md marker-coverage rule every scenario carries BOTH forms — the
-// static `getRunTypeId<T>()` and the reflection `reflectRunTypeId(value)` — and
+// static `getRunTypeId<T>()` and the reflection `getRunTypeId(value)` — and
 // both must resolve to the same node the builder returns.
 //
 // `import '@mionjs/ts-go-run-types/formats'` is the load-bearing side-effect
 // import (registers the format pure-fns the cache module reaches).
 
 import {describe, expect, it} from 'vitest';
-import {getRunTypeId, reflectRunTypeId, getRTUtils, type Static} from '@mionjs/ts-go-run-types';
+import {getRunTypeId, getRTUtils, type Static} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {FormatString, FormatNumber} from '@mionjs/ts-go-run-types/formats';
 import '@mionjs/ts-go-run-types/formats';
@@ -31,7 +31,7 @@ describe('value-first / builders return the live RunType (Tier 2)', () => {
   it('string builder returns the RunType for FormatString<P> — reflect', () => {
     const built = RT.string({maxLength: 5});
     const probe = 'abc' as unknown as FormatString<{maxLength: 5}>;
-    const canonical = getRTUtils().getRunType(reflectRunTypeId(probe));
+    const canonical = getRTUtils().getRunType(getRunTypeId(probe));
     expect(canonical).toBeDefined();
     expect(built as unknown).toBe(canonical);
   });
@@ -46,7 +46,7 @@ describe('value-first / builders return the live RunType (Tier 2)', () => {
   it('number builder returns the RunType for FormatNumber<P> — reflect', () => {
     const built = RT.number({min: 0});
     const probe = 0 as unknown as FormatNumber<{min: 0}>;
-    const canonical = getRTUtils().getRunType(reflectRunTypeId(probe));
+    const canonical = getRTUtils().getRunType(getRunTypeId(probe));
     expect(canonical).toBeDefined();
     expect(built as unknown).toBe(canonical);
   });
@@ -63,7 +63,7 @@ describe('value-first / builders return the live RunType (Tier 2)', () => {
   it('object() composite RunType converges via reflect form', () => {
     const Model = RT.object({name: RT.string({maxLength: 5}), age: RT.number({min: 0})});
     const probe = {name: 'x', age: 1} as unknown as Static<typeof Model>;
-    const canonical = getRTUtils().getRunType(reflectRunTypeId(probe));
+    const canonical = getRTUtils().getRunType(getRunTypeId(probe));
     expect(canonical).toBeDefined();
     expect(Model as unknown).toBe(canonical);
   });

@@ -36,11 +36,11 @@ getRunTypeId<B>();
   runTest(
     'class extends populates extendsArguments reflect',
     {
-      'cext.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'cext.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class A { a = ''; }
 class B extends A { b = 0; }
 declare const value: B;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -106,11 +106,11 @@ getRunTypeId<B>();
   runTest(
     'interface extends populates extends reflect',
     {
-      'iext.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'iext.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface A { a: string; }
 interface B extends A { b: number; }
 declare const value: B;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {

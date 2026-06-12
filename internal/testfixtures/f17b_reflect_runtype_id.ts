@@ -1,15 +1,15 @@
 /// <reference path="./runtypes.d.ts" />
-import {reflectRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
 // 17ba — direct reflect call, T inferred from val.
 const u = {id: 1, name: 'm'} as {id: number; name: string};
-const a = reflectRunTypeId(u);
+const a = getRunTypeId(u);
 
 // 17bb — reflect on a primitive.
 const s: string = 'hello';
-const b = reflectRunTypeId(s);
+const b = getRunTypeId(s);
 
 // 17bc — user-defined wrapper. Same opt-in rule as f17 — the trailing
 // `id?: InjectRunTypeId<T>` is what the scanner looks at; the callee identity
@@ -30,7 +30,7 @@ const d = nameOf({kind: 'node', value: 42});
 // 17be — reflect inside a generic body. `T` is a free outer type parameter,
 // so this must be SKIPPED.
 function inner<T>(val: T): InjectRunTypeId<T> {
-  return reflectRunTypeId<T>(val);
+  return getRunTypeId<T>(val);
 }
 
 // 17bf — foreign `InjectRunTypeId` lookalike — declared outside the marker module.

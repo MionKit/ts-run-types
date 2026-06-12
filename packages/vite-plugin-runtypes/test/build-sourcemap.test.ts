@@ -20,14 +20,14 @@ const PACKAGE_ROOT = path.resolve(__dirname, '../../ts-go-run-types');
 // fixture in the Go resolver's Program (the plugin scans real program files).
 const FIXTURE_DIR = path.join(PACKAGE_ROOT, 'test', 'tmp-build-sourcemap');
 
-const FIXTURE = `import {getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+const FIXTURE = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 // padding line with a multibyte em-dash — keeps byte/char conversion honest
 export interface MapThing {
   mapProp: string;
 }
 export const staticId = getRunTypeId<MapThing>();
 const sample = {mapProp: 'x'} as MapThing;
-export const reflectedId = reflectRunTypeId(sample);
+export const reflectedId = getRunTypeId(sample);
 `;
 
 describe('vite build / composite source map', () => {
@@ -118,9 +118,9 @@ describe('vite build / composite source map', () => {
   );
 
   register(
-    'reflection form: reflectRunTypeId(value) site maps back to its original line',
+    'reflection form: getRunTypeId(value) site maps back to its original line',
     async () => {
-      expectMappedToOriginalLine(await builtChunk(), 'reflectRunTypeId(sample', 'reflectRunTypeId(sample)');
+      expectMappedToOriginalLine(await builtChunk(), 'getRunTypeId(sample', 'getRunTypeId(sample)');
     },
     120_000
   );

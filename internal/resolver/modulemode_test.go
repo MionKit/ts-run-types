@@ -28,13 +28,13 @@ func setupInlineMode(t testing.TB, sources map[string]string, mode string) *reso
 
 // pairedSources puts BOTH marker forms in one file: the static form
 // (getRunTypeId<T>() / createValidate<T>()) and the reflection form
-// (reflectRunTypeId(value)) — per the marker test coverage rule.
-const pairedSource = `import {createValidate, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+// (getRunTypeId(value)) — per the marker test coverage rule.
+const pairedSource = `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 type User = {id: number; name: string};
 export const isUser = createValidate<User>();
 export const staticId = getRunTypeId<User>();
 const u = {id: 1, name: 'm'} as User;
-export const reflectedId = reflectRunTypeId(u);
+export const reflectedId = getRunTypeId(u);
 `
 
 func scanWithModules(t *testing.T, r *resolver.Resolver, files []string) protocol.Response {
@@ -258,11 +258,11 @@ export const _ = registerPureFnFactory('test', 'double', function (utl) {
 func TestModuleMode_AllModules_PerNodeRunTypes(t *testing.T) {
 	// Static + reflection forms both demand the runtype graph; per-node mode
 	// renders one module per node (kind 0) and no bundle/facade kinds.
-	source := `import {getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	source := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type User = {id: number; name: string};
 export const staticId = getRunTypeId<User>();
 const u = {id: 1, name: 'm'} as User;
-export const reflectedId = reflectRunTypeId(u);
+export const reflectedId = getRunTypeId(u);
 `
 	r := setupInlineMode(t, map[string]string{"a.ts": source}, constants.ModuleModeAllModules)
 	resp := scanWithModules(t, r, []string{"a.ts"})

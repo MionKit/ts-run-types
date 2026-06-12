@@ -59,7 +59,7 @@ unsupported OS or no supported package manager.
 **2. `pnpm run ts-run-types:smoke`** - end-to-end smoke for the Go resolver
 binary + vite plugin wiring ([scripts/ts-run-types-smoke.mjs](../../../scripts/ts-run-types-smoke.mjs)).
 Spawns `bin/ts-go-run-types` in `--inline-server` mode, installs three tiny
-in-memory fixtures (`getRunTypeId<T>()` static, `reflectRunTypeId(v)` reflect,
+in-memory fixtures (`getRunTypeId<T>()` static, `getRunTypeId(v)` reflect,
 `createValidate<T>()` to exercise the `InjectTypeFnArgs` createX path), runs
 the plugin's `rewrite()` over each, then calls `scanFiles` with
 `includeEntryModules: true` and asserts the resolver returned a Site per

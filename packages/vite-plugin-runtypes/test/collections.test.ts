@@ -1,6 +1,6 @@
 // End-to-end collection-type round-trip tests. Mirrors members.test.ts's
 // `evalCacheFor` + `getTypeFor` setup. Each scenario has paired static
-// (getRunTypeId<T>()) and reflect (reflectRunTypeId(v)) tests per the
+// (getRunTypeId<T>()) and reflect (getRunTypeId(v)) tests per the
 // marker test coverage rule (CLAUDE.md). Exercises the modifier and
 // position fields the Go serializer populates: optional/readonly/
 // visibility/abstract/static, isSafeName on properties/methods, and
@@ -39,14 +39,14 @@ getRunTypeId<O>();
   runTest(
     'object with optional+readonly+unsafe name reflect',
     {
-      'obj.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'obj.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface O {
   readonly id: number;
   nick?: string;
   "weird prop name \\n?>'\\\\\\t\\r": boolean;
 }
 declare const value: O;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -100,7 +100,7 @@ getRunTypeId<U>();
   runTest(
     'class with mixed property modifiers reflect',
     {
-      'cls.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'cls.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class U {
   public id = 0;
   private secret = "";
@@ -109,7 +109,7 @@ class U {
   static count = 0;
 }
 declare const value: U;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -151,9 +151,9 @@ getRunTypeId<[a: number, b?: string, ...rest: boolean[]]>();
   runTest(
     'labeled tuple with rest and optional reflect',
     {
-      'tup.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'tup.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 declare const value: [a: number, b?: string, ...rest: boolean[]];
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -197,12 +197,12 @@ getRunTypeId<M>();
   runTest(
     'readonly index signature reflect',
     {
-      'idx.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'idx.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface M {
   readonly [k: string]: number;
 }
 declare const value: M;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {

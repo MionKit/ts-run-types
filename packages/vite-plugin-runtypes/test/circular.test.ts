@@ -8,7 +8,7 @@
 // module evaluates, just like mion's runtime graph does.
 //
 // Each scenario has paired static (getRunTypeId<T>()) and reflect
-// (reflectRunTypeId(v)) tests per the marker test coverage rule
+// (getRunTypeId(v)) tests per the marker test coverage rule
 // (CLAUDE.md).
 
 import {describe, expect} from 'vitest';
@@ -47,7 +47,7 @@ getRunTypeId<Circular>();
   runTest(
     'circular object reflect',
     {
-      'circ.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'circ.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface Circular {
   n: number;
   s: string;
@@ -55,7 +55,7 @@ interface Circular {
   d?: Date;
 }
 declare const value: Circular;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -99,10 +99,10 @@ getRunTypeId<CuArray>();
   runTest(
     'circular array+union reflect',
     {
-      'cuarr.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'cuarr.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type CuArray = (CuArray | Date | number | string)[];
 declare const value: CuArray;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -150,12 +150,12 @@ getRunTypeId<CircularTuple>();
   runTest(
     'circular tuple reflect',
     {
-      'ctuple.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'ctuple.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface CircularTuple {
   tuple: [bigint, CircularTuple?];
 }
 declare const value: CircularTuple;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -209,12 +209,12 @@ getRunTypeId<CircularIndex>();
   runTest(
     'circular index signature reflect',
     {
-      'cidx.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'cidx.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface CircularIndex {
   index: {[key: string]: CircularIndex};
 }
 declare const value: CircularIndex;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -262,12 +262,12 @@ getRunTypeId<CircularDeep>();
   runTest(
     'circular deep nested reflect',
     {
-      'cdeep.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'cdeep.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface CircularDeep {
   deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
 }
 declare const value: CircularDeep;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -362,7 +362,7 @@ getRunTypeId<RootCircular>();
   runTest(
     'nested + multiple circular reflect',
     {
-      'nested.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'nested.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface ICircularDeep {
   name: string;
   big: bigint;
@@ -385,7 +385,7 @@ interface RootCircular {
   ciDate: ICircularDate;
 }
 declare const value: RootCircular;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {

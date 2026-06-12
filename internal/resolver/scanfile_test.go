@@ -101,22 +101,22 @@ func TestScanFile_F17_StaticGetRunTypeId(t *testing.T) {
 	)
 }
 
-// TestScanFile_F17b_ReflectRunTypeId is the reflection-form sibling of
+// TestScanFile_F17b_GetRunTypeIdReflect is the reflection-form sibling of
 // the F17 test. Same expectations: four positive sites against the
-// reflectRunTypeId fixture; the free-T body call and the foreign-alias
-// wrapper must be skipped.
-func TestScanFile_F17b_ReflectRunTypeId(t *testing.T) {
+// value-first getRunTypeId fixture; the free-T body call and the
+// foreign-alias wrapper must be skipped.
+func TestScanFile_F17b_GetRunTypeIdReflect(t *testing.T) {
 	scanFixture(t,
 		"f17b_reflect_runtype_id.ts",
 		[]struct{ needle, desc string }{
-			{"reflectRunTypeId(u)", "17ba: reflect, T inferred from object literal"},
-			{"reflectRunTypeId(s)", "17bb: reflect, T inferred from primitive"},
+			{"getRunTypeId(u)", "17ba: reflect, T inferred from object literal"},
+			{"getRunTypeId(s)", "17bb: reflect, T inferred from primitive"},
 			{"validate<{flag: boolean}>(true)", "17bc: user wrapper, explicit T"},
 			{"nameOf({kind: 'node', value: 42})", "17bd: user wrapper, inferred T"},
 		},
 		[]string{
-			"reflectRunTypeId<T>(val)", // 17be — free type parameter inside body
-			"maskedWrapper('noop')",    // 17bf — non-@mionjs/ts-go-run-types InjectRunTypeId
+			"getRunTypeId<T>(val)",  // 17be — free type parameter inside body
+			"maskedWrapper('noop')", // 17bf — non-@mionjs/ts-go-run-types InjectRunTypeId
 		},
 	)
 }
@@ -127,13 +127,13 @@ func TestScanFile_F17b_ReflectRunTypeId(t *testing.T) {
 func TestScanFile_F18_ExplicitId_Static(t *testing.T) {
 	const code = `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 
-// 18a — caller passes an explicit string literal at the id slot. The
-// scanner must NOT emit a site here — rewriting would append a stray
-// extra argument past the id slot.
-getRunTypeId<{id: number; name: string}>('manualHash');
+// 18a — caller passes an explicit string literal at the id slot (slot 1;
+// the value slot stays empty). The scanner must NOT emit a site here —
+// rewriting would append a stray extra argument past the id slot.
+getRunTypeId<{id: number; name: string}>(undefined, 'manualHash');
 
 // 18b — caller passes an explicit literal at the id slot for a primitive.
-getRunTypeId<string>('manualHash');
+getRunTypeId<string>(undefined, 'manualHash');
 
 // 18c — user-defined wrapper, caller already supplies the id.
 function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
@@ -155,15 +155,15 @@ validate<{flag: boolean}>(true, 'manualHash');
 
 // TestScanFile_F18_ExplicitId_Reflect is the reflection-form sibling.
 func TestScanFile_F18_ExplicitId_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 
 // 18ba — direct reflect call with an explicit literal in the id slot.
 const u = {id: 1, name: 'm'} as {id: number; name: string};
-reflectRunTypeId(u, 'manualHash');
+getRunTypeId(u, 'manualHash');
 
 // 18bb — reflect on a primitive with explicit literal.
 const s: string = 'hello';
-reflectRunTypeId(s, 'manualHash');
+getRunTypeId(s, 'manualHash');
 
 // 18bc — user-defined wrapper, caller already supplies the id.
 function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
@@ -203,13 +203,13 @@ validate<{flag: boolean}>(true);
 
 // TestScanFile_Idempotent_Reflect is the reflection-form sibling.
 func TestScanFile_Idempotent_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 
 const u = {id: 1, name: 'm'} as {id: number; name: string};
-reflectRunTypeId(u);
+getRunTypeId(u);
 
 const s: string = 'hello';
-reflectRunTypeId(s);
+getRunTypeId(s);
 
 function validate<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');

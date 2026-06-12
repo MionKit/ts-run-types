@@ -12,8 +12,7 @@ import (
 
 const runtypesDTS = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
 }
 `
 

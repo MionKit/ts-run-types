@@ -14,7 +14,7 @@
 // `tsc -p packages/ts-go-run-types/tsconfig.test.json --noEmit`.
 
 import {describe, expect, test} from 'vitest';
-import {getRunTypeId, reflectRunTypeId} from '../src/index.ts';
+import {getRunTypeId} from '../src/index.ts';
 import type {RunType, Static} from '../src/index.ts';
 import * as RT from '../src/schema/index.ts';
 import type {FormatString, FormatNumber, FormatBigInt, FormatDate} from '../src/formats/index.ts';
@@ -38,24 +38,25 @@ test('type-only assertions are referenced (no runtime work here)', () => {
 // who forget to wire the plugin see a clear error instead of getting a
 // useless empty-string id.
 describe('runtime contract — markers throw without injected id', () => {
-  test('getRunTypeId() throws when no id is provided', () => {
+  test('getRunTypeId<T>() (static) throws when no id is provided', () => {
     expect(() => getRunTypeId<string>()).toThrow(/getRunTypeId\(\): no id injected/);
   });
 
-  test('reflectRunTypeId() throws when no id is provided', () => {
+  test('getRunTypeId(value) (reflect) throws when no id is provided', () => {
     const value: string = 'hello';
-    expect(() => reflectRunTypeId(value)).toThrow(/reflectRunTypeId\(\): no id injected/);
+    expect(() => getRunTypeId(value)).toThrow(/getRunTypeId\(\): no id injected/);
   });
 });
 
 function assertionsAcceptConcreteTypes(): void {
   // Concrete T: marker resolves normally. No directive — these should compile.
-  const _stringId = getRunTypeId<string>('mock-id' as any);
-  const _userId = getRunTypeId<{name: string}>('mock-id' as any);
+  // Static form puts the injected id at slot 1 (the value slot stays empty).
+  const _stringId = getRunTypeId<string>(undefined, 'mock-id' as any);
+  const _userId = getRunTypeId<{name: string}>(undefined, 'mock-id' as any);
   const _value: string = 'hello';
-  const _inferredStringId = reflectRunTypeId(_value, 'mock-id' as any);
+  const _inferredStringId = getRunTypeId(_value, 'mock-id' as any);
   const _user: {name: string} = {name: 'alice'};
-  const _inferredUserId = reflectRunTypeId(_user, 'mock-id' as any);
+  const _inferredUserId = getRunTypeId(_user, 'mock-id' as any);
   void _stringId;
   void _userId;
   void _inferredStringId;
@@ -67,9 +68,9 @@ function assertionsAcceptAny(): void {
   // `any` and value-inferred `any` (the common JSON.parse path) both resolve a
   // normal id; the runtime fn is a noop validator / best-effort serializer that
   // emits a build-time diagnostic. Both must compile WITHOUT a directive.
-  const _explicitAnyId = getRunTypeId<any>('mock-id' as any);
+  const _explicitAnyId = getRunTypeId<any>(undefined, 'mock-id' as any);
   const anyValue: any = JSON.parse('{}');
-  const _inferredAnyId = reflectRunTypeId(anyValue, 'mock-id' as any);
+  const _inferredAnyId = getRunTypeId(anyValue, 'mock-id' as any);
   void _explicitAnyId;
   void _inferredAnyId;
 }
@@ -79,7 +80,7 @@ function assertionsAcceptUnknown(): void {
   // downstream call sites — `unknown` values must be narrowed before
   // they're useful, so the failure mode surfaces at the consumer, not at
   // the marker. Should compile without a directive.
-  const _unknownId = getRunTypeId<unknown>('mock-id' as any);
+  const _unknownId = getRunTypeId<unknown>(undefined, 'mock-id' as any);
   void _unknownId;
 }
 

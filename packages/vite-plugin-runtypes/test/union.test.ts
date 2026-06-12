@@ -34,10 +34,10 @@ getRunTypeId<T>();
   runTest(
     'subset member sorts after superset (1+2 props) reflect',
     {
-      'subset.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'subset.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number};
 declare const value: T;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -122,10 +122,10 @@ getRunTypeId<T>();
   runTest(
     'shared-name kind literal marked discriminator reflect',
     {
-      'disc.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'disc.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {kind: 'a'; x: number} | {kind: 'b'; y: string};
 declare const value: T;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
