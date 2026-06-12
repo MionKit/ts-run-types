@@ -63,7 +63,10 @@ func CollectEntries(dump protocol.Dump) entrymod.Graph {
 	footer.WriteString(renderHoistPreamble(hoist))
 	for i, id := range rows {
 		if i > 0 {
-			rowsText.WriteByte(',')
+			// One row per line — the data array is otherwise a single
+			// unreadable mega-line. Newlines in an array literal are inert,
+			// and bundleKey hashes `rows` (the ids), not this text.
+			rowsText.WriteString(",\n")
 		}
 		rowsText.WriteByte('[')
 		rowsText.WriteString(strings.Join(renderFactoryArgs(nodes[id]), ","))
