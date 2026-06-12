@@ -1,1 +1,0 @@
-{"section":"ATOMIC","key":"string","title":"String primitive","description":"the `string` primitive — strict `typeof === \"string\"` (empty string accepted)","notes":["Strict typeof === \"string\". The empty string (\"\") is accepted."],"pureType":"createValidate<string>()","schema":"createValidate(RT.string())","generated":"function YOw_s86WKqE(v){return typeof v === 'string'}"}

@@ -1,1 +1,0 @@
-{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatAlpha>(), buildErrors: () => noErrs(createGetValidationErrors<FormatAlpha>())}"},{"name":"zod","source":"c(z.string().regex(/^[A-Za-z]+$/))"},{"name":"typebox","source":"c(Type.String({pattern: '^[A-Za-z]+$'}))"},{"name":"ajv","source":"c({type: 'string', pattern: '^[A-Za-z]+$'})"}]}

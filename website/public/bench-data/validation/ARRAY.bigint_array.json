@@ -1,1 +1,0 @@
-{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<bigint[]>(), buildErrors: () => noErrs(createGetValidationErrors<bigint[]>())}"},{"name":"zod","source":"c(z.array(z.bigint()))"},{"name":"typebox","source":"c(Type.Array(Type.BigInt()))"},{"name":"ajv","source":"NOT_SUPPORTED"}]}

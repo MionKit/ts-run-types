@@ -1,1 +1,0 @@
-{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatString<{maxLength: 5}>>(), buildErrors: () => noErrs(createGetValidationErrors<FormatString<{maxLength: 5}>>())}"},{"name":"zod","source":"c(z.string().max(5))"},{"name":"typebox","source":"c(Type.String({maxLength: 5}))"},{"name":"ajv","source":"c({type: 'string', maxLength: 5})"}]}

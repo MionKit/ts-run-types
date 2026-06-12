@@ -1,1 +1,0 @@
-{"section":"ATOMIC","key":"boolean","title":"boolean","description":"Root `boolean` round-trips identically across JSON and binary; no transform is needed.","notes":[],"pureType":"createJsonEncoder<boolean>(undefined, {strategy: 'clone'})","schema":"createJsonEncoder(RT.boolean())","generated":"function BPD_Oi4KAk0(v){return JSON.stringify(v);}"}
