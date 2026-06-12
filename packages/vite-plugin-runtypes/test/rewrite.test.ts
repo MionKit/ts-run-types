@@ -240,12 +240,12 @@ const myAPI = reflectRunTypeId(routes);
     });
 
     // Per-entry emitter — runtype nodes ride as rows of the single data
-    // bundle (tuple slot 0 === 4; dep-less, so slot 1 is u); the reflection
-    // root gets a facade module whose deps thunk imports the bundle.
+    // bundle (tuple slot 0 === 4; dep-less, so slot 1 is a hole); the reflection
+    // root gets a facade module whose inlined deps thunk imports the bundle.
     const moduleSources = Object.values(entryModules);
     expect(moduleSources.length).toBeGreaterThan(0);
-    expect(moduleSources.some((s) => /export const e=\[4,u,/.test(s))).toBe(true);
-    expect(moduleSources.some((s) => /export const e=\[5,deps,/.test(s))).toBe(true);
+    expect(moduleSources.some((s) => /export const e=\[4,,/.test(s))).toBe(true);
+    expect(moduleSources.some((s) => /export const e=\[5,\(\)=>\[/.test(s))).toBe(true);
 
     // Evaluate the modules the same way evalCacheFor does and instantiate
     // the runtype tuples against the stub registry.

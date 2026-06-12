@@ -221,7 +221,7 @@ export const reflectedId = reflectRunTypeId(u);
 	if !ok {
 		t.Fatalf("allModules: missing per-node module for root %q; modules: %v", root, moduleNames(resp))
 	}
-	if !strings.Contains(rootModule, "export const "+constants.EntryExportName+"=[0,deps,") {
+	if !strings.Contains(rootModule, "export const "+constants.EntryExportName+"=[0,()=>[") {
 		t.Fatalf("per-node module must be tuple kind 0:\n%s", rootModule)
 	}
 	// The root (an object) must import its member nodes — per-node layout.
