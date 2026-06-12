@@ -549,7 +549,8 @@ function registerTypeFnTuple(utils: RTUtils, tuple: FnTypeTuple): boolean {
     typeName: record.typeName,
     args: meta.args(),
     defaultParamValues: meta.defaultParamValues(),
-    code: record.code as string,
+    // undefined in `functions` mode — entryCode derives it lazily from createRTFn.
+    code: record.code,
     isNoop,
     rtDependencies: record.rtDependencies,
     pureFnDependencies: record.pureFnDependencies,

@@ -147,7 +147,10 @@ export interface CompiledFnData {
   readonly defaultParamValues: CompiledFnArgs;
   /** True for collapsed-to-identity compilations. */
   readonly isNoop?: boolean;
-  readonly code: string;
+  /** The factory body string. Present in `code`/`both` emit modes; undefined
+   *  in `functions` mode, where the live `createRTFn` ships instead and `code`
+   *  is derived lazily from it (see `entryCode` in rtUtils.ts) only if read. **/
+  readonly code?: string;
   /** Sibling rt-fn hashes this entry calls into. */
   readonly rtDependencies?: Array<string>;
   /** Pure function dependencies in format `"namespace::fnHash"`. */
@@ -170,11 +173,11 @@ export interface CompiledFnData {
 
 export interface CompiledTypeFn<Fn extends AnyFn = AnyFn> extends CompiledFnData {
   /** Factory closure wrapping the rt function with its context-code prologue.
-   *  Optional: by default the Go renderer emits `undefined` and the JS-side
-   *  `materializeRTFn` rebuilds via `new Function('utl', code)` on first
-   *  lookup. The `--emit-create-rt-fn` flag opts back into eager emission
-   *  for runtimes that can't use `new Function`. Always set on alwaysThrow
-   *  entries; always undefined on noop entries. **/
+   *  Optional: in `code` mode (default) the Go renderer emits `undefined` and
+   *  the JS-side `materializeRTFn` rebuilds via `new Function('utl', code)` on
+   *  first lookup. `--emit-mode functions|both` emits the closure eagerly for
+   *  runtimes that can't use `new Function`. Always set on alwaysThrow entries;
+   *  always undefined on noop entries. **/
   readonly createRTFn?: (utl: RTUtils) => Fn;
   /** The materialised RT function. */
   readonly fn?: Fn;

@@ -115,13 +115,13 @@ function getClient(): ResolverClient {
   if (!hasBinary()) throw new Error(`ts-go-run-types binary not built: ${BIN}`);
   // --inline-server: no startup Program, no handshake. cwd = repo root so
   // setSources keys like "user.ts" resolve to <repo>/user.ts.
-  // emitCacheFunctions:true mirrors the sibling `ts-go-run-types` vitest
-  // config — every cache module rendered during the test run carries
-  // BOTH the body string AND the inline `createRTFn` closure so the
-  // helper's diagnostic-style tests can assert against either form.
-  // Per-test cases that need the production default (no inline
-  // factory) flip this back in their scanFiles request when needed.
-  stash.client = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitCacheFunctions: true});
+  // emitMode:'both' mirrors the sibling `ts-go-run-types` vitest config —
+  // every cache module rendered during the test run carries BOTH the body
+  // string AND the inline `createRTFn` closure so the helper's
+  // diagnostic-style tests can assert against either form. Per-test cases that
+  // need the production default ('code', no inline factory) spin up a one-shot
+  // client with that mode when needed.
+  stash.client = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitMode: 'both'});
   if (!stash.atExitWired) {
     stash.atExitWired = true;
     // Best-effort cleanup if the worker exits without going through the

@@ -18,13 +18,11 @@ import (
 // orphaned.
 type FingerprintInputs struct {
 	HashLength int
-	// EmitCreateRTFn mirrors typefns.RenderOpts.EmitCreateRTFn —
-	// modules emitted with the inline factory have a different `Line`
-	// payload (arg-7 carries the full closure) than the default
-	// (arg-7 = `u`). Folding it into the fingerprint keeps the two
-	// modes in distinct cache subdirs so flipping the flag never
-	// reads a stale entry from the other mode.
-	EmitCreateRTFn bool
+	// EmitMode mirrors typefns.RenderOpts.EmitMode ("code" / "functions" /
+	// "both") — each mode renders different code/factory slots, so folding it
+	// into the fingerprint keeps the three modes in distinct cache subdirs and
+	// switching modes never reads a stale entry from another.
+	EmitMode string
 }
 
 // Fingerprint hashes inputs into a stable 12-hex-char prefix used as the
@@ -32,16 +30,18 @@ type FingerprintInputs struct {
 // human-friendly, wide enough that collisions are not a practical
 // concern.
 //
-// The version tag bumps whenever an input is dropped, so caches written
-// by older binaries land under a different prefix: "v1"→"v2" dropped the
-// MarkerName / MarkerModule inputs (marker migration), "v2"→"v3" dropped
-// LiteralHashLength (literal ids merged into the single hash dictionary).
+// The version tag bumps whenever an input is dropped or changes shape, so
+// caches written by older binaries land under a different prefix: "v1"→"v2"
+// dropped the MarkerName / MarkerModule inputs (marker migration), "v2"→"v3"
+// dropped LiteralHashLength (literal ids merged into the single hash
+// dictionary), "v3"→"v4" replaced the EmitCreateRTFn bool with the EmitMode
+// tri-state string.
 func Fingerprint(inputs FingerprintInputs) string {
 	var sb strings.Builder
-	sb.WriteString("v3\n")
+	sb.WriteString("v4\n")
 	sb.WriteString(strconv.Itoa(inputs.HashLength))
 	sb.WriteByte('\n')
-	sb.WriteString(strconv.FormatBool(inputs.EmitCreateRTFn))
+	sb.WriteString(inputs.EmitMode)
 	sb.WriteByte('\n')
 	sum := sha256.Sum256([]byte(sb.String()))
 	return hex.EncodeToString(sum[:])[:12]

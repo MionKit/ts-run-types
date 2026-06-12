@@ -234,6 +234,25 @@ export function buildFactoryFromCode(code: string): (utl: RTUtils) => (...args: 
   return new Function('utl', `'use strict'; ${code}`) as (utl: RTUtils) => (...args: any[]) => any;
 }
 
+/** Returns the entry's factory body `code`. Present verbatim in `code`/`both`
+ *  emit modes; in `functions` mode (code omitted, live factory shipped) it is
+ *  derived from `createRTFn.toString()` — the factory prints as
+ *  `function g_<hash>(utl){<body>}`, so the body is the slice between the first
+ *  `{` and the last `}`. Memoized onto the entry so the derivation runs once.
+ *  Empty string when neither code nor factory exists (never, in practice). **/
+export function entryCode(entry: CompiledTypeFn): string {
+  if (entry.code !== undefined) return entry.code;
+  if (entry.createRTFn) {
+    const src = entry.createRTFn.toString();
+    const open = src.indexOf('{');
+    const close = src.lastIndexOf('}');
+    const derived = open >= 0 && close > open ? src.slice(open + 1, close) : '';
+    (entry as Mutable<CompiledTypeFn>).code = derived;
+    return derived;
+  }
+  return '';
+}
+
 /** Cycle guard. When entry A's createRTFn invokes `getRT('B')` and B's
  *  createRTFn invokes `getRT('A')`, the second call would re-enter
  *  materializeRTFn for A while A is still materializing. The marker
@@ -247,9 +266,9 @@ const materializing = new Set<string>();
  *  inside a closure resolve to entries that already exist.
  *
  *  Emit modes:
- *  - Inline-factory mode (`--emit-create-rt-fn`): `entry.createRTFn` is
+ *  - functions/both (`--emit-mode functions|both`): `entry.createRTFn` is
  *    the embedded `function(utl){…}` closure — invoke it.
- *  - Default: `entry.createRTFn` is undefined; rebuild from `entry.code`
+ *  - code (default): `entry.createRTFn` is undefined; rebuild from `entry.code`
  *    via `new Function('utl', code)`, cache on the entry.
  *
  *  Noop entries skip via the `entry.fn` guard (cache modules pre-populate
@@ -263,7 +282,9 @@ function materializeRTFn(entry: CompiledTypeFn): asserts entry is InitializedTyp
   if (!entry.createRTFn && !entry.code) return;
   materializing.add(entry.rtFnHash);
   try {
-    if (!entry.createRTFn) (entry as Mutable<CompiledTypeFn>).createRTFn = buildFactoryFromCode(entry.code);
+    // `functions` mode ships createRTFn directly; otherwise rebuild it from the
+    // code string (entryCode === entry.code here, since createRTFn is absent).
+    if (!entry.createRTFn) (entry as Mutable<CompiledTypeFn>).createRTFn = buildFactoryFromCode(entryCode(entry));
     (entry as Mutable<CompiledTypeFn>).fn = (entry as InitializedTypeFn).createRTFn(rtUtils);
   } finally {
     materializing.delete(entry.rtFnHash);

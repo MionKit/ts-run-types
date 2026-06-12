@@ -37,16 +37,16 @@ type RenderOpts struct {
 	// coordinates — without it, a RTThrow would record a diagnostic
 	// with empty Site and the warning would be useless in the editor.
 	ProvenanceSites map[string][]diag.Site
-	// EmitCreateRTFn opts the collector into emitting the inline
-	// `createRTFn` closure alongside the body `code` string. False
-	// (the default) writes `u` (the `const u=undefined` alias) in the
-	// createRTFn slot and the JS-side materializer rebuilds the factory from
-	// `code` via `new Function('utl', code)` lazily on first lookup.
-	// True writes the full `function g_<hash>(utl){…}` declaration so
-	// runtimes that disallow `new Function` (Cloudflare WorkerD,
-	// browser CSP without `unsafe-eval`, …) can still materialise
-	// validators. See docs/UNSUPPORTED-KINDS.md.
-	EmitCreateRTFn bool
+	// EmitMode selects what each fn entry ships in its code/factory slots:
+	//   - EmitCode (default / zero value): only the body `code` string; the
+	//     createRTFn slot is the `u` placeholder and the JS-side materializer
+	//     rebuilds the factory via `new Function('utl', code)` on first lookup.
+	//   - EmitFunctions: only the live `function g_<hash>(utl){…}` factory; the
+	//     code slot is `undefined` (runtime derives `code` lazily if read).
+	//   - EmitBoth: both (the body twice) — runtimes that disallow `new Function`
+	//     (Cloudflare WorkerD, browser CSP without `unsafe-eval`) yet read `.code`.
+	// See docs/UNSUPPORTED-KINDS.md.
+	EmitMode constants.EmitMode
 	// RefTable resolves child ref ids to their RunType during a collect. When
 	// non-nil it is used instead of an index built from dump.RunTypes — the
 	// resolver passes the FULL session cache here so a collect whose dump.RunTypes
@@ -438,26 +438,31 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// `new Function('utl', code)(rtUtils)`. The inner-validator body
 	// remains embedded in `code` (as `return function …(v){…}`).
 	//
-	// The `createRTFn` arg is OMITTED by default: the JS-side
-	// materializeRTFn rebuilds the factory from `code` on first
-	// `getRT(hash)` call. The opt-in branch under `opts.EmitCreateRTFn`
-	// writes the full `function g_<hash>(utl){…}` declaration so runtimes
-	// without `new Function` can materialise validators without the
-	// dynamic-code path. Without the factory the tail is all defaults for
-	// the common dep-less entry (`false,[],[],u`) — trimArgsTail drops
-	// that run, so most production entries end at the `code` slot.
+	// The code (slot 2) and createRTFn (slot 6) slots vary by emit mode:
+	//   - EmitCode (default): code string, `u` factory placeholder. The
+	//     JS-side materializeRTFn rebuilds the factory from `code` on first
+	//     `getRT(hash)` call. The all-default tail (`false,[],[],u`) trims, so
+	//     the common dep-less entry ends at the `code` slot.
+	//   - EmitFunctions: `undefined` code, live factory. The runtime uses the
+	//     factory directly and derives `code` lazily only if a consumer reads it.
+	//   - EmitBoth: code string + live factory (the body twice) for runtimes
+	//     without `new Function` that still read `.code`.
 	//
 	// First arg is the namespaced cache key (innerPrefix + runType.ID) ==
 	// the entry-module key, so the JS-side rtFnsCache slot is distinct from
 	// the same runtype's other-family entries.
+	codeArg := "undefined"
+	if opts.EmitMode.EmitsCode() {
+		codeArg = quoteJS(factoryBody)
+	}
 	createRTFnArg := "u"
-	if opts.EmitCreateRTFn {
+	if opts.EmitMode.EmitsFactory() {
 		createRTFnArg = createRTFn
 	}
 	args := trimArgsTail([]string{
 		quoteJS(innerName),
 		quoteJS(rtTypeName(runType)),
-		quoteJS(factoryBody),
+		codeArg,
 		boolJS(isNoop),
 		stringSliceJS(walker.RTDependencies),
 		pureFnDepsJS(walker.PureFnDependencies),
@@ -794,12 +799,13 @@ func boolJS(b bool) string {
 }
 
 // fnEntryArgDefaults holds the rendered default per slot of the normal
-// 7-arg entry tail (key/typeName/code never trim). The JS-side
+// 7-arg entry tail. Slots 0-2 (key/typeName/code) are pinned ("" = never
+// trim) — code stays even as `undefined` in EmitFunctions mode. The JS-side
 // tupleToRecord zips absent slots back to undefined and registration
 // re-derives the same values (isNoop false, dep lists undefined like the
-// noop short form, createRTFn rebuilt from `code`). In EmitCreateRTFn
-// mode the last slot carries the factory text, so the run never starts
-// and the tuple is byte-identical to the untrimmed form.
+// noop short form, createRTFn rebuilt from `code`). When a factory is emitted
+// (EmitFunctions/EmitBoth) the last slot carries the factory text, so the
+// trim run never starts.
 var fnEntryArgDefaults = []string{"", "", "", "false", "[]", "[]", "u"}
 
 // alwaysThrowArgDefaults trims only the optional trailing site hint —

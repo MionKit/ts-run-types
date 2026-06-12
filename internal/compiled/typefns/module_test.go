@@ -63,7 +63,7 @@ func joinEntries(t *testing.T, graph entrymod.Graph) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// renderToString defaults to EmitCreateRTFn=true so body-shape
+// renderToString defaults to EmitMode 'both' so body-shape
 // assertions can substring-match against the un-escaped validator body
 // embedded in the `function g_<id>(utl){return function <id>(v){
 // <body>}}` closure. Under the production default (no inline factory)
@@ -73,11 +73,11 @@ func joinEntries(t *testing.T, graph entrymod.Graph) string {
 // explicitly call renderToStringDefault.
 func renderToString(t *testing.T, dump protocol.Dump) string {
 	t.Helper()
-	return joinEntries(t, FamilyByKey("validate").Collect(dump, RenderOpts{EmitCreateRTFn: true}, nil))
+	return joinEntries(t, FamilyByKey("validate").Collect(dump, RenderOpts{EmitMode: "both"}, nil))
 }
 
 // renderToStringDefault renders with the production-default
-// (EmitCreateRTFn=false) — the createRTFn slot becomes the `u` alias, the
+// (EmitMode 'code') — the createRTFn slot becomes the `u` alias, the
 // body lives only in the quoted `code` string. Used by the few tests that
 // assert the wire-shape transition between the two emit modes.
 func renderToStringDefault(t *testing.T, dump protocol.Dump) string {
@@ -96,7 +96,7 @@ func TestValidateModule_SingleEntryShape(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
-	// Opt-in (EmitCreateRTFn=true): arg-7 carries the full
+	// Opt-in (EmitMode 'both'): arg-7 carries the full
 	// `function g_<hash>(utl){…}` declaration. Used by runtimes
 	// without `new Function` and by every body-shape test below.
 	out := renderToString(t, dump)
@@ -138,6 +138,33 @@ func TestValidateModule_SingleEntryShape_DefaultEmit(t *testing.T) {
 	}
 	if strings.Contains(out, "function g_"+key) {
 		t.Errorf("default emit must NOT inline the createRTFn closure, but found g_%s in:\n%s", key, out)
+	}
+}
+
+// TestValidateModule_FunctionsMode pins the 'functions' emit mode: the code
+// slot (arg-3) is `undefined` (the body string is dropped) and the createRTFn
+// slot carries the live factory — the body ships ONCE, not twice as in 'both'.
+func TestValidateModule_FunctionsMode(t *testing.T) {
+	dump := protocol.Dump{
+		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
+	}
+	out := joinEntries(t, FamilyByKey("validate").Collect(dump, RenderOpts{EmitMode: "functions"}, nil))
+	key := valKey("abc123")
+	want := "init(" +
+		"'" + key + "'," +
+		"'string'," +
+		"undefined," + // code slot dropped
+		"false," +
+		"[]," +
+		"[]," +
+		"function g_" + key + "(utl){return function " + key + "(v){return typeof v === 'string'}}" +
+		");"
+	if !strings.Contains(out, want) {
+		t.Errorf("expected functions-mode entry\n  %s\nin rendered module:\n%s", want, out)
+	}
+	// The body must NOT also appear as a quoted code string (that would be 'both').
+	if strings.Contains(out, "'return function "+key) {
+		t.Errorf("functions mode must drop the quoted code string, but found it in:\n%s", out)
 	}
 }
 

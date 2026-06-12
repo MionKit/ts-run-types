@@ -93,7 +93,7 @@ func main() {
 		inlineSourcesStdin bool
 		inlineServer       bool
 		cacheDir           string
-		emitCacheFunctions bool
+		emitMode           string
 		moduleMode         string
 		pprofCPU           string
 		pprofHeap          string
@@ -118,10 +118,11 @@ func main() {
 		"persistent inline-sources server: start with no Program; accept setSources / resetCache ops")
 	flag.StringVar(&cacheDir, "cache-dir", "",
 		"base directory for the on-disk RT artifact cache (empty disables)")
-	flag.BoolVar(&emitCacheFunctions, "emit-create-rt-fn", false,
-		"emit the inline createRTFn closure on every cache entry alongside the body string. "+
-			"Default false — the JS side rebuilds the factory from `code` via `new Function` on first lookup. "+
-			"Set true for runtimes that disallow dynamic code (Cloudflare WorkerD, browser CSP without unsafe-eval).")
+	flag.StringVar(&emitMode, "emit-mode", string(constants.EmitCode),
+		"what each cache entry ships in its code/factory slots: "+
+			"code (default — body string only; the JS side rebuilds the factory via `new Function` on first lookup), "+
+			"functions (live factory only; code derived lazily if read — smallest factory-bearing output), or "+
+			"both (code + factory, for runtimes that disallow dynamic code like Cloudflare WorkerD / CSP without unsafe-eval).")
 	flag.StringVar(&moduleMode, "module-mode", constants.ModuleModeDefault,
 		"virtual-module grouping: default (runtype bundle + per-entry fn modules), "+
 			"allSingle (per-family bundle modules — fewest modules), or "+
@@ -197,6 +198,11 @@ func main() {
 			moduleMode, constants.ModuleModeDefault, constants.ModuleModeAllSingle, constants.ModuleModeAllModules)
 	}
 
+	if !constants.EmitMode(emitMode).Valid() {
+		fmt.Fprintf(os.Stderr, "ts-go-run-types: invalid --emit-mode %q (want code | functions | both)\n", emitMode)
+		os.Exit(2)
+	}
+
 	resolverOpts := resolver.Options{
 		HashLength:            hashLength,
 		Marker:                marker.Options{},
@@ -205,7 +211,7 @@ func main() {
 		DisableParallelScan:   noParallelScan,
 		DisableParallelRender: noParallelRender,
 		CacheDir:              cacheDir,
-		EmitCreateRTFn:        emitCacheFunctions,
+		EmitMode:              constants.EmitMode(emitMode),
 		ModuleMode:            moduleMode,
 	}
 

@@ -5,7 +5,7 @@
 //   - the runtype bundle row for `string` (bundle tuple slot 0 === 4);
 //   - the validate entry module (slot 0 === 'val'), asserting the tuple's
 //     positional args carry every RTCompiledFnData field and that the
-//     inline factory (emitCacheFunctions=true on the shared client)
+//     inline factory (emitMode 'both' on the shared client)
 //     materialises a working validator.
 //
 // Sibling test packages/ts-go-run-types/test/createValidate.test.ts
@@ -69,7 +69,7 @@ getRunTypeId<string>();
       expect(tuple[7]).toEqual([]); // rtDependencies
       expect(tuple[8]).toEqual([]); // pureFnDependencies
 
-      // 3. The inline factory (shared client runs emitCacheFunctions=true)
+      // 3. The inline factory (shared client runs emitMode 'both')
       //    materialises a working validator.
       const createRTFn = tuple[9] as (utl: unknown) => (value: unknown) => boolean;
       expect(createRTFn).toBeTypeOf('function');
