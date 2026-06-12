@@ -118,7 +118,7 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 	}
 
 	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey)
-	_, factoryBody := WrapClosure("g_"+entryKey, innerFn, contextLines)
+	_, factoryBody := WrapClosure("g_"+entryKey, entryKey, innerFn, contextLines)
 	codeArg := "undefined"
 	if opts.EmitMode.EmitsCode() {
 		codeArg = quoteJS(factoryBody)

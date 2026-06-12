@@ -431,7 +431,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		}
 		return entryRender{argsText: argsText}
 	}
-	createRTFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
+	createRTFn, factoryBody := WrapClosure(factoryName, walker.FnName, innerFn, walker.ContextLines())
 	// The `code` arg carries the factory BODY — the contents between the
 	// `function(utl){ … }` braces — so a consumer holding only the
 	// serialized RTCompiledFnData can rebuild the validator via
