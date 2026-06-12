@@ -614,6 +614,15 @@ func renderModule(graph Graph, entry *Entry, order levels, groupOf map[string]st
 // index-suffixed. Members render leaves-first (level, alpha) so the source
 // reads in dependency order; correctness doesn't depend on it (thunks are
 // lazy, inis run post-registration).
+// facadeHoistMin is the number of folded facades (allSingle mode) above which
+// their identical `()=>[__rt_runtypes]` deps thunk is hoisted into one shared
+// `const rtL=…` local and reused — below it the declaration costs more than it
+// saves (break-even ≈ 2.6). Mirrors the footer's hoistMinRefs.
+const facadeHoistMin = 3
+
+// facadeThunkLocal is the name of that shared thunk local.
+const facadeThunkLocal = "rtL"
+
 func renderBundle(graph Graph, name string, memberKeys []string, order levels, groupOf map[string]string) (string, error) {
 	members := append([]string(nil), memberKeys...)
 	sort.SliceStable(members, func(i, j int) bool {
@@ -622,6 +631,18 @@ func renderBundle(graph Graph, name string, memberKeys []string, order levels, g
 		}
 		return members[i] < members[j]
 	})
+
+	// allSingle folds every reflection-root facade into this bundle; they all
+	// carry the same `()=>[<bundle>]` deps thunk, so hoist it once when there
+	// are enough to pay for the declaration (see facadeHoistMin).
+	facadeCount := 0
+	for _, key := range members {
+		if graph[key].Kind == KindRunTypeFacade {
+			facadeCount++
+		}
+	}
+	hoistFacadeThunk := facadeCount >= facadeHoistMin
+	facadeThunkEmitted := false
 
 	var imports strings.Builder
 	var body strings.Builder
@@ -662,6 +683,16 @@ func renderBundle(graph Graph, name string, memberKeys []string, order levels, g
 		depsSlot := ""
 		if len(bindings) > 0 {
 			depsSlot = "()=>[" + strings.Join(bindings, ",") + "]"
+		}
+		// Fold every facade's identical bundle thunk onto one shared `rtL`
+		// local, declared once before the first facade export (the kind-4 data
+		// entry it references sorts first, so it is already declared above).
+		if hoistFacadeThunk && entry.Kind == KindRunTypeFacade && depsSlot != "" {
+			if !facadeThunkEmitted {
+				body.WriteString("const " + facadeThunkLocal + "=" + depsSlot + ";\n")
+				facadeThunkEmitted = true
+			}
+			depsSlot = facadeThunkLocal
 		}
 		body.WriteString("export const " + exportName + "=[" + slot0 + "," + depsSlot + "," + iniSlot)
 		if entry.ArgsText != "" {
