@@ -32,6 +32,11 @@ const (
 	CodeVERootAnyUnknown      = "VE020"
 )
 
+// CodeCompositeMissingPrimitive — a JSON composite (jeCL/jeMU/jeDI/jdST/jdPR)
+// entry's soft-dep primitive has no rendered entry in the graph. Always an
+// internal invariant breach, never a user error.
+const CodeCompositeMissingPrimitive = "JCP001"
+
 // prepareForJson family.
 const (
 	CodePJNeverRoot           = "PJ001"
@@ -166,6 +171,13 @@ func init() {
 	} {
 		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityError, Title: "RunType root-position error"})
 	}
+
+	// Composite invariant breach — a JSON composite entry references a
+	// primitive that never rendered. Internal bug: the site demand should
+	// have rendered it (real, noop short-form, or alwaysThrow); the emitted
+	// `utl.getRT(key).fn` prologue would crash at runtime, so the build
+	// fails loudly here instead.
+	register(Definition{Code: CodeCompositeMissingPrimitive, Family: FamilyRunType, Severity: SeverityError, Title: "JSON composite references an unrendered primitive entry"})
 
 	// Child-position warnings — the factory still emits, just drops the member.
 	for _, code := range []string{
