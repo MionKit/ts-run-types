@@ -859,13 +859,20 @@ func (cache *Cache) projectObjectLiteral(tsType *checker.Type, node *protocol.Ru
 	}
 	node.Kind = protocol.KindObjectLiteral
 	cache.projectMembersInto(tsType, node, properties, callSignatures, false)
-	// If this is a named interface with extends clauses, capture the
-	// parent interface refs. The TS checker has already merged the
-	// inherited members into `properties` above, but consumers may want
-	// to walk the tree explicitly via .Extends. Anonymous object
-	// literals and `type` aliases have no symbol-flagged-Interface
-	// declaration, so GetBaseTypes returns empty for them.
+	// If this is a named interface, stamp its name as TypeName and capture
+	// extends-clause parent refs. `type X = {…}` aliases get their name from
+	// Type_alias (projectType), but interfaces have no alias symbol — and
+	// the inlining predicate treats NAMED types as dedupe-worthy externals,
+	// so interfaces must carry their name too. TypeName never participates
+	// in structural ids (typeid doesn't read it), so two same-shape types
+	// still collapse to one id. The TS checker has already merged inherited
+	// members into `properties` above; .Extends is for explicit tree walks.
+	// Anonymous object literals and `type` aliases have no
+	// symbol-flagged-Interface declaration, so both additions skip them.
 	if symbol := tsType.Symbol(); symbol != nil && symbol.Flags&ast.SymbolFlagsInterface != 0 {
+		if node.TypeName == "" {
+			node.TypeName = symbol.Name
+		}
 		for _, baseType := range safeGetBaseTypes(cache.typeChecker, tsType) {
 			node.Extends = append(node.Extends, cache.Serialize(baseType))
 		}
