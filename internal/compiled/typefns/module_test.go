@@ -65,7 +65,7 @@ func joinEntries(t *testing.T, graph entrymod.Graph) string {
 
 // renderToString defaults to EmitMode 'both' so body-shape
 // assertions can substring-match against the un-escaped validator body
-// embedded in the `function g_<id>(utl){return function <id>(v){
+// embedded in the `function g_<id>(utl){function <id>(v){
 // <body>}}` closure. Under the production default (no inline factory)
 // the same body lives only inside the JSON-quoted `code` arg-3 string,
 // making raw-body assertions unreadable. Tests that care about the
@@ -104,11 +104,11 @@ func TestValidateModule_SingleEntryShape(t *testing.T) {
 	want := "init(" +
 		"'" + key + "'," +
 		"'string'," +
-		"'return function " + key + "(v){return typeof v === \\'string\\'}'," +
+		"'function " + key + "(v){return typeof v === \\'string\\'}return " + key + "'," +
 		"false," +
 		"[]," +
 		"[]," +
-		"function g_" + key + "(utl){return function " + key + "(v){return typeof v === 'string'}}" +
+		"function g_" + key + "(utl){function " + key + "(v){return typeof v === 'string'}return " + key + "}" +
 		");"
 	if !strings.Contains(out, want) {
 		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, out)
@@ -131,7 +131,7 @@ func TestValidateModule_SingleEntryShape_DefaultEmit(t *testing.T) {
 	want := "init(" +
 		"'" + key + "'," +
 		"'string'," +
-		"'return function " + key + "(v){return typeof v === \\'string\\'}'" +
+		"'function " + key + "(v){return typeof v === \\'string\\'}return " + key + "'" +
 		");"
 	if !strings.Contains(out, want) {
 		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, out)
@@ -157,13 +157,13 @@ func TestValidateModule_FunctionsMode(t *testing.T) {
 		"false," +
 		"[]," +
 		"[]," +
-		"function g_" + key + "(utl){return function " + key + "(v){return typeof v === 'string'}}" +
+		"function g_" + key + "(utl){function " + key + "(v){return typeof v === 'string'}return " + key + "}" +
 		");"
 	if !strings.Contains(out, want) {
 		t.Errorf("expected functions-mode entry\n  %s\nin rendered module:\n%s", want, out)
 	}
 	// The body must NOT also appear as a quoted code string (that would be 'both').
-	if strings.Contains(out, "'return function "+key) {
+	if strings.Contains(out, "'function "+key) {
 		t.Errorf("functions mode must drop the quoted code string, but found it in:\n%s", out)
 	}
 }

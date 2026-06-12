@@ -9,15 +9,23 @@ import "strings"
 // `(utl){ … }` braces — what gets stored in `RTCompiledFnData.code`
 // for `new Function('utl', body)` reconstruction on the consumer side).
 //
-// Shape mirrors mion's createRTFunction.ts:47 + printClosure
-// (rtFnCompiler.ts:732):
+// Shape (a hoisted-declaration variant of mion's createRTFunction.ts:47 +
+// printClosure, rtFnCompiler.ts:732):
 //
 //	function <factoryName>(utl){
 //	  <contextItem1>;
 //	  <contextItem2>;
 //	  …
-//	  return function <innerFnName>(<args>){<body>}
+//	  function <innerFnName>(<args>){<body>}
+//	  return <innerFnName>
 //	}
+//
+// The inner fn is a DECLARATION (hoisted into factory scope), not a
+// returned named function expression: context lines may include hoisted
+// context fns (Walker.createFnInContext) whose bodies self-call the inner
+// fn on circular types — a named function EXPRESSION binds its own name
+// only inside itself, so the old `return function <name>(…){…}` form left
+// `<name>` unreachable from the prologue (ReferenceError at runtime).
 //
 // `'use strict';` is NOT emitted per-factory — it lives at module top
 // in the rendered virtual:runtypes-validate output (see module.go's
@@ -40,9 +48,26 @@ func WrapClosure(factoryName string, innerFnDeclaration string, contextLines str
 		b.WriteString(contextLines)
 		b.WriteString(";")
 	}
-	b.WriteString("return ")
 	b.WriteString(innerFnDeclaration)
+	b.WriteString("return ")
+	b.WriteString(innerFnName(innerFnDeclaration))
 	body = b.String()
 	decl = "function " + factoryName + "(utl){" + body + "}"
 	return decl, body
+}
+
+// innerFnName extracts `<name>` from a `function <name>(…` declaration.
+// The declaration text is renderer-owned, so a malformed input is a
+// programmer error — panic loudly rather than emit a broken factory.
+func innerFnName(innerFnDeclaration string) string {
+	const prefix = "function "
+	if !strings.HasPrefix(innerFnDeclaration, prefix) {
+		panic("typefns: WrapClosure expects a `function <name>(…` declaration, got: " + innerFnDeclaration)
+	}
+	rest := innerFnDeclaration[len(prefix):]
+	open := strings.IndexByte(rest, '(')
+	if open <= 0 {
+		panic("typefns: WrapClosure could not find the inner fn name in: " + innerFnDeclaration)
+	}
+	return rest[:open]
 }

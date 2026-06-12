@@ -216,13 +216,15 @@ func safeChildExpr(childRef *protocol.RunType, accessor string, ctx *EmitContext
 	if childRT.Code == "" {
 		return accessor, true
 	}
-	// CodeRB / CodeS results need to be wrapped in an IIFE to fit an
-	// expression slot. CompileChild already handles this via the walker's
+	// CodeRB / CodeS results hoist into a context fn to fit an expression
+	// slot. CompileChild already handles this via the walker's
 	// handleCodeInterpolation when called with CodeE expected; defensive
 	// catch here in case a child emit returns CodeRB at a level we don't
-	// expect.
+	// expect. (Also fixes the old defensive IIFE, which omitted the
+	// `return ` a bare-CodeS block needs to yield a value.)
 	if childRT.Type == CodeS || childRT.Type == CodeRB {
-		return "(function(){" + childRT.Code + "})()", true
+		params := ctx.CtxFnParams(accessor)
+		return ctx.CreateFnInContext(childRT.Code, childRT.Type, params, params), true
 	}
 	return childRT.Code, true
 }
@@ -331,7 +333,7 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 	// clone equals `v` whenever `Object.keys(v).length === N`, so we
 	// skip the allocation on clean inputs.
 	fastpath := allExtraProof && allRequired
-	cloneExpr := buildSafeObjectLiteral(props)
+	cloneExpr := buildSafeObjectLiteral(props, ctx, v)
 	if fastpath {
 		body := "if (Object.keys(" + v + ").length === " + strconv.Itoa(len(props)) + ") return " + v + ";" +
 			"return " + cloneExpr
@@ -458,13 +460,15 @@ func buildSafeIndexSignatureObject(v string, props []safePropEmit, indexSigs []*
 // (never `{...sourceV}`), so undeclared keys are dropped by construction —
 // this is why the shape-derived clone strategy strips for free. For
 // all-required shapes the result is an object literal `{a: <expr>, b: <expr>}`.
-// For mixed-optionality shapes we build an accumulator IIFE so optional props
-// can be conditionally included without per-optional object spreads (a spread
-// allocates a temp object per optional, which is wasteful).
+// For mixed-optionality shapes the accumulator block hoists into a context
+// fn (so optional props can be conditionally included without per-optional
+// object spreads, and without allocating an IIFE closure on every call).
+// accessor is the OBJECT's input accessor the prop exprs were emitted
+// against; it drives the context-fn parameter derivation.
 //
 // Note: this helper assumes len(props) > 0; the parent emit gates
 // the empty case separately.
-func buildSafeObjectLiteral(props []safePropEmit) string {
+func buildSafeObjectLiteral(props []safePropEmit, ctx *EmitContext, accessor string) string {
 	hasOptional := false
 	for _, p := range props {
 		if p.optional {
@@ -486,9 +490,9 @@ func buildSafeObjectLiteral(props []safePropEmit) string {
 		b.WriteString("}")
 		return b.String()
 	}
-	// Mixed-optionality — accumulator IIFE.
+	// Mixed-optionality — accumulator block, hoisted to a context fn.
 	var b strings.Builder
-	b.WriteString("(function(){const _r={")
+	b.WriteString("const _r={")
 	first := true
 	for _, p := range props {
 		if p.optional {
@@ -515,8 +519,9 @@ func buildSafeObjectLiteral(props []safePropEmit) string {
 		b.WriteString(p.expr)
 		b.WriteString(";")
 	}
-	b.WriteString("return _r;})()")
-	return b.String()
+	b.WriteString("return _r;")
+	params := ctx.CtxFnParams(accessor)
+	return ctx.CreateFnInContext(b.String(), CodeRB, params, params)
 }
 
 // jsonObjectKeyLiteral returns the JS object-literal key form for a
@@ -791,7 +796,7 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 				expr:       propExpr,
 			})
 		}
-		objLit := buildSafeObjectLiteral(props)
+		objLit := buildSafeObjectLiteral(props, ctx, v)
 		guard := objectGuard(v, "")
 		clauses = append(clauses, "if ("+guard+") return [-1, "+objLit+"];")
 	}
@@ -832,7 +837,10 @@ func emitMergedPropPrepareSafe(mp FlatMergedProp, accessor string, ctx *EmitCont
 	if len(arms) == 0 {
 		return accessor, true
 	}
-	return "(function(){" + strings.Join(arms, " ") + "})()", true
+	// Dispatch arms hoist into a context fn; fallthrough (no candidate
+	// matched) returns undefined, exactly as the old IIFE did.
+	params := ctx.CtxFnParams(accessor)
+	return ctx.CreateFnInContext(strings.Join(arms, " "), CodeRB, params, params), true
 }
 
 // emitNativeIterablePrepareForJsonSafe handles Map / Set safely:
