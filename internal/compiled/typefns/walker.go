@@ -156,6 +156,12 @@ type Walker struct {
 	// per-prefix counter is equivalent for the access pattern where
 	// each Emit allocates a fixed number of names once.
 	localVarCounters map[string]int
+	// sjSkipCommas is the stringifyJson "suppress the trailing comma"
+	// bit a parent frame sets before each child property emit. Plain
+	// per-walk walker state — it must NOT live in ContextItems (every
+	// ContextItems VALUE is emitted verbatim as a prologue line, so a
+	// flag stored there leaks stray `;`/`1;` statements into factories).
+	sjSkipCommas bool
 	// Code is the assembled function body. The Walker stores the
 	// most recent root-level emitted code here; Finalize normalises
 	// it on exit.
@@ -618,6 +624,15 @@ func (w *Walker) resolveRef(rt *protocol.RunType) *protocol.RunType {
 // child's compile is deferred until that child gets its own
 // top-level render pass.
 //
+// Conceptually dispatch heads a THREE-tier ladder: tier 1 is the
+// external dep call below (`<childID>.fn(accessor)` through the
+// registry); tier 2 is the inline splice; tier 3 — an inlined child
+// whose CodeS/CodeRB block lands in an expression slot — hoists the
+// block into a factory-local context function (`ctxFn<N>(accessor)`,
+// see wrapAsCtxFn). Tier 3 physically lives one level up in
+// handleCodeInterpolation because it needs the POST-emit CodeType,
+// which only exists after Emit returns.
+//
 // `childIsNoop` is passed as false at the dispatch site — the
 // child's noop status isn't known here (the child hasn't been
 // compiled yet on this code path). The renderer's later
@@ -768,13 +783,13 @@ func (w *Walker) handleCodeInterpolation(rt *protocol.RunType, child RTCode, par
 		return code
 	case parentCT == CodeE && childCT == CodeS,
 		parentCT == CodeE && childCT == CodeRB:
-		return callSelfInvoking(child)
+		return w.wrapAsCtxFn(child).Code
 	case parentCT == CodeS && childCT == CodeE:
 		return code
 	case parentCT == CodeS && childCT == CodeS:
 		return addFullStop(code)
 	case parentCT == CodeS && childCT == CodeRB:
-		return callSelfInvoking(child)
+		return w.wrapAsCtxFn(child).Code
 	case parentCT == CodeRB && childCT == CodeE:
 		panic("typefns: expected block but got expression — would emit useless code")
 	case parentCT == CodeRB && childCT == CodeS:

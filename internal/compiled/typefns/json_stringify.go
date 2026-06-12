@@ -805,31 +805,22 @@ func parentIsArrayLike(ctx *EmitContext) bool {
 	return false
 }
 
-// skipCommas flag plumbing — set on the parent frame (via a
-// context-item entry keyed on a known constant) so the child
+// skipCommas flag plumbing — set on the parent frame so the child
 // property emit can consume it before the parent's loop body
-// continues.
-const skipCommasKey = "__sj_skip_commas__"
-
+// continues. Lives as a plain walker bit (sjSkipCommas): it used to be
+// stashed in ContextItems, whose values are emitted verbatim as
+// prologue lines — the stored ""/"1" leaked stray `;` statements into
+// every sj factory that also had real context items.
 func setSkipCommas(ctx *EmitContext, value bool) {
-	if value {
-		ctx.SetContextItem(skipCommasKey, "1")
-	} else {
-		// Reset the marker by clearing the context-item we stash on
-		// it. Context items are appended-only at the walker level;
-		// store the bit in the walker's nextLocalVar counters table
-		// instead, keyed on the same constant.
-		ctx.SetContextItem(skipCommasKey, "")
-	}
+	ctx.walker.sjSkipCommas = value
 }
 
 func clearSkipCommas(ctx *EmitContext) {
-	ctx.SetContextItem(skipCommasKey, "")
+	ctx.walker.sjSkipCommas = false
 }
 
 func getSkipCommas(ctx *EmitContext) bool {
-	value, ok := ctx.GetContextItem(skipCommasKey)
-	return ok && value == "1"
+	return ctx.walker.sjSkipCommas
 }
 
 // positionInt — typed integer view of TupleMember.Position. Returns 0
