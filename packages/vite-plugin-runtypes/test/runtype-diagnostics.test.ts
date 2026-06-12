@@ -320,7 +320,9 @@ export const _ = createValidate<User>();
         if (source.includes(',undefined,true];')) continue;
         expect(source, `the u placeholder never survives at the tail — got: ${source}`).not.toMatch(/,u\];\n$/);
         expect(source, `the full default tail never survives — got: ${source}`).not.toContain(',false,[],[]');
-        if (/\}'\];\n$/.test(source)) depLessEndsAtCode++;
+        // The code slot's body ends `…}return <innerName>` (hoisted inner
+        // declaration + name return — see typefns.WrapClosure).
+        if (/return [A-Za-z0-9_$]+'\];\n$/.test(source)) depLessEndsAtCode++;
         void key;
       }
       // User's `tags: string[]` member entry has no deps of its own, so at
