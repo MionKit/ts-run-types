@@ -78,12 +78,12 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 6
-    // when default-valued tails (isNoop false, empty dep lists, the `u`
-    // createRTFn placeholder) started being trimmed off fn-entry ArgsText —
-    // stale v5 payloads with explicit tails must miss so emitted bytes don't
-    // depend on cache temperature.
-    expect(parsed.version).toBe(6);
+    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 7
+    // when statement blocks in expression position started hoisting into
+    // `const ctxFn<N> = …` context lines instead of per-call IIFEs — stale v6
+    // payloads bake the IIFE bodies, so they must miss (emitted bytes must
+    // not depend on cache temperature).
+    expect(parsed.version).toBe(7);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.argsText).toBe('string');
