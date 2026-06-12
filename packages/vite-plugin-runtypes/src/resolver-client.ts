@@ -42,6 +42,11 @@ export interface ResolverClientOptions {
   // 'allSingle' (per-family bundle modules), or 'allModules' (per-node
   // runtype modules too). Undefined leaves the binary default.
   moduleMode?: string;
+  // Forwarded as --inline-mode: the child-inlining policy — 'default'
+  // (compounds compile as external per-family entries) or 'allInternal'
+  // (unnamed, non-circular compounds inline into their parents; named
+  // and circular types stay external). Undefined leaves the binary default.
+  inlineMode?: 'default' | 'allInternal';
 }
 
 // Common JSON-per-line request/response framing. Owns the in-flight request
@@ -259,6 +264,7 @@ export class ResolverClient extends ResolverClientBase {
     if (opts.parallelScan === false) args.push('--no-parallel-scan');
     if (opts.parallelRender === false) args.push('--no-parallel-render');
     if (opts.moduleMode) args.push('--module-mode', opts.moduleMode);
+    if (opts.inlineMode) args.push('--inline-mode', opts.inlineMode);
     this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit']});
     if (!this.child.stdin || !this.child.stdout) {
       throw new Error('failed to spawn ts-go-run-types (no stdio pipes)');

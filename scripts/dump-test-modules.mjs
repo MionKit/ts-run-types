@@ -17,7 +17,7 @@
 //                                               serves for `virtual:rt/<…>`.
 //
 // Usage:
-//   node scripts/dump-test-modules.mjs [--module-mode default|allSingle|allModules] [--emit-mode code|functions|both]
+//   node scripts/dump-test-modules.mjs [--module-mode default|allSingle|allModules] [--emit-mode code|functions|both] [--inline-mode default|allInternal]
 //
 // --emit-mode selects the code/factory slots (default 'both', matching the
 // test config). 'code' (body string only, no g_<hash> factories) and
@@ -60,13 +60,21 @@ if (!EMIT_MODES.includes(EMIT_MODE)) {
   console.error(`--emit-mode: unknown value ${JSON.stringify(EMIT_MODE)} (expected ${EMIT_MODES.join(' | ')})`);
   process.exit(1);
 }
+const INLINE_MODES = ['default', 'allInternal'];
+const inlineModeArgIndex = process.argv.indexOf('--inline-mode');
+const INLINE_MODE = inlineModeArgIndex >= 0 ? process.argv[inlineModeArgIndex + 1] : 'default';
+if (!INLINE_MODES.includes(INLINE_MODE)) {
+  console.error(`--inline-mode: unknown value ${JSON.stringify(INLINE_MODE)} (expected ${INLINE_MODES.join(' | ')})`);
+  process.exit(1);
+}
 
 // Default keeps the familiar logs/build/; other module modes get their own dir
 // so the layouts can be inspected side by side. Non-default emit modes get an
 // `-<emitMode>` suffix (e.g. logs/build-code, logs/build-functions) so the
 // code/factory variants are diffable for size comparison.
 const MODE_DIR = MODULE_MODE === MODULE_MODE_DEFAULT ? 'logs/build' : `logs/build-${MODULE_MODE}`;
-const OUT_DIR = path.join(REPO_ROOT, EMIT_MODE === 'both' ? MODE_DIR : `${MODE_DIR}-${EMIT_MODE}`);
+const EMIT_DIR = EMIT_MODE === 'both' ? MODE_DIR : `${MODE_DIR}-${EMIT_MODE}`;
+const OUT_DIR = path.join(REPO_ROOT, INLINE_MODE === 'default' ? EMIT_DIR : `${EMIT_DIR}-${INLINE_MODE}`);
 const VIRTUAL_DIR = path.join(OUT_DIR, 'virtual-rt');
 
 // Collect every fixture .ts under test/suites/, skipping the .test.ts
@@ -105,6 +113,7 @@ async function main() {
   const resolver = new ResolverClient(BIN, MARKER_PKG, 'tsconfig.test.json', {
     emitMode: EMIT_MODE,
     moduleMode: MODULE_MODE,
+    inlineMode: INLINE_MODE,
   });
   // Surface child stderr so resolver build/scan errors aren't silent.
   // ResolverClient buffers stdout JSON; stderr leaks under us. The

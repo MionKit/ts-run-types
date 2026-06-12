@@ -62,6 +62,17 @@ export interface PluginOptions {
   //                  runtype modules (the pre-bundle layout). Escape hatch;
   //                  measurably slower on dense reflection graphs.
   moduleMode?: ModuleMode;
+  // Child-inlining policy:
+  //   'default'     — compounds (arrays, tuples, object literals, unions)
+  //                   compile as external per-family cache entries, shared
+  //                   across every parent that references them.
+  //   'allInternal' — UNNAMED, non-circular compounds inline into their
+  //                   parents (statement bodies hoist to per-factory context
+  //                   fns); named types (alias/interface) and circular types
+  //                   stay external. Fewer cache entries/modules — roughly
+  //                   one function per call-site type per family — at the
+  //                   cost of duplicating unnamed shapes shared across roots.
+  inlineMode?: 'default' | 'allInternal';
 }
 
 // MARKER_MODULE is the fixed package every marker brand is declared in.
@@ -151,6 +162,7 @@ export default function runtypes(options: PluginOptions) {
       resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         cacheDir,
         emitMode: options.emitMode ?? 'code',
+        inlineMode: options.inlineMode ?? 'default',
         parallelScan: options.parallelScan,
         parallelRender: options.parallelRender,
         moduleMode,
