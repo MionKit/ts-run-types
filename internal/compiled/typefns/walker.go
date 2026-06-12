@@ -904,16 +904,25 @@ func (w *Walker) wrapAsCtxFn(child RTCode) RTCode {
 	if body == "" {
 		return RTCode{Code: "", Type: CodeE}
 	}
+	params := w.ctxFnParamsFor(w.Vλl)
+	return RTCode{Code: w.createFnInContext(body, child.Type, params, params), Type: CodeE}
+}
+
+// ctxFnParamsFor derives the parameter list for a context function whose
+// body was emitted against accessor: the emitter's own Args plus any
+// walker-allocated loop counters appearing free in the accessor. Same-named
+// params shadow the enclosing bindings, so the args list is the params list.
+func (w *Walker) ctxFnParamsFor(accessor string) []string {
 	params := make([]string, 0, 4)
 	for _, arg := range w.Emitter.Args() {
 		params = append(params, arg.Name)
 	}
-	for _, name := range identifiersIn(w.Vλl) {
+	for _, name := range identifiersIn(accessor) {
 		if w.isAllocatedLocal(name) && !slices.Contains(params, name) {
 			params = append(params, name)
 		}
 	}
-	return RTCode{Code: w.createFnInContext(body, child.Type, params, params), Type: CodeE}
+	return params
 }
 
 // identifiersIn extracts the JS identifiers of an accessor expression in
