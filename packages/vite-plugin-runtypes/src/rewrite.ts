@@ -1,3 +1,4 @@
+import MagicString, {type SourceMap} from 'magic-string';
 import type {SiteScanner} from './scan-batcher.ts';
 import type {Replacement, Site} from './protocol.ts';
 import {
@@ -12,9 +13,12 @@ import {
 // close-paren in the ORIGINAL source; replacements are also against
 // the original source. Consumers using these positions after applying
 // `code` must account for the offset shift introduced by the rewrites
-// (including the import block inserted at offset 0).
+// (including the import block inserted at offset 0). `map` carries the
+// MagicString-generated source map for the edits (absent when the file
+// had nothing to rewrite).
 export interface Rewritten {
   code: string;
+  map?: SourceMap;
   sites: Site[];
   replacements: Replacement[];
 }
@@ -31,16 +35,17 @@ export interface Rewritten {
 //      entry-module binding; `importFrom` names the module).
 //   3. One single-line import block at offset 0 covering every binding the
 //      edits above reference, deduped per specifier (all statements joined
-//      on ONE line — see buildImportBlock for the source-map rationale):
+//      on ONE line, so the original source shifts by exactly 1 line):
 //      `import {e as __rt_<basename>} from 'virtual:rt/<basename>.js';`
 //
-// All edits are sorted right-to-left by start position and applied in
-// one pass — earlier offsets remain valid as we edit (the offset-0
-// import block is necessarily applied last). Positions from the
-// resolver are UTF-8 BYTE offsets (because tsgo internally indexes its
-// source files by byte), so we operate on a Buffer rather than a JS
-// string — UTF-16 code-unit math would skew on any multibyte char like
-// an em-dash in a comment.
+// Edits are applied through a MagicString so transform() can hand Vite a
+// real source map — original positions survive the injected imports and
+// bindings. Positions from the resolver are UTF-8 BYTE offsets (tsgo
+// internally indexes its source files by byte) while MagicString indexes
+// by UTF-16 code units, so every resolver offset goes through
+// makeByteToChar before touching the MagicString — never index the JS
+// string with a resolver offset directly; multibyte source characters
+// (an em-dash in a comment is enough) would misalign the inserted hash.
 export async function rewrite(file: string, code: string, resolver: SiteScanner): Promise<Rewritten> {
   const result = await resolver.scanFiles([file]);
   const sites = result.sites;
@@ -49,44 +54,53 @@ export async function rewrite(file: string, code: string, resolver: SiteScanner)
     return {code, sites, replacements};
   }
 
-  // Sort all edits right-to-left so earlier byte offsets stay valid.
-  // Sites are zero-width insertions keyed on `pos`; replacements are
-  // span edits keyed on `start`. Both share the same offset space.
-  type Edit = {kind: 'site'; pos: number; site: Site} | {kind: 'replace'; start: number; end: number; text: string};
-  const edits: Edit[] = [
-    ...sites.map<Edit>((site) => ({kind: 'site', pos: site.pos, site})),
-    ...replacements.map<Edit>((rep) => ({
-      kind: 'replace',
-      start: rep.start,
-      end: rep.end,
-      text: rep.text,
-    })),
-  ];
-  edits.sort((a, b) => {
-    const ax = a.kind === 'site' ? a.pos : a.start;
-    const bx = b.kind === 'site' ? b.pos : b.start;
-    return bx - ax;
-  });
-
-  let buf = Buffer.from(code, 'utf8');
-  for (const edit of edits) {
-    if (edit.kind === 'site') {
-      const insertion = Buffer.from(buildInsertion(edit.site), 'utf8');
-      buf = Buffer.concat([buf.subarray(0, edit.pos), insertion, buf.subarray(edit.pos)]);
-    } else {
-      const replacement = Buffer.from(edit.text, 'utf8');
-      buf = Buffer.concat([buf.subarray(0, edit.start), replacement, buf.subarray(edit.end)]);
-    }
+  const byteOffsets = [...sites.map((site) => site.pos), ...replacements.flatMap((rep) => [rep.start, rep.end])];
+  const toChar = makeByteToChar(code, byteOffsets);
+  const magicString = new MagicString(code);
+  // Sites are zero-width insertions keyed on `pos`; replacements are span
+  // edits keyed on `start`/`end`. MagicString resolves every edit against
+  // ORIGINAL coordinates, so application order is irrelevant (the old
+  // Buffer-based path needed an explicit right-to-left sort).
+  for (const site of sites) {
+    magicString.appendLeft(toChar(site.pos), buildInsertion(site));
   }
-
-  // The import block lands at offset 0 AFTER every offset-anchored edit has
-  // been applied, so it never shifts them. Imports hoist in ESM, so leading
-  // directives/comments staying below the block is harmless.
+  for (const rep of replacements) {
+    if (rep.start === rep.end) magicString.appendLeft(toChar(rep.start), rep.text);
+    else magicString.update(toChar(rep.start), toChar(rep.end), rep.text);
+  }
   const importBlock = buildImportBlock(sites, replacements);
-  if (importBlock !== '') {
-    buf = Buffer.concat([Buffer.from(importBlock, 'utf8'), buf]);
+  if (importBlock !== '') magicString.prepend(importBlock);
+
+  // 'boundary' resolution maps each token run, which keeps the map small
+  // while still relocating positions past the injected mid-line bindings.
+  const map = magicString.generateMap({source: file, includeContent: true, hires: 'boundary'});
+  return {code: magicString.toString(), map, sites, replacements};
+}
+
+// makeByteToChar converts resolver UTF-8 byte offsets to the UTF-16
+// code-unit indices MagicString expects. Pure-ASCII sources (the common
+// case) short-circuit to identity; otherwise one code-point walk maps
+// exactly the offsets the edits need. Resolver offsets always land on
+// code-point boundaries, so the mapping is exact.
+function makeByteToChar(code: string, byteOffsets: number[]): (byteOffset: number) => number {
+  if (Buffer.byteLength(code, 'utf8') === code.length) return (byteOffset) => byteOffset;
+  const sorted = [...new Set(byteOffsets)].sort((a, b) => a - b);
+  const byChar = new Map<number, number>();
+  let pending = 0;
+  let byte = 0;
+  let unit = 0;
+  for (const char of code) {
+    while (pending < sorted.length && sorted[pending] <= byte) {
+      byChar.set(sorted[pending], unit);
+      pending++;
+    }
+    if (pending === sorted.length) break;
+    const codePoint = char.codePointAt(0) as number;
+    byte += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4;
+    unit += char.length;
   }
-  return {code: buf.toString('utf8'), sites, replacements};
+  for (; pending < sorted.length; pending++) byChar.set(sorted[pending], unit);
+  return (byteOffset) => byChar.get(byteOffset) ?? byteOffset;
 }
 
 // siteBasename derives the entry-module basename a site imports: the
@@ -107,12 +121,9 @@ function siteBinding(site: Site): string {
 // needs — one per distinct site basename plus one per replacement carrying
 // an importFrom specifier — and renders the deduped import statements as a
 // SINGLE physical line. Deterministic order (sorted by specifier) keeps
-// rewrites byte-stable. The single line matters for debuggability: the
-// rewrite works on a Buffer (not a MagicString), so transform() returns
-// `map: null` and Vite does not re-map our edits — the user's original
-// source shifts down by however many lines we prepend. Collapsing the whole
-// block onto one line caps that drift at exactly 1 line (instead of N) until
-// the MagicString-based source-map work lands.
+// rewrites byte-stable. The source map relocates original positions past
+// the block either way; keeping it on one physical line just keeps the
+// rewritten source readable and the raw (pre-map) line drift at 1.
 function buildImportBlock(sites: Site[], replacements: Replacement[]): string {
   const bySpecifier = new Map<string, string>();
   for (const site of sites) {

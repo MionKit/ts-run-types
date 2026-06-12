@@ -5,6 +5,7 @@ import {spawnSync} from 'node:child_process';
 import {rewrite} from '../src/rewrite.ts';
 import {ReflectionKind, type RunType} from '../src/protocol.ts';
 import {BIN, runTest, withInlineSources, RUNTYPES_DTS, evalEntryModules, instantiateRunTypes} from './helpers/inline.ts';
+import {decodeMappings} from './helpers/sourcemap.ts';
 
 function findMember(types: RunType[], root: RunType, name: string): RunType | undefined {
   for (const ref of root.children ?? []) {
@@ -301,4 +302,118 @@ const myAPI = reflectRunTypeId(routes);
       fs.rmSync(tmpDir, {recursive: true, force: true});
     }
   );
+
+  // ---- multibyte sources -------------------------------------------------
+  // Resolver positions are UTF-8 BYTE offsets while the MagicString edit
+  // surface indexes UTF-16 code units. These fixtures place multibyte chars
+  // (3-byte em-dash, 4-byte emoji => surrogate pair) BEFORE the call site so
+  // any byte/char conflation shifts the insertion point — the binding would
+  // land inside `getRunTypeId<User>()` instead of before its close-paren.
+
+  runTest(
+    'multibyte static: byte offsets convert to char indices before insertion',
+    {
+      'user-mb.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+// preamble with multibyte chars — em-dash and 🦄 emoji — before the site
+type User = {id: number; name: string};
+getRunTypeId<User>();
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const {code: out, sites} = await rewrite('user-mb.ts', sources['user-mb.ts'], client);
+
+        expect(sites.length).toBe(1);
+        expect(out).toContain(`getRunTypeId<User>(__rt_${sites[0].id});`);
+        // The original lines must survive untouched — a byte/char skew would
+        // splice the binding mid-identifier somewhere earlier in the file.
+        expect(out).toContain('— em-dash and 🦄 emoji —');
+        expect(out).toContain('type User = {id: number; name: string};');
+      });
+    }
+  );
+
+  runTest(
+    'multibyte reflect: byte offsets convert to char indices before insertion',
+    {
+      'user-mb-reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+// preamble with multibyte chars — em-dash and 🦄 emoji — before the site
+type User = {id: number; name: string};
+const u = {id: 1, name: 'm'} as User;
+reflectRunTypeId(u);
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const {code: out, sites} = await rewrite('user-mb-reflect.ts', sources['user-mb-reflect.ts'], client);
+
+        expect(sites.length).toBe(1);
+        expect(out).toContain(`reflectRunTypeId(u, __rt_${sites[0].id});`);
+        expect(out).toContain('— em-dash and 🦄 emoji —');
+      });
+    }
+  );
+
+  // ---- source map --------------------------------------------------------
+  // The rewrite returns a MagicString-generated map so Vite can chain our
+  // edits into the composite map: generated line 2 (everything after the
+  // single-line import block) must map back to ORIGINAL line 1.
+
+  runTest(
+    'source map static: original lines survive the injected import block',
+    {
+      'user-map.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+type User = {id: number; name: string};
+getRunTypeId<User>();
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const rewritten = await rewrite('user-map.ts', sources['user-map.ts'], client);
+        assertImportBlockMap(rewritten, sources['user-map.ts']);
+      });
+    }
+  );
+
+  runTest(
+    'source map reflect: original lines survive the injected import block',
+    {
+      'user-map-reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+type User = {id: number; name: string};
+const u = {id: 1, name: 'm'} as User;
+reflectRunTypeId(u);
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const rewritten = await rewrite('user-map-reflect.ts', sources['user-map-reflect.ts'], client);
+        assertImportBlockMap(rewritten, sources['user-map-reflect.ts']);
+      });
+    }
+  );
+
+  function assertImportBlockMap(rewritten: Awaited<ReturnType<typeof rewrite>>, original: string) {
+    const map = rewritten.map;
+    expect(map).toBeDefined();
+    expect(map!.sourcesContent?.[0]).toBe(original);
+
+    const lines = decodeMappings(map!.mappings);
+    // Generated line 1 is the injected import block: every segment there
+    // must map to original line 1 (the block displaces, never replaces).
+    // Generated line 2 starts the user's original source: its first segment
+    // must map back to original line 1, column 0 — the 1-line drift the
+    // map exists to cancel.
+    expect(lines.length).toBeGreaterThanOrEqual(2);
+    const firstUserSegment = lines[1][0];
+    expect(firstUserSegment).toBeDefined();
+    expect(firstUserSegment.generatedColumn).toBe(0);
+    expect(firstUserSegment.originalLine).toBe(0);
+    expect(firstUserSegment.originalColumn).toBe(0);
+    // Every original line N (0-based) must appear as generated line N+1.
+    const originalLineCount = original.split('\n').length - 1;
+    for (let line = 0; line < originalLineCount; line++) {
+      const segments = lines[line + 1] ?? [];
+      expect(segments.some((segment) => segment.originalLine === line)).toBe(true);
+    }
+  }
 });
