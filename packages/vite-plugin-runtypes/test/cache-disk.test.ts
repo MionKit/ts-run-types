@@ -78,12 +78,12 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 4
-    // when the `clone` JSON-encoder strategy was redefined to wrap
-    // prepareForJsonSafe (shape-derived strip) instead of the removed
-    // prepareForJsonSafePreserve, while keeping the same fnHash — so stale v3
-    // `jeCL` entries must miss. (v3 was the hashed-naming flip.)
-    expect(parsed.version).toBe(5);
+    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 6
+    // when default-valued tails (isNoop false, empty dep lists, the `u`
+    // createRTFn placeholder) started being trimmed off fn-entry ArgsText —
+    // stale v5 payloads with explicit tails must miss so emitted bytes don't
+    // depend on cache temperature.
+    expect(parsed.version).toBe(6);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.argsText).toBe('string');

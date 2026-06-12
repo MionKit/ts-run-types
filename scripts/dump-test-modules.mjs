@@ -17,7 +17,11 @@
 //                                               serves for `virtual:rt/<…>`.
 //
 // Usage:
-//   node scripts/dump-test-modules.mjs [--module-mode default|allSingle|allModules]
+//   node scripts/dump-test-modules.mjs [--module-mode default|allSingle|allModules] [--no-cache-functions]
+//
+// --no-cache-functions snapshots the plugin's production default
+// (emitCacheFunctions=false: code strings only, no inline g_<hash>
+// factories) under logs/build-nofns*/ for byte-size comparisons.
 //
 // No bundling — every entry module is its own .js, and every fixture
 // has its rewritten counterpart at the matching relative path. Browse
@@ -48,9 +52,13 @@ if (!MODULE_MODES.includes(MODULE_MODE)) {
   console.error(`--module-mode: unknown value ${JSON.stringify(MODULE_MODE)} (expected ${MODULE_MODES.join(' | ')})`);
   process.exit(1);
 }
+const EMIT_CACHE_FUNCTIONS = !process.argv.includes('--no-cache-functions');
+
 // Default keeps the familiar logs/build/; other modes get their own dir so
-// the three layouts can be inspected side by side.
-const OUT_DIR = path.join(REPO_ROOT, MODULE_MODE === MODULE_MODE_DEFAULT ? 'logs/build' : `logs/build-${MODULE_MODE}`);
+// the three layouts can be inspected side by side. The production-default
+// (--no-cache-functions) snapshot gets a -nofns suffix for the same reason.
+const MODE_DIR = MODULE_MODE === MODULE_MODE_DEFAULT ? 'logs/build' : `logs/build-${MODULE_MODE}`;
+const OUT_DIR = path.join(REPO_ROOT, EMIT_CACHE_FUNCTIONS ? MODE_DIR : `${MODE_DIR}-nofns`);
 const VIRTUAL_DIR = path.join(OUT_DIR, 'virtual-rt');
 
 // Collect every fixture .ts under test/suites/, skipping the .test.ts
@@ -83,10 +91,11 @@ async function main() {
   // Spawn the binary in --one-shot mode against the tsconfig so the Program
   // is built once at startup from disk (no setSources handshake needed —
   // every fixture is already on the filesystem). emitCacheFunctions:true
-  // mirrors the marker package's own vitest config so the inline
-  // createRTFn closure is part of the snapshot.
+  // (the default here) mirrors the marker package's own vitest config so
+  // the inline createRTFn closure is part of the snapshot;
+  // --no-cache-functions flips to the plugin's production default.
   const resolver = new ResolverClient(BIN, MARKER_PKG, 'tsconfig.test.json', {
-    emitCacheFunctions: true,
+    emitCacheFunctions: EMIT_CACHE_FUNCTIONS,
     moduleMode: MODULE_MODE,
   });
   // Surface child stderr so resolver build/scan errors aren't silent.

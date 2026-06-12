@@ -438,13 +438,14 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// `new Function('utl', code)(rtUtils)`. The inner-validator body
 	// remains embedded in `code` (as `return function …(v){…}`).
 	//
-	// The `createRTFn` arg is OMITTED by default (rendered as the
-	// `u=undefined` alias declared once at the top of each entry module):
-	// the JS-side materializeRTFn rebuilds the factory from `code` on first
+	// The `createRTFn` arg is OMITTED by default: the JS-side
+	// materializeRTFn rebuilds the factory from `code` on first
 	// `getRT(hash)` call. The opt-in branch under `opts.EmitCreateRTFn`
 	// writes the full `function g_<hash>(utl){…}` declaration so runtimes
 	// without `new Function` can materialise validators without the
-	// dynamic-code path.
+	// dynamic-code path. Without the factory the tail is all defaults for
+	// the common dep-less entry (`false,[],[],u`) — trimArgsTail drops
+	// that run, so most production entries end at the `code` slot.
 	//
 	// First arg is the namespaced cache key (innerPrefix + runType.ID) ==
 	// the entry-module key, so the JS-side rtFnsCache slot is distinct from
@@ -453,7 +454,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	if opts.EmitCreateRTFn {
 		createRTFnArg = createRTFn
 	}
-	args := []string{
+	args := trimArgsTail([]string{
 		quoteJS(innerName),
 		quoteJS(rtTypeName(runType)),
 		quoteJS(factoryBody),
@@ -461,7 +462,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		stringSliceJS(walker.RTDependencies),
 		pureFnDepsJS(walker.PureFnDependencies),
 		createRTFnArg,
-	}
+	}, fnEntryArgDefaults)
 	deps := append([]string(nil), walker.RTDependencies...)
 	crossFamilyDeps := append([]string(nil), walker.CrossFamilyDeps...)
 	argsText := joinArgs(args)
@@ -656,7 +657,8 @@ func leafKindLabel(leaf *protocol.RunType) string {
 // known marker call site for the type. Appended to the runtime error
 // message so a user who somehow ships an alwaysThrow factory to runtime
 // sees `[CODE] msg (at src/foo.ts:7:18)` instead of an anonymous throw.
-// When provenance is empty (orphaned entry), the slot is `undefined`.
+// When provenance is empty (orphaned entry), the slot is trimmed off the
+// tail entirely — the JS-side record zips the absent slot to undefined.
 //
 // Shape (relative to the normal 7-arg tail):
 //
@@ -671,7 +673,7 @@ func leafKindLabel(leaf *protocol.RunType) string {
 //
 // See docs/UNSUPPORTED-KINDS.md "Wire format".
 func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCode string, provenance []diag.Site) string {
-	args := []string{
+	args := trimArgsTail([]string{
 		quoteJS(innerName),
 		quoteJS(rtTypeName(runType)),
 		"undefined", // code
@@ -681,7 +683,7 @@ func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCod
 		"undefined", // createRTFn
 		quoteJS(diagCode),
 		formatCallSiteHint(provenance),
-	}
+	}, alwaysThrowArgDefaults)
 	return joinArgs(args)
 }
 
@@ -789,6 +791,33 @@ func boolJS(b bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+// fnEntryArgDefaults holds the rendered default per slot of the normal
+// 7-arg entry tail (key/typeName/code never trim). The JS-side
+// tupleToRecord zips absent slots back to undefined and registration
+// re-derives the same values (isNoop false, dep lists undefined like the
+// noop short form, createRTFn rebuilt from `code`). In EmitCreateRTFn
+// mode the last slot carries the factory text, so the run never starts
+// and the tuple is byte-identical to the untrimmed form.
+var fnEntryArgDefaults = []string{"", "", "", "false", "[]", "[]", "u"}
+
+// alwaysThrowArgDefaults trims only the optional trailing site hint —
+// the interior `undefined` slots stay explicit (diagCode follows them).
+var alwaysThrowArgDefaults = []string{"", "", "", "", "", "", "", "", "undefined"}
+
+// trimArgsTail returns args without its trailing run of default-valued
+// slots; defaults[i] == "" pins slot i (never trimmed).
+func trimArgsTail(args []string, defaults []string) []string {
+	end := len(args)
+	for end > 0 {
+		i := end - 1
+		if i >= len(defaults) || defaults[i] == "" || args[i] != defaults[i] {
+			break
+		}
+		end--
+	}
+	return args[:end]
 }
 
 // joinArgs concatenates positional args with bare commas. The
