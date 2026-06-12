@@ -347,6 +347,33 @@ func (mode EmitMode) Valid() bool {
 	return mode == EmitCode || mode == EmitFunctions || mode == EmitBoth
 }
 
+// InlineMode selects the child-inlining policy DefaultIsRTInlined applies to
+// compound nodes (mirrored as the binary's --inline-mode flag and the Vite
+// plugin's inlineMode option; values validated Go-side, NOT mirrored to TS).
+type InlineMode string
+
+const (
+	// InlineModeDefault — compounds (arrays, tuples, object literals,
+	// unions, non-atomic classes) always compile as EXTERNAL per-family
+	// cache entries. The zero value behaves identically.
+	InlineModeDefault InlineMode = "default"
+	// InlineModeAllInternal — UNNAMED, non-circular compounds inline into
+	// their parents (statement bodies hoist to context fns at expression
+	// slots); named types (alias or interface) and circular types stay
+	// external. In practice a createX site's factory absorbs all internal
+	// structure — roughly one function per call-site type per family.
+	InlineModeAllInternal InlineMode = "allInternal"
+)
+
+// AllInternal reports whether unnamed compounds inline ("" = default mode).
+func (mode InlineMode) AllInternal() bool { return mode == InlineModeAllInternal }
+
+// Valid reports whether mode is a recognised value ("" counts as default so
+// zero-valued RenderOpts behave like production defaults).
+func (mode InlineMode) Valid() bool {
+	return mode == InlineModeDefault || mode == InlineModeAllInternal || mode == ""
+}
+
 // Tuple slot-0 kind discriminators for entry-module tuples. Type-fn entries
 // carry their QUOTED family tag in slot 0 instead of a number, so the runtime
 // discriminates with `typeof t[0] === 'string'`.

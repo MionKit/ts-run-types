@@ -23,6 +23,11 @@ type FingerprintInputs struct {
 	// into the fingerprint keeps the three modes in distinct cache subdirs and
 	// switching modes never reads a stale entry from another.
 	EmitMode string
+	// InlineMode mirrors typefns.RenderOpts.InlineMode ("default" /
+	// "allInternal") — the modes emit structurally different bodies AND
+	// different entry sets (allInternal absorbs unnamed compounds into their
+	// parents), so they must never share cache entries.
+	InlineMode string
 }
 
 // Fingerprint hashes inputs into a stable 12-hex-char prefix used as the
@@ -35,13 +40,15 @@ type FingerprintInputs struct {
 // dropped the MarkerName / MarkerModule inputs (marker migration), "v2"→"v3"
 // dropped LiteralHashLength (literal ids merged into the single hash
 // dictionary), "v3"→"v4" replaced the EmitCreateRTFn bool with the EmitMode
-// tri-state string.
+// tri-state string, "v4"→"v5" added InlineMode.
 func Fingerprint(inputs FingerprintInputs) string {
 	var sb strings.Builder
-	sb.WriteString("v4\n")
+	sb.WriteString("v5\n")
 	sb.WriteString(strconv.Itoa(inputs.HashLength))
 	sb.WriteByte('\n')
 	sb.WriteString(inputs.EmitMode)
+	sb.WriteByte('\n')
+	sb.WriteString(inputs.InlineMode)
 	sb.WriteByte('\n')
 	sum := sha256.Sum256([]byte(sb.String()))
 	return hex.EncodeToString(sum[:])[:12]

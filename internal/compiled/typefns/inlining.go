@@ -24,7 +24,11 @@ type InlineContext struct {
 	// Resolved once at Walker construction; threaded through here so
 	// the predicate doesn't hit os.Getenv on every dispatch.
 	DebugInline bool
-	walker      *Walker
+	// InlineAllInternal is RenderOpts.InlineMode == allInternal: unnamed,
+	// non-circular compounds inline into their parents instead of becoming
+	// external per-family entries. Set at walker construction.
+	InlineAllInternal bool
+	walker            *Walker
 }
 
 // StackDepth reports how deep the walker currently is in the
@@ -99,6 +103,16 @@ func DefaultIsRTInlined(ctx *InlineContext) bool {
 	}
 	if ctx.DebugInline {
 		return true
+	}
+	// allInternal mode: unnamed compounds inline (IsCircular already
+	// returned false above); ANY named type stays external. Keyed on
+	// TypeName directly — not FamilyOf — because KindArray is
+	// FamilyMember and would slip past the named-collection guard.
+	if ctx.InlineAllInternal {
+		switch ctx.RT.Kind {
+		case protocol.KindArray, protocol.KindObjectLiteral, protocol.KindTuple, protocol.KindUnion:
+			return ctx.RT.TypeName == ""
+		}
 	}
 	if ctx.RT.Kind == protocol.KindArray {
 		return false

@@ -37,6 +37,11 @@ type RenderOpts struct {
 	// coordinates — without it, a RTThrow would record a diagnostic
 	// with empty Site and the warning would be useless in the editor.
 	ProvenanceSites map[string][]diag.Site
+	// InlineMode selects the child-inlining policy (constants.InlineMode):
+	// default keeps compounds external; allInternal inlines unnamed,
+	// non-circular compounds into their parents. Folded into the disk
+	// fingerprint — the two modes never share cache entries.
+	InlineMode constants.InlineMode
 	// EmitMode selects what each fn entry ships in its code/factory slots:
 	//   - EmitCode (default / zero value): only the body `code` string; the
 	//     createRTFn slot is the `u` placeholder and the JS-side materializer
@@ -360,6 +365,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	}
 
 	walker := NewWalker(runType, innerName, emitter)
+	walker.inlineCtx.InlineAllInternal = opts.InlineMode.AllInternal()
 	walker.RefTable = refTable
 	walker.facts = opts.Facts
 	// InnerPrefix lets dispatch namespace child cache keys consistently

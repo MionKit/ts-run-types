@@ -30,6 +30,7 @@ func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[s
 		DiagSink:        sink,
 		ProvenanceSites: provenance,
 		EmitMode:        resolver.opts.EmitMode,
+		InlineMode:      resolver.opts.InlineMode,
 		RefTable:        resolver.fullRefTable(),
 		// One predicate memo per dispatch, shared by every family collect
 		// (the predicates are emitter-independent).

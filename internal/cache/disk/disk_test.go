@@ -172,6 +172,9 @@ func TestFingerprint_OptionIsolation(t *testing.T) {
 	if e := Fingerprint(FingerprintInputs{HashLength: 7, EmitMode: "both"}); e == a {
 		t.Errorf("emitMode both should differ from code: both %q", a)
 	}
+	if f := Fingerprint(FingerprintInputs{HashLength: 7, EmitMode: "code", InlineMode: "allInternal"}); f == a {
+		t.Errorf("inlineMode change should move fingerprint: both %q", a)
+	}
 	if d := Fingerprint(FingerprintInputs{HashLength: 7, EmitMode: "code"}); d != a {
 		t.Errorf("identical inputs should produce identical fingerprint: %q vs %q", a, d)
 	}

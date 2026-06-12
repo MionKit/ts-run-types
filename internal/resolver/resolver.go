@@ -80,6 +80,10 @@ type Options struct {
 	// createValidate<T>) and the new-Function path (via
 	// deserializeValidate<T>) on every case.
 	EmitMode constants.EmitMode
+	// InlineMode selects the child-inlining policy (constants.InlineMode,
+	// --inline-mode): default keeps compounds external; allInternal inlines
+	// unnamed, non-circular compounds into their parents.
+	InlineMode constants.InlineMode
 	// ModuleMode selects how cache entries group into virtual modules:
 	// constants.ModuleModeDefault (or empty — runtype bundle + per-entry fn
 	// modules), ModuleModeAllSingle (per-family bundles, fewest modules), or
@@ -176,6 +180,7 @@ func newRTStore(opts Options) *disk.Store {
 	fp := disk.Fingerprint(disk.FingerprintInputs{
 		HashLength: opts.HashLength,
 		EmitMode:   string(opts.EmitMode),
+		InlineMode: string(opts.InlineMode),
 	})
 	return disk.New(opts.CacheDir, fp)
 }
