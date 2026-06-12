@@ -166,7 +166,7 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 	runTypes, _ := buildConflictPropUnionFixture()
 	dump := protocol.Dump{RunTypes: runTypes}
 
-	out := joinEntries(t, FamilyByKey("prepareForJson").Collect(dump, RenderOpts{EmitCreateRTFn: true}, nil))
+	out := joinEntries(t, FamilyByKey("prepareForJson").Collect(dump, RenderOpts{EmitMode: "both"}, nil))
 
 	// The exact validator body the union root emits — unchanged by the
 	// cross-family capture. Sub-union dispatch over the conflicting `a` slot
@@ -193,7 +193,7 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 	}
 
 	// Determinism: a second render produces byte-identical output.
-	again := joinEntries(t, FamilyByKey("prepareForJson").Collect(dump, RenderOpts{EmitCreateRTFn: true}, nil))
+	again := joinEntries(t, FamilyByKey("prepareForJson").Collect(dump, RenderOpts{EmitMode: "both"}, nil))
 	if again != out {
 		t.Error("module render is non-deterministic after cross-family capture")
 	}

@@ -119,14 +119,18 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 
 	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey)
 	_, factoryBody := WrapClosure("g_"+entryKey, innerFn, contextLines)
+	codeArg := "undefined"
+	if opts.EmitMode.EmitsCode() {
+		codeArg = quoteJS(factoryBody)
+	}
 	createRTFnArg := "u"
-	if opts.EmitCreateRTFn {
+	if opts.EmitMode.EmitsFactory() {
 		createRTFnArg = "function g_" + entryKey + "(utl){" + factoryBody + "}"
 	}
 	args := trimArgsTail([]string{
 		quoteJS(entryKey),
 		quoteJS(rtTypeName(runType)),
-		quoteJS(factoryBody),
+		codeArg,
 		"false", // isNoop — composites always emit a real body
 		"[]",    // rtDependencies — primitive refs are resolved by fnHash, not same-family deps
 		"[]",    // pureFnDependencies

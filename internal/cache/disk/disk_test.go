@@ -161,15 +161,18 @@ func TestStore_WriteAtomic(t *testing.T) {
 // produce distinct fingerprints so their caches live under different
 // subdirs and never share entries.
 func TestFingerprint_OptionIsolation(t *testing.T) {
-	a := Fingerprint(FingerprintInputs{HashLength: 7})
-	b := Fingerprint(FingerprintInputs{HashLength: 8})
+	a := Fingerprint(FingerprintInputs{HashLength: 7, EmitMode: "code"})
+	b := Fingerprint(FingerprintInputs{HashLength: 8, EmitMode: "code"})
 	if a == b {
 		t.Errorf("hashLength change should move fingerprint: both %q", a)
 	}
-	if c := Fingerprint(FingerprintInputs{HashLength: 7, EmitCreateRTFn: true}); c == a {
-		t.Errorf("emitCreateRTFn change should move fingerprint: both %q", a)
+	if c := Fingerprint(FingerprintInputs{HashLength: 7, EmitMode: "functions"}); c == a {
+		t.Errorf("emitMode change should move fingerprint: both %q", a)
 	}
-	if d := Fingerprint(FingerprintInputs{HashLength: 7}); d != a {
+	if e := Fingerprint(FingerprintInputs{HashLength: 7, EmitMode: "both"}); e == a {
+		t.Errorf("emitMode both should differ from code: both %q", a)
+	}
+	if d := Fingerprint(FingerprintInputs{HashLength: 7, EmitMode: "code"}); d != a {
 		t.Errorf("identical inputs should produce identical fingerprint: %q vs %q", a, d)
 	}
 }

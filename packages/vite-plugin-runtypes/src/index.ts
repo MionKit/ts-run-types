@@ -23,15 +23,18 @@ export interface PluginOptions {
   cwd?: string;
   // Path to tsconfig.json, relative to cwd. Defaults to "tsconfig.json".
   tsconfig?: string;
-  // When true, the Go binary emits the inline `createRTFn` closure on
-  // every RT cache entry alongside the body `code` string. Default
-  // false — the JS-side `materializeRTFn` rebuilds factories from
-  // `code` via `new Function('utl', code)` on first lookup, saving
-  // ~the size of one body copy per entry. Set true for runtimes that
-  // disallow dynamic code construction (Cloudflare WorkerD, sandboxed
-  // iframes, CSP without `unsafe-eval`). Test setups also enable this
-  // so suites can cover both materialisation paths on every case.
-  emitCacheFunctions?: boolean;
+  // What the Go binary ships in each RT cache entry's code/factory slots:
+  //   - 'code' (default): only the body `code` string; the JS-side
+  //     `materializeRTFn` rebuilds the factory via `new Function('utl', code)`
+  //     on first lookup. Smallest output for runtimes that allow dynamic code.
+  //   - 'functions': only the live `function g_<hash>(utl){…}` factory; the
+  //     code string is derived lazily from it only if read. Smallest
+  //     factory-bearing output for runtimes that disallow `new Function`
+  //     (Cloudflare WorkerD, sandboxed iframes, CSP without `unsafe-eval`).
+  //   - 'both': code string AND live factory (the body twice) — for runtimes
+  //     that disallow `new Function` yet read `.code`. Test setups use this so
+  //     suites cover both materialisation paths on every case.
+  emitMode?: 'code' | 'functions' | 'both';
   // On-disk RT artifact cache location. Default (undefined) wires the
   // cache to `<cwd>/node_modules/.cache/ts-go-run-types`. Pass an
   // explicit string to redirect to a custom directory. Pass `false`
@@ -147,7 +150,7 @@ export default function runtypes(options: PluginOptions) {
       }
       resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         cacheDir,
-        emitCacheFunctions: options.emitCacheFunctions ?? false,
+        emitMode: options.emitMode ?? 'code',
         parallelScan: options.parallelScan,
         parallelRender: options.parallelRender,
         moduleMode,

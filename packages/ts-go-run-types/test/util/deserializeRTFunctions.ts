@@ -43,7 +43,7 @@ import {
 // deserialize twins that exercise the per-primitive `entry.code`
 // round-trip.
 import type {PrepareForJsonFn, RestoreFromJsonFn, StringifyJsonFn} from '../../src/createRTFunctions.ts';
-import {getRTUtils, isRunTypeSchema, buildFactoryFromCode} from '../../src/runtypes/rtUtils.ts';
+import {getRTUtils, isRunTypeSchema, buildFactoryFromCode, entryCode} from '../../src/runtypes/rtUtils.ts';
 import {
   entryTupleKey,
   initFromTuple,
@@ -85,7 +85,9 @@ function resolveDeserializedEntry<F extends AnyFn>(fnName: string, identityFn: F
     );
   }
   if (entry.isNoop) return entry.fn as F;
-  return buildFactoryFromCode(entry.code)(utils) as F;
+  // entryCode returns the body verbatim (code/both modes) or derives it from
+  // the live factory (functions mode), so this round-trips in every emit mode.
+  return buildFactoryFromCode(entryCode(entry))(utils) as F;
 }
 
 /** Three-arg deserialize wrapper for families that honour `ValidateOptions`

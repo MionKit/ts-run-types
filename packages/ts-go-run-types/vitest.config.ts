@@ -36,17 +36,17 @@ export default defineConfig({
       binary: resolve(REPO_ROOT, 'bin/ts-go-run-types'),
       cwd: PACKAGE_ROOT,
       tsconfig: 'tsconfig.test.json',
-      // Force the inline-factory emit on for the test run so suites cover
-      // BOTH materialisation paths on every case:
+      // Force 'both' emit for the test run so suites cover BOTH
+      // materialisation paths on every case:
       //   - createValidate<T>() / createXxx<T>() → reads entry.createRTFn
       //     (the inline closure baked in by the Go renderer)
       //   - deserializeValidate<T>() / deserializeXxx<T>() → ignores the
       //     inline closure and rebuilds the factory from entry.code via
       //     `new Function('utl', code)`.
-      // The production default leaves this off so emitted modules are
-      // smaller and runtimes without `new Function` opt back in by
-      // setting `emitCacheFunctions: true` on the plugin themselves.
-      emitCacheFunctions: true,
+      // The production default is 'code' (code string only) so emitted modules
+      // are smaller; runtimes without `new Function` opt into 'functions' or
+      // 'both' on the plugin themselves.
+      emitMode: 'both',
       // Disable the on-disk RT artifact cache for test runs. The
       // disk-cache feature has its own dedicated end-to-end suite in
       // vite-plugin-runtypes/test/cache-disk.test.ts (which points at

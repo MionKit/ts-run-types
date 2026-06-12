@@ -22,6 +22,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/cache/disk"
 	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
 	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
+	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -67,18 +68,18 @@ type Options struct {
 	// hash so cross-version files never collide. Empty disables caching
 	// (the in-memory walker runs every time, matching test mode).
 	CacheDir string
-	// EmitCreateRTFn opts every typefns module renderer into emitting
-	// the inline `createRTFn` closure alongside the body `code`
-	// string. Default false — the JS-side materializeRTFn rebuilds
-	// the factory from `code` via `new Function('utl', code)` on first
-	// lookup, saving the per-entry duplication of the body wrapped in
-	// `function g_<hash>(utl){…}`. Set true for secure runtimes
-	// (Cloudflare WorkerD, sandboxed iframes, browser CSP without
-	// `unsafe-eval`) that disallow dynamic-code construction. The
-	// vitest configs set this true so the test suite covers both the
-	// inline-factory path (via createValidate<T>) and the new-Function
-	// path (via deserializeValidate<T>) on every case.
-	EmitCreateRTFn bool
+	// EmitMode selects what every typefns module renderer ships in its
+	// code/factory slots: EmitCode (default) ships only the body `code`
+	// string (the runtime rebuilds the factory via `new Function('utl',
+	// code)` on first lookup); EmitFunctions ships only the live
+	// `function g_<hash>(utl){…}` factory (code derived lazily if read);
+	// EmitBoth ships both, for secure runtimes (Cloudflare WorkerD,
+	// sandboxed iframes, browser CSP without `unsafe-eval`) that disallow
+	// dynamic-code construction yet read `.code`. The vitest configs set
+	// EmitBoth so the suite covers both the inline-factory path (via
+	// createValidate<T>) and the new-Function path (via
+	// deserializeValidate<T>) on every case.
+	EmitMode constants.EmitMode
 	// ModuleMode selects how cache entries group into virtual modules:
 	// constants.ModuleModeDefault (or empty — runtype bundle + per-entry fn
 	// modules), ModuleModeAllSingle (per-family bundles, fewest modules), or
@@ -173,8 +174,8 @@ func newRTStore(opts Options) *disk.Store {
 		return nil
 	}
 	fp := disk.Fingerprint(disk.FingerprintInputs{
-		HashLength:     opts.HashLength,
-		EmitCreateRTFn: opts.EmitCreateRTFn,
+		HashLength: opts.HashLength,
+		EmitMode:   string(opts.EmitMode),
 	})
 	return disk.New(opts.CacheDir, fp)
 }

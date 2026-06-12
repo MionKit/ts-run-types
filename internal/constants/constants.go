@@ -308,6 +308,45 @@ const (
 	ModuleModeAllModules = "allModules"
 )
 
+// EmitMode selects what each compiled fn entry ships in its code/factory
+// slots — the --emit-mode CLI flag and the Vite plugin's `emitMode` option
+// validate against this set. NOT mirrored to TS (the plugin hard-codes the
+// three string literals on its option type); the runtime only reads what the
+// slots carry, never the mode itself.
+type EmitMode string
+
+const (
+	// EmitCode (the default) ships only the body `code` string in the code
+	// slot; the createRTFn slot is the `u` placeholder and the runtime rebuilds
+	// the factory via `new Function('utl', code)` on first lookup.
+	EmitCode EmitMode = "code"
+	// EmitFunctions ships only the live `function g_<hash>(utl){…}` factory; the
+	// code slot is `undefined`. The runtime uses the factory directly and
+	// derives the code string lazily (from `createRTFn.toString()`) only if a
+	// consumer ever reads it. Smallest factory-bearing output (no body twice).
+	EmitFunctions EmitMode = "functions"
+	// EmitBoth ships the code string AND the live factory (the body twice) —
+	// for runtimes that disallow `new Function` (CSP) yet still read `.code`.
+	EmitBoth EmitMode = "both"
+)
+
+// EmitsCode reports whether the code-string slot is populated. The zero value
+// ("") behaves as EmitCode so a RenderOpts{} default emits the code string.
+func (mode EmitMode) EmitsCode() bool {
+	return mode == EmitCode || mode == EmitBoth || mode == ""
+}
+
+// EmitsFactory reports whether the live createRTFn factory slot is populated.
+func (mode EmitMode) EmitsFactory() bool {
+	return mode == EmitFunctions || mode == EmitBoth
+}
+
+// Valid reports whether mode is one of the three known values (used to
+// validate the --emit-mode flag).
+func (mode EmitMode) Valid() bool {
+	return mode == EmitCode || mode == EmitFunctions || mode == EmitBoth
+}
+
 // Tuple slot-0 kind discriminators for entry-module tuples. Type-fn entries
 // carry their QUOTED family tag in slot 0 instead of a number, so the runtime
 // discriminates with `typeof t[0] === 'string'`.
