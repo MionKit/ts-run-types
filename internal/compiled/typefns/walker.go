@@ -3,6 +3,7 @@ package typefns
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -853,4 +854,106 @@ func callSelfInvoking(child RTCode) string {
 		prefix = "return "
 	}
 	return "(function(){" + prefix + child.Code + "})()"
+}
+
+// createFnInContext registers `const ctxFn<N> = function(<params>){…}` as a
+// context line and returns the `ctxFn<N>(<args>)` call expression for the
+// parent's expression slot. The factory-LOCAL analogue of registerRTLookup +
+// emitDepCall: the block becomes a named closure created ONCE per factory
+// materialization instead of an IIFE allocated on every call. CodeS bodies
+// get a `return ` prepended (the call yields the statement's value — same
+// rule as callSelfInvoking); CodeRB bodies carry their own returns and move
+// verbatim. params/args are positional pairs; params deliberately shadow the
+// enclosing bindings by NAME so the body text moves unchanged (every outer
+// reference in a moved block is read-only — context consts resolve through
+// the closure and are never passed).
+func (w *Walker) createFnInContext(body string, codeType CodeType, params, args []string) string {
+	name := w.nextLocalVar("ctxFn")
+	prefix := ""
+	if codeType != CodeRB {
+		prefix = "return "
+	}
+	w.ContextItems.set(name, "const "+name+" = function("+strings.Join(params, ",")+"){"+prefix+body+"}")
+	return name + "(" + strings.Join(args, ",") + ")"
+}
+
+// wrapAsCtxFn hoists an inline child's statement/return-block into a context
+// function and returns the call expression — tier 3 of the dispatch ladder
+// (tier 1 = external `<childID>.fn(accessor)` dep call, tier 2 = inline
+// splice). Params are the emitter's own Args plus any walker-allocated loop
+// counters appearing free in the current accessor; args mirror them by name.
+// Over-passing an in-scope name the body never reads is harmless; context
+// consts arrive via closure.
+func (w *Walker) wrapAsCtxFn(child RTCode) RTCode {
+	body := strings.TrimSpace(child.Code)
+	if body == "" {
+		return RTCode{Code: "", Type: CodeE}
+	}
+	params := make([]string, 0, 4)
+	for _, arg := range w.Emitter.Args() {
+		params = append(params, arg.Name)
+	}
+	for _, name := range identifiersIn(w.Vλl) {
+		if w.isAllocatedLocal(name) && !slices.Contains(params, name) {
+			params = append(params, name)
+		}
+	}
+	return RTCode{Code: w.createFnInContext(body, child.Type, params, params), Type: CodeE}
+}
+
+// identifiersIn extracts the JS identifiers of an accessor expression in
+// first-appearance order, skipping property names (tokens preceded by a
+// `.`). Quoted bracket keys may surface as false candidates; harmless —
+// the isAllocatedLocal gate plus over-passing safety make any false
+// positive a no-op.
+func identifiersIn(accessor string) []string {
+	var names []string
+	seen := map[string]bool{}
+	for i := 0; i < len(accessor); {
+		ch := accessor[i]
+		if isIdentStart(ch) {
+			start := i
+			for i < len(accessor) && isIdentPart(accessor[i]) {
+				i++
+			}
+			if start > 0 && accessor[start-1] == '.' {
+				continue
+			}
+			name := accessor[start:i]
+			if !seen[name] {
+				seen[name] = true
+				names = append(names, name)
+			}
+			continue
+		}
+		i++
+	}
+	return names
+}
+
+func isIdentStart(ch byte) bool {
+	return ch == '_' || ch == '$' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+}
+
+func isIdentPart(ch byte) bool {
+	return isIdentStart(ch) || (ch >= '0' && ch <= '9')
+}
+
+// isAllocatedLocal reports whether name was handed out by nextLocalVar
+// during this walk: the trailing-digit suffix is split off and the prefix's
+// counter consulted — allocation-driven, so a user property that merely
+// LOOKS like a counter (`i0` with no `i` allocations) never matches.
+func (w *Walker) isAllocatedLocal(name string) bool {
+	split := len(name)
+	for split > 0 && name[split-1] >= '0' && name[split-1] <= '9' {
+		split--
+	}
+	if split == 0 || split == len(name) {
+		return false
+	}
+	index, err := strconv.Atoi(name[split:])
+	if err != nil {
+		return false
+	}
+	return index < w.localVarCounters[name[:split]]
 }

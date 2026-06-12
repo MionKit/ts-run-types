@@ -1,6 +1,7 @@
 package typefns
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -110,5 +111,99 @@ func TestAddPureFnDependency_DifferentFilePathIsDistinctEntry(t *testing.T) {
 	w.AddPureFnDependency("mion", "asJSONString", "/b.ts")
 	if len(w.PureFnDependencies) != 2 {
 		t.Fatalf("expected 2 distinct entries by filePath, got %d (%v)", len(w.PureFnDependencies), w.PureFnDependencies)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// createFnInContext / wrapAsCtxFn — the context-function mechanism that
+// replaces per-call IIFEs. A block lands in the factory prologue as
+// `const ctxFn<N> = function(<params>){…}` (created once per
+// materialization) and the expression slot receives `ctxFn<N>(<args>)`.
+// ---------------------------------------------------------------------------
+
+func TestCreateFnInContext_CodeSPrependsReturn(t *testing.T) {
+	w := newTestWalker()
+	call := w.createFnInContext("doThing(v)", CodeS, []string{"v"}, []string{"v"})
+	if call != "ctxFn0(v)" {
+		t.Fatalf("call expression mismatch: %q", call)
+	}
+	want := "const ctxFn0 = function(v){return doThing(v)}"
+	if got := w.ContextLines(); !strings.Contains(got, want) {
+		t.Fatalf("context line mismatch:\n got: %q\nwant substring: %q", got, want)
+	}
+}
+
+func TestCreateFnInContext_CodeRBVerbatim(t *testing.T) {
+	w := newTestWalker()
+	body := "if (x) return 1; return 2;"
+	call := w.createFnInContext(body, CodeRB, []string{"v"}, []string{"v"})
+	if call != "ctxFn0(v)" {
+		t.Fatalf("call expression mismatch: %q", call)
+	}
+	want := "const ctxFn0 = function(v){" + body + "}"
+	if got := w.ContextLines(); !strings.Contains(got, want) {
+		t.Fatalf("CodeRB body must move verbatim (no return prefix):\n got: %q\nwant substring: %q", got, want)
+	}
+	if strings.Contains(w.ContextLines(), "{return if") {
+		t.Fatalf("CodeRB must not get a return prefix: %q", w.ContextLines())
+	}
+}
+
+func TestCreateFnInContext_NamesIncrementAndDeclareInOrder(t *testing.T) {
+	w := newTestWalker()
+	first := w.createFnInContext("inner(v)", CodeS, []string{"v"}, []string{"v"})
+	second := w.createFnInContext("if (ok(v)) return ctxFn0(v); return false;", CodeRB, []string{"v"}, []string{"v"})
+	if first != "ctxFn0(v)" || second != "ctxFn1(v)" {
+		t.Fatalf("expected ctxFn0/ctxFn1, got %q / %q", first, second)
+	}
+	lines := w.ContextLines()
+	inner := strings.Index(lines, "const ctxFn0 = ")
+	outer := strings.Index(lines, "const ctxFn1 = ")
+	if inner < 0 || outer < 0 || inner > outer {
+		t.Fatalf("nested ctxFns must declare in allocation order (inner first):\n%s", lines)
+	}
+}
+
+func TestWrapAsCtxFn_PassesAllocatedAccessorCounters(t *testing.T) {
+	w := newTestWalker()
+	loopVar := w.nextLocalVar("i") // i0 — an allocated enclosing loop counter
+	w.Vλl = "v[" + loopVar + "].name"
+	out := w.wrapAsCtxFn(RTCode{Code: "for (const k0 in v[i0]) { if (!v[i0][k0]) return false; } return true;", Type: CodeRB})
+	if out.Type != CodeE {
+		t.Fatalf("wrapAsCtxFn must return a CodeE call, got %q", out.Type)
+	}
+	if out.Code != "ctxFn0(v,i0)" {
+		t.Fatalf("call must pass the family arg + the allocated counter: %q", out.Code)
+	}
+	if !strings.Contains(w.ContextLines(), "const ctxFn0 = function(v,i0){for (const k0 in v[i0])") {
+		t.Fatalf("ctxFn params must mirror the call args by name:\n%s", w.ContextLines())
+	}
+}
+
+func TestWrapAsCtxFn_IgnoresLookalikePropertyNames(t *testing.T) {
+	w := newTestWalker()
+	// No `i` allocations this walk: a property merely NAMED i0 (dot or
+	// bracket-quoted) must not become a parameter.
+	w.Vλl = "v.i0"
+	out := w.wrapAsCtxFn(RTCode{Code: "return !!v.i0;", Type: CodeRB})
+	if out.Code != "ctxFn0(v)" {
+		t.Fatalf("dot-property i0 must not be a param: %q", out.Code)
+	}
+	w2 := newTestWalker()
+	w2.Vλl = "v['i0']"
+	out2 := w2.wrapAsCtxFn(RTCode{Code: "return !!v['i0'];", Type: CodeRB})
+	if out2.Code != "ctxFn0(v)" {
+		t.Fatalf("unallocated bracket-key i0 must not be a param: %q", out2.Code)
+	}
+}
+
+func TestWrapAsCtxFn_EmptyBodyStaysEmpty(t *testing.T) {
+	w := newTestWalker()
+	out := w.wrapAsCtxFn(RTCode{Code: "  ", Type: CodeS})
+	if out.Code != "" || out.Type != CodeE {
+		t.Fatalf("empty block must produce no call and no context line: %+v", out)
+	}
+	if strings.Contains(w.ContextLines(), "ctxFn") {
+		t.Fatalf("no ctxFn may be registered for an empty block: %q", w.ContextLines())
 	}
 }
