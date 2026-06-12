@@ -162,7 +162,7 @@ export default function runtypes(options: PluginOptions) {
       resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         cacheDir,
         emitMode: options.emitMode ?? 'code',
-        inlineMode: options.inlineMode ?? 'default',
+        ...(options.inlineMode ? {inlineMode: options.inlineMode} : {}),
         parallelScan: options.parallelScan,
         parallelRender: options.parallelRender,
         moduleMode,

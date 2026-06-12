@@ -62,8 +62,8 @@ if (!EMIT_MODES.includes(EMIT_MODE)) {
 }
 const INLINE_MODES = ['default', 'allInternal'];
 const inlineModeArgIndex = process.argv.indexOf('--inline-mode');
-const INLINE_MODE = inlineModeArgIndex >= 0 ? process.argv[inlineModeArgIndex + 1] : 'default';
-if (!INLINE_MODES.includes(INLINE_MODE)) {
+const INLINE_MODE = inlineModeArgIndex >= 0 ? process.argv[inlineModeArgIndex + 1] : undefined;
+if (INLINE_MODE !== undefined && !INLINE_MODES.includes(INLINE_MODE)) {
   console.error(`--inline-mode: unknown value ${JSON.stringify(INLINE_MODE)} (expected ${INLINE_MODES.join(' | ')})`);
   process.exit(1);
 }
@@ -74,7 +74,7 @@ if (!INLINE_MODES.includes(INLINE_MODE)) {
 // code/factory variants are diffable for size comparison.
 const MODE_DIR = MODULE_MODE === MODULE_MODE_DEFAULT ? 'logs/build' : `logs/build-${MODULE_MODE}`;
 const EMIT_DIR = EMIT_MODE === 'both' ? MODE_DIR : `${MODE_DIR}-${EMIT_MODE}`;
-const OUT_DIR = path.join(REPO_ROOT, INLINE_MODE === 'default' ? EMIT_DIR : `${EMIT_DIR}-${INLINE_MODE}`);
+const OUT_DIR = path.join(REPO_ROOT, !INLINE_MODE || INLINE_MODE === 'default' ? EMIT_DIR : `${EMIT_DIR}-${INLINE_MODE}`);
 const VIRTUAL_DIR = path.join(OUT_DIR, 'virtual-rt');
 
 // Collect every fixture .ts under test/suites/, skipping the .test.ts
@@ -113,7 +113,7 @@ async function main() {
   const resolver = new ResolverClient(BIN, MARKER_PKG, 'tsconfig.test.json', {
     emitMode: EMIT_MODE,
     moduleMode: MODULE_MODE,
-    inlineMode: INLINE_MODE,
+    ...(INLINE_MODE ? {inlineMode: INLINE_MODE} : {}),
   });
   // Surface child stderr so resolver build/scan errors aren't silent.
   // ResolverClient buffers stdout JSON; stderr leaks under us. The

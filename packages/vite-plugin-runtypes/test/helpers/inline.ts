@@ -61,6 +61,12 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
     functionID: CompTimeArgs<string>,
     factory: PureFunction<(utl: RTUtils) => any> | null
   ): any;
+  // Minimal DataOnly stand-in — preserves the alias-clearing key-filtering
+  // mapped-type shape that the real DataOnly uses in dataOnly.ts, just
+  // enough to exercise the serializer's mapped-type recognition path.
+  export type DataOnly<T> = T extends object
+    ? {[K in keyof T as K extends symbol ? never : K]: DataOnly<T[K]>}
+    : T;
 }
 `;
 
