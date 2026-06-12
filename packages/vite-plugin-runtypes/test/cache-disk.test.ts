@@ -78,12 +78,12 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 8
-    // when JSON composite prologues switched to the direct
-    // `utl.getRT(key).fn` bind — stale v7 payloads bake the old guarded
-    // resolver IIFE, so they must miss (emitted bytes must not depend on
-    // cache temperature).
-    expect(parsed.version).toBe(8);
+    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 9
+    // for the noop-elision generation: entries persist an IsNoop bit and the
+    // walker/composites compose around identity entries — stale v8 payloads
+    // bake the old dep-call bodies and lack the bit, so they must miss
+    // (emitted bytes must not depend on cache temperature).
+    expect(parsed.version).toBe(9);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.argsText).toBe('string');

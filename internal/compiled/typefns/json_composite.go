@@ -56,7 +56,19 @@ var (
 // CollectJsonCompositeEntries collects one entry per demanded (typeId,
 // strategy) across both composite operations. Disk-cached per (id,
 // compositeTag) so repeat builds skip re-rendering.
-func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts) entrymod.Graph {
+//
+// `rendered` is the already-collected entry graph (runtype entries + every
+// family graph — the resolver merges those BEFORE composites collect). Each
+// composite consults its primitives' rendered IsNoop flags and ELIDES the
+// binding for identity primitives: the prologue line, the import edge, and
+// the call wrapper all drop (`return JSON.parse(s)` instead of
+// `return rjFn(JSON.parse(s))`). Keying elision on the RENDERED entries —
+// not a re-derived predicate — keeps the composite exactly in lockstep with
+// whatever each family's own render decided (walker Finalize, noop gate, or
+// disk-cached verdict). A primitive missing from the graph is treated as
+// live (conservative bind; AssertCompositeSoftDeps still surfaces the
+// invariant breach). Nil graph = bind everything (unit-test shape).
+func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts, rendered entrymod.Graph) entrymod.Graph {
 	graph := entrymod.Graph{}
 	refTable := opts.RefTable
 	if refTable == nil {
@@ -88,7 +100,7 @@ func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts) entrymod.G
 				if runType == nil {
 					continue
 				}
-				if entry := collectJsonCompositeEntry(runType, tag, composite, opts); entry != nil {
+				if entry := collectJsonCompositeEntry(runType, tag, composite, opts, rendered); entry != nil {
 					graph.Add(entry)
 				}
 			}
@@ -97,31 +109,53 @@ func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts) entrymod.G
 	return graph
 }
 
+// primitiveIsLive reports whether the composite must bind the primitive
+// operation's entry for id — false exactly when the rendered graph holds a
+// noop (family-identity) entry for it, in which case calling it is dead
+// weight and the binding elides. Missing entries stay live (conservative).
+func primitiveIsLive(rendered entrymod.Graph, primOp string, id string) bool {
+	if rendered == nil {
+		return true
+	}
+	entry, ok := rendered[operations.PlainHash(primOp)+"_"+id]
+	if !ok || entry == nil {
+		return true
+	}
+	return !entry.IsNoop
+}
+
 // collectJsonCompositeEntry renders (and disk-caches) one composite entry for
 // a given runtype + strategy. The body is FIXED per strategy — it wraps the
-// primitives addressed by their fnHash with native JSON — so there is no
-// walker and no cross-family edges; the module Deps are the strategy's
+// LIVE primitives addressed by their fnHash with native JSON (identity
+// primitives elide, see CollectJsonCompositeEntries) — so there is no walker
+// and no cross-family edges; the module Deps are the strategy's live
 // primitive entries for the same id.
-func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite constants.JsonComposite, opts RenderOpts) *entrymod.Entry {
+//
+// Cache note: a primitive's noop verdict is a pure function of its
+// structural id (+ family), so the liveness set is identical on every build
+// that hits the same structural header — recomputing deps from the current
+// graph on a cache hit always agrees with the baked body.
+func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite constants.JsonComposite, opts RenderOpts, rendered entrymod.Graph) *entrymod.Entry {
 	op, ok := operations.ByName(composite.OpName)
 	if !ok {
 		return nil
 	}
 	entryKey := operations.FnHashFor(op, nil, composite.Strategy) + "_" + runType.ID
+	isLive := func(primOp string) bool { return primitiveIsLive(rendered, primOp, runType.ID) }
 
-	// Primitive references are SOFT: the composite body binds each via
-	// `utl.getRT(key).fn` — always live, because a composite site's demand
-	// renders every primitive (real, noop short-form, or alwaysThrow), noop
-	// entries register with the family noop fn pre-set, and getRT
-	// materializes before returning. The resolver asserts the presence
-	// invariant at collect time (assertCompositeSoftDeps).
-	deps := jsonCompositeDeps(composite, runType.ID)
+	// LIVE primitive references are SOFT: the composite body binds each via
+	// `utl.getRT(key).fn` — always resolvable, because a composite site's
+	// demand renders every primitive (real, noop short-form, or
+	// alwaysThrow), noop entries register with the family noop fn pre-set,
+	// and getRT materializes before returning. The resolver asserts the
+	// presence invariant at collect time (AssertCompositeSoftDeps).
+	deps := jsonCompositeDeps(composite, runType.ID, isLive)
 
 	if cachedArgs, ok := tryReadCachedCompositeEntry(runType, tag, opts); ok {
 		return &entrymod.Entry{Key: entryKey, Kind: entrymod.KindTypeFn, FamilyTag: tag, ArgsText: cachedArgs, SoftDeps: deps}
 	}
 
-	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey)
+	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey, isLive)
 	_, factoryBody := WrapClosure("g_"+entryKey, entryKey, innerFn, contextLines)
 	codeArg := "undefined"
 	if opts.EmitMode.EmitsCode() {
@@ -146,15 +180,19 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 }
 
 // jsonCompositeDeps names the primitive entries a composite body resolves at
-// materialise time — one `<plainFhash>_<id>` per family in the strategy's
-// JsonStrategyFamilies row. These become the composite module's imports so the
+// materialise time — one `<plainFhash>_<id>` per LIVE family in the
+// strategy's JsonStrategyFamilies row (elided identity primitives leave no
+// import edge). These become the composite module's imports so the live
 // primitives (and their transitive child factories) always load with it.
-func jsonCompositeDeps(composite constants.JsonComposite, id string) []string {
+func jsonCompositeDeps(composite constants.JsonComposite, id string, isLive func(primOp string) bool) []string {
 	tags := constants.JsonStrategyFamilies[composite.Strategy]
 	deps := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		primitive, ok := operations.ByFamilyTag(tag)
 		if !ok {
+			continue
+		}
+		if !isLive(primitive.Name) {
 			continue
 		}
 		deps = append(deps, operations.PlainHash(primitive.Name)+"_"+id)
@@ -165,19 +203,33 @@ func jsonCompositeDeps(composite constants.JsonComposite, id string) []string {
 // jsonCompositeBody returns (contextLines, innerFnDeclaration) for a composite
 // strategy. The inner function name is the composite entry key so stack traces
 // identify it; the body is a faithful Go-side copy of createRTFunctions.ts's
-// pre-migration per-strategy composition, binding each primitive's fn directly.
-func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey string) (contextLines string, innerFn string) {
+// pre-migration per-strategy composition, binding each LIVE primitive's fn
+// directly. Identity primitives elide: the wrapped expression passes through
+// unwrapped — byte-for-byte what calling the family noop fn would compute
+// (identity for pj/pjs/rj/ukuw; for sj the elided form is the family noop
+// itself, native JSON.stringify).
+func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey string, isLive func(primOp string) bool) (contextLines string, innerFn string) {
 	// resolve emits a context-item const binding `name` to the primitive's fn.
-	// The direct `.fn` read is always live: noop primitives register with the
-	// family noop fn pre-set (entryTuple.ts familyMeta — identity for pj/pjs/
-	// rj/ukuw, JSON.stringify for sj), getRT materializes before returning,
-	// and the demand machinery renders an entry for every primitive a
-	// composite wraps (asserted at collect time). Noop/missing resolution is
-	// rtUtils' job — emitted code never carries fallbacks.
+	// The direct `.fn` read is always resolvable: noop primitives register
+	// with the family noop fn pre-set (entryTuple.ts familyMeta — identity
+	// for pj/pjs/rj/ukuw, JSON.stringify for sj), getRT materializes before
+	// returning, and the demand machinery renders an entry for every
+	// primitive a composite wraps (asserted at collect time). Noop/missing
+	// resolution is rtUtils' job — emitted code never carries fallbacks.
 	var ctx []string
 	resolve := func(name, primOp string) {
 		key := operations.PlainHash(primOp) + "_" + id
 		ctx = append(ctx, "const "+name+" = utl.getRT("+quoteJS(key)+").fn")
+	}
+	// wrap binds the primitive and wraps expr in its call — or, when the
+	// primitive's rendered entry is the family identity, passes expr through
+	// untouched (no binding, no import, no call).
+	wrap := func(name, primOp, expr string) string {
+		if !isLive(primOp) {
+			return expr
+		}
+		resolve(name, primOp)
+		return name + "(" + expr + ")"
 	}
 
 	var body string
@@ -185,28 +237,29 @@ func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey st
 	case "jsonEncoder":
 		switch composite.Strategy {
 		case "direct":
-			resolve("sjFn", "stringifyJson")
-			body = "return sjFn(v);"
+			if isLive("stringifyJson") {
+				resolve("sjFn", "stringifyJson")
+				body = "return sjFn(v);"
+			} else {
+				// sj's family noop IS native JSON.stringify — the elided
+				// form inlines it instead of unwrapping to bare `v`.
+				body = "return JSON.stringify(v);"
+			}
 		case "clone":
 			// Shape-derived clone (prepareForJsonSafe builds a NEW value from the
 			// declared shape) — undeclared keys are dropped by construction, so the
 			// clone is stripped without a separate strip pass.
-			resolve("pjsFn", "prepareForJsonSafe")
-			body = "return JSON.stringify(pjsFn(v));"
+			body = "return JSON.stringify(" + wrap("pjsFn", "prepareForJsonSafe", "v") + ");"
 		case "mutate":
-			resolve("pjFn", "prepareForJson")
-			body = "return JSON.stringify(pjFn(v));"
+			body = "return JSON.stringify(" + wrap("pjFn", "prepareForJson", "v") + ");"
 		}
 		innerFn = "function " + entryKey + "(v){" + body + "}"
 	case "jsonDecoder":
 		switch composite.Strategy {
 		case "preserve":
-			resolve("rjFn", "restoreFromJson")
-			body = "return rjFn(JSON.parse(s));"
+			body = "return " + wrap("rjFn", "restoreFromJson", "JSON.parse(s)") + ";"
 		case "strip":
-			resolve("rjFn", "restoreFromJson")
-			resolve("ukuwFn", "unknownKeysToUndefinedWire")
-			body = "return rjFn(ukuwFn(JSON.parse(s)));"
+			body = "return " + wrap("rjFn", "restoreFromJson", wrap("ukuwFn", "unknownKeysToUndefinedWire", "JSON.parse(s)")) + ";"
 		}
 		innerFn = "function " + entryKey + "(s){" + body + "}"
 	}

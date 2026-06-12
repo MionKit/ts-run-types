@@ -49,6 +49,14 @@ func (PrepareForJsonSafeEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — the walker's dispatch-time noop gate: external children whose
+// safe-clone entry is the identity compose as empty code (the parent uses
+// the input accessor directly, matching the inline empty-child rule). See
+// noop_types.go for the soundness contract.
+func (PrepareForJsonSafeEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForPrepareJsonSafe(rt, ctx)
+}
+
 // ReturnName is `v` for compatibility with the walker's tail-wrap, but
 // most Safe emits return CodeE or CodeRB (their own `return ...`) so
 // the walker doesn't actually use this. Noop bodies fall through

@@ -93,6 +93,13 @@ func (RestoreFromJsonEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — the walker's dispatch-time noop gate: external children whose
+// restore entry is the identity compose as empty code (no dep call, no
+// import). See noop_types.go for the soundness contract.
+func (RestoreFromJsonEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForRestoreJson(rt, ctx)
+}
+
 // ReturnName is `v` — restoreFromJson mutates / rebinds v and returns
 // the reconstructed value.
 func (RestoreFromJsonEmitter) ReturnName() string {

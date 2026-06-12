@@ -127,6 +127,13 @@ func (PrepareForJsonEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — the walker's dispatch-time noop gate: external children whose
+// prepare entry is the identity compose as empty code (no dep call, no
+// import). See noop_types.go for the soundness contract.
+func (PrepareForJsonEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForPrepareJson(rt, ctx)
+}
+
 // ReturnName is `v` — prepareForJson mutates the input value (or
 // rebinds via `v = …` for symbol/regexp/bigint), then returns it.
 // Same as validate's return.
