@@ -471,6 +471,13 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 		return RTCode{Code: "", Type: CodeE}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
+	// Capture the parent's skipCommas BEFORE compiling the value child: an
+	// INLINED nested object inside that compile runs its own prop loop and
+	// sets/clears the walker-level flag, so a post-compile read would see
+	// the nested loop's leftovers (trailing-comma corruption — invalid
+	// JSON). The flag is an argument from the immediate parent to THIS
+	// emit; nothing inside the child can legitimately change it.
+	skipCommas := getSkipCommas(ctx)
 	ctx.SetChildAccessor(accessor)
 	childRT := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
@@ -490,7 +497,7 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 	// name (the JSON spec requires them).
 	propPrefix := "'" + jsonPropPrefix(rt.Name, rt.IsSafeName) + "'"
 	sepCode := "','"
-	if getSkipCommas(ctx) {
+	if skipCommas {
 		sepCode = "''"
 	}
 	if rt.Optional {
@@ -590,6 +597,8 @@ func emitIndexSignatureStringifyJson(rt *protocol.RunType, ctx *EmitContext, v s
 		return RTCode{Code: "", Type: CodeE}
 	}
 	keyVar := ctx.NextLocalVar("k")
+	// Same capture-on-entry rule as emitPropertyStringifyJson — see there.
+	skipCommas := getSkipCommas(ctx)
 	ctx.SetChildAccessor(v + "[" + keyVar + "]")
 	childRT := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
@@ -608,7 +617,7 @@ func emitIndexSignatureStringifyJson(rt *protocol.RunType, ctx *EmitContext, v s
 	// the outer wrap. Use the parent's skipCommas flag (same as
 	// emitPropertyStringifyJson).
 	trailingSep := "+','"
-	if getSkipCommas(ctx) {
+	if skipCommas {
 		trailingSep = ""
 	}
 	body := "const " + arr + " = []; for (const " + keyVar + " in " + v + ") {" +

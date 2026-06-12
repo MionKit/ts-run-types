@@ -43,9 +43,9 @@ export interface ResolverClientOptions {
   // runtype modules too). Undefined leaves the binary default.
   moduleMode?: string;
   // Forwarded as --inline-mode: the child-inlining policy — 'default'
-  // (compounds compile as external per-family entries) or 'allInternal'
-  // (unnamed, non-circular compounds inline into their parents; named
-  // and circular types stay external). Undefined leaves the binary default.
+  // (unnamed non-circular compounds inline into their parents; named and
+  // circular types stay external) or 'allInternal' (everything except
+  // circular inlines, names ignored). Undefined leaves the binary default.
   inlineMode?: 'default' | 'allInternal';
 }
 

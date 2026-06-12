@@ -12,11 +12,14 @@ import (
 	"github.com/mionkit/ts-run-types/internal/resolver"
 )
 
-// inlinemode_test.go covers the --inline-mode allInternal policy end to end:
-// unnamed compounds inline into their parents (no per-child cache entry, the
-// loop hoists to a context fn), named compounds keep the external
-// dependency-call path, and cross-family `val_<member>` edges keep rendering
-// the member entries an inlined union's discriminators need.
+// inlinemode_test.go covers the inlining policy end to end. DEFAULT mode
+// applies the name rule: unnamed compounds inline into their parents (no
+// per-child cache entry, the loop hoists to a context fn) while named
+// compounds keep the external dependency-call path. allInternal is
+// name-blind (everything except circular inlines). Cross-family
+// `val_<member>` edges keep rendering the member entries an inlined union's
+// discriminators need, and the walk-stack cycle guard keeps unflagged
+// circular re-entries terminating.
 
 // setupInlineModeAllInternal is setupInline with InlineMode allInternal.
 func setupInlineModeAllInternal(t testing.TB, sources map[string]string) *resolver.Resolver {
@@ -51,22 +54,15 @@ func valEntryKeys(resp protocol.Response) []string {
 	return keys
 }
 
-func TestInlineMode_AllInternal_UnnamedArrayDropsChildEntry(t *testing.T) {
-	// Default mode: parent + the demanded string[] child = 2 val entries.
-	defaultResolver := setupInline(t, map[string]string{"a.ts": pairedArraySource})
-	defaultResp := scanWithModules(t, defaultResolver, []string{"a.ts"})
-	defaultKeys := valEntryKeys(defaultResp)
-	if len(defaultKeys) < 2 {
-		t.Fatalf("default mode should emit parent + external array entries, got %v", defaultKeys)
-	}
-
-	// allInternal: the unnamed array inlines — exactly ONE val entry (the
-	// parent), whose body hoists the element loop into a context fn.
-	r := setupInlineModeAllInternal(t, map[string]string{"a.ts": pairedArraySource})
+func TestInlineMode_Default_UnnamedArrayDropsChildEntry(t *testing.T) {
+	// DEFAULT mode (no option set): the unnamed string[] child inlines —
+	// exactly ONE val entry (the parent), whose body hoists the element
+	// loop into a context fn.
+	r := setupInline(t, map[string]string{"a.ts": pairedArraySource})
 	resp := scanWithModules(t, r, []string{"a.ts"})
 	keys := valEntryKeys(resp)
 	if len(keys) != 1 {
-		t.Fatalf("allInternal should emit ONE val entry (the parent), got %v", keys)
+		t.Fatalf("default should emit ONE val entry (the parent), got %v", keys)
 	}
 	parent := resp.EntryModules[keys[0]]
 	if !strings.Contains(parent, "ctxFn0(") {
@@ -77,8 +73,7 @@ func TestInlineMode_AllInternal_UnnamedArrayDropsChildEntry(t *testing.T) {
 	}
 }
 
-func TestInlineMode_AllInternal_NamedArrayStaysExternal(t *testing.T) {
-	source := `import {createValidate, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+const namedAliasArraySource = `import {createValidate, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type Tags = string[];
 type Parent = {tags: Tags};
 export const isParent = createValidate<Parent>();
@@ -86,11 +81,13 @@ export const staticId = getRunTypeId<Parent>();
 const p = {tags: ['a']} as Parent;
 export const reflectedId = reflectRunTypeId(p);
 `
-	r := setupInlineModeAllInternal(t, map[string]string{"a.ts": source})
+
+func TestInlineMode_Default_NamedArrayStaysExternal(t *testing.T) {
+	r := setupInline(t, map[string]string{"a.ts": namedAliasArraySource})
 	resp := scanWithModules(t, r, []string{"a.ts"})
 	keys := valEntryKeys(resp)
 	if len(keys) != 2 {
-		t.Fatalf("named alias array must stay a separate external entry (parent + Tags), got %v", keys)
+		t.Fatalf("default: named alias array must stay a separate external entry (parent + Tags), got %v", keys)
 	}
 	combined := strings.Join(moduleSources(resp), "\n")
 	if !strings.Contains(combined, ".fn(v.tags)") {
@@ -98,15 +95,25 @@ export const reflectedId = reflectRunTypeId(p);
 	}
 }
 
+func TestInlineMode_AllInternal_NamedArrayInlines(t *testing.T) {
+	// allInternal is name-blind: even the named alias inlines — one entry.
+	r := setupInlineModeAllInternal(t, map[string]string{"a.ts": namedAliasArraySource})
+	resp := scanWithModules(t, r, []string{"a.ts"})
+	keys := valEntryKeys(resp)
+	if len(keys) != 1 {
+		t.Fatalf("allInternal: named alias array must inline (one entry), got %v", keys)
+	}
+}
+
 // The highest-severity allInternal risk: an inlined unnamed UNION still
 // discriminates members via cross-family `val_<member>` lookups at runtime.
 // Those edges must keep riding SoftDeps so resolveCrossFamilyEdges renders
 // the member validate entries even though no site demands them directly.
-func TestInlineMode_AllInternal_InlinedUnionKeepsCrossFamilyValMembers(t *testing.T) {
+func TestInlineMode_Default_InlinedUnionKeepsCrossFamilyValMembers(t *testing.T) {
 	source := `import {createBinaryEncoder} from '@mionjs/ts-go-run-types';
 export const enc = createBinaryEncoder<{u: {a: bigint} | {a: Date}}>();
 `
-	r := setupInlineModeAllInternal(t, map[string]string{"a.ts": source})
+	r := setupInline(t, map[string]string{"a.ts": source})
 	resp := scanWithModules(t, r, []string{"a.ts"})
 	valKeys := valEntryKeys(resp)
 	if len(valKeys) < 2 {
@@ -153,12 +160,12 @@ func moduleSources(resp protocol.Response) []string {
 // flagged node. The walker's inlineWouldCycle guard must force the revisit
 // external (a self-call), or the inline expansion recurses until OOM —
 // this exact shape froze the full-suite dump when allInternal first landed.
-func TestInlineMode_AllInternal_CircularAliasThroughOptionalPropTerminates(t *testing.T) {
+func TestInlineMode_Default_CircularAliasThroughOptionalPropTerminates(t *testing.T) {
 	source := `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
 type U = Date | number | string | {a?: U; b?: string} | U[];
 export const enc = createJsonEncoder<U>(undefined, {strategy: 'mutate'});
 `
-	r := setupInlineModeAllInternal(t, map[string]string{"a.ts": source})
+	r := setupInline(t, map[string]string{"a.ts": source})
 	resp := scanWithModules(t, r, []string{"a.ts"})
 	if len(resp.EntryModules) == 0 {
 		t.Fatalf("circular alias union must render (cycle broken by the walk-stack guard), got zero modules")

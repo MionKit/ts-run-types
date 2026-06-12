@@ -17,16 +17,10 @@ type InlineContext struct {
 	// RT is the RunType under consideration. The predicate inspects
 	// Kind, TypeName, and FamilyOf(Kind) — same triplet mion uses.
 	RT *protocol.RunType
-	// DebugInline is the resolved value of mion's
-	// `getENV('DEBUG_RT') === 'INLINED'` flag — when true the
-	// predicate must return true regardless of other heuristics, so
-	// developers can force-inline every node to study generated code.
-	// Resolved once at Walker construction; threaded through here so
-	// the predicate doesn't hit os.Getenv on every dispatch.
-	DebugInline bool
-	// InlineAllInternal is RenderOpts.InlineMode == allInternal: unnamed,
-	// non-circular compounds inline into their parents instead of becoming
-	// external per-family entries. Set at walker construction.
+	// InlineAllInternal is RenderOpts.InlineMode == allInternal: EVERY
+	// non-circular node inlines into its parent, names ignored (supersedes
+	// the old DEBUG_RT=INLINED env override). Default mode applies the
+	// per-kind name rules below instead. Set at walker construction.
 	InlineAllInternal bool
 	walker            *Walker
 }
@@ -56,44 +50,28 @@ func (ctx *InlineContext) CurrentVλl() string {
 	return ctx.walker.Vλl
 }
 
-// DefaultIsRTInlined is the shared default predicate every Emitter
-// can delegate to. Body matches mion's BaseRunType.isRTInlined
-// (run-types/src/lib/baseRunTypes.ts:52–61) — the implementation is
-// shared across ALL rt functions in mion (no per-class overrides
-// are defined in the entire run-types package), so emitters that
-// don't have a strong reason to differ should just call this.
+// DefaultIsRTInlined is the shared default predicate every Emitter can
+// delegate to. Externality is purely a DEDUPE decision now that statement
+// blocks hoist to per-factory context fns (createFnInContext) instead of
+// per-call IIFEs — nothing NEEDS to be external for code-shape reasons.
 //
-// The user's question "should each fn have its own predicate?" lands
-// here: the answer is "share by default, override when you need to".
-// Mion went all-shared and that's worked. Per-fn variation is a
-// capability we want to RESERVE, not exercise speculatively.
-//
-// Decision matrix (in order) — matches mion's BaseRunType.isRTInlined
-// (baseRunTypes.ts:52-61) byte-for-byte:
-//  1. IsCircular → false. Circular types must self-invoke, so the
-//     parent always issues a dependency call instead of inlining.
-//  2. DebugInline → true (env override, mion's getENV branch).
-//  3. KindArray → false (mion comment: "all array are self invoked
-//     for validate and are usually repeated type like string[] or
-//     number[] so worth deduplicating").
-//  4. KindObjectLiteral / KindClass / KindTuple / KindUnion → false.
-//     mion only deopts named collections (typeName + family C); we
-//     can't rely on that alone because (a) our serializer doesn't
-//     populate TypeName on `interface Foo {}` declarations and
-//     (b) the IsCircular flag on protocol.RunType isn't auto-set
-//     yet. Treating every compound as non-inlined matches KindArray's
-//     stance and is correct for every case in the validation suite
-//     (anonymous non-circular composites get their own factory — a
-//     small constant-factor cost, no correctness impact). When a
-//     proper circular-detection pass in the serializer lands and
-//     sets IsCircular, these arms can flip back to "inline unless
-//     circular or named" without code-shape changes.
-//     The atomic-Date arm (KindClass+SubKindDate) is handled inside
-//     istype.go and never reaches here as a child to inline (it
-//     emits a single instanceof expression).
-//  5. Named Collection → false (mion comment: "collection with name
-//     might be used in different places so worth deduplicating").
-//  6. Otherwise → true.
+// Decision matrix (in order):
+//  1. IsCircular → external, both modes. Circular types must self-invoke;
+//     the parent issues a dependency call. dispatch's walk-stack guard
+//     (inlineWouldCycle) additionally catches cycle re-entries the
+//     serializer's flag misses (anonymous wrapper unions).
+//  2. allInternal mode → inline everything else, names ignored.
+//  3. Default mode — the name rule: UNNAMED arrays / object literals /
+//     tuples / unions / classes inline (declared inline at a use site,
+//     unlikely to be reused — per the design discussion); NAMED types
+//     (alias or interface) stay external as dedupe-worthy shared entries.
+//     Date / Temporal builtins are the carve-out: named, but their emits
+//     are atomic single expressions (instanceof / toISOString), so they
+//     always inline — externalizing them would cost an entry per family
+//     for the most common leaf types. Map/Set recurse into element types
+//     and follow the name rule (always named → external, as before).
+//  4. Remaining named collections (e.g. template literals) → external.
+//  5. Otherwise → inline.
 func DefaultIsRTInlined(ctx *InlineContext) bool {
 	if ctx == nil || ctx.RT == nil {
 		return true
@@ -101,51 +79,19 @@ func DefaultIsRTInlined(ctx *InlineContext) bool {
 	if ctx.RT.IsCircular {
 		return false
 	}
-	if ctx.DebugInline {
+	if ctx.InlineAllInternal {
 		return true
 	}
-	// allInternal mode: unnamed compounds inline (IsCircular already
-	// returned false above); ANY named type stays external. Keyed on
-	// TypeName directly — not FamilyOf — because KindArray is
-	// FamilyMember and would slip past the named-collection guard.
-	if ctx.InlineAllInternal {
-		switch ctx.RT.Kind {
-		case protocol.KindArray, protocol.KindObjectLiteral, protocol.KindTuple, protocol.KindUnion:
-			return ctx.RT.TypeName == ""
-		}
-	}
-	if ctx.RT.Kind == protocol.KindArray {
-		return false
-	}
-	if ctx.RT.Kind == protocol.KindObjectLiteral {
-		return false
-	}
-	if ctx.RT.Kind == protocol.KindClass {
-		// Date is atomic in mion (extends AtomicRunType) — its emit is
-		// a single instanceof/`new Date(v)` expression with no child
-		// recursion, so inlining produces correct JS and avoids the
-		// dangling-dep cascade that would otherwise nuke any parent
-		// factory whose dep chain reaches a noop Date emit (e.g.
-		// prepareForJson<Date> is `{code: undefined, type: 'S'}` →
-		// no factory emitted → dep references a missing entry).
-		// Subkinds other than Date go through the named-collection
-		// (non-inlined) branch.
-		if ctx.RT.SubKind == protocol.SubKindDate {
+	switch ctx.RT.Kind {
+	case protocol.KindClass:
+		if ctx.RT.SubKind == protocol.SubKindDate || protocol.IsTemporalSubKind(ctx.RT.SubKind) {
 			return true
 		}
-		// Temporal types are atomic leaf-emits too (single instanceof /
-		// `Temporal.X.from(v)` expression, no child recursion) — inline for
-		// the same reason Date does.
-		if protocol.IsTemporalSubKind(ctx.RT.SubKind) {
-			return true
-		}
-		return false
-	}
-	if ctx.RT.Kind == protocol.KindTuple {
-		return false
-	}
-	if ctx.RT.Kind == protocol.KindUnion {
-		return false
+		return ctx.RT.TypeName == ""
+	case protocol.KindArray, protocol.KindObjectLiteral, protocol.KindTuple, protocol.KindUnion:
+		// Keyed on TypeName directly — not the FamilyOf guard below —
+		// because KindArray is FamilyMember and would slip past it.
+		return ctx.RT.TypeName == ""
 	}
 	if ctx.RT.TypeName != "" && protocol.FamilyOf(ctx.RT.Kind) == protocol.FamilyCollection {
 		return false
