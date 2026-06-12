@@ -41,7 +41,8 @@
 #                        Default: sibling ../mion if present, else this repo.
 #   WEBSITE_DOCDATA      host dir of generated benchmark/test result JSON the docs
 #                        read, mounted read-only at /app/.docdata (default: .docdata).
-#   WEBSITE_POLL=1   use filesystem polling for watchers (macOS / VM mounts)
+#   WEBSITE_POLL     filesystem polling for watchers (macOS / VM bind mounts).
+#                    Default: 1 on macOS, 0 on Linux. Set WEBSITE_POLL=0 to force off.
 #   WEBSITE_MOUNT_OPTS   extra bind-mount opts, e.g. ":z" on SELinux hosts
 #   WEBSITE_CA_CERT      file OR dir of extra CA certs to trust inside the
 #                        container — for hosts behind a corporate / MITM egress
@@ -67,6 +68,12 @@ PORT="${WEBSITE_PORT:-3000}"
 AGENT_PORT="${WEBSITE_AGENT_PORT:-3100}"
 AGENT_IDLE_SECONDS="${WEBSITE_AGENT_IDLE_SECONDS:-300}"
 MOUNT_OPTS="${WEBSITE_MOUNT_OPTS:-}"
+# Watcher polling: bind mounts on macOS deliver no native fs events, so default
+# it on there (the container runs in a Linux VM). Linux bind mounts pass events
+# through natively -- keep it off. Override with WEBSITE_POLL=0/1 either way.
+if [ -z "${WEBSITE_POLL:-}" ]; then
+  [ "$(uname -s)" = "Darwin" ] && WEBSITE_POLL=1 || WEBSITE_POLL=0
+fi
 CA_SRC="${WEBSITE_CA_CERT:-}"
 BUILD_NETWORK="${WEBSITE_BUILD_NETWORK:-}"
 RUN_NETWORK="${WEBSITE_RUN_NETWORK:-}"
@@ -230,9 +237,12 @@ env_args() {
 }
 
 # Echo watcher env args when polling is requested (needed on macOS / VM mounts).
+# CHOKIDAR_USEPOLLING is read by nuxt.config.ts (vite server.watch + the example
+# watcher) to switch the watchers to polling -- the only reliable mode over a
+# bind mount that delivers no native fs events.
 poll_args() {
   if [ "${WEBSITE_POLL:-0}" = "1" ]; then
-    printf -- '-e\nCHOKIDAR_USEPOLLING=true\n-e\nWATCHPACK_POLLING=true\n-e\nNUXT_VITE_SERVER_WATCH_USEPOLLING=true\n'
+    printf -- '-e\nCHOKIDAR_USEPOLLING=true\n'
   fi
 }
 
@@ -252,6 +262,14 @@ cmd_dev() {
   read_lines EARGS < <(env_args)
 
   [ "$is_agent" = 1 ] && { cmd_dev_agent; return; }
+
+  # --rm cleans up on a clean exit, but an ungraceful kill (machine stop, SIGKILL)
+  # leaves the named container behind and the next run collides. Remove any stale
+  # one first, mirroring the agent/smoke/verify commands. Scope is the USER
+  # container only (${CONTAINER_BASE}-dev) -- the agent path past the early-return
+  # above owns ${CONTAINER_BASE}-agent and clears its own, so user and agent dev
+  # servers never evict each other.
+  "$ENGINE" rm -f "${CONTAINER_BASE}-dev" >/dev/null 2>&1 || true
 
   echo "==> dev server at http://localhost:$PORT  (Ctrl-C to stop)"
   exec "$ENGINE" run --rm -it --init \

@@ -6,7 +6,7 @@ allowed-tools: Bash(pnpm:*) Bash(playwright-cli:*) Bash(npx:*) Bash(scripts/webs
 
 # Website browser testing (Nuxt docs site + playwright-cli)
 
-Drive the project's docs website ([website/](../../../website/)) in a real browser to verify rendered pages, debug console/network, and run end-to-end checks. The site is **containerized** (podman) and published on `http://localhost:3000`; `playwright-cli` runs on the **host** and reaches it through the published port.
+Drive the project's docs website ([website/](../../../website/)) in a real browser to verify rendered pages, debug console/network, and run end-to-end checks. The site is **containerized** (podman); `playwright-cli` runs on the **host** and reaches it through the published port. Agents start it with `--isAgent` on `http://localhost:3100` (a human's plain `dev` uses `:3000`) — see [Start the dev server](#1-start-the-dev-server-agent-mode-hot-reload).
 
 ## Prerequisites
 
@@ -15,28 +15,28 @@ Drive the project's docs website ([website/](../../../website/)) in a real brows
 
 ## Start the website, then test it
 
-The site cannot run on the host — its `node_modules` live only in the image. Use [scripts/website.sh](../../../scripts/website.sh) to bring it up, then point the browser at `http://localhost:3000`.
+The site cannot run on the host — its `node_modules` live only in the image. Use [scripts/website.sh](../../../scripts/website.sh) to bring it up, then point the browser at `http://localhost:3100`.
 
-### 1. Start the dev server (background, hot-reload)
+### 1. Start the dev server (agent mode, hot-reload)
 
-`scripts/website.sh dev` runs in the foreground (`Ctrl-C` to stop). For automated browser driving, start it in the background and wait for port 3000:
+**As an agent, always start with `--isAgent`.** It runs the site in a separate container (`tsrt-website-agent`) on the reserved port **3100**, so you never collide with a human running `scripts/website.sh dev` on `:3000`. It's detached (no `&` needed) and self-stops after ~5 min idle, so a forgotten server cleans itself up. Target **3100** in every command below.
 
 ```bash
-# start the containerized dev server in the background
-scripts/website.sh dev &
+# start the agent dev server (detached, self-stopping, on :3100)
+scripts/website.sh dev --isAgent
 
 # wait until it answers (Nuxt cold start can take ~30-60s)
-until curl -fsS http://localhost:3000 -o /dev/null; do sleep 2; done
-echo "website up on http://localhost:3000"
+until curl -fsS http://localhost:3100 -o /dev/null; do sleep 2; done
+echo "website up on http://localhost:3100"
 ```
 
-> Override the port with `WEBSITE_PORT=4000 scripts/website.sh dev` (then target that port below).
-> A one-shot health check with no browser is `scripts/website.sh smoke` (starts bg server, curls `:3000`, stops).
+> Only use plain `scripts/website.sh dev` (foreground, `:3000`) if you specifically need the human-facing port — it will collide with a user's running server.
+> A one-shot health check with no browser is `scripts/website.sh smoke` (starts a bg server, curls `:3000`, stops).
 
 ### 2. Drive it with the browser
 
 ```bash
-playwright-cli open http://localhost:3000      # launch browser + load the homepage
+playwright-cli open http://localhost:3100      # launch browser + load the homepage
 playwright-cli snapshot                        # accessibility tree with refs (e1, e2, ...) — your main way to "see" the page
 playwright-cli click e15                        # interact using refs from the snapshot
 playwright-cli snapshot                         # re-snapshot to see the result
@@ -47,7 +47,7 @@ playwright-cli snapshot                         # re-snapshot to see the result
 The docs render imported code and twoslash type hovers. To confirm a docs page rendered them:
 
 ```bash
-playwright-cli goto http://localhost:3000/your/doc/path
+playwright-cli goto http://localhost:3100/your/doc/path
 # pull rendered text and check an expected token is present
 playwright-cli --raw eval "document.body.innerText" | grep -i "expected snippet text"
 # check for twoslash/shiki output in the DOM
@@ -68,8 +68,8 @@ playwright-cli screenshot --filename=page.png
 
 ```bash
 playwright-cli close              # close the browser
-# stop the dev server: Ctrl-C the backgrounded job, or:
-podman rm -f tsrt-website-dev 2>/dev/null || true
+# the agent server self-stops after idle; to stop it now:
+podman rm -f tsrt-website-agent 2>/dev/null || true
 ```
 
 ## Most-used commands
@@ -78,7 +78,7 @@ Full command reference (tabs, mouse, keyboard, storage, network, tracing, video,
 
 ```bash
 # lifecycle
-playwright-cli open http://localhost:3000   # open browser (optionally navigate)
+playwright-cli open http://localhost:3100   # open browser (optionally navigate)
 playwright-cli goto <url>                    # navigate current page
 playwright-cli close                         # close browser
 playwright-cli list                          # list running sessions
@@ -116,7 +116,7 @@ Use **refs** from `snapshot` (`e15`), or a CSS selector (`"#main > button.submit
 Run several independent browsers with `-s=<name>`:
 
 ```bash
-playwright-cli -s=docs open http://localhost:3000
+playwright-cli -s=docs open http://localhost:3100
 playwright-cli -s=docs click e6
 playwright-cli -s=docs close
 ```

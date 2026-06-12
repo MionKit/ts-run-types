@@ -2,6 +2,11 @@ import { processCodeImports, exampleWatcherPlugin } from './server/utils/code-im
 
 const isDev = process.env.NODE_ENV !== 'production'
 
+// Bind-mounted source on macOS/VM container hosts doesn't deliver fs events into
+// the container, so native watchers never fire. WEBSITE_POLL=1 sets this env
+// (see scripts/website.sh) to make the watchers poll instead.
+const usePolling = process.env.CHOKIDAR_USEPOLLING === 'true'
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   site: {
@@ -31,7 +36,8 @@ export default defineNuxtConfig({
     }
   },
   vite: {
-    plugins: isDev ? [exampleWatcherPlugin()] : []
+    server: usePolling ? { watch: { usePolling: true, interval: 300 } } : {},
+    plugins: isDev ? [exampleWatcherPlugin(usePolling)] : []
   },
   nitro: {
     output: {
