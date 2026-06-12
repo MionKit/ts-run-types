@@ -94,11 +94,11 @@ func TestCollectEntries_RenderedModuleShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected module basename pf/b/y, got %v", keysOf(modules))
 	}
-	if !strings.Contains(consumer, "import {e as d1} from 'virtual:rt/pf/a/x.js';") {
+	if !strings.Contains(consumer, "import {__rt_pf$2Fa$2Fx} from 'virtual:rt/pf/a/x.js';") {
 		t.Errorf("pure-fn dep import missing:\n%s", consumer)
 	}
-	if !strings.Contains(consumer, "export const e=[2,()=>[d1],,'b::y',") {
-		t.Errorf("tuple head should be [2,()=>[d1],<hole>,'<key>',…]:\n%s", consumer)
+	if !strings.Contains(consumer, "export const __rt_pf$2Fb$2Fy=[2,()=>[__rt_pf$2Fa$2Fx],,'b::y',") {
+		t.Errorf("tuple head should be [2,()=>[__rt_<dep>],<hole>,'<key>',…]:\n%s", consumer)
 	}
 }
 

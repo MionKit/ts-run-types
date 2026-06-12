@@ -210,8 +210,11 @@ export const _ = createBinaryEncoder<{a: bigint} | {a: Date}>();
 	if !strings.Contains(tbBundle, "from '"+valSpecifier+"'") {
 		t.Fatalf("tb bundle missing named import from %s:\n%s", valSpecifier, tbBundle)
 	}
-	if strings.Contains(tbBundle, "import {"+constants.EntryExportName+" as ") {
-		t.Fatalf("tb bundle should not e-rename bundle deps:\n%s", tbBundle)
+	// Imports never rename — the export name IS the binding, everywhere.
+	for _, line := range strings.Split(tbBundle, "\n") {
+		if strings.HasPrefix(line, "import {") && strings.Contains(line, " as ") {
+			t.Fatalf("tb bundle must not rename imports:\n%s", line)
+		}
 	}
 	if _, ok := resp.EntryModules[constants.FnsBundleDir+"/val"]; !ok {
 		t.Fatalf("missing %s/val bundle (cross-family fixpoint); modules: %v", constants.FnsBundleDir, moduleNames(resp))
@@ -239,9 +242,6 @@ export const _ = registerPureFnFactory('test', 'double', function (utl) {
 		t.Fatalf("expected a pure-fn replacement")
 	}
 	rep := resp.Replacements[0]
-	if !rep.Named {
-		t.Fatalf("allSingle replacement must be Named")
-	}
 	pfSpecifier := constants.VirtualModulePrefix + constants.PureFnModuleDir + constants.EntryModuleSuffix
 	if rep.ImportFrom != pfSpecifier {
 		t.Fatalf("replacement ImportFrom = %q, want %q", rep.ImportFrom, pfSpecifier)
@@ -283,17 +283,18 @@ export const reflectedId = reflectRunTypeId(u);
 	if !ok {
 		t.Fatalf("allModules: missing per-node module for root %q; modules: %v", root, moduleNames(resp))
 	}
-	if !strings.Contains(rootModule, "export const "+constants.EntryExportName+"=[0,()=>[") {
-		t.Fatalf("per-node module must be tuple kind 0:\n%s", rootModule)
+	if !strings.Contains(rootModule, "export const "+constants.EntryBindingPrefix+root+"=[0,()=>[") {
+		t.Fatalf("per-node module must export its binding name with tuple kind 0:\n%s", rootModule)
 	}
-	// The root (an object) must import its member nodes — per-node layout.
-	if !strings.Contains(rootModule, "import {"+constants.EntryExportName+" as d1}") {
+	// The root (an object) must import its member nodes — per-node layout,
+	// each child arriving as a named import of its own binding (no rename).
+	if !strings.Contains(rootModule, "import {"+constants.EntryBindingPrefix) {
 		t.Fatalf("per-node root should import child node modules:\n%s", rootModule)
 	}
 	// More than one runtype module exists (root + members), each kind 0.
 	kind0 := 0
 	for _, source := range resp.EntryModules {
-		if strings.Contains(source, "export const "+constants.EntryExportName+"=[0,") {
+		if strings.Contains(source, "export const "+constants.EntryBindingPrefix) && strings.Contains(source, "=[0,") {
 			kind0++
 		}
 	}

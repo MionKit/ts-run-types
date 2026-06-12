@@ -1,18 +1,22 @@
 // Package entrymod assembles the per-entry virtual ES modules emitted by the
 // resolver: one module per cache entry (type-fn factory, JSON composite, pure
 // fn), named `virtual:rt/<basename>.js`, exporting a single positional tuple
-// under the fixed export name `e`. Runtype nodes are denser than fn entries
-// (one tiny row per node, heavily shared), so they ship as ROWS of THE single
-// data-bundle module (`virtual:rt/runtypes.js`, KindRunTypeBundle) aliased by
-// one facade module per reflection root (KindRunTypeFacade) — see
+// under its binding name (ExportName — `__rt_<basename>`, identifier-escaped).
+// The SAME name binds the entry everywhere: the export, every importer's
+// clause (`{__rt_X}`, never renamed), and the call-site binding the rewrite
+// injects — one naming system across per-entry modules and bundles. Runtype
+// nodes are denser than fn entries (one tiny row per node, heavily shared),
+// so they ship as ROWS of THE single data-bundle module
+// (`virtual:rt/runtypes.js`, KindRunTypeBundle) aliased by one facade module
+// per reflection root (KindRunTypeFacade) — see
 // internal/compiled/runtype.CollectEntries.
 //
 // Module shape (every kind):
 //
-//	import {e as d1} from 'virtual:rt/<dep1>.js';   // DIRECT deps only
+//	import {__rt_<dep1>} from 'virtual:rt/<dep1>.js';   // DIRECT deps only
 //	…
 //	function ini(rtu){const c=(id)=>rtu.useRunType(id);<footer>}  // runtype only
-//	export const e=[<kindSlot>,<()=>[d1,…,dN]|hole>,<ini|hole>,<positional args…>];
+//	export const __rt_<basename>=[<kindSlot>,<()=>[__rt_<dep1>,…]|hole>,<ini|hole>,<positional args…>];
 //
 // The deps thunk is inlined straight into slot 1 (lazy: import cycles never
 // hit TDZ); absent head slots (deps/ini) are JS array HOLES (the `,,` run),
@@ -313,8 +317,8 @@ func Render(graph Graph) (map[string]string, error) {
 // grouping maps to the same bundle basename render into ONE module (each as a
 // named export), everything else renders per-entry exactly as Render. Bundle
 // members reference same-bundle deps as direct const identifiers; deps living
-// elsewhere import as usual (`e`-rename for per-entry modules, named import
-// for other bundles).
+// elsewhere arrive as named imports of their export name — same clause shape
+// whether the dep is a per-entry module or another bundle.
 func RenderGrouped(graph Graph, grouping Grouping) (map[string]string, error) {
 	keys := make([]string, 0, len(graph))
 	for key := range graph {
@@ -518,28 +522,26 @@ func directDeps(graph Graph, entry *Entry, order levels) ([]string, error) {
 }
 
 // depBinding resolves the identifier a module references for one dep, writing
-// the matching import line into imports (deduped per identifier): per-entry
-// deps import `e` renamed positionally (d1…dN); bundled deps import their
-// named export from the bundle (no rename — the export name IS the binding).
+// the matching import line into imports (deduped per identifier): every entry
+// is bound by its export name everywhere (`{__rt_X}`, no rename) — only the
+// specifier differs (the dep's bundle when grouped, its own module otherwise).
 // Same-bundle deps (selfBundle non-empty) reference the sibling const
 // directly with no import at all.
-func depBinding(graph Graph, depKey string, position int, selfBundle string, groupOf map[string]string, imports *strings.Builder, imported map[string]bool) string {
+func depBinding(graph Graph, depKey string, selfBundle string, groupOf map[string]string, imports *strings.Builder, imported map[string]bool) string {
 	target := graph[depKey]
 	bundle := groupOf[depKey]
+	name := ExportName(target)
 	if bundle != "" && bundle == selfBundle {
-		return ExportName(target)
-	}
-	if bundle != "" {
-		name := ExportName(target)
-		if !imported[name] {
-			imported[name] = true
-			imports.WriteString("import {" + name + "} from " + jsquote.Single(ImportSpecifier(bundle)) + ";\n")
-		}
 		return name
 	}
-	name := "d" + strconv.Itoa(position)
-	imports.WriteString("import {" + constants.EntryExportName + " as " + name + "} from " +
-		jsquote.Single(ImportSpecifier(ModuleName(target.Key, target.Kind))) + ";\n")
+	specifier := ImportSpecifier(ModuleName(target.Key, target.Kind))
+	if bundle != "" {
+		specifier = ImportSpecifier(bundle)
+	}
+	if !imported[name] {
+		imported[name] = true
+		imports.WriteString("import {" + name + "} from " + jsquote.Single(specifier) + ";\n")
+	}
 	return name
 }
 
@@ -550,7 +552,7 @@ func renderModule(graph Graph, entry *Entry, order levels, groupOf map[string]st
 	// Missing stubs: no imports, no deps thunk, no args — just the key. The
 	// deps/ini head slots are JS array holes (the `,,` run).
 	if entry.Kind == KindMissing {
-		body.WriteString("export const " + constants.EntryExportName + "=[" +
+		body.WriteString("export const " + ExportName(entry) + "=[" +
 			strconv.Itoa(int(KindMissing)) + ",,," + jsquote.Single(entry.Key) + "];\n")
 		return body.String(), nil
 	}
@@ -560,14 +562,13 @@ func renderModule(graph Graph, entry *Entry, order levels, groupOf map[string]st
 		return "", err
 	}
 
-	// Import block — the direct deps, in (level, alpha) order. Binding names
-	// are positional (d1…dN) for per-entry deps; bundled deps arrive as named
-	// imports.
+	// Import block — the direct deps, in (level, alpha) order, each imported
+	// by its export name (no rename).
 	var imports strings.Builder
 	imported := make(map[string]bool)
 	bindings := make([]string, len(deps))
 	for i, key := range deps {
-		bindings[i] = depBinding(graph, key, i+1, "", groupOf, &imports, imported)
+		bindings[i] = depBinding(graph, key, "", groupOf, &imports, imported)
 	}
 	body.WriteString(imports.String())
 
@@ -598,7 +599,7 @@ func renderModule(graph Graph, entry *Entry, order levels, groupOf map[string]st
 	if err != nil {
 		return "", err
 	}
-	body.WriteString("export const " + constants.EntryExportName + "=[" + slot0 + "," + depsSlot + "," + iniSlot)
+	body.WriteString("export const " + ExportName(entry) + "=[" + slot0 + "," + depsSlot + "," + iniSlot)
 	if entry.ArgsText != "" {
 		body.WriteByte(',')
 		body.WriteString(entry.ArgsText)
@@ -607,13 +608,6 @@ func renderModule(graph Graph, entry *Entry, order levels, groupOf map[string]st
 	return body.String(), nil
 }
 
-// renderBundle emits ONE module carrying every member entry as a named
-// export. Same module shape per member as renderModule's tuple, but the deps
-// thunk inlines into the tuple (no shared `deps` identifier to collide on),
-// same-bundle deps are direct const references, and per-member ini fns are
-// index-suffixed. Members render leaves-first (level, alpha) so the source
-// reads in dependency order; correctness doesn't depend on it (thunks are
-// lazy, inis run post-registration).
 // facadeHoistMin is the number of folded facades (allSingle mode) above which
 // their identical `()=>[__rt_runtypes]` deps thunk is hoisted into one shared
 // `const rtL=…` local and reused — below it the declaration costs more than it
@@ -623,6 +617,13 @@ const facadeHoistMin = 3
 // facadeThunkLocal is the name of that shared thunk local.
 const facadeThunkLocal = "rtL"
 
+// renderBundle emits ONE module carrying every member entry as a named
+// export. Same module shape per member as renderModule's tuple, but the deps
+// thunk inlines into the tuple (no shared `deps` identifier to collide on),
+// same-bundle deps are direct const references, and per-member ini fns are
+// index-suffixed. Members render leaves-first (level, alpha) so the source
+// reads in dependency order; correctness doesn't depend on it (thunks are
+// lazy, inis run post-registration).
 func renderBundle(graph Graph, name string, memberKeys []string, order levels, groupOf map[string]string) (string, error) {
 	members := append([]string(nil), memberKeys...)
 	sort.SliceStable(members, func(i, j int) bool {
@@ -647,7 +648,6 @@ func renderBundle(graph Graph, name string, memberKeys []string, order levels, g
 	var imports strings.Builder
 	var body strings.Builder
 	imported := make(map[string]bool)
-	position := 0
 	for memberIndex, key := range members {
 		entry := graph[key]
 		exportName := ExportName(entry)
@@ -662,8 +662,7 @@ func renderBundle(graph Graph, name string, memberKeys []string, order levels, g
 		}
 		bindings := make([]string, len(deps))
 		for i, dep := range deps {
-			position++
-			bindings[i] = depBinding(graph, dep, position, name, groupOf, &imports, imported)
+			bindings[i] = depBinding(graph, dep, name, groupOf, &imports, imported)
 		}
 		iniSlot := ""
 		if entry.InitBody != "" {

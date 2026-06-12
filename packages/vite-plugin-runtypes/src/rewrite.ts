@@ -1,12 +1,7 @@
 import MagicString, {type SourceMap} from 'magic-string';
 import type {SiteScanner} from './scan-batcher.ts';
 import type {Replacement, Site} from './protocol.ts';
-import {
-  ENTRY_BINDING_PREFIX,
-  ENTRY_EXPORT_NAME,
-  ENTRY_MODULE_SUFFIX,
-  VIRTUAL_MODULE_PREFIX,
-} from './runtypes-constants.generated.ts';
+import {ENTRY_BINDING_PREFIX, ENTRY_MODULE_SUFFIX, VIRTUAL_MODULE_PREFIX} from './runtypes-constants.generated.ts';
 
 // Rewritten carries the patched source + the sites and replacements
 // the Go binary returned. `sites[i].pos` is the byte offset of the
@@ -36,7 +31,8 @@ export interface Rewritten {
 //   3. One single-line import block at offset 0 covering every binding the
 //      edits above reference, deduped per specifier (all statements joined
 //      on ONE line, so the original source shifts by exactly 1 line):
-//      `import {e as __rt_<basename>} from 'virtual:rt/<basename>.js';`
+//      `import {__rt_<basename>} from 'virtual:rt/<basename>.js';` — every
+//      entry module exports under its binding name, so clauses never rename.
 //
 // Edits are applied through a MagicString so transform() can hand Vite a
 // real source map — original positions survive the injected imports and
@@ -112,18 +108,19 @@ function siteBasename(site: Site): string {
   return site.fnId ? `${site.fnId}_${site.id}` : site.id;
 }
 
-// siteBinding is the renamed-import identifier a site's insertion references.
+// siteBinding is the import-binding identifier a site's insertion references —
+// also the entry module's export name (one name binds the entry everywhere).
 function siteBinding(site: Site): string {
   return ENTRY_BINDING_PREFIX + siteBasename(site);
 }
 
 // buildImportBlock collects every entry-module import the rewritten file
 // needs and renders the deduped import statements as a SINGLE physical line.
-// Two clause shapes share the block: per-entry modules export the fixed `e`
-// (renamed to the binding — `{e as __rt_X}`), while bundle modules (allSingle
-// module mode: `site.module` / `replacement.named`) export each entry under
-// its binding name directly (`{__rt_X}`, no rename). Bundled sites dedupe
-// into ONE import statement per bundle specifier with sorted clauses.
+// One clause shape everywhere: every module — per-entry or bundle — exports
+// each entry under its binding name, so clauses import it directly
+// (`{__rt_X}`, never renamed); only the specifier differs (the bundle when
+// `site.module` is stamped, the entry's own module otherwise). Bundled sites
+// dedupe into ONE import statement per bundle specifier with sorted clauses.
 // Deterministic order (sorted by specifier, clauses sorted within) keeps
 // rewrites byte-stable. The source map relocates original positions past the
 // block either way; keeping it on one physical line just keeps the rewritten
@@ -137,16 +134,12 @@ function buildImportBlock(sites: Site[], replacements: Replacement[]): string {
   };
   for (const site of sites) {
     if (!site.id) continue;
-    if (site.module) {
-      addClause(VIRTUAL_MODULE_PREFIX + site.module + ENTRY_MODULE_SUFFIX, siteBinding(site));
-    } else {
-      const specifier = VIRTUAL_MODULE_PREFIX + siteBasename(site) + ENTRY_MODULE_SUFFIX;
-      addClause(specifier, `${ENTRY_EXPORT_NAME} as ${siteBinding(site)}`);
-    }
+    const specifier = VIRTUAL_MODULE_PREFIX + (site.module || siteBasename(site)) + ENTRY_MODULE_SUFFIX;
+    addClause(specifier, siteBinding(site));
   }
   for (const replacement of replacements) {
     if (!replacement.importFrom) continue;
-    addClause(replacement.importFrom, replacement.named ? replacement.text : `${ENTRY_EXPORT_NAME} as ${replacement.text}`);
+    addClause(replacement.importFrom, replacement.text);
   }
   if (bySpecifier.size === 0) return '';
   const specifiers = [...bySpecifier.keys()].sort();
