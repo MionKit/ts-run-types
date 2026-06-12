@@ -7,78 +7,92 @@ pageClass: home-page
 
 :home-page-body
 
-::gradient-bg
----
+## ::gradient-bg
+
 angle: 70
 opacity: 0.2
 blur: 150px
+
 ---
+
 ::
 
 ::u-page-hero{class="home-hero"}
 #header
-  :::typed-title
-  ---
-  leading: "We finally fixed TypeScript"
-  titles:
-    - 'the reflection gap'
-    - 'writing your types twice'
-    - 'your validation layer'
-    - 'handwritten serialization code'
-  ---
-  #description
-  TypeScript decided it's **"just a linter"** and erases your types. We respectfully **bolted the runtime back on** — validators, JSON + binary (de)serializers, mock data and reflection, generated straight from the types you already wrote.
-  :::
+:::typed-title
+
+---
+
+leading: "We fixed TypeScript"
+titles: - 'And the reflection gap' - 'And writing types twice' - 'And your validation layer' - 'And handwritten serialization' - 'Say hello ro RunTypes®'
+
+---
+
+#description
+TypeScript decided it's **"just a linter"** and erases your types.
+<br/>We respectfully **put them back in the runtime** in a way that's makes sense and reliable.
+:::
 
 #links
-  :::u-button
-  ---
-  color: primary
-  size: xl
-  to: /introduction/about-ts-run-types
-  icon: icon-park-outline:book-one
-  class: btn-docs
-  ---
-  Read the Docs
-  :::
+:::u-button
 
-  :::u-button
-  ---
-  color: neutral
-  icon: simple-icons-github
-  size: xl
-  to: https://github.com/mionkit/ts-run-types
-  variant: outline
-  ---
-  Give us a Star
-  :::
+---
+
+color: primary
+size: xl
+to: /introduction/about-ts-run-types
+icon: icon-park-outline:book-one
+class: btn-docs
+
+---
+
+Read the Docs
+:::
+
+:::u-button
+
+---
+
+color: neutral
+icon: simple-icons-github
+size: xl
+to: https://github.com/mionkit/ts-run-types
+variant: outline
+
+---
+
+Give us a Star
+:::
 ::
 
-::u-page-section
----
-class: home-features
----
+## ::u-page-section
+
+## class: home-features
 
 #title
 Two ways to describe a shape. One source of truth.
 
 #root
-  :::gradient-bg
-  ---
-  angle: 70
-  opacity: 0.15
-  top: 10rem
-  blur: 140px
-  ---
-  :::
+:::gradient-bg
+
+---
+
+angle: 70
+opacity: 0.15
+top: 10rem
+blur: 140px
+
+---
+
+:::
 
 #body
-  Write a plain TypeScript type (fastest, zero ceremony) **or** reach for the `RT.*` schema builders if you like the Zod / TypeBox feel. Both compile to the exact same validator — pick whichever you fancy, mix them in the same file.
+Write a plain TypeScript type (fastest, zero ceremony) **or** reach for the `RT.*` schema builders if you like the Zod / TypeBox feel. Both compile to the exact same validator — pick whichever you fancy, mix them in the same file.
 
-  :::code-group
-  <code-import path="packages/examples/src/_homepage/define-type.ts" lang="ts [Pure type]" />
-  <code-import path="packages/examples/src/_homepage/define-schema.ts" lang="ts [Schema]" />
-  :::
+:::code-group
+<code-import path="packages/examples/src/_homepage/define-type.ts" lang="ts [Pure type]" />
+<code-import path="packages/examples/src/_homepage/define-schema.ts" lang="ts [Schema]" />
+:::
 ::
 
 ::u-page-section
@@ -86,18 +100,18 @@ Two ways to describe a shape. One source of truth.
 One object. Every function.
 
 #body
-  Define a real type once, then ask for whatever you need — a validator, an error reporter, JSON that round-trips `Date`s, a compact binary codec, or believable mock data. No reflection at runtime: each one is a specialized function generated at build time.
+Define a real type once, then ask for whatever you need — a validator, an error reporter, JSON that round-trips `Date`s, a compact binary codec, or believable mock data. No reflection at runtime: each one is a specialized function generated at build time.
 
-  Here's the type everything below is generated from:
+Here's the type everything below is generated from:
 
   <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-type" commentEnd="// end-type" />
 
-  :::code-group
-  <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [validate]" commentStart="// start-validate" commentEnd="// end-validate" />
-  <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [json]" commentStart="// start-json" commentEnd="// end-json" />
-  <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [binary]" commentStart="// start-binary" commentEnd="// end-binary" />
-  <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [mock]" commentStart="// start-mock" commentEnd="// end-mock" />
-  :::
+:::code-group
+<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [validate]" commentStart="// start-validate" commentEnd="// end-validate" />
+<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [json]" commentStart="// start-json" commentEnd="// end-json" />
+<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [binary]" commentStart="// start-binary" commentEnd="// end-binary" />
+<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [mock]" commentStart="// start-mock" commentEnd="// end-mock" />
+:::
 ::
 
 ::u-page-section
@@ -105,7 +119,7 @@ One object. Every function.
 The reflection TypeScript refused to ship
 
 #body
-  Get a stable id for any type, infer it from a value, or wrap ts-run-types into your own helpers with a single marker — `InjectRunTypeId<T>`. The build fills it in at every call site.
+Get a stable id for any type, infer it from a value, or wrap ts-run-types into your own helpers with a single marker — `InjectRunTypeId<T>`. The build fills it in at every call site.
 
   <code-import path="packages/examples/src/_homepage/reflection.ts" lang="ts" />
 ::
@@ -115,12 +129,16 @@ The reflection TypeScript refused to ship
 The whole toolbelt, in one box
 
 #body
-  Stop gluing five libraries together. ts-run-types shares a single type graph across everything it generates — so the validator and the serializer always agree on what your type means.
+Stop gluing five libraries together. ts-run-types shares a single type graph across everything it generates — so the validator and the serializer always agree on what your type means.
 
-  :::card-group
-  ---
-  class: sm:grid-cols-2 lg:grid-cols-3
-  ---
+:::card-group
+
+---
+
+class: sm:grid-cols-2 lg:grid-cols-3
+
+---
+
     ::::card
     ---
     title: Validation
@@ -168,7 +186,8 @@ The whole toolbelt, in one box
     ---
     `email`, `uuidv4`, `ipv4`, `int32`, `positive`… baked straight into your types.
     ::::
-  :::
+
+:::
 ::
 
 ::u-page-section
@@ -176,30 +195,38 @@ The whole toolbelt, in one box
 Tree-shaken to the bone
 
 #body
-  You only ship the functions you actually call. Caches are demand-driven and every entry is its own module, so a file that only reflects an id ships zero validation code.
+You only ship the functions you actually call. Caches are demand-driven and every entry is its own module, so a file that only reflects an id ships zero validation code.
 
-  :::stylish-list
-  ---
-  type: check
-  ---
-  - [Demand-driven caches]{.text-highlighted} — a family's cache holds only the types its own call sites request.
-  - [Per-call-site code-splitting]{.text-highlighted} — every cache entry is its own module, so bundlers split and tree-shake natively.
-  - [Zero runtime dependencies]{.text-highlighted} — the Vite plugin adds nothing to your runtime `node_modules`.
-  - [Build-time, not run-time]{.text-highlighted} — no schema objects to construct, no reflection cost when your app runs.
+:::stylish-list
+
+---
+
+type: check
+
+---
+
+- [Demand-driven caches]{.text-highlighted} — a family's cache holds only the types its own call sites request.
+- [Per-call-site code-splitting]{.text-highlighted} — every cache entry is its own module, so bundlers split and tree-shake natively.
+- [Zero runtime dependencies]{.text-highlighted} — the Vite plugin adds nothing to your runtime `node_modules`.
+- [Build-time, not run-time]{.text-highlighted} — no schema objects to construct, no reflection cost when your app runs.
   :::
-::
+  ::
 
 ::u-page-section
 #title
 How does it stack up?
 
 #body
-  :::card
-  ---
-  to: /benchmarks/validation
-  ---
-  ts-run-types is the rare library that does **both** type-first *and* schema-first — and adds JSON, binary, mocks and reflection on top. See the honest, head-to-head benchmarks against **Zod, TypeBox and AJV**.
-  :::
+:::card
+
+---
+
+to: /benchmarks/validation
+
+---
+
+ts-run-types is the rare library that does **both** type-first _and_ schema-first — and adds JSON, binary, mocks and reflection on top. See the honest, head-to-head benchmarks against **Zod, TypeBox and AJV**.
+:::
 ::
 
 [&nbsp;]{style="padding-bottom: 6rem;"}
