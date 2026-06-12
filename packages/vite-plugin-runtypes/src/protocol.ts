@@ -212,6 +212,11 @@ export interface Site {
   // demand is Go-internal emit metadata (which cache entries this site requires)
   // serialized onto the Site; the plugin does not read it. Mirrored for accuracy.
   demand?: SiteDemand[];
+  // module, when present, is the bundle-module BASENAME this site's entry
+  // rides in (allSingle module mode): the rewrite imports the entry as a
+  // NAMED export of `virtual:rt/<module>.js` (export name == the binding)
+  // instead of renaming the per-entry module's fixed `e`.
+  module?: string;
 }
 
 // SiteDemand mirrors Go protocol.SiteDemand — emit metadata only; the plugin
@@ -237,6 +242,10 @@ export interface Replacement {
   // (renaming the module's fixed export to `text`) for the substituted
   // expression to resolve — e.g. `virtual:rt/pf/mion/foo.js`.
   importFrom?: string;
+  // Marks `text` as a NAMED export of importFrom (allSingle module mode,
+  // where the pure-fn entry rides the `pf` bundle): the rewrite imports
+  // `{<text>}` directly instead of renaming the fixed `e`.
+  named?: boolean;
 }
 
 // FormatAnnotation carries the (name, params) pair extracted from a

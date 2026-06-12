@@ -23,6 +23,7 @@ import (
 	// format (stringFormat, uuid, …) registers with the formats
 	// registry before the resolver starts handing out RunTypes.
 	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/all"
+	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -53,6 +54,10 @@ Options:
     --no-parallel-render disable the parallel cache renders (parallel is
                         the default: requested non-validate cache families
                         render concurrently; validate always renders last)
+    --module-mode MODE  virtual-module grouping: default (runtype bundle +
+                        per-entry fn modules), allSingle (per-family bundle
+                        modules — fewest modules), or allModules (per-node
+                        runtype modules too — the pre-bundle layout)
     --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
                              before the request stream; build an inferred
                              Program whose source files come from that map
@@ -91,6 +96,7 @@ func main() {
 		inlineServer       bool
 		cacheDir           string
 		emitCacheFunctions bool
+		moduleMode         string
 		pprofCPU           string
 		pprofHeap          string
 		help               bool
@@ -119,6 +125,10 @@ func main() {
 		"emit the inline createRTFn closure on every cache entry alongside the body string. "+
 			"Default false — the JS side rebuilds the factory from `code` via `new Function` on first lookup. "+
 			"Set true for runtimes that disallow dynamic code (Cloudflare WorkerD, browser CSP without unsafe-eval).")
+	flag.StringVar(&moduleMode, "module-mode", constants.ModuleModeDefault,
+		"virtual-module grouping: default (runtype bundle + per-entry fn modules), "+
+			"allSingle (per-family bundle modules — fewest modules), or "+
+			"allModules (per-node runtype modules too — the pre-bundle layout)")
 	flag.StringVar(&pprofCPU, "pprof-cpu", "",
 		"write a CPU profile to PATH, covering the whole serve loop (started at boot, stopped at exit)")
 	flag.StringVar(&pprofHeap, "pprof-heap", "",
@@ -183,6 +193,13 @@ func main() {
 	stdoutBuf := bufio.NewWriter(os.Stdout)
 	stdoutEnc := json.NewEncoder(stdoutBuf)
 
+	switch moduleMode {
+	case constants.ModuleModeDefault, constants.ModuleModeAllSingle, constants.ModuleModeAllModules:
+	default:
+		fatal("--module-mode: unknown value %q (expected %s | %s | %s)",
+			moduleMode, constants.ModuleModeDefault, constants.ModuleModeAllSingle, constants.ModuleModeAllModules)
+	}
+
 	resolverOpts := resolver.Options{
 		HashLength:            hashLength,
 		LiteralHashLength:     literalHashLength,
@@ -193,6 +210,7 @@ func main() {
 		DisableParallelRender: noParallelRender,
 		CacheDir:              cacheDir,
 		EmitCreateRTFn:        emitCacheFunctions,
+		ModuleMode:            moduleMode,
 	}
 
 	var r *resolver.Resolver

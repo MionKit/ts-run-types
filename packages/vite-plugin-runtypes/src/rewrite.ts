@@ -118,26 +118,40 @@ function siteBinding(site: Site): string {
 }
 
 // buildImportBlock collects every entry-module import the rewritten file
-// needs — one per distinct site basename plus one per replacement carrying
-// an importFrom specifier — and renders the deduped import statements as a
-// SINGLE physical line. Deterministic order (sorted by specifier) keeps
-// rewrites byte-stable. The source map relocates original positions past
-// the block either way; keeping it on one physical line just keeps the
-// rewritten source readable and the raw (pre-map) line drift at 1.
+// needs and renders the deduped import statements as a SINGLE physical line.
+// Two clause shapes share the block: per-entry modules export the fixed `e`
+// (renamed to the binding — `{e as __rt_X}`), while bundle modules (allSingle
+// module mode: `site.module` / `replacement.named`) export each entry under
+// its binding name directly (`{__rt_X}`, no rename). Bundled sites dedupe
+// into ONE import statement per bundle specifier with sorted clauses.
+// Deterministic order (sorted by specifier, clauses sorted within) keeps
+// rewrites byte-stable. The source map relocates original positions past the
+// block either way; keeping it on one physical line just keeps the rewritten
+// source readable and the raw (pre-map) line drift at 1.
 function buildImportBlock(sites: Site[], replacements: Replacement[]): string {
-  const bySpecifier = new Map<string, string>();
+  const bySpecifier = new Map<string, Set<string>>();
+  const addClause = (specifier: string, clause: string) => {
+    let clauses = bySpecifier.get(specifier);
+    if (!clauses) bySpecifier.set(specifier, (clauses = new Set()));
+    clauses.add(clause);
+  };
   for (const site of sites) {
     if (!site.id) continue;
-    const specifier = VIRTUAL_MODULE_PREFIX + siteBasename(site) + ENTRY_MODULE_SUFFIX;
-    bySpecifier.set(specifier, siteBinding(site));
+    if (site.module) {
+      addClause(VIRTUAL_MODULE_PREFIX + site.module + ENTRY_MODULE_SUFFIX, siteBinding(site));
+    } else {
+      const specifier = VIRTUAL_MODULE_PREFIX + siteBasename(site) + ENTRY_MODULE_SUFFIX;
+      addClause(specifier, `${ENTRY_EXPORT_NAME} as ${siteBinding(site)}`);
+    }
   }
   for (const replacement of replacements) {
-    if (replacement.importFrom) bySpecifier.set(replacement.importFrom, replacement.text);
+    if (!replacement.importFrom) continue;
+    addClause(replacement.importFrom, replacement.named ? replacement.text : `${ENTRY_EXPORT_NAME} as ${replacement.text}`);
   }
   if (bySpecifier.size === 0) return '';
   const specifiers = [...bySpecifier.keys()].sort();
   const statements = specifiers.map(
-    (specifier) => `import {${ENTRY_EXPORT_NAME} as ${bySpecifier.get(specifier)}} from '${specifier}';`
+    (specifier) => `import {${[...bySpecifier.get(specifier)!].sort().join(', ')}} from '${specifier}';`
   );
   return statements.join(' ') + '\n';
 }
