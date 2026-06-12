@@ -256,6 +256,47 @@ func TestCycle(t *testing.T) {
 	}
 }
 
+// TestFooterHoistsHotRefs — a target id referenced ≥ hoistMinRefs times in the
+// combined footer is hoisted into a `const dN=c('<id>')` local declared once
+// at the top of the ini body and reused on each edge (no repeated lookups).
+func TestFooterHoistsHotRefs(t *testing.T) {
+	runTypes := []*protocol.RunType{
+		{ID: "shrd1", Kind: protocol.KindString},
+		{ID: "p1", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: protocol.NewRef("shrd1")},
+		{ID: "p2", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: protocol.NewRef("shrd1")},
+		{ID: "p3", Kind: protocol.KindProperty, Name: "c", IsSafeName: true, Child: protocol.NewRef("shrd1")},
+	}
+	bundle := bundleOf(t, emitModules(t, []string{"p1", "p2", "p3"}, runTypes))
+	// shrd1 is referenced 3× → hoisted to d1, declared once at the top.
+	if !strings.Contains(bundle, "function ini(rtu){const c=(id)=>rtu.useRunType(id);\nconst d1=c('shrd1');\n") {
+		t.Errorf("expected hoist preamble `const d1=c('shrd1');`, got:\n%s", bundle)
+	}
+	// Each edge uses the local, never a repeated c('shrd1') lookup.
+	if !strings.Contains(bundle, "c('p1').child = d1;") {
+		t.Errorf("expected hoisted edge `c('p1').child = d1;`, got:\n%s", bundle)
+	}
+	if strings.Contains(bundle, ".child = c('shrd1')") {
+		t.Errorf("hot ref should be hoisted, not an inline c('shrd1') lookup:\n%s", bundle)
+	}
+}
+
+// TestFooterBelowThresholdStaysInline — a target id referenced fewer than
+// hoistMinRefs times stays an inline c('<id>') lookup, with no preamble.
+func TestFooterBelowThresholdStaysInline(t *testing.T) {
+	runTypes := []*protocol.RunType{
+		{ID: "shrd2", Kind: protocol.KindString},
+		{ID: "q1", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: protocol.NewRef("shrd2")},
+		{ID: "q2", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: protocol.NewRef("shrd2")},
+	}
+	bundle := bundleOf(t, emitModules(t, []string{"q1", "q2"}, runTypes))
+	if strings.Contains(bundle, "const d1=") {
+		t.Errorf("2 refs (< threshold) must not hoist, got:\n%s", bundle)
+	}
+	if !strings.Contains(bundle, "c('q1').child = c('shrd2');") {
+		t.Errorf("below-threshold ref should stay inline, got:\n%s", bundle)
+	}
+}
+
 // TestBundleKeyTracksContent — the bundle's tuple key is a content hash:
 // different row sets must produce different keys (the runtime's
 // processed-keys guard relies on this across HMR evolutions).
