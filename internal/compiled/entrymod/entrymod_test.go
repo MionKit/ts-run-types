@@ -24,7 +24,7 @@ func TestRender_LeafRunType(t *testing.T) {
 	graph.Add(&Entry{Key: "AAaa", Kind: KindRunType, ArgsText: "'AAaa',5"})
 	source := renderOne(t, graph, "AAaa")
 
-	want := "const u=undefined;\nconst deps=()=>[e];\nexport const e=[0,deps,u,'AAaa',5];\n"
+	want := "const u=undefined;\nexport const e=[0,u,u,'AAaa',5];\n"
 	if source != want {
 		t.Fatalf("leaf module mismatch:\n got: %q\nwant: %q", source, want)
 	}
@@ -42,7 +42,7 @@ func TestRender_OrderingLeavesFirstAlphaWithinLevel(t *testing.T) {
 	if !strings.HasPrefix(source, wantImports) {
 		t.Fatalf("import order mismatch:\n got: %q\nwant prefix: %q", source, wantImports)
 	}
-	if !strings.Contains(source, "const deps=()=>[d1,d2,e];\n") {
+	if !strings.Contains(source, "const deps=()=>[d1,d2];\n") {
 		t.Fatalf("deps order mismatch: %q", source)
 	}
 }
@@ -64,8 +64,8 @@ func TestRender_ImportsDirectDepsOnly(t *testing.T) {
 	if !strings.HasPrefix(source, wantImports) {
 		t.Fatalf("direct-dep import mismatch:\n got: %q\nwant prefix: %q", source, wantImports)
 	}
-	if !strings.Contains(source, "const deps=()=>[d1,e];\n") {
-		t.Fatalf("deps thunk should hold direct deps + self: %q", source)
+	if !strings.Contains(source, "const deps=()=>[d1];\n") {
+		t.Fatalf("deps thunk should hold the direct deps only: %q", source)
 	}
 }
 
@@ -93,8 +93,8 @@ func TestRender_CycleCollapsesToOneLevel(t *testing.T) {
 	graph.Add(&Entry{Key: "peer", Kind: KindRunType, ArgsText: "'peer',30", Deps: []string{"node", "leaf"}})
 	source := renderOne(t, graph, "node")
 
-	if !strings.Contains(source, "const deps=()=>[d1,d2,e];\n") {
-		// direct deps: leaf(level0) < peer(cycle level), self last
+	if !strings.Contains(source, "const deps=()=>[d1,d2];\n") {
+		// direct deps: leaf(level0) < peer(cycle level)
 		t.Fatalf("cycle deps order mismatch: %q", source)
 	}
 	wantImports := "import {e as d1} from 'virtual:rt/leaf.js';\nimport {e as d2} from 'virtual:rt/peer.js';\n"
@@ -111,10 +111,10 @@ func TestRender_SelfReferenceIgnoredInDeps(t *testing.T) {
 	if strings.Contains(source, "import") {
 		t.Fatalf("self-dep must not import itself: %q", source)
 	}
-	if !strings.Contains(source, "const deps=()=>[e];") {
-		t.Fatalf("self-dep deps() should be just [e]: %q", source)
+	if strings.Contains(source, "const deps=") {
+		t.Fatalf("self-only dep should leave the entry dep-less (no thunk): %q", source)
 	}
-	if !strings.Contains(source, "export const e=['val',deps,u,'rec','x'];") {
+	if !strings.Contains(source, "export const e=['val',u,u,'rec','x'];") {
 		t.Fatalf("type-fn tuple slot0 should be the quoted family tag: %q", source)
 	}
 }

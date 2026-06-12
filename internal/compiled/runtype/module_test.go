@@ -76,14 +76,14 @@ func keysOfModules(modules map[string]string) []string {
 func intPtr(n int) *int { return &n }
 
 // TestBundleShape — all nodes land as rows of ONE bundle module
-// (`virtual:rt/runtypes.js`) with tuple head [4,deps,<ini|u>,'rts_<hash>',
-// [rows…]], and each root gets a facade module [5,deps,u,'<rootId>'] that
-// imports the bundle.
+// (`virtual:rt/runtypes.js`) with tuple head [4,u,<ini|u>,'rts_<hash>',
+// [rows…]] (the bundle is dep-less — rows are inline), and each root gets a
+// facade module [5,deps,u,'<rootId>'] whose single dep imports the bundle.
 func TestBundleShape(t *testing.T) {
 	modules := emitModules(t, []string{"x1"}, []*protocol.RunType{{ID: "x1", Kind: protocol.KindString}})
 	bundle := bundleOf(t, modules)
-	if !strings.Contains(bundle, "export const e=[4,deps,u,'rts_") {
-		t.Errorf("expected bundle tuple head [4,deps,u,'rts_…'], got:\n%s", bundle)
+	if !strings.Contains(bundle, "export const e=[4,u,u,'rts_") {
+		t.Errorf("expected bundle tuple head [4,u,u,'rts_…'], got:\n%s", bundle)
 	}
 	if !strings.Contains(bundle, ",[['x1',5]]];") {
 		t.Errorf("expected single row [['x1',5]], got:\n%s", bundle)

@@ -11,7 +11,7 @@
 //     hash itself (see internal/compiled/runtype.Cache.uniqueDict), so
 //     cross-version typeIDs are already distinct paths.
 //   - <optsFingerprint> isolates caches across non-version build options
-//     (hashLength, literalHashLength). Version is NOT in this fingerprint
+//     (hashLength, emitCreateRTFn). Version is NOT in this fingerprint
 //     for the same reason.
 //
 // Every cached entry carries a header recording the structural id of the

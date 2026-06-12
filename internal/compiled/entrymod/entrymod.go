@@ -12,13 +12,15 @@
 //	import {e as d1} from 'virtual:rt/<dep1>.js';   // DIRECT deps only
 //	…
 //	const u=undefined;
-//	const deps=()=>[d1,…,dN,e];              // lazy: cycles / self-ref never hit TDZ
+//	const deps=()=>[d1,…,dN];                // lazy: import cycles never hit TDZ
 //	function ini(rtu){const c=(id)=>rtu.useRunType(id);<footer>}  // runtype only
-//	export const e=[<kindSlot>,deps,<ini|u>,<positional args…>];
+//	export const e=[<kindSlot>,<deps|u>,<ini|u>,<positional args…>];
 //
 // Tuple layout is fixed at the head: slot 0 is the kind discriminator (0 =
 // runtype, 2 = pure fn, 3 = missing stub, or the QUOTED family tag string for
-// type-fn entries), slot 1 the deps thunk, slot 2 the initEntry fn (or u),
+// type-fn entries), slot 1 the deps thunk (u for dep-less entries — the thunk
+// never includes self, every consumer already holds the tuple), slot 2 the
+// initEntry fn (or u),
 // slot 3+ the same positional args the per-family `init(…)` / `rt(…)` /
 // `factory(…)` calls passed before the migration (slot 3 is always the cache
 // key). The JS-side `initFromTuple` consumer walks the deps() thunks
@@ -35,7 +37,7 @@
 //
 // Ordering invariant: a module's import block and deps() entries are
 // LEAVES-FIRST by dependency level (level 0 = no deps), alphabetical by key
-// within a level, self always last. Cycles are collapsed to one level via
+// within a level; self never appears. Cycles are collapsed to one level via
 // Tarjan SCC (members ordered alphabetically), which keeps the output
 // deterministic — cycle members only reference each other through
 // `ini`/registry lookups that run after the whole registration phase, so
@@ -569,13 +571,13 @@ func renderModule(graph Graph, entry *Entry, order levels, groupOf map[string]st
 
 	body.WriteString("const u=undefined;\n")
 
-	// deps() thunk — direct deps in import order, self last via the export
-	// binding (the runtime's recursive walk skips it).
-	body.WriteString("const deps=()=>[")
-	for _, binding := range bindings {
-		body.WriteString(binding + ",")
+	// deps() thunk — direct deps in import order, never self (every consumer
+	// of the tuple already holds it). Dep-less entries carry u in the slot.
+	depsSlot := "u"
+	if len(bindings) > 0 {
+		body.WriteString("const deps=()=>[" + strings.Join(bindings, ",") + "];\n")
+		depsSlot = "deps"
 	}
-	body.WriteString(constants.EntryExportName + "];\n")
 
 	// initEntry — runtype footer scoped to this entry; `c` resolves through
 	// the registry so patched slots hold the materialized singletons, never
@@ -595,7 +597,7 @@ func renderModule(graph Graph, entry *Entry, order levels, groupOf map[string]st
 	if err != nil {
 		return "", err
 	}
-	body.WriteString("export const " + constants.EntryExportName + "=[" + slot0 + ",deps," + iniSlot)
+	body.WriteString("export const " + constants.EntryExportName + "=[" + slot0 + "," + depsSlot + "," + iniSlot)
 	if entry.ArgsText != "" {
 		body.WriteByte(',')
 		body.WriteString(entry.ArgsText)
@@ -657,11 +659,11 @@ func renderBundle(graph Graph, name string, memberKeys []string, order levels, g
 		if err != nil {
 			return "", err
 		}
-		body.WriteString("export const " + exportName + "=[" + slot0 + ",()=>[")
-		for _, binding := range bindings {
-			body.WriteString(binding + ",")
+		depsSlot := "u"
+		if len(bindings) > 0 {
+			depsSlot = "()=>[" + strings.Join(bindings, ",") + "]"
 		}
-		body.WriteString(exportName + "]," + iniSlot)
+		body.WriteString("export const " + exportName + "=[" + slot0 + "," + depsSlot + "," + iniSlot)
 		if entry.ArgsText != "" {
 			body.WriteByte(',')
 			body.WriteString(entry.ArgsText)

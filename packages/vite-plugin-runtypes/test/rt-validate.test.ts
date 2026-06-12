@@ -58,8 +58,7 @@ getRunTypeId<string>();
       const tuple = tuples[cacheKey] as readonly unknown[];
       expect(tuple, `expected entry module for ${cacheKey}`).toBeDefined();
       expect(tuple[0]).toBe('val');
-      expect(typeof tuple[1]).toBe('function'); // deps thunk
-      expect((tuple[1] as () => unknown[])()).toContain(tuple); // self in closure
+      expect(tuple[1]).toBeUndefined(); // dep-less entry: no deps thunk, no self
       expect(tuple[3]).toBe(cacheKey);
       expect(tuple[4]).toBe('string');
       // `code` carries the factory body (suitable for

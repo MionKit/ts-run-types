@@ -30,8 +30,7 @@ import (
 // Options controls the resolver's hash budget and the marker-detection
 // parameters threaded through to scanFiles.
 type Options struct {
-	HashLength        int
-	LiteralHashLength int
+	HashLength int
 	// Marker selects which type alias the scanner treats as the
 	// transformer's id-injection sentinel. Zero values default to
 	// `InjectRunTypeId` from `@mionjs/ts-go-run-types`.
@@ -174,9 +173,8 @@ func newRTStore(opts Options) *disk.Store {
 		return nil
 	}
 	fp := disk.Fingerprint(disk.FingerprintInputs{
-		HashLength:        opts.HashLength,
-		LiteralHashLength: opts.LiteralHashLength,
-		EmitCreateRTFn:    opts.EmitCreateRTFn,
+		HashLength:     opts.HashLength,
+		EmitCreateRTFn: opts.EmitCreateRTFn,
 	})
 	return disk.New(opts.CacheDir, fp)
 }
@@ -191,8 +189,8 @@ func (resolver *Resolver) RTStore() *disk.Store {
 	return resolver.rtStore
 }
 
-// New builds a Resolver against prog. Defaults to hashid's default lengths when
-// HashLength / LiteralHashLength are zero.
+// New builds a Resolver against prog. Defaults to hashid's default length when
+// HashLength is zero.
 func New(prog *program.Program, opts Options) (*Resolver, error) {
 	if prog == nil || prog.TS == nil {
 		return nil, errors.New("resolver.New: program is nil")
@@ -205,8 +203,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 	return &Resolver{
 		Program: prog,
 		cache: runtype.NewCache(typeChecker, runtype.Options{
-			HashLength:        opts.HashLength,
-			LiteralHashLength: opts.LiteralHashLength,
+			HashLength: opts.HashLength,
 		}),
 		checker:           typeChecker,
 		releaseLease:      releaseLease,
@@ -226,8 +223,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 func NewServer(opts Options) *Resolver {
 	return &Resolver{
 		cache: runtype.NewCache(nil, runtype.Options{
-			HashLength:        opts.HashLength,
-			LiteralHashLength: opts.LiteralHashLength,
+			HashLength: opts.HashLength,
 		}),
 		marker:            marker.WithDefaults(opts.Marker),
 		opts:              opts,
