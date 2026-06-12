@@ -258,14 +258,15 @@ export const _b = createBinaryEncoder<[number, symbol]>();
 
   // The default emit mode (no inline createRTFn) keeps the cache
   // module compact by leaving the validator body in arg-3 only and
-  // shipping the `u` (= undefined) alias as arg-7. The JS-side
-  // materializeRTFn rebuilds the factory via `new Function('utl',
-  // code)` on first lookup. Test runs themselves opt INTO the
-  // inline-factory shape via vitest config (so suites cover both
-  // materialisation paths) — this regression spins up a one-shot
-  // ResolverClient with the production default and pins the smaller
-  // emit shape.
-  register('default emit (no inline createRTFn) renders `u` as arg-7 and omits g_<hash>(utl)', async () => {
+  // trimming the all-default tail (isNoop false, empty dep lists, the
+  // createRTFn placeholder) — non-noop dep-less entries end at the
+  // quoted `code` string. The JS-side materializeRTFn rebuilds the
+  // factory via `new Function('utl', code)` on first lookup. Test runs
+  // themselves opt INTO the inline-factory shape via vitest config (so
+  // suites cover both materialisation paths) — this regression spins up
+  // a one-shot ResolverClient with the production default and pins the
+  // smaller emit shape.
+  register('default emit (no inline createRTFn) trims the default tail and omits g_<hash>(utl)', async () => {
     // `it` is demand-driven, so seed it via createValidate<User>() — a
     // reflection-only getRunTypeId would emit no val_ entries to inspect.
     const sources = {
@@ -306,17 +307,25 @@ export const _ = createValidate<User>();
         includeEntryModules: true,
       });
       const entryModules = response.entryModules ?? {};
-      // The createRTFn slot should be the `u` alias for every non-noop,
-      // non-alwaysThrow validate entry — scan the validate-family tuples,
+      // The trailing run of default-valued slots (`…,false,[],[],u`) is
+      // trimmed per entry, stopping at the first non-default from the end —
+      // a dep-less entry ends at the quoted `code` string, a dep-carrying
+      // one at its rtDependencies array. Scan the validate-family tuples,
       // keyed by the opaque fnHash prefix (`<itPrefix>_<id>`).
       const validateModules = Object.entries(entryModules).filter(([key]) => key.startsWith(itPrefix + '_'));
       expect(validateModules.length, 'expected at least one validate entry for User').toBeGreaterThan(0);
+      let depLessEndsAtCode = 0;
       for (const [key, source] of validateModules) {
         // Noop entries use the 4-arg short tuple tail `,undefined,true];` — skip those.
         if (source.includes(',undefined,true];')) continue;
-        expect(source, `default emit must end the tuple with ",u];" — got: ${source}`).toMatch(/,u\];\n$/);
+        expect(source, `the u placeholder never survives at the tail — got: ${source}`).not.toMatch(/,u\];\n$/);
+        expect(source, `the full default tail never survives — got: ${source}`).not.toContain(',false,[],[]');
+        if (/\}'\];\n$/.test(source)) depLessEndsAtCode++;
         void key;
       }
+      // User's `tags: string[]` member entry has no deps of its own, so at
+      // least one tuple must demonstrate the maximal trim (ends at `code`).
+      expect(depLessEndsAtCode, 'expected a dep-less entry ending at the code slot').toBeGreaterThan(0);
       // And the closure-form must be completely absent under the default.
       const body = Object.values(entryModules).join('\n');
       expect(body, 'default emit must NOT contain the inline factory closure').not.toMatch(

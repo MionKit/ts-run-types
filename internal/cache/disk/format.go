@@ -50,7 +50,13 @@ package disk
 // dependency arrays inside it are always fully quoted (the skeleton-scoped
 // `k_<alias>` consts no longer exist). v4 `Line` payloads can't be spliced
 // into a tuple, so they must miss.
-const FormatVersion = 5
+//
+// v6 trims default-valued tails off fn-entry ArgsText (isNoop `false`,
+// empty dep arrays, the `u` createRTFn placeholder, the alwaysThrow site
+// hint) — see typefns.trimArgsTail. v5 payloads with the explicit tails
+// would still REGISTER correctly, but emitted bytes would then depend on
+// cache temperature, breaking dump determinism — so they must miss.
+const FormatVersion = 6
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can
