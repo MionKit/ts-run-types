@@ -63,7 +63,14 @@ package disk
 // Walker.createFnInContext. v6 payloads bake the old `(function(){…})()`
 // bodies; functionally equivalent at runtime, but emitted bytes would
 // depend on cache temperature (the v6 criterion), so they must miss.
-const FormatVersion = 7
+//
+// v8 simplifies the JSON composite prologue: primitives bind via a direct
+// `utl.getRT(key).fn` read instead of the guarded resolver IIFE with an
+// inline identity/stringify fallback (noop primitives register with the
+// family noop fn pre-set runtime-side, so the fallback was dead weight).
+// v7 composite payloads bake the old resolver text — must miss for dump
+// determinism.
+const FormatVersion = 8
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can

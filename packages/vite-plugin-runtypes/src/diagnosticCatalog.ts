@@ -460,6 +460,14 @@ Fix:
   UKU010: dropFunctionProp('unknownKeysToUndefined', 'cleared'),
   UKW010: dropFunctionProp('unknownKeysToUndefinedWire', 'cleared'),
 
+  // Internal invariant breach: a JSON composite entry references a primitive
+  // that never rendered — the composite's `utl.getRT(key).fn` bind would
+  // crash at runtime, so the build fails here instead. Never a user error.
+  JCP001: {
+    headline:
+      'Internal error: JSON composite `{0}` references primitive entry `{1}` which was never rendered — please file an issue.',
+  },
+
   // Method dropped
   VL011: dropMethod('validate', 'validated'),
   VE011: dropMethod('validationErrors', 'checked'),
