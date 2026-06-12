@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
+	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -960,5 +961,86 @@ func TestValidateModule_PureFnDepsRendered(t *testing.T) {
 	}
 	if strings.Contains(deps, "/some/abs/") || strings.Contains(deps, "filePath") {
 		t.Fatalf("filePath must NOT leak into emitted JS, got %q", deps)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// InlineMode allInternal — unnamed, non-circular compounds inline into their
+// parents (their blocks hoist to context fns); named and circular compounds
+// keep the external dependency-call path. Walker-level coverage: the dump
+// here has no Sites, so every node still renders as its own root — the
+// assertions target the PARENT body shape (inline vs dep call). The
+// entry-set drop is covered at the resolver layer (inlinemode_test.go).
+// ---------------------------------------------------------------------------
+
+func renderAllInternal(t *testing.T, dump protocol.Dump) string {
+	t.Helper()
+	return joinEntries(t, FamilyByKey("validate").Collect(dump, RenderOpts{EmitMode: "both", InlineMode: constants.InlineModeAllInternal}, nil))
+}
+
+// Unnamed inner array: the outer body absorbs the element loop as a context
+// fn — no getRT lookup, no dep call, no rtDependencies edge.
+func TestValidateModule_AllInternal_UnnamedArrayInlines(t *testing.T) {
+	outer := &protocol.RunType{
+		ID:    "out",
+		Kind:  protocol.KindArray,
+		Child: &protocol.RunType{ID: "inn", Kind: protocol.KindArray, Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}},
+	}
+	out := renderAllInternal(t, protocol.Dump{RunTypes: []*protocol.RunType{outer}})
+	if strings.Contains(out, "utl.getRT('"+valKey("inn")+"')") {
+		t.Errorf("unnamed inner array must inline, not register a getRT lookup:\n%s", out)
+	}
+	if strings.Contains(out, valKey("inn")+".fn(") {
+		t.Errorf("unnamed inner array must inline, not emit a dep call:\n%s", out)
+	}
+	if !strings.Contains(out, "ctxFn0(v,i0)") {
+		t.Errorf("inner loop should hoist to a context fn called with the loop counter:\n%s", out)
+	}
+	if !strings.Contains(out, "'"+valKey("out")+"','array',") {
+		t.Fatalf("outer factory missing:\n%s", out)
+	}
+}
+
+// The same shape with a NAMED inner array (type alias) keeps the external
+// path: getRT lookup + dep call + rtDependencies — the dedupe-worthy case.
+func TestValidateModule_AllInternal_NamedArrayStaysExternal(t *testing.T) {
+	inner := &protocol.RunType{
+		ID:       "inn",
+		Kind:     protocol.KindArray,
+		TypeName: "Tags",
+		Child:    &protocol.RunType{ID: "str", Kind: protocol.KindString},
+	}
+	outer := &protocol.RunType{
+		ID:    "out",
+		Kind:  protocol.KindArray,
+		Child: &protocol.RunType{ID: "inn", Kind: protocol.KindArray, TypeName: "Tags", Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}},
+	}
+	out := renderAllInternal(t, protocol.Dump{RunTypes: []*protocol.RunType{outer, inner}})
+	innerKey := valKey("inn")
+	if !strings.Contains(out, "const "+innerKey+" = utl.getRT('"+innerKey+"')") {
+		t.Errorf("named inner array must stay external (getRT lookup), got:\n%s", out)
+	}
+	if !strings.Contains(out, innerKey+".fn(v[i0])") {
+		t.Errorf("named inner array must stay external (dep call), got:\n%s", out)
+	}
+}
+
+// A circular compound stays external even when unnamed — IsCircular is
+// checked before the allInternal arm (self-invocation requires an entry).
+func TestValidateModule_AllInternal_CircularStaysExternal(t *testing.T) {
+	node := &protocol.RunType{
+		ID:         "nod",
+		Kind:       protocol.KindObjectLiteral,
+		IsCircular: true,
+	}
+	node.Children = []*protocol.RunType{{
+		ID: "prp", Kind: protocol.KindProperty, Name: "next", IsSafeName: true, Optional: true,
+		Child: node,
+	}}
+	out := renderAllInternal(t, protocol.Dump{RunTypes: []*protocol.RunType{node}})
+	// The self-reference compiles as a direct self call of the inner fn —
+	// the external-path mechanics for circulars — never an inline expansion.
+	if !strings.Contains(out, valKey("nod")+"(v.next)") {
+		t.Errorf("circular self-reference must stay a (self) dependency call, got:\n%s", out)
 	}
 }
