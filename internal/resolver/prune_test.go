@@ -3,6 +3,8 @@ package resolver_test
 import (
 	"strings"
 	"testing"
+
+	"github.com/mionkit/ts-run-types/internal/operations"
 )
 
 // prune_test.go pins the emission-side completion of noop elision
@@ -83,5 +85,51 @@ export const id = getRunTypeId<{a: string}>();
 	}
 	if resp.Sites[0].ID == "" || entryModule(resp, resp.Sites[0].ID) == "" {
 		t.Error("the reflection facade for the demanded root must never be pruned")
+	}
+}
+
+// TestPrune_AlwaysThrowPrimitiveSurvives — an unsupported root (symbol) makes
+// rj an alwaysThrow entry, which is live, not noop: the composite keeps its
+// binding and the module must stay emitted so createJsonDecoder<symbol>()
+// throws with the RJ code at factory-creation time instead of silently
+// decoding garbage.
+func TestPrune_AlwaysThrowPrimitiveSurvives(t *testing.T) {
+	resp := scopeScan(t, `import {createJsonDecoder} from '@mionjs/ts-go-run-types';
+export const dec = createJsonDecoder<symbol>();
+`)
+	if !hasFamilyEntry(resp, "restoreFromJson") {
+		t.Error("the alwaysThrow rj entry must survive the prune — it is live, not noop")
+	}
+	if all := allEntrySources(resp); !strings.Contains(all, "rjFn") {
+		t.Error("the jdST composite must keep its rjFn binding to the alwaysThrow entry")
+	}
+}
+
+// TestPrune_MixedSitesDoNotCrossContaminate — two decoder sites in one file,
+// one over a plain DTO (rj noop → elided) and one over a Date-bearing DTO
+// (rj live): exactly the live rj survives, keyed to the Date-bearing type,
+// proving liveness is per-entry rather than per-family.
+func TestPrune_MixedSitesDoNotCrossContaminate(t *testing.T) {
+	resp := scopeScan(t, `import {createJsonDecoder} from '@mionjs/ts-go-run-types';
+type PlainDTO = {a: string; b?: number};
+type Stamped = {a: string; at: Date};
+export const decPlain = createJsonDecoder<PlainDTO>();
+export const decStamped = createJsonDecoder<Stamped>();
+`)
+	keys := familyEntryKeys(resp, "restoreFromJson")
+	if len(keys) != 1 {
+		t.Fatalf("expected exactly the Date-bearing rj entry to survive, got %v", keys)
+	}
+	var stampedID string
+	for _, runType := range resp.RunTypes {
+		if runType != nil && runType.TypeName == "Stamped" {
+			stampedID = runType.ID
+		}
+	}
+	if stampedID == "" {
+		t.Fatal("Stamped runtype missing from the response")
+	}
+	if want := operations.PlainHash("restoreFromJson") + "_" + stampedID; keys[0] != want {
+		t.Errorf("surviving rj key %q must belong to the Date-bearing type (%q)", keys[0], want)
 	}
 }
