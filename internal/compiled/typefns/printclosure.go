@@ -38,11 +38,13 @@ import "strings"
 // "get_" to disambiguate the outer factory from the inner validator;
 // the same name is shared on the validator itself).
 //
-// `innerFnDeclaration` is the full `function <name>(<args>){<body>}`
-// produced by Walker.Compile. contextLines is the joined context-items
-// prologue produced by Walker.ContextLines (empty when there are no
-// context items, as in the v1 KindString path).
-func WrapClosure(factoryName string, innerFnDeclaration string, contextLines string) (decl, body string) {
+// `innerFnName` is the inner fn's name — the same identifier the caller
+// rendered into `innerFnDeclaration` (`function <name>(<args>){<body>}`,
+// produced by Walker.Compile / jsonCompositeBody); it is passed explicitly
+// rather than re-parsed out of the generated text. contextLines is the
+// joined context-items prologue produced by Walker.ContextLines (empty when
+// there are no context items, as in the v1 KindString path).
+func WrapClosure(factoryName string, innerFnName string, innerFnDeclaration string, contextLines string) (decl, body string) {
 	var b strings.Builder
 	if contextLines != "" {
 		b.WriteString(contextLines)
@@ -50,24 +52,8 @@ func WrapClosure(factoryName string, innerFnDeclaration string, contextLines str
 	}
 	b.WriteString(innerFnDeclaration)
 	b.WriteString("return ")
-	b.WriteString(innerFnName(innerFnDeclaration))
+	b.WriteString(innerFnName)
 	body = b.String()
 	decl = "function " + factoryName + "(utl){" + body + "}"
 	return decl, body
-}
-
-// innerFnName extracts `<name>` from a `function <name>(…` declaration.
-// The declaration text is renderer-owned, so a malformed input is a
-// programmer error — panic loudly rather than emit a broken factory.
-func innerFnName(innerFnDeclaration string) string {
-	const prefix = "function "
-	if !strings.HasPrefix(innerFnDeclaration, prefix) {
-		panic("typefns: WrapClosure expects a `function <name>(…` declaration, got: " + innerFnDeclaration)
-	}
-	rest := innerFnDeclaration[len(prefix):]
-	open := strings.IndexByte(rest, '(')
-	if open <= 0 {
-		panic("typefns: WrapClosure could not find the inner fn name in: " + innerFnDeclaration)
-	}
-	return rest[:open]
 }
