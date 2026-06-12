@@ -81,8 +81,9 @@ type Options struct {
 	// deserializeValidate<T>) on every case.
 	EmitMode constants.EmitMode
 	// InlineMode selects the child-inlining policy (constants.InlineMode,
-	// --inline-mode): default keeps compounds external; allInternal inlines
-	// unnamed, non-circular compounds into their parents.
+	// --inline-mode): default inlines unnamed non-circular compounds and
+	// keeps named types external; allInternal inlines everything except
+	// circular types.
 	InlineMode constants.InlineMode
 	// ModuleMode selects how cache entries group into virtual modules:
 	// constants.ModuleModeDefault (or empty — runtype bundle + per-entry fn

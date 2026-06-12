@@ -333,15 +333,20 @@ func TestValidateModule_ArrayEmitBody(t *testing.T) {
 //     check position.
 //   - Both modules render (inner first, outer second — topo sort).
 func TestValidateModule_NestedArrayDependencyCall(t *testing.T) {
+	// The inner array carries a NAME: under the default name rule named
+	// types stay external (dedupe-worthy), which is what keeps this test
+	// pinning the dependency-call + topo-order machinery. Unnamed arrays
+	// inline since the inlining flip (see the name-rule tests below).
 	inner := &protocol.RunType{
-		ID:    "inn",
-		Kind:  protocol.KindArray,
-		Child: &protocol.RunType{ID: "str", Kind: protocol.KindString},
+		ID:       "inn",
+		Kind:     protocol.KindArray,
+		TypeName: "Tags",
+		Child:    &protocol.RunType{ID: "str", Kind: protocol.KindString},
 	}
 	outer := &protocol.RunType{
 		ID:    "out",
 		Kind:  protocol.KindArray,
-		Child: &protocol.RunType{ID: "inn", Kind: protocol.KindArray, Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}},
+		Child: &protocol.RunType{ID: "inn", Kind: protocol.KindArray, TypeName: "Tags", Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}},
 	}
 	// Cache insertion order is parent-first (outer, inner). Renderer
 	// must reorder to inner-before-outer so the outer's closure can
@@ -965,12 +970,13 @@ func TestValidateModule_PureFnDepsRendered(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// InlineMode allInternal — unnamed, non-circular compounds inline into their
-// parents (their blocks hoist to context fns); named and circular compounds
-// keep the external dependency-call path. Walker-level coverage: the dump
-// here has no Sites, so every node still renders as its own root — the
-// assertions target the PARENT body shape (inline vs dep call). The
-// entry-set drop is covered at the resolver layer (inlinemode_test.go).
+// Inlining name rule (default mode) + allInternal. Default: UNNAMED
+// compounds inline into their parents (blocks hoist to context fns); NAMED
+// types and circular types stay external. allInternal: everything except
+// circular inlines, names ignored. Walker-level coverage: the dump here has
+// no Sites, so every node still renders as its own root — the assertions
+// target the PARENT body shape (inline vs dep call). The entry-set drop is
+// covered at the resolver layer (inlinemode_test.go).
 // ---------------------------------------------------------------------------
 
 func renderAllInternal(t *testing.T, dump protocol.Dump) string {
@@ -978,15 +984,15 @@ func renderAllInternal(t *testing.T, dump protocol.Dump) string {
 	return joinEntries(t, FamilyByKey("validate").Collect(dump, RenderOpts{EmitMode: "both", InlineMode: constants.InlineModeAllInternal}, nil))
 }
 
-// Unnamed inner array: the outer body absorbs the element loop as a context
-// fn — no getRT lookup, no dep call, no rtDependencies edge.
-func TestValidateModule_AllInternal_UnnamedArrayInlines(t *testing.T) {
+// DEFAULT mode: an unnamed inner array inlines — the outer body absorbs the
+// element loop as a context fn; no getRT lookup, no dep call.
+func TestValidateModule_Default_UnnamedArrayInlines(t *testing.T) {
 	outer := &protocol.RunType{
 		ID:    "out",
 		Kind:  protocol.KindArray,
 		Child: &protocol.RunType{ID: "inn", Kind: protocol.KindArray, Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}},
 	}
-	out := renderAllInternal(t, protocol.Dump{RunTypes: []*protocol.RunType{outer}})
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{outer}})
 	if strings.Contains(out, "utl.getRT('"+valKey("inn")+"')") {
 		t.Errorf("unnamed inner array must inline, not register a getRT lookup:\n%s", out)
 	}
@@ -1001,9 +1007,8 @@ func TestValidateModule_AllInternal_UnnamedArrayInlines(t *testing.T) {
 	}
 }
 
-// The same shape with a NAMED inner array (type alias) keeps the external
-// path: getRT lookup + dep call + rtDependencies — the dedupe-worthy case.
-func TestValidateModule_AllInternal_NamedArrayStaysExternal(t *testing.T) {
+// allInternal is name-BLIND: even a named alias array inlines.
+func TestValidateModule_AllInternal_NamedArrayInlines(t *testing.T) {
 	inner := &protocol.RunType{
 		ID:       "inn",
 		Kind:     protocol.KindArray,
@@ -1016,12 +1021,11 @@ func TestValidateModule_AllInternal_NamedArrayStaysExternal(t *testing.T) {
 		Child: &protocol.RunType{ID: "inn", Kind: protocol.KindArray, TypeName: "Tags", Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}},
 	}
 	out := renderAllInternal(t, protocol.Dump{RunTypes: []*protocol.RunType{outer, inner}})
-	innerKey := valKey("inn")
-	if !strings.Contains(out, "const "+innerKey+" = utl.getRT('"+innerKey+"')") {
-		t.Errorf("named inner array must stay external (getRT lookup), got:\n%s", out)
+	if strings.Contains(out, valKey("inn")+".fn(") {
+		t.Errorf("allInternal must inline even named arrays, got a dep call:\n%s", out)
 	}
-	if !strings.Contains(out, innerKey+".fn(v[i0])") {
-		t.Errorf("named inner array must stay external (dep call), got:\n%s", out)
+	if !strings.Contains(out, "ctxFn0(v,i0)") {
+		t.Errorf("named inner loop should still hoist to a context fn:\n%s", out)
 	}
 }
 

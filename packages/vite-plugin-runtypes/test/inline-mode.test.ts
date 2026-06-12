@@ -1,10 +1,11 @@
-// inlineMode wiring: 'allInternal' inlines unnamed, non-circular compounds
-// into their parents — no per-child cache entry; the child's statement block
-// hoists to a per-factory context fn. Named types and circular types keep the
-// external dependency-call path. Default-mode shapes are locked by the rest
-// of the suite; this file spawns a dedicated --inline-mode resolver and also
-// MATERIALIZES the inlined factory to prove it validates correctly at
-// runtime (the inlined loop rides a ctxFn, not a per-call IIFE).
+// Inlining policy, end to end. DEFAULT mode applies the name rule: UNNAMED
+// compounds (arrays, tuples, object literals, unions, classes) inline into
+// their parents — no per-child cache entry; the child's statement block
+// hoists to a per-factory context fn. NAMED types (alias or interface) and
+// circular types keep the external dependency-call path as dedupe-worthy
+// shared entries. `inlineMode: 'allInternal'` is name-blind — everything
+// except circular inlines. This file also MATERIALIZES the inlined factory
+// to prove it validates correctly at runtime.
 
 import {describe, expect, it} from 'vitest';
 import path from 'node:path';
@@ -15,11 +16,15 @@ import {BIN, hasBinary, RUNTYPES_DTS, evalEntryModules} from './helpers/inline.t
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const register = hasBinary() ? it : it.skip;
 
-async function withAllInternalClient<T>(sources: Record<string, string>, fn: (client: ResolverClient) => Promise<T>): Promise<T> {
+async function withClient<T>(
+  inlineMode: 'default' | 'allInternal' | undefined,
+  sources: Record<string, string>,
+  fn: (client: ResolverClient) => Promise<T>
+): Promise<T> {
   const client = new ResolverClient(BIN, ROOT, '', {
     serverMode: true,
-    inlineMode: 'allInternal',
-    emitMode: 'both', // ship the live factory so the test can run the validator
+    ...(inlineMode ? {inlineMode} : {}),
+    emitMode: 'both', // ship the live factory so tests can run the validator
   });
   try {
     await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...sources});
@@ -29,88 +34,28 @@ async function withAllInternalClient<T>(sources: Record<string, string>, fn: (cl
   }
 }
 
-describe('vite-plugin-runtypes / inlineMode allInternal', () => {
-  register('static: createValidate over an unnamed array inlines — one entry, working validator', async () => {
-    const code = `import {createValidate} from '@mionjs/ts-go-run-types';
-type Parent = {tags: string[]};
-export const isParent = createValidate<Parent>();
-`;
-    await withAllInternalClient({'parent.ts': code}, async (client) => {
-      const scan = await client.scanFiles(['parent.ts'], {includeEntryModules: true});
-      const site = scan.sites.find((s) => s.fnId);
-      if (!site?.fnId) throw new Error('expected a createValidate site');
-      const parentKey = `${site.fnId}_${site.id}`;
-      const valKeys = Object.keys(scan.entryModules ?? {}).filter((k) => k.startsWith(site.fnId + '_'));
-      // The unnamed string[] child has NO entry of its own.
-      expect(valKeys).toEqual([parentKey]);
-      const source = scan.entryModules![parentKey];
-      expect(source, 'inlined loop should ride a context fn').toContain('ctxFn0(');
-      expect(source, 'no per-call IIFE').not.toContain('(function(){');
+async function valKeysFor(client: ResolverClient, file: string) {
+  const scan = await client.scanFiles([file], {includeEntryModules: true});
+  const site = scan.sites.find((s) => s.fnId);
+  if (!site?.fnId) throw new Error('expected a createValidate site');
+  const keys = Object.keys(scan.entryModules ?? {}).filter((k) => k.startsWith(site.fnId + '_'));
+  return {scan, site, keys};
+}
 
-      // Materialize the live factory (emitMode both → trailing tuple slot)
-      // and prove the inlined validator behaves.
-      const tuples = evalEntryModules(scan.entryModules!);
-      const tuple = tuples[parentKey] as readonly unknown[];
-      const createRTFn = tuple[tuple.length - 1] as (utl: unknown) => (v: unknown) => boolean;
-      expect(createRTFn).toBeTypeOf('function');
-      const isParent = createRTFn({});
-      expect(isParent({tags: []})).toBe(true);
-      expect(isParent({tags: ['a', 'b']})).toBe(true);
-      expect(isParent({tags: ['a', 1]})).toBe(false);
-      expect(isParent({tags: 'nope'})).toBe(false);
-      expect(isParent({})).toBe(false);
-    });
-  });
-
-  register('reflect: reflectRunTypeId over the same unnamed-array parent keeps the inlined layout', async () => {
-    const code = `import {createValidate, reflectRunTypeId} from '@mionjs/ts-go-run-types';
-type Parent = {tags: string[]};
-export const isParent = createValidate<Parent>();
-const p = {tags: ['a']} as Parent;
-export const reflectedId = reflectRunTypeId(p);
-`;
-    await withAllInternalClient({'parent-reflect.ts': code}, async (client) => {
-      const scan = await client.scanFiles(['parent-reflect.ts'], {includeEntryModules: true});
-      const create = scan.sites.find((s) => s.fnId);
-      const reflect = scan.sites.find((s) => !s.fnId && s.id);
-      if (!create?.fnId || !reflect) throw new Error('expected both marker forms');
-      // Both forms resolve the same root type id (form equivalence).
-      expect(reflect.id).toBe(create.id);
-      const valKeys = Object.keys(scan.entryModules ?? {}).filter((k) => k.startsWith(create.fnId + '_'));
-      expect(valKeys).toEqual([`${create.fnId}_${create.id}`]);
-    });
-  });
-
-  register('interface A {a: number; b: string[]}: default emits TWO modules, allInternal emits ONE', async () => {
-    // The per-type contract behind the mode (suite-wide dump counts
-    // under-show it because the marker suite demands most types as their
-    // own roots): default mode externalizes the unnamed string[] child as a
-    // second shared module; allInternal absorbs it into the interface's
-    // single validation module as a context fn.
+describe('vite-plugin-runtypes / inlining policy', () => {
+  register('DEFAULT: interface A {a: number; b: string[]} emits ONE validation module', async () => {
+    // The headline contract: the unnamed string[] member rides the
+    // interface's own module as a context fn — no separate array module.
     const code = `import {createValidate} from '@mionjs/ts-go-run-types';
 interface A {a: number; b: string[]}
 export const isA = createValidate<A>();
 `;
-    const defaultClient = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitMode: 'both'});
-    try {
-      await defaultClient.setSources({'runtypes.d.ts': RUNTYPES_DTS, 'iface.ts': code});
-      const scan = await defaultClient.scanFiles(['iface.ts'], {includeEntryModules: true});
-      const site = scan.sites.find((s) => s.fnId);
-      if (!site?.fnId) throw new Error('expected a createValidate site');
-      const keys = Object.keys(scan.entryModules ?? {}).filter((k) => k.startsWith(site.fnId + '_'));
-      expect(keys.length, 'default: interface module + external string[] module').toBe(2);
-    } finally {
-      defaultClient.close();
-    }
-
-    await withAllInternalClient({'iface.ts': code}, async (client) => {
-      const scan = await client.scanFiles(['iface.ts'], {includeEntryModules: true});
-      const site = scan.sites.find((s) => s.fnId);
-      if (!site?.fnId) throw new Error('expected a createValidate site');
-      const keys = Object.keys(scan.entryModules ?? {}).filter((k) => k.startsWith(site.fnId + '_'));
-      expect(keys.length, 'allInternal: ONE validation module for the whole interface').toBe(1);
+    await withClient(undefined, {'iface.ts': code}, async (client) => {
+      const {scan, keys} = await valKeysFor(client, 'iface.ts');
+      expect(keys.length, 'ONE validation module for the whole interface').toBe(1);
       const source = scan.entryModules![keys[0]];
       expect(source, 'string[] loop rides the parent context').toContain('ctxFn0(');
+      expect(source, 'no per-call IIFE').not.toContain('(function(){');
 
       // And the single-module validator behaves at runtime.
       const tuples = evalEntryModules(scan.entryModules!);
@@ -125,18 +70,46 @@ export const isA = createValidate<A>();
     });
   });
 
-  register('named alias array stays an external shared entry', async () => {
+  register('DEFAULT reflect: reflectRunTypeId over the same parent keeps the single-module layout', async () => {
+    const code = `import {createValidate, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+type Parent = {tags: string[]};
+export const isParent = createValidate<Parent>();
+const p = {tags: ['a']} as Parent;
+export const reflectedId = reflectRunTypeId(p);
+`;
+    await withClient(undefined, {'parent-reflect.ts': code}, async (client) => {
+      const scan = await client.scanFiles(['parent-reflect.ts'], {includeEntryModules: true});
+      const create = scan.sites.find((s) => s.fnId);
+      const reflect = scan.sites.find((s) => !s.fnId && s.id);
+      if (!create?.fnId || !reflect) throw new Error('expected both marker forms');
+      // Both forms resolve the same root type id (form equivalence).
+      expect(reflect.id).toBe(create.id);
+      const valKeys = Object.keys(scan.entryModules ?? {}).filter((k) => k.startsWith(create.fnId + '_'));
+      expect(valKeys).toEqual([`${create.fnId}_${create.id}`]);
+    });
+  });
+
+  register('DEFAULT: a NAMED alias array stays an external shared module (dedupe)', async () => {
     const code = `import {createValidate} from '@mionjs/ts-go-run-types';
 type Tags = string[];
 type Parent = {tags: Tags};
 export const isParent = createValidate<Parent>();
 `;
-    await withAllInternalClient({'named.ts': code}, async (client) => {
-      const scan = await client.scanFiles(['named.ts'], {includeEntryModules: true});
-      const site = scan.sites.find((s) => s.fnId);
-      if (!site?.fnId) throw new Error('expected a createValidate site');
-      const valKeys = Object.keys(scan.entryModules ?? {}).filter((k) => k.startsWith(site.fnId + '_'));
-      expect(valKeys.length, 'parent + named Tags entry').toBe(2);
+    await withClient(undefined, {'named.ts': code}, async (client) => {
+      const {keys} = await valKeysFor(client, 'named.ts');
+      expect(keys.length, 'parent + named Tags entry').toBe(2);
+    });
+  });
+
+  register('allInternal: name-blind — even the NAMED alias array inlines', async () => {
+    const code = `import {createValidate} from '@mionjs/ts-go-run-types';
+type Tags = string[];
+type Parent = {tags: Tags};
+export const isParent = createValidate<Parent>();
+`;
+    await withClient('allInternal', {'named-internal.ts': code}, async (client) => {
+      const {keys} = await valKeysFor(client, 'named-internal.ts');
+      expect(keys.length, 'one module — names ignored under allInternal').toBe(1);
     });
   });
 });

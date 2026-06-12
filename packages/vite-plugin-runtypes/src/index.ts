@@ -63,15 +63,15 @@ export interface PluginOptions {
   //                  measurably slower on dense reflection graphs.
   moduleMode?: ModuleMode;
   // Child-inlining policy:
-  //   'default'     — compounds (arrays, tuples, object literals, unions)
-  //                   compile as external per-family cache entries, shared
-  //                   across every parent that references them.
-  //   'allInternal' — UNNAMED, non-circular compounds inline into their
+  //   'default'     — the name rule: UNNAMED compounds (arrays, tuples,
+  //                   object literals, unions, classes) inline into their
   //                   parents (statement bodies hoist to per-factory context
-  //                   fns); named types (alias/interface) and circular types
-  //                   stay external. Fewer cache entries/modules — roughly
-  //                   one function per call-site type per family — at the
-  //                   cost of duplicating unnamed shapes shared across roots.
+  //                   fns); NAMED types (alias/interface) and circular types
+  //                   stay external as dedupe-worthy shared entries.
+  //                   Date/Temporal builtins always inline (atomic emits).
+  //   'allInternal' — name-blind: everything except circular types inlines.
+  //                   One function per call-site type per family, at the
+  //                   cost of duplicating shapes shared across roots.
   inlineMode?: 'default' | 'allInternal';
 }
 

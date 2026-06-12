@@ -353,19 +353,20 @@ func (mode EmitMode) Valid() bool {
 type InlineMode string
 
 const (
-	// InlineModeDefault — compounds (arrays, tuples, object literals,
-	// unions, non-atomic classes) always compile as EXTERNAL per-family
-	// cache entries. The zero value behaves identically.
+	// InlineModeDefault — the name rule: UNNAMED compounds (arrays, tuples,
+	// object literals, unions, classes) inline into their parents
+	// (statement bodies hoist to context fns at expression slots); NAMED
+	// types (alias or interface) and circular types stay external as
+	// dedupe-worthy shared entries. Date/Temporal builtins always inline
+	// (atomic single-expression emits). The zero value behaves identically.
 	InlineModeDefault InlineMode = "default"
-	// InlineModeAllInternal — UNNAMED, non-circular compounds inline into
-	// their parents (statement bodies hoist to context fns at expression
-	// slots); named types (alias or interface) and circular types stay
-	// external. In practice a createX site's factory absorbs all internal
-	// structure — roughly one function per call-site type per family.
+	// InlineModeAllInternal — as the name says: EVERYTHING except circular
+	// types inlines, names ignored. One function per call-site type per
+	// family. Supersedes the old DEBUG_RT=INLINED env override.
 	InlineModeAllInternal InlineMode = "allInternal"
 )
 
-// AllInternal reports whether unnamed compounds inline ("" = default mode).
+// AllInternal reports whether the name-blind everything-inlines mode is on.
 func (mode InlineMode) AllInternal() bool { return mode == InlineModeAllInternal }
 
 // Valid reports whether mode is a recognised value ("" counts as default so

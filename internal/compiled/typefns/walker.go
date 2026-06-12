@@ -2,7 +2,6 @@ package typefns
 
 import (
 	"fmt"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -10,12 +9,6 @@ import (
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
-
-// debugInlineEnv resolves mion's `getENV('DEBUG_RT') === 'INLINED'`
-// branch once per process. Cheap (env vars are cached at runtime
-// startup); a package-level var matches mion's process-wide
-// resolution and avoids threading the lookup through every Walker.
-var debugInlineEnv = os.Getenv("DEBUG_RT") == "INLINED"
 
 // StackItem mirrors mion's StackItem (rtFnCompiler.ts:33). One frame
 // per RunType the walker is currently inside. Vλl is snapshotted on
@@ -398,7 +391,7 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 		CrossFamilyDeps:    []string{},
 		localVarCounters:   map[string]int{},
 	}
-	walker.inlineCtx = InlineContext{DebugInline: debugInlineEnv, walker: walker}
+	walker.inlineCtx = InlineContext{walker: walker}
 	return walker
 }
 
