@@ -35,7 +35,7 @@ blur: 150px
   ---
   color: primary
   size: xl
-  to: /introduction/what-is-ts-run-types
+  to: /introduction/about-ts-run-types
   icon: icon-park-outline:book-one
   class: btn-docs
   ---
@@ -196,9 +196,9 @@ How does it stack up?
 #body
   :::card
   ---
-  to: /reference/comparison
+  to: /benchmarks/validation
   ---
-  ts-run-types is the rare library that does **both** type-first *and* schema-first — and adds JSON, binary, mocks and reflection on top. See the honest side-by-side with **Zod, Typia, Valibot, ArkType, TypeBox and AJV**.
+  ts-run-types is the rare library that does **both** type-first *and* schema-first — and adds JSON, binary, mocks and reflection on top. See the honest, head-to-head benchmarks against **Zod, TypeBox and AJV**.
   :::
 ::
 
