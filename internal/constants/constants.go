@@ -282,6 +282,30 @@ const (
 	// addedRunTypes. The name can't collide with hash-keyed basenames (hash
 	// ids are short) or pure-fn basenames (always under PureFnModuleDir).
 	RunTypesBundleBasename = "runtypes"
+	// FnsBundleDir is the basename directory prefix for per-family fn-entry
+	// bundle modules in allSingle module mode (`fns/<familyTag>`): every
+	// entry of one family rides the family's bundle as a NAMED export
+	// (`export const <BindingName(key)>=[…]`) instead of its own module.
+	FnsBundleDir = "fns"
+)
+
+// ModuleMode selects how cache entries are grouped into virtual modules.
+// Mirrored to TS so the Vite plugin option validates against the same set.
+const (
+	// ModuleModeDefault — runtype nodes ride THE single data bundle (+ per-root
+	// facade modules); every fn-family / composite / pure-fn entry is its own
+	// per-entry module. Today's behavior.
+	ModuleModeDefault = "default"
+	// ModuleModeAllSingle — bundle EVERYTHING: fn families render one bundle
+	// module per family tag (`fns/<tag>`), pure fns one `pf` bundle, and the
+	// reflection facades fold into the runtypes bundle as named exports.
+	// Fewest modules; family bundles are mutable (invalidate on Added* flags).
+	ModuleModeAllSingle = "allSingle"
+	// ModuleModeAllModules — split EVERYTHING: fn entries per-entry (as
+	// default) AND runtype nodes as individual per-node modules (the
+	// pre-bundle layout). Escape hatch; measured slower on dense reflection
+	// graphs — see docs/ROADMAP.md.
+	ModuleModeAllModules = "allModules"
 )
 
 // Tuple slot-0 kind discriminators for entry-module tuples. Type-fn entries

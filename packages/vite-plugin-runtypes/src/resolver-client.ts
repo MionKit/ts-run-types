@@ -37,6 +37,11 @@ export interface ResolverClientOptions {
   // defaults on.
   parallelScan?: boolean;
   parallelRender?: boolean;
+  // Forwarded as --module-mode: how cache entries group into virtual
+  // modules — 'default' (runtype bundle + per-entry fn modules),
+  // 'allSingle' (per-family bundle modules), or 'allModules' (per-node
+  // runtype modules too). Undefined leaves the binary default.
+  moduleMode?: string;
 }
 
 // Common JSON-per-line request/response framing. Owns the in-flight request
@@ -253,6 +258,7 @@ export class ResolverClient extends ResolverClientBase {
     if (opts.emitCacheFunctions) args.push('--emit-create-rt-fn');
     if (opts.parallelScan === false) args.push('--no-parallel-scan');
     if (opts.parallelRender === false) args.push('--no-parallel-render');
+    if (opts.moduleMode) args.push('--module-mode', opts.moduleMode);
     this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit']});
     if (!this.child.stdin || !this.child.stdout) {
       throw new Error('failed to spawn ts-go-run-types (no stdio pipes)');

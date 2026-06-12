@@ -27,7 +27,7 @@ export const _ = registerPureFnFactory('mion', 'foo', function (utl) {
 	}
 	// Replacements() should produce a single binding-swap record matching
 	// those bounds.
-	reps := Replacements(entries)
+	reps := Replacements(entries, false)
 	if len(reps) != 1 {
 		t.Fatalf("expected 1 replacement, got %d (%+v)", len(reps), reps)
 	}
@@ -69,7 +69,7 @@ export const _ = registerPureFnFactory('mion', 'bad', buildFactory());`
 	if len(entries) != 0 {
 		t.Fatalf("expected no entries, got %+v", entries)
 	}
-	if len(Replacements(entries)) != 0 {
+	if len(Replacements(entries, false)) != 0 {
 		t.Fatalf("expected no replacements for failed extraction")
 	}
 }

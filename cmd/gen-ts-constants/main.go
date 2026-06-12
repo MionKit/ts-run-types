@@ -102,6 +102,12 @@ func writeEntryModuleConstants(out *strings.Builder) {
 	fmt.Fprintf(out, "export const ENTRY_BINDING_PREFIX = %q;\n", constants.EntryBindingPrefix)
 	fmt.Fprintf(out, "export const PURE_FN_MODULE_DIR = %q;\n", constants.PureFnModuleDir)
 	fmt.Fprintf(out, "export const RUNTYPES_BUNDLE_BASENAME = %q;\n", constants.RunTypesBundleBasename)
+	fmt.Fprintf(out, "export const FNS_BUNDLE_DIR = %q;\n", constants.FnsBundleDir)
+	out.WriteString("// Module-mode values for the --module-mode flag / plugin moduleMode option.\n")
+	fmt.Fprintf(out, "export const MODULE_MODE_DEFAULT = %q;\n", constants.ModuleModeDefault)
+	fmt.Fprintf(out, "export const MODULE_MODE_ALL_SINGLE = %q;\n", constants.ModuleModeAllSingle)
+	fmt.Fprintf(out, "export const MODULE_MODE_ALL_MODULES = %q;\n", constants.ModuleModeAllModules)
+	out.WriteString("export type ModuleMode = typeof MODULE_MODE_DEFAULT | typeof MODULE_MODE_ALL_SINGLE | typeof MODULE_MODE_ALL_MODULES;\n")
 }
 
 // writeReflectionSubKind emits a TS `as const` map mirroring

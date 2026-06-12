@@ -4,7 +4,17 @@ import {ResolverClient} from './resolver-client.ts';
 import {createScanBatcher, type SiteScanner} from './scan-batcher.ts';
 import {rewrite} from './rewrite.ts';
 import {Family, Severity, type Diagnostic} from './protocol.ts';
-import {ENTRY_MODULE_SUFFIX, RUNTYPES_BUNDLE_BASENAME, VIRTUAL_MODULE_PREFIX} from './runtypes-constants.generated.ts';
+import {
+  ENTRY_MODULE_SUFFIX,
+  FNS_BUNDLE_DIR,
+  MODULE_MODE_ALL_MODULES,
+  MODULE_MODE_ALL_SINGLE,
+  MODULE_MODE_DEFAULT,
+  PURE_FN_MODULE_DIR,
+  RUNTYPES_BUNDLE_BASENAME,
+  VIRTUAL_MODULE_PREFIX,
+  type ModuleMode,
+} from './runtypes-constants.generated.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
@@ -36,6 +46,19 @@ export interface PluginOptions {
   // either way — these exist for benchmarking baselines and debugging.
   parallelScan?: boolean;
   parallelRender?: boolean;
+  // How cache entries group into virtual modules:
+  //   'default'    — runtype nodes ride ONE data bundle (+ per-root facade
+  //                  modules); every fn-family / composite / pure-fn entry
+  //                  is its own per-entry module. Best chunk-splitting
+  //                  granularity in production builds.
+  //   'allSingle'  — bundle everything: one module per fn family
+  //                  (`fns/<tag>`), one `pf` pure-fn bundle, facades folded
+  //                  into the runtypes bundle. Fewest modules / requests;
+  //                  family bundles re-fetch wholesale on type edits.
+  //   'allModules' — split everything: per-entry fn modules AND per-node
+  //                  runtype modules (the pre-bundle layout). Escape hatch;
+  //                  measurably slower on dense reflection graphs.
+  moduleMode?: ModuleMode;
 }
 
 // MARKER_MODULE is the fixed package every marker brand is declared in.
@@ -116,11 +139,18 @@ export default function runtypes(options: PluginOptions) {
       if (options.cacheDir === false) cacheDir = undefined;
       else if (typeof options.cacheDir === 'string') cacheDir = options.cacheDir;
       else cacheDir = path.join(cwdAbs, 'node_modules', '.cache', 'ts-go-run-types');
+      const moduleMode = options.moduleMode ?? MODULE_MODE_DEFAULT;
+      if (moduleMode !== MODULE_MODE_DEFAULT && moduleMode !== MODULE_MODE_ALL_SINGLE && moduleMode !== MODULE_MODE_ALL_MODULES) {
+        throw new Error(
+          `[vite-plugin-runtypes] unknown moduleMode ${JSON.stringify(moduleMode)} — expected '${MODULE_MODE_DEFAULT}' | '${MODULE_MODE_ALL_SINGLE}' | '${MODULE_MODE_ALL_MODULES}'`
+        );
+      }
       resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         cacheDir,
         emitCacheFunctions: options.emitCacheFunctions ?? false,
         parallelScan: options.parallelScan,
         parallelRender: options.parallelRender,
+        moduleMode,
       });
       dumpAllMemo = null;
       scanner = createScanBatcher(async (files) => {
@@ -248,15 +278,33 @@ export default function runtypes(options: PluginOptions) {
         return;
       }
 
-      // Step 4: the runtype data bundle is the single mutable virtual module
-      // (its rows are the union of all reflection-demanded nodes). New
-      // RunType nodes mean its content may have moved — invalidate so the
-      // next import re-loads from the fresh dump. Facades and every other
-      // entry module stay content-addressed and untouched.
+      // Step 4: invalidate the mutable virtual modules. In default mode the
+      // runtype data bundle is the ONLY one (its rows are the union of all
+      // reflection-demanded nodes); facades and every other entry module
+      // stay content-addressed and untouched. In allSingle mode the family
+      // bundles (`fns/<tag>`) and the `pf` pure-fn bundle are mutable too —
+      // their member sets grow with demand — so any added signal flushes
+      // every loaded bundle module (dev-only cost; the bundles re-serve from
+      // the fresh dump on next import).
+      const invalidateById = (id: string) => {
+        const moduleNode = ctx.server?.moduleGraph?.getModuleById?.(id);
+        if (moduleNode) ctx.server.moduleGraph.invalidateModule(moduleNode);
+      };
       if (result.addedRunTypes) {
-        const bundleId = RESOLVED_VIRTUAL_PREFIX + RUNTYPES_BUNDLE_BASENAME + ENTRY_MODULE_SUFFIX;
-        const bundleModule = ctx.server?.moduleGraph?.getModuleById?.(bundleId);
-        if (bundleModule) ctx.server.moduleGraph.invalidateModule(bundleModule);
+        invalidateById(RESOLVED_VIRTUAL_PREFIX + RUNTYPES_BUNDLE_BASENAME + ENTRY_MODULE_SUFFIX);
+      }
+      if (
+        (options.moduleMode ?? MODULE_MODE_DEFAULT) === MODULE_MODE_ALL_SINGLE &&
+        (result.addedRunTypes || result.addedPureFns)
+      ) {
+        const fnsPrefix = RESOLVED_VIRTUAL_PREFIX + FNS_BUNDLE_DIR + '/';
+        const idToModule: Map<string, unknown> | undefined = ctx.server?.moduleGraph?.idToModuleMap;
+        if (idToModule) {
+          for (const id of idToModule.keys()) {
+            if (id.startsWith(fnsPrefix)) invalidateById(id);
+          }
+        }
+        invalidateById(RESOLVED_VIRTUAL_PREFIX + PURE_FN_MODULE_DIR + ENTRY_MODULE_SUFFIX);
       }
 
       // Every diagnostic flows through one wire field now; the Family

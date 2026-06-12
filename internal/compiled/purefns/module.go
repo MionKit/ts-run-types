@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
+	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/jsquote"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -59,20 +60,29 @@ func CollectEntries(entries []Entry) entrymod.Graph {
 // Entries without FactoryArgStart/End populated (e.g. a synthetic
 // Entry built by a test) are skipped — only real extraction
 // results carry the byte offsets needed to rewrite source.
-func Replacements(entries []Entry) []protocol.Replacement {
+// bundled selects allSingle module mode: the entry rides the `pf` bundle as
+// a named export, so ImportFrom targets the bundle and Named tells the plugin
+// to import `{<Text>}` without renaming (Text doubles as the export name —
+// see entrymod.ExportName).
+func Replacements(entries []Entry, bundled bool) []protocol.Replacement {
 	var out []protocol.Replacement
 	for _, entry := range entries {
 		if entry.FilePath == "" || entry.FactoryArgEnd <= entry.FactoryArgStart {
 			continue
 		}
 		basename := entrymod.ModuleName(entry.Key(), entrymod.KindPureFn)
-		out = append(out, protocol.Replacement{
+		replacement := protocol.Replacement{
 			File:       entry.FilePath,
 			Start:      entry.FactoryArgStart,
 			End:        entry.FactoryArgEnd,
 			Text:       entrymod.BindingName(basename),
 			ImportFrom: entrymod.ImportSpecifier(basename),
-		})
+		}
+		if bundled {
+			replacement.ImportFrom = entrymod.ImportSpecifier(constants.PureFnModuleDir)
+			replacement.Named = true
+		}
+		out = append(out, replacement)
 	}
 	return out
 }
