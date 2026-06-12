@@ -105,6 +105,25 @@ func TestBundleShape(t *testing.T) {
 	}
 }
 
+// TestBundleRowsLineSeparated — a multi-row data array puts each row on its
+// own line (readability); a single-row bundle stays on one line. The rows
+// remain comma-joined inside the array, so this is whitespace-only.
+func TestBundleRowsLineSeparated(t *testing.T) {
+	multi := bundleOf(t, emitModules(t, []string{"aaa111", "bbb222"}, []*protocol.RunType{
+		{ID: "aaa111", Kind: protocol.KindString},
+		{ID: "bbb222", Kind: protocol.KindNumber},
+	}))
+	if !strings.Contains(multi, "],\n[") {
+		t.Errorf("expected one row per line (`],\\n[`), got:\n%s", multi)
+	}
+	single := bundleOf(t, emitModules(t, []string{"aaa111"}, []*protocol.RunType{
+		{ID: "aaa111", Kind: protocol.KindString},
+	}))
+	if strings.Contains(single, "],\n[") {
+		t.Errorf("single-row bundle must not carry a row separator, got:\n%s", single)
+	}
+}
+
 // TestNoReflectionRoots — a dump without reflection sites emits NO runtype
 // modules at all (createX-only files pay zero reflection payload).
 func TestNoReflectionRoots(t *testing.T) {
