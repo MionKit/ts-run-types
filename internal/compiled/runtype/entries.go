@@ -2,6 +2,7 @@ package runtype
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
@@ -13,6 +14,15 @@ import (
 // unique within one runtime registry (vs every other entry key), and it
 // changes whenever the row set changes — 10 dictionary chars is plenty.
 const bundleKeyLength = 10
+
+// hoistMinRefs is the reference-count threshold above which a footer target id
+// is hoisted into a `const dN=c('<id>')` local declared once at the top of the
+// combined ini body and reused on each edge (instead of repeating the 7-char
+// `c('<id>')` lookup inline). Tuned by measurement: hoisting only ids hit ≥3×
+// captures the bulk of the savings — the long tail of twice-used ids costs
+// more in declaration text than it saves. Cuts both bytes AND `useRunType`
+// calls at init.
+const hoistMinRefs = 3
 
 // CollectEntries builds the runtype side of the entry-module graph: ONE data
 // bundle (`virtual:rt/runtypes.js`) carrying every reflection-demanded node
@@ -46,9 +56,11 @@ func CollectEntries(dump protocol.Dump) entrymod.Graph {
 		}
 	}
 	rows := closureRows(roots, nodes)
+	hoist := buildHoistTable(rows, nodes)
 
 	var rowsText strings.Builder
 	var footer strings.Builder
+	footer.WriteString(renderHoistPreamble(hoist))
 	for i, id := range rows {
 		if i > 0 {
 			rowsText.WriteByte(',')
@@ -56,7 +68,7 @@ func CollectEntries(dump protocol.Dump) entrymod.Graph {
 		rowsText.WriteByte('[')
 		rowsText.WriteString(strings.Join(renderFactoryArgs(nodes[id]), ","))
 		rowsText.WriteByte(']')
-		writeFooter(&footer, nodes[id])
+		writeFooter(&footer, nodes[id], hoist)
 	}
 	bundleKey := "rts_" + hashid.QuickHash(strings.Join(rows, ","), bundleKeyLength, "")
 	graph.Add(&entrymod.Entry{
@@ -94,7 +106,9 @@ func CollectEntriesPerNode(dump protocol.Dump) entrymod.Graph {
 			continue
 		}
 		var footer strings.Builder
-		writeFooter(&footer, runType)
+		// Per-node footers reference only the node's own direct children — far
+		// too few to benefit from hoisting, so no preamble (nil table).
+		writeFooter(&footer, runType, nil)
 		graph.Add(&entrymod.Entry{
 			Key:      runType.ID,
 			Kind:     entrymod.KindRunType,
@@ -190,4 +204,89 @@ func collectRefDeps(runType *protocol.RunType) []string {
 	addAll(runType.Implements)
 	addAll(runType.Extends)
 	return deps
+}
+
+// tallyRefTargets increments counts for every KindRef target in runType's
+// ref-bearing slots — one increment per occurrence writeFooter would render
+// as a `c('<id>')` lookup. Unlike collectRefDeps it does NOT dedup within a
+// node, so an id referenced from two slots of the same node counts twice,
+// matching the footer's actual emission count.
+func tallyRefTargets(runType *protocol.RunType, counts map[string]int) {
+	add := func(child *protocol.RunType) {
+		if child != nil && child.Kind == protocol.KindRef && child.ID != "" {
+			counts[child.ID]++
+		}
+	}
+	addAll := func(children []*protocol.RunType) {
+		for _, child := range children {
+			add(child)
+		}
+	}
+	add(runType.Child)
+	add(runType.Index)
+	add(runType.Return)
+	add(runType.IndexT)
+	addAll(runType.Parameters)
+	addAll(runType.Children)
+	addAll(runType.SafeUnionChildren)
+	addAll(runType.UnionDiscriminators)
+	addAll(runType.TypeMeta)
+	addAll(runType.TypeArguments)
+	addAll(runType.Arguments)
+	addAll(runType.ExtendsArguments)
+	addAll(runType.Implements)
+	addAll(runType.Extends)
+}
+
+// buildHoistTable maps each footer target id referenced ≥ hoistMinRefs times
+// (and present as a row) to a short local name (`d1`, `d2`, …), hottest id
+// first so the most-repeated edges get the shortest names. Returns nil when
+// nothing clears the threshold (small bundles), leaving the footer unchanged.
+func buildHoistTable(rows []string, nodes map[string]*protocol.RunType) map[string]string {
+	counts := make(map[string]int)
+	for _, id := range rows {
+		tallyRefTargets(nodes[id], counts)
+	}
+	type idCount struct {
+		id    string
+		count int
+	}
+	hot := make([]idCount, 0, len(counts))
+	for id, count := range counts {
+		// Only hoist present ids: an absent ref stays inline (its `c('<id>')`
+		// already surfaces the registry miss; a hoisted decl would force the
+		// same eager lookup with no benefit).
+		if count >= hoistMinRefs && nodes[id] != nil {
+			hot = append(hot, idCount{id: id, count: count})
+		}
+	}
+	if len(hot) == 0 {
+		return nil
+	}
+	sort.Slice(hot, func(i, j int) bool {
+		if hot[i].count != hot[j].count {
+			return hot[i].count > hot[j].count
+		}
+		return hot[i].id < hot[j].id
+	})
+	table := make(map[string]string, len(hot))
+	for i, entry := range hot {
+		table[entry.id] = "d" + strconv.Itoa(i+1)
+	}
+	return table
+}
+
+// renderHoistPreamble emits the `const d1=c('<id1>'),d2=c('<id2>'),…;\n` line
+// declaring every hoisted local, ordered by var index so output is stable.
+// Empty string when the table is empty.
+func renderHoistPreamble(table map[string]string) string {
+	if len(table) == 0 {
+		return ""
+	}
+	decls := make([]string, len(table))
+	for id, name := range table {
+		index, _ := strconv.Atoi(name[1:]) // "d12" → 12
+		decls[index-1] = name + "=" + cacheRef(id)
+	}
+	return "const " + strings.Join(decls, ",") + ";\n"
 }

@@ -165,41 +165,43 @@ func isFooterLiteral(runType *protocol.RunType) bool {
 }
 
 // writeFooter fills runType's reference-bearing fields and runtime-special
-// values into the module-local `cache` table.
-func writeFooter(buffer *strings.Builder, runType *protocol.RunType) {
+// values into the module-local `cache` table. Target refs render through the
+// hoist table (a `dN` local when the id was hoisted, else a raw `c('<id>')`
+// lookup); hoist is nil for per-node footers, which never hoist.
+func writeFooter(buffer *strings.Builder, runType *protocol.RunType, hoist map[string]string) {
 	name := cacheRef(runType.ID)
 	if runType.Child != nil {
-		buffer.WriteString(fmt.Sprintf("%s.child = %s;\n", name, derefExpr(runType.Child)))
+		buffer.WriteString(fmt.Sprintf("%s.child = %s;\n", name, derefExpr(runType.Child, hoist)))
 	}
 	if runType.Index != nil {
-		buffer.WriteString(fmt.Sprintf("%s.index = %s;\n", name, derefExpr(runType.Index)))
+		buffer.WriteString(fmt.Sprintf("%s.index = %s;\n", name, derefExpr(runType.Index, hoist)))
 	}
 	if runType.Return != nil {
-		buffer.WriteString(fmt.Sprintf("%s.return = %s;\n", name, derefExpr(runType.Return)))
+		buffer.WriteString(fmt.Sprintf("%s.return = %s;\n", name, derefExpr(runType.Return, hoist)))
 	}
 	if runType.IndexT != nil {
-		buffer.WriteString(fmt.Sprintf("%s.indexType = %s;\n", name, derefExpr(runType.IndexT)))
+		buffer.WriteString(fmt.Sprintf("%s.indexType = %s;\n", name, derefExpr(runType.IndexT, hoist)))
 	}
 	if len(runType.Parameters) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.parameters = [%s];\n", name, joinRefs(runType.Parameters)))
+		buffer.WriteString(fmt.Sprintf("%s.parameters = [%s];\n", name, joinRefs(runType.Parameters, hoist)))
 	}
 	if len(runType.Children) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.children = [%s];\n", name, joinRefs(runType.Children)))
+		buffer.WriteString(fmt.Sprintf("%s.children = [%s];\n", name, joinRefs(runType.Children, hoist)))
 	}
 	// safeUnionChildren — same ref objects as Children, reordered so
 	// superset shapes precede their subset equivalents.
 	if len(runType.SafeUnionChildren) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.safeUnionChildren = [%s];\n", name, joinRefs(runType.SafeUnionChildren)))
+		buffer.WriteString(fmt.Sprintf("%s.safeUnionChildren = [%s];\n", name, joinRefs(runType.SafeUnionChildren, hoist)))
 	}
 	// unionDiscriminators — parallel to safeUnionChildren; entry i is a
 	// ref to the discriminator property within safeUnionChildren[i].
 	if len(runType.UnionDiscriminators) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.unionDiscriminators = [%s];\n", name, joinRefs(runType.UnionDiscriminators)))
+		buffer.WriteString(fmt.Sprintf("%s.unionDiscriminators = [%s];\n", name, joinRefs(runType.UnionDiscriminators, hoist)))
 	}
 	// decorators — surviving object-literal types from a collapsed
 	// `primitive & {brand}` intersection.
 	if len(runType.TypeMeta) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.typeMeta = [%s];\n", name, joinRefs(runType.TypeMeta)))
+		buffer.WriteString(fmt.Sprintf("%s.typeMeta = [%s];\n", name, joinRefs(runType.TypeMeta, hoist)))
 	}
 	// formatAnnotation — name + params for a TypeFormat brand. Emitted
 	// as a JSON object literal (valid JS); the runtime reads it for
@@ -212,19 +214,19 @@ func writeFooter(buffer *strings.Builder, runType *protocol.RunType) {
 		}
 	}
 	if len(runType.TypeArguments) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.typeArguments = [%s];\n", name, joinRefs(runType.TypeArguments)))
+		buffer.WriteString(fmt.Sprintf("%s.typeArguments = [%s];\n", name, joinRefs(runType.TypeArguments, hoist)))
 	}
 	if len(runType.Arguments) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.arguments = [%s];\n", name, joinRefs(runType.Arguments)))
+		buffer.WriteString(fmt.Sprintf("%s.arguments = [%s];\n", name, joinRefs(runType.Arguments, hoist)))
 	}
 	if len(runType.ExtendsArguments) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.extendsArguments = [%s];\n", name, joinRefs(runType.ExtendsArguments)))
+		buffer.WriteString(fmt.Sprintf("%s.extendsArguments = [%s];\n", name, joinRefs(runType.ExtendsArguments, hoist)))
 	}
 	if len(runType.Implements) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.implements = [%s];\n", name, joinRefs(runType.Implements)))
+		buffer.WriteString(fmt.Sprintf("%s.implements = [%s];\n", name, joinRefs(runType.Implements, hoist)))
 	}
 	if len(runType.Extends) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.extends = [%s];\n", name, joinRefs(runType.Extends)))
+		buffer.WriteString(fmt.Sprintf("%s.extends = [%s];\n", name, joinRefs(runType.Extends, hoist)))
 	}
 
 	// classType — built-in constructors looked up on globalThis so the
@@ -258,15 +260,27 @@ func footerLiteralExpr(runType *protocol.RunType) string {
 	return mustJSLiteral(runType.Literal)
 }
 
-// derefExpr renders a single child slot. Refs become bare cache lookups;
-// inline (non-ref) Types are round-tripped through JSON to land in the
-// any-tree shape that mustJSLiteral understands.
-func derefExpr(runType *protocol.RunType) string {
+// hoistRef renders a reference to id: the hoisted local (dN) when id is in the
+// table, else the raw `c('<id>')` lookup. The preamble declares each local as
+// `dN=c('<id>')` using the raw cacheRef, so this substitution is correct at
+// every use site (the local aliases the exact same registry object).
+func hoistRef(id string, hoist map[string]string) string {
+	if name, ok := hoist[id]; ok {
+		return name
+	}
+	return cacheRef(id)
+}
+
+// derefExpr renders a single child slot. Refs become cache lookups (hoisted to
+// a `dN` local when the id cleared the hoist threshold); inline (non-ref) Types
+// are round-tripped through JSON to land in the any-tree shape that
+// mustJSLiteral understands.
+func derefExpr(runType *protocol.RunType, hoist map[string]string) string {
 	if runType == nil {
 		return "undefined"
 	}
 	if runType.Kind == protocol.KindRef {
-		return cacheRef(runType.ID)
+		return hoistRef(runType.ID, hoist)
 	}
 	encoded, err := json.Marshal(runType)
 	if err != nil {
@@ -279,10 +293,10 @@ func derefExpr(runType *protocol.RunType) string {
 	return mustJSLiteral(generic)
 }
 
-func joinRefs(runTypes []*protocol.RunType) string {
+func joinRefs(runTypes []*protocol.RunType, hoist map[string]string) string {
 	parts := make([]string, len(runTypes))
 	for i, runType := range runTypes {
-		parts[i] = derefExpr(runType)
+		parts[i] = derefExpr(runType, hoist)
 	}
 	return strings.Join(parts, ", ")
 }
