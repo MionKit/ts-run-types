@@ -44,8 +44,7 @@ Options:
     --out-json PATH     after stdin is drained, write the cache as JSON to PATH
     --out-modules DIR   after stdin is drained, write every per-entry virtual
                         module to DIR/<basename>.js (debugging aid)
-    --hash-length N     short-id length for type hashes (default 6)
-    --literal-hash-length N  short-id length for literal-typed hashes (default 5)
+    --hash-length N     short-id length for type hashes (default 7)
     --single-threaded   force single-checker mode (useful for tests);
                         also disables the parallel scan + renders
     --no-parallel-scan  disable the parallel marker scan (parallel is the
@@ -88,7 +87,6 @@ func main() {
 		outJSON            string
 		outModulesDir      string
 		hashLength         int
-		literalHashLength  int
 		singleThreaded     bool
 		noParallelScan     bool
 		noParallelRender   bool
@@ -108,8 +106,7 @@ func main() {
 	flag.StringVar(&socketPath, "socket", "/tmp/ts-go-run-types.sock", "Unix socket path")
 	flag.StringVar(&outJSON, "out-json", "", "write cache as JSON to PATH after stdin EOF")
 	flag.StringVar(&outModulesDir, "out-modules", "", "write per-entry virtual modules to DIR after stdin EOF")
-	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 6)")
-	flag.IntVar(&literalHashLength, "literal-hash-length", 0, "short-id length for literal hashes (0 = default 5)")
+	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 7)")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
 	flag.BoolVar(&noParallelScan, "no-parallel-scan", false,
 		"disable the parallel marker scan (parallel is the default)")
@@ -202,7 +199,6 @@ func main() {
 
 	resolverOpts := resolver.Options{
 		HashLength:            hashLength,
-		LiteralHashLength:     literalHashLength,
 		Marker:                marker.Options{},
 		Cwd:                   absCwd,
 		SingleThreaded:        singleThreaded,

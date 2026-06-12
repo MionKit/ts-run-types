@@ -132,8 +132,7 @@ Then send the same JSON ops to `/tmp/ts-go-run-types.sock` from another process.
 --socket PATH                 daemon-only socket path
 --out-json PATH               also write cache JSON on dump
 --out-modules DIR             also write every per-entry virtual module on dump
---hash-length N               default 6 (types)
---literal-hash-length N       default 5 (literals)
+--hash-length N               default 7 (all type ids, literals included)
 --single-threaded             one pool checker, no concurrency anywhere
                               (debugging / historical bench baseline)
 --no-parallel-scan            serial marker scan (parallel across the

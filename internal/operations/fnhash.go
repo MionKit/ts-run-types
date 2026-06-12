@@ -10,7 +10,7 @@ import (
 // FnHashLen is the fixed character length of every fnHash. The operation set is
 // finite and closed, so a short length is safe; mustBeCollisionFree proves it at
 // init. If a future operation collides, the build fails — bump this constant.
-const FnHashLen = 4
+const FnHashLen = 3
 
 // fnHashSalt namespaces operation hashes away from structural type-id hashes so
 // the two never share a value by accident, and folds in the binary Version the
@@ -125,14 +125,16 @@ func validateOptionSubsets() [][]string {
 
 // mustBeCollisionFree panics if any two distinct canonical keys hash to the same
 // fnHash at FnHashLen. Runs at package init so EVERY build / test trips it — the
-// "closed system, fail-and-bump" guarantee. Fix a panic by bumping FnHashLen.
+// "closed system, fail-and-bump" guarantee. A collision is an INTERNAL BUG (the
+// length isn't user-configurable and the operation set is ours): never fall back
+// or auto-grow — fix it by bumping FnHashLen.
 func mustBeCollisionFree() {
 	owner := make(map[string]string)
 	for _, key := range allCanonicalKeys() {
 		hash := FnHash(key)
 		if existing, taken := owner[hash]; taken && existing != key {
 			panic(fmt.Sprintf(
-				"operations: fnHash collision at FnHashLen=%d: %q and %q both hash to %q — bump FnHashLen",
+				"operations: internal bug — fnHash collision at FnHashLen=%d: %q and %q both hash to %q; bump FnHashLen",
 				FnHashLen, existing, key, hash,
 			))
 		}

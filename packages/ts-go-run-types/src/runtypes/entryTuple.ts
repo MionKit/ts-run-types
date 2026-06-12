@@ -17,7 +17,8 @@
 // Every tuple shares the same fixed head: slot 0 discriminates the layout
 // (the numeric kinds below, or the QUOTED family tag string for type-fn
 // entries), slot 1 is a lazy thunk returning the entry's DIRECT dependency
-// tuples (leaves-first by level, self last), slot 2 is the runtype footer
+// tuples (leaves-first by level; never self — dep-less entries carry
+// undefined instead of a thunk), slot 2 is the runtype footer
 // initializer (or undefined), slot 3 is always the cache key. The remaining
 // slots mirror the pre-migration `init(…)` / `factory(…)` call interiors
 // byte-for-byte; the Go side trims trailing-undefined slots, which the
@@ -57,11 +58,12 @@ const KIND_RUN_TYPE_FACADE = 5;
 /** Fixed character length of every fnHash (Go: operations.FnHashLen). Used to
  *  split `<fnHash>_<typeId>` keys when a value-first schema overrides the
  *  type id at a createX call site. **/
-export const FN_HASH_LEN = 4;
+export const FN_HASH_LEN = 3;
 
 /** Lazy dependency thunk — slot 1 of every tuple. Returns the entry's DIRECT
- *  dependency tuples plus itself (self last); lazy so module-level import
- *  cycles and the self-reference never hit TDZ. The transitive closure is
+ *  dependency tuples (never itself — every consumer already holds the tuple);
+ *  lazy so module-level import cycles never hit TDZ. Dep-less entries carry
+ *  undefined in the slot instead of a thunk. The transitive closure is
  *  reached by walking the dep tuples' own thunks (see initFromTuple). **/
 export type EntryDepsThunk = () => readonly EntryTuple[];
 
@@ -114,7 +116,7 @@ export type RunTypeRowRecord = Pick<RunType, (typeof RUN_TYPE_FIELD_KEYS)[number
  *  one node's ref slots. **/
 export interface RunTypeRecord extends RunTypeRowRecord {
   entryKind: typeof KIND_RUN_TYPE;
-  deps: EntryDepsThunk;
+  deps: EntryDepsThunk | undefined;
   ini: RunTypeIni | undefined;
 }
 
@@ -125,7 +127,7 @@ export interface RunTypeRecord extends RunTypeRowRecord {
  *  new rows after an HMR reload of the (mutable) bundle module. **/
 export interface RunTypeBundleRecord {
   entryKind: typeof KIND_RUN_TYPE_BUNDLE;
-  deps: EntryDepsThunk;
+  deps: EntryDepsThunk | undefined;
   ini: RunTypeIni | undefined;
   key: string;
   rows: readonly RunTypeRow[];
@@ -137,7 +139,7 @@ export interface RunTypeBundleRecord {
  *  binding-only injection keeps deriving ids from the tuple. **/
 export interface RunTypeFacadeRecord {
   entryKind: typeof KIND_RUN_TYPE_FACADE;
-  deps: EntryDepsThunk;
+  deps: EntryDepsThunk | undefined;
   ini: undefined;
   key: string;
 }
@@ -158,7 +160,7 @@ export interface FnTypeRecord extends Pick<
   | 'alwaysThrowSite'
 > {
   familyTag: string;
-  deps: EntryDepsThunk;
+  deps: EntryDepsThunk | undefined;
   ini: undefined;
   code: CompiledFnData['code'] | undefined;
 }
@@ -171,7 +173,7 @@ export interface PureFnRecord extends Pick<
   'bodyHash' | 'paramNames' | 'code' | 'pureFnDependencies' | 'createPureFn'
 > {
   entryKind: typeof KIND_PURE_FN;
-  deps: EntryDepsThunk;
+  deps: EntryDepsThunk | undefined;
   ini: undefined;
   key: string;
 }
@@ -323,11 +325,14 @@ function tupleToRecord<R extends object>(keys: readonly (keyof R)[], tuple: read
 }
 
 /** Runtime guard for an injected entry tuple (vs a value-first schema, a
- *  legacy string id, or undefined). Missing stubs carry no deps thunk and are
- *  guarded separately via isMissingTuple. **/
+ *  legacy string id, or undefined). The deps slot is a thunk or undefined
+ *  (dep-less entries carry no thunk), so the key slot's string check is the
+ *  discriminating signal alongside the array shape. **/
 export function isEntryTuple(value: unknown): value is EntryTuple {
   if (isMissingTuple(value)) return true;
-  return Array.isArray(value) && typeof value[SLOT_DEPS] === 'function' && value.length > SLOT_KEY;
+  if (!Array.isArray(value) || value.length <= SLOT_KEY) return false;
+  const deps = value[SLOT_DEPS];
+  return (typeof deps === 'function' || deps === undefined) && typeof value[SLOT_KEY] === 'string';
 }
 
 /** The cache key an entry tuple registers under (slot 3 — `id` for runtype
@@ -443,14 +448,15 @@ export function initFromTuple(root: EntryTuple): void {
 // before their dependents, the processed-keys guard terminates cycles (and
 // skips subtrees an earlier root already registered), and every newly
 // registered tuple lands in `fresh` for the caller's phase-2 ini pass.
+// Dep-less entries carry undefined in the slot and skip straight to
+// registration.
 function collectClosure(tuple: unknown, utils: RTUtils, fresh: EntryTuple[]): void {
   if (!isEntryTuple(tuple) || isMissingTuple(tuple)) return;
   const key = entryTupleKey(tuple);
   if (processedKeys.has(key)) return;
   processedKeys.add(key);
-  for (const dep of (tuple[SLOT_DEPS] as EntryDepsThunk)()) {
-    if (dep !== tuple) collectClosure(dep, utils, fresh);
-  }
+  const deps = tuple[SLOT_DEPS] as EntryDepsThunk | undefined;
+  if (deps) for (const dep of deps()) collectClosure(dep, utils, fresh);
   if (registerTuple(utils, tuple)) fresh.push(tuple);
 }
 

@@ -12,7 +12,7 @@
 //     obtain a fully-knotted reflection RunType object.
 //  2. JSON-only consumers walk `Dump.RunTypes` themselves to re-knot.
 //
-// IDs are short alphanumeric hash strings (default 6 chars, configurable). The
+// IDs are short alphanumeric hash strings (default 7 chars, configurable). The
 // hash is derived from the type's structural id (mirroring mion's
 // `_createTypeId` algorithm) — two structurally-equal types share the same
 // hash regardless of declaration order or alias name.
