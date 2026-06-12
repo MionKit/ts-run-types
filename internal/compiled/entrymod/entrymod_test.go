@@ -24,7 +24,7 @@ func TestRender_LeafRunType(t *testing.T) {
 	graph.Add(&Entry{Key: "AAaa", Kind: KindRunType, ArgsText: "'AAaa',5"})
 	source := renderOne(t, graph, "AAaa")
 
-	want := "const u=undefined;\nexport const e=[0,u,u,'AAaa',5];\n"
+	want := "export const e=[0,,,'AAaa',5];\n"
 	if source != want {
 		t.Fatalf("leaf module mismatch:\n got: %q\nwant: %q", source, want)
 	}
@@ -42,7 +42,7 @@ func TestRender_OrderingLeavesFirstAlphaWithinLevel(t *testing.T) {
 	if !strings.HasPrefix(source, wantImports) {
 		t.Fatalf("import order mismatch:\n got: %q\nwant prefix: %q", source, wantImports)
 	}
-	if !strings.Contains(source, "const deps=()=>[d1,d2];\n") {
+	if !strings.Contains(source, "export const e=[0,()=>[d1,d2],,'parent',30];") {
 		t.Fatalf("deps order mismatch: %q", source)
 	}
 }
@@ -64,7 +64,7 @@ func TestRender_ImportsDirectDepsOnly(t *testing.T) {
 	if !strings.HasPrefix(source, wantImports) {
 		t.Fatalf("direct-dep import mismatch:\n got: %q\nwant prefix: %q", source, wantImports)
 	}
-	if !strings.Contains(source, "const deps=()=>[d1];\n") {
+	if !strings.Contains(source, "export const e=[0,()=>[d1],,'grand',30];") {
 		t.Fatalf("deps thunk should hold the direct deps only: %q", source)
 	}
 }
@@ -93,7 +93,7 @@ func TestRender_CycleCollapsesToOneLevel(t *testing.T) {
 	graph.Add(&Entry{Key: "peer", Kind: KindRunType, ArgsText: "'peer',30", Deps: []string{"node", "leaf"}})
 	source := renderOne(t, graph, "node")
 
-	if !strings.Contains(source, "const deps=()=>[d1,d2];\n") {
+	if !strings.Contains(source, "export const e=[0,()=>[d1,d2],,'node',30];") {
 		// direct deps: leaf(level0) < peer(cycle level)
 		t.Fatalf("cycle deps order mismatch: %q", source)
 	}
@@ -111,10 +111,10 @@ func TestRender_SelfReferenceIgnoredInDeps(t *testing.T) {
 	if strings.Contains(source, "import") {
 		t.Fatalf("self-dep must not import itself: %q", source)
 	}
-	if strings.Contains(source, "const deps=") {
+	if strings.Contains(source, "()=>[") {
 		t.Fatalf("self-only dep should leave the entry dep-less (no thunk): %q", source)
 	}
-	if !strings.Contains(source, "export const e=['val',u,u,'rec','x'];") {
+	if !strings.Contains(source, "export const e=['val',,,'rec','x'];") {
 		t.Fatalf("type-fn tuple slot0 should be the quoted family tag: %q", source)
 	}
 }
@@ -129,7 +129,7 @@ func TestRender_RunTypeInitBody(t *testing.T) {
 	if !strings.Contains(source, "function ini(rtu){const c=(id)=>rtu.useRunType(id);\nc('obj1').child = c('chl1');\n}\n") {
 		t.Fatalf("ini body mismatch: %q", source)
 	}
-	if !strings.Contains(source, "export const e=[0,deps,ini,'obj1',30];") {
+	if !strings.Contains(source, "export const e=[0,()=>[d1],ini,'obj1',30];") {
 		t.Fatalf("ini slot should reference the local fn: %q", source)
 	}
 }
@@ -139,7 +139,7 @@ func TestRender_MissingStub(t *testing.T) {
 	graph.Add(&Entry{Key: "Qm3p_dead", Kind: KindMissing})
 	source := renderOne(t, graph, "Qm3p_dead")
 
-	want := "const u=undefined;\nexport const e=[3,u,u,'Qm3p_dead'];\n"
+	want := "export const e=[3,,,'Qm3p_dead'];\n"
 	if source != want {
 		t.Fatalf("stub mismatch:\n got: %q\nwant: %q", source, want)
 	}
@@ -163,7 +163,7 @@ func TestRender_PureFnModuleNameEncoding(t *testing.T) {
 	if !strings.Contains(weird, "import {e as d1} from 'virtual:rt/pf/mion/newRunTypeErr.js';") {
 		t.Fatalf("pure-fn dep import should use the encoded basename: %q", weird)
 	}
-	if !strings.Contains(weird, "export const e=[2,deps,u,'we ird::fn$x','h2'];") {
+	if !strings.Contains(weird, "export const e=[2,()=>[d1],,'we ird::fn$x','h2'];") {
 		t.Fatalf("pure-fn tuple should keep the RAW cache key: %q", weird)
 	}
 }
