@@ -221,26 +221,29 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
 // packages/ts-go-run-types/src/runtypes/entryTuple.ts.
 export type EntryTuple = readonly unknown[];
 
-const IMPORT_LINE = /^import \{e as (d\d+)\} from 'virtual:rt\/(.+)\.js';\n/gm;
+const IMPORT_LINE = /^import \{(__rt_[A-Za-z0-9_$]+)\} from 'virtual:rt\/(.+)\.js';\n/gm;
+const EXPORT_LINE = /^export const (__rt_[A-Za-z0-9_$]+)=/m;
 
 // evalEntryModules evaluates every per-entry virtual module source into its
 // exported tuple, keyed by basename. Imports between entry modules are
 // emulated with LIVE bindings: each module body runs inside a `with` scope
-// whose proxy resolves the renamed import identifiers (d1…dN) lazily at
-// access time — by the time any deps() thunk dereferences them, every module
-// has evaluated, so recursive type graphs behave exactly as real ESM cycles
-// do. Locals (e / deps / ini / u) shadow the proxy, and the factory `code`
-// strings are never touched (no identifier rewriting).
+// whose proxy resolves the imported binding identifiers (`__rt_<dep>`) lazily
+// at access time — by the time any deps() thunk dereferences them, every
+// module has evaluated, so recursive type graphs behave exactly as real ESM
+// cycles do. The module's own export (also `__rt_`-named) shadows the proxy
+// as a local, and the factory `code` strings are never touched (no
+// identifier rewriting).
 export function evalEntryModules(modules: Record<string, string>): Record<string, EntryTuple> {
   const tuples: Record<string, EntryTuple> = {};
   for (const [basename, source] of Object.entries(modules)) {
     const importsByBinding = new Map<string, string>();
-    const body = source
-      .replace(IMPORT_LINE, (_whole, binding: string, dep: string) => {
-        importsByBinding.set(binding, dep);
-        return '';
-      })
-      .replace(/^export const e=/m, 'const e=');
+    const stripped = source.replace(IMPORT_LINE, (_whole, binding: string, dep: string) => {
+      importsByBinding.set(binding, dep);
+      return '';
+    });
+    const exportName = stripped.match(EXPORT_LINE)?.[1];
+    if (!exportName) throw new Error(`evalEntryModules: no entry export in ${basename}:\n${source}`);
+    const body = stripped.replace(EXPORT_LINE, `const ${exportName}=`);
     const scope = new Proxy(
       {},
       {
@@ -250,7 +253,7 @@ export function evalEntryModules(modules: Record<string, string>): Record<string
     );
     // Sloppy-mode `new Function` body so `with` is legal; entry modules are
     // emitted without a 'use strict' prologue on purpose.
-    const factory = new Function('__scope', `with(__scope){${body}\nreturn e;}`);
+    const factory = new Function('__scope', `with(__scope){${body}\nreturn ${exportName};}`);
     tuples[basename] = factory(scope) as EntryTuple;
   }
   return tuples;

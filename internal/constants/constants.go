@@ -253,7 +253,10 @@ var JsonStrategyFamilies = map[string][]string{
 // Per-entry virtual module settings (mirrored to TS via gen-ts-constants).
 // Every cache entry — runtype node, type-fn factory, JSON composite, pure fn —
 // is served as its own ES module `<VirtualModulePrefix><basename><EntryModuleSuffix>`
-// exporting one tuple under EntryExportName. See internal/compiled/entrymod.
+// exporting one tuple under its binding name (entrymod.ExportName —
+// `<EntryBindingPrefix><identifier-escaped basename>`). The SAME name binds
+// the entry everywhere: the export, every import clause, and the call-site
+// binding the rewrite injects. See internal/compiled/entrymod.
 const (
 	// VirtualModulePrefix is the Vite virtual-module namespace every entry
 	// module lives under.
@@ -262,13 +265,10 @@ const (
 	// extension keeps downstream tooling (and import-analysis fast paths)
 	// treating the virtual id as plain JS.
 	EntryModuleSuffix = ".js"
-	// EntryExportName is the fixed named export of every entry module.
-	// Importers always rename (`import {e as <binding>} from …`), so hash ids
-	// that start with a digit never need to be valid identifiers.
-	EntryExportName = "e"
-	// EntryBindingPrefix prefixes the renamed import binding the rewrite
-	// injects into user files (`<prefix><sanitized basename>`); the leading
-	// double-underscore keeps collisions with user identifiers implausible.
+	// EntryBindingPrefix prefixes every entry's binding name — the module's
+	// export AND the import binding the rewrite injects into user files
+	// (`<prefix><sanitized basename>`); the leading double-underscore keeps
+	// collisions with user identifiers implausible.
 	EntryBindingPrefix = "__rt_"
 	// PureFnModuleDir is the basename directory prefix for pure-fn entry
 	// modules (`pf/<ns>/<fn>`), keeping them visually distinct from the hash-

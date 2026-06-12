@@ -160,16 +160,14 @@ export const staticId = getRunTypeId<User>();
       const {code: out, sites} = await rewrite('user.ts', code, client);
       expect(sites.length).toBe(1);
       expect(sites[0].module ?? '').toBe('');
-      // Per-entry form: today's e-rename import of the root node module.
-      expect(out).toContain(
-        `import {e as ${ENTRY_BINDING_PREFIX}${sites[0].id}} from '${VIRTUAL_MODULE_PREFIX}${sites[0].id}.js';`
-      );
+      // Per-entry form: named import of the root node module's binding.
+      expect(out).toContain(`import {${ENTRY_BINDING_PREFIX}${sites[0].id}} from '${VIRTUAL_MODULE_PREFIX}${sites[0].id}.js';`);
       const scan = await client.scanFiles(['user.ts'], {includeEntryModules: true});
       expect(scan.entryModules?.[RUNTYPES_BUNDLE_BASENAME]).toBeUndefined();
       const rootModule = scan.entryModules?.[sites[0].id];
       expect(rootModule).toBeDefined();
-      expect(rootModule).toMatch(/export const e=\[0,\(\)=>\[/);
-      expect(rootModule).toContain('import {e as d1}');
+      expect(rootModule).toMatch(/export const __rt_[A-Za-z0-9_$]+=\[0,\(\)=>\[/);
+      expect(rootModule).toContain(`import {${ENTRY_BINDING_PREFIX}`);
     });
   });
 
@@ -186,7 +184,7 @@ export const reflectedId = reflectRunTypeId(u);
       const scan = await client.scanFiles(['user-reflect.ts'], {includeEntryModules: true});
       const rootModule = scan.entryModules?.[sites[0].id];
       expect(rootModule).toBeDefined();
-      expect(rootModule).toMatch(/export const e=\[0,\(\)=>\[/);
+      expect(rootModule).toMatch(/export const __rt_[A-Za-z0-9_$]+=\[0,\(\)=>\[/);
     });
   });
 });

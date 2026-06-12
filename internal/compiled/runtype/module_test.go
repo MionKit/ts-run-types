@@ -78,11 +78,11 @@ func intPtr(n int) *int { return &n }
 // TestBundleShape — all nodes land as rows of ONE bundle module
 // (`virtual:rt/runtypes.js`) with tuple head [4,<hole>,<ini|hole>,'rts_<hash>',
 // [rows…]] (the bundle is dep-less — rows are inline), and each root gets a
-// facade module [5,()=>[d1],<hole>,'<rootId>'] whose single dep imports the bundle.
+// facade module [5,()=>[__rt_runtypes],<hole>,'<rootId>'] whose single dep imports the bundle.
 func TestBundleShape(t *testing.T) {
 	modules := emitModules(t, []string{"x1"}, []*protocol.RunType{{ID: "x1", Kind: protocol.KindString}})
 	bundle := bundleOf(t, modules)
-	if !strings.Contains(bundle, "export const e=[4,,,'rts_") {
+	if !strings.Contains(bundle, "export const __rt_runtypes=[4,,,'rts_") {
 		t.Errorf("expected bundle tuple head [4,,,'rts_…'], got:\n%s", bundle)
 	}
 	if !strings.Contains(bundle, ",[['x1',5]]];") {
@@ -96,11 +96,11 @@ func TestBundleShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected facade module x1, got %v", keysOfModules(modules))
 	}
-	wantImport := "import {e as d1} from 'virtual:rt/" + constants.RunTypesBundleBasename + ".js';\n"
+	wantImport := "import {__rt_runtypes} from 'virtual:rt/" + constants.RunTypesBundleBasename + ".js';\n"
 	if !strings.HasPrefix(facade, wantImport) {
 		t.Errorf("facade must import the bundle:\n got: %q\nwant prefix: %q", facade, wantImport)
 	}
-	if !strings.Contains(facade, "export const e=[5,()=>[d1],,'x1'];") {
+	if !strings.Contains(facade, "export const __rt_x1=[5,()=>[__rt_runtypes],,'x1'];") {
 		t.Errorf("facade tuple mismatch, got:\n%s", facade)
 	}
 }

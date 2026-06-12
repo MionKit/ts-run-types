@@ -213,9 +213,9 @@ export interface Site {
   // serialized onto the Site; the plugin does not read it. Mirrored for accuracy.
   demand?: SiteDemand[];
   // module, when present, is the bundle-module BASENAME this site's entry
-  // rides in (allSingle module mode): the rewrite imports the entry as a
-  // NAMED export of `virtual:rt/<module>.js` (export name == the binding)
-  // instead of renaming the per-entry module's fixed `e`.
+  // rides in (allSingle module mode): the rewrite imports the binding from
+  // `virtual:rt/<module>.js` instead of the entry's own module. The clause
+  // shape is identical either way (export name == the binding).
   module?: string;
 }
 
@@ -238,14 +238,11 @@ export interface Replacement {
   start: number;
   end: number;
   text: string;
-  // When non-empty, the virtual-module specifier the rewrite must import
-  // (renaming the module's fixed export to `text`) for the substituted
-  // expression to resolve — e.g. `virtual:rt/pf/mion/foo.js`.
+  // When non-empty, the virtual-module specifier the rewrite must import for
+  // the substituted expression to resolve — e.g. `virtual:rt/pf/mion/foo.js`.
+  // `text` IS the module's export name (every entry exports under its binding
+  // name), so the rewrite imports `{<text>}` directly.
   importFrom?: string;
-  // Marks `text` as a NAMED export of importFrom (allSingle module mode,
-  // where the pure-fn entry rides the `pf` bundle): the rewrite imports
-  // `{<text>}` directly instead of renaming the fixed `e`.
-  named?: boolean;
 }
 
 // FormatAnnotation carries the (name, params) pair extracted from a
