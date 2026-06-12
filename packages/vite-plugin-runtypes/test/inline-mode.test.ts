@@ -81,6 +81,50 @@ export const reflectedId = reflectRunTypeId(p);
     });
   });
 
+  register('interface A {a: number; b: string[]}: default emits TWO modules, allInternal emits ONE', async () => {
+    // The per-type contract behind the mode (suite-wide dump counts
+    // under-show it because the marker suite demands most types as their
+    // own roots): default mode externalizes the unnamed string[] child as a
+    // second shared module; allInternal absorbs it into the interface's
+    // single validation module as a context fn.
+    const code = `import {createValidate} from '@mionjs/ts-go-run-types';
+interface A {a: number; b: string[]}
+export const isA = createValidate<A>();
+`;
+    const defaultClient = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitMode: 'both'});
+    try {
+      await defaultClient.setSources({'runtypes.d.ts': RUNTYPES_DTS, 'iface.ts': code});
+      const scan = await defaultClient.scanFiles(['iface.ts'], {includeEntryModules: true});
+      const site = scan.sites.find((s) => s.fnId);
+      if (!site?.fnId) throw new Error('expected a createValidate site');
+      const keys = Object.keys(scan.entryModules ?? {}).filter((k) => k.startsWith(site.fnId + '_'));
+      expect(keys.length, 'default: interface module + external string[] module').toBe(2);
+    } finally {
+      defaultClient.close();
+    }
+
+    await withAllInternalClient({'iface.ts': code}, async (client) => {
+      const scan = await client.scanFiles(['iface.ts'], {includeEntryModules: true});
+      const site = scan.sites.find((s) => s.fnId);
+      if (!site?.fnId) throw new Error('expected a createValidate site');
+      const keys = Object.keys(scan.entryModules ?? {}).filter((k) => k.startsWith(site.fnId + '_'));
+      expect(keys.length, 'allInternal: ONE validation module for the whole interface').toBe(1);
+      const source = scan.entryModules![keys[0]];
+      expect(source, 'string[] loop rides the parent context').toContain('ctxFn0(');
+
+      // And the single-module validator behaves at runtime.
+      const tuples = evalEntryModules(scan.entryModules!);
+      const tuple = tuples[keys[0]] as readonly unknown[];
+      const createRTFn = tuple[tuple.length - 1] as (utl: unknown) => (v: unknown) => boolean;
+      const isA = createRTFn({});
+      expect(isA({a: 1, b: ['x', 'y']})).toBe(true);
+      expect(isA({a: 1, b: []})).toBe(true);
+      expect(isA({a: 1, b: ['x', 2]})).toBe(false);
+      expect(isA({a: 'no', b: ['x']})).toBe(false);
+      expect(isA({a: 1})).toBe(false);
+    });
+  });
+
   register('named alias array stays an external shared entry', async () => {
     const code = `import {createValidate} from '@mionjs/ts-go-run-types';
 type Tags = string[];
