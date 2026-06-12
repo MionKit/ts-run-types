@@ -19,12 +19,12 @@ blur: 150px
 #header
   :::typed-title
   ---
-  leading: "We finally fixed"
+  leading: "We finally fixed TypeScript"
   titles:
-    - 'TypeScript ⚡'
     - 'the reflection gap'
     - 'writing your types twice'
     - 'your validation layer'
+    - 'handwritten serialization code'
   ---
   #description
   TypeScript decided it's **"just a linter"** and erases your types. We respectfully **bolted the runtime back on** — validators, JSON + binary (de)serializers, mock data and reflection, generated straight from the types you already wrote.
