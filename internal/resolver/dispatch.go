@@ -150,7 +150,9 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns
 	for _, familyGraph := range familyGraphs {
 		graph.Merge(familyGraph)
 	}
-	graph.Merge(typefns.CollectJsonCompositeEntries(dump, rtOpts))
+	// Composites collect AFTER the family merge so each one can read its
+	// primitives' rendered IsNoop flags and elide dead identity bindings.
+	graph.Merge(typefns.CollectJsonCompositeEntries(dump, rtOpts, graph))
 	graph.Merge(pureFnGraph)
 
 	resolver.resolveCrossFamilyEdges(graph, dump, rtOpts)

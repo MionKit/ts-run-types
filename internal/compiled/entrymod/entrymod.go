@@ -128,6 +128,12 @@ type Entry struct {
 	// identity fallbacks), so absence degrades gracefully at runtime via a
 	// KindMissing stub module instead of dropping the dependent entry.
 	SoftDeps []string
+	// IsNoop marks a KindTypeFn entry whose fn is the family identity (the
+	// short-form tuple — runtime registers familyMeta's noop fn). Consumers
+	// that reference an entry only to call its fn can elide the reference:
+	// the JSON composite collector reads this to drop dead primitive
+	// bindings. False for every other kind.
+	IsNoop bool
 }
 
 // allDeps iterates entry's hard + soft deps (callers dedup via sortedDeps).
