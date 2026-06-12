@@ -276,6 +276,15 @@ func (ctx *EmitContext) emitDepCall(childID, argsExpr, assignTo string) string {
 	return call
 }
 
+// CreateFnInContext is the EmitContext face of Walker.createFnInContext for
+// emitters that hand-build statement blocks in expression position (the old
+// hand-rolled IIFE sites): registers the block as a context function created
+// once per factory materialization and returns the `ctxFn<N>(<args>)` call
+// expression. See Walker.createFnInContext for the params/args contract.
+func (ctx *EmitContext) CreateFnInContext(body string, codeType CodeType, params, args []string) string {
+	return ctx.walker.createFnInContext(body, codeType, params, args)
+}
+
 // AddPureFnDependency records that the emitted body reaches a pure-fn
 // at `utl.getPureFn(<namespace>, <fnName>)`. The walker forwards each
 // dependency to the resolver's integrity check at end of compilation —
