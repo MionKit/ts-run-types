@@ -198,7 +198,7 @@ Cache access goes through the runtime registry (`getRTUtils()` in `src/runtypes/
 ### packages/vite-plugin-runtypes
 
 - `ResolverClient` — spawns the Go binary, serialises outstanding queries, parses line-delimited responses.
-- `rewrite.ts` — single function: for each file, calls `scanFiles`, then applies the returned sites as **byte-offset** insertions plus one deduped import block at offset 0 (`import {e as __rt_<key>} from 'virtual:rt/<key>.js';` per referenced entry). Operates on a `Buffer` rather than a JS string because tsgo positions are UTF-8 byte offsets — JS string math would skew on any multibyte character (e.g. em-dashes in comments).
+- `rewrite.ts` — single function: for each file, calls `scanFiles`, then applies the returned sites as **byte-offset** insertions plus one deduped single-line import block at offset 0 (`import {e as __rt_<key>} from 'virtual:rt/<key>.js';` per referenced entry). Edits go through a `MagicString`, so the rewrite also returns a source map (original lines/columns survive the injection). tsgo positions are UTF-8 byte offsets while MagicString indexes UTF-16 code units, so every resolver offset is converted via `makeByteToChar` first — raw JS string math would skew on any multibyte character (e.g. em-dashes in comments).
 - `index.ts` — Vite plugin glue. Short-circuits any file that doesn't reference the marker module (or `registerPureFnFactory`) as a cheap pre-filter. `resolveId`/`load` serve `virtual:rt/<key>.js` bodies verbatim from the `entryModules` map on the resolver's `dump` response — the Go side is the single renderer.
 
 ## Slot injection and padding
@@ -399,7 +399,6 @@ The Go test suite still needs `internal/testfixtures/runtypes.d.ts` because the 
 
 ## Limitations
 
-- No source-map adjustments when the rewriter injects arguments. Negligible for the POC, small fix for production.
 - The shim locks us into tsgo's internal API surface. A renovate-driven sync on the tsgolint submodule keeps it current.
 - Concurrency: `Cache` is not safe for concurrent use; the resolver holds one checker per process and serialises requests.
 - A signature carries exactly one injection marker, in the trailing parameter slot — `InjectRunTypeId<T>` for reflection sites or `InjectTypeFnArgs<T, Fn>` for factory sites. Multiple markers per call (or non-trailing position) is a follow-up.
