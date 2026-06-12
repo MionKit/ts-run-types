@@ -90,6 +90,68 @@ func TestModuleMode_AllSingle_FamilyBundleAndFacadeFolding(t *testing.T) {
 	}
 }
 
+func TestModuleMode_AllSingle_FacadeThunkHoisted(t *testing.T) {
+	// ≥ facadeHoistMin (3) reflection roots: every folded facade shares the
+	// same bundle deps thunk, so it's hoisted into ONE `const rtL=…` reused by
+	// each facade instead of a repeated `()=>[__rt_runtypes]`.
+	source := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+type A = {a: string};
+type B = {b: number};
+type C = {c: boolean};
+type D = {d: string};
+export const a = getRunTypeId<A>();
+export const b = getRunTypeId<B>();
+export const c = getRunTypeId<C>();
+export const d = getRunTypeId<D>();
+`
+	r := setupInlineMode(t, map[string]string{"a.ts": source}, constants.ModuleModeAllSingle)
+	resp := scanWithModules(t, r, []string{"a.ts"})
+	runtypes, ok := resp.EntryModules[constants.RunTypesBundleBasename]
+	if !ok {
+		t.Fatalf("missing runtypes bundle; modules: %v", moduleNames(resp))
+	}
+	bundleBinding := constants.EntryBindingPrefix + constants.RunTypesBundleBasename // __rt_runtypes
+	hoist := "const rtL=()=>[" + bundleBinding + "];"
+	if n := strings.Count(runtypes, hoist); n != 1 {
+		t.Fatalf("expected exactly one hoisted thunk %q, got %d:\n%s", hoist, n, runtypes)
+	}
+	if strings.Contains(runtypes, "=[5,()=>["+bundleBinding+"]") {
+		t.Fatalf("facade thunks must be hoisted, found an inline `()=>[%s]`:\n%s", bundleBinding, runtypes)
+	}
+	if !strings.Contains(runtypes, "=[5,rtL,,") {
+		t.Fatalf("facades must reuse the shared `rtL` local:\n%s", runtypes)
+	}
+	// The shared local references the data export, which must be declared first.
+	dataIdx := strings.Index(runtypes, "export const "+bundleBinding+"=[4,")
+	hoistIdx := strings.Index(runtypes, hoist)
+	if dataIdx < 0 || hoistIdx < 0 || dataIdx > hoistIdx {
+		t.Fatalf("data export must precede the hoist (dataIdx=%d hoistIdx=%d):\n%s", dataIdx, hoistIdx, runtypes)
+	}
+}
+
+func TestModuleMode_AllSingle_FacadeThunkInlineBelowThreshold(t *testing.T) {
+	// 2 roots (< facadeHoistMin) → no hoist; each facade keeps its inline thunk.
+	source := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+type A = {a: string};
+type B = {b: number};
+export const a = getRunTypeId<A>();
+export const b = getRunTypeId<B>();
+`
+	r := setupInlineMode(t, map[string]string{"a.ts": source}, constants.ModuleModeAllSingle)
+	resp := scanWithModules(t, r, []string{"a.ts"})
+	runtypes, ok := resp.EntryModules[constants.RunTypesBundleBasename]
+	if !ok {
+		t.Fatalf("missing runtypes bundle; modules: %v", moduleNames(resp))
+	}
+	if strings.Contains(runtypes, "const rtL=") {
+		t.Fatalf("2 facades (< threshold) must not hoist:\n%s", runtypes)
+	}
+	bundleBinding := constants.EntryBindingPrefix + constants.RunTypesBundleBasename
+	if !strings.Contains(runtypes, "=[5,()=>["+bundleBinding+"]") {
+		t.Fatalf("below-threshold facades should keep the inline thunk:\n%s", runtypes)
+	}
+}
+
 func TestModuleMode_AllSingle_SiteModuleStamping(t *testing.T) {
 	r := setupInlineMode(t, map[string]string{"a.ts": pairedSource}, constants.ModuleModeAllSingle)
 	// Plain scan — no entry modules requested — must still stamp Site.Module
