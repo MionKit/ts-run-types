@@ -2,6 +2,8 @@
 // `MockOptions` shape. `createMockType<T>()` merges caller options over
 // `defaultMockOptions` before walking the runtype graph.
 
+import type {MockData} from '../enrichment/mockData.ts';
+
 /** Per-call options steering atomic-value generation and optional/recursive
  *  shape handling. Ported field-for-field from the reference implementation. **/
 export interface MockOptions {
@@ -54,13 +56,48 @@ export interface MockOptions {
   maxMockRecursion: number;
 }
 
-/** Wrapper bag passed at factory or call site. Reserved for future option
- *  groups (e.g. `validation`, `format`) without breaking the signature. **/
-export interface RunTypeMockOptions {
-  mock?: DeepPartial<MockOptions>;
+/** Loose runtime view of a `MockNode` (../enrichment/mockData.ts) — the walker
+ *  reads pools / ranges / array controls structurally, descending by property
+ *  name (objects) or `$items` (arrays). Typed permissively because the walker
+ *  operates over erased `unknown` values; the typed surface is `MockData<T>` on
+ *  the public `data` field. Every slot is optional, so an absent / partial node
+ *  leaves the corresponding generation path untouched (strictly additive). **/
+export interface MockDataNode {
+  /** Value pool — leaf kinds draw `randomItem(pool)`. **/
+  pool?: unknown[];
+  /** Inclusive numeric / Date range bounds. **/
+  min?: number | Date;
+  max?: number | Date;
+  /** Array element data node. **/
+  $items?: MockDataNode;
+  /** Array element count — fixed `n` or `[min, max]` range. **/
+  $length?: number | [number, number];
+  /** Present-probability for optional object members (reserved; not yet read). **/
+  $optional?: number;
+  /** Per-property child node (objects), descended by property name. **/
+  [property: string]: unknown;
 }
 
-/** Generator returned by `createMockType<T>()`. **/
+/** Wrapper bag passed at factory or call site. Reserved for future option
+ *  groups (e.g. `validation`, `format`) without breaking the signature.
+ *
+ *  `data` is the optional `MockData<T>` enrichment map: per-field pools / ranges
+ *  / element + length controls that steer value generation. Strictly additive —
+ *  when absent the walker behaves byte-identically. `dataNode` is the internal
+ *  current-node cursor the walker threads + descends; callers supply `data`. **/
+export interface RunTypeMockOptions<T = unknown> {
+  mock?: DeepPartial<MockOptions>;
+  data?: MockData<T>;
+  /** Internal: the current MockData node for the node being walked. Seeded
+   *  from `data` at walk entry, descended by field name / `$items` / element.
+   *  Not part of the caller-facing surface — set by the walker. **/
+  dataNode?: MockDataNode;
+}
+
+/** Generator returned by `createMockType<T>()`. Call-time options may carry a
+ *  `data` enrichment map (typed loosely as `MockData<unknown>` here so the
+ *  return type stays structurally stable across `T`; the precisely-typed
+ *  `MockData<T>` surface is the factory's `options` param). **/
 export type MockTypeFn<T = unknown> = (options?: DeepPartial<RunTypeMockOptions>) => T;
 
 /** Recursive Partial — every object branch becomes optional. **/
