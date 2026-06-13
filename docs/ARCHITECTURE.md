@@ -432,6 +432,15 @@ The clean line: **Warning = expected drop, the user should know but it's fine**.
 
 Future direction (out of scope for the current code): we may refine the return type to `ValidateFn<DataOnly<T>>` (where `DataOnly<T>` strips non-serialisable members from the type), rename `createValidate` → `createIsDataType`, or introduce a separate stricter `createIsFullType` that errors instead of dropping. Discuss in [docs/ROADMAP.md](./ROADMAP.md) before changing — current callers depend on the silent-drop semantics.
 
+## Circular-reference guard — opt-in, value-level
+
+The validators / encoders are straight-line walkers with no cycle protection: a runtime **value** that contains a reference cycle (`a.next = a`) makes them recurse until the stack overflows. `setCircularCheck(true)` ([`src/runtypes/circular.ts`](../packages/ts-go-run-types/src/runtypes/circular.ts)) arms a guard on the four live-object families — `createValidate`, `createGetValidationErrors`, `createJsonEncoder`, `createBinaryEncoder` (decoders take serialized input, which can't cycle). Off by default; per-call override is a parked follow-up (see [ROADMAP](./ROADMAP.md)).
+
+The guard needs the type's reflection **RunType graph** at runtime to pair each value object with its node. createX sites don't normally ship that graph (only `getRunTypeId` reflection sites do), so rather than add a second injection marker — which would break the "exactly one trailing marker" invariant below — the graph rides as a **hidden dependency** of the function entry:
+
+- **Build** ([`internal/compiled/runtype/entries.go`](../internal/compiled/runtype/entries.go), [`internal/resolver/dispatch.go`](../internal/resolver/dispatch.go)): for a type whose reflected closure contains a circular node (`RunType.IsCircular`, set by the serializer's back-edge detection), `CollectEntries` adds its graph as **rows** of the shared data bundle (no facade), and `wireCircularRunTypeDeps` appends the bundle key to the guarded fn entries' `SoftDeps`. Non-circular types and non-guarded families emit nothing — fully demand-driven / pay-for-use.
+- **Runtime** ([`entryTuple.ts`](../packages/ts-go-run-types/src/runtypes/entryTuple.ts) `resolveEntryTupleFn`): `initFromTuple` already walks the entry's dep closure, so the RunType graph self-registers; the factory recovers the typeId from its entry key, looks up the node, and (when armed + the graph can cycle) wraps the compiled fn. `findCycle` then DFS-walks `(value, RunType)` with add-on-descent / delete-on-ascent identity tracking — shared DAGs pass, only a true back-edge flags. Policy per family: `validate` → `false`, `getValidationErrors` → a `{expected:'circular'}` entry, encoders → throw `CircularReferenceError` (matching `JSON.stringify`).
+
 ## Limitations
 
 - The shim locks us into tsgo's internal API surface. A renovate-driven sync on the tsgolint submodule keeps it current.

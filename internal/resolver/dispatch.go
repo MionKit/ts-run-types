@@ -155,6 +155,10 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns
 	graph.Merge(typefns.CollectJsonCompositeEntries(dump, rtOpts, graph))
 	graph.Merge(pureFnGraph)
 
+	// Link the reflection RunType bundle into the guarded fn entries of
+	// circular types so the runtime circular-reference guard can walk values.
+	resolver.wireCircularRunTypeDeps(graph, dump)
+
 	resolver.resolveCrossFamilyEdges(graph, dump, rtOpts)
 	// Composite prologues bind primitives with an unguarded
 	// `utl.getRT(key).fn` — assert every referenced primitive actually
@@ -495,6 +499,88 @@ func (resolver *Resolver) stampSiteModules(sites []protocol.Site) []protocol.Sit
 		}
 	}
 	return out
+}
+
+// circularGuardedFamilyTags are the family tags whose runtime factory applies
+// the circular-reference guard: createValidate ('val'),
+// createGetValidationErrors ('verr'), createBinaryEncoder ('tb'), and the three
+// createJsonEncoder composites ('jeCL'/'jeMU'/'jeDI'). Only these entries get
+// the reflection RunType bundle linked into their dep closure; every other
+// family of a circular type pays nothing (decoders take serialized input that
+// cannot cycle; the leaf families never guard).
+var circularGuardedFamilyTags = map[string]bool{
+	"val":  true,
+	"verr": true,
+	"tb":   true,
+	"jeCL": true,
+	"jeMU": true,
+	"jeDI": true,
+}
+
+// wireCircularRunTypeDeps links the reflection RunType graph into the dep
+// closure of every guarded fn entry whose type can cycle, so the runtime guard
+// (setCircularCheck) can walk the value against its RunType. The graph rides as
+// a SOFT dep — imported and registered by initFromTuple, but never cascaded
+// (the fn body never references it; only the runtime wrapper does). In the
+// default / allSingle bundle modes the dep is the single data bundle; in
+// allModules mode it is the type's own per-node module (key == typeId).
+func (resolver *Resolver) wireCircularRunTypeDeps(graph entrymod.Graph, dump protocol.Dump) {
+	circular := runtype.CircularGuardTypeIDs(dump)
+	if len(circular) == 0 {
+		return
+	}
+	perNode := resolver.opts.ModuleMode == constants.ModuleModeAllModules
+	bundleKey := ""
+	if !perNode {
+		for key, entry := range graph {
+			if entry.Kind == entrymod.KindRunTypeBundle {
+				bundleKey = key
+				break
+			}
+		}
+		if bundleKey == "" {
+			return
+		}
+	}
+	for _, entry := range graph {
+		if entry.Kind != entrymod.KindTypeFn || !circularGuardedFamilyTags[entry.FamilyTag] {
+			continue
+		}
+		typeID := typeIDFromEntryKey(entry.Key)
+		if typeID == "" || !circular[typeID] {
+			continue
+		}
+		dep := bundleKey
+		if perNode {
+			if _, ok := graph[typeID]; !ok {
+				continue
+			}
+			dep = typeID
+		}
+		if dep == "" || dep == entry.Key || containsString(entry.SoftDeps, dep) {
+			continue
+		}
+		entry.SoftDeps = append(entry.SoftDeps, dep)
+	}
+}
+
+// typeIDFromEntryKey splits a `<fnHash>_<typeId>` fn-entry key at the first
+// underscore, returning the type-id tail (empty when the key has no underscore).
+func typeIDFromEntryKey(key string) string {
+	if idx := strings.IndexByte(key, '_'); idx >= 0 {
+		return key[idx+1:]
+	}
+	return ""
+}
+
+// containsString reports whether values contains target.
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 // dispatch is the un-instrumented op switch. metrics may be nil (the

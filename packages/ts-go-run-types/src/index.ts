@@ -109,6 +109,12 @@ export {
 export {createMockType} from './mocking/createMockType.ts';
 export type {MockOptions, MockTypeFn, RunTypeMockOptions} from './mocking/mockTypes.ts';
 
+// Circular-reference guard for the live-object families (validate /
+// getValidationErrors / jsonEncode / binaryEncode). Opt-in and OFF by default;
+// `setCircularCheck(true)` arms it. The guard only engages for types whose
+// graph can actually cycle (the resolver links the RunType graph for those).
+export {setCircularCheck, isCircularCheckEnabled, CircularReferenceError, type CircularPath} from './runtypes/circular.ts';
+
 // DataView helpers — exposed so consumers can pre-build a serializer /
 // deserializer instance and pass it to the encoder / decoder for buffer reuse.
 export {
