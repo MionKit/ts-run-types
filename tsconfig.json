@@ -19,7 +19,7 @@
     "skipLibCheck": true
   },
   "references": [
-    {"path": "./packages/ts-go-run-types"},
+    {"path": "./packages/ts-runtypes"},
     {"path": "./packages/vite-plugin-runtypes"}
   ],
   "files": [],

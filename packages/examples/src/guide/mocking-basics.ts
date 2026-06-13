@@ -1,4 +1,4 @@
-import {createMockType, createValidate} from '@mionjs/ts-go-run-types';
+import {createMockType, createValidate} from 'ts-runtypes';
 
 type User = {
   id: number;

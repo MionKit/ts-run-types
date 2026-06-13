@@ -2,13 +2,13 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # benchmarks.sh — drive the isolated (podman) validation benchmarks.
 #
-# Each competitor (ts-go-run-types / zod / typebox / ajv / typia) is its OWN
+# Each competitor (ts-runtypes / zod / typebox / ajv / typia) is its OWN
 # isolated build: its deps install into its own node_modules inside the image
 # (so e.g. typia's heavy/fragile tree never touches the others), it imports the
 # shared suite + harness, builds with vite into its own dist/, and runs as its
 # own process writing results/<name>.json. aggregate.mjs then joins those into
-# one comparison table. The ts-go-run-types competitor additionally gets the host
-# Go binary + the first-party packages (@mionjs/ts-go-run-types,
+# one comparison table. The ts-runtypes competitor additionally gets the host
+# Go binary + the first-party packages (ts-runtypes,
 # vite-plugin-runtypes) bind-mounted into ITS node_modules so the plugin can
 # rewrite createValidate<T>() at build time.
 #
@@ -63,7 +63,7 @@ DOCDATA_DIR="${BENCH_DOCDATA:-$ROOT_DIR/.docdata}"
 # --rm runs (node_modules itself is baked into the image; only .ttsc must survive).
 VOL_TTSC="${BENCH_CONTAINER:-tsrt-bench}-typia-ttsc"
 
-MARKER_PKG="$ROOT_DIR/packages/ts-go-run-types"
+MARKER_PKG="$ROOT_DIR/packages/ts-runtypes"
 PLUGIN_PKG="$ROOT_DIR/packages/vite-plugin-runtypes"
 
 # GHCR publish/pull helpers (login, push, pull) + the remote image ref. Run
@@ -80,7 +80,7 @@ MANIFEST_NAME="tsrt-bench-manifest"
 # blank for that run). Set BENCH_NO_TYPIA=1 to skip it on a host where its
 # native plugin won't build.
 competitor_list() {
-  printf '%s\n' ts-go-run-types zod typebox ajv
+  printf '%s\n' ts-runtypes zod typebox ajv
   [ -z "${BENCH_NO_TYPIA:-}" ] && printf '%s\n' typia
   return 0
 }
@@ -92,7 +92,7 @@ linux_goarch() {
     *)             echo "amd64" ;;
   esac
 }
-LINUX_BIN="$ROOT_DIR/bin/ts-go-run-types-linux-$(linux_goarch)"
+LINUX_BIN="$ROOT_DIR/bin/ts-runtypes-linux-$(linux_goarch)"
 
 die() { echo "benchmarks.sh: $*" >&2; exit 1; }
 
@@ -242,9 +242,9 @@ mount_args() {
   printf -- '-v\n%s:/app/tsconfig.base.json:ro%s\n' "$BENCH_DIR/tsconfig.base.json" "$MOUNT_OPTS"
 
   # TS-GO competitor: host Go binary + first-party packages (writable RT cache aside).
-  local tsgo=/app/competitors/ts-go-run-types
-  printf -- '-v\n%s:%s/bin/ts-go-run-types:ro%s\n' "$LINUX_BIN" "$tsgo" "$MOUNT_OPTS"
-  printf -- '-v\n%s:%s/node_modules/@mionjs/ts-go-run-types:ro%s\n' "$MARKER_PKG" "$tsgo" "$MOUNT_OPTS"
+  local tsgo=/app/competitors/ts-runtypes
+  printf -- '-v\n%s:%s/bin/ts-runtypes:ro%s\n' "$LINUX_BIN" "$tsgo" "$MOUNT_OPTS"
+  printf -- '-v\n%s:%s/node_modules/ts-runtypes:ro%s\n' "$MARKER_PKG" "$tsgo" "$MOUNT_OPTS"
   printf -- '-v\n%s:%s/node_modules/vite-plugin-runtypes:ro%s\n' "$PLUGIN_PKG" "$tsgo" "$MOUNT_OPTS"
 
   # typia's one-time native-plugin compile persists in a named volume (subpath of
@@ -331,7 +331,7 @@ cmd_bench() {
 }
 
 cmd_bench_one() {
-  [ -n "${1:-}" ] || die "usage: bench-one <competitor> (ts-go-run-types|zod|typebox|ajv|typia)"
+  [ -n "${1:-}" ] || die "usage: bench-one <competitor> (ts-runtypes|zod|typebox|ajv|typia)"
   ensure_prereqs
   [ -z "${BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR/$1.json" 2>/dev/null || true; }
   build_and_run_one "$1"

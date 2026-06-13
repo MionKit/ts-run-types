@@ -3,9 +3,9 @@ package resolver_test
 import (
 	"testing"
 
-	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/all"
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // temporalNotLoadedDiags scans `code` and returns the TMP001 diagnostics.
@@ -33,7 +33,7 @@ func temporalNotLoadedDiags(t *testing.T, code string, suppressAmbient bool) []d
 }
 
 func TestTemporalGuard_FiresWhenLibMissing(t *testing.T) {
-	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	code := `import {getRunTypeId} from 'ts-runtypes';
 export const _ = getRunTypeId<Temporal.PlainDate>();
 `
 	diags := temporalNotLoadedDiags(t, code, true)
@@ -49,7 +49,7 @@ export const _ = getRunTypeId<Temporal.PlainDate>();
 }
 
 func TestTemporalGuard_SilentWhenLibLoaded(t *testing.T) {
-	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	code := `import {getRunTypeId} from 'ts-runtypes';
 export const _ = getRunTypeId<Temporal.PlainDate>();
 `
 	// Ambient present (default) → Temporal.PlainDate is a real type → no diag.
@@ -59,7 +59,7 @@ export const _ = getRunTypeId<Temporal.PlainDate>();
 }
 
 func TestTemporalGuard_FiresForNestedTemporalProperty(t *testing.T) {
-	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	code := `import {getRunTypeId} from 'ts-runtypes';
 export const _ = getRunTypeId<{createdAt: Temporal.Instant; name: string}>();
 `
 	diags := temporalNotLoadedDiags(t, code, true)
@@ -74,7 +74,7 @@ export const _ = getRunTypeId<{createdAt: Temporal.Instant; name: string}>();
 // A user type literally named `Temporal.Foo` (not a builtin) or a bare
 // `PlainDate` must NOT trip the guard.
 func TestTemporalGuard_IgnoresNonBuiltinNames(t *testing.T) {
-	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	code := `import {getRunTypeId} from 'ts-runtypes';
 interface PlainDate { y: number }
 export const _ = getRunTypeId<PlainDate>();
 `

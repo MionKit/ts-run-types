@@ -14,7 +14,7 @@ describe('vite-plugin-runtypes / implements round-trip', () => {
   runTest(
     'class implements single interface static',
     {
-      'impl.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'impl.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface I { a: string; }
 class C implements I { a: string = ''; }
 getRunTypeId<C>();
@@ -29,7 +29,7 @@ getRunTypeId<C>();
   runTest(
     'class implements single interface reflect',
     {
-      'impl.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'impl.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface I { a: string; }
 class C implements I { a: string = ''; }
 declare const value: C;
@@ -55,7 +55,7 @@ getRunTypeId(value);
   runTest(
     'class implements multiple interfaces static',
     {
-      'multi.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'multi.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface I1 { a: string; }
 interface I2 { b: number; }
 class C implements I1, I2 { a: string = ''; b: number = 0; }
@@ -78,7 +78,7 @@ getRunTypeId<C>();
   runTest(
     'class implements does not flatten static',
     {
-      'noflat.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'noflat.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface I { a: string; b: number; }
 class C implements I {
   a: string = '';
@@ -103,7 +103,7 @@ getRunTypeId<C>();
   runTest(
     'class extends and implements static',
     {
-      'both.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'both.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface I { tag: 'i'; }
 class B { x: string = ''; }
 class C extends B implements I { tag: 'i' = 'i'; }
@@ -125,7 +125,7 @@ getRunTypeId<C>();
   runTest(
     'plain class has no implements slot static',
     {
-      'plain.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'plain.ts': `import {getRunTypeId} from 'ts-runtypes';
 class C { x: string = ''; }
 getRunTypeId<C>();
 `,

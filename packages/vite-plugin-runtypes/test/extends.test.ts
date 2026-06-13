@@ -21,7 +21,7 @@ describe('vite-plugin-runtypes / extends round-trip', () => {
   runTest(
     'class extends populates extendsArguments static',
     {
-      'cext.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'cext.ts': `import {getRunTypeId} from 'ts-runtypes';
 class A { a = ''; }
 class B extends A { b = 0; }
 getRunTypeId<B>();
@@ -36,7 +36,7 @@ getRunTypeId<B>();
   runTest(
     'class extends populates extendsArguments reflect',
     {
-      'cext.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'cext.ts': `import {getRunTypeId} from 'ts-runtypes';
 class A { a = ''; }
 class B extends A { b = 0; }
 declare const value: B;
@@ -65,7 +65,7 @@ getRunTypeId(value);
   runTest(
     'class chained inheritance static',
     {
-      'chain.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'chain.ts': `import {getRunTypeId} from 'ts-runtypes';
 class A { a: string = ''; }
 class B extends A { b: number = 0; }
 class C extends B { c: boolean = false; }
@@ -91,7 +91,7 @@ getRunTypeId<C>();
   runTest(
     'interface extends populates extends static',
     {
-      'iext.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'iext.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface A { a: string; }
 interface B extends A { b: number; }
 getRunTypeId<B>();
@@ -106,7 +106,7 @@ getRunTypeId<B>();
   runTest(
     'interface extends populates extends reflect',
     {
-      'iext.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'iext.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface A { a: string; }
 interface B extends A { b: number; }
 declare const value: B;
@@ -136,7 +136,7 @@ getRunTypeId(value);
   runTest(
     'interface multiple parents static',
     {
-      'imulti.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'imulti.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface A { a: string; }
 interface B { b: number; }
 interface C extends A, B { c: boolean; }
@@ -159,7 +159,7 @@ getRunTypeId<C>();
   runTest(
     'interface diamond inheritance static',
     {
-      'diamond.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'diamond.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface A { a: string; }
 interface B extends A { b: number; }
 interface C extends A { c: boolean; }
@@ -185,7 +185,7 @@ getRunTypeId<D>();
   runTest(
     'interface override narrows parent prop static',
     {
-      'override.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'override.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface A { x: string; }
 interface B extends A { x: 'a' | 'b'; }
 getRunTypeId<B>();
@@ -205,7 +205,7 @@ getRunTypeId<B>();
   runTest(
     'type alias has no extends static',
     {
-      'alias.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'alias.ts': `import {getRunTypeId} from 'ts-runtypes';
 type T = {a: string};
 getRunTypeId<T>();
 `,
@@ -220,7 +220,7 @@ getRunTypeId<T>();
   runTest(
     'anonymous object literal has no extends static',
     {
-      'anon.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'anon.ts': `import {getRunTypeId} from 'ts-runtypes';
 getRunTypeId<{a: string}>();
 `,
     },

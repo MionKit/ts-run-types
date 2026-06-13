@@ -3,18 +3,18 @@ package runtype
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-run-types/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/marker"
 )
 
 // dataOnlyAliasName is the symbol name of the DataOnly utility type alias the
 // serializer special-cases. Defined in
-// packages/ts-go-run-types/src/runtypes/dataOnly.ts and gated by
+// packages/ts-runtypes/src/runtypes/dataOnly.ts and gated by
 // marker.DefaultModule so a user-defined `DataOnly` outside the marker
 // package never triggers the special path.
 const dataOnlyAliasName = "DataOnly"
 
 // dataOnlyTypeName recognises a synthesized mapped type that came from
-// instantiating the `DataOnly<T>` utility from `@mionjs/ts-go-run-types`
+// instantiating the `DataOnly<T>` utility from `ts-runtypes`
 // and composes a stable label `"DataOnly<<innerName>>"` for it.
 //
 // Background — the real DataOnly definition combines a conditional type
@@ -34,7 +34,7 @@ const dataOnlyAliasName = "DataOnly"
 // The recognition walks `MappedType.declaration` up the AST to its
 // enclosing TypeAliasDeclaration and matches on (a) the alias's symbol
 // name being `DataOnly` and (b) marker.DeclaredInModule placing the
-// declaration inside @mionjs/ts-go-run-types — the same module gate the
+// declaration inside ts-runtypes — the same module gate the
 // marker scanner uses. The inner name is composed from the mapped type's
 // modifiersType (the bound T): we try its alias name first (matches
 // `type X = …` argument), falling back to its symbol name (matches

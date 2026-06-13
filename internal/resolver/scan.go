@@ -6,16 +6,16 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-run-types/internal/builders"
-	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
-	"github.com/mionkit/ts-run-types/internal/compiled/runtype/typeid"
-	"github.com/mionkit/ts-run-types/internal/comptimeargs"
-	"github.com/mionkit/ts-run-types/internal/constants"
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/marker"
-	"github.com/mionkit/ts-run-types/internal/operations"
-	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/textpos"
+	"github.com/mionkit/ts-runtypes/internal/builders"
+	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
+	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
+	"github.com/mionkit/ts-runtypes/internal/comptimeargs"
+	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/operations"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 
 func (resolver *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
@@ -651,7 +651,7 @@ func (state scanState) enclosedByInjectionMarker(call *ast.Node) bool {
 // validateOptions carries the call-site `ValidateOptions` flags set to a
 // literal `true`, keyed by their constants.ValidateOptions name. Mirrors
 // the JS-side ValidateOptions interface
-// (packages/ts-go-run-types/src/createRTFunctions.ts). Table-driven off
+// (packages/ts-runtypes/src/createRTFunctions.ts). Table-driven off
 // constants.ValidateOptions: a new option is extracted automatically once
 // declared there — only its per-option semantics (e.g. a noop-diagnostic
 // rule in analyzeCall) need teaching.

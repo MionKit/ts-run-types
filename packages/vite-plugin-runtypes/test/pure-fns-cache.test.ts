@@ -22,7 +22,7 @@ import {hasBinary, withInlineSources, evalEntryModules} from './helpers/inline.t
 // (CompTimeArgs<string> × 2 + PureFunction<F> brands on the three
 // params), so test fixtures need a branded signature in scope —
 // otherwise the walker silently skips the call.
-const runtypesDts = `declare module '@mionjs/ts-go-run-types' {
+const runtypesDts = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
@@ -86,7 +86,7 @@ describe('vite-plugin-runtypes / pure-fns virtual module', () => {
 
   register('emits pureFns entries with structurally-valid metadata', async () => {
     const sources = {
-      'pure.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+      'pure.ts': `import {registerPureFnFactory} from 'ts-runtypes';
 export const a = registerPureFnFactory('mion', 'asJSONString', function () {
   return function _stringify(s: string): string {
     return JSON.stringify(s);
@@ -129,7 +129,7 @@ export const b = registerPureFnFactory('mion', 'safeKey', function () {
 
   register('emits Replacement entries that swap each factory argument for the entry binding', async () => {
     const sources = {
-      'src.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+      'src.ts': `import {registerPureFnFactory} from 'ts-runtypes';
 export const _ = registerPureFnFactory('mion', 'foo', function () {
   return function _f(x: number) { return x + 1; };
 });
@@ -156,7 +156,7 @@ export const _ = registerPureFnFactory('mion', 'foo', function () {
 
   register('extracts pureFnDependencies statically from utl.getPureFn calls', async () => {
     const sources = {
-      'deps.ts': `import {registerPureFnFactory, type RTUtils} from '@mionjs/ts-go-run-types';
+      'deps.ts': `import {registerPureFnFactory, type RTUtils} from 'ts-runtypes';
 export const _ = registerPureFnFactory('mion', 'consumer', function (utl: RTUtils) {
   return function _f(x: any) {
     return utl.getPureFn('mion::dep')(x);
@@ -173,7 +173,7 @@ export const _ = registerPureFnFactory('mion', 'consumer', function (utl: RTUtil
 
   register('emits CTA001 for non-literal namespace (was PFE9001 pre-marker-migration)', async () => {
     const sources = {
-      'bad-ns.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+      'bad-ns.ts': `import {registerPureFnFactory} from 'ts-runtypes';
 declare function getNs(): string;
 export const x = registerPureFnFactory(getNs(), 'fn', function () { return function() {}; });
 `,
@@ -195,7 +195,7 @@ export const x = registerPureFnFactory(getNs(), 'fn', function () { return funct
 
   register('emits PFN001 for non-inline factory reference (was PFE9003 pre-marker-migration)', async () => {
     const sources = {
-      'bad-fn.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+      'bad-fn.ts': `import {registerPureFnFactory} from 'ts-runtypes';
 declare const externalFn: (utl: unknown) => () => void;
 export const x = registerPureFnFactory('mion', 'fn', externalFn);
 `,
@@ -214,12 +214,12 @@ export const x = registerPureFnFactory('mion', 'fn', externalFn);
 
   register('emits PFE9004 collision diagnostic for mismatched bodies', async () => {
     const sources = {
-      'a.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+      'a.ts': `import {registerPureFnFactory} from 'ts-runtypes';
 export const a = registerPureFnFactory('mion', 'collideFn', function () {
   return function v1() { return 1; };
 });
 `,
-      'b.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+      'b.ts': `import {registerPureFnFactory} from 'ts-runtypes';
 export const b = registerPureFnFactory('mion', 'collideFn', function () {
   return function v2() { return 2; };
 });
@@ -245,7 +245,7 @@ export const b = registerPureFnFactory('mion', 'collideFn', function () {
 
   register('emits PFE9010 (forbidden identifier) for eval inside a factory body', async () => {
     const sources = {
-      'impure.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+      'impure.ts': `import {registerPureFnFactory} from 'ts-runtypes';
 export const x = registerPureFnFactory('mion', 'evilFn', function () {
   return function _evil() {
     return eval('1+1');
@@ -270,7 +270,7 @@ export const x = registerPureFnFactory('mion', 'evilFn', function () {
     // captures must blow up at scan time, since the cached fn body
     // can't see anything outside its own scope.
     const sources = {
-      'closure.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+      'closure.ts': `import {registerPureFnFactory} from 'ts-runtypes';
 const PRECISION = 0.001;
 export const x = registerPureFnFactory('mion', 'rounder', function () {
   return function _round(n: number) {

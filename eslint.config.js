@@ -22,7 +22,7 @@ export default tseslint.config(
       // the strict-mode TS compiler quiet about implicit-any parameters
       // for the same reason. Both are intentional — keep the skeletons
       // out of lint's scope.
-      'packages/ts-go-run-types/src/caches/**',
+      'packages/ts-runtypes/src/caches/**',
     ],
   },
   eslint.configs.recommended,

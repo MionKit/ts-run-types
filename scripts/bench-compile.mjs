@@ -40,9 +40,9 @@ import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-cli
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
-const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
+const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-runtypes');
 const SUITES_ROOT = path.join(PACKAGE_ROOT, 'test/suites');
-const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
+const BIN = path.join(REPO_ROOT, 'bin/ts-runtypes');
 const EXTRACT_BIN = path.join(REPO_ROOT, 'bin/extract-fn-bodies');
 
 // ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ const MICRO_SUITES = [
 
 // Ambient overlay mirroring internal/resolver/inline_test.go's runtypesDTS —
 // the full createX surface so any self-contained suite body typechecks.
-const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
+const RUNTYPES_DTS = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
@@ -144,7 +144,7 @@ function fail(msg) {
 }
 
 function ensureBinaries() {
-  if (!fs.existsSync(BIN)) fail(`binary not found at ${BIN} — go build -o bin/ts-go-run-types ./cmd/ts-go-run-types`);
+  if (!fs.existsSync(BIN)) fail(`binary not found at ${BIN} — go build -o bin/ts-runtypes ./cmd/ts-runtypes`);
   const res = spawnSync('go', ['build', '-o', EXTRACT_BIN, './cmd/extract-fn-bodies'], {cwd: REPO_ROOT, encoding: 'utf8'});
   if (res.status !== 0) fail(`building extract-fn-bodies failed:\n${res.stderr}`);
 }
@@ -181,7 +181,7 @@ function extractBodies(file, identifier) {
 }
 
 function buildSynthetic(imports, body) {
-  return `import {${imports.join(', ')}} from '@mionjs/ts-go-run-types';\nconst _probe = () => {\n${body}\n};\n`;
+  return `import {${imports.join(', ')}} from 'ts-runtypes';\nconst _probe = () => {\n${body}\n};\n`;
 }
 
 function statsOf(samples) {

@@ -1,11 +1,11 @@
 // Fake the runtime marker package so fixtures don't need a real
-// `@mionjs/ts-go-run-types` install on the search path.
+// `ts-runtypes` install on the search path.
 //
 // The resolver's scanFiles op looks for any signature whose trailing
 // parameter is `InjectRunTypeId<T>` *and* whose alias is declared inside the
 // configured marker module — both checks must pass for a call to be
 // rewritten.
-declare module '@mionjs/ts-go-run-types' {
+declare module 'ts-runtypes' {
   // Branded-string sentinel — only the phantom `T` matters to the checker.
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
 

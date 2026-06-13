@@ -1,6 +1,6 @@
 ---
 seo:
-  title: ts-run-types — TypeScript types that show up at runtime
+  title: RunTypes — TypeScript types that show up at runtime
   description: Validation, JSON + binary serialization, mock data and reflection — generated straight from your TypeScript types. No schemas, no drift.
 pageClass: home-page
 ---
@@ -39,7 +39,7 @@ TypeScript decided it is **"Just a Linter"** and erase your types.
 ---
 color: primary
 size: xl
-to: /introduction/about-ts-run-types
+to: /introduction/about-ts-runtypes
 icon: icon-park-outline:book-one
 class: btn-docs
 ---
@@ -51,7 +51,7 @@ Read the Docs
 color: neutral
 icon: simple-icons-github
 size: xl
-to: https://github.com/mionkit/ts-run-types
+to: https://github.com/mionkit/ts-runtypes
 variant: outline
 ---
 Give us a Star
@@ -194,7 +194,7 @@ Even in their faster JIT mode, but without any JIT compilation cost.
 caption: Validation throughput — is-valid check (ops/sec, higher is better)
 footnote: Zod has no fast is-valid path — it validates by parsing to errors, so its bar is the error-reporting result.
 bars:
-  - name: ts-run-types
+  - name: ts-runtypes
     score: 40.6
     label: 40.6M
     highlight: true
@@ -255,7 +255,7 @@ Every transform, cache shape and generated function is covered — on top of an 
 The whole toolbelt, in one box
 
 #body
-Stop gluing five libraries together. ts-run-types shares a single type graph across everything it generates — so the validator and the serializer always agree on what your type means.
+Stop gluing five libraries together. RunTypes shares a single type graph across everything it generates — so the validator and the serializer always agree on what your type means.
 
 :::card-group
 ---
@@ -367,4 +367,4 @@ export function __rt_a1b_Xk7(value) {
 
 [&nbsp;]{style="padding-bottom: 6rem;"}
 
-<!-- code-import-timestamp 1781603906027 -->
+<!-- code-import-timestamp 1781643665080 -->

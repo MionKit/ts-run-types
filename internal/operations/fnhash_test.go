@@ -3,7 +3,7 @@ package operations
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/constants"
 )
 
 // expectedCanonicalKeyCount is a canary: 12 AxisNone ops (7 public leaf + 5

@@ -1,0 +1,245 @@
+// Phase 2 harness — turn a generated type into REAL compiled runtime functions
+// by driving the actual resolver → plugin → runtime pipeline, and collect
+// everything the oracles need:
+//
+//   render `.ts` source (named decls + `type T = …` + one call site per family)
+//     → ResolverClient (--inline-server) setSources + scanFiles
+//     → entryModules (the per-entry virtual modules the plugin would serve)
+//     → evalEntryModules (execute them into their positional tuples)
+//     → pass each fn tuple as the injected id to the REAL createX factory
+//       (createValidate(undefined, undefined, tuple) → initFromTuple links the
+//        whole dependency closure into the live rtUtils).
+//
+// Crucially this is run on the WIDEST type space (typeGen.ts) — classes,
+// functions, symbols, index signatures, native builtins, circular types, etc.
+// Many of those are non-serialisable: the resolver emits Error-severity
+// diagnostics and the factories degrade to `alwaysThrow` (which may throw a
+// CONTROLLED error when wired or called). That is the contract working, not a
+// bug — so the harness records the diagnostics + per-factory wire outcome and
+// lets the runner pick the right oracle tier from them.
+
+import path from 'node:path';
+import {
+  createValidate,
+  createGetValidationErrors,
+  createJsonEncoder,
+  createJsonDecoder,
+  createBinaryEncoder,
+  createBinaryDecoder,
+} from 'ts-runtypes';
+import {ResolverClient} from '../../../vite-plugin-runtypes/src/resolver-client.ts';
+import {
+  RUNTYPES_DTS,
+  evalEntryModules,
+  instantiateRunTypes,
+  BIN,
+  hasBinary,
+} from '../../../vite-plugin-runtypes/test/helpers/inline.ts';
+import {Severity, type Diagnostic, type Site} from '../../../vite-plugin-runtypes/src/protocol.ts';
+import {renderGenerated, describeType, type GeneratedType} from './typeGen.ts';
+
+export {hasBinary, BIN};
+
+const REPO_ROOT = path.resolve(__dirname, '../../../..');
+const FIXTURE = 'g.ts';
+
+const ENCODER_TAGS = new Set(['jeCL', 'jeMU', 'jeDI']);
+const DECODER_TAGS = new Set(['jdST', 'jdPR']);
+
+export type WiredFns = {
+  validate?: (v: unknown) => boolean;
+  getValidationErrors?: (v: unknown) => unknown[];
+  jsonEncode?: (v: unknown) => string | undefined;
+  jsonDecode?: (s: string) => unknown;
+  binaryEncode?: (v: unknown) => ArrayBuffer;
+  binaryDecode?: (b: ArrayBuffer) => unknown;
+};
+
+export interface CompiledType {
+  gen: GeneratedType;
+  title: string;
+  source: string;
+  // --- resolver / emit observations ---
+  diagnostics: Diagnostic[];
+  errorDiagnostics: Diagnostic[];
+  warningDiagnostics: Diagnostic[];
+  sites: Site[];
+  fnSiteCount: number;
+  reflectionSiteCount: number;
+  entryModuleCount: number;
+  resolverError?: string;
+  evalError?: string;
+  // --- factory wiring ---
+  /** The factories that materialised without throwing. **/
+  wired: WiredFns;
+  /** Per-family controlled wire failures (alwaysThrow factories may throw). **/
+  wireErrors: Partial<Record<keyof WiredFns, string>>;
+}
+
+export function openClient(): ResolverClient {
+  if (!hasBinary()) throw new Error(`ts-runtypes binary not built: ${BIN}`);
+  return new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true, emitMode: 'both'});
+}
+
+/** Render the full fixture: import block, named decls, `type T = root`, and one
+ *  call site per family + the getRunTypeId reflection site. **/
+export function renderFixture(gen: GeneratedType): string {
+  const {decls, rootExpr} = renderGenerated(gen);
+  return `import {
+  createValidate,
+  createGetValidationErrors,
+  createJsonEncoder,
+  createJsonDecoder,
+  createBinaryEncoder,
+  createBinaryDecoder,
+  getRunTypeId,
+} from 'ts-runtypes';
+${decls}
+type T = ${rootExpr};
+createValidate<T>();
+createGetValidationErrors<T>();
+createJsonEncoder<T>();
+createJsonDecoder<T>();
+createBinaryEncoder<T>();
+createBinaryDecoder<T>();
+getRunTypeId<T>();
+`;
+}
+
+/** Drive the full pipeline for one generated type. Never throws — every failure
+ *  mode is captured on the result. **/
+export async function compileType(client: ResolverClient, gen: GeneratedType): Promise<CompiledType> {
+  const source = renderFixture(gen);
+  const title = describeType(gen);
+  const base: CompiledType = {
+    gen,
+    title,
+    source,
+    diagnostics: [],
+    errorDiagnostics: [],
+    warningDiagnostics: [],
+    sites: [],
+    fnSiteCount: 0,
+    reflectionSiteCount: 0,
+    entryModuleCount: 0,
+    wired: {},
+    wireErrors: {},
+  };
+
+  let resp;
+  try {
+    await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, [FIXTURE]: source});
+    resp = await client.scanFiles([FIXTURE], {includeEntryModules: true});
+  } catch (err) {
+    return {...base, resolverError: errMsg(err)};
+  }
+
+  const diagnostics = resp.diagnostics ?? [];
+  const sites = resp.sites ?? [];
+  const fnSites = sites.filter((s) => s.fnId);
+  const reflectionSites = sites.filter((s) => !s.fnId);
+  const entryModules = resp.entryModules ?? {};
+  const partial: CompiledType = {
+    ...base,
+    diagnostics,
+    errorDiagnostics: diagnostics.filter((d) => d.severity === Severity.Error),
+    warningDiagnostics: diagnostics.filter((d) => d.severity === Severity.Warning),
+    sites,
+    fnSiteCount: fnSites.length,
+    reflectionSiteCount: reflectionSites.length,
+    entryModuleCount: Object.keys(entryModules).length,
+  };
+
+  // Evaluating the emitted modules executes the generated factory code (catches
+  // invalid-JS emit); instantiateRunTypes knots the reflection graph (catches
+  // dangling refs). Either throwing is a finding.
+  let tuples: Record<string, readonly unknown[]>;
+  try {
+    tuples = evalEntryModules(entryModules);
+    instantiateRunTypes(tuples);
+  } catch (err) {
+    return {...partial, evalError: errMsg(err)};
+  }
+
+  // Wire each factory independently. A non-serialisable type degrades to an
+  // alwaysThrow factory that may throw a CONTROLLED error here — captured per
+  // family rather than aborting (the runner decides if that's expected).
+  const byFamily = classifyFnSites(fnSites, tuples);
+  const wired: WiredFns = {};
+  const wireErrors: CompiledType['wireErrors'] = {};
+  wire(wired, wireErrors, 'validate', () => createValidate(undefined, undefined, byFamily.val as never) as WiredFns['validate']);
+  wire(
+    wired,
+    wireErrors,
+    'getValidationErrors',
+    () => createGetValidationErrors(undefined, undefined, byFamily.verr as never) as WiredFns['getValidationErrors']
+  );
+  wire(
+    wired,
+    wireErrors,
+    'jsonEncode',
+    () => createJsonEncoder(undefined, undefined, byFamily.jenc as never) as WiredFns['jsonEncode']
+  );
+  wire(
+    wired,
+    wireErrors,
+    'jsonDecode',
+    () => createJsonDecoder(undefined, undefined, byFamily.jdec as never) as WiredFns['jsonDecode']
+  );
+  wire(
+    wired,
+    wireErrors,
+    'binaryEncode',
+    () => createBinaryEncoder(undefined, undefined, byFamily.tb as never) as WiredFns['binaryEncode']
+  );
+  wire(
+    wired,
+    wireErrors,
+    'binaryDecode',
+    () => createBinaryDecoder(undefined, undefined, byFamily.fb as never) as WiredFns['binaryDecode']
+  );
+
+  return {...partial, wired, wireErrors};
+}
+
+function wire<K extends keyof WiredFns>(
+  wired: WiredFns,
+  errs: CompiledType['wireErrors'],
+  key: K,
+  build: () => WiredFns[K]
+): void {
+  try {
+    wired[key] = build();
+  } catch (err) {
+    errs[key] = errMsg(err);
+  }
+}
+
+interface FamilyTuples {
+  val?: readonly unknown[];
+  verr?: readonly unknown[];
+  jenc?: readonly unknown[];
+  jdec?: readonly unknown[];
+  tb?: readonly unknown[];
+  fb?: readonly unknown[];
+}
+
+function classifyFnSites(fnSites: Site[], tuples: Record<string, readonly unknown[]>): FamilyTuples {
+  const out: FamilyTuples = {};
+  for (const site of fnSites) {
+    const tuple = tuples[`${site.fnId}_${site.id}`];
+    if (!tuple) continue;
+    const tag = tuple[0];
+    if (tag === 'val') out.val = tuple;
+    else if (tag === 'verr') out.verr = tuple;
+    else if (tag === 'tb') out.tb = tuple;
+    else if (tag === 'fb') out.fb = tuple;
+    else if (typeof tag === 'string' && ENCODER_TAGS.has(tag)) out.jenc = tuple;
+    else if (typeof tag === 'string' && DECODER_TAGS.has(tag)) out.jdec = tuple;
+  }
+  return out;
+}
+
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}

@@ -1,14 +1,14 @@
-# ts-go-run-types Architectural Guidelines
+# RunTypes Architectural Guidelines
 
-For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the single setup document. The [ts-run-types-setup skill](.claude/skills/ts-run-types-setup/) automates host bootstrap end-to-end.
+For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the single setup document. The [ts-runtypes-setup skill](.claude/skills/ts-runtypes-setup/) automates host bootstrap end-to-end.
 
 ## Dual-language repo: Go binary + JS workspace
 
-- **Go binary** at [cmd/ts-go-run-types/](cmd/ts-go-run-types/) + [internal/](internal/) reaches into tsgo's checker via the `oxc-project/tsgolint` shim to answer call-site type queries.
-- **JS workspace** at [packages/](packages/) — `@mionjs/ts-go-run-types` (marker + runtime helpers) and `vite-plugin-runtypes` (spawns the binary, rewrites calls, emits the cache module).
+- **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) + [internal/](internal/) reaches into tsgo's checker via the `oxc-project/tsgolint` shim to answer call-site type queries.
+- **JS workspace** at [packages/](packages/) — `ts-runtypes` (marker + runtime helpers) and `vite-plugin-runtypes` (spawns the binary, rewrites calls, emits the cache module).
 - **External Go deps** at [third_party/](third_party/) are git submodules treated as read-only vendored sources.
 - The Go binary is the side-channel; the JS packages are the only public surface.
-- The Vite plugin's tests spawn `bin/ts-go-run-types` — the binary MUST be built before `pnpm test` (see [SETUP.md → Build](SETUP.md#build)).
+- The Vite plugin's tests spawn `bin/ts-runtypes` — the binary MUST be built before `pnpm test` (see [SETUP.md → Build](SETUP.md#build)).
 
 ## Package manager — pnpm (NOT npm)
 
@@ -22,9 +22,9 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 
 - pnpm workspaces ([pnpm-workspace.yaml](pnpm-workspace.yaml)) + Lerna ([lerna.json](lerna.json)) for lockstep versioning and topo-ordered scripts.
 - Both JS packages move in lockstep (`forcePublish: true`, `exact: true`).
-- `@mionjs/ts-go-run-types` exposes the `InjectRunTypeId<T>` marker and `getRunTypeId` (static `getRunTypeId<T>()` + value-first `getRunTypeId(value)` forms).
+- `ts-runtypes` exposes the `InjectRunTypeId<T>` marker and `getRunTypeId` (static `getRunTypeId<T>()` + value-first `getRunTypeId(value)` forms).
 - `vite-plugin-runtypes` spawns the Go binary, applies byte-offset rewrites + import injection, serves the per-entry `virtual:rt/*` modules.
-- Filter a package: `pnpm --filter @mionjs/ts-go-run-types run <cmd>` or `pnpm --filter vite-plugin-runtypes run <cmd>`.
+- Filter a package: `pnpm --filter ts-runtypes run <cmd>` or `pnpm --filter vite-plugin-runtypes run <cmd>`.
 - All devDependencies live root-level; never per-package.
 
 ## Go side
@@ -47,7 +47,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 - JS uses **Vitest** (root [vitest.config.ts](vitest.config.ts)); test files use `.spec.ts` or `.test.ts`.
 - All JS: `pnpm test`. Single file: `pnpm exec vitest run <pattern>`. Single package: `pnpm --filter <name> test`.
 - Go: `go test ./internal/...`.
-- ALWAYS rebuild `bin/ts-go-run-types` before `pnpm test` — plugin tests spawn it; `pnpm run pretest` runs [`scripts/check-stale-builds.sh`](scripts/check-stale-builds.sh) automatically (covers the Go binary, the marker dist, and the vite plugin dist).
+- ALWAYS rebuild `bin/ts-runtypes` before `pnpm test` — plugin tests spawn it; `pnpm run pretest` runs [`scripts/check-stale-builds.sh`](scripts/check-stale-builds.sh) automatically (covers the Go binary, the marker dist, and the vite plugin dist).
 - Never run `pnpm run build` during development (only for publishing) — EXCEPT for `vite-plugin-runtypes`, which MUST be rebuilt after every src edit (consumers read its dist `.d.ts` for typecheck; no `source` condition in its exports).
 
 ### ⚠️ Marker test coverage rule
@@ -66,7 +66,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 
 ## Development workflow
 
-- After modifying Go sources, rebuild `bin/ts-go-run-types` before re-running JS plugin tests; Go-only tests (`go test ./internal/...`) exercise the packages directly and don't need the prebuilt binary.
+- After modifying Go sources, rebuild `bin/ts-runtypes` before re-running JS plugin tests; Go-only tests (`go test ./internal/...`) exercise the packages directly and don't need the prebuilt binary.
 - `pnpm run clean` (nx reset + per-package clean) before a fresh start.
 - Before committing, run `pnpm run lint` and `pnpm run format` (fix errors first).
 - Prefer `pnpm` scripts from `package.json` over raw `pnpm exec <cmd>` when a script exists.
@@ -89,10 +89,10 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 
 ## Marker package self-import resolution
 
-- The marker package's own tests import its public name `@mionjs/ts-go-run-types`; both vitest and tsgo must resolve that to in-tree `src/index.ts`, NOT the (un)built `dist/`.
-- [`packages/ts-go-run-types/package.json`](packages/ts-go-run-types/package.json) — `exports[".source"]` points at `./src/index.ts`. Opt-in lane; consumers without the `source` condition fall through to the normal `types`/`import`/`require` entries.
-- [`packages/ts-go-run-types/vitest.config.ts`](packages/ts-go-run-types/vitest.config.ts) — `resolve.conditions: ['source']` (mirrored on `ssr.resolve.conditions`) for vite's runtime resolver.
-- [`packages/ts-go-run-types/tsconfig.test.json`](packages/ts-go-run-types/tsconfig.test.json) — `customConditions: ["source"]` for tsgo's type-resolution pass.
+- The marker package's own tests import its public name `ts-runtypes`; both vitest and tsgo must resolve that to in-tree `src/index.ts`, NOT the (un)built `dist/`.
+- [`packages/ts-runtypes/package.json`](packages/ts-runtypes/package.json) — `exports[".source"]` points at `./src/index.ts`. Opt-in lane; consumers without the `source` condition fall through to the normal `types`/`import`/`require` entries.
+- [`packages/ts-runtypes/vitest.config.ts`](packages/ts-runtypes/vitest.config.ts) — `resolve.conditions: ['source']` (mirrored on `ssr.resolve.conditions`) for vite's runtime resolver.
+- [`packages/ts-runtypes/tsconfig.test.json`](packages/ts-runtypes/tsconfig.test.json) — `customConditions: ["source"]` for tsgo's type-resolution pass.
 - Drop either flag and the self-import resolves to `dist/` instead, breaking dev tests when dist is missing or stale.
 - The marker scanner in [`internal/marker/marker.go`](internal/marker/marker.go) gates `InjectRunTypeId<T>` recognition by walking up from the declaration's source file to the nearest `package.json` and matching its `"name"` field — `node_modules`-resolved and source-resolved imports both work. **Don't reintroduce the old path-fragment heuristic.**
 - The Go test suite ([`internal/testfixtures/runtypes.d.ts`](internal/testfixtures/runtypes.d.ts)) uses the older ambient `declare module` form because the fixtures live under `internal/` without their own package.json; that path is also honored by the marker scanner — keep the overlay in sync with the marker package's public API.
@@ -106,7 +106,7 @@ Full description: [docs/ARCHITECTURE.md → Rewrite mechanics](docs/ARCHITECTURE
 - Plugin options `moduleMode` (default | allSingle | allModules) and `inlineMode` (default | allInternal) configure entry grouping + child inlining; the two never share disk caches (fingerprint folds inlineMode in).
 - **Every cache entry is its own virtual module** EXCEPT runtype nodes, which ride as headless rows of the single data bundle `virtual:rt/runtypes.js` (kind 4) — one row per node app-wide. Per-reflection-root facade `virtual:rt/<rootId>.js` (kind 5) imports the bundle.
 - Every module exports ONE positional tuple under `__rt_<key>`: `[tag, depsThunk|hole, ini|hole, …]`. Absent slots are JS array HOLES, NOT `undefined` aliases.
-- Tuple-layout sync boundary: [internal/compiled/entrymod/entrymod.go](internal/compiled/entrymod/entrymod.go) (assembler) and [packages/ts-go-run-types/src/runtypes/entryTuple.ts](packages/ts-go-run-types/src/runtypes/entryTuple.ts) (runtime). Constants from [internal/constants/constants.go](internal/constants/constants.go), mirrored via `pnpm run gen:ts-constants`.
+- Tuple-layout sync boundary: [internal/compiled/entrymod/entrymod.go](internal/compiled/entrymod/entrymod.go) (assembler) and [packages/ts-runtypes/src/runtypes/entryTuple.ts](packages/ts-runtypes/src/runtypes/entryTuple.ts) (runtime). Constants from [internal/constants/constants.go](internal/constants/constants.go), mirrored via `pnpm run gen:ts-constants`.
 - **Imports and `deps()` carry DIRECT dependencies only** — never the transitive closure (flattening was 6x wire / 4x render on real suites). Leaves-first, alphabetical within a level (Tarjan SCC for cycles), never self; `deps()` is a lazy thunk inlined into the slot so module cycles never hit TDZ.
 - Rewrite injects one deduped import block at offset 0 + the entry-module BINDING at each call site (`createValidate<T>(__rt_<fnHash>_<id>)`); ids derive from tuple slot 3 — no id strings on the wire.
 - Entry modules are content-addressed (ids embed binary version), immutable, never HMR-invalidated — EXCEPT the runtype data bundle, invalidated in `handleHotUpdate` when a scan reports `addedRunTypes`.
@@ -116,7 +116,7 @@ Full description: [docs/ARCHITECTURE.md → Rewrite mechanics](docs/ARCHITECTURE
 
 ## Two injection markers + demand-driven function caches
 
-Full design: [docs/ARCHITECTURE.md → The second marker — `InjectTypeFnArgs<T, Fn>` and demand-driven caches](docs/ARCHITECTURE.md#the-second-marker--injecttypefnargst-fn-and-demand-driven-caches). Both markers live in [packages/ts-go-run-types/src/markers.ts](packages/ts-go-run-types/src/markers.ts).
+Full design: [docs/ARCHITECTURE.md → The second marker — `InjectTypeFnArgs<T, Fn>` and demand-driven caches](docs/ARCHITECTURE.md#the-second-marker--injecttypefnargst-fn-and-demand-driven-caches). Both markers live in [packages/ts-runtypes/src/markers.ts](packages/ts-runtypes/src/markers.ts).
 
 - `InjectRunTypeId<T>` — reflection-only (`getRunTypeId` static + value-first forms, value-first RT builders, `createMockType`). Injects `"<typeId>"`; drives the `runTypes` reflection cache (1:1 on shape, no options).
 - `InjectTypeFnArgs<T, Fn>` — every `createX<T>()` factory (`createValidate`, `createGetValidationErrors`, the `huk`/`suk`/`uke`/`uku`/`fmt` group, `createJsonEncoder/Decoder`, `createBinaryEncoder/Decoder`). Injects `["<typeId>", "<fnHash>"]`; `fnHash` is a length-3 opaque hash Go computes from `Fn` + the call-site `CompTimeFnArgs` literal. Runtime treats `fnId` as an opaque lookup key — **no runtime hashing**. Cache key: `<fnHash>_<typeId>`.
@@ -129,7 +129,7 @@ Full design: [docs/ARCHITECTURE.md → The second marker — `InjectTypeFnArgs<T
 - Plugin **`emitMode`** option (`code` | `functions` | `both`; binary `--emit-mode`) selects what each fn entry ships: `code` (default) body string (runtime rebuilds via `new Function`); `functions` live `createRTFn` closure; `both` ships both (CSP runtimes reading `.code`). Disk fingerprint ([internal/cache/disk/fingerprint.go](internal/cache/disk/fingerprint.go), tag v4) folds `emitMode` in so modes never cross-read.
 - `it` (validate) is special — a shared cross-family dep because JSON/binary union decoders + `validationErrors` call `val_<member>` at runtime. Edges ride each entry's `SoftDeps` (imported, never cascade-dropped — bodies guard with `?.fn(…) ?? true`); resolver renders foreign entries to fixpoint (`resolveCrossFamilyEdges` in [internal/resolver/dispatch.go](internal/resolver/dispatch.go)). A union-only file still gets per-member `val_` entries via the union's import closure.
 - **Noop elision is semantic, not shape-based** ([internal/compiled/typefns/noop_types.go](internal/compiled/typefns/noop_types.go)). Per-family predicates over the TYPE GRAPH (cycle-safe greatest fixpoint, memoized in `FactsTable`; pj/rj/pjs implement `NoopTypePredicate` today). SOUNDNESS CONTRACT (one-directional): predicate true ⇒ body is identity — false negative costs bytes, false positive silently skips a transform. Corpus test ([internal/resolver/noop_predicate_test.go](internal/resolver/noop_predicate_test.go)) pins the unsound direction; when adding a kind or changing an emit arm, keep the predicate in sync.
-- **Adding a new RT function family:** add to [internal/operations](internal/operations/) registry (Name + FamilyTag + Axis + FnKey), `typefns.Families` ([internal/compiled/typefns/families.go](internal/compiled/typefns/families.go)), `familyAddedFlags` in [internal/resolver/dispatch.go](internal/resolver/dispatch.go), and the runtime `familyMeta` table in [packages/ts-go-run-types/src/runtypes/entryTuple.ts](packages/ts-go-run-types/src/runtypes/entryTuple.ts). Give its `createX` an `InjectTypeFnArgs<T, '<fnKey>'>` trailing param (+ `CompTimeFnArgs` slot for comptime options). Cross-family refs ride `SoftDeps` automatically.
+- **Adding a new RT function family:** add to [internal/operations](internal/operations/) registry (Name + FamilyTag + Axis + FnKey), `typefns.Families` ([internal/compiled/typefns/families.go](internal/compiled/typefns/families.go)), `familyAddedFlags` in [internal/resolver/dispatch.go](internal/resolver/dispatch.go), and the runtime `familyMeta` table in [packages/ts-runtypes/src/runtypes/entryTuple.ts](packages/ts-runtypes/src/runtypes/entryTuple.ts). Give its `createX` an `InjectTypeFnArgs<T, '<fnKey>'>` trailing param (+ `CompTimeFnArgs` slot for comptime options). Cross-family refs ride `SoftDeps` automatically.
 
 ## validate contract — serializable data only
 
@@ -140,13 +140,13 @@ Full rationale: [docs/ARCHITECTURE.md → Validate contract](docs/ARCHITECTURE.m
 - Consequence: `interface User { name: string; onClick: () => void }` produces a validator that only checks `name`; `isUser({name:'x', onClick:'not-a-fn'})` returns `true`. VL010 at build time is the only signal — do NOT treat it as an error.
 - Same rule for JSON / binary: non-serialisable at a **property** position silently drops with a per-family Warning; at a **root** or propagating position (array element, tuple slot, union member, function param/return) it emits `alwaysThrow` with an **Error**-severity diagnostic that throws at runtime — the build halts.
 - Clean line: **Warning** = expected drop, fine; **Error** = will throw at runtime, build must fail.
-- **Decoders return the data-only projection.** `createJsonDecoder<T>()` and `createBinaryDecoder<T>()` return `DataOnly<T>` (the `dataonly-extract` type in [packages/ts-go-run-types/src/runtypes/dataOnly.ts](packages/ts-go-run-types/src/runtypes/dataOnly.ts)), NOT bare `T`. Projection lives on the factory overload return (`JsonDecoderFn<DataOnly<T>>` / `BinaryDecoderFn<DataOnly<T>>`); the `JsonDecoderFn`/`BinaryDecoderFn` aliases stay `=> T`. Encoders unchanged. Type-level only — no runtime / emitter change.
+- **Decoders return the data-only projection.** `createJsonDecoder<T>()` and `createBinaryDecoder<T>()` return `DataOnly<T>` (the `dataonly-extract` type in [packages/ts-runtypes/src/runtypes/dataOnly.ts](packages/ts-runtypes/src/runtypes/dataOnly.ts)), NOT bare `T`. Projection lives on the factory overload return (`JsonDecoderFn<DataOnly<T>>` / `BinaryDecoderFn<DataOnly<T>>`); the `JsonDecoderFn`/`BinaryDecoderFn` aliases stay `=> T`. Encoders unchanged. Type-level only — no runtime / emitter change.
 - Future direction (out of scope): refine return type to `ValidateFn<DataOnly<T>>`, rename `createValidate` → `createIsDataType`, or add a stricter `createIsFullType` that errors instead of dropping. Discuss in [docs/ROADMAP.md](docs/ROADMAP.md) before changing — current callers depend on the silent-drop semantics.
 
 ## Documentation
 
 - [README.md](README.md) — project overview, how-it-works, usage, CLI flags.
 - [SETUP.md](SETUP.md) — single setup doc: prereqs, bootstrap, build, test, lint, dev loop, containerized apps, publishing, troubleshooting.
-- [.claude/skills/ts-run-types-setup/](.claude/skills/ts-run-types-setup/) — automated host bootstrap + smoke verification skill.
+- [.claude/skills/ts-runtypes-setup/](.claude/skills/ts-runtypes-setup/) — automated host bootstrap + smoke verification skill.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed design, execution model, sentinel markers, lossy mappings, `@mionjs/run-types` parity record.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — scope + known lossy mappings.

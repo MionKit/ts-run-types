@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import runtypes from '../src/index.ts';
 import {BIN, hasBinary} from './helpers/inline.ts';
 
-const PACKAGE_ROOT = path.resolve(__dirname, '../../ts-go-run-types');
+const PACKAGE_ROOT = path.resolve(__dirname, '../../ts-runtypes');
 // Lives under the marker package's test/ tree so tsconfig.test.json puts the
 // fixtures in the Go resolver's Program (the plugin scans real program files).
 const FIXTURE_DIR = path.join(PACKAGE_ROOT, 'test', 'tmp-build-split');
@@ -27,7 +27,7 @@ const FIXTURES: Record<string, string> = {
   sharedProp: boolean;
 }
 `,
-  'entry-a.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+  'entry-a.ts': `import {createValidate} from 'ts-runtypes';
 import type {SharedThing} from './shared-type.ts';
 interface AlphaOnly {
   alphaProp: string;
@@ -35,7 +35,7 @@ interface AlphaOnly {
 export const isAlpha = createValidate<AlphaOnly>();
 export const isSharedA = createValidate<SharedThing>();
 `,
-  'entry-b.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+  'entry-b.ts': `import {createValidate} from 'ts-runtypes';
 import type {SharedThing} from './shared-type.ts';
 interface BetaOnly {
   betaProp: number;

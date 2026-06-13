@@ -20,7 +20,7 @@ hold for **all** inputs. The first run already found and fixed a real bug — se
 
 ## Layout
 
-All under [`packages/ts-go-run-types/test/fuzz/`](../packages/ts-go-run-types/test/fuzz/):
+All under [`packages/ts-runtypes/test/fuzz/`](../packages/ts-runtypes/test/fuzz/):
 
 | File                           | Role                                                                                                                                                                                                                                            |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -145,7 +145,7 @@ miss.
 
 ### The third giant switch — the widest space we can throw
 
-[`typeGen.ts`](../packages/ts-go-run-types/test/fuzz/typeGen.ts) generates a
+[`typeGen.ts`](../packages/ts-runtypes/test/fuzz/typeGen.ts) generates a
 `GeneratedType` = `{decls, root}` (named declarations + a root type) seeded from
 `Math.random`, then renders it to real `.ts`. The point is to stress the
 pipeline with **arbitrary weird types**, not just clean DTOs:
@@ -167,7 +167,7 @@ degrade its factories to `alwaysThrow`; that's the contract working, not a bug.
 
 ### Two oracle tiers, chosen from the resolver's own signals
 
-[`typeFuzzRunner.ts`](../packages/ts-go-run-types/test/fuzz/typeFuzzRunner.ts)
+[`typeFuzzRunner.ts`](../packages/ts-runtypes/test/fuzz/typeFuzzRunner.ts)
 checks, per generated type:
 
 | Tier  | Id      | Applies to       | Invariant                                                                                                                 |
@@ -185,10 +185,10 @@ and dangling refs — the highest-value bugs. Tier B routes by a strict
 validator get the full strong oracles (reusing the Phase-1 `fuzzOracle.ts` checks
 verbatim); everything else gets the robustness probe. The value streams come
 straight from the abstract type (`validValue` / `corruptValue` in
-[`shapeValue.ts`](../packages/ts-go-run-types/test/fuzz/shapeValue.ts)), so no
+[`shapeValue.ts`](../packages/ts-runtypes/test/fuzz/shapeValue.ts)), so no
 dependency on `createMockType`.
 
-The harness ([`typeFuzzHarness.ts`](../packages/ts-go-run-types/test/fuzz/typeFuzzHarness.ts))
+The harness ([`typeFuzzHarness.ts`](../packages/ts-runtypes/test/fuzz/typeFuzzHarness.ts))
 reuses the vite-plugin test helpers
 ([`helpers/inline.ts`](../packages/vite-plugin-runtypes/test/helpers/inline.ts)):
 render the fixture → `--inline-server` `ResolverClient.setSources` (atop the
@@ -207,7 +207,7 @@ reported violation replays exactly.
   does (it recurses depth-first and overflows), so recursive types are policed
   by the resolver/emit oracles (TR1–TR3) and **not** executed in-process — their
   runtime is covered by the real
-  [`serialization/CircularRefs.test.ts`](../packages/ts-go-run-types/test/suites/serialization/CircularRefs.test.ts)
+  [`serialization/CircularRefs.test.ts`](../packages/ts-runtypes/test/suites/serialization/CircularRefs.test.ts)
   suite.
 - **The strong value oracles cover a conservative subset.** `valueOracleSafe`
   deliberately excludes `any` / `unknown`, primitive-bearing intersections

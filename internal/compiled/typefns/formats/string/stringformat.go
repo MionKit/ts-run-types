@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // stringFormatEmitter implements the format with name "stringFormat" —
-// FormatString<P> in `@mionjs/ts-go-run-types/formats`. Mirrors mion's
+// FormatString<P> in `ts-runtypes/formats`. Mirrors mion's
 // StringRunTypeFormat (packages/type-formats/src/string/stringFormat.runtype.ts)
 // but extracts literal params from the wire-format FormatAnnotation
 // instead of mion's deepkit-decoded `{val, mockSamples, …}` wrapper

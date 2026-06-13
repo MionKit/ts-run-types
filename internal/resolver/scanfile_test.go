@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // scanFixture is the shared driver behind the F17 / F17b regression tests.
@@ -96,7 +96,7 @@ func TestScanFile_F17_StaticGetRunTypeId(t *testing.T) {
 		},
 		[]string{
 			"getRunTypeId<T>()",     // 17e — free type parameter inside body
-			"maskedWrapper('noop')", // 17f — non-@mionjs/ts-go-run-types InjectRunTypeId
+			"maskedWrapper('noop')", // 17f — non-ts-runtypes InjectRunTypeId
 		},
 	)
 }
@@ -116,7 +116,7 @@ func TestScanFile_F17b_GetRunTypeIdReflect(t *testing.T) {
 		},
 		[]string{
 			"getRunTypeId<T>(val)",  // 17be — free type parameter inside body
-			"maskedWrapper('noop')", // 17bf — non-@mionjs/ts-go-run-types InjectRunTypeId
+			"maskedWrapper('noop')", // 17bf — non-ts-runtypes InjectRunTypeId
 		},
 	)
 }
@@ -125,7 +125,7 @@ func TestScanFile_F17b_GetRunTypeIdReflect(t *testing.T) {
 // trailing `InjectRunTypeId<T>` slot is already filled by an explicit caller-
 // supplied argument in the static form.
 func TestScanFile_F18_ExplicitId_Static(t *testing.T) {
-	const code = `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type InjectRunTypeId} from 'ts-runtypes';
 
 // 18a — caller passes an explicit string literal at the id slot (slot 1;
 // the value slot stays empty). The scanner must NOT emit a site here —
@@ -155,7 +155,7 @@ validate<{flag: boolean}>(true, 'manualHash');
 
 // TestScanFile_F18_ExplicitId_Reflect is the reflection-form sibling.
 func TestScanFile_F18_ExplicitId_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type InjectRunTypeId} from 'ts-runtypes';
 
 // 18ba — direct reflect call with an explicit literal in the id slot.
 const u = {id: 1, name: 'm'} as {id: number; name: string};
@@ -186,7 +186,7 @@ validate<{flag: boolean}>(true, 'manualHash');
 // TestScanFile_Idempotent_Static: re-running scanFiles on a static-form
 // source must add zero new types and report the same site count.
 func TestScanFile_Idempotent_Static(t *testing.T) {
-	const code = `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type InjectRunTypeId} from 'ts-runtypes';
 
 getRunTypeId<{id: number; name: string}>();
 
@@ -203,7 +203,7 @@ validate<{flag: boolean}>(true);
 
 // TestScanFile_Idempotent_Reflect is the reflection-form sibling.
 func TestScanFile_Idempotent_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type InjectRunTypeId} from 'ts-runtypes';
 
 const u = {id: 1, name: 'm'} as {id: number; name: string};
 getRunTypeId(u);

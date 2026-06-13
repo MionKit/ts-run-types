@@ -1,4 +1,4 @@
-import {createBinaryEncoder, createBinaryDecoder, createDataViewSerializer, createDataViewDeserializer} from '@mionjs/ts-go-run-types';
+import {createBinaryEncoder, createBinaryDecoder, createDataViewSerializer, createDataViewDeserializer} from 'ts-runtypes';
 
 type Tick = {symbol: string; price: number};
 
@@ -9,7 +9,10 @@ const decode = createBinaryDecoder<Tick>();
 // In a hot loop, build the serializer once and hand it to the encoder so it
 // reuses the same backing buffer instead of allocating a fresh one each call.
 const ser = createDataViewSerializer('ticks');
-const ticks: Tick[] = [{symbol: 'TS', price: 7}, {symbol: 'GO', price: 9}];
+const ticks: Tick[] = [
+  {symbol: 'TS', price: 7},
+  {symbol: 'GO', price: 9},
+];
 
 const buffers = ticks.map((tick) => encode(tick, ser)); // writes into the shared serializer
 

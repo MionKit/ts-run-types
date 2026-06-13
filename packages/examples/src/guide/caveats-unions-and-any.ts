@@ -1,9 +1,7 @@
-import {createValidate} from '@mionjs/ts-go-run-types';
+import {createValidate} from 'ts-runtypes';
 
 // Unions are read precisely — each member is validated.
-type Shape =
-  | {kind: 'circle'; radius: number}
-  | {kind: 'square'; side: number};
+type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; side: number};
 
 const isShape = createValidate<Shape>();
 isShape({kind: 'circle', radius: 5}); // true

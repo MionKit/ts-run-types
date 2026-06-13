@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // composerCTADTS overlays the composer builders with their real CompTimeArgs
@@ -21,7 +21,7 @@ import (
 // reads the `CompTimeArgs<…>` annotation node (detectCompTimeArgsByNode), not a
 // brand property on the resolved type. No Go production code beyond that
 // detection is involved; the literal check is the existing isBuilderCallPredicate.
-const composerCTADTS = `declare module '@mionjs/ts-go-run-types' {
+const composerCTADTS = `declare module 'ts-runtypes' {
   export interface RunType<T = unknown> { readonly id: string; }
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T;
@@ -61,7 +61,7 @@ func scanComposerCTA(t *testing.T, code string) []diag.Diagnostic {
 // diagnostic. Covers array (simple generic), tuple (const T), union (spread
 // brand), and func (const P) in one pass.
 func TestComposerCTA_BuilderChildrenAccepted(t *testing.T) {
-	const code = `import {array, tuple, union, func, string, number} from '@mionjs/ts-go-run-types';
+	const code = `import {array, tuple, union, func, string, number} from 'ts-runtypes';
 const s = string();
 const _arr = array(string());
 const _arrConst = array(s);
@@ -80,7 +80,7 @@ void _arr; void _arrConst; void _tup; void _uni; void _fn; void _fn0;
 // passed to a simple-generic composer (array) raises a CTA forbidden-construct
 // diagnostic — i.e. tsgo detects CompTimeArgs on `CompTimeArgs<RunType<T>>`.
 func TestComposerCTA_DynamicArrayChildRejected(t *testing.T) {
-	const code = `import {array, string} from '@mionjs/ts-go-run-types';
+	const code = `import {array, string} from 'ts-runtypes';
 declare const cond: boolean;
 const _bad = array(cond ? string() : string());
 void _bad;
@@ -98,8 +98,8 @@ void _bad;
 // (`CompTimeArgs<T>`) is detected by tsgo: a spread element inside the items
 // array is a forbidden construct.
 func TestComposerCTA_TupleSpreadRejected(t *testing.T) {
-	const code = `import {tuple, string} from '@mionjs/ts-go-run-types';
-declare const parts: [import('@mionjs/ts-go-run-types').RunType<string>];
+	const code = `import {tuple, string} from 'ts-runtypes';
+declare const parts: [import('ts-runtypes').RunType<string>];
 const _bad = tuple([...parts]);
 void _bad;
 `
@@ -117,8 +117,8 @@ void _bad;
 // the brand on that intersection-of-spread-tuple, the spread child below would
 // scan silently. It must raise a CTA forbidden-construct instead.
 func TestComposerCTA_UnionSpreadRejected(t *testing.T) {
-	const code = `import {union, string} from '@mionjs/ts-go-run-types';
-declare const members: [import('@mionjs/ts-go-run-types').RunType<string>];
+	const code = `import {union, string} from 'ts-runtypes';
+declare const members: [import('ts-runtypes').RunType<string>];
 const _bad = union([...members]);
 void _bad;
 `
@@ -135,7 +135,7 @@ void _bad;
 // brand (`CompTimeArgs<P>`, const P) is detected: a const bound to a ternary
 // (non-builder, non-literal) traces to a forbidden construct.
 func TestComposerCTA_FuncDynamicParamsRejected(t *testing.T) {
-	const code = `import {func, string} from '@mionjs/ts-go-run-types';
+	const code = `import {func, string} from 'ts-runtypes';
 declare const cond: boolean;
 const dyn = cond ? [string()] : [string()];
 const _bad = func(dyn);

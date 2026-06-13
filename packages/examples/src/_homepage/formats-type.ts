@@ -1,10 +1,5 @@
-import {createValidate} from '@mionjs/ts-go-run-types';
-import type {
-  FormatUUIDv4,
-  FormatEmail,
-  FormatIPv4,
-  FormatPositiveInt,
-} from '@mionjs/ts-go-run-types/formats';
+import {createValidate} from 'ts-runtypes';
+import type {FormatUUIDv4, FormatEmail, FormatIPv4, FormatPositiveInt} from 'ts-runtypes/formats';
 
 // A format brands a string or number — the validator checks its exact
 // shape, not just "is it a string".

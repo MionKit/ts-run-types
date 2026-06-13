@@ -3,12 +3,12 @@ package numeric
 import (
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // bigintFormatEmitter implements the format with name "bigintFormat" —
-// FormatBigInt<P> in `@mionjs/ts-go-run-types/formats`. Mirrors mion's
+// FormatBigInt<P> in `ts-runtypes/formats`. Mirrors mion's
 // BigIntRunTypeFormat (packages/type-formats/src/bigint/bigIntFormat.runtype.ts).
 //
 // Surface: min / max / lt / gt, multipleOf — emitted in mion's order with

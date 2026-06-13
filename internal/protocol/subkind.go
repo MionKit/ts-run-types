@@ -28,11 +28,11 @@ const (
 	SubKindNonSerializable ReflectionSubKind = 2004
 
 	// Temporal API SubKinds (2101–2108). NOT mirrored from mion — Temporal
-	// predates mion's adoption here, so ts-go-run-types owns this numbering.
+	// predates mion's adoption here, so ts-runtypes owns this numbering.
 	// One per builtin Temporal type; each is encoded as KindClass + this
 	// SubKind + ClassRef.Builtin = "Temporal.<Name>" (so the cache footer
 	// wires `t.classType = globalThis.Temporal.<Name>`). Mirror to JS in
-	// packages/ts-go-run-types/src/runTypeKind.ts.
+	// packages/ts-runtypes/src/runTypeKind.ts.
 	SubKindTemporalInstant        ReflectionSubKind = 2101
 	SubKindTemporalZonedDateTime  ReflectionSubKind = 2102
 	SubKindTemporalPlainDate      ReflectionSubKind = 2103

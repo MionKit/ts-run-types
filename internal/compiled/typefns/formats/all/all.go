@@ -10,13 +10,13 @@ package all
 
 import (
 	// Date / time / dateTime / native-Date emitters. JS-side mirrors live
-	// under `packages/ts-go-run-types/src/formats/datetime/`.
-	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/datetime"
+	// under `packages/ts-runtypes/src/formats/datetime/`.
+	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/datetime"
 	// Numeric-family emitters (numberFormat + bigintFormat). JS-side
-	// mirrors live at `packages/ts-go-run-types/src/formats/numberFormats.ts`
+	// mirrors live at `packages/ts-runtypes/src/formats/numberFormats.ts`
 	// and `bigintFormats.ts`. One import registers both via their init()s.
-	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/numeric"
+	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/numeric"
 	// String-family emitters. JS-side mirrors live under
-	// `packages/ts-go-run-types/src/formats/string/`.
-	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/string"
+	// `packages/ts-runtypes/src/formats/string/`.
+	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/string"
 )

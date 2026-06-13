@@ -1,5 +1,5 @@
-import {createValidate} from '@mionjs/ts-go-run-types';
-import type {FormatEmail, FormatUUIDv4, FormatInt32, FormatPositive} from '@mionjs/ts-go-run-types/formats';
+import {createValidate} from 'ts-runtypes';
+import type {FormatEmail, FormatUUIDv4, FormatInt32, FormatPositive} from 'ts-runtypes/formats';
 
 // Type-first formats: import a Format* alias and annotate. The constraint
 // lives in the type — the build reads it and validates accordingly.

@@ -3,12 +3,12 @@ package numeric
 import (
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // numberFormatEmitter implements the format with name "numberFormat" —
-// FormatNumber<P> in `@mionjs/ts-go-run-types/formats`. Mirrors mion's
+// FormatNumber<P> in `ts-runtypes/formats`. Mirrors mion's
 // NumberRunTypeFormat (packages/type-formats/src/number/numberFormat.runtype.ts).
 //
 // Surface: integer / float, min / max / lt / gt, multipleOf — emitted in

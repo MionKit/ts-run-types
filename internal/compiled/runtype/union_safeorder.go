@@ -1,7 +1,7 @@
 package runtype
 
 import (
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // finalizeUnion runs once after a union's children are serialized. It:

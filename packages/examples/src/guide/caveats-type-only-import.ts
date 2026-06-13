@@ -1,7 +1,7 @@
-import {createValidate} from '@mionjs/ts-go-run-types';
+import {createValidate} from 'ts-runtypes';
 // The Format* aliases are types, so `import type` reads naturally — and it's
 // fine here, because the alias is used purely at the type level.
-import type {FormatEmail} from '@mionjs/ts-go-run-types/formats';
+import type {FormatEmail} from 'ts-runtypes/formats';
 
 // This works: createValidate is a real value import, the format is a type.
 type Contact = {email: FormatEmail};

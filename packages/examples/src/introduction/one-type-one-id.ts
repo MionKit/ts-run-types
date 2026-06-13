@@ -1,4 +1,4 @@
-import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId} from 'ts-runtypes';
 
 // Two interfaces, different names — but the exact same shape.
 interface User {

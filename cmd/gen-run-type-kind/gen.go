@@ -38,7 +38,7 @@ func repoRoot() string {
 
 // runTypeKindOutputPath is the absolute path of the TS file we emit.
 func runTypeKindOutputPath() string {
-	return filepath.Join(repoRoot(), "packages", "ts-go-run-types", "src", "runTypeKind.ts")
+	return filepath.Join(repoRoot(), "packages", "ts-runtypes", "src", "runTypeKind.ts")
 }
 
 // Generate builds the full body of `runTypeKind.ts` from the live

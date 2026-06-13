@@ -3,8 +3,8 @@ package resolver_test
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/resolver"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // NotSupported reflection-flag tests. The serializer KEEPS non-data members
@@ -21,7 +21,7 @@ import (
 const notSupportedMixed = `interface Mixed { a: string; greet(name: string): string; sym: symbol; }`
 
 func TestNotSupportedFlag_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 ` + notSupportedMixed + `
 getRunTypeId<Mixed>();
 `
@@ -30,7 +30,7 @@ getRunTypeId<Mixed>();
 }
 
 func TestNotSupportedFlag_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 ` + notSupportedMixed + `
 declare const value: Mixed;
 getRunTypeId(value);

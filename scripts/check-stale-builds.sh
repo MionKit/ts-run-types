@@ -5,11 +5,11 @@
 # (and `pnpm test`, via the marker package's own vitest config) load.
 #
 # Targets (positional):
-#   go            bin/ts-go-run-types matches cmd/ + internal/ (build-id compare).
-#   linux-go      bin/ts-go-run-types-linux-<arch> matches the host binary —
+#   go            bin/ts-runtypes matches cmd/ + internal/ (build-id compare).
+#   linux-go      bin/ts-runtypes-linux-<arch> matches the host binary —
 #                 cross-compiled on macOS, copied on Linux. Used by the bench
 #                 container to mount a Linux ELF on the host.
-#   marker-dist   packages/ts-go-run-types/dist is internally consistent
+#   marker-dist   packages/ts-runtypes/dist is internally consistent
 #                 (every .d.ts.map has a matching .d.ts, sentinel files present,
 #                 src not newer than dist). Repairs by wiping tsbuildinfo and
 #                 running the package's `build` script — incremental tsc on its
@@ -42,9 +42,9 @@ YELLOW='\033[0;33m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-GO_BIN="bin/ts-go-run-types"
-GO_PKG="./cmd/ts-go-run-types"
-MARKER_PKG_DIR="packages/ts-go-run-types"
+GO_BIN="bin/ts-runtypes"
+GO_PKG="./cmd/ts-runtypes"
+MARKER_PKG_DIR="packages/ts-runtypes"
 PLUGIN_PKG_DIR="packages/vite-plugin-runtypes"
 
 # Marker dist sentinels — the .d.ts files whose absence in a "fresh" dist is a
@@ -88,7 +88,7 @@ go_version_ldflags() {
   else
     version="dev"
   fi
-  echo "-X github.com/mionkit/ts-run-types/internal/constants.Version=${version}"
+  echo "-X github.com/mionkit/ts-runtypes/internal/constants.Version=${version}"
 }
 
 check_go() {
@@ -135,10 +135,10 @@ check_go() {
 
 check_linux_go() {
   # The bench container is Linux; the host bin is Mach-O on macOS, so we need
-  # a parallel ELF at bin/ts-go-run-types-linux-<arch>. On Linux hosts this is
+  # a parallel ELF at bin/ts-runtypes-linux-<arch>. On Linux hosts this is
   # just a copy of the host binary that the bench mount finds at a stable name.
   local goarch; goarch="$(linux_goarch)"
-  local linux_bin="bin/ts-go-run-types-linux-${goarch}"
+  local linux_bin="bin/ts-runtypes-linux-${goarch}"
 
   # The Go binary must be fresh first; otherwise we'd cross-compile (or copy)
   # a stale host binary forward into the linux slot.
@@ -225,7 +225,7 @@ check_marker_dist() {
   info "Checking $MARKER_PKG_DIR/dist..."
   if dist_is_stale "$MARKER_PKG_DIR/dist" "$MARKER_PKG_DIR/src" "${MARKER_SENTINELS[@]}"; then
     info "$MARKER_PKG_DIR/dist is stale or incomplete - rebuilding clean"
-    rebuild_pkg_dist "$MARKER_PKG_DIR" "@mionjs/ts-go-run-types"
+    rebuild_pkg_dist "$MARKER_PKG_DIR" "ts-runtypes"
     # Re-check post-build; if it's still stale, the build script is broken.
     if dist_is_stale "$MARKER_PKG_DIR/dist" "$MARKER_PKG_DIR/src" "${MARKER_SENTINELS[@]}"; then
       fail "$MARKER_PKG_DIR/dist still incomplete after rebuild (build script bug)."

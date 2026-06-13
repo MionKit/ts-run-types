@@ -1,6 +1,6 @@
 # Validation benchmarks — per-competitor isolated builds (podman)
 
-Compares **ts-go-run-types** validators against **zod**, **typebox**, **ajv**
+Compares **RunTypes** validators against **zod**, **typebox**, **ajv**
 and **typia**, over the **full** `validation` + `format-validation` + `realworld`
 suites (263 cases — the exact cases the package tests itself with, plus a
 real-world DTO group). All heavy tooling (the validator libraries, vite, typia's
@@ -29,7 +29,7 @@ This isolation is the whole point:
   installs into *its own* `node_modules`; a fresh, supply-chain-blocked, or broken
   dep there can't abort zod/typebox/ajv/ts-go. Each competitor installs in its own
   `Containerfile` layer with its own pnpm store cache.
-- **ts-go-run-types is just another competitor.** Its `cases.ts` is a
+- **RunTypes is just another competitor.** Its `cases.ts` is a
   `CompetitorCases` map like everyone else's; the runner has no ts-go branch. The
   only thing special about it is *build* mechanics — its validators are generated
   at build time by `vite-plugin-runtypes` spawning the **Go binary**, so that
@@ -56,13 +56,13 @@ hidden as not-supported.
 Typical coverage (validations/sec; the gap widens on complex objects):
 
 ```
-case                  ts-go-run-types       zod    typebox      ajv      typia
+case                  ts-runtypes       zod    typebox      ajv      typia
 simple_interface              107M/s     646k/s     93M/s        —          —
 nested_object                  78M/s     481k/s     69M/s        —          —
 user (realworld)               63M/s     337k/s     50M/s     24M/s      68M/s
 
 Coverage (of 263):
-  ts-go-run-types   ok=260   not-supported=3
+  ts-runtypes   ok=260   not-supported=3
   zod               ok=118   not-supported=145
   typebox           ok=96    not-supported=167
   ajv               ok=67    not-supported=196
@@ -73,12 +73,12 @@ Why the competitors are not-supported on so many: JSON Schema (ajv) has no
 `bigint`, can't reject `NaN`/`Infinity`, can't validate `Date`/`Map`/`Set`/`Temporal`;
 TypeBox can't express bigint literals or `RegExp`; zod has no compile-time type
 recovery for many TS-only constructs; typia's runtime semantics diverge on a
-handful of shapes (see below). ts-go-run-types is not-supported only on the three
+handful of shapes (see below). RunTypes is not-supported only on the three
 cases that are intrinsically un-validatable (bare `symbol` at a root, etc.).
 
 ## typia — wired via the tsgo transform
 
-typia, like ts-go-run-types, derives validators from TypeScript **types** at
+typia, like RunTypes, derives validators from TypeScript **types** at
 build time, so it is the most apt comparison. This project runs on tsgo
 (typescript-go / `@typescript/native-preview`), and typia's tsgo path is the
 `samchon/ttsc` toolchain — typia ships a **Go-native transform** that plugs into
@@ -115,7 +115,7 @@ invalidated only when a dependency manifest changes.
 | Inside the image (deps only)                           | Bind-mounted from the repo at run time                     |
 | ------------------------------------------------------ | ---------------------------------------------------------- |
 | zod · @sinclair/typebox · ajv · typia · vite · esbuild | every competitor's source files + `shared/` + `typecost/` source |
-| each competitor's `node_modules` + `package.json`      | `bin/ts-go-run-types` + `packages/*` (ts-go competitor only) |
+| each competitor's `node_modules` + `package.json`      | `bin/ts-runtypes` + `packages/*` (ts-go competitor only) |
 | typia's `.ttsc` compile cache → a persisted named volume | writable `results/` (so each `<name>.json` survives `--rm`) |
 
 ## Usage
@@ -169,9 +169,9 @@ sample>` — so TypeScript fully resolves the type **and** structurally checks t
 value against it (the cost you pay on every `const x: T = {…}`). Forms, extracted
 per-competitor from each competitor's own files:
 
-- **ts-go (type)** — `competitors/ts-go-run-types/cases.ts` `createValidate<TYPE>()` type arg.
+- **ts-go (type)** — `competitors/ts-runtypes/cases.ts` `createValidate<TYPE>()` type arg.
 - **typia** — `competitors/typia/cases.ts` `typia.createIs<TYPE>()` type arg (format suites use typia tag intersections, e.g. `string & tags.MaxLength<5>`).
-- **ts-go (schema)** — `competitors/ts-go-run-types/schemaCases.ts` `createValidate(EXPR)` arg.
+- **ts-go (schema)** — `competitors/ts-runtypes/schemaCases.ts` `createValidate(EXPR)` arg.
 - **zod / typebox** — `competitors/<name>/cases.ts` schema expressions.
 - **ajv** — none (JSON Schema has no static type inference).
 
@@ -252,7 +252,7 @@ a builder `() => { const s = <schema>; return (v) => <validate>(v, s); }` (the
 `CaseKey` union catches typo'd keys at compile time). Run `pnpm run bench:one
 <name>` with `BENCH_NO_TIMING=1` and fix any reported mismatch — or downgrade it
 back to `NOT_SUPPORTED` (with a one-line reason) when the library genuinely
-diverges from ts-go-run-types' semantics. To add a whole new competitor, copy a
+diverges from RunTypes' semantics. To add a whole new competitor, copy a
 `competitors/<name>/` source folder, add its `package.json` under
 `_deps/competitors/<name>/`, write a total `cases.ts`, add a COPY+install layer
 to [`Containerfile`](Containerfile), and add it to `competitor_list()` in

@@ -28,7 +28,7 @@ describe('vite-plugin-runtypes / marker diagnostics', () => {
 
   register('warns when reflect-form arg is a function call (createValidate)', async () => {
     const sources = {
-      'fn-call.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+      'fn-call.ts': `import {createValidate} from 'ts-runtypes';
 function makeUser(): {id: number; name: string} {
   return {id: 1, name: 'john'};
 }
@@ -51,7 +51,7 @@ export const _ = createValidate(makeUser());
 
   register('warns for getRunTypeId with a function-call arg too', async () => {
     const sources = {
-      'reflect-fn.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'reflect-fn.ts': `import {getRunTypeId} from 'ts-runtypes';
 function getValue(): string { return 'hello'; }
 export const _ = getRunTypeId(getValue());
 `,
@@ -66,7 +66,7 @@ export const _ = getRunTypeId(getValue());
 
   register('warns for method-call arg (PropertyAccess → CallExpression)', async () => {
     const sources = {
-      'method-call.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+      'method-call.ts': `import {createValidate} from 'ts-runtypes';
 const state = {
   makeUser(): {id: number} { return {id: 1}; },
 };
@@ -84,7 +84,7 @@ export const _ = createValidate(state.makeUser());
 
   register('no warning for identifier arg', async () => {
     const sources = {
-      'identifier.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+      'identifier.ts': `import {createValidate} from 'ts-runtypes';
 const user: {id: number; name: string} = {id: 1, name: 'john'};
 export const _ = createValidate(user);
 `,
@@ -97,7 +97,7 @@ export const _ = createValidate(user);
 
   register('no warning for property-access arg', async () => {
     const sources = {
-      'property.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+      'property.ts': `import {createValidate} from 'ts-runtypes';
 const outer: {user: {id: number}} = {user: {id: 1}};
 export const _ = createValidate(outer.user);
 `,
@@ -110,7 +110,7 @@ export const _ = createValidate(outer.user);
 
   register('no warning for static form even when paired with a call', async () => {
     const sources = {
-      'static-return.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+      'static-return.ts': `import {createValidate} from 'ts-runtypes';
 function makeUser(): {id: number} { return {id: 1}; }
 export const _ = createValidate<ReturnType<typeof makeUser>>();
 `,
@@ -123,7 +123,7 @@ export const _ = createValidate<ReturnType<typeof makeUser>>();
 
   register('errors with MKR003 when marker call is inside a generic wrapper', async () => {
     const sources = {
-      'free-tparam.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'free-tparam.ts': `import {getRunTypeId} from 'ts-runtypes';
 export function makeId<T>() {
   return getRunTypeId<T>();
 }
@@ -151,7 +151,7 @@ export function makeId<T>() {
 
   register('formatTscDiagnostic renders marker warnings in tsc line format', async () => {
     const sources = {
-      'fmt.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+      'fmt.ts': `import {createValidate} from 'ts-runtypes';
 function makeUser(): {id: number} { return {id: 1}; }
 export const _ = createValidate(makeUser());
 `,

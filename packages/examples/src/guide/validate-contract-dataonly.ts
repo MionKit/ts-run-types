@@ -1,4 +1,4 @@
-import {createJsonDecoder, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createJsonDecoder, type DataOnly} from 'ts-runtypes';
 
 // Decoders return the data-only projection of T — the non-serializable
 // members are gone from the return type too, so it can't lie to you.

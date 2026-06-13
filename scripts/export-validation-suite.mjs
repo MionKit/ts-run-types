@@ -54,10 +54,10 @@ if (!SUITE_CFG) {
   process.stderr.write(`unknown --suite '${SUITE}' (known: ${Object.keys(SUITE_CONFIGS).join(', ')})\n`);
   process.exit(1);
 }
-const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites', SUITE_CFG.dir);
+const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-runtypes/test/suites', SUITE_CFG.dir);
 const SUITE_PATH = path.join(SUITE_DIR, 'index.ts');
-const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
-const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
+const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-runtypes');
+const BIN = path.join(REPO_ROOT, 'bin/ts-runtypes');
 const OUT_PATH = path.join(REPO_ROOT, `gendocs/${SUITE}-suite.json`);
 const MD_PATH = path.join(REPO_ROOT, `gendocs/${SUITE}-suite.md`);
 const FN_FIELDS = ['validate', 'validateSchema', 'validateReflect', 'getSamples'];
@@ -81,7 +81,7 @@ const COMPILE_CYCLES = 3;
 // packages/vite-plugin-runtypes/test/helpers/inline.ts — createX signatures
 // MUST carry the InjectTypeFnArgs marker or the scanner records no demand and
 // the compile probes render zero fn entries.
-const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
+const RUNTYPES_DTS = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
@@ -105,7 +105,7 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 
 // A REAL overlay module (NOT an ambient `declare module`) that re-exports the format
 // brand aliases the synthetic probes import. Why this exists / this shape:
-//  - The brands live in the `@mionjs/ts-go-run-types/formats` subpath, but the sandbox
+//  - The brands live in the `ts-runtypes/formats` subpath, but the sandbox
 //    can't resolve the real package by name (that's why the marker itself is provided
 //    as the RUNTYPES_DTS ambient stub) — so the probes can't import from the real path.
 //  - An ambient `declare module '…' { export type * from './real.ts' }` does NOT pull
@@ -119,9 +119,9 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 // Lives at the repo root (key 'rt-formats.ts'); the probes import it as '../rt-formats.ts'.
 const FORMATS_MODULE_PATH = 'rt-formats.ts';
 const FORMATS_MODULE = (() => {
-  const indexSrc = fs.readFileSync(path.join(REPO_ROOT, 'packages/ts-go-run-types/src/formats/index.ts'), 'utf8');
+  const indexSrc = fs.readFileSync(path.join(REPO_ROOT, 'packages/ts-runtypes/src/formats/index.ts'), 'utf8');
   const rels = [...indexSrc.matchAll(/export type \* from '\.\/([^']+)'/g)].map((m) => m[1]);
-  return rels.map((rel) => `export type * from './packages/ts-go-run-types/src/formats/${rel}';`).join('\n') + '\n';
+  return rels.map((rel) => `export type * from './packages/ts-runtypes/src/formats/${rel}';`).join('\n') + '\n';
 })();
 
 // UPPER_SNAKE group name -> PascalCase data-file basename ('TEMPLATE_LITERAL' -> 'TemplateLiteral').
@@ -166,8 +166,8 @@ function runGoExtractor(groups) {
 
 function ensureBinary() {
   if (!fs.existsSync(BIN)) {
-    process.stderr.write(`ts-go-run-types binary not found at ${BIN}\n`);
-    process.stderr.write(`build it with: go build -o bin/ts-go-run-types ./cmd/ts-go-run-types\n`);
+    process.stderr.write(`ts-runtypes binary not found at ${BIN}\n`);
+    process.stderr.write(`build it with: go build -o bin/ts-runtypes ./cmd/ts-runtypes\n`);
     process.exit(1);
   }
 }
@@ -419,7 +419,7 @@ function writeCaseDump(casesDir, category, caseKey, api, resp) {
 
 // The case bodies are SELF-DECLARING (the interface is written inline), but the
 // format brands they reference (FormatUUIDv4, FormatEmail, FormatString<…>, …) live
-// in the `@mionjs/ts-go-run-types/formats` subpath. The synthetic probe carries no
+// in the `ts-runtypes/formats` subpath. The synthetic probe carries no
 // file-level imports, so without this the brands resolve to nothing and a
 // format-typed field projects as plain `string` — dropping the format check from the
 // generated-code dump. Pull in every `Format*` the body names so all examples render
@@ -430,7 +430,7 @@ function buildSynthetic(body) {
   const formatImport = formats.length
     ? `import type {${formats.join(', ')}} from '../${FORMATS_MODULE_PATH.replace(/\.ts$/, '')}.ts';\n`
     : '';
-  return `import {createValidate} from '@mionjs/ts-go-run-types';\n${formatImport}const _probe = () => {\n${body}\n};\n`;
+  return `import {createValidate} from 'ts-runtypes';\n${formatImport}const _probe = () => {\n${body}\n};\n`;
 }
 
 function safe(s) {
@@ -449,11 +449,11 @@ function renderMarkdown(out) {
   lines.push('# Validation suite');
   lines.push('');
   lines.push(
-    'Generated from `VALIDATION_SUITE` in `packages/ts-go-run-types/test/suites/validation/`. ' +
+    'Generated from `VALIDATION_SUITE` in `packages/ts-runtypes/test/suites/validation/`. ' +
       'Full per-case metrics (including `validateReflect`) live in `validation-suite.json`; ' +
       'per-case rendered cache modules live under `cases/`. ' +
       '`ts-compile` measures pure tsgo (bind + typecheck + emit) on the synthetic case file; ' +
-      '`compile` measures the ts-go-run-types marker scan + cache emit. ' +
+      '`compile` measures the ts-runtypes marker scan + cache emit. ' +
       'The two phases run sequentially in a real build pipeline (TypeScript 7 has no transforms API yet), not nested.'
   );
   lines.push('');

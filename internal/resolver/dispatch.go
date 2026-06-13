@@ -12,15 +12,15 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/compiler"
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
-	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
-	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
-	"github.com/mionkit/ts-run-types/internal/constants"
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/operations"
-	"github.com/mionkit/ts-run-types/internal/program"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
+	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns"
+	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/operations"
+	"github.com/mionkit/ts-runtypes/internal/program"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // familyAddedFlag wires one family's per-scan added-flag: the pre-flight
@@ -828,7 +828,7 @@ func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []puref
 // typecheck + emit pass on the resolver's current Program. Returns the
 // wall time in milliseconds. The emit output bytes are discarded — we
 // only care about timing. Does NOT walk markers, does NOT collect any
-// ts-go-run-types entry modules — this is the pure-TypeScript baseline
+// ts-runtypes entry modules — this is the pure-TypeScript baseline
 // measurement the bench orchestrators record alongside the existing
 // scanFiles latency.
 func (resolver *Resolver) dispatchTsCompile() (float64, error) {

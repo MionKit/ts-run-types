@@ -3,8 +3,8 @@ package runtype
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // A createX (FnId-bearing) site over a circular type is flagged so its RunType

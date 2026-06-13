@@ -33,7 +33,7 @@ describe('vite-plugin-runtypes / runtype diagnostics', () => {
   register('emits PJ001 for Never at root under prepareForJson', async () => {
     // pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
     const sources = {
-      'never.ts': `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+      'never.ts': `import {createJsonEncoder} from 'ts-runtypes';
 export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `,
     };
@@ -56,7 +56,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
     // All three families are demand-driven: seed pj via createJsonEncoder(mutate),
     // sj via createJsonEncoder(direct), and tb via createBinaryEncoder.
     const sources = {
-      'never-multi.ts': `import {createJsonEncoder, createBinaryEncoder} from '@mionjs/ts-go-run-types';
+      'never-multi.ts': `import {createJsonEncoder, createBinaryEncoder} from 'ts-runtypes';
 export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 export const _s = createJsonEncoder<never>(undefined, {strategy: 'direct'});
 export const _b = createBinaryEncoder<never>();
@@ -77,7 +77,7 @@ export const _b = createBinaryEncoder<never>();
     // pj is demand-driven; three createJsonEncoder(mutate) sites share one `never`
     // id, so the single rendered pj entry fans the PJ001 diag out to all three.
     const sources = {
-      'fan-out.ts': `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+      'fan-out.ts': `import {createJsonEncoder} from 'ts-runtypes';
 export const a = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 export const b = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
@@ -98,7 +98,7 @@ export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
     // `it` is demand-driven, so seed it via createValidate (a reflection-only
     // getRunTypeId would emit no val_ entry and thus no validate diagnostic).
     const sources = {
-      'fn-prop.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+      'fn-prop.ts': `import {createValidate} from 'ts-runtypes';
 interface User { name: string; onClick: () => void; }
 export const _ = createValidate<User>();
 `,
@@ -117,7 +117,7 @@ export const _ = createValidate<User>();
   register('formatTscDiagnostic renders runtype warnings in tsc line format', async () => {
     // pj is demand-driven, so seed it via createJsonEncoder(mutate) → [pj].
     const sources = {
-      'fmt-rt.ts': `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+      'fmt-rt.ts': `import {createJsonEncoder} from 'ts-runtypes';
 export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `,
     };
@@ -134,7 +134,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 
   register('emits VE020 warning diagnostic for validationErrors on root any/unknown', async () => {
     const sources = {
-      'any.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'any.ts': `import {getRunTypeId} from 'ts-runtypes';
 export const _ = getRunTypeId<any>();
 `,
     };
@@ -157,7 +157,7 @@ export const _ = getRunTypeId<any>();
     // `it` is demand-driven, so seed it via createValidate<unknown>() (a
     // reflection-only getRunTypeId would emit no val_ entry, no VL021).
     const sources = {
-      'any-istype.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+      'any-istype.ts': `import {createValidate} from 'ts-runtypes';
 export const _ = createValidate<unknown>();
 `,
     };
@@ -187,7 +187,7 @@ export const _ = createValidate<unknown>();
     // pj/pjs/rj/sj are demand-driven: seed pj via createJsonEncoder(mutate), pjs
     // via the default clone (shape-derived strip), sj via direct, and rj via createJsonDecoder.
     const sources = {
-      'fn-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from '@mionjs/ts-go-run-types';
+      'fn-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
 export const _ = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'mutate'});
 export const _s = createJsonEncoder<[number, () => void]>();
 export const _d = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'direct'});
@@ -217,7 +217,7 @@ export const _r = createJsonDecoder<[number, () => void]>();
   register('propagates function-typed tuple slot as alwaysThrow under toBinary / fromBinary', async () => {
     // tb/fb are demand-driven, so seed each via the matching binary createX.
     const sources = {
-      'fn-tuple-bin.ts': `import {createBinaryEncoder, createBinaryDecoder} from '@mionjs/ts-go-run-types';
+      'fn-tuple-bin.ts': `import {createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
 export const _e = createBinaryEncoder<[string, () => number]>();
 export const _d = createBinaryDecoder<[string, () => number]>();
 `,
@@ -241,7 +241,7 @@ export const _d = createBinaryDecoder<[string, () => number]>();
     // path even before the fix. This test pins that behavior so a future
     // optimisation can't silently regress it.
     const sources = {
-      'sym-tuple.ts': `import {createJsonEncoder, createBinaryEncoder} from '@mionjs/ts-go-run-types';
+      'sym-tuple.ts': `import {createJsonEncoder, createBinaryEncoder} from 'ts-runtypes';
 export const _ = createJsonEncoder<[number, symbol]>(undefined, {strategy: 'mutate'});
 export const _b = createBinaryEncoder<[number, symbol]>();
 `,
@@ -270,7 +270,7 @@ export const _b = createBinaryEncoder<[number, symbol]>();
     // `it` is demand-driven, so seed it via createValidate<User>() — a
     // reflection-only getRunTypeId would emit no val_ entries to inspect.
     const sources = {
-      'mini.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+      'mini.ts': `import {createValidate} from 'ts-runtypes';
 interface User { name: string; age: number; tags: string[]; }
 export const _ = createValidate<User>();
 `,
@@ -300,7 +300,7 @@ export const _ = createValidate<User>();
     const {ResolverClient} = await import('../src/resolver-client.ts');
     const path = await import('node:path');
     const ROOT = path.resolve(__dirname, '../../..');
-    const oneShot = new ResolverClient(`${ROOT}/bin/ts-go-run-types`, ROOT, '', {serverMode: true});
+    const oneShot = new ResolverClient(`${ROOT}/bin/ts-runtypes`, ROOT, '', {serverMode: true});
     try {
       await oneShot.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...sources});
       const response = await oneShot.scanFiles(Object.keys(sources), {

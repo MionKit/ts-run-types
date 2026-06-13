@@ -8,7 +8,7 @@ import (
 	"sort"
 
 	"github.com/microsoft/typescript-go/shim/ast"
-	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diag"
 )
 
 // LineCol returns (1-based line, 1-based column) for byte offset pos

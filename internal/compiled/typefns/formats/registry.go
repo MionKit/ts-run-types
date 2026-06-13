@@ -4,16 +4,16 @@
 // (istype, typeerrors, …) call Lookup at compile time and splice the
 // per-format JS into their own output.
 //
-// Sibling of the JS-side runtime registry (packages/ts-go-run-types/src/
+// Sibling of the JS-side runtime registry (packages/ts-runtypes/src/
 // runtypes/formatRegistry.ts) — the two are kept in lock-step by
 // convention: every format ships a Go file under this subtree AND a
-// JS format type under `@mionjs/ts-go-run-types/formats`. Names must match.
+// JS format type under `ts-runtypes/formats`. Names must match.
 package formats
 
 import (
 	"sync"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // EmitContext is the narrow surface format emitters use to declare

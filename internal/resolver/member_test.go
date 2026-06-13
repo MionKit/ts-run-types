@@ -3,8 +3,8 @@ package resolver_test
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/resolver"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Each scenario below has paired *_Static / *_Reflect tests per the
@@ -15,7 +15,7 @@ import (
 // ---- F19 — array of object literal -------------------------------------------
 
 func TestF19_ArrayOfObject_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 getRunTypeId<{x: number}[]>();
 `
 	r, root := resolveInline(t, code)
@@ -23,7 +23,7 @@ getRunTypeId<{x: number}[]>();
 }
 
 func TestF19_ArrayOfObject_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 declare const xs: {x: number}[];
 getRunTypeId(xs);
 `
@@ -54,7 +54,7 @@ func assertF19ArrayOfObject(t *testing.T, r *resolver.Resolver, root *protocol.R
 // ---- F20 — array of array ----------------------------------------------------
 
 func TestF20_ArrayOfArray_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 getRunTypeId<string[][]>();
 `
 	r, root := resolveInline(t, code)
@@ -62,7 +62,7 @@ getRunTypeId<string[][]>();
 }
 
 func TestF20_ArrayOfArray_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 declare const xs: string[][];
 getRunTypeId(xs);
 `
@@ -92,7 +92,7 @@ func assertF20ArrayOfArray(t *testing.T, r *resolver.Resolver, root *protocol.Ru
 // must terminate via the cache by id equality, not by infinite recursion.
 
 func TestF21_RecursiveSelf_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 interface Tree {
   children: Tree[];
 }
@@ -103,7 +103,7 @@ getRunTypeId<Tree>();
 }
 
 func TestF21_RecursiveSelf_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 interface Tree {
   children: Tree[];
 }
@@ -144,7 +144,7 @@ func assertF21RecursiveSelf(t *testing.T, r *resolver.Resolver, root *protocol.R
 // ---- F22 — recursive mutual --------------------------------------------------
 
 func TestF22_RecursiveMutual_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 interface A {
   b: B;
 }
@@ -158,7 +158,7 @@ getRunTypeId<A>();
 }
 
 func TestF22_RecursiveMutual_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 interface A {
   b: B;
 }

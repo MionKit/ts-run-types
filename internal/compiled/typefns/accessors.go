@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/jsquote"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/jsquote"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // JS accessor / string-literal helpers shared across the emitters. Relocated

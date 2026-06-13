@@ -17,7 +17,7 @@ import {
 } from './runtypes-constants.generated.ts';
 
 export interface PluginOptions {
-  // Absolute path to the compiled ts-go-run-types binary.
+  // Absolute path to the compiled ts-runtypes binary.
   binary: string;
   // Project root (where tsconfig.json lives). Defaults to Vite's root.
   cwd?: string;
@@ -36,7 +36,7 @@ export interface PluginOptions {
   //     suites cover both materialisation paths on every case.
   emitMode?: 'code' | 'functions' | 'both';
   // On-disk RT artifact cache location. Default (undefined) wires the
-  // cache to `<cwd>/node_modules/.cache/ts-go-run-types`. Pass an
+  // cache to `<cwd>/node_modules/.cache/ts-runtypes`. Pass an
   // explicit string to redirect to a custom directory. Pass `false`
   // to disable caching entirely — used by the marker package's own
   // vitest config to keep test runs from populating the project tree
@@ -81,7 +81,7 @@ export interface PluginOptions {
 // --marker-name / --marker-module CLI flags went away with the marker
 // migration. To use a custom marker, embed the Go resolver directly
 // and pass marker.Options{Specs: [...]}.
-const MARKER_MODULE = '@mionjs/ts-go-run-types';
+const MARKER_MODULE = 'ts-runtypes';
 
 // Rollup convention: prefix resolved virtual ids with \0 so other plugins
 // (and Vite's own resolver) leave them alone. The public specifier the
@@ -152,7 +152,7 @@ export default function runtypes(options: PluginOptions) {
       let cacheDir: string | undefined;
       if (options.cacheDir === false) cacheDir = undefined;
       else if (typeof options.cacheDir === 'string') cacheDir = options.cacheDir;
-      else cacheDir = path.join(cwdAbs, 'node_modules', '.cache', 'ts-go-run-types');
+      else cacheDir = path.join(cwdAbs, 'node_modules', '.cache', 'ts-runtypes');
       const moduleMode = options.moduleMode ?? MODULE_MODE_DEFAULT;
       if (moduleMode !== MODULE_MODE_DEFAULT && moduleMode !== MODULE_MODE_ALL_SINGLE && moduleMode !== MODULE_MODE_ALL_MODULES) {
         throw new Error(
@@ -233,12 +233,19 @@ export default function runtypes(options: PluginOptions) {
       if (!/\.[mc]?[jt]sx?$/.test(id)) return null;
       // Short-circuit: a file that doesn't reference the marker module
       // can't contain rewritable sites. Cheap textual check before the
-      // round-trip to the resolver. `registerPureFnFactory` is checked
+      // round-trip to the resolver. We match the module only as a quoted
+      // import specifier (`'ts-runtypes`, `"ts-runtypes`, incl. subpaths
+      // like `ts-runtypes/schema`) — a bare `includes(MARKER_MODULE)` also
+      // fires on path mentions in comments (e.g. `packages/ts-runtypes/…`),
+      // which would force the resolver to scan files that never import the
+      // markers (and silently rewrite call sites a relative-import test
+      // deliberately left un-injected). `registerPureFnFactory` is checked
       // separately because the marker package's OWN sources call it via
       // relative imports (no package-name string in the file) — and with
       // per-entry modules the factory-arg rewrite at those sites IS the
       // runtime registration of the built-in pure fns.
-      if (!code.includes(MARKER_MODULE) && !code.includes('registerPureFnFactory')) return null;
+      const importsMarkerModule = code.includes(`'${MARKER_MODULE}`) || code.includes(`"${MARKER_MODULE}`);
+      if (!importsMarkerModule && !code.includes('registerPureFnFactory')) return null;
 
       const rel = path.relative(options.cwd ?? process.cwd(), id);
       const result = await rewrite(rel, code, scanner ?? resolver);
@@ -378,7 +385,7 @@ function surfaceDiagnostics(
 //     Related: /abs/path(line,col): related message
 //
 // The user-facing headline is resolved from the JS-side catalog
-// (`packages/ts-go-run-types/src/runtypes/diagnosticCatalog.ts`) — the wire
+// (`packages/ts-runtypes/src/runtypes/diagnosticCatalog.ts`) — the wire
 // only carries the diagnostic code + optional positional args. Severity
 // is numeric on the wire — switch on it to pick the human label since
 // the canonical line format requires the word, not the digit.

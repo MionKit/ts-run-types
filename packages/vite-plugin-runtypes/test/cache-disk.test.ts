@@ -44,7 +44,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
   // One scratch root per describe block; each test gets its own subdir.
   let scratchRoot: string;
   beforeAll(() => {
-    scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ts-go-run-types-cache-'));
+    scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ts-runtypes-cache-'));
   });
   afterAll(() => {
     fs.rmSync(scratchRoot, {recursive: true, force: true});
@@ -56,7 +56,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     try {
       await renderValidateFor(client, {
         'user.ts': `
-          import {createValidate} from '@mionjs/ts-go-run-types';
+          import {createValidate} from 'ts-runtypes';
           export const isStr = createValidate<string>();
         `,
       });
@@ -95,7 +95,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     const cacheDir = path.join(scratchRoot, 'roundtrip');
     const sources = {
       'roundtrip.ts': `
-        import {createValidate} from '@mionjs/ts-go-run-types';
+        import {createValidate} from 'ts-runtypes';
         export const a = createValidate<string>();
         export const b = createValidate<number>();
         export const c = createValidate<{x: string; y: number}>();
@@ -130,7 +130,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     const cacheDirAlt = path.join(scratchRoot, 'fp-alt');
     const sources = {
       'fp.ts': `
-        import {createValidate} from '@mionjs/ts-go-run-types';
+        import {createValidate} from 'ts-runtypes';
         export const isStr = createValidate<string>();
       `,
     };

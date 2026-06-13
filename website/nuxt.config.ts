@@ -10,7 +10,7 @@ const usePolling = process.env.CHOKIDAR_USEPOLLING === 'true'
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   site: {
-    name: 'ts-run-types',
+    name: 'ts-runtypes',
   },
   css: [
     '~/assets/css/mion.css',

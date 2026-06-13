@@ -1,5 +1,5 @@
-import {createValidate, type Static} from '@mionjs/ts-go-run-types';
-import * as RT from '@mionjs/ts-go-run-types/schema';
+import {createValidate, type Static} from 'ts-runtypes';
+import * as RT from 'ts-runtypes/schema';
 
 // start-type
 // Option A — a plain TypeScript type. Fastest, zero ceremony.

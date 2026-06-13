@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
 )
 
 func TestCollectEntries_EmptyInput(t *testing.T) {

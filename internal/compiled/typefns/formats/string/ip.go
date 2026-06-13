@@ -1,12 +1,12 @@
 package string
 
 import (
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // ipEmitter implements the format named "ip" — FormatIP / FormatIPv4 /
-// FormatIPv6 / *WithPort in `@mionjs/ts-go-run-types/formats`. Dispatches
+// FormatIPv6 / *WithPort in `ts-runtypes/formats`. Dispatches
 // to pf_isIPV4 / pf_isIPV6 based on the `version` param (4, 6, or
 // 'any' → OR of both), passing the whole params object so the pure fn
 // can honour allowLocalHost / allowPort. Mirrors mion's IPRunTypeFormat

@@ -1,4 +1,4 @@
-import {createValidate, createGetValidationErrors} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors} from 'ts-runtypes';
 
 // 1. Write a normal type.
 type User = {

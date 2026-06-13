@@ -3,7 +3,7 @@ package typefns
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // layoutCtx mirrors jsonCompatCtx (jsoncompat_test.go:12) — a hollow

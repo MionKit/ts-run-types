@@ -23,11 +23,11 @@
 //
 // The probe sources are EXTRACTED (TS compiler API) from the real competitor maps:
 //   - ts-go (type):   the `createValidate<TYPE>()` type argument per case in
-//                     competitors/ts-go-run-types/cases.ts.
+//                     competitors/ts-runtypes/cases.ts.
 //   - typia:          the `typia.createIs<TYPE>()` type argument per case in
 //                     competitors/typia/cases.ts.
 //   - ts-go (schema): the `createValidate(EXPR)` argument per case in
-//                     competitors/ts-go-run-types/schemaCases.ts.
+//                     competitors/ts-runtypes/schemaCases.ts.
 //   - zod / typebox:  the `const schema = EXPR` declared inside each case's
 //                     build / buildErrors thunk in competitors/{zod,typebox}/cases.ts.
 // The type forms (ts-go type, typia) author each entry as a `{build, buildErrors}`
@@ -41,8 +41,8 @@
 //
 // Module resolution: each form's probe is emitted INTO the relevant competitor
 // directory so Node-style `node_modules` resolution + each package's `exports`
-// map resolve the bare imports naturally — `@mionjs/ts-go-run-types`(+/schema,
-// /formats, /formats/temporal) from competitors/ts-go-run-types/node_modules
+// map resolve the bare imports naturally — `ts-runtypes`(+/schema,
+// /formats, /formats/temporal) from competitors/ts-runtypes/node_modules
 // (bind-mounted at run time), `zod` / `@sinclair/typebox` from their own image
 // node_modules, and the realworld interfaces via the verbatim relative import.
 // `paths` (see OPTIONS) additionally pins the marker subpaths to the mounted
@@ -75,7 +75,7 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 // Benchmark root: /app in the container (typecost/ lives directly under it).
 const ROOT = path.resolve(HERE, '..');
 const COMPETITORS = path.join(ROOT, 'competitors');
-const TSGO_DIR = path.join(COMPETITORS, 'ts-go-run-types');
+const TSGO_DIR = path.join(COMPETITORS, 'ts-runtypes');
 const ZOD_DIR = path.join(COMPETITORS, 'zod');
 const TYPEBOX_DIR = path.join(COMPETITORS, 'typebox');
 const TYPIA_DIR = path.join(COMPETITORS, 'typia');
@@ -90,7 +90,7 @@ const PROBE_TYPEBOX = path.join(TYPEBOX_DIR, '__typecost_probe.ts');
 const PROBE_TYPIA = path.join(TYPIA_DIR, '__typecost_probe.ts');
 const PROBE_PATHS = new Set([PROBE_TSGO, PROBE_ZOD, PROBE_TYPEBOX, PROBE_TYPIA]);
 
-const MARKER = path.join(TSGO_DIR, 'node_modules', '@mionjs', 'ts-go-run-types', 'dist');
+const MARKER = path.join(TSGO_DIR, 'node_modules', '@mionjs', 'ts-runtypes', 'dist');
 
 const OPTIONS = {
   strict: true,
@@ -111,10 +111,10 @@ const OPTIONS = {
   // also carries a valid `exports` map, so natural node_modules resolution works
   // too — these just make it bulletproof regardless of probe location).
   paths: {
-    '@mionjs/ts-go-run-types': [path.join(MARKER, 'index.d.ts')],
-    '@mionjs/ts-go-run-types/schema': [path.join(MARKER, 'schema', 'index.d.ts')],
-    '@mionjs/ts-go-run-types/formats': [path.join(MARKER, 'formats', 'index.d.ts')],
-    '@mionjs/ts-go-run-types/formats/temporal': [path.join(MARKER, 'formats', 'datetime', 'temporalFormats.d.ts')],
+    'ts-runtypes': [path.join(MARKER, 'index.d.ts')],
+    'ts-runtypes/schema': [path.join(MARKER, 'schema', 'index.d.ts')],
+    'ts-runtypes/formats': [path.join(MARKER, 'formats', 'index.d.ts')],
+    'ts-runtypes/formats/temporal': [path.join(MARKER, 'formats', 'datetime', 'temporalFormats.d.ts')],
   },
   // esnext.full + esnext.temporal: the shared DateTime suites reference
   // `typeof Temporal`, and the marker's own build pins TypeScript 6.0.3 with
@@ -348,7 +348,7 @@ function extractTypeForm(file, mapName, callName) {
 
 // ── probe assembly ──────────────────────────────────────────────────────────
 
-const STATIC_IMPORT = `import {type Static} from '@mionjs/ts-go-run-types';`;
+const STATIC_IMPORT = `import {type Static} from 'ts-runtypes';`;
 const TB_STATIC_IMPORT = `import {type Static as __TBStatic} from '@sinclair/typebox';`;
 
 // Force TypeScript to fully RESOLVE + structurally check the recovered type by
@@ -567,8 +567,8 @@ async function main() {
 }
 
 const LIBS = [
-  ['ts-go(type)', 'tsType', 'ts-go-run-types-type'],
-  ['ts-go(schema)', 'tsSchema', 'ts-go-run-types-schema'],
+  ['ts-go(type)', 'tsType', 'ts-runtypes-type'],
+  ['ts-go(schema)', 'tsSchema', 'ts-runtypes-schema'],
   ['zod', 'zod', 'zod'],
   ['typebox', 'typebox', 'typebox'],
   ['typia', 'typia', 'typia'],

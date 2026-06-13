@@ -68,7 +68,7 @@ createValidate(
 ```
 
 The benchmark's real-world value-first schema thunks
-([`benchmarks/competitors/ts-go-run-types/schemaCases.ts`](../benchmarks/competitors/ts-go-run-types/schemaCases.ts))
+([`benchmarks/competitors/ts-runtypes/schemaCases.ts`](../benchmarks/competitors/ts-runtypes/schemaCases.ts))
 follow this.
 
 ## Fix direction (deferred)

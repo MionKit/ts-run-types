@@ -15,7 +15,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/devcontainers/javascript-node:22
 
-LABEL org.opencontainers.image.source=https://github.com/MionKit/ts-run-types
+LABEL org.opencontainers.image.source=https://github.com/MionKit/ts-runtypes
 LABEL org.opencontainers.image.description="mion docs website - deps-only image (source + config bind-mounted at run time)"
 
 # pnpm version is pinned by package.json#packageManager; let corepack honor it.

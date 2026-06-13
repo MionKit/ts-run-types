@@ -3,8 +3,8 @@ package resolver_test
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // noopCorpusSource interns a wide spread of real checker-produced shapes —
@@ -14,7 +14,7 @@ import (
 // agreement test below can pin the noop predicates against the emitters
 // across the whole reachable node set (every interned child counts, not just
 // the roots).
-const noopCorpusSource = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+const noopCorpusSource = `import {getRunTypeId} from 'ts-runtypes';
 type Compat = {a: string; b?: number; c: boolean | null};
 interface Nested {inner: Compat; tags: string[]}
 type Stamped = {at: Date; name: string};

@@ -85,7 +85,7 @@ type Related struct {
 // classifies impact.
 //
 // The user-facing message is NOT carried on the wire. Per-code message
-// templates live in the JS-side catalog (packages/ts-go-run-types/src/
+// templates live in the JS-side catalog (packages/ts-runtypes/src/
 // runtypes/diagnosticCatalog.ts); the Go side only ships positional substitution
 // values via Args (typically 0–2 strings: a property name, a type
 // argument label, etc.). The Vite plugin resolves Code+Args → final
@@ -176,7 +176,7 @@ func NewWithRelated(code string, site Site, args []string, related ...Related) D
 // FormatDebug renders a Diagnostic in a compact code+args+location form
 // suitable for Go-side debug logs and test assertions. NOT the user-
 // facing message — the JS-side catalog
-// (packages/ts-go-run-types/src/runtypes/diagnosticCatalog.ts) owns user
+// (packages/ts-runtypes/src/runtypes/diagnosticCatalog.ts) owns user
 // wording; the Vite plugin renders the final tsc-style line.
 //
 //	<absPath>(<line>,<col>): <severity> <code>(<arg0>, <arg1>, …)

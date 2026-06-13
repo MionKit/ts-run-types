@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/resolver"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Optional-property structural-id tests. An optional property carries
@@ -62,7 +62,7 @@ func unionWrap() string { return strconv.Itoa(int(protocol.KindUnion)) + "{" }
 // followed by Inner's full structural id; remove the strip and the child becomes
 // `:a?:<KindUnion>{…` and this substring vanishes.
 func TestOptionalPropertyID_ChildClosesOnBareType(t *testing.T) {
-	r := setupInline(t, map[string]string{"test.ts": `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	r := setupInline(t, map[string]string{"test.ts": `import {getRunTypeId} from 'ts-runtypes';
 type Inner = {v: number};
 type Holder = {a?: Inner};
 getRunTypeId<Inner>();
@@ -91,7 +91,7 @@ getRunTypeId<Holder>();
 // child. (Unaffected by the strip either way — this pins that the strip doesn't
 // over-reach into required unions.)
 func TestOptionalPropertyID_RequiredUnionKeepsWrapper(t *testing.T) {
-	r := setupInline(t, map[string]string{"test.ts": `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	r := setupInline(t, map[string]string{"test.ts": `import {getRunTypeId} from 'ts-runtypes';
 type Inner = {v: number};
 type Req = {a: Inner | undefined};
 getRunTypeId<Req>();
@@ -113,7 +113,7 @@ getRunTypeId<Req>();
 // `Node | undefined` union. The optional member therefore reads `:next?:$…`; a
 // union-wrapped child would read `:next?:<KindUnion>{…`.
 func TestOptionalPropertyID_RecursiveSelfRefNotUnionWrapped(t *testing.T) {
-	r := setupInline(t, map[string]string{"test.ts": `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	r := setupInline(t, map[string]string{"test.ts": `import {getRunTypeId} from 'ts-runtypes';
 type Node = {next?: Node};
 getRunTypeId<Node>();
 `})
@@ -137,7 +137,7 @@ getRunTypeId<Node>();
 // present. Remove the strip and every optional child becomes a `… | undefined`
 // union, so `?:<KindUnion>{` appears and `?:$` does not.
 func TestOptionalPropertyID_CrossReferencedCirculars(t *testing.T) {
-	r := setupInline(t, map[string]string{"test.ts": `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	r := setupInline(t, map[string]string{"test.ts": `import {getRunTypeId} from 'ts-runtypes';
 type A = {id: number; b?: B};
 type B = {id: number; a?: A};
 getRunTypeId<A>();

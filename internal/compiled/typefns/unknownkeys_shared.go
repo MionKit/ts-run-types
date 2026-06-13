@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // unknownKeysPureFnFilePath is the source path the resolver expects for
@@ -12,7 +12,7 @@ import (
 // pure-fn registrations. Same file as the validationErrors pure-fns
 // (run-types-pure-fns.ts) — the dependency check uses this for integrity
 // validation.
-const unknownKeysPureFnFilePath = "packages/ts-go-run-types/src/run-types-pure-fns.ts"
+const unknownKeysPureFnFilePath = "packages/ts-runtypes/src/run-types-pure-fns.ts"
 
 // objectKeysContext captures the data needed to emit the
 // callCheckUnknownProperties call for an object/interface — the
