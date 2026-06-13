@@ -7,6 +7,7 @@ import {
   createBinaryEncoder,
   createBinaryDecoder,
   createMockType,
+  createStandardSchema,
 } from 'ts-runtypes';
 
 // start-type
@@ -59,4 +60,12 @@ const mockOrder = createMockType<Order>();
 const fake = mockOrder(); // a valid, randomized Order for your tests
 // end-mock
 
-export {order, back, order2, fake};
+// start-standard
+const orderSchema = createStandardSchema<Order>();
+
+// a Standard Schema v1 object — hand it to any tool that speaks the spec
+orderSchema['~standard'].validate(order); // {value: order}
+orderSchema['~standard'].validate({}); // {issues: [{message, path}, …]}
+// end-standard
+
+export {order, back, order2, fake, orderSchema};

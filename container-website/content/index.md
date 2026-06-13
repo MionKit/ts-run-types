@@ -158,6 +158,19 @@ Stop gluing five libraries together. RunTypes shares a single type graph across 
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-mock" commentEnd="// end-mock" />
 ::::
 :::
+
+:::div{class="rt-feature-row"}
+<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-standard" commentEnd="// end-standard" />
+
+::::card{class="rt-feature-card"}
+### Speaks Standard Schema
+The same type becomes a [Standard Schema](https://github.com/standard-schema/standard-schema), the shared `~standard` contract that tRPC, TanStack Form and Router, Hono and many more accept directly. One call, no adapter to write.
+
+<br>
+
+[One spec, every framework.]{.text-highlighted}
+::::
+:::
 ::
 
 ::u-page-section
@@ -371,4 +384,4 @@ export function __rt_a1b_Xk7(value) {
 
 [&nbsp;]{style="padding-bottom: 6rem;"}
 
-<!-- code-import-timestamp 1781643665080 -->
+<!-- code-import-timestamp 1781790772911 -->
