@@ -43,7 +43,7 @@ export interface BinaryEncoderOptions {
   /** Stable string used to bucket adaptive-sizing history. Defaults to the
    *  runtype hash so every encoder for the same `T` shares size history. **/
   cacheKey?: string;
-  /** Per-call circular-reference guard — overrides the global `setCircularCheck`
+  /** Per-call circular-reference guard — overrides the global `setRejectCircularRefs`
    *  for THIS encoder (`true` arms, `false` disables). Runtime-only (binary
    *  options are not compile-time args), so it never affects the cache key. **/
   rejectCircularRefs?: boolean;

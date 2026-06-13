@@ -44,7 +44,7 @@
 import {getRTUtils} from './rtUtils.ts';
 import type {RTUtils} from './rtUtils.ts';
 import type {AnyFn, CompiledFnArgs, CompiledFnData, CompiledPureFunction, CompiledTypeFn, RunType} from './types.ts';
-import {CircularReferenceError, findCycle, isCircularCheckEnabled, typeGraphIsCircular} from './circular.ts';
+import {CircularReferenceError, findCycle, isRejectCircularRefsEnabled, typeGraphIsCircular} from './circular.ts';
 
 // Numeric slot-0 kinds (Go: constants.TupleKind*). Type-fn entries carry their
 // family tag string instead. Runtype nodes normally ride as headless ROWS of
@@ -633,7 +633,7 @@ export function resolveEntryTupleFn<F extends AnyFn>(
     const fn = entry.fn as F;
     // Per-call `{rejectCircularRefs}` overrides the global flag; undefined falls
     // back to it. Disarmed is the hot path — skip the RunType lookup entirely.
-    const armed = rejectCircularRefs ?? isCircularCheckEnabled();
+    const armed = rejectCircularRefs ?? isRejectCircularRefsEnabled();
     return armed ? maybeGuardCircular(fnName, fn, utils.getRunType(typeId)) : fn;
   }
   if (utils.hasRunType(typeId)) return identityFn;

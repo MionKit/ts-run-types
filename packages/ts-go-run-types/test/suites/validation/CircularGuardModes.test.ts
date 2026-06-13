@@ -1,11 +1,11 @@
 // validation / CircularGuard modes — the cross-cutting arming behaviour the
-// per-vector CircularGuard cases don't cover: the global `setCircularCheck`
+// per-vector CircularGuard cases don't cover: the global `setRejectCircularRefs`
 // toggle, the per-call `{rejectCircularRefs:false}` opt-out overriding an armed
 // global, and the no-op on a non-circular type while armed. The per-vector
 // cases (CircularGuard.ts) all arm per-call; these pin the global flag and the
 // override precedence. afterEach disarms so the global flag never leaks.
 import {afterEach, describe, expect, it} from 'vitest';
-import {createValidate, setCircularCheck} from '@mionjs/ts-go-run-types';
+import {createValidate, setRejectCircularRefs} from '@mionjs/ts-go-run-types';
 
 interface Node {
   name: string;
@@ -18,11 +18,11 @@ function selfCycle(): Node {
   return node;
 }
 
-afterEach(() => setCircularCheck(false));
+afterEach(() => setRejectCircularRefs(false));
 
 describe('validation / CircularGuard modes', () => {
-  it('global setCircularCheck(true) arms the guard without a per-call option', () => {
-    setCircularCheck(true);
+  it('global setRejectCircularRefs(true) arms the guard without a per-call option', () => {
+    setRejectCircularRefs(true);
     const isNode = createValidate<Node>();
     expect(isNode(selfCycle())).toBe(false);
     expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
@@ -34,7 +34,7 @@ describe('validation / CircularGuard modes', () => {
   });
 
   it('per-call {rejectCircularRefs:false} overrides an armed global', () => {
-    setCircularCheck(true);
+    setRejectCircularRefs(true);
     const isNode = createValidate<Node>(undefined, {rejectCircularRefs: false});
     // Guard disabled for this validator → an acyclic value validates as usual.
     // (A cyclic value would overflow, exactly as an unguarded validator does.)
@@ -42,7 +42,7 @@ describe('validation / CircularGuard modes', () => {
   });
 
   it('armed global is a no-op for a non-circular type', () => {
-    setCircularCheck(true);
+    setRejectCircularRefs(true);
     interface Plain {
       id: number;
       label: string;
