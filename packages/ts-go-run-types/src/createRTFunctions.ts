@@ -32,7 +32,7 @@ export interface ValidateOptions {
    *  deliberately NOT one of the Go scanner's `ValidateOptions`, so it never
    *  folds into the fnHash / cache key (a circular-checking and a plain
    *  validator for the same `T` share one compiled entry). **/
-  checkCircular?: boolean;
+  rejectCircularRefs?: boolean;
 }
 
 /** Validator function returned by `createValidate<T>()`. The type guard narrows
@@ -139,9 +139,9 @@ export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
  *    allocation, slower on non-trivial shapes; always strips undeclared keys.
  */
 export type JsonEncoderStrategy = 'clone' | 'mutate' | 'direct';
-// `checkCircular` is the per-call circular-reference override (see ValidateOptions);
+// `rejectCircularRefs` is the per-call circular-reference override (see ValidateOptions);
 // runtime-only — the JSON axis hashes only `strategy`, so it never forks the cache.
-export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy; checkCircular?: boolean};
+export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy; rejectCircularRefs?: boolean};
 
 /** Caller-controlled `strategy` for `createJsonDecoder<T>()`. The decoder always
  *  allocates fresh via `JSON.parse`, so the only axis is undeclared keys:
@@ -166,16 +166,16 @@ function resolveTupleEntry<F extends AnyFn>(
   identityFn: F,
   val: unknown,
   args: unknown,
-  checkCircular?: boolean
+  rejectCircularRefs?: boolean
 ): F {
   const schemaId = isRunTypeSchema(val) ? val.id : undefined;
-  return resolveEntryTupleFn(fnName, identityFn, schemaId, args, checkCircular);
+  return resolveEntryTupleFn(fnName, identityFn, schemaId, args, rejectCircularRefs);
 }
 
-/** Reads the per-call `checkCircular` override off a createX options bag
+/** Reads the per-call `rejectCircularRefs` override off a createX options bag
  *  (undefined when no options / not set → the global flag decides). **/
-function readCheckCircular(options: unknown): boolean | undefined {
-  return (options as {checkCircular?: boolean} | undefined)?.checkCircular;
+function readRejectCircularRefs(options: unknown): boolean | undefined {
+  return (options as {rejectCircularRefs?: boolean} | undefined)?.rejectCircularRefs;
 }
 
 /** Returns the compiled closure for an option-carrying createX factory
@@ -186,7 +186,7 @@ function createTypeFnArgsFunction<F extends AnyFn>(
   fnName: string,
   identityFn: F
 ): (val?: unknown, options?: unknown, args?: unknown) => F {
-  return (val, options, args) => resolveTupleEntry(fnName, identityFn, val, args, readCheckCircular(options));
+  return (val, options, args) => resolveTupleEntry(fnName, identityFn, val, args, readRejectCircularRefs(options));
 }
 
 /** Returns the compiled closure for a leaf family that does NOT honour
@@ -322,7 +322,13 @@ export function createJsonEncoder<T>(
   options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn {
-  return resolveTupleEntry<JsonEncoderFn>('createJsonEncoder', jsonStringifyFallback, valOrSchema, id, options?.checkCircular);
+  return resolveTupleEntry<JsonEncoderFn>(
+    'createJsonEncoder',
+    jsonStringifyFallback,
+    valOrSchema,
+    id,
+    options?.rejectCircularRefs
+  );
 }
 
 /** Returns a JSON decoder for `T`. Default `strategy: 'strip'` — undeclared

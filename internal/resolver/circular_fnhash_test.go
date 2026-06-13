@@ -7,18 +7,18 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// The per-call `{checkCircular}` override is a runtime-only flag — it must NOT
+// The per-call `{rejectCircularRefs}` override is a runtime-only flag — it must NOT
 // fold into the injected fnHash, so a circular-checking validator and a plain
 // one for the same type share a single compiled entry. `noLiterals` (a real
-// ValidateOptions variant) DOES fork the hash; checkCircular rides alongside it
+// ValidateOptions variant) DOES fork the hash; rejectCircularRefs rides alongside it
 // without changing it.
-func TestCheckCircularExcludedFromFnHash(t *testing.T) {
+func TestRejectCircularRefsExcludedFromFnHash(t *testing.T) {
 	const src = `import {createValidate} from '@mionjs/ts-go-run-types';
 interface Node {name: string; next?: Node}
 createValidate<Node>();
-createValidate<Node>(undefined, {checkCircular: true});
+createValidate<Node>(undefined, {rejectCircularRefs: true});
 createValidate<Node>(undefined, {noLiterals: true});
-createValidate<Node>(undefined, {noLiterals: true, checkCircular: true});
+createValidate<Node>(undefined, {noLiterals: true, rejectCircularRefs: true});
 `
 	r := setupInline(t, map[string]string{"a.ts": src})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}})
@@ -42,18 +42,18 @@ createValidate<Node>(undefined, {noLiterals: true, checkCircular: true});
 	}
 
 	plain := fnIDAt("createValidate<Node>()")
-	circular := fnIDAt("createValidate<Node>(undefined, {checkCircular: true})")
+	circular := fnIDAt("createValidate<Node>(undefined, {rejectCircularRefs: true})")
 	noLiterals := fnIDAt("createValidate<Node>(undefined, {noLiterals: true})")
-	noLiteralsCircular := fnIDAt("createValidate<Node>(undefined, {noLiterals: true, checkCircular: true})")
+	noLiteralsCircular := fnIDAt("createValidate<Node>(undefined, {noLiterals: true, rejectCircularRefs: true})")
 
 	if plain == "" || noLiterals == "" {
 		t.Fatalf("expected non-empty fnIds, got plain=%q noLiterals=%q", plain, noLiterals)
 	}
 	if plain != circular {
-		t.Fatalf("checkCircular forked the fnHash: plain=%q checkCircular=%q", plain, circular)
+		t.Fatalf("rejectCircularRefs forked the fnHash: plain=%q rejectCircularRefs=%q", plain, circular)
 	}
 	if noLiterals != noLiteralsCircular {
-		t.Fatalf("checkCircular forked the noLiterals fnHash: %q vs %q", noLiterals, noLiteralsCircular)
+		t.Fatalf("rejectCircularRefs forked the noLiterals fnHash: %q vs %q", noLiterals, noLiteralsCircular)
 	}
 	if plain == noLiterals {
 		t.Fatalf("sanity: noLiterals should change the fnHash but matched plain (%q)", plain)

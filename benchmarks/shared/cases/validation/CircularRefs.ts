@@ -1,6 +1,6 @@
 // Circular-REFERENCE benchmark section: recursive types fed runtime values that
 // contain a reference cycle. ts-go-run-types builds its validators with the
-// per-call `{checkCircular: true}` option (so it pays the cycle-detection walk
+// per-call `{rejectCircularRefs: true}` option (so it pays the cycle-detection walk
 // and REJECTS the cyclic `invalid` samples); the other competitors have no
 // cyclic-value detection (a cycle would stack-overflow them), so they declare
 // these cases NOT_SUPPORTED. `valid` samples are acyclic instances of the same

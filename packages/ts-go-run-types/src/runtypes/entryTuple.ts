@@ -609,7 +609,7 @@ export function resolveEntryTupleFn<F extends AnyFn>(
   identityFn: F,
   schemaId: string | undefined,
   injected: unknown,
-  checkCircular?: boolean
+  rejectCircularRefs?: boolean
 ): F {
   const utils = getRTUtils();
   if (isMissingTuple(injected)) return identityFn;
@@ -631,9 +631,9 @@ export function resolveEntryTupleFn<F extends AnyFn>(
   const entry = utils.getRT(key);
   if (entry) {
     const fn = entry.fn as F;
-    // Per-call `{checkCircular}` overrides the global flag; undefined falls
+    // Per-call `{rejectCircularRefs}` overrides the global flag; undefined falls
     // back to it. Disarmed is the hot path — skip the RunType lookup entirely.
-    const armed = checkCircular ?? isCircularCheckEnabled();
+    const armed = rejectCircularRefs ?? isCircularCheckEnabled();
     return armed ? maybeGuardCircular(fnName, fn, utils.getRunType(typeId)) : fn;
   }
   if (utils.hasRunType(typeId)) return identityFn;

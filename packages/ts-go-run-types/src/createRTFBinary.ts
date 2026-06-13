@@ -46,7 +46,7 @@ export interface BinaryEncoderOptions {
   /** Per-call circular-reference guard — overrides the global `setCircularCheck`
    *  for THIS encoder (`true` arms, `false` disables). Runtime-only (binary
    *  options are not compile-time args), so it never affects the cache key. **/
-  checkCircular?: boolean;
+  rejectCircularRefs?: boolean;
 }
 
 /** Caller-controlled options for `createBinaryDecoder<T>()`. **/
@@ -93,7 +93,13 @@ export function createBinaryEncoder<T>(
 ): BinaryEncoderFn {
   const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
   const cacheKey = options?.cacheKey ?? binarySizingKey(schemaId, id);
-  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinaryEncoder', noopToBinaryFn, schemaId, id, options?.checkCircular);
+  const encodeFn = resolveEntryTupleFn<ToBinaryFn>(
+    'createBinaryEncoder',
+    noopToBinaryFn,
+    schemaId,
+    id,
+    options?.rejectCircularRefs
+  );
   return (value, serializer) => {
     // Caller-supplied serializer: they own sizing + end-of-payload semantics,
     // so we don't record history on their behalf.

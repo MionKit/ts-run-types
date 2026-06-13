@@ -1,5 +1,5 @@
 // serialization / CircularGuard — every circular-guard case run through the
-// JSON and binary encoders. The guard is armed per-call via `{checkCircular:
+// JSON and binary encoders. The guard is armed per-call via `{rejectCircularRefs:
 // true}` inside each thunk; a cyclic value throws CircularReferenceError, an
 // acyclic control encodes without throwing.
 import {describe, it} from 'vitest';
