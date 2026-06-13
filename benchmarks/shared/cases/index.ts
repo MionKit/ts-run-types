@@ -1,17 +1,14 @@
 // Single source of truth for the shared cases: the `CaseKey` union (drives
 // per-competitor totality) + `iterateCases()` (drives the runner).
 //
-// TEMPORARY BRIDGE: today this re-projects the existing `src/suites/*` onto the
-// slim `SharedCase` shape (a `ValidationCase`/`FormatValidationCase` is
-// structurally assignable to `SharedCase` — it already carries getSamples +
-// title + factoryThrows). This lets the new harness + competitors be built and
-// validated BEFORE the suite files are physically moved here and slimmed. The
-// migration step replaces the three imports below with `./validation`,
-// `./format-validation`, `./realworld` and drops `src/suites/`.
+// The suites are the marker-free slim copies that live alongside this file —
+// they carry samples + metadata only, with ZERO `@mionjs/ts-go-run-types`
+// imports, so a competitor importing `shared/cases` never transitively pulls
+// the marker package.
 
-import {VALIDATION_SUITE} from '../../src/suites/validation/index.ts';
-import {FORMAT_VALIDATION_SUITE} from '../../src/suites/format-validation/index.ts';
-import {REALWORLD} from '../../src/suites/realworld/index.ts';
+import {VALIDATION_SUITE} from './validation/index.ts';
+import {FORMAT_VALIDATION_SUITE} from './format-validation/index.ts';
+import {REALWORLD} from './realworld/index.ts';
 import type {SharedCase} from './types.ts';
 
 export type SuiteName = 'validation' | 'format-validation' | 'realworld';
