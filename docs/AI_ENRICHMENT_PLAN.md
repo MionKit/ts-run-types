@@ -324,10 +324,15 @@ file's checkboxes in the same commit that lands the work.
     Minimal shared touch: 5-line pre-`flag.Parse` dispatch in `main.go` (flags never
     match a subcommand → plugin path untouched) + a `Resolver.Checker()` accessor.
     Hermetic bridge tests; end-to-end `describe`+`gen` verified; create-only writes.
-  - **`check` (FT002/FT003/FT005, MD001)** — IN PROGRESS (background agent): the
-    literal-AST paired walker. **MD003** (pool values validate — needs the runtime
-    validator) + FT004/MD002 (TS already catches) + the always-on Vite-build
-    diagnostic surfacing are deferred refinements.
+  - **`check` done** (commit `a2b90c3`): the literal-AST paired walker over a tiny
+    `LiteralView` adapter (unit-testable). FT002 (unknown friendly key), FT003
+    ($errors key not a declared constraint), FT005 (bad `$[…]` placeholder), MD001
+    (unknown mock key). Annotation detected off the TypeReference syntax (+ SkipAlias
+    + DeclaredInModule) since the `FriendlyType<T>` alias body reduces. A nested-object
+    `$errors` double-count bug was caught in review + fixed (+ regression test).
+    **MD003** (pool values validate — needs the runtime validator) + FT004/MD002 (TS
+    already catches) + the always-on Vite-build diagnostic surfacing are deferred.
+  The full **`describe` / `check` / `gen`** CLI trio is now complete + tested.
 - **Still deferred:** P0.1 declFile (only needed for demand-driven `gen` from marker
   usage; current `gen` takes file+type explicitly), P0.2 `$[val]`, MD003, build-time
   diagnostic integration, P6 registry accessors. None are architectural unknowns.
