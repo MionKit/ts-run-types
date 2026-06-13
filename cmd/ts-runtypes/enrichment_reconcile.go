@@ -166,8 +166,12 @@ func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrichment.NamedConst, in
 	if desiredView == nil {
 		return
 	}
-	renames := computeRenames(existingView, desiredView, metaKeys, named.ChildIDs)
-	mergeObject(ops, existingView, desiredView, metaKeys, renames)
+	ctx := mergeCtx{
+		metaKeys:      metaKeys,
+		existingChild: existing.childIDs,
+		desiredChild:  named.ChildIDs,
+	}
+	mergeObject(ops, existingView, desiredView, ctx)
 }
 
 // refreshMarker emits a splice to bring the existing const's @rtType/@rtIds
