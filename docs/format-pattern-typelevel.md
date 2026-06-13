@@ -1,9 +1,13 @@
 # Format patterns must live in the type, not in a runtime value
 
-**Status:** proposed (not implemented). Discovered while building the
-cross-library validation benchmarks (`benchmarks/`), where ts-go-run-types
-resolves the marker package through its published `dist/*.d.ts` instead of
-`src/`.
+**Status:** implemented. Discovered while building the cross-library validation
+benchmarks (`benchmarks/`), where ts-go-run-types resolves the marker package
+through its published `dist/*.d.ts` instead of `src/`. The proposed solution
+below is now live — `registerFormatPattern` / `FormatPattern` are generic over
+the args literal, the built-ins are authored as `{source, flags, mockSamples}`,
+and the Go scanner recovers the pattern from the resolved TYPE
+(`formatPatternFromType`). The benchmark's `alpha`/`email`/`url`/`domain` cases
+validate for ts-go-run-types through `dist/*.d.ts`.
 
 ## TL;DR
 
@@ -201,19 +205,15 @@ mockSamples, message?}` shape, all string literals, still wrapped in
   survives type emission, and `mockSamples` (validated at registration) guard
   against typos.
 
-## Out of scope (for the benchmark PR)
+## Acceptance criteria — met
 
-This PR only documents the issue. The benchmark keeps these few cases marked
-not-supported for ts-go-run-types and notes why. Implementing the above is a
-separate change to the `@mionjs/ts-go-run-types` package + the Go scanner.
-
-## Acceptance criteria (for the future fix)
-
-- `registerFormatPattern` has no `regexp` overload; `FormatPattern` is generic
-  over `source`/`flags`.
-- All built-in patterns authored as `{source, flags, mockSamples}`.
-- The scanner recovers stringFormat patterns from the **type** (verified by a
-  test that resolves the package via `dist/*.d.ts`, mirroring the benchmark).
-- The benchmark's `alpha` / `alphaNumeric` / `numeric` / `alpha_withLength`
-  (and domain/email/url) compile and validate for ts-go-run-types without
-  needing the `"source"` resolution condition.
+- ✅ `registerFormatPattern` has no `regexp` overload; `FormatPattern` is generic
+  over the args literal (`const A`), so `source`/`flags`/`mockSamples`/`message`
+  all ride the type.
+- ✅ All built-in patterns authored as `{source, flags?, mockSamples}`.
+- ✅ The scanner recovers stringFormat patterns from the **type**
+  (`formatPatternFromType` in `internal/compiled/runtype/typeid/formats.go`); the
+  AST reader stays as the value-first fallback.
+- ✅ The benchmark's `alpha` / `alphaNumeric` / `numeric` / `alpha_withLength`
+  (and domain/email/url) compile and validate for ts-go-run-types through
+  `dist/*.d.ts` — no `"source"` resolution condition.
