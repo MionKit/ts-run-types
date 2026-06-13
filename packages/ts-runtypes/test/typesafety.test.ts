@@ -13,12 +13,17 @@
 // immediately; CI catches them when anyone runs
 // `tsc -p packages/ts-runtypes/tsconfig.test.json --noEmit`.
 
-import * as TF from 'ts-runtypes/formats';
-import * as TFT from 'ts-runtypes/formats/temporal';
+// NOTE: imports use RELATIVE `../src/…` paths (not the `ts-runtypes/*` package
+// specifiers) on purpose — it keeps this file out of the vite plugin's transform
+// scope so the `getRunTypeId()` "no id injected" runtime-contract tests below stay
+// un-injected and actually throw. The assertion bodies are type-only / never
+// invoked, so the value builders here never run.
+import * as TF from '../src/formats/index.ts';
+import * as TFT from '../src/formats/datetime/temporalFormats.ts';
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId} from '../src/index.ts';
 import type {RunType, Static} from '../src/index.ts';
-import * as RT from 'ts-runtypes/schema';
+import * as RT from '../src/schema/index.ts';
 
 // Reference the assertion bodies from a real test so they don't get
 // flagged as dead code by lint. The body is never invoked.
