@@ -86,13 +86,16 @@ go_version_ldflags() {
   # is automatically isolated across releases — see
   # internal/constants/version.go. Falls back to "dev" when node isn't
   # available so the build still completes in CI bootstrap scenarios.
-  local version
+  local version tsgo
   if command -v node >/dev/null 2>&1; then
     version="$(node -p "require('./package.json').version" 2>/dev/null || echo dev)"
   else
     version="dev"
   fi
-  echo "-X github.com/mionkit/ts-runtypes/internal/constants.Version=${version}"
+  # tsgo revision is pure metadata (surfaced by --version); not folded into the
+  # typeID hash, so it never perturbs the on-disk cache.
+  tsgo="$(git -C third_party/tsgolint rev-parse --short HEAD 2>/dev/null || echo dev)"
+  echo "-X github.com/mionkit/ts-runtypes/internal/constants.Version=${version} -X github.com/mionkit/ts-runtypes/internal/constants.TsgoVersion=${tsgo}"
 }
 
 check_go() {

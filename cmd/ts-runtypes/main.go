@@ -112,6 +112,7 @@ func main() {
 		pprofCPU           string
 		pprofHeap          string
 		help               bool
+		version            bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
 	flag.StringVar(&cwdFlag, "cwd", "", "working directory")
@@ -149,10 +150,16 @@ func main() {
 		"write a heap profile to PATH at exit (after a final GC)")
 	flag.BoolVar(&help, "help", false, "show help")
 	flag.BoolVar(&help, "h", false, "show help")
+	flag.BoolVar(&version, "version", false, "print version (binary + pinned tsgo revision) and exit")
 	flag.Parse()
 
 	if help {
 		flag.Usage()
+		return
+	}
+
+	if version {
+		fmt.Printf("ts-runtypes %s (tsgo %s)\n", constants.Version, constants.TsgoVersion)
 		return
 	}
 

@@ -57,7 +57,13 @@ importers:
         specifier: workspace:*
         version: link:../vite-plugin-runtypes
 
+  packages/ts-runtypes-bin: {}
+
   packages/vite-plugin-runtypes:
+    dependencies:
+      ts-runtypes-bin:
+        specifier: workspace:*
+        version: link:../ts-runtypes-bin
     devDependencies:
       vite:
         specifier: 5.4.10

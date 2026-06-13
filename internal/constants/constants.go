@@ -416,3 +416,15 @@ var JsonCompositeHostTags = func() map[string]string {
 // Defaults to "dev" for local builds; the publish script overrides it from the
 // root package.json version.
 var Version = "dev"
+
+// TsgoVersion records the pinned tsgolint / typescript-go revision the binary
+// was built against, injected at build time via
+//
+//	-ldflags "-X github.com/mionkit/ts-runtypes/internal/constants.TsgoVersion=<rev>"
+//
+// Unlike Version it is PURE METADATA — it is never folded into the typeID hash
+// (the bundled checker revision must not perturb cache keys). Surfaced by the
+// binary's --version flag and recorded in the launcher package's package.json
+// "tsgo" field, so the TypeScript baseline stays discoverable without leaking
+// into the semver contract. Defaults to "dev" for local builds.
+var TsgoVersion = "dev"
