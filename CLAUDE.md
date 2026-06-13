@@ -29,7 +29,7 @@ This repo ships two **podman-containerized** apps that install their node_module
 | **Go**     | ≥ 1.26    | benchmarks resolver binary only    | `go.mod`                                 |
 
 - The **website** needs only podman. The **benchmarks** additionally need Node + pnpm + Go for `pnpm run bench:prep` (builds the Go resolver binary + JS packages on the host; the binary is bind-mounted into the benchmark container). Building that binary also needs the submodule bootstrap (see above).
-- **Setup is automated:** the `project-setup` skill ([.claude/skills/project-setup/setup.sh](.claude/skills/project-setup/setup.sh)) checks each dependency and installs the missing ones on Linux/macOS (other OSes print a not-ready message). Keep this table and `setup.sh`'s version constants in sync.
+- **Setup is automated:** the `ts-run-types-setup` skill ([.claude/skills/ts-run-types-setup/setup.sh](.claude/skills/ts-run-types-setup/setup.sh)) checks each dependency and installs the missing ones on Linux/macOS (other OSes print a not-ready message). Keep this table and `setup.sh`'s version constants in sync.
 
 ## Package Manager: pnpm
 
