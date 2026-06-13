@@ -39,7 +39,7 @@ import {
 // EITHER WAY a pattern carries `mockSamples` — a bare `/regex/` with no samples
 // is deliberately NOT accepted (the mock generator needs samples to produce
 // matching values):
-//   const slug = registerFormatPattern({regexp: /^[a-z-]+$/, mockSamples: ['a-b']});
+//   const slug = registerFormatPattern({source: '^[a-z-]+$', mockSamples: ['a-b']});
 //   type Slug = FormatString<{pattern: typeof slug}>;
 //   type Digits = FormatString<{pattern: {source: '^[0-9]+$'; mockSamples: ['1', '42']}}>;
 // (Built-ins encode their pattern as an inline `{source, flags, mockSamples}`

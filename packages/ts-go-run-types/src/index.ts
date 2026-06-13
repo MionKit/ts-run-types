@@ -49,12 +49,7 @@ export {registerClassSerializer, type ClassSerializer} from './runtypes/classSer
 export {type TypeFormat, type TypeFormatBase, type TypeFormatParams} from './runtypes/typeFormat.ts';
 export {type FormatAnnotation} from './runtypes/formatAnnotation.ts';
 export {registerMockingFunction, type MockFormatFn} from './mocking/mockRegistry.ts';
-export {
-  registerFormatPattern,
-  type FormatPattern,
-  type FormatPatternArgs,
-  type StringPatternArgs,
-} from './runtypes/formatPattern.ts';
+export {registerFormatPattern, type FormatPattern, type StringPatternArgs} from './runtypes/formatPattern.ts';
 // Reflection-kind enum mirror. Re-exported so concrete formats under
 // `src/formats/` can declare `readonly kind = RunTypeKind.string`
 // without importing the internal module path.

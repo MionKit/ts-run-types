@@ -1,40 +1,32 @@
-// FormatPattern — an explicit, pre-validated regex bundle for use in a
-// format's `pattern` slot:
+// FormatPattern — a pre-validated regex bundle for a format's `pattern` slot,
+// authored as TYPE-LEVEL string literals so it survives `.d.ts` emission:
 //
 //   const slug = registerFormatPattern({
-//     regexp: /^[a-z0-9-]+$/,
+//     source: '^[a-z0-9-]+$',
 //     mockSamples: ['my-slug', 'abc'],
 //     message: 'must be a slug',
 //   });
 //   type Slug = FormatString<{pattern: typeof slug}>;
 //
-// Why this exists: the build-time sample check the Go binary does runs
-// in RE2, a different engine than the JS runtime — it can't compile
-// JS-only regex features and only best-effort-validates. registerFormatPattern
-// validates the mockSamples here, at registration, with the SAME engine
-// that runs at validation time, throwing immediately on a mismatch. It
-// also makes the regex + samples explicit and reusable.
-//
-// The Go scanner recovers {source, flags, mockSamples, message} from
-// this call's AST (a regex's source can't survive at the type level),
-// so the returned type is intentionally opaque to type-space.
+// Why string literals and not a `/regex/`: the Go scanner recovers
+// {source, flags, mockSamples, message} from the RESOLVED TYPE of the `pattern`
+// property. `typeof /x/` is `RegExp` — TypeScript has no literal type for a
+// regex — and a published `.d.ts` erases any runtime initializer, so only string
+// literals captured via `const` type params reach a downstream consumer (any
+// normal npm dependent, and the benchmark). registerFormatPattern is therefore
+// generic over the WHOLE args object (`const A`): source / flags / mockSamples /
+// message all land in `FormatPattern<A>` and ride the type into `.d.ts`. It
+// still validates mockSamples against the pattern at registration (the same JS
+// engine the runtime validator uses) and freezes the bundle.
 
 import type {CompTimeArgs} from '../markers.ts';
 
-// Arguments to registerFormatPattern. `regexp` is a real RegExp literal
-// (the natural form); `mockSamples` are canonical valid values the mock
-// generator draws from; `message` is an optional label surfaced in
-// diagnostics/errors.
-export interface FormatPatternArgs {
-  regexp: RegExp;
-  mockSamples: readonly string[];
-  message?: string;
-}
-
-// Alternative argument shape: the regex as `source` + `flags` string
-// literals instead of a `/regex/`. Recovered the same way (from the call
-// AST), so both need literals at the call site. Handy when the pattern is
-// assembled from string parts.
+// Args to registerFormatPattern: the regex as a `source` string + optional
+// `flags` string (a `/regex/` literal can't be lifted into a type), plus
+// `mockSamples` (canonical valid values the mock generator draws from) and an
+// optional `message` label surfaced in diagnostics/errors. Every field is a
+// compile-time literal at the call site (wrapped in CompTimeArgs) so the scanner
+// can read each one straight from the type.
 export interface StringPatternArgs {
   source: string;
   flags?: string;
@@ -44,29 +36,31 @@ export interface StringPatternArgs {
 
 declare const formatPatternBrand: unique symbol;
 
-// FormatPattern is the branded result. Carries the resolved fields at
-// runtime; the brand keeps it assignable into a format's `pattern` slot
-// and distinct from a plain object literal.
-export interface FormatPattern {
-  readonly source: string;
-  readonly flags: string;
-  readonly mockSamples: readonly string[];
-  readonly message?: string;
+// FormatPattern<A> is the branded result, generic over the args object so every
+// field stays a literal type (and survives `.d.ts`). The brand keeps it
+// assignable into a format's `pattern` slot and distinct from a plain object
+// literal. Bare `FormatPattern` (A defaulted to StringPatternArgs) is the
+// widened shape used where a pattern's specific literals don't matter (the
+// `PatternParam` union) — matching the previously opaque interface.
+export interface FormatPattern<A extends StringPatternArgs = StringPatternArgs> {
+  readonly source: A['source'];
+  readonly flags: 'flags' extends keyof A ? NonNullable<A['flags']> : '';
+  readonly mockSamples: A['mockSamples'];
+  readonly message?: 'message' extends keyof A ? A['message'] : undefined;
   readonly [formatPatternBrand]: true;
 }
 
-// registerFormatPattern validates each mockSample against the pattern
-// (real JS engine, the same one runtime validators use) and returns a
-// frozen FormatPattern. Throws on the first sample that doesn't match —
-// a sample is meant to be a canonical valid value, so a mismatch is a
-// definition bug worth failing loudly at module load. Accepts either a
-// `/regex/` literal (primary) or `{source, flags}` string literals.
-export function registerFormatPattern(args: CompTimeArgs<FormatPatternArgs>): FormatPattern;
-export function registerFormatPattern(args: CompTimeArgs<StringPatternArgs>): FormatPattern;
-export function registerFormatPattern(args: CompTimeArgs<FormatPatternArgs> | CompTimeArgs<StringPatternArgs>): FormatPattern {
-  const resolved = args as FormatPatternArgs | StringPatternArgs;
-  const source = 'regexp' in resolved ? resolved.regexp.source : resolved.source;
-  const flags = ('regexp' in resolved ? resolved.regexp.flags : resolved.flags) ?? '';
+// registerFormatPattern validates each mockSample against the pattern (real JS
+// engine, the same one runtime validators use) and returns a frozen
+// FormatPattern. Throws on the first sample that doesn't match — a sample is
+// meant to be a canonical valid value, so a mismatch is a definition bug worth
+// failing loudly at module load. `const A` keeps every field literal so the
+// returned `FormatPattern<A>` carries them into the type (and the published
+// `.d.ts`), which is the whole point — see the file header.
+export function registerFormatPattern<const A extends StringPatternArgs>(args: CompTimeArgs<A>): FormatPattern<A> {
+  const resolved = args as A;
+  const source = resolved.source;
+  const flags = resolved.flags ?? '';
   const {mockSamples, message} = resolved;
   // Test with a non-stateful copy: `g`/`y` make `.test` advance lastIndex.
   const tester = new RegExp(source, flags.replace(/[gy]/g, ''));
@@ -78,5 +72,5 @@ export function registerFormatPattern(args: CompTimeArgs<FormatPatternArgs> | Co
       );
     }
   }
-  return Object.freeze({source, flags, mockSamples, message}) as unknown as FormatPattern;
+  return Object.freeze({source, flags, mockSamples, message}) as unknown as FormatPattern<A>;
 }
