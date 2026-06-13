@@ -1,13 +1,13 @@
 // Per-branch correctness + instantiation-budget test for `MockData<T>`.
 //
 // Same shape as friendlyType.compile.test.ts: each `it` compiles a representative
-// snippet for ONE branch of `MockNode` (src/enrichment/mockData.ts) and asserts
+// snippet for ONE branch of `MockNode` (src/enrich/mockData.ts) and asserts
 // (1) valid maps are assignable + invalid maps rejected (`@ts-expect-error` →
 // TS2578 if the type is too loose), and (2) net instantiations stay under a
 // one-way-ratchet budget. See dataonly.compile.test.ts for the budget protocol.
 
 import {describe, it, expect} from 'vitest';
-import {measureMock} from './enrichmentHarness.ts';
+import {measureMock} from './enrichHarness.ts';
 
 function check(snippet: string, budget: number): number {
   const r = measureMock(snippet);

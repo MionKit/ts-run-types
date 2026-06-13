@@ -1,0 +1,201 @@
+import type * as TF from 'ts-runtypes/formats';
+import type {FriendlyType, MockData} from 'ts-runtypes';
+import type {EnrichCase} from './types.ts';
+
+// Format-branded leaves — the `TF.*` catalog. A format annotation seeds
+// `$errors` with `type` plus the format's declared constraint params, SORTED
+// alphabetically. Mock stays a scalar pool `{pool: []}`. This category is the
+// proof that the temp files resolve `ts-runtypes/formats` through the `source`
+// condition (formats only project their constraint params when resolved to
+// src). Mirrors the validation suite's format-validation range.
+export const FORMAT = {
+  stringMinMax: {
+    title: 'String with min/max length',
+    case: () => {
+      // ##### src #####
+      type Target = TF.String<{minLength: 2; maxLength: 60}>;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', maxLength: '', minLength: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  stringLowercase: {
+    title: 'Lowercase string',
+    case: () => {
+      // ##### src #####
+      type Target = TF.String<{lowercase: true}>;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', lowercase: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  email: {
+    title: 'Email',
+    case: () => {
+      // ##### src #####
+      type Target = TF.Email;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: '', maxLength: '', minLength: '', pattern: ''},
+      };
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  uuidv4: {
+    title: 'UUID v4',
+    case: () => {
+      // ##### src #####
+      type Target = TF.UUIDv4;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', version: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  url: {
+    title: 'URL',
+    case: () => {
+      // ##### src #####
+      type Target = TF.Url;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', maxLength: '', pattern: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  alpha: {
+    title: 'Alpha string',
+    case: () => {
+      // ##### src #####
+      type Target = TF.Alpha;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', pattern: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  numberMinMax: {
+    title: 'Number with min/max',
+    case: () => {
+      // ##### src #####
+      type Target = TF.Number<{min: 0; max: 120}>;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', max: '', min: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  integer: {
+    title: 'Integer',
+    case: () => {
+      // ##### src #####
+      type Target = TF.Integer;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', integer: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  positive: {
+    title: 'Positive number',
+    case: () => {
+      // ##### src #####
+      type Target = TF.Positive;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', min: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  int32: {
+    title: 'Int32',
+    case: () => {
+      // ##### src #####
+      type Target = TF.Int32;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', integer: '', max: '', min: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  bigPositive: {
+    title: 'BigInt positive',
+    case: () => {
+      // ##### src #####
+      type Target = TF.BigPositive;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', min: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  bigInt64: {
+    title: 'BigInt64',
+    case: () => {
+      // ##### src #####
+      type Target = TF.BigInt64;
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', max: '', min: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+
+  formatInObject: {
+    title: 'Object with format-branded members',
+    case: () => {
+      // ##### src #####
+      type Target = {name: TF.String<{minLength: 2; maxLength: 60}>; age: TF.Number<{min: 0; max: 120}>; email: TF.Email};
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        name: {$label: '', $errors: {type: '', maxLength: '', minLength: ''}},
+        age: {$label: '', $errors: {type: '', max: '', min: ''}},
+        email: {$label: '', $errors: {type: '', maxLength: '', minLength: '', pattern: ''}},
+      };
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {name: {pool: []}, age: {pool: []}, email: {pool: []}};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
+    },
+  },
+} satisfies Record<string, EnrichCase>;

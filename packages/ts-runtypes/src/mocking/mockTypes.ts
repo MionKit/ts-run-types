@@ -2,7 +2,7 @@
 // `MockOptions` shape. `createMockType<T>()` merges caller options over
 // `defaultMockOptions` before walking the runtype graph.
 
-import type {MockData} from '../enrichment/mockData.ts';
+import type {MockData} from '../enrich/mockData.ts';
 
 /** Per-call options steering atomic-value generation and optional/recursive
  *  shape handling. Ported field-for-field from the reference implementation. **/
@@ -56,7 +56,7 @@ export interface MockOptions {
   maxMockRecursion: number;
 }
 
-/** Loose runtime view of a `MockNode` (../enrichment/mockData.ts) — the walker
+/** Loose runtime view of a `MockNode` (../enrich/mockData.ts) — the walker
  *  reads pools / ranges / array controls structurally, descending by property
  *  name (objects) or `$items` (arrays). Typed permissively because the walker
  *  operates over erased `unknown` values; the typed surface is `MockData<T>` on

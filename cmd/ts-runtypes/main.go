@@ -85,7 +85,7 @@ func main() {
 	// Out-of-band enrichment subcommands (describe / gen) are argv-driven and
 	// handled before flag.Parse. The plugin spawns the binary with a --flag as
 	// os.Args[1], which never matches, so the build path is untouched.
-	if dispatchEnrichmentCommand() {
+	if dispatchEnrichCommand() {
 		return
 	}
 

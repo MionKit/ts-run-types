@@ -16,7 +16,7 @@ element + length hints, optional-probability — that feeds the existing
 `createMockType<T>()` generator. The mechanical generator stays deterministic; the map
 only supplies the realistic *values* (a believable name, a plausible age, a valid
 email). The DSL type is
-[`mockData.ts`](../../../packages/ts-runtypes/src/enrichment/mockData.ts), exported from
+[`mockData.ts`](../../../packages/ts-runtypes/src/enrich/mockData.ts), exported from
 `ts-runtypes`.
 
 ## When to use it
@@ -33,7 +33,7 @@ the generator already mocks every shape mechanically (including `Date`, `Map`, `
 ## What is shipped today vs designed
 
 - **Shipped:** the `MockData<T>` DSL type
-  ([`mockData.ts`](../../../packages/ts-runtypes/src/enrichment/mockData.ts)) AND the
+  ([`mockData.ts`](../../../packages/ts-runtypes/src/enrich/mockData.ts)) AND the
   `{ data }` option on `createMockType<T>()`
   ([`createMockType.ts`](../../../packages/ts-runtypes/src/mocking/createMockType.ts)) —
   pass `createMockType<T>({ data })` and generated values are drawn from the authored
