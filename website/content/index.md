@@ -20,6 +20,8 @@ blur: 150px
 :::typed-title
 ---
 leading: "We fixed TypeScript"
+strikeWord: "fixed"
+enhancedWord: "Enhanced"
 titles:
   - 'And the reflection gap'
   - 'And writing types twice'
@@ -28,8 +30,8 @@ titles:
   - 'Say hello ro RunTypes®'
 ---
 #description
-TypeScript decided it's **"just a linter"** and erases your types.
-<br/>We respectfully **put them back in the runtime** in a way that's makes sense and reliable.
+TypeScript decided it is **Just a Linter** and to erase types.
+<br/>We respectfully **put them back in the runtime** in a way that's reliable and makes sense.
 :::
 
 #links
@@ -78,7 +80,7 @@ Write a plain TypeScript type (fastest, zero ceremony) **or** reach for the `RT.
 
 :::div{class="rt-define-cols"}
 ::::code-group
-<code-import path="packages/examples/src/_homepage/define-type.ts" lang="ts [Pure type]" />
+<code-import path="packages/examples/src/_homepage/define-type.ts" lang="ts [Type definition]" />
 ::::
 
 ::::code-group
@@ -106,20 +108,24 @@ Then ask for whatever you need — a validator, an error reporter, JSON that rou
 :::
 
 :::div{class="rt-object-fns"}
-::::code-group
-<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [validate]" commentStart="// start-validate" commentEnd="// end-validate" />
+::::div{class="rt-object-fn"}
+### Validate
+<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-validate" commentEnd="// end-validate" />
 ::::
 
-::::code-group
-<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [json]" commentStart="// start-json" commentEnd="// end-json" />
+::::div{class="rt-object-fn"}
+### JSON
+<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-json" commentEnd="// end-json" />
 ::::
 
-::::code-group
-<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [binary]" commentStart="// start-binary" commentEnd="// end-binary" />
+::::div{class="rt-object-fn"}
+### Binary
+<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-binary" commentEnd="// end-binary" />
 ::::
 
-::::code-group
-<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [mock]" commentStart="// start-mock" commentEnd="// end-mock" />
+::::div{class="rt-object-fn"}
+### Mock
+<code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-mock" commentEnd="// end-mock" />
 ::::
 :::
 ::
@@ -134,7 +140,7 @@ The reflection TypeScript never had
 
 ::::card{class="rt-feature-card"}
 ### Recover the type graph
-Get back a traversable RunType node — kind, property names, nested children, format annotations. Bring a type, or infer it from a runtime value.
+Get back a traversable RunType node — the same graph the library walks internally: kind, property names, nested children, format annotations and more. Bring a type or infer it from a runtime value, then read it however you need — to drive codegen, build forms, or power your own tooling.
 
 <br>
 
@@ -178,7 +184,9 @@ bars:
 ---
 :::::
 
+:::::div{class="rt-card-footer"}
 [See the full head-to-head →](/benchmarks/validation)
+:::::
 ::::
 
 ::::card{class="rt-feature-card"}
@@ -194,14 +202,20 @@ tiles:
     label: Go tests
     sub: go test ./internal
     hue: 198
+  - value: "∞"
+    label: Fuzzy Testing
+    sub: Random inputs and randomly-generated types, checked against invariants — every finding replayable from a seed.
+    hue: 280
+    wide: true
+    to: /suites/fuzzing
 ---
 :::::
 
 Every transform, cache shape and generated function is covered — on top of an extensive structured suite spanning validation, JSON, binary, mocks and reflection.
 
-<br>
-
-[Correctness, pinned down.]{.text-highlighted}
+:::::div{class="rt-card-footer"}
+[Correctness, pinned down →](/suites/validation)
+:::::
 ::::
 :::
 ::
@@ -215,7 +229,7 @@ Stop gluing five libraries together. ts-run-types shares a single type graph acr
 
 :::card-group
 ---
-class: sm:grid-cols-2 lg:grid-cols-3
+class: sm:grid-cols-2 lg:grid-cols-3 home-toolbelt
 ---
   ::::card
   ---
@@ -323,4 +337,4 @@ export function __rt_a1b_Xk7(value) {
 
 [&nbsp;]{style="padding-bottom: 6rem;"}
 
-<!-- code-import-timestamp 1781575032973 -->
+<!-- code-import-timestamp 1781603906027 -->

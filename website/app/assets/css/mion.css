@@ -231,39 +231,56 @@ pre.px-4 {
 
 .rt-object-fns {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.75rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem 1rem;
   align-items: stretch;
 }
 
-/* equal-height columns: each code-group stretches to the tallest, and the code
-   panel fills the slack so every block bottoms out on the same line */
+/* equal-height columns: a gradient title over a bare code block; the block
+   fills the slack so every snippet bottoms out on the same line */
 .rt-object-fns > * {
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
-.rt-object-fns > * > div[role='tabpanel'] {
+/* small gradient h3 title above each snippet */
+.rt-object-fns h3 {
+  margin: 0 0 0.45rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+  background: linear-gradient(
+    90deg,
+    #8aa85e 0%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 25%,
+    #bdd09d 50%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 75%,
+    #8aa85e 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% 100%;
+  animation: gradient-flow 12s linear infinite;
+}
+
+.rt-object-fns > * > div {
   flex: 1;
   display: flex;
   flex-direction: column;
+  margin: 0;
 }
 
-.rt-object-fns > * > div[role='tabpanel'] > pre {
+.rt-object-fns > * > div > pre {
   flex: 1;
+  margin: 0;
 }
 
-/* tighter type so each short snippet fits its quarter-width column */
+/* slightly tighter type to keep each snippet comfortable in its half-width column */
 .rt-object-fns :is(pre, code) {
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   line-height: 1.55;
-}
-
-@media (max-width: 1100px) {
-  .rt-object-fns {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 760px) {
@@ -315,6 +332,57 @@ pre.px-4 {
 .rt-treeshake-cols .rt-feature-card,
 .rt-feature-row--top .rt-feature-card {
   justify-content: flex-start;
+}
+
+/* Card footer link — margin-top:auto absorbs the slack in the flex-column card
+   so the link sits at the very bottom; footers across columns then line up,
+   regardless of how much content sits above them. */
+.rt-card-footer {
+  margin-top: auto;
+  padding-top: 0.85rem;
+}
+
+.rt-card-footer p {
+  margin: 0;
+}
+
+/* Docus wraps card body in a div; make that wrapper fill the card as a flex
+   column so the footer's margin-top:auto reaches the card bottom. Scoped to the
+   footer row so centered cards (One object / reflection) keep their centering. */
+.rt-feature-row--top .rt-feature-card > * {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Toolbelt cards — icon and title share one row; the title borrows the
+   feature-card h3 gradient (animated green→blue) at a smaller size. */
+.home-toolbelt .group > span.iconify {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 0.55rem 0.5rem 0;
+}
+
+.home-toolbelt .group > p {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 0 0.55rem 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  background: linear-gradient(
+    90deg,
+    #8aa85e 0%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 25%,
+    #bdd09d 50%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 75%,
+    #8aa85e 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% 100%;
+  animation: gradient-flow 12s linear infinite;
 }
 
 @media (max-width: 1000px) {

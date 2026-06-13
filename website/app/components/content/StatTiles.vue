@@ -1,27 +1,42 @@
 <script setup lang="ts">
 // Big, colorful stat tiles for the homepage "Tested to the same standard" card.
-// Each tile is one section (front-end / Go); the number is gradient-filled text,
-// hue passed per tile so the two read as distinct colors.
+// Each tile is one section (front-end / Go / fuzzing); the number is gradient-
+// filled text, hue passed per tile so they read as distinct colors. A `wide`
+// tile spans the full row (horizontal layout); a `to` tile is a link.
+import {resolveComponent} from 'vue'
+
 interface Tile {
   value: string
   label: string
   sub?: string
   hue?: number
+  wide?: boolean
+  to?: string
 }
 
 const props = withDefaults(defineProps<{tiles?: Tile[]}>(), {tiles: () => []})
 
+const NuxtLink = resolveComponent('NuxtLink')
 const gradient = (hue = 145) =>
   `linear-gradient(120deg, hsl(${hue} 70% 52%), hsl(${hue + 38} 66% 56%))`
 </script>
 
 <template>
   <div class="stat-tiles">
-    <div v-for="tile in tiles" :key="tile.label" class="stat-tile">
+    <component
+      :is="tile.to ? NuxtLink : 'div'"
+      v-for="tile in tiles"
+      :key="tile.label"
+      :to="tile.to"
+      class="stat-tile"
+      :class="{'stat-tile--wide': tile.wide, 'stat-tile--link': tile.to}"
+    >
       <span class="stat-tile-value" :style="{backgroundImage: gradient(tile.hue)}">{{ tile.value }}</span>
-      <span class="stat-tile-label">{{ tile.label }}</span>
-      <span v-if="tile.sub" class="stat-tile-sub">{{ tile.sub }}</span>
-    </div>
+      <span class="stat-tile-text">
+        <span class="stat-tile-label" :style="tile.wide ? {backgroundImage: gradient(tile.hue)} : undefined">{{ tile.label }}</span>
+        <span v-if="tile.sub" class="stat-tile-sub">{{ tile.sub }}</span>
+      </span>
+    </component>
   </div>
 </template>
 
@@ -43,6 +58,23 @@ const gradient = (hue = 145) =>
   background: color-mix(in srgb, var(--ui-text-muted) 6%, transparent);
 }
 
+.stat-tile--link {
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.stat-tile--link:hover {
+  border-color: var(--ui-primary);
+  background: color-mix(in srgb, var(--ui-text-muted) 10%, transparent);
+}
+
+.stat-tile--wide {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.1rem;
+}
+
 .stat-tile-value {
   font-size: 2.5rem;
   font-weight: 700;
@@ -54,15 +86,44 @@ const gradient = (hue = 145) =>
   -webkit-text-fill-color: transparent;
 }
 
-.stat-tile-label {
+.stat-tile--wide .stat-tile-value {
+  font-size: 2.9rem;
+}
+
+.stat-tile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
   margin-top: 0.4rem;
+}
+
+.stat-tile--wide .stat-tile-text {
+  margin-top: 0;
+}
+
+.stat-tile-label {
   font-size: 0.82rem;
   color: var(--ui-text-muted);
 }
 
+/* wide tile: the label is a big gradient heading (same hue as the icon) */
+.stat-tile--wide .stat-tile-label {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.stat-tile--wide .stat-tile-text {
+  gap: 0.3rem;
+}
+
 .stat-tile-sub {
-  margin-top: 0.1rem;
   font-size: 0.7rem;
+  line-height: 1.4;
   color: var(--ui-text-dimmed);
 }
 
