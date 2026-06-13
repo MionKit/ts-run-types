@@ -14,6 +14,7 @@
 #   scripts/website.sh dev           # run the dev server with hot reload
 #   scripts/website.sh build         # production build -> website/.output
 #   scripts/website.sh generate      # static prerender -> website/.output/public
+#   scripts/website.sh smoke         # quick verify: bg dev server + curl :3000 + stop
 #   scripts/website.sh shell         # debug shell inside the container
 #   scripts/website.sh clean         # remove the image + named volumes
 #
@@ -56,6 +57,14 @@ VOL_CACHE="${CONTAINER_BASE}-cache"
 
 die() { echo "website.sh: $*" >&2; exit 1; }
 
+# mapfile-style line collector that works on bash 3.2 (macOS /bin/bash).
+# Usage: read_lines VAR_NAME < <(producer-cmd)
+read_lines() {
+  local _n="$1" _l
+  eval "$_n=()"
+  while IFS= read -r _l; do eval "$_n+=(\"\$_l\")"; done
+}
+
 require_engine() {
   command -v "$ENGINE" >/dev/null 2>&1 \
     || die "container engine '$ENGINE' not found. Install podman (https://podman.io)."
@@ -82,11 +91,26 @@ build_image() {
   prepare_cacerts
   echo "==> building $IMAGE from website/Containerfile"
   local net=(); [ -n "$BUILD_NETWORK" ] && net=(--network="$BUILD_NETWORK")
-  ( cd "$WEBSITE_DIR" && "$ENGINE" build "${net[@]}" -t "$IMAGE" -f Containerfile . )
+  ( cd "$WEBSITE_DIR" && "$ENGINE" build ${net[@]+"${net[@]}"} -t "$IMAGE" -f Containerfile . )
 }
 
 ensure_image() {
-  "$ENGINE" image exists "$IMAGE" 2>/dev/null || build_image
+  if ! "$ENGINE" image exists "$IMAGE" 2>/dev/null; then build_image; return; fi
+  # Rebuild when any in-image manifest is newer than the cached image. The
+  # bind-mounted source dirs (app/ content/ ...) never need a rebuild since
+  # they're mounted live; we only watch what gets baked in.
+  local img_epoch src_epoch=0 f t
+  img_epoch="$("$ENGINE" image inspect "$IMAGE" --format '{{.Created.Unix}}' 2>/dev/null || true)"
+  [ -z "$img_epoch" ] && img_epoch=0
+  for f in "$WEBSITE_DIR/Containerfile" "$WEBSITE_DIR/package.json" "$WEBSITE_DIR/pnpm-lock.yaml" "$WEBSITE_DIR/pnpm-workspace.yaml" "$WEBSITE_DIR/.npmrc"; do
+    [ -f "$f" ] || continue
+    t="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)"
+    [ "$t" -gt "$src_epoch" ] && src_epoch="$t"
+  done
+  if [ "$src_epoch" -gt "$img_epoch" ]; then
+    echo "==> website image is stale (Containerfile or manifest newer than image) - rebuilding"
+    build_image
+  fi
 }
 
 # Echo the bind-mount + named-volume args for `run`.
@@ -115,13 +139,13 @@ poll_args() {
 cmd_dev() {
   ensure_image
   echo "==> dev server at http://localhost:$PORT  (Ctrl-C to stop)"
-  mapfile -t MARGS < <(mount_args)
-  mapfile -t PARGS < <(poll_args)
-  mapfile -t NARGS < <(net_args)
+  read_lines MARGS < <(mount_args)
+  read_lines PARGS < <(poll_args)
+  read_lines NARGS < <(net_args)
   exec "$ENGINE" run --rm -it --init \
     --name "${CONTAINER_BASE}-dev" \
     -p "$PORT:3000" \
-    "${NARGS[@]}" "${MARGS[@]}" "${PARGS[@]}" \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${PARGS[@]+"${PARGS[@]}"} \
     -e NODE_ENV=development \
     -w /app "$IMAGE" \
     pnpm exec nuxt dev --extends docus --host 0.0.0.0 --port 3000
@@ -130,11 +154,11 @@ cmd_dev() {
 cmd_build() {
   ensure_image
   echo "==> production build -> website/.output"
-  mapfile -t MARGS < <(mount_args)
-  mapfile -t NARGS < <(net_args)
+  read_lines MARGS < <(mount_args)
+  read_lines NARGS < <(net_args)
   exec "$ENGINE" run --rm --init \
     --name "${CONTAINER_BASE}-build" \
-    "${NARGS[@]}" "${MARGS[@]}" \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} \
     -v "$WEBSITE_DIR/.output:/app/.output${MOUNT_OPTS}" \
     -e NODE_ENV=production \
     -w /app "$IMAGE" \
@@ -144,25 +168,78 @@ cmd_build() {
 cmd_generate() {
   ensure_image
   echo "==> static prerender -> website/.output/public"
-  mapfile -t MARGS < <(mount_args)
-  mapfile -t NARGS < <(net_args)
+  read_lines MARGS < <(mount_args)
+  read_lines NARGS < <(net_args)
   exec "$ENGINE" run --rm --init \
     --name "${CONTAINER_BASE}-generate" \
-    "${NARGS[@]}" "${MARGS[@]}" \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} \
     -v "$WEBSITE_DIR/.output:/app/.output${MOUNT_OPTS}" \
     -e NODE_ENV=production \
     -w /app "$IMAGE" \
     pnpm exec nuxt generate --extends docus
 }
 
+cmd_smoke() {
+  ensure_image
+  local cname="${CONTAINER_BASE}-smoke"
+  local timeout_s="${WEBSITE_SMOKE_TIMEOUT:-90}"
+  local url="http://localhost:$PORT"
+  echo "==> smoke: starting dev server in background ($cname)"
+  "$ENGINE" rm -f "$cname" >/dev/null 2>&1 || true
+  read_lines MARGS < <(mount_args)
+  read_lines PARGS < <(poll_args)
+  read_lines NARGS < <(net_args)
+  "$ENGINE" run -d --init \
+    --name "$cname" \
+    -p "$PORT:3000" \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${PARGS[@]+"${PARGS[@]}"} \
+    -e NODE_ENV=development \
+    -w /app "$IMAGE" \
+    pnpm exec nuxt dev --extends docus --host 0.0.0.0 --port 3000 >/dev/null \
+    || die "podman run failed"
+
+  trap '"$ENGINE" rm -f "'"$cname"'" >/dev/null 2>&1 || true' EXIT INT TERM
+
+  echo "==> smoke: polling $url for HTTP 200 (timeout ${timeout_s}s)"
+  local deadline=$(( $(date +%s) + timeout_s ))
+  local ok=0
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    if curl -fsS "$url" -o /tmp/website-smoke.html 2>/dev/null; then
+      if grep -q '<title>' /tmp/website-smoke.html; then
+        ok=1
+        break
+      fi
+    fi
+    sleep 2
+  done
+
+  if [ "$ok" = 1 ]; then
+    local title
+    title="$(grep -oE '<title>[^<]*</title>' /tmp/website-smoke.html | head -n1)"
+    echo "==> smoke: PASS  $title"
+    "$ENGINE" stop --time 1 "$cname" >/dev/null 2>&1 || true
+    "$ENGINE" rm -f "$cname" >/dev/null 2>&1 || true
+    trap - EXIT INT TERM
+    exit 0
+  fi
+
+  echo "==> smoke: FAIL (no 200 from $url within ${timeout_s}s)" >&2
+  echo "==> last 40 lines of container logs:" >&2
+  "$ENGINE" logs --tail 40 "$cname" >&2 || true
+  "$ENGINE" stop --time 1 "$cname" >/dev/null 2>&1 || true
+  "$ENGINE" rm -f "$cname" >/dev/null 2>&1 || true
+  trap - EXIT INT TERM
+  exit 1
+}
+
 cmd_shell() {
   ensure_image
-  mapfile -t MARGS < <(mount_args)
-  mapfile -t NARGS < <(net_args)
+  read_lines MARGS < <(mount_args)
+  read_lines NARGS < <(net_args)
   exec "$ENGINE" run --rm -it --init \
     --name "${CONTAINER_BASE}-shell" \
     -p "$PORT:3000" \
-    "${NARGS[@]}" "${MARGS[@]}" \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} \
     -w /app "$IMAGE" bash
 }
 
@@ -180,9 +257,10 @@ main() {
     dev)         cmd_dev ;;
     build)       cmd_build ;;
     generate)    cmd_generate ;;
+    smoke)       cmd_smoke ;;
     shell)       cmd_shell ;;
     clean)       cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: build-image | dev | build | generate | shell | clean" ;;
+    *) die "unknown command '${1:-}'. Try: build-image | dev | build | generate | smoke | shell | clean" ;;
   esac
 }
 
