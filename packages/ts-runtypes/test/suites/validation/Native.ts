@@ -22,16 +22,16 @@ export const NATIVE = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Expected map', path: []}],
-      [{message: 'Expected map', path: []}],
-      [{message: 'Expected map', path: []}],
-      [{message: 'Expected map', path: []}],
-      [{message: 'Expected string', path: [{key: 1}]}],
-      [{message: 'Expected number', path: [{key: 'a'}]}],
-      [{message: 'Expected map', path: []}],
-      [{message: 'Expected map', path: []}],
-      [{message: 'Expected number', path: [{key: 'a'}]}],
-      [{message: 'Expected map', path: []}],
+      [{message: 'Expected map', path: [], expected: 'map'}],
+      [{message: 'Expected map', path: [], expected: 'map'}],
+      [{message: 'Expected map', path: [], expected: 'map'}],
+      [{message: 'Expected map', path: [], expected: 'map'}],
+      [{message: 'Expected string', path: [{key: 1, index: 0, failed: 'mapKey'}], expected: 'string'}],
+      [{message: 'Expected number', path: [{key: 'a', index: 0, failed: 'mapValue'}], expected: 'number'}],
+      [{message: 'Expected map', path: [], expected: 'map'}],
+      [{message: 'Expected map', path: [], expected: 'map'}],
+      [{message: 'Expected number', path: [{key: 'a', index: 0, failed: 'mapValue'}], expected: 'number'}],
+      [{message: 'Expected map', path: [], expected: 'map'}],
     ],
     validateDataOnly: () => createValidate<DataOnly<Map<string, number>>>(),
     validateSchema: () => createValidate(RT.map(TF.string(), TF.number())),
@@ -150,8 +150,9 @@ export const NATIVE = {
       [{path: [], expected: 'set'}],
       [{path: [], expected: 'set'}],
       [{path: [], expected: 'set'}],
-      // nullElement: Set with item null (not string); safe(null)=null.
-      [{path: [{key: null, index: 0}], expected: 'string'}],
+      // nullElement: Set with item null (not string); pf_safeIterableKey
+      // coerces a null key to the string 'null' (always a PropertyKey).
+      [{path: [{key: 'null', index: 0}], expected: 'string'}],
     ],
   },
 

@@ -21,14 +21,14 @@ export const UNION = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Expected union', path: []}],
-      [{message: 'Expected union', path: []}],
-      [{message: 'Expected union', path: []}],
-      [{message: 'Expected union', path: []}],
-      [{message: 'Expected union', path: []}],
-      [{message: 'Expected union', path: []}],
-      [{message: 'Expected union', path: []}],
-      [{message: 'Expected union', path: []}],
+      [{message: 'Expected union', path: [], expected: 'union'}],
+      [{message: 'Expected union', path: [], expected: 'union'}],
+      [{message: 'Expected union', path: [], expected: 'union'}],
+      [{message: 'Expected union', path: [], expected: 'union'}],
+      [{message: 'Expected union', path: [], expected: 'union'}],
+      [{message: 'Expected union', path: [], expected: 'union'}],
+      [{message: 'Expected union', path: [], expected: 'union'}],
+      [{message: 'Expected union', path: [], expected: 'union'}],
     ],
     validateDataOnly: () => createValidate<DataOnly<Date | number | string | null | bigint>>(),
     validateSchema: () => createValidate(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),

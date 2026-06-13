@@ -44,22 +44,36 @@ export interface ValidateOptions {
  *  typedefs that don't carry a source type. **/
 export type ValidateFn<T = unknown> = (value: unknown) => value is DataOnly<T>;
 
-/** Mirror of the RunTypeError shape. Map / Set emitters add
- *  `{key, index, failed: 'mapKey' | 'mapValue'}` path segments. **/
-export type RunTypeErrorPathSegment = string | number | object;
+/** Object path segment for a Map / Set entry. `key` is the entry key
+ *  (sanitised to a `PropertyKey` by `pf_safeIterableKey`), `index` the entry's
+ *  iteration position, `failed` which half of a Map entry failed (absent for a
+ *  Set item). It is a valid Standard Schema `PathSegment` (it has `key:
+ *  PropertyKey`); the extra `index` / `failed` ride along losslessly and are
+ *  ignored by spec consumers (e.g. `getDotPath` reads only `key`). **/
+export interface RTPathSegment {
+  key: PropertyKey;
+  index: number;
+  failed?: 'mapKey' | 'mapValue';
+}
 
-/** Format-specific error detail attached to a RunTypeError when a
+/** One segment of a RTValidationError path: an object key (`string`), an array
+ *  / tuple index (`number`), or a Map / Set entry (`RTPathSegment`). Every form
+ *  is `PropertyKey | {key: PropertyKey}`, so a path is already a valid Standard
+ *  Schema `path` with no transformation. **/
+export type RTValidationErrorPathSegment = string | number | RTPathSegment;
+
+/** Format-specific error detail attached to a RTValidationError when a
  *  TypeFormat constraint (pattern, length, version, …) fails. `name`
  *  is the format name (e.g. 'stringFormat', 'uuid'); `formatPath`
  *  locates the failing param; `val` is the param value/marker. **/
 export interface TypeFormatError {
   name: string;
-  val: RunTypeErrorPathSegment | boolean | bigint | (RunTypeErrorPathSegment | boolean | bigint)[];
+  val: RTValidationErrorPathSegment | boolean | bigint | (RTValidationErrorPathSegment | boolean | bigint)[];
   formatPath: (string | number)[];
 }
 
-export interface RunTypeError {
-  path: RunTypeErrorPathSegment[];
+export interface RTValidationError {
+  path: RTValidationErrorPathSegment[];
   expected: string;
   /** Present when a TypeFormat constraint failed (emitted via pf_formatErr). */
   format?: TypeFormatError;
@@ -67,7 +81,11 @@ export interface RunTypeError {
 
 /** Validator returned by `createGetValidationErrors<T>()`. Caller-optional `path`
  *  and `errors` slots so the validator can be chained or pre-seeded. **/
-export type GetValidationErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment[], errors?: RunTypeError[]) => RunTypeError[];
+export type GetValidationErrorsFn = (
+  value: unknown,
+  path?: RTValidationErrorPathSegment[],
+  errors?: RTValidationError[]
+) => RTValidationError[];
 
 /** Options bag for HasUnknownKeysFn. When `checkNonRTProps` is true the
  *  known-keys list expands to include children the RT skipped. **/
@@ -84,7 +102,11 @@ export type StripUnknownKeysFn = (value: unknown) => unknown;
 
 /** Validator returned by `createUnknownKeyErrors<T>()`. Each unknown key
  *  produces one `{path, expected: 'never'}` entry. **/
-export type UnknownKeyErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment[], errors?: RunTypeError[]) => RunTypeError[];
+export type UnknownKeyErrorsFn = (
+  value: unknown,
+  path?: RTValidationErrorPathSegment[],
+  errors?: RTValidationError[]
+) => RTValidationError[];
 
 /** Mutator returned by `createUnknownKeysToUndefined<T>()`. Sets every
  *  unknown property to `undefined` instead of removing it. **/

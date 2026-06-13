@@ -14,7 +14,7 @@ type TypeFormatError = {
   val: StrNumber | boolean | bigint | (StrNumber | boolean | bigint)[];
   formatPath: StrNumber[];
 };
-interface RunTypeError {
+interface RTValidationError {
   path: (StrNumber | object)[];
   expected: string;
   format?: TypeFormatError;
@@ -75,12 +75,12 @@ export const pf_hasUnknownKeysFromArray = registerPureFnFactory('rt::hasUnknownK
 export const pf_newRunTypeErr = registerPureFnFactory('rt::newRunTypeErr', function () {
   return function _err(
     pλth: readonly StrNumber[],
-    εrr: RunTypeError[],
+    εrr: RTValidationError[],
     expected: string,
     accessPath?: readonly StrNumber[]
   ): void {
     const path = accessPath?.length ? [...pλth, ...accessPath] : [...pλth];
-    const runTypeErr: RunTypeError = {expected, path};
+    const runTypeErr: RTValidationError = {expected, path};
     εrr.push(runTypeErr);
   };
 });
@@ -88,7 +88,7 @@ export const pf_newRunTypeErr = registerPureFnFactory('rt::newRunTypeErr', funct
 export const pf_formatErr = registerPureFnFactory('rt::formatErr', function () {
   return function _formatErr(
     pλth: StrNumber[],
-    εrr: RunTypeError[],
+    εrr: RTValidationError[],
     expected: string,
     fmtName: string,
     paramName: string,
@@ -100,18 +100,27 @@ export const pf_formatErr = registerPureFnFactory('rt::formatErr', function () {
     const path = accessPath?.length ? [...pλth, ...accessPath] : [...pλth];
     const formatPath = fmtAccessPath?.length ? [...fmtPath, ...fmtAccessPath, paramName] : [...fmtPath, paramName];
     const format: TypeFormatError = {name: fmtName, formatPath: formatPath, val: paramVal};
-    const runTypeErr: Required<RunTypeError> = {expected, path, format};
+    const runTypeErr: Required<RTValidationError> = {expected, path, format};
     εrr.push(runTypeErr);
   };
 });
 
 export const pf_safeIterableKey = registerPureFnFactory('rt::safeIterableKey', function () {
-  return function _safeKey(value: any): any {
-    if (value === undefined) return null;
-    if (value === null) return null;
+  // A Map/Set entry key sanitised to a PropertyKey (string | number | symbol),
+  // so an error-path segment `{key: …}` is always a valid Standard Schema
+  // PathSegment. string / number / symbol pass through unchanged; everything
+  // else collapses to a representative string (never throws on exotic keys).
+  return function _safeKey(value: any): PropertyKey {
     const type = typeof value;
-    if (type === 'number' || type === 'string' || type === 'boolean') return value;
-    return null;
+    if (type === 'string' || type === 'number' || type === 'symbol') return value;
+    if (type === 'boolean' || type === 'bigint') return String(value);
+    if (value === null) return 'null';
+    if (value === undefined) return 'undefined';
+    try {
+      return String(value);
+    } catch {
+      return 'object';
+    }
   };
 });
 

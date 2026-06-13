@@ -61,13 +61,13 @@ export const ATOMIC = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Expected bigint', path: []}],
-      [{message: 'Expected bigint', path: []}],
-      [{message: 'Expected bigint', path: []}],
-      [{message: 'Expected bigint', path: []}],
-      [{message: 'Expected bigint', path: []}],
-      [{message: 'Expected bigint', path: []}],
-      [{message: 'Expected bigint', path: []}],
+      [{message: 'Expected bigint', path: [], expected: 'bigint'}],
+      [{message: 'Expected bigint', path: [], expected: 'bigint'}],
+      [{message: 'Expected bigint', path: [], expected: 'bigint'}],
+      [{message: 'Expected bigint', path: [], expected: 'bigint'}],
+      [{message: 'Expected bigint', path: [], expected: 'bigint'}],
+      [{message: 'Expected bigint', path: [], expected: 'bigint'}],
+      [{message: 'Expected bigint', path: [], expected: 'bigint'}],
     ],
     validateDataOnly: () => createValidate<DataOnly<bigint>>(),
     validateSchema: () => createValidate(TF.bigInt()),

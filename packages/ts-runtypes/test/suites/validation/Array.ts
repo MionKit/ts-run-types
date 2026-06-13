@@ -21,13 +21,13 @@ export const ARRAY = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Expected array', path: []}],
-      [{message: 'Expected string', path: [1]}],
-      [{message: 'Expected string', path: [2]}],
-      [{message: 'Expected array', path: []}],
-      [{message: 'Expected array', path: []}],
-      [{message: 'Expected string', path: [0]}],
-      [{message: 'Expected string', path: [0]}],
+      [{message: 'Expected array', path: [], expected: 'array'}],
+      [{message: 'Expected string', path: [1], expected: 'string'}],
+      [{message: 'Expected string', path: [2], expected: 'string'}],
+      [{message: 'Expected array', path: [], expected: 'array'}],
+      [{message: 'Expected array', path: [], expected: 'array'}],
+      [{message: 'Expected string', path: [0], expected: 'string'}],
+      [{message: 'Expected string', path: [0], expected: 'string'}],
     ],
     validateDataOnly: () => createValidate<DataOnly<string[]>>(),
     validateSchema: () => createValidate(RT.array(TF.string())),

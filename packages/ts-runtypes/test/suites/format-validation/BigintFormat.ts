@@ -26,8 +26,15 @@ export const BIGINT_FORMAT = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Failed max constraint (100)', path: []}],
-      [{message: 'Expected bigint', path: []}],
+      [
+        {
+          message: 'Failed max constraint (100)',
+          path: [],
+          expected: 'bigint',
+          format: {name: 'bigintFormat', formatPath: ['max'], val: 100n},
+        },
+      ],
+      [{message: 'Expected bigint', path: [], expected: 'bigint'}],
     ],
     validateReflect: () => {
       const v: TF.BigInt<{max: 100n}> = 100n;

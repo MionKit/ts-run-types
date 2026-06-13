@@ -48,10 +48,24 @@ export const REALWORLD = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Failed version constraint (4)', path: ['id']}],
-      [{message: 'Failed pattern constraint (pattern)', path: ['email']}],
-      [{message: 'Expected string', path: ['name']}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [
+        {
+          message: 'Failed version constraint (4)',
+          path: ['id'],
+          expected: 'string',
+          format: {name: 'uuid', formatPath: ['version'], val: '4'},
+        },
+      ],
+      [
+        {
+          message: 'Failed pattern constraint (pattern)',
+          path: ['email'],
+          expected: 'string',
+          format: {name: 'email', formatPath: ['pattern'], val: 'pattern'},
+        },
+      ],
+      [{message: 'Expected string', path: ['name'], expected: 'string'}],
     ],
     validateDataOnly: () => {
       interface User {
