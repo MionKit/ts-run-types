@@ -15,6 +15,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
 	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
+	"github.com/mionkit/ts-runtypes/internal/compiled/transform"
 	"github.com/mionkit/ts-runtypes/internal/compiled/typefns"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
@@ -759,6 +760,70 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			return protocol.Response{Error: err.Error()}
 		}
 		return protocol.Response{TsCompileMs: ms}
+	case protocol.OpTransform:
+		// The compiler-driven transform: scan the requested files exactly as
+		// OpScanFiles does (sites + pure-fn replacements), then apply the
+		// rewrite + source-map generation IN GO (internal/compiled/transform)
+		// rather than handing offsets back to the JS plugin. Returns one
+		// TransformResult per file. The added* flags ride along so the thin
+		// Vite wrapper can still drive data-bundle HMR off this single call.
+		if resolver.Program == nil {
+			return protocol.Response{Error: "transform: no Program loaded — call setSources first"}
+		}
+		if len(request.Files) == 0 {
+			return protocol.Response{Error: "transform: files is required and must be non-empty"}
+		}
+		scanStart := time.Now()
+		sites, markerDiagnostics, err := resolver.dispatchScanFiles(request.Files)
+		if err != nil {
+			return protocol.Response{Error: err.Error()}
+		}
+		if metrics != nil {
+			metrics.MarkerScanMs = elapsedMs(scanStart)
+		}
+		pureFnsStart := time.Now()
+		_, pureFnDiagnostics, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
+		if metrics != nil {
+			metrics.PureFnsMs = elapsedMs(pureFnsStart)
+		}
+		sites = resolver.stampSiteModules(sites)
+		added := resolver.cache.Added(before)
+		addedRunTypes := len(added) > 0
+		// Apply the rewrite per file. Sites/replacements come back flat across
+		// all requested files, so partition them by File. Source text is read
+		// from the Program (the authoritative bytes Site.Pos byte-offsets index).
+		transformed := make(map[string]protocol.TransformResult, len(request.Files))
+		for _, file := range request.Files {
+			sourceFile, sourceErr := resolver.sourceFile(file)
+			if sourceErr != nil {
+				return protocol.Response{Error: sourceErr.Error()}
+			}
+			var fileSites []protocol.Site
+			for _, site := range sites {
+				if site.File == file {
+					fileSites = append(fileSites, site)
+				}
+			}
+			var fileReplacements []protocol.Replacement
+			for _, replacement := range pureFnReplacements {
+				if replacement.File == file {
+					fileReplacements = append(fileReplacements, replacement)
+				}
+			}
+			code, sourceMap := transform.Apply(file, sourceFile.Text(), fileSites, fileReplacements)
+			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap}
+		}
+		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
+		response := protocol.Response{
+			Transformed:   transformed,
+			AddedRunTypes: addedRunTypes,
+			AddedPureFns:  addedPureFns,
+			Diagnostics:   combinedDiagnostics,
+		}
+		for _, family := range familyAddedFlags {
+			family.setAdded(&response, addedRunTypes && family.anySupported(added))
+		}
+		return response
 	default:
 		return protocol.Response{Error: "unknown op: " + request.Op}
 	}
