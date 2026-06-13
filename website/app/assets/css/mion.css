@@ -82,8 +82,10 @@ pre.px-4 {
   padding-bottom: calc(var(--spacing) * 12);
 }
 
-/* Home Page Features */
-.home-page h2 {
+/* Every section title is green-500. (The old `.home-page` wrapper this rule
+   targeted isn't actually emitted in the DOM, so key on the UPageSection title
+   slot, which every section title carries.) */
+h2[data-slot="title"] {
   color: var(--color-green-500);
 }
 
@@ -155,6 +157,142 @@ pre.px-4 {
     background-position: -200% center;
   }
 }
+
+/* AI section — animated gradient title (mirrors the card-heading flow) + a
+   sparkles icon that flows with the same green→blue gradient. The
+   `-webkit-text-fill-color: transparent` overrides the green-500 section-title
+   color above, so this one title keeps its gradient. */
+.ai-section h2 {
+  background: linear-gradient(
+    90deg,
+    #8aa85e 0%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 25%,
+    #bdd09d 50%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 75%,
+    #8aa85e 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% 100%;
+  animation: gradient-flow 12s linear infinite;
+}
+
+.ai-section h2 .ai-title-icon {
+  background: linear-gradient(
+    90deg,
+    #8aa85e 0%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 25%,
+    #bdd09d 50%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 75%,
+    #8aa85e 100%
+  );
+  background-size: 200% 100%;
+  animation: gradient-flow 12s linear infinite;
+  vertical-align: -0.12em;
+  margin-right: 0.45rem;
+}
+
+/* AI section — second row: a centered "how it works" heading + intro sitting
+   above the three step tiles. */
+.ai-steps-head {
+  text-align: center;
+  max-width: 52rem;
+  margin: 2.75rem auto 1.25rem;
+}
+
+.ai-steps-head h3 {
+  margin-bottom: 0.6rem;
+  font-size: 1.6rem;
+  line-height: 1.2;
+  background: linear-gradient(
+    90deg,
+    #8aa85e 0%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 25%,
+    #bdd09d 50%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 75%,
+    #8aa85e 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% 100%;
+  animation: gradient-flow 12s linear infinite;
+}
+
+.ai-explore {
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+/* The three step tiles — a row of rounded, slightly-darker tiles reusing the
+   StatTiles treatment (border + radius + text-muted 6% wash), each led by a
+   gradient step number. */
+/* three tiles in a row spanning the full content width; stacks on narrow screens. */
+.ai-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .ai-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ai-step {
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--ui-border);
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--ui-text-muted) 6%, transparent);
+}
+
+/* top row: the number and the title together */
+.ai-step > p:first-of-type {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.45rem;
+}
+
+.ai-step-num {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* per-tile hues, mirroring the StatTiles green / blue / purple sweep */
+.ai-step:nth-child(1) .ai-step-num {
+  background-image: linear-gradient(120deg, hsl(145 70% 52%), hsl(183 66% 56%));
+}
+.ai-step:nth-child(2) .ai-step-num {
+  background-image: linear-gradient(120deg, hsl(198 70% 52%), hsl(236 66% 56%));
+}
+.ai-step:nth-child(3) .ai-step-num {
+  background-image: linear-gradient(120deg, hsl(280 70% 52%), hsl(318 66% 56%));
+}
+
+.ai-step-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ui-text-highlighted);
+}
+
+/* description row, below */
+.ai-step > p:last-of-type {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ui-text-dimmed);
+}
+
 
 /* Home "Two ways to describe a shape" — type-first vs schema-first, side by side.
    Two single-tab code-groups in a 2-col grid; min-width:0 lets each code block
@@ -249,6 +387,11 @@ pre.px-4 {
   grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem 1rem;
   align-items: stretch;
+  /* sit the four snippets inside a card, matching the site's card chrome */
+  border: 1px solid var(--ui-border);
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--ui-text-muted) 4%, transparent);
+  padding: 1rem 1.15rem;
 }
 
 /* equal-height columns: a gradient title over a bare code block; the block
@@ -370,34 +513,23 @@ pre.px-4 {
   flex-direction: column;
 }
 
-/* Toolbelt cards — icon and title share one row; the title borrows the
-   feature-card h3 gradient (animated green→blue) at a smaller size. */
-.home-toolbelt .group > span.iconify {
+/* Toolbelt + AI-artifact cards — icon and title share one row; the title borrows
+   the feature-card h3 gradient (animated green→blue) at a smaller size. */
+.home-toolbelt .group > span.iconify,
+.ai-artifacts .group > span.iconify {
   display: inline-block;
   vertical-align: middle;
   margin: 0 0.55rem 0.5rem 0;
 }
 
-.home-toolbelt .group > p {
+.home-toolbelt .group > p,
+.ai-artifacts .group > p {
   display: inline-block;
   vertical-align: middle;
   margin: 0 0 0.55rem 0;
   font-size: 1.25rem;
   font-weight: 700;
   line-height: 1.2;
-  background: linear-gradient(
-    90deg,
-    #8aa85e 0%,
-    color-mix(in srgb, #8aa85e 55%, #60a5fa) 25%,
-    #bdd09d 50%,
-    color-mix(in srgb, #8aa85e 55%, #60a5fa) 75%,
-    #8aa85e 100%
-  );
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-size: 200% 100%;
-  animation: gradient-flow 12s linear infinite;
 }
 
 /* "All Special Markers" cards (guide markers page) — gradient title over the
