@@ -1,0 +1,23 @@
+name: Publish tarballs to a local verdaccio
+description: Start a throwaway verdaccio on 0.0.0.0:4873 and publish every tarball in tarballs/ to it.
+
+# Expects tarballs/ to already be on disk (downloaded artifact) and the repo
+# checked out (for .github/verdaccio.yaml). Leaves the registry running on
+# 127.0.0.1:4873 for the job's remaining steps.
+runs:
+  using: composite
+  steps:
+    - name: Start verdaccio
+      shell: bash
+      run: |
+        npx --yes verdaccio@6 --config .github/verdaccio.yaml --listen 0.0.0.0:4873 >/tmp/verdaccio.log 2>&1 &
+        npx --yes wait-on@8 http://127.0.0.1:4873/-/ping -t 60000
+
+    - name: Publish tarballs to verdaccio (platform packages first, launcher, then FE)
+      shell: bash
+      run: |
+        # Anonymous publish is allowed by the config, but npm still needs a token
+        # line. `npm config set` writes to the correct per-OS user config (so this
+        # also works on the Windows runner, where ~/.npmrc is not what npm reads).
+        npm config set //127.0.0.1:4873/:_authToken "ci-local-verdaccio"
+        node scripts/publish-tarballs.mjs --registry http://127.0.0.1:4873

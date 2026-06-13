@@ -1,0 +1,29 @@
+# Throwaway local registry for the release e2e. The CI job publishes the packed
+# tarballs here, then a consumer fixture installs from it — which faithfully
+# exercises the launcher -> ts-runtypes-binary-<os>-<arch> optional-dependency
+# os/cpu resolution that a bare file-tarball install can't.
+#
+# Anonymous publish + read are allowed on purpose (ephemeral, localhost only).
+# Everything not published locally (vite, vitest, deps) proxies to npmjs.
+storage: /tmp/verdaccio-storage
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    cache: false
+packages:
+  '@*/*':
+    access: $all
+    publish: $all
+    unpublish: $all
+    proxy: npmjs
+  '**':
+    access: $all
+    publish: $all
+    unpublish: $all
+    proxy: npmjs
+publish:
+  allow_offline: true
+log:
+  type: stdout
+  format: pretty
+  level: warn

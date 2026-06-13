@@ -1,0 +1,16 @@
+name: release · pre-publish checks
+
+# Gate on every PR that targets a release line. Runs the full reusable build +
+# 7-platform e2e (build all packages + binaries, install the packed artifacts
+# from a local registry, run the suites on each platform). No publish.
+on:
+  pull_request:
+    branches:
+      - 'release/**'
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    uses: ./.github/workflows/release-build-test.yml
