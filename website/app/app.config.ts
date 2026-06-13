@@ -53,6 +53,16 @@ export default defineAppConfig({
     }
   },
   ui: {
+    // Map the homepage "two ways to describe a shape" tab labels to file-type
+    // icons. The code is TypeScript in both — the JS icon on "Schema" is just a
+    // visual cue for the builder/runtime form, without the misleading `.js` text.
+    // CodeIcon.vue keys this map by the lowercased tab label.
+    prose: {
+      codeIcon: {
+        'pure type': 'i-vscode-icons:file-type-typescript',
+        schema: 'i-vscode-icons:file-type-js',
+      },
+    },
     colors: {
       primary: 'green',
       white: {

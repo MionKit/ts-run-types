@@ -156,6 +156,173 @@ pre.px-4 {
   }
 }
 
+/* Home "Two ways to describe a shape" — type-first vs schema-first, side by side.
+   Two single-tab code-groups in a 2-col grid; min-width:0 lets each code block
+   wrap inside its column instead of forcing the grid wider. Stacks when narrow. */
+.rt-define-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.rt-define-cols > * {
+  min-width: 0;
+}
+
+@media (max-width: 880px) {
+  .rt-define-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Home feature row — a card (gradient h3 + blurb) beside a code block, in either
+   order, both stretched to equal height. Reused by "One object" (card | code) and
+   "Reflection" (code | card). "One object" adds a 4-up snippet grid below it. */
+.rt-feature-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: stretch;
+  margin-bottom: 1rem;
+}
+
+.rt-feature-row > * {
+  min-width: 0;
+  margin-block: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* the bare type block fills its column so it bottoms out level with the card */
+.rt-feature-row > * > pre {
+  flex: 1;
+  margin: 0;
+}
+
+/* text reads as a centered blurb beside the taller type block */
+.rt-feature-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin: 0;
+}
+
+/* mion-style animated gradient heading inside the card (mirrors .home-features h3) */
+.rt-feature-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 1.75rem;
+  line-height: 1.2;
+  background: linear-gradient(
+    90deg,
+    #8aa85e 0%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 25%,
+    #bdd09d 50%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 75%,
+    #8aa85e 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% 100%;
+  animation: gradient-flow 12s linear infinite;
+}
+
+.rt-object-fns {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+/* equal-height columns: each code-group stretches to the tallest, and the code
+   panel fills the slack so every block bottoms out on the same line */
+.rt-object-fns > * {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rt-object-fns > * > div[role='tabpanel'] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.rt-object-fns > * > div[role='tabpanel'] > pre {
+  flex: 1;
+}
+
+/* tighter type so each short snippet fits its quarter-width column */
+.rt-object-fns :is(pre, code) {
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 1100px) {
+  .rt-object-fns {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .rt-feature-row,
+  .rt-object-fns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Home "Tree-shaken to the bone" — one row, three columns: the pitch (card),
+   the call-site before/after (2-tab code-group), and the generated module.
+   Equal height; code panels flex-fill like the other home grids. */
+.rt-treeshake-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.rt-treeshake-cols > * {
+  min-width: 0;
+  margin-block: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rt-treeshake-cols > * > pre {
+  flex: 1;
+  margin: 0;
+}
+
+.rt-treeshake-cols > * > div[role='tabpanel'] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.rt-treeshake-cols > * > div[role='tabpanel'] > pre {
+  flex: 1;
+}
+
+.rt-treeshake-cols :is(pre, code) {
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+/* Multi-column rows where every column carries its own heading read better
+   top-aligned than centered, so the headings line up across the columns. */
+.rt-treeshake-cols .rt-feature-card,
+.rt-feature-row--top .rt-feature-card {
+  justify-content: flex-start;
+}
+
+@media (max-width: 1000px) {
+  .rt-treeshake-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Wide data pages (Suites & Benchmarks) ──────────────────────────────────
    These pages set `pageClass: wide-page` and hide the right-hand TOC
    (`toc: false`) in frontmatter. The dense suite/benchmark tables then reclaim
