@@ -27,20 +27,32 @@ export type InjectRunTypeId<T> = string & {
 /**
  * Trailing-slot injection marker for the `createX` factories. Like
  * `InjectRunTypeId<T>` the transformer fills the `id?` parameter at build time,
- * but `InjectTypeFnArgs` carries a second type argument `Fn` naming the function
- * family (`'val'`, `'verr'`, `'jsonEncoder'`, …). The injected value is a
- * `[typeId, fnId]` tuple, so the Go backend emits only the demanded function
- * cache and the runtime resolves the precise factory without recomputing a key.
+ * but `InjectTypeFnArgs` carries one or more `Fn` type arguments naming the
+ * function families (`'val'`, `'verr'`, `'jsonEncoder'`, …) the site needs for
+ * `T`. The Go backend emits only the demanded function caches and the runtime
+ * resolves the precise factories without recomputing a key.
+ *
+ * SINGLE function (the common case) — `InjectTypeFnArgs<T, 'val'>`: the injected
+ * value is the family's entry-module tuple, resolved by the one `createX`.
+ *
+ * MULTIPLE functions — `InjectTypeFnArgs<T, 'val', 'verr'>`: the site needs
+ * several compiled fns for the same `T` (e.g. `createStandardSchema` wants the
+ * cheap boolean validator AND `getValidationErrors`). The injected value is an
+ * ARRAY of entry-module tuples, ONE per named family in declaration order, and
+ * the factory destructures it positionally. This keeps a single trailing marker
+ * (one injection slot) rather than several markers.
  *
  * The declared type mirrors `InjectRunTypeId`'s `string & {brand}` shape (rather
- * than a tuple type) so the Go marker scanner resolves the alias + its two type
+ * than a tuple type) so the Go marker scanner resolves the alias + its type
  * arguments the same way it does for `InjectRunTypeId` — a tuple-intersection
- * alias does not reliably preserve `T`/`Fn` on the resolved type. `T`/`Fn` are
- * phantom; the runtime value is a two-string array injected post-typecheck.
+ * alias does not reliably preserve `T`/`Fn` on the resolved type. `T` and the
+ * `Fn` keys are phantom; the runtime value is the injected (array of) tuples.
+ * Up to three `Fn` keys are supported today; add more optional parameters if a
+ * future factory needs more.
  */
-export type InjectTypeFnArgs<T, Fn extends string> = string & {
+export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {
   readonly __rtInjectTypeFnArgsBrand?: T;
-  readonly __rtInjectTypeFnArgsFn?: Fn;
+  readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3];
 };
 
 // NOTE: `any` is intentionally PERMITTED — there is no type-level `any` guard.

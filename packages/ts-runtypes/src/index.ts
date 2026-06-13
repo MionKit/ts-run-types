@@ -125,6 +125,25 @@ export {
 export {createMockType} from './mocking/createMockType.ts';
 export type {MockOptions, MockTypeFn, RunTypeMockOptions} from './mocking/mockTypes.ts';
 
+// Standard Schema v1 adapter — re-exported from `./standard/` so bundlers can
+// drop the adapter subtree when consumers never call createStandardSchema. The
+// StandardSchemaV1 interface is copied in (./standard/spec.ts) to preserve the
+// package's zero-runtime-dependency posture.
+export {createStandardSchema} from './standard/createStandardSchema.ts';
+export {runTypeErrorsToIssues, type IssueMappingOptions} from './standard/issueMapping.ts';
+export {
+  type StandardSchemaV1,
+  type StandardSchemaProps,
+  type StandardSchemaResult,
+  type StandardSchemaSuccessResult,
+  type StandardSchemaFailureResult,
+  type StandardSchemaIssue,
+  type StandardSchemaPathSegment,
+  type StandardSchemaTypes,
+  type StandardSchemaInferInput,
+  type StandardSchemaInferOutput,
+} from './standard/spec.ts';
+
 // Circular-reference guard for the live-object families (validate /
 // getValidationErrors / jsonEncode / binaryEncode). Opt-in and OFF by default;
 // `setRejectCircularRefs(true)` arms it. The guard only engages for types whose

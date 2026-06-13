@@ -31,7 +31,7 @@ export const RUNTYPES_DTS = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
-  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
+  export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
   export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
@@ -49,6 +49,9 @@ export const RUNTYPES_DTS = `declare module 'ts-runtypes' {
   export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
   export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
   export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
+  export type StandardSchemaResult = {value: unknown; issues?: undefined} | {issues: ReadonlyArray<{message: string; path?: ReadonlyArray<PropertyKey | {key: PropertyKey}>}>};
+  export type StandardSchemaV1 = {'~standard': {version: 1; vendor: string; validate: (value: unknown) => StandardSchemaResult}};
+  export function createStandardSchema<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, ids?: InjectTypeFnArgs<T, 'val', 'verr'>): StandardSchemaV1;
   export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
     getPureFn(key: CompTimeArgs<string>): any;

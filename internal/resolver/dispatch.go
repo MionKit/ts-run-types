@@ -371,15 +371,28 @@ func demandedEntryKeys(sites []protocol.Site) ([]string, map[string]string) {
 	seen := map[string]bool{}
 	tags := map[string]string{}
 	for _, site := range sites {
-		if site.ID == "" || site.FnId == "" {
+		if site.ID == "" {
 			continue
 		}
-		key := site.FnId + "_" + site.ID
-		if !seen[key] {
+		// A multi-function site (createStandardSchema's <T,'val','verr'>) injects
+		// SEVERAL entry bindings at one slot; each is a key the plugin imports
+		// directly, so every fnId is demanded — not just the scalar FnId mirror.
+		fnIds := site.FnIds
+		if len(fnIds) == 0 {
+			fnIds = []string{site.FnId}
+		}
+		for _, fnId := range fnIds {
+			if fnId == "" {
+				continue
+			}
+			key := fnId + "_" + site.ID
+			if seen[key] {
+				continue
+			}
 			seen[key] = true
 			keys = append(keys, key)
 			for _, demand := range site.Demand {
-				if demand.FnHash == site.FnId {
+				if demand.FnHash == fnId {
 					tags[key] = demand.FamilyTag
 					break
 				}
