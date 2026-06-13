@@ -231,7 +231,7 @@ function extractSchemaCompetitor(file, mapName) {
 
 // ── probe assembly ──────────────────────────────────────────────────────────
 
-const STATIC_IMPORT = `import {type Static} from '@mionjs/ts-go-run-types/schema';`;
+const STATIC_IMPORT = `import {type Static} from '@mionjs/ts-go-run-types';`;
 const TB_STATIC_IMPORT = `import {type Static as __TBStatic} from '@sinclair/typebox';`;
 
 // Force TypeScript to fully RESOLVE + structurally check the recovered type by
