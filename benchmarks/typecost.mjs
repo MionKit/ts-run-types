@@ -181,21 +181,28 @@ function extractCompetitor(file, mapName) {
 // ── probe assembly ──────────────────────────────────────────────────────────
 
 const STATIC_IMPORT = `import {type Static} from '@mionjs/ts-go-run-types';`;
-const FORCE = `\nlet __x!: __T;\nvoid __x;\n`;
 
-function probeTsType(imports, typeText) {
-  return `${imports.join('\n')}\ntype __T = ${typeText};${FORCE}`;
+// Force TypeScript to fully RESOLVE + structurally check the recovered type by
+// assigning a real value (the case's first valid sample). A bare `let x!: T`
+// only declares the type and lets the checker resolve it lazily; a concrete
+// value assignment triggers the structural assignability walk that materializes
+// the whole type — the cost users actually pay (`const x: T = {…}`). Falls back
+// to declare-only when no serializable sample exists (e.g. symbol/Temporal).
+const force = (value) => (value === undefined ? `\nlet __x!: __T;\nvoid __x;\n` : `\nconst __x: __T = ${value};\nvoid __x;\n`);
+
+function probeTsType(preamble, typeText, value) {
+  return `${preamble.join('\n')}\ntype __T = ${typeText};${force(value)}`;
 }
-function probeTsSchema(imports, exprText) {
-  const imps = imports.includes(STATIC_IMPORT) ? imports : [...imports, STATIC_IMPORT];
-  return `${imps.join('\n')}\nconst __s = ${exprText};\ntype __T = Static<typeof __s>;${FORCE}`;
+function probeTsSchema(preamble, exprText, value) {
+  const imps = preamble.includes(STATIC_IMPORT) ? preamble : [...preamble, STATIC_IMPORT];
+  return `${imps.join('\n')}\nconst __s = ${exprText};\ntype __T = Static<typeof __s>;${force(value)}`;
 }
-function probeZod(preamble, exprText) {
-  return `${preamble.join('\n')}\nconst __s = ${exprText};\ntype __T = z.infer<typeof __s>;${FORCE}`;
+function probeZod(preamble, exprText, value) {
+  return `${preamble.join('\n')}\nconst __s = ${exprText};\ntype __T = z.infer<typeof __s>;${force(value)}`;
 }
-function probeTypebox(preamble, exprText) {
+function probeTypebox(preamble, exprText, value) {
   const imp = `import {type Static as __TBStatic} from '@sinclair/typebox';`;
-  return `${preamble.join('\n')}\n${imp}\nconst __s = ${exprText};\ntype __T = __TBStatic<typeof __s>;${FORCE}`;
+  return `${preamble.join('\n')}\n${imp}\nconst __s = ${exprText};\ntype __T = __TBStatic<typeof __s>;${force(value)}`;
 }
 
 // ── isolated compile + instantiation count ──────────────────────────────────
@@ -238,9 +245,72 @@ function measure(form, preambleKey, baselineText, probeText) {
   return {status: 'ok', n: Math.max(0, count - base)};
 }
 
+// ── value rendering — each case's first valid sample as a TS literal ─────────
+
+/** Serialize a runtime value to a TS source literal. Throws on values with no
+ *  faithful literal form (symbol, function, Temporal & other class instances),
+ *  so the probe falls back to declare-only for that case. */
+function serialize(v, depth = 0) {
+  if (depth > 8) throw new Error('too deep');
+  if (v === null) return 'null';
+  if (v === undefined) return 'undefined';
+  const t = typeof v;
+  if (t === 'string') return JSON.stringify(v);
+  if (t === 'boolean') return String(v);
+  if (t === 'bigint') return `${v}n`;
+  if (t === 'number') return Number.isFinite(v) ? String(v) : Number.isNaN(v) ? 'NaN' : v > 0 ? 'Infinity' : '-Infinity';
+  if (v instanceof Date) return `new Date(${v.getTime()})`;
+  if (v instanceof RegExp) return v.toString();
+  if (Array.isArray(v)) return `[${v.map((x) => serialize(x, depth + 1)).join(', ')}]`;
+  if (v instanceof Map)
+    return `new Map([${[...v.entries()].map(([k, val]) => `[${serialize(k, depth + 1)}, ${serialize(val, depth + 1)}]`).join(', ')}])`;
+  if (v instanceof Set) return `new Set([${[...v].map((x) => serialize(x, depth + 1)).join(', ')}])`;
+  if (t === 'object') {
+    const proto = Object.getPrototypeOf(v);
+    if (proto !== Object.prototype && proto !== null) throw new Error('non-plain object');
+    return `{${Object.entries(v).map(([k, val]) => `${JSON.stringify(k)}: ${serialize(val, depth + 1)}`).join(', ')}}`;
+  }
+  throw new Error(`unserializable ${t}`);
+}
+
+/** Load the suites at runtime (Node type-stripping) and serialize each case's
+ *  first valid sample to a literal, keyed `GROUP.case`. Cases with no
+ *  serializable sample are absent → declare-only probe. */
+async function loadSampleValues() {
+  const out = new Map();
+  const indexes = [
+    ['validation', 'VALIDATION_SUITE', false],
+    ['format-validation', 'FORMAT_VALIDATION_SUITE', false],
+    ['realworld', 'REALWORLD', true],
+  ];
+  for (const [dir, exportName, isGroup] of indexes) {
+    let mod;
+    try {
+      mod = await import(path.join(SRC, 'suites', dir, 'index.ts'));
+    } catch {
+      continue;
+    }
+    const root = mod[exportName];
+    if (!root) continue;
+    const groups = isGroup ? {[exportName]: root} : root;
+    for (const [group, cases] of Object.entries(groups)) {
+      for (const [name, def] of Object.entries(cases)) {
+        try {
+          const valid = def.getSamples().valid;
+          if (valid.length) out.set(`${group}.${name}`, serialize(valid[0]));
+        } catch {
+          /* no faithful literal → declare-only fallback */
+        }
+      }
+    }
+  }
+  return out;
+}
+
 // ── run ──────────────────────────────────────────────────────────────────────
 
-function main() {
+async function main() {
+  const valueByKey = await loadSampleValues();
   const suiteFiles = [
     ...globTs(path.join(SRC, 'suites', 'validation')),
     ...globTs(path.join(SRC, 'suites', 'format-validation')),
@@ -249,6 +319,7 @@ function main() {
   const zod = extractCompetitor(path.join(SRC, 'competitors', 'zod.ts'), 'zodMap');
   const typebox = extractCompetitor(path.join(SRC, 'competitors', 'typebox.ts'), 'typeboxMap');
 
+  const V = "'x'"; // baseline value (type is `string`)
   const rows = [];
   for (const file of suiteFiles) {
     const {preamble, groups} = extractSuiteFile(file);
@@ -256,22 +327,33 @@ function main() {
     for (const {group, cases} of groups) {
       for (const [name, {typeText, schemaText}] of Object.entries(cases)) {
         const key = `${group}.${name}`;
+        const value = valueByKey.get(key);
         const cell = {key, group};
 
+        // BENCH_DUMP=<key>: print the exact self-contained probe sources for one
+        // case (what actually gets compiled) and exit. Debugging aid.
+        if (process.env.BENCH_DUMP === key) {
+          if (typeText) console.log(`\n===== ts-go(type) =====\n${probeTsType(preamble, typeText, value)}`);
+          if (schemaText) console.log(`\n===== ts-go(schema) =====\n${probeTsSchema(preamble, schemaText, value)}`);
+          if (zod.entries[key]) console.log(`\n===== zod =====\n${probeZod(zod.preamble, zod.entries[key], value)}`);
+          if (typebox.entries[key]) console.log(`\n===== typebox =====\n${probeTypebox(typebox.preamble, typebox.entries[key], value)}`);
+          process.exit(0);
+        }
+
         cell.tsType = typeText
-          ? measure('tsType', preKey, probeTsType(preamble, 'string'), probeTsType(preamble, typeText))
+          ? measure('tsType', preKey, probeTsType(preamble, 'string', V), probeTsType(preamble, typeText, value))
           : {status: 'na'};
 
         cell.tsSchema = schemaText
-          ? measure('tsSchema', preKey, probeTsSchema(preamble, 'RT.string()'), probeTsSchema(preamble, schemaText))
+          ? measure('tsSchema', preKey, probeTsSchema(preamble, 'RT.string()', V), probeTsSchema(preamble, schemaText, value))
           : {status: 'na'};
 
         cell.zod = zod.entries[key]
-          ? measure('zod', 'zod', probeZod(zod.preamble, 'z.string()'), probeZod(zod.preamble, zod.entries[key]))
+          ? measure('zod', 'zod', probeZod(zod.preamble, 'z.string()', V), probeZod(zod.preamble, zod.entries[key], value))
           : {status: 'na'};
 
         cell.typebox = typebox.entries[key]
-          ? measure('typebox', 'typebox', probeTypebox(typebox.preamble, 'Type.String()'), probeTypebox(typebox.preamble, typebox.entries[key]))
+          ? measure('typebox', 'typebox', probeTypebox(typebox.preamble, 'Type.String()', V), probeTypebox(typebox.preamble, typebox.entries[key], value))
           : {status: 'na'};
 
         rows.push(cell);
@@ -345,10 +427,11 @@ function report(rows) {
     }
   }
   console.log(
-    '\nNote: measures the cost for TypeScript to RESOLVE the static type each form\n' +
-      'produces (the dominant type-check cost). ts-go(type) is the type-definition\n' +
-      'form; ts-go(schema) is the value-first builder + Static<>. ajv has no static\n' +
-      'type inference, so it has no column here.',
+    '\nNote: each probe ASSIGNS a real value to a `const x: <type>` (the case\'s\n' +
+      "first valid sample, serialized), forcing TypeScript to fully resolve the\n" +
+      'type AND structurally check the value against it — the cost users pay on\n' +
+      'every `const x: T = {…}`. ts-go(type) is the type-definition form; ts-go(schema)\n' +
+      'is the value-first builder + Static<>. ajv has no static type inference.',
   );
 }
 

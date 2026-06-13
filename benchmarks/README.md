@@ -67,19 +67,26 @@ that type at every use site; a plain `type T = …` definition is essentially fr
 `bench:typecost` ([`typecost.mjs`](typecost.mjs)) assembles, per case, a tiny
 self-contained `.ts` probe per **form**, compiles each in isolation through the
 TypeScript compiler API, and reads `program.getInstantiationCount()`
-(baseline-subtracted, so the number is the marginal cost of resolving that case's
-type). Forms:
+(baseline-subtracted, so the number is the marginal cost for that case). Each
+probe **assigns a real value** — `const x: <type> = <the case's first valid
+sample, serialized>` — so TypeScript is forced to fully resolve the type **and**
+structurally check the value against it (the cost you pay on every
+`const x: T = {…}`). A bare `let x!: T` under-counts, because the checker
+resolves the type lazily and never does the assignability walk. Forms:
 
-- **ts-go (type)** — `type T = <the TS type>; let x!: T;` (the type-definition form)
-- **ts-go (schema)** — `const s = RT.…; type T = Static<typeof s>;` (value-first builder)
-- **zod** — `const s = z.…; type T = z.infer<typeof s>;`
-- **typebox** — `const s = Type.…; type T = Static<typeof s>;`
+- **ts-go (type)** — `type T = <the TS type>; const x: T = <value>;` (type-definition form)
+- **ts-go (schema)** — `const s = RT.…; type T = Static<typeof s>; const x: T = <value>;`
+- **zod** — `const s = z.…; type T = z.infer<typeof s>; const x: T = <value>;`
+- **typebox** — `const s = Type.…; type T = Static<typeof s>; const x: T = <value>;`
 - **ajv** — none (JSON Schema has no static type inference)
 
 The probe sources are **extracted from the real code** (TS compiler API): the
 `createValidate<TYPE>()` type arg and `validateSchema`'s `createValidate(RT.…)`
-arg from each suite case, and the `c(EXPR)` arg from the competitor maps — so
-they're the exact types/schemas the runtime benchmark uses.
+arg from each suite case, and the `c(EXPR)` arg from the competitor maps — and
+the assigned value is the case's `getSamples().valid[0]` serialized back to a
+literal — so the probe is the exact type/schema the runtime benchmark uses, with
+a real value of that type. `BENCH_DUMP=<GROUP.case>` prints a case's four probe
+sources verbatim (what actually gets compiled).
 
 Apples-to-apples over the cases all forms support (your DTO type-checks pay this
 on every build / in your editor):
