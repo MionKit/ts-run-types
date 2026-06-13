@@ -91,8 +91,8 @@ same transform through `@ttsc/unplugin`'s esbuild adapter and bundles to one
 
 The first build compiles typia's native plugin once (~200s, "once per cache key")
 via ttsc's own embedded Go toolchain. Since the image is deps-only (no source at
-build time), this compile happens on the **first `BENCH_TYPIA=1` run** rather than
-at image build, writing into a persisted named volume (`competitors/typia/node_modules/.ttsc`)
+build time), this compile happens on the **first run that includes typia** rather
+than at image build, writing into a persisted named volume (`competitors/typia/node_modules/.ttsc`)
 so every later run reuses it; `pnpm run bench:clean` drops the volume.
 
 typia entries copy the per-case literal `T` verbatim from the ts-go competitor
@@ -148,9 +148,10 @@ any competitor has a `fail`/`errored` case, so the run doubles as a cross-librar
 conformance test. Each run also **publishes** the per-competitor JSON into the
 canonical `<repo>/.docdata/benchmarks/` dir, which the docs website mounts
 read-only (`MION_DOCDATA`) to build benchmark docs from. Env knobs: `BENCH_NO_TIMING=1` (correctness only, fast),
-`BENCH_TIME_MS=100` (per-cell window). typia is **opt-in** in the full `bench`
-loop — set `BENCH_TYPIA=1` to include it (its column is always available via
-`bench:one typia`).
+`BENCH_TIME_MS=100` (per-cell window). typia runs **by default** now that each
+competitor installs in isolation; a failed typia build degrades gracefully (its
+column is left blank that run). Set `BENCH_NO_TYPIA=1` to skip it on a host where
+its native plugin won't build.
 
 ## Type-checking cost (`bench:typecost`)
 

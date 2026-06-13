@@ -68,11 +68,27 @@ function asNotesArray(notes) {
   return Array.isArray(notes) ? notes : [notes];
 }
 
+// Tidy a type-first / schema thunk body for display. Self-declaring cases write
+// their type(s) inline and end with `return createX<T>()`; drop that one `return`
+// keyword so the snippet reads as a usage example (`interface User {…}\n
+// createValidate<User>()`) instead of a function body. Expression-body thunks
+// (no `return`) pass through untouched.
+function forDisplay(body) {
+  if (typeof body !== 'string') return '';
+  return body.replace(/(^|\n)[ \t]*return (?=create[A-Za-z]+[<(])/, '$1');
+}
+
 // Pull the human-readable generated function(s) out of a case's dumped cache
 // modules. Each module is `export const __rt_X=[tag,,,'id','kind','<code>'];`
-// — we eval the array literal (trusted, build-time) and keep the string slots
-// that are actual JS functions. Falls back to the raw module text on any
-// surprise so the panel always shows *something* real.
+// — we eval the array literal (trusted, build-time) and keep the `<code>` slot,
+// which is the FULL function-constructor body the runtime feeds to `new
+// Function`. That body is `<context decls>function NAME(v){…}return NAME`: the
+// context decls (hoisted `const ctxFnN = …` element/member validators — the
+// optimised inner code) come BEFORE the entry function and reference it, so we
+// detect the slot by "contains a named function" (not "starts with function")
+// and keep everything except the trailing `return NAME` constructor artifact —
+// preserving the context. Falls back to the raw module text on any surprise so
+// the panel always shows *something* real.
 function extractGenerated(caseDir) {
   if (!fs.existsSync(caseDir)) return '';
   const fns = [];
@@ -85,8 +101,11 @@ function extractGenerated(caseDir) {
       try {
         const tuple = new Function(`return ${m[1]}`)();
         for (const slot of tuple) {
-          if (typeof slot === 'string' && /^function\s/.test(slot)) {
-            // Stored as `function f(v){…}return f` — keep just the definition.
+          // The code slot is the only string carrying a named function
+          // definition (the other strings are the family tag / id / kind /
+          // typeName). Keep context decls + the function; drop the trailing
+          // `return NAME` so the snippet is valid top-level JS (prettifiable).
+          if (typeof slot === 'string' && /function\s+[A-Za-z0-9_]+\s*\(/.test(slot)) {
             fns.push(slot.replace(/}return\s+[A-Za-z0-9_]+\s*$/, '}'));
           }
         }
@@ -125,8 +144,8 @@ function emitSuite(suiteKey, cfg) {
         title: c.title ?? key,
         description: c.description ?? '',
         notes,
-        pureType: typeof c[cfg.pureField] === 'string' ? c[cfg.pureField] : '',
-        schema: typeof c[cfg.schemaField] === 'string' ? c[cfg.schemaField] : '',
+        pureType: forDisplay(c[cfg.pureField]),
+        schema: forDisplay(c[cfg.schemaField]),
         generated: extractGenerated(path.join(GENDOCS, 'cases', suiteKey, `${safe(section)}__${safe(key)}`)),
       };
       fs.writeFileSync(path.join(outDir, `${safe(section)}__${safe(key)}.json`), JSON.stringify(detail));

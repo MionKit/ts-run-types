@@ -26,7 +26,7 @@
 #   scripts/benchmarks.sh pull              # pull the published image and tag it locally
 #   scripts/benchmarks.sh clean             # remove the image + typia .ttsc volume
 #
-# Env: BENCH_ENGINE(podman) BENCH_IMAGE(tsrt-bench:dev) BENCH_TYPIA=1(add typia)
+# Env: BENCH_ENGINE(podman) BENCH_IMAGE(tsrt-bench:dev) BENCH_NO_TYPIA=1(skip typia)
 #   (default)  run commands PULL the latest published GHCR image first.
 #   BENCH_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline).
 #   BENCH_REMOTE_IMAGE  remote ref (default: ghcr.io/$GHCR_OWNER/tsrt-bench:latest).
@@ -72,10 +72,15 @@ source "$SCRIPT_DIR/lib-ghcr.sh"
 REMOTE_IMAGE="${BENCH_REMOTE_IMAGE:-$GHCR_REGISTRY/$GHCR_OWNER/tsrt-bench:latest}"
 MANIFEST_NAME="tsrt-bench-manifest"
 
-# Competitors run in this order; typia (heavy/fragile deps) only with BENCH_TYPIA.
+# Competitors run in this order. typia is included by default: each competitor
+# installs in isolation (its own package.json + node_modules, so typia's
+# heavy/fragile deps can't break the others), and a failed typia build/run
+# degrades gracefully (build_and_run_one logs + continues, leaving its column
+# blank for that run). Set BENCH_NO_TYPIA=1 to skip it on a host where its
+# native plugin won't build.
 competitor_list() {
   printf '%s\n' ts-go-run-types zod typebox ajv
-  [ -n "${BENCH_TYPIA:-}" ] && printf '%s\n' typia
+  [ -z "${BENCH_NO_TYPIA:-}" ] && printf '%s\n' typia
   return 0
 }
 

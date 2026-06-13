@@ -1,16 +1,30 @@
 <script setup lang="ts">
-import {reactive, ref, computed, onMounted, onBeforeUnmount} from 'vue';
+import {reactive, ref, computed, onMounted} from 'vue';
 
-interface CaseResult {
-  validateOpsSec?: number;
-  invalidOpsSec?: number;
-  status?: 'ok' | 'fail' | 'not-supported';
+type CaseStatus = 'ok' | 'fail' | 'not-supported';
+
+/** One metric for a competitor — throughput on the valid (accept), invalid
+ *  (reject) and mixed (interleaved) input streams. */
+interface PathResult {
+  valid?: number;
+  invalid?: number;
+  mixed?: number;
+  status?: CaseStatus;
+}
+
+type Path = 'valid' | 'invalid' | 'mixed';
+
+interface Metric {
+  key: string;
+  label: string;
+  metricLabel?: string;
 }
 
 interface BenchCase {
   key: string;
   title: string;
-  results: Record<string, CaseResult>;
+  /** results[competitor][metricKey] -> {valid, invalid, status} */
+  results: Record<string, Record<string, PathResult>>;
 }
 
 interface BenchSection {
@@ -23,7 +37,9 @@ interface BenchIndex {
   bench: string;
   label: string;
   unit?: 'ops' | 'count';
-  metricLabel?: string;
+  /** when true, each competitor splits into valid (accept) + invalid (reject) columns */
+  showInvalid?: boolean;
+  metrics: Metric[];
   competitors: string[];
   sections: BenchSection[];
 }
@@ -44,9 +60,18 @@ interface DetailEntry {
   html?: string[];
 }
 
+interface AggRow {
+  key: string;
+  label: string;
+  /** values[competitor][path] -> geometric mean (or null) */
+  values: Record<string, Record<Path, number | null>>;
+}
+
 const props = defineProps<{
   /** bench slug — fetched from /bench-data/<bench>/index.json */
   bench: string;
+  /** when set, render only this metric's block (one benchmark per page) */
+  metric?: string;
 }>();
 
 const {highlight} = useCodeHighlighter();
@@ -55,13 +80,43 @@ const index = ref<BenchIndex | null>(null);
 const indexState = ref<'loading' | 'ready' | 'missing'>('loading');
 
 const details = reactive<Record<string, DetailEntry>>({});
-/** the single row whose competitor sources are shown in the fixed panel */
-const active = ref<{key: string; title: string} | null>(null);
+
+function rowItem(key: string, title: string) {
+  return {key, title};
+}
+
+// Shared hover-preview / click-to-pin panel behavior (see useDetailPanel).
+const {active, pinned, close, preview, leave, pin, panelEnter, panelLeave} = useDetailPanel<{key: string; title: string}>(loadDetail);
 
 const activeDetail = computed<DetailEntry | undefined>(() => (active.value ? details[active.value.key] : undefined));
+const panelState = computed<'loading' | 'ready' | 'error'>(() => activeDetail.value?.state ?? 'loading');
+
+/** Detail-panel columns — one per competitor, in column order. */
+const panelColumns = computed(() => {
+  const entry = activeDetail.value;
+  if (!entry || entry.state !== 'ready' || !entry.data) return [];
+  return entry.data.competitors.map((competitor, i) => ({
+    label: competitor.name,
+    html: entry.html?.[i],
+    plain: competitor.source,
+  }));
+});
+
+/** Metrics to render — one block per metric, or just the `metric` prop's block. */
+const displayedMetrics = computed<Metric[]>(() => {
+  if (!index.value) return [];
+  return props.metric ? index.value.metrics.filter((m) => m.key === props.metric) : index.value.metrics;
+});
+
+/** REALWORLD section first (when present), then the rest in their original order. */
+const orderedSections = computed<BenchSection[]>(() => {
+  if (!index.value) return [];
+  const realworld = index.value.sections.filter((section) => section.key === 'REALWORLD');
+  const rest = index.value.sections.filter((section) => section.key !== 'REALWORLD');
+  return [...realworld, ...rest];
+});
 
 onMounted(async () => {
-  window.addEventListener('keydown', onKeydown);
   try {
     const res = await fetch(`/bench-data/${props.bench}/index.json`);
     if (!res.ok) {
@@ -75,18 +130,9 @@ onMounted(async () => {
   }
 });
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
-
-function close() {
-  active.value = null;
-}
-
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') close();
-}
-
-async function activate(key: string, title: string) {
-  active.value = {key, title};
+/** Lazy-fetch + highlight a row's competitor sources once, keyed by its case key. */
+async function loadDetail(item: {key: string; title: string}) {
+  const key = item.key;
   if (details[key]) return;
   details[key] = {state: 'loading'};
   try {
@@ -106,30 +152,118 @@ async function activate(key: string, title: string) {
 }
 
 /** Compact value — ops/sec (1.2M/s) for runtime, or a bare count (1.2M) for the
- *  typecost bench. */
-function formatValue(value: number, unit: BenchIndex['unit']): string {
-  const suffix = unit === 'count' ? '' : '/s';
+ *  typecost bench. `bare` drops the `/s` (used for the invalid number, whose unit
+ *  is already established by the valid number it sits beside). */
+function formatValue(value: number, unit: BenchIndex['unit'], bare = false): string {
+  const suffix = bare || unit === 'count' ? '' : '/s';
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M${suffix}`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}k${suffix}`;
   return `${Math.round(value)}${suffix}`;
 }
 
-/** Cell text for a competitor on a case — number, em-dash, FAIL or n-a. */
-function cellText(result: CaseResult | undefined, unit: BenchIndex['unit']): string {
-  if (!result) return '—';
-  if (result.status === 'fail') return 'FAIL';
-  if (result.status === 'not-supported') return 'n-a';
-  if (typeof result.validateOpsSec === 'number') return formatValue(result.validateOpsSec, unit);
-  return '—';
+/** Combined cell: the valid (accept) number is the headline, the invalid (reject)
+ *  number rides along smaller + dimmer. `cls` colors the whole cell (the valid
+ *  number / FAIL / n-a / em-dash); `invalid` is empty when there's no reject
+ *  number (always for the single-metric typecost bench). */
+interface CombinedCell {
+  cls: string;
+  valid: string;
+  invalid: string;
 }
 
-function cellClass(result: CaseResult | undefined): string {
-  if (!result) return 'bench-val--none';
-  if (result.status === 'fail') return 'bench-val--fail';
-  if (result.status === 'not-supported') return 'bench-val--na';
-  if (typeof result.validateOpsSec === 'number') return 'bench-val--ok';
-  return 'bench-val--none';
+function combinedCell(kase: BenchCase, metricKey: string, comp: string): CombinedCell {
+  const result = kase.results[comp]?.[metricKey];
+  // No entry at all = the competitor can't express this case → n-a (distinct from
+  // a measured 0, which is a real value — e.g. a typecost case that cost the type
+  // checker zero extra instantiations).
+  if (!result) return {cls: 'bench-val--na', valid: 'n-a', invalid: ''};
+  if (result.status === 'fail') return {cls: 'bench-val--fail', valid: 'FAIL', invalid: ''};
+  if (result.status === 'not-supported') return {cls: 'bench-val--na', valid: 'n-a', invalid: ''};
+  const valid = typeof result.valid === 'number' && result.valid >= 0 ? formatValue(result.valid, index.value?.unit) : '';
+  const invalid = typeof result.invalid === 'number' && result.invalid > 0 ? formatValue(result.invalid, index.value?.unit, true) : '';
+  if (!valid && !invalid) return {cls: 'bench-val--none', valid: '—', invalid: ''};
+  return {cls: 'bench-val--ok', valid: valid || '—', invalid};
 }
+
+function combinedAggCell(values: {valid: number | null; invalid: number | null}): CombinedCell {
+  const valid = values.valid != null ? formatValue(values.valid, index.value?.unit) : '';
+  const invalid = values.invalid != null ? formatValue(values.invalid, index.value?.unit, true) : '';
+  // null geomean = the competitor had no usable value in this category (aggValue
+  // already collapses an all-zero category to 0), so it's n-a — same as a cell.
+  if (!valid && !invalid) return {cls: 'bench-val--na', valid: 'n-a', invalid: ''};
+  return {cls: 'bench-val--ok', valid: valid || '—', invalid};
+}
+
+/** One combined cell per competitor, in column order — computed once per row. */
+function sectionCells(kase: BenchCase, metricKey: string): CombinedCell[] {
+  return index.value ? index.value.competitors.map((comp) => combinedCell(kase, metricKey, comp)) : [];
+}
+
+function aggCells(row: AggRow): CombinedCell[] {
+  return index.value ? index.value.competitors.map((comp) => combinedAggCell(row.values[comp])) : [];
+}
+
+/** Geometric mean of the positive values — outlier-resistant summary across cases. */
+function geomean(values: number[]): number | null {
+  const positive = values.filter((value) => typeof value === 'number' && value > 0);
+  if (positive.length === 0) return null;
+  return Math.exp(positive.reduce((acc, value) => acc + Math.log(value), 0) / positive.length);
+}
+
+/** Aggregate one (metric, competitor, path) across cases: the geometric mean of the
+ *  positive values, OR 0 when the competitor DID measure the category but every value
+ *  was 0 (a real "all free" result — e.g. a typecost shape that costs zero
+ *  instantiations), OR null when there's genuinely no data (renders as n-a / —). */
+function aggValue(cases: BenchCase[], metricKey: string, comp: string, path: Path): number | null {
+  const positive: number[] = [];
+  let measured = false;
+  for (const kase of cases) {
+    const result = kase.results[comp]?.[metricKey];
+    if (result && result.status !== 'fail' && result.status !== 'not-supported' && typeof result[path] === 'number') {
+      measured = true;
+      if (result[path]! > 0) positive.push(result[path]!);
+    }
+  }
+  const mean = geomean(positive);
+  if (mean != null) return mean;
+  return measured ? 0 : null;
+}
+
+/** Per-category + Overall geometric-mean summary for one metric. */
+function aggregateFor(metricKey: string): AggRow[] {
+  if (!index.value) return [];
+  const competitors = index.value.competitors;
+  const rows: AggRow[] = [];
+  const allCases: BenchCase[] = [];
+  for (const section of orderedSections.value) {
+    allCases.push(...section.cases);
+    const values: AggRow['values'] = {};
+    for (const comp of competitors) {
+      values[comp] = {
+        valid: aggValue(section.cases, metricKey, comp, 'valid'),
+        invalid: aggValue(section.cases, metricKey, comp, 'invalid'),
+        mixed: aggValue(section.cases, metricKey, comp, 'mixed'),
+      };
+    }
+    rows.push({key: section.key, label: section.label, values});
+  }
+  const overall: AggRow['values'] = {};
+  for (const comp of index.value.competitors) {
+    overall[comp] = {
+      valid: aggValue(allCases, metricKey, comp, 'valid'),
+      invalid: aggValue(allCases, metricKey, comp, 'invalid'),
+      mixed: aggValue(allCases, metricKey, comp, 'mixed'),
+    };
+  }
+  rows.push({key: '__overall__', label: 'Overall', values: overall});
+  return rows;
+}
+
+/** Precomputed aggregates keyed by metric. */
+const aggregates = computed<Record<string, AggRow[]>>(() => {
+  if (!index.value) return {};
+  return Object.fromEntries(index.value.metrics.map((metric) => [metric.key, aggregateFor(metric.key)]));
+});
 </script>
 
 <template>
@@ -144,90 +278,114 @@ function cellClass(result: CaseResult | undefined): string {
     </div>
 
     <template v-else-if="index">
-      <div v-if="index.metricLabel" class="bench-metric">
-        <span class="bench-prompt">#</span> {{ index.metricLabel }}
+      <!-- How-to-read legend: each cell pairs the valid (accept) headline number with
+           the smaller, dimmed invalid (reject) number tucked at its corner. -->
+      <div v-if="index.showInvalid" class="bench-legend">
+        <span class="bench-legend-sample"><span class="bench-val-wrap"><span class="bench-val-primary bench-val--ok">24M/s</span><span class="bench-val-secondary">47M</span></span></span>
+        <span class="bench-legend-note">
+          each cell = ops/sec on <span class="bench-legend-valid">valid input</span> (the headline number)
+          and, smaller, on <span class="bench-legend-invalid">invalid input</span>
+        </span>
       </div>
-      <section v-for="section in index.sections" :key="section.key" class="bench-section">
-        <header class="bench-caption">
-          <span class="bench-prompt">&gt;</span> {{ section.label }}
-        </header>
 
-        <div class="bench-scroll">
-          <table class="bench-grid">
-            <colgroup>
-              <col class="bench-col--case" />
-              <col v-for="comp in index.competitors" :key="comp" />
-            </colgroup>
-            <thead>
-              <tr class="bench-head">
-                <th class="bench-th bench-th--case">case</th>
-                <th v-for="comp in index.competitors" :key="comp" class="bench-th">{{ comp }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="kase in section.cases"
-                :key="kase.key"
-                class="bench-row"
-                :class="{'bench-row--active': active?.key === kase.key}"
-                tabindex="0"
-                @mouseenter="activate(kase.key, kase.title)"
-                @focus="activate(kase.key, kase.title)"
-                @click="activate(kase.key, kase.title)"
-                @keydown.enter.prevent="activate(kase.key, kase.title)"
-                @keydown.space.prevent="activate(kase.key, kase.title)"
-              >
-                <td class="bench-cell bench-cell--case">{{ kase.title }}</td>
-                <td
-                  v-for="comp in index.competitors"
-                  :key="comp"
-                  class="bench-cell bench-val"
-                  :class="cellClass(kase.results[comp])"
-                >
-                  {{ cellText(kase.results[comp], index.unit) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      <!-- One block per metric, each with its own aggregated summary + per-section
+           tables; every cell combines the valid + invalid numbers (see legend above). -->
+      <div v-for="metric in displayedMetrics" :key="metric.key" class="bench-metric-block">
+        <div class="bench-metric">
+          <span class="bench-prompt">#</span> <strong class="bench-metric-name">{{ metric.label }}</strong>
+          <span v-if="metric.metricLabel" class="bench-metric-sub">{{ metric.metricLabel }}</span>
         </div>
-      </section>
+
+        <!-- Aggregated summary first: geometric mean per competitor + path. -->
+        <section class="bench-section">
+          <header class="bench-caption">
+            <span class="bench-prompt">&Sigma;</span> Aggregated · geometric mean
+            <span class="bench-agg-hint">{{ index.unit === 'count' ? 'lower is better' : 'higher is better' }}</span>
+          </header>
+          <div class="bench-scroll">
+            <table class="bench-grid">
+              <colgroup>
+                <col class="bench-col--case" />
+                <col v-for="comp in index.competitors" :key="comp" />
+              </colgroup>
+              <thead>
+                <tr class="bench-head">
+                  <th class="bench-th bench-th--case">category</th>
+                  <th v-for="comp in index.competitors" :key="comp" class="bench-th bench-th--comp">{{ comp }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in aggregates[metric.key]"
+                  :key="row.key"
+                  class="bench-row bench-row--agg"
+                  :class="{'bench-row--overall': row.key === '__overall__'}"
+                >
+                  <td class="bench-cell bench-cell--case">{{ row.label }}</td>
+                  <td v-for="(cc, ci) in aggCells(row)" :key="ci" class="bench-cell bench-val" :class="cc.cls">
+                    <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section v-for="section in orderedSections" :key="section.key" class="bench-section">
+          <header class="bench-caption">
+            <span class="bench-prompt">&gt;</span> {{ section.label }}
+          </header>
+
+          <div class="bench-scroll">
+            <table class="bench-grid">
+              <colgroup>
+                <col class="bench-col--case" />
+                <col v-for="comp in index.competitors" :key="comp" />
+              </colgroup>
+              <thead>
+                <tr class="bench-head">
+                  <th class="bench-th bench-th--case">case</th>
+                  <th v-for="comp in index.competitors" :key="comp" class="bench-th bench-th--comp">{{ comp }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="kase in section.cases"
+                  :key="kase.key"
+                  class="bench-row"
+                  :class="{'bench-row--active': active?.key === kase.key}"
+                  tabindex="0"
+                  @mouseenter="preview(rowItem(kase.key, kase.title))"
+                  @mouseleave="leave()"
+                  @focus="preview(rowItem(kase.key, kase.title))"
+                  @blur="leave()"
+                  @click="pin(rowItem(kase.key, kase.title))"
+                  @keydown.enter.prevent="pin(rowItem(kase.key, kase.title))"
+                  @keydown.space.prevent="pin(rowItem(kase.key, kase.title))"
+                >
+                  <td class="bench-cell bench-cell--case">{{ kase.title }}</td>
+                  <td v-for="(cc, ci) in sectionCells(kase, metric.key)" :key="ci" class="bench-cell bench-val" :class="cc.cls">
+                    <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
     </template>
 
-    <!-- One fixed, sticky detail panel shared by every row. -->
-    <Teleport to="body">
-      <aside v-if="active" class="bench-panel-fixed" aria-label="Competitor sources for the selected case">
-        <header class="bench-panel-head">
-          <span class="bench-panel-title"><span class="bench-prompt">$</span> {{ active.title }}</span>
-          <button type="button" class="bench-panel-close" aria-label="Close" @click="close">✕</button>
-        </header>
-
-        <div class="bench-panel-body">
-          <template v-if="activeDetail?.state === 'loading'">
-            <div class="bench-note bench-note--muted">
-              <span class="bench-prompt">$</span> loading sources&hellip;
-            </div>
-          </template>
-
-          <template v-else-if="activeDetail?.state === 'error'">
-            <div class="bench-note bench-note--muted">
-              <span class="bench-prompt">$</span> could not load competitor sources.
-            </div>
-          </template>
-
-          <template v-else-if="activeDetail?.data">
-            <div
-              v-for="(competitor, i) in activeDetail.data.competitors"
-              :key="competitor.name"
-              class="bench-block"
-            >
-              <span class="bench-label">{{ competitor.name }}</span>
-              <div v-if="activeDetail.html?.[i]" class="bench-code" v-html="activeDetail.html[i]" />
-              <pre v-else class="bench-code bench-code--plain"><code>{{ competitor.source }}</code></pre>
-            </div>
-          </template>
-        </div>
-      </aside>
-    </Teleport>
+    <!-- Shared full-width bottom detail panel (see DetailPanel + useDetailPanel). -->
+    <DetailPanel
+      :open="!!active"
+      :pinned="pinned"
+      :title="active?.title ?? ''"
+      :state="panelState"
+      :columns="panelColumns"
+      @close="close"
+      @panelenter="panelEnter"
+      @panelleave="panelLeave"
+    />
   </div>
 </template>
 
@@ -242,10 +400,57 @@ function cellClass(result: CaseResult | undefined): string {
   user-select: none;
 }
 
+.bench-metric-block + .bench-metric-block {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px dashed rgba(138, 168, 94, 0.3);
+}
+
 .bench-metric {
-  margin: 0 0 0.6rem;
-  font-size: 0.74rem;
+  margin: 0 0 0.7rem;
+  font-size: 0.78rem;
   color: var(--ui-text-muted, #9aa0a6);
+}
+
+.bench-metric-name {
+  color: var(--ui-text-highlighted, #e8eaed);
+  font-size: 0.92rem;
+}
+
+.bench-metric-sub {
+  margin-left: 0.5rem;
+}
+
+/* How-to-read legend for the combined valid/invalid cell. */
+.bench-legend {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0 0 1.25rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.74rem;
+  border: 1px solid var(--ui-border, rgba(138, 168, 94, 0.25));
+  border-radius: 0.4rem;
+  background: var(--rt-surface, rgba(20, 20, 20, 0.4));
+}
+
+.bench-legend-sample {
+  flex: none;
+  padding: 0.1rem 2.4rem 0.1rem 0.4rem;
+  font-size: 0.82rem;
+}
+
+.bench-legend-note {
+  color: var(--ui-text-muted, #9aa0a6);
+  line-height: 1.4;
+}
+
+.bench-legend-valid {
+  color: var(--ui-primary, #79af43);
+}
+
+.bench-legend-invalid {
+  color: var(--ui-text-dimmed, var(--ui-text-muted, #9aa0a6));
 }
 
 .bench-note {
@@ -286,10 +491,33 @@ function cellClass(result: CaseResult | undefined): string {
 }
 
 .bench-scroll {
-  overflow: hidden;
+  overflow-x: auto;
   border: 1px solid var(--ui-border, rgba(138, 168, 94, 0.35));
   border-radius: 0 0 0.4rem 0.4rem;
   background: var(--rt-surface, rgba(20, 20, 20, 0.55));
+}
+
+.bench-agg-hint {
+  margin-left: auto;
+  font-size: 0.66rem;
+  font-weight: 400;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  color: var(--ui-text-muted, #9aa0a6);
+}
+
+/* Aggregated rows are a read-only summary — no hover detail panel. */
+.bench-row--agg {
+  cursor: default;
+}
+
+.bench-row--overall {
+  font-weight: 600;
+  border-top: 1px solid rgba(138, 168, 94, 0.3);
+}
+
+.bench-row--overall .bench-cell {
+  color: var(--ui-text-highlighted, #e8eaed);
 }
 
 .bench-grid {
@@ -299,7 +527,8 @@ function cellClass(result: CaseResult | undefined): string {
 }
 
 .bench-col--case {
-  width: 22%;
+  width: 16%;
+  min-width: 8rem;
 }
 
 .bench-head {
@@ -307,14 +536,21 @@ function cellClass(result: CaseResult | undefined): string {
 }
 
 .bench-th {
-  padding: 0.4rem 0.8rem;
-  font-size: 0.68rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.66rem;
   font-weight: 600;
   text-align: right;
   letter-spacing: 0.04em;
   color: var(--ui-text-muted, #9aa0a6);
   border-bottom: 1px solid rgba(138, 168, 94, 0.25);
   overflow-wrap: anywhere;
+}
+
+/* Competitor column header — centered + bright, same look as the type-cost table. */
+.bench-th--comp {
+  text-align: center;
+  color: var(--ui-text-highlighted, #e8eaed);
+  border-left: 1px solid rgba(138, 168, 94, 0.18);
 }
 
 .bench-th--case {
@@ -336,8 +572,8 @@ function cellClass(result: CaseResult | undefined): string {
 }
 
 .bench-cell {
-  padding: 0.5rem 0.8rem;
-  font-size: 0.78rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.76rem;
   text-align: right;
   border-bottom: 1px solid rgba(138, 168, 94, 0.12);
   white-space: nowrap;
@@ -349,6 +585,13 @@ function cellClass(result: CaseResult | undefined): string {
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+/* Subtle separator between competitor columns. The combined value is centered so
+   the valid number sits centered and the invalid annotation hangs off its corner. */
+.bench-val {
+  border-left: 1px solid rgba(138, 168, 94, 0.12);
+  text-align: center;
 }
 
 .bench-val--ok {
@@ -364,127 +607,27 @@ function cellClass(result: CaseResult | undefined): string {
   color: var(--ui-text-muted, #9aa0a6);
 }
 
-/* Fixed, sticky detail panel — bottom-right, shared across every row. */
-.bench-panel-fixed {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  width: min(640px, calc(100vw - 2rem));
-  max-height: 74vh;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  background: var(--rt-panel, rgba(12, 12, 14, 0.97));
-  border: 1px solid var(--ui-primary, #79af43);
-  border-radius: 0.5rem;
-  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
+/* Combined cell — valid (accept) is the centered headline (inherits the cell's
+   ok/fail color); invalid (reject) hangs off its bottom-right corner, smaller +
+   dimmed. Both colors are theme tokens (Nuxt UI) so they adapt to light + dark. */
+.bench-val-wrap {
+  position: relative;
+  display: inline-block;
 }
 
-.bench-panel-head {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.55rem 0.5rem 0.55rem 0.85rem;
-  border-bottom: 1px solid rgba(138, 168, 94, 0.25);
+.bench-val-primary {
+  font-variant-numeric: tabular-nums;
 }
 
-.bench-panel-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--ui-text-highlighted, #e8eaed);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.bench-panel-close {
-  flex: none;
-  padding: 0.15rem 0.45rem;
-  font-size: 0.8rem;
+.bench-val-secondary {
+  position: absolute;
+  top: 0.85em;
+  left: 100%;
+  margin-left: 0.1rem;
+  font-size: 0.65rem;
   line-height: 1;
-  color: var(--ui-text-muted, #9aa0a6);
-  cursor: pointer;
-  background: transparent;
-  border: 1px solid rgba(138, 168, 94, 0.25);
-  border-radius: 0.3rem;
-}
-
-.bench-panel-close:hover {
-  color: var(--ui-text-highlighted, #e8eaed);
-  border-color: var(--ui-primary, #79af43);
-}
-
-.bench-panel-body {
-  padding: 0.75rem 0.85rem 0.9rem;
-  overflow: auto;
-}
-
-.bench-block + .bench-block {
-  margin-top: 0.7rem;
-}
-
-.bench-label {
-  display: block;
-  margin-bottom: 0.25rem;
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ui-primary, #79af43);
-}
-
-.bench-code {
-  margin: 0;
-  overflow-x: auto;
-  font-size: 0.74rem;
-  line-height: 1.45;
-  border: 1px solid var(--ui-border, rgba(138, 168, 94, 0.18));
-  border-radius: 0.3rem;
-}
-
-/* Plain-text fallback (highlighter unavailable). */
-.bench-code--plain {
-  padding: 0.55rem 0.7rem;
-  color: var(--ui-text, #d6d8db);
-  background: var(--rt-code-bg, rgba(0, 0, 0, 0.45));
-}
-
-.bench-code--plain code {
-  font-family: inherit;
-  white-space: pre;
-}
-
-/* Shiki dual-theme output injected via v-html: dark colors ride the inline
-   style; the light theme lives in CSS vars, swapped in under :root.light. */
-.bench-code :deep(pre.shiki) {
-  margin: 0;
-  padding: 0.55rem 0.7rem;
-  overflow-x: auto;
-}
-
-:root.light .bench-code :deep(pre.shiki) {
-  background-color: var(--shiki-light-bg) !important;
-}
-
-:root.light .bench-code :deep(.shiki),
-:root.light .bench-code :deep(.shiki span) {
-  color: var(--shiki-light) !important;
-}
-
-.bench-code :deep(code) {
-  font-family: inherit;
-  white-space: pre;
-}
-
-@media (max-width: 640px) {
-  .bench-panel-fixed {
-    right: 0.5rem;
-    left: 0.5rem;
-    bottom: 0.5rem;
-    width: auto;
-  }
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-dimmed, var(--ui-text-muted, #9aa0a6));
 }
 </style>

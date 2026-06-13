@@ -13,9 +13,11 @@ import {OTHERS} from './Others.ts';
 import {EXTRA_PARAMS} from './ExtraParams.ts';
 import {LARGE_OBJECTS} from './LargeObjects.ts';
 import {DATETIME} from './DateTime.ts';
+import {REALWORLD} from './Realworld.ts';
 import type {SerializationCase} from './types.ts';
 
 export const SERIALIZATION_SPEC = {
+  REALWORLD,
   ATOMIC,
   ARRAYS,
   OBJECTS,

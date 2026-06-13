@@ -1,0 +1,11 @@
+{
+  // The docs content under content/ is MDC (Markdown Components). A markdown
+  // formatter (e.g. Prettier) mangles the component syntax -- e.g. it turns
+  // `::component` immediately followed by `---` props into a setext H2 heading
+  // (`## ::component`), which breaks the page. Keep format-on-save off for
+  // markdown so MDC blocks survive. This applies when the website folder is
+  // opened directly; the repo-root .vscode/settings.json mirrors it.
+  "[markdown]": {
+    "editor.formatOnSave": false
+  }
+}
