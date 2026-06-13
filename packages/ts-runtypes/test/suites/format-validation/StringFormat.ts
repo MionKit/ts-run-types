@@ -8,7 +8,14 @@
 import * as TF from 'ts-runtypes/formats';
 import type {FormatValidationCase} from './types.ts';
 import 'ts-runtypes/formats';
-import {createValidate, createGetValidationErrors, createMockType, registerFormatPattern, type DataOnly} from 'ts-runtypes';
+import {
+  createValidate,
+  createGetValidationErrors,
+  createMockType,
+  createStandardSchema,
+  registerFormatPattern,
+  type DataOnly,
+} from 'ts-runtypes';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 // Custom patterns registered once at module load — the call sites the
@@ -35,6 +42,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Length 5 passes (`hello`); 6 chars (`hello!`) fails with `val` 5 (`maxLength`). A non-string (42) fails the string typeof gate before any format check. Empty string passes.',
     validate: () => createValidate<TF.String<{maxLength: 5}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{maxLength: 5}>>(),
     validateReflect: () => {
       const v: TF.String<{maxLength: 5}> = 'hello';
       return createValidate(v);
@@ -71,6 +79,7 @@ export const STRING_FORMAT = {
     description: 'stringFormat with an inclusive lower-length bound that rejects strings shorter than `minLength`.',
     validateNotes: 'Length 3 passes (`abc`); 2 chars (`ab`) and the empty string both fail with `val` 3 (`minLength`).',
     validate: () => createValidate<TF.String<{minLength: 3}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{minLength: 3}>>(),
     validateReflect: () => {
       const v: TF.String<{minLength: 3}> = 'abc';
       return createValidate(v);
@@ -110,6 +119,7 @@ export const STRING_FORMAT = {
     description: 'stringFormat requiring an exact length that rejects anything not exactly `length` chars.',
     validateNotes: 'Only length 4 passes (`abcd`); both 3 chars (`abc`) and 5 chars (`abcde`) fail with `val` 4 (`length`).',
     validate: () => createValidate<TF.String<{length: 4}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{length: 4}>>(),
     validateReflect: () => {
       const v: TF.String<{length: 4}> = 'abcd';
       return createValidate(v);
@@ -150,6 +160,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Boundary lengths 2 (`ab`) and 4 (`abcd`) pass (inclusive). 1 char (`a`) fails with `val` 2 (`minLength`); 5 chars (`abcde`) fails with `val` 4 (`maxLength`).',
     validate: () => createValidate<TF.String<{minLength: 2; maxLength: 4}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{minLength: 2; maxLength: 4}>>(),
     validateReflect: () => {
       const v: TF.String<{minLength: 2; maxLength: 4}> = 'ab';
       return createValidate(v);
@@ -193,6 +204,7 @@ export const STRING_FORMAT = {
       'The space in `dead beef` is not in the set, so it also fails. The empty string passes (no chars to check).',
     ],
     validate: () => createValidate<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>(),
     validateReflect: () => {
       const v: TF.String<{allowedChars: {val: '0123456789abcdef'}}> = 'deadbeef';
       return createValidate(v);
@@ -231,6 +243,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Case-folded: `ABC` and `aAbBcC` pass even though only lowercase `abc` was listed. `abcd` fails with `val` `Invalid characters` (`d` not in the set).',
     validate: () => createValidate<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     validateReflect: () => {
       const v: TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}> = 'ABC';
       return createValidate(v);
@@ -270,6 +283,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'The set `.-` is treated as literal chars (NOT a regex range), so `...---` passes. `a` fails with `val` `Invalid characters`.',
     validate: () => createValidate<TF.String<{allowedChars: {val: '.-'}}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{allowedChars: {val: '.-'}}>>(),
     validateReflect: () => {
       const v: TF.String<{allowedChars: {val: '.-'}}> = '...---';
       return createValidate(v);
@@ -307,6 +321,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'A string passes only if it contains none of `!`, `@`, `#`; `hello` passes. `hi!` and `a@b` each fail with `val` `Invalid characters`.',
     validate: () => createValidate<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
     validateReflect: () => {
       const v: TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = 'hello';
       return createValidate(v);
@@ -352,6 +367,7 @@ export const STRING_FORMAT = {
       'Match is case-sensitive (`RED` fails) and whole-string (`redgreen` fails — no substring/concat).',
     ],
     validate: () => createValidate<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
     validateReflect: () => {
       const v: TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}> = 'red';
       return createValidate(v);
@@ -391,6 +407,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Case-folded equality: `RED` and `Green` pass. `blue` (not in the `red`/`green` set) fails with `val` `Invalid value`.',
     validate: () => createValidate<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     validateReflect: () => {
       const v: TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = 'RED';
       return createValidate(v);
@@ -431,6 +448,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Listed values `a.b` and `c+d` match literally (the `.` and `+` are not regex metacharacters), so they pass. `axb` and `ccd` each fail with `val` `Invalid value`.',
     validate: () => createValidate<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     validateReflect: () => {
       const v: TF.String<{allowedValues: {val: ['a.b', 'c+d']}}> = 'a.b';
       return createValidate(v);
@@ -471,6 +489,8 @@ export const STRING_FORMAT = {
     validateNotes:
       'A string passes unless it exactly equals a blacklisted value; `alice` passes. `admin` and `root` each fail with `val` `Invalid value`.',
     validate: () => createValidate<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
+    standardSchema: () =>
+      createStandardSchema<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
     validateReflect: () => {
       const v: TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = 'alice';
       return createValidate(v);
@@ -519,6 +539,7 @@ export const STRING_FORMAT = {
     validateNotes:
       '`a` and `b` pass. `c` fails with `val` `pick a or b` — the custom `errorMessage` replaces the default `Invalid value`.',
     validate: () => createValidate<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
+    standardSchema: () => createStandardSchema<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     validateReflect: () => {
       const v: TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = 'a';
       return createValidate(v);
@@ -566,6 +587,7 @@ export const STRING_FORMAT = {
       'The empty string passes (the pattern allows zero letters).',
     ],
     validate: () => createValidate<TF.Alpha>(),
+    standardSchema: () => createStandardSchema<TF.Alpha>(),
     validateReflect: () => {
       const v: TF.Alpha = 'Hello';
       return createValidate(v);
@@ -603,6 +625,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Letters and digits pass (`abc123`, `ABC`, `123`); a hyphen (`a-b`) or space (`a b`) fails with `val` `Invalid pattern`.',
     validate: () => createValidate<TF.AlphaNumeric>(),
+    standardSchema: () => createStandardSchema<TF.AlphaNumeric>(),
     validateReflect: () => {
       const v: TF.AlphaNumeric = 'abc123';
       return createValidate(v);
@@ -643,6 +666,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Only digit chars pass (`12345`, `007` — leading zeros allowed since it is a string). A decimal point (`12.3`) or letter (`12a`) fails with `val` `Invalid pattern`.',
     validate: () => createValidate<TF.Numeric>(),
+    standardSchema: () => createStandardSchema<TF.Numeric>(),
     validateReflect: () => {
       const v: TF.Numeric = '12345';
       return createValidate(v);
@@ -683,6 +707,7 @@ export const STRING_FORMAT = {
     validateNotes:
       '`abc` (3 letters) passes. `abcd` exceeds the bound and fails with `val` 3 (`maxLength`); `a1` is within length but the digit fails the pattern with `val` `Invalid pattern`.',
     validate: () => createValidate<TF.Alpha<{maxLength: 3}>>(),
+    standardSchema: () => createStandardSchema<TF.Alpha<{maxLength: 3}>>(),
     validateReflect: () => {
       const v: TF.Alpha<{maxLength: 3}> = 'abc';
       return createValidate(v);
@@ -723,6 +748,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'The lowercase transform applies only via createFormatTransform, NOT validate — so ANY string passes regardless of case (`already lower` AND `HasUpper` pass). Only a non-string (42) fails, via the typeof gate.',
     validate: () => createValidate<TF.Lowercase>(),
+    standardSchema: () => createStandardSchema<TF.Lowercase>(),
     validateReflect: () => {
       const v: TF.Lowercase = 'already lower';
       return createValidate(v);
@@ -765,6 +791,7 @@ export const STRING_FORMAT = {
       'The empty string, a hyphen-stripped UUID, and a non-string (123) are all rejected.',
     ],
     validate: () => createValidate<TF.UUIDv4>(),
+    standardSchema: () => createStandardSchema<TF.UUIDv4>(),
     validateReflect: () => {
       const v: TF.UUIDv4 = V4;
       return createValidate(v);
@@ -801,6 +828,7 @@ export const STRING_FORMAT = {
     description: 'TF.UUIDv7 (format `uuid`, version `7`) accepting only version-7 UUIDs and rejecting v4.',
     validateNotes: 'The version nibble must be `7`; a valid v4 UUID fails with `val` `7`.',
     validate: () => createValidate<TF.UUIDv7>(),
+    standardSchema: () => createStandardSchema<TF.UUIDv7>(),
     validateReflect: () => {
       const v: TF.UUIDv7 = V7;
       return createValidate(v);
@@ -843,6 +871,7 @@ export const STRING_FORMAT = {
       'Width is exact — `2024-1-1` (single-digit month/day) fails; `not-a-date` fails. `0001-01-01` is accepted.',
     ],
     validate: () => createValidate<TF.StringDate>(),
+    standardSchema: () => createStandardSchema<TF.StringDate>(),
     validateReflect: () => {
       const v: TF.StringDate = '2024-02-29';
       return createValidate(v);
@@ -883,6 +912,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Layout is `DD-MM-YYYY` (format error `val` `DD-MM-YYYY`); `29-02-2024` passes. An ISO-ordered string (`2024-02-29`) fails the layout, and `31-04-2024` fails calendar validity (April has 30 days).',
     validate: () => createValidate<TF.StringDate<{format: 'DD-MM-YYYY'}>>(),
+    standardSchema: () => createStandardSchema<TF.StringDate<{format: 'DD-MM-YYYY'}>>(),
     validateReflect: () => {
       const v: TF.StringDate<{format: 'DD-MM-YYYY'}> = '29-02-2024';
       return createValidate(v);
@@ -923,6 +953,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Layout is `YYYY-MM` (format error `val` `YYYY-MM`); `2024-02` passes. Month 13 (`2024-13`) fails, and supplying a day (`2024-02-29`) fails the layout.',
     validate: () => createValidate<TF.StringDate<{format: 'YYYY-MM'}>>(),
+    standardSchema: () => createStandardSchema<TF.StringDate<{format: 'YYYY-MM'}>>(),
     validateReflect: () => {
       const v: TF.StringDate<{format: 'YYYY-MM'}> = '2024-02';
       return createValidate(v);
@@ -962,6 +993,7 @@ export const STRING_FORMAT = {
     description: 'TF.StringDate with the `MM-DD` layout (month-day, no year component).',
     validateNotes: 'Layout is `MM-DD` (format error `val` `MM-DD`); `02-29` passes. Month 13 (`13-01`) fails.',
     validate: () => createValidate<TF.StringDate<{format: 'MM-DD'}>>(),
+    standardSchema: () => createStandardSchema<TF.StringDate<{format: 'MM-DD'}>>(),
     validateReflect: () => {
       const v: TF.StringDate<{format: 'MM-DD'}> = '02-29';
       return createValidate(v);
@@ -999,6 +1031,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Bounds `2020-01-01`..`2020-12-31` are inclusive — both endpoints pass. `2019-12-31` fails on `min` (formatPathTail `min`); `2021-01-01` fails on `max` (formatPathTail `max`).',
     validate: () => createValidate<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+    standardSchema: () => createStandardSchema<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     validateReflect: () => {
       const v: TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '2020-01-01';
       return createValidate(v);
@@ -1054,6 +1087,7 @@ export const STRING_FORMAT = {
       'A tz-less time (`12:30:45`) fails. Field ranges are enforced: hour 24 (`24:00:00Z`) and minute 60 (`12:60:00Z`) both fail.',
     ],
     validate: () => createValidate<TF.StringTime>(),
+    standardSchema: () => createStandardSchema<TF.StringTime>(),
     validateReflect: () => {
       const v: TF.StringTime = '12:30:45Z';
       return createValidate(v);
@@ -1098,6 +1132,7 @@ export const STRING_FORMAT = {
     validateNotes:
       '`23:59:59` passes. Out-of-range fields (`99:99:99`) fail with `val` `HH:mm:ss`; a missing seconds component (`23:59`) and hour 24 (`24:00:00`) are also rejected.',
     validate: () => createValidate<TF.StringTime<{format: 'HH:mm:ss'}>>(),
+    standardSchema: () => createStandardSchema<TF.StringTime<{format: 'HH:mm:ss'}>>(),
     validateReflect: () => {
       const v: TF.StringTime<{format: 'HH:mm:ss'}> = '23:59:59';
       return createValidate(v);
@@ -1135,6 +1170,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Milliseconds are optional — both `12:30:45` and `12:30:45.999` pass. A 4-digit fraction (`12:30:45.9999`) exceeds the `.mmm` width and fails with `val` `HH:mm:ss[.mmm]`.',
     validate: () => createValidate<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
+    standardSchema: () => createStandardSchema<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     validateReflect: () => {
       const v: TF.StringTime<{format: 'HH:mm:ss[.mmm]'}> = '12:30:45';
       return createValidate(v);
@@ -1173,6 +1209,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Bounds `09:00`..`17:00` are inclusive — both endpoints pass. `08:59` fails on `min` (formatPathTail `min`); `17:01` fails on `max` (formatPathTail `max`).',
     validate: () => createValidate<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
+    standardSchema: () => createStandardSchema<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     validateReflect: () => {
       const v: TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '09:00';
       return createValidate(v);
@@ -1224,6 +1261,7 @@ export const STRING_FORMAT = {
       'A non-leap date (`2023-02-29`), an out-of-range hour (`25:30:45`), and `not-a-datetime` are all rejected.',
     ],
     validate: () => createValidate<TF.StringDateTime>(),
+    standardSchema: () => createStandardSchema<TF.StringDateTime>(),
     validateReflect: () => {
       const v: TF.StringDateTime = '2024-02-29T12:30:45Z';
       return createValidate(v);
@@ -1268,6 +1306,8 @@ export const STRING_FORMAT = {
       'A `T` separator (`29-02-2024T23:59`) fails the split char (formatPathTail `splitChar`); hour 24 (`29-02-2024 24:00`) fails the time half (formatPathTail `time`).',
     ],
     validate: () => createValidate<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+    standardSchema: () =>
+      createStandardSchema<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     validateReflect: () => {
       const v: TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '29-02-2024 23:59';
       return createValidate(v);
@@ -1324,6 +1364,16 @@ export const STRING_FORMAT = {
       'Bounds `2020-01-01T00:00:00`..`2020-12-31T23:59:59` are inclusive — both endpoints pass. `2019-12-31T23:59:59` fails on `min` (formatPathTail `min`); `2021-01-01T00:00:00` fails on `max` (formatPathTail `max`).',
     validate: () =>
       createValidate<
+        TF.StringDateTime<{
+          date: {format: 'YYYY-MM-DD'};
+          time: {format: 'HH:mm:ss'};
+          splitChar: 'T';
+          min: '2020-01-01T00:00:00';
+          max: '2020-12-31T23:59:59';
+        }>
+      >(),
+    standardSchema: () =>
+      createStandardSchema<
         TF.StringDateTime<{
           date: {format: 'YYYY-MM-DD'};
           time: {format: 'HH:mm:ss'};
@@ -1485,6 +1535,7 @@ export const STRING_FORMAT = {
       'Out-of-range octets (`999.999.999.999`, `256.0.0.1`), a 3-octet address (`1.2.3`), and an IPv6 address (`::1`) all fail; the first failure carries `val` 4.',
     ],
     validate: () => createValidate<TF.IPv4>(),
+    standardSchema: () => createStandardSchema<TF.IPv4>(),
     validateReflect: () => {
       const v: TF.IPv4 = '192.168.0.1';
       return createValidate(v);
@@ -1526,6 +1577,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Full, compressed (`::1`), and link-local (`fe80::1`) forms pass. An IPv4 address (`192.168.0.1`) and a group exceeding 4 hex digits (`12345::1`) each fail with `val` 6.',
     validate: () => createValidate<TF.IPv6>(),
+    standardSchema: () => createStandardSchema<TF.IPv6>(),
     validateReflect: () => {
       const v: TF.IPv6 = '2001:db8:0:0:0:0:0:1';
       return createValidate(v);
@@ -1566,6 +1618,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Both `10.0.0.1` (v4) and `2001:db8::1` (v6) pass. A non-IP string (`definitely not an ip`) fails with `val` `any`.',
     validate: () => createValidate<TF.IP>(),
+    standardSchema: () => createStandardSchema<TF.IP>(),
     validateReflect: () => {
       const v: TF.IP = '10.0.0.1';
       return createValidate(v);
@@ -1603,6 +1656,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'The port must be in range; `192.168.0.1:8080` passes, while `192.168.0.1:70000` (port > 65535) fails with `val` 4.',
     validate: () => createValidate<TF.IPv4WithPort>(),
+    standardSchema: () => createStandardSchema<TF.IPv4WithPort>(),
     validateReflect: () => {
       const v: TF.IPv4WithPort = '192.168.0.1:8080';
       return createValidate(v);
@@ -1640,6 +1694,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'The port must be in range; `[2001:db8::1]:443` passes, while `[2001:db8::1]:99999` (port > 65535) fails with `val` 6.',
     validate: () => createValidate<TF.IPv6WithPort>(),
+    standardSchema: () => createStandardSchema<TF.IPv6WithPort>(),
     validateReflect: () => {
       const v: TF.IPv6WithPort = '[2001:db8::1]:443';
       return createValidate(v);
@@ -1681,6 +1736,7 @@ export const STRING_FORMAT = {
       'Rejected: a bare label (`not-a-domain`), a leading dot (`.com`), a single-char TLD (`example.c`), a leading-hyphen label (`-bad.com`), an embedded space (`exa mple.com`), and the empty string. The format error is `{name: domain}` (no `val`).',
     ],
     validate: () => createValidate<TF.Domain>(),
+    standardSchema: () => createStandardSchema<TF.Domain>(),
     validateReflect: () => {
       const v: TF.Domain = 'mion.io';
       return createValidate(v);
@@ -1724,6 +1780,7 @@ export const STRING_FORMAT = {
       'Rejected: a leading-hyphen label (`-bad.com`), more than 6 labels (`aa.bb.cc.dd.ee.ff.com`), a numeric TLD (`example.123`), an underscore in a label (`ex_ample.com`), and a single-part name (`localhost`). The format error is `{name: domain}` (no `val`).',
     ],
     validate: () => createValidate<TF.DomainStrict>(),
+    standardSchema: () => createStandardSchema<TF.DomainStrict>(),
     validateReflect: () => {
       const v: TF.DomainStrict = 'mion.io';
       return createValidate(v);
@@ -1768,6 +1825,7 @@ export const STRING_FORMAT = {
       'Rejected: no `@` (`not-an-email`), too short (`a@b.co`, below `minLength` 7), missing local part (`@example.com`), missing domain (`john@`), a TLD-less domain (`john@example`), an embedded space (`john doe@example.com`), and the empty string. The format error is `{name: email}` (no `val`).',
     ],
     validate: () => createValidate<TF.Email>(),
+    standardSchema: () => createStandardSchema<TF.Email>(),
     validateReflect: () => {
       const v: TF.Email = 'john@example.com';
       return createValidate(v);
@@ -1808,6 +1866,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'A punycode-TLD address (`john@example.xn--fiqs8s`) passes. A non-email string (`not-an-email`) fails with `{name: email}` (no `val`).',
     validate: () => createValidate<TF.EmailPunycode>(),
+    standardSchema: () => createStandardSchema<TF.EmailPunycode>(),
     validateReflect: () => {
       const v: TF.EmailPunycode = 'john@example.xn--fiqs8s';
       return createValidate(v);
@@ -1849,6 +1908,7 @@ export const STRING_FORMAT = {
       'Also rejected: a space in the local part (`a b@example.com`), a doubled `@` (`john@@example.com`), an underscore in the domain (`john@bad_domain.com`), and no `@` at all (`no-at-symbol`).',
     ],
     validate: () => createValidate<TF.EmailStrict>(),
+    standardSchema: () => createStandardSchema<TF.EmailStrict>(),
     validateReflect: () => {
       const v: TF.EmailStrict = 'john@example.com';
       return createValidate(v);
@@ -1893,6 +1953,7 @@ export const STRING_FORMAT = {
       'Rejected: a scheme-less string (`not-a-url`), a bare host (`example.com`), a `mailto:` URI, and a scheme with no host (`https://`). The format error is `{name: url}` (no `val`).',
     ],
     validate: () => createValidate<TF.Url>(),
+    standardSchema: () => createStandardSchema<TF.Url>(),
     validateReflect: () => {
       const v: TF.Url = 'https://example.com';
       return createValidate(v);
@@ -1933,6 +1994,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'Both `https://example.com` and `http://example.com` pass; a non-http scheme (`ftp://example.com`) fails with `{name: url}` (no `val`).',
     validate: () => createValidate<TF.UrlHttp>(),
+    standardSchema: () => createStandardSchema<TF.UrlHttp>(),
     validateReflect: () => {
       const v: TF.UrlHttp = 'https://example.com';
       return createValidate(v);
@@ -1970,6 +2032,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'A `file:///etc/hosts` URL passes; a non-file scheme (`https://example.com`) fails with `{name: url}` (no `val`).',
     validate: () => createValidate<TF.UrlFile>(),
+    standardSchema: () => createStandardSchema<TF.UrlFile>(),
     validateReflect: () => {
       const v: TF.UrlFile = 'file:///etc/hosts';
       return createValidate(v);
@@ -2013,6 +2076,7 @@ export const STRING_FORMAT = {
       'Although the pattern registers a custom message (`must be a slug`), validate surfaces the static default `val` `Invalid pattern` (the `message` field is excluded from cache identity).',
     ],
     validate: () => createValidate<Slug>(),
+    standardSchema: () => createStandardSchema<Slug>(),
     validateReflect: () => {
       const v: Slug = 'my-slug';
       return createValidate(v);
@@ -2073,6 +2137,7 @@ export const STRING_FORMAT = {
     validateNotes:
       'The `i` flag folds case, so both `0042` and `DEADbeef` pass. A non-hex string (`xyz`) and the empty string each fail with `val` `Invalid pattern`.',
     validate: () => createValidate<Hex>(),
+    standardSchema: () => createStandardSchema<Hex>(),
     validateReflect: () => {
       const v: Hex = '0042';
       return createValidate(v);

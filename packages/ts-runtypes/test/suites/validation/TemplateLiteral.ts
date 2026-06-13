@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -14,6 +14,7 @@ export const TEMPLATE_LITERAL = {
       'The `${number}` placeholder expects digit-strings (`42`, `-7`, `3.14`) — NOT the words "NaN" or "Infinity" even though those are typeof "number" at the JS level.',
     ],
     validate: () => createValidate<`api/user/${number}`>(),
+    standardSchema: () => createStandardSchema<`api/user/${number}`>(),
     validateDataOnly: () => createValidate<DataOnly<`api/user/${number}`>>(),
     validateSchema: () => createValidate(RT.templateLiteral(['api/user/', TF.number()])),
     deserializeValidate: () => deserializeValidate<`api/user/${number}`>(),
@@ -77,6 +78,7 @@ export const TEMPLATE_LITERAL = {
     validateNotes:
       'Every literal segment and placeholder is matched positionally in one regex — the `${number}` spans require digit-strings while the `${string}` span accepts any characters; a single mismatched segment fails the whole match.',
     validate: () => createValidate<`/api/v${number}/user/${string}/posts/${number}`>(),
+    standardSchema: () => createStandardSchema<`/api/v${number}/user/${string}/posts/${number}`>(),
     validateDataOnly: () => createValidate<DataOnly<`/api/v${number}/user/${string}/posts/${number}`>>(),
     validateSchema: () =>
       createValidate(RT.templateLiteral(['/api/v', TF.number(), '/user/', TF.string(), '/posts/', TF.number()])),
@@ -129,6 +131,7 @@ export const TEMPLATE_LITERAL = {
     validateNotes:
       'A leading `${string}` placeholder matches the empty string too — `"/42"` is valid (no characters before the slash).',
     validate: () => createValidate<`${string}/${number}`>(),
+    standardSchema: () => createStandardSchema<`${string}/${number}`>(),
     validateDataOnly: () => createValidate<DataOnly<`${string}/${number}`>>(),
     validateSchema: () => createValidate(RT.templateLiteral([TF.string(), '/', TF.number()])),
     deserializeValidate: () => deserializeValidate<`${string}/${number}`>(),
@@ -179,6 +182,7 @@ export const TEMPLATE_LITERAL = {
     validateNotes:
       'Regex metacharacters in literal segments are escaped, so the parens are matched literally — `(42)` passes but `42` (no parens) fails.',
     validate: () => createValidate<`(${number})`>(),
+    standardSchema: () => createStandardSchema<`(${number})`>(),
     validateDataOnly: () => createValidate<DataOnly<`(${number})`>>(),
     validateSchema: () => createValidate(RT.templateLiteral(['(', TF.number(), ')'])),
     deserializeValidate: () => deserializeValidate<`(${number})`>(),
@@ -231,6 +235,7 @@ export const TEMPLATE_LITERAL = {
     validateNotes:
       'The `url` property is checked with the same typeof+regex as a standalone template literal, so a numeric `url: 42` fails (`expected: "templateLiteral"`) even though it would pass a plain `string` property.',
     validate: () => createValidate<{url: `api/user/${number}`; method: string}>(),
+    standardSchema: () => createStandardSchema<{url: `api/user/${number}`; method: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{url: `api/user/${number}`; method: string}>>(),
     validateSchema: () => createValidate(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
     deserializeValidate: () => deserializeValidate<{url: `api/user/${number}`; method: string}>(),
@@ -290,6 +295,7 @@ export const TEMPLATE_LITERAL = {
     validateNotes:
       'Index-signature keys constrained by a template literal pattern: every own key on the object must match the compiled regex AND its value must satisfy the value type.',
     validate: () => createValidate<{[key: `api/${string}`]: number}>(),
+    standardSchema: () => createStandardSchema<{[key: `api/${string}`]: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: `api/${string}`]: number}>>(),
     validateSchema: () => createValidate(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
     deserializeValidate: () => deserializeValidate<{[key: `api/${string}`]: number}>(),
@@ -342,6 +348,7 @@ export const TEMPLATE_LITERAL = {
     validateNotes:
       'Union placeholders inside a template literal compile to a character-class / alternation in the regex — only the listed literal values pass.',
     validate: () => createValidate<`${'a' | 'b'}-${number}`>(),
+    standardSchema: () => createStandardSchema<`${'a' | 'b'}-${number}`>(),
     validateDataOnly: () => createValidate<DataOnly<`${'a' | 'b'}-${number}`>>(),
     validateSchema: () => createValidate(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', TF.number()])),
     deserializeValidate: () => deserializeValidate<`${'a' | 'b'}-${number}`>(),

@@ -12,7 +12,7 @@
 import * as TF from 'ts-runtypes/formats';
 import type {FormatValidationCase} from './types.ts';
 import 'ts-runtypes/formats';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 import * as RT from 'ts-runtypes/schema';
 
@@ -32,6 +32,14 @@ export const REALWORLD = {
         email: TF.Email;
       }
       return createValidate<User>();
+    },
+    standardSchema: () => {
+      interface User {
+        id: TF.UUIDv4;
+        name: string;
+        email: TF.Email;
+      }
+      return createStandardSchema<User>();
     },
     validateDataOnly: () => {
       interface User {
@@ -177,6 +185,15 @@ export const REALWORLD = {
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
       return createValidate<Order>();
+    },
+    standardSchema: () => {
+      interface Order {
+        id: TF.UUIDv4;
+        email: TF.Email;
+        total: number;
+        status: 'pending' | 'paid' | 'shipped' | 'cancelled';
+      }
+      return createStandardSchema<Order>();
     },
     validateDataOnly: () => {
       interface Order {

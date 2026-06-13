@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -10,6 +10,7 @@ export const ATOMIC = {
     description: 'The `any` keyword produces a no-op validator that accepts every value.',
     validateNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
     validate: () => createValidate<any>(),
+    standardSchema: () => createStandardSchema<any>(),
     validateDataOnly: () => createValidate<DataOnly<any>>(),
     validateSchema: () => createValidate(RT.any()),
     deserializeValidate: () => deserializeValidate<any>(),
@@ -52,6 +53,7 @@ export const ATOMIC = {
     validateNotes:
       'Strict `typeof === "bigint"`. Plain `number` values (including `Infinity` / `-Infinity`) are rejected — `42` is not `42n`.',
     validate: () => createValidate<bigint>(),
+    standardSchema: () => createStandardSchema<bigint>(),
     validateDataOnly: () => createValidate<DataOnly<bigint>>(),
     validateSchema: () => createValidate(TF.bigInt()),
     deserializeValidate: () => deserializeValidate<bigint>(),
@@ -101,6 +103,7 @@ export const ATOMIC = {
     validateNotes:
       'Strict typeof === "boolean". Truthy/falsy values that are not actual booleans (e.g., 0, 1, "", "true") are rejected.',
     validate: () => createValidate<boolean>(),
+    standardSchema: () => createStandardSchema<boolean>(),
     validateDataOnly: () => createValidate<DataOnly<boolean>>(),
     validateSchema: () => createValidate(RT.boolean()),
     deserializeValidate: () => deserializeValidate<boolean>(),
@@ -151,6 +154,7 @@ export const ATOMIC = {
       'Invalid Date instances are rejected — e.g., `new Date("not-a-date")` or `new Date(NaN)`, whose `.getTime()` returns NaN.',
     ],
     validate: () => createValidate<Date>(),
+    standardSchema: () => createStandardSchema<Date>(),
     validateDataOnly: () => createValidate<DataOnly<Date>>(),
     validateSchema: () => createValidate(TF.date()),
     deserializeValidate: () => deserializeValidate<Date>(),
@@ -207,6 +211,14 @@ export const ATOMIC = {
         Blue = 2,
       }
       return createValidate<Color>();
+    },
+    standardSchema: () => {
+      enum Color {
+        Red,
+        Green = 'green',
+        Blue = 2,
+      }
+      return createStandardSchema<Color>();
     },
     validateDataOnly: () => {
       enum Color {
@@ -346,6 +358,7 @@ export const ATOMIC = {
     description: 'The numeric literal type `2` is matched by strict `===`, so the string "2" fails.',
     validateNotes: 'Strict === equality with the literal value. The string "2" is not the number 2.',
     validate: () => createValidate<2>(),
+    standardSchema: () => createStandardSchema<2>(),
     validateDataOnly: () => createValidate<DataOnly<2>>(),
     validateSchema: () => createValidate(RT.literal(2)),
     deserializeValidate: () => deserializeValidate<2>(),
@@ -388,6 +401,7 @@ export const ATOMIC = {
     description: "The string literal type `'a'` is matched by strict, case-sensitive `===`.",
     validateNotes: 'Case-sensitive — "A" does not satisfy the literal "a".',
     validate: () => createValidate<'a'>(),
+    standardSchema: () => createStandardSchema<'a'>(),
     validateDataOnly: () => createValidate<DataOnly<'a'>>(),
     validateSchema: () => createValidate(RT.literal('a')),
     deserializeValidate: () => deserializeValidate<'a'>(),
@@ -432,6 +446,7 @@ export const ATOMIC = {
     validateNotes:
       'Strict === equality. Truthy values like 1 or "true" do NOT satisfy the literal `true`; only the boolean true does.',
     validate: () => createValidate<true>(),
+    standardSchema: () => createStandardSchema<true>(),
     validateDataOnly: () => createValidate<DataOnly<true>>(),
     validateSchema: () => createValidate(RT.literal(true)),
     deserializeValidate: () => deserializeValidate<true>(),
@@ -474,6 +489,7 @@ export const ATOMIC = {
     description: 'The bigint literal type `1n` is matched by strict `===`, so the number 1 fails.',
     validateNotes: 'Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.',
     validate: () => createValidate<1n>(),
+    standardSchema: () => createStandardSchema<1n>(),
     validateDataOnly: () => createValidate<DataOnly<1n>>(),
     validateSchema: () => createValidate(RT.literal(1n)),
     deserializeValidate: () => deserializeValidate<1n>(),
@@ -524,6 +540,10 @@ export const ATOMIC = {
     validate: () => {
       const sym = Symbol('hello');
       return createValidate<typeof sym>();
+    },
+    standardSchema: () => {
+      const sym = Symbol('hello');
+      return createStandardSchema<typeof sym>();
     },
     validateDataOnly: () => {
       const sym = Symbol('hello');
@@ -600,6 +620,7 @@ export const ATOMIC = {
     description: 'The `never` keyword rejects every value, and mockType throws.',
     validateNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
     validate: () => createValidate<never>(),
+    standardSchema: () => createStandardSchema<never>(),
     validateDataOnly: () => createValidate<DataOnly<never>>(),
     validateSchema: () => createValidate(RT.never()),
     deserializeValidate: () => deserializeValidate<never>(),
@@ -653,6 +674,7 @@ export const ATOMIC = {
     validateNotes:
       'Strict === null check. `undefined`, `0`, `""`, `false`, `NaN`, `{}`, `[]` and other "falsy" or "nullish-feeling" values are all rejected.',
     validate: () => createValidate<null>(),
+    standardSchema: () => createStandardSchema<null>(),
     validateDataOnly: () => createValidate<DataOnly<null>>(),
     validateSchema: () => createValidate(RT.literal(null)),
     deserializeValidate: () => deserializeValidate<null>(),
@@ -706,6 +728,7 @@ export const ATOMIC = {
       '`NaN`, `Infinity`, and `-Infinity` are rejected even though they pass `typeof === "number"`.',
     ],
     validate: () => createValidate<number>(),
+    standardSchema: () => createStandardSchema<number>(),
     validateDataOnly: () => createValidate<DataOnly<number>>(),
     validateSchema: () => createValidate(TF.number()),
     deserializeValidate: () => deserializeValidate<number>(),
@@ -759,6 +782,7 @@ export const ATOMIC = {
       '`object` here does NOT mean "plain object literal" — if you need that semantic, use a specific object shape or an index-signature type.',
     ],
     validate: () => createValidate<object>(),
+    standardSchema: () => createStandardSchema<object>(),
     validateDataOnly: () => createValidate<DataOnly<object>>(),
     // No value-first builder for the TS `object` primitive (any non-null
     // non-primitive) — `RT.object(...)` is the shape composer, a different kind.
@@ -811,6 +835,7 @@ export const ATOMIC = {
       'The getValidationErrors and mockType REFLECT forms are not supported: a reflect value `const v: RegExp = /abc/` narrows to the literal-regex type `/abc/`, dispatching to the regexp-literal arm — getValidationErrors would then report `expected: "literal"` instead of `"regexp"`, and mockType would resolve a regexp-literal runtype. The validate reflect forms survive because the validator body coincides on the samples; only the kindname-reporting paths diverge.',
     ],
     validate: () => createValidate<RegExp>(),
+    standardSchema: () => createStandardSchema<RegExp>(),
     validateDataOnly: () => createValidate<DataOnly<RegExp>>(),
     validateSchema: () => createValidate(RT.regexp()),
     deserializeValidate: () => deserializeValidate<RegExp>(),
@@ -852,6 +877,7 @@ export const ATOMIC = {
     description: 'The `string` primitive uses strict `typeof === "string"`, accepting the empty string.',
     validateNotes: 'Strict typeof === "string". The empty string ("") is accepted.',
     validate: () => createValidate<string>(),
+    standardSchema: () => createStandardSchema<string>(),
     validateDataOnly: () => createValidate<DataOnly<string>>(),
     validateSchema: () => createValidate(TF.string()),
     deserializeValidate: () => deserializeValidate<string>(),
@@ -898,6 +924,7 @@ export const ATOMIC = {
     validateNotes:
       'Symbol at root is unsupported — identity does not survive across realms or round-trips, so a `typeof === "symbol"` check would give false confidence. The Go pipeline renders the factory as alwaysThrow (codes VL002 / VE002 / IS002), and the very first `createXxx<symbol>()` call throws. See docs/UNSUPPORTED-KINDS.md.',
     validate: () => createValidate<symbol>(),
+    standardSchema: () => createStandardSchema<symbol>(),
     validateDataOnly: () => createValidate<DataOnly<symbol>>(),
     // Bare symbol is unsupported at root — the value-first `RT.symbol()` resolves
     // the same alwaysThrow factory, so this thunk throws like the type-first form.
@@ -937,6 +964,7 @@ export const ATOMIC = {
     description: 'A strict `=== undefined` check treats undefined as distinct from null and other falsy values.',
     validateNotes: 'Strict === undefined check. `null`, `0`, `""`, `false`, `{}`, `[]` are all rejected.',
     validate: () => createValidate<undefined>(),
+    standardSchema: () => createStandardSchema<undefined>(),
     validateDataOnly: () => createValidate<DataOnly<undefined>>(),
     validateSchema: () => createValidate(RT.literal(undefined)),
     deserializeValidate: () => deserializeValidate<undefined>(),
@@ -987,6 +1015,7 @@ export const ATOMIC = {
     validateNotes:
       'TS DIVERGENCE: `void` validates like `undefined` — it accepts `undefined` (and a bare `(): void => {}` return) but rejects `null`, unlike a `null | undefined` type.',
     validate: () => createValidate<void>(),
+    standardSchema: () => createStandardSchema<void>(),
     validateDataOnly: () => createValidate<DataOnly<void>>(),
     validateSchema: () => createValidate(RT.void()),
     deserializeValidate: () => deserializeValidate<void>(),
@@ -1039,6 +1068,7 @@ export const ATOMIC = {
     validateNotes:
       'With `{noLiterals: true}` the literal degrades to its base type (`number`). The exact-literal check is replaced by `Number.isFinite` — same rules as the atomic `number` validator (NaN / Infinity / -Infinity rejected).',
     validate: () => createValidate<2>(undefined, {noLiterals: true}),
+    standardSchema: () => createStandardSchema<2>(undefined, {noLiterals: true}),
     validateDataOnly: () => createValidate<DataOnly<2>>(undefined, {noLiterals: true}),
     // Value-first mirror of the type-first form: the SAME literal id carrying the
     // SAME {noLiterals} option — both resolve the `itNL_<literal-2 id>` variant.
@@ -1086,6 +1116,7 @@ export const ATOMIC = {
     validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `string`. Any string passes, including the empty string.',
     validate: () => createValidate<'a'>(undefined, {noLiterals: true}),
+    standardSchema: () => createStandardSchema<'a'>(undefined, {noLiterals: true}),
     validateDataOnly: () => createValidate<DataOnly<'a'>>(undefined, {noLiterals: true}),
     validateSchema: () => createValidate(RT.literal('a'), {noLiterals: true}),
     deserializeValidate: () => deserializeValidate<'a'>(undefined, {noLiterals: true}),
@@ -1131,6 +1162,10 @@ export const ATOMIC = {
     validate: () => {
       const reg = /abc/i;
       return createValidate<typeof reg>(undefined, {noLiterals: true});
+    },
+    standardSchema: () => {
+      const reg = /abc/i;
+      return createStandardSchema<typeof reg>(undefined, {noLiterals: true});
     },
     validateDataOnly: () => {
       const reg = /abc/i;
@@ -1201,6 +1236,7 @@ export const ATOMIC = {
     validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `boolean`. Either `true` or `false` passes; truthy values like 1 are still rejected.',
     validate: () => createValidate<true>(undefined, {noLiterals: true}),
+    standardSchema: () => createStandardSchema<true>(undefined, {noLiterals: true}),
     validateDataOnly: () => createValidate<DataOnly<true>>(undefined, {noLiterals: true}),
     validateSchema: () => createValidate(RT.literal(true), {noLiterals: true}),
     deserializeValidate: () => deserializeValidate<true>(undefined, {noLiterals: true}),
@@ -1245,6 +1281,7 @@ export const ATOMIC = {
     validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `bigint`. Any bigint passes; the number `1` does NOT.',
     validate: () => createValidate<1n>(undefined, {noLiterals: true}),
+    standardSchema: () => createStandardSchema<1n>(undefined, {noLiterals: true}),
     validateDataOnly: () => createValidate<DataOnly<1n>>(undefined, {noLiterals: true}),
     validateSchema: () => createValidate(RT.literal(1n), {noLiterals: true}),
     deserializeValidate: () => deserializeValidate<1n>(undefined, {noLiterals: true}),
@@ -1291,6 +1328,10 @@ export const ATOMIC = {
     validate: () => {
       const sym = Symbol('hello');
       return createValidate<typeof sym>(undefined, {noLiterals: true});
+    },
+    standardSchema: () => {
+      const sym = Symbol('hello');
+      return createStandardSchema<typeof sym>(undefined, {noLiterals: true});
     },
     validateDataOnly: () => {
       const sym = Symbol('hello');
@@ -1359,6 +1400,7 @@ export const ATOMIC = {
     description: 'The `unknown` keyword produces a no-op validator that accepts every value, same as `any`.',
     validateNotes: 'No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`.',
     validate: () => createValidate<unknown>(),
+    standardSchema: () => createStandardSchema<unknown>(),
     validateDataOnly: () => createValidate<DataOnly<unknown>>(),
     validateSchema: () => createValidate(RT.unknown()),
     deserializeValidate: () => deserializeValidate<unknown>(),

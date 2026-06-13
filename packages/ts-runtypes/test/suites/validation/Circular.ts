@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -19,6 +19,15 @@ export const CIRCULAR = {
         d?: Date;
       }
       return createValidate<Circular>();
+    },
+    standardSchema: () => {
+      interface Circular {
+        n: number;
+        s: string;
+        c?: Circular;
+        d?: Date;
+      }
+      return createStandardSchema<Circular>();
     },
     validateDataOnly: () => {
       interface Circular {
@@ -192,6 +201,10 @@ export const CIRCULAR = {
       type CuArray = (CuArray | Date | number | string)[];
       return createValidate<CuArray>();
     },
+    standardSchema: () => {
+      type CuArray = (CuArray | Date | number | string)[];
+      return createStandardSchema<CuArray>();
+    },
     validateDataOnly: () => {
       type CuArray = (CuArray | Date | number | string)[];
       return createValidate<DataOnly<CuArray>>();
@@ -290,6 +303,12 @@ export const CIRCULAR = {
         tuple: [bigint, CircularTuple?];
       }
       return createValidate<CircularTuple>();
+    },
+    standardSchema: () => {
+      interface CircularTuple {
+        tuple: [bigint, CircularTuple?];
+      }
+      return createStandardSchema<CircularTuple>();
     },
     validateDataOnly: () => {
       interface CircularTuple {
@@ -415,6 +434,12 @@ export const CIRCULAR = {
       }
       return createValidate<CircularIndex>();
     },
+    standardSchema: () => {
+      interface CircularIndex {
+        index: {[key: string]: CircularIndex};
+      }
+      return createStandardSchema<CircularIndex>();
+    },
     validateDataOnly: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
@@ -533,6 +558,12 @@ export const CIRCULAR = {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
       return createValidate<CircularDeep>();
+    },
+    standardSchema: () => {
+      interface CircularDeep {
+        deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+      }
+      return createStandardSchema<CircularDeep>();
     },
     validateDataOnly: () => {
       interface CircularDeep {
@@ -678,6 +709,18 @@ export const CIRCULAR = {
         ciChild: ICircularDeep;
       }
       return createValidate<RootNotCircular>();
+    },
+    standardSchema: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface RootNotCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+      }
+      return createStandardSchema<RootNotCircular>();
     },
     validateDataOnly: () => {
       interface ICircularDeep {
@@ -937,6 +980,27 @@ export const CIRCULAR = {
         ciDate: ICircularDate;
       }
       return createValidate<RootCircular>();
+    },
+    standardSchema: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface ICircularDate {
+        date: Date;
+        month: number;
+        year: number;
+        embedded?: ICircularDate;
+        deep?: ICircularDeep;
+      }
+      interface RootCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+        ciRoort?: RootCircular;
+        ciDate: ICircularDate;
+      }
+      return createStandardSchema<RootCircular>();
     },
     validateDataOnly: () => {
       interface ICircularDeep {

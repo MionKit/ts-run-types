@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -14,6 +14,7 @@ export const TUPLE = {
       'Each slot runs the atomic check for its declared type.',
     ],
     validate: () => createValidate<[string, number]>(),
+    standardSchema: () => createStandardSchema<[string, number]>(),
     validateDataOnly: () => createValidate<DataOnly<[string, number]>>(),
     validateSchema: () => createValidate(RT.tuple([TF.string(), TF.number()])),
     deserializeValidate: () => deserializeValidate<[string, number]>(),
@@ -92,6 +93,7 @@ export const TUPLE = {
     validateNotes:
       'Each slot runs its declared atomic check: an Invalid Date at slot 0, `NaN` at slot 1, or `undefined` at the `null`-literal slot 3 all fail (`undefined` is not `null`).',
     validate: () => createValidate<[Date, number, string, null, string[], bigint]>(),
+    standardSchema: () => createStandardSchema<[Date, number, string, null, string[], bigint]>(),
     validateDataOnly: () => createValidate<DataOnly<[Date, number, string, null, string[], bigint]>>(),
     validateSchema: () =>
       createValidate(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
@@ -156,6 +158,7 @@ export const TUPLE = {
     validateNotes:
       'Optional tuple slots may be absent OR explicitly `undefined`. Trailing-only — TS grammar disallows `[A, B?, C]` (required after optional).',
     validate: () => createValidate<[number, bigint?, boolean?, number?]>(),
+    standardSchema: () => createStandardSchema<[number, bigint?, boolean?, number?]>(),
     validateDataOnly: () => createValidate<DataOnly<[number, bigint?, boolean?, number?]>>(),
     validateSchema: () => createValidate(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
     deserializeValidate: () => deserializeValidate<[number, bigint?, boolean?, number?]>(),
@@ -209,6 +212,7 @@ export const TUPLE = {
     validateNotes:
       'Each element is a fixed-length tuple, so a non-array element (e.g. `"not tuple"`) fails with `expected: "tuple"` while element-level failures report the nested `[index, slot]` path.',
     validate: () => createValidate<[string, number][]>(),
+    standardSchema: () => createStandardSchema<[string, number][]>(),
     validateDataOnly: () => createValidate<DataOnly<[string, number][]>>(),
     validateSchema: () => createValidate(RT.array(RT.tuple([TF.string(), TF.number()]))),
     deserializeValidate: () => deserializeValidate<[string, number][]>(),
@@ -277,6 +281,7 @@ export const TUPLE = {
     validateNotes:
       'A trailing rest segment absorbs any number of trailing elements (including zero). Each trailing element must satisfy the rest type.',
     validate: () => createValidate<[number, ...string[]]>(),
+    standardSchema: () => createStandardSchema<[number, ...string[]]>(),
     validateDataOnly: () => createValidate<DataOnly<[number, ...string[]]>>(),
     validateSchema: () => createValidate(RT.tuple([TF.number()], TF.string())),
     deserializeValidate: () => deserializeValidate<[number, ...string[]]>(),
@@ -340,6 +345,10 @@ export const TUPLE = {
     validate: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createValidate<TupleCircular>();
+    },
+    standardSchema: () => {
+      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+      return createStandardSchema<TupleCircular>();
     },
     validateDataOnly: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -438,6 +447,7 @@ export const TUPLE = {
     validateNotes:
       'An optional slot may be absent or explicitly `undefined`. The resolver expands an optional like `boolean?` to a union (`undefined | true | false`), so a wrong value there reports `expected: "union"` rather than `"boolean"`.',
     validate: () => createValidate<[number, bigint?, boolean?, number?]>(),
+    standardSchema: () => createStandardSchema<[number, bigint?, boolean?, number?]>(),
     validateDataOnly: () => createValidate<DataOnly<[number, bigint?, boolean?, number?]>>(),
     validateSchema: () => createValidate(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
     deserializeValidate: () => deserializeValidate<[number, bigint?, boolean?, number?]>(),
@@ -510,6 +520,7 @@ export const TUPLE = {
     validateNotes:
       'Element labels are TS-only metadata erased at emit — the validator is identical to the unlabelled `[string, number]`; only positional types are checked.',
     validate: () => createValidate<[name: string, age: number]>(),
+    standardSchema: () => createStandardSchema<[name: string, age: number]>(),
     validateDataOnly: () => createValidate<DataOnly<[name: string, age: number]>>(),
     validateSchema: () => createValidate(RT.tuple([TF.string(), TF.number()])),
     deserializeValidate: () => deserializeValidate<[name: string, age: number]>(),
@@ -577,6 +588,7 @@ export const TUPLE = {
       'This is the opposite of the object-property case (where function-typed props are skipped entirely): tuples enforce `=== undefined` because tuple position is structural.',
     ],
     validate: () => createValidate<[number, () => any]>(),
+    standardSchema: () => createStandardSchema<[number, () => any]>(),
     validateDataOnly: () => createValidate<DataOnly<[number, () => any]>>(),
     validateSchema: () => createValidate(RT.tuple([TF.number(), RT.func([], RT.any())])),
     deserializeValidate: () => deserializeValidate<[number, () => any]>(),
@@ -639,6 +651,7 @@ export const TUPLE = {
     validateNotes:
       'Only the empty array `[]` passes — any element at all (even `[null]`) fails the exact length-0 check; a plain object `{}` is also rejected.',
     validate: () => createValidate<[]>(),
+    standardSchema: () => createStandardSchema<[]>(),
     validateDataOnly: () => createValidate<DataOnly<[]>>(),
     validateSchema: () => createValidate(RT.tuple([])),
     deserializeValidate: () => deserializeValidate<[]>(),
@@ -689,6 +702,7 @@ export const TUPLE = {
     validateNotes:
       'Length must be exactly 1 — both an empty array `[]` and an over-length `["hello", "extra"]` fail; the single slot runs the atomic check for its declared type.',
     validate: () => createValidate<[string]>(),
+    standardSchema: () => createStandardSchema<[string]>(),
     validateDataOnly: () => createValidate<DataOnly<[string]>>(),
     validateSchema: () => createValidate(RT.tuple([TF.string()])),
     deserializeValidate: () => deserializeValidate<[string]>(),
@@ -742,6 +756,7 @@ export const TUPLE = {
     validateNotes:
       'The `readonly` modifier has NO runtime impact — the validator is identical to the mutable `[string, number]`; the compiler enforces readonly at write sites only.',
     validate: () => createValidate<readonly [string, number]>(),
+    standardSchema: () => createStandardSchema<readonly [string, number]>(),
     validateDataOnly: () => createValidate<DataOnly<readonly [string, number]>>(),
     validateSchema: () => createValidate(RT.tuple([TF.string(), TF.number()])),
     deserializeValidate: () => deserializeValidate<readonly [string, number]>(),
