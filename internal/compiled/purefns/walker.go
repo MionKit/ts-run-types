@@ -2,6 +2,7 @@ package purefns
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -32,7 +33,7 @@ type Entry struct {
 	// parameter to identify utl through.
 	PureFnDependencies []string
 	// FactoryArgStart / FactoryArgEnd are the byte offsets of the user's
-	// factory argument expression in the `registerPureFnFactory(ns, fn,
+	// factory argument expression in the `registerPureFnFactory(pureFnId,
 	// factory)` call. Used by the Vite plugin to replace that span with
 	// `null` so the canonical fn body lives only in the emitted pureFns
 	// cache module.
@@ -96,8 +97,8 @@ func (cache *FileCache) put(filePath string, entries []Entry, diagnostics []diag
 
 // ExtractFromProgram walks every file in `files`, finds calls to
 // `registerPureFnFactory(...)` whose resolved signature carries the
-// expected marker brands (CompTimeArgs<string> × 2 + PureFunction<F>
-// on slots 0, 1, 2), and returns (deduped entries, diagnostics).
+// expected marker brands (CompTimeArgs<string> + PureFunction<F>
+// on slots 0, 1), and returns (deduped entries, diagnostics).
 //
 // Discovery is two-layered: a cheap callee-name filter
 // (`pureFnFactoryCalleeName`) rules out unrelated calls without paying
@@ -109,8 +110,8 @@ func (cache *FileCache) put(filePath string, entries []Entry, diagnostics []diag
 //
 // Diagnostics never block compilation — they're surfaced via the Vite
 // plugin's `this.warn` channel using the canonical tsc-compatible
-// format. Note: marker-shape diagnostics (non-literal namespace / fnId
-// / factory) are emitted by `resolver.scanCall` via CTA001 / PFN001,
+// format. Note: marker-shape diagnostics (non-literal id / factory) are
+// emitted by `resolver.scanCall` via CTA001 / PFN001,
 // NOT here. This pass emits only purefn-specific diagnostics:
 // PFE9004 (cross-file collision), PFE9005 (destructured factory
 // param), PFE9006-9011 (purity), PFE9012-9013 (deps).
@@ -246,7 +247,7 @@ func findCalls(sourceFile *ast.SourceFile, cb func(*ast.Node)) {
 // The name is NOT the contract — the marker brands are. After the
 // pre-filter the brand check via `isPureFnFactoryCall` still runs and
 // verifies the call's signature really matches `(CompTimeArgs<string>,
-// CompTimeArgs<string>, PureFunction<F> | null)`. A user's own
+// PureFunction<F> | null)`. A user's own
 // `function registerPureFnFactory()` declared elsewhere is rejected by
 // the brand check even if it passes the name filter; the real
 // `registerPureFnFactory` imported under an alias is missed, but the
@@ -267,8 +268,8 @@ const pureFnFactoryCalleeName = "registerPureFnFactory"
 //  1. Cheap: the callee is an identifier whose text equals the
 //     well-known `registerPureFnFactory` name. Avoids signature
 //     resolution on unrelated calls.
-//  2. Brand verify: the resolved signature has ≥3 parameters where
-//     slots 0+1 carry `CompTimeArgs<string>` and slot 2 carries
+//  2. Brand verify: the resolved signature has ≥2 parameters where
+//     slot 0 carries `CompTimeArgs<string>` and slot 1 carries
 //     `PureFunction<F>`. Module-of-origin is implicit in the brand
 //     check (markers only match aliases declared in the
 //     `ts-runtypes` package), so a user's own
@@ -288,12 +289,11 @@ func isPureFnFactoryCall(typeChecker *checker.Checker, markerOpts marker.Options
 		return false
 	}
 	parameters := checker.Signature_parameters(signature)
-	if len(parameters) < 3 {
+	if len(parameters) < 2 {
 		return false
 	}
 	return paramHasMarker(typeChecker, markerOpts, parameters[0], marker.KindCompTimeArgs) &&
-		paramHasMarker(typeChecker, markerOpts, parameters[1], marker.KindCompTimeArgs) &&
-		paramHasMarker(typeChecker, markerOpts, parameters[2], marker.KindPureFunction)
+		paramHasMarker(typeChecker, markerOpts, parameters[1], marker.KindPureFunction)
 }
 
 // paramHasMarker reports whether the parameter's resolved type carries
@@ -316,13 +316,13 @@ func paramHasMarker(typeChecker *checker.Checker, markerOpts marker.Options, par
 // extractOne processes a single CallExpression. Returns (nil, nil)
 // when the call isn't a `registerPureFnFactory(...)` invocation (the
 // callee name + brand shape both have to match — see
-// `isPureFnFactoryCall`), or when any of the three args can't be
-// resolved to its literal form.
+// `isPureFnFactoryCall`), or when either arg can't be resolved to its
+// literal form.
 //
-// Marker-shape validation (non-literal namespace / fnId / factory) is
-// emitted as CTA001 / PFN001 by `resolver.scanCall` — this function
-// does NOT double-report. Only purefn-specific diagnostics are
-// emitted here (PFE9005, PFE9006-9011, PFE9012-9013).
+// Marker-shape validation (non-literal id / factory) is emitted as
+// CTA001 / PFN001 by `resolver.scanCall` — this function does NOT
+// double-report. Only purefn-specific diagnostics are emitted here
+// (PFE9005, PFE9006-9011, PFE9012-9013).
 //
 // The returned Entry carries internal-only fields (sourceFile, callPos)
 // that the caller uses for cross-file collision reporting; these never
@@ -335,7 +335,7 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 	if !isPureFnFactoryCall(typeChecker, markerOpts, call) {
 		return nil, nil
 	}
-	if callExpr.Arguments == nil || len(callExpr.Arguments.Nodes) < 3 {
+	if callExpr.Arguments == nil || len(callExpr.Arguments.Nodes) < 2 {
 		return nil, nil
 	}
 	args := callExpr.Arguments.Nodes
@@ -344,24 +344,32 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 	// extraction has produced a cache entry. Re-scanning the
 	// rewritten source must be a quiet no-op: no entry, no
 	// replacement, no diagnostic.
-	if args[2].Kind == ast.KindNullKeyword {
+	if args[1].Kind == ast.KindNullKeyword {
 		return nil, nil
 	}
 	var diags []diag.Diagnostic
 
-	nsLit, nsResult := comptimeargs.ResolveLiteralString(typeChecker, args[0])
-	fnNameLit, fnNameResult := comptimeargs.ResolveLiteralString(typeChecker, args[1])
-	factoryFn, factoryResult := comptimeargs.CheckLiteralFunction(typeChecker, args[2])
+	idLit, idResult := comptimeargs.ResolveLiteralString(typeChecker, args[0])
+	factoryFn, factoryResult := comptimeargs.CheckLiteralFunction(typeChecker, args[1])
 
 	// Marker layer (resolver.scanCall) emits CTA001 / PFN001 for these
 	// failures. Silently bail without an entry — duplicate diagnostics
 	// would be noise.
-	if !nsResult.Ok || !fnNameResult.Ok || !factoryResult.Ok {
+	if !idResult.Ok || !factoryResult.Ok {
 		return nil, nil
 	}
 
-	namespace := nsLit.Text()
-	functionName := fnNameLit.Text()
+	// The combined id is "<namespace>::<functionName>"; split on the FIRST
+	// "::" so a namespace can't swallow a function name that itself contains
+	// "::" (the internal cache key stays the verbatim id either way).
+	pureFnId := idLit.Text()
+	sep := strings.Index(pureFnId, "::")
+	namespace := pureFnId
+	functionName := ""
+	if sep >= 0 {
+		namespace = pureFnId[:sep]
+		functionName = pureFnId[sep+2:]
+	}
 
 	// Param-name extraction + destructuring guard.
 	fnLike := factoryFn.FunctionLikeData()
@@ -426,8 +434,8 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 		Code:               code,
 		BodyHash:           BodyHash(namespace, functionName, code),
 		PureFnDependencies: pureFnDependencies,
-		FactoryArgStart:    args[2].Pos(),
-		FactoryArgEnd:      args[2].End(),
+		FactoryArgStart:    args[1].Pos(),
+		FactoryArgEnd:      args[1].End(),
 		FilePath:           sourceFile.FileName(),
 		sourceFile:         sourceFile,
 		callPos:            call.Pos(),

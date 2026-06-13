@@ -277,8 +277,8 @@ factory. Destructuring patterns (\`({a, b})\`, \`([x, y])\`) don't have a
 single name to substitute.
 
 Fix — destructure inside the body:
-  -  registerPureFnFactory('ns', 'fn', (utl) => ({a, b}) => ...);
-+  registerPureFnFactory('ns', 'fn', (utl) => (params) => {
+  -  registerPureFnFactory('ns::fn', (utl) => ({a, b}) => ...);
++  registerPureFnFactory('ns::fn', (utl) => (params) => {
 +    const {a, b} = params;
 +    return ...;
 +  });`,
@@ -292,7 +292,7 @@ Fix — destructure inside the body:
 
 Fix — replace \`this\` with an explicit parameter, or move the function
 out of the class/object method that owns the \`this\`:
-  registerPureFnFactory('ns', 'fn', (utl) => (self, input) => {
+  registerPureFnFactory('ns::fn', (utl) => (self, input) => {
     return self.field + input;
   });`,
   },
@@ -304,7 +304,7 @@ compile time. \`async\` introduces a Promise that won't resolve until
 runtime.
 
 Fix — make the factory synchronous; move async work to the caller:
-  registerPureFnFactory('ns', 'fn', (utl) => {
+  registerPureFnFactory('ns::fn', (utl) => {
 -   return async (input) => { const r = await heavy(); return r; };
 +   return (resolvedValue) => transform(resolvedValue);
   });`,
@@ -316,7 +316,7 @@ Fix — make the factory synchronous; move async work to the caller:
 statically.
 
 Fix — return an array or a plain iterable instead:
-  registerPureFnFactory('ns', 'fn', (utl) => (input) => {
+  registerPureFnFactory('ns::fn', (utl) => (input) => {
     return [...computeAll(input)];
   });`,
   },
@@ -347,10 +347,10 @@ Fix — remove the reference, or pass the needed value in as a parameter.`,
 any free variable becomes \`undefined\` at runtime.
 
 Fix — pass \`{0}\` in as a parameter:
-  registerPureFnFactory('ns', 'fn', (utl) => ({0}, value) => ...);
+  registerPureFnFactory('ns::fn', (utl) => ({0}, value) => ...);
 
 Fix — inline its value if it's a known constant:
-  registerPureFnFactory('ns', 'fn', (utl) => (value) => {
+  registerPureFnFactory('ns::fn', (utl) => (value) => {
     const {0} = 42;
     ...
   });
@@ -360,7 +360,7 @@ Fix — import \`{0}\` directly inside the factory if it's a module export.`,
 
   PFE9012: {
     headline:
-      'Pure-fn `{0}` is referenced by a RT function but never registered — call `registerPureFnFactory({1}, {2}, …)` first.',
+      "Pure-fn `{0}` is referenced by a RT function but never registered — call `registerPureFnFactory('{1}::{2}', …)` first.",
     detail: `A RT validator/encoder calls \`utl.usePureFn('{0}')\` (or similar) but
 no \`registerPureFnFactory\` call with that namespace+function pair was
 found in any scanned source file.

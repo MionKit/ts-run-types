@@ -17,7 +17,7 @@ func depsOfFirst(t *testing.T, source string) ([]string, []Diagnostic) {
 func TestDeps_LiteralKey_GetPureFn(t *testing.T) {
 	deps, diags := depsOfFirst(t, `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'consumer', function (utl) {
+export const _ = registerPureFnFactory('rt::consumer', function (utl) {
   return function _f(x: number) {
     return utl.getPureFn('rt::dep')(x);
   };
@@ -35,7 +35,7 @@ export const _ = registerPureFnFactory('rt', 'consumer', function (utl) {
 func TestDeps_AllFourKeyMethods(t *testing.T) {
 	deps, _ := depsOfFirst(t, `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'multi', function (utl) {
+export const _ = registerPureFnFactory('rt::multi', function (utl) {
   return function _f(x: any) {
     utl.getPureFn('rt::a')(x);
     utl.usePureFn('rt::b')(x);
@@ -56,7 +56,7 @@ func TestDeps_FindCompiledPureFn_BareName(t *testing.T) {
 	// way the old tracking proxy used to record it.
 	deps, _ := depsOfFirst(t, `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'findCaller', function (utl) {
+export const _ = registerPureFnFactory('rt::findCaller', function (utl) {
   return function _f() {
     return utl.findCompiledPureFn('someBareName');
   };
@@ -71,7 +71,7 @@ func TestDeps_RenamedUtlParam(t *testing.T) {
 	// it off Parameters[0] rather than hardcoding `utl`.
 	deps, _ := depsOfFirst(t, `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'renamed', function (J) {
+export const _ = registerPureFnFactory('rt::renamed', function (J) {
   return function _f(x: any) {
     return J.getPureFn('rt::renamedDep')(x);
   };
@@ -86,7 +86,7 @@ func TestDeps_FactoryLocalConst(t *testing.T) {
 	// table resolves it before the file-level fallback.
 	deps, _ := depsOfFirst(t, `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'local', function (utl) {
+export const _ = registerPureFnFactory('rt::local', function (utl) {
   const KEY = 'rt::localDep';
   return function _f(x: any) {
     return utl.getPureFn(KEY)(x);
@@ -101,7 +101,7 @@ func TestDeps_FileLevelConst_Fallback(t *testing.T) {
 	deps, _ := depsOfFirst(t, `
 import {registerPureFnFactory} from 'ts-runtypes';
 const FILE_KEY = 'rt::fileDep';
-export const _ = registerPureFnFactory('rt', 'fileFb', function (utl) {
+export const _ = registerPureFnFactory('rt::fileFb', function (utl) {
   return function _f(x: any) {
     return utl.getPureFn(FILE_KEY)(x);
   };
@@ -116,7 +116,7 @@ func TestDeps_DedupAndSort(t *testing.T) {
 	// entry. Multiple distinct deps → sorted alphabetically.
 	deps, _ := depsOfFirst(t, `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'dedup', function (utl) {
+export const _ = registerPureFnFactory('rt::dedup', function (utl) {
   return function _f(x: any) {
     utl.getPureFn('rt::z')(x);
     utl.usePureFn('rt::a')(x);
@@ -134,7 +134,7 @@ func TestDeps_NonLiteralArg_PFE9013(t *testing.T) {
 	_, diags := depsOfFirst(t, `
 import {registerPureFnFactory} from 'ts-runtypes';
 declare const buildKey: (n: number) => string;
-export const _ = registerPureFnFactory('rt', 'bad', function (utl) {
+export const _ = registerPureFnFactory('rt::bad', function (utl) {
   return function _f(x: any) {
     return utl.getPureFn(buildKey(1))(x);
   };
@@ -157,7 +157,7 @@ func TestDeps_NoCalls_NilDeps(t *testing.T) {
 	// Factory body has no utl.<dep-method>(...) calls → no deps slice.
 	deps, _ := depsOfFirst(t, `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'plain', function (utl) {
+export const _ = registerPureFnFactory('rt::plain', function (utl) {
   return function _f(x: number) { return x + 1; };
 });`)
 	if len(deps) != 0 {
@@ -173,7 +173,7 @@ func TestDeps_NoFirstParam_NoExtraction(t *testing.T) {
 	_, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'noParam', function () {
+export const _ = registerPureFnFactory('rt::noParam', function () {
   return function _f() { return 1; };
 });`,
 	})

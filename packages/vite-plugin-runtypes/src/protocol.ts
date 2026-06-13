@@ -212,6 +212,12 @@ export interface Site {
   // demand is Go-internal emit metadata (which cache entries this site requires)
   // serialized onto the Site; the plugin does not read it. Mirrored for accuracy.
   demand?: SiteDemand[];
+  // trailingComma is true when the call's own argument list was written with a
+  // trailing comma (e.g. a formatter-wrapped value-first marker call). The
+  // injector splices the binding WITHOUT a leading comma in that case —
+  // otherwise the pre-existing comma plus the injected `, …` produce an empty
+  // argument `f(a, , …)`, which is invalid JS.
+  trailingComma?: boolean;
   // module, when present, is the bundle-module BASENAME this site's entry
   // rides in (allSingle module mode): the rewrite imports the binding from
   // `virtual:rt/<module>.js` instead of the entry's own module. The clause

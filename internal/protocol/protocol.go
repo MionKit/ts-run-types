@@ -531,6 +531,12 @@ type Site struct {
 	// reversible. One entry for a simple family / it-te variant; several for a
 	// composite JSON strategy. Empty for reflection-only sites.
 	Demand []SiteDemand `json:"demand,omitempty"`
+	// TrailingComma is true when the call's own argument list was written with
+	// a trailing comma (e.g. a formatter-wrapped value-first marker call). The
+	// TS-side injector splices the binding WITHOUT a leading comma in that case
+	// — otherwise the pre-existing comma plus the injected `, …` produce an
+	// empty argument `f(a, , …)`, which is invalid JS.
+	TrailingComma bool `json:"trailingComma,omitempty"`
 	// Module, when non-empty, is the bundle-module BASENAME this site's entry
 	// rides in (allSingle module mode): the rewrite imports the binding from
 	// `virtual:rt/<Module>.js` instead of the entry's own module — the clause
@@ -554,7 +560,7 @@ type SiteDemand struct {
 
 // Replacement is a byte-range rewrite on a source file: replace the
 // bytes [Start, End) with Text. Used by the pure-fn extractor to swap
-// the factory argument of every `registerPureFnFactory(ns, fn,
+// the factory argument of every `registerPureFnFactory(pureFnId,
 // factory)` call for the pure fn's entry-module import binding, so the
 // canonical fn body lives only in the emitted entry module (no
 // duplication in the user bundle).
@@ -661,7 +667,7 @@ func (response Response) MarshalJSON() ([]byte, error) {
 
 // PureFnDep identifies a pure-function dependency of a RT-compiled
 // function. FilePath is the absolute path of the source file where
-// registerPureFnFactory(<Namespace>, <FunctionName>, ...) is invoked.
+// registerPureFnFactory("<Namespace>::<FunctionName>", ...) is invoked.
 // The walker uses FilePath at compile time to assert the dependency
 // actually exists in source (Go-side AST integrity check); it does
 // not reach the emitted JS — the wire shape stays the flat

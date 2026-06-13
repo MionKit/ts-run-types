@@ -8,7 +8,7 @@ import (
 func TestExtract_CapturesFactoryArgBounds(t *testing.T) {
 	source := `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'foo', function (utl) {
+export const _ = registerPureFnFactory('rt::foo', function (utl) {
   return function _f(x: number) { return x + 1; };
 });`
 	entries, diags := extractFromOverlay(t, map[string]string{"a.ts": source})
@@ -48,9 +48,9 @@ export const _ = registerPureFnFactory('rt', 'foo', function (utl) {
 	// factory literal for the imported tuple binding.
 	rewritten := source[:reps[0].Start] + reps[0].Text + source[reps[0].End:]
 	// The factory-arg byte range includes its leading trivia (the space
-	// after the comma), so the rewrite collapses to `'foo',<binding>` rather
-	// than `'foo', <binding>` — both forms parse identically.
-	if !strings.Contains(rewritten, "registerPureFnFactory('rt', 'foo',__rt_pf$2Frt$2Ffoo)") {
+	// after the comma), so the rewrite collapses to `'rt::foo',<binding>`
+	// rather than `'rt::foo', <binding>` — both forms parse identically.
+	if !strings.Contains(rewritten, "registerPureFnFactory('rt::foo',__rt_pf$2Frt$2Ffoo)") {
 		t.Errorf("rewritten source missing binding-swapped call form:\n%s", rewritten)
 	}
 }
@@ -64,7 +64,7 @@ func TestExtract_NoReplacement_OnFailedExtraction(t *testing.T) {
 	source := `
 import {registerPureFnFactory} from 'ts-runtypes';
 declare function buildFactory(): any;
-export const _ = registerPureFnFactory('rt', 'bad', buildFactory());`
+export const _ = registerPureFnFactory('rt::bad', buildFactory());`
 	entries, _ := extractFromOverlay(t, map[string]string{"a.ts": source})
 	if len(entries) != 0 {
 		t.Fatalf("expected no entries, got %+v", entries)

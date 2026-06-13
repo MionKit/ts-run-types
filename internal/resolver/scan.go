@@ -216,13 +216,19 @@ func (state scanState) detectMarker(paramType *checker.Type) (marker.Kind, *chec
 // the scan path) and mints the Site. The split exists so the analysis
 // can run on pool checkers concurrently while projection stays serial.
 type pendingCall struct {
-	file         string
-	pos          int
-	paramIndex   int
-	argsCount    int
-	fnId         string
-	demand       []protocol.SiteDemand
-	typeArgument *checker.Type
+	file       string
+	pos        int
+	paramIndex int
+	argsCount  int
+	fnId       string
+	demand     []protocol.SiteDemand
+	// trailingComma is true when the call's own argument list already ends
+	// with a comma (e.g. a formatter-wrapped `createValidate(\n  schema,\n)`).
+	// The TS-side injector reads it to splice the binding WITHOUT a leading
+	// comma — otherwise the pre-existing comma plus the injected `, …` yield
+	// an empty argument `f(a, , …)`, which is invalid JS.
+	trailingComma bool
+	typeArgument  *checker.Type
 	// owner is the checker that materialized typeArgument. Projection
 	// must run under it — types from different checkers never mix
 	// (upstream contract on Program.GetTypeCheckerForFile).
@@ -237,13 +243,14 @@ type pendingCall struct {
 func (resolver *Resolver) commitPending(pending pendingCall) protocol.Site {
 	id := resolver.cache.AssignIDUnder(pending.owner, pending.typeArgument)
 	return protocol.Site{
-		File:       pending.file,
-		Pos:        pending.pos,
-		ID:         id,
-		ParamIndex: pending.paramIndex,
-		ArgsCount:  pending.argsCount,
-		FnId:       pending.fnId,
-		Demand:     pending.demand,
+		File:          pending.file,
+		Pos:           pending.pos,
+		ID:            id,
+		ParamIndex:    pending.paramIndex,
+		ArgsCount:     pending.argsCount,
+		FnId:          pending.fnId,
+		Demand:        pending.demand,
+		TrailingComma: pending.trailingComma,
 	}
 }
 
@@ -276,8 +283,13 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	lastIndex := len(parameters) - 1
 	callExpression := call.AsCallExpression()
 	argsCount := 0
+	trailingComma := false
 	if callExpression != nil && callExpression.Arguments != nil {
 		argsCount = len(callExpression.Arguments.Nodes)
+		// Robust signal for the TS-side injector: the AST records whether the
+		// argument list was written with a trailing comma (survives comments /
+		// whitespace), so the injector never has to scan source bytes backward.
+		trailingComma = callExpression.Arguments.HasTrailingComma()
 	}
 	// Walk every parameter and dispatch per marker Kind. CompTimeArgs /
 	// PureFunction validation runs regardless of whether the trailing
@@ -483,13 +495,14 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		file: file,
 		// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 		// the closing-paren offset where the TS-side patcher inserts.
-		pos:          call.End() - 1,
-		paramIndex:   lastIndex,
-		argsCount:    argsCount,
-		fnId:         fnId,
-		demand:       demand,
-		typeArgument: typeArgument,
-		owner:        state.scanChecker,
+		pos:           call.End() - 1,
+		paramIndex:    lastIndex,
+		argsCount:     argsCount,
+		fnId:          fnId,
+		demand:        demand,
+		trailingComma: trailingComma,
+		typeArgument:  typeArgument,
+		owner:         state.scanChecker,
 	}, diagnostics, true
 }
 

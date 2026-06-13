@@ -151,8 +151,12 @@ function buildImportBlock(sites: Site[], replacements: Replacement[]): string {
 }
 
 // buildInsertion produces the text to splice in just before the call's
-// closing `)`. The result accounts for two variables:
+// closing `)`. The result accounts for three variables:
 //   - existing argument count (do we need a leading comma?)
+//   - whether the call's own argument list already ends with a trailing comma
+//     (Go's `site.trailingComma` signal) — if so, the source already supplies
+//     the separator, so we emit the bare body without a leading comma to avoid
+//     producing an empty argument `f(a, , …)`.
 //   - whether earlier optional slots need `undefined` placeholders so the
 //     binding lands at the right paramIndex.
 function buildInsertion(s: Site): string {
@@ -166,5 +170,8 @@ function buildInsertion(s: Site): string {
   // self-describing (slot 3 is the cache key), so no id strings ride along.
   parts.push(siteBinding(s));
   const body = parts.join(', ');
-  return argsCount > 0 ? `, ${body}` : body;
+  // Emit the bare body (no leading comma) when there are no prior arguments OR
+  // the argument list already ends with a trailing comma — in both cases the
+  // source position right before `)` follows a separator (a `(` or a `,`).
+  return argsCount === 0 || s.trailingComma ? body : `, ${body}`;
 }

@@ -11,14 +11,15 @@ import (
 )
 
 // runtypesDts is the ambient marker declaration injected into every
-// purefns test overlay. It declares the three marker types and a
-// brand-branded registerPureFnFactory signature so the marker-driven
-// discovery in walker.go recognises calls in test fixtures the same
-// way it recognises them in real consumer code.
+// purefns test overlay. It declares the marker types and a brand-branded
+// registerPureFnFactory signature so the marker-driven discovery in
+// walker.go recognises calls in test fixtures the same way it recognises
+// them in real consumer code.
 const runtypesDts = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
+  export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};
   export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
     getPureFn(key: CompTimeArgs<string>): any;
@@ -27,8 +28,7 @@ const runtypesDts = `declare module 'ts-runtypes' {
     findCompiledPureFn(fnName: CompTimeArgs<string>): any;
   }
   export function registerPureFnFactory(
-    namespace: CompTimeArgs<string>,
-    functionID: CompTimeArgs<string>,
+    pureFnId: CompTimeArgs<PureFnId>,
     factory: PureFunction<(utl: RTUtils) => any> | null
   ): any;
 }
@@ -73,7 +73,7 @@ func TestExtract_HappyPath_FunctionExpression(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const cpf = registerPureFnFactory('rt', 'asJSONString', function () {
+export const cpf = registerPureFnFactory('rt::asJSONString', function () {
   return function _stringify(s: string): string {
     return JSON.stringify(s);
   };
@@ -104,7 +104,7 @@ func TestExtract_HappyPath_ArrowFunction(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const cpf = registerPureFnFactory('test', 'arrowFn', (jUtils) => {
+export const cpf = registerPureFnFactory('test::arrowFn', (jUtils) => {
   return function _fn(x: number) {
     return x;
   };
@@ -125,7 +125,7 @@ func TestExtract_HappyPath_ArrowExpressionBody(t *testing.T) {
 	entries, _ := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const cpf = registerPureFnFactory('t', 'inline', (j) => () => 42);`,
+export const cpf = registerPureFnFactory('t::inline', (j) => () => 42);`,
 	})
 	if len(entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(entries))
@@ -135,18 +135,18 @@ export const cpf = registerPureFnFactory('t', 'inline', (j) => () => 42);`,
 	}
 }
 
-func TestExtract_TracedNamespaceConst(t *testing.T) {
+func TestExtract_TracedIdConst(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-const NS = 'rt';
-export const cpf = registerPureFnFactory(NS, 'foo', function () { return function() {}; });`,
+const ID = 'rt::foo';
+export const cpf = registerPureFnFactory(ID, function () { return function() {}; });`,
 	})
 	if len(diags) != 0 {
 		t.Fatalf("unexpected diagnostics: %+v", diags)
 	}
-	if len(entries) != 1 || entries[0].Namespace != "rt" {
-		t.Fatalf("expected traced namespace, got entries=%+v", entries)
+	if len(entries) != 1 || entries[0].Namespace != "rt" || entries[0].FunctionName != "foo" {
+		t.Fatalf("expected traced id, got entries=%+v", entries)
 	}
 }
 
@@ -155,7 +155,7 @@ func TestExtract_TracedFactoryConst(t *testing.T) {
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
 const myFactory = function () { return function inner(x: number) { return x; }; };
-export const cpf = registerPureFnFactory('rt', 'tracedFn', myFactory);`,
+export const cpf = registerPureFnFactory('rt::tracedFn', myFactory);`,
 	})
 	if len(diags) != 0 {
 		t.Fatalf("unexpected diagnostics: %+v", diags)
@@ -170,7 +170,7 @@ func TestExtract_TracedFunctionDeclaration(t *testing.T) {
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
 function myFactory() { return function inner() { return 1; }; }
-export const cpf = registerPureFnFactory('rt', 'tracedFnDecl', myFactory);`,
+export const cpf = registerPureFnFactory('rt::tracedFnDecl', myFactory);`,
 	})
 	if len(diags) != 0 {
 		t.Fatalf("unexpected diagnostics: %+v", diags)
@@ -182,36 +182,21 @@ export const cpf = registerPureFnFactory('rt', 'tracedFnDecl', myFactory);`,
 
 // The PFE9001 / PFE9002 / PFE9003 codes were retired with the marker
 // migration — the walker no longer emits shape diagnostics. Their
-// replacements (CTA001 for non-literal namespace / fnId, PFN001 for
-// non-inline factory) flow through resolver.scanCall now. The three
-// tests below pin the walker's silent-skip behaviour for each shape
-// failure: the entry must not be extracted and no walker diagnostic
-// must be emitted (the marker layer would emit one if scanCall ran).
+// replacements (CTA001 for a non-literal id, PFN001 for a non-inline
+// factory) flow through resolver.scanCall now. The two tests below pin
+// the walker's silent-skip behaviour for each shape failure: the entry
+// must not be extracted and no walker diagnostic must be emitted (the
+// marker layer would emit one if scanCall ran).
 
-func TestExtract_NonLiteralNamespace_SilentSkip(t *testing.T) {
+func TestExtract_NonLiteralId_SilentSkip(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const cpf = registerPureFnFactory(getNs(), 'fn', function () { return function() {}; });
-declare function getNs(): string;`,
+export const cpf = registerPureFnFactory(getId(), function () { return function() {}; });
+declare function getId(): string;`,
 	})
 	if len(entries) != 0 {
-		t.Fatalf("expected no entry for non-literal namespace, got %+v", entries)
-	}
-	if len(diags) != 0 {
-		t.Fatalf("walker must not emit shape diagnostics (those flow through scanCall now), got %+v", diags)
-	}
-}
-
-func TestExtract_NonLiteralFunctionID_SilentSkip(t *testing.T) {
-	entries, diags := extractFromOverlay(t, map[string]string{
-		"a.ts": `
-import {registerPureFnFactory} from 'ts-runtypes';
-declare const name: string;
-export const cpf = registerPureFnFactory('rt', name, function () { return function() {}; });`,
-	})
-	if len(entries) != 0 {
-		t.Fatalf("expected no entry for non-literal fnId, got %+v", entries)
+		t.Fatalf("expected no entry for non-literal id, got %+v", entries)
 	}
 	if len(diags) != 0 {
 		t.Fatalf("walker must not emit shape diagnostics (those flow through scanCall now), got %+v", diags)
@@ -223,7 +208,7 @@ func TestExtract_NonInlineFactory_SilentSkip(t *testing.T) {
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
 declare const someFn: () => () => void;
-export const cpf = registerPureFnFactory('rt', 'fn', someFn);`,
+export const cpf = registerPureFnFactory('rt::fn', someFn);`,
 	})
 	if len(entries) != 0 {
 		t.Fatalf("expected no entry for non-inline factory, got %+v", entries)
@@ -237,7 +222,7 @@ func TestExtract_DestructuredParam_PFE9005(t *testing.T) {
 	_, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const cpf = registerPureFnFactory('rt', 'fn', function ({a, b}) {
+export const cpf = registerPureFnFactory('rt::fn', function ({a, b}) {
   return function() {};
 });`,
 	})
@@ -250,12 +235,12 @@ func TestExtract_BodyHashCollision_PFE9004(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const a = registerPureFnFactory('rt', 'asJSONString', function () {
+export const a = registerPureFnFactory('rt::asJSONString', function () {
   return function v1() { return 1; };
 });`,
 		"b.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const b = registerPureFnFactory('rt', 'asJSONString', function () {
+export const b = registerPureFnFactory('rt::asJSONString', function () {
   return function v2() { return 2; };
 });`,
 	})
@@ -283,12 +268,12 @@ func TestExtract_IdempotentSameBodyHash_NoDiagnostic(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const a = registerPureFnFactory('rt', 'sameFn', function () {
+export const a = registerPureFnFactory('rt::sameFn', function () {
   return function _fn() { return 1; };
 });`,
 		"b.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const b = registerPureFnFactory('rt', 'sameFn', function () {
+export const b = registerPureFnFactory('rt::sameFn', function () {
   return function _fn() { return 1; };
 });`,
 	})
@@ -306,9 +291,9 @@ func TestExtract_DeterministicOrder(t *testing.T) {
 	entries, _ := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const a = registerPureFnFactory('z', 'zeta', function () { return function() {}; });
-export const b = registerPureFnFactory('a', 'alpha', function () { return function() {}; });
-export const c = registerPureFnFactory('m', 'mu', function () { return function() {}; });`,
+export const a = registerPureFnFactory('z::zeta', function () { return function() {}; });
+export const b = registerPureFnFactory('a::alpha', function () { return function() {}; });
+export const c = registerPureFnFactory('m::mu', function () { return function() {}; });`,
 	})
 	if len(entries) != 3 {
 		t.Fatalf("expected 3 entries, got %d", len(entries))

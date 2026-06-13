@@ -108,7 +108,7 @@ func TestNewIndex_GetAndScanned(t *testing.T) {
 func TestValidatePureFnDependencies_AllSatisfied(t *testing.T) {
 	prog, files := programForSources(t, map[string]string{
 		"pure.ts": `import {registerPureFnFactory} from 'ts-runtypes';
-export const a = registerPureFnFactory('rt', 'asJSONString', function () { return function () { return 1; }; });
+export const a = registerPureFnFactory('rt::asJSONString', function () { return function () { return 1; }; });
 `,
 	})
 	entries, _ := ExtractFromProgram(programChecker(t, prog), marker.WithDefaults(marker.Options{}), prog, files)
@@ -153,7 +153,7 @@ func TestValidatePureFnDependencies_LazyExpansion_FindsRegistration(t *testing.T
 	// finds the registration, and emits NO diagnostic.
 	prog, _ := programForSources(t, map[string]string{
 		"a.ts": `import {registerPureFnFactory} from 'ts-runtypes';
-export const r = registerPureFnFactory('rt', 'asJSONString', function () { return function () { return 1; }; });
+export const r = registerPureFnFactory('rt::asJSONString', function () { return function () { return 1; }; });
 `,
 		"b.ts": `export const x = 1;`,
 	})
@@ -203,7 +203,7 @@ func TestValidatePureFnDependencies_LazyExpansion_StillMissing(t *testing.T) {
 	// the key, and emits PFE9012.
 	prog, files := programForSources(t, map[string]string{
 		"a.ts": `import {registerPureFnFactory} from 'ts-runtypes';
-export const x = registerPureFnFactory('rt', 'somethingElse', function () { return function () {}; });
+export const x = registerPureFnFactory('rt::somethingElse', function () { return function () {}; });
 `,
 	})
 	// Initial scan covers no files so a.ts is unscanned from idx's perspective.
@@ -250,7 +250,7 @@ func TestValidatePureFnDependencies_FileNeverReparsed(t *testing.T) {
 	// filePath — once expanded, the scanned flag prevents re-parse.
 	prog, files := programForSources(t, map[string]string{
 		"a.ts": `import {registerPureFnFactory} from 'ts-runtypes';
-export const r = registerPureFnFactory('rt', 'asJSONString', function () { return function () {}; });
+export const r = registerPureFnFactory('rt::asJSONString', function () { return function () {}; });
 `,
 	})
 	idx := NewIndex(nil, nil) // start empty so a.ts is unscanned

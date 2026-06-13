@@ -21,7 +21,7 @@ type uuidEmitter struct{}
 
 // typeFormatsPureFnFilePath is the canonical source path the
 // resolver registers pf_isUUID under. Matches the file where the
-// JS-side `registerPureFnFactory('rtFormats', 'isUUID', ...)` call
+// JS-side `registerPureFnFactory('rtFormats::isUUID', ...)` call
 // lives — keep these in sync when either side moves.
 const typeFormatsPureFnFilePath = "packages/ts-runtypes/src/formats/string/string-formats-pure-fns.ts"
 
