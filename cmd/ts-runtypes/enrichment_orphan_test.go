@@ -149,6 +149,31 @@ func TestSyncBreadcrumbClause_DropsUnusedName(t *testing.T) {
 	}
 }
 
+// TestOrphanConsts_OutModeSkipsJudgement: in single-file --out mode the
+// source-declaration orphan judgement is SKIPPED — every const across many
+// source files lands in one mirror, but the breadcrumb resolves only one source,
+// so judging against it would wrongly orphan a still-existing cross-file type.
+// This is the C1 guard.
+func TestOrphanConsts_OutModeSkipsJudgement(t *testing.T) {
+	// A mirror with a breadcrumb to a source that does NOT declare the const's type
+	// — normally orphanConsts would orphan friendlyGone (source missing → no-op),
+	// but in --out mode it must skip entirely regardless.
+	src := "import type { Local } from './local';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n" +
+		"\n" +
+		"/** @rtType Gone#goneID */\n" +
+		"export const friendlyGone: FriendlyType<Gone> = { $label: '' };\n"
+
+	index := parseMirror("/rt/gen/out.ts", []byte(src))
+	var ops []spliceOp
+	// out != "" → judgement skipped; desired set empty so friendlyGone is unwanted.
+	spec := mirrorWrite{mirrorPath: "/rt/gen/out.ts", out: "/rt/gen/out.ts", consts: nil, wantFriendly: true}
+	orphaned := orphanConsts(&ops, index, spec)
+	if len(orphaned) != 0 || len(ops) != 0 {
+		t.Errorf("--out mode must skip the orphan judgement; got %d orphaned, %d ops", len(orphaned), len(ops))
+	}
+}
+
 // TestPruneOrphanBlocks strips both orphan-child (inline) and orphan-const
 // (whole block) carcasses, leaving the live content intact.
 func TestPruneOrphanBlocks(t *testing.T) {

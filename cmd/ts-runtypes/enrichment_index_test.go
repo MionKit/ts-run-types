@@ -65,6 +65,30 @@ func TestParseMirror_IndexConsts(t *testing.T) {
 	}
 }
 
+// TestParseMirror_DuplicateTypeIDKeepsFirst: two consts of the same form
+// carrying the SAME @rtType id is hand-edit corruption — byTypeForm keeps the
+// FIRST (no silent last-write-wins), and the duplicate stays reachable by var
+// name. This is the C5 guard.
+func TestParseMirror_DuplicateTypeIDKeepsFirst(t *testing.T) {
+	src := "/** @rtType User#dupID */\n" +
+		"export const friendlyUserA: FriendlyType<User> = { $label: 'A' };\n" +
+		"/** @rtType User#dupID */\n" +
+		"export const friendlyUserB: FriendlyType<User> = { $label: 'B' };\n"
+
+	index := parseMirror("/rt/gen/user.ts", []byte(src))
+	entry, ok := index.byTypeForm[typeFormKey("dupID", true)]
+	if !ok {
+		t.Fatalf("dupID not indexed at all")
+	}
+	if entry.varName != "friendlyUserA" {
+		t.Errorf("byTypeForm should keep the FIRST const; got %q", entry.varName)
+	}
+	// The duplicate is still reachable via the var-name fallback.
+	if index.byVar["friendlyUserB"] == nil {
+		t.Errorf("duplicate const should stay reachable by var name")
+	}
+}
+
 // TestParseMirror_IndexImports indexes the source breadcrumb, the DSL import,
 // and cross-file value imports, with the breadcrumb clause byte range.
 func TestParseMirror_IndexImports(t *testing.T) {
