@@ -41,7 +41,16 @@ export interface FuzzTarget {
   binaryDecode?: (buffer: ArrayBuffer) => unknown;
 }
 
-export type OracleId = 'O1' | 'O2' | 'O3' | 'O4' | 'O5' | 'O6' | 'O7';
+// O1–O7 are the value oracles (Phase 1 + Phase 2 Tier B). TR1–TR4 are the
+// Phase 2 Tier-A resolver/emit oracles — they police the type-generation
+// pipeline itself rather than a runtime value:
+//   TR1 resolver-clean   no crash + no Error-severity diagnostics for a
+//                        well-formed generated type
+//   TR2 sites-complete   every emitted createX<T>() resolved to a site id
+//   TR3 emit-valid       every demanded entry module evaluates (the emitted
+//                        factory code is valid JS) with no dangling refs
+//   TR4 wire-ok          the real createX factories materialise from the tuples
+export type OracleId = 'O1' | 'O2' | 'O3' | 'O4' | 'O5' | 'O6' | 'O7' | 'TR1' | 'TR2' | 'TR3' | 'TR4';
 
 /** A detected expectation violation — everything needed to reproduce + triage. **/
 export interface Violation {
@@ -49,7 +58,7 @@ export interface Violation {
   target: string;
   /** The exact seed to replay this iteration. **/
   seed: number;
-  phase: 'valid' | 'invalid' | 'junk';
+  phase: 'valid' | 'invalid' | 'junk' | 'compile';
   message: string;
   value: string;
 }
