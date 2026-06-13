@@ -152,13 +152,14 @@ per-competitor from each competitor's own files:
 - **ajv** — none (JSON Schema has no static type inference).
 
 ```
-ts-go(type)      ~5 instantiations/case     # writing the type is ~free
-ts-go(schema)   ~400 /case
-typebox         ~535 /case
-zod             ~786 /case
+ts-go(type)      ~4 instantiations/case     # writing the type is ~free
+typebox        ~219 /case
+ts-go(schema)  ~546 /case
+zod            ~619 /case
 ```
+(apples-to-apples averages over the 95 cases all four forms support.)
 
-i.e. the type-definition form is ~80–160× cheaper for `tsc` to resolve than any
+i.e. the type-definition form is ~55–155× cheaper for `tsc` to resolve than any
 schema→type form — including ts-go's own value-first schema form. Cases whose type
 references globals the pinned TypeScript lacks, or that are inline-recursive
 without a name, report `err` and are excluded from totals. Adding a competitor
