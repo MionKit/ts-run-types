@@ -102,6 +102,12 @@ inline-recursive without a name report `err` and are excluded from totals.
   [`src/suites/format-validation/`](src/suites/format-validation/) — the real
   suites, copied verbatim from the package (`src/util/deserializeRTFunctions.ts`
   is an inert stub; the benchmark only calls each case's `validate` thunk).
+- [`src/suites/realworld/`](src/suites/realworld/) — a **real-world scenario**
+  group: typical relational / CMS / API / form DTOs (`User`, `Order`, `BlogPost`,
+  `Product`, a paginated `ProductPage`, a `RegistrationForm`). Authored for the
+  benchmark (not vendored) in the same case shape, with full zod/typebox/ajv
+  coverage, so it's the most representative head-to-head — it flows through both
+  the runtime and typecost benchmarks.
 - [`src/suites/adapter.ts`](src/suites/adapter.ts) — flattens both suites to
   `{key, samples, tsValidate}`; `factoryThrows` / unsupported-root cases become
   not-supported.

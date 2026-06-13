@@ -68,11 +68,14 @@ function unwrapExpr(node) {
   return node;
 }
 
-/** From a suite file: {group, cases: {name: {typeText, schemaText|null}}, imports}. */
+/** From a suite file: {preamble, groups:[{group, cases}]}. The preamble is the
+ *  file's bare imports + every non-group top-level declaration (helper consts +
+ *  local interfaces/type aliases), so a case whose type is a named local type
+ *  (e.g. real-world `Order`) resolves in the probe. */
 function extractSuiteFile(file) {
   const source = sf(file);
-  const imports = bareImports(source);
   const groups = [];
+  const groupNodes = new Set();
   source.forEachChild((n) => {
     if (!ts.isVariableStatement(n)) return;
     for (const decl of n.declarationList.declarations) {
@@ -99,10 +102,25 @@ function extractSuiteFile(file) {
         }
         if (typeText || schemaText) cases[name] = {typeText, schemaText};
       }
-      if (Object.keys(cases).length) groups.push({group, cases, imports});
+      if (Object.keys(cases).length) {
+        groups.push({group, cases});
+        groupNodes.add(n);
+      }
     }
   });
-  return groups;
+
+  // preamble: bare imports + every top-level decl that isn't a group const.
+  const preamble = [];
+  source.forEachChild((n) => {
+    if (ts.isImportDeclaration(n)) {
+      if (ts.isStringLiteral(n.moduleSpecifier) && !n.moduleSpecifier.text.startsWith('.')) preamble.push(n.getText(source));
+    } else if (ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n)) {
+      preamble.push(n.getText(source));
+    } else if (ts.isVariableStatement(n) && !groupNodes.has(n)) {
+      preamble.push(n.getText(source));
+    }
+  });
+  return {preamble, groups};
 }
 
 /** `() => createValidate<…>()` | `() => createValidate(…)` → the call node. */
@@ -226,24 +244,26 @@ function main() {
   const suiteFiles = [
     ...globTs(path.join(SRC, 'suites', 'validation')),
     ...globTs(path.join(SRC, 'suites', 'format-validation')),
+    ...globTs(path.join(SRC, 'suites', 'realworld')),
   ];
   const zod = extractCompetitor(path.join(SRC, 'competitors', 'zod.ts'), 'zodMap');
   const typebox = extractCompetitor(path.join(SRC, 'competitors', 'typebox.ts'), 'typeboxMap');
 
   const rows = [];
   for (const file of suiteFiles) {
-    for (const {group, cases, imports} of extractSuiteFile(file)) {
-      const impKey = imports.join('|');
+    const {preamble, groups} = extractSuiteFile(file);
+    const preKey = file; // baseline is per-file (preamble differs per file)
+    for (const {group, cases} of groups) {
       for (const [name, {typeText, schemaText}] of Object.entries(cases)) {
         const key = `${group}.${name}`;
         const cell = {key, group};
 
         cell.tsType = typeText
-          ? measure('tsType', impKey, probeTsType(imports, 'string'), probeTsType(imports, typeText))
+          ? measure('tsType', preKey, probeTsType(preamble, 'string'), probeTsType(preamble, typeText))
           : {status: 'na'};
 
         cell.tsSchema = schemaText
-          ? measure('tsSchema', impKey, probeTsSchema(imports, 'RT.string()'), probeTsSchema(imports, schemaText))
+          ? measure('tsSchema', preKey, probeTsSchema(preamble, 'RT.string()'), probeTsSchema(preamble, schemaText))
           : {status: 'na'};
 
         cell.zod = zod.entries[key]
@@ -262,9 +282,11 @@ function main() {
 }
 
 function globTs(dir) {
+  // index.ts is kept: re-export index files use shorthand props (no cases
+  // extracted, inert), while the real-world suite's cases live in its index.ts.
   return fs
     .readdirSync(dir)
-    .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== 'index.ts' && f !== 'types.ts')
+    .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== 'types.ts')
     .map((f) => path.join(dir, f));
 }
 
