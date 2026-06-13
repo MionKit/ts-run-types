@@ -1,0 +1,270 @@
+package main
+
+import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/program"
+	"github.com/mionkit/ts-runtypes/internal/resolver"
+)
+
+// enrichmentCommands are the out-of-band argv subcommands handled before the
+// normal flag parse. They are NOT the vite-build path: the plugin spawns the
+// binary with a flag (e.g. --one-shot) as os.Args[1], which never matches one
+// of these, so existing behaviour is untouched.
+var enrichmentCommands = map[string]func([]string){
+	"describe": runDescribe,
+	"gen":      runGen,
+}
+
+// dispatchEnrichmentCommand runs the matching subcommand handler (which exits
+// the process) and reports whether os.Args[1] was one. main() calls this at
+// the very top, before flag.Parse().
+func dispatchEnrichmentCommand() bool {
+	if len(os.Args) <= 1 {
+		return false
+	}
+	handler, ok := enrichmentCommands[os.Args[1]]
+	if !ok {
+		return false
+	}
+	handler(os.Args[2:])
+	return true
+}
+
+// resolveOne builds a Program over absPath, a resolver, and resolves typeName
+// to its canonical RunType. Shared by describe + gen.
+func resolveOne(absPath, typeName string) (*enrichment.Resolved, error) {
+	cwd := filepath.Dir(absPath)
+	prog, err := program.NewInferred(program.Options{Cwd: cwd}, []string{absPath})
+	if err != nil {
+		return nil, fmt.Errorf("build program: %w", err)
+	}
+	res, err := resolver.New(prog, resolver.Options{Cwd: cwd})
+	if err != nil {
+		return nil, fmt.Errorf("build resolver: %w", err)
+	}
+	defer res.Close()
+	return enrichment.ResolveType(prog, res, absPath, typeName)
+}
+
+func runDescribe(args []string) {
+	fs := flag.NewFlagSet("describe", flag.ExitOnError)
+	format := fs.String("format", "text", "output format: text | json")
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes describe <file.ts> <TypeName> [--format text|json]")
+	}
+	positional, flags := splitArgs(args)
+	if err := fs.Parse(flags); err != nil {
+		fatal("describe: %v", err)
+	}
+	if len(positional) < 2 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	absPath := tspath.NormalizePath(mustAbs(positional[0]))
+	typeName := positional[1]
+
+	resolved, err := resolveOne(absPath, typeName)
+	if err != nil {
+		fatal("describe: %v", err)
+	}
+
+	description := enrichment.Describe(resolved.Node, enrichment.DescribeOptions{
+		TypeName: typeName,
+		Resolve:  resolved.Resolve,
+	})
+
+	switch *format {
+	case "json":
+		payload := map[string]string{"typeName": typeName, "description": description}
+		encoded, err := json.MarshalIndent(payload, "", "  ")
+		if err != nil {
+			fatal("describe: encode json: %v", err)
+		}
+		fmt.Println(string(encoded))
+	case "text", "":
+		fmt.Println(description)
+	default:
+		fatal("describe: unknown --format %q (want text|json)", *format)
+	}
+	os.Exit(0)
+}
+
+func runGen(args []string) {
+	fs := flag.NewFlagSet("gen", flag.ExitOnError)
+	mock := fs.Bool("mock", false, "emit a MockData<T> skeleton")
+	friendly := fs.Bool("friendly", false, "emit a FriendlyType<T> skeleton")
+	out := fs.String("out", "", "target .rt.ts path (default: <dir>/<basename>.rt.ts)")
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--out <path>]")
+	}
+	positional, flags := splitArgs(args)
+	if err := fs.Parse(flags); err != nil {
+		fatal("gen: %v", err)
+	}
+	if len(positional) < 2 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	absPath := tspath.NormalizePath(mustAbs(positional[0]))
+	typeName := positional[1]
+
+	// Default (no flag): emit BOTH friendly + mock.
+	wantFriendly, wantMock := *friendly, *mock
+	if !wantFriendly && !wantMock {
+		wantFriendly, wantMock = true, true
+	}
+
+	outPath := *out
+	if outPath == "" {
+		dir := filepath.Dir(absPath)
+		base := strings.TrimSuffix(filepath.Base(absPath), filepath.Ext(absPath))
+		outPath = filepath.Join(dir, base+".rt.ts")
+	}
+
+	resolved, err := resolveOne(absPath, typeName)
+	if err != nil {
+		fatal("gen: %v", err)
+	}
+
+	lower := lowerFirst(typeName)
+	type emitPlan struct {
+		want    bool
+		varName string
+		emit    func() string
+	}
+	plans := []emitPlan{
+		{wantFriendly, lower + "Friendly", func() string {
+			return enrichment.EmitFriendly(resolved.Node, enrichment.EmitOptions{
+				VarName: lower + "Friendly", TypeName: typeName, Resolve: resolved.Resolve,
+			})
+		}},
+		{wantMock, lower + "Mock", func() string {
+			return enrichment.EmitMock(resolved.Node, enrichment.EmitOptions{
+				VarName: lower + "Mock", TypeName: typeName, Resolve: resolved.Resolve,
+			})
+		}},
+	}
+
+	existing := ""
+	if bytes, err := os.ReadFile(outPath); err == nil {
+		existing = string(bytes)
+	} else if !os.IsNotExist(err) {
+		fatal("gen: read %s: %v", outPath, err)
+	}
+
+	var added []string
+	var blocks []string
+	for _, plan := range plans {
+		if !plan.want {
+			continue
+		}
+		// Create-only: skip an export the file already declares.
+		if hasExport(existing, plan.varName) {
+			continue
+		}
+		blocks = append(blocks, plan.emit())
+		added = append(added, plan.varName)
+	}
+
+	if len(blocks) == 0 {
+		fmt.Printf("gen: nothing to write — %s already has the requested export(s)\n", outPath)
+		os.Exit(0)
+	}
+
+	var builder strings.Builder
+	if existing == "" {
+		// New file: lead with the import type lines.
+		importSpec := filepath.Base(absPath)
+		builder.WriteString("import type { ")
+		builder.WriteString(typeName)
+		builder.WriteString(" } from './")
+		builder.WriteString(strings.TrimSuffix(importSpec, filepath.Ext(importSpec)))
+		builder.WriteString("';\n")
+		builder.WriteString("import type { FriendlyType, MockData } from 'ts-runtypes';\n\n")
+	} else {
+		builder.WriteString(existing)
+		if !strings.HasSuffix(existing, "\n") {
+			builder.WriteString("\n")
+		}
+		builder.WriteString("\n")
+	}
+	builder.WriteString(strings.Join(blocks, "\n"))
+
+	if err := os.WriteFile(outPath, []byte(builder.String()), 0o644); err != nil {
+		fatal("gen: write %s: %v", outPath, err)
+	}
+	verb := "wrote"
+	if existing != "" {
+		verb = "appended to"
+	}
+	fmt.Printf("gen: %s %s (%s)\n", verb, outPath, strings.Join(added, ", "))
+	os.Exit(0)
+}
+
+// valueFlags are the enrichment flags that consume the following token as
+// their value when written space-separated (e.g. `--format json`). Boolean
+// flags (--mock, --friendly) are absent here.
+var valueFlags = map[string]bool{
+	"--format": true, "-format": true,
+	"--out": true, "-out": true,
+}
+
+// splitArgs separates positional arguments from flag tokens so flags may appear
+// before, after, or interspersed with the positional <file> <TypeName> pair —
+// Go's flag package otherwise stops at the first positional. A `-`-prefixed
+// token is a flag; if it's a known value-flag without an inline `=value`, the
+// next token is pulled along as its value.
+func splitArgs(args []string) (positional, flags []string) {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			positional = append(positional, args[i+1:]...)
+			break
+		}
+		if strings.HasPrefix(arg, "-") && arg != "-" {
+			flags = append(flags, arg)
+			if !strings.Contains(arg, "=") && valueFlags[arg] && i+1 < len(args) {
+				i++
+				flags = append(flags, args[i])
+			}
+			continue
+		}
+		positional = append(positional, arg)
+	}
+	return positional, flags
+}
+
+// hasExport reports whether source already declares `export const <varName>`.
+func hasExport(source, varName string) bool {
+	if source == "" {
+		return false
+	}
+	pattern := regexp.MustCompile(`export\s+const\s+` + regexp.QuoteMeta(varName) + `\b`)
+	return pattern.MatchString(source)
+}
+
+// lowerFirst lowercases the first rune of s (User -> user).
+func lowerFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToLower(s[:1]) + s[1:]
+}
+
+// mustAbs resolves path to an absolute path, exiting on failure.
+func mustAbs(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		fatal("resolve path %q: %v", path, err)
+	}
+	return abs
+}
