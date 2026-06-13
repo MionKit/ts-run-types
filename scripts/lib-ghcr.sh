@@ -47,13 +47,15 @@ ghcr_login() {
 # ghcr_push_multiarch <manifest-name> <context-dir> <remote-ref> [build-network]
 # Build a linux/amd64 + linux/arm64 manifest list and push it to <remote-ref>.
 # On an arm64 host the amd64 arm builds under QEMU emulation (slower).
+# Honors a caller-set BUILD_ARG_FLAGS array (e.g. --build-arg BASE_IMAGE=...) so
+# the published image matches a local build's base/pnpm overrides.
 ghcr_push_multiarch() {
   local manifest="$1" ctx="$2" ref="$3" net="${4:-}"
   local netarg=(); [ -n "$net" ] && netarg=(--network="$net")
   echo "==> building multi-arch (linux/amd64,linux/arm64) manifest: $manifest"
   "$ENGINE" manifest rm "$manifest" 2>/dev/null || true
   "$ENGINE" manifest create "$manifest"
-  ( cd "$ctx" && "$ENGINE" build ${netarg[@]+"${netarg[@]}"} \
+  ( cd "$ctx" && "$ENGINE" build ${netarg[@]+"${netarg[@]}"} ${BUILD_ARG_FLAGS[@]+"${BUILD_ARG_FLAGS[@]}"} \
       --platform linux/amd64,linux/arm64 --manifest "$manifest" -f Containerfile . )
   echo "==> pushing manifest -> docker://$ref"
   "$ENGINE" manifest push --all "$manifest" "docker://$ref"

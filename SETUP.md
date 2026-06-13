@@ -18,6 +18,8 @@ The repository contains a **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) 
 | git    | recent   | submodule + `git apply` are used              | -                                    |
 | podman | ≥ 4.0    | docs website + benchmarks containers          | tested 4.9.3 / 5.8.3                 |
 
+> **Container runtime is Node 26.** Both containers (`website/Containerfile`, `benchmarks/Containerfile`) build `FROM node:26-*`, which unflags the global `Temporal` API — so benchmark timings and the docs build run on native Temporal (no `temporal-polyfill`), the same runtime the published library targets. Node 26 ships only `npm` (the bundled `corepack` shim was removed), so the images install the repo-pinned pnpm globally. The **host** still only needs Node ≥ 24 (the prep + on-host codegen run there). Override the base with `WEBSITE_BASE_IMAGE` / `BENCH_BASE_IMAGE` (mirror / air-gapped / offline-built base).
+
 **macOS Apple Silicon also needs Rosetta 2** — the podman-machine `vfkit` backend requires it and exits 1 without it. Install with `softwareupdate --install-rosetta --agree-to-license` (the skill does this automatically).
 
 ---
@@ -93,8 +95,10 @@ The package-manager files (`package.json`, lockfile, `pnpm-workspace.yaml`, `.np
 | Benchmarks  | `pnpm run bench:one <n>` | Build + run a SINGLE competitor + aggregate (fastest verification loop).            |
 | Benchmarks  | `pnpm run bench:smoke`   | Build every competitor's dist (no run) — minutes shorter.                           |
 | Benchmarks  | `pnpm run bench:typecost`| Per-competitor type-instantiation-cost benchmark.                                  |
+| Benchmarks  | `pnpm run bench:serialization` | ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER on Node 26 (native Temporal). |
+| Benchmarks  | `pnpm run bench:website` | **One command** for ALL website benchmark data: validation + typecost + capture-env + serialization (+ formats), every measurement taken inside the Node 26 container, then the `gen-bench-docs` host transform. |
 
-The website only needs **podman**; the benchmarks additionally need **Node + pnpm + Go** for the host prep (resolver binary + first-party dists, bind-mounted into the container). On macOS the prep cross-compiles a `bin/ts-runtypes-linux-<arch>` so the Linux container can execute it.
+The website only needs **podman**; the benchmarks additionally need **Node + pnpm + Go** for the host prep (resolver binary + first-party dists, bind-mounted into the container). On macOS the prep cross-compiles `bin/ts-runtypes-linux-<arch>` **and** `bin/extract-fn-bodies-linux-<arch>` (the serialization bench's source-body extractor) so the Linux container can execute them without a Go toolchain.
 
 > **Agents:** start the website with `scripts/website.sh dev --isAgent` (not plain `dev`). It runs in a separate container (`tsrt-website-agent`) on the reserved port **`:3100`** and self-stops after ~5 min idle, so an agent-driven server never collides with a human's `:3000` and never lingers. Hot-reload polling auto-enables on macOS; force it anywhere with `WEBSITE_POLL=1`.
 

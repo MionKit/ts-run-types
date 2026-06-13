@@ -17,6 +17,8 @@
 #   scripts/benchmarks.sh build-image       # build the podman image (per-competitor installs)
 #   scripts/benchmarks.sh bench             # build + run EVERY competitor + aggregate
 #   scripts/benchmarks.sh bench-one <name>  # build + run ONE competitor + aggregate
+#   scripts/benchmarks.sh serialization     # ts-runtypes round-trip bench (+ formats), in-container
+#   scripts/benchmarks.sh website-bench     # ALL website bench data in one shot (Node 26)
 #   scripts/benchmarks.sh typecost          # per-competitor type-instantiation cost
 #   scripts/benchmarks.sh capture-env       # write results/env.json (os / cpu / lib versions)
 #   scripts/benchmarks.sh build [<name>]    # vite build only (all, or one competitor)
@@ -93,6 +95,7 @@ linux_goarch() {
   esac
 }
 LINUX_BIN="$ROOT_DIR/bin/ts-runtypes-linux-$(linux_goarch)"
+LINUX_EXTRACT_BIN="$ROOT_DIR/bin/extract-fn-bodies-linux-$(linux_goarch)"
 
 die() { echo "benchmarks.sh: $*" >&2; exit 1; }
 
@@ -157,12 +160,12 @@ ensure_bench_image_local() {
 }
 
 ensure_prereqs() {
-  ensure_artifacts all linux-go
+  ensure_artifacts all linux-go linux-extract
   ensure_bench_image_fresh
 }
 
 cmd_prep() {
-  ensure_artifacts all linux-go
+  ensure_artifacts all linux-go linux-extract
 }
 
 prepare_cacerts() {
@@ -185,11 +188,24 @@ prepare_cacerts() {
   touch "$CACERTS_DIR/.gitkeep"
 }
 
+# Populate BUILD_ARG_FLAGS from optional env overrides. BENCH_BASE_IMAGE swaps the
+# Containerfile's default Node 26 base (mirror / air-gapped / offline-built base);
+# BENCH_PNPM_VERSION overrides the pinned pnpm. Honored by both build_image and
+# the multi-arch push (so a published image matches a local one).
+BUILD_ARG_FLAGS=()
+build_arg_flags() {
+  BUILD_ARG_FLAGS=()
+  [ -n "${BENCH_BASE_IMAGE:-}" ] && BUILD_ARG_FLAGS+=(--build-arg "BASE_IMAGE=$BENCH_BASE_IMAGE")
+  [ -n "${BENCH_PNPM_VERSION:-}" ] && BUILD_ARG_FLAGS+=(--build-arg "PNPM_VERSION=$BENCH_PNPM_VERSION")
+  return 0
+}
+
 build_image() {
   prepare_cacerts
+  build_arg_flags
   echo "==> building $IMAGE from benchmarks/Containerfile (per-competitor installs)"
   local net=(); [ -n "$BUILD_NETWORK" ] && net=(--network="$BUILD_NETWORK")
-  ( cd "$BENCH_DIR" && "$ENGINE" build ${net[@]+"${net[@]}"} -t "$IMAGE" -f Containerfile . )
+  ( cd "$BENCH_DIR" && "$ENGINE" build ${net[@]+"${net[@]}"} ${BUILD_ARG_FLAGS[@]+"${BUILD_ARG_FLAGS[@]}"} -t "$IMAGE" -f Containerfile . )
   touch "$STAMP"
 }
 
@@ -198,6 +214,7 @@ cmd_login() { require_engine; ghcr_login; }
 cmd_push() {
   require_engine
   prepare_cacerts
+  build_arg_flags
   ghcr_push_multiarch "$MANIFEST_NAME" "$BENCH_DIR" "$REMOTE_IMAGE" "$BUILD_NETWORK"
 }
 
@@ -358,6 +375,65 @@ cmd_fullbench() {
   echo "==> fullbench: done. Published runtime + typecost results to $DOCDATA_DIR/benchmarks"
 }
 
+# ── serialization bench (ts-runtypes-only round-trips) ───────────────────────
+# Runs gen-serialization-bench.mjs INSIDE the Node 26 container so the timed
+# encoders/decoders execute on native Temporal — the runtime the published
+# library targets — instead of a host polyfill. Reuses the ts-runtypes
+# competitor context: the baked vite, the bind-mounted marker package (its src +
+# test/suites), the plugin, the Go resolver binary, plus the Linux source
+# extractor (so no Go toolchain is needed in-container). Writes both the
+# `serialization` and `serialization-formats` datasets straight into
+# website/public/bench-data (override with BENCH_SERIALIZATION_OUT).
+cmd_serialization() {
+  ensure_prereqs
+  [ -x "$LINUX_EXTRACT_BIN" ] || die "missing $LINUX_EXTRACT_BIN - run 'scripts/benchmarks.sh prep' first."
+  [ -f "$MARKER_PKG/dist/index.js" ] || die "missing marker dist - run 'scripts/benchmarks.sh prep' first."
+  [ -f "$PLUGIN_PKG/dist/index.js" ] || die "missing plugin dist - run 'scripts/benchmarks.sh prep' first."
+  local out="${BENCH_SERIALIZATION_OUT:-$ROOT_DIR/website/public/bench-data}"
+  mkdir -p "$out"
+  local tsgo=/app/competitors/ts-runtypes
+  read_lines NARGS < <(net_args)
+  echo "==> serialization bench (in-container, Node 26 / native Temporal) -> $out"
+  "$ENGINE" run --rm --init \
+    ${NARGS[@]+"${NARGS[@]}"} \
+    -v "$LINUX_BIN:$tsgo/bin/ts-runtypes:ro$MOUNT_OPTS" \
+    -v "$LINUX_EXTRACT_BIN:$tsgo/bin/extract-fn-bodies:ro$MOUNT_OPTS" \
+    -v "$MARKER_PKG:$tsgo/node_modules/ts-runtypes:ro$MOUNT_OPTS" \
+    -v "$PLUGIN_PKG:$tsgo/node_modules/vite-plugin-runtypes:ro$MOUNT_OPTS" \
+    -v "$SCRIPT_DIR/gen-serialization-bench.mjs:$tsgo/gen-serialization-bench.mjs:ro$MOUNT_OPTS" \
+    -v "$out:/app/bench-out$MOUNT_OPTS" \
+    -e RT_BENCH_REPO_ROOT="$tsgo" \
+    -e RT_BENCH_VITE_ROOT="$tsgo" \
+    -e RT_BENCH_PACKAGE_ROOT="$tsgo/node_modules/ts-runtypes" \
+    -e RT_BENCH_BIN="$tsgo/bin/ts-runtypes" \
+    -e RT_BENCH_PLUGIN_ENTRY=vite-plugin-runtypes \
+    -e RT_EXTRACT_BIN="$tsgo/bin/extract-fn-bodies" \
+    -e RT_BENCH_OUT_DIR=/app/bench-out \
+    -e RT_BENCH_SSR_NOEXTERNAL=ts-runtypes,vite-plugin-runtypes \
+    -e RT_BENCH_CACHE_DIR=false \
+    -w "$tsgo" "$IMAGE" \
+    sh -c 'node gen-serialization-bench.mjs --suite serialization && node gen-serialization-bench.mjs --suite format-serialization' </dev/null
+}
+
+# One command for ALL benchmark data the docs website renders, every measurement
+# taken inside the Node 26 container (native Temporal, consistent runtime):
+#   1. runtime validation bench (every competitor) + aggregate + typecost +
+#      capture-env  (fullbench)
+#   2. serialization + serialization-formats round-trips
+#   3. gen-bench-docs (host transform: benchmarks/results -> website/public/
+#      bench-data validation / validation-formats / typecost)
+# After this, website/public/bench-data/ holds validation, validation-formats,
+# typecost, serialization and serialization-formats. (Suite-doc data — the
+# schema / generated-code panels — is regenerated separately via
+# `pnpm run gen:suite-docs`.)
+cmd_website_bench() {
+  cmd_fullbench
+  cmd_serialization
+  echo "==> gen-bench-docs (host transform -> website/public/bench-data)"
+  ( cd "$ROOT_DIR" && node scripts/gen-bench-docs.mjs )
+  echo "==> website-bench: done. website/public/bench-data/ regenerated (Node 26 / native Temporal)."
+}
+
 cmd_build() {
   ensure_prereqs
   if [ -n "${1:-}" ]; then
@@ -400,6 +476,8 @@ main() {
     bench|'')    require_engine; cmd_bench ;;
     bench-one)   require_engine; cmd_bench_one "${2:-}" ;;
     fullbench)   require_engine; cmd_fullbench ;;
+    serialization) require_engine; cmd_serialization ;;
+    website-bench) require_engine; cmd_website_bench ;;
     build)       require_engine; cmd_build "${2:-}" ;;
     smoke)       require_engine; cmd_smoke ;;
     typecost)    require_engine; cmd_typecost ;;
@@ -409,7 +487,7 @@ main() {
     push)        cmd_push ;;
     pull)        cmd_pull ;;
     clean)       require_engine; cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | fullbench | build [<name>] | smoke | typecost | shell | login | push | pull | clean" ;;
+    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | fullbench | serialization | website-bench | build [<name>] | smoke | typecost | shell | login | push | pull | clean" ;;
   esac
 }
 
