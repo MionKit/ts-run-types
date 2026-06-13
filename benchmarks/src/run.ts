@@ -11,6 +11,9 @@
 //   BENCH_TIME_MS=100   per-cell measurement window
 
 import {performance} from 'node:perf_hooks';
+// Ensure ts-go-run-types' built-in format patterns are registered (the
+// side-effect import the suites rely on, kept from being tree-shaken).
+import '@mionjs/ts-go-run-types/formats';
 import {VALIDATION_CASES, FORMAT_CASES, type FlatCase} from './suites/adapter.ts';
 import {NOT_SUPPORTED, type CompetitorMap, type ValidatorOrUnsupported} from './types.ts';
 import {zodMap} from './competitors/zod.ts';
