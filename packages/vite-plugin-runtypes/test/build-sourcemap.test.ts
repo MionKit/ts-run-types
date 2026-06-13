@@ -1,5 +1,5 @@
 // End-to-end proof that the rewrite's source map survives Vite's composite
-// map chain (our MagicString map -> esbuild's TS transform -> Rollup
+// map chain (our EditBuffer map -> esbuild's TS transform -> Rollup
 // bundling): in a real `vite build` with sourcemaps on, the emitted chunk
 // must map each marker call site back to its ORIGINAL fixture line — i.e.
 // the injected single-line import block and the spliced bindings displace
