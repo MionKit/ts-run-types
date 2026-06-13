@@ -1,0 +1,495 @@
+// Type-checking cost benchmark — measures the TypeScript **type instantiations**
+// a developer pays to type-check the static type each library produces for a case.
+//
+// Reworked for the per-competitor layout (benchmarks/competitors/<lib>/cases.ts).
+// For every shared case it assembles a tiny self-contained .ts probe per FORM and
+// compiles it in isolation through the TypeScript compiler API, reading
+// `program.getInstantiationCount()` (baseline-subtracted so the number is the
+// marginal cost of resolving THAT case's type, not the import scaffold):
+//
+//   ts-go (type)    type T = <the TS type>;             const x: T = <sample>;
+//   ts-go (schema)  const s = RT.…; type T = Static<typeof s>;  const x: T = …;
+//   zod             const s = z.…;  type T = z.infer<typeof s>;  const x: T = …;
+//   typebox         const s = Type.…; type T = Static<typeof s>; const x: T = …;
+//   ajv             — (JSON Schema has no static type inference)
+//
+// The probe sources are EXTRACTED (TS compiler API) from the real competitor maps:
+//   - ts-go (type):   the `createValidate<TYPE>()` type argument per case in
+//                     competitors/ts-go-run-types/cases.ts.
+//   - ts-go (schema): the `createValidate(EXPR)` argument per case in
+//                     competitors/ts-go-run-types/schemaCases.ts.
+//   - zod / typebox:  the `c(EXPR)` argument per case in
+//                     competitors/{zod,typebox}/cases.ts.
+// Each entry is a LAZY `() => …` thunk (ts-go) or a `c(…)` call (zod/typebox); the
+// extractor unwraps the wrapper, preserving any local enum/interface/type/class
+// declarations authored inside a thunk so `<T>`/`EXPR` resolves where written.
+//
+// Module resolution: each form's probe is emitted INTO the relevant competitor
+// directory so Node-style `node_modules` resolution + each package's `exports`
+// map resolve the bare imports naturally — `@mionjs/ts-go-run-types`(+/schema,
+// /formats, /formats/temporal) from competitors/ts-go-run-types/node_modules
+// (bind-mounted at run time), `zod` / `@sinclair/typebox` from their own image
+// node_modules, and the realworld interfaces via the verbatim relative import.
+// `paths` (see OPTIONS) additionally pins the marker subpaths to the mounted
+// dist as a deterministic safety net.
+
+import ts from 'typescript';
+import fs from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
+import {spawnSync} from 'node:child_process';
+
+// Sample loading imports the shared cases as .ts via Node's type stripping; some
+// `getSamples()` thunks contain `enum`, which plain strip-only mode rejects. Re-
+// exec ourselves ONCE with --experimental-transform-types (enum-aware) so the
+// value-forcing path works. Guarded by a sentinel so it can't loop; if the spawn
+// fails (flag unsupported on an old Node) we fall through and run anyway — sample
+// loading then degrades to declare-only (still correct, just less forcing).
+const TRANSFORM_FLAG = '--experimental-transform-types';
+if (!process.execArgv.includes(TRANSFORM_FLAG) && !process.env.__TYPECOST_REEXEC) {
+  const self = url.fileURLToPath(import.meta.url);
+  const child = spawnSync(process.execPath, [TRANSFORM_FLAG, self, ...process.argv.slice(2)], {
+    stdio: 'inherit',
+    env: {...process.env, __TYPECOST_REEXEC: '1'},
+  });
+  if (child.status !== null && child.error === undefined) process.exit(child.status);
+  // spawn failed (e.g. flag rejected): continue in the current process.
+}
+
+const HERE = path.dirname(url.fileURLToPath(import.meta.url));
+// Benchmark root: /app in the container (typecost/ lives directly under it).
+const ROOT = path.resolve(HERE, '..');
+const COMPETITORS = path.join(ROOT, 'competitors');
+const TSGO_DIR = path.join(COMPETITORS, 'ts-go-run-types');
+const ZOD_DIR = path.join(COMPETITORS, 'zod');
+const TYPEBOX_DIR = path.join(COMPETITORS, 'typebox');
+
+const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? '/app/results';
+
+// One probe path PER competitor directory: the path decides where bare imports
+// (node_modules walk) and the verbatim relative realworld import resolve from.
+const PROBE_TSGO = path.join(TSGO_DIR, '__typecost_probe.ts');
+const PROBE_ZOD = path.join(ZOD_DIR, '__typecost_probe.ts');
+const PROBE_TYPEBOX = path.join(TYPEBOX_DIR, '__typecost_probe.ts');
+const PROBE_PATHS = new Set([PROBE_TSGO, PROBE_ZOD, PROBE_TYPEBOX]);
+
+const MARKER = path.join(TSGO_DIR, 'node_modules', '@mionjs', 'ts-go-run-types', 'dist');
+
+const OPTIONS = {
+  strict: true,
+  target: ts.ScriptTarget.ESNext,
+  module: ts.ModuleKind.ESNext,
+  moduleResolution: ts.ModuleResolutionKind.Bundler,
+  noEmit: true,
+  skipLibCheck: true,
+  noUnusedLocals: false,
+  noUnusedParameters: false,
+  allowImportingTsExtensions: true,
+  types: [],
+  baseUrl: ROOT,
+  // Deterministic pin for the bind-mounted marker subpaths (the mounted package
+  // also carries a valid `exports` map, so natural node_modules resolution works
+  // too — these just make it bulletproof regardless of probe location).
+  paths: {
+    '@mionjs/ts-go-run-types': [path.join(MARKER, 'index.d.ts')],
+    '@mionjs/ts-go-run-types/schema': [path.join(MARKER, 'schema', 'index.d.ts')],
+    '@mionjs/ts-go-run-types/formats': [path.join(MARKER, 'formats', 'index.d.ts')],
+    '@mionjs/ts-go-run-types/formats/temporal': [path.join(MARKER, 'formats', 'datetime', 'temporalFormats.d.ts')],
+  },
+  // esnext.full bundles the full standard lib (incl. Temporal where this TS ships
+  // it); cases whose types reference globals this TS lacks report "err" and drop
+  // out of the totals.
+  lib: ['lib.esnext.full.d.ts'],
+};
+
+// ── source extraction ───────────────────────────────────────────────────────
+
+const read = (f) => fs.readFileSync(f, 'utf8');
+const sf = (f) => ts.createSourceFile(f, read(f), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+/** Strip `as const` / `satisfies X` / parentheses to reach the wrapped node. */
+function unwrapExpr(node) {
+  while (node && (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node))) {
+    node = node.expression;
+  }
+  return node;
+}
+
+/** The `export const cases|schemaCases: CompetitorCases = { … }` object literal. */
+function findMapObject(source, mapName) {
+  let found = null;
+  source.forEachChild((n) => {
+    if (!ts.isVariableStatement(n)) return;
+    for (const decl of n.declarationList.declarations) {
+      if (decl.name.getText(source) !== mapName) continue;
+      const init = unwrapExpr(decl.initializer);
+      if (init && ts.isObjectLiteralExpression(init)) found = init;
+    }
+  });
+  return found;
+}
+
+/** A competitor file's preamble: bare (non-relative) imports + every top-level
+ *  declaration that ISN'T the cases map — helper consts + local type aliases the
+ *  ts-go map authors at file scope (e.g. `const slug` / `type Slug`). Relative
+ *  imports (realworld interfaces) are KEPT verbatim and resolve from the probe's
+ *  competitor directory. */
+function extractPreamble(source, mapName) {
+  const preamble = [];
+  source.forEachChild((n) => {
+    if (ts.isImportDeclaration(n)) {
+      preamble.push(n.getText(source)); // bare AND relative imports kept verbatim
+      return;
+    }
+    if (ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n) || ts.isEnumDeclaration(n)) {
+      preamble.push(n.getText(source));
+      return;
+    }
+    if (ts.isVariableStatement(n)) {
+      const isMap = n.declarationList.declarations.some((d) => d.name.getText(source) === mapName);
+      if (!isMap) preamble.push(n.getText(source));
+    }
+  });
+  return preamble;
+}
+
+/** Unwrap a LAZY entry thunk `() => EXPR` | `() => { …decls; return EXPR; }`,
+ *  returning {locals, expr}: the inline declarations authored before the return
+ *  (enum/interface/type/class/const/function — kept verbatim so EXPR resolves)
+ *  and the returned expression node. Returns null when the entry is not a thunk
+ *  (e.g. the bare `NOT_SUPPORTED` identifier). */
+function unwrapThunk(node) {
+  if (!node || !ts.isArrowFunction(node)) return null;
+  let body = node.body;
+  const locals = [];
+  if (ts.isBlock(body)) {
+    let expr = null;
+    for (const stmt of body.statements) {
+      if (ts.isReturnStatement(stmt)) {
+        expr = stmt.expression ?? null;
+        break;
+      }
+      locals.push(stmt); // declaration the returned call references
+    }
+    body = expr;
+  }
+  return body ? {locals, expr: body} : null;
+}
+
+/** ts-go cases.ts / schemaCases.ts → {preamble, entries:{key:{locals, arg}}, keys}.
+ *  `arg` is `{kind:'type', text}` for `createValidate<T>()` or `{kind:'schema',
+ *  text}` for `createValidate(EXPR)`. Entries that are NOT_SUPPORTED are skipped,
+ *  but `keys` lists EVERY map key in file order (drives the table + row order). */
+function extractTsGo(file, mapName, want) {
+  const source = sf(file);
+  const obj = findMapObject(source, mapName);
+  const entries = {};
+  const keys = [];
+  if (obj) {
+    for (const prop of obj.properties) {
+      if (!ts.isPropertyAssignment(prop)) continue;
+      const key = prop.name.getText(source).replace(/['"]/g, '');
+      keys.push(key);
+      const thunk = unwrapThunk(prop.initializer);
+      if (!thunk) continue; // NOT_SUPPORTED
+      const call = unwrapExpr(thunk.expr);
+      if (!call || !ts.isCallExpression(call) || call.expression.getText(source) !== 'createValidate') continue;
+      const localsText = thunk.locals.map((s) => s.getText(source));
+      if (want === 'type') {
+        if (call.typeArguments?.length) entries[key] = {locals: localsText, arg: {kind: 'type', text: call.typeArguments[0].getText(source)}};
+      } else if (call.arguments.length) {
+        entries[key] = {locals: localsText, arg: {kind: 'schema', text: call.arguments[0].getText(source)}};
+      }
+    }
+  }
+  return {preamble: extractPreamble(source, mapName), entries, keys};
+}
+
+/** zod / typebox cases.ts → {preamble, entries:{key:{locals:[], exprText}}}.
+ *  Each supported entry is `c(EXPR)`; unsupported entries are the bare
+ *  NOT_SUPPORTED identifier (skipped). */
+function extractSchemaCompetitor(file, mapName) {
+  const source = sf(file);
+  const obj = findMapObject(source, mapName);
+  const entries = {};
+  if (obj) {
+    for (const prop of obj.properties) {
+      if (!ts.isPropertyAssignment(prop)) continue;
+      const key = prop.name.getText(source).replace(/['"]/g, '');
+      const init = unwrapExpr(prop.initializer);
+      if (init && ts.isCallExpression(init) && init.expression.getText(source) === 'c' && init.arguments.length) {
+        entries[key] = {locals: [], exprText: init.arguments[0].getText(source)};
+      }
+    }
+  }
+  return {preamble: extractPreamble(source, mapName), entries};
+}
+
+// ── probe assembly ──────────────────────────────────────────────────────────
+
+const STATIC_IMPORT = `import {type Static} from '@mionjs/ts-go-run-types/schema';`;
+const TB_STATIC_IMPORT = `import {type Static as __TBStatic} from '@sinclair/typebox';`;
+
+// Force TypeScript to fully RESOLVE + structurally check the recovered type by
+// assigning a real value (the case's first valid sample). A bare `let x!: T`
+// only declares the type and resolves it lazily; a concrete value assignment
+// triggers the structural assignability walk that materializes the whole type —
+// the cost users actually pay on every `const x: T = {…}`. Falls back to
+// declare-only when no serializable sample exists (symbol/Temporal/etc.).
+const force = (value) => (value === undefined ? `\nlet __x!: __T;\nvoid __x;\n` : `\nconst __x: __T = ${value};\nvoid __x;\n`);
+const decls = (locals) => (locals.length ? locals.join('\n') + '\n' : '');
+
+function probeTsType(preamble, locals, typeText, value) {
+  return `${preamble.join('\n')}\n${decls(locals)}type __T = ${typeText};${force(value)}`;
+}
+function probeTsSchema(preamble, locals, exprText, value) {
+  const imps = preamble.includes(STATIC_IMPORT) ? preamble : [...preamble, STATIC_IMPORT];
+  return `${imps.join('\n')}\n${decls(locals)}const __s = ${exprText};\ntype __T = Static<typeof __s>;${force(value)}`;
+}
+function probeZod(preamble, exprText, value) {
+  return `${preamble.join('\n')}\nconst __s = ${exprText};\ntype __T = z.infer<typeof __s>;${force(value)}`;
+}
+function probeTypebox(preamble, exprText, value) {
+  return `${preamble.join('\n')}\n${TB_STATIC_IMPORT}\nconst __s = ${exprText};\ntype __T = __TBStatic<typeof __s>;${force(value)}`;
+}
+
+// ── isolated compile + instantiation count ──────────────────────────────────
+
+const sfCache = new Map();
+let oldProgram;
+
+function compile(probePath, text) {
+  const host = ts.createCompilerHost(OPTIONS, true);
+  const baseGet = host.getSourceFile.bind(host);
+  host.getSourceFile = (fn, lang, onErr, should) => {
+    if (PROBE_PATHS.has(fn)) return ts.createSourceFile(fn, fn === probePath ? text : '', lang, true, ts.ScriptKind.TS);
+    let cached = sfCache.get(fn);
+    if (!cached) {
+      cached = baseGet(fn, lang, onErr, should);
+      if (cached) sfCache.set(fn, cached);
+    }
+    return cached;
+  };
+  host.fileExists = (f) => f === probePath || (!PROBE_PATHS.has(f) && ts.sys.fileExists(f));
+  host.readFile = (f) => (f === probePath ? text : ts.sys.readFile(f));
+  const program = ts.createProgram([probePath], OPTIONS, host, oldProgram);
+  const diags = ts.getPreEmitDiagnostics(program);
+  oldProgram = program;
+  const errors = diags.filter((d) => d.category === ts.DiagnosticCategory.Error);
+  return {count: program.getInstantiationCount(), errors};
+}
+
+// baseline = same scaffold/imports with a trivial type → fixed cost to subtract.
+const baselineCache = new Map();
+function baseline(key, probePath, text) {
+  if (!baselineCache.has(key)) baselineCache.set(key, compile(probePath, text).count);
+  return baselineCache.get(key);
+}
+
+function measure(form, baselineKey, probePath, baselineText, probeText) {
+  const {count, errors} = compile(probePath, probeText);
+  if (errors.length) return {status: 'err', n: 0, detail: ts.flattenDiagnosticMessageText(errors[0].messageText, ' ')};
+  const base = baseline(`${form}:${baselineKey}`, probePath, baselineText);
+  return {status: 'ok', n: Math.max(0, count - base)};
+}
+
+// ── value rendering — each case's first valid sample as a TS literal ─────────
+
+/** Serialize a runtime value to a TS source literal. Throws on values with no
+ *  faithful literal form (symbol, function, Temporal & other class instances),
+ *  so the probe falls back to declare-only for that case. */
+function serialize(v, depth = 0) {
+  if (depth > 8) throw new Error('too deep');
+  if (v === null) return 'null';
+  if (v === undefined) return 'undefined';
+  const t = typeof v;
+  if (t === 'string') return JSON.stringify(v);
+  if (t === 'boolean') return String(v);
+  if (t === 'bigint') return `${v}n`;
+  if (t === 'number') return Number.isFinite(v) ? String(v) : Number.isNaN(v) ? 'NaN' : v > 0 ? 'Infinity' : '-Infinity';
+  if (v instanceof Date) return `new Date(${v.getTime()})`;
+  if (v instanceof RegExp) return v.toString();
+  if (Array.isArray(v)) return `[${v.map((x) => serialize(x, depth + 1)).join(', ')}]`;
+  if (v instanceof Map)
+    return `new Map([${[...v.entries()].map(([k, val]) => `[${serialize(k, depth + 1)}, ${serialize(val, depth + 1)}]`).join(', ')}])`;
+  if (v instanceof Set) return `new Set([${[...v].map((x) => serialize(x, depth + 1)).join(', ')}])`;
+  if (t === 'object') {
+    const proto = Object.getPrototypeOf(v);
+    if (proto !== Object.prototype && proto !== null) throw new Error('non-plain object');
+    return `{${Object.entries(v)
+      .map(([k, val]) => `${JSON.stringify(k)}: ${serialize(val, depth + 1)}`)
+      .join(', ')}}`;
+  }
+  throw new Error(`unserializable ${t}`);
+}
+
+/** Best-effort: import the shared cases (Node type-stripping; enums need the
+ *  --experimental-transform-types re-exec above) and serialize each case's first
+ *  valid sample to a TS literal, keyed `GROUP.case`. On ANY failure — import
+ *  error or a per-case unserializable sample — that key is simply absent and its
+ *  probe falls back to declare-only. The table/row structure does NOT depend on
+ *  this (keys come from the ts-go map), so a failed import only loses forcing. */
+async function loadSampleValues() {
+  const valueByKey = new Map();
+  let mod;
+  try {
+    mod = await import(path.join(ROOT, 'shared', 'cases', 'index.ts'));
+  } catch (err) {
+    console.error(`typecost: could not load shared samples (${err?.code ?? err?.message ?? err}); using declare-only probes.`);
+    return valueByKey;
+  }
+  for (const iterated of mod.iterateCases()) {
+    try {
+      const valid = iterated.case.getSamples().valid;
+      if (valid.length) valueByKey.set(iterated.key, serialize(valid[0]));
+    } catch {
+      /* no faithful literal → declare-only fallback */
+    }
+  }
+  return valueByKey;
+}
+
+// ── run ──────────────────────────────────────────────────────────────────────
+
+const V = "'x'"; // baseline value (type is `string`)
+
+async function main() {
+  const tsType = extractTsGo(path.join(TSGO_DIR, 'cases.ts'), 'cases', 'type');
+  const tsSchema = extractTsGo(path.join(TSGO_DIR, 'schemaCases.ts'), 'schemaCases', 'schema');
+  const zod = extractSchemaCompetitor(path.join(ZOD_DIR, 'cases.ts'), 'cases');
+  const typebox = extractSchemaCompetitor(path.join(TYPEBOX_DIR, 'cases.ts'), 'cases');
+
+  const valueByKey = await loadSampleValues();
+
+  // Authoritative case order comes from the ts-go cases.ts map (TOTAL over every
+  // shared key, in file order); group/name split on the dotted key. Parsing the
+  // map can't choke on enums (it's an AST read), so the table is always built.
+  const keys = tsType.keys;
+  const rows = [];
+  for (const key of keys) {
+    const dot = key.indexOf('.');
+    const group = key.slice(0, dot);
+    const name = key.slice(dot + 1);
+    const value = valueByKey.get(key);
+    const cell = {key, group, name};
+
+    // BENCH_DUMP=<key>: print the exact self-contained probe sources for one case
+    // (what actually gets compiled) and exit. Debugging aid.
+    if (process.env.BENCH_DUMP === key) {
+      const t = tsType.entries[key];
+      const s = tsSchema.entries[key];
+      if (t) console.log(`\n===== ts-go(type) =====\n${probeTsType(tsType.preamble, t.locals, t.arg.text, value)}`);
+      if (s) console.log(`\n===== ts-go(schema) =====\n${probeTsSchema(tsSchema.preamble, s.locals, s.arg.text, value)}`);
+      if (zod.entries[key]) console.log(`\n===== zod =====\n${probeZod(zod.preamble, zod.entries[key].exprText, value)}`);
+      if (typebox.entries[key]) console.log(`\n===== typebox =====\n${probeTypebox(typebox.preamble, typebox.entries[key].exprText, value)}`);
+      process.exit(0);
+    }
+
+    const t = tsType.entries[key];
+    cell.tsType = t
+      ? measure('tsType', 'tsgo', PROBE_TSGO, probeTsType(tsType.preamble, [], 'string', V), probeTsType(tsType.preamble, t.locals, t.arg.text, value))
+      : {status: 'na'};
+
+    const s = tsSchema.entries[key];
+    cell.tsSchema = s
+      ? measure('tsSchema', 'tsgo', PROBE_TSGO, probeTsSchema(tsSchema.preamble, [], 'RT.string()', V), probeTsSchema(tsSchema.preamble, s.locals, s.arg.text, value))
+      : {status: 'na'};
+
+    cell.zod = zod.entries[key]
+      ? measure('zod', 'zod', PROBE_ZOD, probeZod(zod.preamble, 'z.string()', V), probeZod(zod.preamble, zod.entries[key].exprText, value))
+      : {status: 'na'};
+
+    cell.typebox = typebox.entries[key]
+      ? measure('typebox', 'typebox', PROBE_TYPEBOX, probeTypebox(typebox.preamble, 'Type.String()', V), probeTypebox(typebox.preamble, typebox.entries[key].exprText, value))
+      : {status: 'na'};
+
+    rows.push(cell);
+  }
+
+  report(rows);
+  writeResults(rows);
+}
+
+const LIBS = [
+  ['ts-go(type)', 'tsType', 'ts-go-run-types-type'],
+  ['ts-go(schema)', 'tsSchema', 'ts-go-run-types-schema'],
+  ['zod', 'zod', 'zod'],
+  ['typebox', 'typebox', 'typebox'],
+];
+
+function report(rows) {
+  const padR = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s.padEnd(n));
+  const padL = (s, n) => String(s).padStart(n);
+  const COL = 15;
+  const KEYW = 32;
+  console.log('\nType-checking cost — TS type instantiations to resolve each form (baseline-subtracted)\n');
+  console.log(padR('case', KEYW) + LIBS.map(([n]) => padL(n, COL)).join(''));
+  console.log('-'.repeat(KEYW + COL * LIBS.length));
+
+  const totals = {tsType: 0, tsSchema: 0, zod: 0, typebox: 0};
+  const counts = {tsType: 0, tsSchema: 0, zod: 0, typebox: 0};
+  let lastGroup = '';
+  for (const row of rows) {
+    if (row.group !== lastGroup) {
+      console.log(`· ${row.group}`);
+      lastGroup = row.group;
+    }
+    let line = padR('  ' + row.name, KEYW);
+    for (const [, field] of LIBS) {
+      const cell = row[field];
+      if (cell.status === 'ok') {
+        totals[field] += cell.n;
+        counts[field] += 1;
+        line += padL(String(cell.n), COL);
+      } else if (cell.status === 'err') {
+        line += padL('err', COL);
+      } else {
+        line += padL('—', COL);
+      }
+    }
+    console.log(line);
+  }
+
+  console.log('\nTotals (sum of instantiations / cases measured):');
+  for (const [name, field] of LIBS) {
+    console.log(`  ${padR(name, 16)} ${padL(totals[field], 9)}  over ${counts[field]} cases`);
+  }
+
+  // Fair head-to-head: only cases every form measured cleanly.
+  const commonRows = rows.filter((row) => LIBS.every(([, f]) => row[f].status === 'ok'));
+  if (commonRows.length) {
+    console.log(`\nApples-to-apples — same ${commonRows.length} cases all forms support:`);
+    for (const [name, field] of LIBS) {
+      const sum = commonRows.reduce((acc, row) => acc + row[field].n, 0);
+      console.log(`  ${padR(name, 16)} ${padL(sum, 9)}  (avg ${Math.round(sum / commonRows.length)}/case)`);
+    }
+  }
+  console.log(
+    "\nNote: each probe ASSIGNS a real value to a `const x: <type>` (the case's\n" +
+      'first valid sample, serialized), forcing TypeScript to fully resolve the\n' +
+      'type AND structurally check the value against it — the cost users pay on\n' +
+      'every `const x: T = {…}`. ts-go(type) is the type-definition form; ts-go(schema)\n' +
+      'is the value-first builder + Static<>. ajv has no static type inference.'
+  );
+}
+
+// Per-competitor results JSON so typecost can be aggregated like the runtime
+// results. One file per form/column: results/<competitor>.typecost.json with
+// {competitor, cases:[{key, group, name, instantiations}], total}.
+function writeResults(rows) {
+  fs.mkdirSync(RESULTS_DIR, {recursive: true});
+  for (const [, field, competitor] of LIBS) {
+    const cases = [];
+    let total = 0;
+    for (const row of rows) {
+      const cell = row[field];
+      if (cell.status !== 'ok') continue; // skip na/err — only measured cases ship
+      cases.push({key: row.key, group: row.group, name: row.name, instantiations: cell.n});
+      total += cell.n;
+    }
+    const out = {competitor, cases, total};
+    fs.writeFileSync(path.join(RESULTS_DIR, `${competitor}.typecost.json`), JSON.stringify(out, null, 2) + '\n');
+  }
+}
+
+main();
