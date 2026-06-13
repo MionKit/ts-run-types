@@ -52,7 +52,7 @@ describe('FriendlyType<T> — per-branch correctness + instantiation budget', ()
       // @ts-expect-error — 'missing' is not a field of User
       const _bad: FriendlyType<User> = { missing: { $label: 'x' } };
       `,
-      36
+      38
     );
   });
 
@@ -71,7 +71,7 @@ describe('FriendlyType<T> — per-branch correctness + instantiation budget', ()
       // @ts-expect-error — 'nope' is not a field of profile
       const _bad: FriendlyType<User> = { profile: { nope: { $label: 'x' } } };
       `,
-      74
+      78
     );
   });
 
@@ -85,7 +85,53 @@ describe('FriendlyType<T> — per-branch correctness + instantiation budget', ()
       };
       type _arr = Expect<Assignable<{$items: {$errors: {type: 't'}}}, FriendlyType<string[]>>>;
       `,
-      82
+      105
+    );
+  });
+
+  it('tuples carry $slots (per-slot nodes), distinct from arrays', () => {
+    check(
+      `
+      const _ok: FriendlyType<[string, number]> = {
+        $label: 'Pair',
+        $slots: [{ $label: 'Name' }, { $label: 'Age', $errors: { min: 'too small' } }],
+      };
+      type _slots = Expect<Assignable<{$slots: [{$label: 'n'}, {$label: 'a'}]}, FriendlyType<[string, number]>>>;
+      // an array still gets $items (NOT $slots) — tuple/array discrimination
+      type _items = Expect<Assignable<{$items: {$errors: {type: 't'}}}, FriendlyType<string[]>>>;
+      // an array does NOT accept $slots
+      type _noslots = ExpectFalse<Assignable<{$slots: [{$label: 'n'}]}, FriendlyType<string[]>>>;
+      // a tuple does NOT accept $items
+      type _noitems = ExpectFalse<Assignable<{$items: {$label: 'x'}}, FriendlyType<[string, number]>>>;
+      `,
+      97
+    );
+  });
+
+  it('Map carries $keys / $values', () => {
+    check(
+      `
+      const _ok: FriendlyType<Map<string, number>> = {
+        $label: 'Lookup',
+        $keys: { $label: 'Key' },
+        $values: { $label: 'Value', $errors: { min: 'too small' } },
+      };
+      type _map = Expect<Assignable<{$keys: {$label: 'k'}; $values: {$label: 'v'}}, FriendlyType<Map<string, number>>>>;
+      `,
+      250
+    );
+  });
+
+  it('Set carries $values', () => {
+    check(
+      `
+      const _ok: FriendlyType<Set<string>> = {
+        $label: 'Tags',
+        $values: { $label: 'Tag', $errors: { minLength: 'too short' } },
+      };
+      type _set = Expect<Assignable<{$values: {$label: 'v'}}, FriendlyType<Set<string>>>>;
+      `,
+      209
     );
   });
 
@@ -103,7 +149,7 @@ describe('FriendlyType<T> — per-branch correctness + instantiation budget', ()
         },
       };
       `,
-      27
+      29
     );
   });
 
@@ -116,7 +162,7 @@ describe('FriendlyType<T> — per-branch correctness + instantiation budget', ()
         status: { $label: 'Status', $errors: { type: 'invalid status' } },
       };
       `,
-      40
+      42
     );
   });
 
@@ -128,7 +174,7 @@ describe('FriendlyType<T> — per-branch correctness + instantiation budget', ()
         a: { b: { c: { d: { e: { $label: 'E' } } } } },
       };
       `,
-      121
+      131
     );
   });
 
@@ -141,7 +187,7 @@ describe('FriendlyType<T> — per-branch correctness + instantiation budget', ()
         next: { value: { $label: 'Value' } },
       };
       `,
-      60
+      64
     );
   });
 });
