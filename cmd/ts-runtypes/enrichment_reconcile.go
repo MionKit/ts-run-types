@@ -129,12 +129,12 @@ func reconcileMirror(spec mirrorWrite, existingBytes []byte) bool {
 
 	// Orphan-const: an existing owned const NOT in the desired set whose source
 	// type is no longer declared → @rtOrphan it (conservatively; see orphanConsts).
-	orphanedTypeNames := orphanConsts(&ops, index, spec)
+	orphanedEntries := orphanConsts(&ops, index, spec)
 
 	// Breadcrumb clause sync: recompute the type-name list from the surviving
 	// consts (existing minus orphaned, plus added) declared in THIS source file,
 	// replacing only the `{ … }` clause and keeping `from '<src>'` byte-identical.
-	syncBreadcrumbClause(&ops, index, spec, orphanedTypeNames)
+	syncBreadcrumbClause(&ops, index, spec, orphanedEntries)
 
 	// Apply the in-place splices first (all index the ORIGINAL bytes), then append
 	// new consts + any cross-file imports they introduce.
