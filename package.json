@@ -52,6 +52,7 @@
     "bench:prep": "bash scripts/benchmarks.sh prep",
     "bench:build-image": "bash scripts/benchmarks.sh build-image",
     "bench": "bash scripts/benchmarks.sh bench",
+    "bench:one": "bash scripts/benchmarks.sh bench-one",
     "bench:build": "bash scripts/benchmarks.sh build",
     "bench:smoke": "bash scripts/benchmarks.sh smoke",
     "bench:typecost": "bash scripts/benchmarks.sh typecost",

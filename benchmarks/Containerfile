@@ -67,4 +67,13 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 COPY . .
 RUN rm -f /app/pnpm-workspace.yaml /app/.npmrc
 
+# ── Pre-warm typia's tsgo transform ──────────────────────────────────────────
+# typia's FIRST ttsc build compiles its native Go plugin (~200s, "once per cache
+# key") into competitors/typia/node_modules/.ttsc/. Bake that cache into the image
+# so each ephemeral (--rm) bench run reuses it instead of recompiling from scratch.
+# Needs the shared/ sources COPYed just above. Non-fatal (typia is opt-in): if it
+# fails, the only cost is the first BENCH_TYPIA run paying the one-time compile.
+RUN cd competitors/typia && pnpm run build \
+    || echo ">> typia pre-warm skipped (first BENCH_TYPIA run will compile the plugin)"
+
 # No CMD: scripts/benchmarks.sh supplies per-competitor build+run commands.
