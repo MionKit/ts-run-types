@@ -21,7 +21,7 @@ const TMP_ROOT = resolve(HERE, '../suites/enrichment/.tmp');
 // share `.tmp`, so each writes into its OWN lane subdir to avoid clobbering the
 // other's files (one entry's afterAll cleanup must not delete the other's temp
 // modules mid-run). `Lane` names the subdir.
-export type Lane = 'gen' | 'check';
+export type Lane = 'gen' | 'check' | 'reconcile';
 const laneDir = (lane: Lane): string => resolve(TMP_ROOT, lane);
 
 // One temp module per case carries `import type * as TF` + the case's `src`

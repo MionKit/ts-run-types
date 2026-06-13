@@ -7,7 +7,12 @@
 >   `ts-runtypes`;
 > - the Go CLI trio `describe` / `check` / `gen` (`internal/enrichment`, a separate
 >   package), incl. **named-type-driven emission** (one `const` per named type) and
->   the `check` diagnostics **FT002 / FT003 / FT005 / MD001**.
+>   the `check` diagnostics **FT002 / FT003 / FT005 / MD001**;
+> - **`gen --update` reconcile + `gen --prune`** — a value-preserving merge of an
+>   existing mirror against the regenerated set (property merge, field rename,
+>   `@rtType`/`@rtIds` markers, `@rtOrphan`/`@rtOrphanChild` carcasses), with a
+>   byte-identical idempotent re-run, and a destructive prune sweep (see
+>   [`gen` semantics → `--update`](#gen---update--reconcile-value-preserving-merge)).
 >
 > **Storage + consumption model (this doc):** enrichment is committed to a **mirror
 > directory** (`runtypes/generated/`, configured via the tsconfig `plugins` entry)
@@ -423,7 +428,7 @@ CLI (below) rather than scraping editor output.
 | `ts-runtypes check [glob]`                      | Run FT/MD validation standalone; non-zero exit on Error. CI / pre-commit.                 |
 | `ts-runtypes check --file <p> --json`           | Validate **one file**, structured JSON out. The agent's tight feedback tool.              |
 | `ts-runtypes describe <file>#<Type> --format prompt\|json` | Emit the type's shape (names, kinds, optionality, formats, literals — all already in the `RunType` struct) as LLM prompt context. |
-| `ts-runtypes gen <file> [--mock] [--friendly] [--check]` | Generate / refresh the type's mirror file under `enrichDir`; `--check` reports drift (see below). |
+| `ts-runtypes gen <file> [--mock] [--friendly] [--check] [--update] [--prune]` | Generate / refresh the type's mirror file under `enrichDir`. `--check` reports breadcrumb drift; `--update` reconciles an existing mirror value-preservingly (property merge + rename + orphan); `--prune` strips `@rtOrphan`/`@rtOrphanChild` carcasses (the only destructive op). See `gen` semantics below. |
 
 All three are **implemented** as out-of-band CLI modes of the Go binary. Validation
 runs via the `check` verb (CI / agents); surfacing the same FT/MD diagnostics
@@ -606,10 +611,12 @@ emitter and the DSL types now agree structurally for every kind.
 
 - **Best-effort.** Emits the mirror file + `import type`; broken exports are the
   user's to fix.
-- **Create-only (for now).** Detect existing entries (parse, or even a regex on the
-  export name); if present, **skip**. Append missing entries. Never rewrite existing
-  content — these files are hand-editable and AI-authored. (Parsing an existing entry
-  to fill *missing fields within it* is a future enhancement.)
+- **Create-only by default.** Without `--update`, `gen` detects existing entries
+  (regex on the export name); if present, it **skips** them and appends only
+  missing entries. It never rewrites existing content — those files are
+  hand-editable and AI-authored. **`--update` opts into reconcile** (below): a
+  surgical, value-preserving merge of an existing mirror against the regenerated
+  desired set.
 - **Stable names — `gen` never edits hand-authored source.** Once a mirror file
   exists, `gen` does not rename or relocate it on a source rename, and never touches
   the consumer's `import`. This keeps the "`gen` only ever writes inside `enrichDir`"
@@ -625,6 +632,94 @@ emitter and the DSL types now agree structurally for every kind.
   the source no longer declares the type. A non-IDE rename (`git mv`, find/replace)
   leaves a dangling breadcrumb that `--check` flags for a manual `gen`.
 
+### `gen --update` — reconcile (value-preserving merge)
+
+`gen <file> <Type> --update` reconciles an EXISTING committed mirror against the
+freshly regenerated desired set, instead of skipping it (create-only) or
+clobbering it. It is **mutually exclusive** with `--check` and `--files` (fatal
+if combined) and honors `--out` / `--enrich-dir` / `--mock` / `--friendly`. An
+empty / missing mirror falls back to the create-only fresh-file path.
+
+The whole point is that mirror files are **hand- and AI-authored** — labels,
+error messages, mock pools — so a type change must never wipe that work. The
+reconcile parses the existing file, matches it to the desired set, and emits
+only the minimal edits.
+
+**Markers** the generator stamps (and the reconcile maintains) — all on the
+const *wrapper*, never inside the skeleton body, so they survive Prettier (a
+leading JSDoc on a declaration is preserved) and round-trip on the next update:
+
+| Marker | Where | Purpose |
+| --- | --- | --- |
+| `@rtType <Name>#<id>` | JSDoc on each `export const` | the const's structural type id — the reconcile matches existing↔desired by THIS id, not the positional var name (so `friendlyBox` / `friendlyBox2` never swap bodies) |
+| `@rtIds {field: <id>, …}` | same JSDoc | a dotted-field-path → child-type-id map; recovers a primitive/inline field's identity for rename matching |
+| `@rtOrphan` | block comment wrapping a whole const | a const whose source type was deleted — a value-preserving carcass |
+| `@rtOrphanChild` | block comment wrapping one field | a single removed field — a value-preserving carcass |
+
+The encoding is a single leading line per const:
+`/** @rtType User#9f3a @rtIds {name: a1b2, age: c3d4} */` (keys sorted, so output
+is deterministic + idempotent). The `@rtIds` value may also be hand-written in
+the readable `field: TypeRef#id` form — the parser accepts both; the generator
+emits the bare-id form.
+
+**Reconcile algorithm (per mirror file):**
+
+1. **Parse** the existing bytes via the tsgo parser. Any parse diagnostic is
+   **fatal** ("cannot parse mirror; fix or delete it") — we never silently
+   append to or overwrite a file we cannot parse.
+2. **Index** every `export const friendly*/mock*` by `(@rtType id, form)` — the
+   friendly + mock consts of one type share a structural id, so the form
+   disambiguates — with a var-name fallback (a field add/remove changes the id,
+   but `friendly<Name>` is stable). Imports + `@rtOrphan` carcasses are indexed
+   too.
+3. **Match** consts by `@rtType` id (fallback var name). A new desired const →
+   ADD (or RESTORE an `@rtOrphan` carcass for that id). A matched const → property
+   merge. The stale marker is refreshed to the new id + `@rtIds` so the next run
+   matches by id again.
+4. **Property merge** (recursive, keyed by field name): a field present in both
+   as a **leaf** is left byte-identical (the authored value + formatting
+   survive); both as **objects** recurse; a desired-only field is **inserted** as
+   a fresh skeleton; an existing-only field is **commented out** in place with
+   `@rtOrphanChild` (value + trailing comma preserved inside the block comment).
+5. **Rename pass** (runs first, over the raw drop/add sets): pair a dropped field
+   with an added one that share a **unique** child identity — Tier 1 is the
+   `friendly*/mock*` reference name (named-type fields), Tier 2 is the `@rtIds`
+   child id (primitive/inline fields). A unique match emits a **key-only splice**
+   (the old value is carried verbatim under the new name); an identity shared by
+   more than one drop or add is ambiguous → no rename, fall through to
+   orphan-child / insert.
+6. **Orphan-const** (conservative): an existing owned const that is BOTH absent
+   from the desired set AND whose source type is no longer declared by the
+   resolved breadcrumb source is wrapped in `@rtOrphan`. The "no longer declared"
+   check is what distinguishes a deleted type from one merely outside this
+   invocation's closure (another type in the same mirror file is left untouched).
+7. **Import sync**: missing cross-file value imports are added; the breadcrumb
+   `{ … }` clause is recomputed from the surviving + desired type names declared
+   in this file and replaced **in place** — `from '<src>'` is **never rewritten**
+   (that is a `--check` concern, and the breadcrumb is the user's IDE-managed
+   link).
+
+All edits go through a purpose-built **splicer**: `{start, end, text}` ops sorted
+strictly descending by start, applied against the original bytes, never merging
+touching ranges, **fatal on any overlap**. Trivia-trimmed statement starts
+(`scanner.GetTokenPosOfNode`) keep a comment above a const from being swallowed.
+
+**Idempotency is AST-structural, not whitespace-collapse:** an unchanged const —
+even one a developer ran Prettier over — produces zero splice ops, so a re-run is
+a **byte-identical no-op**. (The merge compares field-key sets via the parsed
+AST; it never touches a leaf's bytes, so whitespace inside string/template
+literals can never fool it.)
+
+### `gen --prune` — the only destructive op
+
+`gen --prune [<mirror-file-or-dir>]` strips every `@rtOrphan` / `@rtOrphanChild`
+comment (whole-const carcasses and inline dropped-field carcasses alike) and the
+commented-out code they carry, reporting what was removed per file. It is the
+**only** path that truly deletes content — the reconcile only ever *comments
+out*, so a dropped field/const can be reviewed (and restored on reappearance)
+before a deliberate prune sweep removes it for good. It is idempotent: a file
+with no carcasses is left untouched.
+
 ### Edge cases
 
 | Case                                          | Policy                                                                  |
@@ -635,7 +730,7 @@ emitter and the DSL types now agree structurally for every kind.
 | Anonymous/inline `createMockType<{a:string}>()` | no named home → **skip** (no mirror file)                             |
 | Generic instantiations `Box<string>` vs `Box<number>` | separate entries in `Box`'s mirror file, one per structural id, name-disambiguated |
 | Type declared only in a `.d.ts`               | mirror is always a `.ts` (it holds runtime const values), at the `.d.ts`'s mirror path |
-| Existing hand-edited mirror file              | create-only — skip present entries, append missing ones, never clobber  |
+| Existing hand-edited mirror file              | default: create-only — skip present entries, append missing ones, never clobber. `--update`: value-preserving reconcile (property merge + rename + orphan), never clobbers authored values |
 
 ### External / library types — a resolution order
 
