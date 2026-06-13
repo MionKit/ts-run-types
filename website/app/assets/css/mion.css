@@ -163,11 +163,26 @@ pre.px-4 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
 }
 
+/* equal-height columns: the code-group root, its tabpanel wrapper and the inner
+   pre all flex-fill, so the shorter block grows to bottom out level with the taller. */
 .rt-define-cols > * {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rt-define-cols > * > [role="tabpanel"] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.rt-define-cols > * > [role="tabpanel"] > pre {
+  flex: 1;
+  margin: 0;
 }
 
 @media (max-width: 880px) {
@@ -385,24 +400,137 @@ pre.px-4 {
   animation: gradient-flow 12s linear infinite;
 }
 
+/* "All Special Markers" cards (guide markers page) — gradient title over the
+   marker's code block. */
+.rt-markers .group > p {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.2;
+  background: linear-gradient(
+    90deg,
+    #8aa85e 0%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 25%,
+    #bdd09d 50%,
+    color-mix(in srgb, #8aa85e 55%, #60a5fa) 75%,
+    #8aa85e 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% 100%;
+  animation: gradient-flow 12s linear infinite;
+}
+
 @media (max-width: 1000px) {
   .rt-treeshake-cols {
     grid-template-columns: 1fr;
   }
 }
 
-/* ── Wide data pages (Suites & Benchmarks) ──────────────────────────────────
-   These pages set `pageClass: wide-page` and hide the right-hand TOC
-   (`toc: false`) in frontmatter. The dense suite/benchmark tables then reclaim
-   the freed space instead of being capped at prose width. Both knobs are safe:
-   bumping the container token only takes effect where it's used, and dropping
-   the prose max-width just lets the content fill its (now wider) parent. */
-:root:has(.wide-page) {
-  --ui-container: 88rem;
+/* Home "Formats baked into your types" — three columns: the pitch (card with a
+   Temporal tile pinned to its bottom), the type-first example, the schema-first
+   example. Equal height; code panels flex-fill. */
+.rt-formats-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+  align-items: stretch;
 }
 
-.wide-page :is(.prose, article) {
+.rt-formats-cols > * {
+  min-width: 0;
+  margin-block: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* the intro card's body fills so the Temporal tile can pin to the bottom */
+.rt-formats-cols .rt-feature-card > * {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* code-group columns fill to the tallest column */
+.rt-formats-cols > * > div[role='tabpanel'] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.rt-formats-cols > * > div[role='tabpanel'] > pre {
+  flex: 1;
+}
+
+.rt-formats-cols :is(pre, code) {
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+/* the "Temporal Support" callout, pinned to the bottom of the intro column */
+.rt-formats-tile {
+  margin-top: auto;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--ui-border);
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--ui-text-muted) 6%, transparent);
+}
+
+.rt-formats-tile h4 {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+  background: linear-gradient(120deg, hsl(200 72% 56%), hsl(238 66% 62%));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.rt-formats-tile p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--ui-text-dimmed);
+}
+
+@media (max-width: 1000px) {
+  .rt-formats-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Per-section page width + TOC ───────────────────────────────────────────
+   `<body>` is tagged by app/plugins/section-class.ts: `rt-wide-page` on
+   Introduction + Guide, `rt-flush-page` on Suites + Benchmarks. The doc layout
+   nests a 10-col grid — content (`col-span-8`) beside a right-hand TOC rail
+   (`col-span-2`, a <div>; the left nav is an <aside>, so it's untouched). On
+   both sections we collapse that inner grid to a block so content reclaims the
+   rail, and hide the (already `toc:false`-emptied) rail. Wide pages additionally
+   bump the container so prose + code stretch past the old TOC edge; flush pages
+   keep the default container, so they lose the TOC without growing wider. */
+/* Both sections: lift the prose max-width cap and hide the (toc:false-emptied)
+   right-hand TOC rail. The rail is a <div>; the left nav is an <aside>, so the
+   sidebar is untouched. :has scopes to the inner content/TOC grid (the outer grid's
+   col-span-2 is the <aside>, which this selector skips). */
+body.rt-wide-page :is(.prose, article),
+body.rt-flush-page :is(.prose, article) {
   max-width: none;
+}
+
+body.rt-wide-page [class~="lg:grid-cols-10"] > div[class~="lg:col-span-2"],
+body.rt-flush-page [class~="lg:grid-cols-10"] > div[class~="lg:col-span-2"] {
+  display: none;
+}
+
+/* Wide pages (Introduction + Guide): collapse the content/TOC grid to a block so
+   content reclaims the freed rail and runs the full width of the column. Flush pages
+   (Suites + Benchmarks) keep the grid, so content stays at its normal width — no TOC,
+   but not widened. No container bump either way, so the header, sidebar and content
+   left edges stay aligned across every page. */
+body.rt-wide-page [class~="lg:grid-cols-10"]:has(> div[class~="lg:col-span-2"]) {
+  display: block;
 }
 
 /* ── Suite & benchmark surfaces — theme-aware ────────────────────────────────
