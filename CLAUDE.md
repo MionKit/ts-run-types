@@ -150,3 +150,14 @@ Full rationale: [docs/ARCHITECTURE.md → Validate contract](docs/ARCHITECTURE.m
 - [.claude/skills/ts-runtypes-setup/](.claude/skills/ts-runtypes-setup/) — automated host bootstrap + smoke verification skill.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed design, execution model, sentinel markers, lossy mappings, factory reference.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — scope + known lossy mappings.
+
+### Website docs style (`website/content/`)
+
+User-facing docs under [website/content/](website/content/) (Nuxt + Docus Markdown + MDC) follow a deliberate, reader-first voice. Keep it when editing:
+
+- **Plain, user-focused language.** Say what a feature does for the reader and why it helps, not how it is built; cut deep internals (hashing, byte offsets, "side-channel", "fixpoint", demand-driven cache mechanics).
+- **No dashes chaining clauses or sentences.** No em-dash, en-dash, `--`, or a spaced single `-` as punctuation; use a comma, a period, or parentheses. Hyphenated words (`build-time`) and dashes inside code / flags / URLs are fine.
+- **Prefer fenced code blocks over heavy inline `code`.** Keep essential public API / type names, but do not clutter prose with backticks.
+- **Short frontmatter `description`:** one simple sentence, aim under ~100 chars; leave already-short ones alone.
+- **Never modify** MDC components (`::` / `:::`, `<code-import>`, `::code-group`, `::note`, `::suite-table`, `::bench-table`, twoslash blocks), fenced code blocks, the `<!-- code-import-timestamp -->` comments, or `index.md` (the home page).
+- **Broad pass:** fan out one agent per `N.section/` dir, then verify em/en dashes are gone and per-file MDC-component / code-fence counts match the pre-edit baseline.
