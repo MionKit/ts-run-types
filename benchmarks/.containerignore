@@ -1,8 +1,18 @@
-# Only config files enter the image; everything below is source (mounted at
-# run time) or an artifact.
-src/
-node_modules/
-dist/
+# Generated / host-only — never enter the image build context. (The
+# per-competitor node_modules are created by the install layers in the
+# Containerfile, not copied from the host.)
+**/node_modules
+**/dist
+.vite
+results/
+.image-stamp
 .git/
 *.log
 *.tgz
+
+# Old monolithic bench (replaced by the per-competitor structure). Kept on disk
+# for reference but not baked into the image.
+src/
+vite.config.ts
+typecost.mjs
+package.json

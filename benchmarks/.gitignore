@@ -3,6 +3,10 @@ node_modules
 dist
 .vite
 
+# Per-competitor run artifacts + image freshness stamp
+results
+.image-stamp
+
 # Extra CA certs injected for proxied builds (never commit certs)
 .cacerts/*
 !.cacerts/.gitkeep

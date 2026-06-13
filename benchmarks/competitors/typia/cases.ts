@@ -23,7 +23,7 @@
 
 import typia from 'typia';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
-import type {User, Order, BlogPost, Product, ProductPage, RegistrationForm} from '../../src/suites/realworld/index.ts';
+import type {User, Order, BlogPost, Product, ProductPage, RegistrationForm} from '../../shared/cases/realworld/index.ts';
 
 export const cases: CompetitorCases = {
   // ── ATOMIC ──

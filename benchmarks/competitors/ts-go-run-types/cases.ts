@@ -52,7 +52,7 @@ import type {
   FormatTemporalZonedDateTime,
 } from '@mionjs/ts-go-run-types/formats/temporal';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
-import type {User, Order, BlogPost, Product, ProductPage, RegistrationForm} from '../../src/suites/realworld/index.ts';
+import type {User, Order, BlogPost, Product, ProductPage, RegistrationForm} from '../../shared/cases/realworld/index.ts';
 
 // Custom string-format patterns the STRING_FORMAT.pattern_* cases reference —
 // copied VERBATIM from benchmarks/src/suites/format-validation/StringFormat.ts.
