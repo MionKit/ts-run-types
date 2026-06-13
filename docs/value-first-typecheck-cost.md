@@ -4,7 +4,7 @@
 type-instantiation measurement (PR #100, `benchmarks/typecost.mjs`): ts-go's
 value-first **schema form** costs noticeably more TypeScript instantiations to
 resolve than TypeBox's `Static<>` (apples-to-apples avg ~515 vs ~201 per case;
-e.g. `REALWORLD.order` ts-go-schema 3747 vs typebox 1531). This records *why*,
+e.g. `REALWORLD.order` ts-go-schema 3747 vs typebox 1531). This records _why_,
 from reading both implementations. ts-go's **type-definition form**
 (`createValidate<T>()`) is ~0 instantiations and unaffected — this only concerns
 the value-first `createValidate(RT.…)` path.
@@ -44,8 +44,8 @@ builder's signature (`packages/ts-go-run-types/src/schema/compose.ts`):
 ```ts
 function object<const C extends Record<string, unknown>>(
   config: CompTimeArgs<C>,
-  id?: InjectRunTypeId<ObjectType<C>>,   // ← assembled type, reference #1
-): RunType<ObjectType<C>>                // ← assembled type, reference #2
+  id?: InjectRunTypeId<ObjectType<C>> // ← assembled type, reference #1
+): RunType<ObjectType<C>>; // ← assembled type, reference #2
 ```
 
 - `ObjectType<C>` (`src/schema/static.ts`) is the represented object type,
@@ -78,7 +78,7 @@ ts-go's value-first **convergence marker** `InjectRunTypeId<ObjectType<C>>`
 deliberately materializes the concrete type at the call site so the value-first
 typeId matches the type-first one (value-first and type-first must converge on
 the same structural id). That materialization is exactly what forces eager — and
-doubled — computation. TypeBox has no equivalent marker, which is *why* it can
+doubled — computation. TypeBox has no equivalent marker, which is _why_ it can
 stay lazy. Any move toward laziness has to rework how the value-first marker
 derives its id without forcing full type materialization at the builder call.
 

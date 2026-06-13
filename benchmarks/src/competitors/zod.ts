@@ -49,9 +49,7 @@ export const zodMap: CompetitorMap = {
 
   // ── TUPLE ──
   'TUPLE.string_number_pair': c(z.tuple([z.string(), z.number().finite()])),
-  'TUPLE.full_mion_tuple': c(
-    z.tuple([z.date(), z.number().finite(), z.string(), z.null(), z.array(z.string()), z.bigint()]),
-  ),
+  'TUPLE.full_mion_tuple': c(z.tuple([z.date(), z.number().finite(), z.string(), z.null(), z.array(z.string()), z.bigint()])),
   'TUPLE.nested_tuple_in_array': c(z.array(z.tuple([z.string(), z.number().finite()]))),
   'TUPLE.tuple_rest': c(z.tuple([z.number().finite()]).rest(z.string())),
   'TUPLE.tuple_named_labels': c(z.tuple([z.string(), z.number().finite()])),
@@ -63,32 +61,21 @@ export const zodMap: CompetitorMap = {
   'UNION.atomic_union': c(z.union([z.date(), z.number().finite(), z.string(), z.null(), z.bigint()])),
   'UNION.string_literal_union': c(z.enum(['UNO', 'DOS', 'TRES'])),
   'UNION.string_or_number': c(z.union([z.string(), z.number().finite()])),
-  'UNION.union_of_array_types': c(
-    z.union([z.array(z.string()), z.array(z.number().finite()), z.array(z.boolean())]),
-  ),
+  'UNION.union_of_array_types': c(z.union([z.array(z.string()), z.array(z.number().finite()), z.array(z.boolean())])),
   'UNION.array_of_union': c(z.array(z.union([z.string(), z.bigint(), z.boolean(), z.date()]))),
   'UNION.union_of_object_shapes': c(
-    z.union([
-      z.object({a: z.string(), aa: z.boolean()}),
-      z.object({b: z.number().finite()}),
-      z.object({c: z.bigint()}),
-    ]),
+    z.union([z.object({a: z.string(), aa: z.boolean()}), z.object({b: z.number().finite()}), z.object({c: z.bigint()})])
   ),
   'UNION.discriminated_union': c(
-    z.union([
-      z.object({kind: z.literal('a'), n: z.number().finite()}),
-      z.object({kind: z.literal('b'), s: z.string()}),
-    ]),
+    z.union([z.object({kind: z.literal('a'), n: z.number().finite()}), z.object({kind: z.literal('b'), s: z.string()})])
   ),
-  'UNION.union_merged_property': c(
-    z.union([z.object({a: z.boolean()}), z.object({a: z.number().finite()})]),
-  ),
+  'UNION.union_merged_property': c(z.union([z.object({a: z.boolean()}), z.object({a: z.number().finite()})])),
   'UNION.union_same_prop_different_types': c(
     z.union([
       z.object({type: z.literal('a'), prop: z.boolean()}),
       z.object({type: z.literal('b'), prop: z.number().finite()}),
       z.object({type: z.literal('c'), prop: z.string()}),
-    ]),
+    ])
   ),
   'UNION.intersection_to_object': c(z.object({a: z.string(), b: z.number().finite()})),
   'UNION.union_with_any_fallback': c(z.any()),
@@ -102,9 +89,7 @@ export const zodMap: CompetitorMap = {
   'OBJECT.interface_with_optional': c(z.object({a: z.string(), b: z.number().finite().optional()})),
   'OBJECT.interface_with_date': c(z.object({date: z.date(), name: z.string()})),
   'OBJECT.interface_with_method': c(z.object({name: z.string()})),
-  'OBJECT.nested_object': c(
-    z.object({a: z.string(), deep: z.object({b: z.string(), c: z.number().finite()})}),
-  ),
+  'OBJECT.nested_object': c(z.object({a: z.string(), deep: z.object({b: z.string(), c: z.number().finite()})})),
   'OBJECT.interface_string_array_prop': c(z.object({tags: z.array(z.string())})),
   'OBJECT.index_signature_string': c(z.record(z.string(), z.string())),
   'OBJECT.index_signature_nested': c(z.record(z.string(), z.record(z.string(), z.number().finite()))),
@@ -113,9 +98,7 @@ export const zodMap: CompetitorMap = {
   // at the root; zod accepts a RegExp as a {a?,b?} object — not-supported.
   'OBJECT.record_union_keys': c(z.object({a: z.number().finite(), b: z.number().finite()})),
   'OBJECT.union_value_index': c(z.record(z.union([z.string(), z.number().finite()]))),
-  'OBJECT.object_with_union_prop': c(
-    z.object({kind: z.union([z.literal('a'), z.literal('b')]), n: z.number().finite()}),
-  ),
+  'OBJECT.object_with_union_prop': c(z.object({kind: z.union([z.literal('a'), z.literal('b')]), n: z.number().finite()})),
 
   // ── NATIVE ──
   'NATIVE.map_string_number': c(z.map(z.string(), z.number().finite())),
@@ -133,7 +116,12 @@ Object.assign(zodMap, {
   'NUMBER_FORMAT.number_lt': c(z.number().finite().lt(10)),
   'NUMBER_FORMAT.number_gt': c(z.number().finite().gt(0)),
   'NUMBER_FORMAT.number_integer': c(z.number().int()),
-  'NUMBER_FORMAT.number_float': c(z.number().finite().refine((n) => !Number.isInteger(n))),
+  'NUMBER_FORMAT.number_float': c(
+    z
+      .number()
+      .finite()
+      .refine((n) => !Number.isInteger(n))
+  ),
   'NUMBER_FORMAT.number_multipleOf': c(z.number().finite().multipleOf(5)),
   'NUMBER_FORMAT.number_combined': c(z.number().int().min(0).max(100).multipleOf(5)),
   'NUMBER_FORMAT.number_int8': c(z.number().int().min(-128).max(127)),
@@ -168,14 +156,15 @@ Object.assign(zodMap, {
   'STRING_FORMAT.alpha': c(z.string().regex(/^[A-Za-z]+$/)),
   'STRING_FORMAT.alphaNumeric': c(z.string().regex(/^[A-Za-z0-9]+$/)),
   'STRING_FORMAT.numeric': c(z.string().regex(/^[0-9]+$/)),
-  'STRING_FORMAT.alpha_withLength': c(z.string().regex(/^[A-Za-z]+$/).max(3)),
+  'STRING_FORMAT.alpha_withLength': c(
+    z
+      .string()
+      .regex(/^[A-Za-z]+$/)
+      .max(3)
+  ),
   'STRING_FORMAT.lowercase_validate': c(z.string()),
-  'STRING_FORMAT.uuidv4': c(
-    z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
-  ),
-  'STRING_FORMAT.uuidv7': c(
-    z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
-  ),
+  'STRING_FORMAT.uuidv4': c(z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)),
+  'STRING_FORMAT.uuidv7': c(z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)),
   'STRING_FORMAT.pattern_slug': c(z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)),
   'STRING_FORMAT.pattern_hex': c(z.string().regex(/^[0-9a-fA-F]+$/)),
 });
@@ -208,7 +197,7 @@ Object.assign(zodMap, {
       roles: z.array(z.enum(['admin', 'editor', 'user'])),
       active: z.boolean(),
       createdAt: z.string(),
-    }),
+    })
   ),
   'REALWORLD.order': c(
     z.object({
@@ -219,7 +208,7 @@ Object.assign(zodMap, {
       status: z.enum(['pending', 'paid', 'shipped', 'delivered', 'cancelled']),
       total: z.number(),
       note: z.string().optional(),
-    }),
+    })
   ),
   'REALWORLD.blogPost': c(
     z.object({
@@ -232,7 +221,7 @@ Object.assign(zodMap, {
       published: z.boolean(),
       publishedAt: z.string().optional(),
       meta: z.object({views: z.number(), likes: z.number()}),
-    }),
+    })
   ),
   'REALWORLD.product': c(productZ),
   'REALWORLD.productPage': c(
@@ -242,7 +231,7 @@ Object.assign(zodMap, {
       pageSize: z.number(),
       total: z.number(),
       hasMore: z.boolean(),
-    }),
+    })
   ),
   'REALWORLD.registrationForm': c(
     z.object({
@@ -250,6 +239,6 @@ Object.assign(zodMap, {
       password: z.string(),
       acceptedTerms: z.literal(true),
       profile: z.object({firstName: z.string(), lastName: z.string(), age: z.number().optional()}),
-    }),
+    })
   ),
 });

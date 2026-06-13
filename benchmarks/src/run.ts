@@ -136,10 +136,7 @@ class Stats {
 
 function main(): number {
   const stats = new Stats();
-  console.log(
-    `\nFull validation + format-validation benchmark` +
-      (NO_TIMING ? ' (correctness only)' : ' (validations/sec)'),
-  );
+  console.log(`\nFull validation + format-validation benchmark` + (NO_TIMING ? ' (correctness only)' : ' (validations/sec)'));
   section('validation', VALIDATION_CASES, stats);
   section('format-validation', FORMAT_CASES, stats);
   section('real-world', REALWORLD_CASES, stats);
@@ -149,9 +146,7 @@ function main(): number {
   for (const lib of LIBS) {
     const ok = stats.ok[lib.name] ?? 0;
     const fail = stats.fail[lib.name] ?? 0;
-    console.log(
-      `  ${padR(lib.name, 18)} ok=${ok}  fail=${fail}  not-supported=${stats.na[lib.name] ?? 0}`,
-    );
+    console.log(`  ${padR(lib.name, 18)} ok=${ok}  fail=${fail}  not-supported=${stats.na[lib.name] ?? 0}`);
   }
 
   if (stats.failures.length) {

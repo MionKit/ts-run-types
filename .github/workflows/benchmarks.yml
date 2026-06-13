@@ -4,18 +4,13 @@
 # submodule bootstrap) to build the resolver binary the benchmark mounts.
 name: benchmarks
 
+# DISABLED for now — manual-only so it doesn't run on every push/PR.
+# Re-enable automatic runs by restoring the push/pull_request triggers below:
+#   on:
+#     push: { branches: [main], paths: ['benchmarks/**', 'scripts/benchmarks.sh', '.github/workflows/benchmarks.yml'] }
+#     pull_request: { paths: ['benchmarks/**', 'scripts/benchmarks.sh', '.github/workflows/benchmarks.yml'] }
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'benchmarks/**'
-      - 'scripts/benchmarks.sh'
-      - '.github/workflows/benchmarks.yml'
-  pull_request:
-    paths:
-      - 'benchmarks/**'
-      - 'scripts/benchmarks.sh'
-      - '.github/workflows/benchmarks.yml'
+  workflow_dispatch:
 
 jobs:
   bench:
@@ -27,6 +22,10 @@ jobs:
 
       - name: Apply tsgolint patches to typescript-go
         run: |
+          # `git am` records commits, so it needs a committer identity — CI
+          # runners have none by default ("empty ident name" fatal).
+          git config --global user.email "actions@github.com"
+          git config --global user.name "github-actions[bot]"
           cd third_party/tsgolint/typescript-go
           git am --3way --no-gpg-sign ../patches/*.patch
 

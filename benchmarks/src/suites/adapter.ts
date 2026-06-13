@@ -49,9 +49,6 @@ function flatten(suite: SuiteShape, suiteName: FlatCase['suite']): FlatCase[] {
 }
 
 export const VALIDATION_CASES = flatten(VALIDATION_SUITE as unknown as SuiteShape, 'validation');
-export const FORMAT_CASES = flatten(
-  FORMAT_VALIDATION_SUITE as unknown as SuiteShape,
-  'format-validation',
-);
+export const FORMAT_CASES = flatten(FORMAT_VALIDATION_SUITE as unknown as SuiteShape, 'format-validation');
 export const REALWORLD_CASES = flatten({REALWORLD} as unknown as SuiteShape, 'realworld');
 export const ALL_CASES = [...VALIDATION_CASES, ...FORMAT_CASES, ...REALWORLD_CASES];

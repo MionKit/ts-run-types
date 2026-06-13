@@ -163,7 +163,8 @@ function extractCompetitor(file, mapName) {
   source.forEachChild((n) => {
     if (ts.isVariableStatement(n)) {
       for (const d of n.declarationList.declarations) {
-        if (d.name.getText(source) === mapName && d.initializer && ts.isObjectLiteralExpression(d.initializer)) collect(d.initializer);
+        if (d.name.getText(source) === mapName && d.initializer && ts.isObjectLiteralExpression(d.initializer))
+          collect(d.initializer);
       }
     }
     // Object.assign(map, {…})
@@ -268,7 +269,9 @@ function serialize(v, depth = 0) {
   if (t === 'object') {
     const proto = Object.getPrototypeOf(v);
     if (proto !== Object.prototype && proto !== null) throw new Error('non-plain object');
-    return `{${Object.entries(v).map(([k, val]) => `${JSON.stringify(k)}: ${serialize(val, depth + 1)}`).join(', ')}}`;
+    return `{${Object.entries(v)
+      .map(([k, val]) => `${JSON.stringify(k)}: ${serialize(val, depth + 1)}`)
+      .join(', ')}}`;
   }
   throw new Error(`unserializable ${t}`);
 }
@@ -336,7 +339,8 @@ async function main() {
           if (typeText) console.log(`\n===== ts-go(type) =====\n${probeTsType(preamble, typeText, value)}`);
           if (schemaText) console.log(`\n===== ts-go(schema) =====\n${probeTsSchema(preamble, schemaText, value)}`);
           if (zod.entries[key]) console.log(`\n===== zod =====\n${probeZod(zod.preamble, zod.entries[key], value)}`);
-          if (typebox.entries[key]) console.log(`\n===== typebox =====\n${probeTypebox(typebox.preamble, typebox.entries[key], value)}`);
+          if (typebox.entries[key])
+            console.log(`\n===== typebox =====\n${probeTypebox(typebox.preamble, typebox.entries[key], value)}`);
           process.exit(0);
         }
 
@@ -353,7 +357,12 @@ async function main() {
           : {status: 'na'};
 
         cell.typebox = typebox.entries[key]
-          ? measure('typebox', 'typebox', probeTypebox(typebox.preamble, 'Type.String()', V), probeTypebox(typebox.preamble, typebox.entries[key], value))
+          ? measure(
+              'typebox',
+              'typebox',
+              probeTypebox(typebox.preamble, 'Type.String()', V),
+              probeTypebox(typebox.preamble, typebox.entries[key], value)
+            )
           : {status: 'na'};
 
         rows.push(cell);
@@ -427,11 +436,11 @@ function report(rows) {
     }
   }
   console.log(
-    '\nNote: each probe ASSIGNS a real value to a `const x: <type>` (the case\'s\n' +
-      "first valid sample, serialized), forcing TypeScript to fully resolve the\n" +
+    "\nNote: each probe ASSIGNS a real value to a `const x: <type>` (the case's\n" +
+      'first valid sample, serialized), forcing TypeScript to fully resolve the\n' +
       'type AND structurally check the value against it — the cost users pay on\n' +
       'every `const x: T = {…}`. ts-go(type) is the type-definition form; ts-go(schema)\n' +
-      'is the value-first builder + Static<>. ajv has no static type inference.',
+      'is the value-first builder + Static<>. ajv has no static type inference.'
   );
 }
 
