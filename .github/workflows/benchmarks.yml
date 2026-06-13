@@ -22,12 +22,12 @@ jobs:
 
       - name: Apply tsgolint patches to typescript-go
         run: |
-          # `git am` records commits, so it needs a committer identity — CI
-          # runners have none by default ("empty ident name" fatal).
-          git config --global user.email "actions@github.com"
-          git config --global user.name "github-actions[bot]"
+          # Apply to the working tree with `git apply` (no commits → no committer
+          # identity needed). `git am` would record commits and fail on CI with
+          # "empty ident name". --3way matches the documented `git am --3way`
+          # fallback; the build reads the patched working-tree files.
           cd third_party/tsgolint/typescript-go
-          git am --3way --no-gpg-sign ../patches/*.patch
+          git apply --3way ../patches/*.patch
 
       - uses: actions/setup-go@v5
         with:
