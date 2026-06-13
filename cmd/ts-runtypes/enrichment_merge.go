@@ -191,8 +191,15 @@ func mergeObject(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 		renamedDesired[newKey] = true
 	}
 
-	// KEEP / RECURSE for fields present in both (excluding renamed pairs, handled
-	// above as a key swap with no recursion — a rename preserves the old value).
+	// KEEP / RECURSE / REPLACE for fields present in both (excluding renamed
+	// pairs, handled above as a key swap with no recursion — a rename preserves
+	// the old value). A kept key whose CHILD TYPE changed (its @rtIds childID
+	// differs, e.g. `age: number`→`age: string`) or whose SHAPE changed (existing
+	// object vs desired leaf, or vice versa) is REPLACED IN PLACE: the stale value
+	// is orphan-childed (preserved verbatim) and the fresh desired skeleton is
+	// spliced in right after it, so the value never silently mismatches the new
+	// type. Both halves ride a single splice op over the property's range, so the
+	// field keeps its position and there is no anchor/separator interaction.
 	for key := range existingFields {
 		if renamedExisting[key] {
 			continue
@@ -205,12 +212,17 @@ func mergeObject(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 		if existingProp == nil || desiredProp == nil {
 			continue
 		}
+		childPath := ctx.childPath(key)
+		if childTypeChanged(ctx, childPath) || shapeMismatch(existingProp, desiredProp) {
+			*ops = append(*ops, replaceChildOp(existing, desired, key))
+			continue
+		}
 		if existingProp.isObject() && desiredProp.isObject() {
 			childExisting := newObjectView(existing.text, existing.sourceFile, existingProp.value)
 			childDesired := newObjectView(desired.text, desired.sourceFile, desiredProp.value)
 			mergeObject(ops, childExisting, childDesired, ctx.descend(key))
 		}
-		// Leaf-in-both: leave the existing bytes untouched (no splice).
+		// Leaf-in-both, same child type: leave the existing bytes untouched.
 	}
 
 	// ADD: a desired-only field, inserted as a fresh skeleton property at the end
@@ -239,6 +251,58 @@ func mergeObject(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 	for _, key := range dropKeys {
 		*ops = append(*ops, orphanChildOp(existing, existing.props[key]))
 	}
+}
+
+// childTypeChanged reports whether the @rtIds child id at childPath differs
+// between the existing and desired maps. Both ids must be present and non-empty
+// to be a real change — a MISSING id on either side is "unknown", and we never
+// replace on uncertainty (the field is kept / recursed as before).
+func childTypeChanged(ctx mergeCtx, childPath string) bool {
+	existingID := ctx.existingChild[childPath]
+	desiredID := ctx.desiredChild[childPath]
+	if existingID == "" || desiredID == "" {
+		return false
+	}
+	return existingID != desiredID
+}
+
+// shapeMismatch reports whether a kept key changed object↔leaf shape: existing
+// is an object literal but desired is a leaf (identifier/reference/literal), or
+// vice versa. Such a field cannot be merged in place — the old value's shape no
+// longer matches the desired type, so it is replaced (orphan + fresh skeleton).
+func shapeMismatch(existingProp, desiredProp *propView) bool {
+	return existingProp.isObject() != desiredProp.isObject()
+}
+
+// replaceChildOp replaces a kept-but-changed field in place: it orphan-childs the
+// stale property (preserving its authored value verbatim inside an
+// @rtOrphanChild comment, with its trailing comma swallowed) and splices the
+// fresh desired skeleton immediately after — `/* @rtOrphanChild old, */ key:
+// newValue,` — so the field keeps its position and the literal stays valid. A
+// reappearing identical type later re-merges in place (the stale carcass is
+// pruned separately).
+func replaceChildOp(existing, desired *objectView, key string) spliceOp {
+	prop := existing.props[key]
+	desiredProp := desired.props[key]
+	if prop == nil || desiredProp == nil {
+		return spliceOp{}
+	}
+	end := prop.propEnd
+	// Swallow a single trailing comma so the orphaned carcass + the fresh property
+	// own exactly one separator (the fresh property's own trailing comma).
+	for cursor := end; cursor < len(existing.text); cursor++ {
+		if existing.text[cursor] == ',' {
+			end = cursor + 1
+			break
+		}
+		if !isSpaceByte(existing.text[cursor]) {
+			break
+		}
+	}
+	original := existing.text[prop.propStart:end]
+	newValue := strings.TrimSpace(desired.text[desiredProp.value.Pos():desiredProp.value.End()])
+	replacement := "/* @rtOrphanChild " + sanitizeForComment(original) + " */ " + renderKey(key) + ": " + newValue + ","
+	return spliceOp{start: prop.propStart, end: end, text: replacement}
 }
 
 // insertFieldsOp builds one insertion op that appends every added field's fresh
