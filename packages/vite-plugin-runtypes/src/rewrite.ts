@@ -68,9 +68,9 @@ export async function rewrite(file: string, code: string, resolver: SiteScanner)
   const importBlock = buildImportBlock(sites, replacements);
   if (importBlock !== '') editBuffer.prepend(importBlock);
 
-  // 'boundary' resolution maps each token run, which keeps the map small
-  // while still relocating positions past the injected mid-line bindings.
-  const map = editBuffer.generateMap({source: file, includeContent: true, hires: 'boundary'});
+  // The map uses boundary-granular segments (one per token run), which keeps
+  // it small while still relocating positions past the injected mid-line bindings.
+  const map = editBuffer.generateMap({source: file, includeContent: true});
   return {code: editBuffer.toString(), map, sites, replacements};
 }
 
