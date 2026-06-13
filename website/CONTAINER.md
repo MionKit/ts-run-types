@@ -59,6 +59,27 @@ VM mount boundary — run with polling:
 WEBSITE_POLL=1 pnpm run website:dev
 ```
 
+## Behind a corporate / MITM egress proxy
+
+If outbound traffic is intercepted by a proxy with a custom CA (common in
+corporate networks and some sandboxes), the in-container `pnpm install` and any
+runtime fetches will fail TLS verification. Point the build at the proxy CA and
+use host networking:
+
+```bash
+# WEBSITE_CA_CERT may be a single .crt file or a directory of .crt files.
+WEBSITE_CA_CERT=/usr/local/share/ca-certificates \
+WEBSITE_BUILD_NETWORK=host \
+  pnpm run website:build-image
+
+WEBSITE_RUN_NETWORK=host pnpm run website:dev
+```
+
+The certs are copied into `website/.cacerts/` (git-ignored) and trusted via
+`update-ca-certificates` inside the image; `NODE_EXTRA_CA_CERTS` is set so Node
+honors them too. With no proxy these vars are unset and everything uses the
+default network and CA bundle.
+
 ## Why podman (not Docker Desktop)
 
 Podman is daemonless and rootless, needs no Docker Desktop license, and runs the

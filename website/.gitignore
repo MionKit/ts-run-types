@@ -35,3 +35,7 @@ logs
 #VSC
 .history
 .wrangler
+
+# Extra CA certs injected for proxied builds (never commit certs)
+.cacerts/*
+!.cacerts/.gitkeep
