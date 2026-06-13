@@ -5,9 +5,9 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 
 export const TYPE_MAPPINGS = {
   key_prefix_rename: {
-    title: 'Key prefix via template literal — `prefix_${K}` rename',
+    title: 'Key prefix rename',
     description:
-      'TS 4.1+ key remapping: `{[K in keyof T as `prefix_${K & string}`]: T[K]}`. Resolves to a fully concrete object literal with renamed keys; each value type is carried over unchanged. Common pattern for DB column-name prefixing (`user_id`, `user_name`).',
+      'TS 4.1+ key remapping `{[K in keyof T as `prefix_${K & string}`]: T[K]}` resolves to a fully concrete object literal with template-literal renamed keys, carrying each value type over unchanged, as in DB column-name prefixing (`user_id`, `user_name`).',
     validateNotes:
       'The validator checks the RENAMED keys — a value carrying the original un-prefixed keys (`{id, name}`) fails because the required `user_id` / `user_name` are absent.',
     validate: () => {
@@ -139,9 +139,9 @@ export const TYPE_MAPPINGS = {
   },
 
   key_conditional_rename: {
-    title: 'Conditional key rename — swap one key, leave the rest',
+    title: 'Conditional key rename',
     description:
-      '`{[K in keyof T as K extends "id" ? "_id" : K]: T[K]}`. Renames a single specific key (`id` → `_id` — Mongo-style); other keys pass through unchanged.',
+      '`{[K in keyof T as K extends "id" ? "_id" : K]: T[K]}` swaps a single specific key (`id` to `_id`, Mongo-style) while the rest pass through unchanged.',
     validateNotes:
       'Only `id` is renamed; the resolved shape requires `_id` and ignores the original `id`, so a value with `id` (and no `_id`) fails while the pass-through keys (`name`, `createdAt`) are still required.',
     validate: () => {
@@ -283,9 +283,9 @@ export const TYPE_MAPPINGS = {
   },
 
   key_filter_via_never: {
-    title: 'Filter keys via `never` — drop sensitive props',
+    title: 'Filter keys via never',
     description:
-      '`{[K in keyof T as K extends "secret" ? never : K]: T[K]}`. Mapping a key to `never` drops it from the resulting shape entirely (TS 4.1+ semantic). Useful for stripping internal-only / secret fields when exposing a wire shape.',
+      '`{[K in keyof T as K extends "secret" ? never : K]: T[K]}` maps a key to `never` to drop it from the resulting shape entirely (TS 4.1+ semantic), stripping internal-only or secret fields when exposing a wire shape.',
     validateNotes:
       'Dropped keys are NOT present in the resolved type. The validator does NOT check whether the dropped key is absent — structural typing allows extra props, so a value carrying the dropped key still passes (the key is simply ignored).',
     validate: () => {

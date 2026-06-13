@@ -5,9 +5,9 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 
 export const NATIVE = {
   map_string_number: {
-    title: 'Map with string keys and number values',
+    title: 'Map',
     description:
-      'mion native/map — `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
+      'A Map with string keys and number values validates via `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
     validateNotes: [
       'Must be an actual `Map` instance — a plain object, array, or `Set` is rejected.',
       'The value side reuses the atomic `number` check, so a `NaN` value is rejected (path `{key, index, failed: "mapValue"}`).',
@@ -74,8 +74,8 @@ export const NATIVE = {
   },
 
   set_string: {
-    title: 'Set of strings',
-    description: 'mion native/set — `v instanceof Set` plus iteration over `v.values()`.',
+    title: 'Set',
+    description: 'A Set of strings validates via `v instanceof Set` plus iteration over `v.values()`.',
     validateNotes:
       'Must be an actual `Set` instance — a plain object, array, or `Map` is rejected; each element is checked against the element type (set path is `{key: safe(item), index}`).',
     validate: () => createValidate<Set<string>>(),
@@ -135,7 +135,7 @@ export const NATIVE = {
   },
 
   promise_string: {
-    title: 'Promise — thenable check, wrapped type not validated',
+    title: 'Promise',
     // `DataOnly` STRIPS Promise (a thenable is not data — see DataOnly in
     // runtypes/types.ts), so `DataOnly<Promise<string>>` is `never` and the
     // DataOnly validator collapses to an always-throw, diverging from the bare
@@ -144,7 +144,7 @@ export const NATIVE = {
     // bare `validate` still thenable-validates, so this stays divergent.)
     dataOnlyDivergent: true,
     description:
-      "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below). prepareForJson/restoreFromJson throw at RT compile (mion's nodes/native/promise.ts).",
+      "A thenable check (`typeof v === 'object' && v !== null && typeof v.then === 'function'`); the wrapped value can't be validated synchronously.",
     validateNotes: [
       'TS DIVERGENCE: Promise validation is a "thenable" check — any object with a `then: function` PASSES, even if it is not an actual `Promise` instance.',
       'The wrapped type T is NOT validated — the promise has not resolved yet. Use `Awaited<P>` if you have the resolved value and want to validate it.',
@@ -201,9 +201,9 @@ export const NATIVE = {
   },
 
   awaited_promise: {
-    title: 'Awaited<Promise<T>> — resolves to the wrapped type',
+    title: 'Awaited',
     description:
-      "TypeScript's built-in `Awaited<P>` utility unwraps the promise to its resolved type; tsgo resolves it at compile time, so this case lands as plain `string` in our cache and reuses the atomic string emit. The test verifies the utility threads through correctly.",
+      "TypeScript's built-in `Awaited<P>` utility resolves to the wrapped type, unwrapping the promise to its resolved type; tsgo resolves it at compile time, so this case lands as plain `string` in our cache and reuses the atomic string emit.",
     validateNotes:
       '`Awaited<P>` is resolved at the type-checker layer to the resolved value type — `Awaited<Promise<string>>` becomes plain `string`. The validator is identical to the atomic-string emit; a real Promise does NOT satisfy it.',
     validate: () => createValidate<Awaited<Promise<string>>>(),

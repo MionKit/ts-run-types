@@ -6,9 +6,9 @@ import type {FormatBigInt, FormatBigInt64, FormatBigUInt64, FormatBigPositive} f
 
 export const BIGINT_FORMAT = {
   bigint_int64: {
-    title: 'FormatBigInt64 — packs into 8 bytes (setBigInt64)',
+    title: 'FormatBigInt64',
     description:
-      'JSON + binary (de)serialization of FormatBigInt64 (bigint branded with the full int64 min/max); the signed 64-bit bounds select an 8-byte setBigInt64 binary packing while JSON serializes the bigint as a decimal string. Samples include both int64 extremes.',
+      'JSON + binary (de)serialization of FormatBigInt64 (bigint branded with the full int64 min/max); the signed 64-bit bounds select an 8-byte setBigInt64 binary packing while JSON serializes the bigint as a decimal string.',
     serializeNotes: [
       'Format-aware binary width: int64 bounds pack each bigint into exactly 8 bytes via setBigInt64 (getBinaryByteSizes [8,8,8]).',
       'JSON has no bigint primitive, so the wire value is the decimal string form of the bigint, restored to a bigint on decode.',
@@ -31,9 +31,9 @@ export const BIGINT_FORMAT = {
     // still round-trip — bigint stringifies to its decimal form.
   },
   bigint_uint64: {
-    title: 'FormatBigUInt64 — packs into 8 bytes (setBigUint64)',
+    title: 'FormatBigUInt64',
     description:
-      'JSON + binary (de)serialization of FormatBigUInt64 (bigint branded with the full unsigned uint64 min/max); the unsigned 64-bit bounds select an 8-byte setBigUint64 binary packing while JSON serializes the bigint as a decimal string. Samples include 0n and the uint64 max.',
+      'JSON + binary (de)serialization of FormatBigUInt64 (bigint branded with the full unsigned uint64 min/max); the unsigned 64-bit bounds select an 8-byte setBigUint64 binary packing while JSON serializes the bigint as a decimal string.',
     serializeNotes: [
       'Format-aware binary width: uint64 bounds pack each bigint into exactly 8 bytes via setBigUint64 (getBinaryByteSizes [8,8,8]); uint64 packing takes precedence over int64 when both fit.',
       'JSON has no bigint primitive, so the wire value is the decimal string form of the bigint, restored to a bigint on decode.',
@@ -53,9 +53,9 @@ export const BIGINT_FORMAT = {
     getBinaryByteSizes: () => [8, 8, 8],
   },
   bigint_positive_string: {
-    title: 'FormatBigPositive — only min set, falls back to decimal-string serialization',
+    title: 'FormatBigPositive',
     description:
-      'JSON + binary (de)serialization of FormatBigPositive (FormatBigInt<{min:0n}>, lower bound only); with no max, neither the int64 nor uint64 width can be selected, so BINARY ALSO falls back to the decimal-string serialization (variable length). Samples include a value far beyond 64 bits.',
+      'JSON + binary (de)serialization of FormatBigPositive (FormatBigInt<{min:0n}>, lower bound only); with no max, neither the int64 nor uint64 width can be selected, so BINARY ALSO falls back to the decimal-string serialization (variable length).',
     serializeNotes: [
       'No fixed binary width: setBigInt64/setBigUint64 require BOTH min and max, so an unbounded-above bigint packs as a variable-length decimal string in binary too — hence no getBinaryByteSizes.',
       'JSON likewise carries the decimal string form (no bigint primitive); the >64-bit sample proves the string fallback is lossless beyond the native int widths.',
@@ -75,7 +75,7 @@ export const BIGINT_FORMAT = {
     // No getBinaryByteSizes — string encoding is variable-length.
   },
   bigint_plain_brand: {
-    title: 'FormatBigInt<{min:0n; max:255n}> — small range, packs 8 bytes via uint64',
+    title: 'FormatBigInt small range',
     description:
       'JSON + binary (de)serialization of an ad-hoc FormatBigInt<{min:0n; max:255n}> (small [0,255] range); unlike the number formats, bigint has NO sub-8-byte path, so even this tiny range packs the full 8 bytes via setBigUint64 while JSON writes the decimal string.',
     serializeNotes: [

@@ -16,6 +16,9 @@ interface PanelColumn {
   notes?: string[];
   /** Render this column narrower (e.g. the Notes column). */
   narrow?: boolean;
+  /** Optional metric shown beside the label — the same result as the table row
+   *  (bench tables only). `valid` is the headline, `invalid` the smaller annotation. */
+  metric?: {valid: string; invalid: string; status: 'ok' | 'fail' | 'na'};
 }
 
 defineProps<{
@@ -53,7 +56,12 @@ defineEmits<{close: []; panelenter: []; panelleave: []}>();
       </div>
       <div v-else class="detail-panel-cols">
         <div v-for="(col, i) in columns" :key="i" class="detail-panel-col" :class="{'detail-panel-col--narrow': col.narrow}">
-          <span class="detail-panel-label">{{ col.label }}</span>
+          <div class="detail-panel-colhead">
+            <span class="detail-panel-label">{{ col.label }}</span>
+            <span v-if="col.metric" class="detail-panel-metric" :class="`detail-panel-metric--${col.metric.status}`">
+              {{ col.metric.valid }}<span v-if="col.metric.invalid" class="detail-panel-metric-sub">{{ col.metric.invalid }}</span>
+            </span>
+          </div>
           <ul v-if="col.notes" class="detail-panel-notes">
             <li v-for="(note, j) in col.notes" :key="j" class="detail-panel-note">
               <span class="detail-panel-bullet">•</span> {{ note }}
@@ -70,17 +78,19 @@ defineEmits<{close: []; panelenter: []; panelleave: []}>();
 <style scoped>
 .detail-panel {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: calc(var(--ui-header-height, 4rem) + 0.75rem);
+  right: 0.75rem;
+  bottom: 0.75rem;
   z-index: 60;
   display: flex;
   flex-direction: column;
-  max-height: 40vh;
+  width: 400px;
+  overflow: hidden;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   background: var(--rt-panel, rgba(12, 12, 14, 0.97));
-  border-top: 2px solid var(--ui-primary, #79af43);
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--ui-primary, #79af43);
+  border-radius: 0.5rem;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
 }
 
@@ -141,46 +151,79 @@ defineEmits<{close: []; panelenter: []; panelleave: []}>();
   color: var(--ui-text-muted, #9aa0a6);
 }
 
-/* Sections as side-by-side columns; horizontal scroll if they overflow. */
+/* Sections stacked top-to-bottom; the whole stack scrolls vertically. `contain`
+   keeps wheel/touch scroll inside the panel — it never chains to the page behind. */
 .detail-panel-cols {
   display: flex;
+  flex-direction: column;
   gap: 1rem;
   flex: 1;
   min-height: 0;
-  padding: 0.8rem 0.95rem 0.95rem;
-  overflow-x: auto;
-  overflow-y: hidden;
+  padding: 0.8rem 0.95rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 
-.detail-panel-col {
+.detail-panel-col,
+.detail-panel-col--narrow {
   display: flex;
   flex-direction: column;
-  flex: 1 1 0;
-  min-width: 300px;
-  min-height: 0;
+  flex: none;
+  min-width: 0;
 }
 
-.detail-panel-col--narrow {
-  flex: 0 1 240px;
-  min-width: 190px;
+/* Section header row: label on the left, the row's metric (bench tables) on the right. */
+.detail-panel-colhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex: none;
+  margin-bottom: 0.3rem;
 }
 
 .detail-panel-label {
-  display: block;
-  flex: none;
-  margin-bottom: 0.3rem;
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ui-primary, #79af43);
 }
 
-/* Code / notes fill their column and scroll on their own when taller than the panel. */
+/* Mirrors the table cell: valid headline + smaller dimmed invalid annotation. */
+.detail-panel-metric {
+  flex: none;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-panel-metric--ok {
+  color: var(--ui-primary, #79af43);
+}
+
+.detail-panel-metric--fail {
+  color: #e0533d;
+}
+
+.detail-panel-metric--na {
+  color: var(--ui-text-muted, #9aa0a6);
+}
+
+.detail-panel-metric-sub {
+  margin-left: 0.3rem;
+  font-size: 0.62rem;
+  color: var(--ui-text-dimmed, var(--ui-text-muted, #9aa0a6));
+}
+
+/* Each section flows at its natural height (the stack scrolls); long code lines
+   scroll horizontally within their own block. No overscroll-behavior here — these
+   are overflow-y:hidden, so a vertical wheel must chain up to .detail-panel-cols
+   (containing it here would swallow the scroll whenever the cursor is over code). */
 .detail-panel-code,
 .detail-panel-notes {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
+  flex: none;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .detail-panel-code {
@@ -220,13 +263,10 @@ defineEmits<{close: []; panelenter: []; panelleave: []}>();
 }
 
 /* Shiki dual-theme output injected via v-html: dark colors ride the inline style;
-   the light theme lives in CSS vars, swapped in under :root.light. The outer
-   .detail-panel-code is the scroll container, so the inner pre doesn't scroll.
-   min-height: 100% stretches the pre to fill the container when the code is short,
-   so the shiki background covers the section top-to-bottom (both themes). */
+   the light theme lives in CSS vars, swapped in under :root.light. Each block flows
+   at content height, so the shiki background already covers it edge-to-edge. */
 .detail-panel-code :deep(pre.shiki) {
   box-sizing: border-box;
-  min-height: 100%;
   margin: 0;
   padding: 0.55rem 0.7rem;
   overflow: visible;
@@ -246,34 +286,11 @@ defineEmits<{close: []; panelenter: []; panelleave: []}>();
   white-space: pre;
 }
 
-/* Narrow screens: the panel covers the page minus a small margin, columns stack. */
-@media (max-width: 767px) {
+/* Below the desktop breakpoint the panel feature is off entirely (the rows also
+   stop responding — see useDetailPanel). This is a belt-and-suspenders guard. */
+@media (max-width: 1023px) {
   .detail-panel {
-    inset: 0.5rem;
-    height: auto;
-    border: 2px solid var(--ui-primary, #79af43);
-    border-radius: 0.5rem;
-  }
-
-  .detail-panel-hint {
     display: none;
-  }
-
-  .detail-panel-cols {
-    flex-direction: column;
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
-
-  .detail-panel-col,
-  .detail-panel-col--narrow {
-    flex: none;
-    min-width: 0;
-  }
-
-  .detail-panel-code {
-    flex: none;
-    max-height: 45vh;
   }
 }
 </style>

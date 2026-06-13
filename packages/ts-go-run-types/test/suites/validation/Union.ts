@@ -5,8 +5,8 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 
 export const UNION = {
   atomic_union: {
-    title: 'Union of common atomic types (with Date and bigint)',
-    description: 'mion union.spec.ts "validate union" — Atomic Union suite',
+    title: 'Atomic union',
+    description: 'mion union.spec.ts "validate union" Atomic Union suite over common atomic types including Date and bigint.',
     validateNotes: [
       'Validates as an OR-chain — first matching arm wins.',
       'Each arm runs its full atomic check: numbers reject NaN / Infinity, Dates reject Invalid Date, etc.',
@@ -58,8 +58,8 @@ export const UNION = {
   },
 
   string_literal_union: {
-    title: 'Union of string literals (case-sensitive)',
-    description: 'mion union.spec.ts "validate union discriminator string"',
+    title: 'String literal union',
+    description: 'mion union.spec.ts "validate union discriminator string" where only the exact, case-sensitive declared strings pass.',
     validateNotes: 'Literal string unions are case-sensitive. Only the exact strings declared in the union pass.',
     validate: () => createValidate<'UNO' | 'DOS' | 'TRES'>(),
     validateDataOnly: () => createValidate<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
@@ -109,9 +109,9 @@ export const UNION = {
   },
 
   large_union_eight_arms: {
-    title: 'Large union (8 heterogeneous arms) — value-first infer fallback',
+    title: 'Large union',
     description:
-      'Past the 4 positional union() overloads, the value-first builder routes through the recursive UnionOf<T> infer fallback. 8 arms (literals + primitives + a {a}/{a;b} subset+superset pair) verify the fallback BOTH generates a correct validator AND converges on the type-first union id — preserving the subset/superset arms (no subtype collapse) at depth 8.',
+      'Past the 4 positional union() overloads, the value-first builder routes 8 heterogeneous arms (literals, primitives, and a {a}/{a;b} subset+superset pair) through the recursive UnionOf<T> infer fallback, which must both generate a correct validator and converge on the type-first union id while preserving the subset/superset arms with no subtype collapse at depth 8.',
     validateNotes:
       'The `{a}`/`{a; b}` subset pair both stay reachable: a value matching the smaller `{a: string}` arm passes (e.g. `{a: "x"}` is valid), so the superset arm never swallows it. A failing value reports a single `expected: "union"` at the root, not per-arm errors.',
     validate: () => createValidate<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
@@ -191,8 +191,8 @@ export const UNION = {
   },
 
   string_or_number: {
-    title: 'Two-arm union of string and number',
-    description: 'the union `string | number` — value passes if either the string or number arm matches',
+    title: 'String or number',
+    description: 'The union `string | number`, where a value passes if either the string or number arm matches.',
     validateNotes:
       'The number arm uses `Number.isFinite`, so `NaN` and `Infinity` are rejected even though they pass `typeof === "number"`; `BigInt` is rejected (it satisfies neither arm).',
     validate: () => createValidate<string | number>(),
@@ -241,8 +241,8 @@ export const UNION = {
   },
 
   union_of_array_types: {
-    title: 'Union of array types (whole-array dispatch)',
-    description: 'mion union.spec.ts "Union Arr"',
+    title: 'Union of arrays',
+    description: 'mion union.spec.ts "Union Arr" where the union is over whole array types, dispatched per array rather than per element.',
     validateNotes:
       'Mixed-element arrays (e.g., `["a", 1]`) FAIL — no single arm matches the whole array. The union is over array types, not element types.',
     validate: () => createValidate<string[] | number[] | boolean[]>(),
@@ -292,8 +292,8 @@ export const UNION = {
   },
 
   array_of_union: {
-    title: 'Array whose element type is a union',
-    description: 'mion union.spec.ts "Arr with union of types"',
+    title: 'Array of union',
+    description: 'mion union.spec.ts "Arr with union of types" where each element independently runs the full union OR-chain.',
     validateNotes:
       'Each element runs the full union OR-chain independently. Mixed-type arrays pass as long as every element matches some arm.',
     validate: () => createValidate<(string | bigint | boolean | Date)[]>(),
@@ -351,9 +351,9 @@ export const UNION = {
   // ---- DEFERRED ----
 
   union_of_object_shapes: {
-    title: 'Union of disjoint object shapes',
+    title: 'Union of objects',
     description:
-      "mion union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
+      "mion union.spec.ts 'Union Obj' where disjoint object-typed members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
     validateNotes:
       'An input passes if it satisfies AT LEAST one arm\'s required props; extra props are ignored (structural), so `{a: "x", aa: true, b: 1}` passes via the `{b: number}` arm. A failing value reports a single `expected: "union"` at the root, not per-arm errors.',
     validate: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
@@ -413,9 +413,9 @@ export const UNION = {
   },
 
   discriminated_union: {
-    title: 'Discriminated union (shared kind literal, different payloads)',
+    title: 'Discriminated union',
     description:
-      'mion union.spec.ts "Union with discriminator property" — the OR-chain is semantically correct; the discriminator-aware optimization (early-return on the discriminator literal) is a separate emit-shape concern handled later.',
+      'mion union.spec.ts "Union with discriminator property" where arms share a kind literal with different payloads; the OR-chain is semantically correct and the discriminator-aware early-return optimization is a separate emit-shape concern handled later.',
     validateNotes:
       'Each arm is validated in full; the discriminator literal narrows which arm matches. A value passes if it fully satisfies AT LEAST ONE arm.',
     validate: () => createValidate<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
@@ -484,9 +484,9 @@ export const UNION = {
   },
 
   circular_union: {
-    title: 'Self-referential union via object and array arms',
+    title: 'Circular union',
     description:
-      'mion union.spec.ts "Union circular". Handled via always-non-inlined Union + Object + Array (no IsCircular detection needed; the dependency-call layer terminates via the lazy-init two-phase cache registration).',
+      'mion union.spec.ts "Union circular" where a self-referential union via object and array arms is handled by always-non-inlined Union, Object, and Array with no IsCircular detection needed, terminating via the dependency-call layer\'s lazy-init two-phase cache registration.',
     validateNotes: 'Self-recursive unions traverse the cycle until the input value bottoms out at an atomic arm.',
     validateSchema: () => {
       const uc = RT.circular((self) =>
@@ -582,9 +582,9 @@ export const UNION = {
   },
 
   union_with_methods: {
-    title: 'Union of object arms each carrying a method',
+    title: 'Union with methods',
     description:
-      'mion union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
+      'mion union.spec.ts "Union with objects containing methods" where each arm carries a method that is skipped via the property-emit function-skip rule, so the AND chain inside each object reduces to the data-only props.',
     validateNotes:
       'TS DIVERGENCE: method members (`getName`/`getAge`) are non-serializable and dropped, so each arm checks only its data prop — `{name: "x"}` with no method at all PASSES, and a wrong-typed method would not be caught.',
     validate: () => createValidate<{name: string; getName(): string} | {age: number; getAge(): number}>(),
@@ -663,9 +663,9 @@ export const UNION = {
   },
 
   intersection_to_object: {
-    title: 'Intersection of object shapes (resolved to one merged shape)',
+    title: 'Object intersection',
     description:
-      'mion intersection.spec.ts — tsgo / deepkit resolves intersections to ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection that needs validation. Runtime behavior matches `{a: string; b: number}` byte-for-byte.',
+      'mion intersection.spec.ts where tsgo/deepkit resolves the intersection of object shapes to one merged ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection and runtime behavior matches `{a: string; b: number}` byte-for-byte.',
     validateNotes:
       'Because the intersection collapses to one merged object, getValidationErrors reports PER-PROPERTY paths (e.g. `expected: "number"` at `["b"]`), not a single root `expected: "union"`. Both props are required and `b: NaN` is rejected despite passing `typeof === "number"`.',
     validate: () => createValidate<{a: string} & {b: number}>(),
@@ -725,9 +725,9 @@ export const UNION = {
   // ---- additions migrated 1:1 from mion union.spec.ts ----
 
   union_with_index_arm: {
-    title: 'Union where one arm carries an index signature',
+    title: 'Union with index arm',
     description:
-      "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
+      "mion union.spec.ts 'validate an union with index property' where one arm carries a named prop and an index signature, accepting index-typed extras alongside the named prop.",
     validateNotes:
       'The index arm is NOT a catch-all: every extra key must match the index value type, so `{c: 1n, d: 2n}` passes but `{c: 1n, d: "hello"}` fails (string under a `bigint` index). A failing value reports a single `expected: "union"` at the root.',
     validate: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
@@ -803,9 +803,9 @@ export const UNION = {
   },
 
   union_same_prop_different_types: {
-    title: 'Discriminated union sharing one prop with arm-dependent type',
+    title: 'Same prop different types',
     description:
-      "mion union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
+      "mion union.spec.ts 'validate union same prop with different types' where one shared prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
     validateNotes:
       'The `type` literal pins which arm applies, so `prop` must match THAT arm\'s type — `{type: "a", prop: 123}` fails even though `123` would satisfy the `type: "b"` arm. A failing value reports a single `expected: "union"` at the root.',
     validate: () => createValidate<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
@@ -901,9 +901,9 @@ export const UNION = {
   },
 
   union_mixed_arrays_and_objects: {
-    title: 'Union mixing array types and object shapes',
+    title: 'Mixed arrays and objects',
     description:
-      "mion union.spec.ts 'Union Mixed' — arrays and objects in the same union; the OR-chain dispatches on shape (Array.isArray vs object typeof).",
+      "mion union.spec.ts 'Union Mixed' where array types and object shapes share the same union and the OR-chain dispatches on shape via Array.isArray versus object typeof.",
     validateNotes:
       'Array arms match the WHOLE array, so a mixed array like `[1, "b"]` fails (no single array arm covers it); object arms accept extra props (`{b: 123, c: 123n}` passes via the `{b: number}` arm). A failing value reports a single `expected: "union"` at the root.',
     validate: () =>
@@ -1020,9 +1020,9 @@ export const UNION = {
   },
 
   union_merged_property: {
-    title: 'Union of shapes sharing a prop with different value types',
+    title: 'Merged property',
     description:
-      "mion union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
+      "mion union.spec.ts 'validate union with merged properties' where a single shared prop carries different value types, so `a` accepts boolean or number.",
     validateNotes:
       'Effectively `{a: boolean | number}`, but the number arm still runs `Number.isFinite`, so `{a: NaN}` is rejected. A failing value reports a single `expected: "union"` at the root.',
     validate: () => createValidate<{a: boolean} | {a: number}>(),
@@ -1071,9 +1071,9 @@ export const UNION = {
   },
 
   union_mixed_with_index: {
-    title: 'Union mixing arrays, plain objects, and index-signature shapes',
+    title: 'Mixed with index',
     description:
-      "mion union.spec.ts 'Union mixed with index property' — arrays + objects (some with index signatures) in the same union.",
+      "mion union.spec.ts 'Union mixed with index property' where arrays and plain objects share the same union as objects carrying index signatures.",
     validateNotes:
       'Each index arm constrains ALL extra keys to its value type, so `{a: "hello", b: 123n}` fails every arm (the string-index arm rejects the `bigint` `b`, the bigint-index arm rejects the string `a`). A failing value reports a single `expected: "union"` at the root.',
     validate: () =>
@@ -1222,9 +1222,9 @@ export const UNION = {
   },
 
   union_with_any_fallback: {
-    title: 'Union with an `any` arm (collapses to any)',
+    title: 'Any fallback',
     description:
-      "mion union.spec.ts 'support union with any type' — tsgo collapses `T | any` to `any`, so any value passes (the validator is effectively a no-op true).",
+      "mion union.spec.ts 'support union with any type' where tsgo collapses `T | any` to `any`, so every value passes and the validator is effectively a no-op true.",
     validateNotes:
       '`T | any` collapses to `any` at the type-checker layer — the validator becomes a no-op that always returns true. `T | unknown` behaves the same way. If you want a real fallback that still narrows, use a concrete sibling type.',
     validate: () => createValidate<string | any>(),
@@ -1265,9 +1265,9 @@ export const UNION = {
   },
 
   union_with_unknown_fallback: {
-    title: 'Union with an `unknown` arm (collapses to unknown)',
+    title: 'Unknown fallback',
     description:
-      "mion union.spec.ts 'support union with unknown type' — tsgo collapses `T | unknown` to `unknown`, so any value passes.",
+      "mion union.spec.ts 'support union with unknown type' where tsgo collapses `T | unknown` to `unknown`, so every value passes.",
     validateNotes:
       'The `unknown` arm is fully absorbing: `T | unknown` collapses to `unknown` at the type-checker layer, so the validator is a no-op that returns true for EVERY input (no sample can be invalid).',
     validate: () => createValidate<string | unknown>(),
@@ -1307,9 +1307,9 @@ export const UNION = {
   },
 
   union_subset_small_first: {
-    title: 'Union with the smaller arm declared before its superset',
+    title: 'Subset small first',
     description:
-      "mion union.spec.ts 'sortUnreachableTypes' — `{a}` defined before `{a; b}`. Both arms must be reachable: matching SmallObj must not swallow LargeObj-shaped inputs (semantically the same since either arm matching returns true, but pins the regression).",
+      "mion union.spec.ts 'sortUnreachableTypes' where `{a}` is declared before its superset `{a; b}` and both arms must stay reachable so matching SmallObj does not swallow LargeObj-shaped inputs, pinning the regression even though either arm matching returns true.",
     validateNotes:
       'When one arm is a subset of another (e.g., `{a}` and `{a; b}`), any value satisfying the smaller arm passes — even if extra props would also satisfy the larger arm. Order in the type union does not affect the result.',
     validate: () => {
@@ -1457,9 +1457,9 @@ export const UNION = {
   },
 
   union_subset_nested_levels: {
-    title: 'Union with a three-level subset chain',
+    title: 'Subset nested levels',
     description:
-      "mion union.spec.ts 'multiple levels of subset relationships' — three arms, each a strict superset of the previous.",
+      "mion union.spec.ts 'multiple levels of subset relationships' with three arms, each a strict superset of the previous.",
     validateNotes:
       'The smallest arm `{x: string}` swallows the whole chain: any value with a valid `x` passes regardless of `y`/`z` (structural typing allows extra props), so only inputs missing `x` (or with a wrong-typed `x`) reach the invalid set. A failing value reports a single `expected: "union"` at the root.',
     validate: () => {
@@ -1681,9 +1681,9 @@ export const UNION = {
   },
 
   union_subset_mixed_related_unrelated: {
-    title: 'Union mixing a subset pair with a disjoint arm',
+    title: 'Subset mixed related unrelated',
     description:
-      "mion union.spec.ts 'mixed related and unrelated types' — Base and Extended are subset-related, Unrelated is disjoint.",
+      "mion union.spec.ts 'mixed related and unrelated types' where Base and Extended are subset-related while Unrelated is disjoint.",
     validateNotes:
       'The subset pair means any value with a valid `id` passes via the Base arm (extra props ignored), while the disjoint `{value: number}` arm matches independently. The number arm runs `Number.isFinite`, so `{value: NaN}` is rejected despite passing `typeof === "number"`; a failing value reports a single `expected: "union"` at the root.',
     validate: () => {

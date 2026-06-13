@@ -46,7 +46,10 @@ interface BenchIndex {
 
 interface BenchCompetitorSource {
   name: string;
-  source: string;
+  /** per-metric builder body (validation bench): the function this page measures */
+  sources?: {validate?: string; validationErrors?: string};
+  /** single source (typecost bench, no metric split) */
+  source?: string;
 }
 
 interface BenchCaseDetail {
@@ -79,6 +82,9 @@ const {highlight} = useCodeHighlighter();
 const index = ref<BenchIndex | null>(null);
 const indexState = ref<'loading' | 'ready' | 'missing'>('loading');
 
+/** Row-heatmap coloring style — toggled from the legend; 'tint' background or 'text'. */
+const colorMode = ref<'tint' | 'text'>('tint');
+
 const details = reactive<Record<string, DetailEntry>>({});
 
 function rowItem(key: string, title: string) {
@@ -91,16 +97,61 @@ const {active, pinned, close, preview, leave, pin, panelEnter, panelLeave} = use
 const activeDetail = computed<DetailEntry | undefined>(() => (active.value ? details[active.value.key] : undefined));
 const panelState = computed<'loading' | 'ready' | 'error'>(() => activeDetail.value?.state ?? 'loading');
 
-/** Detail-panel columns — one per competitor, in column order. */
+/** The source to show for a competitor on THIS page: the metric-specific builder
+ *  body (validation bench), or the single source (typecost). Absent → the
+ *  competitor doesn't support this metric (e.g. zod has no boolean validate). */
+function metricSource(competitor: BenchCompetitorSource): string | undefined {
+  if (props.metric) return competitor.sources?.[props.metric as 'validate' | 'validationErrors'];
+  return competitor.source;
+}
+
+/** The active row's case data (per-competitor results) — looked up from the index so
+ *  the panel can echo the same metric the table cell shows. */
+const activeCase = computed<BenchCase | undefined>(() => {
+  if (!index.value || !active.value) return undefined;
+  for (const section of index.value.sections) {
+    const found = section.cases.find((kase) => kase.key === active.value!.key);
+    if (found) return found;
+  }
+  return undefined;
+});
+
+/** Detail-panel columns — one per competitor that supports this page's metric, each
+ *  carrying the same result (valid + invalid) shown in its table cell. */
 const panelColumns = computed(() => {
   const entry = activeDetail.value;
   if (!entry || entry.state !== 'ready' || !entry.data) return [];
-  return entry.data.competitors.map((competitor, i) => ({
-    label: competitor.name,
-    html: entry.html?.[i],
-    plain: competitor.source,
-  }));
+  const kase = activeCase.value;
+  const metricKey = props.metric ?? index.value?.metrics[0]?.key;
+  return entry.data.competitors
+    .map((competitor, i) => ({competitor, html: entry.html?.[i], plain: metricSource(competitor)}))
+    .filter((col) => col.plain)
+    .map((col) => {
+      const cell = kase && metricKey ? combinedCell(kase, metricKey, col.competitor.name) : null;
+      const status = cell ? (cell.cls.includes('--fail') ? 'fail' : cell.cls.includes('--ok') ? 'ok' : 'na') : 'na';
+      return {
+        label: col.competitor.name,
+        html: col.html,
+        plain: col.plain,
+        metric: cell ? {valid: cell.valid, invalid: cell.invalid, status} : undefined,
+      };
+    });
 });
+
+/** How each library produces its validator — shown as a per-column tag, explained in
+ *  the legend. comptime = AOT (generated at build time: ts-go, typia); jit = compiled
+ *  at runtime via codegen (ajv.compile, TypeCompiler.Compile); interpreted = the schema
+ *  is walked on every call (zod). */
+function strategyOf(competitor: string): 'comptime' | 'jit' | 'interpreted' {
+  const name = competitor.toLowerCase();
+  if (name.includes('typia') || name.includes('ts-go') || name.includes('ts-run-types')) return 'comptime';
+  if (name.includes('ajv') || name.includes('typebox')) return 'jit';
+  return 'interpreted';
+}
+
+/** Build-strategy tags describe RUNTIME validator construction, so they only apply to
+ *  the throughput benches — the typecost (type-instantiation count) table hides them. */
+const showStrategy = computed(() => index.value?.unit !== 'count');
 
 /** Metrics to render — one block per metric, or just the `metric` prop's block. */
 const displayedMetrics = computed<Metric[]>(() => {
@@ -143,7 +194,14 @@ async function loadDetail(item: {key: string; title: string}) {
     }
     const data = (await res.json()) as BenchCaseDetail;
     details[key] = {state: 'ready', data};
-    const html = await Promise.all(data.competitors.map((competitor) => highlight(competitor.source, 'ts')));
+    // Highlight the metric-specific source, aligned by competitor index ('' when
+    // this competitor has no source for the page's metric).
+    const html = await Promise.all(
+      data.competitors.map((competitor) => {
+        const code = metricSource(competitor);
+        return code ? highlight(code, 'ts') : Promise.resolve('');
+      }),
+    );
     const current = details[key];
     if (current && current.state === 'ready') current.html = html;
   } catch {
@@ -169,6 +227,8 @@ interface CombinedCell {
   cls: string;
   valid: string;
   invalid: string;
+  /** 0 (worst in its row) → 1 (best); null for non-ok cells. Drives the row heatmap. */
+  rank?: number | null;
 }
 
 function combinedCell(kase: BenchCase, metricKey: string, comp: string): CombinedCell {
@@ -188,19 +248,54 @@ function combinedCell(kase: BenchCase, metricKey: string, comp: string): Combine
 function combinedAggCell(values: {valid: number | null; invalid: number | null}): CombinedCell {
   const valid = values.valid != null ? formatValue(values.valid, index.value?.unit) : '';
   const invalid = values.invalid != null ? formatValue(values.invalid, index.value?.unit, true) : '';
-  // null geomean = the competitor had no usable value in this category (aggValue
-  // already collapses an all-zero category to 0), so it's n-a — same as a cell.
+  // null geomean = the competitor doesn't participate in this row (geomeanOver
+  // collapses an all-zero category to 0), so it's n-a — same as a cell.
   if (!valid && !invalid) return {cls: 'bench-val--na', valid: 'n-a', invalid: ''};
   return {cls: 'bench-val--ok', valid: valid || '—', invalid};
 }
 
-/** One combined cell per competitor, in column order — computed once per row. */
+/** Per-row heatmap ranks: 0 = worst in the row, 1 = best, over the positive values
+ *  only (others null). Direction follows the metric — count benches (typecost) are
+ *  lower-is-better. Small gaps are dampened toward neutral (0.5) so a row of near-ties
+ *  isn't painted a dramatic red→green spread. Dampening is always on. */
+function ranksFor(values: (number | null)[]): (number | null)[] {
+  const present = values.filter((value): value is number => value != null && value > 0);
+  if (present.length < 2) return values.map(() => null);
+  const min = Math.min(...present);
+  const max = Math.max(...present);
+  const spread = max > 0 ? (max - min) / max : 0;
+  const factor = Math.min(1, spread / 0.25);
+  const lowerBetter = index.value?.unit === 'count';
+  return values.map((value) => {
+    if (value == null || value <= 0) return null;
+    let rank = max === min ? 0.5 : (value - min) / (max - min);
+    if (lowerBetter) rank = 1 - rank;
+    return 0.5 + (rank - 0.5) * factor;
+  });
+}
+
+/** One combined cell per competitor, in column order — computed once per row, each
+ *  carrying its row-relative rank for the heatmap. */
 function sectionCells(kase: BenchCase, metricKey: string): CombinedCell[] {
-  return index.value ? index.value.competitors.map((comp) => combinedCell(kase, metricKey, comp)) : [];
+  if (!index.value) return [];
+  const comps = index.value.competitors;
+  const vals = comps.map((comp) => {
+    const result = kase.results[comp]?.[metricKey];
+    return result && result.status === 'ok' && typeof result.valid === 'number' && result.valid > 0 ? result.valid : null;
+  });
+  const ranks = ranksFor(vals);
+  return comps.map((comp, i) => ({...combinedCell(kase, metricKey, comp), rank: ranks[i]}));
 }
 
 function aggCells(row: AggRow): CombinedCell[] {
-  return index.value ? index.value.competitors.map((comp) => combinedAggCell(row.values[comp])) : [];
+  if (!index.value) return [];
+  const comps = index.value.competitors;
+  const vals = comps.map((comp) => {
+    const value = row.values[comp]?.valid;
+    return typeof value === 'number' && value > 0 ? value : null;
+  });
+  const ranks = ranksFor(vals);
+  return comps.map((comp, i) => ({...combinedAggCell(row.values[comp]), rank: ranks[i]}));
 }
 
 /** Geometric mean of the positive values — outlier-resistant summary across cases. */
@@ -210,11 +305,30 @@ function geomean(values: number[]): number | null {
   return Math.exp(positive.reduce((acc, value) => acc + Math.log(value), 0) / positive.length);
 }
 
-/** Aggregate one (metric, competitor, path) across cases: the geometric mean of the
- *  positive values, OR 0 when the competitor DID measure the category but every value
- *  was 0 (a real "all free" result — e.g. a typecost shape that costs zero
- *  instantiations), OR null when there's genuinely no data (renders as n-a / —). */
-function aggValue(cases: BenchCase[], metricKey: string, comp: string, path: Path): number | null {
+/** A competitor "supports" a case for a metric when it ran (not fail / not-supported). */
+function caseSupported(kase: BenchCase, comp: string, metricKey: string): boolean {
+  const result = kase.results[comp]?.[metricKey];
+  return !!result && result.status !== 'fail' && result.status !== 'not-supported';
+}
+
+/** Fair comparison basis for an aggregate row: the participants (competitors that
+ *  support >=1 of these cases) and the COMMON cases EVERY participant supports.
+ *  Geomeans are taken over the common set so a library is never penalised in the
+ *  mean for ALSO supporting harder cases the others can't express — otherwise a
+ *  broad library's slow exclusive cases drag its mean below a narrow library that
+ *  never attempts them. Participants are row-local, so a category one lib can't do
+ *  at all doesn't blank the whole row. */
+function commonBasis(cases: BenchCase[], metricKey: string): {participants: string[]; common: BenchCase[]} {
+  const comps = index.value ? index.value.competitors : [];
+  const participants = comps.filter((comp) => cases.some((kase) => caseSupported(kase, comp, metricKey)));
+  const common = participants.length > 0 ? cases.filter((kase) => participants.every((comp) => caseSupported(kase, comp, metricKey))) : [];
+  return {participants, common};
+}
+
+/** Geometric mean of one competitor's `path` values over the given cases. Returns 0
+ *  when it measured them but every value was 0 (a real "all free" typecost), or null
+ *  when there's no data (renders as n-a / —). */
+function geomeanOver(cases: BenchCase[], metricKey: string, comp: string, path: Path): number | null {
   const positive: number[] = [];
   let measured = false;
   for (const kase of cases) {
@@ -235,27 +349,29 @@ function aggregateFor(metricKey: string): AggRow[] {
   const competitors = index.value.competitors;
   const rows: AggRow[] = [];
   const allCases: BenchCase[] = [];
-  for (const section of orderedSections.value) {
-    allCases.push(...section.cases);
+
+  // Each row: geomean every participant over the SAME common set; non-participants
+  // (can't express any case here) render n-a. Means are then directly comparable.
+  const rowValues = (cases: BenchCase[]): AggRow['values'] => {
+    const {participants, common} = commonBasis(cases, metricKey);
     const values: AggRow['values'] = {};
     for (const comp of competitors) {
-      values[comp] = {
-        valid: aggValue(section.cases, metricKey, comp, 'valid'),
-        invalid: aggValue(section.cases, metricKey, comp, 'invalid'),
-        mixed: aggValue(section.cases, metricKey, comp, 'mixed'),
-      };
+      values[comp] = participants.includes(comp)
+        ? {
+            valid: geomeanOver(common, metricKey, comp, 'valid'),
+            invalid: geomeanOver(common, metricKey, comp, 'invalid'),
+            mixed: geomeanOver(common, metricKey, comp, 'mixed'),
+          }
+        : {valid: null, invalid: null, mixed: null};
     }
-    rows.push({key: section.key, label: section.label, values});
+    return values;
+  };
+
+  for (const section of orderedSections.value) {
+    allCases.push(...section.cases);
+    rows.push({key: section.key, label: section.label, values: rowValues(section.cases)});
   }
-  const overall: AggRow['values'] = {};
-  for (const comp of index.value.competitors) {
-    overall[comp] = {
-      valid: aggValue(allCases, metricKey, comp, 'valid'),
-      invalid: aggValue(allCases, metricKey, comp, 'invalid'),
-      mixed: aggValue(allCases, metricKey, comp, 'mixed'),
-    };
-  }
-  rows.push({key: '__overall__', label: 'Overall', values: overall});
+  rows.push({key: '__overall__', label: 'Overall', values: rowValues(allCases)});
   return rows;
 }
 
@@ -267,7 +383,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
 </script>
 
 <template>
-  <div class="bench-table">
+  <div class="bench-table" :class="`bench-color-${colorMode}`">
     <div v-if="indexState === 'loading'" class="bench-note bench-note--muted">
       <span class="bench-prompt">$</span> loading benchmark&hellip;
     </div>
@@ -278,22 +394,42 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
     </div>
 
     <template v-else-if="index">
-      <!-- How-to-read legend: each cell pairs the valid (accept) headline number with
-           the smaller, dimmed invalid (reject) number tucked at its corner. -->
-      <div v-if="index.showInvalid" class="bench-legend">
-        <span class="bench-legend-sample"><span class="bench-val-wrap"><span class="bench-val-primary bench-val--ok">24M/s</span><span class="bench-val-secondary">47M</span></span></span>
-        <span class="bench-legend-note">
-          each cell = ops/sec on <span class="bench-legend-valid">valid input</span> (the headline number)
-          and, smaller, on <span class="bench-legend-invalid">invalid input</span>
-        </span>
-      </div>
-
-      <!-- One block per metric, each with its own aggregated summary + per-section
-           tables; every cell combines the valid + invalid numbers (see legend above). -->
+      <!-- One metric block: the # title, then the how-to-read info (cell format,
+           strategy key, row-colour controls) between the title and the tables. -->
       <div v-for="metric in displayedMetrics" :key="metric.key" class="bench-metric-block">
         <div class="bench-metric">
           <span class="bench-prompt">#</span> <strong class="bench-metric-name">{{ metric.label }}</strong>
           <span v-if="metric.metricLabel" class="bench-metric-sub">{{ metric.metricLabel }}</span>
+        </div>
+        <p class="bench-metric-hint">hover any row for each competitor's source</p>
+
+        <div class="bench-legend">
+          <div v-if="index.showInvalid" class="bench-legend-row bench-legend-metric">
+            <span class="bench-legend-sample"><span class="bench-val-wrap"><span class="bench-val-primary bench-val--ok">24M/s</span><span class="bench-val-secondary">47M</span></span></span>
+            <span class="bench-legend-note">
+              each cell = ops/sec on <span class="bench-legend-valid">valid input</span> (headline) and, smaller, on
+              <span class="bench-legend-invalid">invalid input</span><br/><code>FAIL</code> = wrong answer, <code>n-a</code> = unsupported
+            </span>
+          </div>
+          <div v-else class="bench-legend-row bench-legend-metric">
+            <span class="bench-legend-note">
+              each cell = {{ index.unit === 'count' ? 'TypeScript type-instantiations — lower is better' : 'validations/sec — higher is better' }};
+              <code>0</code> is a real value, <code>n-a</code> = unsupported
+            </span>
+          </div>
+          <div v-if="showStrategy" class="bench-legend-strategy">
+            <span class="bench-legend-srow"><span class="bench-tag bench-tag--comptime">comptime</span> <span class="bench-legend-note">generated at build time<br /><span class="bench-strat-perf">(no perf hit)</span></span></span>
+            <span class="bench-legend-srow"><span class="bench-tag bench-tag--jit">jit</span> <span class="bench-legend-note">compiled at runtime<br /><span class="bench-strat-perf">(perf hit when creating fn)</span></span></span>
+            <span class="bench-legend-srow"><span class="bench-tag bench-tag--interpreted">interpreted</span> <span class="bench-legend-note">walked per call<br /><span class="bench-strat-perf">(perf hit when running fn)</span></span></span>
+          </div>
+          <div class="bench-legend-row bench-legend-footer">
+            <span class="bench-legend-note">row colour</span>
+            <button type="button" class="bench-color-btn" :class="{'bench-color-btn--on': colorMode === 'tint'}" @click="colorMode = 'tint'">tint</button>
+            <button type="button" class="bench-color-btn" :class="{'bench-color-btn--on': colorMode === 'text'}" @click="colorMode = 'text'">text</button>
+            <span class="bench-legend-note">{{ index.unit === 'count' ? 'most' : 'slowest' }}</span>
+            <span class="bench-grad" aria-hidden="true"></span>
+            <span class="bench-legend-note">{{ index.unit === 'count' ? 'fewest' : 'fastest' }} · per row</span>
+          </div>
         </div>
 
         <!-- Aggregated summary first: geometric mean per competitor + path. -->
@@ -311,7 +447,10 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
               <thead>
                 <tr class="bench-head">
                   <th class="bench-th bench-th--case">category</th>
-                  <th v-for="comp in index.competitors" :key="comp" class="bench-th bench-th--comp">{{ comp }}</th>
+                  <th v-for="comp in index.competitors" :key="comp" class="bench-th bench-th--comp">
+                    <span class="bench-th-name">{{ comp }}</span>
+                    <span v-if="showStrategy" class="bench-tag" :class="`bench-tag--${strategyOf(comp)}`">{{ strategyOf(comp) }}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -322,7 +461,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   :class="{'bench-row--overall': row.key === '__overall__'}"
                 >
                   <td class="bench-cell bench-cell--case">{{ row.label }}</td>
-                  <td v-for="(cc, ci) in aggCells(row)" :key="ci" class="bench-cell bench-val" :class="cc.cls">
+                  <td v-for="(cc, ci) in aggCells(row)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
                     <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
                   </td>
                 </tr>
@@ -345,7 +484,10 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
               <thead>
                 <tr class="bench-head">
                   <th class="bench-th bench-th--case">case</th>
-                  <th v-for="comp in index.competitors" :key="comp" class="bench-th bench-th--comp">{{ comp }}</th>
+                  <th v-for="comp in index.competitors" :key="comp" class="bench-th bench-th--comp">
+                    <span class="bench-th-name">{{ comp }}</span>
+                    <span v-if="showStrategy" class="bench-tag" :class="`bench-tag--${strategyOf(comp)}`">{{ strategyOf(comp) }}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -364,7 +506,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   @keydown.space.prevent="pin(rowItem(kase.key, kase.title))"
                 >
                   <td class="bench-cell bench-cell--case">{{ kase.title }}</td>
-                  <td v-for="(cc, ci) in sectionCells(kase, metric.key)" :key="ci" class="bench-cell bench-val" :class="cc.cls">
+                  <td v-for="(cc, ci) in sectionCells(kase, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
                     <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
                   </td>
                 </tr>
@@ -407,7 +549,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
 }
 
 .bench-metric {
-  margin: 0 0 0.7rem;
+  margin: 0 0 0.3rem;
   font-size: 0.78rem;
   color: var(--ui-text-muted, #9aa0a6);
 }
@@ -417,21 +559,42 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   font-size: 0.92rem;
 }
 
+/* Hover hint directly under the # title, above the how-to-read info. */
+.bench-metric-hint {
+  margin: 0 0 0.9rem;
+  font-size: 0.72rem;
+  color: var(--ui-text-muted, #9aa0a6);
+}
+
 .bench-metric-sub {
   margin-left: 0.5rem;
 }
 
-/* How-to-read legend for the combined valid/invalid cell. */
+/* How-to-read legend: metric + combined cell + status symbols + build-strategy tags. */
 .bench-legend {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.45rem;
   margin: 0 0 1.25rem;
-  padding: 0.5rem 0.85rem;
+  padding: 0.55rem 0.85rem;
   font-size: 0.74rem;
   border: 1px solid var(--ui-border, rgba(138, 168, 94, 0.25));
   border-radius: 0.4rem;
   background: var(--rt-surface, rgba(20, 20, 20, 0.4));
+}
+
+.bench-legend-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.55rem;
+}
+
+/* Row-colour controls sit at the bottom of the legend, set off by a subtle rule. */
+.bench-legend-footer {
+  margin-top: 0.2rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ui-border, rgba(138, 168, 94, 0.18));
 }
 
 .bench-legend-sample {
@@ -443,6 +606,90 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
 .bench-legend-note {
   color: var(--ui-text-muted, #9aa0a6);
   line-height: 1.4;
+}
+
+.bench-legend code {
+  color: var(--ui-text-highlighted, #e8eaed);
+}
+
+/* Build-strategy tag (comptime / jit / interpreted) — in column headers + legend. */
+/* Plain coloured text (more readable than a bordered pill). */
+.bench-tag {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.45;
+}
+
+.bench-tag--comptime {
+  color: var(--ui-primary, #79af43);
+}
+
+.bench-tag--jit {
+  color: var(--rt-note, #c8b072);
+}
+
+.bench-tag--interpreted {
+  color: var(--ui-text-dimmed, var(--ui-text-muted, #9aa0a6));
+}
+
+/* Strategy key — three equal columns (comptime / jit / interpreted), left-aligned,
+   glosses wrap within their column; set off by a subtle rule like the footer. */
+.bench-legend-strategy {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 0.3rem 1.25rem;
+  margin-top: 0.2rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ui-border, rgba(138, 168, 94, 0.18));
+}
+
+.bench-legend-srow {
+  line-height: 1.45;
+}
+
+.bench-legend-srow .bench-tag {
+  margin-right: 0.35rem;
+}
+
+/* Second line: the performance note, a touch dimmer than the mechanism text. */
+.bench-strat-perf {
+  color: var(--ui-text-dimmed, var(--ui-text-muted, #9aa0a6));
+}
+
+/* Metric-explanation row: let the description text expand to fill the row. */
+.bench-legend-metric .bench-legend-note {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Row-heatmap controls + gradient sample. */
+.bench-color-btn {
+  padding: 0.1rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.7rem;
+  color: var(--ui-text-muted, #9aa0a6);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--ui-border, rgba(138, 168, 94, 0.25));
+  border-radius: 0.3rem;
+}
+
+.bench-color-btn--on {
+  color: var(--ui-text-highlighted, #e8eaed);
+  border-color: var(--ui-primary, #79af43);
+  background: rgba(138, 168, 94, 0.12);
+}
+
+.bench-grad {
+  display: inline-block;
+  width: 84px;
+  height: 0.5rem;
+  border-radius: 0.25rem;
+  background: linear-gradient(90deg, hsl(0 55% 50%), hsl(65 55% 50%), hsl(130 55% 50%));
 }
 
 .bench-legend-valid {
@@ -553,6 +800,15 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   border-left: 1px solid rgba(138, 168, 94, 0.18);
 }
 
+.bench-th-name {
+  display: block;
+}
+
+.bench-th--comp .bench-tag {
+  margin-top: 0.2rem;
+  font-weight: 600;
+}
+
 .bench-th--case {
   text-align: left;
 }
@@ -605,6 +861,26 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
 .bench-val--na,
 .bench-val--none {
   color: var(--ui-text-muted, #9aa0a6);
+}
+
+/* Row heatmap: --rank (0 = worst in the row → 1 = best) drives one hsl ramp
+   (red → amber → green), dampened upstream so near-ties stay neutral. Only ok cells
+   are ranked; two modes chosen from the legend. */
+.bench-color-tint .bench-val--ranked {
+  background: hsl(calc(var(--rank) * 130deg) 55% 48% / 0.2);
+}
+
+.bench-color-tint .bench-val--ranked .bench-val-primary {
+  color: var(--ui-text-highlighted, #e8eaed);
+}
+
+.bench-color-text .bench-val--ranked .bench-val-primary {
+  color: hsl(calc(var(--rank) * 130deg) 58% 68%);
+}
+
+/* Light theme: darker numbers so the ramp stays legible on the light surface. */
+:root.light .bench-color-text .bench-val--ranked .bench-val-primary {
+  color: hsl(calc(var(--rank) * 130deg) 55% 38%);
 }
 
 /* Combined cell — valid (accept) is the centered headline (inherits the cell's

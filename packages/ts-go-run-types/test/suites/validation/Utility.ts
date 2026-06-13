@@ -5,9 +5,9 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 
 export const UTILITY = {
   partial: {
-    title: 'Partial<T> — all props become optional',
+    title: 'Partial',
     description:
-      'mion utility/partial.spec.ts — all properties become optional. Resolves to {name?: string; age?: number; createdAt?: Date}; reuses the object emit with allOptionalCode array-rejection guard.',
+      'mion utility/partial.spec.ts makes all properties optional, resolving to {name?: string; age?: number; createdAt?: Date} and reusing the object emit with the allOptionalCode array-rejection guard.',
     validateNotes:
       'Resolves to an all-optional object shape, so the `allOptionalCode` guard kicks in: arrays, Date, Map, Set, RegExp are rejected at the top level even though `{}` is valid. Present properties still run their atomic checks (Invalid Date in `createdAt` fails).',
     validate: () => {
@@ -148,9 +148,9 @@ export const UTILITY = {
   },
 
   required: {
-    title: 'Required<T> — all optional props become required',
+    title: 'Required',
     description:
-      'mion utility/required.spec.ts — all properties become required. Resolves to a plain object literal; reuses the object emit.',
+      'mion utility/required.spec.ts makes all properties required, resolving to a plain object literal and reusing the object emit.',
     validateNotes:
       'Optional props become required, so a value missing any of them now FAILS — `{}` and `{name: "John"}` are rejected (they were valid under the original optional shape).',
     validate: () => {
@@ -296,8 +296,8 @@ export const UTILITY = {
   },
 
   pick: {
-    title: 'Pick<T, K> — keeps only the named properties',
-    description: 'mion utility/pick.spec.ts — selects a subset of properties. Resolves to {name: string; createdAt: Date}.',
+    title: 'Pick',
+    description: 'mion utility/pick.spec.ts keeps only the named properties, resolving to {name: string; createdAt: Date}.',
     validateNotes:
       'Resolves to a fixed-property object with only the picked keys. Extra properties on the input still pass (structural typing).',
     validate: () => {
@@ -433,8 +433,8 @@ export const UTILITY = {
   },
 
   omit: {
-    title: 'Omit<T, K> — drops the named properties',
-    description: 'mion utility/omit.spec.ts — removes selected properties. Resolves to {name: string; createdAt: Date}.',
+    title: 'Omit',
+    description: 'mion utility/omit.spec.ts drops the named properties, resolving to {name: string; createdAt: Date}.',
     validateNotes:
       'Resolves to the original shape minus the omitted keys. The omitted property can still appear on the input — structural typing accepts extras.',
     validate: () => {
@@ -559,8 +559,8 @@ export const UTILITY = {
   },
 
   exclude_atomic: {
-    title: 'Exclude<U, X> on a string-literal union',
-    description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
+    title: 'Exclude',
+    description: 'mion utility/exclude.spec.ts (atomic case) excludes members of a string-literal union, resolving to "name" | "createdAt".',
     validateNotes:
       'Resolves the union down to the two surviving members, so the excluded "age" now FAILS the union check.',
     validate: () => createValidate<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
@@ -613,9 +613,9 @@ export const UTILITY = {
   },
 
   extract_atomic: {
-    title: 'Extract<U, X> on a string-literal union',
+    title: 'Extract',
     description:
-      'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
+      'mion utility/extract.spec.ts (atomic case) extracts the matching members of a string-literal union, resolving to "name" | "createdAt".',
     validateNotes:
       'Keeps only the members assignable to the filter, so the dropped "age" now FAILS the union check.',
     validate: () => createValidate<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
@@ -678,8 +678,8 @@ export const UTILITY = {
   },
 
   exclude_from_object_union: {
-    title: 'Exclude<U, X> on a discriminated object union',
-    description: 'mion utility/exclude.spec.ts (object union) — excludes object members from a discriminated union.',
+    title: 'Exclude object union',
+    description: 'mion utility/exclude.spec.ts (object union) excludes object members from a discriminated union.',
     validateNotes:
       'Drops the `circle` arm from the union, so `{kind: "circle", radius: 3}` now FAILS — only the `square` and `triangle` shapes remain valid.',
     validate: () => {
@@ -820,8 +820,8 @@ export const UTILITY = {
   },
 
   non_nullable: {
-    title: 'NonNullable<T> — strips null and undefined from a union',
-    description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
+    title: 'NonNullable',
+    description: 'mion utility/nonNullable.spec.ts strips null and undefined from a union.',
     validateNotes:
       'Drops `null` and `undefined` from the union, so both now FAIL the union check; only `string` and `number` members pass.',
     validate: () => createValidate<NonNullable<string | number | null | undefined>>(),
@@ -871,8 +871,8 @@ export const UTILITY = {
   },
 
   return_type: {
-    title: 'ReturnType<F> — extracts the return type of a function',
-    description: "mion utility/params-return.spec.ts — extracts a function's return type. Resolves to Date.",
+    title: 'ReturnType',
+    description: "mion utility/params-return.spec.ts extracts a function's return type, resolving to Date.",
     validateNotes:
       "Resolves to the function's return type (`Date`), so the validator checks for a valid Date instance — NOT a function. Invalid Dates (`new Date(NaN)`) are rejected like any other Date case.",
     validate: () => {
@@ -947,9 +947,9 @@ export const UTILITY = {
   },
 
   readonly: {
-    title: 'Readonly<T> — readonly bit erased at runtime',
+    title: 'Readonly',
     description:
-      'Readonly<T> marks properties readonly at the TS layer; the readonly bit is erased at runtime so the validator behaves identically to the source object. Regression check.',
+      'Readonly<T> marks properties readonly at the TS layer, but the readonly bit is erased at runtime so the validator behaves identically to the source object (regression check).',
     validate: () => {
       interface Person {
         name: string;
@@ -1070,9 +1070,9 @@ export const UTILITY = {
   // same reason.
 
   intersection_with_required_override: {
-    title: 'Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)',
+    title: 'Intersection override',
     description:
-      'Intersection that flips a property\'s optionality — `Partial<Person>` makes all props optional, then `& Required<Pick<Person, "name">>` re-requires only `name`. tsgo resolves the intersection to {name: string; age?: number; createdAt?: Date}; reuses the object emit.',
+      'An intersection that flips a property\'s optionality — `Partial<Person>` makes all props optional, then `& Required<Pick<Person, "name">>` re-requires only `name`, so tsgo resolves the intersection to {name: string; age?: number; createdAt?: Date} and reuses the object emit.',
     validateNotes:
       "Intersections of utility types resolve at the type-checker layer to a single flat object shape. Use this pattern to flip a specific property's optionality without re-declaring the whole type.",
     validate: () => {
@@ -1221,8 +1221,8 @@ export const UTILITY = {
   },
 
   omit_keeping_optional: {
-    title: 'Omit<T, K> preserves optionality of remaining props',
-    description: 'Omit preserves the optionality of remaining properties — resolves to {b?: number; c: boolean}.',
+    title: 'Omit optionality',
+    description: 'Omit preserves the optionality of the remaining properties, resolving to {b?: number; c: boolean}.',
     validateNotes:
       '`c` stays required and `b` stays optional after the omit, so a value missing `c` FAILS while a value missing `b` passes.',
     validate: () => createValidate<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
@@ -1276,9 +1276,9 @@ export const UTILITY = {
   },
 
   keyof_to_literal_union: {
-    title: 'keyof T — resolves to a union of string-literal keys',
+    title: 'keyof',
     description:
-      '`keyof Person` where Person has `name: string; age: number; createdAt: Date` resolves to the union `"name" | "age" | "createdAt"`. The validator is the union of three string literals.',
+      '`keyof Person`, where Person has `name: string; age: number; createdAt: Date`, resolves to the union `"name" | "age" | "createdAt"`, so the validator is the union of three string literals.',
     validateNotes:
       '`keyof T` is resolved at the type-checker layer to a union of the prop names as literals. Validation is identical to a hand-written string literal union.',
     validate: () => {
@@ -1401,9 +1401,9 @@ export const UTILITY = {
   },
 
   typeof_variable_query: {
-    title: 'typeof variable — type query on a runtime value',
+    title: 'typeof query',
     description:
-      "`typeof config` where `config` is a bound value resolves to the value's static type. Without `as const` the type is widened (`url: string`, `port: number`); with `as const` it pins to literals. This case verifies the widened path.",
+      "`typeof config`, where `config` is a bound value, resolves to the value's static type — without `as const` the type is widened (`url: string`, `port: number`) and with `as const` it pins to literals, and this case verifies the widened path.",
     validateNotes:
       '`typeof <variable>` reads the declared / inferred type of a value. Validation runs against the resolved shape; the value itself is discarded at type-check time.',
     validate: () => {
@@ -1479,9 +1479,9 @@ export const UTILITY = {
   },
 
   indexed_access_type: {
-    title: 'Indexed access type — Person["name"] resolves to string',
+    title: 'Indexed access',
     description:
-      '`T[K]` reads the value type of a property. `Person["name"]` resolves to `string` at the type-checker layer; the validator is identical to the atomic `string` shape. Pins the resolution path through the cache.',
+      '`T[K]` reads the value type of a property, so `Person["name"]` resolves to `string` at the type-checker layer and the validator is identical to the atomic `string` shape, pinning the resolution path through the cache.',
     validate: () => {
       interface Person {
         name: string;
@@ -1586,9 +1586,9 @@ export const UTILITY = {
   },
 
   conditional_type_resolved: {
-    title: 'Conditional type — T extends string ? boolean : number',
+    title: 'Conditional type',
     description:
-      '`T extends U ? X : Y` resolves at the type-checker layer to either X or Y depending on T. `IsString<"hello">` resolves to `boolean` here. Validation pins that the conditional threads through to the resolved shape.',
+      '`T extends U ? X : Y` resolves at the type-checker layer to either X or Y depending on T, so `IsString<"hello">` resolves to `boolean` here, and validation pins that the conditional threads through to the resolved shape.',
     validate: () => {
       type IsString<T> = T extends string ? boolean : number;
       return createValidate<IsString<'hello'>>();
@@ -1659,9 +1659,9 @@ export const UTILITY = {
   },
 
   mapped_type_custom: {
-    title: 'Custom mapped type — {[K in keyof T]: T[K] | null}',
+    title: 'Mapped type',
     description:
-      'A user-authored mapped type that augments every prop with `| null`. Tests that resolver + emit thread custom mapped types correctly; Partial / Required / Pick etc. exercise the same machinery via the built-in utility paths.',
+      'A user-authored mapped type `{[K in keyof T]: T[K] | null}` augments every prop with `| null`, testing that resolver and emit thread custom mapped types correctly while Partial / Required / Pick etc. exercise the same machinery via the built-in utility paths.',
     validateNotes:
       'Each prop resolves to a `T[K] | null` union, so `null` is accepted at every prop but a missing prop still FAILS — the props remain required (mapping adds `| null`, not optionality).',
     validate: () => {
@@ -1798,9 +1798,9 @@ export const UTILITY = {
   },
 
   mapped_type_with_conditional_value: {
-    title: 'Mapped type whose value is a conditional — per-prop shape diverges',
+    title: 'Mapped conditional value',
     description:
-      '`{[K in keyof T]: FieldFor<T[K]>}` where `FieldFor<X>` is a conditional that produces a different object shape for each input type. The resolver evaluates the conditional per prop at the type-checker layer, so each prop ends up with its own concrete (and different) validator. Stress-tests the "two-different-validations-from-one-mapping" pattern.',
+      '`{[K in keyof T]: FieldFor<T[K]>}`, where `FieldFor<X>` is a conditional that produces a different object shape per input type, has the resolver evaluate the conditional per prop at the type-checker layer so each prop ends up with its own concrete (and different) validator, stress-testing the "two-different-validations-from-one-mapping" pattern.',
     validateNotes:
       'Each prop ends up with a structurally distinct shape — `name` validates as a text field, `age` as a number field, `admin` as a checkbox. The validator emits independent per-prop checks.',
     validate: () => {
@@ -2086,9 +2086,9 @@ export const UTILITY = {
   },
 
   distributive_conditional_over_union: {
-    title: 'Distributive conditional — `Wrap<string | number>` → `{w:string} | {w:number}`',
+    title: 'Distributive conditional',
     description:
-      'When a conditional type is applied to a generic union, TS distributes the conditional over each member, producing a union of the per-arm results. `T extends any ? {w: T} : never` applied to `string | number` resolves to `{w: string} | {w: number}`. Validator dispatches through the union emit.',
+      'When a conditional type is applied to a generic union, TS distributes the conditional over each member, producing a union of the per-arm results, so `T extends any ? {w: T} : never` applied to `string | number` resolves to `{w: string} | {w: number}` and the validator dispatches through the union emit.',
     validate: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       return createValidate<Wrap<string | number>>();
@@ -2160,9 +2160,9 @@ export const UTILITY = {
   },
 
   deep_partial_recursive_mapped: {
-    title: 'DeepPartial<T> — recursive mapped type with nested optionality',
+    title: 'DeepPartial',
     description:
-      '`type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]}`. Recursively makes every nested object-typed property optional. The resolver evaluates the recursion at the type-checker layer; the validator sees the fully flattened all-optional-deep shape.',
+      '`type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]}` recursively makes every nested object-typed property optional, with the resolver evaluating the recursion at the type-checker layer so the validator sees the fully flattened all-optional-deep shape.',
     validateNotes:
       'Every nested object becomes all-optional. The `allOptionalCode` guard fires at every level so non-plain-object inputs (arrays, Date, …) are rejected even though the all-optional shape would otherwise accept them.',
     validate: () => {

@@ -55,8 +55,8 @@ export const ATOMIC = {
     }),
   },
   number_not_supported: {
-    title: 'number values not supported by all protocols',
-    description: 'Infinity / NaN do not survive JSON encoding (become null on restore).',
+    title: 'number edge cases',
+    description: 'Infinity / NaN are not supported by all protocols and do not survive JSON encoding, becoming null on restore.',
     serializeNotes: [
       'JSON.stringify maps Infinity / -Infinity / NaN to null, so the strip / clone / mutate paths restore null.',
       'Binary writes float64, which preserves Infinity / -Infinity / NaN natively, so binary uses a separate test-data override.',
@@ -167,9 +167,9 @@ export const ATOMIC = {
     getTestData: () => ({values: [42, 'hello', true, null, 0, -1, 1.1, {a: 1, b: 2}, [1, 2, 3, null]]}),
   },
   not_supported_any: {
-    title: 'not supported in JSON stringify when any type is used',
+    title: 'any edge cases',
     description:
-      'undefined / Date / BigInt are not natively JSON-encodable when the type is `any` (no per-kind transform applies).',
+      'undefined / Date / BigInt are not natively JSON-encodable when the type is `any`, since no per-kind transform applies.',
     serializeNotes:
       'Because the static type is `any`, no Date/BigInt transform fires; undefined and bigint do not survive JSON, so the round-trip is best-effort (string-only assertion) rather than deep-equal.',
     mutateEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate'}),
@@ -322,7 +322,7 @@ export const ATOMIC = {
   symbol: {
     title: 'symbol',
     description:
-      'symbol at root is unsupported — identity does not survive JSON or binary round-trips, so the factory is rendered as alwaysThrow. See docs/UNSUPPORTED-KINDS.md.',
+      'symbol at root is unsupported because identity does not survive JSON or binary round-trips, so the factory is rendered as alwaysThrow.',
     mutateEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'direct'}),

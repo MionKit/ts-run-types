@@ -5,9 +5,9 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 
 export const TEMPLATE_LITERAL = {
   url_with_number_id: {
-    title: 'Template literal URL with a number placeholder',
+    title: 'Number placeholder',
     description:
-      "mion templateLiteral.spec.ts 'URL pattern api/user/${number}'. Compiled to `^api\\/user\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$` at RT-build time; validate emits `typeof v === 'string' && regex.test(v)`.",
+      "mion templateLiteral.spec.ts 'URL pattern api/user/${number}': the `${number}` placeholder is compiled to `^api\\/user\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$` at RT-build time, and validate emits `typeof v === 'string' && regex.test(v)`.",
     validateNotes: [
       'Template literal types are compiled to a JS RegExp at build time and matched at runtime with `regex.test(v)`.',
       'The `${number}` placeholder expects digit-strings (`42`, `-7`, `3.14`) — NOT the words "NaN" or "Infinity" even though those are typeof "number" at the JS level.',
@@ -71,8 +71,8 @@ export const TEMPLATE_LITERAL = {
   },
 
   multi_segment_url: {
-    title: 'Template literal URL with multiple placeholders',
-    description: "mion templateLiteral.spec.ts 'multi-segment URL'. Multiple placeholders + literal segments.",
+    title: 'Multiple placeholders',
+    description: "mion templateLiteral.spec.ts 'multi-segment URL' combines multiple placeholders with literal segments.",
     validateNotes:
       'Every literal segment and placeholder is matched positionally in one regex — the `${number}` spans require digit-strings while the `${string}` span accepts any characters; a single mismatched segment fails the whole match.',
     validate: () => createValidate<`/api/v${number}/user/${string}/posts/${number}`>(),
@@ -122,9 +122,9 @@ export const TEMPLATE_LITERAL = {
   },
 
   leading_string_placeholder: {
-    title: 'Template literal starting with a string placeholder',
+    title: 'Leading string placeholder',
     description:
-      "mion templateLiteral.spec.ts 'leading ${string} placeholder' — empty-string prefix accepted (string span uses `[\\s\\S]*`, not `+`).",
+      "mion templateLiteral.spec.ts 'leading ${string} placeholder' accepts an empty-string prefix because the string span uses `[\\s\\S]*`, not `+`.",
     validateNotes:
       'A leading `${string}` placeholder matches the empty string too — `"/42"` is valid (no characters before the slash).',
     validate: () => createValidate<`${string}/${number}`>(),
@@ -172,9 +172,9 @@ export const TEMPLATE_LITERAL = {
   },
 
   regex_special_chars: {
-    title: 'Template literal with regex metacharacters in literal segments',
+    title: 'Regex metacharacters',
     description:
-      "mion templateLiteral.spec.ts 'regex special chars in literal' — parens (and other regex metacharacters) in the literal segments must be escaped in the compiled regex.",
+      "mion templateLiteral.spec.ts 'regex special chars in literal' requires that parens and other regex metacharacters in the literal segments be escaped in the compiled regex.",
     validateNotes:
       'Regex metacharacters in literal segments are escaped, so the parens are matched literally — `(42)` passes but `42` (no parens) fails.',
     validate: () => createValidate<`(${number})`>(),
@@ -224,9 +224,9 @@ export const TEMPLATE_LITERAL = {
   },
 
   template_literal_nested_in_object: {
-    title: 'Object with a template-literal-typed string property',
+    title: 'Nested in object',
     description:
-      "mion templateLiteral.spec.ts 'nested in object' — template literal as a property value; the parent object's AND chain composes the typeof+regex check against `v.url`.",
+      "mion templateLiteral.spec.ts 'nested in object' uses a template literal as a property value, and the parent object's AND chain composes the typeof+regex check against `v.url`.",
     validateNotes:
       'The `url` property is checked with the same typeof+regex as a standalone template literal, so a numeric `url: 42` fails (`expected: "templateLiteral"`) even though it would pass a plain `string` property.',
     validate: () => createValidate<{url: `api/user/${number}`; method: string}>(),
@@ -283,9 +283,9 @@ export const TEMPLATE_LITERAL = {
   },
 
   template_literal_index_key: {
-    title: 'Index signature whose key is a template literal pattern',
+    title: 'Index signature key',
     description:
-      "mion templateLiteral.spec.ts 'as index signature key' — index signature whose key type is a template literal pattern. The IndexSignature emit now compiles the key pattern to a regex (same path as standalone template literals) and adds a per-key `regex.test(k)` check to the for-in loop, mirroring mion's getKeyPatternVar.",
+      "mion templateLiteral.spec.ts 'as index signature key' uses a template literal pattern as the index signature's key type; the IndexSignature emit compiles the key pattern to a regex (same path as standalone template literals) and adds a per-key `regex.test(k)` check to the for-in loop, mirroring mion's getKeyPatternVar.",
     validateNotes:
       'Index-signature keys constrained by a template literal pattern: every own key on the object must match the compiled regex AND its value must satisfy the value type.',
     validate: () => createValidate<{[key: `api/${string}`]: number}>(),
@@ -335,9 +335,9 @@ export const TEMPLATE_LITERAL = {
   },
 
   template_literal_union_placeholder: {
-    title: 'Template literal with a union-of-literals placeholder',
+    title: 'Union placeholder',
     description:
-      'Template literal with a union placeholder. tsgo distributes the union internally, so the type-checker hands the projector either a union span or a pre-distributed set of template literals; either way the compiled regex must constrain the placeholder to {a, b} — anything outside the union must be rejected.',
+      'A template literal with a union placeholder, where tsgo distributes the union internally so the type-checker hands the projector either a union span or a pre-distributed set of template literals; either way the compiled regex must constrain the placeholder to {a, b} and reject anything outside the union.',
     validateNotes:
       'Union placeholders inside a template literal compile to a character-class / alternation in the regex — only the listed literal values pass.',
     validate: () => createValidate<`${'a' | 'b'}-${number}`>(),

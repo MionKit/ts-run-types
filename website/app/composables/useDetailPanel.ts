@@ -45,18 +45,18 @@ export function useDetailPanel<T>(onShow: (item: T) => void) {
     active.value = null;
   }
 
-  // On small screens the panel goes full-screen, so hover-to-preview is disabled —
-  // those screens are tap/click-only (pin). Matches DetailPanel's full-screen
-  // breakpoint; evaluated per call so a resize switches modes without a listener.
-  function hoverDisabled() {
-    return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+  // The detail panel is a desktop-only feature: below the website's `lg` breakpoint
+  // (1024px) there isn't room for a docked side panel, so the WHOLE thing is off —
+  // no preview, no pin. Evaluated per call so a resize toggles it without a listener.
+  function featureDisabled() {
+    return typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches;
   }
 
-  /** Hover / focus a row — debounced transient preview (ignored while pinned or on
-   *  small screens). The open waits out HOVER_DELAY, so a cursor merely passing
-   *  across rows never triggers a load for each one. */
+  /** Hover / focus a row — debounced transient preview (ignored while pinned or below
+   *  the desktop breakpoint). The open waits out HOVER_DELAY, so a cursor merely
+   *  passing across rows never triggers a load for each one. */
   function preview(item: T) {
-    if (hoverDisabled()) return;
+    if (featureDisabled()) return;
     cancelHide();
     if (pinned.value) return;
     cancelShow();
@@ -68,15 +68,16 @@ export function useDetailPanel<T>(onShow: (item: T) => void) {
     }, HOVER_DELAY);
   }
 
-  /** Mouse / focus left a row — drop a pending open, hide unless pinned (no-op on small screens). */
+  /** Mouse / focus left a row — drop a pending open, hide unless pinned. */
   function leave() {
-    if (hoverDisabled()) return;
+    if (featureDisabled()) return;
     cancelShow();
     if (!pinned.value) scheduleHide();
   }
 
-  /** Click / tap / Enter a row — pin the panel open immediately (no debounce). */
+  /** Click / tap / Enter a row — pin the panel open immediately (no-op below desktop). */
   function pin(item: T) {
+    if (featureDisabled()) return;
     cancelHide();
     cancelShow();
     active.value = item;

@@ -4,9 +4,9 @@ import type {SerializationCase} from './types.ts';
 
 export const LARGE_OBJECTS = {
   wide_interface: {
-    title: 'wide interface — 30 mixed-type properties',
+    title: 'Wide Interface',
     description:
-      'Single interface with 30+ properties spanning scalars, Date, bigint, nested object — exercises the per-field walk cost without any union dispatch.',
+      'Single interface with 30+ properties spanning scalars, Date, bigint, and a nested object, exercising the per-field walk cost without any union dispatch.',
     serializeNotes:
       'The Date fields (`createdAt`/`updatedAt` and nested `meta.lastSeen`) JSON-encode to ISO strings and revive to Dates; the `big1`/`big2` bigints encode to decimal strings (rebuilt via `BigInt(...)`) on the JSON wire and take the binary string-fallback path.',
     mutateEncoder: () => {
@@ -465,9 +465,9 @@ export const LARGE_OBJECTS = {
     },
   },
   object_union_5: {
-    title: 'discriminated union of 5 large object members',
+    title: 'Object Union',
     description:
-      'Five-member union of distinct event shapes. The flat encoder should win clearly here — non-flat runs an validate walk per candidate member.',
+      'Five-member discriminated union of distinct large event shapes where the flat encoder should win clearly, since non-flat runs a validate walk per candidate member.',
     mutateEncoder: () => {
       interface ProductEvent {
         kind: 'product';
@@ -1038,9 +1038,9 @@ export const LARGE_OBJECTS = {
     },
   },
   mixed_union_atomic_and_large_objects: {
-    title: 'mixed union — atomic + large object members',
+    title: 'Mixed Union',
     description:
-      'string | number | ProductEvent | UserEvent — exercises the flat encoder atomic short-circuit alongside the merged-object envelope.',
+      'A string | number | ProductEvent | UserEvent union that exercises the flat encoder atomic short-circuit alongside the merged-object envelope.',
     mutateEncoder: () => {
       interface ProductEvent {
         kind: 'product';
@@ -1322,7 +1322,7 @@ export const LARGE_OBJECTS = {
     },
   },
   deep_nested: {
-    title: 'five-level deeply nested object with arrays of objects',
+    title: 'Deep Nested',
     description: 'Walks five levels of nested arrays of objects to amplify per-property overhead.',
     mutateEncoder: () => {
       interface DeepNestedLeaf {
@@ -1665,8 +1665,8 @@ export const LARGE_OBJECTS = {
     },
   },
   large_class_union: {
-    title: 'discriminated union of three large class instances',
-    description: 'Three-member class union — restore decodes to plain objects (class instances do not survive JSON round-trip).',
+    title: 'Large Class Union',
+    description: 'Three-member discriminated union of large class instances where decode returns plain objects, since class instances do not survive a JSON round-trip.',
     serializeNotes:
       'Members are picked by the `kind` discriminant (`classA`/`classB`/`classC`); each carries Date (`when`/`releasedAt`/`processedAt`, ISO-string on the wire) and bigint (`total`/`score`, decimal-string on the wire) members, and decode returns plain objects rather than the original class instances.',
     mutateEncoder: () => {

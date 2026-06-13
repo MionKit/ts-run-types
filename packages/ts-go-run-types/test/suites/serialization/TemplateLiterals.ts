@@ -4,8 +4,8 @@ import type {SerializationCase} from './types.ts';
 
 export const TEMPLATE_LITERALS = {
   url_string: {
-    title: 'template literal as string type',
-    description: 'Root template-literal type `` `api/users/${number}` `` round-trips identically across JSON and binary as a plain string; samples cover integer, negative, fractional, and max-safe-integer interpolations.',
+    title: 'Root template literal',
+    description: 'Root template-literal type `` `api/users/${number}` `` round-trips identically across JSON and binary as a plain string, with samples covering integer, negative, fractional, and max-safe-integer interpolations.',
     serializeNotes: 'A template literal is a string subtype on the wire — no pattern-specific transform applies; it serializes exactly like a `string`.',
     mutateEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'clone'}),
@@ -30,8 +30,8 @@ export const TEMPLATE_LITERALS = {
     }),
   },
   url_in_object: {
-    title: 'template literal as object property type',
-    description: 'Object with a template-literal-typed `url` property plus a plain `method: string`; both round-trip identically across JSON and binary as plain strings.',
+    title: 'Template literal property',
+    description: 'Object with a template-literal-typed `url` property plus a plain `method: string` round-trips identically across JSON and binary as plain strings.',
     mutateEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'direct'}),
@@ -54,8 +54,8 @@ export const TEMPLATE_LITERALS = {
     }),
   },
   url_index_key: {
-    title: 'template literal as index signature key',
-    description: 'Record whose index-signature KEY is a template literal `` `api/${string}` `` with `number` values; round-trips as a plain key/value object across JSON and binary, including the empty-object case.',
+    title: 'Template literal index key',
+    description: 'Record whose index-signature key is a template literal `` `api/${string}` `` with `number` values round-trips as a plain key/value object across JSON and binary, including the empty-object case.',
     serializeNotes: 'The template-literal key constrains which property names are valid but is not encoded separately — entries serialize as ordinary string-keyed members.',
     mutateEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'clone'}),
@@ -71,8 +71,8 @@ export const TEMPLATE_LITERALS = {
     getTestData: () => ({values: [{}, {'api/users': 1, 'api/posts': 2}, {'api/v1/users': 7, 'api/admin': 0}]}),
   },
   url_index_key_with_named: {
-    title: 'template literal index key + sibling named property',
-    description: 'Object combining a template-literal-keyed index signature (`` `api/${string}` `` → `string | number`) with a sibling named `meta: string`; resolves to an intersection of the keyed record and an object carrying the named prop, round-tripping as a plain object across JSON and binary.',
+    title: 'Index key with named sibling',
+    description: 'Object combining a template-literal-keyed index signature (`` `api/${string}` `` → `string | number`) with a sibling named `meta: string` resolves to an intersection of the keyed record and an object carrying the named prop, round-tripping as a plain object across JSON and binary.',
     mutateEncoder: () =>
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>

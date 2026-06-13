@@ -19,7 +19,7 @@ import type {FormatEmail, FormatUUIDv4} from '@mionjs/ts-go-run-types/formats';
 
 export const REALWORLD = {
   user: {
-    title: 'user',
+    title: 'User',
     description: 'A DTO whose id is a `FormatUUIDv4` and whose email is a `FormatEmail`; the plain `name` rides alongside as a normal string.',
     validateNotes: [
       'The `id` must be a version-4 UUID and `email` a valid email — a plain string that is structurally fine still fails the format check.',
@@ -96,7 +96,7 @@ export const REALWORLD = {
   },
 
   order: {
-    title: 'order',
+    title: 'Order',
     description: 'A DTO mixing two formats (a `FormatUUIDv4` id and a `FormatEmail` contact) with a numeric total and a string-literal status union.',
     validateNotes: 'A malformed email or a non-v4 uuid surfaces its named format error; an out-of-set status fails the union.',
     validate: () => {
