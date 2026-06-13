@@ -36,6 +36,12 @@ type propView struct {
 	// field's text.
 	propStart int
 	propEnd   int
+	// fullStart is the property node's raw Pos() — the end of the PREVIOUS token,
+	// so the span [fullStart, propStart) holds this property's leading trivia
+	// (whitespace + any leading line/block comment). A drop/replace folds that
+	// leading comment INTO the carcass (see carcassStart) so --prune removes it
+	// cleanly instead of leaving it dangling above the next field.
+	fullStart int
 	value     *ast.Node // the initializer expression
 }
 
@@ -70,6 +76,7 @@ func newObjectView(text string, sourceFile *ast.SourceFile, node *ast.Node) *obj
 			keyEnd:    nameNode.End(),
 			propStart: propStart,
 			propEnd:   property.End(),
+			fullStart: property.Pos(),
 			value:     assignment.Initializer,
 		}
 		if _, seen := view.props[key]; !seen {
@@ -426,10 +433,18 @@ func insertFieldsOp(existing, desired *objectView, addKeys []string) spliceOp {
 // trailing comma so no dangling `,` is left behind (which would be a syntax
 // error); the comment then sits cleanly between the surviving siblings'
 // separators.
+//
+// The range START is folded back over the property's LEADING comment (a `//`
+// note or `/* … */` block the author wrote above the field). That comment
+// describes the now-dropped field, so it belongs INSIDE the carcass — folding it
+// in keeps it byte-preserved for a later restore AND lets --prune remove it
+// cleanly, instead of leaving it dangling above the surviving sibling (C3 at the
+// field level).
 func orphanChildOp(existing *objectView, prop *propView) spliceOp {
 	if prop == nil {
 		return spliceOp{}
 	}
+	start := carcassFoldStart(existing.text, prop)
 	end := prop.propEnd
 	// Swallow a single trailing comma immediately after the property.
 	for cursor := end; cursor < len(existing.text); cursor++ {
@@ -441,9 +456,30 @@ func orphanChildOp(existing *objectView, prop *propView) spliceOp {
 			break
 		}
 	}
-	original := existing.text[prop.propStart:end]
+	original := existing.text[start:end]
 	replacement := "/* @rtOrphanChild " + sanitizeForComment(original) + " */"
-	return spliceOp{start: prop.propStart, end: end, text: replacement}
+	return spliceOp{start: start, end: end, text: replacement}
+}
+
+// carcassFoldStart returns the byte offset where a drop's @rtOrphanChild carcass
+// should START: the property's leading-comment position when the author wrote a
+// `//` or `/* */` comment directly above the field (so it folds INTO the carcass),
+// else the trivia-trimmed propStart (no leading comment to fold). It walks forward
+// from the property's raw fullStart over whitespace to the first non-space byte; a
+// `/` there (the opener of `//` or `/*`) before propStart means a leading comment
+// is present. The fold never advances PAST propStart.
+func carcassFoldStart(text string, prop *propView) int {
+	if prop.fullStart < 0 || prop.fullStart >= prop.propStart {
+		return prop.propStart
+	}
+	cursor := prop.fullStart
+	for cursor < prop.propStart && isSpaceByte(text[cursor]) {
+		cursor++
+	}
+	if cursor < prop.propStart && text[cursor] == '/' {
+		return cursor // a leading `//` or `/* */` comment — fold it into the carcass
+	}
+	return prop.propStart
 }
 
 // existingIndent returns the leading-whitespace indent of the existing object's
