@@ -28,15 +28,16 @@
 //                     competitors/typia/cases.ts.
 //   - ts-go (schema): the `createValidate(EXPR)` argument per case in
 //                     competitors/ts-go-run-types/schemaCases.ts.
-//   - zod / typebox:  the `c(EXPR)` argument per case in
-//                     competitors/{zod,typebox}/cases.ts.
+//   - zod / typebox:  the `const schema = EXPR` declared inside each case's
+//                     build / buildErrors thunk in competitors/{zod,typebox}/cases.ts.
 // The type forms (ts-go type, typia) author each entry as a `{build, buildErrors}`
 // object — optionally wrapped in an IIFE `(() => { …local decls…; return {…}; })()`
 // so a case can declare a local enum/interface/type the `<T>` references; the
 // literal type argument rides the `build` thunk's `createValidate<T>()` /
-// `typia.createIs<T>()` call. The schema form (ts-go) is a LAZY `() => …` thunk and
-// zod/typebox are `c(…)` calls. Each extractor unwraps its wrapper, preserving the
-// local declarations so `<T>`/`EXPR` resolves where written.
+// `typia.createIs<T>()` call. The schema form (ts-go) is a LAZY `() => …` thunk;
+// zod/typebox build their schema as `const schema = EXPR` inside a build/buildErrors
+// thunk. Each extractor unwraps its wrapper, preserving the local declarations so
+// `<T>`/`EXPR` resolves where written.
 //
 // Module resolution: each form's probe is emitted INTO the relevant competitor
 // directory so Node-style `node_modules` resolution + each package's `exports`
@@ -225,9 +226,31 @@ function extractTsGo(file, mapName, want) {
   return {preamble: extractPreamble(source, mapName), entries, keys};
 }
 
-/** zod / typebox cases.ts → {preamble, entries:{key:{locals:[], exprText}}}.
- *  Each supported entry is `c(EXPR)`; unsupported entries are the bare
- *  NOT_SUPPORTED identifier (skipped). */
+/** From a zod/typebox `build`/`buildErrors` thunk `() => { …locals; const schema =
+ *  EXPR; …; return validator; }`, return {locals, exprText}: the declarations
+ *  authored before `const schema` (shared sub-schemas EXPR references) and the
+ *  schema's initializer text. The trailing statements (typebox's `TypeCompiler.
+ *  Compile`, the returned validator) are runtime-only and irrelevant to type cost,
+ *  so they're dropped. Returns null when the thunk has no `const schema = …`. */
+function extractSchemaFromThunk(node, source) {
+  const arrow = unwrapExpr(node);
+  if (!arrow || !ts.isArrowFunction(arrow) || !ts.isBlock(arrow.body)) return null;
+  const locals = [];
+  for (const stmt of arrow.body.statements) {
+    if (ts.isVariableStatement(stmt)) {
+      const decl = stmt.declarationList.declarations.find((d) => d.name.getText(source) === 'schema');
+      if (decl?.initializer) return {locals, exprText: decl.initializer.getText(source)};
+    }
+    locals.push(stmt.getText(source)); // a sub-schema / helper the schema references
+  }
+  return null;
+}
+
+/** zod / typebox cases.ts → {preamble, entries:{key:{locals, exprText}}}.
+ *  Each supported entry is a `{build?, buildErrors?}` object whose thunk builds
+ *  `const schema = EXPR` (zod ships only `buildErrors`; typebox both — either
+ *  carries the same schema). Unsupported entries are the bare NOT_SUPPORTED
+ *  identifier (skipped). */
 function extractSchemaCompetitor(file, mapName) {
   const source = sf(file);
   const obj = findMapObject(source, mapName);
@@ -237,9 +260,13 @@ function extractSchemaCompetitor(file, mapName) {
       if (!ts.isPropertyAssignment(prop)) continue;
       const key = prop.name.getText(source).replace(/['"]/g, '');
       const init = unwrapExpr(prop.initializer);
-      if (init && ts.isCallExpression(init) && init.expression.getText(source) === 'c' && init.arguments.length) {
-        entries[key] = {locals: [], exprText: init.arguments[0].getText(source)};
-      }
+      if (!init || !ts.isObjectLiteralExpression(init)) continue; // NOT_SUPPORTED
+      const thunk = ['build', 'buildErrors']
+        .map((name) => init.properties.find((p) => ts.isPropertyAssignment(p) && p.name.getText(source) === name))
+        .find(Boolean);
+      if (!thunk) continue;
+      const extracted = extractSchemaFromThunk(thunk.initializer, source);
+      if (extracted) entries[key] = extracted;
     }
   }
   return {preamble: extractPreamble(source, mapName), entries};
@@ -344,11 +371,11 @@ function probeTsSchema(preamble, locals, exprText, value) {
   const imps = preamble.includes(STATIC_IMPORT) ? preamble : [...preamble, STATIC_IMPORT];
   return `${imps.join('\n')}\n${decls(locals)}const __s = ${exprText};\ntype __T = Static<typeof __s>;${force(value)}`;
 }
-function probeZod(preamble, exprText, value) {
-  return `${preamble.join('\n')}\nconst __s = ${exprText};\ntype __T = z.infer<typeof __s>;${force(value)}`;
+function probeZod(preamble, locals, exprText, value) {
+  return `${preamble.join('\n')}\n${decls(locals)}const __s = ${exprText};\ntype __T = z.infer<typeof __s>;${force(value)}`;
 }
-function probeTypebox(preamble, exprText, value) {
-  return `${preamble.join('\n')}\n${TB_STATIC_IMPORT}\nconst __s = ${exprText};\ntype __T = __TBStatic<typeof __s>;${force(value)}`;
+function probeTypebox(preamble, locals, exprText, value) {
+  return `${preamble.join('\n')}\n${TB_STATIC_IMPORT}\n${decls(locals)}const __s = ${exprText};\ntype __T = __TBStatic<typeof __s>;${force(value)}`;
 }
 
 // ── isolated compile + instantiation count ──────────────────────────────────
@@ -502,8 +529,8 @@ async function main() {
       const tp = typia.entries[key];
       if (t) console.log(`\n===== ts-go(type) =====\n${probeTsType(tsType.preamble, t.locals, t.typeText, value)}`);
       if (s) console.log(`\n===== ts-go(schema) =====\n${probeTsSchema(tsSchema.preamble, s.locals, s.arg.text, value)}`);
-      if (zod.entries[key]) console.log(`\n===== zod =====\n${probeZod(zod.preamble, zod.entries[key].exprText, value)}`);
-      if (typebox.entries[key]) console.log(`\n===== typebox =====\n${probeTypebox(typebox.preamble, typebox.entries[key].exprText, value)}`);
+      if (zod.entries[key]) console.log(`\n===== zod =====\n${probeZod(zod.preamble, zod.entries[key].locals, zod.entries[key].exprText, value)}`);
+      if (typebox.entries[key]) console.log(`\n===== typebox =====\n${probeTypebox(typebox.preamble, typebox.entries[key].locals, typebox.entries[key].exprText, value)}`);
       if (tp) console.log(`\n===== typia =====\n${probeTsType(typia.preamble, tp.locals, tp.typeText, value)}`);
       process.exit(0);
     }
@@ -519,11 +546,11 @@ async function main() {
       : {status: 'na'};
 
     cell.zod = zod.entries[key]
-      ? measure('zod', 'zod', PROBE_ZOD, probeZod(zod.preamble, 'z.string()', V), probeZod(zod.preamble, zod.entries[key].exprText, value))
+      ? measure('zod', 'zod', PROBE_ZOD, probeZod(zod.preamble, [], 'z.string()', V), probeZod(zod.preamble, zod.entries[key].locals, zod.entries[key].exprText, value))
       : {status: 'na'};
 
     cell.typebox = typebox.entries[key]
-      ? measure('typebox', 'typebox', PROBE_TYPEBOX, probeTypebox(typebox.preamble, 'Type.String()', V), probeTypebox(typebox.preamble, typebox.entries[key].exprText, value))
+      ? measure('typebox', 'typebox', PROBE_TYPEBOX, probeTypebox(typebox.preamble, [], 'Type.String()', V), probeTypebox(typebox.preamble, typebox.entries[key].locals, typebox.entries[key].exprText, value))
       : {status: 'na'};
 
     const tp = typia.entries[key];

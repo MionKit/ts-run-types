@@ -36,6 +36,24 @@ const OUT_ROOT = path.join(REPO_ROOT, 'website/public/bench-data');
 const PREFERRED = ['ts-go-run-types', 'zod', 'typebox', 'ajv', 'typia'];
 const order = (a, b) => ((PREFERRED.indexOf(a) + 1 || 99) - (PREFERRED.indexOf(b) + 1 || 99)) || a.localeCompare(b);
 
+// Run environment (os / cpu / library versions) captured by benchmarks/capture-env.mjs.
+// Optional — absent until a benchmark run (or `bench:capture-env`) writes results/env.json.
+const ENV = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(RESULTS_DIR, 'env.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+})();
+
+// The shared meta block emitted onto each index (typecost also surfaces the TS version).
+function metaBlock(withTypescript = false) {
+  if (!ENV) return undefined;
+  const meta = {generatedAt: ENV.generatedAt, os: ENV.os, cpu: ENV.cpu, cores: ENV.cores, node: ENV.node};
+  if (withTypescript && ENV.typescript) meta.typescript = ENV.typescript;
+  return meta;
+}
+
 function sectionLabel(group) {
   return group
     .toLowerCase()
@@ -137,7 +155,7 @@ export function extractCaseSources(file, varName = 'cases') {
 // lives in BOTH suites, so the split is by the CASE's suite, not by section.
 function buildValidationBench() {
   const files = fs.existsSync(RESULTS_DIR)
-    ? fs.readdirSync(RESULTS_DIR).filter((f) => f.endsWith('.json') && !f.endsWith('.typecost.json'))
+    ? fs.readdirSync(RESULTS_DIR).filter((f) => f.endsWith('.json') && !f.endsWith('.typecost.json') && f !== 'env.json')
     : [];
   if (files.length === 0) {
     process.stderr.write(`skip validation bench: no results/*.json in ${RESULTS_DIR} (run \`pnpm run bench\` first)\n`);
@@ -202,6 +220,8 @@ function emitValidationBench(outName, label, rows, competitors, byComp, sources)
       {key: 'validationErrors', label: 'Validation errors', metricLabel: 'getValidationErrors — full error report (ops/sec, higher is better)'},
     ],
     competitors,
+    versions: ENV?.versions,
+    meta: metaBlock(),
     sections: [...sectionMap.values()],
   };
   fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(index));
@@ -273,6 +293,20 @@ function buildTypecostBench() {
     fs.writeFileSync(path.join(outDir, `${safeKey(key)}.json`), JSON.stringify({competitors: detailComps}));
   }
 
+  // Each typecost form maps to the library whose installed version it measures.
+  const FORM_LIB = {
+    'ts-go-run-types-type': 'ts-go-run-types',
+    'ts-go-run-types-schema': 'ts-go-run-types',
+    typia: 'typia',
+    typebox: 'typebox',
+    zod: 'zod',
+  };
+  const versions = {};
+  for (const form of forms) {
+    const version = ENV?.versions?.[FORM_LIB[form.id]];
+    if (version) versions[form.label] = version;
+  }
+
   const index = {
     bench: 'typecost',
     label: 'Type Cost',
@@ -280,6 +314,8 @@ function buildTypecostBench() {
     showInvalid: false,
     metrics: [{key: 'typecost', label: 'Type cost', metricLabel: 'TypeScript type instantiations — lower is better'}],
     competitors: forms.map((f) => f.label),
+    versions,
+    meta: metaBlock(true),
     sections: [...sectionMap.values()],
   };
   fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(index));

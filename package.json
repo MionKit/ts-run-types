@@ -80,6 +80,7 @@
     "bench:build": "bash scripts/benchmarks.sh build",
     "bench:smoke": "bash scripts/benchmarks.sh smoke",
     "bench:typecost": "bash scripts/benchmarks.sh typecost",
+    "bench:capture-env": "bash scripts/benchmarks.sh capture-env",
     "bench:shell": "bash scripts/benchmarks.sh shell",
     "bench:login": "bash scripts/benchmarks.sh login",
     "bench:push": "bash scripts/benchmarks.sh push",

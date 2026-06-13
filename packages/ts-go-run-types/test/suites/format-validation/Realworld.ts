@@ -5,11 +5,10 @@
 // one field; the format-payload asserts only need the format NAME (uuid / email) to
 // surface, so the expectations stay robust against incidental envelope fields.
 //
-// NOTE: the doc-gen's synthetic compile overlay doesn't carry the `formats` subpath
-// types, so a format-branded field projects structurally in the generated-code hover
-// (the underlying string is validated, not the brand) — a pre-existing limitation
-// shared by every format case. The RUNTIME validator (and the tests below) check the
-// full format; `pureType` shows the real branded interface and `schema` the RT builder.
+// The doc-gen's synthetic compile re-exports the real format brand aliases into the
+// probe (see FORMATS_MODULE in scripts/export-*-suite.mjs), so the generated-code hover
+// shows the actual format handling (uuid / email checks here), matching the runtime
+// validator. `pureType` shows the real branded interface and `schema` the RT builder.
 import type {FormatValidationCase} from './types.ts';
 import '@mionjs/ts-go-run-types/formats';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';

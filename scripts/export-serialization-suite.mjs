@@ -113,6 +113,21 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 }
 `;
 
+// A real overlay module re-exporting the format brand aliases the synthetic probes
+// reference (FormatUUIDv4, FormatEmail, FormatString<…>, …). The format brands live in
+// the `@mionjs/ts-go-run-types/formats` subpath, but the sandbox can't resolve the real
+// package by name (the marker itself is the RUNTYPES_DTS ambient stub), so without this
+// a format-typed field projects structurally and the generated-code dump drops the
+// format check. Mirrors the TYPE-only re-export surface of src/formats/index.ts (derived
+// from it), skipping the index's side-effect runtime imports. Mirror of the same block
+// in export-validation-suite.mjs. Lives at the repo root; probes import '../rt-formats.ts'.
+const FORMATS_MODULE_PATH = 'rt-formats.ts';
+const FORMATS_MODULE = (() => {
+  const indexSrc = fs.readFileSync(path.join(REPO_ROOT, 'packages/ts-go-run-types/src/formats/index.ts'), 'utf8');
+  const rels = [...indexSrc.matchAll(/export type \* from '\.\/([^']+)'/g)].map((m) => m[1]);
+  return rels.map((rel) => `export type * from './packages/ts-go-run-types/src/formats/${rel}';`).join('\n') + '\n';
+})();
+
 // UPPER_SNAKE group name -> PascalCase data-file basename ('CIRCULAR_REFS' -> 'CircularRefs').
 function groupToFile(group) {
   const pascal = group
@@ -511,7 +526,7 @@ async function runCompilePhase(metrics, bodies) {
       metrics[category] ??= {};
       const relpath = `__bench__/${safe(category)}__${safe(caseKey)}__${api.key}.ts`;
       const synth = buildSynthetic(body);
-      const sourcesMap = {[overlayDts.__bench__]: overlayDts.body, [relpath]: synth};
+      const sourcesMap = {[overlayDts.__bench__]: overlayDts.body, [FORMATS_MODULE_PATH]: FORMATS_MODULE, [relpath]: synth};
       const compileTimes = [];
       const tsCompileTimes = [];
       for (let c = 0; c < COMPILE_CYCLES; c++) {
@@ -574,7 +589,12 @@ function writeCaseDump(casesDir, category, caseKey, resp) {
 // RHS of a thunk like `() => createJsonEncoder<X>(...)`, so the
 // synthetic file imports both encoder + decoder constructors.
 function buildSynthetic(body) {
-  return `import {createJsonEncoder, createJsonDecoder} from '@mionjs/ts-go-run-types';\nconst _probe = () => {\n${body}\n};\n`;
+  // Self-declaring cases reference format brands (FormatUUIDv4, FormatEmail, …) with no
+  // file-level import; pull in every Format* the body names so they keep their brand and
+  // the generated codec shows the real format handling instead of a plain-string fallback.
+  const formats = [...new Set(body.match(/\bFormat[A-Z][A-Za-z0-9_]*\b/g) ?? [])];
+  const formatImport = formats.length ? `import type {${formats.join(', ')}} from '../${FORMATS_MODULE_PATH.replace(/\.ts$/, '')}.ts';\n` : '';
+  return `import {createJsonEncoder, createJsonDecoder} from '@mionjs/ts-go-run-types';\n${formatImport}const _probe = () => {\n${body}\n};\n`;
 }
 
 function safe(s) {

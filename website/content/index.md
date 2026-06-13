@@ -30,7 +30,7 @@ titles:
   - 'Say hello to RunTypes®'
 ---
 #description
-TypeScript decided it is **"Just a Linter"** that erases types.
+TypeScript decided it is **"Just a Linter"** and erase your types.
 <br/>We respectfully **put them back in the runtime** in a way that's reliable and makes sense.
 :::
 
