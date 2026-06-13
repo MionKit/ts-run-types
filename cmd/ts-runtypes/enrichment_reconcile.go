@@ -109,6 +109,7 @@ func reconcileMirror(spec mirrorWrite, existingBytes []byte) bool {
 	var ops []spliceOp
 	var addedConsts []enrichment.NamedConst
 
+	// Property-merge (or queue-as-new / restore-from-carcass) each desired const.
 	for _, named := range spec.consts {
 		if spec.wantFriendly {
 			reconcileOneConst(&ops, &addedConsts, index, named, true)
@@ -118,11 +119,19 @@ func reconcileMirror(spec mirrorWrite, existingBytes []byte) bool {
 		}
 	}
 
-	// New consts (no existing match) are appended after applying the in-place
-	// property-merge splices, so their byte offsets do not collide with the
-	// splice ops (which all index the original bytes).
+	// Orphan-const: an existing owned const NOT in the desired set whose source
+	// type is no longer declared → @rtOrphan it (conservatively; see orphanConsts).
+	orphanedTypeNames := orphanConsts(&ops, index, spec)
+
+	// Breadcrumb clause sync: recompute the type-name list from the surviving
+	// consts (existing minus orphaned, plus added) declared in THIS source file,
+	// replacing only the `{ … }` clause and keeping `from '<src>'` byte-identical.
+	syncBreadcrumbClause(&ops, index, spec, orphanedTypeNames)
+
+	// Apply the in-place splices first (all index the ORIGINAL bytes), then append
+	// new consts + any cross-file imports they introduce.
 	merged := applySplices(index.raw, ops)
-	appended := appendNewConsts(merged, spec, addedConsts)
+	appended := appendNewConsts(merged, spec, index, addedConsts)
 
 	if string(appended) == string(existingBytes) {
 		return false // idempotent no-op
@@ -147,6 +156,14 @@ func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrichment.NamedConst, in
 
 	existing := findExistingConst(index, named, varName, friendly)
 	if existing == nil {
+		// Restore-on-reappear: if an @rtOrphan carcass exists for this (id, form),
+		// un-comment it (restoring its preserved value) instead of regenerating.
+		// The inner text was comment-sanitized when orphaned (`*/`→`* /`); reverse
+		// it so the restored const is byte-identical to the pre-orphan original.
+		if carcass := findCarcass(index, named, friendly); carcass != nil {
+			*ops = append(*ops, spliceOp{start: carcass.start, end: carcass.end, text: unsanitizeFromComment(carcass.inner) + "\n"})
+			return
+		}
 		queueNewConst(addedConsts, named)
 		return
 	}
@@ -235,11 +252,11 @@ func queueNewConst(addedConsts *[]enrichment.NamedConst, named enrichment.NamedC
 }
 
 // appendNewConsts appends the const blocks for newly-desired consts (no existing
-// match) to the merged bytes. Each block carries its @rtType/@rtIds marker.
-// Import sync for cross-file references the new consts introduce lands in M7;
-// here we only append the const declarations. Returns merged unchanged when
-// there is nothing to add.
-func appendNewConsts(merged []byte, spec mirrorWrite, addedConsts []enrichment.NamedConst) []byte {
+// match, no restorable carcass) to the merged bytes, each carrying its
+// @rtType/@rtIds marker, and ensures any cross-file value imports those consts
+// reference are present (added after the existing import block). Returns merged
+// unchanged when there is nothing to add.
+func appendNewConsts(merged []byte, spec mirrorWrite, index *mirrorIndex, addedConsts []enrichment.NamedConst) []byte {
 	if len(addedConsts) == 0 {
 		return merged
 	}
@@ -255,13 +272,17 @@ func appendNewConsts(merged []byte, spec mirrorWrite, addedConsts []enrichment.N
 	if len(blocks) == 0 {
 		return merged
 	}
+
+	body := strings.Join(blocks, "\n")
+	withImports := ensureCrossFileImports(merged, spec, index, body)
+
 	var builder strings.Builder
-	builder.Write(merged)
-	if len(merged) > 0 && merged[len(merged)-1] != '\n' {
+	builder.Write(withImports)
+	if len(withImports) > 0 && withImports[len(withImports)-1] != '\n' {
 		builder.WriteString("\n")
 	}
 	builder.WriteString("\n")
-	builder.WriteString(strings.Join(blocks, "\n"))
+	builder.WriteString(body)
 	return []byte(builder.String())
 }
 

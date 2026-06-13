@@ -40,6 +40,18 @@ type mirrorIndex struct {
 	// valueImports are the cross-file `import { friendly*/mock* } from '<rel>'`
 	// value-import lines, in declaration order.
 	valueImports []*importEntry
+	// orphanCarcasses are the `@rtOrphan`-tagged commented-out const blocks (a
+	// type previously orphaned), keyed by `<form>:<typeID>` so a reappearing
+	// desired const can RESTORE its preserved value instead of regenerating it.
+	orphanCarcasses map[string]*carcassEntry
+}
+
+// carcassEntry is one `@rtOrphan` commented-out const block: its absolute byte
+// range and the preserved INNER const text (between `/* @rtOrphan ` and ` */`).
+type carcassEntry struct {
+	start int
+	end   int
+	inner string // the original const declaration text, restorable verbatim
 }
 
 // typeFormKey builds the byTypeForm composite key for a (typeID, isFriendly)
@@ -60,6 +72,7 @@ func typeFormKey(typeID string, isFriendly bool) string {
 type constEntry struct {
 	varName    string            // the const identifier, e.g. "friendlyUser"
 	isFriendly bool              // friendly* (true) vs mock* (false)
+	typeName   string            // the annotated source type, e.g. "User" from FriendlyType<User>
 	typeID     string            // the @rtType id, or "" when no marker (matched by var name)
 	childIDs   map[string]string // @rtIds dotted-field-path → child type id
 	fullStart  int               // node.Pos() — start of leading trivia (the JSDoc)
@@ -122,10 +135,11 @@ func parseMirror(mirrorPath string, mirrorBytes []byte) *mirrorIndex {
 	}
 
 	index := &mirrorIndex{
-		raw:        mirrorBytes,
-		sourceFile: sourceFile,
-		byTypeForm: map[string]*constEntry{},
-		byVar:      map[string]*constEntry{},
+		raw:             mirrorBytes,
+		sourceFile:      sourceFile,
+		byTypeForm:      map[string]*constEntry{},
+		byVar:           map[string]*constEntry{},
+		orphanCarcasses: map[string]*carcassEntry{},
 	}
 
 	root := sourceFile.AsNode()
@@ -143,7 +157,47 @@ func parseMirror(mirrorPath string, mirrorBytes []byte) *mirrorIndex {
 			index.indexVariableStatement(text, statement)
 		}
 	}
+	index.indexOrphanCarcasses(text)
 	return index
+}
+
+// orphanCarcassPattern matches a whole-const `@rtOrphan` block comment:
+// `/* @rtOrphan <preserved const text> */`. Group 1 is the preserved inner text.
+var orphanCarcassPattern = regexp.MustCompile(`(?s)/\* @rtOrphan (.*?) \*/`)
+
+// indexOrphanCarcasses scans the raw text for `@rtOrphan` block comments (a
+// whole const previously orphaned), recovering each one's preserved inner text
+// and its `@rtType <Name>#<id>` id + friendly/mock form so a reappearing desired
+// const can restore it. Carcasses are NOT statements (they are comments), so
+// this is a text scan, not an AST walk.
+func (index *mirrorIndex) indexOrphanCarcasses(text string) {
+	for _, match := range orphanCarcassPattern.FindAllStringSubmatchIndex(text, -1) {
+		blockStart, blockEnd := match[0], match[1]
+		inner := text[match[2]:match[3]]
+		typeID, _ := parseConstMarkers(inner)
+		if typeID == "" {
+			continue
+		}
+		isFriendly := strings.Contains(inner, "FriendlyType<") || isFriendlyVar(carcassVarName(inner))
+		key := typeFormKey(typeID, isFriendly)
+		// Extend the block range to swallow a single trailing newline so a restore
+		// replaces the carcass line cleanly.
+		end := blockEnd
+		if end < len(text) && text[end] == '\n' {
+			end++
+		}
+		index.orphanCarcasses[key] = &carcassEntry{start: blockStart, end: end, inner: inner}
+	}
+}
+
+// carcassVarName extracts the `export const <var>` identifier from a preserved
+// carcass inner text, for the friendly/mock form fallback.
+func carcassVarName(inner string) string {
+	match := regexp.MustCompile(`export\s+const\s+(\w+)`).FindStringSubmatch(inner)
+	if match == nil {
+		return ""
+	}
+	return match[1]
 }
 
 // firstDiagnosticMessage returns the rendered text of the first diagnostic, for
@@ -185,6 +239,7 @@ func (index *mirrorIndex) indexVariableStatement(text string, statement *ast.Nod
 		entry := &constEntry{
 			varName:     varName,
 			isFriendly:  isFriendly,
+			typeName:    annotationTypeName(declaration),
 			typeID:      typeID,
 			childIDs:    childIDs,
 			fullStart:   statement.Pos(),
@@ -200,6 +255,29 @@ func (index *mirrorIndex) indexVariableStatement(text string, statement *ast.Nod
 			index.byTypeForm[typeFormKey(typeID, isFriendly)] = entry
 		}
 	}
+}
+
+// annotationTypeName reads the source type name from a const's
+// `FriendlyType<T>` / `MockData<T>` type annotation — the `T` identifier. Empty
+// when the annotation is absent or not a single named type argument.
+func annotationTypeName(declaration *ast.Node) string {
+	typeNode := declaration.AsVariableDeclaration().Type
+	if typeNode == nil || !ast.IsTypeReferenceNode(typeNode) {
+		return ""
+	}
+	args := typeNode.TypeArguments()
+	if len(args) == 0 {
+		return ""
+	}
+	arg := args[0]
+	if arg == nil || !ast.IsTypeReferenceNode(arg) {
+		return ""
+	}
+	name := arg.AsTypeReferenceNode().TypeName
+	if name == nil {
+		return ""
+	}
+	return name.Text()
 }
 
 // indexImport records one import statement: the source breadcrumb, the
