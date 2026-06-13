@@ -14,6 +14,21 @@ export const ARRAY = {
     ],
     validate: () => createValidate<string[]>(),
     standardSchema: () => createStandardSchema<string[]>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Expected array', path: []}],
+      [{message: 'Expected string', path: [1]}],
+      [{message: 'Expected string', path: [2]}],
+      [{message: 'Expected array', path: []}],
+      [{message: 'Expected array', path: []}],
+      [{message: 'Expected string', path: [0]}],
+      [{message: 'Expected string', path: [0]}],
+    ],
     validateDataOnly: () => createValidate<DataOnly<string[]>>(),
     validateSchema: () => createValidate(RT.array(TF.string())),
     deserializeValidate: () => deserializeValidate<string[]>(),

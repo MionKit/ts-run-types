@@ -49,6 +49,17 @@ export const DATETIME = {
     ],
     validate: () => createValidate<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     standardSchema: () => createStandardSchema<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Failed min constraint (2020-01-01T00:00:00)', path: []}],
+      [{message: 'Failed max constraint (2020-12-31T23:59:59)', path: []}],
+      [{message: 'Expected date', path: []}],
+    ],
     validateReflect: () => {
       const v: TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> = new Date();
       return createValidate(v);

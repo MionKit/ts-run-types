@@ -15,6 +15,30 @@ export const TUPLE = {
     ],
     validate: () => createValidate<[string, number]>(),
     standardSchema: () => createStandardSchema<[string, number]>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [
+        {message: 'Expected string', path: [0]},
+        {message: 'Expected number', path: [1]},
+      ],
+      [{message: 'Expected number', path: [1]}],
+      [{message: 'Expected tuple', path: []}],
+      [
+        {message: 'Expected string', path: [0]},
+        {message: 'Expected number', path: [1]},
+      ],
+      [{message: 'Expected tuple', path: []}],
+      [{message: 'Expected tuple', path: []}],
+      [{message: 'Expected tuple', path: []}],
+      [{message: 'Expected number', path: [1]}],
+      [{message: 'Expected string', path: [0]}],
+      [{message: 'Expected number', path: [1]}],
+    ],
     validateDataOnly: () => createValidate<DataOnly<[string, number]>>(),
     validateSchema: () => createValidate(RT.tuple([TF.string(), TF.number()])),
     deserializeValidate: () => deserializeValidate<[string, number]>(),

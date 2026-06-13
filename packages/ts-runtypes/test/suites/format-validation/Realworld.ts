@@ -41,6 +41,18 @@ export const REALWORLD = {
       }
       return createStandardSchema<User>();
     },
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Failed version constraint (4)', path: ['id']}],
+      [{message: 'Failed pattern constraint (pattern)', path: ['email']}],
+      [{message: 'Expected string', path: ['name']}],
+    ],
     validateDataOnly: () => {
       interface User {
         id: TF.UUIDv4;

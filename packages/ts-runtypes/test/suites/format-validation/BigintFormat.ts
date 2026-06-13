@@ -19,6 +19,16 @@ export const BIGINT_FORMAT = {
       'Boundary value 100n passes (inclusive); 101n fails on `max`. A non-bigint (5) fails the bigint typeof gate before any format check.',
     validate: () => createValidate<TF.BigInt<{max: 100n}>>(),
     standardSchema: () => createStandardSchema<TF.BigInt<{max: 100n}>>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Failed max constraint (100)', path: []}],
+      [{message: 'Expected bigint', path: []}],
+    ],
     validateReflect: () => {
       const v: TF.BigInt<{max: 100n}> = 100n;
       return createValidate(v);

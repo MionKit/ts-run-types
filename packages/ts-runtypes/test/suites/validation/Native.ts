@@ -15,6 +15,24 @@ export const NATIVE = {
     ],
     validate: () => createValidate<Map<string, number>>(),
     standardSchema: () => createStandardSchema<Map<string, number>>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Expected map', path: []}],
+      [{message: 'Expected map', path: []}],
+      [{message: 'Expected map', path: []}],
+      [{message: 'Expected map', path: []}],
+      [{message: 'Expected string', path: [{key: 1}]}],
+      [{message: 'Expected number', path: [{key: 'a'}]}],
+      [{message: 'Expected map', path: []}],
+      [{message: 'Expected map', path: []}],
+      [{message: 'Expected number', path: [{key: 'a'}]}],
+      [{message: 'Expected map', path: []}],
+    ],
     validateDataOnly: () => createValidate<DataOnly<Map<string, number>>>(),
     validateSchema: () => createValidate(RT.map(TF.string(), TF.number())),
     deserializeValidate: () => deserializeValidate<Map<string, number>>(),
