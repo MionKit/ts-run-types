@@ -1,0 +1,54 @@
+# Runs the validation benchmarks in the SAME isolated podman image used locally.
+# Mirrors `pnpm run bench:prep` + `bench:build-image` + `bench`, so CI and local
+# never drift. Requires the ts-go-run-types toolchain (Go + the tsgolint
+# submodule bootstrap) to build the resolver binary the benchmark mounts.
+name: benchmarks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'benchmarks/**'
+      - 'scripts/benchmarks.sh'
+      - '.github/workflows/benchmarks.yml'
+  pull_request:
+    paths:
+      - 'benchmarks/**'
+      - 'scripts/benchmarks.sh'
+      - '.github/workflows/benchmarks.yml'
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Apply tsgolint patches to typescript-go
+        run: |
+          cd third_party/tsgolint/typescript-go
+          git am --3way --no-gpg-sign ../patches/*.patch
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      # Builds the Go resolver binary + the marker/plugin packages on the runner.
+      - name: Prep ts-go-run-types toolchain
+        run: bash scripts/benchmarks.sh prep
+
+      # podman ships preinstalled on ubuntu-latest runners.
+      - name: Build the isolated benchmark image
+        run: bash scripts/benchmarks.sh build-image
+
+      - name: Run the benchmark (build + run, in the container)
+        run: bash scripts/benchmarks.sh bench
