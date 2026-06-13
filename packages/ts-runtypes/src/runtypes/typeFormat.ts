@@ -1,5 +1,5 @@
 // TypeFormat is the brand marker for runtype-format types
-// (FormatString, FormatUUIDv4, FormatEmail, …). Concrete format types
+// (String, UUIDv4, Email, …). Concrete format types
 // live under `src/formats/` (the `ts-runtypes/formats`
 // subpath); this module just provides the alias and the runtime registry
 // plumbing they import.
@@ -14,7 +14,7 @@
 // FormatAnnotation field.
 
 // Base types a format may wrap. Primitives (the TypeFormatPrimitives set)
-// plus the native `Date` object for the FormatDate family — the Go-side
+// plus the native `Date` object for the Date family — the Go-side
 // scanner lifts the brand off a `Date & {brand}` intersection the same
 // way it does for `string & {brand}`.
 export type TypeFormatBase = string | number | bigint | Date;
@@ -31,7 +31,7 @@ export type TypeFormatParams = Record<string, unknown>;
 // checks on object literals don't mistake them for regular properties.
 //
 // The sentinels are OPTIONAL by default. A format WITHOUT a `BrandName`
-// is therefore a transparent annotation — `FormatString<{maxLength: 5}>`
+// is therefore a transparent annotation — `String<{maxLength: 5}>`
 // stays mutually assignable with its base `string`, so a plain `'hello'`
 // flows into a format-typed slot with no cast and a format value flows
 // back out as its base. Formats are RUNTIME contracts enforced by the
@@ -41,7 +41,7 @@ export type TypeFormatParams = Record<string, unknown>;
 // `Name | undefined` / `Params | undefined`; the scanner strips the
 // `undefined` — see internal/compiled/runtype/typeid/formats.go.)
 //
-// `BrandName` follows the standard convention: pass it (`FormatString<P,
+// `BrandName` follows the standard convention: pass it (`String<P,
 // 'UserId'>`) to opt INTO a nominal brand — a REQUIRED `__rtFormatBrand`
 // marker that makes the type no longer assignable from a bare primitive,
 // so the compiler forces values through a validation/cast boundary. The
@@ -51,7 +51,7 @@ export type TypeFormat<
   Base extends TypeFormatBase,
   Name extends string,
   // `object`, not Record<string, unknown>: interface-typed params
-  // (StringParams, FormatParams_Date, …) have no index signature and so
+  // (StringParams, DateParams, …) have no index signature and so
   // don't satisfy Record<string, unknown>. `object` accepts them while
   // still excluding primitives.
   Params extends object,

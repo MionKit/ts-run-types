@@ -9,16 +9,16 @@ import {registerMockingFunction} from './mockRegistry.ts';
 import {RunTypeKind} from '../runTypeKind.ts';
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
 import type {
-  FormatParams_Domain,
-  FormatParams_Email,
-  FormatParams_IP,
-  FormatParams_UUID,
-  FormatParams_Url,
+  DomainParams,
+  EmailParams,
+  IPParams,
+  UUIDParams,
+  UrlParams,
   PatternParam,
   Samples,
   StringParams,
 } from '../formats/string/stringFormats.ts';
-import type {FormatParams_Date, FormatParams_DateTime, FormatParams_Time} from '../formats/datetime/stringDateTimeFormats.ts';
+import type {DateParams, DateTimeParams, TimeParams} from '../formats/datetime/stringDateTimeFormats.ts';
 import {mockBoundedDate, mockBoundedTime, mockBoundedDateTime} from './mockDateTimeBounds.ts';
 
 // mockStringFormat dispatches on the format name. Returns undefined for
@@ -30,25 +30,25 @@ function mockStringFormat(annotation: FormatAnnotation): unknown {
     case 'stringFormat':
       return mockStringParams(params as StringParams);
     case 'uuid':
-      return mockUuid(params as Partial<FormatParams_UUID>);
+      return mockUuid(params as Partial<UUIDParams>);
     case 'date': {
-      const dateParams = params as Partial<FormatParams_Date>;
+      const dateParams = params as Partial<DateParams>;
       return mockBoundedDate(dateParams.format ?? 'ISO', dateParams);
     }
     case 'time': {
-      const timeParams = params as Partial<FormatParams_Time>;
+      const timeParams = params as Partial<TimeParams>;
       return mockBoundedTime(timeParams.format ?? 'ISO', timeParams);
     }
     case 'dateTime':
-      return mockBoundedDateTime(params as Partial<FormatParams_DateTime>);
+      return mockBoundedDateTime(params as Partial<DateTimeParams>);
     case 'ip':
-      return mockIp(params as Partial<FormatParams_IP>);
+      return mockIp(params as Partial<IPParams>);
     case 'domain':
-      return mockDomain(params as FormatParams_Domain);
+      return mockDomain(params as DomainParams);
     case 'email':
-      return mockEmail(params as FormatParams_Email);
+      return mockEmail(params as EmailParams);
     case 'url':
-      return mockUrl(params as FormatParams_Url);
+      return mockUrl(params as UrlParams);
     default:
       return undefined;
   }
@@ -64,7 +64,7 @@ function mockStringParams(params: StringParams): string {
   // we draw from the supplied samples. When length bounds are present, keep
   // only the samples that satisfy them (the pattern formats encode their
   // mockSamples as a char-set string and length-bound that; the ts-go port
-  // keeps array samples + filters by length — e.g. FormatAlpha<{maxLength:3}>
+  // keeps array samples + filters by length — e.g. Alpha<{maxLength:3}>
   // must not pick a 5-char sample).
   const sample = pickSample(
     filterSamplesByLength(
@@ -151,7 +151,7 @@ function randomString(length: number): string {
 
 // ─────────────────────────────── UUID ───────────────────────────────
 
-function mockUuid(params: Partial<FormatParams_UUID>): string {
+function mockUuid(params: Partial<UUIDParams>): string {
   return (params.version ?? '4') === '7' ? randomUUIDv7() : randomUUIDv4();
 }
 
@@ -185,13 +185,13 @@ function randomUUIDv7(): string {
 
 // ──────────────────────────────── IP ────────────────────────────────
 
-function mockIp(params: Partial<FormatParams_IP>): string {
+function mockIp(params: Partial<IPParams>): string {
   if (params.version === 4) return mockIpV4(params);
   if (params.version === 6) return mockIpV6(params);
   return Math.random() > 0.5 ? mockIpV4(params) : mockIpV6(params);
 }
 
-function mockIpV4(params: Partial<FormatParams_IP>): string {
+function mockIpV4(params: Partial<IPParams>): string {
   // '127:0:0:1' is a valid v4 loopback only WITHOUT a port — the allowPort
   // address parser splits on ':' and rejects >2 segments — so when ports
   // are allowed the loopback is emitted as 'localhost' (the colon-free form).
@@ -202,7 +202,7 @@ function mockIpV4(params: Partial<FormatParams_IP>): string {
   return params.allowPort ? `${address}:${randomPort()}` : address;
 }
 
-function mockIpV6(params: Partial<FormatParams_IP>): string {
+function mockIpV6(params: Partial<IPParams>): string {
   if (params.allowLocalHost && Math.random() > 0.8) {
     const loopback = Math.random() > 0.5 ? '0:0:0:0:0:0:0:1' : '::1';
     // The allowPort v6 parser requires the bracketed `[addr]` (optionally
@@ -220,8 +220,8 @@ function randomPort(): number {
 
 // ─────────────────────────── Domain / Email ─────────────────────────
 
-function mockDomain(params: FormatParams_Domain): string {
-  // names/tld decomposition (FormatDomainStrict): draw a label + tld from
+function mockDomain(params: DomainParams): string {
+  // names/tld decomposition (DomainStrict): draw a label + tld from
   // their sub-pattern samples (we use the names/tld char-sets). The
   // samples live under `<part>.pattern.mockSamples` (or a bare mockSamples).
   if (params.names || params.tld) {
@@ -239,7 +239,7 @@ function domainPartSamples(part: {mockSamples?: Samples; pattern?: unknown} | un
   return toSampleList(part.mockSamples) ?? patternSampleList(asPattern(part.pattern));
 }
 
-function mockEmail(params: FormatParams_Email): string {
+function mockEmail(params: EmailParams): string {
   if (params.localPart || params.domain) {
     const local = params.localPart ? mockStringParams(params.localPart) : 'user';
     const domain = params.domain ? mockDomain(params.domain) : 'example.com';
@@ -250,7 +250,7 @@ function mockEmail(params: FormatParams_Email): string {
 
 // ──────────────────────────────── URL ───────────────────────────────
 
-function mockUrl(params: FormatParams_Url): string {
+function mockUrl(params: UrlParams): string {
   // URL formats bake their scheme set into the pattern, which can't be
   // reversed — draw from the pattern's mockSamples (http(s)/ftp/ws,
   // http-only, or file:// per variant). Default only fits the generic URL.

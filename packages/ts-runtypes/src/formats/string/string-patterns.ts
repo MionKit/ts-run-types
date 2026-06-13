@@ -31,7 +31,7 @@ export const DOMAIN_PUNYCODE_PATTERN = registerFormatPattern({
   mockSamples: ['xn--e1afmkfd.xn--p1ai', 'example.com'],
 });
 
-// Strict-domain label / tld sub-patterns (used by FormatDomainStrict).
+// Strict-domain label / tld sub-patterns (used by DomainStrict).
 export const DOMAIN_NAME_PATTERN = registerFormatPattern({
   source: '^[a-zA-Z0-9-]+$',
   mockSamples: ['domain', 'mion', 'example', 'wiki', 'mionkit'],

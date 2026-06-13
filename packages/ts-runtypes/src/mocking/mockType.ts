@@ -171,7 +171,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       // the objectLiteral builder (validate matches structurally).
       const subKind = runType.subKind as number | undefined;
       if (subKind === RunTypeSubKind.date) {
-        // FormatDate<{min,max}> brands a Date with bounds; honor them so the
+        // Date<{min,max}> brands a Date with bounds; honor them so the
         // mock re-passes validate. Falls back to the global mock-option range
         // when the type carries no nativeDate format annotation.
         const dateParams = runType.formatAnnotation?.name === 'nativeDate' ? runType.formatAnnotation.params : undefined;
