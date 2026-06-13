@@ -22,6 +22,7 @@ import (
 var enrichmentCommands = map[string]func([]string){
 	"describe": runDescribe,
 	"gen":      runGen,
+	"check":    runCheck,
 }
 
 // dispatchEnrichmentCommand runs the matching subcommand handler (which exits
@@ -39,17 +40,29 @@ func dispatchEnrichmentCommand() bool {
 	return true
 }
 
-// resolveOne builds a Program over absPath, a resolver, and resolves typeName
-// to its canonical RunType. Shared by describe + gen.
-func resolveOne(absPath, typeName string) (*enrichment.Resolved, error) {
+// buildProgram constructs an inferred Program + resolver over absPath. The
+// caller owns the resolver and MUST call res.Close() when done (it keeps the
+// checker live for as long as the walk needs it). Shared by resolveOne and the
+// check command, which walks the file's AST against the still-open checker.
+func buildProgram(absPath string) (*program.Program, *resolver.Resolver, error) {
 	cwd := filepath.Dir(absPath)
 	prog, err := program.NewInferred(program.Options{Cwd: cwd}, []string{absPath})
 	if err != nil {
-		return nil, fmt.Errorf("build program: %w", err)
+		return nil, nil, fmt.Errorf("build program: %w", err)
 	}
 	res, err := resolver.New(prog, resolver.Options{Cwd: cwd})
 	if err != nil {
-		return nil, fmt.Errorf("build resolver: %w", err)
+		return nil, nil, fmt.Errorf("build resolver: %w", err)
+	}
+	return prog, res, nil
+}
+
+// resolveOne builds a Program over absPath, a resolver, and resolves typeName
+// to its canonical RunType. Shared by describe + gen.
+func resolveOne(absPath, typeName string) (*enrichment.Resolved, error) {
+	prog, res, err := buildProgram(absPath)
+	if err != nil {
+		return nil, err
 	}
 	defer res.Close()
 	return enrichment.ResolveType(prog, res, absPath, typeName)
