@@ -338,7 +338,7 @@ export const cases: CompetitorCases = {
       return (value: unknown) => validate(value) === true;
     },
   },
-  'ARRAY.string_array_noIsArrayCheck': NOT_SUPPORTED, // mion-specific noIsArrayCheck option; no JSON Schema equivalent
+  'ARRAY.string_array_noIsArrayCheck': NOT_SUPPORTED, // RunTypes-specific noIsArrayCheck option; no JSON Schema equivalent
   'ARRAY.object_array': {
     build: () => {
       const ajv = new Ajv({strict: false, allowUnionTypes: true});
@@ -2436,7 +2436,7 @@ export const cases: CompetitorCases = {
   },
   'STRING_FORMAT.time_minMax_absolute': NOT_SUPPORTED, // requires time-comparison logic; pattern alone cannot enforce time range
   // ajv-formats full mode gives calendar validity; pattern 'T' enforces the ISO
-  // 'T' separator (ajv-formats/RFC3339 also accept a space, which mion rejects).
+  // 'T' separator (ajv-formats/RFC3339 also accept a space, which we reject).
   'STRING_FORMAT.dateTime_default': {
     build: () => {
       const ajv = new Ajv({strict: false, allowUnionTypes: true});

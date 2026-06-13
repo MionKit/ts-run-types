@@ -3,7 +3,7 @@ package typefns
 import "github.com/mionkit/ts-runtypes/internal/protocol"
 
 // ArgSpec describes one parameter of the emitted rt function. Mirrors
-// mion's `args[key] = name` + `defaultParamValues[key] = default`
+// the `args[key] = name` + `defaultParamValues[key] = default`
 // pairing (rtFnCompiler.ts:71). Key is the conceptual slot ("vλl",
 // "pλth", "εrr"); Name is the JS identifier in the emitted signature;
 // Default is the JS-source default expression (empty for no default).
@@ -43,10 +43,10 @@ type Emitter interface {
 	// the root always inlines); this predicate answers the intrinsic
 	// "is rt cheap enough to inline?" question.
 	//
-	// Mion's run-types/src/lib/baseRunTypes.ts:52 defines this once
-	// on BaseRunType — shared across every rt fn. Our equivalent
+	// The reference run-types/src/lib/baseRunTypes.ts:52 defines this
+	// once on BaseRunType — shared across every rt fn. Our equivalent
 	// is `DefaultIsRTInlined` (inlining.go); emitters that want
-	// mion's behaviour delegate to it. Emitters that need different
+	// the reference behaviour delegate to it. Emitters that need different
 	// rules (the user's stated reason for surfacing this on the
 	// Emitter interface) override the body. Per-fn override is
 	// CAPABILITY, not policy — share unless you have a concrete
@@ -64,7 +64,7 @@ type Emitter interface {
 	// EmitDependencyCall returns the JS expression that invokes a
 	// pre-rendered child RT entry. Used by the Walker when the
 	// dispatch site decides a child is non-inline-cheap and the
-	// stack is past depth 1 (mirrors mion's
+	// stack is past depth 1 (mirrors
 	// BaseFnCompiler.callDependency at rtFnCompiler.ts:326). The
 	// emitter also registers a context-item declaration of the form
 	// `const <hash> = utl.getRT('<hash>')` so the inner factory's
@@ -72,7 +72,7 @@ type Emitter interface {
 	//
 	// Self-recursive calls (childID == own hash) emit `<hash>(args)`;
 	// cross-function calls emit `<hash>.fn(args)` — same split as
-	// mion's `isSelf` branch.
+	// the `isSelf` branch.
 	EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string
 
 	// Finalize normalises the raw concatenated body produced by the
@@ -117,7 +117,7 @@ func (ctx *EmitContext) CompileChild(rt *protocol.RunType, expectedCType CodeTyp
 }
 
 // IsRoot reports whether the current Emit call is at the RT
-// function's root (the outermost frame). Mirrors mion's
+// function's root (the outermost frame). Mirrors
 // `comp.getNestLevel(runType) === 0`. Used by emitters whose output
 // shape depends on root-vs-nested context — e.g. stringifyJson's
 // atomic number/null emits return `String(v)` at root (so the RT
@@ -151,7 +151,7 @@ func (ctx *EmitContext) ResolveRef(rt *protocol.RunType) *protocol.RunType {
 }
 
 // NextLocalVar allocates and returns a fresh local variable name
-// scoped to the current emitter instance. Mirrors mion's
+// scoped to the current emitter instance. Mirrors
 // RTFnCompiler.getLocalVarName (rtFnCompiler.ts:236) — each call
 // hands out a unique name so child accessors and result locals
 // never collide across nested frames. Prefix convention: "i" for
@@ -189,7 +189,7 @@ func (ctx *EmitContext) SetChildPathLiteral(literal string) {
 // omits the argument). Used by validationErrors emitters when calling
 // pf_newRunTypeErr to embed the static path segments at error sites.
 //
-// Mirrors mion's `getAccessPath` + `getAccessPathLiteral`
+// Mirrors `getAccessPath` + `getAccessPathLiteral`
 // (rtFnCompiler.ts:677-681) — same join, same `extra` semantics.
 func (ctx *EmitContext) AccessPathLiteral(extra string) string {
 	segments := ctx.walker.accessPath()
@@ -206,7 +206,7 @@ func (ctx *EmitContext) AccessPathLiteral(extra string) string {
 // current stack contributes (with `extra` counted when non-empty).
 // Used by validationErrors EmitDependencyCall to size the `pth.splice(-N)`
 // pop that unwinds the path after a dependency-call returns. Mirrors
-// mion's `getAccessPathLength` (rtFnCompiler.ts implicit via array
+// `getAccessPathLength` (rtFnCompiler.ts implicit via array
 // length on getAccessPath result).
 func (ctx *EmitContext) AccessPathLength(extra string) int {
 	n := len(ctx.walker.accessPath())
@@ -261,7 +261,7 @@ func (ctx *EmitContext) registerRTLookup(childID string) {
 // cross-function calls go through `<childID>.fn(args)` and register the getRT
 // lookup. A non-empty assignTo wraps the result as `<assignTo> = <call>` (the
 // mutate-in-place families); empty assignTo returns the bare call expression.
-// Mirrors mion's BaseFnCompiler.callDependency.
+// Mirrors BaseFnCompiler.callDependency.
 func (ctx *EmitContext) emitDepCall(childID, argsExpr, assignTo string) string {
 	var call string
 	if ctx.walker != nil && childID == ctx.walker.RTFnHash {
@@ -419,7 +419,7 @@ func (ctx *EmitContext) EmitDiagnostic(code string, args ...string) {
 // conceptual arg slot ("vλl", "pλth", "εrr") via the emitter's Args
 // list. Returns "" when the slot isn't declared on this emitter — eg
 // validate has no "pλth" / "εrr", so callers gating on those slots
-// short-circuit cleanly without panicking. Mirrors mion's
+// short-circuit cleanly without panicking. Mirrors
 // `this.args.<key>` access (rtFnCompiler.ts:671).
 func (ctx *EmitContext) ArgName(key string) string {
 	for _, arg := range ctx.walker.Emitter.Args() {

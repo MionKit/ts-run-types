@@ -1,5 +1,5 @@
 // Command ts-runtypes answers compile-time type-reflection queries for
-// mion runtypes. It holds a typescript-go Program + checker in memory and
+// runtypes. It holds a typescript-go Program + checker in memory and
 // speaks newline-delimited JSON on stdio, or writes the dump straight to
 // disk via --out-json / --out-modules.
 package main
@@ -30,7 +30,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
-const usage = `ts-runtypes — compile-time type resolver for mion runtypes
+const usage = `ts-runtypes — compile-time type resolver for runtypes
 
 Usage:
     ts-runtypes [OPTIONS]

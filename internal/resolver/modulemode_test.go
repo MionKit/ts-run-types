@@ -227,7 +227,7 @@ func TestModuleMode_AllSingle_PureFnBundleAndNamedReplacement(t *testing.T) {
 	// shape as the purefns extraction tests' overlay).
 	dts := strings.Replace(runtypesDTS,
 		"export function createJsonDecoder",
-		"export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};\n"+
+		"export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};\n"+
 			"  export function registerPureFnFactory(namespace: CompTimeArgs<string>, functionID: CompTimeArgs<string>, factory: PureFunction<(utl: unknown) => unknown> | null): unknown;\n"+
 			"  export function createJsonDecoder",
 		1)

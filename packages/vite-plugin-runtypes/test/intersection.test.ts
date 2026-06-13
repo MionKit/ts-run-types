@@ -225,7 +225,7 @@ getRunTypeId<T>();
   );
 
   // ---- optional / readonly modifier merge ---------------------------------
-  // mion-spec parity: intersection should preserve `?` from either side
+  // spec parity: intersection should preserve `?` from either side
   // and `readonly` from either side on the merged property.
 
   runTest(

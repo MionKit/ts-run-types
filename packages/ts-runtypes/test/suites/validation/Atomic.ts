@@ -516,7 +516,8 @@ export const ATOMIC = {
     // DataOnly<unique symbol> collapses to `never` (symbols are non-data), so
     // createValidate<DataOnly<T>>() can't reproduce the symbol validator.
     dataOnlyDivergent: true,
-    description: 'A symbol literal is matched by its `description` rather than unique-symbol identity, per mion semantics.',
+    description:
+      'A symbol literal is matched by its `description` rather than unique-symbol identity, per the reference semantics.',
     validateNotes:
       'TS DIVERGENCE: Symbol literal types are matched by `description`, not by unique-symbol identity. A different `Symbol("hello")` instance with the same description WILL satisfy the type. Strict TS treats each `typeof sym` as a unique-symbol referring to that exact value.',
     validate: () => {
@@ -579,7 +580,7 @@ export const ATOMIC = {
     getSamples: () => {
       const sym = Symbol('hello');
       return {
-        // identity by description per mion semantics:
+        // identity by description per the reference semantics:
         // emit is `typeof === 'symbol' && v.description === 'hello'`
         valid: [sym, Symbol('hello')],
         invalid: [Symbol('nice'), 'hello', null, undefined],
@@ -1024,7 +1025,7 @@ export const ATOMIC = {
   },
 
   // noLiterals variants — mirror the `noLiterals: true` block in
-  // mion's literal.spec.ts. Each literal degrades to its base-type
+  // literal.spec.ts. Each literal degrades to its base-type
   // check: the validator accepts any value of the base type instead
   // of only the exact literal. The Go-side resolver swaps the
   // literal type for its base via Checker_getBaseTypeOfLiteralType
@@ -1347,9 +1348,9 @@ export const ATOMIC = {
     getSamples: () => ({valid: [], invalid: []}),
   },
 
-  // `unknown` — like `any`, every value passes. UnknownRunType
-  // extends AnyRunType in mion (no validate emit), so both kinds
-  // collapse to a noop validator. Mion's own suite skips this; we
+  // `unknown` — like `any`, every value passes. The unknown kind
+  // reuses the any-kind emit (no validate emit), so both kinds
+  // collapse to a noop validator. The reference suite skips this; we
   // include it here for full TS keyword coverage so a regression
   // can't silently change the always-pass semantics.
   unknown: {

@@ -43,9 +43,9 @@ if (!fs.existsSync(path.join(PLUGIN_DIST, 'resolver-client.js'))) {
 // `ts-runtypes` without us shipping the real marker package
 // (the smoke runs against repo-root, not against packages/ts-runtypes).
 const RUNTYPES_DTS = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
-  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
+  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export interface ValidateOptions { noLiterals?: boolean; noIsArrayCheck?: boolean; }
   export type ValidateFn = (value: unknown) => boolean;

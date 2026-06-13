@@ -2,8 +2,8 @@
 // format family (FormatBigInt + the positive/negative/64-bit defaults).
 // Validation, serialization (the setBigInt64/setBigUint64 8-byte packing)
 // and mocking are emitted/registered elsewhere; this file is type-only +
-// the brand wiring. Mirrors mion's
-// packages/type-formats/src/bigint/{bigIntFormat.runtype.ts,defaultBigNumberFormats.ts}.
+// the brand wiring. Mirrors
+// (ref: packages/type-formats/src/bigint/{bigIntFormat.runtype.ts,defaultBigNumberFormats.ts}).
 //
 // `TypeFormat` IS imported as a value (not `import type`): the value-level
 // import keeps each brand alias's reflection metadata reachable for tsgo.
@@ -34,7 +34,7 @@ export type FormatBigInt<P extends BigIntParams = {}, BrandName extends string =
   BrandName
 >;
 
-// Default bigint formats — ported from mion's defaultBigNumberFormats.ts.
+// Default bigint formats — ported from the reference defaultBigNumberFormats.ts.
 // FormatBigInt64 / FormatBigUInt64 SET the min/max that select the 8-byte
 // binary packing; the others fall back to decimal-string serialization.
 export type FormatBigPositive = FormatBigInt<{min: 0n}>;

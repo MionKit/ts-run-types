@@ -13,7 +13,7 @@ import (
 
 // propertyAccessor builds the JS subscript expression for `parent.name`
 // (safe identifier names) or `parent["name"]` (anything else). Mirrors
-// mion's RunType `useArrayAccessor` / `getChildVarName` split applied
+// the RunType `useArrayAccessor` / `getChildVarName` split applied
 // to property names — protocol.IsSafeName captures the safe-name bit
 // at resolver time so the emit doesn't repeat the regex.
 func propertyAccessor(parent, name string, safe bool) string {
@@ -39,7 +39,7 @@ func positionStr(rt *protocol.RunType) string {
 }
 
 // joinAnd composes parts into a JS `a && b && c` chain, filtering
-// empty entries the same way mion's `.filter(Boolean).join(' && ')`
+// empty entries the same way the `.filter(Boolean).join(' && ')`
 // pattern does.
 func joinAnd(parts []string) string {
 	out := parts[:0]

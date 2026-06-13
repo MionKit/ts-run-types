@@ -7,13 +7,13 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
-// Circular-type tests adapted from mion's circularRefs.spec.ts at
-// /home/user/mion/packages/run-types/src/nodes/collection/circularRefs.spec.ts.
-// Mion's spec exercises RT validation behaviour; this suite exercises only
+// Circular-type tests adapted from circularRefs.spec.ts
+// (ref: packages/run-types/src/nodes/collection/circularRefs.spec.ts).
+// The reference spec exercises RT validation behaviour; this suite exercises only
 // the structural projection — that our serializer walks every shape without
 // infinite recursion, lands one canonical RunType per recursive type in the
 // cache, and that the back-edge closes via id equality (the wire-level
-// equivalent of mion's runtime referential equality).
+// equivalent of runtime referential equality).
 //
 // Each scenario has paired *_Static / *_Reflect tests per the marker test
 // coverage rule (CLAUDE.md).
@@ -426,7 +426,7 @@ func walkProp(t *testing.T, types []*protocol.RunType, parent *protocol.RunType,
 
 // ---- F34 — Interface with nested circular + multiple circular --------------
 //
-// Adapted from mion's `Interface with nested circular + multiple circular`
+// Adapted from the `Interface with nested circular + multiple circular`
 // describe in interface.spec.ts:763. Three interleaved recursive shapes:
 //
 //	interface ICircularDeep {
@@ -446,7 +446,7 @@ func walkProp(t *testing.T, types []*protocol.RunType, parent *protocol.RunType,
 //	interface RootCircular {
 //	    isRoot: true;               // literal
 //	    ciChild: ICircularDeep;
-//	    ciRoort?: RootCircular;     // self back-edge (note: `ciRoort` is mion's typo, preserved)
+//	    ciRoort?: RootCircular;     // self back-edge (note: `ciRoort` is the upstream typo, preserved)
 //	    ciDate: ICircularDate;
 //	}
 //

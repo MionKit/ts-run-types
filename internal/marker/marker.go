@@ -101,11 +101,11 @@ type Spec struct {
 // public TypeScript declarations in
 // packages/ts-runtypes/src/markers.ts.
 const (
-	BrandInjectRunTypeId  = "__mionInjectRunTypeIdBrand"
-	BrandCompTimeArgs     = "__mionCompTimeArgsBrand"
-	BrandCompTimeFnArgs   = "__mionCompTimeFnArgsBrand"
-	BrandPureFunction     = "__mionPureFunctionBrand"
-	BrandInjectTypeFnArgs = "__mionInjectTypeFnArgsBrand"
+	BrandInjectRunTypeId  = "__rtInjectRunTypeIdBrand"
+	BrandCompTimeArgs     = "__rtCompTimeArgsBrand"
+	BrandCompTimeFnArgs   = "__rtCompTimeFnArgsBrand"
+	BrandPureFunction     = "__rtPureFunctionBrand"
+	BrandInjectTypeFnArgs = "__rtInjectTypeFnArgsBrand"
 )
 
 // DefaultSpecs returns the canonical marker set: one spec per supported

@@ -170,12 +170,12 @@ func TestValidateModule_FunctionsMode(t *testing.T) {
 }
 
 // TestValidateModule_AtomicEmitBodies asserts the emit body for each
-// atomic kind we ported from mion. One row per kind keeps the
-// regression surface explicit — drift in any single arm of
-// ValidateEmitter.Emit lands as a focused failure here.
+// atomic kind we ported from the reference implementation. One row per
+// kind keeps the regression surface explicit — drift in any single arm
+// of ValidateEmitter.Emit lands as a focused failure here.
 //
-// Bodies must match the corresponding mion node's emitIsType output
-// (mion-run-types:packages/run-types/src/nodes/atomic/<name>.ts).
+// Bodies must match the corresponding node's emitIsType output
+// (ref: packages/run-types/src/nodes/atomic/<name>.ts).
 // `return ` prefix is added by the walker / Finalize.
 func TestValidateModule_AtomicEmitBodies(t *testing.T) {
 	rows := []struct {
@@ -229,7 +229,7 @@ func TestValidateModule_AtomicEmitBodies(t *testing.T) {
 }
 
 // TestValidateModule_LiteralEmitBodies covers the literal sub-cases
-// (mion:literal.ts:88-105). One row per literal flavour: string,
+// (ref: literal.ts:88-105). One row per literal flavour: string,
 // number, boolean, bigint (via Flags), symbol (via Flags + map),
 // regexp (via map).
 func TestValidateModule_LiteralEmitBodies(t *testing.T) {
@@ -275,7 +275,7 @@ func TestValidateModule_LiteralEmitBodies(t *testing.T) {
 }
 
 // TestValidateModule_EnumEmitBody covers KindEnum's mixed-value chain
-// (mion:nodes/atomic/enum.ts:14). Uses the Color enum from
+// (ref: nodes/atomic/enum.ts:14). Uses the Color enum from
 // enum.spec.ts: {Red=0, Green='green', Blue=2}. The Values slice
 // carries the resolved values in declaration order; chain order
 // follows.
@@ -293,7 +293,7 @@ func TestValidateModule_EnumEmitBody(t *testing.T) {
 }
 
 // TestValidateModule_ArrayEmitBody covers KindArray's canonical block
-// (mion:nodes/member/array.ts:emitIsType). The outer array renders an
+// (ref: nodes/member/array.ts:emitIsType). The outer array renders an
 // Array.isArray guard, a numbered for-loop, and an inlined child check
 // since the child (string) is atomic — no dependency call needed.
 func TestValidateModule_ArrayEmitBody(t *testing.T) {
@@ -384,7 +384,7 @@ func TestValidateModule_NestedArrayDependencyCall(t *testing.T) {
 // emitter fans out an extra `valNA_<id>` factory whose body omits the
 // leading `if (!Array.isArray(v)) return false;` guard. A plain
 // createValidate site still emits the guarded `val_<id>` factory. Mirrors
-// mion's `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType. (`it` is
+// the `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType. (`it` is
 // demand-scoped: the scanner attaches each site's structured Demand, so the
 // plain `it` entry and the `NA` variant ride distinct SiteDemand entries —
 // not the legacy Site.Options back-compat fan-out.)
@@ -490,7 +490,7 @@ func TestValidateModule_InterfaceEmitBody(t *testing.T) {
 }
 
 // TestValidateModule_OptionalPropertyEmitBody checks the optional guard
-// wrap — `(v.<name> === undefined || <childCheck>)`. Mirrors mion's
+// wrap — `(v.<name> === undefined || <childCheck>)`. Mirrors the
 // PropertyRunType.emitIsType when src.optional is set.
 func TestValidateModule_OptionalPropertyEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
@@ -516,7 +516,7 @@ func TestValidateModule_OptionalPropertyEmitBody(t *testing.T) {
 
 // TestValidateModule_FunctionPropertyDropped — properties whose wrapped
 // value is function-flavoured are dropped from the parent's AND
-// chain. Mirrors mion's `getRTChild → undefined` short-circuit for
+// chain. Mirrors the `getRTChild → undefined` short-circuit for
 // methods. The interface body therefore reduces to the basic
 // typeof-object guard + the non-function siblings.
 func TestValidateModule_FunctionPropertyDropped(t *testing.T) {
@@ -555,7 +555,7 @@ func TestValidateModule_FunctionPropertyDropped(t *testing.T) {
 
 // TestValidateModule_IndexSignatureEmitBody covers KindIndexSignature —
 // the for-in iteration over the object's own keys with a value-type
-// check. Mirrors mion's IndexSignatureRunType.emitIsType.
+// check. Mirrors the IndexSignatureRunType.emitIsType.
 func TestValidateModule_IndexSignatureEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	idx := &protocol.RunType{
@@ -712,7 +712,7 @@ func TestValidateModule_UnionObjectsShareNullGuard(t *testing.T) {
 }
 
 func TestValidateModule_UnsupportedKindSkipped(t *testing.T) {
-	// KindIntersection stays unsupported — mion resolves intersections
+	// KindIntersection stays unsupported — intersections resolve
 	// at compile time into ObjectLiteral / Never, so the emitter never
 	// renders an Intersection factory. KindUnion with no children also
 	// degenerates to unsupported. The renderer must skip both
@@ -948,10 +948,10 @@ func TestPureFnDepsJS_EmptyAndPopulated(t *testing.T) {
 	// module scope, so the legacy skeleton `k_<alias>` identifier shortcut
 	// is gone (aliases only shorten context-var NAMES inside bodies now).
 	deps := []protocol.PureFnDep{
-		{Namespace: "mion", FunctionName: "asJSONString", FilePath: "/abs/run-types-pure-fns.ts"},
-		{Namespace: "mion", FunctionName: "newRunTypeErr", FilePath: "/abs/run-types-pure-fns.ts"},
+		{Namespace: "rt", FunctionName: "asJSONString", FilePath: "/abs/run-types-pure-fns.ts"},
+		{Namespace: "rt", FunctionName: "newRunTypeErr", FilePath: "/abs/run-types-pure-fns.ts"},
 	}
-	want := "['mion::asJSONString','mion::newRunTypeErr']"
+	want := "['rt::asJSONString','rt::newRunTypeErr']"
 	if got := pureFnDepsJS(deps); got != want {
 		t.Errorf("populated → %q, want %q", got, want)
 	}
@@ -959,9 +959,9 @@ func TestPureFnDepsJS_EmptyAndPopulated(t *testing.T) {
 
 func TestValidateModule_PureFnDepsRendered(t *testing.T) {
 	deps := pureFnDepsJS([]protocol.PureFnDep{
-		{Namespace: "mion", FunctionName: "asJSONString", FilePath: "/some/abs/run-types-pure-fns.ts"},
+		{Namespace: "rt", FunctionName: "asJSONString", FilePath: "/some/abs/run-types-pure-fns.ts"},
 	})
-	if deps != "['mion::asJSONString']" {
+	if deps != "['rt::asJSONString']" {
 		t.Fatalf("projection mismatch: got %q", deps)
 	}
 	if strings.Contains(deps, "/some/abs/") || strings.Contains(deps, "filePath") {

@@ -4,7 +4,7 @@ import type {SerializationCase} from './types.ts';
 
 export const FUNCTIONS = {
   // Function parameter and return-type slicing uses TS utility types
-  // (Parameters<typeof fn>, ReturnType<typeof fn>) rather than mion's
+  // (Parameters<typeof fn>, ReturnType<typeof fn>) rather than
   // bespoke createSerializationParamsFn / createSerializationReturnFn
   // helpers. Same type-level slicing, no extra factories.
   parameters: {
@@ -574,8 +574,7 @@ export const FUNCTIONS = {
   },
   function_promise_return_type: {
     title: 'Promise return',
-    description:
-      'A Promise<T> return type is non-serializable at root in mion, so every family renders the factory as alwaysThrow.',
+    description: 'A Promise<T> return type is non-serializable at root, so every family renders the factory as alwaysThrow.',
     serializeNotes:
       'A Promise return type is non-serializable at root, so every family renders the factory as alwaysThrow (factoryThrows); no value-first builder can express it.',
     mutateEncoder: () => {

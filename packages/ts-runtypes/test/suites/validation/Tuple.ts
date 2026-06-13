@@ -7,7 +7,7 @@ export const TUPLE = {
   string_number_pair: {
     title: 'String number pair',
     description:
-      'A two-element tuple that checks `Array.isArray(v)`, exact length 2, then validates slot 0 as `string` and slot 1 as `number` (mion member/tuple).',
+      'A two-element tuple that checks `Array.isArray(v)`, exact length 2, then validates slot 0 as `string` and slot 1 as `number` (member/tuple).',
     validateNotes: [
       'Tuples enforce exact length — both fewer (missing required) and more (excess) elements fail.',
       'Each slot runs the atomic check for its declared type.',
@@ -87,7 +87,7 @@ export const TUPLE = {
   full_mion_tuple: {
     title: 'Heterogeneous tuple',
     description:
-      'A six-element heterogeneous tuple where each slot runs its declared atomic check (mion tuple.spec.ts "validate tuple").',
+      'A six-element heterogeneous tuple where each slot runs its declared atomic check (tuple.spec.ts "validate tuple").',
     validateNotes:
       'Each slot runs its declared atomic check: an Invalid Date at slot 0, `NaN` at slot 1, or `undefined` at the `null`-literal slot 3 all fail (`undefined` is not `null`).',
     validate: () => createValidate<[Date, number, string, null, string[], bigint]>(),
@@ -151,7 +151,7 @@ export const TUPLE = {
   tuple_with_optional: {
     title: 'Tuple with optionals',
     description:
-      'A tuple with trailing optional elements that may each be absent or explicitly undefined (mion tuple.spec.ts "validate tuple with optional parameters").',
+      'A tuple with trailing optional elements that may each be absent or explicitly undefined (tuple.spec.ts "validate tuple with optional parameters").',
     validateNotes:
       'Optional tuple slots may be absent OR explicitly `undefined`. Trailing-only — TS grammar disallows `[A, B?, C]` (required after optional).',
     validate: () => createValidate<[number, bigint?, boolean?, number?]>(),
@@ -272,7 +272,7 @@ export const TUPLE = {
     // emitter rejects.
     dataOnlyDivergent: true,
     description:
-      "A tuple with a trailing rest segment that absorbs any number of trailing elements via a for-loop from the member's position to v.length, skipping the length-bound check (mion tuple.spec.ts 'validate tuple with rest parameter').",
+      "A tuple with a trailing rest segment that absorbs any number of trailing elements via a for-loop from the member's position to v.length, skipping the length-bound check (tuple.spec.ts 'validate tuple with rest parameter').",
     validateNotes:
       'A trailing rest segment absorbs any number of trailing elements (including zero). Each trailing element must satisfy the rest type.',
     validate: () => createValidate<[number, ...string[]]>(),
@@ -333,7 +333,7 @@ export const TUPLE = {
     // homomorphic mapping (the self-ref slot widens), so verdicts diverge.
     dataOnlyDivergent: true,
     description:
-      'A self-referential tuple whose cycle closes via a trailing optional self-ref slot, where the always-non-inlined tuple makes a self-recursive dependency call through the isSelf branch (mion tuple.spec.ts circular tuple).',
+      'A self-referential tuple whose cycle closes via a trailing optional self-ref slot, where the always-non-inlined tuple makes a self-recursive dependency call through the isSelf branch (tuple.spec.ts circular tuple).',
     validateNotes:
       'The cycle closes via a trailing OPTIONAL self-ref slot, so a non-recursive value (the first six slots only) is valid; nested tuples recurse to whatever depth the value supplies.',
     validate: () => {
@@ -570,7 +570,7 @@ export const TUPLE = {
     // tuple `[string, never]` rejects the valid `[..., undefined]` samples.
     dataOnlyDivergent: true,
     description:
-      'A tuple whose function-typed slot emits `v[i] === undefined`, so it must be absent or explicitly undefined and any other value (a real function, a string) fails (mion serialization-suite TUPLES.tuple_with_non_serializable).',
+      'A tuple whose function-typed slot emits `v[i] === undefined`, so it must be absent or explicitly undefined and any other value (a real function, a string) fails (the serialization-suite TUPLES.tuple_with_non_serializable).',
     validateNotes: [
       'TS DIVERGENCE: A function-typed tuple slot must be MISSING or explicitly `undefined`. A real function FAILS the check.',
       'This is the opposite of the object-property case (where function-typed props are skipped entirely): tuples enforce `=== undefined` because tuple position is structural.',
@@ -634,7 +634,7 @@ export const TUPLE = {
   empty_tuple: {
     title: 'Empty tuple',
     description:
-      "A zero-length tuple whose validator accepts only `[]` via Array.isArray plus length === 0, mirroring mion's `children.length === 0` branch.",
+      'A zero-length tuple whose validator accepts only `[]` via Array.isArray plus length === 0, mirroring the `children.length === 0` branch.',
     validateNotes:
       'Only the empty array `[]` passes — any element at all (even `[null]`) fails the exact length-0 check; a plain object `{}` is also rejected.',
     validate: () => createValidate<[]>(),

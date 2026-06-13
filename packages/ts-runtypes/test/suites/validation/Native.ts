@@ -62,7 +62,7 @@ export const NATIVE = {
       [{path: [], expected: 'map'}],
       [{path: [], expected: 'map'}],
       // wrongKey: Map with key=1 (number not string). Path is the
-      // mion-style {key, index, failed} segment object identifying
+      // standard {key, index, failed} segment object identifying
       // which side of which entry failed.
       [{path: [{key: 1, index: 0, failed: 'mapKey'}], expected: 'string'}],
       [{path: [{key: 'a', index: 0, failed: 'mapValue'}], expected: 'number'}],
@@ -124,7 +124,7 @@ export const NATIVE = {
       [{path: [], expected: 'set'}],
       [{path: [], expected: 'set'}],
       // wrongType: Set with item 1 (number not string). Set path is
-      // {key: safe(item), index} — mion set.ts parity (T4); safe(1)=1.
+      // {key: safe(item), index} — set.ts parity (T4); safe(1)=1.
       [{path: [{key: 1, index: 0}], expected: 'string'}],
       [{path: [], expected: 'set'}],
       [{path: [], expected: 'set'}],

@@ -24,7 +24,7 @@ import (
 // in union_flat_layout.go (shared with the JSON family).
 
 // discriminatorWidth returns ("Uint8", 1) or ("Uint16", 2) depending on
-// the total number of members in the union. Mion uses the same trick at
+// the total number of members in the union. We use the same trick at
 // binary/toBinary.ts:376-380 — uint8 when index fits, uint16 otherwise.
 // The `-1` sentinel for the merged-object branch is encoded as the
 // max value (0xFF / 0xFFFF) so the decoder special-cases it.

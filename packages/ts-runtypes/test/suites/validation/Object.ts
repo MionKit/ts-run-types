@@ -134,7 +134,7 @@ export const OBJECT = {
       [{path: ['age'], expected: 'literal'}],
       [{path: ['name'], expected: 'literal'}],
       // {} — both props are missing; the for-each loop records one
-      // error per declared prop (mion's emitTypeErrors per-property
+      // error per declared prop (the emitTypeErrors per-property
       // accumulation).
       [
         {path: ['name'], expected: 'literal'},
@@ -947,7 +947,7 @@ export const OBJECT = {
       // {a: 1, b: 1} — index-sig checks every own key. Both 'a' (=1)
       // and 'b' (=1) are valid by index-sig (string|number). But
       // named prop 'a: string' fails because v.a is 1 (number, not
-      // string). Mion runs BOTH the named-prop checks and the
+      // string). We run BOTH the named-prop checks and the
       // index-sig loop, so 'a' fails the string check from the
       // named prop side. Note: 'a' is allowed in the for-in loop's
       // index check (number is in union) so no extra error there.
@@ -1266,7 +1266,7 @@ export const OBJECT = {
       const v: () => void = () => {};
       return createMockType(v);
     },
-    // Function kinds return `undefined` from the walker (mion's
+    // Function kinds return `undefined` from the walker (the reference
     // behaviour); the result can't satisfy `validate<() => void>` which
     // checks `typeof === 'function'`. Mock still runs without error.
     mockTypeExpect: 'skip',
@@ -1712,7 +1712,7 @@ export const OBJECT = {
       '`Error` base-class fields (`message`, `name`, `stack`) are NOT declared on the class shape and so are NOT validated.',
     ],
     validate: () => {
-      // Mirrors @mionjs/core's RpcError public shape:
+      // Mirrors a typical RpcError public shape:
       //   - `mion@isΣrrθr: true` brand (literal true)
       //   - `type: ErrType` generic discriminator
       //   - `publicMessage: string`
@@ -1764,7 +1764,7 @@ export const OBJECT = {
       return createValidate(RT.classType<RpcError<'test-error'>>(RpcError));
     },
     deserializeValidate: () => {
-      // Mirrors @mionjs/core's RpcError public shape:
+      // Mirrors a typical RpcError public shape:
       //   - `mion@isΣrrθr: true` brand (literal true)
       //   - `type: ErrType` generic discriminator
       //   - `publicMessage: string`
@@ -1902,7 +1902,7 @@ export const OBJECT = {
       return deserializeGetValidationErrors(v);
     },
     mockType: () => {
-      // Mirrors @mionjs/core's RpcError public shape:
+      // Mirrors a typical RpcError public shape:
       //   - `mion@isΣrrθr: true` brand (literal true)
       //   - `type: ErrType` generic discriminator
       //   - `publicMessage: string`
@@ -2057,7 +2057,7 @@ export const OBJECT = {
       valid: [
         [1, true],
         [0, false],
-        // mion: missing trailing args treated as undefined; if the
+        // spec: missing trailing args treated as undefined; if the
         // param type is `boolean` (not `boolean | undefined`) then
         // `[1]` fails because v[1] === undefined doesn't satisfy
         // typeof === 'boolean'. Same shape here.

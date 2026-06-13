@@ -147,7 +147,7 @@ isolation), then `aggregate.mjs` prints the table + coverage. It exits non-zero 
 any competitor has a `fail`/`errored` case, so the run doubles as a cross-library
 conformance test. Each run also **publishes** the per-competitor JSON into the
 canonical `<repo>/.docdata/benchmarks/` dir, which the docs website mounts
-read-only (`MION_DOCDATA`) to build benchmark docs from. Env knobs: `BENCH_NO_TIMING=1` (correctness only, fast),
+read-only (`RT_DOCDATA`) to build benchmark docs from. Env knobs: `BENCH_NO_TIMING=1` (correctness only, fast),
 `BENCH_TIME_MS=100` (per-cell window). typia runs **by default** now that each
 competitor installs in isolation; a failed typia build degrades gracefully (its
 column is left blank that run). Set `BENCH_NO_TYPIA=1` to skip it on a host where
@@ -178,7 +178,7 @@ per-competitor from each competitor's own files:
 ts-go(type) and typia are both **pure-type** forms — the cost is just resolving
 the literal `T` the developer writes (no schema object, no runtime transform
 involved in type-checking). They diverge only where typia expresses a constraint
-as a tag intersection rather than a mion `Format*` brand, and over the differing
+as a tag intersection rather than a `Format*` brand, and over the differing
 subset of cases each supports.
 
 ```

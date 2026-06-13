@@ -179,7 +179,7 @@ export const x = function () {
 }
 
 func TestStripTypes_ArrowExpressionBody(t *testing.T) {
-	// Mion: arrow with expression body renders as `return <expr>;`.
+	// Arrow with expression body renders as `return <expr>;`.
 	got := stripFactoryBody(t, `
 export const x = (n: number) => n + 1;`)
 	want := "return n + 1;"

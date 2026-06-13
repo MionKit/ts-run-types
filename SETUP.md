@@ -4,7 +4,7 @@ Single setup document for RunTypes. Architecture + workflow rules live in [CLAUD
 
 > **Automated path:** the `ts-runtypes-setup` skill ([.claude/skills/ts-runtypes-setup/](.claude/skills/ts-runtypes-setup/)) drives this whole document end-to-end — host deps, submodule bootstrap + patches, `pnpm install`, Go + plugin builds, podman engine, and smoke verification. Run `bash .claude/skills/ts-runtypes-setup/setup.sh` and the rest of this doc is reference material.
 
-The repository contains a **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) and a **pnpm/Lerna workspace** of JS packages under [packages/](packages/). The monorepo setup mirrors [mion](https://github.com/MionKit/mion). Two **podman-containerized** apps ship alongside: the docs website ([website/](website/)) and the validation benchmarks ([benchmarks/](benchmarks/)).
+The repository contains a **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) and a **pnpm/Lerna workspace** of JS packages under [packages/](packages/). Two **podman-containerized** apps ship alongside: the docs website ([website/](website/)) and the validation benchmarks ([benchmarks/](benchmarks/)).
 
 ---
 
@@ -98,9 +98,9 @@ The website only needs **podman**; the benchmarks additionally need **Node + pnp
 
 > **Agents:** start the website with `scripts/website.sh dev --isAgent` (not plain `dev`). It runs in a separate container (`tsrt-website-agent`) on the reserved port **`:3100`** and self-stops after ~5 min idle, so an agent-driven server never collides with a human's `:3000` and never lingers. Hot-reload polling auto-enables on macOS; force it anywhere with `WEBSITE_POLL=1`.
 
-### Website needs the mion packages it documents (repo context)
+### Website needs the packages it documents (repo context)
 
-The docs site is **mion's** documentation: its `<code-import>` and `::twoslash-code` mechanisms read first-party source + built `.d.ts` from `packages/` at build/dev time. Those packages live in the **mion** checkout. `scripts/website.sh` mounts that checkout **read-only** into the container and points the resolvers at it via `MION_REPO_ROOT` — so the website is **merge-agnostic** (works whether the packages sit in a sibling checkout today, get merged into this repo, or this repo is merged into mion; only the env value changes).
+The docs site documents the runtime packages: its `<code-import>` and `::twoslash-code` mechanisms read first-party source + built `.d.ts` from `packages/` at build/dev time. Those packages may live in a separate checkout. `scripts/website.sh` mounts that checkout **read-only** into the container and points the resolvers at it via `RT_REPO_ROOT` — so the website is **merge-agnostic** (works whether the packages sit in a sibling checkout today or get merged into this repo; only the env value changes).
 
 - `WEBSITE_REPO_CONTEXT` — host path to the checkout containing `packages/`. **Default:** sibling `../mion` if present, else this repo. Override to point anywhere.
 - Only `packages/` (+ the drizzle-orm `.d.ts` allowlist) is mounted — never the repo root. The resolvers additionally **confine every `path=` read to `packages/`** (`resolveInPackages` in [`server/utils/repo-root.ts`](website/server/utils/repo-root.ts)); a path escaping it is rejected.
@@ -109,7 +109,7 @@ The docs site is **mion's** documentation: its `<code-import>` and `::twoslash-c
 
 ### Docs read benchmark/test results from `.docdata/`
 
-`pnpm run bench` publishes per-competitor result JSON into the canonical **`<repo>/.docdata/benchmarks/`** (future test results go in `.docdata/tests/`). The website mounts `.docdata` **read-only** at `/app/.docdata` (`MION_DOCDATA`), so doc-gen and content components consume results from there. (`WEBSITE_DOCDATA` overrides the host dir.)
+`pnpm run bench` publishes per-competitor result JSON into the canonical **`<repo>/.docdata/benchmarks/`** (future test results go in `.docdata/tests/`). The website mounts `.docdata` **read-only** at `/app/.docdata` (`RT_DOCDATA`), so doc-gen and content components consume results from there. (`WEBSITE_DOCDATA` overrides the host dir.)
 
 Every runtime command in [`scripts/benchmarks.sh`](scripts/benchmarks.sh) self-syncs prereqs by delegating to [`scripts/check-stale-builds.sh`](scripts/check-stale-builds.sh) (also used by `pretest`): it rebuilds the Go binary, the Linux cross-binary, the plugin dist, and the marker dist when any of them is stale or has a partial tsc emit, and rebuilds the podman image when a **dependency** input changes (the `Containerfile` or anything under `benchmarks/_deps/`). Benchmark source is bind-mounted, so editing it never triggers an image rebuild. Manual `pnpm run bench:prep` remains available for explicit refresh.
 

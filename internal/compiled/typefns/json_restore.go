@@ -16,11 +16,11 @@ import (
 // `restoreFromJson(JSON.parse(JSON.stringify(prepareForJson(v))))`
 // must deep-equal v for every valid sample.
 //
-// Mirrors mion's per-kind emitRestoreFromJson methods under
-// mion/packages/run-types/src/nodes/**.
+// Mirrors the per-kind emitRestoreFromJson methods under
+// (ref: packages/run-types/src/nodes/**).
 type RestoreFromJsonEmitter struct{}
 
-// Args mirrors mion's `rtArgs.vλl = 'v'` — same single-arg shape as
+// Args mirrors `rtArgs.vλl = 'v'` — same single-arg shape as
 // PrepareForJsonEmitter; restoreFromJson reassigns v to the
 // reconstructed value.
 func (RestoreFromJsonEmitter) Args() []ArgSpec {
@@ -43,7 +43,7 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 		protocol.KindLiteral, protocol.KindEnum:
 		return true
 	case protocol.KindNever:
-		// mion:nodes/atomic/never.ts:23 — emitRestoreFromJson throws
+		// (ref: nodes/atomic/never.ts:23) — emitRestoreFromJson throws
 		// "Never type cannot be decoded from JSON.". Supports returns
 		// true so the renderer surfaces the throw via factory.
 		return true
@@ -106,7 +106,7 @@ func (RestoreFromJsonEmitter) ReturnName() string {
 	return "v"
 }
 
-// Emit dispatches the per-kind switch. Each arm mirrors mion's
+// Emit dispatches the per-kind switch. Each arm mirrors the
 // emitRestoreFromJson method for the corresponding kind. Non-noop
 // atomics:
 //   - date:    `v = new Date(v)` (rebuild from ISO string)
@@ -115,7 +115,7 @@ func (RestoreFromJsonEmitter) ReturnName() string {
 //   - regexp:  `v = <parsed regex>` (split on /.../flags and rebuild)
 //   - void / undefined: `v = undefined`
 //
-// Mion's bare expression form (e.g. `BigInt(v)`) becomes `v = BigInt(v)`
+// The bare expression form (e.g. `BigInt(v)`) becomes `v = BigInt(v)`
 // on our side so the walker's expression-shape handling actually
 // mutates v before the trailing `return v` lands.
 func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
@@ -129,27 +129,27 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		protocol.KindNull,
 		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
 		protocol.KindObject, protocol.KindEnum:
-		// mion: AtomicRunType default — noop.
+		// AtomicRunType default — noop.
 		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindNever:
-		// mion:nodes/atomic/never.ts:23-24 —
+		// (ref: nodes/atomic/never.ts:23-24) —
 		// `emitRestoreFromJson(): RTCode { throw new Error('Never
 		// type cannot be decoded from JSON.'); }`.
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindUndefined:
-		// mion:nodes/atomic/undefined.ts:20 — `undefined`.
+		// (ref: nodes/atomic/undefined.ts:20) — `undefined`.
 		// JSON has no undefined, so the parsed input might be null or
 		// missing; force-rebind to undefined.
 		return RTCode{Code: v + " = undefined", Type: CodeE}
 
 	case protocol.KindVoid:
-		// mion:nodes/atomic/void.ts:23 — `v = undefined`.
+		// (ref: nodes/atomic/void.ts:23) — `v = undefined`.
 		return RTCode{Code: v + " = undefined", Type: CodeE}
 
 	case protocol.KindBigInt:
-		// mion:nodes/atomic/bigInt.ts:23 — `BigInt(v)`.
+		// (ref: nodes/atomic/bigInt.ts:23) — `BigInt(v)`.
 		return RTCode{Code: v + " = BigInt(" + v + ")", Type: CodeE}
 
 	case protocol.KindSymbol:
@@ -158,7 +158,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
-		// mion:nodes/atomic/regexp.ts:23 — split the stringified form back
+		// (ref: nodes/atomic/regexp.ts:23) — split the stringified form back
 		// into source + flags. The parse block hoists to a context fn
 		// (created once per materialization, not per call); the assignment
 		// to the accessor stays at the call site.
@@ -183,7 +183,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableRestoreFromJson(rt, ctx, v)
 		case protocol.SubKindNonSerializable:
-			// mion:nodes/native/nonSerializable.ts:27-28 —
+			// (ref: nodes/native/nonSerializable.ts:27-28) —
 			// `emitRestoreFromJson(): RTCode { throw new Error('RT
 			// compilation disabled for Non Serializable types.'); }`.
 			return RTCode{Code: "", Type: CodeNS}
@@ -191,7 +191,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
-		// mion:nodes/native/promise.ts:26-27 — emitRestoreFromJson
+		// (ref: nodes/native/promise.ts:26-27) — emitRestoreFromJson
 		// throws "RT compilation disabled for Non Serializable
 		// types.". Same throw-factory pattern as the prepare side.
 		return RTCode{Code: "", Type: CodeNS}
@@ -213,7 +213,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
-		// mion:nodes/function/function.ts:86-88 —
+		// (ref: nodes/function/function.ts:86-88) —
 		// `emitRestoreFromJson(): RTCode { throw new Error('Compile
 		// function RestoreFromJson not supported, call compileParams
 		// or compileReturn instead.'); }`.
@@ -233,12 +233,12 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindLiteral:
-		// mion:nodes/atomic/literal.ts:80 — defers to the underlying
+		// (ref: nodes/atomic/literal.ts:80) — defers to the underlying
 		// kind's emit.
 		return emitLiteralRestoreFromJson(rt, v)
 
 	case protocol.KindArray:
-		// mion:nodes/member/array.ts:emitRestoreFromJson — same body
+		// (ref: nodes/member/array.ts:emitRestoreFromJson) — same body
 		// shape as emitPrepareForJson. Each element gets the child's
 		// restoreFromJson applied in place. Empty child code collapses
 		// the whole loop to a noop.
@@ -261,7 +261,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 	return RTCode{Code: "", Type: CodeNS}
 }
 
-// emitLiteralRestoreFromJson mirrors mion's literal.ts:80 — defers to
+// emitLiteralRestoreFromJson mirrors literal.ts:80 — defers to
 // the base kind's emit. Same flag-based dispatch as
 // emitLiteralPrepareForJson.
 func emitLiteralRestoreFromJson(rt *protocol.RunType, v string) RTCode {
@@ -314,7 +314,7 @@ func emitPropertyRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v strin
 
 // emitIndexSignatureRestoreFromJson — sibling of
 // emitIndexSignaturePrepareForJson. Skips symbol-keyed sigs per
-// mion's IndexSignatureRunType.skipRT (indexProperty.ts:30-36); see
+// the IndexSignatureRunType.skipRT contract (indexProperty.ts:30-36); see
 // the prepareForJson mirror for the full rationale.
 func emitIndexSignatureRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
@@ -435,7 +435,7 @@ func emitTupleMemberRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v st
 	return childRT
 }
 
-// emitNativeIterableRestoreFromJson mirrors mion's
+// emitNativeIterableRestoreFromJson mirrors
 // nodes/native/Iterable.ts:66-82 emitRestoreFromJson. Inverse of the
 // prepare side: walk the array-form produced by JSON.parse, apply
 // each wrapped child's restore code, then wrap the array back into
@@ -448,8 +448,8 @@ func emitTupleMemberRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v st
 //	}
 //	v = new Map(v)        // or new Set(v) — pick by SubKind
 //
-// Note the loop counter (`e0`) is the INDEX here, not the entry — mion
-// uses an index loop on restore because the array form has length-based
+// Note the loop counter (`e0`) is the INDEX here, not the entry — we
+// use an index loop on restore because the array form has length-based
 // access. Accessors:
 //   - Set: v[e0] (the element)
 //   - Map: v[e0][0] (key) and v[e0][1] (value)
@@ -506,9 +506,9 @@ func (RestoreFromJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID s
 }
 
 // Finalize — same shape as PrepareForJsonEmitter.Finalize. Mirrors
-// mion's handleFunctionReturn for restoreFromJson: identity body for
+// the handleFunctionReturn for restoreFromJson: identity body for
 // noops, factory still emitted so dep-call chains resolve. isNoop
-// is set to true on identity bodies to match mion's
+// is set to true on identity bodies to match the
 // `00JsonOnly.spec.ts` semantics (cache entry exists, but consumer
 // knows it can short-circuit).
 func (RestoreFromJsonEmitter) Finalize(raw string) (string, bool) {

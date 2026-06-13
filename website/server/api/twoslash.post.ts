@@ -160,7 +160,7 @@ function loadMionPackageTypes(): Map<string, string> {
     }
   }
 
-  // Repo root that contains packages/. Configurable via MION_REPO_ROOT (set by
+  // Repo root that contains packages/. Configurable via RT_REPO_ROOT (set by
   // scripts/website.sh to the read-only repo context); falls back to the parent
   // of the website dir. The env also sidesteps the old generate-mode fragility
   // (process.cwd() worked but import.meta.url did not once bundled into chunks).
@@ -168,7 +168,7 @@ function loadMionPackageTypes(): Map<string, string> {
   const packagesDir = join(repoRoot, 'packages')
 
   // Packages to load. `dir` is the directory under packages/, `name` is the
-  // @mionjs/<name> npm package name (used to build the virtual node_modules path).
+  // npm package name (used to build the virtual node_modules path).
   // They differ for `drizze` (dir) → `drizzle` (npm).
   const packageConfigs = [
     // The marker package — built .d.ts under dist/. Subpath exports (/schema,
@@ -183,17 +183,17 @@ function loadMionPackageTypes(): Map<string, string> {
     if (dtsFiles.length === 0) continue
 
     // Synthetic package.json so TS's Node resolver finds `index.d.ts` (and subpath
-    // exports like `@mionjs/type-formats/StringFormats`) for bare imports in examples.
+    // exports like `ts-runtypes/formats`) for bare imports in examples.
     fsMap.set(
-      `/node_modules/@mionjs/${pkg.name}/package.json`,
-      JSON.stringify({ name: `@mionjs/${pkg.name}`, types: 'index.d.ts', main: 'index.d.ts' }),
+      `/node_modules/${pkg.name}/package.json`,
+      JSON.stringify({ name: pkg.name, types: 'index.d.ts', main: 'index.d.ts' }),
     )
 
     for (const dtsFile of dtsFiles) {
       // Get relative path from dist directory
       const relativePath = relative(pkgDistDir, dtsFile)
       // Create virtual node_modules path
-      const virtualPath = `/node_modules/@mionjs/${pkg.name}/${relativePath}`
+      const virtualPath = `/node_modules/${pkg.name}/${relativePath}`
 
       try {
         let content = readFileSync(dtsFile, 'utf-8')
@@ -330,7 +330,7 @@ export default defineEventHandler(async (event) => {
         fsMap,
         compilerOptions: {
           // Node module resolution so TS resolves .d.ts files (and subpath
-          // exports like @mionjs/type-formats/StringFormats) for bare imports
+          // exports like ts-runtypes/formats) for bare imports
           // out of the VFS. Bundler resolution doesn't resolve .d.ts re-exports.
           target: 99, // ESNext
           module: 99, // ESNext

@@ -155,7 +155,7 @@ func calleeFirstParamIsCompTimeArgs(typeChecker *checker.Checker, markerOpts mar
 }
 
 // resolveDepArg traces argNode through the factory-local table first
-// (covers `const FOO = 'mion::foo'; utl.getPureFn(FOO)` inside the
+// (covers `const FOO = 'rt::foo'; utl.getPureFn(FOO)` inside the
 // factory) and falls back to comptimeargs.ResolveLiteralString
 // (checker-driven trace, covers file-level / imported bindings) when
 // the identifier isn't in the local table.
@@ -213,7 +213,7 @@ func resolveDeclLocal(typeChecker *checker.Checker, localTable symbolTable, decl
 //
 // Why walk past function boundaries? The dep extractor walks the whole
 // factory body looking for utl.<method>(...) calls; if a `const KEY =
-// 'mion::foo'` lives in an outer block but the call lives in a nested
+// 'rt::foo'` lives in an outer block but the call lives in a nested
 // arrow, both should resolve to the same value. Pure-fn semantics
 // guarantee no rebinding, so the simple top-down walk is correct.
 func buildFactoryLocalTable(factoryFn *ast.Node) symbolTable {

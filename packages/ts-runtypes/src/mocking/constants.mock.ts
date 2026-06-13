@@ -1,4 +1,4 @@
-// Default pools and option values. Ported verbatim from mion's
+// Default pools and option values. Ported verbatim from the reference
 // mocking/constants.mock.ts — bumping any of these is a deliberate divergence.
 
 import type {MockOptions} from './mockTypes.ts';

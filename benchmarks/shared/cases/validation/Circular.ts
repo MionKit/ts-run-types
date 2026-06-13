@@ -4,7 +4,7 @@ export const CIRCULAR = {
   object_full_mion_shape: {
     title: 'Self-referential object with optional self-ref and Date prop',
     description:
-      "mion circularRefs.spec.ts 'Circular object' — full mion fixture (number + string + self-ref + Date). Exercises the same self-recursive dependency call as OBJECT.circular_interface but pins the exact mion shape.",
+      "circularRefs.spec.ts 'Circular object' — full fixture (number + string + self-ref + Date). Exercises the same self-recursive dependency call as OBJECT.circular_interface but pins the exact shape.",
     getSamples: () => ({
       valid: [
         {n: 1, s: 'hello', c: {n: 2, s: 'world'}},
@@ -26,7 +26,7 @@ export const CIRCULAR = {
   array_of_union_with_self_ref: {
     title: 'Self-referential array whose union element includes the array itself',
     description:
-      "mion circularRefs.spec.ts 'Circular array + union' — self-recursive array whose element type is a union including the array itself. Closes the cycle via Array → Union → Array.",
+      "circularRefs.spec.ts 'Circular array + union' — self-recursive array whose element type is a union including the array itself. Closes the cycle via Array → Union → Array.",
     getSamples: () => {
       const date = new Date();
       const cu1: any = [date, 123, 'hello', ['a', 'b', 'c']];
@@ -50,7 +50,7 @@ export const CIRCULAR = {
   object_with_tuple_prop: {
     title: 'Self-referential object whose cycle closes via a tuple property',
     description:
-      "mion circularRefs.spec.ts 'Circular object with tuple' — cycle closed via a tuple-typed property. Same mechanism as TUPLE.tuple_circular but the recursion goes through an object → tuple boundary.",
+      "circularRefs.spec.ts 'Circular object with tuple' — cycle closed via a tuple-typed property. Same mechanism as TUPLE.tuple_circular but the recursion goes through an object → tuple boundary.",
     getSamples: () => ({
       valid: [{tuple: [1n, {tuple: [2n, {tuple: [3n, {tuple: [4n]}]}]}]}, {tuple: [1n, {tuple: [2n]}]}, {tuple: [1n]}],
       invalid: [
@@ -68,7 +68,7 @@ export const CIRCULAR = {
   object_with_index_prop: {
     title: 'Self-referential object whose cycle closes via an index signature',
     description:
-      "mion circularRefs.spec.ts 'Circular Object with index property' — cycle closed via an index-signature value type. Exercises the index-signature for-in loop calling back into the same validator.",
+      "circularRefs.spec.ts 'Circular Object with index property' — cycle closed via an index-signature value type. Exercises the index-signature for-in loop calling back into the same validator.",
     getSamples: () => ({
       valid: [{index: {a: {index: {b: {index: {}}}}}}, {index: {a: {index: {}}}}, {index: {}}],
       invalid: [
@@ -86,7 +86,7 @@ export const CIRCULAR = {
   object_deeply_nested: {
     title: 'Self-referential object with the cycle buried four levels deep',
     description:
-      "mion circularRefs.spec.ts 'Circular Object with deep nested properties' — cycle closed via four levels of nested object properties. Stresses the dependency-call layer when the self-ref is buried deep in an anonymous-shape chain.",
+      "circularRefs.spec.ts 'Circular Object with deep nested properties' — cycle closed via four levels of nested object properties. Stresses the dependency-call layer when the self-ref is buried deep in an anonymous-shape chain.",
     getSamples: () => ({
       valid: [{deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}}, {deep1: {deep2: {deep3: {}}}}],
       invalid: [
@@ -106,7 +106,7 @@ export const CIRCULAR = {
   circular_child_under_literal_root: {
     title: 'Non-circular root holding a circular child interface',
     description:
-      "mion interface.spec.ts 'Interface with nested circular type where root is not the circular ref' — RootNotCircular is a flat shape (literal discriminator + one prop) whose ciChild property is a self-referential ICircularDeep. Pins the case where the dependency-call layer kicks in BELOW the root rather than at the root itself.",
+      "interface.spec.ts 'Interface with nested circular type where root is not the circular ref' — RootNotCircular is a flat shape (literal discriminator + one prop) whose ciChild property is a self-referential ICircularDeep. Pins the case where the dependency-call layer kicks in BELOW the root rather than at the root itself.",
     getSamples: () => ({
       valid: [
         {isRoot: true, ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}}},
@@ -144,7 +144,7 @@ export const CIRCULAR = {
   multiple_circular_types_cross_referenced: {
     title: 'Multiple circular types cross-referenced from a non-circular root',
     description:
-      "mion interface.spec.ts 'Interface with nested circular + multiple circular' — RootCircular carries an optional self-ref AND two distinct circular siblings (ICircularDeep, ICircularDate), and ICircularDate also references ICircularDeep. Stresses the resolver / dependency-call layer when more than one recursive type is in flight at once and the cycles cross.",
+      "interface.spec.ts 'Interface with nested circular + multiple circular' — RootCircular carries an optional self-ref AND two distinct circular siblings (ICircularDeep, ICircularDate), and ICircularDate also references ICircularDeep. Stresses the resolver / dependency-call layer when more than one recursive type is in flight at once and the cycles cross.",
     getSamples: () => ({
       valid: [
         {

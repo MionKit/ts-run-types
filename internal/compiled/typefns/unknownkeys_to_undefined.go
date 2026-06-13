@@ -73,7 +73,7 @@ func (UnknownKeysToUndefinedEmitter) Finalize(raw string) (string, bool) {
 	return code, false
 }
 
-// emitObjectUnknownKeysToUndefined ports mion's
+// emitObjectUnknownKeysToUndefined ports
 // InterfaceRunType.emitUnknownKeysToUndefined (interface.ts:188-202).
 // Identical to strip except `v[key] = undefined` instead of
 // `delete v[key]`.
@@ -123,7 +123,7 @@ func emitTupleUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RTC
 	return RTCode{Code: "", Type: CodeS}
 }
 
-// emitIndexSignatureUnknownKeysToUndefined ports mion's
+// emitIndexSignatureUnknownKeysToUndefined ports
 // IndexSignatureRunType.emitUnknownKeysToUndefined (indexProperty.ts:144-154).
 func emitIndexSignatureUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {

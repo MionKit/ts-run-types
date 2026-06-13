@@ -1722,7 +1722,7 @@ export const cases: CompetitorCases = {
 
   // ── TEMPLATE_LITERAL ──
   // All expressed as Type.String({pattern: ...}) since TypeBox TemplateLiteral Number only
-  // accepts non-negative integers; mion uses -?(\d+\.?\d*|\.\d+) semantics.
+  // accepts non-negative integers; we use -?(\d+\.?\d*|\.\d+) semantics.
   'TEMPLATE_LITERAL.url_with_number_id': {
     build: () => {
       const schema = Type.String({pattern: `^api/user/${'-?([0-9]+[.]?[0-9]*|[.][0-9]+)'}$`});

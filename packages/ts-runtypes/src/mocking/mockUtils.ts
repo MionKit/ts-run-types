@@ -1,5 +1,5 @@
-// Atomic value generators ported verbatim from mion's mocking/mockUtils.ts.
-// Keep changes in lockstep with the upstream file.
+// Atomic value generators ported verbatim from the reference
+// mocking/mockUtils.ts. Keep changes in lockstep with the upstream file.
 
 import {anyValuesList, stringCharSet, mockRegExpsList} from './constants.mock.ts';
 

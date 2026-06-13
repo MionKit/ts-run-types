@@ -13,15 +13,15 @@ import (
 )
 
 // stringFormatEmitter implements the format with name "stringFormat" —
-// FormatString<P> in `ts-runtypes/formats`. Mirrors mion's
-// StringRunTypeFormat (packages/type-formats/src/string/stringFormat.runtype.ts)
+// FormatString<P> in `ts-runtypes/formats`. Mirrors the reference
+// StringRunTypeFormat (ref: packages/type-formats/src/string/stringFormat.runtype.ts)
 // but extracts literal params from the wire-format FormatAnnotation
-// instead of mion's deepkit-decoded `{val, mockSamples, …}` wrapper
+// instead of the deepkit-decoded `{val, mockSamples, …}` wrapper
 // shape.
 //
 // Surface: maxLength, minLength, length, pattern, allowedChars,
-// disallowedChars, allowedValues, disallowedValues — mion's full
-// StringValidators set, emitted in mion's emitIsType order. The
+// disallowedChars, allowedValues, disallowedValues — the full
+// StringValidators set, emitted in emitIsType order. The
 // format-transformer arm (trim / lowercase / uppercase / capitalize)
 // is applied by the separate `format` RT-fn, not by validate/validationErrors.
 type stringFormatEmitter struct{}
@@ -59,7 +59,7 @@ func (stringFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotati
 }
 
 // stringConditions returns every validate boolean expression for a
-// StringFormat param map applied to `vλl`, in mion's emitIsType order:
+// StringFormat param map applied to `vλl`, in emitIsType order:
 // maxLength, minLength, length, pattern, allowedChars, disallowedChars,
 // allowedValues, disallowedValues (stringFormat.runtype.ts:53-79).
 // Shared by the stringFormat emitter and the domain/email decomposition
@@ -153,21 +153,21 @@ func readValuesParam(params map[string]any, key string) (vals []string, flags st
 	return vals, flags, true
 }
 
-// allowedCharsSource builds mion's getAllowedCharsRegexp source —
+// allowedCharsSource builds the getAllowedCharsRegexp source —
 // `^[<escaped chars>]+$` — so the value must consist entirely of the
 // allowed characters.
 func allowedCharsSource(val string) string {
 	return "^[" + regexpEscape(val) + "]+$"
 }
 
-// disallowedCharsSource builds mion's getDisallowedCharsRegexp source —
+// disallowedCharsSource builds the getDisallowedCharsRegexp source —
 // an unanchored `[<escaped chars>]` that matches if ANY disallowed char
 // is present (the validate condition negates it).
 func disallowedCharsSource(val string) string {
 	return "[" + regexpEscape(val) + "]"
 }
 
-// valuesSource builds mion's getAllowed/DisallowedValuesRegexp source —
+// valuesSource builds the getAllowed/DisallowedValuesRegexp source —
 // `^(?:<esc v1>|<esc v2>…)$` — an exact-match alternation over the value
 // set. Shared by allowedValues (asserted) and disallowedValues (negated).
 func valuesSource(vals []string) string {
@@ -200,11 +200,11 @@ func lengthErrorStatements(ctx formats.EmitContext, params map[string]any, vλl,
 
 // EmitValidationErrorsCheck emits one `if (failed) er.push(…)` statement
 // per active length predicate. Each pushes a TypeFormatError with
-// the canonical mion shape:
+// the canonical shape:
 //
 //	{name: 'stringFormat', formatPath: [...pth, '<param>'], val: <bound>}
 //
-// Matches mion's emitIsTypeErrors output (modulo the wrapper-shape
+// Matches the emitIsTypeErrors output (modulo the wrapper-shape
 // param unwrap) so the JS-side runtime sees the same diagnostics
 // regardless of which compiler produced the validator.
 func (stringFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
@@ -219,10 +219,10 @@ func (stringFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Format
 }
 
 // stringErrorStatements returns the `if (fail) <push error>` statements
-// for every active StringFormat param, in mion's emitIsTypeErrors order
+// for every active StringFormat param, in emitIsTypeErrors order
 // (stringFormat.runtype.ts:80-127). Length params tag the error `val`
 // with the bound; pattern + the four char/value params tag it with the
-// resolved message (custom errorMessage or mion's default). fmtName tags
+// resolved message (custom errorMessage or the default). fmtName tags
 // the emitted format error so domain/email decomposition can reuse this
 // over their own variable + sub-params.
 func stringErrorStatements(ctx formats.EmitContext, params map[string]any, vλl, pathExpr, errorsArr, fmtName string) []string {
@@ -257,7 +257,7 @@ func stringErrorStatements(ctx formats.EmitContext, params map[string]any, vλl,
 
 // EmitFormatTransform implements formats.FormatTransformer — the value
 // mutation applied by the `format` RT-fn. Chains the active transformer
-// operations in mion's order (stringFormat.runtype.ts:44-51): trim,
+// operations in order (stringFormat.runtype.ts:44-51): trim,
 // replace, replaceAll, lowercase, uppercase, capitalize. Returns "" when
 // none are set (identity).
 func (stringFormatEmitter) EmitFormatTransform(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
@@ -293,7 +293,7 @@ func (stringFormatEmitter) EmitFormatTransform(annotation *protocol.FormatAnnota
 // readReplaceParam reads a replace / replaceAll param ({searchValue,
 // replaceValue}) and returns both as quoted JS string literals. Returns
 // ok=false when the key is absent or malformed (so the transform skips
-// it). String literals match mion's intent — its emitFormat interpolates
+// it). String literals match the reference intent — its emitFormat interpolates
 // the raw values, which only works for already-quoted literals.
 func readReplaceParam(params map[string]any, key string) (search, replace string, ok bool) {
 	obj, isObj := params[key].(map[string]any)
@@ -315,7 +315,7 @@ func boolParam(params map[string]any, key string) bool {
 	return value
 }
 
-// ValidateParams ports mion's StringRunTypeFormat.validateParams
+// ValidateParams ports the StringRunTypeFormat.validateParams
 // (stringFormat.runtype.ts:167-237) to the build-time AOT path: length
 // mutual-exclusivity, bound ordering, value-set caps, single-complex-param,
 // and the disallowed* mockSamples requirement. Returns one message per

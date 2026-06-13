@@ -1,5 +1,5 @@
 // Runtime mock-value generator. Walks a RunType graph and produces a value
-// that passes `validate<T>` for the same `T`. Direct port of mion's mockType.ts.
+// that passes `validate<T>` for the same `T`. Direct port of the reference mockType.ts.
 //
 // Unlike other RT families, mocking is NOT compiled per-type — the walker is
 // a runtime interpreter over `runTypesCache`.
@@ -43,7 +43,7 @@ export function mockRunType(runType: RunType, options: RunTypeMockOptions, stack
     let mocked = mockSwitch(runType, decayed, stack);
     // Apply the format value-transform (lowercase / uppercase / capitalize
     // / trim; domain / ip / url lowercasing) so the mock is the canonical
-    // formatted value — mion mockType.ts:48. The transform is the
+    // formatted value — mockType.ts:48. The transform is the
     // `formatTransform` RT fn compiled for this type; noop when the format
     // declares no transform.
     if (runType.formatAnnotation && mocked !== undefined) {
@@ -82,7 +82,7 @@ function countOccurrences(stack: RunType[], target: RunType): number {
 
 /** Reduces optional-probability and item-length by nesting depth so cyclic
  *  types bottom out. Returns a shallow copy; inner pools are shared (they
- *  are read-only). Mirrors mion's `getMockOptionsForNestedElements`. **/
+ *  are read-only). Mirrors `getMockOptionsForNestedElements`. **/
 function decayOptionsForNesting(options: RunTypeMockOptions, nestLevel: number): RunTypeMockOptions {
   const mOps = options.mock as MockOptions;
   const maxDepth = mOps.maxMockRecursion;
@@ -95,7 +95,7 @@ function decayOptionsForNesting(options: RunTypeMockOptions, nestLevel: number):
     maxRandomItemsLength: newMaxLength,
   };
   if (mOps.optionalPropertyProbability) {
-    // mion's source double-divides (clearly a typo); we port the intent:
+    // the reference source double-divides (clearly a typo); we port the intent:
     // value / divisor, matching the global `optionalProbability` decay.
     const entries = Object.entries(mOps.optionalPropertyProbability).map(([key, value]) => {
       const decayed = nestLevel > maxDepth ? 0 : value / divisor;

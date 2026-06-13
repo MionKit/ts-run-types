@@ -59,8 +59,8 @@ function compile(text) {
 // runtypes/types.ts, schema/static.ts). The leaf/array/union/propMod/optional
 // builders are the carriers the OBJECT forms below compose.
 const MACHINERY = `
-type InjectRunTypeId<T> = string & { readonly __mionInjectRunTypeIdBrand?: T };
-type CompTimeArgs<T> = T & { readonly __mionCompTimeArgsBrand?: never };
+type InjectRunTypeId<T> = string & { readonly __rtInjectRunTypeIdBrand?: T };
+type CompTimeArgs<T> = T & { readonly __rtCompTimeArgsBrand?: never };
 interface RunType<T = unknown> { id: string; readonly __rtType?: { t: T }; [x: string]: unknown; }
 type Static<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] : RT;
 type FieldOf<V> = V extends { __propMod: any; __field: unknown } ? Static<V['__field']> : Static<V>;

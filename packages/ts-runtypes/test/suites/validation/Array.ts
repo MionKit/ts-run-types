@@ -43,7 +43,7 @@ export const ARRAY = {
     getSamples: () => ({
       valid: [[], ['hello', 'world']],
       // The mixed-types invalid `['hello', 'world', {hello: 'world'}]`
-      // is the carry-over from mion's "simple array hasUnknownKeys on
+      // is the carry-over from the "simple array hasUnknownKeys on
       // array with non objects" block — the object element fails the
       // string check, so the whole array fails validate.
       invalid: ['hello', ['hello', 2], ['hello', 'world', {hello: 'world'}], null, undefined, [42], [null]],
@@ -489,7 +489,7 @@ export const ARRAY = {
           ['a', 'b'],
         ],
       ],
-      // mion Block 5 path-error samples: top-level array-of-string
+      // Block 5 path-error samples: top-level array-of-string
       // fails validate when the type is string[][], same for plain
       // string. `['hello']` is "first element is `'hello'` which is
       // not an array".
@@ -500,8 +500,8 @@ export const ARRAY = {
       [{path: [0], expected: 'array'}],
       // `['hello', 'world']` — both elements fail the inner array
       // check; the loop walks every element and accumulates one error
-      // per failure (mirror of mion's emitTypeErrors emitting per-
-      // element callRTErr without early-exit).
+      // per failure (the error emitter emits per-element callRTErr
+      // without early-exit).
       [
         {path: [0], expected: 'array'},
         {path: [1], expected: 'array'},
@@ -604,7 +604,7 @@ export const ARRAY = {
     getSamples: () => ({
       valid: [[], ['hello']],
       // Without the guard, non-array inputs may not be rejected by
-      // the validator (mion's documented trade-off — the caller has
+      // the validator (the documented trade-off — the caller has
       // pre-verified arrayness). Only sample inputs that the loop
       // itself catches.
       invalid: [[42]],

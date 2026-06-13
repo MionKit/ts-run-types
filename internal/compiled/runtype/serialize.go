@@ -1,10 +1,10 @@
 // Serializer: projects tsgo's *checker.Type into a reflection-shape
 // protocol.RunType graph. Every resolved type gets a structural id
-// (mirroring mion's `_createTypeId`) which is hashed (mion's quickHash,
-// ported in `internal/hashid`) into a short alphanumeric wire id. Two
-// structurally-equal types share the same wire id — that's what makes
-// our cache keys stable across builds and equivalent to what mion would
-// compute at runtime.
+// (mirroring the reference `_createTypeId`) which is hashed (the reference
+// quickHash, ported in `internal/hashid`) into a short alphanumeric wire id.
+// Two structurally-equal types share the same wire id — that's what makes
+// our cache keys stable across builds and equivalent to what the reference
+// implementation would compute at runtime.
 //
 // The Cache is stateful across calls: multiple resolver queries share
 // one deduplicated type table and one hash dictionary. NOT safe for
@@ -559,7 +559,7 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 
 	case flags&checker.TypeFlagsUniqueESSymbol != 0:
 		node.Kind = protocol.KindLiteral
-		// mion semantics: literal-symbol validation compares against the
+		// per the reference semantics: literal-symbol validation compares against the
 		// symbol's `.description` at runtime (literal.ts:103), which is the
 		// string argument the value was constructed with — `Symbol(<desc>)`.
 		// tsgo's symbol.Name is the BINDING identifier (e.g. `sym`), which
@@ -601,7 +601,7 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 		// Template literal type (`` `api/user/${number}` ``). Project
 		// the literal text segments + placeholder kinds onto Literal
 		// so the emit can compile to an anchored regex at RT-build
-		// time. Mion stores the spans inline on the type — tsgo
+		// time. The reference stores the spans inline on the type — tsgo
 		// splits them into `texts` (one more than types) + `types`
 		// arrays; we serialize the same separation onto the wire.
 		node.Kind = protocol.KindTemplateLiteral
@@ -637,7 +637,7 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 }
 
 // projectTemplateLiteral serializes a TS template literal type
-// (“ `prefix-${number}` “) onto the Literal field. Mirrors mion's
+// (“ `prefix-${number}` “) onto the Literal field. Mirrors the reference
 // approach: store the literal text segments + placeholder spans so
 // the RT emit can build an anchored regex.
 //
@@ -682,7 +682,7 @@ func (cache *Cache) projectTemplateLiteral(tsType *checker.Type, node *protocol.
 
 // templateSpanWireShape converts a placeholder type to its wire
 // representation for the templateLiteral.placeholders array.
-// Supported spans match mion's spanToRegex: literal, number, string,
+// Supported spans match the reference spanToRegex: literal, number, string,
 // any, infer. Other kinds get a flag marker so the emit's default
 // pattern (`[\s\S]*`) still produces a working regex while the
 // missing-arm shows up clearly in the wire data.
@@ -776,7 +776,7 @@ func (cache *Cache) projectObjectType(tsType *checker.Type, node *protocol.RunTy
 			return
 		case "Date", "Map", "Set":
 			// tsgo declares these as interfaces in lib.d.ts (no
-			// ObjectFlagsClass), but mion's runtypes treats them as classes
+			// ObjectFlagsClass), but the reference runtypes treat them as classes
 			// (they're dispatched through `initClassRunType`). Promote to
 			// KindClass with the builtin marker so the footer wires up
 			// `t.classType = globalThis.<Name>`.
@@ -784,8 +784,8 @@ func (cache *Cache) projectObjectType(tsType *checker.Type, node *protocol.RunTy
 			return
 		}
 		// Non-serialisable globals (Error / WeakMap / typed arrays / …) are
-		// also lib.d.ts interfaces from tsgo's perspective, but mion treats
-		// them as classes tagged with SubKindNonSerializable. Promote the
+		// also lib.d.ts interfaces from tsgo's perspective, but the reference
+		// treats them as classes tagged with SubKindNonSerializable. Promote the
 		// same way Date/Map/Set are promoted above.
 		if protocol.IsNonSerializableSymbol(symbol.Name) {
 			cache.projectClass(tsType, node)
@@ -982,7 +982,7 @@ func (cache *Cache) projectClass(tsType *checker.Type, node *protocol.RunType) {
 
 // appendMapArguments wraps Map<K,V>'s two type arguments as synthetic
 // KindParameter members tagged with SubKindMapKey / SubKindMapValue and
-// appends them to node.Arguments. Mirrors mion's `nodes/native/map.ts`
+// appends them to node.Arguments. Mirrors the reference `nodes/native/map.ts`
 // shape so consumers can read the keyed parameter slots the same way on
 // either side. Each wrapper gets its own synthetic id (`_pa_<parentId>_<n>`,
 // same scheme as `projectSignatureInto`) so it participates in the cache.
@@ -1076,7 +1076,7 @@ func (cache *Cache) projectMembersInto(
 		//   - `prototype`: the class constructor's prototype
 		//     reference. Shows up on class types via the constructor
 		//     symbol and produces self-recursive child entries.
-		//     Mion's `getRTChildren` filters it the same way.
+		//     The reference `getRTChildren` filters it the same way.
 		// Apply only on class projections — interfaces / object
 		// literals can legally have a property literally named
 		// "prototype" (rare but possible).
@@ -1318,7 +1318,7 @@ func declarationPos(symbol *ast.Symbol) int {
 // (tsType.Symbol().Name) as a fallback — preserves the v1 behavior
 // for declarations we can't statically resolve.
 //
-// Mion validates symbol literals via runtime `.description` matching
+// The reference validates symbol literals via runtime `.description` matching
 // (literal.ts:103), so the RT emit needs the same string the
 // constructor was called with, not the binding identifier.
 func uniqueSymbolDescription(tsType *checker.Type) string {
@@ -1346,7 +1346,7 @@ func uniqueSymbolDescription(tsType *checker.Type) string {
 		// `Symbol()` with no description — empty description matches
 		// `Symbol().description === undefined`. Returning "" here makes
 		// the RT compare `v.description === ''`, which is wrong for the
-		// no-description case but mion has the same gap, so we leave it
+		// no-description case but the reference has the same gap, so we leave it
 		// until a spec case forces the issue.
 		return ""
 	}
@@ -1449,9 +1449,9 @@ func stableMemberName(name string) string {
 
 // isSafeName returns true when name can be used with dot-accessor
 // syntax (obj.foo); false when bracket notation is required
-// (obj["weird name"]). Mirrors mion's `^[a-zA-Z_][a-zA-Z0-9_]*$` check
-// (/home/user/mion/packages/run-types/src/lib/utils.ts:90) — minus
-// mion's `typeof name === 'number'` short-circuit. Mion treats
+// (obj["weird name"]). Mirrors the `^[a-zA-Z_][a-zA-Z0-9_]*$` check
+// (ref: packages/run-types/src/lib/utils.ts:90) — minus
+// the `typeof name === 'number'` short-circuit. The reference treats
 // number-typed keys as safe because `obj[5]` is valid, but in our wire
 // model all names are strings; leading-digit names ("5") are rejected
 // and dot access on a numeric-stringified name (`obj.5`) is a JS syntax

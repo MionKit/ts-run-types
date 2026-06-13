@@ -1,6 +1,6 @@
 // Registration module for the date / time pure fns the Go-side
 // date/time/dateTime/nativeDate emitters reach via
-// `utl.getPureFn('mionFormats::<name>')`. Moved out of
+// `utl.getPureFn('rtFormats::<name>')`. Moved out of
 // ../string/string-formats-pure-fns.ts so the whole date-ish surface
 // lives together; the Go path constant `dateTimePureFnFilePath` in
 // internal/compiled/typefns/formats/datetime/shared.go MUST match this
@@ -24,7 +24,7 @@ type SegmentFn = (segment: string) => boolean;
 // layout wrappers split on '-' and delegate. Wrappers reach the base fn
 // via utl.getPureFn so the Go extractor records the transitive dep.
 
-registerPureFnFactory('mionFormats', 'isDateString', function () {
+registerPureFnFactory('rtFormats', 'isDateString', function () {
   return function _isDateString(year: string | undefined, month: string, day?: string): boolean {
     let y: number | undefined;
     if (year) {
@@ -50,48 +50,48 @@ registerPureFnFactory('mionFormats', 'isDateString', function () {
   };
 });
 
-registerPureFnFactory('mionFormats', 'isDateString_YMD', function (utl: RTUtils) {
-  const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
+registerPureFnFactory('rtFormats', 'isDateString_YMD', function (utl: RTUtils) {
+  const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_ymd(value: string): boolean {
     const parts = value.split('-');
     return parts.length === 3 && isDate(parts[0], parts[1], parts[2]);
   };
 });
 
-registerPureFnFactory('mionFormats', 'isDateString_DMY', function (utl: RTUtils) {
-  const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
+registerPureFnFactory('rtFormats', 'isDateString_DMY', function (utl: RTUtils) {
+  const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_dmy(value: string): boolean {
     const parts = value.split('-');
     return parts.length === 3 && isDate(parts[2], parts[1], parts[0]);
   };
 });
 
-registerPureFnFactory('mionFormats', 'isDateString_MDY', function (utl: RTUtils) {
-  const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
+registerPureFnFactory('rtFormats', 'isDateString_MDY', function (utl: RTUtils) {
+  const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_mdy(value: string): boolean {
     const parts = value.split('-');
     return parts.length === 3 && isDate(parts[2], parts[0], parts[1]);
   };
 });
 
-registerPureFnFactory('mionFormats', 'isDateString_YM', function (utl: RTUtils) {
-  const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
+registerPureFnFactory('rtFormats', 'isDateString_YM', function (utl: RTUtils) {
+  const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_ym(value: string): boolean {
     const parts = value.split('-');
     return parts.length === 2 && isDate(parts[0], parts[1]);
   };
 });
 
-registerPureFnFactory('mionFormats', 'isDateString_MD', function (utl: RTUtils) {
-  const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
+registerPureFnFactory('rtFormats', 'isDateString_MD', function (utl: RTUtils) {
+  const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_md(value: string): boolean {
     const parts = value.split('-');
     return parts.length === 2 && isDate(undefined, parts[0], parts[1]);
   };
 });
 
-registerPureFnFactory('mionFormats', 'isDateString_DM', function (utl: RTUtils) {
-  const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
+registerPureFnFactory('rtFormats', 'isDateString_DM', function (utl: RTUtils) {
+  const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_dm(value: string): boolean {
     const parts = value.split('-');
     return parts.length === 2 && isDate(undefined, parts[1], parts[0]);
@@ -100,7 +100,7 @@ registerPureFnFactory('mionFormats', 'isDateString_DM', function (utl: RTUtils) 
 
 // ############### Time pure fns ###############
 
-registerPureFnFactory('mionFormats', 'isHours', function () {
+registerPureFnFactory('rtFormats', 'isHours', function () {
   return function _is_h(hours: string): boolean {
     if (!hours.length || hours.length > 2) return false;
     const n = Number(hours);
@@ -109,7 +109,7 @@ registerPureFnFactory('mionFormats', 'isHours', function () {
   };
 });
 
-registerPureFnFactory('mionFormats', 'isMinutes', function () {
+registerPureFnFactory('rtFormats', 'isMinutes', function () {
   return function _is_m(mins: string): boolean {
     if (!mins.length || mins.length > 2) return false;
     const n = Number(mins);
@@ -118,7 +118,7 @@ registerPureFnFactory('mionFormats', 'isMinutes', function () {
   };
 });
 
-registerPureFnFactory('mionFormats', 'isSeconds', function () {
+registerPureFnFactory('rtFormats', 'isSeconds', function () {
   return function _is_s(secs: string): boolean {
     if (!secs.length || secs.length > 2) return false;
     const n = Number(secs);
@@ -127,8 +127,8 @@ registerPureFnFactory('mionFormats', 'isSeconds', function () {
   };
 });
 
-registerPureFnFactory('mionFormats', 'isSecondsWithMs', function (utl: RTUtils) {
-  const isS = utl.getPureFn('mionFormats::isSeconds') as SegmentFn;
+registerPureFnFactory('rtFormats', 'isSecondsWithMs', function (utl: RTUtils) {
+  const isS = utl.getPureFn('rtFormats::isSeconds') as SegmentFn;
   return function _is_s_ms(secsAndMs: string): boolean {
     const parts = secsAndMs.split('.');
     if (parts.length > 2) return false;
@@ -143,9 +143,9 @@ registerPureFnFactory('mionFormats', 'isSecondsWithMs', function (utl: RTUtils) 
   };
 });
 
-registerPureFnFactory('mionFormats', 'isTimeZone', function (utl: RTUtils) {
-  const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
-  const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
+registerPureFnFactory('rtFormats', 'isTimeZone', function (utl: RTUtils) {
+  const isH = utl.getPureFn('rtFormats::isHours') as SegmentFn;
+  const isM = utl.getPureFn('rtFormats::isMinutes') as SegmentFn;
   return function _is_tz(timeZone: string): boolean {
     if (timeZone === 'Z' || timeZone === 'z') return true;
     const parts = timeZone.split(':');
@@ -153,19 +153,19 @@ registerPureFnFactory('mionFormats', 'isTimeZone', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('mionFormats', 'isTimeString_ISO', function (utl: RTUtils) {
-  const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
-  const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
-  const isSms = utl.getPureFn('mionFormats::isSecondsWithMs') as SegmentFn;
+registerPureFnFactory('rtFormats', 'isTimeString_ISO', function (utl: RTUtils) {
+  const isH = utl.getPureFn('rtFormats::isHours') as SegmentFn;
+  const isM = utl.getPureFn('rtFormats::isMinutes') as SegmentFn;
+  const isSms = utl.getPureFn('rtFormats::isSecondsWithMs') as SegmentFn;
   return function _is_iso(value: string): boolean {
     const parts = value.split(':');
     return parts.length === 3 && isH(parts[0]) && isM(parts[1]) && isSms(parts[2]);
   };
 });
 
-registerPureFnFactory('mionFormats', 'isTimeString_ISO_TZ', function (utl: RTUtils) {
-  const isTime = utl.getPureFn('mionFormats::isTimeString_ISO') as SegmentFn;
-  const isTZ = utl.getPureFn('mionFormats::isTimeZone') as SegmentFn;
+registerPureFnFactory('rtFormats', 'isTimeString_ISO_TZ', function (utl: RTUtils) {
+  const isTime = utl.getPureFn('rtFormats::isTimeString_ISO') as SegmentFn;
+  const isTZ = utl.getPureFn('rtFormats::isTimeZone') as SegmentFn;
   return function _is_iso_tz(value: string): boolean {
     const isZ = value.endsWith('Z') || value.endsWith('z');
     const isPositiveTZ = isZ || value.indexOf('+') !== -1;
@@ -177,28 +177,28 @@ registerPureFnFactory('mionFormats', 'isTimeString_ISO_TZ', function (utl: RTUti
   };
 });
 
-registerPureFnFactory('mionFormats', 'isTimeString_HHmmss', function (utl: RTUtils) {
-  const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
-  const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
-  const isS = utl.getPureFn('mionFormats::isSeconds') as SegmentFn;
+registerPureFnFactory('rtFormats', 'isTimeString_HHmmss', function (utl: RTUtils) {
+  const isH = utl.getPureFn('rtFormats::isHours') as SegmentFn;
+  const isM = utl.getPureFn('rtFormats::isMinutes') as SegmentFn;
+  const isS = utl.getPureFn('rtFormats::isSeconds') as SegmentFn;
   return function _is_hhmmss(value: string): boolean {
     const parts = value.split(':');
     return parts.length === 3 && isH(parts[0]) && isM(parts[1]) && isS(parts[2]);
   };
 });
 
-registerPureFnFactory('mionFormats', 'isTimeString_HHmm', function (utl: RTUtils) {
-  const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
-  const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
+registerPureFnFactory('rtFormats', 'isTimeString_HHmm', function (utl: RTUtils) {
+  const isH = utl.getPureFn('rtFormats::isHours') as SegmentFn;
+  const isM = utl.getPureFn('rtFormats::isMinutes') as SegmentFn;
   return function _is_hhmm(value: string): boolean {
     const parts = value.split(':');
     return parts.length === 2 && isH(parts[0]) && isM(parts[1]);
   };
 });
 
-registerPureFnFactory('mionFormats', 'isTimeString_mmss', function (utl: RTUtils) {
-  const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
-  const isS = utl.getPureFn('mionFormats::isSeconds') as SegmentFn;
+registerPureFnFactory('rtFormats', 'isTimeString_mmss', function (utl: RTUtils) {
+  const isM = utl.getPureFn('rtFormats::isMinutes') as SegmentFn;
+  const isS = utl.getPureFn('rtFormats::isSeconds') as SegmentFn;
   return function _is_mmss(value: string): boolean {
     const parts = value.split(':');
     return parts.length === 2 && isM(parts[0]) && isS(parts[1]);
@@ -221,7 +221,7 @@ registerPureFnFactory('mionFormats', 'isTimeString_mmss', function (utl: RTUtils
 
 // dateStrToMs — UTC epoch ms for a date value already known to be valid
 // in `layout`. `layout` is one of the DateFmt strings.
-registerPureFnFactory('mionFormats', 'dateStrToMs', function () {
+registerPureFnFactory('rtFormats', 'dateStrToMs', function () {
   return function _date_to_ms(value: string, layout: string): number {
     const parts = value.split('-');
     // Canonical fill for yearless layouts (MM-DD / DD-MM): a fixed year is
@@ -268,7 +268,7 @@ registerPureFnFactory('mionFormats', 'dateStrToMs', function () {
 
 // timeStrToMs — ms-of-day for a time value valid in `layout`. The tz
 // (when present) is stripped and ignored (wall-clock comparison).
-registerPureFnFactory('mionFormats', 'timeStrToMs', function () {
+registerPureFnFactory('rtFormats', 'timeStrToMs', function () {
   return function _time_to_ms(value: string, layout: string): number {
     let body = value;
     if (layout === 'ISO' || layout === 'HH:mm:ss[.mmm]TZ') {
@@ -317,7 +317,7 @@ registerPureFnFactory('mionFormats', 'timeStrToMs', function () {
 // (calendar-correct add via Date arithmetic); 'timeOfDay' → ms-of-day
 // (only T-section components apply; date components are rejected
 // build-time so won't appear here).
-registerPureFnFactory('mionFormats', 'relativeNowKey', function () {
+registerPureFnFactory('rtFormats', 'relativeNowKey', function () {
   // Parse the ISO-8601 duration tail into {years, months, weeks, days,
   // hours, minutes, seconds}. Returns null for bare `now`.
   function parseDuration(tail: string): Record<string, number> {

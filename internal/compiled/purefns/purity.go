@@ -28,13 +28,13 @@ func (s *scope) has(name string) bool {
 }
 
 // checkPurity walks factoryNode's body and emits one Diagnostic per
-// pure-function violation. Mirrors mion's eslint-plugin-mion
+// pure-function violation. Mirrors the reference eslint rules'
 // `pure-functions.ts` rule with two project-specific deltas
 // (globalThis → forbid; Temporal → allow). Returns the slice; the caller
 // appends to its own diagnostics list.
 //
 // The Go port uses a proper lexical scope stack (push/pop per function
-// boundary) rather than mion's flat-scope approximation — more correct
+// boundary) rather than the reference flat-scope approximation — more correct
 // for nested functions whose params should only be visible inside them.
 func checkPurity(sourceFile *ast.SourceFile, factoryNode *ast.Node) []diag.Diagnostic {
 	var diags []diag.Diagnostic
@@ -225,7 +225,7 @@ func addBodyDeclarations(s *scope, bodyNode *ast.Node) {
 
 // collectBindingNames recursively unwraps Identifier / ObjectBindingPattern
 // / ArrayBindingPattern, adding every leaf identifier name to set.
-// Mirrors the destructuring handling in mion's collectBindingNames.
+// Mirrors the destructuring handling in the reference collectBindingNames.
 func collectBindingNames(node *ast.Node, set map[string]bool) {
 	if node == nil {
 		return

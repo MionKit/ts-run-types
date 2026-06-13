@@ -6,7 +6,7 @@ export const ARRAY = {
     getSamples: () => ({
       valid: [[], ['hello', 'world']],
       // The mixed-types invalid `['hello', 'world', {hello: 'world'}]`
-      // is the carry-over from mion's "simple array hasUnknownKeys on
+      // is the carry-over from the "simple array hasUnknownKeys on
       // array with non objects" block — the object element fails the
       // string check, so the whole array fails validate.
       invalid: ['hello', ['hello', 2], ['hello', 'world', {hello: 'world'}], null, undefined, [42], [null]],
@@ -36,7 +36,7 @@ export const ARRAY = {
   },
   date_array: {
     title: 'Array of Dates (rejects Invalid Date per element)',
-    description: 'from mion serialization-suite ARRAYS.array_date',
+    description: 'from the serialization-suite ARRAYS.array_date',
     getSamples: () => ({
       valid: [[], [new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')]],
       invalid: [['2024'], [42], [new Date('invalid')], null, undefined],
@@ -51,7 +51,7 @@ export const ARRAY = {
   },
   undefined_array: {
     title: 'Array of undefined values',
-    description: 'from mion serialization-suite ARRAYS.undefined_in_array',
+    description: 'from the serialization-suite ARRAYS.undefined_in_array',
     getSamples: () => ({
       valid: [[], [undefined, undefined]],
       invalid: [[null], [42], null, undefined, [0], [''], [false]],
@@ -85,7 +85,7 @@ export const ARRAY = {
           ['a', 'b'],
         ],
       ],
-      // mion Block 5 path-error samples: top-level array-of-string
+      // Block 5 path-error samples: top-level array-of-string
       // fails validate when the type is string[][], same for plain
       // string. `['hello']` is "first element is `'hello'` which is
       // not an array".
@@ -107,7 +107,7 @@ export const ARRAY = {
     getSamples: () => ({
       valid: [[], ['hello']],
       // Without the guard, non-array inputs may not be rejected by
-      // the validator (mion's documented trade-off — the caller has
+      // the validator (the documented trade-off — the caller has
       // pre-verified arrayness). Only sample inputs that the loop
       // itself catches.
       invalid: [[42]],
@@ -116,7 +116,7 @@ export const ARRAY = {
   object_array: {
     title: 'Array of object literals',
     description:
-      "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass validate (unknown-key handling is a different adapter).",
+      "array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass validate (unknown-key handling is a different adapter).",
     getSamples: () => ({
       valid: [[], [{a: 'hello'}, {a: 'world'}], [{a: 'hello', extraA: 'extraA'}, {a: 'world'}]],
       invalid: ['not-an-array', [{a: 42}], [{}], [null], null, undefined, [{a: null}], [{a: undefined}]],
@@ -147,7 +147,7 @@ export const ARRAY = {
   circular_array: {
     title: 'Self-referential array (CircularArray = CircularArray[])',
     description:
-      "mion array.spec.ts 'Array circular ref'. Self-referential array — handled via the always-non-inlined KindArray policy plus the isSelf branch in EmitDependencyCall (emits the inner-function-name directly, no .fn).",
+      "array.spec.ts 'Array circular ref'. Self-referential array — handled via the always-non-inlined KindArray policy plus the isSelf branch in EmitDependencyCall (emits the inner-function-name directly, no .fn).",
     getSamples: () => {
       // type CircularArray = CircularArray[]; const arr: CircularArray = [[[[]]], [[]], []];
       const arrA: any = [];
@@ -184,7 +184,7 @@ export const ARRAY = {
   symbol_array: {
     title: 'Array of symbols (non-serializable — factory throws)',
     description:
-      'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148): mion throws at RT-compile. The port propagates CodeNS from the symbol element to the root, rendering an alwaysThrow factory (T3), so createValidate<symbol[]>() / createGetValidationErrors<symbol[]>() throw on first call — consistent with the unified rule (non-property positions throw). As a *property* child a non-serializable array drops the property instead.',
+      'ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (ref: nodes/member/array.ts:148): throws at RT-compile. The CodeNS propagates from the symbol element to the root, rendering an alwaysThrow factory (T3), so createValidate<symbol[]>() / createGetValidationErrors<symbol[]>() throw on first call — consistent with the unified rule (non-property positions throw). As a *property* child a non-serializable array drops the property instead.',
     factoryThrows: true,
     getSamples: () => ({valid: [], invalid: []}),
   },

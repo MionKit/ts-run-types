@@ -16,12 +16,12 @@ func pureFnAlias(ctx formats.EmitContext, fnName string) string {
 	return formats.PureFnAlias(ctx, fnName, typeFormatsPureFnFilePath)
 }
 
-// regexpEscape mirrors mion's utils.ts regexpEscape exactly —
+// regexpEscape mirrors the utils.ts regexpEscape exactly —
 // `val.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&')` — escaping the precise
 // set the char-class / value-set regex sources need so a literal char
 // (`.`, `-`, `|`, …) matches verbatim instead of acting as a metachar.
 // NOT regexp.QuoteMeta: that escapes a different set and would diverge
-// from both mion's emitted regex and the JS runtime engine.
+// from both the reference emitted regex and the JS runtime engine.
 func regexpEscape(val string) string {
 	var builder strings.Builder
 	builder.Grow(len(val))
@@ -35,8 +35,8 @@ func regexpEscape(val string) string {
 	return builder.String()
 }
 
-// defaultFormatMessages is mion's getDefaultMessage table
-// (stringFormat.runtype.ts:15-21): the error `val` used for a complex
+// defaultFormatMessages is the getDefaultMessage table
+// (ref: stringFormat.runtype.ts:15-21): the error `val` used for a complex
 // (pattern / char-class / value-set) param when it carries no custom
 // errorMessage.
 var defaultFormatMessages = map[string]string{
@@ -49,7 +49,7 @@ var defaultFormatMessages = map[string]string{
 
 // messageLiteral resolves the error `val` for a complex param as a
 // quoted JS string literal: the param's custom `errorMessage` when set,
-// else mion's per-param default. `errorMessage` is part of the
+// else the per-param default. `errorMessage` is part of the
 // structural key (typeid.structuralKeyIgnoredParams excludes only
 // mockSamples/message), so a custom message yields a distinct cache
 // entry — never a collision. `pattern` is special-cased: its custom

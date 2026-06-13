@@ -33,8 +33,8 @@ func isFunctionLikeKind(kind protocol.ReflectionKind) bool {
 }
 
 // isRestTupleMember reports whether a resolved tuple-member RunType
-// carries the "rest" flag mion's projection sets on rest elements
-// (`[A, ...B[]]`). Mirrors mion's TupleMember.isRest() on the wire.
+// carries the "rest" flag the projection sets on rest elements
+// (`[A, ...B[]]`). Mirrors TupleMember.isRest() on the wire.
 func isRestTupleMember(rt *protocol.RunType) bool {
 	if rt == nil || rt.Kind != protocol.KindTupleMember {
 		return false
@@ -43,13 +43,13 @@ func isRestTupleMember(rt *protocol.RunType) bool {
 }
 
 // isSymbolKeyedIndexSig reports whether a KindIndexSignature has a
-// symbol-typed key (`{[k: symbol]: T}`). Mirrors mion's
-// IndexSignatureRunType.skipRT (indexProperty.ts:30-36), which
+// symbol-typed key (`{[k: symbol]: T}`). Mirrors the
+// IndexSignatureRunType.skipRT contract (indexProperty.ts:30-36), which
 // returns true for every RT fn except toJSCode (we don't emit a
 // toJSCode equivalent in this binary, so the skip applies
 // unconditionally for us). The for-in loop in our emits would never
 // enumerate a symbol-keyed property anyway (per JS semantics), so
-// skipping is observable parity with mion and elides dead emit.
+// skipping is observable parity with the reference and elides dead emit.
 func isSymbolKeyedIndexSig(rt *protocol.RunType, ctx *EmitContext) bool {
 	if rt == nil || rt.Index == nil {
 		return false

@@ -88,7 +88,7 @@ export interface ValidationCase {
   /** Plugin-rewritten thunk returning the getValidationErrors validator —
    *  STATIC form. Caller supplies `T` explicitly. Same dispatch and
    *  caching as `validate` but the validator returns `RunTypeError[]`
-   *  instead of a boolean (matches mion's `RTFunctions.validationErrors`). */
+   *  instead of a boolean (matches the `RTFunctions.validationErrors`). */
   getValidationErrors: Thunk<GetValidationErrorsFn>;
   /** Plugin-rewritten thunk returning the getValidationErrors validator —
    *  REFLECT form. `T` inferred from a runtime value's declared type. */
@@ -128,7 +128,7 @@ export interface ValidationCase {
    *  - `'value'` (default) — every generated value must pass `validate<T>()`.
    *  - `'throw'` — calling the mock fn must throw (e.g. `never`).
    *  - `'skip'` — the mock fn runs but its output is not validate-checked
-   *    (e.g. function kinds where mion returns `undefined`). **/
+   *    (e.g. function kinds where the mock returns `undefined`). **/
   mockTypeExpect?: 'value' | 'throw' | 'skip';
 
   /** When true, every adapter thunk (validate / getValidationErrors / mockType

@@ -698,7 +698,7 @@ func emitTuplePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 		}
 		if resolved.Optional {
 			// Replace `undefined` slots with `null` so the JSON form
-			// preserves the slot, matching mion's tuple semantic for
+			// preserves the slot, matching the tuple semantic for
 			// optionals at non-trailing positions.
 			expr = "(" + accessor + " === undefined ? null : " + expr + ")"
 		}
@@ -716,7 +716,7 @@ func emitTuplePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 // emitIndexSignaturePrepareForJsonSafe — produces a new object whose
 // keys are filtered by the (optional) template-literal key regex and
 // whose values are the child's safe transform applied to the original
-// value. Symbol-keyed sigs are dropped per mion's skipRT rule.
+// value. Symbol-keyed sigs are dropped per the skipRT rule.
 func emitIndexSignaturePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeS}

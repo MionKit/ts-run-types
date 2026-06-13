@@ -2,7 +2,7 @@
 // ReflectionKind.number via `registerMockingFunction`; the mock walker
 // calls it with the FormatAnnotation only when the runtype is branded,
 // and a `undefined` return defers to the kind-default `mockNumber`.
-// Ports mion's NumberRunTypeFormat._mock (numberFormat.runtype.ts:193-232)
+// Ports the reference NumberRunTypeFormat._mock (numberFormat.runtype.ts:193-232)
 // as a pure function (the project's class→switch convention).
 import {RunTypeKind} from '../runTypeKind.ts';
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
@@ -17,7 +17,7 @@ const mockNumberFormat = (annotation: FormatAnnotation): unknown => {
 registerMockingFunction(RunTypeKind.number, mockNumberFormat);
 
 // mockNumberParams returns a number satisfying every constraint, so the
-// mock round-trips through validate. Mirrors mion's _mock exactly.
+// mock round-trips through validate. Mirrors the reference _mock exactly.
 function mockNumberParams(params: NumberParams): number {
   let min = params.min !== undefined ? numVal(params.min) : -99999;
   let max = params.max !== undefined ? numVal(params.max) : 99999;
@@ -49,7 +49,7 @@ function mockNumberParams(params: NumberParams): number {
   return result;
 }
 
-// numVal unwraps the `{val, …}` meta-object form (mion's paramVal); the
+// numVal unwraps the `{val, …}` meta-object form (the paramVal); the
 // public NumberParams type is plain `number`, but the wire may carry a
 // meta object.
 function numVal(value: unknown): number {

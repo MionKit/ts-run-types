@@ -8,21 +8,21 @@ import (
 )
 
 // bigintFormatEmitter implements the format with name "bigintFormat" —
-// FormatBigInt<P> in `ts-runtypes/formats`. Mirrors mion's
-// BigIntRunTypeFormat (packages/type-formats/src/bigint/bigIntFormat.runtype.ts).
+// FormatBigInt<P> in `ts-runtypes/formats`. Mirrors
+// BigIntRunTypeFormat (ref: packages/type-formats/src/bigint/bigIntFormat.runtype.ts).
 //
-// Surface: min / max / lt / gt, multipleOf — emitted in mion's order with
+// Surface: min / max / lt / gt, multipleOf — emitted in spec order with
 // bigint literals (`100n`). Beyond validate / validationErrors / validateParams it
 // implements formats.BinaryEncoder / BinaryDecoder: when min AND max both
 // fit signed (Int64) or unsigned (UInt64) 64-bit, the value packs into 8
 // bytes via setBigInt64 / setBigUint64; otherwise it falls back to the
-// base string serialization (mion's emitToBinary, bigIntFormat.runtype.ts:123-153).
-// There is deliberately NO float64 path and NO sub-8-byte path — mion has
+// base string serialization (emitToBinary, bigIntFormat.runtype.ts:123-153).
+// There is deliberately NO float64 path and NO sub-8-byte path — the spec has
 // neither (verified against packages/core/src/binary).
 type bigintFormatEmitter struct{}
 
 // bigintFormatName is the canonical FormatAnnotation.name the JS-side
-// FormatBigInt alias brands under (mion's BigIntRunTypeFormat.id).
+// FormatBigInt alias brands under (the BigIntRunTypeFormat.id).
 const bigintFormatName = "bigintFormat"
 
 func init() {
@@ -38,7 +38,7 @@ func (bigintFormatEmitter) Kind() protocol.ReflectionKind {
 }
 
 // EmitValidateCheck returns the AND of every active bigint predicate, in
-// mion's emitIsType order (bigIntFormat.runtype.ts:46-79): max, min, lt,
+// emitIsType order (bigIntFormat.runtype.ts:46-79): max, min, lt,
 // gt, multipleOf — each with a `…n` literal. Returns "" when no params
 // constrain the value (host keeps its base `typeof v === 'bigint'`).
 func (bigintFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
@@ -71,7 +71,7 @@ func bigintConditions(params map[string]any, vλl string) []string {
 }
 
 // EmitValidationErrorsCheck emits one `if (failed) <push error>` statement per
-// active predicate, in mion's emitIsTypeErrors order
+// active predicate, in emitIsTypeErrors order
 // (bigIntFormat.runtype.ts:81-115). The error `val` carries the bigint
 // literal (`…n`).
 func (bigintFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
@@ -103,9 +103,9 @@ func (bigintFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Format
 	return strings.Join(statements, ";")
 }
 
-// EmitToBinary implements formats.BinaryEncoder — mion's emitToBinary
+// EmitToBinary implements formats.BinaryEncoder — emitToBinary
 // (bigIntFormat.runtype.ts:123-137). UInt64 takes precedence over Int64
-// when both fit (mion's ordering); "" otherwise → base string arm.
+// when both fit (the reference ordering); "" otherwise → base string arm.
 func (bigintFormatEmitter) EmitToBinary(annotation *protocol.FormatAnnotation, vλl, ser string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
@@ -120,7 +120,7 @@ func (bigintFormatEmitter) EmitToBinary(annotation *protocol.FormatAnnotation, v
 	return ""
 }
 
-// EmitFromBinary implements formats.BinaryDecoder — mion's emitFromBinary
+// EmitFromBinary implements formats.BinaryDecoder — emitFromBinary
 // (bigIntFormat.runtype.ts:139-153). Byte-symmetric with EmitToBinary.
 func (bigintFormatEmitter) EmitFromBinary(annotation *protocol.FormatAnnotation, des string, _ formats.EmitContext) string {
 	if annotation == nil {
@@ -136,7 +136,7 @@ func (bigintFormatEmitter) EmitFromBinary(annotation *protocol.FormatAnnotation,
 	return ""
 }
 
-// bigIntType ports mion's getBigIntType (bigIntFormat.runtype.ts:222-232):
+// bigIntType ports getBigIntType (bigIntFormat.runtype.ts:222-232):
 // both min AND max must be set for either flag to be true. Returns
 // (isBigInt64, isBigUint64).
 func bigIntType(params map[string]any) (isBigInt64, isBigUint64 bool) {
@@ -150,12 +150,12 @@ func bigIntType(params map[string]any) (isBigInt64, isBigUint64 bool) {
 	return isBigInt64, isBigUint64
 }
 
-// ValidateParams ports mion's BigIntRunTypeFormat.validateParams
+// ValidateParams ports BigIntRunTypeFormat.validateParams
 // (bigIntFormat.runtype.ts:189-219): mutual-exclusivity of {min,gt} and
 // {max,lt} (a lower/upper edge is inclusive OR exclusive, never both),
 // min>max, gt>=lt, multipleOf>0. No integer/float distinction. The
-// `[x,y].filter(Boolean)` / `x && y` checks are kept mion-faithful: a `0n`
-// bound is falsy in mion and so escapes these checks — replicated via
+// `[x,y].filter(Boolean)` / `x && y` checks are kept spec-faithful: a `0n`
+// bound is falsy per the reference and so escapes these checks — replicated via
 // bigTruthy + the explicit non-zero guards.
 func (bigintFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
 	if annotation == nil {
@@ -189,7 +189,7 @@ func (bigintFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 }
 
 // bigTruthy returns 1 when the bigint param is present AND non-zero
-// (mion's `[…].filter(Boolean)` drops 0n), else 0.
+// (the `[…].filter(Boolean)` drops 0n), else 0.
 func bigTruthy(params map[string]any, key string) int {
 	if value, ok := readBigIntParam(params, key); ok && value.Sign() != 0 {
 		return 1

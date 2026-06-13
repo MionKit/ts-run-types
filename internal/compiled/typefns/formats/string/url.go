@@ -24,7 +24,7 @@ func (urlEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotatio
 	return namedPatternErrors(ctx, annotation, vλl, pathExpr, errorsArr, "url")
 }
 
-// EmitFormatTransform lowercases the URL (mion url.runtype.ts:141 — URLs
+// EmitFormatTransform lowercases the URL (ref: url.runtype.ts:141 — URLs
 // are canonicalised to lower case by the format pass).
 func (urlEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	return vλl + ".toLowerCase()"

@@ -70,12 +70,12 @@ func TestUpdateDependencies_SkipsNoopChildren(t *testing.T) {
 
 func TestAddPureFnDependency_RecordsTriple(t *testing.T) {
 	w := newTestWalker()
-	w.AddPureFnDependency("mion", "asJSONString", "/abs/run-types-pure-fns.ts")
+	w.AddPureFnDependency("rt", "asJSONString", "/abs/run-types-pure-fns.ts")
 	if len(w.PureFnDependencies) != 1 {
 		t.Fatalf("expected 1 dep, got %d (%v)", len(w.PureFnDependencies), w.PureFnDependencies)
 	}
 	got := w.PureFnDependencies[0]
-	if got.Namespace != "mion" || got.FunctionName != "asJSONString" || got.FilePath != "/abs/run-types-pure-fns.ts" {
+	if got.Namespace != "rt" || got.FunctionName != "asJSONString" || got.FilePath != "/abs/run-types-pure-fns.ts" {
 		t.Fatalf("triple mismatch: got %+v", got)
 	}
 }
@@ -86,7 +86,7 @@ func TestAddPureFnDependency_NoValidationAtCallSite(t *testing.T) {
 	// still record cleanly. The eventual diagnostic surfaces later in
 	// purefns.ValidatePureFnDependencies.
 	w := newTestWalker()
-	w.AddPureFnDependency("mion", "asJSONString", "/this/path/does/not/exist.ts")
+	w.AddPureFnDependency("rt", "asJSONString", "/this/path/does/not/exist.ts")
 	if len(w.PureFnDependencies) != 1 {
 		t.Fatalf("expected the triple to be recorded regardless of filePath validity, got %v", w.PureFnDependencies)
 	}
@@ -95,7 +95,7 @@ func TestAddPureFnDependency_NoValidationAtCallSite(t *testing.T) {
 func TestAddPureFnDependency_DedupesFullTriple(t *testing.T) {
 	w := newTestWalker()
 	for i := 0; i < 3; i++ {
-		w.AddPureFnDependency("mion", "asJSONString", "/abs/pure-fns.ts")
+		w.AddPureFnDependency("rt", "asJSONString", "/abs/pure-fns.ts")
 	}
 	if len(w.PureFnDependencies) != 1 {
 		t.Fatalf("expected 1 dep after 3 identical appends, got %d (%v)", len(w.PureFnDependencies), w.PureFnDependencies)
@@ -107,8 +107,8 @@ func TestAddPureFnDependency_DifferentFilePathIsDistinctEntry(t *testing.T) {
 	// Resolution to a "real" file happens later in
 	// purefns.ValidatePureFnDependencies via lazy index expansion.
 	w := newTestWalker()
-	w.AddPureFnDependency("mion", "asJSONString", "/a.ts")
-	w.AddPureFnDependency("mion", "asJSONString", "/b.ts")
+	w.AddPureFnDependency("rt", "asJSONString", "/a.ts")
+	w.AddPureFnDependency("rt", "asJSONString", "/b.ts")
 	if len(w.PureFnDependencies) != 2 {
 		t.Fatalf("expected 2 distinct entries by filePath, got %d (%v)", len(w.PureFnDependencies), w.PureFnDependencies)
 	}

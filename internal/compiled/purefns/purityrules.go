@@ -1,7 +1,7 @@
 package purefns
 
 // Source of truth for the allow/forbid sets:
-// /home/user/mion/packages/devtools/src/eslint/rules/purityRules.ts
+// (ref: packages/devtools/src/eslint/rules/purityRules.ts)
 //
 // Two project-specific deltas applied per user instruction:
 //   - globalThis MOVED from allowedGlobals to forbiddenIdentifiers
@@ -9,8 +9,8 @@ package purefns
 //   - Temporal ADDED to allowedGlobals (Temporal proposal API is pure
 //     and safe to reference)
 //
-// When syncing future tweaks from mion, the diff is intentionally small
-// and easy to review.
+// When syncing future tweaks from the reference rules, the diff is
+// intentionally small and easy to review.
 
 // allowedGlobals are the identifiers a pure-function factory may
 // reference without being either in its own lexical scope or considered

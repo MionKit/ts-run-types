@@ -4,7 +4,7 @@ export const UTILITY = {
   partial: {
     title: 'Partial<T> — all props become optional',
     description:
-      'mion utility/partial.spec.ts — all properties become optional. Resolves to {name?: string; age?: number; createdAt?: Date}; reuses the object emit with allOptionalCode array-rejection guard.',
+      'utility/partial.spec.ts — all properties become optional. Resolves to {name?: string; age?: number; createdAt?: Date}; reuses the object emit with allOptionalCode array-rejection guard.',
     getSamples: () => ({
       valid: [{}, {name: 'John'}, {createdAt: new Date()}, {name: 'John', age: 30, createdAt: new Date()}],
       invalid: [
@@ -24,7 +24,7 @@ export const UTILITY = {
   required: {
     title: 'Required<T> — all optional props become required',
     description:
-      'mion utility/required.spec.ts — all properties become required. Resolves to a plain object literal; reuses the object emit.',
+      'utility/required.spec.ts — all properties become required. Resolves to a plain object literal; reuses the object emit.',
     getSamples: () => ({
       valid: [{name: 'John', age: 30, createdAt: new Date()}],
       invalid: [
@@ -41,7 +41,7 @@ export const UTILITY = {
   },
   pick: {
     title: 'Pick<T, K> — keeps only the named properties',
-    description: 'mion utility/pick.spec.ts — selects a subset of properties. Resolves to {name: string; createdAt: Date}.',
+    description: 'utility/pick.spec.ts — selects a subset of properties. Resolves to {name: string; createdAt: Date}.',
     getSamples: () => ({
       valid: [
         {name: 'John', createdAt: new Date()},
@@ -60,7 +60,7 @@ export const UTILITY = {
   },
   omit: {
     title: 'Omit<T, K> — drops the named properties',
-    description: 'mion utility/omit.spec.ts — removes selected properties. Resolves to {name: string; createdAt: Date}.',
+    description: 'utility/omit.spec.ts — removes selected properties. Resolves to {name: string; createdAt: Date}.',
     getSamples: () => ({
       valid: [
         {name: 'John', createdAt: new Date()},
@@ -71,7 +71,7 @@ export const UTILITY = {
   },
   exclude_atomic: {
     title: 'Exclude<U, X> on a string-literal union',
-    description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
+    description: 'utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
     getSamples: () => ({
       valid: ['name', 'createdAt'],
       invalid: ['age', 'other', 42, null, undefined, true, '', 'Name'],
@@ -80,7 +80,7 @@ export const UTILITY = {
   extract_atomic: {
     title: 'Extract<U, X> on a string-literal union',
     description:
-      'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
+      'utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
     getSamples: () => ({
       valid: ['name', 'createdAt'],
       invalid: ['age', 'other', null, undefined, true, 42, '', 'Name'],
@@ -88,7 +88,7 @@ export const UTILITY = {
   },
   exclude_from_object_union: {
     title: 'Exclude<U, X> on a discriminated object union',
-    description: 'mion utility/exclude.spec.ts (object union) — excludes object members from a discriminated union.',
+    description: 'utility/exclude.spec.ts (object union) — excludes object members from a discriminated union.',
     getSamples: () => ({
       valid: [
         {kind: 'square', x: 5},
@@ -107,7 +107,7 @@ export const UTILITY = {
   },
   non_nullable: {
     title: 'NonNullable<T> — strips null and undefined from a union',
-    description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
+    description: 'utility/nonNullable.spec.ts — removes null + undefined from a union.',
     getSamples: () => ({
       valid: ['hello', 42, 0],
       invalid: [null, undefined, true, {}, [], NaN, Infinity],
@@ -115,7 +115,7 @@ export const UTILITY = {
   },
   return_type: {
     title: 'ReturnType<F> — extracts the return type of a function',
-    description: "mion utility/params-return.spec.ts — extracts a function's return type. Resolves to Date.",
+    description: "utility/params-return.spec.ts — extracts a function's return type. Resolves to Date.",
     getSamples: () => ({
       valid: [new Date()],
       invalid: ['not date', 42, null, undefined, new Date('invalid'), new Date(NaN), {}, []],

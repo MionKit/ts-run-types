@@ -13,7 +13,7 @@ type textRange struct {
 }
 
 // stripTypesFromBlock returns the JS-stripped text of blockNode (a Block).
-// Outer braces are removed — mion's getBodyText does the same
+// Outer braces are removed — the reference getBodyText does the same
 // (block.text.slice(1, -1).trim()).
 func stripTypesFromBlock(sourceFile *ast.SourceFile, blockNode *ast.Node) string {
 	fullText := sourceFile.Text()
@@ -257,7 +257,7 @@ func spliceRanges(raw string, ranges []textRange, base int) string {
 }
 
 // trimOuterBraces removes the leading `{` and trailing `}` of a Block's raw
-// text along with surrounding whitespace. Mirrors mion's
+// text along with surrounding whitespace. Mirrors the reference
 // fullText.slice(1, -1).trim().
 func trimOuterBraces(text string) string {
 	trimmed := strings.TrimSpace(text)
