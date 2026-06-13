@@ -50,6 +50,8 @@
     "gen:format-serialization-suite-json": "node scripts/export-serialization-suite.mjs --suite format-serialization",
     "gen:website-suite-data": "node scripts/gen-website-suite-data.mjs",
     "gen:bench-docs": "node scripts/gen-bench-docs.mjs",
+    "pregen:serialization-bench": "pnpm run check:builds",
+    "gen:serialization-bench": "node scripts/gen-serialization-bench.mjs",
     "gen:suite-docs": "pnpm run gen:validation-suite-json && pnpm run gen:serialization-suite-json && pnpm run gen:format-validation-suite-json && pnpm run gen:format-serialization-suite-json && pnpm run gen:website-suite-data",
     "format": "prettier --write 'packages/**/*.{ts,md}'",
     "check-format": "prettier --check 'packages/**/*.{ts,md}'",
