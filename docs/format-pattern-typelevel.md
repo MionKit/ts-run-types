@@ -108,9 +108,30 @@ to "literal in the call AST", which is recoverable first-party but not through a
   shape: `alpha`/`alphaNumeric`/`numeric`/`alpha_withLength` show as
   not-supported for ts-go-run-types while zod/typebox/ajv handle them.
 
+## Guiding principle
+
+**Every parameter the scanner needs must be preserved as a literal *in the type*,
+so it survives `.d.ts` emission.** That is the whole game. The scanner reads `T`;
+for a consumer, `T` is whatever the published `.d.ts` says it is. So anything the
+validator/mock/diagnostics depend on — bounds, lengths, enum values, regex
+source, flags, mock samples, messages — must be encoded as **literal types** that
+TypeScript carries verbatim into the `.d.ts` (the way `{maxLength: 5}` or
+`{version: '4'}` already do).
+
+Conversely, any param that lives only in a **runtime value** — an opaque return
+type (`FormatPattern` with `source: string`), or a value with no literal type at
+all (a `/regex/` literal, since `typeof /x/` is `RegExp`) — is invisible to a
+`.d.ts` consumer, full stop. The AST-recovery workaround papers over this for
+first-party builds but cannot for published packages.
+
+The fix below applies this principle to the format-pattern bundle: **all** of its
+params (`source`, `flags`, `mockSamples`, `message`) become type-level literals —
+not a hand-picked subset — so nothing is lost on the `.d.ts` boundary.
+
 ## Proposed solution
 
-Make the pattern a **type-level literal**, identical in spirit to `{maxLength: 5}`.
+Make the pattern bundle a set of **type-level literals**, identical in spirit to
+`{maxLength: 5}` — and capture *every* field, not just the regex.
 
 1. **`registerFormatPattern` accepts only the string form.** Remove the
    `regexp: RegExp` overload. The sole signature is the `{source, flags?,
