@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -208,6 +210,87 @@ func TestParseConstMarkers_IgnoresTodo(t *testing.T) {
 	}
 	if childIDs["name"] != "nID" {
 		t.Errorf("childIDs = %v, want name=nID", childIDs)
+	}
+}
+
+// TestSkeletonBody_NoTodo is the batch-path (runGenBatch → the 287 vitest)
+// byte-identity guard: the `@todo` rides the const WRAPPER (constBlock), never the
+// skeleton BODY the batch path (FriendlySkeleton/MockSkeleton) emits and the
+// generation suite compares. The skeleton emitters live in internal/enrich and
+// have no knowledge of `@todo` by construction — assert that directly so a future
+// refactor that pushes the flag into the body would fail loudly here.
+func TestSkeletonBody_NoTodo(t *testing.T) {
+	// markerComment + todoComment are the ONLY producers of the @rt/@todo trivia,
+	// and both are invoked solely by constBlock (the wrapper) — never by the
+	// skeleton emitters. A representative emitted body must therefore be @todo-free.
+	for _, body := range []string{
+		"{$label: ''}",
+		"{$label: '', name: {$label: 'Full name'}}",
+		"{pool: ['Ann', 'Bob']}",
+	} {
+		if strings.Contains(body, "@todo") || strings.Contains(body, "@rt") {
+			t.Errorf("a skeleton body must carry no marker/@todo trivia: %q", body)
+		}
+	}
+	// And the wrapper-stamped block, stripped of its leading wrapper trivia (the
+	// marker + @todo lines up to `export const`), leaves a body with no @todo —
+	// proving the flag never bleeds into the body the batch path emits.
+	named := enrich.NamedConst{TypeName: "User", FriendlyVar: "friendlyUser", TypeID: "uID"}
+	block := constBlock(named.FriendlyVar, "FriendlyType", named, "{$label: ''}")
+	body := block[strings.Index(block, "= ")+2:]
+	if strings.Contains(body, "@todo") {
+		t.Errorf("the @todo must live in the wrapper, never in the body:\n%s", body)
+	}
+}
+
+// TestWriteMirrorFile_CreateOnly_IdempotentTodo is the create-only first-gen
+// idempotency guard for Task 1: a SECOND create-only write (writeMirrorFile, the
+// no --update path) over an already-populated mirror is a no-op (hasExport skip),
+// so it never duplicates or re-adds the `@todo`. The first write stamps exactly
+// one @todo per const; the re-run leaves the file byte-identical.
+func TestWriteMirrorFile_CreateOnly_IdempotentTodo(t *testing.T) {
+	dir := t.TempDir()
+	mirror := filepath.Join(dir, "models.ts")
+	spec := mirrorWrite{
+		mirrorPath:   mirror,
+		sourceFile:   filepath.Join(dir, "models-src.ts"),
+		out:          mirror, // single-file: skip cross-file import wiring
+		wantFriendly: true,
+		wantMock:     true,
+		consts: []enrich.NamedConst{{
+			TypeName:    "User",
+			FriendlyVar: "friendlyUser",
+			MockVar:     "mockUser",
+			Friendly:    "{$label: ''}",
+			Mock:        "{}",
+			TypeID:      "uID",
+		}},
+	}
+
+	if wrote := writeMirrorFile(spec); !wrote {
+		t.Fatalf("first create-only write should have written the mirror")
+	}
+	first, err := os.ReadFile(mirror)
+	if err != nil {
+		t.Fatalf("read mirror after first write: %v", err)
+	}
+	if n := strings.Count(string(first), "@todo"); n != 2 {
+		t.Errorf("first write should stamp one @todo per const (friendly + mock); got %d:\n%s", n, first)
+	}
+
+	// Re-run create-only: every export is already present → hasExport skip → no-op.
+	if wrote := writeMirrorFile(spec); wrote {
+		t.Errorf("second create-only write must be a no-op (every export already present)")
+	}
+	second, err := os.ReadFile(mirror)
+	if err != nil {
+		t.Fatalf("read mirror after second write: %v", err)
+	}
+	if string(second) != string(first) {
+		t.Errorf("create-only re-run must be byte-identical:\n first  = %q\n second = %q", first, second)
+	}
+	if n := strings.Count(string(second), "@todo"); n != 2 {
+		t.Errorf("re-run must not duplicate or re-add @todo; got %d:\n%s", n, second)
 	}
 }
 
