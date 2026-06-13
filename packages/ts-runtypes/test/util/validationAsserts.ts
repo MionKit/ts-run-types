@@ -13,7 +13,8 @@
 //   - 'not-supported'    → " (not supported)";   assert silently early-returns
 
 import {expect} from 'vitest';
-import {runTypeErrorsToIssues} from 'ts-runtypes';
+import {runTypeErrorsToIssues, createFriendly} from 'ts-runtypes';
+import type {RTValidationError} from 'ts-runtypes';
 import type {Thunk, ValidationCase} from '../suites/validation/types.ts';
 import type {FormatValidationCase} from '../suites/format-validation/types.ts';
 
@@ -567,5 +568,58 @@ export function assertStandardSchema(c: AssertableCase): void {
     if (expected) {
       expect(result.issues, `${c.title} [standardSchema]: invalid[${i}] expected issues`).toEqual(expected[i]);
     }
+  });
+}
+
+// =========================================================================
+// Friendly renderer coverage — createFriendly().errors()
+// =========================================================================
+
+/** The `failed` roles a Map / Set entry segment may carry. */
+const FRIENDLY_FAILED_ROLES = new Set(['mapKey', 'mapValue', 'setKey']);
+
+/** Every path-segment shape `createFriendly`'s descend() can route: an object
+ *  field (string), an array / tuple index (number), or a Map / Set entry
+ *  ({key: number, failed?}). A segment outside this set would dead-end in
+ *  descend — the bug class that silently broke Map/Set and tuple rendering — so
+ *  this guard fails loudly if the validator ever emits a new path-segment shape
+ *  without createFriendly being taught to route it. **/
+function assertFriendlySegment(seg: unknown, ctx: string): void {
+  if (typeof seg === 'string' || typeof seg === 'number') return;
+  if (seg && typeof seg === 'object') {
+    const {key, failed} = seg as {key?: unknown; failed?: unknown};
+    const okFailed = failed === undefined || (typeof failed === 'string' && FRIENDLY_FAILED_ROLES.has(failed));
+    if (typeof key === 'number' && okFailed) return;
+  }
+  throw new Error(
+    `${ctx}: unhandled friendly path segment ${safeStringify(seg)} — createFriendly.descend would dead-end; teach it this shape.`
+  );
+}
+
+/** Suite-wide guard that EVERY type renders a friendly error. Runs the case's
+ *  real `getValidationErrors` over each INVALID sample and checks the renderer
+ *  copes with the output: (1) every path segment is a shape descend() routes
+ *  (the census above), and (2) `createFriendly` emits exactly one non-empty
+ *  message per error, with a string path, without throwing. Routing CORRECTNESS
+ *  per category (object → field, array → $items, tuple → $slots, Map/Set →
+ *  $keys/$values) is pinned in createFriendly.test.ts; this is the cross-suite
+ *  net that no type produces an unrenderable error. **/
+export function assertFriendlyCoverage(c: AssertableCase): void {
+  const factory = resolveThunk(c.getValidationErrors);
+  if (!factory) return;
+  if (c.factoryThrows) return; // the factory itself throws — not a rendering concern
+  const getErrors = factory() as (value: unknown) => RTValidationError[];
+  const renderer = createFriendly<unknown>({});
+  const {invalid} = c.getSamples();
+  invalid.forEach((sample, i) => {
+    const errs = getErrors(sample);
+    errs.forEach((err) => err.path.forEach((seg) => assertFriendlySegment(seg, `${c.title} [friendly]: invalid[${i}]`)));
+    const messages = renderer.errors(errs);
+    expect(messages, `${c.title} [friendly]: invalid[${i}] → one message per error`).toHaveLength(errs.length);
+    messages.forEach((message, j) => {
+      expect(typeof message.message, `${c.title} [friendly]: invalid[${i}] msg[${j}] is a string`).toBe('string');
+      expect(message.message.length, `${c.title} [friendly]: invalid[${i}] msg[${j}] non-empty`).toBeGreaterThan(0);
+      expect(typeof message.path, `${c.title} [friendly]: invalid[${i}] msg[${j}] path is a string`).toBe('string');
+    });
   });
 }

@@ -34,12 +34,14 @@ export interface FriendlyRenderer {
 }
 
 // Runtime view of a node — the authored map is a plain object with `$label` /
-// `$errors` meta keys plus child-field keys (`$items` for arrays, `$keys` /
-// `$values` for maps/sets).
+// `$errors` meta keys plus child-field keys (`$items` for arrays and rest-tuple
+// elements, `$slots` for fixed-tuple positions, `$keys` / `$values` for
+// maps/sets).
 type FriendlyNodeRuntime = {
   $label?: string;
   $errors?: ErrorTemplates;
   $items?: FriendlyNodeRuntime;
+  $slots?: FriendlyNodeRuntime[];
   $keys?: FriendlyNodeRuntime;
   $values?: FriendlyNodeRuntime;
   [field: string]: unknown;
@@ -54,13 +56,15 @@ function segmentKey(seg: RTValidationErrorPathSegment): string | number {
   return seg.key;
 }
 
-/** Descend one segment: string → child field; number → `$items` (array
- *  element); Map / Set entry → `$keys` (a `mapKey` failure) or `$values` (a
- *  `mapValue` / `setKey` failure), routed by the segment's `failed` role. */
+/** Descend one segment: string → child field; number → `$slots[i]` for a fixed
+ *  tuple, else `$items` (array / rest-tuple element); Map / Set entry → `$keys`
+ *  (a `mapKey` failure) or `$values` (a `mapValue` / `setKey` failure), routed
+ *  by the segment's `failed` role. A fixed tuple has positional `$slots`; an
+ *  array (and a rest tuple, whose `length` is the broad `number`) has `$items`. */
 function descend(node: FriendlyNodeRuntime | undefined, seg: RTValidationErrorPathSegment): FriendlyNodeRuntime | undefined {
   if (!node) return undefined;
   if (typeof seg === 'string') return node[seg] as FriendlyNodeRuntime | undefined;
-  if (typeof seg === 'number') return node.$items;
+  if (typeof seg === 'number') return node.$slots ? node.$slots[seg] : node.$items;
   return seg.failed === 'mapKey' ? node.$keys : node.$values;
 }
 
