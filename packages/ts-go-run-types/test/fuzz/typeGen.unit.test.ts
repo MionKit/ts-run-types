@@ -1,93 +1,172 @@
 // Offline unit tests for the Phase-2 type generator — no Go binary, no plugin.
-// Pins the two properties the harness relies on: determinism (a seed reproduces
-// the exact shape) and well-formedness (rendered source is bounded and the
-// kinds stay inside the serialisable set).
+// Pins: determinism (a seed reproduces the exact type), well-formedness
+// (balanced rendered source, bounded size, unique keys), broad WILD coverage
+// (the exotic kinds are actually generated), the data-preset restriction, and
+// recursion detection.
 
 import {describe, it, expect} from 'vitest';
 import {withSeededRandom, mixSeed} from './seededRng.ts';
-import {genShape, renderType, describeShape, countNodes, DEFAULT_GEN_OPTIONS, type TypeShape} from './typeGen.ts';
+import {
+  genType,
+  renderGenerated,
+  describeType,
+  countNodes,
+  isRecursive,
+  DATA_GEN_OPTIONS,
+  type Decl,
+  type GeneratedType,
+  type TypeShape,
+} from './typeGen.ts';
 
-const SERIALISABLE_KINDS = new Set([
-  'number',
-  'string',
-  'boolean',
-  'bigint',
-  'null',
-  'date',
-  'literal',
-  'array',
-  'tuple',
-  'object',
-  'union',
-]);
-
-function everyNode(shape: TypeShape, visit: (s: TypeShape) => void): void {
+function eachShape(shape: TypeShape, visit: (s: TypeShape) => void): void {
   visit(shape);
-  if (shape.kind === 'array') everyNode(shape.elem, visit);
-  else if (shape.kind === 'tuple') shape.elems.forEach((s) => everyNode(s, visit));
-  else if (shape.kind === 'object') shape.props.forEach((p) => everyNode(p.shape, visit));
-  else if (shape.kind === 'union') shape.members.forEach((s) => everyNode(s, visit));
+  switch (shape.kind) {
+    case 'array':
+    case 'set':
+      return eachShape(shape.elem, visit);
+    case 'record':
+    case 'promise':
+      return eachShape(shape.value, visit);
+    case 'map':
+      eachShape(shape.key, visit);
+      eachShape(shape.value, visit);
+      return;
+    case 'tuple':
+      return shape.elems.forEach((s) => eachShape(s, visit));
+    case 'union':
+    case 'intersection':
+      return shape.members.forEach((s) => eachShape(s, visit));
+    case 'function':
+      shape.params.forEach((s) => eachShape(s, visit));
+      return eachShape(shape.ret, visit);
+    case 'object':
+      shape.props.forEach((p) => eachShape(p.shape, visit));
+      if (shape.index) eachShape(shape.index, visit);
+      return;
+  }
+}
+
+function eachShapeIn(gen: GeneratedType, visit: (s: TypeShape) => void): void {
+  for (const decl of gen.decls) {
+    if (decl.kind === 'interface' || decl.kind === 'class') decl.props.forEach((p) => eachShape(p.shape, visit));
+    else if (decl.kind === 'type') eachShape(decl.shape, visit);
+  }
+  eachShape(gen.root, visit);
+}
+
+function kindsOf(gen: GeneratedType): Set<string> {
+  const kinds = new Set<string>();
+  eachShapeIn(gen, (s) => kinds.add(s.kind));
+  for (const d of gen.decls) kinds.add(`decl:${d.kind}`);
+  return kinds;
 }
 
 describe('typeGen — determinism', () => {
-  it('reproduces the identical shape from the same seed', () => {
+  it('reproduces the identical type (decls + root) from the same seed', () => {
     for (let i = 0; i < 50; i++) {
       const seed = mixSeed(0x1234, 'det', i);
-      const a = withSeededRandom(seed, () => genShape());
-      const b = withSeededRandom(seed, () => genShape());
+      const a = withSeededRandom(seed, () => genType());
+      const b = withSeededRandom(seed, () => genType());
       expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     }
   });
 
-  it('produces different shapes for different seeds (not degenerate)', () => {
+  it('produces many distinct types across seeds', () => {
     const rendered = new Set<string>();
-    for (let i = 0; i < 60; i++) {
-      const shape = withSeededRandom(mixSeed(0x99, 'spread', i), () => genShape());
-      rendered.add(renderType(shape));
+    for (let i = 0; i < 80; i++) {
+      const gen = withSeededRandom(mixSeed(0x99, 'spread', i), () => genType());
+      const {decls, rootExpr} = renderGenerated(gen);
+      rendered.add(decls + '\n' + rootExpr);
     }
-    // A healthy generator yields lots of distinct shapes across 60 seeds.
-    expect(rendered.size).toBeGreaterThan(20);
+    expect(rendered.size).toBeGreaterThan(40);
   });
 });
 
 describe('typeGen — well-formedness', () => {
-  it('only emits serialisable kinds and respects the depth/breadth bounds', () => {
+  it('renders balanced source, bounded size, unique object keys', () => {
     for (let i = 0; i < 200; i++) {
-      const shape = withSeededRandom(mixSeed(0xabc, 'wf', i), () => genShape(DEFAULT_GEN_OPTIONS));
-      everyNode(shape, (node) => {
-        expect(SERIALISABLE_KINDS.has(node.kind)).toBe(true);
-        if (node.kind === 'union') expect(node.members.length).toBeGreaterThanOrEqual(2);
-        if (node.kind === 'object') {
-          const names = node.props.map((p) => p.name);
-          expect(new Set(names).size).toBe(names.length); // no duplicate keys
+      const gen = withSeededRandom(mixSeed(0xabc, 'wf', i), () => genType());
+      const {decls, rootExpr} = renderGenerated(gen);
+      expect(balanced(decls + '\n' + rootExpr)).toBe(true);
+      expect(rootExpr.length).toBeGreaterThan(0);
+      expect(describeType(gen).length).toBeGreaterThan(0);
+      expect(countNodes(gen)).toBeLessThan(800);
+      eachShapeIn(gen, (s) => {
+        if (s.kind === 'object') {
+          const names = s.props.map((p) => p.name);
+          expect(new Set(names).size).toBe(names.length);
         }
       });
-      // Bounded so the resolver never chokes on a pathological tree.
-      expect(countNodes(shape)).toBeLessThan(400);
+    }
+  });
+});
+
+describe('typeGen — wild coverage', () => {
+  it('generates the exotic kinds across the seed space', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 300; i++) {
+      const gen = withSeededRandom(mixSeed(0x77, 'wild', i), () => genType());
+      for (const k of kindsOf(gen)) seen.add(k);
+    }
+    for (const k of [
+      'function',
+      'symbol',
+      'any',
+      'unknown',
+      'never',
+      'void',
+      'map',
+      'set',
+      'regexp',
+      'promise',
+      'intersection',
+      'record',
+    ]) {
+      expect(seen.has(k), `expected to generate kind ${k}`).toBe(true);
+    }
+    for (const d of ['decl:interface', 'decl:class', 'decl:enum']) {
+      expect(seen.has(d), `expected to generate ${d}`).toBe(true);
     }
   });
 
-  it('renders syntactically balanced TS type expressions', () => {
-    for (let i = 0; i < 100; i++) {
-      const shape = withSeededRandom(mixSeed(0xdef, 'render', i), () => genShape());
-      const ts = renderType(shape);
-      expect(ts.length).toBeGreaterThan(0);
-      expect(balanced(ts)).toBe(true);
-      expect(describeShape(shape).length).toBeGreaterThan(0);
-    }
-  });
-
-  it('honours kind toggles (no date/bigint/unions when disabled)', () => {
-    for (let i = 0; i < 100; i++) {
-      const shape = withSeededRandom(mixSeed(0x55, 'toggle', i), () =>
-        genShape({...DEFAULT_GEN_OPTIONS, date: false, bigint: false, unions: false})
-      );
-      everyNode(shape, (node) => {
-        expect(node.kind).not.toBe('date');
-        expect(node.kind).not.toBe('bigint');
-        expect(node.kind).not.toBe('union');
+  it('data preset excludes non-serialisable kinds', () => {
+    for (let i = 0; i < 200; i++) {
+      const gen = withSeededRandom(mixSeed(0x55, 'data', i), () => genType(DATA_GEN_OPTIONS));
+      eachShapeIn(gen, (s) => {
+        for (const bad of ['function', 'symbol', 'any', 'unknown', 'never', 'void', 'promise']) {
+          expect(s.kind, `data preset leaked ${s.kind}`).not.toBe(bad);
+        }
       });
+      // classes are value-typed nominal — excluded from the data preset too.
+      expect(gen.decls.some((d) => d.kind === 'class')).toBe(false);
     }
+  });
+});
+
+describe('typeGen — recursion detection', () => {
+  const prop = (name: string, shape: TypeShape, optional = false) => ({name, optional, readonly: false, method: false, shape});
+
+  it('flags a self-referential interface', () => {
+    const decls: Decl[] = [
+      {kind: 'interface', name: 'N', props: [prop('next', {kind: 'ref', name: 'N'}, true), prop('v', {kind: 'number'})]},
+    ];
+    expect(isRecursive({decls, root: {kind: 'ref', name: 'N'}})).toBe(true);
+  });
+
+  it('flags a mutual cycle', () => {
+    const decls: Decl[] = [
+      {kind: 'interface', name: 'A', props: [prop('b', {kind: 'ref', name: 'B'})]},
+      {kind: 'interface', name: 'B', props: [prop('a', {kind: 'ref', name: 'A'})]},
+    ];
+    expect(isRecursive({decls, root: {kind: 'ref', name: 'A'}})).toBe(true);
+  });
+
+  it('does not flag an acyclic ref chain', () => {
+    const decls: Decl[] = [
+      {kind: 'interface', name: 'A', props: [prop('b', {kind: 'ref', name: 'B'})]},
+      {kind: 'interface', name: 'B', props: [prop('v', {kind: 'string'})]},
+    ];
+    expect(isRecursive({decls, root: {kind: 'ref', name: 'A'}})).toBe(false);
   });
 });
 
