@@ -1,23 +1,19 @@
 <template>
-  <span class="rt-logo" role="img" aria-label="ts-runtypes">
-    <span class="rt-logo__tag">&lt;</span>ts<span class="rt-logo__accent">-</span>run-types<span class="rt-logo__tag"> /&gt;</span>
+  <span class="rt-logo" role="img" aria-label="RunTypes">
+    Run<span class="rt-logo-trademark">Types</span>
   </span>
 </template>
 
 <style scoped>
 .rt-logo {
-  font-family: 'Monomaniac One', ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 1.3rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: 1.6rem;
+  font-weight: 900;
   line-height: 1;
   white-space: nowrap;
+  color: var(--color-primary-500);
 }
-.rt-logo__tag {
-  color: var(--ui-primary, #79af43);
-  opacity: 0.65;
-}
-.rt-logo__accent {
-  color: var(--ui-primary, #79af43);
+
+.rt-logo-trademark {
+  color: var(--ui-text-highlighted);
 }
 </style>
