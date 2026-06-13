@@ -108,6 +108,15 @@ function section(title: string, cases: FlatCase[], stats: Stats): void {
     }
     let row = padR('  ' + c.name, KEYW);
     for (const lib of LIBS) {
+      // ts-go-run-types is the system under test: a thrown validator thunk
+      // (captured as c.tsError) means the vite plugin never rewrote this call
+      // site. That is a hard ERROR, never "not supported" (—) — render it as
+      // such and record it so the run exits non-zero.
+      if (lib.name === 'ts-go-run-types' && c.tsError) {
+        row += padL('ERROR', COL);
+        stats.bumpErrored(lib.name, `${lib.name} / ${c.key}: validator threw — ${c.tsError}`);
+        continue;
+      }
       const cell = evaluate(lib.get(c), c);
       stats.bump(lib.name, cell.status);
       if (cell.status === 'FAIL') {
@@ -127,10 +136,19 @@ class Stats {
   ok: Record<string, number> = {};
   na: Record<string, number> = {};
   fail: Record<string, number> = {};
+  err: Record<string, number> = {};
   failures: string[] = [];
+  // ts-go-run-types validators that THREW (plugin did not rewrite the call
+  // site) — kept separate from `failures` (incorrect results) so the verdict
+  // can name the actual breakage.
+  errored: string[] = [];
   bump(lib: string, s: 'ok' | 'FAIL' | 'n/a') {
     const t = s === 'ok' ? this.ok : s === 'FAIL' ? this.fail : this.na;
     t[lib] = (t[lib] ?? 0) + 1;
+  }
+  bumpErrored(lib: string, detail: string) {
+    this.err[lib] = (this.err[lib] ?? 0) + 1;
+    this.errored.push(detail);
   }
 }
 
@@ -146,14 +164,27 @@ function main(): number {
   for (const lib of LIBS) {
     const ok = stats.ok[lib.name] ?? 0;
     const fail = stats.fail[lib.name] ?? 0;
-    console.log(`  ${padR(lib.name, 18)} ok=${ok}  fail=${fail}  not-supported=${stats.na[lib.name] ?? 0}`);
+    const err = stats.err[lib.name] ?? 0;
+    const errCol = err ? `  errored=${err}` : '';
+    console.log(`  ${padR(lib.name, 18)} ok=${ok}  fail=${fail}${errCol}  not-supported=${stats.na[lib.name] ?? 0}`);
   }
 
+  // A thrown ts-go-run-types validator is the loudest failure mode: the plugin
+  // didn't rewrite the call sites, so nothing was actually measured. Report it
+  // first and explicitly — never let it pass as a silent not-supported tally.
+  if (stats.errored.length) {
+    console.log(
+      `\n✗ ${stats.errored.length} ts-go-run-types validator(s) THREW — the vite plugin did not rewrite these call sites ` +
+        `(plugin inactive, or the marker package's .d.ts didn't resolve). The benchmark could not measure ts-go-run-types:`,
+    );
+    for (const f of stats.errored.slice(0, 30)) console.log(`  ${f}`);
+    if (stats.errored.length > 30) console.log(`  … and ${stats.errored.length - 30} more`);
+  }
   if (stats.failures.length) {
     console.log(`\n✗ ${stats.failures.length} incorrect validator(s):`);
     for (const f of stats.failures.slice(0, 60)) console.log(`  ${f}`);
-    return 1;
   }
+  if (stats.errored.length || stats.failures.length) return 1;
   console.log('\n✓ every supported validator passed correctness for all cases.');
   return 0;
 }
