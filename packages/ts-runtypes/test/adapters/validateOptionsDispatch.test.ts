@@ -21,6 +21,7 @@
 // the case where the JS variant key lookup misses and silently falls
 // back to the identity validator.
 
+import * as TF from 'ts-runtypes/formats';
 import {describe, expect, it} from 'vitest';
 import {createValidate, createGetValidationErrors, getRunTypeId} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
@@ -112,14 +113,14 @@ describe('ValidateOptions — getValidationErrors variant parity with validate',
 describe('ValidateOptions — schema-form ⇄ marker-form convergence', () => {
   it('plain schema-form and plain marker-form both reject `[42]` for `string[]`', () => {
     const marker = createValidate<string[]>();
-    const schema = createValidate(RT.array(RT.string()));
+    const schema = createValidate(RT.array(TF.string()));
     expect(marker([42])).toBe(false);
     expect(schema([42])).toBe(false);
   });
 
   it('schema-form `noIsArrayCheck` variant skips the guard, just like the marker form', () => {
     const marker = createValidate<string[]>(undefined, {noIsArrayCheck: true});
-    const schema = createValidate(RT.array(RT.string()), {noIsArrayCheck: true});
+    const schema = createValidate(RT.array(TF.string()), {noIsArrayCheck: true});
     // Both let a non-array slip past the guard…
     expect(marker(42)).toBe(true);
     expect(schema(42)).toBe(true);
@@ -130,7 +131,7 @@ describe('ValidateOptions — schema-form ⇄ marker-form convergence', () => {
 
   it('schema-form `noIsArrayCheck` variant agrees with marker-form on getValidationErrors output', () => {
     const marker = createGetValidationErrors<string[]>(undefined, {noIsArrayCheck: true});
-    const schema = createGetValidationErrors(RT.array(RT.string()), {noIsArrayCheck: true});
+    const schema = createGetValidationErrors(RT.array(TF.string()), {noIsArrayCheck: true});
     expect(marker(42)).toEqual([]);
     expect(schema(42)).toEqual([]);
     expect(marker([42])).toEqual(schema([42]));

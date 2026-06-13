@@ -13,11 +13,12 @@
 // immediately; CI catches them when anyone runs
 // `tsc -p packages/ts-runtypes/tsconfig.test.json --noEmit`.
 
+import * as TF from 'ts-runtypes/formats';
+import * as TFT from 'ts-runtypes/formats/temporal';
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId} from '../src/index.ts';
 import type {RunType, Static} from '../src/index.ts';
-import * as RT from '../src/schema/index.ts';
-import type {FormatString, FormatNumber, FormatBigInt, FormatDate} from '../src/formats/index.ts';
+import * as RT from 'ts-runtypes/schema';
 
 // Reference the assertion bodies from a real test so they don't get
 // flagged as dead code by lint. The body is never invoked.
@@ -90,67 +91,67 @@ function assertionsValueFirstDefine(): void {
   // `RT.optional(field)` shortcut or the general `RT.propMod({optional?,
   // readonly?}, field)`.
   const _ok = RT.object({
-    name: RT.string({minLength: 1, maxLength: 50}),
-    age: RT.number({min: 0, max: 120, integer: true}),
-    born: RT.date({max: 'now'}),
-    big: RT.bigint({min: 0n, max: 1000n}),
+    name: TF.string({minLength: 1, maxLength: 50}),
+    age: TF.number({min: 0, max: 120, integer: true}),
+    born: TF.date({max: 'now'}),
+    big: TF.bigInt({min: 0n, max: 1000n}),
     active: RT.boolean(),
-    at: RT.temporal.instant({max: 'now'}),
-    day: RT.optional(RT.temporal.plainDate()), // shortcut
-    nick: RT.propMod({optional: true}, RT.string({maxLength: 8})), // general form
-    slugRo: RT.propMod({readonly: true}, RT.string({maxLength: 8})), // readonly
+    at: TFT.instant({max: 'now'}),
+    day: RT.optional(TFT.plainDate()), // shortcut
+    nick: RT.propMod({optional: true}, TF.string({maxLength: 8})), // general form
+    slugRo: RT.propMod({readonly: true}, TF.string({maxLength: 8})), // readonly
   });
   void _ok;
 
   // Date sharing the number bounds is fine — `min`/`max`/`gt`/`lt` are valid
   // for the date param interface too.
-  const _okDate = RT.object({born: RT.date({min: 'now', max: '2030-01-01T00:00:00'})});
+  const _okDate = RT.object({born: TF.date({min: 'now', max: '2030-01-01T00:00:00'})});
   void _okDate;
 
   // A `pattern` is allowed on a string field as an inline `{source, flags?,
   // mockSamples}` object or a `registerFormatPattern` result — both carry
   // mockSamples (a `StringParams.pattern`, same as the type-first surface).
   const _okRegex = RT.object({
-    slug: RT.string({pattern: {source: '^[a-z-]+$', flags: '', mockSamples: ['a-b']}}),
-    digits: RT.string({pattern: {source: '^[0-9]+$', flags: '', mockSamples: ['123']}}),
+    slug: TF.string({pattern: {source: '^[a-z-]+$', flags: '', mockSamples: ['a-b']}}),
+    digits: TF.string({pattern: {source: '^[0-9]+$', flags: '', mockSamples: ['123']}}),
   });
   void _okRegex;
 
   // A pattern MUST carry mockSamples — the value-first surface no longer loosens
   // `StringParams.pattern` to allow a samples-less regex.
   // @ts-expect-error — a bare `/regex/` is not a valid pattern (no mockSamples).
-  RT.string({pattern: /^[a-z-]+$/});
+  TF.string({pattern: /^[a-z-]+$/});
   // @ts-expect-error — an inline `{source, flags}` pattern without mockSamples is rejected.
-  RT.string({pattern: {source: '^[0-9]+$', flags: ''}});
+  TF.string({pattern: {source: '^[0-9]+$', flags: ''}});
 
   // Leaf builders return `RunType<FormatX<P>>` — the generic run-type carrying
   // the source type — NOT the bare brand.
-  const _s: RunType<FormatString<{maxLength: 5}>> = RT.string({maxLength: 5});
-  const _n: RunType<FormatNumber<{min: 0}>> = RT.number({min: 0});
+  const _s: RunType<TF.String<{maxLength: 5}>> = TF.string({maxLength: 5});
+  const _n: RunType<TF.Number<{min: 0}>> = TF.number({min: 0});
   const _b: RunType<boolean> = RT.boolean();
   void _s;
   void _n;
   void _b;
 
   // `Static<…>` recovers the format type the RunType carries — both
-  // directions compile only if it resolves EXACTLY to `FormatString<P>` (the
+  // directions compile only if it resolves EXACTLY to `TF.String<P>` (the
   // no-`infer` indexed-access round-trip).
-  const _rtToFormat = (x: Static<RunType<FormatString<{maxLength: 5}>>>): FormatString<{maxLength: 5}> => x;
-  const _formatToRt = (x: FormatString<{maxLength: 5}>): Static<RunType<FormatString<{maxLength: 5}>>> => x;
+  const _rtToFormat = (x: Static<RunType<TF.String<{maxLength: 5}>>>): TF.String<{maxLength: 5}> => x;
+  const _formatToRt = (x: TF.String<{maxLength: 5}>): Static<RunType<TF.String<{maxLength: 5}>>> => x;
   void _rtToFormat;
   void _formatToRt;
 
   // @ts-expect-error — the result is a `RunType<…>`, NOT the bare format brand.
-  const _notBareFormat: FormatString<{maxLength: 5}> = RT.string({maxLength: 5});
+  const _notBareFormat: TF.String<{maxLength: 5}> = TF.string({maxLength: 5});
   void _notBareFormat;
 
   // A bare `optional(...)` / `propMod(...)` outside `object` is well-defined — it
   // yields the modifier carrier (which `object` unwraps). The carrier is NOT
   // itself a usable format brand, so it can't leak into a reflected position.
-  const _carrier = RT.optional(RT.number({min: 0}));
+  const _carrier = RT.optional(TF.number({min: 0}));
   void _carrier;
   // @ts-expect-error — the modifier carrier is not assignable to the bare format.
-  const _carrierLeak: FormatNumber<{min: 0}> = RT.optional(RT.number({min: 0}));
+  const _carrierLeak: TF.Number<{min: 0}> = RT.optional(TF.number({min: 0}));
   void _carrierLeak;
 
   // Cross-family param misuse is caught at the BUILDER CALL — each builder
@@ -158,27 +159,27 @@ function assertionsValueFirstDefine(): void {
   // machinery needed). These replace the old inline-config leakage assertions.
 
   // @ts-expect-error — `maxLength` is a string param, not a number param.
-  RT.number({maxLength: 5});
+  TF.number({maxLength: 5});
 
   // @ts-expect-error — `min` (number/date bound) is not a string param.
-  RT.string({min: 0});
+  TF.string({min: 0});
 
   // @ts-expect-error — `integer` (number-only) is not a date param.
-  RT.date({integer: true});
+  TF.date({integer: true});
 
   // @ts-expect-error — `boolean` takes no params at all.
   RT.boolean({maxLength: 5});
 
   // @ts-expect-error — `pattern` is a string-only param, not a number param.
-  RT.number({pattern: /^[0-9]+$/});
+  TF.number({pattern: /^[0-9]+$/});
 
   // @ts-expect-error — `bigint` bounds are bigint-valued; a number `5` (not
   // `5n`) errors on the value type.
-  RT.bigint({min: 5});
+  TF.bigInt({min: 5});
 
   // @ts-expect-error — a temporal builder's only params are min/max/gt/lt; a
   // string param (`maxLength`) is rejected.
-  RT.temporal.instant({maxLength: 5});
+  TFT.instant({maxLength: 5});
 }
 
 function assertionsComposers(): void {
@@ -244,8 +245,8 @@ function assertionsNewBuilders(): void {
 
   // 3-arg tuple: the SECOND array is the trailing OPTIONAL elements
   // (`Partial<MapTuple<O>>` → each `?`); a third RunType is the rest element.
-  const _tupOpt: RunType<[number, bigint?, boolean?]> = RT.tuple([RT.number()], [RT.bigint(), RT.boolean()]);
-  const _tupOptRest: RunType<[number, bigint?, ...string[]]> = RT.tuple([RT.number()], [RT.bigint()], RT.string());
+  const _tupOpt: RunType<[number, bigint?, boolean?]> = RT.tuple([TF.number()], [TF.bigInt(), RT.boolean()]);
+  const _tupOptRest: RunType<[number, bigint?, ...string[]]> = RT.tuple([TF.number()], [TF.bigInt()], TF.string());
   void _tupOpt;
   void _tupOptRest;
 
@@ -303,7 +304,7 @@ function assertionsNewBuilders(): void {
   const _uExtract: RunType<'x'> = RT.extract(RT.union([RT.literal('x'), RT.literal('y')]), RT.literal('x'));
   const _uNonNull: RunType<boolean> = RT.nonNullable(RT.union([RT.boolean(), RT.literal(null)]));
   const _uReadonly: RunType<Readonly<{a: boolean}>> = RT.readonly(RT.object({a: RT.boolean()}));
-  const _uReturn: RunType<boolean> = RT.returnType(RT.func([RT.number()], RT.boolean()));
+  const _uReturn: RunType<boolean> = RT.returnType(RT.func([TF.number()], RT.boolean()));
   void _uModel;
   void _uPartial;
   void _uRequired;
@@ -317,7 +318,7 @@ function assertionsNewBuilders(): void {
 
   // record(key, value): the key schema's type becomes the index-signature key. A
   // templateLiteral key is unbranded, so it stays the `api/${string}` pattern.
-  const _recTpl: RunType<Record<`api/${string}`, boolean>> = RT.record(RT.templateLiteral(['api/', RT.string()]), RT.boolean());
+  const _recTpl: RunType<Record<`api/${string}`, boolean>> = RT.record(RT.templateLiteral(['api/', TF.string()]), RT.boolean());
   void _recTpl;
 
   // templateLiteral: produces a REAL template-literal type that must converge
@@ -326,7 +327,7 @@ function assertionsNewBuilders(): void {
   // regression guard for the format-brand leak (`Unbrand`): a branded placeholder
   // would reject plain `number` and fail here. A positive annotated assignment
   // alone would NOT catch it (branded ⊆ plain).
-  const _tplBuilt = RT.templateLiteral(['api/user/', RT.number()]);
+  const _tplBuilt = RT.templateLiteral(['api/user/', TF.number()]);
   const _tplFwd = (x: Static<typeof _tplBuilt>): `api/user/${number}` => x;
   const _tplRev = (x: `api/user/${number}`): Static<typeof _tplBuilt> => x;
   void _tplBuilt;
@@ -337,21 +338,21 @@ function assertionsNewBuilders(): void {
   const _tplUni: RunType<`${'a' | 'b'}-${number}`> = RT.templateLiteral([
     RT.union([RT.literal('a'), RT.literal('b')]),
     '-',
-    RT.number(),
+    TF.number(),
   ]);
   void _tplUni;
 }
 
 function assertionsFormatBranding(): void {
-  // Formats are TRANSPARENT by default — an UNbranded `FormatString<P>` stays
+  // Formats are TRANSPARENT by default — an UNbranded `TF.String<P>` stays
   // mutually assignable with its base `string` (the sentinels are optional on
   // TypeFormat). This is the property that lets a plain value flow into a
   // format-typed slot — and a reflected value drive `T` inference — with NO
   // cast. Both directions must compile WITHOUT a directive; a regression to the
   // old required-prop (always-branded) shape makes the first line fail.
-  const _strIntoFormat: FormatString<{maxLength: 5}> = 'hello';
+  const _strIntoFormat: TF.String<{maxLength: 5}> = 'hello';
   const _formatIntoStr: string = _strIntoFormat;
-  const _numIntoFormat: FormatNumber<{min: 0}> = 42;
+  const _numIntoFormat: TF.Number<{min: 0}> = 42;
   void _strIntoFormat;
   void _formatIntoStr;
   void _numIntoFormat;
@@ -360,13 +361,13 @@ function assertionsFormatBranding(): void {
   // satisfies it (the REQUIRED `__rtFormatBrand` marker is missing), so the
   // compiler forces the value through a validation/cast boundary.
   // @ts-expect-error — a plain string is not assignable to a BRAND-NAMED format.
-  const _branded: FormatString<{maxLength: 5}, 'UserCode'> = 'hello';
+  const _branded: TF.String<{maxLength: 5}, 'UserCode'> = 'hello';
   void _branded;
 
   // A branded value still flows OUT to the unbranded format and to its base —
   // the brand is a refinement, not an incompatible type.
-  const _brandedFlowsOut = (branded: FormatString<{maxLength: 5}, 'UserCode'>): void => {
-    const _toUnbranded: FormatString<{maxLength: 5}> = branded;
+  const _brandedFlowsOut = (branded: TF.String<{maxLength: 5}, 'UserCode'>): void => {
+    const _toUnbranded: TF.String<{maxLength: 5}> = branded;
     const _toBase: string = branded;
     void _toUnbranded;
     void _toBase;
@@ -374,22 +375,22 @@ function assertionsFormatBranding(): void {
   void _brandedFlowsOut;
 
   // The SAME default-transparent / brand-nominal rule holds for the other base
-  // formats. `FormatDate` is the explicit regression guard: it previously
+  // formats. `TF.Date` is the explicit regression guard: it previously
   // hardcoded a `'nativeDate'` BrandName arg (dead while TypeFormat ignored
-  // BrandName) that, once BrandName was honored, made every `FormatDate<P>`
+  // BrandName) that, once BrandName was honored, made every `TF.Date<P>`
   // spuriously nominal and split it from the transparent value-first `date()`
   // builder. A plain `Date` / `bigint` must flow into the UNbranded form…
-  const _dateIntoFormat: FormatDate<{max: 'now'}> = new Date();
+  const _dateIntoFormat: TF.Date<{max: 'now'}> = new Date();
   const _formatIntoDate: Date = _dateIntoFormat;
-  const _bigIntoFormat: FormatBigInt<{min: 0n}> = 0n;
+  const _bigIntoFormat: TF.BigInt<{min: 0n}> = 0n;
   void _dateIntoFormat;
   void _formatIntoDate;
   void _bigIntoFormat;
   // …and be REJECTED by the brand-named (nominal) form.
   // @ts-expect-error — a plain Date is not assignable to a BRAND-NAMED date format.
-  const _brandedDate: FormatDate<{max: 'now'}, 'CreatedAt'> = new Date();
+  const _brandedDate: TF.Date<{max: 'now'}, 'CreatedAt'> = new Date();
   // @ts-expect-error — a plain bigint is not assignable to a BRAND-NAMED bigint format.
-  const _brandedBig: FormatBigInt<{min: 0n}, 'Balance'> = 0n;
+  const _brandedBig: TF.BigInt<{min: 0n}, 'Balance'> = 0n;
   void _brandedDate;
   void _brandedBig;
 }
@@ -413,18 +414,18 @@ function assertionsComposerExactInference(): void {
   // combination that keeps precise per-slot inference once the param is wrapped
   // in the `CompTimeArgs` brand intersection — fails HERE loudly instead of
   // silently degrading the structural id the scanner reads off the brand.
-  const _tup = RT.tuple([RT.boolean(), RT.number()]);
+  const _tup = RT.tuple([RT.boolean(), TF.number()]);
   assertExact<Static<typeof _tup>, [boolean, number]>(true);
 
-  const _tupOpt = RT.tuple([RT.number()], [RT.boolean()]);
+  const _tupOpt = RT.tuple([TF.number()], [RT.boolean()]);
   assertExact<Static<typeof _tupOpt>, [number, boolean?]>(true);
 
-  const _tupRest = RT.tuple([RT.number()], RT.string());
+  const _tupRest = RT.tuple([TF.number()], TF.string());
   assertExact<Static<typeof _tupRest>, [number, ...string[]]>(true);
 
   // func array-overload: the contravariance trap lives here — only an exact
   // check catches a widened param tuple.
-  const _fn = RT.func([RT.string(), RT.number()], RT.boolean());
+  const _fn = RT.func([TF.string(), TF.number()], RT.boolean());
   assertExact<Static<typeof _fn>, (a: string, b: number) => boolean>(true);
 
   const _fn0 = RT.func();
@@ -456,21 +457,21 @@ function assertionsComposerExactInference(): void {
 function assertionsValueFirstBranding(): void {
   // DEFAULT (no brand tag) → TRANSPARENT: base value flows in AND out, and the
   // leaf is mutually assignable with the UNbranded type-first alias (convergence).
-  const codeStr = RT.string({minLength: 1});
+  const codeStr = TF.string({minLength: 1});
   const _strIn: Static<typeof codeStr> = 'hello';
   const _strOut: string = _strIn;
-  const _vfToTypeFirst: FormatString<{minLength: 1}> = _strIn; // value-first → type-first
+  const _vfToTypeFirst: TF.String<{minLength: 1}> = _strIn; // value-first → type-first
   const _typeFirstToVf: Static<typeof codeStr> = _vfToTypeFirst; // type-first → value-first
   void _strIn;
   void _strOut;
   void _vfToTypeFirst;
   void _typeFirstToVf;
 
-  const createdAt = RT.date({max: 'now'});
+  const createdAt = TF.date({max: 'now'});
   const _dateIn: Static<typeof createdAt> = new Date(); // transparent: plain Date flows in
-  const _dateVfToTf: FormatDate<{max: 'now'}> = _dateIn;
-  const numLeaf = RT.number({min: 0});
-  const bigLeaf = RT.bigint({min: 0n});
+  const _dateVfToTf: TF.Date<{max: 'now'}> = _dateIn;
+  const numLeaf = TF.number({min: 0});
+  const bigLeaf = TF.bigInt({min: 0n});
   const _numIn: Static<typeof numLeaf> = 42; // number leaf transparent
   const _bigIn: Static<typeof bigLeaf> = 0n; // bigint leaf transparent
   void _dateIn;
@@ -482,10 +483,10 @@ function assertionsValueFirstBranding(): void {
   // REQUIRED `__rtFormatBrand` marker is missing). One `@ts-expect-error` per base
   // builder proves the tag actually brands the carried type. (Builders bound to a
   // const first — `typeof` type queries reject inline call expressions.)
-  const userId = RT.string({minLength: 1}, RT.brand('UserId'));
-  const ageBrand = RT.number({min: 0}, RT.brand('Age'));
-  const balanceBrand = RT.bigint({min: 0n}, RT.brand('Balance'));
-  const createdBrand = RT.date({max: 'now'}, RT.brand('CreatedAt'));
+  const userId = TF.string({minLength: 1}, TF.brand('UserId'));
+  const ageBrand = TF.number({min: 0}, TF.brand('Age'));
+  const balanceBrand = TF.bigInt({min: 0n}, TF.brand('Balance'));
+  const createdBrand = TF.date({max: 'now'}, TF.brand('CreatedAt'));
   // @ts-expect-error — nominal: a plain string is not assignable to a branded string leaf.
   const _brandedStr: Static<typeof userId> = 'hello';
   // @ts-expect-error — nominal: a plain number is not assignable to a branded number leaf.
@@ -502,9 +503,9 @@ function assertionsValueFirstBranding(): void {
   // The branded leaf converges with the type-first `Format*<P, 'UserId'>` (mutually
   // assignable) and still flows OUT to the unbranded form + base (brand = refinement).
   const _brandFlows = (b: Static<typeof userId>): void => {
-    const _toTypeFirstBranded: FormatString<{minLength: 1}, 'UserId'> = b;
+    const _toTypeFirstBranded: TF.String<{minLength: 1}, 'UserId'> = b;
     const _backToVf: Static<typeof userId> = _toTypeFirstBranded;
-    const _toUnbranded: FormatString<{minLength: 1}> = b;
+    const _toUnbranded: TF.String<{minLength: 1}> = b;
     const _toBase: string = b;
     void _toTypeFirstBranded;
     void _backToVf;

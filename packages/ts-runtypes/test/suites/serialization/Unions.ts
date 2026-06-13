@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
@@ -16,12 +17,12 @@ export const UNIONS = {
     preserveDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date | number | string | null | bigint>(),
     binaryDecoder: () => createBinaryDecoder<Date | number | string | null | bigint>(),
-    schemaEncoder: () => createJsonEncoder(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
-    schemaDecoder: () => createJsonDecoder(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
+    schemaEncoder: () => createJsonEncoder(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
+    schemaDecoder: () => createJsonDecoder(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
+      createBinaryEncoder(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
+      createBinaryDecoder(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, 3n]}),
   },
   union_array: {
@@ -38,13 +39,13 @@ export const UNIONS = {
     binaryEncoder: () => createBinaryEncoder<string[] | number[] | boolean[] | Date[]>(),
     binaryDecoder: () => createBinaryDecoder<string[] | number[] | boolean[] | Date[]>(),
     schemaEncoder: () =>
-      createJsonEncoder(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean()), RT.array(RT.date())])),
+      createJsonEncoder(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean()), RT.array(TF.date())])),
     schemaDecoder: () =>
-      createJsonDecoder(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean()), RT.array(RT.date())])),
+      createJsonDecoder(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean()), RT.array(TF.date())])),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean()), RT.array(RT.date())])),
+      createBinaryEncoder(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean()), RT.array(TF.date())])),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean()), RT.array(RT.date())])),
+      createBinaryDecoder(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean()), RT.array(TF.date())])),
     getTestData: () => ({
       values: [
         ['a', 'b', 'c'],
@@ -68,10 +69,10 @@ export const UNIONS = {
     preserveDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<(string | bigint | boolean | Date)[]>(),
     binaryDecoder: () => createBinaryDecoder<(string | bigint | boolean | Date)[]>(),
-    schemaEncoder: () => createJsonEncoder(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
-    schemaDecoder: () => createJsonDecoder(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
+    schemaEncoder: () => createJsonEncoder(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
+    schemaDecoder: () => createJsonDecoder(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
     getTestData: () => {
       const date = new Date('2000-08-06T02:13:00.000Z');
       return {
@@ -104,37 +105,37 @@ export const UNIONS = {
     schemaEncoder: () =>
       createJsonEncoder(
         RT.union([
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.object({c: RT.bigint()}),
-          RT.object({d: RT.optional(RT.string())}),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.object({c: TF.bigInt()}),
+          RT.object({d: RT.optional(TF.string())}),
         ])
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.union([
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.object({c: RT.bigint()}),
-          RT.object({d: RT.optional(RT.string())}),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.object({c: TF.bigInt()}),
+          RT.object({d: RT.optional(TF.string())}),
         ])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.union([
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.object({c: RT.bigint()}),
-          RT.object({d: RT.optional(RT.string())}),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.object({c: TF.bigInt()}),
+          RT.object({d: RT.optional(TF.string())}),
         ])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.union([
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.object({c: RT.bigint()}),
-          RT.object({d: RT.optional(RT.string())}),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.object({c: TF.bigInt()}),
+          RT.object({d: RT.optional(TF.string())}),
         ])
       ),
     getTestData: () => ({values: [{a: 'world', aa: true}, {c: 1n}, {d: 'hello'}, {}]}),
@@ -200,36 +201,36 @@ export const UNIONS = {
       createJsonEncoder(
         RT.union([
           RT.object({type: RT.literal('a'), otherProp: RT.boolean()}),
-          RT.object({type: RT.literal('b'), otherProp: RT.number()}),
-          RT.object({type: RT.literal('c'), otherProp: RT.string(), time: RT.date()}),
-          RT.object({type: RT.boolean(), otherProp: RT.string()}),
+          RT.object({type: RT.literal('b'), otherProp: TF.number()}),
+          RT.object({type: RT.literal('c'), otherProp: TF.string(), time: TF.date()}),
+          RT.object({type: RT.boolean(), otherProp: TF.string()}),
         ])
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.union([
           RT.object({type: RT.literal('a'), otherProp: RT.boolean()}),
-          RT.object({type: RT.literal('b'), otherProp: RT.number()}),
-          RT.object({type: RT.literal('c'), otherProp: RT.string(), time: RT.date()}),
-          RT.object({type: RT.boolean(), otherProp: RT.string()}),
+          RT.object({type: RT.literal('b'), otherProp: TF.number()}),
+          RT.object({type: RT.literal('c'), otherProp: TF.string(), time: TF.date()}),
+          RT.object({type: RT.boolean(), otherProp: TF.string()}),
         ])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.union([
           RT.object({type: RT.literal('a'), otherProp: RT.boolean()}),
-          RT.object({type: RT.literal('b'), otherProp: RT.number()}),
-          RT.object({type: RT.literal('c'), otherProp: RT.string(), time: RT.date()}),
-          RT.object({type: RT.boolean(), otherProp: RT.string()}),
+          RT.object({type: RT.literal('b'), otherProp: TF.number()}),
+          RT.object({type: RT.literal('c'), otherProp: TF.string(), time: TF.date()}),
+          RT.object({type: RT.boolean(), otherProp: TF.string()}),
         ])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.union([
           RT.object({type: RT.literal('a'), otherProp: RT.boolean()}),
-          RT.object({type: RT.literal('b'), otherProp: RT.number()}),
-          RT.object({type: RT.literal('c'), otherProp: RT.string(), time: RT.date()}),
-          RT.object({type: RT.boolean(), otherProp: RT.string()}),
+          RT.object({type: RT.literal('b'), otherProp: TF.number()}),
+          RT.object({type: RT.literal('c'), otherProp: TF.string(), time: TF.date()}),
+          RT.object({type: RT.boolean(), otherProp: TF.string()}),
         ])
       ),
     getTestData: () => ({
@@ -276,45 +277,45 @@ export const UNIONS = {
     schemaEncoder: () =>
       createJsonEncoder(
         RT.union([
-          RT.array(RT.string()),
-          RT.array(RT.number()),
+          RT.array(TF.string()),
+          RT.array(TF.number()),
           RT.array(RT.boolean()),
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.object({c: RT.bigint(), aa: RT.literal('string')}),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.object({c: TF.bigInt(), aa: RT.literal('string')}),
         ])
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.union([
-          RT.array(RT.string()),
-          RT.array(RT.number()),
+          RT.array(TF.string()),
+          RT.array(TF.number()),
           RT.array(RT.boolean()),
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.object({c: RT.bigint(), aa: RT.literal('string')}),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.object({c: TF.bigInt(), aa: RT.literal('string')}),
         ])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.union([
-          RT.array(RT.string()),
-          RT.array(RT.number()),
+          RT.array(TF.string()),
+          RT.array(TF.number()),
           RT.array(RT.boolean()),
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.object({c: RT.bigint(), aa: RT.literal('string')}),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.object({c: TF.bigInt(), aa: RT.literal('string')}),
         ])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.union([
-          RT.array(RT.string()),
-          RT.array(RT.number()),
+          RT.array(TF.string()),
+          RT.array(TF.number()),
           RT.array(RT.boolean()),
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.object({c: RT.bigint(), aa: RT.literal('string')}),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.object({c: TF.bigInt(), aa: RT.literal('string')}),
         ])
       ),
     getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}]}),
@@ -384,41 +385,41 @@ export const UNIONS = {
     schemaEncoder: () =>
       createJsonEncoder(
         RT.union([
-          RT.array(RT.string()),
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()})),
-          RT.intersection(RT.record(RT.bigint()), RT.object({b: RT.bigint()})),
+          RT.array(TF.string()),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()})),
+          RT.intersection(RT.record(TF.bigInt()), RT.object({b: TF.bigInt()})),
         ])
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.union([
-          RT.array(RT.string()),
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()})),
-          RT.intersection(RT.record(RT.bigint()), RT.object({b: RT.bigint()})),
+          RT.array(TF.string()),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()})),
+          RT.intersection(RT.record(TF.bigInt()), RT.object({b: TF.bigInt()})),
         ])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.union([
-          RT.array(RT.string()),
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()})),
-          RT.intersection(RT.record(RT.bigint()), RT.object({b: RT.bigint()})),
+          RT.array(TF.string()),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()})),
+          RT.intersection(RT.record(TF.bigInt()), RT.object({b: TF.bigInt()})),
         ])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.union([
-          RT.array(RT.string()),
-          RT.object({a: RT.string(), aa: RT.boolean()}),
-          RT.object({b: RT.number()}),
-          RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()})),
-          RT.intersection(RT.record(RT.bigint()), RT.object({b: RT.bigint()})),
+          RT.array(TF.string()),
+          RT.object({a: TF.string(), aa: RT.boolean()}),
+          RT.object({b: TF.number()}),
+          RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()})),
+          RT.intersection(RT.record(TF.bigInt()), RT.object({b: TF.bigInt()})),
         ])
       ),
     getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}, {b: 1n, c: 2n}]}),
@@ -460,10 +461,10 @@ export const UNIONS = {
     schemaEncoder: () => {
       const uc = RT.circular((self) =>
         RT.union([
-          RT.date(),
-          RT.number(),
-          RT.string(),
-          RT.object({a: RT.optional(self), b: RT.optional(RT.string())}),
+          TF.date(),
+          TF.number(),
+          TF.string(),
+          RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
           RT.array(self),
         ])
       );
@@ -472,10 +473,10 @@ export const UNIONS = {
     schemaDecoder: () => {
       const uc = RT.circular((self) =>
         RT.union([
-          RT.date(),
-          RT.number(),
-          RT.string(),
-          RT.object({a: RT.optional(self), b: RT.optional(RT.string())}),
+          TF.date(),
+          TF.number(),
+          TF.string(),
+          RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
           RT.array(self),
         ])
       );
@@ -484,10 +485,10 @@ export const UNIONS = {
     schemaBinaryEncoder: () => {
       const uc = RT.circular((self) =>
         RT.union([
-          RT.date(),
-          RT.number(),
-          RT.string(),
-          RT.object({a: RT.optional(self), b: RT.optional(RT.string())}),
+          TF.date(),
+          TF.number(),
+          TF.string(),
+          RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
           RT.array(self),
         ])
       );
@@ -496,10 +497,10 @@ export const UNIONS = {
     schemaBinaryDecoder: () => {
       const uc = RT.circular((self) =>
         RT.union([
-          RT.date(),
-          RT.number(),
-          RT.string(),
-          RT.object({a: RT.optional(self), b: RT.optional(RT.string())}),
+          TF.date(),
+          TF.number(),
+          TF.string(),
+          RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
           RT.array(self),
         ])
       );
@@ -560,32 +561,32 @@ export const UNIONS = {
     schemaEncoder: () =>
       createJsonEncoder(
         RT.union([
-          RT.object({name: RT.string(), getName: RT.func([], RT.string())}),
-          RT.object({age: RT.number(), getAge: RT.func([], RT.number())}),
+          RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
+          RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
           RT.object({active: RT.boolean(), isActive: RT.func([], RT.boolean())}),
         ])
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.union([
-          RT.object({name: RT.string(), getName: RT.func([], RT.string())}),
-          RT.object({age: RT.number(), getAge: RT.func([], RT.number())}),
+          RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
+          RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
           RT.object({active: RT.boolean(), isActive: RT.func([], RT.boolean())}),
         ])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.union([
-          RT.object({name: RT.string(), getName: RT.func([], RT.string())}),
-          RT.object({age: RT.number(), getAge: RT.func([], RT.number())}),
+          RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
+          RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
           RT.object({active: RT.boolean(), isActive: RT.func([], RT.boolean())}),
         ])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.union([
-          RT.object({name: RT.string(), getName: RT.func([], RT.string())}),
-          RT.object({age: RT.number(), getAge: RT.func([], RT.number())}),
+          RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
+          RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
           RT.object({active: RT.boolean(), isActive: RT.func([], RT.boolean())}),
         ])
       ),
@@ -653,10 +654,10 @@ export const UNIONS = {
     binaryDecoder: () => createBinaryDecoder<Date | number | string | (() => any)>(),
     // The function arm resolves the same alwaysThrow factory via the value-first
     // path, so each schema thunk throws like the type-first form (factoryThrows).
-    schemaEncoder: () => createJsonEncoder(RT.union([RT.date(), RT.number(), RT.string(), RT.func([], RT.any())])),
-    schemaDecoder: () => createJsonDecoder(RT.union([RT.date(), RT.number(), RT.string(), RT.func([], RT.any())])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.union([RT.date(), RT.number(), RT.string(), RT.func([], RT.any())])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.union([RT.date(), RT.number(), RT.string(), RT.func([], RT.any())])),
+    schemaEncoder: () => createJsonEncoder(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
+    schemaDecoder: () => createJsonDecoder(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
     factoryThrows: true,
     getTestData: () => ({values: []}),
   },
@@ -688,10 +689,10 @@ export const UNIONS = {
     preserveDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string} | {b: number}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string} | {b: number}>(),
-    schemaEncoder: () => createJsonEncoder(RT.union([RT.object({a: RT.string()}), RT.object({b: RT.number()})])),
-    schemaDecoder: () => createJsonDecoder(RT.union([RT.object({a: RT.string()}), RT.object({b: RT.number()})])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.union([RT.object({a: RT.string()}), RT.object({b: RT.number()})])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.union([RT.object({a: RT.string()}), RT.object({b: RT.number()})])),
+    schemaEncoder: () => createJsonEncoder(RT.union([RT.object({a: TF.string()}), RT.object({b: TF.number()})])),
+    schemaDecoder: () => createJsonDecoder(RT.union([RT.object({a: TF.string()}), RT.object({b: TF.number()})])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.union([RT.object({a: TF.string()}), RT.object({b: TF.number()})])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.union([RT.object({a: TF.string()}), RT.object({b: TF.number()})])),
     jsonStringifyThrows: true,
     getTestData: () => ({values: [{b: 123, c: 123n}]}),
     // Safe-path adapter: stringifyJson strips the extra `c: 123n` in
@@ -713,10 +714,10 @@ export const UNIONS = {
     preserveDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string} | {b: number}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string} | {b: number}>(),
-    schemaEncoder: () => createJsonEncoder(RT.union([RT.object({a: RT.string()}), RT.object({b: RT.number()})])),
-    schemaDecoder: () => createJsonDecoder(RT.union([RT.object({a: RT.string()}), RT.object({b: RT.number()})])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.union([RT.object({a: RT.string()}), RT.object({b: RT.number()})])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.union([RT.object({a: RT.string()}), RT.object({b: RT.number()})])),
+    schemaEncoder: () => createJsonEncoder(RT.union([RT.object({a: TF.string()}), RT.object({b: TF.number()})])),
+    schemaDecoder: () => createJsonDecoder(RT.union([RT.object({a: TF.string()}), RT.object({b: TF.number()})])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.union([RT.object({a: TF.string()}), RT.object({b: TF.number()})])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.union([RT.object({a: TF.string()}), RT.object({b: TF.number()})])),
     // Symbol-valued props are silently dropped by JSON.stringify
     // (per ECMAScript spec) — no throw, no round-trip mismatch
     // because the symbol was never reachable post-stringify
@@ -769,29 +770,29 @@ export const UNIONS = {
     schemaEncoder: () =>
       createJsonEncoder(
         RT.union([
-          RT.object({kind: RT.literal('created'), at: RT.date(), by: RT.string()}),
-          RT.object({kind: RT.literal('updated'), at: RT.date(), reviewers: RT.array(RT.string())}),
+          RT.object({kind: RT.literal('created'), at: TF.date(), by: TF.string()}),
+          RT.object({kind: RT.literal('updated'), at: TF.date(), reviewers: RT.array(TF.string())}),
         ])
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.union([
-          RT.object({kind: RT.literal('created'), at: RT.date(), by: RT.string()}),
-          RT.object({kind: RT.literal('updated'), at: RT.date(), reviewers: RT.array(RT.string())}),
+          RT.object({kind: RT.literal('created'), at: TF.date(), by: TF.string()}),
+          RT.object({kind: RT.literal('updated'), at: TF.date(), reviewers: RT.array(TF.string())}),
         ])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.union([
-          RT.object({kind: RT.literal('created'), at: RT.date(), by: RT.string()}),
-          RT.object({kind: RT.literal('updated'), at: RT.date(), reviewers: RT.array(RT.string())}),
+          RT.object({kind: RT.literal('created'), at: TF.date(), by: TF.string()}),
+          RT.object({kind: RT.literal('updated'), at: TF.date(), reviewers: RT.array(TF.string())}),
         ])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.union([
-          RT.object({kind: RT.literal('created'), at: RT.date(), by: RT.string()}),
-          RT.object({kind: RT.literal('updated'), at: RT.date(), reviewers: RT.array(RT.string())}),
+          RT.object({kind: RT.literal('created'), at: TF.date(), by: TF.string()}),
+          RT.object({kind: RT.literal('updated'), at: TF.date(), reviewers: RT.array(TF.string())}),
         ])
       ),
     getTestData: () => ({
@@ -833,29 +834,29 @@ export const UNIONS = {
     schemaEncoder: () =>
       createJsonEncoder(
         RT.union([
-          RT.object({kind: RT.literal('event'), when: RT.date(), label: RT.string()}),
-          RT.object({kind: RT.literal('note'), when: RT.string(), label: RT.string()}),
+          RT.object({kind: RT.literal('event'), when: TF.date(), label: TF.string()}),
+          RT.object({kind: RT.literal('note'), when: TF.string(), label: TF.string()}),
         ])
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.union([
-          RT.object({kind: RT.literal('event'), when: RT.date(), label: RT.string()}),
-          RT.object({kind: RT.literal('note'), when: RT.string(), label: RT.string()}),
+          RT.object({kind: RT.literal('event'), when: TF.date(), label: TF.string()}),
+          RT.object({kind: RT.literal('note'), when: TF.string(), label: TF.string()}),
         ])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.union([
-          RT.object({kind: RT.literal('event'), when: RT.date(), label: RT.string()}),
-          RT.object({kind: RT.literal('note'), when: RT.string(), label: RT.string()}),
+          RT.object({kind: RT.literal('event'), when: TF.date(), label: TF.string()}),
+          RT.object({kind: RT.literal('note'), when: TF.string(), label: TF.string()}),
         ])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.union([
-          RT.object({kind: RT.literal('event'), when: RT.date(), label: RT.string()}),
-          RT.object({kind: RT.literal('note'), when: RT.string(), label: RT.string()}),
+          RT.object({kind: RT.literal('event'), when: TF.date(), label: TF.string()}),
+          RT.object({kind: RT.literal('note'), when: TF.string(), label: TF.string()}),
         ])
       ),
     getTestData: () => ({
@@ -897,29 +898,29 @@ export const UNIONS = {
     schemaEncoder: () =>
       createJsonEncoder(
         RT.union([
-          RT.object({form: RT.literal('big'), id: RT.bigint(), label: RT.string()}),
-          RT.object({form: RT.literal('small'), id: RT.number(), label: RT.string()}),
+          RT.object({form: RT.literal('big'), id: TF.bigInt(), label: TF.string()}),
+          RT.object({form: RT.literal('small'), id: TF.number(), label: TF.string()}),
         ])
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.union([
-          RT.object({form: RT.literal('big'), id: RT.bigint(), label: RT.string()}),
-          RT.object({form: RT.literal('small'), id: RT.number(), label: RT.string()}),
+          RT.object({form: RT.literal('big'), id: TF.bigInt(), label: TF.string()}),
+          RT.object({form: RT.literal('small'), id: TF.number(), label: TF.string()}),
         ])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.union([
-          RT.object({form: RT.literal('big'), id: RT.bigint(), label: RT.string()}),
-          RT.object({form: RT.literal('small'), id: RT.number(), label: RT.string()}),
+          RT.object({form: RT.literal('big'), id: TF.bigInt(), label: TF.string()}),
+          RT.object({form: RT.literal('small'), id: TF.number(), label: TF.string()}),
         ])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.union([
-          RT.object({form: RT.literal('big'), id: RT.bigint(), label: RT.string()}),
-          RT.object({form: RT.literal('small'), id: RT.number(), label: RT.string()}),
+          RT.object({form: RT.literal('big'), id: TF.bigInt(), label: TF.string()}),
+          RT.object({form: RT.literal('small'), id: TF.number(), label: TF.string()}),
         ])
       ),
     getTestData: () => ({
@@ -944,13 +945,13 @@ export const UNIONS = {
     binaryEncoder: () => createBinaryEncoder<{a: string; b: number} | {a: boolean; c: Date}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
     schemaEncoder: () =>
-      createJsonEncoder(RT.union([RT.object({a: RT.string(), b: RT.number()}), RT.object({a: RT.boolean(), c: RT.date()})])),
+      createJsonEncoder(RT.union([RT.object({a: TF.string(), b: TF.number()}), RT.object({a: RT.boolean(), c: TF.date()})])),
     schemaDecoder: () =>
-      createJsonDecoder(RT.union([RT.object({a: RT.string(), b: RT.number()}), RT.object({a: RT.boolean(), c: RT.date()})])),
+      createJsonDecoder(RT.union([RT.object({a: TF.string(), b: TF.number()}), RT.object({a: RT.boolean(), c: TF.date()})])),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.union([RT.object({a: RT.string(), b: RT.number()}), RT.object({a: RT.boolean(), c: RT.date()})])),
+      createBinaryEncoder(RT.union([RT.object({a: TF.string(), b: TF.number()}), RT.object({a: RT.boolean(), c: TF.date()})])),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.union([RT.object({a: RT.string(), b: RT.number()}), RT.object({a: RT.boolean(), c: RT.date()})])),
+      createBinaryDecoder(RT.union([RT.object({a: TF.string(), b: TF.number()}), RT.object({a: RT.boolean(), c: TF.date()})])),
     getTestData: () => ({
       values: [
         {a: 'hello', b: 7},

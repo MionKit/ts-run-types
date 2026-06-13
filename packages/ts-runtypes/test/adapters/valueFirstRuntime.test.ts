@@ -14,45 +14,45 @@
 // `import 'ts-runtypes/formats'` is the load-bearing side-effect
 // import (registers the format pure-fns the cache module reaches).
 
+import * as TF from 'ts-runtypes/formats';
 import {describe, expect, it} from 'vitest';
 import {getRunTypeId, getRTUtils, type Static} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
-import type {FormatString, FormatNumber} from 'ts-runtypes/formats';
 import 'ts-runtypes/formats';
 
 describe('value-first / builders return the live RunType (Tier 2)', () => {
-  it('string builder returns the RunType for FormatString<P> — static', () => {
-    const built = RT.string({maxLength: 5});
-    const canonical = getRTUtils().getRunType(getRunTypeId<FormatString<{maxLength: 5}>>());
+  it('string builder returns the RunType for TF.String<P> — static', () => {
+    const built = TF.string({maxLength: 5});
+    const canonical = getRTUtils().getRunType(getRunTypeId<TF.String<{maxLength: 5}>>());
     expect(canonical).toBeDefined();
     expect(built as unknown).toBe(canonical);
   });
 
-  it('string builder returns the RunType for FormatString<P> — reflect', () => {
-    const built = RT.string({maxLength: 5});
-    const probe = 'abc' as unknown as FormatString<{maxLength: 5}>;
+  it('string builder returns the RunType for TF.String<P> — reflect', () => {
+    const built = TF.string({maxLength: 5});
+    const probe = 'abc' as unknown as TF.String<{maxLength: 5}>;
     const canonical = getRTUtils().getRunType(getRunTypeId(probe));
     expect(canonical).toBeDefined();
     expect(built as unknown).toBe(canonical);
   });
 
-  it('number builder returns the RunType for FormatNumber<P> — static', () => {
-    const built = RT.number({min: 0});
-    const canonical = getRTUtils().getRunType(getRunTypeId<FormatNumber<{min: 0}>>());
+  it('number builder returns the RunType for TF.Number<P> — static', () => {
+    const built = TF.number({min: 0});
+    const canonical = getRTUtils().getRunType(getRunTypeId<TF.Number<{min: 0}>>());
     expect(canonical).toBeDefined();
     expect(built as unknown).toBe(canonical);
   });
 
-  it('number builder returns the RunType for FormatNumber<P> — reflect', () => {
-    const built = RT.number({min: 0});
-    const probe = 0 as unknown as FormatNumber<{min: 0}>;
+  it('number builder returns the RunType for TF.Number<P> — reflect', () => {
+    const built = TF.number({min: 0});
+    const probe = 0 as unknown as TF.Number<{min: 0}>;
     const canonical = getRTUtils().getRunType(getRunTypeId(probe));
     expect(canonical).toBeDefined();
     expect(built as unknown).toBe(canonical);
   });
 
   it('object() returns the live composite RunType for the whole model — static', () => {
-    const Model = RT.object({name: RT.string({maxLength: 5}), age: RT.number({min: 0})});
+    const Model = RT.object({name: TF.string({maxLength: 5}), age: TF.number({min: 0})});
     const canonical = getRTUtils().getRunType(getRunTypeId<Static<typeof Model>>());
     expect(canonical).toBeDefined();
     // The nested string/number builders are skipped by the scanner; `object`
@@ -61,7 +61,7 @@ describe('value-first / builders return the live RunType (Tier 2)', () => {
   });
 
   it('object() composite RunType converges via reflect form', () => {
-    const Model = RT.object({name: RT.string({maxLength: 5}), age: RT.number({min: 0})});
+    const Model = RT.object({name: TF.string({maxLength: 5}), age: TF.number({min: 0})});
     const probe = {name: 'x', age: 1} as unknown as Static<typeof Model>;
     const canonical = getRTUtils().getRunType(getRunTypeId(probe));
     expect(canonical).toBeDefined();

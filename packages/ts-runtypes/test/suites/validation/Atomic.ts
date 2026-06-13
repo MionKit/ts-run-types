@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
@@ -52,7 +53,7 @@ export const ATOMIC = {
       'Strict `typeof === "bigint"`. Plain `number` values (including `Infinity` / `-Infinity`) are rejected — `42` is not `42n`.',
     validate: () => createValidate<bigint>(),
     validateDataOnly: () => createValidate<DataOnly<bigint>>(),
-    validateSchema: () => createValidate(RT.bigint()),
+    validateSchema: () => createValidate(TF.bigInt()),
     deserializeValidate: () => deserializeValidate<bigint>(),
     validateReflect: () => {
       const v: bigint = 1n;
@@ -64,7 +65,7 @@ export const ATOMIC = {
     },
     getValidationErrors: () => createGetValidationErrors<bigint>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<bigint>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.bigint()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TF.bigInt()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<bigint>(),
     getValidationErrorsReflect: () => {
       const v: bigint = 1n;
@@ -151,7 +152,7 @@ export const ATOMIC = {
     ],
     validate: () => createValidate<Date>(),
     validateDataOnly: () => createValidate<DataOnly<Date>>(),
-    validateSchema: () => createValidate(RT.date()),
+    validateSchema: () => createValidate(TF.date()),
     deserializeValidate: () => deserializeValidate<Date>(),
     validateReflect: () => {
       const v: Date = new Date();
@@ -163,7 +164,7 @@ export const ATOMIC = {
     },
     getValidationErrors: () => createGetValidationErrors<Date>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Date>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.date()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TF.date()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Date>(),
     getValidationErrorsReflect: () => {
       const v: Date = new Date();
@@ -706,7 +707,7 @@ export const ATOMIC = {
     ],
     validate: () => createValidate<number>(),
     validateDataOnly: () => createValidate<DataOnly<number>>(),
-    validateSchema: () => createValidate(RT.number()),
+    validateSchema: () => createValidate(TF.number()),
     deserializeValidate: () => deserializeValidate<number>(),
     validateReflect: () => {
       const v: number = 42;
@@ -718,7 +719,7 @@ export const ATOMIC = {
     },
     getValidationErrors: () => createGetValidationErrors<number>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<number>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.number()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TF.number()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<number>(),
     getValidationErrorsReflect: () => {
       const v: number = 42;
@@ -852,7 +853,7 @@ export const ATOMIC = {
     validateNotes: 'Strict typeof === "string". The empty string ("") is accepted.',
     validate: () => createValidate<string>(),
     validateDataOnly: () => createValidate<DataOnly<string>>(),
-    validateSchema: () => createValidate(RT.string()),
+    validateSchema: () => createValidate(TF.string()),
     deserializeValidate: () => deserializeValidate<string>(),
     validateReflect: () => {
       const v: string = 'hello';
@@ -864,7 +865,7 @@ export const ATOMIC = {
     },
     getValidationErrors: () => createGetValidationErrors<string>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.string()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TF.string()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<string>(),
     getValidationErrorsReflect: () => {
       const v: string = 'hello';

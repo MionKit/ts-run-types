@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createValidate, type Static} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 
@@ -16,9 +17,9 @@ const isProductA = createValidate<Product>();
 // start-schema
 // Option B — the RT.* builders, if you like the Zod / TypeBox feel.
 const productSchema = RT.object({
-  id: RT.number(),
-  name: RT.string(),
-  tags: RT.array(RT.string()),
+  id: TF.number(),
+  name: TF.string(),
+  tags: RT.array(TF.string()),
   status: RT.union([RT.literal('draft'), RT.literal('live')]),
 });
 

@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
@@ -13,7 +14,7 @@ export const OBJECT = {
     ],
     validate: () => createValidate<{a: string; b: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string; b: number}>>(),
-    validateSchema: () => createValidate(RT.object({a: RT.string(), b: RT.number()})),
+    validateSchema: () => createValidate(RT.object({a: TF.string(), b: TF.number()})),
     deserializeValidate: () => deserializeValidate<{a: string; b: number}>(),
     validateReflect: () => {
       const v: {a: string; b: number} = {a: 'hello', b: 1};
@@ -25,7 +26,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{a: string; b: number}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string; b: number}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: RT.string(), b: RT.number()})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: TF.string(), b: TF.number()})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string; b: number}>(),
     getValidationErrorsReflect: () => {
       const v: {a: string; b: number} = {a: 'hello', b: 1};
@@ -163,7 +164,7 @@ export const OBJECT = {
       }
       return createValidate<DataOnly<ReturnType<typeof makeUser>>>();
     },
-    validateSchema: () => createValidate(RT.object({id: RT.number(), name: RT.string()})),
+    validateSchema: () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
     // All REFLECT forms are opted out: a reflect thunk here would be
     // `createValidate(makeUser())`, which INVOKES the factory at runtime purely to
     // infer its type — the anti-pattern the resolver flags as a build-time warning
@@ -192,7 +193,7 @@ export const OBJECT = {
       }
       return createGetValidationErrors<DataOnly<ReturnType<typeof makeUser>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({id: RT.number(), name: RT.string()})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({id: TF.number(), name: TF.string()})),
     deserializeGetValidationErrors: () => {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
@@ -228,7 +229,7 @@ export const OBJECT = {
       "Reflect form with a property-access argument (`createValidate(outer.user)`), where T comes from the property's declared type and produces the same hash as the static form.",
     validate: () => createValidate<{id: number; name: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{id: number; name: string}>>(),
-    validateSchema: () => createValidate(RT.object({id: RT.number(), name: RT.string()})),
+    validateSchema: () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
     deserializeValidate: () => deserializeValidate<{id: number; name: string}>(),
     validateReflect: () => {
       const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
@@ -240,7 +241,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{id: number; name: string}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{id: number; name: string}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({id: RT.number(), name: RT.string()})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({id: TF.number(), name: TF.string()})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{id: number; name: string}>(),
     getValidationErrorsReflect: () => {
       const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
@@ -275,7 +276,7 @@ export const OBJECT = {
       "Reflect form with an array-element-access argument (`createValidate(items[0])`), where T comes from the array's element type and produces the same hash as the static form.",
     validate: () => createValidate<{id: number; name: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{id: number; name: string}>>(),
-    validateSchema: () => createValidate(RT.object({id: RT.number(), name: RT.string()})),
+    validateSchema: () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
     deserializeValidate: () => deserializeValidate<{id: number; name: string}>(),
     validateReflect: () => {
       const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
@@ -287,7 +288,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{id: number; name: string}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{id: number; name: string}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({id: RT.number(), name: RT.string()})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({id: TF.number(), name: TF.string()})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{id: number; name: string}>(),
     getValidationErrorsReflect: () => {
       const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
@@ -323,7 +324,7 @@ export const OBJECT = {
       'Optional (`?`) properties may be missing OR explicitly `undefined`. If present, the value must satisfy the declared type — `b: NaN` still fails.',
     validate: () => createValidate<{a: string; b?: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string; b?: number}>>(),
-    validateSchema: () => createValidate(RT.object({a: RT.string(), b: RT.optional(RT.number())})),
+    validateSchema: () => createValidate(RT.object({a: TF.string(), b: RT.optional(TF.number())})),
     deserializeValidate: () => deserializeValidate<{a: string; b?: number}>(),
     validateReflect: () => {
       const v: {a: string; b?: number} = {a: 'x'};
@@ -335,7 +336,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{a: string; b?: number}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string; b?: number}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: RT.string(), b: RT.optional(RT.number())})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: TF.string(), b: RT.optional(TF.number())})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string; b?: number}>(),
     getValidationErrorsReflect: () => {
       const v: {a: string; b?: number} = {a: 'x'};
@@ -373,7 +374,7 @@ export const OBJECT = {
     validateNotes: 'Date-typed properties run the atomic `Date` check — Invalid Date instances inside the property fail too.',
     validate: () => createValidate<{date: Date; name: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{date: Date; name: string}>>(),
-    validateSchema: () => createValidate(RT.object({date: RT.date(), name: RT.string()})),
+    validateSchema: () => createValidate(RT.object({date: TF.date(), name: TF.string()})),
     deserializeValidate: () => deserializeValidate<{date: Date; name: string}>(),
     validateReflect: () => {
       const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
@@ -385,7 +386,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{date: Date; name: string}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{date: Date; name: string}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({date: RT.date(), name: RT.string()})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({date: TF.date(), name: TF.string()})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{date: Date; name: string}>(),
     getValidationErrorsReflect: () => {
       const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
@@ -435,7 +436,7 @@ export const OBJECT = {
     ],
     validate: () => createValidate<{name: string; cb: () => any}>(),
     validateDataOnly: () => createValidate<DataOnly<{name: string; cb: () => any}>>(),
-    validateSchema: () => createValidate(RT.object({name: RT.string(), cb: RT.func([], RT.any())})),
+    validateSchema: () => createValidate(RT.object({name: TF.string(), cb: RT.func([], RT.any())})),
     deserializeValidate: () => deserializeValidate<{name: string; cb: () => any}>(),
     validateReflect: () => {
       const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
@@ -447,7 +448,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{name: string; cb: () => any}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{name: string; cb: () => any}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({name: RT.string(), cb: RT.func([], RT.any())})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({name: TF.string(), cb: RT.func([], RT.any())})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{name: string; cb: () => any}>(),
     getValidationErrorsReflect: () => {
       const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
@@ -480,7 +481,7 @@ export const OBJECT = {
       'Nested objects are validated recursively. Atomic-level rejections (NaN, Invalid Date) bubble up from the inner shape.',
     validate: () => createValidate<{a: string; deep: {b: string; c: number}}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string; deep: {b: string; c: number}}>>(),
-    validateSchema: () => createValidate(RT.object({a: RT.string(), deep: RT.object({b: RT.string(), c: RT.number()})})),
+    validateSchema: () => createValidate(RT.object({a: TF.string(), deep: RT.object({b: TF.string(), c: TF.number()})})),
     deserializeValidate: () => deserializeValidate<{a: string; deep: {b: string; c: number}}>(),
     validateReflect: () => {
       const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
@@ -493,7 +494,7 @@ export const OBJECT = {
     getValidationErrors: () => createGetValidationErrors<{a: string; deep: {b: string; c: number}}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string; deep: {b: string; c: number}}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.object({a: RT.string(), deep: RT.object({b: RT.string(), c: RT.number()})})),
+      createGetValidationErrors(RT.object({a: TF.string(), deep: RT.object({b: TF.string(), c: TF.number()})})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string; deep: {b: string; c: number}}>(),
     getValidationErrorsReflect: () => {
       const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
@@ -542,7 +543,7 @@ export const OBJECT = {
     ],
     validate: () => createValidate<{tags: string[]}>(),
     validateDataOnly: () => createValidate<DataOnly<{tags: string[]}>>(),
-    validateSchema: () => createValidate(RT.object({tags: RT.array(RT.string())})),
+    validateSchema: () => createValidate(RT.object({tags: RT.array(TF.string())})),
     deserializeValidate: () => deserializeValidate<{tags: string[]}>(),
     validateReflect: () => {
       const v: {tags: string[]} = {tags: []};
@@ -554,7 +555,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{tags: string[]}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{tags: string[]}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({tags: RT.array(RT.string())})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({tags: RT.array(TF.string())})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{tags: string[]}>(),
     getValidationErrorsReflect: () => {
       const v: {tags: string[]} = {tags: []};
@@ -599,7 +600,7 @@ export const OBJECT = {
       return createValidate<DataOnly<ICircular>>();
     },
     validateSchema: () => {
-      const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
+      const ic = RT.circular((self) => RT.object({name: TF.string(), child: RT.optional(self)}));
       return createValidate(ic);
     },
     deserializeValidate: () => {
@@ -625,7 +626,7 @@ export const OBJECT = {
       return createGetValidationErrors<DataOnly<ICircular>>();
     },
     getValidationErrorsSchema: () => {
-      const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
+      const ic = RT.circular((self) => RT.object({name: TF.string(), child: RT.optional(self)}));
       return createGetValidationErrors(ic);
     },
     deserializeGetValidationErrors: () => {
@@ -688,7 +689,7 @@ export const OBJECT = {
       return createValidate<DataOnly<ICircularArray>>();
     },
     validateSchema: () => {
-      const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
+      const ica = RT.circular((self) => RT.object({name: TF.string(), children: RT.optional(RT.array(self))}));
       return createValidate(ica);
     },
     deserializeValidate: () => {
@@ -714,7 +715,7 @@ export const OBJECT = {
       return createGetValidationErrors<DataOnly<ICircularArray>>();
     },
     getValidationErrorsSchema: () => {
-      const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
+      const ica = RT.circular((self) => RT.object({name: TF.string(), children: RT.optional(RT.array(self))}));
       return createGetValidationErrors(ica);
     },
     deserializeGetValidationErrors: () => {
@@ -767,8 +768,8 @@ export const OBJECT = {
     validateSchema: () => {
       const icd = RT.circular((self) =>
         RT.object({
-          name: RT.string(),
-          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+          name: TF.string(),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
         })
       );
       return createValidate(icd);
@@ -798,8 +799,8 @@ export const OBJECT = {
     getValidationErrorsSchema: () => {
       const icd = RT.circular((self) =>
         RT.object({
-          name: RT.string(),
-          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+          name: TF.string(),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
         })
       );
       return createGetValidationErrors(icd);
@@ -850,7 +851,7 @@ export const OBJECT = {
     ],
     validate: () => createValidate<{[key: string]: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: string}>>(),
-    validateSchema: () => createValidate(RT.record(RT.string())),
+    validateSchema: () => createValidate(RT.record(TF.string())),
     deserializeValidate: () => deserializeValidate<{[key: string]: string}>(),
     validateReflect: () => {
       const v: {[key: string]: string} = {};
@@ -862,7 +863,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{[key: string]: string}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[key: string]: string}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.string())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(TF.string())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[key: string]: string}>(),
     getValidationErrorsReflect: () => {
       const v: {[key: string]: string} = {};
@@ -902,7 +903,7 @@ export const OBJECT = {
     validateDataOnly: () => createValidate<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
     validateSchema: () =>
       createValidate(
-        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+        RT.intersection(RT.record(RT.union([TF.string(), TF.number()])), RT.object({a: TF.string(), b: TF.number()}))
       ),
     deserializeValidate: () => deserializeValidate<{a: string; b: number; [key: string]: string | number}>(),
     validateReflect: () => {
@@ -918,7 +919,7 @@ export const OBJECT = {
       createGetValidationErrors<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
-        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+        RT.intersection(RT.record(RT.union([TF.string(), TF.number()])), RT.object({a: TF.string(), b: TF.number()}))
       ),
     deserializeGetValidationErrors: () =>
       deserializeGetValidationErrors<{a: string; b: number; [key: string]: string | number}>(),
@@ -971,7 +972,7 @@ export const OBJECT = {
     ],
     validate: () => createValidate<{[key: string]: {[key: string]: number}}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: {[key: string]: number}}>>(),
-    validateSchema: () => createValidate(RT.record(RT.record(RT.number()))),
+    validateSchema: () => createValidate(RT.record(RT.record(TF.number()))),
     deserializeValidate: () => deserializeValidate<{[key: string]: {[key: string]: number}}>(),
     validateReflect: () => {
       const v: {[key: string]: {[key: string]: number}} = {};
@@ -983,7 +984,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{[key: string]: {[key: string]: number}}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[key: string]: {[key: string]: number}}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.record(RT.number()))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.record(TF.number()))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[key: string]: {[key: string]: number}}>(),
     getValidationErrorsReflect: () => {
       const v: {[key: string]: {[key: string]: number}} = {};
@@ -1019,7 +1020,7 @@ export const OBJECT = {
       "Each leaf value runs the atomic `Date` check — an Invalid Date (`new Date('invalid')`) at a leaf is rejected as `expected: 'date'` despite being a `Date` instance.",
     validate: () => createValidate<{[key: string]: {[key: string]: Date}}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
-    validateSchema: () => createValidate(RT.record(RT.record(RT.date()))),
+    validateSchema: () => createValidate(RT.record(RT.record(TF.date()))),
     deserializeValidate: () => deserializeValidate<{[key: string]: {[key: string]: Date}}>(),
     validateReflect: () => {
       const v: {[key: string]: {[key: string]: Date}} = {};
@@ -1031,7 +1032,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{[key: string]: {[key: string]: Date}}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.record(RT.date()))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.record(TF.date()))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[key: string]: {[key: string]: Date}}>(),
     getValidationErrorsReflect: () => {
       const v: {[key: string]: {[key: string]: Date}} = {};
@@ -1087,7 +1088,7 @@ export const OBJECT = {
       return createValidate<DataOnly<Obj2>>();
     },
     validateSchema: () =>
-      createValidate(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
+      createValidate(RT.object({b: TF.string(), c: RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))})),
     deserializeValidate: () => {
       interface Obj1 {
         a: string;
@@ -1147,7 +1148,7 @@ export const OBJECT = {
     },
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
-        RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})
+        RT.object({b: TF.string(), c: RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))})
       ),
     deserializeGetValidationErrors: () => {
       interface Obj1 {
@@ -1302,7 +1303,7 @@ export const OBJECT = {
     // (dataOnlyDivergent), the thunk is declared to satisfy the contract.
     validateDataOnly: () => createValidate<DataOnly<{(a: number, b: boolean): string; extra: string}>>(),
     validateSchema: () =>
-      createValidate(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
+      createValidate(RT.callable(RT.func([TF.number(), RT.boolean()], TF.string()), RT.object({extra: TF.string()}))),
     deserializeValidate: () => deserializeValidate<{(a: number, b: boolean): string; extra: string}>(),
     validateReflect: () => {
       const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
@@ -1325,7 +1326,7 @@ export const OBJECT = {
     getValidationErrors: () => createGetValidationErrors<{(a: number, b: boolean): string; extra: string}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{(a: number, b: boolean): string; extra: string}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
+      createGetValidationErrors(RT.callable(RT.func([TF.number(), RT.boolean()], TF.string()), RT.object({extra: TF.string()}))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{(a: number, b: boolean): string; extra: string}>(),
     getValidationErrorsReflect: () => {
       const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
@@ -1404,7 +1405,7 @@ export const OBJECT = {
     ],
     validate: () => createValidate<{a?: string; b?: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a?: string; b?: number}>>(),
-    validateSchema: () => createValidate(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.number())})),
+    validateSchema: () => createValidate(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.number())})),
     deserializeValidate: () => deserializeValidate<{a?: string; b?: number}>(),
     validateReflect: () => {
       const v: {a?: string; b?: number} = {};
@@ -1417,7 +1418,7 @@ export const OBJECT = {
     getValidationErrors: () => createGetValidationErrors<{a?: string; b?: number}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a?: string; b?: number}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.number())})),
+      createGetValidationErrors(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.number())})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a?: string; b?: number}>(),
     getValidationErrorsReflect: () => {
       const v: {a?: string; b?: number} = {};
@@ -2006,7 +2007,7 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean) => string;
       return createValidate<DataOnly<Parameters<CallSig>>>();
     },
-    validateSchema: () => createValidate(RT.parameters(RT.func([RT.number(), RT.boolean()], RT.string()))),
+    validateSchema: () => createValidate(RT.parameters(RT.func([TF.number(), RT.boolean()], TF.string()))),
     deserializeValidate: () => {
       type CallSig = (a: number, b: boolean) => string;
       return deserializeValidate<Parameters<CallSig>>();
@@ -2029,7 +2030,7 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean) => string;
       return createGetValidationErrors<DataOnly<Parameters<CallSig>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.parameters(RT.func([RT.number(), RT.boolean()], RT.string()))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.parameters(RT.func([TF.number(), RT.boolean()], TF.string()))),
     deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean) => string;
       return deserializeGetValidationErrors<Parameters<CallSig>>();
@@ -2104,7 +2105,7 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return createValidate<DataOnly<Parameters<CallSig>>>();
     },
-    validateSchema: () => createValidate(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
+    validateSchema: () => createValidate(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], [TF.string()])))),
     deserializeValidate: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return deserializeValidate<Parameters<CallSig>>();
@@ -2128,7 +2129,7 @@ export const OBJECT = {
       return createGetValidationErrors<DataOnly<Parameters<CallSig>>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
+      createGetValidationErrors(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], [TF.string()])))),
     deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return deserializeGetValidationErrors<Parameters<CallSig>>();
@@ -2199,7 +2200,7 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return createValidate<DataOnly<Parameters<CallSig>>>();
     },
-    validateSchema: () => createValidate(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
+    validateSchema: () => createValidate(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], TF.date())))),
     deserializeValidate: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return deserializeValidate<Parameters<CallSig>>();
@@ -2223,7 +2224,7 @@ export const OBJECT = {
       return createGetValidationErrors<DataOnly<Parameters<CallSig>>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
+      createGetValidationErrors(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], TF.date())))),
     deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return deserializeGetValidationErrors<Parameters<CallSig>>();
@@ -2298,7 +2299,7 @@ export const OBJECT = {
     ],
     validate: () => createValidate<Record<'a' | 'b', number>>(),
     validateDataOnly: () => createValidate<DataOnly<Record<'a' | 'b', number>>>(),
-    validateSchema: () => createValidate(RT.object({a: RT.number(), b: RT.number()})),
+    validateSchema: () => createValidate(RT.object({a: TF.number(), b: TF.number()})),
     deserializeValidate: () => deserializeValidate<Record<'a' | 'b', number>>(),
     validateReflect: () => {
       const v: Record<'a' | 'b', number> = {a: 1, b: 2};
@@ -2310,7 +2311,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<Record<'a' | 'b', number>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Record<'a' | 'b', number>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: RT.number(), b: RT.number()})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: TF.number(), b: TF.number()})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Record<'a' | 'b', number>>(),
     getValidationErrorsReflect: () => {
       const v: Record<'a' | 'b', number> = {a: 1, b: 2};
@@ -2367,7 +2368,7 @@ export const OBJECT = {
       "Every own key's value must satisfy the `string | number` union, reported as `expected: 'union'` on failure. The number arm uses `Number.isFinite`, so a `NaN` value fails the union; `bigint` matches neither arm and also fails.",
     validate: () => createValidate<{[key: string]: string | number}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: string | number}>>(),
-    validateSchema: () => createValidate(RT.record(RT.union([RT.string(), RT.number()]))),
+    validateSchema: () => createValidate(RT.record(RT.union([TF.string(), TF.number()]))),
     deserializeValidate: () => deserializeValidate<{[key: string]: string | number}>(),
     validateReflect: () => {
       const v: {[key: string]: string | number} = {};
@@ -2379,7 +2380,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{[key: string]: string | number}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[key: string]: string | number}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.union([RT.string(), RT.number()]))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.union([TF.string(), TF.number()]))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[key: string]: string | number}>(),
     getValidationErrorsReflect: () => {
       const v: {[key: string]: string | number} = {};
@@ -2417,7 +2418,7 @@ export const OBJECT = {
       "Both a wrong literal value (`kind: 'c'`) and a missing `kind` (undefined matches no arm) report `expected: 'union'` at `['kind']`, rather than a root-level object error.",
     validate: () => createValidate<{kind: 'a' | 'b'; n: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{kind: 'a' | 'b'; n: number}>>(),
-    validateSchema: () => createValidate(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: RT.number()})),
+    validateSchema: () => createValidate(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: TF.number()})),
     deserializeValidate: () => deserializeValidate<{kind: 'a' | 'b'; n: number}>(),
     validateReflect: () => {
       const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
@@ -2430,7 +2431,7 @@ export const OBJECT = {
     getValidationErrors: () => createGetValidationErrors<{kind: 'a' | 'b'; n: number}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{kind: 'a' | 'b'; n: number}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: RT.number()})),
+      createGetValidationErrors(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: TF.number()})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{kind: 'a' | 'b'; n: number}>(),
     getValidationErrorsReflect: () => {
       const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
@@ -2487,7 +2488,7 @@ export const OBJECT = {
       }
       return createValidate<DataOnly<Child>>();
     },
-    validateSchema: () => createValidate(RT.object({a: RT.string(), b: RT.number()})),
+    validateSchema: () => createValidate(RT.object({a: TF.string(), b: TF.number()})),
     deserializeValidate: () => {
       interface Base {
         a: string;
@@ -2535,7 +2536,7 @@ export const OBJECT = {
       }
       return createGetValidationErrors<DataOnly<Child>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: RT.string(), b: RT.number()})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: TF.string(), b: TF.number()})),
     deserializeGetValidationErrors: () => {
       interface Base {
         a: string;
@@ -2779,7 +2780,7 @@ export const OBJECT = {
     // JS object keys are strings at runtime, so a number-key index sig validates
     // identically to a string-key one — but the key TYPE is part of the structural
     // id, so the value-first model uses an explicit number key to match.
-    validateSchema: () => createValidate(RT.record(RT.number(), RT.string())),
+    validateSchema: () => createValidate(RT.record(TF.number(), TF.string())),
     deserializeValidate: () => deserializeValidate<{[k: number]: string}>(),
     validateReflect: () => {
       const v: {[k: number]: string} = {};
@@ -2791,7 +2792,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{[k: number]: string}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[k: number]: string}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.number(), RT.string())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(TF.number(), TF.string())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[k: number]: string}>(),
     getValidationErrorsReflect: () => {
       const v: {[k: number]: string} = {};

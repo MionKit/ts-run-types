@@ -1,3 +1,4 @@
+import type * as TF from 'ts-runtypes/formats';
 import {
   createValidate,
   createGetValidationErrors,
@@ -7,13 +8,12 @@ import {
   createBinaryDecoder,
   createMockType,
 } from 'ts-runtypes';
-import type {FormatUUIDv4, FormatEmail} from 'ts-runtypes/formats';
 
 // start-type
 // One real-world type — the single source of truth for everything below.
 type Order = {
-  id: FormatUUIDv4;
-  customer: {name: string; email: FormatEmail};
+  id: TF.UUIDv4;
+  customer: {name: string; email: TF.Email};
   items: {sku: string; qty: number; price: number}[];
   total: number;
   placedAt: Date;
@@ -22,8 +22,8 @@ type Order = {
 // end-type
 
 const order: Order = {
-  id: '6f9619ff-8b86-d011-b42d-00cf4fc964ff' as FormatUUIDv4,
-  customer: {name: 'Ada', email: 'ada@example.com' as FormatEmail},
+  id: '6f9619ff-8b86-d011-b42d-00cf4fc964ff' as TF.UUIDv4,
+  customer: {name: 'Ada', email: 'ada@example.com' as TF.Email},
   items: [{sku: 'TS-7', qty: 1, price: 42}],
   total: 42,
   placedAt: new Date(),

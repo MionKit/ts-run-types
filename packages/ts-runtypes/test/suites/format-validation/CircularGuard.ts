@@ -4,9 +4,9 @@
 // cases — proving the guard is format-agnostic. Minimal coverage: one cyclic
 // case + one acyclic DAG control.
 
+import type * as TF from 'ts-runtypes/formats';
 import {createGetValidationErrors, createValidate} from 'ts-runtypes';
 import 'ts-runtypes/formats';
-import type {FormatUUIDv4} from 'ts-runtypes/formats';
 import type {CircularGuardValidationCase} from '../../util/circularGuardAsserts.ts';
 
 const UUID_V4 = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
@@ -16,14 +16,14 @@ export const CIRCULAR_GUARD = {
     title: 'Cycle through an object carrying a uuid leaf',
     validate: () => {
       interface Node {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         next?: Node;
       }
       return createValidate<Node>(undefined, {rejectCircularRefs: true});
     },
     validateReflect: () => {
       interface Node {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         next?: Node;
       }
       const inference: Node = {id: UUID_V4};
@@ -31,14 +31,14 @@ export const CIRCULAR_GUARD = {
     },
     getValidationErrors: () => {
       interface Node {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         next?: Node;
       }
       return createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
     },
     getValidationErrorsReflect: () => {
       interface Node {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         next?: Node;
       }
       const inference: Node = {id: UUID_V4};
@@ -56,14 +56,14 @@ export const CIRCULAR_GUARD = {
     title: 'Shared-but-acyclic DAG with uuid leaves validates',
     validate: () => {
       interface Node {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         children: Node[];
       }
       return createValidate<Node>(undefined, {rejectCircularRefs: true});
     },
     validateReflect: () => {
       interface Node {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         children: Node[];
       }
       const inference: Node = {id: UUID_V4, children: []};
@@ -71,14 +71,14 @@ export const CIRCULAR_GUARD = {
     },
     getValidationErrors: () => {
       interface Node {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         children: Node[];
       }
       return createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
     },
     getValidationErrorsReflect: () => {
       interface Node {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         children: Node[];
       }
       const inference: Node = {id: UUID_V4, children: []};

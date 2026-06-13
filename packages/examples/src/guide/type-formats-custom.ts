@@ -1,11 +1,11 @@
+import type * as TF from 'ts-runtypes/formats';
 import {createValidate} from 'ts-runtypes';
-import type {FormatString, FormatNumber, FormatBigInt} from 'ts-runtypes/formats';
 
-// FormatString / FormatNumber / FormatBigInt are the escape hatches: pass
+// TF.String / TF.Number / TF.BigInt are the escape hatches: pass
 // your own params when no named format fits.
-type Username = FormatString<{minLength: 3; maxLength: 20; pattern: {source: '^[a-z0-9_]+$'; mockSamples: ['ada_99', 'grace']}}>;
-type Percentage = FormatNumber<{min: 0; max: 100}>;
-type BigPositive = FormatBigInt<{min: 0n}>;
+type Username = TF.String<{minLength: 3; maxLength: 20; pattern: {source: '^[a-z0-9_]+$'; mockSamples: ['ada_99', 'grace']}}>;
+type Percentage = TF.Number<{min: 0; max: 100}>;
+type BigPositive = TF.BigInt<{min: 0n}>;
 
 type Profile = {
   handle: Username;

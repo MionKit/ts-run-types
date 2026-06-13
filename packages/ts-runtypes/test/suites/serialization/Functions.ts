@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
@@ -54,10 +55,10 @@ export const FUNCTIONS = {
       return createBinaryDecoder<Parameters<typeof fnNoOptional>>();
     },
     // Parameters tuple [number, boolean, string].
-    schemaEncoder: () => createJsonEncoder(RT.tuple([RT.number(), RT.boolean(), RT.string()])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([RT.number(), RT.boolean(), RT.string()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([RT.number(), RT.boolean(), RT.string()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([RT.number(), RT.boolean(), RT.string()])),
+    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
+    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
     getTestData: () => ({
       values: [
         [3, true, 'hello'],
@@ -128,10 +129,10 @@ export const FUNCTIONS = {
       return createBinaryDecoder<Parameters<typeof fnOptionalParams>>();
     },
     // Parameters tuple [Date, boolean?] — trailing optional slot.
-    schemaEncoder: () => createJsonEncoder(RT.tuple([RT.date()], [RT.boolean()])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([RT.date()], [RT.boolean()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([RT.date()], [RT.boolean()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([RT.date()], [RT.boolean()])),
+    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.date()], [RT.boolean()])),
     getTestData: () => {
       const d = new Date('2000-08-06T02:13:00.000Z');
       return {values: [[d, true], [d]]};
@@ -205,10 +206,10 @@ export const FUNCTIONS = {
       return createBinaryDecoder<ReturnType<typeof fnOptionalParam>>();
     },
     // Return type is Date.
-    schemaEncoder: () => createJsonEncoder(RT.date()),
-    schemaDecoder: () => createJsonDecoder(RT.date()),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.date()),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.date()),
+    schemaEncoder: () => createJsonEncoder(TF.date()),
+    schemaDecoder: () => createJsonDecoder(TF.date()),
+    schemaBinaryEncoder: () => createBinaryEncoder(TF.date()),
+    schemaBinaryDecoder: () => createBinaryDecoder(TF.date()),
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
   },
   function_with_rest_parameters: {
@@ -281,10 +282,10 @@ export const FUNCTIONS = {
       return createBinaryDecoder<Parameters<typeof fnRestParams>>();
     },
     // Parameters tuple [number, boolean, ...Date[]] — trailing rest segment.
-    schemaEncoder: () => createJsonEncoder(RT.tuple([RT.number(), RT.boolean()], RT.date())),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([RT.number(), RT.boolean()], RT.date())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([RT.number(), RT.boolean()], RT.date())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([RT.number(), RT.boolean()], RT.date())),
+    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number(), RT.boolean()], TF.date())),
+    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number(), RT.boolean()], TF.date())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number(), RT.boolean()], TF.date())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number(), RT.boolean()], TF.date())),
     getTestData: () => ({
       values: [
         [3, true, new Date('2000-08-06T02:13:00.000Z'), new Date('2000-08-06T02:13:00.000Z')],
@@ -354,10 +355,10 @@ export const FUNCTIONS = {
       return createBinaryDecoder<Parameters<typeof fnOptionalParams>>();
     },
     // Parameters tuple [Date, boolean?] — trailing optional slot.
-    schemaEncoder: () => createJsonEncoder(RT.tuple([RT.date()], [RT.boolean()])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([RT.date()], [RT.boolean()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([RT.date()], [RT.boolean()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([RT.date()], [RT.boolean()])),
+    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.date()], [RT.boolean()])),
     getTestData: () => {
       const d = new Date('2000-08-06T02:13:00.000Z');
       return {values: [[d, true], [d]]};
@@ -425,10 +426,10 @@ export const FUNCTIONS = {
       return createBinaryDecoder<ReturnType<typeof fnOptionalParams>>();
     },
     // Return type is bigint.
-    schemaEncoder: () => createJsonEncoder(RT.bigint()),
-    schemaDecoder: () => createJsonDecoder(RT.bigint()),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.bigint()),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.bigint()),
+    schemaEncoder: () => createJsonEncoder(TF.bigInt()),
+    schemaDecoder: () => createJsonDecoder(TF.bigInt()),
+    schemaBinaryEncoder: () => createBinaryEncoder(TF.bigInt()),
+    schemaBinaryDecoder: () => createBinaryDecoder(TF.bigInt()),
     getTestData: () => ({values: [1n]}),
   },
   function_with_only_rest_parameters: {
@@ -485,10 +486,10 @@ export const FUNCTIONS = {
       return createBinaryDecoder<Parameters<typeof fnOnlyRestParams>>();
     },
     // Parameters tuple [...number[]] — no fixed slots, rest only.
-    schemaEncoder: () => createJsonEncoder(RT.tuple([], RT.number())),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([], RT.number())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([], RT.number())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([], RT.number())),
+    schemaEncoder: () => createJsonEncoder(RT.tuple([], TF.number())),
+    schemaDecoder: () => createJsonDecoder(RT.tuple([], TF.number())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([], TF.number())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([], TF.number())),
     getTestData: () => ({values: [[3, 2, 1], []]}),
   },
   non_serializable_params: {
@@ -737,10 +738,10 @@ export const FUNCTIONS = {
     binaryEncoder: () => createBinaryEncoder<Parameters<{(a: number, b: boolean): string}>>(),
     binaryDecoder: () => createBinaryDecoder<Parameters<{(a: number, b: boolean): string}>>(),
     // Call-signature parameters tuple [number, boolean].
-    schemaEncoder: () => createJsonEncoder(RT.tuple([RT.number(), RT.boolean()])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([RT.number(), RT.boolean()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([RT.number(), RT.boolean()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([RT.number(), RT.boolean()])),
+    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number(), RT.boolean()])),
+    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number(), RT.boolean()])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number(), RT.boolean()])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number(), RT.boolean()])),
     getTestData: () => ({values: [[3, true]]}),
   },
   call_signature_return: {
@@ -755,10 +756,10 @@ export const FUNCTIONS = {
     binaryEncoder: () => createBinaryEncoder<ReturnType<{(a: number, b: boolean): string}>>(),
     binaryDecoder: () => createBinaryDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
     // Call-signature return type is string.
-    schemaEncoder: () => createJsonEncoder(RT.string()),
-    schemaDecoder: () => createJsonDecoder(RT.string()),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.string()),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.string()),
+    schemaEncoder: () => createJsonEncoder(TF.string()),
+    schemaDecoder: () => createJsonDecoder(TF.string()),
+    schemaBinaryEncoder: () => createBinaryEncoder(TF.string()),
+    schemaBinaryDecoder: () => createBinaryDecoder(TF.string()),
     getTestData: () => ({values: ['result']}),
   },
 } as const satisfies Record<string, SerializationCase>;

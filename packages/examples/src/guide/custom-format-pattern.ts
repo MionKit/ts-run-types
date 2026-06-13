@@ -1,5 +1,5 @@
+import type * as TF from 'ts-runtypes/formats';
 import {createValidate, registerFormatPattern} from 'ts-runtypes';
-import type {FormatString} from 'ts-runtypes/formats';
 
 // Register a reusable string pattern once. `mockSamples` are required —
 // they double as canonical values the mock generator draws from, and each
@@ -10,9 +10,9 @@ const slug = registerFormatPattern({
   message: 'must be a kebab-case slug',
 });
 
-// Reference it by `typeof` in a FormatString. Build-time validation + mocks
+// Reference it by `typeof` in a TF.String. Build-time validation + mocks
 // both pick it up.
-type Slug = FormatString<{pattern: typeof slug}>;
+type Slug = TF.String<{pattern: typeof slug}>;
 
 type Post = {slug: Slug; title: string};
 

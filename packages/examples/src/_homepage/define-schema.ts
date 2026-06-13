@@ -1,11 +1,12 @@
+import * as TF from 'ts-runtypes/formats';
 import {createValidate, type Static} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 
 // Prefer schemas? Describe the same shape with the RT.* builders (Zod / TypeBox style).
 const userSchema = RT.object({
-  id: RT.number(),
-  name: RT.string(),
-  email: RT.email(),
+  id: TF.number(),
+  name: TF.string(),
+  email: TF.email(),
   roles: RT.array(RT.union([RT.literal('admin'), RT.literal('user')])),
 });
 

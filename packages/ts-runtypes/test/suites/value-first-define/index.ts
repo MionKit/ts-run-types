@@ -22,6 +22,8 @@
 // `import 'ts-runtypes/formats'` side-effect import is load-bearing
 // (registers the format mock fns + pure-fns the emitted validators reach).
 
+import * as TF from 'ts-runtypes/formats';
+import * as TFT from 'ts-runtypes/formats/temporal';
 import {
   createValidate,
   createGetValidationErrors,
@@ -58,62 +60,62 @@ export interface ValueFirstCase {
 // ─────────────────────────────── Models ─────────────────────────────
 
 const UserModel = RT.object({
-  username: RT.string({minLength: 3, maxLength: 20}),
-  code: RT.string({length: 4}),
-  role: RT.string({allowedValues: {val: ['admin', 'user', 'guest']}}),
-  age: RT.number({min: 0, max: 120, integer: true}),
-  score: RT.number({gt: 0, lt: 100}),
-  step: RT.number({multipleOf: 5}),
-  ratio: RT.number({float: true}),
-  level: RT.number({min: -128, max: 127, integer: true}),
-  bornBefore: RT.date({max: 'now'}),
+  username: TF.string({minLength: 3, maxLength: 20}),
+  code: TF.string({length: 4}),
+  role: TF.string({allowedValues: {val: ['admin', 'user', 'guest']}}),
+  age: TF.number({min: 0, max: 120, integer: true}),
+  score: TF.number({gt: 0, lt: 100}),
+  step: TF.number({multipleOf: 5}),
+  ratio: TF.number({float: true}),
+  level: TF.number({min: -128, max: 127, integer: true}),
+  bornBefore: TF.date({max: 'now'}),
 });
 
 const StringModel = RT.object({
-  short: RT.string({maxLength: 5}),
-  long: RT.string({minLength: 3}),
-  exact: RT.string({length: 4}),
-  pick: RT.string({allowedValues: {val: ['red', 'green', 'blue']}}),
+  short: TF.string({maxLength: 5}),
+  long: TF.string({minLength: 3}),
+  exact: TF.string({length: 4}),
+  pick: TF.string({allowedValues: {val: ['red', 'green', 'blue']}}),
 });
 
 const NumberModel = RT.object({
-  bounded: RT.number({min: 0, max: 10}),
-  exclusive: RT.number({gt: 0, lt: 10}),
-  whole: RT.number({integer: true}),
-  fractional: RT.number({float: true}),
-  divisible: RT.number({multipleOf: 3}),
+  bounded: TF.number({min: 0, max: 10}),
+  exclusive: TF.number({gt: 0, lt: 10}),
+  whole: TF.number({integer: true}),
+  fractional: TF.number({float: true}),
+  divisible: TF.number({multipleOf: 3}),
 });
 
 const DateModel = RT.object({
-  past: RT.date({max: 'now'}),
-  window: RT.date({min: '2020-01-01T00:00:00', max: '2030-01-01T00:00:00'}),
+  past: TF.date({max: 'now'}),
+  window: TF.date({min: '2020-01-01T00:00:00', max: '2030-01-01T00:00:00'}),
 });
 
-const ProfileModel = RT.object({name: RT.string({maxLength: 5})});
-const SettingsModel = RT.object({theme: RT.string({allowedValues: {val: ['light', 'dark']}})});
+const ProfileModel = RT.object({name: TF.string({maxLength: 5})});
+const SettingsModel = RT.object({theme: TF.string({allowedValues: {val: ['light', 'dark']}})});
 
 // Leaf-format scalars added beyond string/number/date: boolean (no params) +
 // bigint (bigint-valued bounds).
 const ScalarModel = RT.object({
   active: RT.boolean(),
-  count: RT.bigint({min: 0n, max: 1000n}),
-  even: RT.bigint({multipleOf: 2n}),
+  count: TF.bigInt({min: 0n, max: 1000n}),
+  even: TF.bigInt({multipleOf: 2n}),
 });
 
 // Temporal leaf formats (representative subset of the 6 orderable types — all
 // share the same MinMax bounds). Requires `ESNext.Temporal` in lib; the test
 // harness provides the ambient (test/temporal-ambient.d.ts).
 const TemporalModel = RT.object({
-  at: RT.temporal.instant({min: '2020-01-01T00:00:00Z'}),
-  day: RT.optional(RT.temporal.plainDate({max: '2030-12-31'})),
+  at: TFT.instant({min: '2020-01-01T00:00:00Z'}),
+  day: RT.optional(TFT.plainDate({max: '2030-12-31'})),
 });
 
 // `RT.optional(...)` (shortcut for `propMod({optional: true}, ...)`) makes a
 // property optional (`key?:`) — the key may be absent; when present it validates.
 const OptionalModel = RT.object({
-  id: RT.string({length: 4}), // required
-  nick: RT.optional(RT.string({maxLength: 8})), // optional
-  age: RT.optional(RT.number({min: 0})), // optional
+  id: TF.string({length: 4}), // required
+  nick: RT.optional(TF.string({maxLength: 8})), // optional
+  age: RT.optional(TF.number({min: 0})), // optional
 });
 
 // Regex through the VALUE channel — the two `pattern` forms a value-first string
@@ -122,9 +124,9 @@ const OptionalModel = RT.object({
 // recovers {source, flags} from the literal the property declaration preserves.
 const hexPattern = registerFormatPattern({source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef']});
 const RegexModel = RT.object({
-  slug: RT.string({pattern: {source: '^[a-z0-9-]+$', flags: '', mockSamples: ['ok-slug', 'a-b-c-1']}}), // inline
-  digits: RT.string({pattern: {source: '^[0-9]+$', flags: '', mockSamples: ['123', '0']}}), // inline
-  hex: RT.string({pattern: hexPattern}), // registerFormatPattern value
+  slug: TF.string({pattern: {source: '^[a-z0-9-]+$', flags: '', mockSamples: ['ok-slug', 'a-b-c-1']}}), // inline
+  digits: TF.string({pattern: {source: '^[0-9]+$', flags: '', mockSamples: ['123', '0']}}), // inline
+  hex: TF.string({pattern: hexPattern}), // registerFormatPattern value
 });
 
 const NOW = Date.now();

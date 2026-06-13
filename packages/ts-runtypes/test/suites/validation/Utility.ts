@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
@@ -26,7 +27,7 @@ export const UTILITY = {
       }
       return createValidate<DataOnly<Partial<Person>>>();
     },
-    validateSchema: () => createValidate(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
+    validateSchema: () => createValidate(RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}))),
     deserializeValidate: () => {
       interface Person {
         name: string;
@@ -70,7 +71,7 @@ export const UTILITY = {
       return createGetValidationErrors<DataOnly<Partial<Person>>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
+      createGetValidationErrors(RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}))),
     deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
@@ -171,7 +172,7 @@ export const UTILITY = {
     },
     validateSchema: () =>
       createValidate(
-        RT.required(RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())}))
+        RT.required(RT.object({name: RT.optional(TF.string()), age: RT.optional(TF.number()), createdAt: RT.optional(TF.date())}))
       ),
     deserializeValidate: () => {
       interface MaybePerson {
@@ -217,7 +218,7 @@ export const UTILITY = {
     },
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
-        RT.required(RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())}))
+        RT.required(RT.object({name: RT.optional(TF.string()), age: RT.optional(TF.number()), createdAt: RT.optional(TF.date())}))
       ),
     deserializeGetValidationErrors: () => {
       interface MaybePerson {
@@ -317,7 +318,7 @@ export const UTILITY = {
       return createValidate<DataOnly<Pick<Person, 'name' | 'createdAt'>>>();
     },
     validateSchema: () =>
-      createValidate(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name', 'createdAt'])),
+      createValidate(RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['name', 'createdAt'])),
     deserializeValidate: () => {
       interface Person {
         name: string;
@@ -362,7 +363,7 @@ export const UTILITY = {
     },
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
-        RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name', 'createdAt'])
+        RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['name', 'createdAt'])
       ),
     deserializeGetValidationErrors: () => {
       interface Person {
@@ -454,7 +455,7 @@ export const UTILITY = {
       return createValidate<DataOnly<Omit<Person, 'age'>>>();
     },
     validateSchema: () =>
-      createValidate(RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['age'])),
+      createValidate(RT.omit(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['age'])),
     deserializeValidate: () => {
       interface Person {
         name: string;
@@ -498,7 +499,7 @@ export const UTILITY = {
       return createGetValidationErrors<DataOnly<Omit<Person, 'age'>>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['age'])),
+      createGetValidationErrors(RT.omit(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['age'])),
     deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
@@ -699,9 +700,9 @@ export const UTILITY = {
       createValidate(
         RT.exclude(
           RT.union([
-            RT.object({kind: RT.literal('circle'), radius: RT.number()}),
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), base: RT.number(), height: RT.number()}),
+            RT.object({kind: RT.literal('circle'), radius: TF.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), base: TF.number(), height: TF.number()}),
           ]),
           RT.object({kind: RT.literal('circle')})
         )
@@ -747,9 +748,9 @@ export const UTILITY = {
       createGetValidationErrors(
         RT.exclude(
           RT.union([
-            RT.object({kind: RT.literal('circle'), radius: RT.number()}),
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), base: RT.number(), height: RT.number()}),
+            RT.object({kind: RT.literal('circle'), radius: TF.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), base: TF.number(), height: TF.number()}),
           ]),
           RT.object({kind: RT.literal('circle')})
         )
@@ -826,7 +827,7 @@ export const UTILITY = {
     validate: () => createValidate<NonNullable<string | number | null | undefined>>(),
     validateDataOnly: () => createValidate<DataOnly<NonNullable<string | number | null | undefined>>>(),
     validateSchema: () =>
-      createValidate(RT.nonNullable(RT.union([RT.string(), RT.number(), RT.literal(null), RT.literal(undefined)]))),
+      createValidate(RT.nonNullable(RT.union([TF.string(), TF.number(), RT.literal(null), RT.literal(undefined)]))),
     deserializeValidate: () => deserializeValidate<NonNullable<string | number | null | undefined>>(),
     validateReflect: () => {
       const v: NonNullable<string | number | null | undefined> = 'hello';
@@ -839,7 +840,7 @@ export const UTILITY = {
     getValidationErrors: () => createGetValidationErrors<NonNullable<string | number | null | undefined>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<NonNullable<string | number | null | undefined>>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.nonNullable(RT.union([RT.string(), RT.number(), RT.literal(null), RT.literal(undefined)]))),
+      createGetValidationErrors(RT.nonNullable(RT.union([TF.string(), TF.number(), RT.literal(null), RT.literal(undefined)]))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<NonNullable<string | number | null | undefined>>(),
     getValidationErrorsReflect: () => {
       const v: NonNullable<string | number | null | undefined> = 'hello';
@@ -882,7 +883,7 @@ export const UTILITY = {
       type Fn = (a: number, b: boolean) => Date;
       return createValidate<DataOnly<ReturnType<Fn>>>();
     },
-    validateSchema: () => createValidate(RT.returnType(RT.func([RT.number(), RT.boolean()], RT.date()))),
+    validateSchema: () => createValidate(RT.returnType(RT.func([TF.number(), RT.boolean()], TF.date()))),
     deserializeValidate: () => {
       type Fn = (a: number, b: boolean) => Date;
       return deserializeValidate<ReturnType<Fn>>();
@@ -905,7 +906,7 @@ export const UTILITY = {
       type Fn = (a: number, b: boolean) => Date;
       return createGetValidationErrors<DataOnly<ReturnType<Fn>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.returnType(RT.func([RT.number(), RT.boolean()], RT.date()))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.returnType(RT.func([TF.number(), RT.boolean()], TF.date()))),
     deserializeGetValidationErrors: () => {
       type Fn = (a: number, b: boolean) => Date;
       return deserializeGetValidationErrors<ReturnType<Fn>>();
@@ -963,7 +964,7 @@ export const UTILITY = {
       }
       return createValidate<DataOnly<Readonly<Person>>>();
     },
-    validateSchema: () => createValidate(RT.readonly(RT.object({name: RT.string(), age: RT.number()}))),
+    validateSchema: () => createValidate(RT.readonly(RT.object({name: TF.string(), age: TF.number()}))),
     deserializeValidate: () => {
       interface Person {
         name: string;
@@ -1001,7 +1002,7 @@ export const UTILITY = {
       }
       return createGetValidationErrors<DataOnly<Readonly<Person>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.readonly(RT.object({name: RT.string(), age: RT.number()}))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.readonly(RT.object({name: TF.string(), age: TF.number()}))),
     deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
@@ -1093,8 +1094,8 @@ export const UTILITY = {
     validateSchema: () =>
       createValidate(
         RT.intersection(
-          RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()})),
-          RT.required(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name']))
+          RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()})),
+          RT.required(RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['name']))
         )
       ),
     deserializeValidate: () => {
@@ -1142,8 +1143,8 @@ export const UTILITY = {
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
         RT.intersection(
-          RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()})),
-          RT.required(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name']))
+          RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()})),
+          RT.required(RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['name']))
         )
       ),
     deserializeGetValidationErrors: () => {
@@ -1227,7 +1228,7 @@ export const UTILITY = {
     validate: () => createValidate<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     validateDataOnly: () => createValidate<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
     validateSchema: () =>
-      createValidate(RT.omit(RT.object({a: RT.string(), b: RT.optional(RT.number()), c: RT.boolean()}), ['a'])),
+      createValidate(RT.omit(RT.object({a: TF.string(), b: RT.optional(TF.number()), c: RT.boolean()}), ['a'])),
     deserializeValidate: () => deserializeValidate<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     validateReflect: () => {
       const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
@@ -1240,7 +1241,7 @@ export const UTILITY = {
     getValidationErrors: () => createGetValidationErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.omit(RT.object({a: RT.string(), b: RT.optional(RT.number()), c: RT.boolean()}), ['a'])),
+      createGetValidationErrors(RT.omit(RT.object({a: TF.string(), b: RT.optional(TF.number()), c: RT.boolean()}), ['a'])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     getValidationErrorsReflect: () => {
       const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
@@ -1413,7 +1414,7 @@ export const UTILITY = {
       const config = {url: 'http://example.com', port: 8080};
       return createValidate<DataOnly<typeof config>>();
     },
-    validateSchema: () => createValidate(RT.object({url: RT.string(), port: RT.number()})),
+    validateSchema: () => createValidate(RT.object({url: TF.string(), port: TF.number()})),
     deserializeValidate: () => {
       const config = {url: 'http://example.com', port: 8080};
       return deserializeValidate<typeof config>();
@@ -1434,7 +1435,7 @@ export const UTILITY = {
       const config = {url: 'http://example.com', port: 8080};
       return createGetValidationErrors<DataOnly<typeof config>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({url: RT.string(), port: RT.number()})),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({url: TF.string(), port: TF.number()})),
     deserializeGetValidationErrors: () => {
       const config = {url: 'http://example.com', port: 8080};
       return deserializeGetValidationErrors<typeof config>();
@@ -1495,7 +1496,7 @@ export const UTILITY = {
       }
       return createValidate<DataOnly<Person['name']>>();
     },
-    validateSchema: () => createValidate(RT.string()),
+    validateSchema: () => createValidate(TF.string()),
     deserializeValidate: () => {
       interface Person {
         name: string;
@@ -1533,7 +1534,7 @@ export const UTILITY = {
       }
       return createGetValidationErrors<DataOnly<Person['name']>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.string()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TF.string()),
     deserializeGetValidationErrors: () => {
       interface Person {
         name: string;
@@ -1680,7 +1681,7 @@ export const UTILITY = {
       return createValidate<DataOnly<Nullable<Source>>>();
     },
     validateSchema: () =>
-      createValidate(RT.object({a: RT.union([RT.string(), RT.literal(null)]), b: RT.union([RT.number(), RT.literal(null)])})),
+      createValidate(RT.object({a: RT.union([TF.string(), RT.literal(null)]), b: RT.union([TF.number(), RT.literal(null)])})),
     deserializeValidate: () => {
       interface Source {
         a: string;
@@ -1725,7 +1726,7 @@ export const UTILITY = {
     },
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
-        RT.object({a: RT.union([RT.string(), RT.literal(null)]), b: RT.union([RT.number(), RT.literal(null)])})
+        RT.object({a: RT.union([TF.string(), RT.literal(null)]), b: RT.union([TF.number(), RT.literal(null)])})
       ),
     deserializeGetValidationErrors: () => {
       interface Source {
@@ -1837,8 +1838,8 @@ export const UTILITY = {
     validateSchema: () =>
       createValidate(
         RT.object({
-          name: RT.object({kind: RT.literal('text'), value: RT.string()}),
-          age: RT.object({kind: RT.literal('number'), value: RT.number(), min: RT.optional(RT.number())}),
+          name: RT.object({kind: RT.literal('text'), value: TF.string()}),
+          age: RT.object({kind: RT.literal('number'), value: TF.number(), min: RT.optional(TF.number())}),
           admin: RT.object({kind: RT.literal('checkbox'), value: RT.boolean()}),
         })
       ),
@@ -1935,8 +1936,8 @@ export const UTILITY = {
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
         RT.object({
-          name: RT.object({kind: RT.literal('text'), value: RT.string()}),
-          age: RT.object({kind: RT.literal('number'), value: RT.number(), min: RT.optional(RT.number())}),
+          name: RT.object({kind: RT.literal('text'), value: TF.string()}),
+          age: RT.object({kind: RT.literal('number'), value: TF.number(), min: RT.optional(TF.number())}),
           admin: RT.object({kind: RT.literal('checkbox'), value: RT.boolean()}),
         })
       ),
@@ -2096,7 +2097,7 @@ export const UTILITY = {
       type Wrap<T> = T extends any ? {w: T} : never;
       return createValidate<DataOnly<Wrap<string | number>>>();
     },
-    validateSchema: () => createValidate(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
+    validateSchema: () => createValidate(RT.union([RT.object({w: TF.string()}), RT.object({w: TF.number()})])),
     deserializeValidate: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       return deserializeValidate<Wrap<string | number>>();
@@ -2120,7 +2121,7 @@ export const UTILITY = {
       return createGetValidationErrors<DataOnly<Wrap<string | number>>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
+      createGetValidationErrors(RT.union([RT.object({w: TF.string()}), RT.object({w: TF.number()})])),
     deserializeGetValidationErrors: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       return deserializeGetValidationErrors<Wrap<string | number>>();
@@ -2186,10 +2187,10 @@ export const UTILITY = {
           display: RT.optional(
             RT.object({
               theme: RT.optional(RT.union([RT.literal('light'), RT.literal('dark')])),
-              brightness: RT.optional(RT.number()),
+              brightness: RT.optional(TF.number()),
             })
           ),
-          audio: RT.optional(RT.object({volume: RT.optional(RT.number()), muted: RT.optional(RT.boolean())})),
+          audio: RT.optional(RT.object({volume: RT.optional(TF.number()), muted: RT.optional(RT.boolean())})),
         })
       ),
     deserializeValidate: () => {
@@ -2240,10 +2241,10 @@ export const UTILITY = {
           display: RT.optional(
             RT.object({
               theme: RT.optional(RT.union([RT.literal('light'), RT.literal('dark')])),
-              brightness: RT.optional(RT.number()),
+              brightness: RT.optional(TF.number()),
             })
           ),
-          audio: RT.optional(RT.object({volume: RT.optional(RT.number()), muted: RT.optional(RT.boolean())})),
+          audio: RT.optional(RT.object({volume: RT.optional(TF.number()), muted: RT.optional(RT.boolean())})),
         })
       ),
     deserializeGetValidationErrors: () => {

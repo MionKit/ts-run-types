@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
@@ -14,7 +15,7 @@ export const TEMPLATE_LITERAL = {
     ],
     validate: () => createValidate<`api/user/${number}`>(),
     validateDataOnly: () => createValidate<DataOnly<`api/user/${number}`>>(),
-    validateSchema: () => createValidate(RT.templateLiteral(['api/user/', RT.number()])),
+    validateSchema: () => createValidate(RT.templateLiteral(['api/user/', TF.number()])),
     deserializeValidate: () => deserializeValidate<`api/user/${number}`>(),
     validateReflect: () => {
       const v: `api/user/${number}` = 'api/user/42';
@@ -26,7 +27,7 @@ export const TEMPLATE_LITERAL = {
     },
     getValidationErrors: () => createGetValidationErrors<`api/user/${number}`>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<`api/user/${number}`>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.templateLiteral(['api/user/', RT.number()])),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.templateLiteral(['api/user/', TF.number()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<`api/user/${number}`>(),
     getValidationErrorsReflect: () => {
       const v: `api/user/${number}` = 'api/user/42';
@@ -78,7 +79,7 @@ export const TEMPLATE_LITERAL = {
     validate: () => createValidate<`/api/v${number}/user/${string}/posts/${number}`>(),
     validateDataOnly: () => createValidate<DataOnly<`/api/v${number}/user/${string}/posts/${number}`>>(),
     validateSchema: () =>
-      createValidate(RT.templateLiteral(['/api/v', RT.number(), '/user/', RT.string(), '/posts/', RT.number()])),
+      createValidate(RT.templateLiteral(['/api/v', TF.number(), '/user/', TF.string(), '/posts/', TF.number()])),
     deserializeValidate: () => deserializeValidate<`/api/v${number}/user/${string}/posts/${number}`>(),
     validateReflect: () => {
       const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
@@ -91,7 +92,7 @@ export const TEMPLATE_LITERAL = {
     getValidationErrors: () => createGetValidationErrors<`/api/v${number}/user/${string}/posts/${number}`>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<`/api/v${number}/user/${string}/posts/${number}`>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.templateLiteral(['/api/v', RT.number(), '/user/', RT.string(), '/posts/', RT.number()])),
+      createGetValidationErrors(RT.templateLiteral(['/api/v', TF.number(), '/user/', TF.string(), '/posts/', TF.number()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<`/api/v${number}/user/${string}/posts/${number}`>(),
     getValidationErrorsReflect: () => {
       const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
@@ -129,7 +130,7 @@ export const TEMPLATE_LITERAL = {
       'A leading `${string}` placeholder matches the empty string too — `"/42"` is valid (no characters before the slash).',
     validate: () => createValidate<`${string}/${number}`>(),
     validateDataOnly: () => createValidate<DataOnly<`${string}/${number}`>>(),
-    validateSchema: () => createValidate(RT.templateLiteral([RT.string(), '/', RT.number()])),
+    validateSchema: () => createValidate(RT.templateLiteral([TF.string(), '/', TF.number()])),
     deserializeValidate: () => deserializeValidate<`${string}/${number}`>(),
     validateReflect: () => {
       const v: `${string}/${number}` = '/42';
@@ -141,7 +142,7 @@ export const TEMPLATE_LITERAL = {
     },
     getValidationErrors: () => createGetValidationErrors<`${string}/${number}`>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<`${string}/${number}`>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.templateLiteral([RT.string(), '/', RT.number()])),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.templateLiteral([TF.string(), '/', TF.number()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<`${string}/${number}`>(),
     getValidationErrorsReflect: () => {
       const v: `${string}/${number}` = '/42';
@@ -179,7 +180,7 @@ export const TEMPLATE_LITERAL = {
       'Regex metacharacters in literal segments are escaped, so the parens are matched literally — `(42)` passes but `42` (no parens) fails.',
     validate: () => createValidate<`(${number})`>(),
     validateDataOnly: () => createValidate<DataOnly<`(${number})`>>(),
-    validateSchema: () => createValidate(RT.templateLiteral(['(', RT.number(), ')'])),
+    validateSchema: () => createValidate(RT.templateLiteral(['(', TF.number(), ')'])),
     deserializeValidate: () => deserializeValidate<`(${number})`>(),
     validateReflect: () => {
       const v: `(${number})` = '(42)';
@@ -191,7 +192,7 @@ export const TEMPLATE_LITERAL = {
     },
     getValidationErrors: () => createGetValidationErrors<`(${number})`>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<`(${number})`>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.templateLiteral(['(', RT.number(), ')'])),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.templateLiteral(['(', TF.number(), ')'])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<`(${number})`>(),
     getValidationErrorsReflect: () => {
       const v: `(${number})` = '(42)';
@@ -231,7 +232,7 @@ export const TEMPLATE_LITERAL = {
       'The `url` property is checked with the same typeof+regex as a standalone template literal, so a numeric `url: 42` fails (`expected: "templateLiteral"`) even though it would pass a plain `string` property.',
     validate: () => createValidate<{url: `api/user/${number}`; method: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{url: `api/user/${number}`; method: string}>>(),
-    validateSchema: () => createValidate(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+    validateSchema: () => createValidate(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
     deserializeValidate: () => deserializeValidate<{url: `api/user/${number}`; method: string}>(),
     validateReflect: () => {
       const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
@@ -244,7 +245,7 @@ export const TEMPLATE_LITERAL = {
     getValidationErrors: () => createGetValidationErrors<{url: `api/user/${number}`; method: string}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{url: `api/user/${number}`; method: string}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+      createGetValidationErrors(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{url: `api/user/${number}`; method: string}>(),
     getValidationErrorsReflect: () => {
       const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
@@ -290,7 +291,7 @@ export const TEMPLATE_LITERAL = {
       'Index-signature keys constrained by a template literal pattern: every own key on the object must match the compiled regex AND its value must satisfy the value type.',
     validate: () => createValidate<{[key: `api/${string}`]: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: `api/${string}`]: number}>>(),
-    validateSchema: () => createValidate(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
+    validateSchema: () => createValidate(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
     deserializeValidate: () => deserializeValidate<{[key: `api/${string}`]: number}>(),
     validateReflect: () => {
       const v: {[key: `api/${string}`]: number} = {};
@@ -302,7 +303,7 @@ export const TEMPLATE_LITERAL = {
     },
     getValidationErrors: () => createGetValidationErrors<{[key: `api/${string}`]: number}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{[key: `api/${string}`]: number}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{[key: `api/${string}`]: number}>(),
     getValidationErrorsReflect: () => {
       const v: {[key: `api/${string}`]: number} = {};
@@ -342,7 +343,7 @@ export const TEMPLATE_LITERAL = {
       'Union placeholders inside a template literal compile to a character-class / alternation in the regex — only the listed literal values pass.',
     validate: () => createValidate<`${'a' | 'b'}-${number}`>(),
     validateDataOnly: () => createValidate<DataOnly<`${'a' | 'b'}-${number}`>>(),
-    validateSchema: () => createValidate(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', RT.number()])),
+    validateSchema: () => createValidate(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', TF.number()])),
     deserializeValidate: () => deserializeValidate<`${'a' | 'b'}-${number}`>(),
     validateReflect: () => {
       const v: `${'a' | 'b'}-${number}` = 'a-42';
@@ -355,7 +356,7 @@ export const TEMPLATE_LITERAL = {
     getValidationErrors: () => createGetValidationErrors<`${'a' | 'b'}-${number}`>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<`${'a' | 'b'}-${number}`>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', RT.number()])),
+      createGetValidationErrors(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', TF.number()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<`${'a' | 'b'}-${number}`>(),
     getValidationErrorsReflect: () => {
       const v: `${'a' | 'b'}-${number}` = 'a-42';

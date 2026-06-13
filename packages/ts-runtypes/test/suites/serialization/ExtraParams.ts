@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
@@ -14,10 +15,10 @@ export const EXTRA_PARAMS = {
     preserveDecoder: () => createJsonDecoder<{declared: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
     binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
-    schemaEncoder: () => createJsonEncoder(RT.object({declared: RT.string()})),
-    schemaDecoder: () => createJsonDecoder(RT.object({declared: RT.string()})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: RT.string()})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: RT.string()})),
+    schemaEncoder: () => createJsonEncoder(RT.object({declared: TF.string()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({declared: TF.string()})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: TF.string()})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: TF.string()})),
     getTestData: () => ({
       values: [{declared: 'x', extra: 'hello'}],
       // Unsafe: extra preserved through round-trip.
@@ -39,10 +40,10 @@ export const EXTRA_PARAMS = {
     preserveDecoder: () => createJsonDecoder<{declared: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
     binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
-    schemaEncoder: () => createJsonEncoder(RT.object({declared: RT.string()})),
-    schemaDecoder: () => createJsonDecoder(RT.object({declared: RT.string()})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: RT.string()})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: RT.string()})),
+    schemaEncoder: () => createJsonEncoder(RT.object({declared: TF.string()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({declared: TF.string()})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: TF.string()})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: TF.string()})),
     jsonStringifyThrows: true,
     getTestData: () => ({values: [{declared: 'x', extra: 123n}]}),
     getTestDataForStringify: () => ({
@@ -62,10 +63,10 @@ export const EXTRA_PARAMS = {
     preserveDecoder: () => createJsonDecoder<{declared: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
     binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
-    schemaEncoder: () => createJsonEncoder(RT.object({declared: RT.string()})),
-    schemaDecoder: () => createJsonDecoder(RT.object({declared: RT.string()})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: RT.string()})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: RT.string()})),
+    schemaEncoder: () => createJsonEncoder(RT.object({declared: TF.string()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({declared: TF.string()})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: TF.string()})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: TF.string()})),
     getTestData: () => ({
       values: [{declared: 'x', sym: Symbol('extra')}],
       // JSON.stringify drops the symbol — restored shape has no `sym`.
@@ -85,10 +86,10 @@ export const EXTRA_PARAMS = {
     preserveDecoder: () => createJsonDecoder<{declared: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
     binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
-    schemaEncoder: () => createJsonEncoder(RT.object({declared: RT.string()})),
-    schemaDecoder: () => createJsonDecoder(RT.object({declared: RT.string()})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: RT.string()})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: RT.string()})),
+    schemaEncoder: () => createJsonEncoder(RT.object({declared: TF.string()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({declared: TF.string()})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: TF.string()})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: TF.string()})),
     getTestData: () => ({
       values: [{declared: 'x', fn: () => 0}],
       deserializedValues: [{declared: 'x'}],
@@ -107,10 +108,10 @@ export const EXTRA_PARAMS = {
     preserveDecoder: () => createJsonDecoder<{outer: {declared: string}}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{outer: {declared: string}}>(),
     binaryDecoder: () => createBinaryDecoder<{outer: {declared: string}}>(),
-    schemaEncoder: () => createJsonEncoder(RT.object({outer: RT.object({declared: RT.string()})})),
-    schemaDecoder: () => createJsonDecoder(RT.object({outer: RT.object({declared: RT.string()})})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({outer: RT.object({declared: RT.string()})})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({outer: RT.object({declared: RT.string()})})),
+    schemaEncoder: () => createJsonEncoder(RT.object({outer: RT.object({declared: TF.string()})})),
+    schemaDecoder: () => createJsonDecoder(RT.object({outer: RT.object({declared: TF.string()})})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({outer: RT.object({declared: TF.string()})})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({outer: RT.object({declared: TF.string()})})),
     getTestData: () => ({
       values: [{outer: {declared: 'x', extra: 'y'}}],
       // Unsafe: nested extra preserved.

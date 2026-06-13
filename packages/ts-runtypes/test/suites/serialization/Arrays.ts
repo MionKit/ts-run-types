@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
@@ -14,10 +15,10 @@ export const ARRAYS = {
     preserveDecoder: () => createJsonDecoder<string[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<string[]>(),
     binaryDecoder: () => createBinaryDecoder<string[]>(),
-    schemaEncoder: () => createJsonEncoder(RT.array(RT.string())),
-    schemaDecoder: () => createJsonDecoder(RT.array(RT.string())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.string())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.string())),
+    schemaEncoder: () => createJsonEncoder(RT.array(TF.string())),
+    schemaDecoder: () => createJsonDecoder(RT.array(TF.string())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(TF.string())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(TF.string())),
     getTestData: () => ({values: [['hello', 'world'], []]}),
   },
   array_date: {
@@ -33,10 +34,10 @@ export const ARRAYS = {
     preserveDecoder: () => createJsonDecoder<Date[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date[]>(),
     binaryDecoder: () => createBinaryDecoder<Date[]>(),
-    schemaEncoder: () => createJsonEncoder(RT.array(RT.date())),
-    schemaDecoder: () => createJsonDecoder(RT.array(RT.date())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.date())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.date())),
+    schemaEncoder: () => createJsonEncoder(RT.array(TF.date())),
+    schemaDecoder: () => createJsonDecoder(RT.array(TF.date())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(TF.date())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(TF.date())),
     getTestData: () => ({
       values: [[new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')], []],
     }),
@@ -70,10 +71,10 @@ export const ARRAYS = {
     preserveDecoder: () => createJsonDecoder<string[][]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<string[][]>(),
     binaryDecoder: () => createBinaryDecoder<string[][]>(),
-    schemaEncoder: () => createJsonEncoder(RT.array(RT.array(RT.string()))),
-    schemaDecoder: () => createJsonDecoder(RT.array(RT.array(RT.string()))),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.array(RT.string()))),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.array(RT.string()))),
+    schemaEncoder: () => createJsonEncoder(RT.array(RT.array(TF.string()))),
+    schemaDecoder: () => createJsonDecoder(RT.array(RT.array(TF.string()))),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.array(TF.string()))),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.array(TF.string()))),
     getTestData: () => ({values: [[['hello', 'world'], ['a', 'b'], []], []]}),
   },
   non_serializable_in_array: {
