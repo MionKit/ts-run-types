@@ -597,6 +597,7 @@ var valueFlags = map[string]bool{
 	"--out": true, "-out": true,
 	"--files": true, "-files": true,
 	"--type": true, "-type": true,
+	"--enrich-dir": true, "-enrich-dir": true,
 }
 
 // splitArgs separates positional arguments from flag tokens so flags may appear
