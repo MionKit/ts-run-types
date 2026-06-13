@@ -662,6 +662,36 @@ is deterministic + idempotent). The `@rtIds` value may also be hand-written in
 the readable `field: TypeRef#id` form — the parser accepts both; the generator
 emits the bare-id form.
 
+**Namespace rule — `@rt`-prefixed tags are compiler-owned.** Every `@rt*` JSDoc
+tag (`@rtType`, `@rtIds`, `@rtOrphan`, `@rtOrphanChild`) is machinery the compiler
+*reads, writes, and acts on*. A separate **plain `@todo`** is emitted on a line of
+its own directly above the `export const` of each **newly-generated** const (right
+after the `@rtType`/`@rtIds` marker line):
+
+```ts
+/** @rtType User#9f3a @rtIds {name: a1b2} */
+// @todo: generated skeleton — fill in real data, then delete this line
+export const friendlyUser: FriendlyType<User> = { … };
+```
+
+It is deliberately **outside** the `@rt` namespace — a bare `//` line comment, not
+`@rtTodo` — because the compiler *only emits* it: filling in the real data and
+deleting the line is the AI's/user's job. It is the manual v1 hook for flagging
+"needs real data" (and earns free IDE TODO-panel recognition). The compiler never
+processes, auto-removes, or re-adds it: `--update` of an already-existing const
+leaves its `@todo` untouched (a const you already cleared never regrows one), and
+`--prune` ignores it entirely (it strips only `@rtOrphan`/`@rtOrphanChild`). It
+rides the const **wrapper**, never the skeleton body, so the batch generation path
+is byte-identical.
+
+**Hand-authored comments are preserved across `--update`.** A leading `//` or
+`/* */` comment you wrote above a field (or const) survives the reconcile, and
+**travels with a renamed field** — a Tier-1 named-type rename or a Tier-2 primitive
+rename carries the comment to the new key. A comment above a field whose **type
+changed** stays above the live (replaced) field; a comment above a **dropped**
+field folds *into* its `@rtOrphanChild` carcass, so `--prune` removes it cleanly
+instead of leaving it dangling.
+
 **Reconcile algorithm (per mirror file):**
 
 1. **Parse** the existing bytes via the tsgo parser. Any parse diagnostic is
