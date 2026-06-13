@@ -58,9 +58,9 @@ export interface BinaryDecoderOptions {
 const noopToBinaryFn: ToBinaryFn = (_v, Ser) => Ser;
 const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
 
-// Hard ceiling for the owns-serializer grow-and-retry loop. Matches the
-// serializer's own guard (`createDataViewSerializer` rejects size >= 2**32);
-// a single payload above this can't be encoded, so we re-throw the RangeError.
+// Hard ceiling for the backstop grow-and-retry loop. Matches the serializer's
+// own guard (`createDataViewSerializer` rejects size >= 2**32); a single payload
+// above this can't be encoded, so we re-throw the RangeError.
 const MAX_BUFFER_BYTES = 2 ** 32;
 
 // binarySizingKey derives the adaptive-sizing bucket from the schema id or the
@@ -92,16 +92,23 @@ export function createBinaryEncoder<T>(
   const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinaryEncoder', noopToBinaryFn, schemaId, id);
   return (value, serializer) => {
     // Caller-supplied serializer: they own sizing + end-of-payload semantics,
-    // so we don't grow or record history on their behalf.
+    // so we don't record history on their behalf.
     if (serializer !== undefined) {
       encodeFn(value, serializer);
       return serializer.getBuffer();
     }
-    // We own the serializer. Adaptive sizing (predictBufferSize) can
-    // under-allocate for an above-average payload — the serializer throws a
-    // RangeError telling us to "resize and retry". Honor that contract here so
-    // encoding valid data never throws on a buffer miss: grow (doubling) and
-    // re-encode from a clean index until it fits or we hit the 2**32 ceiling.
+    // We own the serializer. Adaptive sizing predicts from per-key Welford
+    // history. The serializer's own writers (serString, serEnum, the temporal
+    // helpers) GROW IN PLACE on a miss, so the common string-driven overflow —
+    // the case the regression test pins — never throws or re-encodes.
+    //
+    // The Go-emitted bodies still write scalars + container framing (numbers,
+    // length prefixes, union tags, optional bitmaps) inline to the DataView,
+    // bypassing those writers. If the prediction under-allocates for such a
+    // payload the raw write throws a RangeError; this loop is the backstop —
+    // grow (prefix-preserving resize) and re-encode from a clean index until it
+    // fits or hits the 2**32 ceiling. (Reserving capacity at container
+    // boundaries in the emitter would retire this loop — see docs/binary-buffer-sizing.md.)
     const ser = createDataViewSerializer(cacheKey);
     for (;;) {
       try {
