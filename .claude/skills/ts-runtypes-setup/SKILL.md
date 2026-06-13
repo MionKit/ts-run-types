@@ -71,7 +71,7 @@ Runs in ~1s when healthy. Exits 0/1.
 
 **3. `pnpm run website:smoke`** - readies the website podman image then runs the
 dev server. The images are **deps-only** and published to GHCR, so by default
-`scripts/website.sh:ensure_image` PULLS the latest `ghcr.io/mionkit/tsrt-website:latest`
+`scripts/podman-website.sh:ensure_image` PULLS the latest `ghcr.io/mionkit/tsrt-website:latest`
 (`ghcr_try_pull_retag`; cheap no-op when already current), falling back to a
 local image / local build when the registry is unreachable. It then runs the dev
 server detached in a `tsrt-website-smoke` container, polls `http://localhost:3000`
@@ -83,7 +83,7 @@ or maintainer runs.)
 **4. `pnpm run bench:smoke`** - via `scripts/benchmarks.sh:ensure_prereqs`,
 self-syncs the host Go binary, the Linux cross-binary (`bin/ts-runtypes-linux-<arch>`),
 the marker dist and the plugin dist (rebuilds whichever is stale), and readies
-the bench image (PULLS `ghcr.io/mionkit/tsrt-bench:latest` by default;
+the shared image (PULLS `ghcr.io/mionkit/tsrt-website:latest` by default;
 `BENCH_USE_LOCAL=1` to build locally). The benchmark source is bind-mounted at
 run time, so the container build (`pnpm run build`) exercises both the resolver
 binary (via the vite plugin) and the benchmark sources end-to-end. Exits 0/1.

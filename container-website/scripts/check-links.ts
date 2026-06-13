@@ -1,10 +1,10 @@
 #!/usr/bin/env npx tsx
 /**
  * Script to detect broken code-import links in website content.
- * Scans all markdown files in website/content for <code-import> tags
+ * Scans all markdown files in container-website/content for <code-import> tags
  * and verifies that the referenced files exist.
  *
- * Usage: npx tsx website/scripts/check-links.ts
+ * Usage: npx tsx container-website/scripts/check-links.ts
  */
 
 import {readdirSync, readFileSync, existsSync, statSync} from 'fs';

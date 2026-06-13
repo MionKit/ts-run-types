@@ -37,9 +37,9 @@ strategy that wins big when constraints are present.
   benchmark loads the serialization suite). Driver: [`scripts/gen-serialization-bench.mjs`](../../scripts/gen-serialization-bench.mjs)
   — likely a `--suite format-serialization` variant, the same way the suite exporters
   take a `--suite` flag (see [`scripts/export-serialization-suite.mjs`](../../scripts/export-serialization-suite.mjs)).
-- A new page `website/content/7.benchmarks/<n>.serialization-formats.md` with
+- A new page `container-website/content/7.benchmarks/<n>.serialization-formats.md` with
   `::bench-table{bench="serialization-formats"}` — it reuses the stacked "verdict"
-  layout already built in [`website/app/components/content/BenchTable.vue`](../../website/app/components/content/BenchTable.vue)
+  layout already built in [`container-website/app/components/content/BenchTable.vue`](../../container-website/app/components/content/BenchTable.vue)
   (round-trip headline + enc/dec + bytes; the bytes tier is exactly where the format win
   shows). No new component work expected.
 - Cases should pair an **unconstrained** number/bigint against its **format-constrained**
@@ -65,7 +65,7 @@ than the old single-value cell, and the case column can get wide — both hurt o
 viewports. The structure is already prepared for this (the case column has its own
 `<col>`; cell text is CSS-driven), so it's a styling pass, no logic change.
 
-In [`website/app/components/content/BenchTable.vue`](../../website/app/components/content/BenchTable.vue) (CSS):
+In [`container-website/app/components/content/BenchTable.vue`](../../container-website/app/components/content/BenchTable.vue) (CSS):
 
 - **Clamp the first column** (`.bench-cell--case`): `max-width` + `text-overflow:
   ellipsis` + keep the full title on `title=`/hover so long case names don't blow out

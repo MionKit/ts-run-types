@@ -11,7 +11,7 @@ A simple VS Code extension that makes `code-import` path attributes clickable in
 
 1. Navigate to the extension folder:
    ```bash
-   cd website/.vscode-extension
+   cd container-website/.vscode-extension
    ```
 
 2. Install dependencies:

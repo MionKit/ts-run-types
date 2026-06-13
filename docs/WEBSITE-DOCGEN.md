@@ -14,10 +14,10 @@ exemplar while the rest is filled in later.
 
 ## What works today
 
-- **Pages / IA** — `website/content/6.test-suites/{1.validation,2.format-validation,3.serialization,4.format-serialization}.md` and `website/content/7.benchmarks/{1.validation,2.typecost}.md`. Every page opens with the shared real-world scenario (`packages/examples/src/suites/realworld.ts`).
-- **Components** — `website/app/components/content/{SuiteTable,BenchTable,RealWorldScenario}.vue`. Terminal-style tables; rows expand on hover/click and **lazy-fetch** their detail panel. A missing data file → tidy "not generated yet" notice (never an error).
-- **Pipeline** — `scripts/export-validation-suite.mjs` → `gendocs/`, then `scripts/gen-website-suite-data.mjs` → `website/public/suite-data/`. Wired as `pnpm run gen:suite-docs`.
-- **Data shipped** — all four suite datasets under `website/public/suite-data/` (`validation` 160, `serialization` 137, `format-validation` 97, `format-serialization` 27) plus both bench datasets under `website/public/bench-data/` (`validation`, `typecost`) are committed, so the site needs no regeneration to serve them.
+- **Pages / IA** — `container-website/content/6.test-suites/{1.validation,2.format-validation,3.serialization,4.format-serialization}.md` and `container-website/content/7.benchmarks/{1.validation,2.typecost}.md`. Every page opens with the shared real-world scenario (`packages/examples/src/suites/realworld.ts`).
+- **Components** — `container-website/app/components/content/{SuiteTable,BenchTable,RealWorldScenario}.vue`. Terminal-style tables; rows expand on hover/click and **lazy-fetch** their detail panel. A missing data file → tidy "not generated yet" notice (never an error).
+- **Pipeline** — `scripts/export-validation-suite.mjs` → `gendocs/`, then `scripts/gen-website-suite-data.mjs` → `container-website/public/suite-data/`. Wired as `pnpm run gen:suite-docs`.
+- **Data shipped** — all four suite datasets under `container-website/public/suite-data/` (`validation` 160, `serialization` 137, `format-validation` 97, `format-serialization` 27) plus both bench datasets under `container-website/public/bench-data/` (`validation`, `typecost`) are committed, so the site needs no regeneration to serve them.
 
 | Page                               | Data         | State                                                             |
 | ---------------------------------- | ------------ | ----------------------------------------------------------------- |
@@ -36,8 +36,8 @@ test/suites/<suite>/*.ts ──exporter──▶ gendocs/<suite>-suite.json   (t
                           ▼
               gen-website-suite-data.mjs
                           ▼
-        website/public/suite-data/<suite>/index.json          (table rows)
-        website/public/suite-data/<suite>/<SECTION>__<case>.json   (hover panel)
+        container-website/public/suite-data/<suite>/index.json          (table rows)
+        container-website/public/suite-data/<suite>/<SECTION>__<case>.json   (hover panel)
                           ▼
               SuiteTable.vue  ──fetch /suite-data/<suite>/…──▶  rendered page
 ```
@@ -58,7 +58,7 @@ test/suites/<suite>/*.ts ──exporter──▶ gendocs/<suite>-suite.json   (t
    `export const __rt_…=[…]` and keeps the slots that are real functions).
 3. **`pnpm run gen:suite-docs`** chains both exporters + the transform.
 
-`gendocs/` is git-ignored (intermediate); `website/public/suite-data/` is
+`gendocs/` is git-ignored (intermediate); `container-website/public/suite-data/` is
 committed and served at `/suite-data/…`.
 
 ## Data contracts (what the components expect)
@@ -127,7 +127,7 @@ copies `description` + `serializeNotes`, and dumps the generated JSON-encoder
 modules per case. The website transform maps serialization to
 `pureField: 'cloneEncoder'` (type-first `createJsonEncoder<T>()`) and
 `schemaField: 'schemaEncoder'` (value-first `createJsonEncoder(RT.…)`). Shipped:
-`website/public/suite-data/serialization/` — **137 cases, 136 with generated
+`container-website/public/suite-data/serialization/` — **137 cases, 136 with generated
 code, 125 with a schema body** (12 `'not-supported'` sentinels). The hover panel
 shows the `clone` (default) strategy as the representative; the other strategies
 (mutate/direct encoders, strip/preserve decoders) stay in the suite for
@@ -149,7 +149,7 @@ and `export-serialization-suite.mjs --suite format-serialization`
 over. `gen-website-suite-data.mjs` gained `SUITES` entries for both, the
 suite-scoped dump dirs keep them collision-free, and `gen:format-*-suite-json`
 npm scripts are folded into `gen:suite-docs`. Shipped:
-`website/public/suite-data/format-validation` (97 cases) +
+`container-website/public/suite-data/format-validation` (97 cases) +
 `format-serialization` (27 cases).
 
 ### Task 3 — Benchmarks ✅ DONE
@@ -157,18 +157,18 @@ npm scripts are folded into `gen:suite-docs`. Shipped:
 `scripts/gen-bench-docs.mjs` (`pnpm run gen:bench-docs`) builds both bench
 datasets:
 
-- **validation** — joins `benchmarks/results/<competitor>.json` (run `pnpm run bench`)
-  into `website/public/bench-data/validation/`. 4 competitors (RunTypes,
+- **validation** — joins `container-benchmarks/results/<competitor>.json` (run `pnpm run bench`)
+  into `container-website/public/bench-data/validation/`. 4 competitors (RunTypes,
   zod, typebox, ajv; **typia is opt-in** and skipped by default), 263 cases, the
   `validationErrors·accept` ops/sec column (the metric every competitor implements).
-- **typecost** — joins `benchmarks/results/<form>.typecost.json` (run
-  `pnpm run bench:typecost`) into `website/public/bench-data/typecost/`. 5 forms
+- **typecost** — joins `container-benchmarks/results/<form>.typecost.json` (run
+  `pnpm run bench:typecost`) into `container-website/public/bench-data/typecost/`. 5 forms
   (RunTypes type/schema, typia, typebox, zod — no ajv; JSON Schema has no
   static type inference), 263 cases, TS type-instantiation **count** (lower is
   better).
 
 Per-case competitor source for the hover panel is lifted from each
-`benchmarks/competitors/<lib>/cases.ts` (+ `schemaCases.ts`) via a TS-compiler-API
+`container-benchmarks/competitors/<lib>/cases.ts` (+ `schemaCases.ts`) via a TS-compiler-API
 parse (`extractCaseSources`). `BenchTable.vue` is unit-aware (`ops` → `1.2M/s`,
 `count` → `1.2M`) and shows the metric label.
 
@@ -194,4 +194,4 @@ pnpm run gen:bench-docs
 Adding a suite: ensure its exporter writes `gendocs/<suite>-suite.json` (+ a
 collision-safe `gendocs/cases/` dump), add a `SUITES` entry in
 `gen-website-suite-data.mjs`, drop a `::suite-table{suite="<suite>"}` page under
-`website/content/6.test-suites/`. The component handles the rest.
+`container-website/content/6.test-suites/`. The component handles the rest.

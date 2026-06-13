@@ -40,6 +40,11 @@ logs
 .cacerts/*
 !.cacerts/.gitkeep
 
+# Build-time copy of container-benchmarks/_deps/ staged into the build context by
+# scripts/website.sh so the merged image installs the benchmark deps under /bench.
+# Regenerated on every build; container-benchmarks/_deps/ stays the source of truth.
+.bench-deps/
+
 # Generated docs data — suite/benchmark result JSON the tables fetch at runtime.
 # Produced locally by `pnpm run gen:suite-docs` / `pnpm run gen:bench-docs`
 # (Go binary + benchmark harness); a run output, not something we version.

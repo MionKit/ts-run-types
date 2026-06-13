@@ -15,7 +15,7 @@ export default defineAppConfig({
       twitter: '@Ma_jrz',
     },
     github: {
-      dir: 'website/content',
+      dir: 'container-website/content',
       branch: 'main',
       repo: 'ts-runtypes',
       owner: 'mionkit',

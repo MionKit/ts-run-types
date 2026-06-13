@@ -60,7 +60,7 @@ export interface CompetitorResult {
   };
 }
 
-// Each competitor runs with cwd = benchmarks/competitors/<name>, so results live
+// Each competitor runs with cwd = container-benchmarks/competitors/<name>, so results live
 // two levels up. The driver sets BENCH_RESULTS_DIR explicitly for container runs.
 const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? path.resolve(process.cwd(), '..', '..', 'results');
 

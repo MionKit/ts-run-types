@@ -1,7 +1,7 @@
 // Type-checking cost benchmark — measures the TypeScript **type instantiations**
 // a developer pays to type-check the static type each library produces for a case.
 //
-// Reworked for the per-competitor layout (benchmarks/competitors/<lib>/cases.ts).
+// Reworked for the per-competitor layout (container-benchmarks/competitors/<lib>/cases.ts).
 // For every shared case it assembles a tiny self-contained .ts probe per FORM and
 // compiles it in isolation through the TypeScript compiler API, reading
 // `program.getInstantiationCount()` (baseline-subtracted so the number is the

@@ -71,7 +71,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 - Before committing, run `pnpm run lint` and `pnpm run format` (fix errors first).
 - Prefer `pnpm` scripts from `package.json` over raw `pnpm exec <cmd>` when a script exists.
 - Pre-commit hook ([.husky/pre-commit](.husky/pre-commit)) runs `lint-staged` automatically — activated by `pnpm install` via the root `prepare` script.
-- Containerized website + benchmarks have their own self-syncing scripts ([scripts/website.sh](scripts/website.sh), [scripts/benchmarks.sh](scripts/benchmarks.sh)) — see [SETUP.md → Containerized apps](SETUP.md#containerized-apps-docs-website--benchmarks).
+- Containerized website + benchmarks share ONE podman image (website at `/app`, benchmarks at `/bench`). Image lifecycle (build/push/pull/ensure/lock/clean) is owned by [scripts/podman-website.sh](scripts/podman-website.sh) (shared helpers in [scripts/lib-container.sh](scripts/lib-container.sh)); [scripts/website.sh](scripts/website.sh) runs the site and [scripts/benchmarks.sh](scripts/benchmarks.sh) runs the bench half under `/bench`, both delegating image ops to podman-website.sh. See [SETUP.md → Containerized apps](SETUP.md#containerized-apps-docs-website--benchmarks).
 
 ## Git workflow
 
@@ -151,9 +151,9 @@ Full rationale: [docs/ARCHITECTURE.md → Validate contract](docs/ARCHITECTURE.m
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed design, execution model, sentinel markers, lossy mappings, factory reference.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — scope + known lossy mappings.
 
-### Website docs style (`website/content/`)
+### Website docs style (`container-website/content/`)
 
-User-facing docs under [website/content/](website/content/) (Nuxt + Docus Markdown + MDC) follow a deliberate, reader-first voice. Keep it when editing:
+User-facing docs under [container-website/content/](container-website/content/) (Nuxt + Docus Markdown + MDC) follow a deliberate, reader-first voice. Keep it when editing:
 
 - **Plain, user-focused language.** Say what a feature does for the reader and why it helps, not how it is built; cut deep internals (hashing, byte offsets, "side-channel", "fixpoint", demand-driven cache mechanics).
 - **No dashes chaining clauses or sentences.** No em-dash, en-dash, `--`, or a spaced single `-` as punctuation; use a comma, a period, or parentheses. Hyphenated words (`build-time`) and dashes inside code / flags / URLs are fine.
