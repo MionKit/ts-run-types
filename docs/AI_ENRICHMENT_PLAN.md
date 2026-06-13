@@ -109,27 +109,33 @@ Independent enabling changes. Each is small, well-scoped, Go-test-verifiable.
 ## P2 — Runtime rendering (TS, pure-data) — AUTONOMOUS
 
 ### P2.1 — `createFriendly<T>(map)`
-- [ ] New module `packages/ts-runtypes/src/enrichment/createFriendly.ts`:
-  `createFriendly<T>(map: FriendlyType<T>) => { label(path): string; errors(errs: RunTypeError[]): FriendlyMessage[] }`.
-- [ ] `errors()`: walk `error.path` (string/number/object segments — handle
-  Map/Set object segments) into the map; pick template by
-  `error.format ? formatPath.at(-1) : 'type'`, else `$default`; interpolate
-  `$[label]` / `$[val]` / `$[path]` / `$[index]`. Function-valued `$errors` →
-  call with a synthesized `failed` object grouped from the path's errors.
-- [ ] `label(path)`: walk to the node, return `$label` ?? last raw path segment.
-- [ ] Pure-data — **no** type-id injection, no `rtUtils`. (UI/runtype pairing is P6.)
+- [x] New module `packages/ts-runtypes/src/enrichment/createFriendly.ts`:
+  `createFriendly<T>(map: FriendlyType<T>) => { label(path): string; errors(errs: RunTypeError[]): FriendlyMessage[] }`,
+  exported from index. `FriendlyMessage = { path; label; message }`.
+- [x] `errors()`: groups by path, walks `error.path` (string → child, number/object
+  → `$items`) into the map; data-form picks the template by
+  `error.format ? formatPath.at(-1) : 'type'` (else `$default`, else a fallback)
+  and interpolates `$[label]`/`$[val]`/`$[path]`/`$[index]` — one message per
+  constraint; function-form `$errors` is called once with the synthesized `failed`
+  bag — one message per field.
+- [x] `label(path)`: dotted-string or segment array → node, returns `$label` ??
+  raw last (string) segment.
+- [x] Pure-data — **no** type-id injection, no `rtUtils`. (UI/runtype pairing is P6.)
 - **Tests** (`test/suites/enrichment/createFriendly.test.ts`, vitest, hand-built
   `RunTypeError[]`):
-  - [ ] base type failure → `type` template, `$[label]` resolves
-  - [ ] format failure → constraint template, `$[val]` = bound (post-P0.2)
-  - [ ] nested path (`profile.email`) resolution
-  - [ ] array element (`$items`, `$[index]`)
-  - [ ] label fallback to raw name when `$label` absent
-  - [ ] multiple errors on one field → list (accumulation)
-  - [ ] function escape hatch → synthesized `failed` join
-  - [ ] missing map entry → graceful fallback message
-- **Acceptance:** suite green; **both `getRunTypeId` call-shapes rule N/A** here
-  (no marker), but document that the marker-coverage rule applies to P3/P4.
+  - [x] base type failure → `type` template, `$[label]` resolves
+  - [x] format failure → constraint template, `$[val]` = bound
+  - [x] nested path (`profile.email`) resolution
+  - [x] array element (`$items`, `$[index]`)
+  - [x] label fallback to raw name when `$label` absent
+  - [x] multiple errors on one field → list (accumulation)
+  - [x] function escape hatch → synthesized `failed` join
+  - [x] `$default` catches an unlisted constraint
+  - [x] missing map entry → graceful fallback message
+  - [x] `label()` accessor (dotted/nested/root/unknown)
+- **Acceptance:** suite green (10/10). ✅ The `getRunTypeId` both-call-shapes rule
+  is N/A here (no marker); it applies to P3/P4. Map/Set object path segments are
+  v1-limited (descend to `$items`, no `$keys`/`$values`) — noted for a later pass.
 
 ---
 
@@ -239,3 +245,6 @@ file's checkboxes in the same commit that lands the work.
 - **P1 done** — `FriendlyType<T>` + `MockData<T>` DSL types (DataOnly-style,
   depth-bounded, `infer`-free) + 14 instantiation-budget compile tests, all green;
   exported from the package entry. lint+prettier clean.
+- **P2 done** — `createFriendly<T>(map)` pure-data renderer (label + errors,
+  data-form + function escape hatch, `$[…]` interpolation, accumulation) + 10
+  vitest cases, all green; exported. lint+prettier clean.
