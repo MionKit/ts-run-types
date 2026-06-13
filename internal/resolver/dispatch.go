@@ -587,6 +587,17 @@ func typeIDFromEntryKey(key string) string {
 	return ""
 }
 
+// sameTransformPath matches a wire-tagged file path against a requested path,
+// tolerating the abs-vs-rel skew: scan Sites echo the REQUESTED (often
+// relative) path, but pure-fn Replacements carry the program's ABSOLUTE file
+// name (the extractor records positions against the tsgo program). Mirrors the
+// JS scan-batcher's projectFile/samePath rule so transform partitions edits to
+// the right file. Matching on a separator boundary keeps `a/user.ts` from
+// claiming `another-user.ts`.
+func sameTransformPath(tagged, requested string) bool {
+	return tagged == requested || strings.HasSuffix(tagged, "/"+requested) || strings.HasSuffix(tagged, "\\"+requested)
+}
+
 // containsString reports whether values contains target.
 func containsString(values []string, target string) bool {
 	for _, value := range values {
@@ -800,13 +811,13 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			}
 			var fileSites []protocol.Site
 			for _, site := range sites {
-				if site.File == file {
+				if sameTransformPath(site.File, file) {
 					fileSites = append(fileSites, site)
 				}
 			}
 			var fileReplacements []protocol.Replacement
 			for _, replacement := range pureFnReplacements {
-				if replacement.File == file {
+				if sameTransformPath(replacement.File, file) {
 					fileReplacements = append(fileReplacements, replacement)
 				}
 			}
@@ -816,6 +827,8 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
 		response := protocol.Response{
 			Transformed:   transformed,
+			Sites:         sites,
+			Replacements:  pureFnReplacements,
 			AddedRunTypes: addedRunTypes,
 			AddedPureFns:  addedPureFns,
 			Diagnostics:   combinedDiagnostics,

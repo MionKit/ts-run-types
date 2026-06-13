@@ -2,8 +2,6 @@ import path from 'node:path';
 import {getExePath} from 'ts-runtypes-bin';
 import {renderHeadline} from './diagnosticCatalog.ts';
 import {ResolverClient} from './resolver-client.ts';
-import {createScanBatcher, type SiteScanner} from './scan-batcher.ts';
-import {rewrite} from './rewrite.ts';
 import {Family, Severity, type Diagnostic} from './protocol.ts';
 import {
   ENTRY_MODULE_SUFFIX,
@@ -96,9 +94,6 @@ const RESOLVED_VIRTUAL_PREFIX = '\0' + VIRTUAL_MODULE_PREFIX;
 export default function runtypes(options: PluginOptions) {
   let resolver: ResolverClient | null = null;
   let cwdAbs = '';
-  // Batches concurrent per-file transform scans into multi-file
-  // dispatches — see scan-batcher.ts. Rebuilt per resolver.
-  let scanner: SiteScanner | null = null;
   // One full dump shared by every virtual-module load of a build pass.
   // The dump carries the complete `entryModules` map (every cache entry
   // the session knows), so N module loads share one wire payload.
@@ -176,20 +171,11 @@ export default function runtypes(options: PluginOptions) {
         moduleMode,
       });
       dumpAllMemo = null;
-      scanner = createScanBatcher(async (files) => {
-        const result = await resolver!.scanFiles(files);
-        // New types reaching the session after the dump was memoized
-        // would leave the entryModules map stale — drop the memo so the
-        // next virtual-module load re-dumps.
-        if (result.addedRunTypes || result.addedPureFns) invalidateDumpAll();
-        return result;
-      });
     },
 
     buildEnd(this: any) {
       resolver?.close();
       resolver = null;
-      scanner = null;
       dumpAllMemo = null;
     },
 
@@ -256,13 +242,20 @@ export default function runtypes(options: PluginOptions) {
       if (!importsMarkerModule && !code.includes('registerPureFnFactory')) return null;
 
       const rel = path.relative(options.cwd ?? process.cwd(), id);
-      const result = await rewrite(rel, code, scanner ?? resolver);
-      if (result.sites.length === 0 && result.replacements.length === 0) return null;
-
-      // The EditBuffer-generated map lets Vite chain our edits into the
-      // composite source map, so breakpoints and stack traces land on the
-      // user's ORIGINAL lines despite the injected import block + bindings.
-      return {code: result.code, map: result.map ?? null};
+      // The Go binary owns the full transform now (OpTransform): it scans,
+      // applies the call-site rewrites + dedup import block + bindings, and
+      // generates the source map. The plugin just plumbs {code, map} to Vite.
+      const result = await resolver.transform([rel]);
+      // New types reaching the session would leave the memoized dump (and thus
+      // the virtual-module bodies) stale — drop it so the next load re-dumps.
+      if (result.addedRunTypes || result.addedPureFns) invalidateDumpAll();
+      if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
+      const fileResult = result.transformed[rel];
+      if (!fileResult) return null;
+      // The Go-generated map lets Vite chain our edits into the composite
+      // source map, so breakpoints/stack traces land on the user's ORIGINAL
+      // lines despite the injected import block + bindings.
+      return {code: fileResult.code, map: fileResult.map ?? null};
     },
 
     // handleHotUpdate is the HMR pivot. When a user file changes:
