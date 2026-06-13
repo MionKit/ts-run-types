@@ -11,7 +11,7 @@ export const NATIVE = {
       'A Map with string keys and number values validates via `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
     validateNotes: [
       'Must be an actual `Map` instance — a plain object, array, or `Set` is rejected.',
-      'The value side reuses the atomic `number` check, so a `NaN` value is rejected (path `{key, index, failed: "mapValue"}`).',
+      'The value side reuses the atomic `number` check, so a `NaN` value is rejected (path `{key, failed: "mapValue"}`).',
     ],
     validate: () => createValidate<Map<string, number>>(),
     standardSchema: () => createStandardSchema<Map<string, number>>(),
@@ -26,11 +26,11 @@ export const NATIVE = {
       [{message: 'Expected map', path: [], expected: 'map'}],
       [{message: 'Expected map', path: [], expected: 'map'}],
       [{message: 'Expected map', path: [], expected: 'map'}],
-      [{message: 'Expected string', path: [{key: 1, index: 0, failed: 'mapKey'}], expected: 'string'}],
-      [{message: 'Expected number', path: [{key: 'a', index: 0, failed: 'mapValue'}], expected: 'number'}],
+      [{message: 'Expected string', path: [{key: 0, failed: 'mapKey'}], expected: 'string'}],
+      [{message: 'Expected number', path: [{key: 0, failed: 'mapValue'}], expected: 'number'}],
       [{message: 'Expected map', path: [], expected: 'map'}],
       [{message: 'Expected map', path: [], expected: 'map'}],
-      [{message: 'Expected number', path: [{key: 'a', index: 0, failed: 'mapValue'}], expected: 'number'}],
+      [{message: 'Expected number', path: [{key: 0, failed: 'mapValue'}], expected: 'number'}],
       [{message: 'Expected map', path: [], expected: 'map'}],
     ],
     validateDataOnly: () => createValidate<DataOnly<Map<string, number>>>(),
@@ -82,13 +82,13 @@ export const NATIVE = {
       [{path: [], expected: 'map'}],
       [{path: [], expected: 'map'}],
       // wrongKey: Map with key=1 (number not string). Path is the
-      // standard {key, index, failed} segment object identifying
-      // which side of which entry failed.
-      [{path: [{key: 1, index: 0, failed: 'mapKey'}], expected: 'string'}],
-      [{path: [{key: 'a', index: 0, failed: 'mapValue'}], expected: 'number'}],
+      // standard {key, failed} segment object: `key` is the entry's
+      // iteration index, `failed` which side of the entry failed.
+      [{path: [{key: 0, failed: 'mapKey'}], expected: 'string'}],
+      [{path: [{key: 0, failed: 'mapValue'}], expected: 'number'}],
       [{path: [], expected: 'map'}],
       [{path: [], expected: 'map'}],
-      [{path: [{key: 'a', index: 0, failed: 'mapValue'}], expected: 'number'}],
+      [{path: [{key: 0, failed: 'mapValue'}], expected: 'number'}],
       [{path: [], expected: 'map'}],
     ],
   },
@@ -97,7 +97,7 @@ export const NATIVE = {
     title: 'Set',
     description: 'A Set of strings validates via `v instanceof Set` plus iteration over `v.values()`.',
     validateNotes:
-      'Must be an actual `Set` instance — a plain object, array, or `Map` is rejected; each element is checked against the element type (set path is `{key: safe(item), index}`).',
+      'Must be an actual `Set` instance — a plain object, array, or `Map` is rejected; each element is checked against the element type (set path is `{key, failed: "setKey"}`, where `key` is the iteration index).',
     validate: () => createValidate<Set<string>>(),
     standardSchema: () => createStandardSchema<Set<string>>(),
     validateDataOnly: () => createValidate<DataOnly<Set<string>>>(),
@@ -145,14 +145,14 @@ export const NATIVE = {
       [{path: [], expected: 'set'}],
       [{path: [], expected: 'set'}],
       // wrongType: Set with item 1 (number not string). Set path is
-      // {key: safe(item), index} — set.ts parity (T4); safe(1)=1.
-      [{path: [{key: 1, index: 0}], expected: 'string'}],
+      // {key, failed: 'setKey'} where `key` is the iteration index.
+      [{path: [{key: 0, failed: 'setKey'}], expected: 'string'}],
       [{path: [], expected: 'set'}],
       [{path: [], expected: 'set'}],
       [{path: [], expected: 'set'}],
-      // nullElement: Set with item null (not string); pf_safeIterableKey
-      // coerces a null key to the string 'null' (always a PropertyKey).
-      [{path: [{key: 'null', index: 0}], expected: 'string'}],
+      // nullElement: Set with item null (not string). The item value is
+      // never serialised into the path — `key` is just the index (0).
+      [{path: [{key: 0, failed: 'setKey'}], expected: 'string'}],
     ],
   },
 

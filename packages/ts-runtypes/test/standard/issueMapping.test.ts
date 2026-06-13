@@ -24,14 +24,14 @@ describe('runTypeErrorsToIssues', () => {
     expect(runTypeErrorsToIssues(errs)[0].path).toEqual(['tags', 2]);
   });
 
-  test('Map object segment passes through unchanged (key + index + failed)', () => {
-    const errs: RTValidationError[] = [{path: ['m', {key: 'k1', index: 0, failed: 'mapValue'}], expected: 'number'}];
-    expect(runTypeErrorsToIssues(errs)[0].path).toEqual(['m', {key: 'k1', index: 0, failed: 'mapValue'}]);
+  test('Map entry segment passes through unchanged (index key + failed role)', () => {
+    const errs: RTValidationError[] = [{path: ['m', {key: 0, failed: 'mapValue'}], expected: 'number'}];
+    expect(runTypeErrorsToIssues(errs)[0].path).toEqual(['m', {key: 0, failed: 'mapValue'}]);
   });
 
-  test('Set object segment passes through unchanged (key + index, no failed)', () => {
-    const errs: RTValidationError[] = [{path: ['s', {key: 'item-a', index: 0}], expected: 'string'}];
-    expect(runTypeErrorsToIssues(errs)[0].path).toEqual(['s', {key: 'item-a', index: 0}]);
+  test('Set entry segment passes through unchanged (index key + setKey role)', () => {
+    const errs: RTValidationError[] = [{path: ['s', {key: 0, failed: 'setKey'}], expected: 'string'}];
+    expect(runTypeErrorsToIssues(errs)[0].path).toEqual(['s', {key: 0, failed: 'setKey'}]);
   });
 
   test('format constraint with a primitive bound names the constraint + bound', () => {

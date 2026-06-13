@@ -5,8 +5,8 @@
 //
 // The mapping is LOSSLESS and adds NO path recreation: a RTValidationError path
 // is already a valid Standard Schema path (every segment is a `PropertyKey` or
-// an `RTPathSegment`, which is a `{key: PropertyKey}` carrying extra index/
-// failed metadata), so we pass `err.path` straight through. The only thing we
+// an `RTPathSegment`, which is a `{key: PropertyKey}` carrying an extra `failed`
+// role marker), so we pass `err.path` straight through. The only thing we
 // build is the `message`; `expected` and `format` ride along as structured
 // fields a spec consumer ignores but a RunTypes-aware one can read.
 

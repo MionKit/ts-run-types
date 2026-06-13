@@ -10,7 +10,6 @@ package typefns
 // const to reference (the pre-migration `k_<alias>` scheme).
 var pureFnAliases = map[string]string{
 	"newRunTypeErr":           "nRT",
-	"safeIterableKey":         "sIK",
 	"getUnknownKeysFromArray": "gUKFA",
 	"hasUnknownKeysFromArray": "hUKFA",
 }
