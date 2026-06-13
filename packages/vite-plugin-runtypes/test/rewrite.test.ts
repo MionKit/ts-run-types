@@ -305,7 +305,7 @@ const myAPI = reflectRunTypeId(routes);
   );
 
   // ---- multibyte sources -------------------------------------------------
-  // Resolver positions are UTF-8 BYTE offsets while the MagicString edit
+  // Resolver positions are UTF-8 BYTE offsets while the EditBuffer edit
   // surface indexes UTF-16 code units. These fixtures place multibyte chars
   // (3-byte em-dash, 4-byte emoji => surrogate pair) BEFORE the call site so
   // any byte/char conflation shifts the insertion point — the binding would
@@ -356,7 +356,7 @@ reflectRunTypeId(u);
   );
 
   // ---- source map --------------------------------------------------------
-  // The rewrite returns a MagicString-generated map so Vite can chain our
+  // The rewrite returns an EditBuffer-generated map so Vite can chain our
   // edits into the composite map: generated line 2 (everything after the
   // single-line import block) must map back to ORIGINAL line 1.
 
