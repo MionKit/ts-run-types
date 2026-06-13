@@ -149,12 +149,7 @@ export type String<P extends StringParams = {}, BrandName extends string = never
 // Alpha/AlphaNumeric/Numeric reference the registered char-class patterns
 // by `typeof` (see ./string-patterns.ts).
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-export type Alpha<P extends StringParams = {}> = TypeFormat<
-  string,
-  'stringFormat',
-  P & {pattern: typeof ALPHA_PATTERN},
-  never
->;
+export type Alpha<P extends StringParams = {}> = TypeFormat<string, 'stringFormat', P & {pattern: typeof ALPHA_PATTERN}, never>;
 export type AlphaNumeric<P extends StringParams = {}> = TypeFormat<
   string,
   'stringFormat',
@@ -319,10 +314,7 @@ export function alpha<const P extends StringParams>(
   formatParams: CompTimeArgs<P>,
   id?: InjectRunTypeId<Alpha<P>>
 ): RunType<Alpha<P>>;
-export function alpha(
-  formatParamsOrId?: StringParams | InjectRunTypeId<Alpha>,
-  id?: InjectRunTypeId<Alpha>
-): RunType<Alpha> {
+export function alpha(formatParamsOrId?: StringParams | InjectRunTypeId<Alpha>, id?: InjectRunTypeId<Alpha>): RunType<Alpha> {
   const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
   const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
   return builderResult(injectedId, {type: 'stringFormat', formatParams});
