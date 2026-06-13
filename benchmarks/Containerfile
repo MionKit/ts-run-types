@@ -52,6 +52,14 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/typia && pnpm install --no-frozen-lockfile \
     || echo ">> typia install failed (opt-in BENCH_TYPIA column will be skipped)"
 
+# typecost runner — its own TypeScript install (it drives the compiler API). The
+# marker package it type-resolves against is the one bind-mounted into the ts-go
+# competitor at run time (see scripts/benchmarks.sh:mount_args).
+COPY pnpm-workspace.yaml .npmrc typecost/
+COPY typecost/package.json typecost/package.json
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    cd typecost && pnpm install --no-frozen-lockfile
+
 # ── Bake the benchmark source. The per-competitor node_modules created above are
 #    NOT in the build context (gitignored on the host), so this merges source in
 #    and leaves them intact. Drop any /app-level workspace/registry files so each
