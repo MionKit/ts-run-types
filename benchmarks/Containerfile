@@ -1,11 +1,12 @@
 # syntax=podman
 # ─────────────────────────────────────────────────────────────────────────────
-# Isolated environment for the validation benchmarks. EACH competitor installs
-# its deps into its OWN node_modules (separate layers, separate pnpm stores), so
-# one competitor's dependency tree — notably typia's heavy/fragile vite6+rollup4
-# — can never break another's install or build. The shared suite + harness carry
-# no third-party deps. The ts-go-run-types competitor's Go binary + first-party
-# packages are bind-mounted at run time (see scripts/benchmarks.sh:mount_args).
+# Isolated environment for the validation benchmarks. EACH competitor is a
+# STANDALONE pnpm project (its own pnpm-workspace.yaml policy + package.json →
+# its own node_modules), so one competitor's dependency tree — notably typia's
+# heavy/fragile vite6+rollup4 — can never break another's install or build. The
+# shared suite + harness carry no third-party deps. The ts-go-run-types
+# competitor's Go binary + first-party packages are bind-mounted at run time
+# (see scripts/benchmarks.sh:mount_args).
 # ─────────────────────────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/devcontainers/javascript-node:22
 
@@ -19,38 +20,43 @@ COPY .cacerts/ /usr/local/share/ca-certificates/
 RUN update-ca-certificates >/dev/null 2>&1 || true
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
-# Supply-chain policy (minimumReleaseAge, allowBuilds, blockExoticSubdeps, …),
-# inherited by each per-competitor install below.
-COPY pnpm-workspace.yaml .npmrc ./
-
-# ── Per-competitor installs — each its own node_modules, cached on its own
-#    package.json. typia's install is non-fatal so its (opt-in) fragile deps can
-#    never abort the image build for the others.
+# ── Per-competitor installs ──────────────────────────────────────────────────
+# Each competitor gets a COPY of the supply-chain policy (pnpm-workspace.yaml +
+# .npmrc) INTO ITS OWN DIR so `pnpm install` resolves there (no /app-level
+# workspace file — that would make pnpm treat /app as the root, find "no
+# projects", and install nothing). node_modules is cached on each package.json.
+# typia's install is non-fatal so its opt-in fragile deps can't abort the build.
+COPY pnpm-workspace.yaml .npmrc competitors/zod/
 COPY competitors/zod/package.json competitors/zod/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/zod && pnpm install --no-frozen-lockfile
 
+COPY pnpm-workspace.yaml .npmrc competitors/typebox/
 COPY competitors/typebox/package.json competitors/typebox/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/typebox && pnpm install --no-frozen-lockfile
 
+COPY pnpm-workspace.yaml .npmrc competitors/ajv/
 COPY competitors/ajv/package.json competitors/ajv/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/ajv && pnpm install --no-frozen-lockfile
 
+COPY pnpm-workspace.yaml .npmrc competitors/ts-go-run-types/
 COPY competitors/ts-go-run-types/package.json competitors/ts-go-run-types/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/ts-go-run-types && pnpm install --no-frozen-lockfile
 
+COPY pnpm-workspace.yaml .npmrc competitors/typia/
 COPY competitors/typia/package.json competitors/typia/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/typia && pnpm install --no-frozen-lockfile \
     || echo ">> typia install failed (opt-in BENCH_TYPIA column will be skipped)"
 
-# ── Bake the benchmark source (shared/, competitors/ source, typecost/,
-#    aggregate.mjs, configs). The per-competitor node_modules created above are
-#    NOT in the build context (gitignored on the host), so this COPY merges the
-#    source in and leaves them intact.
+# ── Bake the benchmark source. The per-competitor node_modules created above are
+#    NOT in the build context (gitignored on the host), so this merges source in
+#    and leaves them intact. Drop any /app-level workspace/registry files so each
+#    competitor's own pnpm-workspace.yaml governs at run time.
 COPY . .
+RUN rm -f /app/pnpm-workspace.yaml /app/.npmrc
 
 # No CMD: scripts/benchmarks.sh supplies per-competitor build+run commands.
