@@ -191,32 +191,28 @@ Independent enabling changes. Each is small, well-scoped, Go-test-verifiable.
 
 ---
 
-## P5 — `MockData` → `createMockType` integration (TS)
+## P5 — `MockData` → `createMockType` integration (TS) — DONE
 
-> **Investigated (not yet implemented).** The walker
-> ([mocking/mockType.ts](../packages/ts-runtypes/src/mocking/mockType.ts)) threads a
-> `stack: RunType[]` for **cycle detection by reference identity — NOT a field-name
-> path** (`mockRunType(runType, options, stack)`), and `MockOptions`
-> ([mocking/mockTypes.ts](../packages/ts-runtypes/src/mocking/mockTypes.ts)) are
-> **global knobs** (pools for `any`/`object`/`regexp`, number/string bounds,
-> per-property *optional* probability) — there is no per-field value pool keyed by
-> field name. So consuming `MockData<T>` needs a NEW per-field MockData node
-> threaded alongside `stack` and descended by field name / `$items`.
+> The walker ([mocking/mockType.ts](../packages/ts-runtypes/src/mocking/mockType.ts))
+> threads a `stack: RunType[]` for cycle detection — NOT a field-name path — and
+> `MockOptions` are global knobs. So consuming `MockData<T>` needed a NEW per-field
+> MockData node threaded alongside the walk, descended by field name / `$items`.
 
-- [ ] Add a `data?: MockData<T>` arg to `createMockType` (or `options.mock.dataNode`)
-  and thread the **current MockData node** through `mockRunType` →
-  `buildObjectLiteral` / array / tuple / map / set. **Make it strictly additive
-  (optional, default undefined ⇒ byte-identical behaviour)** so the existing
-  ~228-test Array suite + all mock cases stay green — the contained-risk approach.
-- [ ] At leaf kinds: `dataNode.pool` → `randomItem(pool)`; number/Date `min`/`max` →
-  bounds; at array: `dataNode.$items` for elements, `dataNode.$length` for length;
-  at object property: descend `dataNode[name]`.
-- **Caveats found:** Map/Set/tuple MockData are v1-limited — `MockNode` projects
-  Map/Set through the object branch (a child map over methods), so no `$keys`/
-  `$values`; tuples share one `$items` element node. Note in the DSL if refined.
-- **Tests:** vitest — pool selection, range bounds, array `$length`, nested,
-  additive no-op when `data` absent; **MD003 (pool values validate) is P3.3.**
-- **Acceptance:** full mock suite stays green + new `data` cases pass.
+- [x] Added `data?: MockData<T>` to `RunTypeMockOptions<T>` (public) +
+  an internal `dataNode` cursor; `mergeMockOptions` seeds it (call overrides factory),
+  the walker threads it via the options bag (`withDataNode`/`childDataNodeByName`),
+  descending objects by name and arrays by `$items`. **Strictly additive** — the
+  no-data path preserves the options object's reference identity (byte-identical).
+- [x] Leaf kinds: `dataNode.pool` → `randomItem(pool)` (string/number/Date/boolean/
+  bigint); number/Date `min`/`max` → bounds; arrays honour `$items` + `$length`
+  (fixed or `[min,max]`); objects descend `dataNode[name]`.
+- **Caveats (as predicted):** Map/Set cleared (v1-limited); tuples share one `$items`
+  node. `$optional` reserved, not yet read.
+- **Tests:** `test/suites/mocking/mockData.test.ts` — 14 cases, each looped 200× so
+  randomness can't pass by luck; pool/range/`$length`/`$items`/nested + 2 additive
+  no-data sanity cases. **MD003 (pool values validate at build time) is still P3.3.**
+- **Acceptance:** full suite **91 files / 5912 passed / 2 skipped** (+14, zero
+  regressions); prettier + eslint clean. ✅ (commit `afba648`)
 
 ---
 
@@ -278,3 +274,22 @@ file's checkboxes in the same commit that lands the work.
     (audit assertions first); marker recognition + `ShapeCheckedArgs` validation +
     CLI/`gen` are deep, interdependent, and need the binary rebuilt + plugin tests.
   Each should land as its own green, committed increment per the cadence above.
+
+- **Rebased onto `main`** after a TF/TFT format-builder refactor landed — clean replay
+  (the refactor never touched the files this branch edits); full suite re-verified green.
+- **P5 done** (parallel agent) — `createMockType<T>({ data })` consumes `MockData<T>`,
+  additive; +14 tests; suite 5912 green. See P5 section above.
+- **Docs + skills done** (parallel agents) — website `3.ai-integration/` section (3
+  pages + homepage card-group) and two skills (`runtypes-friendly-type`,
+  `runtypes-mock-data`). "Shipped vs designed" notes reconciled after P5 wired `{ data }`.
+- **Decisions recorded** (small open questions resolved per the user — none change the
+  architecture): see "Decided defaults" + the "Process model — where each command runs"
+  section in [AI_ENRICHMENT.md](./AI_ENRICHMENT.md). Headline: **no new binary** — the
+  Go side gains pure `describe`/validation OPs (warm checker reuse); the user-facing
+  `gen`/`check`/`describe` commands + all file writes live on the JS public surface.
+- **Key realization** documented: TypeScript's own checking of the precise DSL types
+  already catches the bulk of drift, so the Go validation pass (P3) is a *refinement*
+  layer (FT003/FT005/MD003/drift-hash), not the core — the feature is already usable
+  with P1/P2/P5 + the editor.
+- **Remaining (Go, focused session):** P0.1 declFile, P0.2 `$[val]`, P3 validation
+  diagnostics, P4 CLI (`describe`/`check`/`gen`) — per the process-model split above.

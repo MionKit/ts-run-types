@@ -319,6 +319,17 @@ export type MockData<T> = MockNode<T>;
 
 ## Compile-time validation — part of the normal parse
 
+> **Most drift is already caught by TypeScript itself.** Because `FriendlyType<T>`
+> / `MockData<T>` are *precise* mapped types, the user's own type-checker rejects
+> the bulk of drift with no Go pass at all: a renamed/removed field makes the map
+> key an excess property (editor error), and an object-vs-scalar shape mismatch is a
+> type error (both proven by the P1 instantiation-budget tests). So the Go pass
+> below is a **refinement layer** — it adds only what the type system can't see:
+> constraint-key existence (FT003 — the `$errors` record has an index signature, so
+> TS accepts any key), `$[…]` placeholder validity (FT005), mock pool-value
+> validation (MD003), and the semantic-drift hash (FT010/MD010). The feature is
+> already useful with just the types + the editor; the pass sharpens the diagnostics.
+
 The **marker is the type annotation**. The scanner already parses every file for
 markers and already resolves a type's `RunType` graph; recognizing a declaration
 typed `FriendlyType<T>` / `MockData<T>` is one more marker arm. It walks the
@@ -392,6 +403,27 @@ correctness check. The Go binary already runs as a long-lived process under the
 plugin, so `check --file` is a cheap incremental op. The same two ops are exactly
 what you'd expose as **MCP tools** so any agent (Claude Code, Cursor, your own)
 can drive generation, vendor-neutral.
+
+### Process model — where each command runs (decided)
+
+**No new binary.** Split by concern, reusing the one warm resolver:
+
+- **Type-info + validation (`describe`, the `check` analysis) → new resolver OPs**
+  in the existing Go binary (alongside `scanFiles`/`dump`). They are pure
+  type-reflection that returns data and writes nothing — a perfect fit for the
+  binary's "side-channel, emits no JS, answers queries" contract — and they reuse
+  the **warm `Program` + checker**. A fresh binary per call would re-pay the
+  multi-second program-init on every `check`, which kills the tight agent loop.
+- **User-facing commands + file writing (`gen`, the `describe`/`check` front-ends,
+  the MCP wrapper) → the JS public surface.** Per CLAUDE.md ("the Go binary is the
+  side-channel; the JS packages are the only public surface"), the CLI spawns/reuses
+  the resolver for type info and does the `.rt.ts` rendering + file writes itself —
+  file I/O already lives JS-side (the plugin writes the cache there). This keeps the
+  Go binary pure (it never writes into the user's source tree) and avoids shipping a
+  second binary. The CLI keeps one resolver process warm across a loop's calls.
+
+So the Go side gains pure analysis OPs; everything that touches argv or disk lives
+in the npm package.
 
 **Never call an LLM inside a build.** Builds stay pure and deterministic. Any
 LLM-backed generation is an explicit, opt-in CLI/agent action that writes a
@@ -572,7 +604,10 @@ Two caveats to bank for when v2 is built:
 
 ---
 
-## Open questions / out of scope
+## Decided defaults / out of scope
+
+These were the open small-detail questions; all are now **decided** (none affect the
+overall architecture) and documented here:
 
 - **i18n.** v1 is single-locale. A `Record<Locale, FriendlyType<T>>` wrapper can be
   added later without a breaking change; the same marker-detection that finds
