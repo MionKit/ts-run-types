@@ -43,13 +43,15 @@ export function formatCircularPath(path: CircularPath): string {
   return out;
 }
 
-// Global arm. A single process-wide flag (per-call override is a v2 follow-up,
-// see docs/ROADMAP.md) — runtime decision, independent of the build-time
-// linking the resolver performs for circular types.
+// Global arm — a single process-wide flag (runtime decision, independent of the
+// build-time linking the resolver performs for circular types). Each guarded
+// factory also accepts a per-call `{checkCircular}` override that wins over this
+// flag for that one instance (see ValidateOptions / JsonEncoderOptions /
+// BinaryEncoderOptions).
 let circularCheckEnabled = false;
 
 /** Arms (or disarms) circular-reference checking for every guarded createX
- *  factory. Off by default. **/
+ *  factory. Off by default; a per-call `{checkCircular}` option overrides it. **/
 export function setCircularCheck(enabled: boolean): void {
   circularCheckEnabled = enabled;
 }

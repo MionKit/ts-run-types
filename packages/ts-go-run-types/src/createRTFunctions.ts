@@ -27,6 +27,12 @@ export interface ValidateOptions {
    *  The variant cache key changes (e.g. `val_<id>` → `valNA_<id>`) so
    *  the same type id can serve both the guarded and unguarded factory. **/
   noIsArrayCheck?: boolean;
+  /** Per-call circular-reference guard — overrides the global `setCircularCheck`
+   *  for THIS validator (`true` arms, `false` disables). Runtime-only: it is
+   *  deliberately NOT one of the Go scanner's `ValidateOptions`, so it never
+   *  folds into the fnHash / cache key (a circular-checking and a plain
+   *  validator for the same `T` share one compiled entry). **/
+  checkCircular?: boolean;
 }
 
 /** Validator function returned by `createValidate<T>()`. The type guard narrows
@@ -133,7 +139,9 @@ export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
  *    allocation, slower on non-trivial shapes; always strips undeclared keys.
  */
 export type JsonEncoderStrategy = 'clone' | 'mutate' | 'direct';
-export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy};
+// `checkCircular` is the per-call circular-reference override (see ValidateOptions);
+// runtime-only — the JSON axis hashes only `strategy`, so it never forks the cache.
+export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy; checkCircular?: boolean};
 
 /** Caller-controlled `strategy` for `createJsonDecoder<T>()`. The decoder always
  *  allocates fresh via `JSON.parse`, so the only axis is undeclared keys:
@@ -153,9 +161,21 @@ export type JsonDecoderOptions = {strategy?: JsonDecoderStrategy};
  *  build time). Slot 0 (`val`) may be a value-first schema whose runtime
  *  `.id` overrides the injected typeId (correct even for recursive schemas);
  *  the family fnHash still comes from the injected tuple's key. **/
-function resolveTupleEntry<F extends AnyFn>(fnName: string, identityFn: F, val: unknown, args: unknown): F {
+function resolveTupleEntry<F extends AnyFn>(
+  fnName: string,
+  identityFn: F,
+  val: unknown,
+  args: unknown,
+  checkCircular?: boolean
+): F {
   const schemaId = isRunTypeSchema(val) ? val.id : undefined;
-  return resolveEntryTupleFn(fnName, identityFn, schemaId, args);
+  return resolveEntryTupleFn(fnName, identityFn, schemaId, args, checkCircular);
+}
+
+/** Reads the per-call `checkCircular` override off a createX options bag
+ *  (undefined when no options / not set → the global flag decides). **/
+function readCheckCircular(options: unknown): boolean | undefined {
+  return (options as {checkCircular?: boolean} | undefined)?.checkCircular;
 }
 
 /** Returns the compiled closure for an option-carrying createX factory
@@ -166,7 +186,7 @@ function createTypeFnArgsFunction<F extends AnyFn>(
   fnName: string,
   identityFn: F
 ): (val?: unknown, options?: unknown, args?: unknown) => F {
-  return (val, _options, args) => resolveTupleEntry(fnName, identityFn, val, args);
+  return (val, options, args) => resolveTupleEntry(fnName, identityFn, val, args, readCheckCircular(options));
 }
 
 /** Returns the compiled closure for a leaf family that does NOT honour
@@ -302,7 +322,7 @@ export function createJsonEncoder<T>(
   options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn {
-  return resolveTupleEntry<JsonEncoderFn>('createJsonEncoder', jsonStringifyFallback, valOrSchema, id);
+  return resolveTupleEntry<JsonEncoderFn>('createJsonEncoder', jsonStringifyFallback, valOrSchema, id, options?.checkCircular);
 }
 
 /** Returns a JSON decoder for `T`. Default `strategy: 'strip'` — undeclared
