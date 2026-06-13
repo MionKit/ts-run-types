@@ -124,17 +124,17 @@ Full TC39 Temporal — `PlainDate`, `ZonedDateTime`, `Duration`… validated and
 One object, Every function.
 
 #body
-:::div{class="rt-feature-row"}
-::::card{class="rt-feature-card"}
+:::card{class="rt-standard-card"}
+::::div{class="rt-standard-split"}
+:::::div{class="rt-feature-card rt-standard-prose"}
 ### The whole toolbelt, in one box
-Stop gluing five libraries together. RunTypes shares a single type graph across everything it generates — so the validator and the serializer always agree on what your type means.
-
-<br>
+Stop gluing five libraries together. RunTypes shares a single type graph across everything it generates, so the validator and the serializer always agree on what your type means.
 
 [One type in, every function out.]{.text-highlighted}
-::::
+:::::
 
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-type" commentEnd="// end-type" />
+::::
 :::
 
 :::div{class="rt-object-fns"}
