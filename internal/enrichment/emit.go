@@ -73,6 +73,20 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		b.WriteString("{$label: ''}")
 		return
 	}
+	// Named-type-closure interception (EmitClosure only): a child that is another
+	// named type becomes a const-var reference, or a leaf for an in-progress
+	// back-edge — never an inlined body. The current const's own body returns
+	// namedRefInline so it walks normally.
+	if ctx.namedRef != nil {
+		switch action := ctx.namedRef(rt); action.kind {
+		case namedRefReference:
+			b.WriteString(action.varName)
+			return
+		case namedRefBroken:
+			b.WriteString("{$label: ''}")
+			return
+		}
+	}
 	// Structural composite kinds (solution A) — emitted BEFORE the object/leaf
 	// arms (most-specific first). Map/Set are KindClass without property
 	// children, so they must be caught here ahead of isObjectLike (false for
@@ -115,7 +129,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		delete(ctx.seen, rt)
 		return
 	}
-	if isObjectLike(rt) {
+	if isObjectLike(ctx, rt) {
 		ctx.seen[rt] = true
 		emitFriendlyObject(b, ctx, rt, depth)
 		delete(ctx.seen, rt)
@@ -141,7 +155,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 }
 
 func emitFriendlyObject(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth int) {
-	props := propertyChildren(rt)
+	props := propertyChildren(ctx, rt)
 	if len(props) == 0 {
 		b.WriteString("{$label: ''}")
 		return
@@ -166,6 +180,19 @@ func emitMockNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth 
 	if rt == nil || depth > maxWalkDepth || ctx.seen[rt] {
 		b.WriteString("{pool: []}")
 		return
+	}
+	// Named-type-closure interception (EmitClosure only): a child that is another
+	// named type becomes a const-var reference, or a leaf for an in-progress
+	// back-edge. The mock broken-cycle leaf is `{}` (matches docs).
+	if ctx.namedRef != nil {
+		switch action := ctx.namedRef(rt); action.kind {
+		case namedRefReference:
+			b.WriteString(action.varName)
+			return
+		case namedRefBroken:
+			b.WriteString("{}")
+			return
+		}
 	}
 	// Structural composite kinds (solution A) — emitted BEFORE the object/leaf
 	// arms. Tuples get a fixed-length `$slots` (no `$length`); Map/Set get
@@ -209,7 +236,7 @@ func emitMockNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth 
 		delete(ctx.seen, rt)
 		return
 	}
-	if isObjectLike(rt) {
+	if isObjectLike(ctx, rt) {
 		ctx.seen[rt] = true
 		emitMockObject(b, ctx, rt, depth)
 		delete(ctx.seen, rt)
@@ -225,7 +252,7 @@ func emitMockNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth 
 }
 
 func emitMockObject(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth int) {
-	props := propertyChildren(rt)
+	props := propertyChildren(ctx, rt)
 	if len(props) == 0 {
 		b.WriteString("{}")
 		return

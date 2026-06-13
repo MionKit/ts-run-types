@@ -138,8 +138,8 @@ func CheckMock(rt *protocol.RunType, literal LiteralView, resolve func(id string
 
 // childByName indexes a RunType's data-bearing property children by field name
 // for O(1) pairing against literal keys.
-func childByName(rt *protocol.RunType) map[string]*protocol.RunType {
-	props := propertyChildren(rt)
+func childByName(ctx *walkCtx, rt *protocol.RunType) map[string]*protocol.RunType {
+	props := propertyChildren(ctx, rt)
 	byName := make(map[string]*protocol.RunType, len(props))
 	for _, prop := range props {
 		byName[prop.Name] = prop
@@ -177,13 +177,13 @@ func checkFriendlyNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, 
 		return
 	}
 
-	if !isObjectLike(rt) {
+	if !isObjectLike(ctx, rt) {
 		return
 	}
 	ctx.seen[rt] = true
 	defer delete(ctx.seen, rt)
 
-	byName := childByName(rt)
+	byName := childByName(ctx, rt)
 	for _, key := range literal.Keys() {
 		if friendlyMetaKeys[key] {
 			// $label / $errors / $items belong to the owning node, not a field —
@@ -280,13 +280,13 @@ func checkMockNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, lite
 		return
 	}
 
-	if !isObjectLike(rt) {
+	if !isObjectLike(ctx, rt) {
 		return
 	}
 	ctx.seen[rt] = true
 	defer delete(ctx.seen, rt)
 
-	byName := childByName(rt)
+	byName := childByName(ctx, rt)
 	for _, key := range literal.Keys() {
 		if mockMetaKeys[key] {
 			continue
