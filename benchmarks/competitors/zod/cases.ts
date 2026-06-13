@@ -1032,6 +1032,11 @@ export const cases: CompetitorCases = {
     },
   },
 
+  // ── CIRCULAR_REFS ── (cyclic VALUES; zod has no cyclic-value detection)
+  'CIRCULAR_REFS.linked_list_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+  'CIRCULAR_REFS.tree_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+  'CIRCULAR_REFS.object_self_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+
   // ── UTILITY ──
   // partial: {name?:string, age?:number, createdAt?:Date} with plain-object guard (rejects arrays/Date/Map/Set)
   'UTILITY.partial': {

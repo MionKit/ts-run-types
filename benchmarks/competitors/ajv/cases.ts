@@ -1736,6 +1736,11 @@ export const cases: CompetitorCases = {
   'CIRCULAR.circular_child_under_literal_root': NOT_SUPPORTED, // child contains bigint; no bigint type in JSON Schema
   'CIRCULAR.multiple_circular_types_cross_referenced': NOT_SUPPORTED, // contains bigint and Date; no bigint/Date type in JSON Schema
 
+  // ── CIRCULAR_REFS ── (cyclic VALUES; ajv has no cyclic-value detection)
+  'CIRCULAR_REFS.linked_list_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+  'CIRCULAR_REFS.tree_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+  'CIRCULAR_REFS.object_self_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+
   // ── UTILITY ──
   'UTILITY.partial': NOT_SUPPORTED, // Partial type includes Date prop; no Date instance type in JSON Schema
   'UTILITY.required': NOT_SUPPORTED, // Required type includes Date prop; no Date instance type in JSON Schema
