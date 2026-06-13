@@ -21,6 +21,15 @@ RUN corepack enable
 
 WORKDIR /app
 
+# ── Optional: trust extra CA certs (corporate / MITM egress proxy) ───────────
+# The .cacerts/ dir is ALWAYS present in the build context (scripts/website.sh
+# creates it) but is empty unless $WEBSITE_CA_CERT is set, in which case the
+# script copies the proxy CA(s) in. Empty dir => update-ca-certificates is a
+# no-op, so this layer costs nothing for normal (non-proxied) builds.
+COPY .cacerts/ /usr/local/share/ca-certificates/
+RUN update-ca-certificates >/dev/null 2>&1 || true
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
 # ── Config files only — the install layer ───────────────────────────────────
 # Copying just these keeps the dependency graph + lockfile as the cache key:
 # editing website source never invalidates the install layer.
