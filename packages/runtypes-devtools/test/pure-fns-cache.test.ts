@@ -17,30 +17,6 @@ import {formatTscDiagnostic} from '../src/index.ts';
 import {Family, Severity, type Diagnostic} from '../src/protocol.ts';
 import {hasBinary, withInlineSources, evalEntryModules} from './helpers/inline.ts';
 
-// runtypesDts is the ambient marker declaration prepended to every
-// fixture below. registerPureFnFactory's discovery is now marker-driven
-// (CompTimeArgs<string> + PureFunction<F> brands on the two params), so
-// test fixtures need a branded signature in scope — otherwise the walker
-// silently skips the call.
-const runtypesDts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
-  export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
-  export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};
-  export interface RTUtils {
-    usePureFn(key: CompTimeArgs<string>): any;
-    getPureFn(key: CompTimeArgs<string>): any;
-    getCompiledPureFn(key: CompTimeArgs<string>): any;
-    hasPureFn(key: CompTimeArgs<string>): boolean;
-    findCompiledPureFn(fnName: CompTimeArgs<string>): any;
-  }
-  export function registerPureFnFactory(
-    pureFnId: CompTimeArgs<PureFnId>,
-    factory: PureFunction<(utl: RTUtils) => any> | null
-  ): any;
-}
-`;
-
 function pureFnDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
   return (response.diagnostics ?? []).filter((d) => d.family === Family.PureFn);
 }
