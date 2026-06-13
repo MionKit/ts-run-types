@@ -196,3 +196,48 @@ for (const k of [
 ]) {
   delete ajvMap[k];
 }
+
+// ── NUMBER_FORMAT (bounded number schemas reject NaN/Infinity, so ajv works) ──
+Object.assign(ajvMap, {
+  'NUMBER_FORMAT.number_max': c({type: 'number', maximum: 100}),
+  'NUMBER_FORMAT.number_min': c({type: 'number', minimum: 0}),
+  'NUMBER_FORMAT.number_lt': c({type: 'number', exclusiveMaximum: 10}),
+  'NUMBER_FORMAT.number_gt': c({type: 'number', exclusiveMinimum: 0}),
+  'NUMBER_FORMAT.number_integer': c({type: 'integer'}),
+  'NUMBER_FORMAT.number_float': c({type: 'number', not: {type: 'integer'}}),
+  'NUMBER_FORMAT.number_multipleOf': c({type: 'number', multipleOf: 5}),
+  'NUMBER_FORMAT.number_combined': c({type: 'integer', minimum: 0, maximum: 100, multipleOf: 5}),
+  'NUMBER_FORMAT.number_int8': c({type: 'integer', minimum: -128, maximum: 127}),
+  'NUMBER_FORMAT.number_uint8': c({type: 'integer', minimum: 0, maximum: 255}),
+});
+
+// ── STRING_FORMAT (JSON Schema pattern has no case-insensitive flag, so the
+//    ignoreCase cases stay not-supported) ──
+Object.assign(ajvMap, {
+  'STRING_FORMAT.string_maxLength': c({type: 'string', maxLength: 5}),
+  'STRING_FORMAT.string_minLength': c({type: 'string', minLength: 3}),
+  'STRING_FORMAT.string_length': c({type: 'string', minLength: 4, maxLength: 4}),
+  'STRING_FORMAT.string_range': c({type: 'string', minLength: 2, maxLength: 4}),
+  'STRING_FORMAT.string_allowedChars': c({type: 'string', pattern: '^[0-9a-f]+$'}),
+  'STRING_FORMAT.string_allowedChars_literal': c({type: 'string', pattern: '^[.\\-]+$'}),
+  'STRING_FORMAT.string_disallowedChars': c({type: 'string', pattern: '^[^!@#]*$'}),
+  'STRING_FORMAT.string_allowedValues': c({type: 'string', enum: ['red', 'green', 'blue']}),
+  'STRING_FORMAT.string_allowedValues_escaped': c({type: 'string', enum: ['a.b', 'c+d']}),
+  'STRING_FORMAT.string_disallowedValues': c({type: 'string', not: {enum: ['admin', 'root']}}),
+  'STRING_FORMAT.string_customErrorMessage': c({type: 'string', enum: ['a', 'b']}),
+  'STRING_FORMAT.alpha': c({type: 'string', pattern: '^[A-Za-z]+$'}),
+  'STRING_FORMAT.alphaNumeric': c({type: 'string', pattern: '^[A-Za-z0-9]+$'}),
+  'STRING_FORMAT.numeric': c({type: 'string', pattern: '^[0-9]+$'}),
+  'STRING_FORMAT.alpha_withLength': c({type: 'string', pattern: '^[A-Za-z]+$', maxLength: 3}),
+  'STRING_FORMAT.lowercase_validate': c({type: 'string'}),
+  'STRING_FORMAT.uuidv4': c({
+    type: 'string',
+    pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  }),
+  'STRING_FORMAT.uuidv7': c({
+    type: 'string',
+    pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  }),
+  'STRING_FORMAT.pattern_slug': c({type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'}),
+  'STRING_FORMAT.pattern_hex': c({type: 'string', pattern: '^[0-9a-fA-F]+$'}),
+});

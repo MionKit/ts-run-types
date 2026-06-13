@@ -126,3 +126,44 @@ export const typeboxMap: CompetitorMap = {
   // ── DATETIME (validation) ──
   'DATETIME.date': c(Type.Date()),
 };
+
+// ── NUMBER_FORMAT (TypeBox can't express "not integer", so number_float is NS) ──
+Object.assign(typeboxMap, {
+  'NUMBER_FORMAT.number_max': c(Type.Number({maximum: 100})),
+  'NUMBER_FORMAT.number_min': c(Type.Number({minimum: 0})),
+  'NUMBER_FORMAT.number_lt': c(Type.Number({exclusiveMaximum: 10})),
+  'NUMBER_FORMAT.number_gt': c(Type.Number({exclusiveMinimum: 0})),
+  'NUMBER_FORMAT.number_integer': c(Type.Integer()),
+  'NUMBER_FORMAT.number_multipleOf': c(Type.Number({multipleOf: 5})),
+  'NUMBER_FORMAT.number_combined': c(Type.Integer({minimum: 0, maximum: 100, multipleOf: 5})),
+  'NUMBER_FORMAT.number_int8': c(Type.Integer({minimum: -128, maximum: 127})),
+  'NUMBER_FORMAT.number_uint8': c(Type.Integer({minimum: 0, maximum: 255})),
+});
+
+// ── STRING_FORMAT (pattern has no case-insensitive flag, so ignoreCase /
+//    disallowedValues cases stay not-supported) ──
+const UUID4 = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$';
+const UUID7 = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$';
+Object.assign(typeboxMap, {
+  'STRING_FORMAT.string_maxLength': c(Type.String({maxLength: 5})),
+  'STRING_FORMAT.string_minLength': c(Type.String({minLength: 3})),
+  'STRING_FORMAT.string_length': c(Type.String({minLength: 4, maxLength: 4})),
+  'STRING_FORMAT.string_range': c(Type.String({minLength: 2, maxLength: 4})),
+  'STRING_FORMAT.string_allowedChars': c(Type.String({pattern: '^[0-9a-f]+$'})),
+  'STRING_FORMAT.string_allowedChars_literal': c(Type.String({pattern: '^[.\\-]+$'})),
+  'STRING_FORMAT.string_disallowedChars': c(Type.String({pattern: '^[^!@#]*$'})),
+  'STRING_FORMAT.string_allowedValues': c(
+    Type.Union([Type.Literal('red'), Type.Literal('green'), Type.Literal('blue')]),
+  ),
+  'STRING_FORMAT.string_allowedValues_escaped': c(Type.Union([Type.Literal('a.b'), Type.Literal('c+d')])),
+  'STRING_FORMAT.string_customErrorMessage': c(Type.Union([Type.Literal('a'), Type.Literal('b')])),
+  'STRING_FORMAT.alpha': c(Type.String({pattern: '^[A-Za-z]+$'})),
+  'STRING_FORMAT.alphaNumeric': c(Type.String({pattern: '^[A-Za-z0-9]+$'})),
+  'STRING_FORMAT.numeric': c(Type.String({pattern: '^[0-9]+$'})),
+  'STRING_FORMAT.alpha_withLength': c(Type.String({pattern: '^[A-Za-z]+$', maxLength: 3})),
+  'STRING_FORMAT.lowercase_validate': c(Type.String()),
+  'STRING_FORMAT.uuidv4': c(Type.String({pattern: UUID4})),
+  'STRING_FORMAT.uuidv7': c(Type.String({pattern: UUID7})),
+  'STRING_FORMAT.pattern_slug': c(Type.String({pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'})),
+  'STRING_FORMAT.pattern_hex': c(Type.String({pattern: '^[0-9a-fA-F]+$'})),
+});

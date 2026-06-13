@@ -125,3 +125,57 @@ export const zodMap: CompetitorMap = {
   // ── DATETIME (validation) ──
   'DATETIME.date': c(z.date()),
 };
+
+// ── NUMBER_FORMAT ──
+Object.assign(zodMap, {
+  'NUMBER_FORMAT.number_max': c(z.number().finite().max(100)),
+  'NUMBER_FORMAT.number_min': c(z.number().finite().min(0)),
+  'NUMBER_FORMAT.number_lt': c(z.number().finite().lt(10)),
+  'NUMBER_FORMAT.number_gt': c(z.number().finite().gt(0)),
+  'NUMBER_FORMAT.number_integer': c(z.number().int()),
+  'NUMBER_FORMAT.number_float': c(z.number().finite().refine((n) => !Number.isInteger(n))),
+  'NUMBER_FORMAT.number_multipleOf': c(z.number().finite().multipleOf(5)),
+  'NUMBER_FORMAT.number_combined': c(z.number().int().min(0).max(100).multipleOf(5)),
+  'NUMBER_FORMAT.number_int8': c(z.number().int().min(-128).max(127)),
+  'NUMBER_FORMAT.number_uint8': c(z.number().int().min(0).max(255)),
+  // ── BIGINT_FORMAT ──
+  'BIGINT_FORMAT.bigint_max': c(z.bigint().lte(100n)),
+  'BIGINT_FORMAT.bigint_min': c(z.bigint().gte(0n)),
+  'BIGINT_FORMAT.bigint_lt': c(z.bigint().lt(10n)),
+  'BIGINT_FORMAT.bigint_gt': c(z.bigint().gt(0n)),
+  'BIGINT_FORMAT.bigint_multipleOf': c(z.bigint().multipleOf(5n)),
+  'BIGINT_FORMAT.bigint_combined': c(z.bigint().gte(0n).lte(1000n).multipleOf(10n)),
+  'BIGINT_FORMAT.bigint_int64': c(z.bigint().gte(-9223372036854775808n).lte(9223372036854775807n)),
+  'BIGINT_FORMAT.bigint_uint64': c(z.bigint().gte(0n).lte(18446744073709551615n)),
+});
+
+// ── STRING_FORMAT (regex / length / enum-expressible; email/url/ip/date/time
+//    have nuanced suite semantics and are left not-supported) ──
+Object.assign(zodMap, {
+  'STRING_FORMAT.string_maxLength': c(z.string().max(5)),
+  'STRING_FORMAT.string_minLength': c(z.string().min(3)),
+  'STRING_FORMAT.string_length': c(z.string().length(4)),
+  'STRING_FORMAT.string_range': c(z.string().min(2).max(4)),
+  'STRING_FORMAT.string_allowedChars': c(z.string().regex(/^[0-9a-f]+$/)),
+  'STRING_FORMAT.string_allowedChars_ignoreCase': c(z.string().regex(/^[abc]+$/i)),
+  'STRING_FORMAT.string_allowedChars_literal': c(z.string().regex(/^[.\-]+$/)),
+  'STRING_FORMAT.string_disallowedChars': c(z.string().regex(/^[^!@#]*$/)),
+  'STRING_FORMAT.string_allowedValues': c(z.enum(['red', 'green', 'blue'])),
+  'STRING_FORMAT.string_allowedValues_ignoreCase': c(z.string().regex(/^(red|green)$/i)),
+  'STRING_FORMAT.string_allowedValues_escaped': c(z.enum(['a.b', 'c+d'])),
+  'STRING_FORMAT.string_disallowedValues': c(z.string().refine((s) => !['admin', 'root'].includes(s))),
+  'STRING_FORMAT.string_customErrorMessage': c(z.enum(['a', 'b'])),
+  'STRING_FORMAT.alpha': c(z.string().regex(/^[A-Za-z]+$/)),
+  'STRING_FORMAT.alphaNumeric': c(z.string().regex(/^[A-Za-z0-9]+$/)),
+  'STRING_FORMAT.numeric': c(z.string().regex(/^[0-9]+$/)),
+  'STRING_FORMAT.alpha_withLength': c(z.string().regex(/^[A-Za-z]+$/).max(3)),
+  'STRING_FORMAT.lowercase_validate': c(z.string()),
+  'STRING_FORMAT.uuidv4': c(
+    z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
+  ),
+  'STRING_FORMAT.uuidv7': c(
+    z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
+  ),
+  'STRING_FORMAT.pattern_slug': c(z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)),
+  'STRING_FORMAT.pattern_hex': c(z.string().regex(/^[0-9a-fA-F]+$/)),
+});

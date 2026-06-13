@@ -77,21 +77,17 @@ not-supported. Run with `BENCH_NO_TIMING=1` and fix any reported mismatch (or
 downgrade it to not-supported when the library genuinely diverges from
 ts-go-run-types' semantics).
 
-## typia (optional / experimental)
+## typia (not currently wired)
 
 Typia, like ts-go-run-types, derives validators from TypeScript types via a
-compile-time transform. Enable it with `BENCH_TYPIA=1`:
-
-```bash
-BENCH_TYPIA=1 pnpm run bench
-```
-
-This wires `@ryoppippi/unplugin-typia` into the vite build. It is currently
-**blocked by an upstream typia ↔ typescript transformer version conflict**
-(typia's `FileTransformer` fails against the installed TypeScript), so the typia
-column stays not-supported by default. The wiring and validators
-([`src/competitors/typia.ts (when added)`](src/competitors/typia.ts (when added))) are in place — pin a compatible
-`typia` / `typescript` / `@ryoppippi/unplugin-typia` triple to light it up.
+compile-time transform, so it would be the most apt comparison. It is **not** in
+the current runner: an attempt to wire `@ryoppippi/unplugin-typia` into the vite
+build hit an upstream typia ↔ typescript transformer version conflict (typia's
+`FileTransformer` throws against the installed TypeScript). The `BENCH_TYPIA=1`
+hook in `vite.config.ts` is left as a placeholder; re-introduce a
+`src/competitors/typia.ts` map (a `typia.createIs<T>()` per case) and pin a
+compatible `typia` / `typescript` / `@ryoppippi/unplugin-typia` triple to enable
+it.
 
 ## Behind a corporate / MITM proxy
 
