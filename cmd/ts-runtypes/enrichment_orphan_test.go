@@ -60,3 +60,40 @@ func TestOrphanConstOp(t *testing.T) {
 		t.Errorf("orphan op must have exactly one `*/` (its own terminator): %q", op.text)
 	}
 }
+
+// TestPruneOrphanBlocks strips both orphan-child (inline) and orphan-const
+// (whole block) carcasses, leaving the live content intact.
+func TestPruneOrphanBlocks(t *testing.T) {
+	src := "export const friendlyA = {\n" +
+		"  x: {$label: ''},\n" +
+		"  /* @rtOrphanChild old: {$label: 'Old'}, */\n" +
+		"};\n" +
+		"\n" +
+		"/* @rtOrphan /** @rtType B#bID * /\n" +
+		"export const friendlyB = { y: {$label: ''} }; */\n" +
+		"\n" +
+		"export const friendlyC = { z: {$label: ''} };\n"
+
+	pruned, removed := pruneOrphanBlocks(src)
+	if removed != 2 {
+		t.Fatalf("removed = %d, want 2", removed)
+	}
+	if strings.Contains(pruned, "@rtOrphan") {
+		t.Errorf("orphan tags should be gone:\n%s", pruned)
+	}
+	if !strings.Contains(pruned, "x: {$label: ''}") || !strings.Contains(pruned, "friendlyC") {
+		t.Errorf("live content must survive:\n%s", pruned)
+	}
+	// The inline orphan-child line is removed cleanly — no leftover blank gap with
+	// a dangling indent.
+	if strings.Contains(pruned, "  \n") {
+		t.Errorf("dangling indented blank line left behind:\n%q", pruned)
+	}
+
+	// No orphans → unchanged, zero removed.
+	clean := "export const x = 1;\n"
+	out, n := pruneOrphanBlocks(clean)
+	if n != 0 || out != clean {
+		t.Errorf("clean text should be untouched; n=%d out=%q", n, out)
+	}
+}
