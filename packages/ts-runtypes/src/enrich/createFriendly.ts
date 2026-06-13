@@ -34,28 +34,34 @@ export interface FriendlyRenderer {
 }
 
 // Runtime view of a node — the authored map is a plain object with `$label` /
-// `$errors` meta keys plus child-field keys (and `$items` for arrays).
+// `$errors` meta keys plus child-field keys (`$items` for arrays, `$keys` /
+// `$values` for maps/sets).
 type FriendlyNodeRuntime = {
   $label?: string;
   $errors?: ErrorTemplates;
   $items?: FriendlyNodeRuntime;
+  $keys?: FriendlyNodeRuntime;
+  $values?: FriendlyNodeRuntime;
   [field: string]: unknown;
 };
 
 const PLACEHOLDER = /\$\[(\w+)\]/g;
 
-/** A path segment usable as an object/dotted key — string or number; Map/Set
- *  object segments have no friendly key in v1. */
-function segmentKey(seg: RTValidationErrorPathSegment): string | number | undefined {
-  return typeof seg === 'string' || typeof seg === 'number' ? seg : undefined;
+/** A path segment's dotted-path key: a string field name, an array / tuple
+ *  index, or a Map / Set entry's iteration index (its numeric `key`). */
+function segmentKey(seg: RTValidationErrorPathSegment): string | number {
+  if (typeof seg === 'string' || typeof seg === 'number') return seg;
+  return seg.key;
 }
 
-/** Descend one segment: string → child field; number → `$items`; object
- *  (Map/Set segment) → `$items` (best effort). */
+/** Descend one segment: string → child field; number → `$items` (array
+ *  element); Map / Set entry → `$keys` (a `mapKey` failure) or `$values` (a
+ *  `mapValue` / `setKey` failure), routed by the segment's `failed` role. */
 function descend(node: FriendlyNodeRuntime | undefined, seg: RTValidationErrorPathSegment): FriendlyNodeRuntime | undefined {
   if (!node) return undefined;
   if (typeof seg === 'string') return node[seg] as FriendlyNodeRuntime | undefined;
-  return node.$items;
+  if (typeof seg === 'number') return node.$items;
+  return seg.failed === 'mapKey' ? node.$keys : node.$values;
 }
 
 function nodeAt(root: FriendlyNodeRuntime, path: RTValidationErrorPathSegment[]): FriendlyNodeRuntime | undefined {
@@ -75,12 +81,7 @@ function rawLabel(path: RTValidationErrorPathSegment[]): string {
 }
 
 function pathToString(path: RTValidationErrorPathSegment[]): string {
-  const parts: string[] = [];
-  for (const seg of path) {
-    const key = segmentKey(seg);
-    if (key !== undefined) parts.push(String(key));
-  }
-  return parts.join('.');
+  return path.map((seg) => String(segmentKey(seg))).join('.');
 }
 
 /** The template key for an error: the format sub-constraint (`formatPath` tail),
@@ -100,10 +101,12 @@ function primitiveVal(val: TypeFormatError['val'] | undefined): string | number 
   return undefined;
 }
 
-/** The last numeric path segment (array index), for `$[index]`. */
+/** The last numeric path segment (array index or Map / Set entry index), for
+ *  `$[index]`. */
 function numericIndex(path: RTValidationErrorPathSegment[]): number | undefined {
   for (let i = path.length - 1; i >= 0; i--) {
-    if (typeof path[i] === 'number') return path[i] as number;
+    const key = segmentKey(path[i]);
+    if (typeof key === 'number') return key;
   }
   return undefined;
 }
@@ -127,16 +130,23 @@ interface PathGroup {
   errors: RTValidationError[];
 }
 
-/** Group errors by stringified path, preserving first-seen order. */
+/** Grouping signature: the dotted path, but a Map / Set entry also encodes its
+ *  `failed` role so a key-failure and a value-failure at the SAME entry index
+ *  resolve to their own (`$keys` vs `$values`) node instead of colliding. */
+function groupSignature(path: RTValidationErrorPathSegment[]): string {
+  return path.map((seg) => (typeof seg === 'object' ? `${seg.key} ${seg.failed ?? ''}` : String(seg))).join('.');
+}
+
+/** Group errors by path (role-aware for Map / Set), preserving first-seen order. */
 function groupByPath(errs: RTValidationError[]): PathGroup[] {
   const groups: PathGroup[] = [];
-  const byPath = new Map<string, PathGroup>();
+  const bySignature = new Map<string, PathGroup>();
   for (const err of errs) {
-    const pathStr = pathToString(err.path);
-    let group = byPath.get(pathStr);
+    const signature = groupSignature(err.path);
+    let group = bySignature.get(signature);
     if (!group) {
-      group = {path: err.path, pathStr, errors: []};
-      byPath.set(pathStr, group);
+      group = {path: err.path, pathStr: pathToString(err.path), errors: []};
+      bySignature.set(signature, group);
       groups.push(group);
     }
     group.errors.push(err);
