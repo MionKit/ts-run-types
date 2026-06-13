@@ -47,7 +47,8 @@ From the repo root:
 ```bash
 pnpm run bench:prep          # build the Go binary + JS packages on the host (one-time)
 pnpm run bench:build-image   # build the podman image
-pnpm run bench               # build + run the benchmark in the container
+pnpm run bench               # runtime: build + validate + throughput, in the container
+pnpm run bench:typecost      # compile-time: TS type-instantiation cost, in the container
 ```
 
 `bench` prints, per case (grouped by suite/group), a correctness check **and**
@@ -55,6 +56,45 @@ validation throughput for every library, then a coverage summary. It exits
 non-zero if any *supported* validator is incorrect, so the run doubles as a
 cross-library conformance test. Env knobs: `BENCH_NO_TIMING=1` (correctness
 only, fast), `BENCH_TIME_MS=100` (per-cell measurement window).
+
+## Type-checking cost (`bench:typecost`)
+
+A second, orthogonal axis: how expensive each form is for the **TypeScript
+compiler** to type-check. Every schema library that recovers a static type
+(`Static<typeof schema>` / `z.infer<typeof schema>`) makes the checker *evaluate*
+that type at every use site; a plain `type T = …` definition is essentially free.
+
+`bench:typecost` ([`typecost.mjs`](typecost.mjs)) assembles, per case, a tiny
+self-contained `.ts` probe per **form**, compiles each in isolation through the
+TypeScript compiler API, and reads `program.getInstantiationCount()`
+(baseline-subtracted, so the number is the marginal cost of resolving that case's
+type). Forms:
+
+- **ts-go (type)** — `type T = <the TS type>; let x!: T;` (the type-definition form)
+- **ts-go (schema)** — `const s = RT.…; type T = Static<typeof s>;` (value-first builder)
+- **zod** — `const s = z.…; type T = z.infer<typeof s>;`
+- **typebox** — `const s = Type.…; type T = Static<typeof s>;`
+- **ajv** — none (JSON Schema has no static type inference)
+
+The probe sources are **extracted from the real code** (TS compiler API): the
+`createValidate<TYPE>()` type arg and `validateSchema`'s `createValidate(RT.…)`
+arg from each suite case, and the `c(EXPR)` arg from the competitor maps — so
+they're the exact types/schemas the runtime benchmark uses.
+
+Apples-to-apples over the cases all forms support (your DTO type-checks pay this
+on every build / in your editor):
+
+```
+ts-go(type)      ~5 instantiations/case     # writing the type is ~free
+ts-go(schema)   ~400 /case
+typebox         ~535 /case
+zod             ~786 /case
+```
+
+i.e. the type-definition form is ~80–160× cheaper for `tsc` to resolve than any
+schema→type form — including ts-go's own value-first schema form. Cases whose
+type references globals the pinned TypeScript lacks (e.g. `Temporal`) or that are
+inline-recursive without a name report `err` and are excluded from totals.
 
 ## Layout
 

@@ -92,6 +92,7 @@ mount_args() {
   printf -- '-v\n%s:/app/bin/ts-go-run-types:ro%s\n' "$BIN" "$MOUNT_OPTS"
   printf -- '-v\n%s:/app/node_modules/@mionjs/ts-go-run-types:ro%s\n' "$MARKER_PKG" "$MOUNT_OPTS"
   printf -- '-v\n%s:/app/node_modules/vite-plugin-runtypes:ro%s\n' "$PLUGIN_PKG" "$MOUNT_OPTS"
+  printf -- '-v\n%s:/app/typecost.mjs:ro%s\n' "$BENCH_DIR/typecost.mjs" "$MOUNT_OPTS"
 }
 
 net_args() { [ -n "$RUN_NETWORK" ] && printf -- '--network=%s\n' "$RUN_NETWORK"; }
@@ -119,6 +120,11 @@ cmd_build() {
   run_in_container pnpm run build
 }
 
+cmd_typecost() {
+  echo "==> measuring TS type-instantiation cost in the container"
+  run_in_container node typecost.mjs
+}
+
 cmd_shell() { run_in_container bash; }
 
 cmd_clean() {
@@ -132,9 +138,10 @@ main() {
     build-image) require_engine; build_image ;;
     bench|'')    require_engine; cmd_bench ;;
     build)       require_engine; cmd_build ;;
+    typecost)    require_engine; cmd_typecost ;;
     shell)       require_engine; cmd_shell ;;
     clean)       require_engine; cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | build | shell | clean" ;;
+    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | build | typecost | shell | clean" ;;
   esac
 }
 

@@ -50,6 +50,7 @@
     "bench:build-image": "bash scripts/benchmarks.sh build-image",
     "bench": "bash scripts/benchmarks.sh bench",
     "bench:build": "bash scripts/benchmarks.sh build",
+    "bench:typecost": "bash scripts/benchmarks.sh typecost",
     "bench:shell": "bash scripts/benchmarks.sh shell",
     "bench:clean": "bash scripts/benchmarks.sh clean",
     "clean": "nx reset && lerna run clean",
