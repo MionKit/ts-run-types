@@ -73,6 +73,48 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		b.WriteString("{$label: ''}")
 		return
 	}
+	// Structural composite kinds (solution A) — emitted BEFORE the object/leaf
+	// arms (most-specific first). Map/Set are KindClass without property
+	// children, so they must be caught here ahead of isObjectLike (false for
+	// them anyway) and the leaf fallthrough.
+	if rt.Kind == protocol.KindTuple {
+		ctx.seen[rt] = true
+		// A variadic tuple (`[A, ...B[]]`) has a broad `length`, so the Phase-A
+		// type treats it as an ARRAY (`$items`); a fixed tuple gets `$slots`.
+		if isVariadicTuple(ctx, rt) {
+			b.WriteString("{$label: '', $items: {$label: ''}}")
+		} else {
+			b.WriteString("{$label: '', $slots: [")
+			for i, slot := range tupleSlots(ctx, rt) {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				emitFriendlyNode(b, ctx, slot, depth+1)
+			}
+			b.WriteString("]}")
+		}
+		delete(ctx.seen, rt)
+		return
+	}
+	if isMap(rt) {
+		ctx.seen[rt] = true
+		keyType, valueType := mapKeyValue(ctx, rt)
+		b.WriteString("{$label: '', $keys: ")
+		emitFriendlyNode(b, ctx, keyType, depth+1)
+		b.WriteString(", $values: ")
+		emitFriendlyNode(b, ctx, valueType, depth+1)
+		b.WriteString("}")
+		delete(ctx.seen, rt)
+		return
+	}
+	if isSet(rt) {
+		ctx.seen[rt] = true
+		b.WriteString("{$label: '', $values: ")
+		emitFriendlyNode(b, ctx, setElement(ctx, rt), depth+1)
+		b.WriteString("}")
+		delete(ctx.seen, rt)
+		return
+	}
 	if isObjectLike(rt) {
 		ctx.seen[rt] = true
 		emitFriendlyObject(b, ctx, rt, depth)
@@ -123,6 +165,48 @@ func emitMockNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth 
 	rt = ctx.deref(rt)
 	if rt == nil || depth > maxWalkDepth || ctx.seen[rt] {
 		b.WriteString("{pool: []}")
+		return
+	}
+	// Structural composite kinds (solution A) — emitted BEFORE the object/leaf
+	// arms. Tuples get a fixed-length `$slots` (no `$length`); Map/Set get
+	// `$keys`/`$values` (the optional `$size` is left for the author to add).
+	if rt.Kind == protocol.KindTuple {
+		ctx.seen[rt] = true
+		// A variadic tuple (`[A, ...B[]]`) has a broad `length`, so the Phase-A
+		// type treats it as an ARRAY (`$items`/`$length`); a fixed tuple gets
+		// the fixed-length `$slots`.
+		if isVariadicTuple(ctx, rt) {
+			b.WriteString("{$items: {pool: []}, $length: [1, 3]}")
+		} else {
+			b.WriteString("{$slots: [")
+			for i, slot := range tupleSlots(ctx, rt) {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				emitMockNode(b, ctx, slot, depth+1)
+			}
+			b.WriteString("]}")
+		}
+		delete(ctx.seen, rt)
+		return
+	}
+	if isMap(rt) {
+		ctx.seen[rt] = true
+		keyType, valueType := mapKeyValue(ctx, rt)
+		b.WriteString("{$keys: ")
+		emitMockNode(b, ctx, keyType, depth+1)
+		b.WriteString(", $values: ")
+		emitMockNode(b, ctx, valueType, depth+1)
+		b.WriteString("}")
+		delete(ctx.seen, rt)
+		return
+	}
+	if isSet(rt) {
+		ctx.seen[rt] = true
+		b.WriteString("{$values: ")
+		emitMockNode(b, ctx, setElement(ctx, rt), depth+1)
+		b.WriteString("}")
+		delete(ctx.seen, rt)
 		return
 	}
 	if isObjectLike(rt) {
