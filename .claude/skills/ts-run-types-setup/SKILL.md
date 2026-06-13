@@ -48,12 +48,12 @@ Setup OK.
 
 Single source of truth is [CLAUDE.md](../../../CLAUDE.md) → "Containerized apps".
 
-| Tool   | Min     | Needed by              |
-| ------ | ------- | ---------------------- |
-| podman | ≥ 4.0   | website + benchmarks   |
-| Node   | ≥ 24    | benchmarks host build  |
-| pnpm   | ≥ 11    | monorepo workspace     |
-| Go     | ≥ 1.26  | benchmarks resolver bin|
+| Tool   | Min    | Needed by               |
+| ------ | ------ | ----------------------- |
+| podman | ≥ 4.0  | website + benchmarks    |
+| Node   | ≥ 24   | benchmarks host build   |
+| pnpm   | ≥ 11   | monorepo workspace      |
+| Go     | ≥ 1.26 | benchmarks resolver bin |
 
 Only **podman** is required for the website. The benchmarks additionally need
 Node + pnpm + Go for `pnpm run bench:prep` (builds the Go resolver binary + JS
@@ -76,8 +76,8 @@ inside the container.
 - **Linux** — verified here (podman 4.9.3 via apt). Other distros use dnf/pacman/zypper.
 - **macOS** — supported: installs via Homebrew and runs `podman machine init/start`
   (containers run in a Linux VM). For the dev server use
-  `WEBSITE_POLL=1 pnpm run website:dev` (VM file-watch needs polling). *Not verified
-  in this Linux container — the macOS branch is install-by-Homebrew + machine start.*
+  `WEBSITE_POLL=1 pnpm run website:dev` (VM file-watch needs polling). _Not verified
+  in this Linux container — the macOS branch is install-by-Homebrew + machine start._
 - **Any other OS** — the script prints a not-ready message and exits `3`.
 
 ## Gotchas
@@ -85,9 +85,9 @@ inside the container.
 - **`bench:prep` needs the submodule bootstrap first.** Building the Go resolver
   binary requires the tsgolint/typescript-go submodules + patches (see
   [CONTRIBUTORS.md](../../../CONTRIBUTORS.md) → submodule bootstrap). `setup.sh`
-  ensures the Go *toolchain*, not the submodule checkout.
+  ensures the Go _toolchain_, not the submodule checkout.
 - **Behind a corporate/MITM proxy**, the in-container `pnpm install` fails TLS —
   pass the proxy CA + host network: `WEBSITE_CA_CERT=… WEBSITE_BUILD_NETWORK=host
-  pnpm run website:build-image` (and `BENCH_*` equivalents). See `website/CONTAINER.md`.
+pnpm run website:build-image` (and `BENCH_*` equivalents). See `website/CONTAINER.md`.
 - **Go auto-install on Linux** drops Go in `/usr/local/go`; add `/usr/local/go/bin`
   to PATH if it wasn't already.

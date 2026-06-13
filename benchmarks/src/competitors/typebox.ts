@@ -49,7 +49,7 @@ export const typeboxMap: CompetitorMap = {
   // ── TUPLE ──
   'TUPLE.string_number_pair': c(Type.Tuple([Type.String(), Type.Number()])),
   'TUPLE.full_mion_tuple': c(
-    Type.Tuple([Type.Date(), Type.Number(), Type.String(), Type.Null(), Type.Array(Type.String()), Type.BigInt()]),
+    Type.Tuple([Type.Date(), Type.Number(), Type.String(), Type.Null(), Type.Array(Type.String()), Type.BigInt()])
   ),
   'TUPLE.nested_tuple_in_array': c(Type.Array(Type.Tuple([Type.String(), Type.Number()]))),
   'TUPLE.tuple_named_labels': c(Type.Tuple([Type.String(), Type.Number()])),
@@ -58,38 +58,30 @@ export const typeboxMap: CompetitorMap = {
   'TUPLE.readonly_tuple': c(Type.Tuple([Type.String(), Type.Number()])),
 
   // ── UNION ──
-  'UNION.atomic_union': c(
-    Type.Union([Type.Date(), Type.Number(), Type.String(), Type.Null(), Type.BigInt()]),
-  ),
-  'UNION.string_literal_union': c(
-    Type.Union([Type.Literal('UNO'), Type.Literal('DOS'), Type.Literal('TRES')]),
-  ),
+  'UNION.atomic_union': c(Type.Union([Type.Date(), Type.Number(), Type.String(), Type.Null(), Type.BigInt()])),
+  'UNION.string_literal_union': c(Type.Union([Type.Literal('UNO'), Type.Literal('DOS'), Type.Literal('TRES')])),
   'UNION.string_or_number': c(Type.Union([Type.String(), Type.Number()])),
-  'UNION.union_of_array_types': c(
-    Type.Union([Type.Array(Type.String()), Type.Array(Type.Number()), Type.Array(Type.Boolean())]),
-  ),
-  'UNION.array_of_union': c(
-    Type.Array(Type.Union([Type.String(), Type.BigInt(), Type.Boolean(), Type.Date()])),
-  ),
+  'UNION.union_of_array_types': c(Type.Union([Type.Array(Type.String()), Type.Array(Type.Number()), Type.Array(Type.Boolean())])),
+  'UNION.array_of_union': c(Type.Array(Type.Union([Type.String(), Type.BigInt(), Type.Boolean(), Type.Date()]))),
   'UNION.union_of_object_shapes': c(
     Type.Union([
       Type.Object({a: Type.String(), aa: Type.Boolean()}),
       Type.Object({b: Type.Number()}),
       Type.Object({c: Type.BigInt()}),
-    ]),
+    ])
   ),
   'UNION.discriminated_union': c(
     Type.Union([
       Type.Object({kind: Type.Literal('a'), n: Type.Number()}),
       Type.Object({kind: Type.Literal('b'), s: Type.String()}),
-    ]),
+    ])
   ),
   'UNION.union_same_prop_different_types': c(
     Type.Union([
       Type.Object({type: Type.Literal('a'), prop: Type.Boolean()}),
       Type.Object({type: Type.Literal('b'), prop: Type.Number()}),
       Type.Object({type: Type.Literal('c'), prop: Type.String()}),
-    ]),
+    ])
   ),
   'UNION.intersection_to_object': c(Type.Object({a: Type.String(), b: Type.Number()})),
   'UNION.union_with_any_fallback': c(Type.Any()),
@@ -103,22 +95,14 @@ export const typeboxMap: CompetitorMap = {
   'OBJECT.interface_with_optional': c(Type.Object({a: Type.String(), b: Type.Optional(Type.Number())})),
   'OBJECT.interface_with_date': c(Type.Object({date: Type.Date(), name: Type.String()})),
   'OBJECT.interface_with_method': c(Type.Object({name: Type.String()})),
-  'OBJECT.nested_object': c(
-    Type.Object({a: Type.String(), deep: Type.Object({b: Type.String(), c: Type.Number()})}),
-  ),
+  'OBJECT.nested_object': c(Type.Object({a: Type.String(), deep: Type.Object({b: Type.String(), c: Type.Number()})})),
   'OBJECT.interface_string_array_prop': c(Type.Object({tags: Type.Array(Type.String())})),
   'OBJECT.index_signature_string': c(Type.Record(Type.String(), Type.String())),
-  'OBJECT.index_signature_nested': c(
-    Type.Record(Type.String(), Type.Record(Type.String(), Type.Number())),
-  ),
-  'OBJECT.index_signature_date_value': c(
-    Type.Record(Type.String(), Type.Record(Type.String(), Type.Date())),
-  ),
+  'OBJECT.index_signature_nested': c(Type.Record(Type.String(), Type.Record(Type.String(), Type.Number()))),
+  'OBJECT.index_signature_date_value': c(Type.Record(Type.String(), Type.Record(Type.String(), Type.Date()))),
   'OBJECT.record_union_keys': c(Type.Object({a: Type.Number(), b: Type.Number()})),
   'OBJECT.union_value_index': c(Type.Record(Type.String(), Type.Union([Type.String(), Type.Number()]))),
-  'OBJECT.object_with_union_prop': c(
-    Type.Object({kind: Type.Union([Type.Literal('a'), Type.Literal('b')]), n: Type.Number()}),
-  ),
+  'OBJECT.object_with_union_prop': c(Type.Object({kind: Type.Union([Type.Literal('a'), Type.Literal('b')]), n: Type.Number()})),
 
   // ── NATIVE ──
   'NATIVE.awaited_promise': c(Type.String()),
@@ -152,9 +136,7 @@ Object.assign(typeboxMap, {
   'STRING_FORMAT.string_allowedChars': c(Type.String({pattern: '^[0-9a-f]+$'})),
   'STRING_FORMAT.string_allowedChars_literal': c(Type.String({pattern: '^[.\\-]+$'})),
   'STRING_FORMAT.string_disallowedChars': c(Type.String({pattern: '^[^!@#]*$'})),
-  'STRING_FORMAT.string_allowedValues': c(
-    Type.Union([Type.Literal('red'), Type.Literal('green'), Type.Literal('blue')]),
-  ),
+  'STRING_FORMAT.string_allowedValues': c(Type.Union([Type.Literal('red'), Type.Literal('green'), Type.Literal('blue')])),
   'STRING_FORMAT.string_allowedValues_escaped': c(Type.Union([Type.Literal('a.b'), Type.Literal('c+d')])),
   'STRING_FORMAT.string_customErrorMessage': c(Type.Union([Type.Literal('a'), Type.Literal('b')])),
   'STRING_FORMAT.alpha': c(Type.String({pattern: '^[A-Za-z]+$'})),
@@ -184,9 +166,7 @@ const productTB = Type.Object({
   currency: Type.Union([Type.Literal('USD'), Type.Literal('EUR'), Type.Literal('GBP')]),
   inStock: Type.Boolean(),
   categories: Type.Array(Type.String()),
-  dimensions: Type.Optional(
-    Type.Object({width: Type.Number(), height: Type.Number(), depth: Type.Number()}),
-  ),
+  dimensions: Type.Optional(Type.Object({width: Type.Number(), height: Type.Number(), depth: Type.Number()})),
 });
 Object.assign(typeboxMap, {
   'REALWORLD.user': c(
@@ -198,15 +178,13 @@ Object.assign(typeboxMap, {
       roles: Type.Array(Type.Union([Type.Literal('admin'), Type.Literal('editor'), Type.Literal('user')])),
       active: Type.Boolean(),
       createdAt: Type.String(),
-    }),
+    })
   ),
   'REALWORLD.order': c(
     Type.Object({
       id: Type.String(),
       customer: Type.Object({id: Type.Number(), email: Type.String()}),
-      items: Type.Array(
-        Type.Object({sku: Type.String(), name: Type.String(), qty: Type.Number(), price: Type.Number()}),
-      ),
+      items: Type.Array(Type.Object({sku: Type.String(), name: Type.String(), qty: Type.Number(), price: Type.Number()})),
       shipping: addressTB,
       status: Type.Union([
         Type.Literal('pending'),
@@ -217,7 +195,7 @@ Object.assign(typeboxMap, {
       ]),
       total: Type.Number(),
       note: Type.Optional(Type.String()),
-    }),
+    })
   ),
   'REALWORLD.blogPost': c(
     Type.Object({
@@ -230,7 +208,7 @@ Object.assign(typeboxMap, {
       published: Type.Boolean(),
       publishedAt: Type.Optional(Type.String()),
       meta: Type.Object({views: Type.Number(), likes: Type.Number()}),
-    }),
+    })
   ),
   'REALWORLD.product': c(productTB),
   'REALWORLD.productPage': c(
@@ -240,7 +218,7 @@ Object.assign(typeboxMap, {
       pageSize: Type.Number(),
       total: Type.Number(),
       hasMore: Type.Boolean(),
-    }),
+    })
   ),
   'REALWORLD.registrationForm': c(
     Type.Object({
@@ -248,6 +226,6 @@ Object.assign(typeboxMap, {
       password: Type.String(),
       acceptedTerms: Type.Literal(true),
       profile: Type.Object({firstName: Type.String(), lastName: Type.String(), age: Type.Optional(Type.Number())}),
-    }),
+    })
   ),
 });
