@@ -21,7 +21,7 @@ done
 # ── Public packages to pack ──
 PACKAGES=(
   "ts-runtypes"
-  "vite-plugin-runtypes"
+  "runtypes-devtools"
 )
 
 # ── Pack ──

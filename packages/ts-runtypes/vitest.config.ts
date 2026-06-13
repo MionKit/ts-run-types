@@ -1,7 +1,7 @@
 import {defineConfig} from 'vitest/config';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import runtypesPlugin from 'vite-plugin-runtypes';
+import runtypesPlugin from 'runtypes-devtools/vite';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PACKAGE_ROOT = resolve(HERE);
@@ -49,7 +49,7 @@ export default defineConfig({
       emitMode: 'both',
       // Disable the on-disk RT artifact cache for test runs. The
       // disk-cache feature has its own dedicated end-to-end suite in
-      // vite-plugin-runtypes/test/cache-disk.test.ts (which points at
+      // runtypes-devtools/test/cache-disk.test.ts (which points at
       // os.tmpdir()); the marker package's tests should not pollute
       // node_modules/.cache with thousands of artifact files.
       cacheDir: false,

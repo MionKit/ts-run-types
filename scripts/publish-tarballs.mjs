@@ -26,7 +26,7 @@ const provenance = args.includes('--provenance');
 function rank(name) {
   if (name.startsWith('ts-runtypes-binary-')) return 0;
   if (name.startsWith('ts-runtypes-bin-')) return 1;
-  return 2; // FE packages (ts-runtypes, vite-plugin-runtypes)
+  return 2; // FE packages (ts-runtypes, runtypes-devtools)
 }
 
 function main() {

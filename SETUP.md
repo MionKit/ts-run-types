@@ -59,7 +59,7 @@ The Vite plugin spawns this binary at JS test time and at build time — **build
 ```bash
 pnpm run build                                       # all packages, lerna-orchestrated
 pnpm --filter ts-runtypes run build      # single package
-pnpm --filter vite-plugin-runtypes run build         # the other
+pnpm --filter runtypes-devtools run build         # the other
 ```
 
 Outputs land in `packages/*/dist/`. The plugin's dist must be present for marker-package typecheck (no `source` condition in its exports map) — rebuild after every plugin src edit.
@@ -71,11 +71,11 @@ Outputs land in `packages/*/dist/`. The plugin's dist must be present for marker
 ```bash
 go test ./internal/...                          # Go suite
 pnpm test                                       # all JS packages (Vitest projects)
-pnpm --filter vite-plugin-runtypes test         # single package
+pnpm --filter runtypes-devtools test         # single package
 pnpm --filter ts-runtypes test      # the other
 ```
 
-JS plugin tests in [packages/vite-plugin-runtypes/test/](packages/vite-plugin-runtypes/test/) spawn the Go binary — `pretest` rebuilds it.
+JS plugin tests in [packages/runtypes-devtools/test/](packages/runtypes-devtools/test/) spawn the Go binary — `pretest` rebuilds it.
 
 ---
 
@@ -245,7 +245,7 @@ All settings live in [pnpm-workspace.yaml](pnpm-workspace.yaml); `.npmrc` is aut
 - `savePrefix: ''` — `pnpm add` writes exact versions, never `^` or `~`.
 - `strictPeerDependencies: true` — peer-dep mismatches fail the install.
 - `nodeLinker: hoisted` — flat hoisting (npm-like); security is the lockfile + age policy + ignoreScripts, NOT the linker layout.
-- All `dependencies` and `devDependencies` are exact-pinned. Only `vite-plugin-runtypes` peerDependencies stay as ranges so consumers can dedupe Vite.
+- All `dependencies` and `devDependencies` are exact-pinned. Only `runtypes-devtools` peerDependencies stay as ranges so consumers can dedupe Vite.
 
 Updating deps:
 
@@ -279,9 +279,9 @@ Commit the new `.patch` file under `third_party/tsgolint/patches/` so other cont
 
 ## Publishing
 
-All three published packages (`ts-runtypes`, `vite-plugin-runtypes`, `ts-runtypes-bin`) move in lockstep (`forcePublish: true`, `exact: true` in [lerna.json](lerna.json)). The two FE packages emit dual module output (CJS + ESM) via per-package `tsc -p tsconfig.json`; `ts-runtypes-bin` ships hand-written JS + types (no build step).
+All three published packages (`ts-runtypes`, `runtypes-devtools`, `ts-runtypes-bin`) move in lockstep (`forcePublish: true`, `exact: true` in [lerna.json](lerna.json)). The two FE packages emit dual module output (CJS + ESM) via per-package `tsc -p tsconfig.json`; `ts-runtypes-bin` ships hand-written JS + types (no build step).
 
-The native resolver binary is distributed esbuild-style: it is cross-compiled per platform into `ts-runtypes-binary-<os>-<arch>` packages (each `os`/`cpu`-gated), declared as `optionalDependencies` of `ts-runtypes-bin`. A consumer installs only the one matching their machine, and `vite-plugin-runtypes` locates it via `getExePath()`. The publishing host needs the Go toolchain — pure Go (`CGO_ENABLED=0`), so one host cross-compiles every target with no per-platform C toolchain.
+The native resolver binary is distributed esbuild-style: it is cross-compiled per platform into `ts-runtypes-binary-<os>-<arch>` packages (each `os`/`cpu`-gated), declared as `optionalDependencies` of `ts-runtypes-bin`. A consumer installs only the one matching their machine, and `runtypes-devtools` locates it via `getExePath()`. The publishing host needs the Go toolchain — pure Go (`CGO_ENABLED=0`), so one host cross-compiles every target with no per-platform C toolchain.
 
 > **Versioning:** standard semver on our own release cadence. The pinned tsgo / tsgolint revision is metadata only (the binary's `--version` output + the launcher's `package.json` `tsgo` field), never encoded into the package version.
 
@@ -321,7 +321,7 @@ pnpm run npm-unpublish <version>
 | `pnpm run changelog` fails: `git-cliff: command not found`     | git-cliff binary not installed (deliberately not an npm dep)                | `cargo install git-cliff` (or `brew install git-cliff` / a prebuilt release). Not needed to cut a release — CI uses `orhun/git-cliff-action`. |
 | Commit rejected by `commit-msg` hook                           | Message is not a valid Conventional Commit                                  | Re-commit with `type(scope): summary`, or run `pnpm run commit` for an interactive prompt.                                     |
 | `podman machine start` fails with `vfkit exited unexpectedly`  | Rosetta 2 missing on Apple Silicon                                          | `softwareupdate --install-rosetta --agree-to-license`, then re-run `podman machine start`.                                     |
-| `vite-plugin-runtypes` container build fails with garbled errors | Host-arch Go binary mounted into a Linux container                        | The bench script auto-cross-compiles `bin/ts-runtypes-linux-<arch>`; force a refresh with `pnpm run bench:prep`.           |
+| `runtypes-devtools` container build fails with garbled errors | Host-arch Go binary mounted into a Linux container                        | The bench script auto-cross-compiles `bin/ts-runtypes-linux-<arch>`; force a refresh with `pnpm run bench:prep`.           |
 | Marker package `tsc --build` fails with `Cannot find namespace 'Temporal'` | Missing `esnext.temporal` in the marker `tsconfig.json` `lib`           | Restore the `esnext.temporal` entry — its absence makes tsc skip declaration emit on the offending file, leaving `markers.d.ts` / `createRTFunctions.d.ts` missing and breaking call-site resolution. |
 | Bench errors `createValidate(): no id injected`                | Stale or partial marker/plugin `dist/` (`.d.ts.map` without `.d.ts`)        | `pnpm run check:builds` — wipes `tsconfig.tsbuildinfo` and rebuilds the affected dist clean. CI never hits this; only fresh-checkout-then-interrupt scenarios do. |
 

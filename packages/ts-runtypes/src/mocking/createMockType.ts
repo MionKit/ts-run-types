@@ -32,7 +32,7 @@ export function createMockType<T>(
   const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : injectedId;
   if (effectiveId === undefined) {
     throw new Error(
-      'createMockType(): no id injected. vite-plugin-runtypes must be active for createMockType to resolve the runtype graph.'
+      'createMockType(): no id injected. runtypes-devtools must be active for createMockType to resolve the runtype graph.'
     );
   }
   const utils = getRTUtils();

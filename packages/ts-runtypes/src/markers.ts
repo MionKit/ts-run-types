@@ -2,7 +2,7 @@
 // at call sites:
 //   • `InjectRunTypeId<T>` — the only *injectable* marker. The trailing
 //     `id?: InjectRunTypeId<T>` parameter is filled in at build time with the
-//     resolved hash id by `vite-plugin-runtypes`.
+//     resolved hash id by `runtypes-devtools`.
 //   • `CompTimeArgs<T>` — brands an argument as "must be a literal at the
 //     call site, or a module-scope `const` whose initializer is itself
 //     entirely literal". Static check only, no injection.
@@ -90,7 +90,7 @@ export function getRunTypeId<T>(_value?: T, id?: InjectRunTypeId<T>): InjectRunT
     return entryTupleKey(id) as InjectRunTypeId<T>;
   }
   if (id === undefined) {
-    throw new Error('getRunTypeId(): no id injected. vite-plugin-runtypes must be active.');
+    throw new Error('getRunTypeId(): no id injected. runtypes-devtools must be active.');
   }
   return id as InjectRunTypeId<T>;
 }

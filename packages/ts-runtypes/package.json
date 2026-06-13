@@ -71,7 +71,7 @@
   "scripts": {
     "build": "tsc --build tsconfig.json",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
-    "pretest": "pnpm --filter vite-plugin-runtypes run build",
+    "pretest": "pnpm --filter runtypes-devtools run build",
     "test": "vitest run",
     "dev:test": "vitest watch",
     "lint": "eslint src",
@@ -80,6 +80,6 @@
     "fresh-start": "pnpm run clean && rimraf node_modules"
   },
   "devDependencies": {
-    "vite-plugin-runtypes": "workspace:*"
+    "runtypes-devtools": "workspace:*"
   }
 }

@@ -125,9 +125,7 @@ describe('enrichment reconcile — @todo lifecycle', () => {
     const fixture = makeFixture('todo-cleared', 'export interface User { name: string }\n');
     runGen(fixture, 'User');
     // User fills in real data and deletes the @todo line from friendlyUser.
-    editMirror(fixture, (text) =>
-      text.replace(/\/\/ @todo:[^\n]*\n(export const friendlyUser)/, '$1')
-    );
+    editMirror(fixture, (text) => text.replace(/\/\/ @todo:[^\n]*\n(export const friendlyUser)/, '$1'));
     expect(readMirror(fixture).match(/@todo/g)?.length, 'one @todo left (mockUser)').toBe(1);
     // A reconcile must not regrow the cleared one.
     setSource(fixture, 'export interface User { name: string; age: number }\n');
@@ -138,23 +136,15 @@ describe('enrichment reconcile — @todo lifecycle', () => {
   });
 
   it('stamps @todo on a const newly ADDED during --update', () => {
-    const fixture = makeFixture(
-      'todo-added',
-      'export interface User { name: string }\n'
-    );
+    const fixture = makeFixture('todo-added', 'export interface User { name: string }\n');
     runGen(fixture, 'User');
     // Introduce a referenced named type → new friendlyAddress/mockAddress consts.
-    setSource(
-      fixture,
-      'export interface Address { street: string }\nexport interface User { name: string; home: Address }\n'
-    );
+    setSource(fixture, 'export interface Address { street: string }\nexport interface User { name: string; home: Address }\n');
     runGen(fixture, 'User', ['--update']);
     const out = readMirror(fixture);
     // Two original + two new = four @todo; the new Address consts are stamped.
     expect(out.match(/@todo/g)?.length, 'new consts each get a @todo').toBe(4);
-    expect(out, 'new friendlyAddress carries @todo').toMatch(
-      /\/\/ @todo:[^\n]*\nexport const friendlyAddress/
-    );
+    expect(out, 'new friendlyAddress carries @todo').toMatch(/\/\/ @todo:[^\n]*\nexport const friendlyAddress/);
   });
 
   it('--prune leaves @todo intact', () => {

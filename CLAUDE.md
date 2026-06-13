@@ -5,7 +5,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 ## Dual-language repo: Go binary + JS workspace
 
 - **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) + [internal/](internal/) reaches into tsgo's checker via the `oxc-project/tsgolint` shim to answer call-site type queries.
-- **JS workspace** at [packages/](packages/) — `ts-runtypes` (marker + runtime helpers), `vite-plugin-runtypes` (spawns the binary, rewrites calls, emits the cache module), and `ts-runtypes-bin` (platform launcher: `getExePath()` resolves the prebuilt resolver binary for the host from per-platform `ts-runtypes-binary-<os>-<arch>` optional deps).
+- **JS workspace** at [packages/](packages/) — `ts-runtypes` (marker + runtime helpers), `runtypes-devtools` (spawns the binary, rewrites calls, emits the cache module), and `ts-runtypes-bin` (platform launcher: `getExePath()` resolves the prebuilt resolver binary for the host from per-platform `ts-runtypes-binary-<os>-<arch>` optional deps).
 - **External Go deps** at [third_party/](third_party/) are git submodules treated as read-only vendored sources.
 - The Go binary is the side-channel; the JS packages are the only public surface.
 - The Vite plugin's tests spawn `bin/ts-runtypes` — the binary MUST be built before `pnpm test` (see [SETUP.md → Build](SETUP.md#build)).
@@ -15,17 +15,17 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 - Use pnpm 11+; never `npm install` (ignores `pnpm-workspace.yaml` security policies).
 - pnpm-specific settings live in `pnpm-workspace.yaml`; `.npmrc` is auth/registry only.
 - Full policy list (frozenLockfile, minimumReleaseAge, ignoreScripts, allowNonRegistryProtocols, savePrefix, strictPeerDependencies, nodeLinker) and dep-update gotchas are in [SETUP.md → pnpm policies](SETUP.md#pnpm-policies-workspace-security-posture).
-- All `dependencies` and `devDependencies` are exact-pinned; only `vite-plugin-runtypes` peerDeps stay as ranges so consumers can dedupe Vite.
+- All `dependencies` and `devDependencies` are exact-pinned; only `runtypes-devtools` peerDeps stay as ranges so consumers can dedupe Vite.
 - Cross-package deps use the `workspace:*` protocol; pnpm rewrites it to concrete versions on publish.
 
 ## Monorepo structure
 
 - pnpm workspaces ([pnpm-workspace.yaml](pnpm-workspace.yaml)) + Lerna ([lerna.json](lerna.json)) for lockstep versioning and topo-ordered scripts.
-- All three published packages (`ts-runtypes`, `vite-plugin-runtypes`, `ts-runtypes-bin`) move in lockstep (`forcePublish: true`, `exact: true`); the per-platform `ts-runtypes-binary-*` packages are assembled at publish time and pinned exact-equal to the same version.
+- All three published packages (`ts-runtypes`, `runtypes-devtools`, `ts-runtypes-bin`) move in lockstep (`forcePublish: true`, `exact: true`); the per-platform `ts-runtypes-binary-*` packages are assembled at publish time and pinned exact-equal to the same version.
 - `ts-runtypes` exposes the `InjectRunTypeId<T>` marker and `getRunTypeId` (static `getRunTypeId<T>()` + value-first `getRunTypeId(value)` forms).
-- `vite-plugin-runtypes` spawns the Go binary, applies byte-offset rewrites + import injection, serves the per-entry `virtual:rt/*` modules. Its `binary` option is OPTIONAL — when omitted it resolves the host binary via `ts-runtypes-bin`'s `getExePath()`.
+- `runtypes-devtools` spawns the Go binary, applies byte-offset rewrites + import injection, serves the per-entry `virtual:rt/*` modules. Its `binary` option is OPTIONAL — when omitted it resolves the host binary via `ts-runtypes-bin`'s `getExePath()`.
 - **Binary distribution** mirrors typescript-go's esbuild-style pattern: the Go resolver is cross-compiled per platform (`CGO_ENABLED=0`, [scripts/build-binary-packages.mjs](scripts/build-binary-packages.mjs)) into `ts-runtypes-binary-<os>-<arch>` packages (os/cpu-gated, binary at `lib/`), published by [scripts/publish.sh](scripts/publish.sh) BEFORE the launcher so its optional deps always exist. NEVER add a postinstall downloader — `ignoreScripts: true` blocks it. The binary embeds `constants.Version` (folded into typeID hashes) + `constants.TsgoVersion` (pure metadata: `--version` + the launcher's `tsgo` field, NEVER in the hash).
-- Filter a package: `pnpm --filter ts-runtypes run <cmd>` or `pnpm --filter vite-plugin-runtypes run <cmd>`.
+- Filter a package: `pnpm --filter ts-runtypes run <cmd>` or `pnpm --filter runtypes-devtools run <cmd>`.
 - All devDependencies live root-level; never per-package.
 
 ## Go side
@@ -49,11 +49,11 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 - All JS: `pnpm test`. Single file: `pnpm exec vitest run <pattern>`. Single package: `pnpm --filter <name> test`.
 - Go: `go test ./internal/...`.
 - ALWAYS rebuild `bin/ts-runtypes` before `pnpm test` — plugin tests spawn it; `pnpm run pretest` runs [`scripts/check-stale-builds.sh`](scripts/check-stale-builds.sh) automatically (covers the Go binary, the marker dist, and the vite plugin dist).
-- Never run `pnpm run build` during development (only for publishing) — EXCEPT for `vite-plugin-runtypes`, which MUST be rebuilt after every src edit (consumers read its dist `.d.ts` for typecheck; no `source` condition in its exports).
+- Never run `pnpm run build` during development (only for publishing) — EXCEPT for `runtypes-devtools`, which MUST be rebuilt after every src edit (consumers read its dist `.d.ts` for typecheck; no `source` condition in its exports).
 
 ### ⚠️ Marker test coverage rule
 
-- Any test exercising the marker API (Go under [internal/](internal/) or JS plugin under [packages/vite-plugin-runtypes/test/](packages/vite-plugin-runtypes/test/)) MUST cover both call shapes of `getRunTypeId`: static `getRunTypeId<T>()` (caller supplies T, no value) AND reflection `getRunTypeId(value)` (T inferred from the value).
+- Any test exercising the marker API (Go under [internal/](internal/) or JS plugin under [packages/runtypes-devtools/test/](packages/runtypes-devtools/test/)) MUST cover both call shapes of `getRunTypeId`: static `getRunTypeId<T>()` (caller supplies T, no value) AND reflection `getRunTypeId(value)` (T inferred from the value).
 - Write paired tests (not parameterized); use the natural call shape for each intent — e.g. `getRunTypeId<string>()` vs `const s: string = 'hello'; getRunTypeId(s);`. Both forms should resolve to the same cache entry for equivalent T.
 - At least one paired test per suite must assert hash equivalence between the two forms (see `TestAtomic_FormEquivalence` in [internal/resolver/atomic_test.go](internal/resolver/atomic_test.go)).
 
@@ -102,8 +102,8 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 
 Full description: [docs/ARCHITECTURE.md → Rewrite mechanics](docs/ARCHITECTURE.md#rewrite-mechanics). Highlights to follow when touching rewrite or entry-module code:
 
-- Rewrites use UTF-8 BYTE offsets (tsgo positions count bytes); [rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts) converts every offset via `makeByteToChar` before indexing — never index the JS string with a raw resolver offset.
-- Edits go through the in-house `EditBuffer` ([edit-buffer.ts](packages/vite-plugin-runtypes/src/edit-buffer.ts)) for a real source map (original lines/columns survive the injected import block + bindings); it replaced the `magic-string` dependency, so the plugin carries no bundling deps — its ONLY runtime dep is `ts-runtypes-bin` (the platform binary launcher, itself dependency-free). Its map matches magic-string's `hires: 'boundary'` output — the ported source-map algorithm is credited to magic-string (MIT) in the file header.
+- Rewrites use UTF-8 BYTE offsets (tsgo positions count bytes); [rewrite.ts](packages/runtypes-devtools/src/rewrite.ts) converts every offset via `makeByteToChar` before indexing — never index the JS string with a raw resolver offset.
+- Edits go through the in-house `EditBuffer` ([edit-buffer.ts](packages/runtypes-devtools/src/edit-buffer.ts)) for a real source map (original lines/columns survive the injected import block + bindings); it replaced the `magic-string` dependency, so the plugin carries no bundling deps — its ONLY runtime dep is `ts-runtypes-bin` (the platform binary launcher, itself dependency-free). Its map matches magic-string's `hires: 'boundary'` output — the ported source-map algorithm is credited to magic-string (MIT) in the file header.
 - Plugin options `moduleMode` (default | allSingle | allModules) and `inlineMode` (default | allInternal) configure entry grouping + child inlining; the two never share disk caches (fingerprint folds inlineMode in).
 - **Every cache entry is its own virtual module** EXCEPT runtype nodes, which ride as headless rows of the single data bundle `virtual:rt/runtypes.js` (kind 4) — one row per node app-wide. Per-reflection-root facade `virtual:rt/<rootId>.js` (kind 5) imports the bundle.
 - Every module exports ONE positional tuple under `__rt_<key>`: `[tag, depsThunk|hole, ini|hole, …]`. Absent slots are JS array HOLES, NOT `undefined` aliases.

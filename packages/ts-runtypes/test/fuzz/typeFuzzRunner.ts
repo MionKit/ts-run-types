@@ -26,7 +26,7 @@ import {genType, describeType, isRecursive, DEFAULT_GEN_OPTIONS, type GeneratedT
 import {genValidValue, validValue, corruptValue, valueOracleSafe} from './shapeValue.ts';
 import {compileType, openClient, renderFixture, type CompiledType, type WiredFns} from './typeFuzzHarness.ts';
 import {randomJunk} from './fuzzRunner.ts';
-import type {ResolverClient} from '../../../vite-plugin-runtypes/src/resolver-client.ts';
+import type {ResolverClient} from '../../../runtypes-devtools/src/resolver-client.ts';
 import type {RunType} from '../../src/runtypes/types.ts';
 import {
   checkBinaryStable,
