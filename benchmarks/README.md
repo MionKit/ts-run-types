@@ -1,10 +1,31 @@
 # Validation benchmarks — containerized (podman)
 
 Compares **ts-go-run-types** validators against **zod**, **typebox**, **ajv**
-and (optionally) **typia**, on a shared set of basic types. Like the docs
-website, all heavy tooling (the validator libraries + vite) lives **only inside
-a podman image** — the host never installs it. This keeps the benchmark/
-validator supply-chain surface off your machine.
+and (optionally) **typia**, over the **full** `validation` + `format-validation`
+suites (the exact cases the package tests itself with — see
+[`src/suites/`](src/suites/)). Like the docs website, all heavy tooling (the
+validator libraries + vite) lives **only inside a podman image** — the host
+never installs it.
+
+The real suites are vendored under `src/suites/` so the plugin can rewrite their
+`createValidate<T>()` calls at build time. ts-go-run-types validators come
+straight from each case's `validate` thunk + `getSamples()`; the competitors
+([`src/competitors/`](src/competitors/)) provide a hand-written schema per case
+where the library can express the type, and the **not-supported** sentinel (`—`)
+where it can't — e.g. JSON Schema (ajv) has no `bigint`, can't reject
+`NaN`/`Infinity`, and can't validate `Date`/`Map`/`Set`/`Temporal`; TypeBox
+can't express bigint literals or `RegExp`. A competitor map is partial: any case
+key it omits is automatically not-supported.
+
+Typical result (validations/sec) — note the gap widens on complex objects:
+
+```
+case                  ts-go-run-types       zod    typebox      ajv
+simple_interface                  93M/s     591k/s     61M/s        —
+nested_object                     74M/s     456k/s     51M/s        —
+discriminated_union               ...
+Coverage: ts-go 208/223 · zod 72 · typebox 62 · ajv 31
+```
 
 ## What runs where
 
@@ -29,35 +50,32 @@ pnpm run bench:build-image   # build the podman image
 pnpm run bench               # build + run the benchmark in the container
 ```
 
-`bench` prints, per case, a correctness check **and** validation throughput for
-every library, then a coverage summary. It exits non-zero if any *supported*
-validator is incorrect, so the run doubles as a cross-library conformance test.
+`bench` prints, per case (grouped by suite/group), a correctness check **and**
+validation throughput for every library, then a coverage summary. It exits
+non-zero if any *supported* validator is incorrect, so the run doubles as a
+cross-library conformance test. Env knobs: `BENCH_NO_TIMING=1` (correctness
+only, fast), `BENCH_TIME_MS=100` (per-cell measurement window).
 
-```
-case             ts-go-run-types       zod       typebox       ajv       typia
-string                  201.5M/s     1.0M/s       89.7M/s    38.9M/s          —
-user                     83.9M/s      685k/s      55.2M/s    22.0M/s          —
-bigint                  107.1M/s      1.3M/s      69.2M/s          —          —
-...
-Coverage: ts-go-run-types 14/14 · zod 14/14 · typebox 14/14 · ajv 13/14
-```
+## Layout
 
-## "Not supported" cases
+- [`src/suites/validation/`](src/suites/validation/),
+  [`src/suites/format-validation/`](src/suites/format-validation/) — the real
+  suites, copied verbatim from the package (`src/util/deserializeRTFunctions.ts`
+  is an inert stub; the benchmark only calls each case's `validate` thunk).
+- [`src/suites/adapter.ts`](src/suites/adapter.ts) — flattens both suites to
+  `{key, samples, tsValidate}`; `factoryThrows` / unsupported-root cases become
+  not-supported.
+- [`src/competitors/{zod,typebox,ajv}.ts`](src/competitors/) — partial maps
+  keyed by `GROUP.case`; an omitted key is not-supported for that library.
+- [`src/run.ts`](src/run.ts) — the runner.
 
-When a library cannot express a type, its validator is the `'not-supported'`
-sentinel (rendered `—`) instead of a failure. For example **ajv** uses JSON
-Schema, which has no `bigint`, so `bigint` is not-supported for ajv. Add new
-cases the same way: a real validator where the library can express the type, the
-sentinel where it can't.
+## Adding competitor coverage for a case
 
-## Adding a case
-
-1. Add the type to [`src/suite/types.ts`](src/suite/types.ts).
-2. Add `valid`/`invalid` samples + the case name to
-   [`src/suite/samples.ts`](src/suite/samples.ts).
-3. Add a validator (or `NOT_SUPPORTED`) for the case in **every** file under
-   [`src/libs/`](src/libs/) — the `Record<CaseName, …>` type makes the compiler
-   remind you of any you miss.
+Add an entry `'GROUP.case': c(<schema>)` to the relevant
+`src/competitors/<lib>.ts` map. Leave it out (or note why) to keep it
+not-supported. Run with `BENCH_NO_TIMING=1` and fix any reported mismatch (or
+downgrade it to not-supported when the library genuinely diverges from
+ts-go-run-types' semantics).
 
 ## typia (optional / experimental)
 
@@ -72,7 +90,7 @@ This wires `@ryoppippi/unplugin-typia` into the vite build. It is currently
 **blocked by an upstream typia ↔ typescript transformer version conflict**
 (typia's `FileTransformer` fails against the installed TypeScript), so the typia
 column stays not-supported by default. The wiring and validators
-([`src/libs/typia.ts`](src/libs/typia.ts)) are in place — pin a compatible
+([`src/competitors/typia.ts (when added)`](src/competitors/typia.ts (when added))) are in place — pin a compatible
 `typia` / `typescript` / `@ryoppippi/unplugin-typia` triple to light it up.
 
 ## Behind a corporate / MITM proxy

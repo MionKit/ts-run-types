@@ -1,34 +1,38 @@
-// Validation benchmark runner.
+// Full validation + format-validation benchmark runner.
 //
-// For every case × library it (1) verifies correctness — every `valid` sample
-// must pass and every `invalid` sample must fail — and (2) measures validation
-// throughput. Libraries that cannot express a case's type are marked
-// "not supported" and skipped (not counted as failures). The process exits
-// non-zero if any SUPPORTED validator is incorrect, so the run doubles as a
-// conformance check across all libraries.
+// Every case from both real suites runs against ts-go-run-types and the
+// competitors (zod / typebox / ajv). A library that can't express a case's type
+// is "not supported" (—) and skipped. Correctness is checked for every
+// supported validator (valid samples pass, invalid fail); throughput is then
+// measured. Exits non-zero if any SUPPORTED validator is incorrect.
+//
+// Env knobs:
+//   BENCH_NO_TIMING=1   correctness only (fast; skips throughput)
+//   BENCH_TIME_MS=100   per-cell measurement window
 
 import {performance} from 'node:perf_hooks';
-import {CASES, SAMPLES, type CaseName} from './suite/samples.ts';
-import {NOT_SUPPORTED, type ValidatorMap, type ValidatorOrUnsupported} from './libs/types.ts';
-import {tsRunTypesValidators} from './libs/tsRunTypes.ts';
-import {zodValidators} from './libs/zod.ts';
-import {typeboxValidators} from './libs/typebox.ts';
-import {ajvValidators} from './libs/ajv.ts';
+import {VALIDATION_CASES, FORMAT_CASES, type FlatCase} from './suites/adapter.ts';
+import {NOT_SUPPORTED, type CompetitorMap, type ValidatorOrUnsupported} from './types.ts';
+import {zodMap} from './competitors/zod.ts';
+import {typeboxMap} from './competitors/typebox.ts';
+import {ajvMap} from './competitors/ajv.ts';
 
-// Typia needs its compile-time transform; load defensively so a missing
-// transform degrades the whole typia column to "not supported" instead of
-// breaking the run.
-async function loadTypia(): Promise<ValidatorMap | null> {
-  try {
-    const mod = await import('./libs/typia.ts');
-    // Touch one validator to surface an untransformed createIs() at load time.
-    if (typeof mod.typiaValidators.string !== 'function') return null;
-    mod.typiaValidators.string(1);
-    return mod.typiaValidators;
-  } catch {
-    return null;
-  }
+const TIME_MS = Number(process.env.BENCH_TIME_MS ?? 100);
+const NO_TIMING = process.env.BENCH_NO_TIMING === '1';
+
+interface Lib {
+  name: string;
+  get: (c: FlatCase) => ValidatorOrUnsupported;
 }
+
+const competitor = (map: CompetitorMap) => (c: FlatCase) => map[c.key] ?? NOT_SUPPORTED;
+
+const LIBS: Lib[] = [
+  {name: 'ts-go-run-types', get: (c) => c.tsValidate},
+  {name: 'zod', get: competitor(zodMap)},
+  {name: 'typebox', get: competitor(typeboxMap)},
+  {name: 'ajv', get: competitor(ajvMap)},
+];
 
 interface Cell {
   status: 'ok' | 'FAIL' | 'n/a';
@@ -36,94 +40,123 @@ interface Cell {
   detail?: string;
 }
 
-/** Time how many individual validations per second a validator sustains over a
- *  case's full sample set. */
-function benchOps(validator: (v: unknown) => boolean, samples: unknown[], ms = 250): number {
-  for (let i = 0; i < 2000; i++) for (const s of samples) validator(s);
-  let batches = 0;
-  const t0 = performance.now();
-  while (performance.now() - t0 < ms) {
-    for (const s of samples) validator(s);
-    batches++;
+function check(v: (x: unknown) => boolean, samples: unknown[], want: boolean): number {
+  // returns index of first mismatch, or -1 if all match
+  for (let i = 0; i < samples.length; i++) {
+    let r: boolean;
+    try {
+      r = v(samples[i]) === true;
+    } catch {
+      r = false; // a thrown validator is treated as "rejects"
+    }
+    if (r !== want) return i;
   }
-  const seconds = (performance.now() - t0) / 1000;
-  return (batches * samples.length) / seconds;
+  return -1;
 }
 
-function evaluate(v: ValidatorOrUnsupported, name: CaseName): Cell {
-  if (v === NOT_SUPPORTED) return {status: 'n/a', opsSec: 0};
-  const {valid, invalid} = SAMPLES[name];
-  const validPass = valid.every((s) => v(s) === true);
-  const invalidFail = invalid.every((s) => v(s) === false);
-  if (!validPass || !invalidFail) {
-    const badValid = valid.findIndex((s) => v(s) !== true);
-    const badInvalid = invalid.findIndex((s) => v(s) !== false);
-    const detail =
-      badValid >= 0 ? `valid[${badValid}] rejected` : `invalid[${badInvalid}] accepted`;
-    return {status: 'FAIL', opsSec: 0, detail};
+function benchOps(v: (x: unknown) => boolean, samples: unknown[]): number {
+  if (samples.length === 0) return 0;
+  for (let i = 0; i < 1000; i++) for (const s of samples) safe(v, s);
+  let batches = 0;
+  const t0 = performance.now();
+  while (performance.now() - t0 < TIME_MS) {
+    for (const s of samples) safe(v, s);
+    batches++;
   }
-  return {status: 'ok', opsSec: benchOps(v, [...valid, ...invalid])};
+  return (batches * samples.length) / ((performance.now() - t0) / 1000);
+}
+
+function safe(v: (x: unknown) => boolean, s: unknown): boolean {
+  try {
+    return v(s);
+  } catch {
+    return false;
+  }
+}
+
+function evaluate(vu: ValidatorOrUnsupported, c: FlatCase): Cell {
+  if (vu === NOT_SUPPORTED) return {status: 'n/a', opsSec: 0};
+  const v = vu;
+  const badValid = check(v, c.samples.valid, true);
+  if (badValid >= 0) return {status: 'FAIL', opsSec: 0, detail: `valid[${badValid}] rejected`};
+  const badInvalid = check(v, c.samples.invalid, false);
+  if (badInvalid >= 0) return {status: 'FAIL', opsSec: 0, detail: `invalid[${badInvalid}] accepted`};
+  const all = [...c.samples.valid, ...c.samples.invalid];
+  return {status: 'ok', opsSec: NO_TIMING ? 0 : benchOps(v, all)};
 }
 
 const fmt = (n: number) =>
-  n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(0)}k` : `${n.toFixed(0)}`;
-
-const pad = (s: string, n: number) => s.padEnd(n);
+  n <= 0 ? '' : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M/s` : n >= 1e3 ? `${(n / 1e3).toFixed(0)}k/s` : `${n.toFixed(0)}/s`;
+const padR = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s.padEnd(n));
 const padL = (s: string, n: number) => s.padStart(n);
 
-export async function run(): Promise<number> {
-  const typia = await loadTypia();
-  const libs: Array<{name: string; map: ValidatorMap}> = [
-    {name: 'ts-go-run-types', map: tsRunTypesValidators},
-    {name: 'zod', map: zodValidators},
-    {name: 'typebox', map: typeboxValidators},
-    {name: 'ajv', map: ajvValidators},
-    {name: 'typia', map: typia ?? makeAllUnsupported()},
-  ];
+const COL = 16;
+const KEYW = 30;
 
-  let failures = 0;
-  const COL = 16;
-  const head = pad('case', 16) + libs.map((l) => padL(l.name, COL)).join('');
-  console.log('\nCorrectness + throughput (validations/sec)\n');
-  console.log(head);
-  console.log('-'.repeat(head.length));
-
-  for (const {name} of CASES) {
-    let row = pad(name, 16);
-    for (const lib of libs) {
-      const cell = evaluate(lib.map[name], name);
+function section(title: string, cases: FlatCase[], stats: Stats): void {
+  console.log(`\n### ${title}`);
+  console.log(padR('case', KEYW) + LIBS.map((l) => padL(l.name, COL)).join(''));
+  console.log('-'.repeat(KEYW + COL * LIBS.length));
+  let lastGroup = '';
+  for (const c of cases) {
+    if (c.group !== lastGroup) {
+      console.log(`· ${c.group}`);
+      lastGroup = c.group;
+    }
+    let row = padR('  ' + c.name, KEYW);
+    for (const lib of LIBS) {
+      const cell = evaluate(lib.get(c), c);
+      stats.bump(lib.name, cell.status);
       if (cell.status === 'FAIL') {
-        failures++;
-        row += padL(`FAIL`, COL);
-        console.error(`  ${lib.name} / ${name}: ${cell.detail}`);
+        row += padL('FAIL', COL);
+        stats.failures.push(`${lib.name} / ${c.key}: ${cell.detail}`);
       } else if (cell.status === 'n/a') {
         row += padL('—', COL);
       } else {
-        row += padL(`${fmt(cell.opsSec)}/s`, COL);
+        row += padL(fmt(cell.opsSec) || 'ok', COL);
       }
     }
     console.log(row);
   }
+}
 
-  // Coverage summary: how many cases each library actually validated.
-  console.log('\nCoverage (cases with a real validator):');
-  for (const lib of libs) {
-    const supported = CASES.filter(({name}) => lib.map[name] !== NOT_SUPPORTED).length;
-    console.log(`  ${pad(lib.name, 16)} ${supported}/${CASES.length}`);
+class Stats {
+  ok: Record<string, number> = {};
+  na: Record<string, number> = {};
+  fail: Record<string, number> = {};
+  failures: string[] = [];
+  bump(lib: string, s: 'ok' | 'FAIL' | 'n/a') {
+    const t = s === 'ok' ? this.ok : s === 'FAIL' ? this.fail : this.na;
+    t[lib] = (t[lib] ?? 0) + 1;
+  }
+}
+
+function main(): number {
+  const stats = new Stats();
+  console.log(
+    `\nFull validation + format-validation benchmark` +
+      (NO_TIMING ? ' (correctness only)' : ' (validations/sec)'),
+  );
+  section('validation', VALIDATION_CASES, stats);
+  section('format-validation', FORMAT_CASES, stats);
+
+  const total = VALIDATION_CASES.length + FORMAT_CASES.length;
+  console.log(`\nCoverage (supported / ${total} cases):`);
+  for (const lib of LIBS) {
+    const ok = stats.ok[lib.name] ?? 0;
+    const fail = stats.fail[lib.name] ?? 0;
+    console.log(
+      `  ${padR(lib.name, 18)} ok=${ok}  fail=${fail}  not-supported=${stats.na[lib.name] ?? 0}`,
+    );
   }
 
-  if (failures > 0) {
-    console.error(`\n✗ ${failures} validator(s) produced incorrect results.`);
+  if (stats.failures.length) {
+    console.log(`\n✗ ${stats.failures.length} incorrect validator(s):`);
+    for (const f of stats.failures.slice(0, 60)) console.log(`  ${f}`);
     return 1;
   }
   console.log('\n✓ every supported validator passed correctness for all cases.');
   return 0;
 }
 
-function makeAllUnsupported(): ValidatorMap {
-  const map = {} as ValidatorMap;
-  for (const {name} of CASES) map[name] = NOT_SUPPORTED;
-  return map;
-}
-
-run().then((code) => process.exit(code));
+process.exit(main());
