@@ -1,0 +1,27 @@
+{
+  "name": "ts-go-run-types-benchmarks",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.1.1",
+  "description": "Isolated validation benchmarks comparing ts-go-run-types against zod, typebox, ajv and typia.",
+  "scripts": {
+    "build": "vite build",
+    "bench": "node dist/run.mjs",
+    "start": "vite build && node dist/run.mjs"
+  },
+  "dependencies": {
+    "ajv": "^8.17.0",
+    "zod": "^3.23.0",
+    "@sinclair/typebox": "^0.34.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "magic-string": "^0.30.0",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0"
+  },
+  "optionalDependencies": {
+    "typia": "^7.0.0",
+    "@ryoppippi/unplugin-typia": "^1.0.0"
+  }
+}

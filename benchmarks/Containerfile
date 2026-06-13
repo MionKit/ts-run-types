@@ -1,0 +1,41 @@
+# syntax=podman
+# ─────────────────────────────────────────────────────────────────────────────
+# Isolated environment for the validation benchmarks (zod / typebox / ajv /
+# typia / ts-go-run-types).
+#
+# Only the benchmark's *config files* are baked here; the heavy node_modules
+# tree (the validator libraries + vite) is installed INSIDE the image so it
+# never touches the host. At run time scripts/benchmarks.sh bind-mounts:
+#   - src/                          the benchmark sources (edit + re-run)
+#   - the ts-go-run-types Go binary into /app/bin
+#   - the first-party packages into /app/node_modules (@mionjs/ts-go-run-types,
+#     vite-plugin-runtypes) — they are repo source, not third-party deps.
+# vite (in this image) + the Go binary (mounted) build the ts-go-run-types
+# validators; the other libraries are plain runtime deps.
+# ─────────────────────────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/devcontainers/javascript-node:22
+
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    DO_NOT_TRACK=1
+RUN corepack enable
+
+WORKDIR /app
+
+# ── Optional: trust extra CA certs (corporate / MITM egress proxy) ───────────
+# Empty .cacerts/ (the default) makes update-ca-certificates a no-op.
+COPY .cacerts/ /usr/local/share/ca-certificates/
+RUN update-ca-certificates >/dev/null 2>&1 || true
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
+# ── Config files only — the install layer ───────────────────────────────────
+COPY package.json pnpm-workspace.yaml .npmrc ./
+COPY tsconfig.json vite.config.ts ./
+
+# Install the validator libs + vite under the workspace's supply-chain policy.
+# No lockfile is committed (the first-party packages are mounted, not resolved),
+# so this resolves fresh under minimumReleaseAge. Optional deps (typia) that
+# fail to resolve do not fail the install.
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile
+
+# No CMD: scripts/benchmarks.sh supplies the command (build / bench / shell).
