@@ -341,11 +341,11 @@ func writeMirrorFile(spec mirrorWrite) bool {
 	var blocks []string
 	for _, named := range spec.consts {
 		if spec.wantFriendly && !hasExport(existing, named.FriendlyVar) {
-			blocks = append(blocks, constBlock(named.FriendlyVar, "FriendlyType", named.TypeName, named.Friendly))
+			blocks = append(blocks, constBlock(named.FriendlyVar, "FriendlyType", named, named.Friendly))
 			added = append(added, named.FriendlyVar)
 		}
 		if spec.wantMock && !hasExport(existing, named.MockVar) {
-			blocks = append(blocks, constBlock(named.MockVar, "MockData", named.TypeName, named.Mock))
+			blocks = append(blocks, constBlock(named.MockVar, "MockData", named, named.Mock))
 			added = append(added, named.MockVar)
 		}
 	}
@@ -479,9 +479,55 @@ func referencedVars(body string) []string {
 }
 
 // constBlock wraps a rendered object-literal body in the
-// `export const <var>: <Wrapper><<TypeName>> = <body>;` declaration.
-func constBlock(varName, wrapper, typeName, body string) string {
-	return "export const " + varName + ": " + wrapper + "<" + typeName + "> = " + body + ";\n"
+// `export const <var>: <Wrapper><<TypeName>> = <body>;` declaration, prefixed
+// with the reconcile marker JSDoc (`@rtType` + `@rtIds`) when the const carries
+// a structural id. The marker lives on the const WRAPPER, never inside the
+// skeleton body — the batch stdout path (runGenBatch) compares the body alone,
+// so it stays byte-identical.
+func constBlock(varName, wrapper string, named enrichment.NamedConst, body string) string {
+	marker := markerComment(named.TypeName, named.TypeID, named.ChildIDs)
+	return marker + "export const " + varName + ": " + wrapper + "<" + named.TypeName + "> = " + body + ";\n"
+}
+
+// markerComment renders the reconcile JSDoc for a const: a single leading line
+// `/** @rtType <Name>#<id> @rtIds {field: <ref>#<id>, …} */\n`. It is omitted
+// (empty string) when there is no structural id (an unresolved/anonymous root),
+// so a degenerate const stays marker-free. The encoding survives Prettier
+// (leading JSDoc on a declaration is preserved) and round-trips through
+// parseConstMarkers on reconcile.
+func markerComment(typeName, typeID string, childIDs map[string]string) string {
+	if typeID == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("/** @rtType ")
+	if typeName != "" {
+		b.WriteString(typeName)
+		b.WriteString("#")
+	}
+	b.WriteString(typeID)
+	if len(childIDs) > 0 {
+		b.WriteString(" @rtIds {")
+		b.WriteString(formatChildIDs(childIDs))
+		b.WriteString("}")
+	}
+	b.WriteString(" */\n")
+	return b.String()
+}
+
+// formatChildIDs renders an @rtIds map as `field: id, field2: id2` with keys
+// sorted for deterministic, idempotent output.
+func formatChildIDs(childIDs map[string]string) string {
+	paths := make([]string, 0, len(childIDs))
+	for path := range childIDs {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	parts := make([]string, 0, len(paths))
+	for _, path := range paths {
+		parts = append(parts, path+": "+childIDs[path])
+	}
+	return strings.Join(parts, ", ")
 }
 
 // constTypeNames returns the distinct source type names in a slice of

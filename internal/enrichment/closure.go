@@ -26,6 +26,15 @@ type NamedConst struct {
 	// Friendly / Mock are the rendered object-literal bodies.
 	Friendly string
 	Mock     string
+	// TypeID is this named type's structural id (RunType.ID) — the `@rtType` id
+	// the reconcile (gen --update) matches existing↔desired consts by, so a
+	// positional var-name swap (friendlyBox vs friendlyBox2) never mis-pairs.
+	TypeID string
+	// ChildIDs maps a dotted field path (e.g. "address.street") to that child
+	// type's structural id — the `@rtIds` map the reconcile uses to recover a
+	// primitive/inline field's identity for rename matching. Empty when the type
+	// has no walkable children.
+	ChildIDs map[string]string
 }
 
 // ClosureOptions configures EmitClosure.
@@ -117,6 +126,7 @@ func (emitter *closureEmitter) emitNamed(named *protocol.RunType, displayName st
 
 	friendlyBody := emitter.renderBody(named, true)
 	mockBody := emitter.renderBody(named, false)
+	childIDs := emitter.childIDsOf(named)
 
 	if id != "" {
 		emitter.state[id] = stateDone
@@ -128,6 +138,8 @@ func (emitter *closureEmitter) emitNamed(named *protocol.RunType, displayName st
 		MockVar:     "mock" + baseName,
 		Friendly:    friendlyBody,
 		Mock:        mockBody,
+		TypeID:      id,
+		ChildIDs:    childIDs,
 	})
 	return baseName
 }
@@ -185,6 +197,91 @@ func (emitter *closureEmitter) renderBody(self *protocol.RunType, friendly bool)
 		emitMockNode(&b, ctx, self, 0)
 	}
 	return b.String()
+}
+
+// childIDsOf computes the `@rtIds` map for one named type: a dotted-field-path
+// → child-type structural-id entry for every property the const's body owns, at
+// every depth. It descends through INLINE objects/arrays/tuples/maps (whose
+// shapes live in this const's body) but STOPS at a named-type reference (it
+// records the reference's id at its path, but the named type owns its own const
+// + its own @rtIds, so we don't recurse into it). Returns nil when there are no
+// entries (so an emitter with no walkable children omits the marker).
+//
+// self walks inline (it is the body being emitted); a later encounter of self
+// is a back-edge — recorded as a leaf id, not recursed (matches renderBody).
+func (emitter *closureEmitter) childIDsOf(self *protocol.RunType) map[string]string {
+	out := map[string]string{}
+	ctx := newWalkCtx(emitter.resolve)
+	// The closure walks the RAW graph, where a parent's Children/Arguments ride as
+	// ref sentinels. propertyChildren / tupleSlots / argumentChild only deref those
+	// when ctx.namedRef is set, so install a no-op inline hook to enable dereffing
+	// (we never actually want a reference action here — this walk records ids, it
+	// does not emit bodies).
+	ctx.namedRef = func(rt *protocol.RunType) namedRefAction { return namedRefAction{kind: namedRefInline} }
+	emitter.collectChildIDs(out, ctx, self, "", true, 0)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// collectChildIDs is the recursive worker for childIDsOf. isSelfBody is true on
+// the first (root) node so it always descends; a nested encounter of self is a
+// broken back-edge (recorded, not recursed).
+func (emitter *closureEmitter) collectChildIDs(out map[string]string, ctx *walkCtx, rt *protocol.RunType, path string, isSelfBody bool, depth int) {
+	rt = ctx.deref(rt)
+	if rt == nil || depth > maxWalkDepth {
+		return
+	}
+	// Stop at a named-type node below the root: it owns its own const + @rtIds (a
+	// self back-edge stops here too — it is named). The caller already recorded
+	// its id at this path. isSelfBody is true only for this const's own root, so
+	// the root always descends.
+	if !isSelfBody && rt.TypeName != "" {
+		return
+	}
+
+	switch {
+	case rt.Kind == protocol.KindTuple:
+		for i, slot := range tupleSlots(ctx, rt) {
+			emitter.recordChild(out, ctx, slot, joinChildPath(path, "$slots."+itoa(i)), depth)
+		}
+	case isMap(rt):
+		keyType, valueType := mapKeyValue(ctx, rt)
+		emitter.recordChild(out, ctx, keyType, joinChildPath(path, "$keys"), depth)
+		emitter.recordChild(out, ctx, valueType, joinChildPath(path, "$values"), depth)
+	case isSet(rt):
+		emitter.recordChild(out, ctx, setElement(ctx, rt), joinChildPath(path, "$values"), depth)
+	case isObjectLike(ctx, rt):
+		for _, prop := range propertyChildren(ctx, rt) {
+			emitter.recordChild(out, ctx, prop.Child, joinChildPath(path, prop.Name), depth)
+		}
+	default:
+		if element := arrayElement(rt); element != nil {
+			emitter.recordChild(out, ctx, element, joinChildPath(path, "$items"), depth)
+		}
+	}
+}
+
+// recordChild records childPath → childType.ID, then recurses into it (the
+// recursion itself stops at a named-type child via collectChildIDs's guard).
+func (emitter *closureEmitter) recordChild(out map[string]string, ctx *walkCtx, childType *protocol.RunType, childPath string, depth int) {
+	resolved := ctx.deref(childType)
+	if resolved == nil {
+		return
+	}
+	if resolved.ID != "" {
+		out[childPath] = resolved.ID
+	}
+	emitter.collectChildIDs(out, ctx, resolved, childPath, false, depth+1)
+}
+
+// joinChildPath appends a segment to a dotted child path (root path is "").
+func joinChildPath(path, segment string) string {
+	if path == "" {
+		return segment
+	}
+	return path + "." + segment
 }
 
 // isSelf reports whether rt is the named type whose body is currently being
