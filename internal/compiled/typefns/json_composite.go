@@ -141,6 +141,15 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 		return nil
 	}
 	entryKey := operations.FnHashFor(op, nil, composite.Strategy) + "_" + runType.ID
+	// Override: a custom JSON encoder/decoder registered for this type replaces
+	// the whole composite (every strategy of the op) with a cfn redirect. The
+	// node id already folded the override hash, so this key is unique to the
+	// overridden type. (The composite's structural primitives may still be
+	// demanded by the site; pruning them is a follow-up — for a supported type
+	// they are harmless dead modules.)
+	if cfnHash := runType.Overrides[op.FnKey]; cfnHash != "" {
+		return buildRedirectEntry(entryKey, tag, runType, cfnHash, opts)
+	}
 	isLive := func(primOp string) bool { return primitiveIsLive(rendered, primOp, runType.ID) }
 
 	// LIVE primitive references are SOFT: the composite body binds each via
