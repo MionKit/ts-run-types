@@ -1,0 +1,1 @@
+{"section":"ATOMIC","key":"boolean","title":"Boolean primitive (strict typeof)","description":"","notes":["Strict typeof === \"boolean\". Truthy/falsy values that are not actual booleans (e.g., 0, 1, \"\", \"true\") are rejected."],"pureType":"createValidate<boolean>()","schema":"createValidate(RT.boolean())","generated":"function YOw_Oi4KAk0(v){return typeof v === 'boolean'}"}

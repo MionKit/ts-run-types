@@ -1,0 +1,1 @@
+{"section":"ATOMIC","key":"void","title":"Void — accepts undefined, rejects null","description":"void accepts undefined (and bare function return); rejects null","notes":[],"pureType":"createValidate<void>()","schema":"createValidate(RT.void())","generated":"function YOw_WY88Usi(v){return v === undefined}"}

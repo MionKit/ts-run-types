@@ -1,0 +1,1 @@
+{"section":"DATETIME","key":"plainDateTime","title":"Temporal.PlainDateTime","description":"","notes":["Must be a Temporal.PlainDateTime instance (instanceof)."],"pureType":"createValidate<Temporal.PlainDateTime>()","schema":"createValidate(RT.temporal.plainDateTime())","generated":"export const __rt_YOw_AOak4uW=['val',,,'YOw_AOak4uW','PlainDateTime',undefined,true];"}

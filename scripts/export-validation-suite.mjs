@@ -47,7 +47,7 @@ const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
 const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
 const OUT_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.json');
 const MD_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.md');
-const FN_FIELDS = ['validate', 'validateReflect', 'getSamples'];
+const FN_FIELDS = ['validate', 'validateSchema', 'validateReflect', 'getSamples'];
 const APIS = ['validate', 'validateReflect'];
 
 // Per-kind cache selection is gone with the per-entry virtual modules:
