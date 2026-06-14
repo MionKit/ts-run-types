@@ -13,7 +13,14 @@ export interface CaseResult {
   group: string;
   name: string;
   status: CaseStatus;
-  opsSec: number;
+  /** ACCEPT-path throughput: validator over the (resolved) valid samples, ops/sec.
+   *  0 when not timed (BENCH_NO_TIMING) or when there are no valid samples. */
+  validOpsSec: number;
+  /** REJECT-path throughput: validator over the (resolved) invalid samples, ops/sec.
+   *  0 when not timed (BENCH_NO_TIMING) or when there are no invalid samples. */
+  invalidOpsSec: number;
+  /** True when this competitor replaced the shared samples for this case. */
+  samplesOverridden: boolean;
   detail: string | null;
 }
 
