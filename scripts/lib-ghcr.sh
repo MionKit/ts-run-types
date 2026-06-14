@@ -70,3 +70,21 @@ ghcr_pull_retag() {
   "$ENGINE" tag "$ref" "$local_img"
   echo "==> tagged $ref as $local_img"
 }
+
+# ghcr_try_pull_retag <remote-ref> <local-image>  -> 0 on success, 1 on failure
+# Refresh the local working image from the published one before a run. `podman
+# pull` is a cheap no-op when the local copy already matches the remote digest,
+# and only downloads changed layers otherwise -- so this is the "ensure the
+# latest image is pulled before running" check. Returns non-zero (without
+# failing) when the registry is unreachable / the image isn't published / the
+# caller isn't logged in, so callers can fall back to a local image or build.
+ghcr_try_pull_retag() {
+  local ref="$1" local_img="$2"
+  echo "==> ensuring latest published image is pulled: $ref"
+  if "$ENGINE" pull "$ref"; then
+    "$ENGINE" tag "$ref" "$local_img"
+    return 0
+  fi
+  echo "==> could not pull $ref (offline / not published / not logged in)" >&2
+  return 1
+}

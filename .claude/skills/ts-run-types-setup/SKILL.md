@@ -69,20 +69,26 @@ binary, the marker dist, and the vite plugin dist when any is stale or
 partially emitted, so the smoke is usable standalone.
 Runs in ~1s when healthy. Exits 0/1.
 
-**3. `pnpm run website:smoke`** - builds the website podman image if needed
-(`scripts/website.sh:ensure_image` rebuilds when the `Containerfile` or any
-manifest is newer than the image), runs the dev server detached in a
-`tsrt-website-smoke` container, polls `http://localhost:3000` for HTTP 200 + a
-`<title>...</title>` response (90s timeout, override with
+**3. `pnpm run website:smoke`** - readies the website podman image then runs the
+dev server. The images are **deps-only** and published to GHCR, so by default
+`scripts/website.sh:ensure_image` PULLS the latest `ghcr.io/mionkit/tsrt-website:latest`
+(`ghcr_try_pull_retag`; cheap no-op when already current), falling back to a
+local image / local build when the registry is unreachable. It then runs the dev
+server detached in a `tsrt-website-smoke` container, polls `http://localhost:3000`
+for HTTP 200 + a `<title>...</title>` response (90s timeout, override with
 `WEBSITE_SMOKE_TIMEOUT`), then stops + removes the container. Exits 0/1.
+(`WEBSITE_USE_LOCAL=1` builds/uses a local image instead of pulling - for offline
+or maintainer runs.)
 
 **4. `pnpm run bench:smoke`** - via `scripts/benchmarks.sh:ensure_prereqs`,
 self-syncs the host Go binary, the Linux cross-binary (`bin/ts-go-run-types-linux-<arch>`),
-the marker dist, the plugin dist, and the bench podman image - rebuilds
-whichever input is stale - then runs `pnpm run build` inside the container.
-That build exercises both the resolver binary (via the vite plugin) and the
-benchmark sources end-to-end. Exits 0/1. Skips the full bench loop (which
-takes minutes); for that, run `pnpm run bench` afterwards.
+the marker dist and the plugin dist (rebuilds whichever is stale), and readies
+the bench image (PULLS `ghcr.io/mionkit/tsrt-bench:latest` by default;
+`BENCH_USE_LOCAL=1` to build locally). The benchmark source is bind-mounted at
+run time, so the container build (`pnpm run build`) exercises both the resolver
+binary (via the vite plugin) and the benchmark sources end-to-end. Exits 0/1.
+Skips the full bench loop (which takes minutes); for that, run `pnpm run bench`
+afterwards.
 
 ## Layout
 
