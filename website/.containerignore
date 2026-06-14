@@ -1,6 +1,7 @@
-# Keep the build context tiny and make the isolation boundary explicit:
-# only the config files named in the Containerfile may enter the image.
-# Everything below is either source (bind-mounted at run time) or an artifact.
+# Keep the build context tiny and make the isolation boundary explicit: only the
+# manifests under _deps/ (named in the Containerfile) and .cacerts/ may enter the
+# image. Everything below is either source/config (bind-mounted at run time) or an
+# artifact.
 
 # Source directories — bind-mounted at run time, never baked.
 app/
@@ -10,6 +11,11 @@ server/
 scripts/
 not-rendered/
 tests/
+
+# First-party config — bind-mounted at run time now (no longer baked).
+nuxt.config.ts
+tsconfig.json
+eslint.config.mjs
 
 # Build artifacts / caches / deps — must never enter the image.
 node_modules/

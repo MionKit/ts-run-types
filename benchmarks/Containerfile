@@ -1,79 +1,78 @@
 # syntax=podman
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Isolated environment for the validation benchmarks. EACH competitor is a
-# STANDALONE pnpm project (its own pnpm-workspace.yaml policy + package.json →
-# its own node_modules), so one competitor's dependency tree — notably typia's
-# heavy/fragile vite6+rollup4 — can never break another's install or build. The
-# shared suite + harness carry no third-party deps. The ts-go-run-types
-# competitor's Go binary + first-party packages are bind-mounted at run time
-# (see scripts/benchmarks.sh:mount_args).
-# ─────────────────────────────────────────────────────────────────────────────
+# STANDALONE pnpm project (its own pnpm-workspace.yaml policy + package.json ->
+# its own node_modules), so one competitor's dependency tree -- notably typia's
+# heavy/fragile vite6+rollup4 -- can never break another's install or build.
+#
+# DEPS-ONLY IMAGE: this image bakes THIRD-PARTY node_modules ONLY. No first-party
+# benchmark code lives here -- the shared suite, the per-competitor source, the
+# typecost runner and aggregate.mjs are all BIND-MOUNTED at run time (see
+# scripts/benchmarks.sh:mount_args), as is the ts-go-run-types Go binary + the
+# first-party packages. The package-manager manifests come from _deps/ (kept out
+# of the host project roots so nobody can accidentally `pnpm install` there).
+# Consequence: the image changes ONLY when a dependency manifest changes; source
+# edits never invalidate it.
+# -----------------------------------------------------------------------------
 FROM mcr.microsoft.com/devcontainers/javascript-node:22
+
+LABEL org.opencontainers.image.source=https://github.com/MionKit/ts-run-types
+LABEL org.opencontainers.image.description="ts-go-run-types validation benchmarks - deps-only image (source bind-mounted at run time)"
 
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     DO_NOT_TRACK=1
 RUN corepack enable
 WORKDIR /app
 
-# ── Optional: trust extra CA certs (corporate / MITM egress proxy) ───────────
+# -- Optional: trust extra CA certs (corporate / MITM egress proxy) -----------
 COPY .cacerts/ /usr/local/share/ca-certificates/
 RUN update-ca-certificates >/dev/null 2>&1 || true
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
-# ── Per-competitor installs ──────────────────────────────────────────────────
+# -- Per-competitor installs --------------------------------------------------
 # Each competitor gets a COPY of the supply-chain policy (pnpm-workspace.yaml +
 # .npmrc) INTO ITS OWN DIR so `pnpm install` resolves there (no /app-level
-# workspace file — that would make pnpm treat /app as the root, find "no
+# workspace file -- that would make pnpm treat /app as the root, find "no
 # projects", and install nothing). node_modules is cached on each package.json.
-# typia's install is non-fatal so its opt-in fragile deps can't abort the build.
-COPY pnpm-workspace.yaml .npmrc competitors/zod/
-COPY competitors/zod/package.json competitors/zod/package.json
+# Manifests are sourced from _deps/ (the deps source-of-truth; absent from the
+# host project roots). typia's install is non-fatal so its opt-in fragile deps
+# can't abort the build.
+COPY _deps/pnpm-workspace.yaml _deps/.npmrc competitors/zod/
+COPY _deps/competitors/zod/package.json competitors/zod/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/zod && pnpm install --no-frozen-lockfile
 
-COPY pnpm-workspace.yaml .npmrc competitors/typebox/
-COPY competitors/typebox/package.json competitors/typebox/package.json
+COPY _deps/pnpm-workspace.yaml _deps/.npmrc competitors/typebox/
+COPY _deps/competitors/typebox/package.json competitors/typebox/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/typebox && pnpm install --no-frozen-lockfile
 
-COPY pnpm-workspace.yaml .npmrc competitors/ajv/
-COPY competitors/ajv/package.json competitors/ajv/package.json
+COPY _deps/pnpm-workspace.yaml _deps/.npmrc competitors/ajv/
+COPY _deps/competitors/ajv/package.json competitors/ajv/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/ajv && pnpm install --no-frozen-lockfile
 
-COPY pnpm-workspace.yaml .npmrc competitors/ts-go-run-types/
-COPY competitors/ts-go-run-types/package.json competitors/ts-go-run-types/package.json
+COPY _deps/pnpm-workspace.yaml _deps/.npmrc competitors/ts-go-run-types/
+COPY _deps/competitors/ts-go-run-types/package.json competitors/ts-go-run-types/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/ts-go-run-types && pnpm install --no-frozen-lockfile
 
-COPY pnpm-workspace.yaml .npmrc competitors/typia/
-COPY competitors/typia/package.json competitors/typia/package.json
+COPY _deps/pnpm-workspace.yaml _deps/.npmrc competitors/typia/
+COPY _deps/competitors/typia/package.json competitors/typia/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/typia && pnpm install --no-frozen-lockfile \
     || echo ">> typia install failed (opt-in BENCH_TYPIA column will be skipped)"
 
-# typecost runner — its own TypeScript install (it drives the compiler API). The
+# typecost runner -- its own TypeScript install (it drives the compiler API). The
 # marker package it type-resolves against is the one bind-mounted into the ts-go
 # competitor at run time (see scripts/benchmarks.sh:mount_args).
-COPY pnpm-workspace.yaml .npmrc typecost/
-COPY typecost/package.json typecost/package.json
+COPY _deps/pnpm-workspace.yaml _deps/.npmrc typecost/
+COPY _deps/typecost/package.json typecost/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd typecost && pnpm install --no-frozen-lockfile
 
-# ── Bake the benchmark source. The per-competitor node_modules created above are
-#    NOT in the build context (gitignored on the host), so this merges source in
-#    and leaves them intact. Drop any /app-level workspace/registry files so each
-#    competitor's own pnpm-workspace.yaml governs at run time.
-COPY . .
-RUN rm -f /app/pnpm-workspace.yaml /app/.npmrc
-
-# ── Pre-warm typia's tsgo transform ──────────────────────────────────────────
-# typia's FIRST ttsc build compiles its native Go plugin (~200s, "once per cache
-# key") into competitors/typia/node_modules/.ttsc/. Bake that cache into the image
-# so each ephemeral (--rm) bench run reuses it instead of recompiling from scratch.
-# Needs the shared/ sources COPYed just above. Non-fatal (typia is opt-in): if it
-# fails, the only cost is the first BENCH_TYPIA run paying the one-time compile.
-RUN cd competitors/typia && pnpm run build \
-    || echo ">> typia pre-warm skipped (first BENCH_TYPIA run will compile the plugin)"
-
-# No CMD: scripts/benchmarks.sh supplies per-competitor build+run commands.
+# No source COPY and no CMD: scripts/benchmarks.sh bind-mounts the benchmark
+# source (shared/, competitors/*/ source files, typecost/*, aggregate.mjs) and
+# supplies per-competitor build+run commands. typia's first ttsc build compiles
+# its native Go plugin (~200s) into competitors/typia/node_modules/.ttsc/ at run
+# time; that subpath is a persisted named volume so the compile happens once.

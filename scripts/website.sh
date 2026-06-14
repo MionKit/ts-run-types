@@ -16,12 +16,19 @@
 #   scripts/website.sh generate      # static prerender -> website/.output/public
 #   scripts/website.sh smoke         # quick verify: bg dev server + curl :3000 + stop
 #   scripts/website.sh shell         # debug shell inside the container
+#   scripts/website.sh lock          # regenerate _deps/pnpm-lock.yaml in-container
+#   scripts/website.sh login         # log in to GHCR (uses GHCR_PAT / GHCR_PAT_FILE)
+#   scripts/website.sh push          # build + push multi-arch image to GHCR
+#   scripts/website.sh pull          # pull the published image and tag it locally
 #   scripts/website.sh clean         # remove the image + named volumes
 #
 # Env overrides:
 #   WEBSITE_ENGINE   container engine (default: podman)
 #   WEBSITE_IMAGE    image tag        (default: tsrt-website:dev)
 #   WEBSITE_PORT     host port        (default: 3000)
+#   WEBSITE_USE_REMOTE=1  pull the GHCR image instead of building locally
+#   WEBSITE_REMOTE_IMAGE  remote ref   (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest)
+#   GHCR_OWNER / GHCR_USER / GHCR_PAT / GHCR_PAT_FILE  (see scripts/lib-ghcr.sh)
 #   WEBSITE_POLL=1   use filesystem polling for watchers (macOS / VM mounts)
 #   WEBSITE_MOUNT_OPTS   extra bind-mount opts, e.g. ":z" on SELinux hosts
 #   WEBSITE_CA_CERT      file OR dir of extra CA certs to trust inside the
@@ -48,9 +55,20 @@ CA_SRC="${WEBSITE_CA_CERT:-}"
 BUILD_NETWORK="${WEBSITE_BUILD_NETWORK:-}"
 RUN_NETWORK="${WEBSITE_RUN_NETWORK:-}"
 CACERTS_DIR="$WEBSITE_DIR/.cacerts"
+DEPS_DIR="$WEBSITE_DIR/_deps"
 
 # Source directories bind-mounted into /app (host is the source of truth).
 MOUNT_DIRS=(app content public server scripts not-rendered tests)
+
+# Config files bind-mounted into /app (first-party, NOT baked into the image).
+MOUNT_FILES=(nuxt.config.ts tsconfig.json eslint.config.mjs)
+
+# GHCR publish/pull helpers (login, push, pull) + the remote image ref. When
+# WEBSITE_USE_REMOTE is set, the run commands pull this prebuilt image instead of
+# building locally.
+source "$SCRIPT_DIR/lib-ghcr.sh"
+REMOTE_IMAGE="${WEBSITE_REMOTE_IMAGE:-$GHCR_REGISTRY/$GHCR_OWNER/tsrt-website:latest}"
+MANIFEST_NAME="tsrt-website-manifest"
 
 # Named volumes hold Nuxt's generated caches so restarts stay fast and the
 # host source tree is never written to.
@@ -109,6 +127,11 @@ build_image() {
 }
 
 ensure_image() {
+  # Consume the prebuilt GHCR image instead of building locally.
+  if [ -n "${WEBSITE_USE_REMOTE:-}" ]; then
+    "$ENGINE" image exists "$IMAGE" 2>/dev/null || ghcr_pull_retag "$REMOTE_IMAGE" "$IMAGE"
+    return
+  fi
   if ! "$ENGINE" image exists "$IMAGE" 2>/dev/null; then build_image; return; fi
   # Rebuild when any in-image manifest is newer than the cached image. The
   # bind-mounted source dirs (app/ content/ ...) never need a rebuild since
@@ -116,7 +139,7 @@ ensure_image() {
   local img_epoch src_epoch=0 f t
   img_epoch="$("$ENGINE" image inspect "$IMAGE" --format '{{.Created.Unix}}' 2>/dev/null || true)"
   [ -z "$img_epoch" ] && img_epoch=0
-  for f in "$WEBSITE_DIR/Containerfile" "$WEBSITE_DIR/package.json" "$WEBSITE_DIR/pnpm-lock.yaml" "$WEBSITE_DIR/pnpm-workspace.yaml" "$WEBSITE_DIR/.npmrc"; do
+  for f in "$WEBSITE_DIR/Containerfile" "$DEPS_DIR/package.json" "$DEPS_DIR/pnpm-lock.yaml" "$DEPS_DIR/pnpm-workspace.yaml" "$DEPS_DIR/.npmrc"; do
     [ -f "$f" ] || continue
     t="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)"
     [ "$t" -gt "$src_epoch" ] && src_epoch="$t"
@@ -129,9 +152,13 @@ ensure_image() {
 
 # Echo the bind-mount + named-volume args for `run`.
 mount_args() {
-  local dir
+  local dir cfg
   for dir in "${MOUNT_DIRS[@]}"; do
     [ -d "$WEBSITE_DIR/$dir" ] && printf -- '-v\n%s:/app/%s%s\n' "$WEBSITE_DIR/$dir" "$dir" "$MOUNT_OPTS"
+  done
+  # First-party config files (not baked into the deps-only image).
+  for cfg in "${MOUNT_FILES[@]}"; do
+    [ -f "$WEBSITE_DIR/$cfg" ] && printf -- '-v\n%s:/app/%s:ro%s\n' "$WEBSITE_DIR/$cfg" "$cfg" "$MOUNT_OPTS"
   done
   printf -- '-v\n%s:/app/.nuxt\n'  "$VOL_NUXT"
   printf -- '-v\n%s:/app/.data\n'  "$VOL_DATA"
@@ -263,6 +290,29 @@ cmd_clean() {
   "$ENGINE" volume rm -f "$VOL_NUXT" "$VOL_DATA" "$VOL_CACHE" 2>/dev/null || true
 }
 
+# Regenerate _deps/pnpm-lock.yaml inside the container, so the host stays free of
+# any package-manager files (you can't `pnpm install` at the website root). This
+# is the supported "bump a dep" step: edit _deps/package.json, then run this.
+cmd_lock() {
+  ensure_image
+  echo "==> regenerating _deps/pnpm-lock.yaml inside the container"
+  read_lines NARGS < <(net_args)
+  "$ENGINE" run --rm --init \
+    ${NARGS[@]+"${NARGS[@]}"} \
+    -v "$DEPS_DIR:/lock${MOUNT_OPTS}" -w /lock "$IMAGE" \
+    pnpm install --lockfile-only --no-frozen-lockfile
+}
+
+cmd_login() { require_engine; ghcr_login; }
+
+cmd_push() {
+  require_engine
+  prepare_cacerts
+  ghcr_push_multiarch "$MANIFEST_NAME" "$WEBSITE_DIR" "$REMOTE_IMAGE" "$BUILD_NETWORK"
+}
+
+cmd_pull() { require_engine; ghcr_pull_retag "$REMOTE_IMAGE" "$IMAGE"; }
+
 main() {
   require_engine
   mkdir -p "$WEBSITE_DIR/.output"
@@ -273,8 +323,12 @@ main() {
     generate)    cmd_generate ;;
     smoke)       cmd_smoke ;;
     shell)       cmd_shell ;;
+    lock)        cmd_lock ;;
+    login)       cmd_login ;;
+    push)        cmd_push ;;
+    pull)        cmd_pull ;;
     clean)       cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: build-image | dev | build | generate | smoke | shell | clean" ;;
+    *) die "unknown command '${1:-}'. Try: build-image | dev | build | generate | smoke | shell | lock | login | push | pull | clean" ;;
   esac
 }
 

@@ -79,7 +79,9 @@ JS plugin tests in [packages/vite-plugin-runtypes/test/](packages/vite-plugin-ru
 
 ## Containerized apps (docs website + benchmarks)
 
-Both apps install their heavy node_modules **inside** a podman image (supply-chain isolation; the host never touches them). Drivers: [scripts/website.sh](scripts/website.sh) and [scripts/benchmarks.sh](scripts/benchmarks.sh).
+Both apps install their heavy node_modules **inside** a podman image (supply-chain isolation; the host never touches them). The images are **deps-only**: they bake third-party `node_modules` plus the package-manager manifests **and nothing else** — no Go binary, no benchmark code, no website source. All first-party files (source + the website's Nuxt/TS/ESLint config) are bind-mounted at run time, so an image is invalidated only when a dependency manifest changes. Drivers: [scripts/website.sh](scripts/website.sh) and [scripts/benchmarks.sh](scripts/benchmarks.sh).
+
+The package-manager files (`package.json`, lockfile, `pnpm-workspace.yaml`, `.npmrc`) live in a per-project **`_deps/`** dir — `website/_deps/` and `benchmarks/_deps/` (mirroring `competitors/<name>/` + `typecost/`). They are deliberately kept **out of the host project roots** so you can't accidentally `pnpm install` at `website/` or a competitor dir; the Containerfiles `COPY` them into the right in-image locations at build. To bump a website dependency, edit `website/_deps/package.json`, regenerate the lockfile in-container with `pnpm run website:lock`, then `website:build-image` (+ `website:push`).
 
 | Surface     | pnpm script              | What it does                                                                       |
 | ----------- | ------------------------ | ---------------------------------------------------------------------------------- |
@@ -94,7 +96,7 @@ Both apps install their heavy node_modules **inside** a podman image (supply-cha
 
 The website only needs **podman**; the benchmarks additionally need **Node + pnpm + Go** for the host prep (resolver binary + first-party dists, bind-mounted into the container). On macOS the prep cross-compiles a `bin/ts-go-run-types-linux-<arch>` so the Linux container can execute it.
 
-Every runtime command in [`scripts/benchmarks.sh`](scripts/benchmarks.sh) self-syncs prereqs by delegating to [`scripts/check-stale-builds.sh`](scripts/check-stale-builds.sh) (also used by `pretest`): it rebuilds the Go binary, the Linux cross-binary, the plugin dist, and the marker dist when any of them is stale or has a partial tsc emit, and rebuilds the podman image when its baked source moves. Manual `pnpm run bench:prep` remains available for explicit refresh.
+Every runtime command in [`scripts/benchmarks.sh`](scripts/benchmarks.sh) self-syncs prereqs by delegating to [`scripts/check-stale-builds.sh`](scripts/check-stale-builds.sh) (also used by `pretest`): it rebuilds the Go binary, the Linux cross-binary, the plugin dist, and the marker dist when any of them is stale or has a partial tsc emit, and rebuilds the podman image when a **dependency** input changes (the `Containerfile` or anything under `benchmarks/_deps/`). Benchmark source is bind-mounted, so editing it never triggers an image rebuild. Manual `pnpm run bench:prep` remains available for explicit refresh.
 
 macOS-specific knobs:
 
@@ -102,6 +104,25 @@ macOS-specific knobs:
 - The skill calls `podman machine init` + `podman machine start` automatically; manually it's the same two commands.
 
 Behind a corporate / MITM proxy: pass `WEBSITE_CA_CERT=... WEBSITE_BUILD_NETWORK=host pnpm run website:build-image` (and the `BENCH_*` equivalents). See `website/CONTAINER.md`.
+
+### Publishing & consuming the images via GHCR
+
+The deps-only images are published to the GitHub Container Registry so any host can **pull a ready-to-run image** instead of re-running all installs. Helpers live in [scripts/lib-ghcr.sh](scripts/lib-ghcr.sh).
+
+| Step | Command | Notes |
+| ---- | ------- | ----- |
+| Authenticate (once) | `pnpm run website:login` / `pnpm run bench:login` | Reads the PAT from `GHCR_PAT` or `GHCR_PAT_FILE`, pipes via `--password-stdin`. |
+| Publish | `pnpm run website:push` / `pnpm run bench:push` | Builds a **multi-arch** (`linux/amd64,linux/arm64`) manifest and pushes it. |
+| Consume | `WEBSITE_USE_REMOTE=1 pnpm run website:dev` (or `bench:*`) | Pulls + tags the published image instead of building locally. |
+| Pull only | `pnpm run website:pull` / `pnpm run bench:pull` | Fetch + retag without running. |
+
+GHCR env (see [scripts/lib-ghcr.sh](scripts/lib-ghcr.sh)): `GHCR_OWNER` (default `mionkit`), `GHCR_USER` (default `M-jerez`), `GHCR_PAT` / `GHCR_PAT_FILE`, `WEBSITE_REMOTE_IMAGE` / `BENCH_REMOTE_IMAGE` (default `ghcr.io/$GHCR_OWNER/tsrt-{website,bench}:latest`).
+
+Notes:
+
+- **PAT scope:** push needs `write:packages` (pull of a private image needs `read:packages`). For pushing to the **org** namespace (`ghcr.io/mionkit/…`) use a **classic** PAT authorized for the MionKit org via SSO — fine-grained tokens need the org to opt in to package writes. If an org push is denied, publish under your personal namespace with `GHCR_OWNER=<you>`.
+- **Multi-arch on an arm64 Mac:** the `linux/amd64` arm builds under QEMU emulation (slower). The benchmark image no longer pre-warms typia at build time — the first `BENCH_TYPIA=1` run compiles typia's native plugin (~200s) into a persisted named volume (`pnpm run bench:clean` drops it); later runs reuse it.
+- **Visibility:** GHCR packages are **private by default**. Make them public (or grant the repo read access) so CI / other hosts can pull without authenticating. The images carry an `org.opencontainers.image.source` label so the package links to this repo.
 
 ---
 
