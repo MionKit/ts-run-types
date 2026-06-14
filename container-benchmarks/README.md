@@ -252,53 +252,44 @@ bench:typecost` (no `BENCH_CASE`) once to refresh the canonical results JSON.
 
 ## Compile-time cost (`bench:compiletime`)
 
-A third axis: the build-time **overhead** the transform adds. Where `typecost`
-counts TypeScript *instantiations*, `compiletime` times an actual **build**, and
-measures only the two transform-based libraries — **ts-runtypes** (vite + the
-`runtypes-devtools` plugin) and **typia** (esbuild + `@ttsc/unplugin`). For each it
-records two numbers: the build with the transform **OFF** (a plain compile that
-produces no validators) and **ON** (the transform runs, generates the validator
-functions, the build compiles them). The **overhead** is the gap.
+A third axis: the build-time cost of the two transform-based libraries — **ts-runtypes**
+and **typia** — measured on **tsgo** (the Go TypeScript both transform on), over the
+**whole suite as one file** (one build, not per case), in three tiers:
 
-Measured **per suite SECTION** (not per case): all of a section's `createValidate<T>()`
-/ `typia.createIs<T>()` call sites go into ONE file, built twice. Two reasons — both
-fixes for the per-function distortion:
+- **strip** — `tsgo` transpile only, types stripped, NO type-checking. The floor.
+- **typecheck** — `tsgo --noEmit`, a full type-check, no transform. A "normal" compile
+  that produces no validators.
+- **full** — type-check + transform + emit the generated validators:
+  - typia — `ttsc` (tsgo + the typia transform, emitting the inlined validators).
+  - ts-runtypes — `vite` + the `runtypes-devtools` plugin (the Go resolver, itself
+    tsgo, generates the validators; the bundler emits them). RT's transform is not a
+    tsgo plugin, so this is its real build path rather than a `tsgo` CLI call.
 
-- **Batching** amortizes the fixed bundler/compiler init across many functions, so the
-  transform work is a real fraction of the total instead of being lost under a per-file
-  init that dwarfs it.
-- **Same-file off vs on** — the identical file is built with the transform off then on.
-  The init / parse / lib-load cost is identical in both, so it **cancels** in the gap;
-  what's left is purely the transform + generated-function compile. Robust no matter how
-  large the fixed cost is, because it is in both terms.
+The deltas read the story: **typecheck − strip** = the cost of type-checking;
+**full − typecheck** = the cost of the transform + emitting the functions.
 
 [`compiletime/compiletime.mjs`](compiletime/compiletime.mjs) reuses the typecost AST
-extractors ([`_lib/extract-cases.mjs`](_lib/extract-cases.mjs) — one source of truth),
-assembles the section file (preamble once, each case in its own block), and builds it
-through the library's real tools (resolved from the competitor's own `node_modules`).
-A warm-up build runs first so the cold process-start never lands on a cell; each number
-is the **median of N** (default 5).
+extractors ([`_lib/extract-cases.mjs`](_lib/extract-cases.mjs) — one source of truth)
+to assemble every supported call site into one file (each case in its own block), then
+spawns `tsgo`/`ttsc` (or runs vite) per tier. A warm-up build runs first so the cold
+process-start — and typia's one-time ~200s `ttsc` plugin compile, cached in the `.ttsc`
+volume — never lands in a measured tier; each number is the **median of N** (default 5).
 
 ```bash
-pnpm run bench:compiletime                              # ts-runtypes + typia, off vs on
+pnpm run bench:compiletime                              # ts-runtypes + typia, three tiers
 COMPILETIME_COMPETITORS="ts-runtypes" pnpm run bench:compiletime   # one library
-BENCH_CASE=object pnpm run bench:compiletime            # one section, inspection (no JSON write)
 COMPILETIME_N=10 pnpm run bench:compiletime             # more repeats
 ```
 
-Results land in `results/{ts-runtypes,typia}.compiletime.json` (per section:
-`baseline_ms`, `transform_ms`, `overhead_ms`) and join the website as four columns
-(each library's baseline + `+transform`) via `gen-bench-docs.mjs` →
-`bench-data/compiletime/`.
+Results land in `results/{ts-runtypes,typia}.compiletime.json` (`strip_ms`,
+`typecheck_ms`, `full_ms`, `types`) and join the website as six columns (each library's
+three tiers) via `gen-bench-docs.mjs` → `bench-data/compiletime/`.
 
-> **What the numbers show.** For both libraries the overhead is largely a fixed
-> per-build transform cost (the Go resolver spawn for ts-runtypes, the ttsc transform
-> for typia) — more functions in a section barely move it, because the per-function
-> resolve/transform work is small. typia's transform runs per file, so it pays this in
-> every compile; ts-runtypes spawns its resolver once for a whole multi-file build, so
-> a real project amortizes the ts-runtypes number across all its files (the per-section
-> figure is the isolated-build cost). typia's first build also compiles its native
-> plugin once (~200s into the `.ttsc` volume) — excluded from the cells by the warm-up.
+> **What the numbers show.** tsgo type-checks the whole suite fast, so **typecheck −
+> strip** is small; the meat is **full − typecheck**, the transform + emit. ts-runtypes'
+> full build (one resolver spawn + generate + bundle) and typia's `ttsc` are directly
+> comparable, both on tsgo. ts-runtypes needs `@typescript/native-preview` (tsgo) in its
+> competitor deps for the strip/typecheck tiers; typia already ships it.
 
 ## Format-serialization (`serialization-formats`)
 
@@ -330,7 +321,7 @@ _deps/                     (package-manager files only — kept out of the sourc
   competitors/<name>/package.json   ONLY that competitor's deps (isolation)
   typecost/package.json
 typecost/typecost.mjs   per-competitor type-instantiation cost
-compiletime/compiletime.mjs  build-time overhead: transform off vs on, per section (ts-runtypes, typia)
+compiletime/compiletime.mjs  tsgo build cost: strip / typecheck / full, whole suite (ts-runtypes, typia)
 _lib/extract-cases.mjs  shared AST extractors (typecost + compiletime consume it)
 aggregate.mjs           results/*.json → comparison table + coverage; sets the exit code
 ```
