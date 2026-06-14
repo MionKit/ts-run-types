@@ -105,8 +105,8 @@ function emitSuite(suiteKey, cfg) {
   for (const [section, cases] of Object.entries(data)) {
     const rows = [];
     for (const [key, c] of Object.entries(cases)) {
-      const notes = asNotesArray(c.validateNotes ?? c.notes);
-      rows.push({key, title: c.title ?? key, description: c.description ?? '', notes: notes.length > 0});
+      const notes = asNotesArray(c.validateNotes ?? c.serializeNotes ?? c.notes);
+      rows.push({key, title: c.title ?? key, description: c.description ?? '', notes});
 
       const detail = {
         section,
