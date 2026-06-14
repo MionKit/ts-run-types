@@ -73,6 +73,8 @@ export const TEMPLATE_LITERAL = {
   multi_segment_url: {
     title: 'Template literal URL with multiple placeholders',
     description: "mion templateLiteral.spec.ts 'multi-segment URL'. Multiple placeholders + literal segments.",
+    validateNotes:
+      'Every literal segment and placeholder is matched positionally in one regex — the `${number}` spans require digit-strings while the `${string}` span accepts any characters; a single mismatched segment fails the whole match.',
     validate: () => createValidate<`/api/v${number}/user/${string}/posts/${number}`>(),
     validateDataOnly: () => createValidate<DataOnly<`/api/v${number}/user/${string}/posts/${number}`>>(),
     validateSchema: () =>
@@ -173,6 +175,8 @@ export const TEMPLATE_LITERAL = {
     title: 'Template literal with regex metacharacters in literal segments',
     description:
       "mion templateLiteral.spec.ts 'regex special chars in literal' — parens (and other regex metacharacters) in the literal segments must be escaped in the compiled regex.",
+    validateNotes:
+      'Regex metacharacters in literal segments are escaped, so the parens are matched literally — `(42)` passes but `42` (no parens) fails.',
     validate: () => createValidate<`(${number})`>(),
     validateDataOnly: () => createValidate<DataOnly<`(${number})`>>(),
     validateSchema: () => createValidate(RT.templateLiteral(['(', RT.number(), ')'])),
@@ -223,6 +227,8 @@ export const TEMPLATE_LITERAL = {
     title: 'Object with a template-literal-typed string property',
     description:
       "mion templateLiteral.spec.ts 'nested in object' — template literal as a property value; the parent object's AND chain composes the typeof+regex check against `v.url`.",
+    validateNotes:
+      'The `url` property is checked with the same typeof+regex as a standalone template literal, so a numeric `url: 42` fails (`expected: "templateLiteral"`) even though it would pass a plain `string` property.',
     validate: () => createValidate<{url: `api/user/${number}`; method: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{url: `api/user/${number}`; method: string}>>(),
     validateSchema: () => createValidate(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),

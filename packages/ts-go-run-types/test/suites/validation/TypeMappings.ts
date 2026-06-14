@@ -8,6 +8,8 @@ export const TYPE_MAPPINGS = {
     title: 'Key prefix via template literal — `prefix_${K}` rename',
     description:
       'TS 4.1+ key remapping: `{[K in keyof T as `prefix_${K & string}`]: T[K]}`. Resolves to a fully concrete object literal with renamed keys; each value type is carried over unchanged. Common pattern for DB column-name prefixing (`user_id`, `user_name`).',
+    validateNotes:
+      'The validator checks the RENAMED keys — a value carrying the original un-prefixed keys (`{id, name}`) fails because the required `user_id` / `user_name` are absent.',
     validate: () => {
       interface Source {
         id: number;
@@ -140,6 +142,8 @@ export const TYPE_MAPPINGS = {
     title: 'Conditional key rename — swap one key, leave the rest',
     description:
       '`{[K in keyof T as K extends "id" ? "_id" : K]: T[K]}`. Renames a single specific key (`id` → `_id` — Mongo-style); other keys pass through unchanged.',
+    validateNotes:
+      'Only `id` is renamed; the resolved shape requires `_id` and ignores the original `id`, so a value with `id` (and no `_id`) fails while the pass-through keys (`name`, `createdAt`) are still required.',
     validate: () => {
       interface Source {
         id: number;

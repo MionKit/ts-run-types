@@ -1043,6 +1043,11 @@ export const DATETIME = {
   },
   plainTime_gtlt: {
     title: 'FormatTemporalPlainTime<{gt,lt}> — exclusive edges rejected',
+    description: '`Temporal.PlainTime` with exclusive `gt`/`lt` bounds; only strictly-interior times pass',
+    validateNotes: [
+      'Exclusive bounds: one second inside each edge passes (09:00:01, 16:59:59), but the boundary times themselves fail — 09:00:00 trips `gt`, 17:00:00 trips `lt`.',
+      'A non-time value is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -1092,6 +1097,11 @@ export const DATETIME = {
   // ═══════════════════════════ Temporal.PlainDateTime ═══════════════════════
   plainDateTime_minmax: {
     title: 'FormatTemporalPlainDateTime<{min,max}> — inclusive edges',
+    description: '`Temporal.PlainDateTime` with an inclusive `min`/`max` window; rejects datetimes outside [min, max]',
+    validateNotes: [
+      'Inclusive bounds: both 2020-01-01T00:00:00 (`min`) and 2020-12-31T23:59:59 (`max`) pass as exact boundaries.',
+      'One second outside fails: 2019-12-31T23:59:59 trips `min`, 2021-01-01T00:00:00 trips `max`; a non-datetime value is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -1150,6 +1160,11 @@ export const DATETIME = {
   },
   plainDateTime_gtlt: {
     title: 'FormatTemporalPlainDateTime<{gt,lt}> — exclusive edges rejected',
+    description: '`Temporal.PlainDateTime` with exclusive `gt`/`lt` bounds; only strictly-interior datetimes pass',
+    validateNotes: [
+      'Exclusive bounds: an interior datetime (2020-06-15T12:00:00) passes, but the boundary datetimes themselves fail — 2020-01-01T00:00:00 trips `gt`, 2020-12-31T23:59:59 trips `lt`.',
+      'A non-datetime value is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -1206,6 +1221,11 @@ export const DATETIME = {
   },
   plainDateTime_rel: {
     title: 'FormatTemporalPlainDateTime<{min: now-P1000Y, max: now+P1000Y}> — relative window',
+    description: '`Temporal.PlainDateTime` with a relative inclusive window `now-P1000Y`/`now+P1000Y` (year components)',
+    validateNotes: [
+      'Both bounds are relative durations anchored at validation time (`now` ± 1000 years); a present-day datetime (2020-06-15T12:00:00) passes.',
+      'Far outside the wide window fails: year 0500 trips `min`, year 3500 trips `max`. The margin is huge so the result holds regardless of the wall clock.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -1252,6 +1272,8 @@ export const DATETIME = {
   },
   plainDateTime_rel_combo: {
     title: 'FormatTemporalPlainDateTime<{min: now-P500YT12H}> — relative date + time components',
+    description: '`Temporal.PlainDateTime` with a relative inclusive lower bound only (`now-P500YT12H`, mixing year + hour components); upper end is open',
+    validateNotes: 'Single relative `min` anchored at validation time (500 years and 12 hours ago); a present-day datetime (2020-06-15T12:00:00) passes while far-past year 1000 trips `min`. DateTime kinds accept both date (Y) and time (T) duration components.',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -1292,6 +1314,11 @@ export const DATETIME = {
   // ═══════════════════════════ Temporal.PlainYearMonth ══════════════════════
   plainYearMonth_minmax: {
     title: 'FormatTemporalPlainYearMonth<{min,max}> — inclusive edges',
+    description: '`Temporal.PlainYearMonth` with an inclusive `min`/`max` window; rejects year-months outside [min, max]',
+    validateNotes: [
+      'Inclusive bounds: both 2020-01 (`min`) and 2020-12 (`max`) pass as exact boundaries.',
+      'One month outside fails: 2019-12 trips `min`, 2021-01 trips `max`; a non-year-month value is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -1339,6 +1366,11 @@ export const DATETIME = {
   },
   plainYearMonth_gtlt: {
     title: 'FormatTemporalPlainYearMonth<{gt,lt}> — exclusive edges rejected',
+    description: '`Temporal.PlainYearMonth` with exclusive `gt`/`lt` bounds; only strictly-interior year-months pass',
+    validateNotes: [
+      'Exclusive bounds: the next month inside each edge passes (2020-02, 2020-11), but the boundary year-months themselves fail — 2020-01 trips `gt`, 2020-12 trips `lt`.',
+      'A non-year-month value is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -1386,6 +1418,11 @@ export const DATETIME = {
   },
   plainYearMonth_rel: {
     title: 'FormatTemporalPlainYearMonth<{min: now-P1000Y, max: now+P1000Y}> — relative (Y/M)',
+    description: '`Temporal.PlainYearMonth` with a relative inclusive window `now-P1000Y`/`now+P1000Y` (year/month components)',
+    validateNotes: [
+      'Both bounds are relative durations anchored at validation time (`now` ± 1000 years); a present-day year-month (2020-06) passes.',
+      'Far outside the wide window fails: 0500-01 trips `min`, 3500-01 trips `max`. The margin is huge so the result holds regardless of the wall clock.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -1435,6 +1472,11 @@ export const DATETIME = {
   // ═══════════════════════════ Temporal.ZonedDateTime ═══════════════════════
   zonedDateTime_minmax: {
     title: 'FormatTemporalZonedDateTime<{min,max}> — inclusive edges',
+    description: '`Temporal.ZonedDateTime` (UTC) with an inclusive `min`/`max` window; rejects instants outside [min, max]',
+    validateNotes: [
+      'Inclusive bounds: both 2020-01-01T00:00:00[UTC] (`min`) and 2020-12-31T23:59:59[UTC] (`max`) pass as exact boundaries.',
+      'One second outside fails: 2019-12-31T23:59:59[UTC] trips `min`, 2021-01-01T00:00:00[UTC] trips `max`; a non-zoned value is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -1500,6 +1542,11 @@ export const DATETIME = {
   },
   zonedDateTime_gtlt: {
     title: 'FormatTemporalZonedDateTime<{gt,lt}> — exclusive edges rejected',
+    description: '`Temporal.ZonedDateTime` (UTC) with exclusive `gt`/`lt` bounds; only strictly-interior instants pass',
+    validateNotes: [
+      'Exclusive bounds: an interior datetime (2020-06-15T12:00:00[UTC]) passes, but the boundary values themselves fail — 2020-01-01T00:00:00[UTC] trips `gt`, 2020-12-31T23:59:59[UTC] trips `lt`.',
+      'A non-zoned value is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -1563,6 +1610,11 @@ export const DATETIME = {
   },
   zonedDateTime_rel: {
     title: 'FormatTemporalZonedDateTime<{min: now-P1000Y, max: now+P1000Y}> — relative window',
+    description: '`Temporal.ZonedDateTime` (UTC) with a relative inclusive window `now-P1000Y`/`now+P1000Y` (year components)',
+    validateNotes: [
+      'Both bounds are relative durations anchored at validation time (`now` ± 1000 years); a present-day datetime (2020-06-15T12:00:00[UTC]) passes.',
+      'Far outside the wide window fails: year 0500 trips `min`, year 3500 trips `max`. The margin is huge so the result holds regardless of the wall clock.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.

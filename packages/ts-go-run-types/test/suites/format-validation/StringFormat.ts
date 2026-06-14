@@ -1812,6 +1812,8 @@ export const STRING_FORMAT = {
   },
   emailPunycode: {
     title: 'FormatEmailPunycode — accepts punycode-tld domains',
+    description: 'FormatEmailPunycode (format `email`); email pattern that additionally accepts punycode (`xn--`) domain labels',
+    validateNotes: 'A punycode-TLD address (`john@example.xn--fiqs8s`) passes. A non-email string (`not-an-email`) fails with `{name: email}` (no `val`).',
     validate: () => createValidate<FormatEmailPunycode>(),
     validateReflect: () => {
       const v: FormatEmailPunycode = 'john@example.xn--fiqs8s';
@@ -1846,6 +1848,12 @@ export const STRING_FORMAT = {
   },
   emailStrict: {
     title: 'FormatEmailStrict — localPart + domain decomposition',
+    description: 'FormatEmailStrict (format `email`); splits on the last `@`, then applies a strict local-part pattern + strict domain',
+    validateNotes: [
+      'Plain addresses pass (`john@example.com`, `jane.doe@mion.io`).',
+      'A disallowed local-part char (`a+b@x.com`) fails with `val` `Invalid characters in email local part`.',
+      'Also rejected: a space in the local part (`a b@example.com`), a doubled `@` (`john@@example.com`), an underscore in the domain (`john@bad_domain.com`), and no `@` at all (`no-at-symbol`).',
+    ],
     validate: () => createValidate<FormatEmailStrict>(),
     validateReflect: () => {
       const v: FormatEmailStrict = 'john@example.com';
@@ -1885,6 +1893,11 @@ export const STRING_FORMAT = {
   // ──────────────────────────────── URL ───────────────────────────
   url: {
     title: 'FormatUrl — standard (http/ftp/ws schemes)',
+    description: 'FormatUrl (format `url`, `maxLength` 2048); accepts common schemes (http, ftp, ws/wss)',
+    validateNotes: [
+      'Multiple schemes pass (`https://`, `http://` with path+query, `ftp://`, `wss://`).',
+      'Rejected: a scheme-less string (`not-a-url`), a bare host (`example.com`), a `mailto:` URI, and a scheme with no host (`https://`). The format error is `{name: url}` (no `val`).',
+    ],
     validate: () => createValidate<FormatUrl>(),
     validateReflect: () => {
       const v: FormatUrl = 'https://example.com';
@@ -1922,6 +1935,8 @@ export const STRING_FORMAT = {
   },
   urlHttp: {
     title: 'FormatUrlHttp — http(s) only',
+    description: 'FormatUrlHttp (format `url`); restricts the scheme to `http` / `https`',
+    validateNotes: 'Both `https://example.com` and `http://example.com` pass; a non-http scheme (`ftp://example.com`) fails with `{name: url}` (no `val`).',
     validate: () => createValidate<FormatUrlHttp>(),
     validateReflect: () => {
       const v: FormatUrlHttp = 'https://example.com';
@@ -1956,6 +1971,8 @@ export const STRING_FORMAT = {
   },
   urlFile: {
     title: 'FormatUrlFile — file URLs',
+    description: 'FormatUrlFile (format `url`); restricts the scheme to `file:`',
+    validateNotes: 'A `file:///etc/hosts` URL passes; a non-file scheme (`https://example.com`) fails with `{name: url}` (no `val`).',
     validate: () => createValidate<FormatUrlFile>(),
     validateReflect: () => {
       const v: FormatUrlFile = 'file:///etc/hosts';
@@ -1992,6 +2009,12 @@ export const STRING_FORMAT = {
   // ─────────────────── registerFormatPattern ──────────────────
   pattern_slug: {
     title: 'registerFormatPattern — slug regex recovered from the call site',
+    description: 'stringFormat with a registered `pattern` (slug `^[a-z0-9-]+$`); only lowercase letters, digits, and hyphens pass',
+    validateNotes: [
+      'Lowercase slug strings pass (`my-slug`, `a-b-c`).',
+      'Rejected: capitals (`Has Capitals`, `UPPER`), an embedded space (`has space`), and the empty string.',
+      'Although the pattern registers a custom message (`must be a slug`), validate surfaces the static default `val` `Invalid pattern` (the `message` field is excluded from cache identity).',
+    ],
     validate: () => createValidate<Slug>(),
     validateReflect: () => {
       const v: Slug = 'my-slug';
@@ -2048,6 +2071,8 @@ export const STRING_FORMAT = {
   },
   pattern_hex: {
     title: 'registerFormatPattern — {source, flags} overload (case-insensitive)',
+    description: 'stringFormat with a registered case-insensitive `pattern` (hex `^[0-9a-f]+$`, flag `i`); accepts hex digits in either case',
+    validateNotes: 'The `i` flag folds case, so both `0042` and `DEADbeef` pass. A non-hex string (`xyz`) and the empty string each fail with `val` `Invalid pattern`.',
     validate: () => createValidate<Hex>(),
     validateReflect: () => {
       const v: Hex = '0042';
