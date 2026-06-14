@@ -2369,6 +2369,8 @@ export const OBJECT = {
     title: 'Index signature with a union value type',
     description:
       'index signature with union value type — union emit landed; for-in loop applies the union check to every own key.',
+    validateNotes:
+      "Every own key's value must satisfy the `string | number` union, reported as `expected: 'union'` on failure. The number arm uses `Number.isFinite`, so a `NaN` value fails the union; `bigint` matches neither arm and also fails.",
     validate: () => createValidate<{[key: string]: string | number}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: string | number}>>(),
     validateSchema: () => createValidate(RT.record(RT.union([RT.string(), RT.number()]))),
@@ -2417,6 +2419,8 @@ export const OBJECT = {
     title: 'Object with a discriminated-union string property',
     description:
       'discriminated union as a property type — union emit handles the literal-string union as an OR-chain of `===` checks.',
+    validateNotes:
+      "Both a wrong literal value (`kind: 'c'`) and a missing `kind` (undefined matches no arm) report `expected: 'union'` at `['kind']`, rather than a root-level object error.",
     validate: () => createValidate<{kind: 'a' | 'b'; n: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{kind: 'a' | 'b'; n: number}>>(),
     validateSchema: () => createValidate(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: RT.number()})),
@@ -2615,6 +2619,8 @@ export const OBJECT = {
     dataOnlyDivergent: true,
     description:
       "TS `class Sub extends Base {…}` — same merging as interface inheritance, but on the KindClass branch. Inherited data members appear in the child class's Children alongside its own.",
+    validateNotes:
+      'Validated structurally — a plain object `{a: "x", b: 1}` PASSES (no `instanceof` check); inherited props are checked directly alongside the child\'s own, so a missing parent prop fails just like a missing own prop.',
     validate: () => {
       class Base {
         a: string = '';
