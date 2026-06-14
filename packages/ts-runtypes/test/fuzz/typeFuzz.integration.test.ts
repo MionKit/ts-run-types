@@ -43,7 +43,9 @@ describe('fuzz / type-generation — oracle sweep over generated types', () => {
       const report = await runTypeFuzzForDuration(soakMs, {seed: Number(process.env.FUZZ_SEED ?? 1)}, (v) => {
         console.error(`[type-fuzz][${v.oracle}/${v.phase}] ${v.target} (seed=${v.seed}): ${v.message}\n    ${v.value}`);
       });
-      console.error(`[type-fuzz] soak finished: ${report.runs} types, ${report.violations.length} violation(s)`);
+      console.error(
+        `[type-fuzz] soak finished: ${report.runs} types, ${report.violations.length} violation(s), ${report.skippedInvalidTypes} invalid-TS false positive(s) filtered`
+      );
       expect(report.violations).toHaveLength(0);
     },
     soakMs + 60_000

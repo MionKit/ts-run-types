@@ -62,7 +62,9 @@ describe('fuzz / DataOnly non-data lane — serialize-or-fail contract over non-
           console.error(`[nondata-fuzz][${v.oracle}/${v.phase}] ${v.target} (seed=${v.seed}): ${v.message}\n    ${v.value}`);
         }
       );
-      console.error(`[nondata-fuzz] soak finished: ${report.runs} types, ${report.violations.length} violation(s)`);
+      console.error(
+        `[nondata-fuzz] soak finished: ${report.runs} types, ${report.violations.length} violation(s), ${report.skippedInvalidTypes} invalid-TS false positive(s) filtered`
+      );
       expect(report.violations).toHaveLength(0);
     },
     soakMs + 60_000
