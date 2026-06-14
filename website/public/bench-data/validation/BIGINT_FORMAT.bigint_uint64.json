@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatBigUInt64>(), buildErrors: () => noErrs(createGetValidationErrors<FormatBigUInt64>())}"},{"name":"zod","source":"c(z.bigint().gte(0n).lte(18446744073709551615n))"},{"name":"typebox","source":"NOT_SUPPORTED"},{"name":"ajv","source":"NOT_SUPPORTED"}]}

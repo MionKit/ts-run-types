@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<null>(), buildErrors: () => noErrs(createGetValidationErrors<null>())}"},{"name":"zod","source":"c(z.null())"},{"name":"typebox","source":"c(Type.Null())"},{"name":"ajv","source":"c({type: 'null'})"}]}
