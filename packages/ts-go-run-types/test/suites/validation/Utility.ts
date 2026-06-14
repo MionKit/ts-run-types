@@ -616,6 +616,8 @@ export const UTILITY = {
     title: 'Extract<U, X> on a string-literal union',
     description:
       'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
+    validateNotes:
+      'Keeps only the members assignable to the filter, so the dropped "age" now FAILS the union check.',
     validate: () => createValidate<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     validateDataOnly: () => createValidate<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
     validateSchema: () =>
@@ -678,6 +680,8 @@ export const UTILITY = {
   exclude_from_object_union: {
     title: 'Exclude<U, X> on a discriminated object union',
     description: 'mion utility/exclude.spec.ts (object union) — excludes object members from a discriminated union.',
+    validateNotes:
+      'Drops the `circle` arm from the union, so `{kind: "circle", radius: 3}` now FAILS — only the `square` and `triangle` shapes remain valid.',
     validate: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
@@ -818,6 +822,8 @@ export const UTILITY = {
   non_nullable: {
     title: 'NonNullable<T> — strips null and undefined from a union',
     description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
+    validateNotes:
+      'Drops `null` and `undefined` from the union, so both now FAIL the union check; only `string` and `number` members pass.',
     validate: () => createValidate<NonNullable<string | number | null | undefined>>(),
     validateDataOnly: () => createValidate<DataOnly<NonNullable<string | number | null | undefined>>>(),
     validateSchema: () =>
@@ -867,6 +873,8 @@ export const UTILITY = {
   return_type: {
     title: 'ReturnType<F> — extracts the return type of a function',
     description: "mion utility/params-return.spec.ts — extracts a function's return type. Resolves to Date.",
+    validateNotes:
+      "Resolves to the function's return type (`Date`), so the validator checks for a valid Date instance — NOT a function. Invalid Dates (`new Date(NaN)`) are rejected like any other Date case.",
     validate: () => {
       type Fn = (a: number, b: boolean) => Date;
       return createValidate<ReturnType<Fn>>();
@@ -1215,6 +1223,8 @@ export const UTILITY = {
   omit_keeping_optional: {
     title: 'Omit<T, K> preserves optionality of remaining props',
     description: 'Omit preserves the optionality of remaining properties — resolves to {b?: number; c: boolean}.',
+    validateNotes:
+      '`c` stays required and `b` stays optional after the omit, so a value missing `c` FAILS while a value missing `b` passes.',
     validate: () => createValidate<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     validateDataOnly: () => createValidate<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
     validateSchema: () =>
@@ -1652,6 +1662,8 @@ export const UTILITY = {
     title: 'Custom mapped type — {[K in keyof T]: T[K] | null}',
     description:
       'A user-authored mapped type that augments every prop with `| null`. Tests that resolver + emit thread custom mapped types correctly; Partial / Required / Pick etc. exercise the same machinery via the built-in utility paths.',
+    validateNotes:
+      'Each prop resolves to a `T[K] | null` union, so `null` is accepted at every prop but a missing prop still FAILS — the props remain required (mapping adds `| null`, not optionality).',
     validate: () => {
       interface Source {
         a: string;
