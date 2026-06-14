@@ -27,7 +27,8 @@
 #   scripts/benchmarks.sh clean             # remove the image + typia .ttsc volume
 #
 # Env: BENCH_ENGINE(podman) BENCH_IMAGE(tsrt-bench:dev) BENCH_TYPIA=1(add typia)
-#   BENCH_USE_REMOTE=1  pull the GHCR image instead of building locally.
+#   (default)  run commands PULL the latest published GHCR image first.
+#   BENCH_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline).
 #   BENCH_REMOTE_IMAGE  remote ref (default: ghcr.io/$GHCR_OWNER/tsrt-bench:latest).
 #   GHCR_OWNER / GHCR_USER / GHCR_PAT / GHCR_PAT_FILE  (see scripts/lib-ghcr.sh).
 #   BENCH_CA_CERT  file/dir of extra CA certs (corporate/MITM proxy); when unset,
@@ -60,9 +61,9 @@ VOL_TTSC="${BENCH_CONTAINER:-tsrt-bench}-typia-ttsc"
 MARKER_PKG="$ROOT_DIR/packages/ts-go-run-types"
 PLUGIN_PKG="$ROOT_DIR/packages/vite-plugin-runtypes"
 
-# GHCR publish/pull helpers (login, push, pull) + the remote image ref. When
-# BENCH_USE_REMOTE is set, the run commands pull this prebuilt image instead of
-# building locally.
+# GHCR publish/pull helpers (login, push, pull) + the remote image ref. Run
+# commands pull this prebuilt image by default; BENCH_USE_LOCAL=1 builds/uses a
+# local image instead.
 source "$SCRIPT_DIR/lib-ghcr.sh"
 REMOTE_IMAGE="${BENCH_REMOTE_IMAGE:-$GHCR_REGISTRY/$GHCR_OWNER/tsrt-bench:latest}"
 MANIFEST_NAME="tsrt-bench-manifest"
@@ -122,7 +123,20 @@ ensure_artifacts() {
 # (per-competitor + typecost package.json, pnpm-workspace.yaml, .npmrc).
 ensure_bench_image_fresh() {
   require_engine
-  if [ -n "${BENCH_USE_REMOTE:-}" ]; then ensure_image; return; fi
+  if [ -n "${BENCH_USE_LOCAL:-}" ]; then ensure_bench_image_local; return; fi
+  # DEFAULT: pull the latest published image first; fall back to a local image,
+  # then to a local build, when the registry is unreachable.
+  if ghcr_try_pull_retag "$REMOTE_IMAGE" "$IMAGE"; then return; fi
+  if "$ENGINE" image exists "$IMAGE" 2>/dev/null; then
+    echo "==> using existing local image $IMAGE" >&2; return
+  fi
+  echo "==> no published or local image available - building locally" >&2
+  build_image
+}
+
+# Local-image path (BENCH_USE_LOCAL=1): build when missing, rebuild when a
+# dependency input changed (Containerfile or anything under _deps/).
+ensure_bench_image_local() {
   if ! "$ENGINE" image exists "$IMAGE" 2>/dev/null; then build_image; return; fi
   if [ ! -f "$STAMP" ] || needs_rebuild "$STAMP" "$DEPS_DIR"; then
     echo "==> bench image stale (_deps manifest newer than image) - rebuilding"; build_image; return
@@ -167,15 +181,6 @@ build_image() {
   local net=(); [ -n "$BUILD_NETWORK" ] && net=(--network="$BUILD_NETWORK")
   ( cd "$BENCH_DIR" && "$ENGINE" build ${net[@]+"${net[@]}"} -t "$IMAGE" -f Containerfile . )
   touch "$STAMP"
-}
-
-ensure_image() {
-  # Consume the prebuilt GHCR image instead of building locally.
-  if [ -n "${BENCH_USE_REMOTE:-}" ]; then
-    "$ENGINE" image exists "$IMAGE" 2>/dev/null || ghcr_pull_retag "$REMOTE_IMAGE" "$IMAGE"
-    return
-  fi
-  "$ENGINE" image exists "$IMAGE" 2>/dev/null || build_image
 }
 
 cmd_login() { require_engine; ghcr_login; }

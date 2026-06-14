@@ -109,14 +109,19 @@ Behind a corporate / MITM proxy: pass `WEBSITE_CA_CERT=... WEBSITE_BUILD_NETWORK
 
 The deps-only images are published to the GitHub Container Registry so any host can **pull a ready-to-run image** instead of re-running all installs. Helpers live in [scripts/lib-ghcr.sh](scripts/lib-ghcr.sh).
 
+**By default every run command pulls the latest published image first** (`scripts/lib-ghcr.sh:ghcr_try_pull_retag` — a cheap no-op when your local copy already matches the remote digest), so a `dev` / `build` / `bench` always runs the current published deps. If the registry is unreachable (offline / not logged in / not yet published) it falls back to an existing local image, then to a local build.
+
 | Step | Command | Notes |
 | ---- | ------- | ----- |
-| Authenticate (once) | `pnpm run website:login` / `pnpm run bench:login` | Reads the PAT from `GHCR_PAT` or `GHCR_PAT_FILE`, pipes via `--password-stdin`. |
+| Authenticate (once) | `pnpm run website:login` / `pnpm run bench:login` | Reads the PAT from `GHCR_PAT` or `GHCR_PAT_FILE`, pipes via `--password-stdin`. Only needed for a **private** package. |
+| Run (consume) | `pnpm run website:dev` / `pnpm run bench` | Pulls the latest published image, then runs. This is the default. |
 | Publish | `pnpm run website:push` / `pnpm run bench:push` | Builds a **multi-arch** (`linux/amd64,linux/arm64`) manifest and pushes it. |
-| Consume | `WEBSITE_USE_REMOTE=1 pnpm run website:dev` (or `bench:*`) | Pulls + tags the published image instead of building locally. |
+| Build/run locally | `WEBSITE_USE_LOCAL=1 pnpm run website:dev` (or `BENCH_USE_LOCAL=1`) | Skip the pull; build/use a local image. The maintainer/offline loop — also how you test a dep bump before pushing. |
 | Pull only | `pnpm run website:pull` / `pnpm run bench:pull` | Fetch + retag without running. |
 
-GHCR env (see [scripts/lib-ghcr.sh](scripts/lib-ghcr.sh)): `GHCR_OWNER` (default `mionkit`), `GHCR_USER` (default `M-jerez`), `GHCR_PAT` / `GHCR_PAT_FILE`, `WEBSITE_REMOTE_IMAGE` / `BENCH_REMOTE_IMAGE` (default `ghcr.io/$GHCR_OWNER/tsrt-{website,bench}:latest`).
+Dep-bump loop (host stays pnpm-free): edit `website/_deps/package.json` → `pnpm run website:lock` (regen the lockfile in-container) → `WEBSITE_USE_LOCAL=1 pnpm run website:smoke` (verify the new local image) → `pnpm run website:push`.
+
+GHCR env (see [scripts/lib-ghcr.sh](scripts/lib-ghcr.sh)): `GHCR_OWNER` (default `mionkit`), `GHCR_USER` (default `M-jerez`), `GHCR_PAT` / `GHCR_PAT_FILE`, `WEBSITE_USE_LOCAL` / `BENCH_USE_LOCAL` (opt out of the pull), `WEBSITE_REMOTE_IMAGE` / `BENCH_REMOTE_IMAGE` (default `ghcr.io/$GHCR_OWNER/tsrt-{website,bench}:latest`).
 
 Notes:
 
