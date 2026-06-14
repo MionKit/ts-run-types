@@ -1,0 +1,20 @@
+import {createMockType} from '@mionjs/ts-go-run-types';
+import type {FormatEmail, FormatUUIDv4} from '@mionjs/ts-go-run-types/formats';
+
+// Type formats don't just validate — mocks respect them too.
+type Contact = {
+  id: FormatUUIDv4;
+  email: FormatEmail;
+  name: string;
+};
+
+// start-formats
+const mockContact = createMockType<Contact>();
+
+const fake = mockContact();
+// id is a real-looking UUID, email is a real-looking address —
+// not just random strings. The mock is format-aware.
+// {id: '3f2504e0-4f89-...', email: 'name@example.com', name: '...'}
+// end-formats
+
+export {mockContact, fake};
