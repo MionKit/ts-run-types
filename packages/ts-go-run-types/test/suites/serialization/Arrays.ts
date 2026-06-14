@@ -5,6 +5,7 @@ import type {SerializationCase} from './types.ts';
 export const ARRAYS = {
   array: {
     title: 'array',
+    description: 'Root `string[]` round-trips identically across JSON and binary; samples cover a populated array and the empty case.',
     mutateEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'direct'}),
@@ -20,6 +21,8 @@ export const ARRAYS = {
   },
   array_date: {
     title: 'array of dates',
+    description: '`Date[]` — each element encodes to an ISO string on the JSON wire and restores to a Date; binary packs each as a fixed 8-byte epoch.',
+    serializeNotes: 'Per-element Date transform applies recursively over the array; the empty-array sample confirms no element work happens when there are no items.',
     mutateEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'direct'}),
@@ -37,6 +40,8 @@ export const ARRAYS = {
   },
   undefined_in_array: {
     title: 'undefined is serialized as null in array',
+    description: '`undefined[]` — array slots cannot hold undefined on the JSON wire.',
+    serializeNotes: 'JSON.stringify writes each undefined element as null (array holes/undefined become null, unlike object props which are dropped); decode restores them per the declared literal type.',
     mutateEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'direct'}),
@@ -52,6 +57,7 @@ export const ARRAYS = {
   },
   multi_dimensional: {
     title: 'multi dimensional array',
+    description: 'Nested `string[][]` round-trips identically across JSON and binary; samples mix ragged inner arrays with empty inner and outer arrays.',
     mutateEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'direct'}),
@@ -86,6 +92,7 @@ export const ARRAYS = {
   },
   array_circular: {
     title: 'array circular',
+    description: 'Self-referential `type CircularArray = CircularArray[]` (an array whose elements are arrays of itself); exercises recursive element walking via the value-first `RT.circular` builder and a deeply nested empty-array sample.',
     mutateEncoder: () => {
       type CircularArray = CircularArray[];
       return createJsonEncoder<CircularArray>(undefined, {strategy: 'mutate'});

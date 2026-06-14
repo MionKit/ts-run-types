@@ -5,6 +5,9 @@ import type {SerializationCase} from './types.ts';
 export const ITERABLES = {
   set_string: {
     title: 'Set<string>',
+    description:
+      'Root `Set<string>`. JSON serializes the set to an array via `Array.from(v)` and restores it with `new Set(v)`; string elements are atomic so no per-element transform runs. Binary writes a uint32 size prefix followed by the encoded elements, then rebuilds the Set.',
+    serializeNotes: 'Set round-trips as a JSON array (insertion order preserved), rehydrated to a Set on decode.',
     mutateEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'direct'}),
@@ -20,6 +23,12 @@ export const ITERABLES = {
   },
   set_small_object: {
     title: 'Set<SmallObject>',
+    description:
+      'Root `Set<SmallObject>` where each element has string / number / boolean fields plus optional `Date` and `bigint`. JSON serializes the set to an array of objects and restores via `new Set(v)`; per-element the `Date` becomes an ISO string (restored with `new Date`) and the `bigint` a decimal string (restored with `BigInt(...)`). Binary writes a size-prefixed entry list.',
+    serializeNotes: [
+      'Set materialises to a JSON array of element objects, rehydrated to a Set on decode.',
+      'Optional `prop4: Date` round-trips via its ISO string; optional `prop5: bigint` via a decimal string (not natively JSON-encodable).',
+    ],
     mutateEncoder: () => {
       interface SmallObject {
         prop1: string;
@@ -159,6 +168,9 @@ export const ITERABLES = {
   },
   objects_with_nested_sets: {
     title: 'objects with nested sets',
+    description:
+      'Object with two `Set<{s: string; arr: number[]}>` properties. Each nested set serializes to a JSON array of objects and restores via `new Set(v)`; the elements are atomic-shaped (string + number array) so no value transform applies. Binary nests a size-prefixed entry list per set.',
+    serializeNotes: 'Each nested Set round-trips as a JSON array, rehydrated to a Set on decode.',
     mutateEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
       interface DeepWithSet {
@@ -268,6 +280,9 @@ export const ITERABLES = {
   },
   map_string_number: {
     title: 'Map<string, number>',
+    description:
+      'Root `Map<string, number>`. JSON serializes the map to an array of `[key, value]` entry pairs via `Array.from(v)` and restores it with `new Map(v)`; string keys and number values are atomic so no per-entry transform runs. Binary writes a uint32 size prefix followed by encoded entries.',
+    serializeNotes: 'Map round-trips as a JSON array of [key, value] pairs (insertion order preserved), rehydrated to a Map on decode.',
     mutateEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'direct'}),
@@ -291,6 +306,12 @@ export const ITERABLES = {
   },
   map_string_small_object: {
     title: 'Map<string, SmallObject>',
+    description:
+      'Root `Map<string, SmallObject>` with string keys and object values carrying optional `Date` and `bigint`. JSON serializes to an array of `[key, value]` pairs and restores via `new Map(v)`; inside each value the `Date` becomes an ISO string and the `bigint` a decimal string. Binary writes a size-prefixed entry list.',
+    serializeNotes: [
+      'Map materialises to a JSON array of [key, value] pairs, rehydrated to a Map on decode.',
+      'Value-side `prop4: Date` round-trips via its ISO string; `prop5: bigint` via a decimal string.',
+    ],
     mutateEncoder: () => {
       interface SmallObject {
         prop1: string;
@@ -434,6 +455,12 @@ export const ITERABLES = {
   },
   map_small_object_number: {
     title: 'Map<SmallObject, number>',
+    description:
+      'Root `Map<SmallObject, number>` keyed by an object (optional `Date` / `bigint` fields) with number values. JSON serializes to an array of `[keyObject, value]` pairs and restores via `new Map(v)`; the key-side transform applies, so a `Date` field becomes an ISO string and a `bigint` field a decimal string before being rebuilt. Binary writes a size-prefixed entry list.',
+    serializeNotes: [
+      'Object keys are emitted as the entry tuple key (a JSON object) and rebuilt into a fresh Map key on decode.',
+      'Key-side `prop4: Date` round-trips via its ISO string; `prop5: bigint` via a decimal string.',
+    ],
     mutateEncoder: () => {
       interface SmallObject {
         prop1: string;
@@ -577,6 +604,9 @@ export const ITERABLES = {
   },
   objects_with_nested_maps: {
     title: 'objects with nested maps',
+    description:
+      'Object with a nested `Map<string, {sm: {s: string; arr: number[]}}>` property. The nested map serializes to a JSON array of `[key, value]` pairs and restores via `new Map(v)`; values are atomic-shaped so no value transform applies. Binary nests a size-prefixed entry list.',
+    serializeNotes: 'The nested Map round-trips as a JSON array of [key, value] pairs, rehydrated to a Map on decode.',
     mutateEncoder: () => {
       interface DeepWithMap {
         a: string;
@@ -668,6 +698,12 @@ export const ITERABLES = {
   },
   map_with_bigint_keys: {
     title: 'Map with bigint keys',
+    description:
+      'Root `Map<bigint, number>` keyed by bigint with number values. JSON serializes to an array of `[key, value]` pairs and restores via `new Map(v)`; each bigint key is emitted as a decimal string (not natively JSON-encodable) and rebuilt with `BigInt(...)`, while number values pass through atomically. Binary writes a size-prefixed entry list, encoding bigint keys natively.',
+    serializeNotes: [
+      'Map round-trips as a JSON array of [key, value] pairs, rehydrated to a Map on decode.',
+      'bigint keys serialize as decimal strings and restore via BigInt(...); JSON cannot encode bigint directly.',
+    ],
     mutateEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'direct'}),
