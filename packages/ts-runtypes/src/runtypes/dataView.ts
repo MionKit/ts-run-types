@@ -1,7 +1,7 @@
 // DataView-based binary serializer + deserializer ported from the reference
 // implementation. Wire format:
 //   - Little-endian.
-//   - Strings: `[uint32 length, utf8 bytes]`.
+//   - Strings: `[varint length (LEB128), utf8 bytes]`.
 //   - Numbers: float64.
 //   - Enums: `[uint32 typeTag (1=string, 2=number), value]`.
 //   - Optional-property bitmaps: 1 bit per optional prop, 8 per byte.
@@ -27,6 +27,23 @@ const STR = 1;
 const NUM = 2;
 const POW_2_32 = 2 ** 32;
 const LE = true;
+
+// String length prefixes use an unsigned LEB128 varint instead of a fixed
+// uint32, so a string of N UTF-8 bytes costs ceil(7-bit groups) length bytes:
+// 1 byte for N < 128 (the common short-string case — names, ids, enum values),
+// 2 for N < 16384, up to 5 at the 2**32 ceiling. This trims 3 bytes off every
+// short string versus the old 4-byte prefix. MAX_VARINT bounds the gap the
+// encode-in-place path leaves before back-shifting the bytes.
+const MAX_VARINT = 5;
+
+/** Byte width of the unsigned LEB128 encoding of `n` (n < 2**32). **/
+function varintLen(n: number): number {
+  if (n < 0x80) return 1;
+  if (n < 0x4000) return 2;
+  if (n < 0x200000) return 3;
+  if (n < 0x10000000) return 4;
+  return 5;
+}
 
 // Ambient declarations — the package's tsconfig sets `types: []` so DOM
 // globals aren't visible. TextEncoder/Decoder are universally available.
@@ -343,14 +360,44 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.resize(nextSize);
   }
   /** Reserve room for a string write. Worst-case UTF-8 is 3 bytes per UTF-16
-   *  code unit; reserving it up front means `encodeInto` can never truncate.
-   *  When that worst case would top the `2 ** 32` ceiling (only for multi-GB
-   *  strings whose real UTF-8 size may still fit) grow as far as the ceiling
-   *  allows and let the post-encode guard reject a genuinely unencodable one. **/
+   *  code unit, plus the max-width varint gap the encode-in-place path leaves
+   *  before the bytes; reserving it up front means `encodeInto` can never
+   *  truncate. When that worst case would top the `2 ** 32` ceiling (only for
+   *  multi-GB strings whose real UTF-8 size may still fit) grow as far as the
+   *  ceiling allows and let the post-encode guard reject a genuinely
+   *  unencodable one. **/
   private reserveForString(charLength: number): void {
-    const worstCase = 4 + charLength * 3;
+    const worstCase = MAX_VARINT + charLength * 3;
     if (this.index + worstCase < POW_2_32) this.ensureCapacity(worstCase);
     else this.ensureCapacity(POW_2_32 - 1 - this.index);
+  }
+  /** Write `value` as an unsigned LEB128 varint at the cursor, advancing it. **/
+  private writeVarint(value: number): void {
+    while (value > 0x7f) {
+      this.uint8View[this.index++] = (value & 0x7f) | 0x80;
+      value = value >>> 7;
+    }
+    this.uint8View[this.index++] = value;
+  }
+  /** Encode `str` into the buffer after a max-width varint gap, write the actual
+   *  (now-known) varint length prefix at the cursor, then shift the UTF-8 bytes
+   *  back to sit immediately after the prefix. Returns the UTF-8 byte count.
+   *  Callers MUST have reserved `MAX_VARINT + str.length * 3` first. **/
+  private encodeStringAtCursor(str: string): number {
+    const dataStart = this.index + MAX_VARINT;
+    const result = textEncoder.encodeInto(str, this.uint8View.subarray(dataStart));
+    const read = result.read ?? 0;
+    // `encodeInto` silently truncates on small destinations; the reservation
+    // above prevents that, so this guard only catches an internal accounting bug.
+    if (read < str.length)
+      throw new RangeError(`DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars).`);
+    const written = result.written ?? 0;
+    const vlen = varintLen(written);
+    this.writeVarint(written);
+    // Close the gap when the real prefix is narrower than the reserved max.
+    if (vlen < MAX_VARINT) this.uint8View.copyWithin(this.index, dataStart, dataStart + written);
+    this.index += written;
+    return written;
   }
   getBuffer(): StrictArrayBuffer {
     return this.buffer.slice(0, this.index) as StrictArrayBuffer;
@@ -371,37 +418,23 @@ class DataViewSerializerImpl implements DataViewSerializer {
     // `encodeInto` never truncates and we never re-encode on a buffer miss.
     if (str.length >= opts.maxStrCacheLength || skipCache) {
       this.reserveForString(str.length);
-      const targetView = this.uint8View.subarray(this.index + 4);
-      const result = textEncoder.encodeInto(str, targetView);
-      const read = result.read ?? 0;
-      // `encodeInto` silently truncates on small destinations; the reservation
-      // above prevents that, so this guard only catches an internal accounting bug.
-      if (read < str.length)
-        throw new RangeError(`DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars).`);
-      const written = result.written ?? 0;
-      this.view.setUint32(this.index, written, LE);
-      this.index += 4 + written;
+      this.encodeStringAtCursor(str);
       return;
     }
     const cached = opts.stringBytesCache.get(str);
     if (cached) {
-      this.ensureCapacity(4 + cached.length);
-      this.uint8View.set(cached, this.index + 4);
-      this.view.setUint32(this.index, cached.length, LE);
-      this.index += 4 + cached.length;
+      // Known byte length — write the varint prefix then blit the cached bytes
+      // directly after it, no gap and no shift.
+      this.ensureCapacity(varintLen(cached.length) + cached.length);
+      this.writeVarint(cached.length);
+      this.uint8View.set(cached, this.index);
+      this.index += cached.length;
       return;
     }
     // Cache miss: encode in place, then snapshot the written bytes. The slice
     // copies (mandatory — the working buffer is overwritten on later writes).
-    this.ensureCapacity(4 + str.length * 3);
-    const targetView = this.uint8View.subarray(this.index + 4);
-    const result = textEncoder.encodeInto(str, targetView);
-    const read = result.read ?? 0;
-    if (read < str.length)
-      throw new RangeError(`DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars).`);
-    const written = result.written ?? 0;
-    this.view.setUint32(this.index, written, LE);
-    this.index += 4 + written;
+    this.ensureCapacity(MAX_VARINT + str.length * 3);
+    const written = this.encodeStringAtCursor(str);
     if (opts.stringBytesCache.size >= opts.maxCacheSize) evictStringBytesCache();
     opts.stringBytesCache.set(str, this.uint8View.slice(this.index - written, this.index));
   }
@@ -522,8 +555,16 @@ class DataViewDeserializerImpl implements DataViewDeserializer {
     return this.index;
   }
   desString(): string {
-    const len = this.view.getUint32(this.index, LE);
-    this.index += 4;
+    // Read the unsigned LEB128 varint length prefix. `* 2 ** shift` (not `<<`)
+    // keeps the accumulation exact past the 32-bit boundary the top group can hit.
+    let len = 0;
+    let shift = 0;
+    let byte: number;
+    do {
+      byte = this.uint8View[this.index++];
+      len += (byte & 0x7f) * 2 ** shift;
+      shift += 7;
+    } while (byte & 0x80);
     const decoded = textDecoder.decode(this.uint8View.subarray(this.index, this.index + len));
     this.index += len;
     return decoded;
