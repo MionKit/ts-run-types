@@ -1,8 +1,13 @@
 import Ajv, {type Schema} from 'ajv';
+import addFormats from 'ajv-formats';
 import {NOT_SUPPORTED, type CompetitorCases, type Validator} from '../../shared/harness/types.ts';
 
 // Mirrors the options of the original benchmarks/src/competitors/ajv.ts.
 const ajv = new Ajv({strict: false, allowUnionTypes: true});
+// ajv-formats in FULL mode: the `date`/`time`/`date-time` formats then enforce
+// real calendar validity (leap years, month-day bounds) — which a `pattern`
+// alone cannot. Only schemas that opt into a `format` keyword are affected.
+addFormats(ajv, {mode: 'full'});
 
 // LAZY builder: the JSON Schema is compiled inside the returned thunk, so each
 // case pays its own compile cost at run start and a bad schema is attributable
@@ -464,7 +469,7 @@ export const cases: CompetitorCases = {
       type: 'string',
       pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
     }),
-  'STRING_FORMAT.date_iso': NOT_SUPPORTED, // pattern cannot enforce calendar validity (leap years, month-day bounds)
+  'STRING_FORMAT.date_iso': c({type: 'string', format: 'date'}), // ajv-formats full mode: calendar-aware ISO date
   'STRING_FORMAT.date_DMY': NOT_SUPPORTED, // pattern cannot enforce calendar validity (month-day bounds)
   'STRING_FORMAT.date_YM': c({
       type: 'string',
@@ -488,20 +493,16 @@ export const cases: CompetitorCases = {
       pattern: '^([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?$',
     }),
   'STRING_FORMAT.time_minMax_absolute': NOT_SUPPORTED, // requires time-comparison logic; pattern alone cannot enforce time range
-  'STRING_FORMAT.dateTime_default': NOT_SUPPORTED, // pattern cannot enforce calendar validity (leap years, month-day bounds)
+  // ajv-formats full mode gives calendar validity; pattern 'T' enforces the ISO
+  // 'T' separator (ajv-formats/RFC3339 also accept a space, which mion rejects).
+  'STRING_FORMAT.dateTime_default': c({type: 'string', format: 'date-time', pattern: 'T'}),
   'STRING_FORMAT.dateTime_custom': c({
       type: 'string',
       pattern: '^(0[1-9]|[12]\\d|3[01])-(0[1-9]|1[0-2])-\\d{4} ([01]\\d|2[0-3]):[0-5]\\d$',
     }),
   'STRING_FORMAT.dateTime_minMax_absolute': NOT_SUPPORTED, // requires datetime-comparison logic; pattern alone cannot enforce range
-  'STRING_FORMAT.ipv4': c({
-      type: 'string',
-      pattern: '^(?:(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)$',
-    }),
-  'STRING_FORMAT.ipv6': c({
-      type: 'string',
-      pattern: '^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){1,7}:$|^(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}$|^(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}$|^(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}$|^(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}$|^[0-9a-fA-F]{1,4}:(?::[0-9a-fA-F]{1,4}){1,6}$|^::$|^::1$|^fe80:(?::[0-9a-fA-F]{0,4}){0,4}$',
-    }),
+  'STRING_FORMAT.ipv4': c({type: 'string', format: 'ipv4'}), // ajv-formats
+  'STRING_FORMAT.ipv6': c({type: 'string', format: 'ipv6'}), // ajv-formats
   'STRING_FORMAT.ip_any': c({
       type: 'string',
       anyOf: [
