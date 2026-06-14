@@ -1,9 +1,12 @@
 # Value-first schema type-checking cost vs TypeBox
 
-**Status:** implemented (tiered `ObjectType` + 8-arm `union` overloads); faithfulness
-proven and type-cost validated against the real source on the host; Go-side
-structural-id convergence + full-suite `bench:typecost`/`bench` pending in-container
-(see _Implementation & validation results_ below). Surfaced by the benchmark's
+**Status:** implemented (tiered `ObjectType` + 8-arm `union` overloads) and
+**validated end-to-end** — faithfulness proven (type-identity), full-suite
+`bench:typecost` shows the value-first schema form **−22.8%** (165055 → 127460
+instantiations over 257 cases; 63 cases improved, 2 trivially regressed), and the
+runtime `bench` passes correctness on all 260 cases (Gate 3). A precise root cause
+for the *remaining* tuple/simple-union outliers is localized below (the next
+target). Surfaced by the benchmark's
 type-instantiation measurement ([`benchmarks/typecost/typecost.mjs`](../benchmarks/typecost/typecost.mjs)):
 ts-go's value-first **schema form** costs noticeably more TypeScript
 instantiations to resolve than TypeBox's `Static<>`. The current run reports
@@ -258,13 +261,59 @@ would forfeit the −30% on the very common optional-only objects. The narrow-un
 no-change rows (`union_2`/`union_4` at 100%) confirm the extra overloads don't
 regress small unions — overload resolution stops at the first matching arity.
 
-**Pending in-container (cannot run here — no podman/competitor packages/Go binary):**
-Go-side structural-id convergence (`go test ./internal/...` + the plugin tests that
-spawn the binary), the marker package's vitest type-tests, and the official
-`pnpm bench:typecost` / `pnpm bench`. The host evidence is strong (faithfulness is a
-type-identity proof, and the all-required tiered output is *closer* to the
-type-first plain object than the old 4-way was, so convergence should hold or
-improve), but those three gates are the user's to run before merge.
+**Full-suite `bench:typecost` — RUN (the authoritative confirmation).** Real
+before/after over the 257 common schema cases (baseline = the two files reverted to
+their pre-edit revision, marker dist rebuilt for each):
+
+```
+SCHEMA-form total:  before 165055  →  after 127460   (−22.8%)
+cases: 63 improved · 2 regressed (+28, +13 — within noise) · 192 unchanged
+biggest wins (before→after):  UNION.union_mixed_with_index 5222→2496,
+  union_mixed_arrays_and_objects 4526→2165,  large_union_eight_arms 4419→2233,
+  REALWORLD.order 3745→2405,  discriminated_union 2972→1720
+```
+
+Union-of-objects cases lead the wins — the object tiering compounds across every
+union arm. The two regressions are the bounded guard-probe overhead on
+optional/recursive shapes (`UTILITY.deep_partial_recursive_mapped` +28,
+`ARRAY.object_array` +13), exactly the predicted `mixed`/probe tradeoff, both
+negligible. Apples-to-apples average moved from the original ~823/case toward
+typebox's 546 — ts-go(schema) is now ~617/case.
+
+**Runtime `bench` — RUN, green.** correctness passes on all 260 supported cases
+(validate + validationErrors, 0 failures). Expected — the change is type-check-time
+only — but it confirms the marker build + structural-id convergence are intact (a
+divergent value-first id would surface as a runtime validator mismatch).
+
+### Remaining outlier — localized root cause (the next target)
+
+After this change the top schema/typebox ratios are **tuples and simple unions**
+(`TUPLE.empty_tuple` 1068 vs 23 = 46×, `UNION.string_or_number` 1155 vs 63 = 18×,
+`ARRAY.tuple_array` 1269 vs 86). Controlled decomposition against the real source
+localized it precisely — it is **NOT** from this change, arity, overload count, the
+id marker, `const`, or `MapTuple`. The whole ~700 floor is **`CompTimeArgs<T>`
+intersected with a *tuple* type**:
+
+```
+tuple([string(), number()]) marginal cost, single overload, by stripping pieces:
+  full (const + CompTimeArgs<T> + MapTuple)        743
+  drop const                                       743   (no effect)
+  drop the InjectRunTypeId<…> marker               743   (no effect)
+  MapTuple only in return                          743   (no effect)
+  drop CompTimeArgs<T>  (items: T)                   68   ← −91%
+  empty tuple, same strip:                  678  →  12
+```
+
+`CompTimeArgs<T> = T & {brand}` is cheap when `T` is an object (the `array`
+builder's `CompTimeArgs<RunType<T>>` costs 11) but expensive when `T` is a
+**tuple/array** type — the `tuple` and `union` builders wrap the whole member tuple.
+The fix direction: brand the member-tuple parameter without the costly
+tuple-intersection (e.g. brand per-element, or restructure `CompTimeArgs` so the Go
+scanner still recognizes it on tuple params without `T & {brand}`). **Deferred** —
+it touches the `CompTimeArgs` marker contract *and* the Go scanner's literal
+enforcement (CTA0xx), so it needs its own faithful loop + Go-side validation, not a
+rushed edit. The decomposition above is reproduced by the `CompTimeArgs<tuple>`
+section of [`benchmarks/typecost/isolated-experiment.mjs`](../benchmarks/typecost/isolated-experiment.mjs).
 
 ## Methodology — how to test a fix without breaking runtime perf
 

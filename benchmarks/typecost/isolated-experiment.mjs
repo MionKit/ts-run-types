@@ -218,4 +218,22 @@ const ur = measureUnion(UNION_RECURSIVE);
 const uf = measureUnion(UNION_FIXED8);
 console.log(`  recursive (current)  ${String(ur.n).padStart(5)}  ${ur.faithful ? '✓' : '✗'}`);
 console.log(`  fixed-arity-8        ${String(uf.n).padStart(5)}  ${uf.faithful ? '✓' : '✗'}   ${((uf.n / ur.n) * 100).toFixed(0)}% of current`);
+
+// ── DIAGNOSTIC: the remaining tuple/simple-union floor (the NEXT target) ───────
+// The ~700-instantiation floor on tuple()/union() (e.g. an EMPTY tuple still costs
+// ~680) is NOT arity, overload count, the id marker, `const`, or MapTuple — it is
+// `CompTimeArgs<T>` intersected with a TUPLE type. `T & {brand}` is cheap for an
+// object (the `array` builder's `CompTimeArgs<RunType<T>>`) but expensive for a
+// tuple. Stripping CompTimeArgs from a single-overload tuple cuts it ~91%.
+const TUP_MACHINERY = `${MACHINERY}\ntype MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: Static<T[K]>};`;
+const TUP_FULL = `declare function tup<const T extends readonly RunType[]>(items: CompTimeArgs<T>, id?: InjectRunTypeId<MapTuple<T>>): RunType<MapTuple<T>>;`;
+const TUP_NOCTA = `declare function tup<const T extends readonly RunType[]>(items: T, id?: InjectRunTypeId<MapTuple<T>>): RunType<MapTuple<T>>;`;
+function measureTup(decl, expr, sample) {
+  const base = compile(`${TUP_MACHINERY}\n${decl}\nconst __s = string();\ntype __T = Static<typeof __s>;\nlet __x!: __T; void __x;`).count;
+  const full = compile(`${TUP_MACHINERY}\n${decl}\nconst __s = ${expr};\ntype __T = Static<typeof __s>;\nconst __x: __T = ${sample}; void __x;`);
+  return Math.max(0, full.count - base);
+}
+console.log('\nTUPLE floor — root cause is CompTimeArgs<T> over a TUPLE type (next target)\n');
+console.log(`  [string,number]  full(CompTimeArgs<T>): ${String(measureTup(TUP_FULL, `tup([string(), number()] as const)`, `['', 0]`)).padStart(4)}   drop CompTimeArgs: ${measureTup(TUP_NOCTA, `tup([string(), number()] as const)`, `['', 0]`)}`);
+console.log(`  [] (empty tuple) full(CompTimeArgs<T>): ${String(measureTup(TUP_FULL, `tup([] as const)`, `[]`)).padStart(4)}   drop CompTimeArgs: ${measureTup(TUP_NOCTA, `tup([] as const)`, `[]`)}`);
 console.log('');
