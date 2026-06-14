@@ -63,6 +63,9 @@ packages/ts-runtypes/test/suites/enrich/.tmp/
 # Claude Code local (per-developer) settings
 .claude/settings.local.json
 
+# Claude Code agent worktrees (transient, auto-cleaned isolated checkouts)
+.claude/worktrees/
+
 # vite config timestamp artifacts
 *.timestamp-*.mjs
 
