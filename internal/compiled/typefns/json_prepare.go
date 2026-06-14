@@ -342,6 +342,11 @@ func emitLiteralPrepareForJson(rt *protocol.RunType, v string) RTCode {
 // (emitRestoreFromJson is the same walk — the per-property
 // encode/decode difference lives in the child emits).
 func emitObjectJsonChildren(rt *protocol.RunType, ctx *EmitContext) RTCode {
+	// A callable interface is function-like (DataOnly = never); treat it like a
+	// bare function (alwaysThrow at root, dropped at a property), not an object.
+	if objectHasCallSignature(rt, ctx) {
+		return RTCode{Code: "", Type: CodeNS}
+	}
 	var parts []string
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)

@@ -258,6 +258,11 @@ type safePropEmit struct {
 // when `Object.keys(v).length === N`. Mixed-optionality / has-transform
 // shapes always clone.
 func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+	// A callable interface is function-like (DataOnly = never); treat it like a
+	// bare function (alwaysThrow at root, dropped at a property), not an object.
+	if objectHasCallSignature(rt, ctx) {
+		return RTCode{Code: "", Type: CodeNS}
+	}
 	var props []safePropEmit
 	var indexSigs []*protocol.RunType
 	// `allExtraProof` is the stricter Approach-3 fastpath gate — a

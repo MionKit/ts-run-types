@@ -150,7 +150,7 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		return emitArrayFromBinary(rt, ctx, ret, des)
 
 	case protocol.KindIndexSignature:
-		return emitIndexSignatureFromBinary(rt, ctx, ret, des)
+		return emitIndexSignatureFromBinary(rt, ctx, ret, des, true)
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
@@ -278,7 +278,11 @@ func emitArrayFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string
 	return RTCode{Code: body, Type: CodeS}
 }
 
-func emitIndexSignatureFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string) RTCode {
+// emitIndexSignatureFromBinary decodes the `[uint32 count, (key, value)*]` wire.
+// `resetRet` writes the `ret = {}` initialiser; emitObjectFromBinary passes false
+// because it has already initialised `ret` and populated the named props (so the
+// index sig must NOT wipe them — it reads only the dynamic keys the encoder wrote).
+func emitIndexSignatureFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string, resetRet bool) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
@@ -312,7 +316,11 @@ func emitIndexSignatureFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, d
 	} else {
 		keyRead = "const " + keyVar + " = " + des + ".desSafePropName()"
 	}
-	body := ret + " = {};const " + lenVar + " = " + des + ".view.getUint32(" + des + ".index, 1); " + des + ".index += 4;" +
+	prefix := ""
+	if resetRet {
+		prefix = ret + " = {};"
+	}
+	body := prefix + "const " + lenVar + " = " + des + ".view.getUint32(" + des + ".index, 1); " + des + ".index += 4;" +
 		"for (let " + iVar + " = 0; " + iVar + " < " + lenVar + "; " + iVar + "++) {" + keyRead + ";" + childRT.Code + "}"
 	return RTCode{Code: body, Type: CodeS}
 }
@@ -349,14 +357,20 @@ func emitPropertyFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des str
 }
 
 func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string) RTCode {
-	// IndexSignature children take over the whole object.
+	// A callable interface is function-like (DataOnly = never); treat it like a
+	// bare function (alwaysThrow at root, dropped at a property), not an object.
+	if objectHasCallSignature(rt, ctx) {
+		return RTCode{Code: "", Type: CodeNS}
+	}
+	// Collect the index-signature child (if any) — decoded AFTER the named props
+	// (it reads only the dynamic keys the encoder wrote, keeping `ret`). Before,
+	// an index signature took over the whole object and lost the named props (F1).
+	var indexSig *protocol.RunType
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
-		if resolved == nil {
-			continue
-		}
-		if resolved.Kind == protocol.KindIndexSignature {
-			return emitIndexSignatureFromBinary(resolved, ctx, ret, des)
+		if resolved != nil && resolved.Kind == protocol.KindIndexSignature {
+			indexSig = resolved
+			break
 		}
 	}
 
@@ -431,6 +445,18 @@ func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des strin
 				body = ""
 			}
 			parts = append(parts, "if ("+bitCheck+") {"+body+"}")
+		}
+	}
+
+	// Index signature for the remaining (dynamic) keys. `ret` already holds the
+	// named props, so don't re-initialise it (resetRet=false).
+	if indexSig != nil {
+		idxRT := emitIndexSignatureFromBinary(indexSig, ctx, ret, des, false)
+		if idxRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
+		}
+		if idxRT.Code != "" {
+			parts = append(parts, idxRT.Code)
 		}
 	}
 

@@ -645,6 +645,14 @@ func emitObjectValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string
 		}
 	}
 
+	// A callable interface at a NON-root position is function-like (dropped at a
+	// property, alwaysThrow at a propagating slot) — return CodeNS so the parent
+	// handles it like any other function-valued child (matching validate +
+	// serializers, F2). At the ROOT the typeof-function guard below applies.
+	if callSigChild != nil && !ctx.IsRoot() {
+		return RTCode{Code: "", Type: CodeNS}
+	}
+
 	// Publish sibling-named-prop set for any index-signature child
 	// (see emitObjectValidate for the rationale).
 	publishSiblingNamedKeysForIndexSig(rt, ctx)
