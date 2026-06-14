@@ -87,4 +87,5 @@ export const defaultMockOptions: MockOptions = {
   objectList: mockObjectList,
   maxStackDepth: 50,
   maxMockRecursion: 10,
+  nonDataTypes: false,
 };

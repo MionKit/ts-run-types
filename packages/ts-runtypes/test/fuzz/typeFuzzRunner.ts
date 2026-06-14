@@ -30,6 +30,7 @@ import type {ResolverClient} from '../../../runtypes-devtools/src/resolver-clien
 import type {RunType} from '../../src/runtypes/types.ts';
 import {
   checkBinaryStable,
+  checkCrossWire,
   checkErrorsAgree,
   checkInvalidRejected,
   checkJsonStable,
@@ -39,6 +40,11 @@ import {
   type FuzzTarget,
   type Violation,
 } from './fuzzOracle.ts';
+
+/** Where the behaviour tier sources its conforming value: the abstract-shape
+ *  generator (`shapeValue.ts`, the WILD lane) or the REAL product mock
+ *  (`createMockType` with nonDataTypes on, the DataOnly non-data lane). **/
+export type ValueSource = 'shape' | 'mock';
 
 const EXPECTED_FN_SITES = 6;
 const EXPECTED_REFLECTION_SITES = 1;
@@ -55,6 +61,10 @@ export interface TypeFuzzOptions {
   seed?: number;
   iterations?: number;
   gen?: Partial<GenOptions>;
+  /** Value source for the behaviour tier — `'shape'` (default, the WILD lane)
+   *  or `'mock'` (the DataOnly non-data lane: REAL createMockType values +
+   *  diagnostics-driven serialize/fail tiering). **/
+  valueSource?: ValueSource;
 }
 
 export interface TypeFuzzReport {
@@ -100,13 +110,14 @@ export async function runTypeFuzz(options: TypeFuzzOptions = {}): Promise<TypeFu
   const seed = options.seed ?? 0x7ee5;
   const iterations = options.iterations ?? DEFAULT_ITERATIONS;
   const gen: GenOptions = {...DEFAULT_GEN_OPTIONS, ...options.gen};
+  const valueSource = options.valueSource ?? 'shape';
   const violations: Violation[] = [];
   const holder = new ClientHolder();
   let runs = 0;
   try {
     for (let i = 0; i < iterations; i++) {
       runs++;
-      await fuzzOneType(holder, mixSeed(seed, 'type', i), gen, violations);
+      await fuzzOneType(holder, mixSeed(seed, 'type', i), gen, valueSource, violations);
     }
   } finally {
     holder.close();
@@ -121,6 +132,7 @@ export async function runTypeFuzzForDuration(
 ): Promise<TypeFuzzReport> {
   const seed = options.seed ?? Date.now() >>> 0;
   const gen: GenOptions = {...DEFAULT_GEN_OPTIONS, ...options.gen};
+  const valueSource = options.valueSource ?? 'shape';
   const violations: Violation[] = [];
   const holder = new ClientHolder();
   let runs = 0;
@@ -130,7 +142,7 @@ export async function runTypeFuzzForDuration(
     while (Date.now() < deadline) {
       runs++;
       const before = violations.length;
-      await fuzzOneType(holder, mixSeed(seed, 'type', round), gen, violations);
+      await fuzzOneType(holder, mixSeed(seed, 'type', round), gen, valueSource, violations);
       if (onViolation) for (let k = before; k < violations.length; k++) onViolation(violations[k]);
       round++;
     }
@@ -140,12 +152,18 @@ export async function runTypeFuzzForDuration(
   return {runs, iterations: round, seed, violations};
 }
 
-async function fuzzOneType(holder: ClientHolder, seed: number, gen: GenOptions, out: Violation[]): Promise<void> {
+async function fuzzOneType(
+  holder: ClientHolder,
+  seed: number,
+  gen: GenOptions,
+  valueSource: ValueSource,
+  out: Violation[]
+): Promise<void> {
   const generated = withSeededRandom(seed, () => genType(gen));
   const compiled = await compileWithTimeout(holder, generated, seed, out);
   if (!compiled) return; // timed out — violation recorded, client restarted
   checkResolverTier(compiled, seed, out);
-  withSeededRandom(mixSeed(seed, 'value', 0), () => checkBehaviourTier(compiled, seed, out));
+  withSeededRandom(mixSeed(seed, 'value', 0), () => checkBehaviourTier(compiled, seed, out, valueSource));
 }
 
 // Race compileType against a timeout. On timeout, record a TR1 finding and
@@ -230,12 +248,18 @@ function isControlledThrow(message: string): boolean {
 }
 
 // --- Tier B: behaviour ---
-function checkBehaviourTier(compiled: CompiledType, seed: number, out: Violation[]): void {
+function checkBehaviourTier(compiled: CompiledType, seed: number, out: Violation[], valueSource: ValueSource): void {
   if (compiled.resolverError || compiled.evalError) return;
   // Recursive types: resolve/emit/reflection were already policed (TR1–TR3);
   // their runtime is covered by the real CircularRefs suite. The in-process
   // linker can't execute a cyclic function graph, so skip the behaviour tier.
   if (isRecursive(compiled.gen)) return;
+  // DataOnly non-data lane: values come from the REAL product mock and the
+  // serialize/fail tier is read off the resolver's own diagnostics.
+  if (valueSource === 'mock') {
+    checkMockBehaviour(compiled, seed, out);
+    return;
+  }
   const serialisable = valueOracleSafe(compiled.gen);
   const target = asFuzzTarget(compiled);
 
@@ -326,6 +350,87 @@ function runRobustnessProbe(compiled: CompiledType, seed: number, out: Violation
           });
       }
     }
+  }
+}
+
+// --- Tier B (mock lane) — values from the REAL createMockType (nonDataTypes on).
+// The serialize-vs-fail tier is read from the ACTUAL encoder behaviour, not the
+// resolver's diagnostics: the resolver over-reports Error-severity diagnostics
+// for non-serialisable positions inside DROPPED subtrees (e.g. a dropped
+// `Promise<Set<Float64Array>>` property), so a type can carry an Error and still
+// serialize. The encoder either works or `alwaysThrow`s — that's the ground truth.
+function checkMockBehaviour(compiled: CompiledType, seed: number, out: Violation[]): void {
+  const target = asFuzzTarget(compiled);
+  const mock = compiled.wired.mock;
+  if (!target || !mock) {
+    // Some factory failed to wire (a wire-time alwaysThrow on a collapse type —
+    // controlled-ness already policed by TR4). Behaviour is robustness-only.
+    runRobustnessProbe(compiled, seed, out);
+    return;
+  }
+  let value: unknown;
+  try {
+    value = mock();
+  } catch {
+    // The mock can't always build a value (e.g. a stray `never` deep inside a
+    // serialisable shell); fall back to robustness rather than risk a false find.
+    runRobustnessProbe(compiled, seed, out);
+    return;
+  }
+  const base = {target: compiled.title, seed, phase: 'valid' as const, value: snapshot(value)};
+
+  // Probe each encoder: does it serialize, alwaysThrow (controlled), or throw
+  // uncontrolled (a bug)?
+  const json = probeEncode(target.jsonEncode!, value);
+  const bin = probeEncode(target.binaryEncode!, value);
+  if (json.uncontrolled) out.push({oracle: 'O7', message: `jsonEncode threw an uncontrolled error: ${json.error}`, ...base});
+  if (bin.uncontrolled) out.push({oracle: 'O7', message: `binaryEncode threw an uncontrolled error: ${bin.error}`, ...base});
+
+  // O14 — JSON and binary must AGREE on serialize-vs-fail (the rule is the same
+  // for every serialization family).
+  if (json.ok !== bin.ok) {
+    out.push({
+      oracle: 'O14',
+      message: `serialization families disagree: jsonEncode ${json.ok ? 'serialized' : 'alwaysThrew'} but binaryEncode ${bin.ok ? 'serialized' : 'alwaysThrew'}`,
+      ...base,
+    });
+    return;
+  }
+
+  // Collapse: both encoders alwaysThrow. The contract says a collapse must carry
+  // an Error-severity diagnostic (fail ⇒ error).
+  if (!json.ok) {
+    if (compiled.errorDiagnostics.length === 0)
+      out.push({oracle: 'O10', message: 'both encoders alwaysThrow but no Error-severity diagnostic was emitted', ...base});
+    return;
+  }
+
+  // Serialize tier — the stripped members are dropped; the round-trips must be
+  // wire-stable and the two wires must agree on the decoded value.
+  const ctx = {seed, phase: 'valid' as const};
+  push(out, checkValidAccepted(target, value, ctx)); // O1 — mock conforms
+  push(out, checkValidateTotal(target, value, ctx)); // O3
+  push(out, checkErrorsAgree(target, value, ctx)); // O4
+  push(out, checkJsonStable(target, value, ctx)); // O5 + O7 (JSON wire-stable)
+  push(out, checkBinaryStable(target, value, ctx)); // O6 + O7 (binary byte-stable)
+  push(out, checkCrossWire(target, value, ctx)); // O12 (wires agree on the value)
+}
+
+interface EncodeProbe {
+  ok: boolean;
+  uncontrolled: boolean;
+  error?: string;
+}
+
+// Run an encoder once: ok when it returns, controlled-throw when it alwaysThrows
+// a `[CODE]` error, uncontrolled when it throws anything else (a bug).
+function probeEncode(fn: (v: unknown) => unknown, value: unknown): EncodeProbe {
+  try {
+    fn(value);
+    return {ok: true, uncontrolled: false};
+  } catch (err) {
+    const controlled = err instanceof Error && isControlledThrow(err.message);
+    return {ok: false, uncontrolled: !controlled, error: err instanceof Error ? err.message : String(err)};
   }
 }
 

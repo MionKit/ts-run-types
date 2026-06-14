@@ -259,6 +259,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
         return mockTemporal(subKind as number, bounds);
       }
       if (subKind === RunTypeSubKind.nonSerializable) {
+        if (mOps.nonDataTypes) return mockNonSerializableNative(runType);
         throw new Error('Mock is disabled for non-serializable types.');
       }
       return buildObjectLiteral(runType, options, stack, mOps);
@@ -366,7 +367,15 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       return parent;
     }
     case RunTypeKind.union: {
-      const children = (runType.children ?? []) as RunType[];
+      const allChildren = (runType.children ?? []) as RunType[];
+      // Pick only among the DataOnly-surviving members so the value passes
+      // validate<T> (the validator drops stripped members like symbol /
+      // function, so a value of a stripped member would be rejected and the
+      // serializers couldn't place it). `notSupported` flags the stripped
+      // members; fall back to the full list when none survive (an all-stripped
+      // union, which throws anyway).
+      const survivors = allChildren.filter((member) => !member.notSupported);
+      const children = survivors.length > 0 ? survivors : allChildren;
       if (children.length === 0) throw new Error('Cannot mock union with no branches.');
       if (mOps.unionIndex !== undefined && (mOps.unionIndex < 0 || mOps.unionIndex >= children.length)) {
         throw new Error('unionIndex must be between 0 and the number of types in the union.');
@@ -394,8 +403,10 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     case RunTypeKind.method:
     case RunTypeKind.methodSignature:
       // The mock isn't expected to satisfy `validate<Function>` — function-typed
-      // cases are marked `mockTypeExpect: 'skip'` in the test adapter.
-      return undefined;
+      // cases are marked `mockTypeExpect: 'skip'` in the test adapter. With
+      // nonDataTypes on, emit a real function so the mock carries the non-data
+      // value (serializers drop it, validate ignores it).
+      return mOps.nonDataTypes ? mockNonDataFunction() : undefined;
     default:
       throw new Error(`Cannot mock runType: kind ${kind} is not yet supported by the mock walker.`);
   }
@@ -414,7 +425,13 @@ function buildObjectLiteral(
   const dataNode = options.dataNode;
   for (const member of children) {
     const memberKind = member.kind as number;
-    if (memberKind === RunTypeKind.method || memberKind === RunTypeKind.methodSignature) continue;
+    if (memberKind === RunTypeKind.method || memberKind === RunTypeKind.methodSignature) {
+      // Methods are non-data — skipped unless nonDataTypes asks for them, in
+      // which case attach a real function under the member name.
+      const methodName = member.name as string | number | undefined;
+      if (mOps.nonDataTypes && methodName !== undefined) parent[methodName] = mockNonDataFunction();
+      continue;
+    }
     if (memberKind === RunTypeKind.indexSignature) {
       const indexed = mockRunType(member, options, stack);
       if (indexed && typeof indexed === 'object') Object.assign(parent, indexed);
@@ -429,6 +446,39 @@ function buildObjectLiteral(
     parent[name] = value;
   }
   return parent;
+}
+
+/** A mock value for a function-typed position when nonDataTypes is on. The
+ *  serializers drop it and validate ignores it; it exists only so the mock can
+ *  carry the non-data member. **/
+function mockNonDataFunction(): () => undefined {
+  return () => undefined;
+}
+
+/** A mock instance for a non-serialisable native (`ArrayBuffer` /
+ *  `SharedArrayBuffer` / `DataView` / typed array) when nonDataTypes is on.
+ *  Picks the constructor from the class name, defaulting to a small Uint8Array.
+ *  These values are always dropped or rejected by the serializers, so the exact
+ *  instance only needs to be of the right family. **/
+function mockNonSerializableNative(runType: RunType): unknown {
+  const className =
+    typeof runType.typeName === 'string' ? runType.typeName : typeof runType.name === 'string' ? runType.name : '';
+  switch (className) {
+    case 'ArrayBuffer':
+      return new ArrayBuffer(8);
+    case 'SharedArrayBuffer':
+      return typeof SharedArrayBuffer !== 'undefined' ? new SharedArrayBuffer(8) : new ArrayBuffer(8);
+    case 'DataView':
+      return new DataView(new ArrayBuffer(8));
+    case 'Int8Array':
+      return new Int8Array([1, 2, 3]);
+    case 'Int32Array':
+      return new Int32Array([1, 2, 3]);
+    case 'Float64Array':
+      return new Float64Array([1.5, 2.5]);
+    default:
+      return new Uint8Array([1, 2, 3]);
+  }
 }
 
 /** True iff `member` is a tuple/parameter wrapper around RunTypeKind.rest. **/
