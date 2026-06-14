@@ -31,11 +31,10 @@ const SUITES = {
   serialization: {
     label: 'Serialization',
     json: 'serialization-suite.json',
-    // serialization cases key their type-first body off the clone encoder; the
-    // schema body isn't extracted yet (added when the serialization exporter
-    // grows a schema field) — fall back to null so the panel degrades cleanly.
+    // type-first body = the default 'clone' encoder (`createJsonEncoder<T>()`);
+    // schema body = the value-first `schemaEncoder` (`createJsonEncoder(RT.…)`).
     pureField: 'cloneEncoder',
-    schemaField: 'cloneEncoderSchema',
+    schemaField: 'schemaEncoder',
   },
 };
 
@@ -116,7 +115,7 @@ function emitSuite(suiteKey, cfg) {
         notes,
         pureType: typeof c[cfg.pureField] === 'string' ? c[cfg.pureField] : '',
         schema: typeof c[cfg.schemaField] === 'string' ? c[cfg.schemaField] : '',
-        generated: extractGenerated(path.join(GENDOCS, 'cases', `${safe(section)}__${safe(key)}__validate`)),
+        generated: extractGenerated(path.join(GENDOCS, 'cases', suiteKey, `${safe(section)}__${safe(key)}`)),
       };
       fs.writeFileSync(path.join(outDir, `${safe(section)}__${safe(key)}.json`), JSON.stringify(detail));
       caseCount += 1;

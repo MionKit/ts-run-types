@@ -275,7 +275,9 @@ async function runValidationPhase(suite) {
 async function runCompilePhase(metrics, bodies) {
   // Wipe + recreate the per-case cache-module dump dir so removed cases
   // don't leave orphan files behind.
-  const casesDir = path.join(REPO_ROOT, 'gendocs/cases');
+  // Suite-scoped so each exporter wipes only its own dumps (gendocs/cases is
+  // shared; validation / serialization / format suites reuse category names).
+  const casesDir = path.join(REPO_ROOT, 'gendocs/cases/validation');
   fs.rmSync(casesDir, {recursive: true, force: true});
   fs.mkdirSync(casesDir, {recursive: true});
 
@@ -360,7 +362,7 @@ function entryKindOf(source) {
 }
 
 function writeCaseDump(casesDir, category, caseKey, api, resp) {
-  const dir = path.join(casesDir, `${safe(category)}__${safe(caseKey)}__${api}`);
+  const dir = path.join(casesDir, `${safe(category)}__${safe(caseKey)}`);
   fs.mkdirSync(dir, {recursive: true});
   const groups = {};
   for (const [basename, source] of Object.entries(resp.entryModules ?? {})) {
