@@ -1,12 +1,13 @@
 # Value-first schema type-checking cost vs TypeBox
 
-**Status:** implemented (tiered `ObjectType` + 8-arm `union` overloads) and
-**validated end-to-end** — faithfulness proven (type-identity), full-suite
-`bench:typecost` shows the value-first schema form **−22.8%** (165055 → 127460
-instantiations over 257 cases; 63 cases improved, 2 trivially regressed), and the
-runtime `bench` passes correctness on all 260 cases (Gate 3). A precise root cause
-for the *remaining* tuple/simple-union outliers is localized below (the next
-target). Surfaced by the benchmark's
+**Status:** SOLVED — three fixes implemented and validated end-to-end (tiered
+`ObjectType`, 8-arm `union` overloads, zero-cost `CompTimeArgs`). The value-first
+schema form went from **165055 → 43515** instantiations over the common cases
+(**−74%**), i.e. apples-to-apples **~823 → 208 instantiations/case** — ts-go(schema)
+now type-checks **well below TypeBox (546/case)**, having started above it. All
+three gates green per fix: faithfulness (type-identity proofs + full `go test
+./internal/...` + plugin tests), `bench:typecost` (the numbers above), and runtime
+`bench` (260/260 correctness, 0 failures). Surfaced by the benchmark's
 type-instantiation measurement ([`benchmarks/typecost/typecost.mjs`](../benchmarks/typecost/typecost.mjs)):
 ts-go's value-first **schema form** costs noticeably more TypeScript
 instantiations to resolve than TypeBox's `Static<>`. The current run reports
@@ -285,14 +286,14 @@ typebox's 546 — ts-go(schema) is now ~617/case.
 only — but it confirms the marker build + structural-id convergence are intact (a
 divergent value-first id would surface as a runtime validator mismatch).
 
-### Remaining outlier — localized root cause (the next target)
+### Third fix — zero-cost `CompTimeArgs` (the tuple/simple-union floor) — IMPLEMENTED
 
-After this change the top schema/typebox ratios are **tuples and simple unions**
-(`TUPLE.empty_tuple` 1068 vs 23 = 46×, `UNION.string_or_number` 1155 vs 63 = 18×,
-`ARRAY.tuple_array` 1269 vs 86). Controlled decomposition against the real source
-localized it precisely — it is **NOT** from this change, arity, overload count, the
-id marker, `const`, or `MapTuple`. The whole ~700 floor is **`CompTimeArgs<T>`
-intersected with a *tuple* type**:
+After the first two fixes the top schema/typebox ratios were **tuples and simple
+unions** (`TUPLE.empty_tuple` 1068 vs 23 = 46×, `UNION.string_or_number` 1155 vs 63
+= 18×, `ARRAY.tuple_array` 1269 vs 86). Controlled decomposition against the real
+source localized it precisely — **NOT** arity, overload count, the id marker,
+`const`, or `MapTuple`. The whole ~700 floor is **`CompTimeArgs<T>` intersected
+with a *tuple* type**:
 
 ```
 tuple([string(), number()]) marginal cost, single overload, by stripping pieces:
@@ -306,14 +307,41 @@ tuple([string(), number()]) marginal cost, single overload, by stripping pieces:
 
 `CompTimeArgs<T> = T & {brand}` is cheap when `T` is an object (the `array`
 builder's `CompTimeArgs<RunType<T>>` costs 11) but expensive when `T` is a
-**tuple/array** type — the `tuple` and `union` builders wrap the whole member tuple.
-The fix direction: brand the member-tuple parameter without the costly
-tuple-intersection (e.g. brand per-element, or restructure `CompTimeArgs` so the Go
-scanner still recognizes it on tuple params without `T & {brand}`). **Deferred** —
-it touches the `CompTimeArgs` marker contract *and* the Go scanner's literal
-enforcement (CTA0xx), so it needs its own faithful loop + Go-side validation, not a
-rushed edit. The decomposition above is reproduced by the `CompTimeArgs<tuple>`
-section of [`benchmarks/typecost/isolated-experiment.mjs`](../benchmarks/typecost/isolated-experiment.mjs).
+**tuple/array** type — the `tuple` and `union` builders wrap the whole member tuple,
+and TS re-checks the array-literal argument against the `tuple & {optional brand}`.
+No cheap *and* faithful brand shape exists: any optional brand a literal satisfies
+is expensive, a required one is cheap but rejects valid args, and `T & {}` is cheap
+but tsgo simplifies it away (dropping the alias detection keys on).
+
+**Implemented as: zero-cost identity + syntactic detection.** `CompTimeArgs<T>` is
+now the identity `T` (markers.ts) — no brand, no intersection. The Go scanner
+detects it off the parameter's **`CompTimeArgs<…>` annotation node**
+(`detectCompTimeArgsByNode` in [internal/resolver/comptimeargs_node.go](../internal/resolver/comptimeargs_node.go))
+instead of a brand property on the resolved type; the annotation survives in the
+`.d.ts` regardless of how the type resolves. Detection is **additive** (only when
+`marker.DetectAny` misses), so the other markers and any still-branded
+`CompTimeArgs` keep their path, and the CTA0xx literal-enforcement is unchanged
+(same parameter). Chosen *by name* over *by position* because builder arg shapes
+vary (`literal()`/`classType()` args are not comptime; `tuple` has 4 overloads;
+`func`/`map` have two comptime args) and user wrappers + re-exports must keep
+working. The nominal FORMAT brand (`brand('UserId')` → `FormatString<P,'UserId'>`)
+is a *separate* mechanism in `TypeFormat` and is provably untouched.
+
+**Result (full `bench:typecost`, real before/after over the common schema cases):**
+
+```
+SCHEMA-form total:  127460  →  43515   (−66% on top of the first two fixes;
+                                         189 cases improved, 0 regressed)
+biggest: union_with_methods 2356→356, large_union_eight_arms 2233→491,
+  call_signature_params_with_optional 2154→370, tuple_with_optional 1896→245
+cumulative (original → now):  ~823 → 208 instantiations/case (apples-to-apples)
+  — ts-go(schema) now BELOW typebox (546/case), having started ABOVE it.
+```
+
+Validated faithful by the full Go suite (the composer CTA detection tests now
+exercise the identity fixture → node path), plugin CTA-enforcement + value-first
+builder tests, and the runtime `bench`. The `CompTimeArgs<tuple>` decomposition is
+reproduced by [`benchmarks/typecost/isolated-experiment.mjs`](../benchmarks/typecost/isolated-experiment.mjs).
 
 ## Methodology — how to test a fix without breaking runtime perf
 
