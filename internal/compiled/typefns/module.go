@@ -428,8 +428,20 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		// kinds (the runtime cache miss is caught by createXxx<T>'s
 		// identity fallback, via the KindMissing stub module).
 		if leafProvider, ok := emitter.(LeafDiagCodeProvider); ok && walker.UnsupportedLeaf != nil {
-			if diagCode := leafProvider.DiagCodeForLeaf(walker.UnsupportedLeaf); diagCode != "" {
-				kindLabel := leafKindLabel(walker.UnsupportedLeaf)
+			// A callable interface (objectLiteral carrying a call signature) is
+			// function-like everywhere — the serializer emitters return CodeNS for
+			// it via objectHasCallSignature, latching the OBJECTLITERAL as the
+			// unsupported leaf. DiagCodeForLeaf only maps KindFunction/KindMethod/
+			// KindCallSignature to the family's function code, so the objectLiteral
+			// would resolve to "" and the entry would be SILENTLY SKIPPED — leaving
+			// a dangling same-family dep that cascades to a missing stub, which a
+			// JSON composite then binds with an unguarded getRT(key).fn (runtime
+			// `reading 'fn'`) or a binary site can't resolve ("no id injected").
+			// Substitute the call-signature child so the function code is emitted
+			// and the entry renders as an alwaysThrow, exactly like a bare function.
+			diagLeaf := callableLeafSubstitute(walker.UnsupportedLeaf, walker.RefTable)
+			if diagCode := leafProvider.DiagCodeForLeaf(diagLeaf); diagCode != "" {
+				kindLabel := leafKindLabel(diagLeaf)
 				walker.EmitDiagnostic(diagCode, kindLabel)
 				argsText := renderAlwaysThrowEntry(runType, innerName, diagCode, kindLabel, walker.rootProvenance)
 				if variantSuffix == "" {
