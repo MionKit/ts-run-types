@@ -161,18 +161,13 @@ export interface CompiledFnData {
   readonly pureFnDependencies?: Array<string>;
   paramNames?: string[];
   /**
-   * Per-family diagnostic code (e.g. 'PJ001') when this entry is an
-   * alwaysThrow factory — the Go-side compiler reached an unsupported leaf
-   * and ships the code. The JS side renders `[code] message` at materialise
-   * time. Undefined for normal and noop entries. See docs/UNSUPPORTED-KINDS.md.
+   * Complete runtime throw message (`[code] headline (at file:line:col)`)
+   * when this entry is an alwaysThrow factory — the Go-side compiler reached
+   * an unsupported leaf and rendered the message at build time. The JS side
+   * throws it verbatim, with no diagnostic catalog of its own. Undefined for
+   * normal and noop entries. See docs/ARCHITECTURE.md (cache format v10).
    */
-  readonly alwaysThrowCode?: string;
-  /**
-   * `file:line:col` of the first known marker call site for this runtype.
-   * Set alongside `alwaysThrowCode` so the error message suffixes
-   * `(at file:line:col)`. See docs/UNSUPPORTED-KINDS.md.
-   */
-  readonly alwaysThrowSite?: string;
+  readonly alwaysThrowMessage?: string;
 }
 
 export interface CompiledTypeFn<Fn extends AnyFn = AnyFn> extends CompiledFnData {

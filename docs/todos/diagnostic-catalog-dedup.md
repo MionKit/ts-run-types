@@ -1,90 +1,64 @@
-# Diagnostic catalog duplication — drift risk and the codegen fix
+# Diagnostic catalog duplication — resolved by dropping the runtime copy
 
-**Status:** known duplication. The missing-code drift was reconciled (this PR); the
-wording divergence and the duplication itself are deferred to a `gen:diag-catalog`
-codegen, tracked below.
+**Status:** RESOLVED. The diagnostic catalog now lives in **one** place,
+the `runtypes-devtools` plugin, and is consumed only at build time. The
+shipped marker package no longer carries a copy. This doc records why the
+duplication existed and how it was removed.
 
-The human-readable text for every diagnostic (a `headline` + optional `detail`,
-rendered from a Go-emitted `Code` + positional args) is duplicated across two
-hand-maintained files. This documents why the duplication exists, how the two
-copies drifted, what was already fixed, and the codegen that should remove the
-duplication for good.
+## The old shape (two hand-maintained TS copies)
 
-## Where the code lives
+The human-readable text for every diagnostic (a `headline`, rendered from a
+Go-emitted `Code` + positional args) used to be duplicated across two
+hand-maintained TS files that drifted (missing codes, divergent `FMT001`
+wording, different ordering):
 
-- Build-time copy (the plugin's diagnostic renderer) — [`packages/runtypes-devtools/src/diagnosticCatalog.ts`](../../packages/runtypes-devtools/src/diagnosticCatalog.ts)
-- Runtime copy / canonical source (the marker package's `alwaysThrow` factory) — [`packages/ts-runtypes/src/runtypes/diagnosticCatalog.ts`](../../packages/ts-runtypes/src/runtypes/diagnosticCatalog.ts)
-- The wire `Code`s themselves (Go) — [`internal/diag/codes_runtype.go`](../../internal/diag/codes_runtype.go)
+- a **build-time** copy in the plugin (`runtypes-devtools`), used to render
+  diagnostics into the build log / IDE; and
+- a **runtime** copy in the marker package (`ts-runtypes`), used by the
+  `alwaysThrow` factory to build the `Error` it throws.
 
-The header comment at the top of the devtools copy is the canonical explanation;
-this doc expands on it.
+They couldn't share an import (the marker package ships to production and can't
+depend on the build-only plugin; the plugin can't drag the marker package's
+runtime surface into the build tool), so the text was copied by hand.
 
-## Why the catalog is duplicated
+## The fix — remove the runtime copy
 
-The catalog (`Code` + args → rendered message) is consumed at two different times,
-by two consumers that cannot share an import:
+The plugin copy is the one that's actually needed: it is the single place that
+turns a diagnostic `Code` (+ args) into displayed text during compilation. It
+stays, unchanged. The wire between the Go binary and the plugin still carries
+**only the code** (+ args + site) — no message text.
 
-- **Build time** — the plugin (`runtypes-devtools`) renders diagnostics reported by
-  the Go binary, via the bundler's `this.warn` / `this.error`. Runs only on a
-  developer's machine, as a devDependency.
-- **Runtime** — the marker package (`ts-runtypes`) `alwaysThrow` factory puts the
-  message into a thrown `Error`. This code ships inside the user's app.
+The runtime copy existed only so the `alwaysThrow` factory could render its
+throw message at runtime. That's unnecessary: the message is fully known at
+build time. So the **Go emitter now writes the complete throw message directly
+into the `alwaysThrow` entry** (`[CODE] Cannot <verb> \`<kind>\` <suffix>. (at
+site)`), and the runtime factory throws that string verbatim:
 
-Dependency direction blocks sharing one copy:
+- `internal/compiled/typefns/alwaysthrow_message.go` — the only diagnostic
+  wording the Go binary owns: the 8 formulaic root-throw families (the only
+  codes that ever become a runtime throw). This is emit-time wording, not a
+  general catalog.
+- `packages/ts-runtypes/src/runtypes/diagnosticCatalog.ts` — **deleted**;
+  `alwaysThrowFactory(message)` now just throws the embedded string. The marker
+  package ships with zero diagnostic-catalog code and keeps its
+  zero-runtime-dependencies property.
 
-- the marker package ships to production, so it cannot depend on a build-only
-  devDependency (`runtypes-devtools` is not installed at runtime); and
-- the plugin importing the marker package's catalog would pull the marker
-  package's whole runtime surface into the build tool.
+This also fixes a latent bug: the old runtime render passed no args, so
+placeholders like `` `{0}` `` were never substituted in runtime throw messages.
 
-So the simplest decoupling is to duplicate one plain data file. `ts-runtypes` is
-the canonical copy; the devtools copy is meant to mirror it.
+Disk cache format bumped to **v10** (the `alwaysThrow` tuple slot now holds the
+rendered message, was a bare code + site hint).
 
-## How the two copies drifted
+## Why this isn't re-introducing duplication
 
-Three independent kinds of drift accumulated:
+The plugin catalog and the Go emitter's throw wording are different layers with
+different jobs:
 
-1. **Missing codes — FIXED (this PR).** `CLS001` existed only in the runtime copy,
-   so the build-time renderer had no text for a Warning the Go binary actually
-   emits (`emitClassSerializerWarning` in
-   [`internal/compiled/typefns/class_serializer.go`](../../internal/compiled/typefns/class_serializer.go)).
-   `FMT002` and `JCP001` existed only in the build-time copy. All three are now
-   present in both files (ported verbatim, additive — no behavior change).
-2. **Divergent wording — DEFERRED.** `FMT001` is present in both copies but worded
-   differently:
-   - devtools: `TypeFormat mockSample "{0}" does not match its pattern /{1}/ — fix the sample or the pattern.`
-   - ts-runtypes: `` Format mockSample `{0}` does not match its pattern `{1}` — mocking would produce an invalid value. ``
+- the plugin catalog renders **every** code for the **build log** (the user's
+  primary signal — an `alwaysThrow` is an Error that halts the build); and
+- the Go emitter renders **only** the 8 root-throw families, for the
+  **runtime** throw that fires only if unsupported code somehow ships.
 
-   Neither is wrong; they simply disagree. (There may be other shared codes whose
-   wording has drifted — a full audit is part of the cutover, not done here.)
-3. **Different ordering — DEFERRED.** The two files group and order their families
-   differently (e.g. the Format family sits near the top of the devtools copy and
-   near the bottom of the canonical copy), so a naive line-by-line merge is not
-   possible.
-
-## The fix — a `gen:diag-catalog` codegen
-
-Pick one canonical source (the `ts-runtypes` catalog) and **generate** the devtools
-copy from it, mirroring the existing `gen:ts-constants` pattern (a Go generator
-emits the TS, then prettier formats it — see [`cmd/gen-ts-constants`](../../cmd/gen-ts-constants/)).
-With a single source:
-
-- wording can never diverge — there is one place to edit;
-- a new `Code` is authored once and both copies pick it up;
-- the generated devtools copy can be a literal (or a thin re-export shaped to avoid
-  the runtime-dependency problem above).
-
-A one-time hand-merge of the two ~600-line files was deliberately avoided: it is
-both error-prone (independent reordering + per-code wording decisions) and
-temporary (the copies would drift again). The codegen is the durable fix.
-
-### Steps
-
-1. Add `cmd/gen-diag-catalog` (or extend `cmd/gen-ts-constants`) that reads the
-   canonical catalog and emits the devtools copy.
-2. Add a `gen:diag-catalog` package script and run it wherever `gen:ts-constants`
-   runs; prettier-format the output (the raw generator emits double-quoted strings).
-3. Reconcile the `FMT001` wording (and any other shared-code drift) once, in the
-   canonical file, as part of the cutover.
-4. Optionally add a CI check / test asserting the generated copy is up to date
-   (compare regenerated output against the committed file).
+The 8 formulaic strings are trivial and stable; the runtime throw is a backstop
+that need not byte-match the build-log headline. There is no longer a
+full-catalog runtime copy to drift.

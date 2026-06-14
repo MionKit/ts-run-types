@@ -188,9 +188,10 @@ func TestValidateModule_AtomicEmitBodies(t *testing.T) {
 		{"boolean", &protocol.RunType{ID: "boo", Kind: protocol.KindBoolean}, "return typeof v === 'boolean'", false},
 		{"bigint", &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}, "return typeof v === 'bigint'", false},
 		// KindSymbol is unsupported at root — see docs/UNSUPPORTED-KINDS.md
-		// FAQ. Renderer emits an alwaysThrow factory keyed by VL002,
-		// not a body-bearing validator.
-		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('" + valKey("sym") + "','symbol',undefined,false,undefined,undefined,undefined,'VL002')", false},
+		// FAQ. Renderer emits an alwaysThrow factory whose final slot is the
+		// VL002 message, rendered here at build time (not a body-bearing
+		// validator).
+		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('" + valKey("sym") + "','symbol',undefined,false,undefined,undefined,undefined," + quoteJS(buildAlwaysThrowMessage("VL002", "Symbol", nil)) + ")", false},
 		{"null", &protocol.RunType{ID: "nul", Kind: protocol.KindNull}, "return v === null", false},
 		{"undefined", &protocol.RunType{ID: "und", Kind: protocol.KindUndefined}, "return typeof v === 'undefined'", false},
 		{"void", &protocol.RunType{ID: "voi", Kind: protocol.KindVoid}, "return v === undefined", false},
@@ -850,19 +851,19 @@ func TestValidateModule_CodeNSPropagation(t *testing.T) {
 	})
 
 	t.Run("plain_user_class_with_nonserializable_subkind_throws", func(t *testing.T) {
-		// v2: alwaysThrow init() carries the diag code as the 8th arg
-		// (no embedded throw body). JS side resolves the code to a
-		// message via messageForCode() at materialise time. See
-		// docs/UNSUPPORTED-KINDS.md "Wire format".
+		// alwaysThrow init() carries the fully rendered VL001 message as its
+		// final slot (rendered here in Go at build time, not resolved
+		// JS-side). See docs/UNSUPPORTED-KINDS.md "Wire format".
 		ns := &protocol.RunType{ID: "ns1", Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{ns, stringRT}}
 		out := renderToString(t, dump)
-		if !strings.Contains(out, "init('"+valKey("ns1")+"','class',undefined,false,undefined,undefined,undefined,'VL001')") {
-			t.Errorf("KindClass+SubKindNonSerializable must emit an alwaysThrow init with code VL001, got:\n%s", out)
+		wantThrow := quoteJS(buildAlwaysThrowMessage("VL001", "NonSerializableClass", nil))
+		if !strings.Contains(out, "init('"+valKey("ns1")+"','class',undefined,false,undefined,undefined,undefined,"+wantThrow+")") {
+			t.Errorf("KindClass+SubKindNonSerializable must emit an alwaysThrow init with the VL001 message, got:\n%s", out)
 		}
-		// No inline throwing function body should remain.
+		// The message rides as a plain string slot, not an embedded throw body.
 		if strings.Contains(out, "throw new Error(") {
-			t.Errorf("v2 wire format should not embed throw-body strings, got:\n%s", out)
+			t.Errorf("wire format should not embed throw-body strings, got:\n%s", out)
 		}
 		if !strings.Contains(out, "init('"+valKey("str")+"',") {
 			t.Errorf("supported sibling must still render, got:\n%s", out)

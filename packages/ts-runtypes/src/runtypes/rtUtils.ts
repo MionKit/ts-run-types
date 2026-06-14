@@ -20,7 +20,6 @@ import type {
   InitializedTypeFn,
   Mutable,
 } from './types.ts';
-import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticCatalog.ts';
 import {getClassSerializer as getClassSerializerImpl} from './classSerializerRegistry.ts';
 import type {ClassSerializer} from './classSerializerRegistry.ts';
 import type {CompTimeArgs} from '../markers.ts';
@@ -167,8 +166,10 @@ const rtUtils = {
   getDeserializeFn(className: string): DeserializeClassFn<any> | undefined {
     return deserializeFnsRegistry.get(className);
   },
-  alwaysThrowFactory(code: string, siteHint?: string): () => never {
-    return alwaysThrowFactoryImpl(code, siteHint);
+  alwaysThrowFactory(message: string): () => never {
+    return () => {
+      throw new Error(message);
+    };
   },
   // Custom user-class (de)serializer lookup. Emitted factory bodies for
   // plain user classes (KindClass + SubKindNone) call this; a registered
@@ -275,7 +276,7 @@ const materializing = new Set<string>();
  *  `fn` with the family-specific identity at register time).
  *
  *  alwaysThrow entries: `entry.createRTFn` is the throwing closure from
- *  `alwaysThrowFactory(code, site)`; it ignores `utl` and throws. **/
+ *  `alwaysThrowFactory(message)`; it ignores `utl` and throws. **/
 function materializeRTFn(entry: CompiledTypeFn): asserts entry is InitializedTypeFn {
   if (entry.fn) return;
   if (materializing.has(entry.rtFnHash)) return;
