@@ -7,6 +7,8 @@ export const LARGE_OBJECTS = {
     title: 'wide interface — 30 mixed-type properties',
     description:
       'Single interface with 30+ properties spanning scalars, Date, bigint, nested object — exercises the per-field walk cost without any union dispatch.',
+    serializeNotes:
+      'The Date fields (`createdAt`/`updatedAt` and nested `meta.lastSeen`) JSON-encode to ISO strings and revive to Dates; the `big1`/`big2` bigints encode to decimal strings (rebuilt via `BigInt(...)`) on the JSON wire and take the binary string-fallback path.',
     mutateEncoder: () => {
       interface WideRecord {
         id: number;
@@ -1665,6 +1667,8 @@ export const LARGE_OBJECTS = {
   large_class_union: {
     title: 'discriminated union of three large class instances',
     description: 'Three-member class union — restore decodes to plain objects (class instances do not survive JSON round-trip).',
+    serializeNotes:
+      'Members are picked by the `kind` discriminant (`classA`/`classB`/`classC`); each carries Date (`when`/`releasedAt`/`processedAt`, ISO-string on the wire) and bigint (`total`/`score`, decimal-string on the wire) members, and decode returns plain objects rather than the original class instances.',
     mutateEncoder: () => {
       class LargeClassA {
         kind!: 'classA';

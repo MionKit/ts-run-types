@@ -57,6 +57,8 @@ export const DATETIME = {
 
   zonedDateTime: {
     title: 'Temporal.ZonedDateTime',
+    description: 'Root `Temporal.ZonedDateTime` (instant + time zone + calendar) round-trips across JSON and binary, returning a real ZonedDateTime on decode.',
+    serializeNotes: 'JSON serializes via `toJSON()` (a `...[TimeZone]` string carrying the zone) and revives with `Temporal.ZonedDateTime.from(...)`; the time-zone annotation is preserved through the round-trip.',
     mutateEncoder: () => createJsonEncoder<Temporal.ZonedDateTime>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Temporal.ZonedDateTime>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Temporal.ZonedDateTime>(undefined, {strategy: 'direct'}),
@@ -73,6 +75,8 @@ export const DATETIME = {
 
   plainDate: {
     title: 'Temporal.PlainDate',
+    description: 'Root `Temporal.PlainDate` (calendar date, no time or zone) round-trips across JSON and binary, returning a real PlainDate on decode.',
+    serializeNotes: 'JSON serializes via `toJSON()` (a `YYYY-MM-DD` string) and revives with `Temporal.PlainDate.from(...)`.',
     mutateEncoder: () => createJsonEncoder<Temporal.PlainDate>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Temporal.PlainDate>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Temporal.PlainDate>(undefined, {strategy: 'direct'}),
@@ -89,6 +93,8 @@ export const DATETIME = {
 
   plainTime: {
     title: 'Temporal.PlainTime',
+    description: 'Root `Temporal.PlainTime` (wall-clock time, no date or zone) round-trips across JSON and binary, returning a real PlainTime on decode.',
+    serializeNotes: 'JSON serializes via `toJSON()` (an `HH:MM:SS` string) and revives with `Temporal.PlainTime.from(...)`.',
     mutateEncoder: () => createJsonEncoder<Temporal.PlainTime>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Temporal.PlainTime>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Temporal.PlainTime>(undefined, {strategy: 'direct'}),
@@ -105,6 +111,8 @@ export const DATETIME = {
 
   plainDateTime: {
     title: 'Temporal.PlainDateTime',
+    description: 'Root `Temporal.PlainDateTime` (date + time, no zone) round-trips across JSON and binary, returning a real PlainDateTime on decode.',
+    serializeNotes: 'JSON serializes via `toJSON()` (a `YYYY-MM-DDTHH:MM:SS` string) and revives with `Temporal.PlainDateTime.from(...)`.',
     mutateEncoder: () => createJsonEncoder<Temporal.PlainDateTime>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Temporal.PlainDateTime>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Temporal.PlainDateTime>(undefined, {strategy: 'direct'}),
@@ -121,6 +129,8 @@ export const DATETIME = {
 
   plainYearMonth: {
     title: 'Temporal.PlainYearMonth',
+    description: 'Root `Temporal.PlainYearMonth` (year + month, no day) round-trips across JSON and binary, returning a real PlainYearMonth on decode.',
+    serializeNotes: 'JSON serializes via `toJSON()` (a `YYYY-MM` string) and revives with `Temporal.PlainYearMonth.from(...)`.',
     mutateEncoder: () => createJsonEncoder<Temporal.PlainYearMonth>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Temporal.PlainYearMonth>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Temporal.PlainYearMonth>(undefined, {strategy: 'direct'}),
@@ -137,6 +147,8 @@ export const DATETIME = {
 
   plainMonthDay: {
     title: 'Temporal.PlainMonthDay',
+    description: 'Root `Temporal.PlainMonthDay` (month + day, no year) round-trips across JSON and binary, returning a real PlainMonthDay on decode.',
+    serializeNotes: 'JSON serializes via `toJSON()` (an `MM-DD` string) and revives with `Temporal.PlainMonthDay.from(...)`.',
     mutateEncoder: () => createJsonEncoder<Temporal.PlainMonthDay>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Temporal.PlainMonthDay>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Temporal.PlainMonthDay>(undefined, {strategy: 'direct'}),
@@ -153,6 +165,8 @@ export const DATETIME = {
 
   duration: {
     title: 'Temporal.Duration',
+    description: 'Root `Temporal.Duration` (a length of time, not a point) round-trips across JSON and binary, returning a real Duration on decode.',
+    serializeNotes: 'JSON serializes via `toJSON()` (an ISO-8601 `P...` duration string) and revives with `Temporal.Duration.from(...)`; the zero-duration `PT0S` sample confirms the empty case survives.',
     mutateEncoder: () => createJsonEncoder<Temporal.Duration>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Temporal.Duration>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Temporal.Duration>(undefined, {strategy: 'direct'}),
