@@ -9,15 +9,13 @@ const decode = createBinaryDecoder<Tick>();
 // In a hot loop, build the serializer once and hand it to the encoder so it
 // reuses the same backing buffer instead of allocating a fresh one each call.
 const ser = createDataViewSerializer('ticks');
+const ticks: Tick[] = [{symbol: 'TS', price: 7}, {symbol: 'GO', price: 9}];
 
-for (const tick of [{symbol: 'TS', price: 7}, {symbol: 'GO', price: 9}]) {
-  const buffer = encode(tick, ser); // writes into the shared serializer
-  // ...send `buffer`
-}
+const buffers = ticks.map((tick) => encode(tick, ser)); // writes into the shared serializer
 
 // Same idea on the way back — reuse a deserializer for a known buffer.
-const des = createDataViewDeserializer('ticks', encode({symbol: 'TS', price: 7}));
-const tick = decode(des);
+const des = createDataViewDeserializer('ticks', buffers[0]);
+const firstTick = decode(des);
 // end-reuse
 
-export {tick};
+export {buffers, firstTick};
