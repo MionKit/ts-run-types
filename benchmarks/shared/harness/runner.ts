@@ -19,6 +19,11 @@ import type {CaseResult, MetricResult, MetricSummary, CompetitorResult} from './
 
 const NO_TIMING = process.env.BENCH_NO_TIMING === '1';
 const TIME_MS = Number(process.env.BENCH_TIME_MS ?? 100);
+// BENCH_CASE=<substr>: restrict the run to cases whose dotted key contains the
+// (case-insensitive) substring — measure ONE case's runtime across competitors.
+// A filtered run prints to the console and does NOT write <name>.json (see
+// writeResult in result.ts), so it never clobbers the full-suite results.
+const CASE_FILTER = (process.env.BENCH_CASE ?? '').toLowerCase();
 
 const asFn = (x: (() => Validator) | NotSupported | undefined): (() => Validator) | null => (typeof x === 'function' ? x : null);
 
@@ -71,6 +76,7 @@ export function runCompetitor(competitorModule: CompetitorModule): CompetitorRes
   let total = 0;
 
   for (const iterated of iterateCases()) {
+    if (CASE_FILTER && !iterated.key.toLowerCase().includes(CASE_FILTER)) continue;
     total++;
     const base = {key: iterated.key, suite: iterated.suite, group: iterated.group, name: iterated.name};
     const norm = normalize(competitorModule.cases[iterated.key]);

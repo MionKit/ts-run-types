@@ -58,7 +58,29 @@ export interface CompetitorResult {
 // two levels up. The driver sets BENCH_RESULTS_DIR explicitly for container runs.
 const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? path.resolve(process.cwd(), '..', '..', 'results');
 
+const CASE_FILTER = process.env.BENCH_CASE;
+
+const ops = (n: number): string => (n ? `${Math.round(n).toLocaleString('en-US')}/s` : '-');
+const metricLine = (metric: MetricResult): string =>
+  `${metric.status}${metric.detail ? ` (${metric.detail})` : ''}  valid ${ops(metric.validOpsSec)}  invalid ${ops(metric.invalidOpsSec)}`;
+
+// BENCH_CASE inspection run (see runner.ts): print the matched cases and DON'T
+// overwrite the canonical full-suite <name>.json — mirrors typecost so a per-case
+// iteration loop never clobbers the published results.
+function printFiltered(result: CompetitorResult): void {
+  console.log(`\n[BENCH_CASE=${CASE_FILTER}] ${result.competitor} - ${result.cases.length} case(s); results JSON not written`);
+  for (const caseResult of result.cases) {
+    console.log(`  ${caseResult.key}`);
+    console.log(`    validate          ${metricLine(caseResult.validate)}`);
+    console.log(`    validationErrors  ${metricLine(caseResult.validationErrors)}`);
+  }
+}
+
 export function writeResult(result: CompetitorResult): void {
+  if (CASE_FILTER) {
+    printFiltered(result);
+    return;
+  }
   mkdirSync(RESULTS_DIR, {recursive: true});
   writeFileSync(path.join(RESULTS_DIR, `${result.competitor}.json`), JSON.stringify(result, null, 2) + '\n');
 }

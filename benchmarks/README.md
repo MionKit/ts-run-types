@@ -190,11 +190,37 @@ zod            ~619 /case
 for the live typia column.)
 
 i.e. the type-definition form is ~55–155× cheaper for `tsc` to resolve than any
-schema→type form — including ts-go's own value-first schema form. Cases whose type
-references globals the pinned TypeScript lacks, or that are inline-recursive
-without a name, report `err` and are excluded from totals. Adding a competitor
-automatically extends typecost; it is a separate command, never gating the runtime
-benches.
+schema→type form — including ts-go's own value-first schema form. Adding a
+competitor automatically extends typecost; it is a separate command, never gating
+the runtime benches.
+
+**Value forcing vs. broader accepted sets.** A few forms intentionally accept a
+wider value set than their *static* type — ts-go's `noLiterals` option (the type
+stays the literal `2`, but any number validates) and the serializable-only
+validate contract (a function/method member is dropped, so the data sample omits
+it). For those the chosen sample need not satisfy `T`, so the probe falls back to
+**declare-only** (`let x!: T`) and measures pure type-resolution cost. A genuine
+type error (a name the type can't resolve, an excessively-deep instantiation —
+e.g. typebox on a circular tuple) still fails and reports `err`, excluded from
+totals; the full `err` detail (case · form · first TS message) prints after the
+table.
+
+**Inspection knobs.** `BENCH_CASE=<substr>` restricts **both** the runtime bench
+and typecost to cases whose dotted key contains the (case-insensitive) substring —
+run **one case across every library** to compare/diagnose it. A filtered run prints
+to the console and does **not** rewrite the results JSON (nor aggregate or publish
+to `.docdata`), so a per-case iteration loop never clobbers the published full-suite
+results. `BENCH_DUMP=<exact.key>` is typecost-only: it prints the assembled probe
+sources for one case and exits. All are forwarded into the container:
+
+```bash
+BENCH_CASE=atomic_union pnpm bench           # runtime throughput, every competitor, one case
+BENCH_CASE=atomic_union pnpm bench:typecost  # type-instantiation cost, every form, one case
+BENCH_DUMP=UNION.atomic_union pnpm bench:typecost
+```
+
+After a filtered iteration loop, run the **full** `pnpm bench` / `pnpm
+bench:typecost` (no `BENCH_CASE`) once to refresh the canonical results JSON.
 
 ## Layout
 

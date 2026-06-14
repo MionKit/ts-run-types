@@ -300,7 +300,20 @@ function extractTypeForm(file, mapName, callName) {
       );
       if (!build) continue;
       const call = findTypedCall(build.initializer, callName, source);
-      if (call) entries[key] = {locals, typeText: call.typeArguments[0].getText(source)};
+      if (!call) continue;
+      // typia authors the type's local decls INSIDE the build block — `() => { type
+      // Person = …; const check = typia.createIs<Pick<Person, …>>(); return … }` —
+      // whereas ts-go uses an outer IIFE (captured above). Gather the build-block
+      // declarations too, skipping the `return` and the createIs/createValidate
+      // statement itself so `<T>` resolves without dragging the runtime call in.
+      const buildArrow = build.initializer;
+      if (ts.isArrowFunction(buildArrow) && ts.isBlock(buildArrow.body)) {
+        for (const stmt of buildArrow.body.statements) {
+          if (ts.isReturnStatement(stmt) || findTypedCall(stmt, callName, source)) continue;
+          locals.push(stmt.getText(source));
+        }
+      }
+      entries[key] = {locals, typeText: call.typeArguments[0].getText(source)};
     }
   }
   return {preamble: extractPreamble(source, mapName), entries, keys};
@@ -320,8 +333,12 @@ const TB_STATIC_IMPORT = `import {type Static as __TBStatic} from '@sinclair/typ
 const force = (value) => (value === undefined ? `\nlet __x!: __T;\nvoid __x;\n` : `\nconst __x: __T = ${value};\nvoid __x;\n`);
 const decls = (locals) => (locals.length ? locals.join('\n') + '\n' : '');
 
+// Locals + the `__T` alias + the forcing assignment go in a BLOCK so a case-local
+// redeclaration (e.g. a local `type User`) shadows a same-named preamble import
+// (the realworld `import type {User}`) instead of colliding with it at module
+// scope — faithful to the original IIFE/build-block scoping where it was authored.
 function probeTsType(preamble, locals, typeText, value) {
-  return `${preamble.join('\n')}\n${decls(locals)}type __T = ${typeText};${force(value)}`;
+  return `${preamble.join('\n')}\n{\n${decls(locals)}type __T = ${typeText};${force(value)}}\n`;
 }
 function probeTsSchema(preamble, locals, exprText, value) {
   const imps = preamble.includes(STATIC_IMPORT) ? preamble : [...preamble, STATIC_IMPORT];
@@ -367,11 +384,22 @@ function baseline(key, probePath, text) {
   return baselineCache.get(key);
 }
 
-function measure(form, baselineKey, probePath, baselineText, probeText) {
-  const {count, errors} = compile(probePath, probeText);
-  if (errors.length) return {status: 'err', n: 0, detail: ts.flattenDiagnosticMessageText(errors[0].messageText, ' ')};
+function measure(form, baselineKey, probePath, baselineText, probeText, fallbackText) {
+  let result = compile(probePath, probeText);
+  // The probe assigns the case's first valid SAMPLE; some forms intentionally
+  // accept a broader value set than their static type — ts-go's `noLiterals` (the
+  // type stays the literal `2`, but any number validates) and the serializable-only
+  // contract (a function/method member is dropped, so the data sample omits it) —
+  // so the sample need not satisfy T. On such a *value* error, retry WITHOUT the
+  // value to measure pure type-resolution cost. A genuine *type* error (missing
+  // name, excessively-deep instantiation) still fails the retry and surfaces.
+  if (result.errors.length && fallbackText && fallbackText !== probeText) {
+    const retry = compile(probePath, fallbackText);
+    if (!retry.errors.length) result = retry;
+  }
+  if (result.errors.length) return {status: 'err', n: 0, detail: ts.flattenDiagnosticMessageText(result.errors[0].messageText, ' ')};
   const base = baseline(`${form}:${baselineKey}`, probePath, baselineText);
-  return {status: 'ok', n: Math.max(0, count - base)};
+  return {status: 'ok', n: Math.max(0, result.count - base)};
 }
 
 // ── value rendering — each case's first valid sample as a TS literal ─────────
@@ -434,6 +462,13 @@ async function loadSampleValues() {
 
 const V = "'x'"; // baseline value (type is `string`)
 
+// BENCH_CASE=<substr>: restrict the run to cases whose dotted key contains the
+// (case-insensitive) substring — run ONE case across every form to inspect it
+// (pair with BENCH_DUMP=<exact.key> to print the probe sources). When set, the
+// per-competitor results JSON is NOT rewritten (a filtered run is for inspection).
+const CASE_FILTER = (process.env.BENCH_CASE ?? '').toLowerCase();
+const matchesFilter = (key) => !CASE_FILTER || key.toLowerCase().includes(CASE_FILTER);
+
 async function main() {
   const tsType = extractTypeForm(path.join(TSGO_DIR, 'cases.ts'), 'cases', 'createValidate');
   const tsSchema = extractTsGo(path.join(TSGO_DIR, 'schemaCases.ts'), 'schemaCases', 'schema');
@@ -446,7 +481,11 @@ async function main() {
   // Authoritative case order comes from the ts-go cases.ts map (TOTAL over every
   // shared key, in file order); group/name split on the dotted key. Parsing the
   // map can't choke on enums (it's an AST read), so the table is always built.
-  const keys = tsType.keys;
+  const keys = tsType.keys.filter(matchesFilter);
+  if (!keys.length) {
+    console.error(`typecost: BENCH_CASE=${process.env.BENCH_CASE} matched no cases.`);
+    process.exit(1);
+  }
   const rows = [];
   for (const key of keys) {
     const dot = key.indexOf('.');
@@ -471,12 +510,12 @@ async function main() {
 
     const t = tsType.entries[key];
     cell.tsType = t
-      ? measure('tsType', 'tsgo', PROBE_TSGO, probeTsType(tsType.preamble, [], 'string', V), probeTsType(tsType.preamble, t.locals, t.typeText, value))
+      ? measure('tsType', 'tsgo', PROBE_TSGO, probeTsType(tsType.preamble, [], 'string', V), probeTsType(tsType.preamble, t.locals, t.typeText, value), probeTsType(tsType.preamble, t.locals, t.typeText, undefined))
       : {status: 'na'};
 
     const s = tsSchema.entries[key];
     cell.tsSchema = s
-      ? measure('tsSchema', 'tsgo', PROBE_TSGO, probeTsSchema(tsSchema.preamble, [], 'RT.string()', V), probeTsSchema(tsSchema.preamble, s.locals, s.arg.text, value))
+      ? measure('tsSchema', 'tsgo', PROBE_TSGO, probeTsSchema(tsSchema.preamble, [], 'RT.string()', V), probeTsSchema(tsSchema.preamble, s.locals, s.arg.text, value), probeTsSchema(tsSchema.preamble, s.locals, s.arg.text, undefined))
       : {status: 'na'};
 
     cell.zod = zod.entries[key]
@@ -489,14 +528,15 @@ async function main() {
 
     const tp = typia.entries[key];
     cell.typia = tp
-      ? measure('typia', 'typia', PROBE_TYPIA, probeTsType(typia.preamble, [], 'string', V), probeTsType(typia.preamble, tp.locals, tp.typeText, value))
+      ? measure('typia', 'typia', PROBE_TYPIA, probeTsType(typia.preamble, [], 'string', V), probeTsType(typia.preamble, tp.locals, tp.typeText, value), probeTsType(typia.preamble, tp.locals, tp.typeText, undefined))
       : {status: 'na'};
 
     rows.push(cell);
   }
 
   report(rows);
-  writeResults(rows);
+  // A filtered run is for inspection — don't clobber the full per-competitor JSON.
+  if (!CASE_FILTER) writeResults(rows);
 }
 
 const LIBS = [
@@ -554,6 +594,20 @@ function report(rows) {
       console.log(`  ${padR(name, 16)} ${padL(sum, 9)}  (avg ${Math.round(sum / commonRows.length)}/case)`);
     }
   }
+  // `err` detail: the type did not compile, so it's excluded from totals. Surface
+  // the first TS error per (case, form) — almost always either a broadened sample
+  // not assignable to a narrow type, or a construct the pinned lib can't resolve.
+  const errs = [];
+  for (const row of rows) {
+    for (const [name, field] of LIBS) {
+      if (row[field].status === 'err') errs.push({key: row.key, lib: name, detail: row[field].detail});
+    }
+  }
+  if (errs.length) {
+    console.log(`\nErrors (${errs.length}) — type did not compile (excluded from totals):`);
+    for (const e of errs) console.log(`  ${padR(e.key, KEYW)} ${padR(e.lib, 14)} ${e.detail}`);
+  }
+
   console.log(
     "\nNote: each probe ASSIGNS a real value to a `const x: <type>` (the case's\n" +
       'first valid sample, serialized), forcing TypeScript to fully resolve the\n' +
