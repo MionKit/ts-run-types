@@ -231,7 +231,7 @@ unchanged)
 > **Files-mode (landed).** The mechanism below was originally served as
 > **virtual modules** (`virtual:rt/<key>.js`, the plugin's `resolveId`/`load`).
 > It now writes every cache module to a **real file** under `<outDir>/types/`
-> (default `<srcDir>/runtypes`, inferred from tsconfig) at `buildStart`
+> (default `<srcDir>/__runtypes`, inferred from tsconfig) at `buildStart`
 > (`OpGenerate`), and the transform injects **relative** imports to those files
 > — so every bundler resolves them natively with no per-bundler virtual-module
 > plumbing. `virtual:rt/<key>.js` is still the INTERNAL render specifier; it is

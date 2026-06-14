@@ -31,11 +31,18 @@ pre-pass and build-time enrichment.
 
 ### Phase 1 — outDir resolution + config + VCS files — ✅ DONE
 - `outDir` plugin option.
-- tsconfig **srcDir inference** for the default (`<srcDir>/runtypes`): rootDir
+- tsconfig **srcDir inference** for the default (`<srcDir>/__runtypes`): rootDir
   (only when at or below cwd) → common-ancestor of the program's files →
   baseUrl → cwd. The resolved absolute path is echoed back to the
-  dependency-free plugin via `Response.OutDir`.
+  dependency-free plugin via `Response.OutDir`. The `__` prefix keeps the
+  generated tree clear of a hand-authored `runtypes/` source dir (the marker
+  package itself ships one at `src/runtypes/`).
 - Auto-writes `types/.gitignore` (`*`) + `enriched/.gitkeep`.
+- **Collision guard** (`ensureOutDirAvailable`, internal/resolver/generate.go):
+  generate refuses — hard error, no virtual fallback — to write into an output
+  root that already holds non-RunTypes content (only `types/`, `enriched/`, and
+  VCS markers are allowed), so a misconfigured `outDir` can never clobber real
+  source. Covered by `TestGenerate_RefusesOutDirInUse`.
 - The rootDir-within-cwd guard rejects `tsconfig.test.json`'s `rootDir: "../.."`
   (an emit-root signal, not a source-root one) so generated files don't land at
   the repo root.
@@ -108,36 +115,35 @@ pre-pass and build-time enrichment.
 - Clear, actionable error when the output dir is unwritable (read-only FS /
   permission) — files-mode has no virtual fallback, so this is fatal and the
   user needs to know how to fix it.
-- The marker package's own `runtypes/` test-output tree is gitignored wholesale.
+- The marker package's own `__runtypes/` test-output tree is gitignored
+  wholesale (and the cross-bundler build fixtures under `test/tmp-build-*/`).
 
 ## Architectural decisions & deviations (for the design discussion)
 
 1. **Virtual modules are gone at the disk/plugin boundary, but `virtual:rt`
    survives as the internal render format**, relativized at the resolver layer.
-2. **Default layout is `<srcDir>/runtypes/{types,enriched}`** — a single
-   `outDir` currently couples the throwaway `types/` and the committed
-   `enriched/`.
+2. **Default layout is `<srcDir>/__runtypes/{types,enriched}`** — a single
+   `outDir` couples the throwaway `types/` and the committed `enriched/` (kept
+   coupled by the settled-architecture decision below).
 3. **Enrich is still entirely CLI-driven** — the "at every build start" part is
    not wired.
 4. **HMR re-renders the whole program** each edit (writes are incremental, the
    render is not).
 
-## Open design questions (next: architecture discussion)
+## Output layout — decided (keep current architecture)
 
-The output layout is being reconsidered. The throwaway autogen modules currently
-live **inside the source tree** (`<srcDir>/runtypes/types/`, gitignored), which
-puts thousands of machine-generated files in view even though they're ignored.
+The layout was discussed and **settled: keep the current design.** Autogen and
+enriched stay co-located under a single in-source-tree output root,
+`<srcDir>/__runtypes/{types,enriched}`. The single `outDir` option is retained
+(not split into `typesDir` + `enrichedDir`); autogen stays gitignored, enriched
+stays committed. The `runtypes` → `__runtypes` rename — the `__` prefix plus the
+collision guard — is what makes the in-source-tree layout safe (no clash with a
+hand-authored `runtypes/`, no risk of clobbering real files). The thousands of
+ignored autogen files living in-tree is accepted as the cost of native,
+no-virtual cross-bundler resolution.
 
-- **Autogen location.** Keep in `src` / move to a `.runtypes/` dot-dir at the
-  project root (SvelteKit/Astro/Nuxt precedent) / `node_modules/.runtypes/`
-  (Prisma precedent, fully invisible but needs plugin-driven HMR invalidation
-  and care with library builds that externalize `node_modules`).
-- **Enriched layout.** Central committed `runtypes/` dir vs co-located
-  `Foo.rt.ts` siblings next to each source type.
-- **Coupling.** Splitting autogen and enriched into different roots means the
-  single `outDir` option becomes two (e.g. `typesDir` + `enrichedDir`).
-- **Commit policy.** Autogen stays gitignored by default; a commit-it opt-in
-  (no build-step / reviewable diffs) is a possible escape hatch.
+The only remaining work is **Phase 7** (cross-bundler real-build coverage +
+cleanup + the exhaustive docs pass).
 
 ## Health
 

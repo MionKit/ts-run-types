@@ -54,10 +54,10 @@ describe('vite build / composite source map', () => {
             tsconfig: 'tsconfig.test.json',
             cacheDir: false,
             // Isolated output root so this nested build never shares (and
-            // prunes) the marker package's own vitest `runtypes/types` dir —
+            // prunes) the marker package's own vitest `__runtypes/types` dir —
             // the two programs differ (this one adds entry-map.ts), so a shared
             // dir would race-delete the fixture's modules. Cleaned with FIXTURE_DIR.
-            outDir: path.join(FIXTURE_DIR, 'runtypes'),
+            outDir: path.join(FIXTURE_DIR, '__runtypes'),
           }) as never,
         ],
         build: {

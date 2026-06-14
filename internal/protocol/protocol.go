@@ -385,7 +385,7 @@ type Request struct {
 	// and Go memory deltas. Zero measurement cost when unset — the
 	// dispatcher skips every ReadMemStats / stopwatch entirely.
 	IncludeMetrics bool `json:"includeMetrics,omitempty"`
-	// OutDir is the resolved RunTypes output root (e.g. <srcDir>/runtypes) for
+	// OutDir is the resolved RunTypes output root (e.g. <srcDir>/__runtypes) for
 	// OpGenerate. Modules are written under <OutDir>/types/. Required by
 	// OpGenerate; ignored by other ops.
 	OutDir string `json:"outDir,omitempty"`
@@ -513,7 +513,7 @@ type Response struct {
 	// <OutDir>/types by OpGenerate (the current build's filesystem output).
 	Generated []string `json:"generated,omitempty"`
 	// OutDir is the RunTypes output root OpGenerate actually wrote to. When the
-	// request left OutDir empty the resolver infers <srcDir>/runtypes from the
+	// request left OutDir empty the resolver infers <srcDir>/__runtypes from the
 	// tsconfig (rootDir → common-ancestor of the program's files → baseUrl →
 	// cwd) and echoes the resolved absolute path here, so the dependency-free
 	// plugin can adopt it (write .gitignore/.gitkeep, reuse it for transform).

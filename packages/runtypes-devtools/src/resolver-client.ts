@@ -166,7 +166,7 @@ export interface TransformFilesResult {
 
 // GenerateResult is the shape returned by generate(): the live manifest of
 // module basenames written under <outDir>/types, the output root actually
-// written to (the resolver-inferred <srcDir>/runtypes when none was passed),
+// written to (the resolver-inferred <srcDir>/__runtypes when none was passed),
 // plus any diagnostics the full-program render produced (pure-fn extraction
 // errors are halt-worthy).
 export interface GenerateResult {
@@ -254,7 +254,7 @@ abstract class ResolverClientBase implements ResolverConnection {
   // inter-module imports, stale-file GC), returning the live manifest of
   // module basenames plus the output root it wrote to. The files-mode
   // replacement for the virtual-module load path. Pass an empty outDir to let
-  // the resolver infer <srcDir>/runtypes from the tsconfig; the resolved path
+  // the resolver infer <srcDir>/__runtypes from the tsconfig; the resolved path
   // comes back in `outDir`.
   async generate(outDir?: string): Promise<GenerateResult> {
     const req: Request = {op: 'generate'};

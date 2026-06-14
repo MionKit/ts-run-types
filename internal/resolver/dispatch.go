@@ -751,7 +751,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// Filesystem-output sibling of OpDump: the same full-program entry
 		// collection, but the modules are WRITTEN under <OutDir>/types/ (real
 		// files the bundler resolves natively) instead of returned on the wire.
-		// An empty OutDir infers <srcDir>/runtypes from the tsconfig and echoes
+		// An empty OutDir infers <srcDir>/__runtypes from the tsconfig and echoes
 		// the resolved path back so the plugin can adopt it.
 		outDir := resolver.resolveOutDir(request.OutDir)
 		if outDir == "" {
