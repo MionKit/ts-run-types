@@ -5,6 +5,9 @@ import type {SerializationCase} from './types.ts';
 export const ATOMIC = {
   string: {
     title: 'string',
+    description:
+      'Root `string` round-trips identically across JSON and binary; samples cover empty strings and multi-byte UTF-8 (CJK, Arabic, Cyrillic, emoji) to exercise byte-offset handling.',
+    serializeNotes: 'Binary encodes UTF-8 with a length prefix, so byte size is variable (no fixed-size assertion).',
     mutateEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'direct'}),
@@ -20,6 +23,9 @@ export const ATOMIC = {
   },
   number: {
     title: 'number',
+    description:
+      'Root `number` round-trips across JSON and binary; samples span integers, negatives, fractions, the 2**31 boundary, and the JS safe-integer / min / max extremes.',
+    serializeNotes: 'Binary writes every number as float64, so all values encode to a fixed 8 bytes regardless of magnitude.',
     mutateEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'direct'}),
@@ -51,6 +57,11 @@ export const ATOMIC = {
   number_not_supported: {
     title: 'number values not supported by all protocols',
     description: 'Infinity / NaN do not survive JSON encoding (become null on restore).',
+    serializeNotes: [
+      'JSON.stringify maps Infinity / -Infinity / NaN to null, so the strip / clone / mutate paths restore null.',
+      'Binary writes float64, which preserves Infinity / -Infinity / NaN natively, so binary uses a separate test-data override.',
+      'Direct path: stringifyJson uses String(v) at root, emitting the literal "Infinity" which JSON.parse rejects — safeAdapterStringifyJsonNotParseable opts into the loose "throw or non-equal" semantic.',
+    ],
     mutateEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'direct'}),
@@ -82,6 +93,10 @@ export const ATOMIC = {
   },
   regexp: {
     title: 'regexp',
+    description:
+      'Root `RegExp` round-trips across JSON and binary; samples cover various flag combinations (case-insensitive, global, anchored).',
+    serializeNotes:
+      'RegExp serializes to a `/source/flags` string on the JSON wire and is rebuilt with `new RegExp(...)` on decode; binary stores source and flags as separate strings.',
     mutateEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'direct'}),
@@ -97,6 +112,11 @@ export const ATOMIC = {
   },
   bigint: {
     title: 'bigint',
+    description: 'Root `bigint` round-trips across JSON and binary; bigint is not natively JSON-encodable so a transform applies.',
+    serializeNotes: [
+      'JSON encodes bigint to a decimal string and rebuilds it with `BigInt(...)` on decode.',
+      'Plain `bigint` takes the binary string-fallback path (variable length), so no fixed byte size is asserted; only a 64-bit-fitting bigint format brand would encode to a fixed 8 bytes.',
+    ],
     mutateEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'direct'}),
@@ -112,6 +132,7 @@ export const ATOMIC = {
   },
   boolean: {
     title: 'boolean',
+    description: 'Root `boolean` round-trips identically across JSON and binary; no transform is needed.',
     mutateEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'direct'}),
@@ -127,6 +148,10 @@ export const ATOMIC = {
   },
   any: {
     title: 'any',
+    description:
+      'Root `any` is serialized best-effort via raw JSON (no per-kind transform); samples are all JSON-natural values (primitives, null, nested object and array).',
+    serializeNotes:
+      'With no static type, `any` round-trips whatever JSON.stringify produces — the adapter only asserts a non-undefined string, not deep equality.',
     mutateEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'direct'}),
@@ -145,6 +170,8 @@ export const ATOMIC = {
     title: 'not supported in JSON stringify when any type is used',
     description:
       'undefined / Date / BigInt are not natively JSON-encodable when the type is `any` (no per-kind transform applies).',
+    serializeNotes:
+      'Because the static type is `any`, no Date/BigInt transform fires; undefined and bigint do not survive JSON, so the round-trip is best-effort (string-only assertion) rather than deep-equal.',
     mutateEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'direct'}),
@@ -161,6 +188,7 @@ export const ATOMIC = {
   },
   null: {
     title: 'null',
+    description: 'Root `null` literal round-trips identically across JSON and binary.',
     mutateEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'direct'}),
@@ -176,6 +204,9 @@ export const ATOMIC = {
   },
   undefined: {
     title: 'undefined',
+    description: 'Root `undefined` literal round-trips across JSON and binary.',
+    serializeNotes:
+      'JSON has no undefined, so the parsed value may arrive as null or missing; decode force-rebinds it back to undefined. Binary writes a marker byte and reconstructs undefined directly.',
     mutateEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'direct'}),
@@ -191,6 +222,9 @@ export const ATOMIC = {
   },
   date: {
     title: 'date',
+    description: 'Root `Date` round-trips across JSON and binary, returning a real Date instance on decode.',
+    serializeNotes:
+      'JSON serializes Date to an ISO string and revives it with `new Date(...)`; binary stores the epoch as a fixed 8-byte float64 of `getTime()`.',
     mutateEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'direct'}),
@@ -206,6 +240,10 @@ export const ATOMIC = {
   },
   enum_color: {
     title: 'enum',
+    description:
+      'String enum `Color` round-trips across JSON and binary as its underlying string values; samples encode the `red` / `green` members.',
+    serializeNotes:
+      'Wire form is the plain enum value (a string), so no enum-specific transform is applied; encode and decode treat it as the value-union of its members.',
     // Value-first `RT.enum(...)` carries the enum's value-UNION; the type-first
     // `<Color>` is the named `KindEnum`. Same wire output, but structurally
     // distinct ids by design — so the serializer id-integrity check is skipped.
@@ -303,6 +341,12 @@ export const ATOMIC = {
   },
   object: {
     title: 'object',
+    description:
+      'The TS `object` primitive (any non-primitive) is serialized best-effort via raw JSON with no per-kind transform; samples cover a plain object and null.',
+    serializeNotes: [
+      'With no declared shape the round-trip is best-effort — the adapter only asserts JSON.stringify yields a non-undefined string, not deep equality.',
+      'No value-first variant: `RT.object(...)` is the shape composer, a different kind from the TS `object` primitive.',
+    ],
     mutateEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'direct'}),
@@ -321,6 +365,9 @@ export const ATOMIC = {
   },
   void: {
     title: 'void',
+    description: 'Root `void` round-trips across JSON and binary with an undefined sample, decoding back to undefined.',
+    serializeNotes:
+      'JSON has no undefined, so the parsed value may arrive as null or missing and decode force-rebinds it to undefined; binary writes a marker byte and reconstructs undefined.',
     mutateEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'direct'}),
@@ -354,6 +401,7 @@ export const ATOMIC = {
   },
   literal_string: {
     title: 'string literal',
+    description: 'A string-literal type round-trips identically across JSON and binary as a plain string.',
     mutateEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'direct'}),
@@ -369,6 +417,7 @@ export const ATOMIC = {
   },
   literal_number: {
     title: 'number literal',
+    description: 'A number-literal type round-trips identically across JSON and binary as a plain number.',
     mutateEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'direct'}),
@@ -384,6 +433,7 @@ export const ATOMIC = {
   },
   literal_boolean: {
     title: 'boolean literal',
+    description: 'A boolean-literal type round-trips identically across JSON and binary as a plain boolean.',
     mutateEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'direct'}),

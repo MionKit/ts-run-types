@@ -17,6 +17,9 @@ import type {
 export const NUMBER_FORMAT = {
   number_int8: {
     title: 'FormatInt8 — packs into 1 byte',
+    description:
+      'JSON + binary (de)serialization of FormatInt8 (number branded {integer:true; min:-128; max:127}); the [-128,127] bounds select a 1-byte signed binary encoding while JSON writes the plain number.',
+    serializeNotes: 'Format-aware binary width: the int8 bounds pin every value to a single byte (getBinaryByteSizes [1,1,1]); JSON is lossless plain-number text.',
     mutateEncoder: () => createJsonEncoder<FormatInt8>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<FormatInt8>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<FormatInt8>(undefined, {strategy: 'direct'}),
@@ -33,6 +36,9 @@ export const NUMBER_FORMAT = {
   },
   number_int16: {
     title: 'FormatInt16 — packs into 2 bytes',
+    description:
+      'JSON + binary (de)serialization of FormatInt16 (number branded {integer:true; min:-32768; max:32767}); the [-32768,32767] bounds select a 2-byte signed binary encoding while JSON writes the plain number.',
+    serializeNotes: 'Format-aware binary width: the int16 bounds fix each value at 2 bytes (getBinaryByteSizes [2,2,2]); JSON is lossless plain-number text.',
     mutateEncoder: () => createJsonEncoder<FormatInt16>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<FormatInt16>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<FormatInt16>(undefined, {strategy: 'direct'}),
@@ -49,6 +55,9 @@ export const NUMBER_FORMAT = {
   },
   number_int32: {
     title: 'FormatInt32 — packs into 4 bytes',
+    description:
+      'JSON + binary (de)serialization of FormatInt32 (number branded {integer:true; min:-2147483648; max:2147483647}); the 32-bit bounds select a 4-byte signed binary encoding while JSON writes the plain number.',
+    serializeNotes: 'Format-aware binary width: the int32 bounds fix each value at 4 bytes (getBinaryByteSizes [4,4,4]); JSON is lossless plain-number text.',
     mutateEncoder: () => createJsonEncoder<FormatInt32>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<FormatInt32>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<FormatInt32>(undefined, {strategy: 'direct'}),
@@ -65,6 +74,9 @@ export const NUMBER_FORMAT = {
   },
   number_uint8: {
     title: 'FormatUInt8 — packs into 1 byte',
+    description:
+      'JSON + binary (de)serialization of FormatUInt8 (number branded {integer:true; min:0; max:255}); the [0,255] bounds select a 1-byte unsigned binary encoding while JSON writes the plain number.',
+    serializeNotes: 'Format-aware binary width: the unsigned 8-bit bounds fix each value at 1 byte (getBinaryByteSizes [1,1,1]); JSON is lossless plain-number text.',
     mutateEncoder: () => createJsonEncoder<FormatUInt8>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<FormatUInt8>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<FormatUInt8>(undefined, {strategy: 'direct'}),
@@ -81,6 +93,9 @@ export const NUMBER_FORMAT = {
   },
   number_uint16: {
     title: 'FormatUInt16 — packs into 2 bytes',
+    description:
+      'JSON + binary (de)serialization of FormatUInt16 (number branded {integer:true; min:0; max:65535}); the [0,65535] bounds select a 2-byte unsigned binary encoding while JSON writes the plain number.',
+    serializeNotes: 'Format-aware binary width: the unsigned 16-bit bounds fix each value at 2 bytes (getBinaryByteSizes [2,2,2]); JSON is lossless plain-number text.',
     mutateEncoder: () => createJsonEncoder<FormatUInt16>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<FormatUInt16>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<FormatUInt16>(undefined, {strategy: 'direct'}),
@@ -97,6 +112,9 @@ export const NUMBER_FORMAT = {
   },
   number_uint32: {
     title: 'FormatUInt32 — packs into 4 bytes',
+    description:
+      'JSON + binary (de)serialization of FormatUInt32 (number branded {integer:true; min:0; max:4294967295}); the 32-bit unsigned bounds select a 4-byte binary encoding while JSON writes the plain number.',
+    serializeNotes: 'Format-aware binary width: the unsigned 32-bit bounds fix each value at 4 bytes (getBinaryByteSizes [4,4,4]); JSON is lossless plain-number text.',
     mutateEncoder: () => createJsonEncoder<FormatUInt32>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<FormatUInt32>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<FormatUInt32>(undefined, {strategy: 'direct'}),
@@ -113,6 +131,9 @@ export const NUMBER_FORMAT = {
   },
   number_integer_8bytes: {
     title: 'FormatInteger — unbounded integer falls back to float64 (8 bytes)',
+    description:
+      'JSON + binary (de)serialization of FormatInteger (number branded {integer:true}, no min/max); with no bounds to narrow the width, binary falls back to a full float64 (8 bytes) and JSON writes the plain number. Samples include MAX_SAFE_INTEGER / MIN_SAFE_INTEGER.',
+    serializeNotes: 'No bounds → no width optimization: binary uses float64 8 bytes regardless of value (getBinaryByteSizes [8,8,8]); safe-integer extremes still round-trip losslessly in both JSON and binary.',
     mutateEncoder: () => createJsonEncoder<FormatInteger>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<FormatInteger>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<FormatInteger>(undefined, {strategy: 'direct'}),
@@ -129,6 +150,9 @@ export const NUMBER_FORMAT = {
   },
   number_float_8bytes: {
     title: 'FormatFloat — float64 (8 bytes)',
+    description:
+      'JSON + binary (de)serialization of FormatFloat (number branded {float:true}); floats encode as a full float64 (8 bytes) in binary and as the plain number in JSON. Samples include a negative and an exponent literal (1.23e10).',
+    serializeNotes: 'Float values always take 8 bytes in binary (getBinaryByteSizes [8,8,8]) — no integer-width narrowing applies; both formats round-trip losslessly.',
     mutateEncoder: () => createJsonEncoder<FormatFloat>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<FormatFloat>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<FormatFloat>(undefined, {strategy: 'direct'}),
@@ -145,6 +169,9 @@ export const NUMBER_FORMAT = {
   },
   number_ranged: {
     title: 'FormatNumber<{min:0; max:1000; integer:true}> — picks uint16 (2 bytes)',
+    description:
+      'JSON + binary (de)serialization of an ad-hoc ranged FormatNumber {min:0; max:1000; integer:true} (not one of the named int aliases); binary picks the narrowest unsigned width that fits [0,1000] — uint16 (2 bytes) — while JSON writes the plain number.',
+    serializeNotes: 'Format-aware binary width is derived from arbitrary bounds, not just the named int formats: [0,1000] integer fits uint16, so each value packs into 2 bytes (getBinaryByteSizes [2,2,2]).',
     mutateEncoder: () => createJsonEncoder<FormatNumber<{min: 0; max: 1000; integer: true}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<FormatNumber<{min: 0; max: 1000; integer: true}>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<FormatNumber<{min: 0; max: 1000; integer: true}>>(undefined, {strategy: 'direct'}),

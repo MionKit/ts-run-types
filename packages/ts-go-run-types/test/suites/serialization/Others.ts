@@ -4,6 +4,12 @@ import type {SerializationCase} from './types.ts';
 export const OTHERS = {
   promise_jsonStringify_error: {
     title: 'Promise top-level throws',
+    description:
+      'A root `Promise<string>` is non-serializable, so the Go pipeline renders the factory as alwaysThrow and every encoder / decoder invocation throws.',
+    serializeNotes: [
+      'No value-first builder exists for Promise, so all schema variants are not-supported.',
+      'Binary shares the same alwaysThrow contract; test data is empty since the factory throws before any round-trip.',
+    ],
     mutateEncoder: () => createJsonEncoder<Promise<string>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Promise<string>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Promise<string>>(undefined, {strategy: 'direct'}),
@@ -21,6 +27,9 @@ export const OTHERS = {
   },
   non_serializable: {
     title: 'non-serializable type throws (Int8Array)',
+    description:
+      'A root `Int8Array` is non-serializable, so the factory renders as alwaysThrow and every encoder / decoder invocation throws for both JSON and binary.',
+    serializeNotes: 'No value-first builder exists for Int8Array, so all schema variants are not-supported and test data is empty.',
     mutateEncoder: () => createJsonEncoder<Int8Array>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Int8Array>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Int8Array>(undefined, {strategy: 'direct'}),
