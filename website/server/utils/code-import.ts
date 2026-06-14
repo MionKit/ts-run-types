@@ -187,7 +187,7 @@ const filesBeingProcessed = new Set<string>()
  * Vite plugin that watches example files and invalidates the Vite cache
  * for markdown files that reference them, triggering Nuxt Content re-processing.
  */
-export function exampleWatcherPlugin(): Plugin {
+export function exampleWatcherPlugin(usePolling = process.env.CHOKIDAR_USEPOLLING === 'true'): Plugin {
   return {
     name: 'code-examples-watcher',
     configureServer(server: ViteDevServer) {
@@ -202,8 +202,9 @@ export function exampleWatcherPlugin(): Plugin {
       watcherInstance = watch(watchPath, {
         ignoreInitial: true,
         persistent: true,
-        // Use polling with longer interval to reduce CPU usage and avoid atime triggers
-        usePolling: false,
+        // Poll on bind-mounted hosts (no native fs events); interval keeps CPU low
+        usePolling,
+        interval: 300,
         // Ignore permission and access time changes
         awaitWriteFinish: {
           stabilityThreshold: 100,
