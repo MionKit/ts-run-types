@@ -5,7 +5,7 @@ interface SuiteCase {
   key: string;
   title: string;
   description: string;
-  notes: boolean;
+  notes: string[];
 }
 
 interface SuiteSection {
@@ -101,6 +101,13 @@ async function activate(section: string, key: string) {
 
         <div class="suite-scroll">
           <table class="suite-grid">
+            <thead>
+              <tr class="suite-head">
+                <th class="suite-th suite-th--name">case</th>
+                <th class="suite-th suite-th--desc">description</th>
+                <th class="suite-th suite-th--notes">notes</th>
+              </tr>
+            </thead>
             <tbody>
               <template v-for="kase in section.cases" :key="kase.key">
                 <tr
@@ -114,10 +121,20 @@ async function activate(section: string, key: string) {
                   @keydown.enter.prevent="activate(section.key, kase.key)"
                   @keydown.space.prevent="activate(section.key, kase.key)"
                 >
-                  <td class="suite-cell">
+                  <td class="suite-cell suite-cell--name">
                     <span class="suite-title">{{ kase.title }}</span>
-                    <span v-if="kase.notes" class="suite-warn" title="Has notes">⚠</span>
-                    <span v-if="kase.description" class="suite-desc">{{ kase.description }}</span>
+                  </td>
+                  <td class="suite-cell suite-cell--desc">
+                    <span v-if="kase.description">{{ kase.description }}</span>
+                    <span v-else class="suite-dash">—</span>
+                  </td>
+                  <td class="suite-cell suite-cell--notes">
+                    <template v-if="kase.notes.length">
+                      <span v-for="(note, i) in kase.notes" :key="i" class="suite-note-line">
+                        <span class="suite-bullet">•</span> {{ note }}
+                      </span>
+                    </template>
+                    <span v-else class="suite-dash">—</span>
                   </td>
                 </tr>
 
@@ -126,7 +143,7 @@ async function activate(section: string, key: string) {
                   :key="`${kase.key}-panel`"
                   class="suite-panel-row"
                 >
-                  <td class="suite-panel-cell">
+                  <td class="suite-panel-cell" colspan="3">
                     <div class="suite-panel">
                       <template v-if="details[rowId(section.key, kase.key)]?.state === 'loading'">
                         <div class="suite-note suite-note--muted">
@@ -141,19 +158,6 @@ async function activate(section: string, key: string) {
                       </template>
 
                       <template v-else-if="details[rowId(section.key, kase.key)]?.data as CaseDetail | undefined">
-                        <div
-                          v-if="(details[rowId(section.key, kase.key)]!.data as CaseDetail).notes.length"
-                          class="suite-notes"
-                        >
-                          <span
-                            v-for="(note, i) in (details[rowId(section.key, kase.key)]!.data as CaseDetail).notes"
-                            :key="i"
-                            class="suite-note-line"
-                          >
-                            <span class="suite-bullet">•</span> {{ note }}
-                          </span>
-                        </div>
-
                         <div class="suite-block">
                           <span class="suite-label">Pure type</span>
                           <pre
@@ -259,44 +263,94 @@ async function activate(section: string, key: string) {
   border-collapse: collapse;
 }
 
+.suite-head {
+  background: rgba(138, 168, 94, 0.05);
+}
+
+.suite-th {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ui-text-muted, #9aa0a6);
+  border-bottom: 1px solid rgba(138, 168, 94, 0.2);
+  white-space: nowrap;
+}
+
+.suite-th--name {
+  width: 1%;
+}
+
+.suite-th--notes {
+  width: 38%;
+}
+
 .suite-row {
   cursor: pointer;
   outline: none;
   transition: background 0.12s ease;
-  border-left: 3px solid transparent;
 }
 
 .suite-row:hover,
 .suite-row:focus-visible,
 .suite-row--open {
   background: rgba(138, 168, 94, 0.1);
-  border-left-color: var(--ui-primary, #79af43);
 }
 
 .suite-cell {
-  padding: 0.55rem 0.9rem;
+  padding: 0.5rem 0.9rem;
   border-bottom: 1px solid rgba(138, 168, 94, 0.12);
-  vertical-align: baseline;
+  border-left: 3px solid transparent;
+  vertical-align: top;
+}
+
+.suite-row:hover .suite-cell--name,
+.suite-row:focus-visible .suite-cell--name,
+.suite-row--open .suite-cell--name {
+  border-left-color: var(--ui-primary, #79af43);
+}
+
+.suite-cell--name {
   white-space: nowrap;
 }
 
 .suite-title {
   color: var(--ui-text-highlighted, #e8eaed);
-  font-size: 0.82rem;
-}
-
-.suite-warn {
-  margin-left: 0.4rem;
-  color: #e0a83d;
   font-size: 0.8rem;
 }
 
-.suite-desc {
-  display: block;
-  margin-top: 0.15rem;
-  font-size: 0.72rem;
+.suite-cell--desc {
+  font-size: 0.74rem;
+  line-height: 1.4;
   color: var(--ui-text-muted, #9aa0a6);
   white-space: normal;
+  min-width: 16rem;
+}
+
+.suite-cell--notes {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  white-space: normal;
+  min-width: 14rem;
+}
+
+.suite-note-line {
+  display: block;
+  color: #c8b072;
+}
+
+.suite-note-line + .suite-note-line {
+  margin-top: 0.2rem;
+}
+
+.suite-bullet {
+  color: var(--ui-primary, #79af43);
+}
+
+.suite-dash {
+  color: rgba(154, 160, 166, 0.5);
 }
 
 .suite-panel-row > .suite-panel-cell {
@@ -308,21 +362,6 @@ async function activate(section: string, key: string) {
   padding: 0.6rem 0.9rem 0.9rem 1.1rem;
   border-left: 3px solid var(--ui-primary, #79af43);
   background: rgba(0, 0, 0, 0.25);
-}
-
-.suite-notes {
-  margin-bottom: 0.6rem;
-}
-
-.suite-note-line {
-  display: block;
-  font-size: 0.74rem;
-  line-height: 1.35;
-  color: var(--ui-text-muted, #9aa0a6);
-}
-
-.suite-bullet {
-  color: var(--ui-primary, #79af43);
 }
 
 .suite-block + .suite-block {
