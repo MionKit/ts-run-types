@@ -231,12 +231,16 @@ function genDecl(ctx: Ctx): void {
   const name = freshName(ctx, 'N');
   ctx.refs.push({name, kind: 'interface'});
   const props = genMembers(ctx, 1, name, ctx.opts.nonDataTypes);
-  // Callable-interface generation is DISABLED: a call signature makes the
-  // interface function-like, and the product is inconsistent there — `validate`
-  // treats a callable interface as a function (accepts `() => {}`, rejects `{}`)
-  // while the serializers treat it as an object (serialize `{}`), so no single
-  // mock value can satisfy both. The `calls` plumbing (TypeShape / render /
-  // ref-walk) stays so it can be re-enabled once that contract is settled.
+  // Callable-interface GENERATION stays disabled. The F2 product inconsistency is
+  // fixed (validate and the serializers now agree: a callable interface is
+  // function-like everywhere — typeof-function at the root, dropped at a
+  // property; pinned by callable_interface_dataonly_test.go). Re-enabling
+  // generation, however, surfaces a SEPARATE emit-pipeline bug: a complex
+  // callable interface (a call signature whose params/returns pull in `any` /
+  // methods / non-serializable intersections) wires its now-alwaysThrow factory
+  // with an UNCONTROLLED error (`reading 'fn'`) and leaves a binary site
+  // unresolved. That dependency-linking bug is tracked as a follow-up; the
+  // `calls` plumbing stays so it can be re-enabled once it lands.
   ctx.decls.push({kind: 'interface', name, props, calls: undefined});
 }
 
