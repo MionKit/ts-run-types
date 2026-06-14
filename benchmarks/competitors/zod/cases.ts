@@ -107,7 +107,10 @@ export const cases: CompetitorCases = {
   'OBJECT.interface_with_method': c(z.object({name: z.string()})),
   'OBJECT.nested_object': c(z.object({a: z.string(), deep: z.object({b: z.string(), c: z.number().finite()})})),
   'OBJECT.interface_string_array_prop': c(z.object({tags: z.array(z.string())})),
-  'OBJECT.circular_interface': c(z.lazy(() => z.object({name: z.string(), child: z.lazy(() => z.object({name: z.string(), child: z.any().optional()})).optional()}))),
+  'OBJECT.circular_interface': c(z.lazy(() => {
+    const schema: z.ZodType = z.object({name: z.string(), child: z.lazy(() => schema).optional()});
+    return schema;
+  })),
   'OBJECT.circular_interface_on_array': c(z.lazy(() => {
     const schema: z.ZodType = z.object({name: z.string(), children: z.array(z.lazy(() => schema)).optional()});
     return schema;
