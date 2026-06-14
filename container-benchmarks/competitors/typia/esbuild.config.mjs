@@ -88,8 +88,11 @@ export function stripReturnPredicates(code) {
 
 // Wrap @ttsc/unplugin's esbuild adapter: run the typia transform, then strip the
 // type-predicate annotations from whatever it returns so esbuild can parse it.
-export const typiaTsgo = () => {
-  const inner = ttscEsbuild();
+export const typiaTsgo = (tsconfig) => {
+  // @ttsc/unplugin's option is `project` (the tsconfig whose program it compiles);
+  // pointing it at a probe-including config puts the probe in the program so the
+  // transform emits output for it (otherwise: "ttsc transform did not return output").
+  const inner = ttscEsbuild(tsconfig ? {project: tsconfig} : undefined);
   return {
     name: 'typia-tsgo',
     setup(esbuildApi) {
@@ -109,7 +112,10 @@ export const typiaTsgo = () => {
 
 // Build ONE probe entry through the same typia transform, in-memory (write: false)
 // for timing — the compile-time benchmark (compiletime/compiletime.mjs) imports this.
-export async function buildProbe(entry) {
+// `tsconfig` overrides the tsconfig ttsc resolves the program from (the default,
+// nearest tsconfig.json, only `include`s cases.ts/main.ts, so a probe file isn't in
+// the program and the transform returns nothing).
+export async function buildProbe(entry, tsconfig) {
   await build({
     entryPoints: [entry],
     bundle: true,
@@ -119,7 +125,8 @@ export async function buildProbe(entry) {
     target: 'node22',
     minify: false,
     logLevel: 'silent',
-    plugins: [typiaTsgo()],
+    ...(tsconfig ? {tsconfig} : {}),
+    plugins: [typiaTsgo(tsconfig)],
   });
 }
 
