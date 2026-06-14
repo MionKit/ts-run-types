@@ -42,7 +42,9 @@ if (typeof globalThis.Temporal === 'undefined') {
   globalThis.Temporal = Temporal;
 }
 
-import runtypesPlugin from '../packages/runtypes-devtools/dist/index.js';
+// The vite plugin's default export lives in the /vite entry (dist/index.js's
+// default is the constants object); matches the package's "./vite" export.
+import runtypesPlugin from '../packages/runtypes-devtools/dist/vite.js';
 import {ResolverClient} from '../packages/runtypes-devtools/dist/resolver-client.js';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
@@ -83,10 +85,14 @@ const APIS = [
 ];
 
 // Workload knobs. Tune at the top — no CLI flags for now.
-const OPS_CYCLES = 10;
-const OPS_ITERS = 1_000;
-const OPS_WARMUP = 50;
-const COMPILE_CYCLES = 3;
+// BENCH_QUICK=1 (preview / two-staged website builds) shrinks the per-case
+// benchmarking so the suite-data regenerates fast; numbers get noisy but every
+// case's source + generated code (what the docs fetch) is still emitted.
+const QUICK = process.env.BENCH_QUICK === '1';
+const OPS_CYCLES = QUICK ? 2 : 10;
+const OPS_ITERS = QUICK ? 150 : 1_000;
+const OPS_WARMUP = QUICK ? 10 : 50;
+const COMPILE_CYCLES = QUICK ? 1 : 3;
 
 // Ambient overlay so the synthetic compile-pass files can import the marker
 // package without resolving a real package.json. Mirrors the validation

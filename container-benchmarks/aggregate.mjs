@@ -37,7 +37,7 @@ function load() {
     return [];
   }
   return files
-    .filter((f) => f.endsWith('.json') && !f.endsWith('.typecost.json') && !f.endsWith('.compiletime.json'))
+    .filter((f) => f.endsWith('.json') && f !== 'env.json' && !f.endsWith('.typecost.json') && !f.endsWith('.compiletime.json'))
     .map((f) => JSON.parse(readFileSync(path.join(RESULTS_DIR, f), 'utf8')));
 }
 

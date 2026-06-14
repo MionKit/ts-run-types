@@ -2,23 +2,26 @@
 # -----------------------------------------------------------------------------
 # website-publish.sh - the WHOLE docs-site publish pipeline in one command.
 #
-# Chains the four stages the Cloudflare Pages artifact needs, in dependency
+# Chains the five stages the Cloudflare Pages artifact needs, in dependency
 # order (each delegates to the script that already owns it - this is a thin,
 # faithful composition, not a reimplementation):
 #
 #   1. shared website+benchmark podman image   (podman-website.sh ensure)
 #   2. Go resolver binary + marker/plugin dist  (benchmarks.sh prep)
-#   3. all benchmark data -> bench-data/        (benchmarks.sh website-bench)
-#   4. static Nuxt build -> .output/public      (website.sh generate)
+#   3. suite-data -> public/suite-data/         (pnpm run gen:suite-docs, host)
+#   4. all benchmark data -> bench-data/        (benchmarks.sh website-bench)
+#   5. static Nuxt build -> .output/public      (website.sh generate)
 #
-# WHY this order: the Nuxt pages render container-website/public/bench-data/,
-# which stage 3 regenerates - so the benchmarks MUST run before the site build,
-# and the benchmarks mount the Go binary from stage 2, which needs the image
-# from stage 1. Stage 3 ends with gen-bench-docs (results -> bench-data/).
+# WHY this order: the Nuxt pages FETCH public/suite-data/ (test/validation pages)
+# and public/bench-data/ (benchmark pages) at runtime - both dirs are git-ignored,
+# so stages 3 + 4 MUST regenerate them before the site build (stage 5) bakes them
+# into the static output. The data gens need the Go binary + dists from stage 2,
+# which need the image from stage 1. Stage 4 ends with gen-bench-docs.
 #
-# Stage 3 is HEAVY (runtime benchmarks for every competitor + serialization +
-# compile-time tiers); a full run is minutes, by design - this is a publish, not
-# a dev loop.
+# Stage 4 is HEAVY (runtime benchmarks for every competitor + serialization +
+# compile-time tiers) and stage 3 benchmarks every suite case; a full run is many
+# minutes. Pass --quick (BENCH_QUICK=1) for the fast/preview path - this is a
+# publish, not a dev loop.
 #
 # IMAGE SOURCE follows the same knobs as the sibling scripts. By default the
 # shared image is pulled-or-built (ensure) so CI and local never drift. Set
@@ -63,16 +66,21 @@ fi
 
 step() { printf '\n========== website:publish  %s ==========\n' "$1"; }
 
-step "1/4  shared website+benchmark podman image"
+step "1/5  shared website+benchmark podman image"
 bash "$SCRIPT_DIR/podman-website.sh" ensure
 
-step "2/4  Go resolver binary (+ marker/plugin dist)"
+step "2/5  Go resolver binary (+ marker/plugin dist)"
 bash "$SCRIPT_DIR/benchmarks.sh" prep
 
-step "3/4  benchmarks -> container-website/public/bench-data/"
+# Host step: regenerates public/suite-data/ (the validation/serialization test-page
+# examples). Honors BENCH_QUICK via the export scripts. Needs the stage-2 binary+dists.
+step "3/5  suite-data -> container-website/public/suite-data/"
+( cd "$SCRIPT_DIR/.." && pnpm run gen:suite-docs )
+
+step "4/5  benchmarks -> container-website/public/bench-data/"
 bash "$SCRIPT_DIR/benchmarks.sh" website-bench
 
-step "4/4  Nuxt $TARGET -> container-website/.output"
+step "5/5  Nuxt $TARGET -> container-website/.output"
 bash "$SCRIPT_DIR/website.sh" "$TARGET"
 
 echo
