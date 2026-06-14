@@ -99,10 +99,18 @@ export function reflectRunTypeId<T>(_value: T, id?: InjectRunTypeId<T>): InjectR
  * that the matching argument is *fully literal* — at the call site or via a
  * module-scope `const` whose initializer is itself entirely literal. No
  * spread, no calls, no property access, no template substitution, no ternary.
- * The brand is a phantom intersection, so the value flows through unwrapped.
  * Violations produce `CTA0xx` diagnostics.
+ *
+ * It is the IDENTITY `T` (the value flows through unwrapped, and the marker
+ * adds zero type-check cost). It deliberately carries NO phantom brand
+ * property: intersecting one onto a TUPLE parameter — the old
+ * `T & {__mionCompTimeArgsBrand?: never}` used by `tuple`/`union`/`func` —
+ * cost ~700 TS instantiations per call (the array-literal-vs-tuple-intersection
+ * check; see docs/value-first-typecheck-cost.md). The Go scanner therefore
+ * detects this marker SYNTACTICALLY, off the parameter's `CompTimeArgs<…>` type
+ * annotation, instead of off a brand property on the resolved type.
  */
-export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+export type CompTimeArgs<T> = T;
 
 /**
  * Compile-time fn-args marker. Like `CompTimeArgs<T>` it brands a parameter so

@@ -206,6 +206,15 @@ func specForKind(specs []Spec, kind Kind) (Spec, bool) {
 	return Spec{}, false
 }
 
+// SpecForKind returns the spec for kind from opts (filled with DefaultSpecs when
+// empty). Exposed so the resolver can read a marker's Name/Module for type-node
+// based detection — used for CompTimeArgs, whose zero-cost identity TS definition
+// (`type CompTimeArgs<T> = T`) drops the alias from the resolved type, so it is
+// detected off the parameter's syntactic `CompTimeArgs<…>` annotation instead.
+func SpecForKind(opts Options, kind Kind) (Spec, bool) {
+	return specForKind(WithDefaults(opts).Specs, kind)
+}
+
 // aliasForSpec returns tsType's alias when its symbol name and declaring
 // module match spec — the shared first layer of every alias-based marker
 // match (DetectAny's Kind matching, the InjectTypeFnArgs fn-key read).

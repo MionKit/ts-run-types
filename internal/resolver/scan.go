@@ -294,6 +294,12 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		}
 		paramType := checker.Checker_getTypeOfSymbol(state.scanChecker, paramSymbol)
 		kind, typeArg, matched := state.detectMarker(paramType)
+		if !matched && state.detectCompTimeArgsByNode(paramSymbol) {
+			// CompTimeArgs is the zero-cost identity marker (markers.ts): its
+			// resolved type carries no alias/brand for DetectAny, so it's
+			// recognised off the parameter's `CompTimeArgs<…>` annotation node.
+			kind, matched = marker.KindCompTimeArgs, true
+		}
 		if !matched {
 			continue
 		}
