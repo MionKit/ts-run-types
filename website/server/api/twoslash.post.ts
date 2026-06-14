@@ -171,18 +171,10 @@ function loadMionPackageTypes(): Map<string, string> {
   // @mionjs/<name> npm package name (used to build the virtual node_modules path).
   // They differ for `drizze` (dir) → `drizzle` (npm).
   const packageConfigs = [
-    { dir: 'core', name: 'core', distPath: '.dist/esm' },
-    { dir: 'router', name: 'router', distPath: '.dist/esm' },
-    { dir: 'client', name: 'client', distPath: '.dist/esm' },
-    { dir: 'run-types', name: 'run-types', distPath: '.dist/esm' },
-    { dir: 'type-formats', name: 'type-formats', distPath: '.dist/esm' },
-    { dir: 'drizze', name: 'drizzle', distPath: '.dist/esm' },
-    { dir: 'platform-aws', name: 'platform-aws', distPath: '.dist/esm' },
-    { dir: 'platform-bun', name: 'platform-bun', distPath: '.dist/esm' },
-    { dir: 'platform-cloudflare', name: 'platform-cloudflare', distPath: '.dist/esm' },
-    { dir: 'platform-gcloud', name: 'platform-gcloud', distPath: '.dist/esm' },
-    { dir: 'platform-node', name: 'platform-node', distPath: '.dist/esm' },
-    { dir: 'platform-vercel', name: 'platform-vercel', distPath: '.dist/esm' },
+    // The marker package — built .d.ts under dist/. Subpath exports (/schema,
+    // /formats) resolve via the per-directory index.d.ts under classic node
+    // resolution, which is all examples import.
+    { dir: 'ts-go-run-types', name: 'ts-go-run-types', distPath: 'dist' },
   ]
 
   for (const pkg of packageConfigs) {
@@ -219,7 +211,7 @@ function loadMionPackageTypes(): Map<string, string> {
   // External deps referenced from examples — load their .d.ts files into the VFS too.
   // Sourced from the monorepo root's node_modules (where the @mionjs/examples package
   // installed them). Without these, twoslash fails on imports like `drizzle-orm/pg-core`.
-  const externalDeps = ['drizzle-orm']
+  const externalDeps: string[] = []
   for (const dep of externalDeps) {
     const depDir = join(repoRoot, 'node_modules', dep)
     const depDts = findFiles(depDir, /\.d\.ts$/)

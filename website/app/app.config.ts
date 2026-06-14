@@ -1,22 +1,24 @@
 export default defineAppConfig({
   seo: {
-    title: 'mion - Full Stack APIs at the speed of light',
-    description: 'mion is the definitive TypeScript framework for Full Stack APIs, built for exceptional developer experience.',
-    image: 'https://mion.io/banners/mion-v2-website-banner.png',
+    title: 'ts-run-types — TypeScript types that show up at runtime',
+    description:
+      'Validation, JSON + binary serialization, mock data and reflection — generated straight from your TypeScript types. No schemas, no drift.',
+    image: '',
   },
   docus: {
-    title: 'Full Stack APIs at the speed of light 🚀',
-    description: 'Speed up API development and say hello to a smoother development experience.',
-    image: 'https://mion.io/banners/mion-v2-website-banner.png',
+    title: 'ts-run-types',
+    description:
+      'TypeScript decided it is "just a linter". We respectfully bolted the runtime back on.',
+    image: '',
     socials: {
-      github: 'MionKit/mion',
+      github: 'mionkit/ts-run-types',
       twitter: '@Ma_jrz',
     },
     github: {
-      dir: 'docs/site',
+      dir: 'website/content',
       branch: 'main',
-      repo: 'mion',
-      owner: 'MionKit',
+      repo: 'ts-run-types',
+      owner: 'mionkit',
       edit: false
     },
     aside: {
@@ -38,15 +40,15 @@ export default defineAppConfig({
     footer: {
       textLinks: [
         {
-          text: 'Developed by Ma Jerez & Contributors',
+          text: 'Built by Ma Jerez & Contributors',
           href: 'https://github.com/M-jerez',
           target: '_blank'
         },
       ],
       credits: {
         icon: 'icon-park-outline:copyright',
-        text: `MIT license - Copyright ${new Date().getFullYear()} Mion`,
-        href: 'https://github.com/MionKit/mion/blob/master/LICENSE',
+        text: `MIT license - Copyright ${new Date().getFullYear()} mion`,
+        href: 'https://github.com/mionkit/ts-run-types/blob/main/LICENSE',
       },
     }
   },

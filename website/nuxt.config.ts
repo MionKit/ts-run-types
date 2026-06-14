@@ -5,7 +5,7 @@ const isDev = process.env.NODE_ENV !== 'production'
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   site: {
-    name: 'mion',
+    name: 'ts-run-types',
   },
   css: [
     '~/assets/css/mion.css',
