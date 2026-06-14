@@ -491,6 +491,19 @@ h2[data-slot="title"] {
   }
 }
 
+/* General helper: a row authored as "code block + intro" keeps the code on the
+   left on desktop, but once it stacks on a narrow screen the intro should read
+   first. Add `rt-stack-reverse` to any such row (e.g. rt-feature-row,
+   rt-standard-split) to flip the stacked order to intro -> code on mobile.
+   On mobile the row is a single column anyway, so swapping grid for a reversed
+   flex column only changes the order, not the layout. */
+@media (max-width: 760px) {
+  .rt-stack-reverse {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+}
+
 /* Home "Tree-shaken to the bone" — one row, three columns: the pitch (card),
    the call-site before/after (2-tab code-group), and the generated module.
    Equal height; code panels flex-fill like the other home grids. */
@@ -725,5 +738,64 @@ body.rt-wide-page [class~="lg:grid-cols-10"]:has(> div[class~="lg:col-span-2"]) 
   --rt-panel: #ffffff;
   --rt-code-bg: rgba(15, 20, 10, 0.05);
   --rt-note: #8a6a1e;
+}
+
+/* Home hero "built on typescript-go" badge ──────────────────────────────────
+   A small pill above the animated hero title: a TypeScript-style square mark
+   plus the "built on typescript-go / 100% compatible" message, linking to the
+   Built on typescript-go page. Theme-aware via color-mix on the text token so
+   it reads on both the dark and light hero gradients. */
+.tsgo-kicker {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.tsgo-badge {
+  display: inline-block;
+  padding: 0.4rem 0.9rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--ui-text-muted, var(--color-gray-400));
+  border: 1px solid color-mix(in srgb, var(--ui-text-highlighted, #fff) 14%, transparent);
+  background: color-mix(in srgb, var(--ui-text-highlighted, #fff) 6%, transparent);
+  backdrop-filter: blur(6px);
+  transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.tsgo-badge:hover {
+  color: var(--ui-text-highlighted, #fff);
+  border-color: color-mix(in srgb, #3178c6 55%, transparent);
+  transform: translateY(-1px);
+}
+
+/* mini TypeScript logo square, rendered as the link's leading marker
+   ("TS" tucked into the lower-right corner like the real logo) */
+.tsgo-badge::before {
+  content: "TS";
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-right: 0.5rem;
+  padding: 0.12rem;
+  border-radius: 0.28rem;
+  background: #3178c6;
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  vertical-align: -0.28em;
+}
+
+.tsgo-badge strong {
+  color: var(--color-green-400);
+  font-weight: 700;
 }
 
