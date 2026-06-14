@@ -97,6 +97,7 @@
     "bench:capture-env": "bash scripts/benchmarks.sh capture-env",
     "bench:shell": "bash scripts/benchmarks.sh shell",
     "bench:clean": "bash scripts/benchmarks.sh clean",
+    "audit:alignment": "bash scripts/benchmarks.sh audit",
     "clean": "nx reset && lerna run clean",
     "fresh-start": "lerna run fresh-start && rimraf node_modules && pnpm install --frozen-lockfile",
     "prepare": "husky",
