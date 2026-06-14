@@ -143,6 +143,15 @@ type Resolver struct {
 	// treats nil as "no cache wired", so test paths that build a
 	// resolver without a CacheDir keep the original semantics.
 	rtStore *disk.Store
+	// overridesBuilt guards the one-time, whole-program `overrideX<T>(pureFn)`
+	// collection pass (ensureOverrides) for the current Program. The pass must
+	// run before any AssignID so every id folds the override suffix; reset on
+	// SetProgram / Reset so a Program swap rebuilds the map.
+	overridesBuilt bool
+	// overrideEntries holds the cfn pure-fn entries the override pass extracted
+	// (one `cfn::<hash>` per distinct override body), merged into the pure-fn
+	// module emission so the type-fn redirects resolve their `cfn::` dep.
+	overrideEntries []purefns.Entry
 }
 
 // markerVerdict is one memoized marker.DetectAny result. typeArg is the
@@ -266,6 +275,8 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 	resolver.scannedFiles = map[string]struct{}{}
 	resolver.pureFnFileCache = purefns.NewFileCache()
 	resolver.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
+	resolver.overridesBuilt = false
+	resolver.overrideEntries = nil
 	return nil
 }
 
@@ -294,6 +305,8 @@ func (resolver *Resolver) Reset() {
 	resolver.scannedFiles = map[string]struct{}{}
 	resolver.pureFnFileCache = purefns.NewFileCache()
 	resolver.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
+	resolver.overridesBuilt = false
+	resolver.overrideEntries = nil
 }
 
 func (resolver *Resolver) Close() {
