@@ -537,6 +537,10 @@ export const OBJECT = {
   interface_string_array_prop: {
     title: 'Interface with a string-array property',
     description: 'an array-typed property — exercises the dependency-call layer through an object',
+    validateNotes: [
+      'A missing required array property is reported as `expected: \'array\'` at the property path, not as an object error at the root.',
+      'Element failures carry the array index in the path (e.g. `[\'tags\', 1]`); `null` / `undefined` elements fail the element check.',
+    ],
     validate: () => createValidate<{tags: string[]}>(),
     validateDataOnly: () => createValidate<DataOnly<{tags: string[]}>>(),
     validateSchema: () => createValidate(RT.object({tags: RT.array(RT.string())})),
@@ -675,6 +679,8 @@ export const OBJECT = {
   circular_interface_on_array: {
     title: 'Self-referential interface via an array-of-self property',
     description: "mion interface.spec.ts 'validate circular interface on array' — circular type traversed via an array property.",
+    validateNotes:
+      'The recursive `children` array is optional, so a leaf node `{name: "r"}` is valid; each array element is validated recursively, with the array index in the path (e.g. `["children", 0, "name"]`).',
     validate: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
       return createValidate<ICircularArray>();
@@ -751,6 +757,8 @@ export const OBJECT = {
     title: 'Self-referential interface buried in a nested object',
     description:
       "mion interface.spec.ts 'validate circular interface on nested object' — circular reference deep inside a property.",
+    validateNotes:
+      'The `embedded` wrapper object is required (a missing `embedded` fails as `expected: "objectLiteral"`), but the recursive `embedded.child` is optional, so the cycle terminates wherever the value stops nesting.',
     validate: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
       return createValidate<ICircularDeep>();
@@ -892,6 +900,8 @@ export const OBJECT = {
     title: 'Index signature combined with named properties',
     description:
       "mion indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
+    validateNotes:
+      "Named-prop checks and the index-signature for-in loop both run; an extra key whose value misses the index value type is reported as `expected: 'union'` at that key's path.",
     validate: () => createValidate<{a: string; b: number; [key: string]: string | number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
     validateSchema: () =>
@@ -959,6 +969,10 @@ export const OBJECT = {
   index_signature_nested: {
     title: 'Nested index signatures (number leaf values)',
     description: 'mion indexProperty.spec.ts nested rtNested — index sig pointing at another index sig.',
+    validateNotes: [
+      "Each outer value must itself be an object — a non-object value (e.g. `{a: 1}`) fails as `expected: 'objectLiteral'` at that key.",
+      'Leaf values run the atomic `number` check, so `NaN` at a leaf is rejected despite passing `typeof === "number"`.',
+    ],
     validate: () => createValidate<{[key: string]: {[key: string]: number}}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: {[key: string]: number}}>>(),
     validateSchema: () => createValidate(RT.record(RT.record(RT.number()))),
@@ -1005,6 +1019,8 @@ export const OBJECT = {
   index_signature_date_value: {
     title: 'Nested index signatures with Date leaf values',
     description: 'mion indexProperty.spec.ts rtNested2 — Date as the leaf value type.',
+    validateNotes:
+      'Each leaf value runs the atomic `Date` check — an Invalid Date (`new Date(\'invalid\')`) at a leaf is rejected as `expected: \'date\'` despite being a `Date` instance.',
     validate: () => createValidate<{[key: string]: {[key: string]: Date}}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
     validateSchema: () => createValidate(RT.record(RT.record(RT.date()))),
@@ -1051,6 +1067,8 @@ export const OBJECT = {
     title: 'Index signature on a nested (non-root) object property',
     description:
       "mion indexProperty.spec.ts 'IndexType non root' — index signature attached to a nested (non-root) object property.",
+    validateNotes:
+      "The nested property `c` combines a named prop (`a: string`) with a string index signature, so every extra key on `c` must also satisfy the index value type — a non-string extra value fails as `expected: 'string'` at e.g. `['c', 'c']`.",
     validate: () => {
       interface Obj1 {
         a: string;
@@ -1981,6 +1999,10 @@ export const OBJECT = {
     title: 'Function parameters extracted via Parameters<F>',
     description:
       "mion callSignature.spec.ts 'should validate correct parameters' — mion exposes this via `rt.getCallSignature().createRTParamsFunction(RTFunctions.validate)`; our pipeline uses TypeScript's built-in `Parameters<F>` to extract the param tuple as a first-class type and reuses the standard tuple emit. Same observable behavior: the validator accepts `[number, boolean]`, rejects wrong-type args, accepts missing trailing args (treats them as undefined per mion's `v.length <= N` policy), rejects excess args.",
+    validateNotes: [
+      'The value validated is the ARGUMENTS array — a positional tuple, not the function. Each slot runs its parameter type check.',
+      'Excess args are rejected as `expected: \'tuple\'` at the root; a missing required arg fails its slot type (e.g. `[1]` → `expected: \'boolean\'` at index 1), since the omitted value reads as `undefined`.',
+    ],
     validate: () => {
       type CallSig = (a: number, b: boolean) => string;
       return createValidate<Parameters<CallSig>>();
@@ -2077,6 +2099,8 @@ export const OBJECT = {
     title: 'Parameters<F> tuple with a trailing optional argument',
     description:
       "mion function.spec.ts 'validate function parameters' — params tuple with a trailing optional. `Parameters<F>` resolves to `[number, boolean, string?]`; the optional slot accepts undefined OR a string.",
+    validateNotes:
+      'The trailing optional slot may be omitted (`[3, false]` passes), but if present it must satisfy its type; excess args beyond the optional are still rejected as `expected: \'tuple\'`.',
     validate: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return createValidate<Parameters<CallSig>>();
@@ -2170,6 +2194,8 @@ export const OBJECT = {
     dataOnlyDivergent: true,
     description:
       "mion function.spec.ts 'validate function with rest parameters' — params tuple ending in a rest segment. `Parameters<F>` resolves to `[number, boolean, ...Date[]]`; all trailing slots must satisfy Date.",
+    validateNotes:
+      'Every trailing rest slot runs the rest element check (here `Date`); each failing rest entry is reported at its own index, and an Invalid Date in a rest slot is rejected as `expected: \'date\'`.',
     validate: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return createValidate<Parameters<CallSig>>();
@@ -2271,6 +2297,10 @@ export const OBJECT = {
     title: 'Record<UnionKey, V> — resolves to a fixed-property shape',
     description:
       '`Record<K, V>` with a literal-union key resolves to a fixed-property object literal (`{a: V; b: V}`) at the type-checker level — tsgo distributes the union over the property names. Same emit path as a hand-written object literal; each key is a required property of type V.',
+    validateNotes: [
+      'Each union member becomes a REQUIRED property — a missing key (e.g. `{a: 1}`) fails at that key.',
+      "`Record<UnionKey, V>` is NOT closed: extra keys (e.g. `{a: 1, b: 2, c: 3}`) PASS, since validation is structural.",
+    ],
     validate: () => createValidate<Record<'a' | 'b', number>>(),
     validateDataOnly: () => createValidate<DataOnly<Record<'a' | 'b', number>>>(),
     validateSchema: () => createValidate(RT.object({a: RT.number(), b: RT.number()})),
