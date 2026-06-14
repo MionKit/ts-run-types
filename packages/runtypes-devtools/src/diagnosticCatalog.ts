@@ -468,6 +468,33 @@ Fix:
       'Internal error: JSON composite `{0}` references primitive entry `{1}` which was never rendered — please file an issue.',
   },
 
+  // ─────────── Class-serializer family (CLS) — advisory (Warning) ───────────
+  // Emitted once per named plain user class reached by a serialization
+  // family when no custom serializer is registered. Not a failure — the
+  // structural fallback round-trips data correctly; this just surfaces the
+  // opt-in for full instance reconstruction. args[0] = class name.
+  CLS001: {
+    headline:
+      "class `{0}` is serialized structurally; register a serializer via `registerClassSerializer('{0}', …)` for custom (de)serialization.",
+    detail: `By default a user class is serialized by its declared properties and
+decoded back to a prototype-less plain object — \`instanceof {0}\` is
+false on the decoded value, and any class methods / getters are gone.
+This is fine when you only care about the data.
+
+To round-trip a real \`{0}\` instance, register a custom (de)serializer:
+  import {registerClassSerializer} from 'ts-runtypes';
+
+  registerClassSerializer('{0}', {
+    serialize: (instance) => ({ /* JSON-ready data */ }),
+    deserialize: (data) => new {0}(/* rebuild from data */),
+  });
+
+\`serialize\` returns JSON-ready data (the pipeline stringifies / encodes
+it); \`deserialize\` receives the parsed value and returns the instance.
+The same registration is used by the JSON and binary families. \`validate\`
+/ \`getValidationErrors\` are unaffected — they always validate structurally.`,
+  },
+
   // Method dropped
   VL011: dropMethod('validate', 'validated'),
   VE011: dropMethod('validationErrors', 'checked'),

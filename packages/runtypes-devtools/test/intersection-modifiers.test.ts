@@ -194,4 +194,29 @@ getRunTypeId<T>();
       }
     }
   );
+
+  // ---- cross-form hash equivalence (marker coverage rule) ----------------
+
+  // The same intersection reached via the static form in one file and the
+  // reflect form in another collapses to a single cache entry — the
+  // hash-equivalence assertion the marker coverage rule requires.
+  runTest(
+    'intersection static and reflect forms share one cache id',
+    {
+      'int_static.ts': `import {getRunTypeId} from 'ts-runtypes';
+type T = {a?: string} & {a: string};
+getRunTypeId<T>();
+`,
+      'int_reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
+type T = {a?: string} & {a: string};
+declare const value: T;
+getRunTypeId(value);
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      const objects = Object.values(cache.byHash).filter((t) => (t.children ?? []).some((m) => m.name === 'a'));
+      expect(objects.length).toBe(1);
+    }
+  );
 });

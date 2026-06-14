@@ -24,6 +24,30 @@ a couple of minor edges, and stale "virtual-module" comments (fixed in this pass
 | S5 — Tests | both packages' `test/` | 1 should-fix (2 suites) |
 | S6 — Docs + scripts + config | `docs/`, `scripts/`, root config, containers | ✅ clean |
 
+## Resolution (applied in follow-up commits)
+
+All four findings were fixed (safe + verified); the findings analysis below is
+kept for the record.
+
+- **F1** — `CLS001` ported into the runtypes-devtools catalog (the build-time
+  Warning the plugin renderer was missing); `FMT002` + `JCP001` ported into the
+  canonical ts-runtypes catalog (superset hygiene, so the eventual codegen won't
+  drop them). Verbatim, additive. **Residual, left to the planned
+  `gen:diag-catalog` codegen (NOT hand-merged):** the `FMT001` wording divergence
+  and the duplication itself — the two catalogs have also independently reordered,
+  so a full hand-merge would be the out-of-scope big change.
+- **F2** — added one cross-form hash-equivalence test to each suite (mirroring
+  `atomic.test.ts:729`); static and reflect forms collapse to one cache id
+  (devtools 268 → 270 tests).
+- **F3** — `ensureOutDirAvailable` now requires `types`/`enriched` to be real
+  directories (`outputDirSubdirs` + `entry.IsDir()`); a plain file by that name is
+  rejected up front instead of failing later at `MkdirAll`. + regression test.
+- **F4** — fixed at the generator (`cmd/gen-ts-constants/main.go`) and
+  regenerated; the only generated-file diff is the corrected comment.
+
+Verified: `go test ./internal/resolver/` + vet/gofmt, `tsc` builds for both
+packages, full devtools suite **270 passed**, marker src typecheck clean.
+
 ## Findings (consolidated, ranked)
 
 ### must-fix — none

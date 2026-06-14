@@ -496,6 +496,19 @@ would emit data the matching validator rejects.
 Fix — correct the sample so it satisfies the pattern, or fix the
 pattern if the sample is the intended shape.`,
   },
+
+  // Invalid type-format params (Error) — build-time only.
+  FMT002: {
+    headline: 'Invalid type-format params — {0}',
+  },
+
+  // Internal invariant breach: a JSON composite entry references a primitive
+  // that never rendered — the build fails here instead of crashing at runtime.
+  // Never a user error.
+  JCP001: {
+    headline:
+      'Internal error: JSON composite `{0}` references primitive entry `{1}` which was never rendered — please file an issue.',
+  },
 };
 
 function dropFunctionProp(family: string, verb: string): DiagnosticEntry {

@@ -156,6 +156,20 @@ getRunTypeId<{a: number}>();
 	if resp := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: extraneousDir}); resp.Error == "" {
 		t.Fatal("expected refusal of an output dir holding an extraneous folder, got no error")
 	}
+
+	// Refused: a regular FILE named like a managed subdir (`types`) — it slips
+	// past the name-only allow-list but isn't a directory, so the guard must
+	// reject it up front with an actionable message instead of failing later
+	// at MkdirAll with an opaque OS error.
+	fileNamedTypes := t.TempDir()
+	if err := os.WriteFile(filepath.Join(fileNamedTypes, "types"), []byte("not a dir\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if resp := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: fileNamedTypes}); resp.Error == "" {
+		t.Fatal("expected refusal of an output dir holding a file named `types`, got no error")
+	} else if !strings.Contains(resp.Error, "not a directory") {
+		t.Fatalf("error should explain `types` is not a directory, got: %s", resp.Error)
+	}
 }
 
 // TestGenerateTransformConsistency_Reflection pins the files-mode invariant:
