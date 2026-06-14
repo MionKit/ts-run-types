@@ -312,6 +312,21 @@ cmd_bench_one() {
   publish_docdata
 }
 
+# One-shot: runtime benchmarks for every competitor + typecost, then publish all
+# result JSON (runtime + typecost) to .docdata so the docs website renders them.
+cmd_fullbench() {
+  ensure_prereqs
+  mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR"/*.json 2>/dev/null || true
+  local competitor
+  for competitor in $(competitor_list); do build_and_run_one "$competitor"; done
+  echo "==> aggregate"
+  run_in_container node aggregate.mjs
+  echo "==> typecost"
+  run_in_container node typecost/typecost.mjs
+  publish_docdata
+  echo "==> fullbench: done. Published runtime + typecost results to $DOCDATA_DIR/benchmarks"
+}
+
 cmd_build() {
   ensure_prereqs
   if [ -n "${1:-}" ]; then
@@ -353,6 +368,7 @@ main() {
     build-image) require_engine; build_image ;;
     bench|'')    require_engine; cmd_bench ;;
     bench-one)   require_engine; cmd_bench_one "${2:-}" ;;
+    fullbench)   require_engine; cmd_fullbench ;;
     build)       require_engine; cmd_build "${2:-}" ;;
     smoke)       require_engine; cmd_smoke ;;
     typecost)    require_engine; cmd_typecost ;;
@@ -361,7 +377,7 @@ main() {
     push)        cmd_push ;;
     pull)        cmd_pull ;;
     clean)       require_engine; cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | build [<name>] | smoke | typecost | shell | login | push | pull | clean" ;;
+    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | fullbench | build [<name>] | smoke | typecost | shell | login | push | pull | clean" ;;
   esac
 }
 
