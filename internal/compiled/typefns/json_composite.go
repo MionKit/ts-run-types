@@ -155,7 +155,7 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 		return &entrymod.Entry{Key: entryKey, Kind: entrymod.KindTypeFn, FamilyTag: tag, ArgsText: cachedArgs, SoftDeps: deps}
 	}
 
-	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey, isLive)
+	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey, isLive, rootNeedsDataOnlyWrap(runType))
 	_, factoryBody := WrapClosure("g_"+entryKey, entryKey, innerFn, contextLines)
 	codeArg := "undefined"
 	if opts.EmitMode.EmitsCode() {
@@ -200,6 +200,25 @@ func jsonCompositeDeps(composite constants.JsonComposite, id string, isLive func
 	return deps
 }
 
+// rootNeedsDataOnlyWrap reports whether a root type is DataOnly-valid but has no
+// top-level JSON representation, so the encoder must wrap its value in a JSON
+// envelope (see jsonCompositeBody's arrayWrap). That is exactly `undefined` and
+// `void`: both are kept by DataOnly (DataOnly<undefined> = undefined) yet
+// `JSON.stringify(undefined)` returns the JS value `undefined`, not a document,
+// so a naive decode(encode(v)) throws on JSON.parse(undefined). Every other
+// DataOnly-valid root either serializes natively (null/number/string/bigint/
+// Date/Map/Set/…) or is uninhabitable and already alwaysThrows.
+func rootNeedsDataOnlyWrap(runType *protocol.RunType) bool {
+	if runType == nil {
+		return false
+	}
+	switch runType.Kind {
+	case protocol.KindUndefined, protocol.KindVoid:
+		return true
+	}
+	return false
+}
+
 // jsonCompositeBody returns (contextLines, innerFnDeclaration) for a composite
 // strategy. The inner function name is the composite entry key so stack traces
 // identify it; the body is a faithful Go-side copy of createRTFunctions.ts's
@@ -208,7 +227,7 @@ func jsonCompositeDeps(composite constants.JsonComposite, id string, isLive func
 // unwrapped — byte-for-byte what calling the family noop fn would compute
 // (identity for pj/pjs/rj/ukuw; for sj the elided form is the family noop
 // itself, native JSON.stringify).
-func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey string, isLive func(primOp string) bool) (contextLines string, innerFn string) {
+func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey string, isLive func(primOp string) bool, wrapRoot bool) (contextLines string, innerFn string) {
 	// resolve emits a context-item const binding `name` to the primitive's fn.
 	// The direct `.fn` read is always resolvable: noop primitives register
 	// with the family noop fn pre-set (entryTuple.ts familyMeta — identity
@@ -231,6 +250,17 @@ func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey st
 		resolve(name, primOp)
 		return name + "(" + expr + ")"
 	}
+	// arrayWrap wraps a JSON-value expression in a one-element array when the
+	// root type (undefined / void) has no top-level JSON form. Encode then emits
+	// the valid document "[null]" instead of the bare JS value `undefined`; the
+	// decoder's restoreFromJson returns undefined for any input, so the
+	// round-trip holds with NO decode-side change. See rootNeedsDataOnlyWrap.
+	arrayWrap := func(expr string) string {
+		if wrapRoot {
+			return "[" + expr + "]"
+		}
+		return expr
+	}
 
 	var body string
 	switch composite.OpName {
@@ -239,19 +269,25 @@ func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey st
 		case "direct":
 			if isLive("stringifyJson") {
 				resolve("sjFn", "stringifyJson")
-				body = "return sjFn(v);"
+				if wrapRoot {
+					// sjFn(v) is the JS value `undefined` for undefined/void;
+					// re-stringify it inside the array so encode yields "[null]".
+					body = "return JSON.stringify([sjFn(v)]);"
+				} else {
+					body = "return sjFn(v);"
+				}
 			} else {
 				// sj's family noop IS native JSON.stringify — the elided
 				// form inlines it instead of unwrapping to bare `v`.
-				body = "return JSON.stringify(v);"
+				body = "return JSON.stringify(" + arrayWrap("v") + ");"
 			}
 		case "clone":
 			// Shape-derived clone (prepareForJsonSafe builds a NEW value from the
 			// declared shape) — undeclared keys are dropped by construction, so the
 			// clone is stripped without a separate strip pass.
-			body = "return JSON.stringify(" + wrap("pjsFn", "prepareForJsonSafe", "v") + ");"
+			body = "return JSON.stringify(" + arrayWrap(wrap("pjsFn", "prepareForJsonSafe", "v")) + ");"
 		case "mutate":
-			body = "return JSON.stringify(" + wrap("pjFn", "prepareForJson", "v") + ");"
+			body = "return JSON.stringify(" + arrayWrap(wrap("pjFn", "prepareForJson", "v")) + ");"
 		}
 		innerFn = "function " + entryKey + "(v){" + body + "}"
 	case "jsonDecoder":
