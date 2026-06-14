@@ -1,13 +1,13 @@
-// Cross-bundler proof for the runtypes-devtools/rollup entry. Rather than a
-// full rollup() bundle — which would need a TypeScript-stripping plugin plus
-// node-resolution and makes the resolver's cold-start timing flaky in such a
-// tight harness — this drives the unplugin-generated Rollup plugin's hooks
-// exactly as Rollup invokes them (buildStart, transform, resolveId, load) and
-// asserts the whole chain: the marker call is rewritten with an injected
-// virtual:rt import, that specifier resolves to a tagged id, and loading it
-// yields the validator generated from the type. Proof that the /rollup entry
-// produces a working Rollup plugin off the shared unplugin factory. The /vite
-// entry's full real-build coverage lives in build-split + build-sourcemap.
+// Cross-bundler proof for the runtypes-devtools/rollup entry. This drives the
+// unplugin-generated Rollup plugin's hooks exactly as Rollup invokes them
+// (buildStart, transform) and asserts the files-mode chain: buildStart writes
+// the cache modules to real files under <outDir>/types, and the marker call is
+// rewritten with an injected RELATIVE import pointing at one of those real
+// files (no virtual:rt specifier, no resolveId/load hooks). Loading that file
+// from disk yields the validator generated from the type. Proof that the
+// /rollup entry produces a working Rollup plugin off the shared unplugin
+// factory. The /vite entry's full real-build coverage lives in build-split +
+// build-sourcemap.
 import {describe, expect, it} from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -19,6 +19,10 @@ import {BIN, hasBinary} from './helpers/inline.ts';
 const PACKAGE_ROOT = path.resolve(__dirname, '../../ts-runtypes');
 const FIXTURE_DIR = path.join(PACKAGE_ROOT, 'test', 'tmp-build-rollup');
 const ENTRY = path.join(FIXTURE_DIR, 'entry.ts');
+// Isolated output root so this build never shares (and prunes) the marker
+// package's own vitest `runtypes/types` dir — the two programs differ, so a
+// shared dir would race-delete this fixture's modules. Cleaned with FIXTURE_DIR.
+const OUT_DIR = path.join(FIXTURE_DIR, 'runtypes');
 
 const FIXTURE = `import {createValidate} from 'ts-runtypes';
 interface RollupThing {
@@ -37,9 +41,15 @@ describe('rollup build / runtypes-devtools/rollup entry', () => {
   const register = hasBinary() ? it : it.skip;
 
   register(
-    'produces a Rollup plugin whose hooks rewrite markers + serve the validator',
+    'produces a Rollup plugin whose hooks rewrite markers into real on-disk module imports',
     async () => {
-      const plugin = runtypesRollup({binary: BIN, cwd: PACKAGE_ROOT, tsconfig: 'tsconfig.test.json', cacheDir: false}) as any;
+      const plugin = runtypesRollup({
+        binary: BIN,
+        cwd: PACKAGE_ROOT,
+        tsconfig: 'tsconfig.test.json',
+        cacheDir: false,
+        outDir: OUT_DIR,
+      }) as any;
       expect(plugin.name).toBe('runtypes-devtools');
 
       fs.rmSync(FIXTURE_DIR, {recursive: true, force: true});
@@ -52,27 +62,34 @@ describe('rollup build / runtypes-devtools/rollup entry', () => {
         warn(): void {},
       };
       try {
+        // buildStart generates the whole program's cache modules to disk.
         await callHook(plugin.buildStart, ctx);
 
-        // transform: the marker call is rewritten to the entry-binding form
-        // and a virtual:rt import is injected (the same rewrite /vite performs).
+        // transform: the marker call is rewritten to the entry-binding form and
+        // a RELATIVE import to a real on-disk module is injected (the same
+        // rewrite /vite performs in files-mode — no virtual:rt specifier).
         const transformed = (await callHook(plugin.transform, ctx, FIXTURE, ENTRY)) as {code: string} | null;
         expect(transformed).toBeTruthy();
         const code = transformed!.code;
-        const match = code.match(/from '(virtual:rt\/[^']+\.js)'/);
-        expect(match, `expected an injected virtual:rt import in:\n${code}`).toBeTruthy();
+        expect(code, `files-mode must not inject virtual:rt imports:\n${code}`).not.toContain('virtual:rt/');
+        const match = code.match(/from '(\.\.?\/[^']+\.js)'/);
+        expect(match, `expected an injected relative module import in:\n${code}`).toBeTruthy();
         const specifier = match![1];
 
-        // resolveId tags the virtual specifier; load serves its module body.
-        const resolved = (await callHook(plugin.resolveId, ctx, specifier)) as string | {id: string};
-        const resolvedId = typeof resolved === 'string' ? resolved : resolved.id;
-        expect(resolvedId).toContain('virtual:rt/');
+        // The injected specifier resolves (relative to the entry file's dir) to
+        // a real file that buildStart wrote under <outDir>/types.
+        const moduleFile = path.resolve(path.dirname(ENTRY), specifier);
+        expect(fs.existsSync(moduleFile), `injected import ${specifier} must point at a written module`).toBe(true);
 
-        const loaded = (await callHook(plugin.load, ctx, resolvedId)) as string | {code: string};
-        const loadedCode = typeof loaded === 'string' ? loaded : loaded.code;
         // The generated validator references the type's property — proof the
-        // rollup entry's load() serves the real, type-derived module.
-        expect(loadedCode).toContain('rollupProp');
+        // rollup entry's buildStart wrote the real, type-derived module to disk.
+        const typesDir = path.join(OUT_DIR, 'types');
+        const generated = fs
+          .readdirSync(typesDir)
+          .filter((name) => name.endsWith('.js'))
+          .map((name) => fs.readFileSync(path.join(typesDir, name), 'utf8'))
+          .join('\n');
+        expect(generated).toContain('rollupProp');
       } finally {
         try {
           await callHook(plugin.buildEnd, ctx);

@@ -771,7 +771,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		if genModulesErr != nil {
 			return protocol.Response{Error: genModulesErr.Error()}
 		}
-		manifest, genErr := generateToDisk(request.OutDir, genModules)
+		manifest, genErr := generateToDisk(resolver.absPath(request.OutDir), genModules)
 		if genErr != nil {
 			return protocol.Response{Error: genErr.Error()}
 		}
@@ -857,9 +857,11 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			if request.OutDir != "" {
 				// Files-mode: rewrite the injected import block's virtual:rt
 				// specifiers to paths relative to this file (the generated
-				// modules live on disk under OutDir/types). The block is one
-				// physical line, so this leaves the source map valid.
-				code = relativizeUserImports(file, request.OutDir, code)
+				// modules live on disk under OutDir/types). Both bases are
+				// absolutized against the resolver cwd so filepath.Rel always
+				// relates them. The block is one physical line, so this leaves
+				// the source map valid.
+				code = relativizeUserImports(resolver.absPath(file), resolver.absPath(request.OutDir), code)
 			}
 			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap}
 		}
