@@ -44,7 +44,13 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<boolean>();
     return (v) => check(v);
   },
-  'ATOMIC.date': NOT_SUPPORTED, // Date validated by instanceof; accepts Invalid Date (new Date('invalid'))
+  'ATOMIC.date': {
+    build: () => {
+      const check = typia.createIs<Date>();
+      return (v) => check(v);
+    },
+    samples: {invalid: ['hello', null, undefined, 42]},
+  }, // override: typia Date is instanceof (accepts Invalid Date); invalid set drops new Date('invalid')/new Date(NaN)
   'ATOMIC.enum_mixed': () => {
     enum Color {
       Red,
@@ -73,7 +79,13 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<null>();
     return (v) => check(v);
   },
-  'ATOMIC.number': NOT_SUPPORTED, // bare number accepts NaN/Infinity; no typia tag means "finite" without also forcing integer/range
+  'ATOMIC.number': {
+    build: () => {
+      const check = typia.createIs<number>();
+      return (v) => check(v);
+    },
+    samples: {invalid: ['hello', null, undefined]},
+  }, // override: typia number accepts NaN/Infinity; invalid set drops them
   'ATOMIC.object': NOT_SUPPORTED, // typia is<object>() rejects arrays; the suite treats [] as a valid object
   'ATOMIC.regexp': () => {
     const check = typia.createIs<RegExp>();
@@ -93,7 +105,13 @@ export const cases: CompetitorCases = {
   },
   'ATOMIC.void': NOT_SUPPORTED, // typia transform emits invalid JS `(void) => true` for the void type
   // noLiterals degrades a literal to its base type; typia validates that base type directly.
-  'ATOMIC.literal_2_noLiterals': NOT_SUPPORTED, // degrades to number — accepts NaN/Infinity
+  'ATOMIC.literal_2_noLiterals': {
+    build: () => {
+      const check = typia.createIs<number>();
+      return (v) => check(v);
+    },
+    samples: {invalid: ['4', null]},
+  }, // override: degrades to number (mirrors the other *_noLiterals base-type mappings); typia accepts NaN/Infinity so invalid drops them
   'ATOMIC.literal_a_noLiterals': () => {
     const check = typia.createIs<string>();
     return (v) => check(v);
@@ -124,7 +142,13 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<string[]>();
     return (v) => check(v);
   },
-  'ARRAY.number_array': NOT_SUPPORTED, // element number accepts NaN/Infinity (invalid samples reject them)
+  'ARRAY.number_array': {
+    build: () => {
+      const check = typia.createIs<number[]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[1, '2'], 'not-array', null, undefined, [null], [BigInt(1)]]},
+  }, // override: typia number element accepts NaN/Infinity; invalid drops [Infinity]/[-Infinity]/[NaN]
   'ARRAY.boolean_array': () => {
     const check = typia.createIs<boolean[]>();
     return (v) => check(v);
@@ -133,7 +157,13 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<bigint[]>();
     return (v) => check(v);
   },
-  'ARRAY.date_array': NOT_SUPPORTED, // Date element instanceof accepts Invalid Date (invalid sample rejects it)
+  'ARRAY.date_array': {
+    build: () => {
+      const check = typia.createIs<Date[]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [['2024'], [42], null, undefined]},
+  }, // override: typia Date element is instanceof (accepts Invalid Date); invalid drops [new Date('invalid')]
   'ARRAY.regexp_array': () => {
     const check = typia.createIs<RegExp[]>();
     return (v) => check(v);
@@ -166,7 +196,13 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<{a: string}[]>();
     return (v) => check(v);
   },
-  'ARRAY.union_array': NOT_SUPPORTED, // (string|number)[] number arm accepts Infinity element (invalid sample rejects it)
+  'ARRAY.union_array': {
+    build: () => {
+      const check = typia.createIs<(string | number)[]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[true], 'a', [null], ['a', true], null, undefined, [BigInt(1)]]},
+  }, // override: typia number arm accepts Infinity element; invalid drops [Infinity]
   'ARRAY.tuple_array': () => {
     const check = typia.createIs<[string, number][]>();
     return (v) => check(v);
@@ -187,7 +223,13 @@ export const cases: CompetitorCases = {
   },
 
   // ── OBJECT ──
-  'OBJECT.simple_interface': NOT_SUPPORTED, // number prop accepts NaN/Infinity (invalid samples reject them)
+  'OBJECT.simple_interface': {
+    build: () => {
+      const check = typia.createIs<{a: string; b: number}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: ['hello', null, undefined, {a: 'x'}, {a: 1, b: 1}, {a: 'x', b: 'not number'}, {b: 1}, true]},
+  }, // override: typia number prop accepts NaN/Infinity; invalid drops {a:'x',b:NaN}/{a:'x',b:Infinity}
   'OBJECT.object_as_const_literals': () => {
     const check = typia.createIs<{readonly name: 'john'; readonly age: 30}>();
     return (v) => check(v);
@@ -207,10 +249,28 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<{id: number; name: string}>();
     return (v) => check(v);
   },
-  'OBJECT.interface_with_optional': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
-  'OBJECT.interface_with_date': NOT_SUPPORTED, // Date instanceof accepts Invalid Date (invalid samples reject it)
+  'OBJECT.interface_with_optional': {
+    build: () => {
+      const check = typia.createIs<{a: string; b?: number}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{a: 'x', b: 'not number'}, {a: 1}, null, undefined, {}, {b: 1}]},
+  }, // override: typia number prop accepts NaN; invalid drops {a:'x',b:NaN}
+  'OBJECT.interface_with_date': {
+    build: () => {
+      const check = typia.createIs<{date: Date; name: string}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{date: 'not date', name: 'x'}, {date: new Date(), name: 1}, {name: 'x'}, null, undefined]},
+  }, // override: typia Date prop is instanceof (accepts Invalid Date); invalid drops the two Invalid Date entries
   'OBJECT.interface_with_method': NOT_SUPPORTED, // typia validates the function prop (cb); mion silently drops it, so valid samples with cb:42/null fail here
-  'OBJECT.nested_object': NOT_SUPPORTED, // nested number prop accepts NaN (invalid sample rejects it)
+  'OBJECT.nested_object': {
+    build: () => {
+      const check = typia.createIs<{a: string; deep: {b: string; c: number}}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{a: 'x'}, {a: 'x', deep: {b: 1, c: 1}}, {a: 'x', deep: null}, null, undefined, {a: 'x', deep: {b: 'y'}}]},
+  }, // override: typia nested number prop accepts NaN; invalid drops {a:'x',deep:{b:'y',c:NaN}}
   'OBJECT.interface_string_array_prop': () => {
     const check = typia.createIs<{tags: string[]}>();
     return (v) => check(v);
@@ -241,8 +301,20 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<{a: string; b: number; [key: string]: string | number}>();
     return (v) => check(v);
   },
-  'OBJECT.index_signature_nested': NOT_SUPPORTED, // nested number value accepts NaN (invalid sample rejects it)
-  'OBJECT.index_signature_date_value': NOT_SUPPORTED, // Date instanceof accepts Invalid Date (invalid sample rejects it)
+  'OBJECT.index_signature_nested': {
+    build: () => {
+      const check = typia.createIs<{[key: string]: {[key: string]: number}}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{a: 1}, {a: {x: 'not number'}}, null, undefined, {a: {x: null}}]},
+  }, // override: typia nested number value accepts NaN; invalid drops {a:{x:NaN}}
+  'OBJECT.index_signature_date_value': {
+    build: () => {
+      const check = typia.createIs<{[key: string]: {[key: string]: Date}}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{a: {x: 'not date'}}, {a: 'not object'}, null, undefined]},
+  }, // override: typia Date value is instanceof (accepts Invalid Date); invalid drops {a:{x:new Date('invalid')}}
   'OBJECT.index_signature_non_root': () => {
     interface Obj1 {
       a: string;
@@ -258,7 +330,24 @@ export const cases: CompetitorCases = {
   'OBJECT.function_top_level': NOT_SUPPORTED, // typia transform emits invalid JS for the void return position of () => void
   'OBJECT.interface_callable': NOT_SUPPORTED, // typia does not validate a callable interface as a function-with-props; rejects the valid function value
   'OBJECT.interface_all_optional': NOT_SUPPORTED, // typia's all-optional object accepts Date/Map/Set/array instances; mion rejects them
-  'OBJECT.class_simple': NOT_SUPPORTED, // Date prop instanceof accepts Invalid Date (invalid samples reject it)
+  'OBJECT.class_simple': {
+    build: () => {
+      class MySerializableClass {
+        date: Date;
+        name: string;
+        constructor(date: Date, name: string) {
+          this.date = date;
+          this.name = name;
+        }
+        someMethod() {
+          return 'unused';
+        }
+      }
+      const check = typia.createIs<MySerializableClass>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{date: 'not date', name: 'x'}, {date: new Date()}, {name: 'x'}, null, 'not object', undefined]},
+  }, // override: typia Date prop is instanceof (accepts Invalid Date); invalid drops the two Invalid Date entries
   'OBJECT.rpc_error_class': () => {
     class RpcError<ErrType extends string> {
       public readonly 'mion@isΣrrθr': true = true;
@@ -274,12 +363,51 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<RpcError<'test-error'>>();
     return (v) => check(v);
   },
-  'OBJECT.call_signature_params': NOT_SUPPORTED, // number param accepts NaN (invalid sample rejects it)
-  'OBJECT.call_signature_params_with_optional': NOT_SUPPORTED, // number param accepts NaN (invalid sample rejects it)
-  'OBJECT.call_signature_params_with_rest': NOT_SUPPORTED, // Date rest element instanceof accepts Invalid Date (invalid sample rejects it)
-  'OBJECT.record_union_keys': NOT_SUPPORTED, // number value accepts NaN/Infinity (invalid samples reject them)
-  'OBJECT.union_value_index': NOT_SUPPORTED, // number value accepts NaN (invalid sample rejects it)
-  'OBJECT.object_with_union_prop': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
+  'OBJECT.call_signature_params': {
+    build: () => {
+      type CallSig = (a: number, b: boolean) => string;
+      const check = typia.createIs<Parameters<CallSig>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[1, 'not boolean'], [1], [1, true, 'extra'], ['not number', true], 'not array', null, undefined, []]},
+  }, // override: typia number param accepts NaN; invalid drops [NaN,true]
+  'OBJECT.call_signature_params_with_optional': {
+    build: () => {
+      type CallSig = (a: number, b: boolean, c?: string) => Date;
+      const check = typia.createIs<Parameters<CallSig>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[3, 3, 3], [3, true, 'hello', 7], [3], 'not array', null, undefined]},
+  }, // override: typia number param accepts NaN; invalid drops [NaN,true]
+  'OBJECT.call_signature_params_with_rest': {
+    build: () => {
+      type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+      const check = typia.createIs<Parameters<CallSig>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[3, 3, 3], [3, true, new Date(), 7], [3, true, new Date(), 7, true], 'not array', null, undefined]},
+  }, // override: typia Date rest element is instanceof (accepts Invalid Date); invalid drops [3,true,new Date('invalid')]
+  'OBJECT.record_union_keys': {
+    build: () => {
+      const check = typia.createIs<Record<'a' | 'b', number>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{a: 1}, {b: 1}, {}, {a: 'x', b: 1}, null, 'not object', undefined]},
+  }, // override: typia number value accepts NaN/Infinity; invalid drops {a:1,b:NaN}/{a:Infinity,b:1}
+  'OBJECT.union_value_index': {
+    build: () => {
+      const check = typia.createIs<{[key: string]: string | number}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{a: true}, {a: 'x', b: null}, 'not object', null, undefined, {a: BigInt(1)}]},
+  }, // override: typia number index value accepts NaN; invalid drops {a:NaN}
+  'OBJECT.object_with_union_prop': {
+    build: () => {
+      const check = typia.createIs<{kind: 'a' | 'b'; n: number}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{kind: 'c', n: 1}, {n: 1}, {kind: 'a', n: 'not number'}, null, undefined, {kind: 'a'}]},
+  }, // override: typia number prop accepts NaN; invalid drops {kind:'a',n:NaN}
   'OBJECT.interface_inheritance': () => {
     interface Base {
       a: string;
@@ -306,14 +434,65 @@ export const cases: CompetitorCases = {
   },
 
   // ── TUPLE ──
-  'TUPLE.string_number_pair': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
-  'TUPLE.full_mion_tuple': NOT_SUPPORTED, // Date slot accepts Invalid Date + number slot accepts NaN
-  'TUPLE.tuple_with_optional': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
-  'TUPLE.nested_tuple_in_array': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
-  'TUPLE.tuple_rest': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
-  'TUPLE.tuple_circular': NOT_SUPPORTED, // Date slot accepts Invalid Date + number slot accepts NaN
-  'TUPLE.tuple_multiple_trailing_optionals': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
-  'TUPLE.tuple_named_labels': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
+  'TUPLE.string_number_pair': {
+    build: () => {
+      const check = typia.createIs<[string, number]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[], ['hello'], ['hello', 1, 'extra'], [1, 'hello'], 'not array', null, undefined, [null, 1], ['hello', null]]},
+  }, // override: typia number slot accepts NaN; invalid drops ['hello',NaN]
+  'TUPLE.full_mion_tuple': {
+    build: () => {
+      const check = typia.createIs<[Date, number, string, null, string[], bigint]>();
+      return (v) => check(v);
+    },
+    samples: {
+      invalid: [
+        [new Date(), 123, 'hello', null, ['a', 'b', 'c']],
+        [new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123), 34],
+        [new Date(), 123, 'hello', null, ['a', 'b', 'c'], 'not bigint'],
+        null,
+        undefined,
+        [new Date(), 123, 'hello', undefined, ['a'], 1n],
+      ],
+    },
+  }, // override: typia Date slot is instanceof + number slot accepts NaN; invalid drops the Invalid Date + NaN entries
+  'TUPLE.tuple_with_optional': {
+    build: () => {
+      const check = typia.createIs<[number, bigint?, boolean?, number?]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[], [3, 'not bigint'], [3, 1n, false, 4, 'extra'], 'not array', null, undefined, ['not number']]},
+  }, // override: typia number slot accepts NaN; invalid drops [NaN]
+  'TUPLE.nested_tuple_in_array': {
+    build: () => {
+      const check = typia.createIs<[string, number][]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[['a', 'b']], [['a']], ['not tuple'], null, undefined, [[null, 1]]]},
+  }, // override: typia number slot accepts NaN; invalid drops [['a',NaN]]
+  'TUPLE.tuple_rest': {
+    build: () => {
+      const check = typia.createIs<[number, ...string[]]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[3, 'a', 4], ['not number'], [], 'not array', [3, 1], null, undefined, [3, null]]},
+  }, // override: typia number slot accepts NaN; invalid drops [NaN,'a']
+  'TUPLE.tuple_circular': NOT_SUPPORTED, // typia transform stack-overflows computing the full name of the anonymous self-referential tuple type alias (type TupleCircular = [..., TupleCircular?])
+  'TUPLE.tuple_multiple_trailing_optionals': {
+    build: () => {
+      const check = typia.createIs<[number, bigint?, boolean?, number?]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[], [3, 'not bigint'], [3, 1n, true, 4, 'extra'], 'not array', null, undefined, [3, 1n, 'not boolean']]},
+  }, // override: typia number slot accepts NaN; invalid drops [NaN]
+  'TUPLE.tuple_named_labels': {
+    build: () => {
+      const check = typia.createIs<[name: string, age: number]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [[], ['Alice'], ['Alice', '30'], [30, 'Alice'], null, 'not array', undefined, [null, 30]]},
+  }, // override: typia number slot accepts NaN; invalid drops ['Alice',NaN]
   'TUPLE.tuple_with_non_serializable': NOT_SUPPORTED, // typia requires the function slot; mion treats it as must-be-undefined (valid sample [3] omits it)
   'TUPLE.empty_tuple': () => {
     const check = typia.createIs<[]>();
@@ -329,7 +508,13 @@ export const cases: CompetitorCases = {
   },
 
   // ── UNION ──
-  'UNION.atomic_union': NOT_SUPPORTED, // Date arm accepts Invalid Date + number arm accepts Infinity
+  'UNION.atomic_union': {
+    build: () => {
+      const check = typia.createIs<Date | number | string | null | bigint>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{}, [], true, undefined, Symbol(), () => null]},
+  }, // override: typia Date arm is instanceof + number arm accepts Infinity; invalid drops new Date('invalid')/Infinity
   'UNION.string_literal_union': () => {
     const check = typia.createIs<'UNO' | 'DOS' | 'TRES'>();
     return (v) => check(v);
@@ -338,18 +523,61 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>();
     return (v) => check(v);
   },
-  'UNION.string_or_number': NOT_SUPPORTED, // number arm accepts NaN/Infinity (invalid samples reject them)
-  'UNION.union_of_array_types': NOT_SUPPORTED, // number[] arm accepts Infinity element (invalid sample rejects it)
-  'UNION.array_of_union': NOT_SUPPORTED, // Date arm accepts Invalid Date element (invalid sample rejects it)
+  'UNION.string_or_number': {
+    build: () => {
+      const check = typia.createIs<string | number>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [null, undefined, true, [], {}, BigInt(1)]},
+  }, // override: typia number arm accepts NaN/Infinity; invalid drops NaN/Infinity
+  'UNION.union_of_array_types': {
+    build: () => {
+      const check = typia.createIs<string[] | number[] | boolean[]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [['a', 1], [1, 'a'], 'not array', null, undefined, [null], [BigInt(1)]]},
+  }, // override: typia number[] arm accepts Infinity element; invalid drops [Infinity]
+  'UNION.array_of_union': {
+    build: () => {
+      const check = typia.createIs<(string | bigint | boolean | Date)[]>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [['a', false, 2], null, undefined, [null], [{}]]},
+  }, // override: typia Date arm is instanceof (accepts Invalid Date element); invalid drops [new Date('invalid')]
   'UNION.union_of_object_shapes': () => {
     const check = typia.createIs<{a: string; aa: boolean} | {b: number} | {c: bigint}>();
     return (v) => check(v);
   },
-  'UNION.discriminated_union': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
-  'UNION.circular_union': NOT_SUPPORTED, // Date arm accepts Invalid Date + number arm accepts Infinity
+  'UNION.discriminated_union': {
+    build: () => {
+      const check = typia.createIs<{kind: 'a'; n: number} | {kind: 'b'; s: string}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{kind: 'c', n: 1}, {kind: 'a', n: 'not number'}, {n: 1}, null, 'not object', undefined, {kind: 'a'}, {kind: 'b'}]},
+  }, // override: typia number prop accepts NaN; invalid drops {kind:'a',n:NaN}
+  'UNION.circular_union': {
+    build: () => {
+      type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+      const check = typia.createIs<UnionC>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [true, null, undefined, {a: true}, [true], Symbol()]},
+  }, // override: typia Date arm is instanceof + number arm accepts Infinity; invalid drops new Date('invalid') + Infinity
   'UNION.union_with_methods': NOT_SUPPORTED, // typia validates the methods; mion drops them, so valid samples omitting the method fail here
-  'UNION.intersection_to_object': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
-  'UNION.union_with_index_arm': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
+  'UNION.intersection_to_object': {
+    build: () => {
+      const check = typia.createIs<{a: string} & {b: number}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{a: 'x'}, {b: 1}, null, {a: 1, b: 1}, {a: 'x', b: 'not number'}, undefined, {}]},
+  }, // override: typia number prop accepts NaN; invalid drops {a:'x',b:NaN}
+  'UNION.union_with_index_arm': {
+    build: () => {
+      const check = typia.createIs<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{a: 'hello'}, {b: 'hello'}, {a: 'hello', d: 'extra'}, {c: 1n, d: 'hello'}, null, undefined, {}]},
+  }, // override: typia number prop accepts NaN; invalid drops {b:NaN}
   'UNION.union_same_prop_different_types': () => {
     const check = typia.createIs<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>();
     return (v) => check(v);
@@ -358,7 +586,13 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>();
     return (v) => check(v);
   },
-  'UNION.union_merged_property': NOT_SUPPORTED, // number arm accepts NaN (invalid sample rejects it)
+  'UNION.union_merged_property': {
+    build: () => {
+      const check = typia.createIs<{a: boolean} | {a: number}>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{a: 'hello'}, {}, null, undefined, {a: 'string not boolean or number'}, {a: null}]},
+  }, // override: typia number arm accepts NaN; invalid drops {a:NaN}
   'UNION.union_mixed_with_index': () => {
     const check = typia.createIs<
       | string[]
@@ -404,7 +638,23 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<Tiny | Medium | Large>();
     return (v) => check(v);
   },
-  'UNION.union_subset_mixed_related_unrelated': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
+  'UNION.union_subset_mixed_related_unrelated': {
+    build: () => {
+      interface Base {
+        id: string;
+      }
+      interface Extended {
+        id: string;
+        name: string;
+      }
+      interface Unrelated {
+        value: number;
+      }
+      const check = typia.createIs<Base | Extended | Unrelated>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{}, {name: 'test'}, {id: 123}, {value: 'not number'}, null, undefined]},
+  }, // override: typia number prop accepts NaN; invalid drops {value:NaN}
 
   // ── TEMPLATE_LITERAL ──
   'TEMPLATE_LITERAL.url_with_number_id': () => {
@@ -427,14 +677,22 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<{url: `api/user/${number}`; method: string}>();
     return (v) => check(v);
   },
-  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED, // number index value accepts NaN (invalid sample rejects it)
+  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED, // verified typia accepts {foo:1} for a template-literal index key — it ignores keys not matching the pattern, where mion requires every own key to match (structural divergence, not purely sample-semantics)
   'TEMPLATE_LITERAL.template_literal_union_placeholder': () => {
     const check = typia.createIs<`${'a' | 'b'}-${number}`>();
     return (v) => check(v);
   },
 
   // ── NATIVE ──
-  'NATIVE.map_string_number': NOT_SUPPORTED, // Map value is number — accepts NaN (invalid sample rejects it)
+  'NATIVE.map_string_number': {
+    build: () => {
+      const check = typia.createIs<Map<string, number>>();
+      return (v) => check(v);
+    },
+    samples: {
+      invalid: [{}, [], null, 'not map', new Map<any, number>([[1, 1]]), new Map<string, any>([['a', 'not number']]), undefined, new Date(), new Set()],
+    },
+  }, // override: typia Map number value accepts NaN; invalid drops the NaN-valued Map (keeps wrongKey/wrongValue)
   'NATIVE.set_string': () => {
     const check = typia.createIs<Set<string>>();
     return (v) => check(v);
@@ -446,8 +704,29 @@ export const cases: CompetitorCases = {
   },
 
   // ── CIRCULAR ──
-  'CIRCULAR.object_full_mion_shape': NOT_SUPPORTED, // number prop accepts NaN + Date prop accepts Invalid Date
-  'CIRCULAR.array_of_union_with_self_ref': NOT_SUPPORTED, // Date arm accepts Invalid Date + number arm accepts NaN
+  'CIRCULAR.object_full_mion_shape': {
+    build: () => {
+      interface Circular {
+        n: number;
+        s: string;
+        c?: Circular;
+        d?: Date;
+      }
+      const check = typia.createIs<Circular>();
+      return (v) => check(v);
+    },
+    samples: {
+      invalid: [
+        {n: 1, s: 'hello', c: {n: 2, s: 123}},
+        {n: 1, s: 'hello', c: {n: 2}},
+        null,
+        undefined,
+        {n: 1, s: 'x', d: 'not date'},
+        {},
+      ],
+    },
+  }, // override: typia number prop accepts NaN + Date prop is instanceof; invalid drops {n:NaN,...} + the Invalid Date entry
+  'CIRCULAR.array_of_union_with_self_ref': NOT_SUPPORTED, // typia transform stack-overflows computing the full name of the anonymous self-referential array/union type alias (type CuArray = (CuArray | …)[])
   'CIRCULAR.object_with_tuple_prop': () => {
     interface CircularTuple {
       tuple: [bigint, CircularTuple?];
@@ -506,10 +785,45 @@ export const cases: CompetitorCases = {
   },
 
   // ── UTILITY ──
-  'UTILITY.partial': NOT_SUPPORTED, // number prop accepts NaN + Date prop accepts Invalid Date
-  'UTILITY.required': NOT_SUPPORTED, // number prop accepts NaN + Date prop accepts Invalid Date
-  'UTILITY.pick': NOT_SUPPORTED, // Date prop accepts Invalid Date (invalid sample rejects it)
-  'UTILITY.omit': NOT_SUPPORTED, // Date prop accepts Invalid Date (invalid sample rejects it)
+  'UTILITY.partial': NOT_SUPPORTED, // all-optional object: typia accepts a Date/Map/Set instance (verified: new Date() passes) where mion rejects it — a structural divergence, same as OBJECT.interface_all_optional (not purely sample-semantics)
+  'UTILITY.required': {
+    build: () => {
+      interface MaybePerson {
+        name?: string;
+        age?: number;
+        createdAt?: Date;
+      }
+      const check = typia.createIs<Required<MaybePerson>>();
+      return (v) => check(v);
+    },
+    samples: {
+      invalid: [{}, {name: 'John'}, {name: 'John', age: 30}, {name: 'John', age: 30, createdAt: 'not date'}, null, undefined],
+    },
+  }, // override: typia number prop accepts NaN + Date prop is instanceof; invalid drops the NaN + Invalid Date entries
+  'UTILITY.pick': {
+    build: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      const check = typia.createIs<Pick<Person, 'name' | 'createdAt'>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{name: 'John'}, {createdAt: new Date()}, {name: 42, createdAt: new Date()}, null, undefined]},
+  }, // override: typia Date prop is instanceof (accepts Invalid Date); invalid drops {name:'John',createdAt:new Date('invalid')}
+  'UTILITY.omit': {
+    build: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      const check = typia.createIs<Omit<Person, 'age'>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{name: 'John'}, {createdAt: new Date()}, null, undefined]},
+  }, // override: typia Date prop is instanceof (accepts Invalid Date); invalid drops {name:'John',createdAt:new Date('invalid')}
   'UTILITY.exclude_atomic': () => {
     const check = typia.createIs<Exclude<'name' | 'age' | 'createdAt', 'age'>>();
     return (v) => check(v);
@@ -518,12 +832,62 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>();
     return (v) => check(v);
   },
-  'UTILITY.exclude_from_object_union': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
-  'UTILITY.non_nullable': NOT_SUPPORTED, // number arm accepts NaN/Infinity (invalid samples reject them)
-  'UTILITY.return_type': NOT_SUPPORTED, // resolves to Date; instanceof accepts Invalid Date (invalid samples reject it)
-  'UTILITY.readonly': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
-  'UTILITY.intersection_with_required_override': NOT_SUPPORTED, // number prop accepts NaN + Date prop accepts Invalid Date
-  'UTILITY.omit_keeping_optional': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
+  'UTILITY.exclude_from_object_union': {
+    build: () => {
+      type Shape =
+        | {kind: 'circle'; radius: number}
+        | {kind: 'square'; x: number}
+        | {kind: 'triangle'; base: number; height: number};
+      const check = typia.createIs<Exclude<Shape, {kind: 'circle'}>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{kind: 'circle', radius: 3}, {}, null, undefined, {kind: 'square'}, {kind: 'triangle', base: 4}]},
+  }, // override: typia number prop accepts NaN; invalid drops {kind:'square',x:NaN}
+  'UTILITY.non_nullable': {
+    build: () => {
+      const check = typia.createIs<NonNullable<string | number | null | undefined>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [null, undefined, true, {}, []]},
+  }, // override: typia number arm accepts NaN/Infinity; invalid drops NaN/Infinity
+  'UTILITY.return_type': {
+    build: () => {
+      type Fn = (a: number, b: boolean) => Date;
+      const check = typia.createIs<ReturnType<Fn>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: ['not date', 42, null, undefined, {}, []]},
+  }, // override: typia resolves to Date (instanceof, accepts Invalid Date); invalid drops new Date('invalid')/new Date(NaN)
+  'UTILITY.readonly': {
+    build: () => {
+      interface Person {
+        name: string;
+        age: number;
+      }
+      const check = typia.createIs<Readonly<Person>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{name: 'John'}, {age: 30}, null, undefined, {name: 1, age: 30}]},
+  }, // override: typia number prop accepts NaN; invalid drops {name:'John',age:NaN}
+  'UTILITY.intersection_with_required_override': {
+    build: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      const check = typia.createIs<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{}, {age: 30}, {name: 42}, {name: 'John', age: '30'}, null, undefined]},
+  }, // override: typia number prop accepts NaN + Date prop is instanceof (name required ⇒ not all-optional); invalid drops the NaN + Invalid Date entries
+  'UTILITY.omit_keeping_optional': {
+    build: () => {
+      const check = typia.createIs<Omit<{a: string; b?: number; c: boolean}, 'a'>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{}, {b: 1}, {c: 'not boolean'}, null, undefined, {c: 0}, {b: 1, c: 1}]},
+  }, // override: typia number prop accepts NaN (c required ⇒ not all-optional); invalid drops {c:true,b:NaN}
   'UTILITY.keyof_to_literal_union': () => {
     interface Person {
       name: string;
@@ -577,8 +941,15 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<UserForm>();
     return (v) => check(v);
   },
-  'UTILITY.distributive_conditional_over_union': NOT_SUPPORTED, // number arm accepts NaN (invalid sample rejects it)
-  'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED, // nested number prop accepts NaN (invalid sample rejects it)
+  'UTILITY.distributive_conditional_over_union': {
+    build: () => {
+      type Wrap<T> = T extends any ? {w: T} : never;
+      const check = typia.createIs<Wrap<string | number>>();
+      return (v) => check(v);
+    },
+    samples: {invalid: [{w: true}, {w: null}, {}, null, undefined]},
+  }, // override: typia number arm accepts NaN; invalid drops {w:NaN}
+  'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED, // all-optional outer object: typia accepts a Date instance (verified: new Date() passes) where mion rejects it — a structural divergence, same as OBJECT.interface_all_optional (not purely sample-semantics)
 
   // ── TYPE_MAPPINGS ──
   'TYPE_MAPPINGS.key_prefix_rename': () => {
@@ -614,7 +985,13 @@ export const cases: CompetitorCases = {
   // ── DATETIME ──
   // Temporal.* are branded class instances; typia validates by structure and can't reliably
   // distinguish them (and the bench runtime has no Temporal global, so samples can't even build).
-  'DATETIME.date': NOT_SUPPORTED, // Date instanceof accepts Invalid Date (invalid samples reject it)
+  'DATETIME.date': {
+    build: () => {
+      const check = typia.createIs<Date>();
+      return (v) => check(v);
+    },
+    samples: {invalid: ['hello', null, undefined, 42]},
+  }, // override: typia Date is instanceof (accepts Invalid Date); invalid drops new Date('invalid')/new Date(NaN)
   'DATETIME.instant': NOT_SUPPORTED,
   'DATETIME.zonedDateTime': NOT_SUPPORTED,
   'DATETIME.plainDate': NOT_SUPPORTED,
@@ -705,7 +1082,7 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>>();
     return (v) => check(v);
   },
-  'STRING_FORMAT.date_iso': NOT_SUPPORTED, // needs calendar validity (rejects 2023-02-29); a Pattern can only check format
+  'STRING_FORMAT.date_iso': NOT_SUPPORTED, // needs calendar validity; verified typia tags.Format<'date'> accepts 2023-02-29 (format-only, no real-calendar check)
   'STRING_FORMAT.date_DMY': NOT_SUPPORTED, // needs calendar validity (rejects 31-04-2024); a Pattern can only check format
   'STRING_FORMAT.date_YM': () => {
     const check = typia.createIs<string & tags.Pattern<'^[0-9]{4}-(0[1-9]|1[0-2])$'>>();
@@ -729,7 +1106,7 @@ export const cases: CompetitorCases = {
     return (v) => check(v);
   },
   'STRING_FORMAT.time_minMax_absolute': NOT_SUPPORTED, // needs absolute min/max bound comparison on time strings (no typia tag)
-  'STRING_FORMAT.dateTime_default': NOT_SUPPORTED, // needs calendar validity + T-only split (typia date-time regex allows space split and non-calendar dates)
+  'STRING_FORMAT.dateTime_default': NOT_SUPPORTED, // verified typia tags.Format<'date-time'> accepts the space-split form '2024-02-29 12:30:45Z' (RFC 3339 allows space) + no calendar check; mion needs a T-only split with calendar validity
   'STRING_FORMAT.dateTime_custom': () => {
     const check = typia.createIs<string & tags.Pattern<'^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-[0-9]{4} ([01][0-9]|2[0-3]):[0-5][0-9]$'>>();
     return (v) => check(v);
@@ -768,7 +1145,16 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<string & tags.Pattern<'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\\.){1,5}[a-zA-Z]{2,}$'>>();
     return (v) => check(v);
   },
-  'STRING_FORMAT.email': NOT_SUPPORTED, // typia email regex accepts a@b.co (1-char domain label) which mion's FormatEmail rejects
+  'STRING_FORMAT.email': {
+    build: () => {
+      const check = typia.createIs<string & tags.Format<'email'>>();
+      return (v) => check(v);
+    },
+    samples: {
+      valid: ['john@example.com', 'jane.doe@mion.io', 'ab@cd.co', 'user+tag@sub.example.org'],
+      invalid: ['not-an-email', '@example.com', 'john@', 'john@example', 'john doe@example.com', ''],
+    },
+  }, // override: typia email accepts a@b.co (1-char domain label) which mion rejects; invalid drops only that one sample
   'STRING_FORMAT.emailPunycode': () => {
     const check = typia.createIs<string & tags.Format<'email'>>();
     return (v) => check(v);
