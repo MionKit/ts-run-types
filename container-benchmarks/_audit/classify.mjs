@@ -5,8 +5,8 @@
 // every competitor's cases.ts to harvest the DECLARED divergences they already
 // carry: each NOT_SUPPORTED opt-out (with its inline reason) and each
 // SampleOverride (with its inline note). The union is the full alignment picture —
-// the live records prove the divergence empirically, the declared notes explain
-// the intent (and cover typia, whose validators need the in-container transform).
+// the live records prove the divergence empirically and the declared notes explain
+// the intent (including the NOT_SUPPORTED opt-outs, which never produce a record).
 //
 // Output:
 //   _audit/findings/<caseKey>__<competitor>__<path>__<idx>.md   one per live finding
@@ -35,19 +35,29 @@ const COMPETITORS = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
 // ── live-record classification ────────────────────────────────────────────────
 // Every divergence the audit surfaced is a competitor ACCEPTING a value the shared
 // (ts-runtypes) truth rejects — a reject-path false positive. The root cause is
-// read off the sample value: the suite's invalid samples are deliberately the
-// "edge" values each library treats differently.
+// read off the sample value (the suite's invalid samples are deliberately the
+// "edge" values each library treats differently) plus the case's suite/group.
 function classifyRecord(record) {
   const repr = record.sampleValueRepr;
   const nonFinite = /\bNaN\b|\bInfinity\b|-Infinity/.test(repr);
   const invalidDate = /Date\(Invalid\)/.test(repr);
-  const classInstance =
-    /^(Date\(|Map\(|Set\(|\/.*\/[a-z]*$|\[)/.test(repr) ||
-    /^Date\(/.test(repr) ||
-    /^Map\(/.test(repr) ||
-    /^Set\(/.test(repr) ||
-    /^\//.test(repr);
+  // A Map/Set sample only means "collection element validation" when the CASE is a
+  // builtin-collection type (NATIVE group); a Map/Set landing on an object case is
+  // the plain-object guard.
+  const collection = record.group === 'NATIVE' && /^(Map\(|Set\()/.test(repr);
+  const classInstance = /^(Date\(|Map\(|Set\(|\[)/.test(repr) || /^\/.*\/[a-z]*$/.test(repr);
 
+  // Format-validation suite: the divergence is the library's format regex (email,
+  // uuid, ip, date-string, …) differing from ts-runtypes' built-in pattern.
+  if (record.suite === 'format-validation') {
+    return {
+      bucket: 'LIBRARY_SEMANTIC_DIFFERENCE',
+      cause: 'format-regex-difference',
+      reasoning:
+        "The library accepts a string ts-runtypes rejects (or vice versa) for a string/number format. Each library ships its own format regexes; the shared samples were authored against ts-runtypes' built-in patterns (packages/ts-runtypes/src/formats/), so a stricter-or-looser competitor regex shows up here. This is the predicted largest format cluster.",
+      action: 'Keep as a documented SampleOverride naming the format-regex difference.',
+    };
+  }
   if (nonFinite) {
     return {
       bucket: 'LIBRARY_SEMANTIC_DIFFERENCE',
@@ -66,12 +76,21 @@ function classifyRecord(record) {
       action: 'Keep as a documented SampleOverride naming the Invalid-Date semantic.',
     };
   }
+  if (collection) {
+    return {
+      bucket: 'LIBRARY_SEMANTIC_DIFFERENCE',
+      cause: 'collection-element-validation',
+      reasoning:
+        'For a Map/Set type the library accepts an instance whose entries do not match the declared key/value types, validating the container kind but not its elements. ts-runtypes validates the entries too.',
+      action: 'Keep as a documented SampleOverride naming the collection-element semantic.',
+    };
+  }
   if (classInstance) {
     return {
       bucket: 'LIBRARY_SEMANTIC_DIFFERENCE',
       cause: 'structural-object-accepts-class-instance',
       reasoning:
-        'For an all-optional object type the library accepts a builtin class instance (Date / Map / Set / RegExp) or an array, because structurally it has no conflicting members. ts-runtypes applies a plain-object guard. zod replicates the guard with a custom check (so it agrees with ts-runtypes); typebox cannot express it via Type.Object, hence its override.',
+        'For an all-optional object type the library accepts a builtin class instance (Date / RegExp) or an array, because structurally it has no conflicting members. ts-runtypes applies a plain-object guard. zod replicates the guard with a custom check (so it agrees with ts-runtypes); typebox cannot express it via Type.Object, hence its override.',
       action: 'Keep as a documented SampleOverride / LIBRARY_LIMITATION naming the plain-object guard.',
     };
   }
@@ -86,7 +105,7 @@ function classifyRecord(record) {
 // ── declared-divergence harvest (static read of each cases.ts) ──────────────────
 // NOT_SUPPORTED opt-outs and SampleOverride notes both carry a trailing `// …`
 // reason at the call site. We pull them out keyed by case so the catalog explains
-// intent (and covers typia, whose live validators need the in-container build).
+// intent, including the NOT_SUPPORTED opt-outs that never produce a live record.
 function harvestDeclared(competitor) {
   const file = path.join(BENCH_DIR, 'competitors', competitor, 'cases.ts');
   let src;
