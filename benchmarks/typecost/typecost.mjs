@@ -11,18 +11,32 @@
 //   ts-go (schema)  const s = RT.…; type T = Static<typeof s>;  const x: T = …;
 //   zod             const s = z.…;  type T = z.infer<typeof s>;  const x: T = …;
 //   typebox         const s = Type.…; type T = Static<typeof s>; const x: T = …;
+//   typia           type T = <the TS type, incl. `& tags.*`>;  const x: T = <sample>;
 //   ajv             — (JSON Schema has no static type inference)
+//
+// typia, like ts-go(type), is a PURE-TYPE form: its cost is the cost of resolving
+// the literal `T` users write — no schema object, no transform needed (the runtime
+// transform is irrelevant to type-checking cost). It still earns its own column
+// because the FORMAT suites express constraints as typia tag intersections
+// (`string & tags.MinLength<…>`) whose instantiation cost differs from mion's
+// `Format*` brands, and because typia supports a different subset of cases.
 //
 // The probe sources are EXTRACTED (TS compiler API) from the real competitor maps:
 //   - ts-go (type):   the `createValidate<TYPE>()` type argument per case in
 //                     competitors/ts-go-run-types/cases.ts.
+//   - typia:          the `typia.createIs<TYPE>()` type argument per case in
+//                     competitors/typia/cases.ts.
 //   - ts-go (schema): the `createValidate(EXPR)` argument per case in
 //                     competitors/ts-go-run-types/schemaCases.ts.
 //   - zod / typebox:  the `c(EXPR)` argument per case in
 //                     competitors/{zod,typebox}/cases.ts.
-// Each entry is a LAZY `() => …` thunk (ts-go) or a `c(…)` call (zod/typebox); the
-// extractor unwraps the wrapper, preserving any local enum/interface/type/class
-// declarations authored inside a thunk so `<T>`/`EXPR` resolves where written.
+// The type forms (ts-go type, typia) author each entry as a `{build, buildErrors}`
+// object — optionally wrapped in an IIFE `(() => { …local decls…; return {…}; })()`
+// so a case can declare a local enum/interface/type the `<T>` references; the
+// literal type argument rides the `build` thunk's `createValidate<T>()` /
+// `typia.createIs<T>()` call. The schema form (ts-go) is a LAZY `() => …` thunk and
+// zod/typebox are `c(…)` calls. Each extractor unwraps its wrapper, preserving the
+// local declarations so `<T>`/`EXPR` resolves where written.
 //
 // Module resolution: each form's probe is emitted INTO the relevant competitor
 // directory so Node-style `node_modules` resolution + each package's `exports`
@@ -63,6 +77,7 @@ const COMPETITORS = path.join(ROOT, 'competitors');
 const TSGO_DIR = path.join(COMPETITORS, 'ts-go-run-types');
 const ZOD_DIR = path.join(COMPETITORS, 'zod');
 const TYPEBOX_DIR = path.join(COMPETITORS, 'typebox');
+const TYPIA_DIR = path.join(COMPETITORS, 'typia');
 
 const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? '/app/results';
 
@@ -71,7 +86,8 @@ const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? '/app/results';
 const PROBE_TSGO = path.join(TSGO_DIR, '__typecost_probe.ts');
 const PROBE_ZOD = path.join(ZOD_DIR, '__typecost_probe.ts');
 const PROBE_TYPEBOX = path.join(TYPEBOX_DIR, '__typecost_probe.ts');
-const PROBE_PATHS = new Set([PROBE_TSGO, PROBE_ZOD, PROBE_TYPEBOX]);
+const PROBE_TYPIA = path.join(TYPIA_DIR, '__typecost_probe.ts');
+const PROBE_PATHS = new Set([PROBE_TSGO, PROBE_ZOD, PROBE_TYPEBOX, PROBE_TYPIA]);
 
 const MARKER = path.join(TSGO_DIR, 'node_modules', '@mionjs', 'ts-go-run-types', 'dist');
 
@@ -229,6 +245,67 @@ function extractSchemaCompetitor(file, mapName) {
   return {preamble: extractPreamble(source, mapName), entries};
 }
 
+/** DFS for the first `callName<…>(…)` call carrying a type argument under `node`
+ *  (callName is the call's source text — `createValidate` or `typia.createIs`). */
+function findTypedCall(node, callName, source) {
+  let found = null;
+  const visit = (n) => {
+    if (found || !n) return;
+    if (ts.isCallExpression(n) && n.typeArguments?.length && n.expression.getText(source) === callName) {
+      found = n;
+      return;
+    }
+    n.forEachChild(visit);
+  };
+  visit(node);
+  return found;
+}
+
+/** Type-form competitor cases.ts (ts-go type, typia) → {preamble, entries:{key:
+ *  {locals, typeText}}, keys}. Each entry is a `{build, buildErrors}` object,
+ *  optionally wrapped in an IIFE `(() => { …local decls…; return {…}; })()` whose
+ *  pre-return statements declare the enum/interface/type the `<T>` references. The
+ *  literal type argument lives on the `build` thunk's `callName<T>(…)` call —
+ *  `createValidate` for ts-go, `typia.createIs` for typia. NOT_SUPPORTED entries
+ *  are skipped; `keys` lists EVERY map key in file order (drives table/row order). */
+function extractTypeForm(file, mapName, callName) {
+  const source = sf(file);
+  const obj = findMapObject(source, mapName);
+  const entries = {};
+  const keys = [];
+  if (obj) {
+    for (const prop of obj.properties) {
+      if (!ts.isPropertyAssignment(prop)) continue;
+      const key = prop.name.getText(source).replace(/['"]/g, '');
+      keys.push(key);
+      // Unwrap an optional IIFE wrapper, capturing its local declarations verbatim.
+      const init = unwrapExpr(prop.initializer);
+      const locals = [];
+      let objLiteral = init;
+      if (ts.isCallExpression(init)) {
+        const fn = unwrapExpr(init.expression);
+        if (!ts.isArrowFunction(fn) || !ts.isBlock(fn.body)) continue;
+        objLiteral = null;
+        for (const stmt of fn.body.statements) {
+          if (ts.isReturnStatement(stmt)) {
+            objLiteral = stmt.expression ? unwrapExpr(stmt.expression) : null;
+            break;
+          }
+          locals.push(stmt.getText(source)); // decl the returned `<T>` references
+        }
+      }
+      if (!objLiteral || !ts.isObjectLiteralExpression(objLiteral)) continue; // NOT_SUPPORTED
+      const build = objLiteral.properties.find(
+        (p) => ts.isPropertyAssignment(p) && p.name.getText(source) === 'build'
+      );
+      if (!build) continue;
+      const call = findTypedCall(build.initializer, callName, source);
+      if (call) entries[key] = {locals, typeText: call.typeArguments[0].getText(source)};
+    }
+  }
+  return {preamble: extractPreamble(source, mapName), entries, keys};
+}
+
 // ── probe assembly ──────────────────────────────────────────────────────────
 
 const STATIC_IMPORT = `import {type Static} from '@mionjs/ts-go-run-types';`;
@@ -358,10 +435,11 @@ async function loadSampleValues() {
 const V = "'x'"; // baseline value (type is `string`)
 
 async function main() {
-  const tsType = extractTsGo(path.join(TSGO_DIR, 'cases.ts'), 'cases', 'type');
+  const tsType = extractTypeForm(path.join(TSGO_DIR, 'cases.ts'), 'cases', 'createValidate');
   const tsSchema = extractTsGo(path.join(TSGO_DIR, 'schemaCases.ts'), 'schemaCases', 'schema');
   const zod = extractSchemaCompetitor(path.join(ZOD_DIR, 'cases.ts'), 'cases');
   const typebox = extractSchemaCompetitor(path.join(TYPEBOX_DIR, 'cases.ts'), 'cases');
+  const typia = extractTypeForm(path.join(TYPIA_DIR, 'cases.ts'), 'cases', 'typia.createIs');
 
   const valueByKey = await loadSampleValues();
 
@@ -382,16 +460,18 @@ async function main() {
     if (process.env.BENCH_DUMP === key) {
       const t = tsType.entries[key];
       const s = tsSchema.entries[key];
-      if (t) console.log(`\n===== ts-go(type) =====\n${probeTsType(tsType.preamble, t.locals, t.arg.text, value)}`);
+      const tp = typia.entries[key];
+      if (t) console.log(`\n===== ts-go(type) =====\n${probeTsType(tsType.preamble, t.locals, t.typeText, value)}`);
       if (s) console.log(`\n===== ts-go(schema) =====\n${probeTsSchema(tsSchema.preamble, s.locals, s.arg.text, value)}`);
       if (zod.entries[key]) console.log(`\n===== zod =====\n${probeZod(zod.preamble, zod.entries[key].exprText, value)}`);
       if (typebox.entries[key]) console.log(`\n===== typebox =====\n${probeTypebox(typebox.preamble, typebox.entries[key].exprText, value)}`);
+      if (tp) console.log(`\n===== typia =====\n${probeTsType(typia.preamble, tp.locals, tp.typeText, value)}`);
       process.exit(0);
     }
 
     const t = tsType.entries[key];
     cell.tsType = t
-      ? measure('tsType', 'tsgo', PROBE_TSGO, probeTsType(tsType.preamble, [], 'string', V), probeTsType(tsType.preamble, t.locals, t.arg.text, value))
+      ? measure('tsType', 'tsgo', PROBE_TSGO, probeTsType(tsType.preamble, [], 'string', V), probeTsType(tsType.preamble, t.locals, t.typeText, value))
       : {status: 'na'};
 
     const s = tsSchema.entries[key];
@@ -407,6 +487,11 @@ async function main() {
       ? measure('typebox', 'typebox', PROBE_TYPEBOX, probeTypebox(typebox.preamble, 'Type.String()', V), probeTypebox(typebox.preamble, typebox.entries[key].exprText, value))
       : {status: 'na'};
 
+    const tp = typia.entries[key];
+    cell.typia = tp
+      ? measure('typia', 'typia', PROBE_TYPIA, probeTsType(typia.preamble, [], 'string', V), probeTsType(typia.preamble, tp.locals, tp.typeText, value))
+      : {status: 'na'};
+
     rows.push(cell);
   }
 
@@ -419,6 +504,7 @@ const LIBS = [
   ['ts-go(schema)', 'tsSchema', 'ts-go-run-types-schema'],
   ['zod', 'zod', 'zod'],
   ['typebox', 'typebox', 'typebox'],
+  ['typia', 'typia', 'typia'],
 ];
 
 function report(rows) {
@@ -430,8 +516,8 @@ function report(rows) {
   console.log(padR('case', KEYW) + LIBS.map(([n]) => padL(n, COL)).join(''));
   console.log('-'.repeat(KEYW + COL * LIBS.length));
 
-  const totals = {tsType: 0, tsSchema: 0, zod: 0, typebox: 0};
-  const counts = {tsType: 0, tsSchema: 0, zod: 0, typebox: 0};
+  const totals = Object.fromEntries(LIBS.map(([, field]) => [field, 0]));
+  const counts = Object.fromEntries(LIBS.map(([, field]) => [field, 0]));
   let lastGroup = '';
   for (const row of rows) {
     if (row.group !== lastGroup) {
@@ -472,8 +558,9 @@ function report(rows) {
     "\nNote: each probe ASSIGNS a real value to a `const x: <type>` (the case's\n" +
       'first valid sample, serialized), forcing TypeScript to fully resolve the\n' +
       'type AND structurally check the value against it — the cost users pay on\n' +
-      'every `const x: T = {…}`. ts-go(type) is the type-definition form; ts-go(schema)\n' +
-      'is the value-first builder + Static<>. ajv has no static type inference.'
+      'every `const x: T = {…}`. ts-go(type) and typia are pure-type forms (the cost\n' +
+      'of resolving the literal T); ts-go(schema) is the value-first builder + Static<>.\n' +
+      'ajv has no static type inference.'
   );
 }
 
