@@ -96,6 +96,12 @@ func (resolver *Resolver) ensureOverrides() {
 				return true
 			}
 			firstByKey[dedupKey] = overrideRecord{hash: cfn.FunctionName, site: callSite}
+			// validate is a shared cross-family dependency: JSON / binary union
+			// decoders call val_<member> to narrow. Overriding it reaches past
+			// createValidate<T>(), so flag the site (Warning — the build proceeds).
+			if site.fnKey == "val" {
+				diagnostics = append(diagnostics, diag.New(diag.CodeOverrideValidateCrossFamily, callSite))
+			}
 			families := overrides[baseKey]
 			if families == nil {
 				families = map[string]string{}
