@@ -36,6 +36,18 @@ const SUITES = {
     pureField: 'cloneEncoder',
     schemaField: 'schemaEncoder',
   },
+  'format-validation': {
+    label: 'Format · Validation',
+    json: 'format-validation-suite.json',
+    pureField: 'validate',
+    schemaField: 'validateSchema',
+  },
+  'format-serialization': {
+    label: 'Format · Serialization',
+    json: 'format-serialization-suite.json',
+    pureField: 'cloneEncoder',
+    schemaField: 'schemaEncoder',
+  },
 };
 
 // UPPER_SNAKE category key → Title Case display label.

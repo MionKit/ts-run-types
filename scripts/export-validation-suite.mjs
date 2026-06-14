@@ -41,12 +41,25 @@ import {CACHE_MODULES} from '../packages/vite-plugin-runtypes/dist/runtypes-cons
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
-const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites/validation');
+// Suite selection — `--suite validation` (default) or `--suite format-validation`.
+// Both use the ValidationCase shape (FormatValidationCase extends ValidationCase).
+const SUITE_CONFIGS = {
+  validation: {dir: 'validation', exportConst: 'VALIDATION_SUITE'},
+  'format-validation': {dir: 'format-validation', exportConst: 'FORMAT_VALIDATION_SUITE'},
+};
+const suiteArgIndex = process.argv.indexOf('--suite');
+const SUITE = suiteArgIndex >= 0 ? process.argv[suiteArgIndex + 1] : 'validation';
+const SUITE_CFG = SUITE_CONFIGS[SUITE];
+if (!SUITE_CFG) {
+  process.stderr.write(`unknown --suite '${SUITE}' (known: ${Object.keys(SUITE_CONFIGS).join(', ')})\n`);
+  process.exit(1);
+}
+const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites', SUITE_CFG.dir);
 const SUITE_PATH = path.join(SUITE_DIR, 'index.ts');
 const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
 const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
-const OUT_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.json');
-const MD_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.md');
+const OUT_PATH = path.join(REPO_ROOT, `gendocs/${SUITE}-suite.json`);
+const MD_PATH = path.join(REPO_ROOT, `gendocs/${SUITE}-suite.md`);
 const FN_FIELDS = ['validate', 'validateSchema', 'validateReflect', 'getSamples'];
 const APIS = ['validate', 'validateReflect'];
 
@@ -165,7 +178,7 @@ async function loadSuiteWithPlugin() {
   });
   try {
     const mod = await server.ssrLoadModule(SUITE_PATH);
-    return mod.VALIDATION_SUITE;
+    return mod[SUITE_CFG.exportConst];
   } finally {
     await server.close();
   }
@@ -277,7 +290,7 @@ async function runCompilePhase(metrics, bodies) {
   // don't leave orphan files behind.
   // Suite-scoped so each exporter wipes only its own dumps (gendocs/cases is
   // shared; validation / serialization / format suites reuse category names).
-  const casesDir = path.join(REPO_ROOT, 'gendocs/cases/validation');
+  const casesDir = path.join(REPO_ROOT, 'gendocs/cases', SUITE);
   fs.rmSync(casesDir, {recursive: true, force: true});
   fs.mkdirSync(casesDir, {recursive: true});
 
