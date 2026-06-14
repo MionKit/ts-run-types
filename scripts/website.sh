@@ -15,6 +15,8 @@
 #   scripts/website.sh build         # production build -> website/.output
 #   scripts/website.sh generate      # static prerender -> website/.output/public
 #   scripts/website.sh smoke         # quick verify: bg dev server + curl :3000 + stop
+#   scripts/website.sh verify-docs   # verify code-import + twoslash render (curl/grep)
+#   scripts/website.sh prep          # verify the repo context (packages/) is built
 #   scripts/website.sh shell         # debug shell inside the container
 #   scripts/website.sh lock          # regenerate _deps/pnpm-lock.yaml in-container
 #   scripts/website.sh login         # log in to GHCR (uses GHCR_PAT / GHCR_PAT_FILE)
@@ -30,6 +32,11 @@
 #   WEBSITE_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline)
 #   WEBSITE_REMOTE_IMAGE  remote ref   (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest)
 #   GHCR_OWNER / GHCR_USER / GHCR_PAT / GHCR_PAT_FILE  (see scripts/lib-ghcr.sh)
+#   WEBSITE_REPO_CONTEXT  host checkout that contains packages/ (mion's source +
+#                        built .d.ts), mounted read-only for code-import/twoslash.
+#                        Default: sibling ../mion if present, else this repo.
+#   WEBSITE_DOCDATA      host dir of generated benchmark/test result JSON the docs
+#                        read, mounted read-only at /app/.docdata (default: .docdata).
 #   WEBSITE_POLL=1   use filesystem polling for watchers (macOS / VM mounts)
 #   WEBSITE_MOUNT_OPTS   extra bind-mount opts, e.g. ":z" on SELinux hosts
 #   WEBSITE_CA_CERT      file OR dir of extra CA certs to trust inside the
@@ -57,6 +64,18 @@ BUILD_NETWORK="${WEBSITE_BUILD_NETWORK:-}"
 RUN_NETWORK="${WEBSITE_RUN_NETWORK:-}"
 CACERTS_DIR="$WEBSITE_DIR/.cacerts"
 DEPS_DIR="$WEBSITE_DIR/_deps"
+
+# Repo context: the checkout that contains packages/ (mion's first-party source +
+# built .d.ts), mounted READ-ONLY so code-import + twoslash can resolve code and
+# types. Defaults to the sibling ../mion checkout when present (today), else this
+# repo (the merged-monorepo future). Override with WEBSITE_REPO_CONTEXT.
+default_repo_context() {
+  if [ -d "$ROOT_DIR/../mion/packages" ]; then ( cd "$ROOT_DIR/../mion" && pwd ); else echo "$ROOT_DIR"; fi
+}
+REPO_CONTEXT="${WEBSITE_REPO_CONTEXT:-$(default_repo_context)}"
+
+# Generated benchmark/test result JSON the docs are built from, mounted read-only.
+DOCDATA_DIR="${WEBSITE_DOCDATA:-$ROOT_DIR/.docdata}"
 
 # Source directories bind-mounted into /app (host is the source of truth).
 MOUNT_DIRS=(app content public server scripts not-rendered tests)
@@ -171,6 +190,21 @@ mount_args() {
   for cfg in "${MOUNT_FILES[@]}"; do
     [ -f "$WEBSITE_DIR/$cfg" ] && printf -- '-v\n%s:/app/%s:ro%s\n' "$WEBSITE_DIR/$cfg" "$cfg" "$MOUNT_OPTS"
   done
+
+  # Repo context, READ-ONLY: only packages/ (+ the drizzle-orm d.ts allowlist) is
+  # exposed — never the repo root — so code-import/twoslash can read first-party
+  # code + types but nothing else. MION_REPO_ROOT=/repo-context (see env_args).
+  if [ -d "$REPO_CONTEXT/packages" ]; then
+    printf -- '-v\n%s:/repo-context/packages:ro%s\n' "$REPO_CONTEXT/packages" "$MOUNT_OPTS"
+  fi
+  if [ -d "$REPO_CONTEXT/node_modules/drizzle-orm" ]; then
+    printf -- '-v\n%s:/repo-context/node_modules/drizzle-orm:ro%s\n' "$REPO_CONTEXT/node_modules/drizzle-orm" "$MOUNT_OPTS"
+  fi
+
+  # Generated benchmark/test results the docs read (MION_DOCDATA=/app/.docdata).
+  mkdir -p "$DOCDATA_DIR"
+  printf -- '-v\n%s:/app/.docdata:ro%s\n' "$DOCDATA_DIR" "$MOUNT_OPTS"
+
   printf -- '-v\n%s:/app/.nuxt\n'  "$VOL_NUXT"
   printf -- '-v\n%s:/app/.data\n'  "$VOL_DATA"
   printf -- '-v\n%s:/app/node_modules/.cache\n' "$VOL_CACHE"
@@ -179,6 +213,12 @@ mount_args() {
 # Echo the --network arg for `run` when WEBSITE_RUN_NETWORK is set.
 net_args() {
   [ -n "$RUN_NETWORK" ] && printf -- '--network=%s\n' "$RUN_NETWORK"
+}
+
+# Echo the env args pointing the resolvers at the mounted repo context + results.
+env_args() {
+  printf -- '-e\nMION_REPO_ROOT=/repo-context\n'
+  printf -- '-e\nMION_DOCDATA=/app/.docdata\n'
 }
 
 # Echo watcher env args when polling is requested (needed on macOS / VM mounts).
@@ -194,10 +234,11 @@ cmd_dev() {
   read_lines MARGS < <(mount_args)
   read_lines PARGS < <(poll_args)
   read_lines NARGS < <(net_args)
+  read_lines EARGS < <(env_args)
   exec "$ENGINE" run --rm -it --init \
     --name "${CONTAINER_BASE}-dev" \
     -p "$PORT:3000" \
-    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${PARGS[@]+"${PARGS[@]}"} \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${PARGS[@]+"${PARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
     -e NODE_ENV=development \
     -w /app "$IMAGE" \
     pnpm exec nuxt dev --extends docus --host 0.0.0.0 --port 3000
@@ -208,9 +249,10 @@ cmd_build() {
   echo "==> production build -> website/.output"
   read_lines MARGS < <(mount_args)
   read_lines NARGS < <(net_args)
+  read_lines EARGS < <(env_args)
   exec "$ENGINE" run --rm --init \
     --name "${CONTAINER_BASE}-build" \
-    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
     -v "$WEBSITE_DIR/.output:/app/.output${MOUNT_OPTS}" \
     -e NODE_ENV=production \
     -w /app "$IMAGE" \
@@ -222,9 +264,10 @@ cmd_generate() {
   echo "==> static prerender -> website/.output/public"
   read_lines MARGS < <(mount_args)
   read_lines NARGS < <(net_args)
+  read_lines EARGS < <(env_args)
   exec "$ENGINE" run --rm --init \
     --name "${CONTAINER_BASE}-generate" \
-    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
     -v "$WEBSITE_DIR/.output:/app/.output${MOUNT_OPTS}" \
     -e NODE_ENV=production \
     -w /app "$IMAGE" \
@@ -241,10 +284,11 @@ cmd_smoke() {
   read_lines MARGS < <(mount_args)
   read_lines PARGS < <(poll_args)
   read_lines NARGS < <(net_args)
+  read_lines EARGS < <(env_args)
   "$ENGINE" run -d --init \
     --name "$cname" \
     -p "$PORT:3000" \
-    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${PARGS[@]+"${PARGS[@]}"} \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${PARGS[@]+"${PARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
     -e NODE_ENV=development \
     -w /app "$IMAGE" \
     pnpm exec nuxt dev --extends docus --host 0.0.0.0 --port 3000 >/dev/null \
@@ -288,10 +332,11 @@ cmd_shell() {
   ensure_image
   read_lines MARGS < <(mount_args)
   read_lines NARGS < <(net_args)
+  read_lines EARGS < <(env_args)
   exec "$ENGINE" run --rm -it --init \
     --name "${CONTAINER_BASE}-shell" \
     -p "$PORT:3000" \
-    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
     -w /app "$IMAGE" bash
 }
 
@@ -314,6 +359,100 @@ cmd_lock() {
     pnpm install --lockfile-only --no-frozen-lockfile
 }
 
+# Verify the repo context (the checkout that holds packages/) is present and built.
+# Does NOT build a sibling repo — it spot-checks a couple of packages' .dist/esm
+# .d.ts and prints guidance if missing (twoslash hovers need them). Warn-only.
+cmd_prep() {
+  echo "==> repo context: $REPO_CONTEXT"
+  local pkgdir="$REPO_CONTEXT/packages" missing=0 p
+  [ -d "$pkgdir" ] || die "no packages/ under repo context '$REPO_CONTEXT' - set WEBSITE_REPO_CONTEXT to the mion checkout"
+  for p in core run-types; do
+    if ls "$pkgdir/$p/.dist/esm/"*.d.ts >/dev/null 2>&1; then
+      echo "  ok: packages/$p built"
+    else
+      echo "  MISSING: packages/$p/.dist/esm/*.d.ts" >&2; missing=1
+    fi
+  done
+  if [ "$missing" = 1 ]; then
+    echo "==> repo context not fully built - twoslash type hovers will be incomplete." >&2
+    echo "    build it first, e.g.:  pnpm -C \"$REPO_CONTEXT\" run build" >&2
+    return 1
+  fi
+  echo "==> repo context OK"
+}
+
+# End-to-end check that code-import + twoslash resolve against the mounted repo
+# context: boots a detached dev server, then exercises the endpoints from the host
+# (curl/grep) — twoslash render, file read (code-import's resolver), and the
+# packages/ security boundary. No browser needed (twoslash is SSR).
+cmd_verify_docs() {
+  ensure_image
+  local cname="${CONTAINER_BASE}-verify"
+  local timeout_s="${WEBSITE_SMOKE_TIMEOUT:-120}"
+  local base="http://localhost:$PORT"
+  # Pick a real example file from the mounted context for the endpoint checks.
+  local ex relpath
+  ex="$(find "$REPO_CONTEXT/packages/examples/src" -name '*.ts' 2>/dev/null | head -1)"
+  [ -n "$ex" ] || die "no examples found under $REPO_CONTEXT/packages/examples/src - run 'website.sh prep'"
+  relpath="${ex#"$REPO_CONTEXT"/}"
+  echo "==> verify-docs: example = $relpath"
+
+  "$ENGINE" rm -f "$cname" >/dev/null 2>&1 || true
+  read_lines MARGS < <(mount_args)
+  read_lines PARGS < <(poll_args)
+  read_lines NARGS < <(net_args)
+  read_lines EARGS < <(env_args)
+  "$ENGINE" run -d --init --name "$cname" -p "$PORT:3000" \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${PARGS[@]+"${PARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
+    -e NODE_ENV=development -w /app "$IMAGE" \
+    pnpm exec nuxt dev --extends docus --host 0.0.0.0 --port 3000 >/dev/null \
+    || die "podman run failed"
+  trap '"$ENGINE" rm -f "'"$cname"'" >/dev/null 2>&1 || true' EXIT INT TERM
+
+  echo "==> verify-docs: waiting for $base (timeout ${timeout_s}s)"
+  local deadline=$(( $(date +%s) + timeout_s ))
+  until curl -fsS "$base" -o /dev/null 2>/dev/null; do
+    [ "$(date +%s)" -lt "$deadline" ] || { "$ENGINE" logs --tail 40 "$cname" >&2; die "dev server never came up"; }
+    sleep 2
+  done
+
+  local fails=0
+  # 1. twoslash endpoint renders hovers from the mounted packages' .d.ts.
+  if curl -fsS -X POST "$base/api/twoslash" -H 'content-type: application/json' \
+       -d "{\"path\":\"$relpath\",\"hoverMode\":\"all\"}" 2>/dev/null | grep -q 'twoslash'; then
+    echo "  PASS  twoslash: rendered hovers for $relpath"
+  else
+    echo "  FAIL  twoslash: no hover markup for $relpath" >&2; fails=1
+  fi
+  # 2. file read (the resolver code-import uses) returns code from the context.
+  if curl -fsS -X POST "$base/api/read-file" -H 'content-type: application/json' \
+       -d "{\"path\":\"$relpath\"}" 2>/dev/null | grep -q '"code"'; then
+    echo "  PASS  code read: $relpath"
+  else
+    echo "  FAIL  code read: $relpath" >&2; fails=1
+  fi
+  # 3. security boundary: a path escaping packages/ is rejected (403).
+  local code
+  code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$base/api/read-file" \
+       -H 'content-type: application/json' -d '{"path":"packages/examples/../../package.json"}' 2>/dev/null)"
+  if [ "$code" = 403 ]; then
+    echo "  PASS  security: out-of-packages path rejected (403)"
+  else
+    echo "  FAIL  security: expected 403, got $code" >&2; fails=1
+  fi
+  # 4. homepage server-renders twoslash markup (full SSR path).
+  if curl -fsS "$base" 2>/dev/null | grep -q 'twoslash'; then
+    echo "  PASS  homepage: twoslash markup present in SSR HTML"
+  else
+    echo "  WARN  homepage: no twoslash markup (homepage may not use ::twoslash-code)" >&2
+  fi
+
+  "$ENGINE" rm -f "$cname" >/dev/null 2>&1 || true
+  trap - EXIT INT TERM
+  [ "$fails" = 0 ] && { echo "==> verify-docs: PASS"; exit 0; }
+  echo "==> verify-docs: FAIL" >&2; exit 1
+}
+
 cmd_login() { require_engine; ghcr_login; }
 
 cmd_push() {
@@ -333,13 +472,15 @@ main() {
     build)       cmd_build ;;
     generate)    cmd_generate ;;
     smoke)       cmd_smoke ;;
+    verify-docs) cmd_verify_docs ;;
+    prep)        cmd_prep ;;
     shell)       cmd_shell ;;
     lock)        cmd_lock ;;
     login)       cmd_login ;;
     push)        cmd_push ;;
     pull)        cmd_pull ;;
     clean)       cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: build-image | dev | build | generate | smoke | shell | lock | login | push | pull | clean" ;;
+    *) die "unknown command '${1:-}'. Try: build-image | dev | build | generate | smoke | verify-docs | prep | shell | lock | login | push | pull | clean" ;;
   esac
 }
 

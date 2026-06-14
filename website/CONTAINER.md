@@ -45,6 +45,8 @@ pnpm run website:build         # production build            -> website/.output
 pnpm run website:generate      # static prerender            -> website/.output/public
 pnpm run website:shell         # debug shell inside the container
 pnpm run website:clean         # remove the image + cache volumes
+pnpm run website:prep          # verify the mion repo context (packages/) is built
+pnpm run website:verify-docs   # check code-import + twoslash render (curl/grep)
 # --- dependency / publishing flow ---
 pnpm run website:lock          # regenerate _deps/pnpm-lock.yaml in-container (after a dep bump)
 pnpm run website:build-image   # build the podman image locally (maintainer)
@@ -70,6 +72,19 @@ image (offline, or to test a dep bump before pushing).
 | `WEBSITE_MOUNT_OPTS` | empty            | Extra bind-mount opts, e.g. `:z` on SELinux hosts.   |
 | `WEBSITE_USE_LOCAL`  | off              | Skip the GHCR pull; build/use a local image.         |
 | `WEBSITE_REMOTE_IMAGE` | `ghcr.io/mionkit/tsrt-website:latest` | Published image ref to pull.        |
+| `WEBSITE_REPO_CONTEXT` | sibling `../mion`, else this repo | Checkout containing `packages/`, mounted read-only for code-import/twoslash. |
+| `WEBSITE_DOCDATA`    | `<repo>/.docdata` | Generated benchmark/test result JSON, mounted read-only at `/app/.docdata`. |
+
+### Documenting mion's code (repo context)
+
+The `<code-import>` and `::twoslash-code` mechanisms read first-party source +
+built `.d.ts` from `packages/`. Those packages live in the **mion** checkout, which
+`website.sh` mounts **read-only** and points the resolvers at via `MION_REPO_ROOT`
+— so the website works whether mion is a sibling checkout (today) or merged in
+later. Only `packages/` (+ a drizzle-orm `.d.ts` allowlist) is exposed, and every
+`path=` read is confined to `packages/` (`server/utils/repo-root.ts`). Run
+`pnpm run website:prep` to confirm the context is built and `pnpm run website:verify-docs`
+to check both mechanisms render.
 
 On **macOS** (podman runs in a Linux VM), inotify events don't always cross the
 VM mount boundary — run with polling:

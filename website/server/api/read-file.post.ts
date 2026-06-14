@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises'
-import { join, resolve } from 'path'
+import { resolve } from 'path'
 import { existsSync } from 'fs'
+import { getRepoRoot, resolveInPackages } from '../utils/repo-root'
 
 /**
  * API endpoint to read a file from the repository.
@@ -26,16 +27,14 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Resolve the path relative to the repository root
-  const repoRoot = resolve(process.cwd(), '..')
-  const filePath = join(repoRoot, path)
-
-  // Prevent path traversal attacks
-  if (!filePath.startsWith(repoRoot)) {
-    throw createError({
-      statusCode: 403,
-      message: 'Invalid path',
-    })
+  // Resolve under the configured repo root, confined to packages/ (rejects `..`
+  // traversal / absolute paths). repoRoot is MION_REPO_ROOT in the container.
+  const repoRoot = getRepoRoot(resolve(process.cwd(), '..'))
+  let filePath: string
+  try {
+    filePath = resolveInPackages(repoRoot, path)
+  } catch {
+    throw createError({ statusCode: 403, message: 'Invalid path' })
   }
 
   if (!existsSync(filePath)) {

@@ -4,11 +4,14 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { watch, type FSWatcher } from 'chokidar'
 import type { Plugin, ViteDevServer } from 'vite'
+import { getRepoRoot, packagesDir, resolveInPackages } from './repo-root'
 
-// Get monorepo root (parent of website folder)
+// Monorepo root that contains packages/. Configurable via MION_REPO_ROOT (set by
+// scripts/website.sh to the read-only repo context); falls back to the parent of
+// the website folder for plain host runs.
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
-const MONOREPO_ROOT = resolve(__dirname, '../../..')
+const MONOREPO_ROOT = getRepoRoot(resolve(__dirname, '../../..'))
 const CONTENT_DIR = resolve(__dirname, '../../content')
 
 /**
@@ -37,7 +40,9 @@ export function readCodeFile(
   commentStart: string,
   commentEnd: string
 ): string {
-  const absolutePath = resolve(MONOREPO_ROOT, filePath)
+  // Security: code-import may only read code under packages/ — never arbitrary
+  // repo files. Throws if filePath escapes <root>/packages (incl. `..` / absolute).
+  const absolutePath = resolveInPackages(MONOREPO_ROOT, filePath)
 
   let content: string
   try {
@@ -190,7 +195,7 @@ export function exampleWatcherPlugin(): Plugin {
       if (watcherInstance) return
 
       // All examples are centralized in packages/examples/src
-      const watchPath = resolve(MONOREPO_ROOT, 'packages', 'examples', 'src')
+      const watchPath = resolve(packagesDir(MONOREPO_ROOT), 'examples', 'src')
 
       console.log('\n👀 Watching example folders for changes...')
 

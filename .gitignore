@@ -30,6 +30,10 @@ yarn-error.log*
 
 # Benchmark output (raw harness logs; aggregated summaries live in docs/)
 /bench/results/
+/benchmarks/results/
+
+# Generated benchmark/test result JSON the docs website reads (read-only mount)
+/.docdata/
 
 # IDE / editor
 # Track shared workspace settings/extensions, ignore user-specific files.

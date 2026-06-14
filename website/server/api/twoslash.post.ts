@@ -6,6 +6,7 @@ import { createTwoslasher } from 'twoslash-vue'
 import { readFileSync, readdirSync, statSync, existsSync } from 'fs'
 import { join, relative, resolve, dirname } from 'path'
 import { createRequire } from 'module'
+import { getRepoRoot, resolveInPackages } from '../utils/repo-root'
 
 const nodeRequire = createRequire(import.meta.url)
 
@@ -159,10 +160,11 @@ function loadMionPackageTypes(): Map<string, string> {
     }
   }
 
-  // Get the repo root (parent of website directory)
-  // process.cwd() is always the website dir in both dev and generate modes.
-  // import.meta.url breaks during generate because the code is bundled into .nuxt/prerender/chunks/
-  const repoRoot = resolve(process.cwd(), '..')
+  // Repo root that contains packages/. Configurable via MION_REPO_ROOT (set by
+  // scripts/website.sh to the read-only repo context); falls back to the parent
+  // of the website dir. The env also sidesteps the old generate-mode fragility
+  // (process.cwd() worked but import.meta.url did not once bundled into chunks).
+  const repoRoot = getRepoRoot(resolve(process.cwd(), '..'))
   const packagesDir = join(repoRoot, 'packages')
 
   // Packages to load. `dir` is the directory under packages/, `name` is the
@@ -274,9 +276,9 @@ function readCodeFromPath(path: string): string {
     throw new Error('Only files from packages/examples are allowed')
   }
 
-  // Resolve the path relative to the repository root
-  const repoRoot = resolve(process.cwd(), '..')
-  const filePath = join(repoRoot, path)
+  // Resolve under the configured repo root, confined to packages/.
+  const repoRoot = getRepoRoot(resolve(process.cwd(), '..'))
+  const filePath = resolveInPackages(repoRoot, path)
 
   // Prevent path traversal attacks
   if (!filePath.startsWith(repoRoot)) {
