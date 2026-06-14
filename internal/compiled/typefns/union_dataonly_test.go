@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -81,6 +82,89 @@ func TestDataOnlyUnion_ReindexesGapFree(t *testing.T) {
 	}
 	if strings.Contains(out, "'[2,'") {
 		t.Errorf("dropped symbol (original index 2) must not leave a [2,…] arm; got:\n%s", out)
+	}
+}
+
+// renderWithDiag collects one family over `dump`, wiring a DiagSink and a
+// provenance site for `rootID` so EmitDiagnostic actually fans out (it skips
+// when no call site is known). Returns the rendered module + the captured
+// diagnostics.
+func renderWithDiag(t *testing.T, dump protocol.Dump, familyKey, rootID string) (string, []diag.Diagnostic) {
+	t.Helper()
+	var sink []diag.Diagnostic
+	opts := RenderOpts{
+		EmitMode:        "both",
+		DiagSink:        &sink,
+		ProvenanceSites: map[string][]diag.Site{rootID: {{FilePath: "/x.ts", StartLine: 1, StartCol: 1}}},
+	}
+	return joinEntries(t, FamilyByKey(familyKey).Collect(dump, opts, nil)), sink
+}
+
+// dropWarnFamilies maps each family that walks union members itself to its
+// DataOnly union-member-drop code. validationErrors is absent: its union arm
+// delegates to validate, so the user sees VL014 from the validate render.
+var dropWarnFamilies = map[string]string{
+	"validate":           diag.CodeVLUnionMemberDropped,
+	"prepareForJson":     diag.CodePJUnionMemberDropped,
+	"prepareForJsonSafe": diag.CodePJSUnionMemberDropped,
+	"stringifyJson":      diag.CodeSJUnionMemberDropped,
+	"restoreFromJson":    diag.CodeRJUnionMemberDropped,
+	"toBinary":           diag.CodeTBUnionMemberDropped,
+	"fromBinary":         diag.CodeFBUnionMemberDropped,
+}
+
+func findCode(sink []diag.Diagnostic, code string) (diag.Diagnostic, bool) {
+	for _, d := range sink {
+		if d.Code == code {
+			return d, true
+		}
+	}
+	return diag.Diagnostic{}, false
+}
+
+// A genuine drop (Date | symbol — one member survives) raises a per-family
+// build-time Warning naming the dropped member, mirroring the property-drop
+// warnings (VL010 etc.).
+func TestDataOnlyUnion_DropEmitsWarning(t *testing.T) {
+	dump := unionDump(mkDate(), mkSym())
+	for fam, wantCode := range dropWarnFamilies {
+		_, sink := renderWithDiag(t, dump, fam, "uni")
+		got, ok := findCode(sink, wantCode)
+		if !ok {
+			t.Errorf("[%s] expected union-member-drop warning %s; sink=%+v", fam, wantCode, sink)
+			continue
+		}
+		if got.Severity != diag.SeverityWarning {
+			t.Errorf("[%s] %s severity = %v, want Warning", fam, wantCode, got.Severity)
+		}
+		if len(got.Args) == 0 || !strings.Contains(got.Args[0], "symbol") {
+			t.Errorf("[%s] %s args = %v, want a label naming the dropped \"symbol\" member", fam, wantCode, got.Args)
+		}
+	}
+}
+
+// An all-stripped union (symbol | function) renders alwaysThrow, NOT a drop —
+// so it must NOT emit a *014 union-member-drop warning (it surfaces a
+// root-position error instead).
+func TestDataOnlyUnion_AllStrippedNoDropWarning(t *testing.T) {
+	dump := unionDump(mkSym(), mkFn())
+	for fam, code := range dropWarnFamilies {
+		_, sink := renderWithDiag(t, dump, fam, "uni")
+		if _, ok := findCode(sink, code); ok {
+			t.Errorf("[%s] all-stripped union must not emit drop warning %s; sink=%+v", fam, code, sink)
+		}
+	}
+}
+
+// A union with no stripped members (Date | string) drops nothing, so no
+// union-member-drop warning fires.
+func TestDataOnlyUnion_NoDropNoWarning(t *testing.T) {
+	dump := unionDump(mkDate(), mkStr())
+	for fam, code := range dropWarnFamilies {
+		_, sink := renderWithDiag(t, dump, fam, "uni")
+		if _, ok := findCode(sink, code); ok {
+			t.Errorf("[%s] clean union must not emit drop warning %s; sink=%+v", fam, code, sink)
+		}
 	}
 }
 

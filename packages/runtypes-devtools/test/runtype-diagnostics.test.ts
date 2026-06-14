@@ -114,6 +114,73 @@ export const _ = createValidate<User>();
     });
   });
 
+  register('emits union-member-drop warning (VL014) for Date | symbol under validate', async () => {
+    // `Date | symbol` projects to `Date` (DataOnly drops the symbol arm). The
+    // drop is silent at runtime, so the build surfaces a VL014 Warning naming
+    // the dropped member — mirroring the function-prop drop (VL010) above.
+    const sources = {
+      'union-drop.ts': `import {createValidate} from 'ts-runtypes';
+export const _ = createValidate<Date | symbol>();
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeEntryModules: true,
+      });
+      const diags = runtypeDiagsOf(response);
+      const dropped = diags.find((d) => d.code === 'VL014');
+      expect(dropped, JSON.stringify(diags, null, 2)).toBeDefined();
+      expect(dropped!.severity).toBe(Severity.Warning);
+      // args[0] names the dropped member so the message can point at it.
+      expect(dropped!.args?.[0]).toContain('symbol');
+      expect(dropped!.site.filePath).toContain('union-drop.ts');
+    });
+  });
+
+  register('emits per-family union-drop warnings (PJS014 / SJ014 / RJ014) under JSON encode/decode', async () => {
+    // Each demand-driven family walks the union and emits its own per-family
+    // …014 prefix so users can grep the drop by family, like the root-throw
+    // codes. Seed pjs via the default clone encode, sj via the direct strategy,
+    // and rj via the decoder.
+    const sources = {
+      'union-drop-json.ts': `import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
+export const _e = createJsonEncoder<Date | symbol>();
+export const _s = createJsonEncoder<Date | symbol>(undefined, {strategy: 'direct'});
+export const _d = createJsonDecoder<Date | symbol>();
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeEntryModules: true,
+      });
+      const drops = runtypeDiagsOf(response).filter((d) => d.code.endsWith('014'));
+      const codes = new Set(drops.map((d) => d.code));
+      expect(codes, [...codes].join(',')).toContain('PJS014');
+      expect(codes).toContain('SJ014');
+      expect(codes).toContain('RJ014');
+      // Every …014 is a Warning, never an Error.
+      for (const d of drops) expect(d.severity).toBe(Severity.Warning);
+    });
+  });
+
+  register('emits NO union-drop warning when every member is stripped (alwaysThrow instead)', async () => {
+    // `symbol | (() => void)` projects to `never` — uninhabitable — so the
+    // factory alwaysThrows and there is no surviving union to drop INTO. A
+    // …014 drop warning would be wrong here.
+    const sources = {
+      'union-allstripped.ts': `import {createValidate} from 'ts-runtypes';
+export const _ = createValidate<symbol | (() => void)>();
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeEntryModules: true,
+      });
+      const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
+      expect(codes, [...codes].join(',')).not.toContain('VL014');
+    });
+  });
+
   register('formatTscDiagnostic renders runtype warnings in tsc line format', async () => {
     // pj is demand-driven, so seed it via createJsonEncoder(mutate) → [pj].
     const sources = {
