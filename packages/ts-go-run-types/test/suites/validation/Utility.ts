@@ -151,6 +151,8 @@ export const UTILITY = {
     title: 'Required<T> — all optional props become required',
     description:
       'mion utility/required.spec.ts — all properties become required. Resolves to a plain object literal; reuses the object emit.',
+    validateNotes:
+      'Optional props become required, so a value missing any of them now FAILS — `{}` and `{name: "John"}` are rejected (they were valid under the original optional shape).',
     validate: () => {
       interface MaybePerson {
         name?: string;
@@ -559,6 +561,8 @@ export const UTILITY = {
   exclude_atomic: {
     title: 'Exclude<U, X> on a string-literal union',
     description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
+    validateNotes:
+      'Resolves the union down to the two surviving members, so the excluded "age" now FAILS the union check.',
     validate: () => createValidate<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
     validateDataOnly: () => createValidate<DataOnly<Exclude<'name' | 'age' | 'createdAt', 'age'>>>(),
     validateSchema: () =>
