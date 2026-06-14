@@ -1,0 +1,62 @@
+import {
+  createValidate,
+  createGetValidationErrors,
+  createJsonEncoder,
+  createJsonDecoder,
+  createBinaryEncoder,
+  createBinaryDecoder,
+  createMockType,
+} from '@mionjs/ts-go-run-types';
+import type {FormatUUIDv4, FormatEmail} from '@mionjs/ts-go-run-types/formats';
+
+// start-type
+// One real-world type — the single source of truth for everything below.
+type Order = {
+  id: FormatUUIDv4;
+  customer: {name: string; email: FormatEmail};
+  items: {sku: string; qty: number; price: number}[];
+  total: number;
+  placedAt: Date;
+  status: 'pending' | 'paid' | 'shipped';
+};
+// end-type
+
+const order: Order = {
+  id: '6f9619ff-8b86-d011-b42d-00cf4fc964ff' as FormatUUIDv4,
+  customer: {name: 'Ada', email: 'ada@example.com' as FormatEmail},
+  items: [{sku: 'TS-7', qty: 1, price: 42}],
+  total: 42,
+  placedAt: new Date(),
+  status: 'paid',
+};
+
+// start-validate
+const isOrder = createValidate<Order>();
+isOrder(order); // true
+
+const orderErrors = createGetValidationErrors<Order>();
+orderErrors({...order, total: 'free'}); // [{path: ['total'], expected: 'number'}]
+// end-validate
+
+// start-json
+const toJson = createJsonEncoder<Order>();
+const fromJson = createJsonDecoder<Order>();
+
+const wire = toJson(order); // Date -> string, ready for the network
+const back = fromJson(wire); // string -> Date again, typed as DataOnly<Order>
+// end-json
+
+// start-binary
+const toBytes = createBinaryEncoder<Order>();
+const fromBytes = createBinaryDecoder<Order>();
+
+const bytes = toBytes(order); // Uint8Array — smaller than JSON
+const order2 = fromBytes(bytes); // back to a typed object
+// end-binary
+
+// start-mock
+const mockOrder = createMockType<Order>();
+const fake = mockOrder(); // a valid, randomized Order for your tests
+// end-mock
+
+export {order, back, order2, fake};
