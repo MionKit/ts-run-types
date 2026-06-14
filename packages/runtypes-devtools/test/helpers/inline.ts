@@ -53,6 +53,12 @@ export const RUNTYPES_DTS = `declare module 'ts-runtypes' {
   export function overrideJsonEncoder<T>(fn: PureFunction<(value: unknown) => string | undefined>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): void;
   export function overrideJsonDecoder<T>(fn: PureFunction<(serialized: string) => unknown>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): void;
   export function overrideBinaryEncoder<T>(fn: PureFunction<(value: unknown, Ser: any) => any>, id?: InjectTypeFnArgs<T, 'tb'>): void;
+  export function overrideBinaryDecoder<T>(fn: PureFunction<(ret: unknown, Des: any) => unknown>, id?: InjectTypeFnArgs<T, 'fb'>): void;
+  export function overrideHasUnknownKeys<T>(fn: PureFunction<(value: unknown, options?: any) => boolean>, id?: InjectTypeFnArgs<T, 'huk'>): void;
+  export function overrideStripUnknownKeys<T>(fn: PureFunction<(value: unknown) => unknown>, id?: InjectTypeFnArgs<T, 'suk'>): void;
+  export function overrideUnknownKeyErrors<T>(fn: PureFunction<(value: unknown, path?: unknown[], errors?: unknown[]) => unknown[]>, id?: InjectTypeFnArgs<T, 'uke'>): void;
+  export function overrideUnknownKeysToUndefined<T>(fn: PureFunction<(value: unknown) => unknown>, id?: InjectTypeFnArgs<T, 'uku'>): void;
+  export function overrideFormatTransform<T>(fn: PureFunction<(value: unknown) => unknown>, id?: InjectTypeFnArgs<T, 'fmt'>): void;
   export type StandardSchemaResult = {value: unknown; issues?: undefined} | {issues: ReadonlyArray<{message: string; path?: ReadonlyArray<PropertyKey | {key: PropertyKey}>}>};
   export type StandardSchemaV1 = {'~standard': {version: 1; vendor: string; validate: (value: unknown) => StandardSchemaResult}};
   export function createStandardSchema<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, ids?: InjectTypeFnArgs<T, 'val', 'verr'>): StandardSchemaV1;
