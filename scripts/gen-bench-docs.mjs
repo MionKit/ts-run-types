@@ -323,91 +323,79 @@ function buildTypecostBench() {
 }
 
 // ── compile-time bench ───────────────────────────────────────────────────────
-// Per-competitor wall-clock BUILD cost (cold = cache wiped, warm = cache hit), from
-// container-benchmarks/results/<competitor>.compiletime.json. unit = 'count' so the
-// numbers render bare (they are milliseconds, not ops/sec) and rank lower-is-better
-// everywhere, matching typecost. cold is the headline value; warm rides along in the
-// corner (it's the disk-cache payoff — usually ~0). ts-runtypes / typia transform at
-// build time; zod / typebox / ajv are the no-transform baseline columns.
-const COMPILETIME_COMPETITORS = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
+// Build-time OVERHEAD of the two transform-based libraries, from
+// container-benchmarks/results/{ts-runtypes,typia}.compiletime.json (per suite SECTION,
+// transform OFF = baseline vs ON). Four columns: each library's baseline and its
+// +transform; the gap is the overhead the transform + generated-function compile adds
+// over a plain compile. unit = 'count' so the ms values render bare and rank
+// lower-is-better. Rows are the suite sections (each a batched multi-function compile).
+const COMPILETIME_LIBS = ['ts-runtypes', 'typia'];
 
 function buildCompiletimeBench() {
-  const byComp = new Map(); // competitor → Map(key → {cold, warm})
-  const meta = new Map(); // key → {group, name}
-  const orderedKeys = [];
-  for (const competitor of COMPILETIME_COMPETITORS) {
-    const file = path.join(RESULTS_DIR, `${competitor}.compiletime.json`);
-    if (!fs.existsSync(file)) {
-      byComp.set(competitor, new Map());
-      continue;
-    }
+  const bySection = new Map(); // section → {col → ms}
+  const order = [];
+  const competitors = []; // column order: <lib> baseline, <lib> +transform, …
+  const versions = {};
+  for (const lib of COMPILETIME_LIBS) {
+    const file = path.join(RESULTS_DIR, `${lib}.compiletime.json`);
+    if (!fs.existsSync(file)) continue;
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const m = new Map();
-    for (const c of d.cases) {
-      m.set(c.key, {cold: c.cold_ms, warm: c.warm_ms});
-      if (!meta.has(c.key)) {
-        meta.set(c.key, {group: c.group, name: c.name});
-        orderedKeys.push(c.key);
-      }
+    const baseCol = `${lib} baseline`;
+    const txCol = `${lib} +transform`;
+    competitors.push(baseCol, txCol);
+    if (ENV?.versions?.[lib]) {
+      versions[baseCol] = ENV.versions[lib];
+      versions[txCol] = ENV.versions[lib];
     }
-    byComp.set(competitor, m);
+    for (const s of d.sections) {
+      if (!bySection.has(s.section)) {
+        bySection.set(s.section, {});
+        order.push(s.section);
+      }
+      bySection.get(s.section)[baseCol] = s.baseline_ms;
+      bySection.get(s.section)[txCol] = s.transform_ms;
+    }
   }
-  if (orderedKeys.length === 0) {
-    process.stderr.write(`skip compiletime bench: no results/*.compiletime.json in ${RESULTS_DIR} (run \`pnpm run bench:compiletime\`)\n`);
+  if (order.length === 0) {
+    process.stderr.write(`skip compiletime bench: no results/{ts-runtypes,typia}.compiletime.json in ${RESULTS_DIR} (run \`pnpm run bench:compiletime\`)\n`);
     return 0;
   }
-
-  const competitors = COMPILETIME_COMPETITORS.filter((c) => byComp.get(c)?.size);
-  const sources = new Map(competitors.map((c) => [c, extractCaseSources(path.join(COMPETITORS_DIR, c, 'cases.ts'), 'cases')]));
 
   const outDir = path.join(OUT_ROOT, 'compiletime');
   fs.rmSync(outDir, {recursive: true, force: true});
   fs.mkdirSync(outDir, {recursive: true});
 
-  const sectionMap = new Map();
-  for (const key of orderedKeys) {
-    const {group, name} = meta.get(key);
-    if (!sectionMap.has(group)) sectionMap.set(group, {key: group, label: sectionLabel(group), cases: []});
+  const cases = [];
+  for (const section of order) {
+    const cells = bySection.get(section);
     const results = {};
-    const detailComps = [];
-    for (const competitor of competitors) {
-      const cell = byComp.get(competitor).get(key);
-      // valid = cold (headline), invalid = warm (rides in the corner; hidden when 0).
-      if (cell) results[competitor] = {compiletime: {valid: cell.cold, invalid: cell.warm, status: 'ok'}};
-      const caseSources = sources.get(competitor)?.get(key);
-      const source = caseSources?.validate ?? caseSources?.validationErrors;
-      if (source) detailComps.push({name: competitor, source});
+    for (const col of competitors) {
+      if (cells[col] != null) results[col] = {compiletime: {valid: cells[col], status: 'ok'}};
     }
-    sectionMap.get(group).cases.push({key: safeKey(key), title: name, results});
-    fs.writeFileSync(path.join(outDir, `${safeKey(key)}.json`), JSON.stringify({competitors: detailComps}));
-  }
-
-  const versions = {};
-  for (const competitor of competitors) {
-    const version = ENV?.versions?.[competitor];
-    if (version) versions[competitor] = version;
+    cases.push({key: safeKey(section), title: sectionLabel(section), results});
+    fs.writeFileSync(path.join(outDir, `${safeKey(section)}.json`), JSON.stringify({competitors: []}));
   }
 
   const index = {
     bench: 'compiletime',
     label: 'Compile Time',
     unit: 'count',
-    showInvalid: true,
+    showInvalid: false,
     metrics: [
       {
         key: 'compiletime',
-        label: 'Build time',
-        metricLabel: 'Wall-clock build cost per case in ms (cold; warm in corner) — lower is better',
+        label: 'Build overhead',
+        metricLabel: 'Wall-clock build ms per section, transform off (baseline) vs on — lower is better',
         lowerBetter: true,
       },
     ],
     competitors,
     versions,
     meta: metaBlock(),
-    sections: [...sectionMap.values()],
+    sections: [{key: 'sections', label: 'Suite sections', cases}],
   };
   fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(index));
-  return orderedKeys.length;
+  return order.length;
 }
 
 if (process.argv[1] && process.argv[1].endsWith('gen-bench-docs.mjs')) {

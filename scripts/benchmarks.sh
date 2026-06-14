@@ -237,10 +237,8 @@ env_args() {
   # typecost to matching cases; BENCH_DUMP=<exact.key> prints typecost probe sources.
   [ -n "${BENCH_CASE:-}" ] && printf -- '-e\nBENCH_CASE=%s\n' "$BENCH_CASE"
   [ -n "${BENCH_DUMP:-}" ] && printf -- '-e\nBENCH_DUMP=%s\n' "$BENCH_DUMP"
-  # compile-time bench repeat counts + case cap (median of N, drop top+bottom).
-  [ -n "${COMPILETIME_N_COLD:-}" ] && printf -- '-e\nCOMPILETIME_N_COLD=%s\n' "$COMPILETIME_N_COLD"
-  [ -n "${COMPILETIME_N_WARM:-}" ] && printf -- '-e\nCOMPILETIME_N_WARM=%s\n' "$COMPILETIME_N_WARM"
-  [ -n "${COMPILETIME_MAX_CASES:-}" ] && printf -- '-e\nCOMPILETIME_MAX_CASES=%s\n' "$COMPILETIME_MAX_CASES"
+  # compile-time bench: per-section repeat count (median of N, drop top+bottom).
+  [ -n "${COMPILETIME_N:-}" ] && printf -- '-e\nCOMPILETIME_N=%s\n' "$COMPILETIME_N"
   return 0
 }
 
@@ -404,27 +402,28 @@ cmd_typecost() {
   run_in_container node typecost/typecost.mjs
 }
 
-# Compile-time (wall-clock build) cost: per competitor, build a per-case probe
-# through that competitor's REAL pipeline (vite + the RT plugin / esbuild + typia /
-# plain vite) and time cold (cache wiped) + warm (cache hit). Each competitor runs
-# in its own --rm container with cwd = its dir so vite/esbuild/typescript resolve
-# from that competitor's node_modules. Subset via COMPILETIME_COMPETITORS, tune the
-# repeat counts via COMPILETIME_N_COLD/N_WARM, cap cases via COMPILETIME_MAX_CASES.
+# Compile-time OVERHEAD for the two transform-based libraries (ts-runtypes, typia):
+# build each suite SECTION as one file twice — transform OFF (baseline) and ON — so
+# the fixed compiler/bundler init cancels in the gap, leaving the transform +
+# generated-function compile cost. Each runs in its own --rm container with cwd = its
+# dir so vite/esbuild resolve from that competitor's node_modules. Override the pair
+# via COMPILETIME_COMPETITORS, the per-section repeat count via COMPILETIME_N, filter
+# sections via BENCH_CASE.
 cmd_compiletime() {
   ensure_prereqs
   mkdir -p "$RESULTS_DIR"
-  echo "==> measuring per-competitor compile-time (real build pipeline) in the container"
+  echo "==> measuring compile-time overhead (transform off vs on, per section) in the container"
   local competitor list
-  list="${COMPILETIME_COMPETITORS:-$(competitor_list)}"
+  list="${COMPILETIME_COMPETITORS:-ts-runtypes typia}"
   for competitor in $list; do
     # Scoped refresh: only the competitors being run are cleared, so a single-
-    # competitor run (e.g. adding typia) never drops the others' results.
+    # competitor run never drops the other's results.
     [ -z "${BENCH_CASE:-}" ] && rm -f "$RESULTS_DIR/$competitor.compiletime.json" 2>/dev/null || true
     echo "-------- compiletime: $competitor --------"
     run_in_container sh -c "cd competitors/$competitor && node ../../compiletime/compiletime.mjs --competitor $competitor" \
       || echo "==> compiletime '$competitor' FAILED - see output above"
   done
-  [ -n "${BENCH_CASE:-}" ] && { echo "==> BENCH_CASE='$BENCH_CASE': per-case console output above; results JSON + docdata left untouched."; return 0; }
+  [ -n "${BENCH_CASE:-}" ] && { echo "==> BENCH_CASE='$BENCH_CASE': section console output above; results JSON + docdata left untouched."; return 0; }
   publish_docdata
 }
 
