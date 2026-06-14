@@ -17,14 +17,14 @@ exemplar while the rest is filled in later.
 - **Pages / IA** — `website/content/6.test-suites/{1.validation,2.format-validation,3.serialization,4.format-serialization}.md` and `website/content/7.benchmarks/{1.validation,2.typecost}.md`. Every page opens with the shared real-world scenario (`packages/examples/src/suites/realworld.ts`).
 - **Components** — `website/app/components/content/{SuiteTable,BenchTable,RealWorldScenario}.vue`. Terminal-style tables; rows expand on hover/click and **lazy-fetch** their detail panel. A missing data file → tidy "not generated yet" notice (never an error).
 - **Pipeline** — `scripts/export-validation-suite.mjs` → `gendocs/`, then `scripts/gen-website-suite-data.mjs` → `website/public/suite-data/`. Wired as `pnpm run gen:suite-docs`.
-- **Data shipped** — `website/public/suite-data/validation/` (160 cases, 11 sections), committed so the site needs no regeneration to serve it.
+- **Data shipped** — `website/public/suite-data/validation/` (160 cases) and `website/public/suite-data/serialization/` (137 cases), committed so the site needs no regeneration to serve them.
 
 | Page | Data | State |
 |------|------|-------|
 | Test Suites › validation | ✅ generated | **complete** (type + schema + generated code per case) |
-| Test Suites › serialization | ❌ | notice — needs [Task 1](#task-1--serialization-suite-parity-big) |
+| Test Suites › serialization | ✅ generated | **complete** (type + schema + generated code per case) |
 | Test Suites › format-validation | ❌ | notice — needs [Task 2](#task-2--format-suites) |
-| Test Suites › format-serialization | ❌ | notice — needs [Task 1](#task-1--serialization-suite-parity-big) + [Task 2](#task-2--format-suites) |
+| Test Suites › format-serialization | ❌ | notice — needs [Task 2](#task-2--format-suites) |
 | Benchmarks › validation | ❌ | notice — needs [Task 3](#task-3--benchmarks-gen-bench-docs) |
 | Benchmarks › typecost | ❌ | notice — needs [Task 3](#task-3--benchmarks-gen-bench-docs) |
 
@@ -32,7 +32,7 @@ exemplar while the rest is filled in later.
 
 ```
 test/suites/<suite>/*.ts ──exporter──▶ gendocs/<suite>-suite.json   (titles, descriptions, notes, extracted thunk bodies, metrics)
-                          │            gendocs/cases/<CAT>__<case>__<api>/*.js   (dumped generated cache modules)
+                          │            gendocs/cases/<suite>/<CAT>__<case>/*.js   (dumped generated cache modules, suite-scoped)
                           ▼
               gen-website-suite-data.mjs
                           ▼
@@ -92,27 +92,24 @@ Keep these stable — they are the boundary between the generator and the UI.
 
 ## Pending work
 
-### Task 1 — Serialization suite parity (BIG)
+### Task 1 — Serialization suite parity ✅ DONE
 
-`scripts/export-serialization-suite.mjs` drives
-`test/suites/serialization/index.ts` (`export const SERIALIZATION_SPEC`). The
-`SerializationCase` interface already carries `title`, `description`,
-`serializeNotes`, the three encoders (`cloneEncoder` / `directEncoder` /
-`mutateEncoder`) and two decoders (`stripDecoder` / `preserveDecoder`), and a
-`SchemaThunk` type exists. But the exporter today emits **only** `title` +
-encoder/decoder bodies + metrics. To reach validation parity it needs:
+`scripts/export-serialization-suite.mjs` now extracts the value-first
+`schemaEncoder` body (the `SchemaThunk` variants already existed on every case),
+copies `description` + `serializeNotes`, and dumps the generated JSON-encoder
+modules per case. The website transform maps serialization to
+`pureField: 'cloneEncoder'` (type-first `createJsonEncoder<T>()`) and
+`schemaField: 'schemaEncoder'` (value-first `createJsonEncoder(RT.…)`). Shipped:
+`website/public/suite-data/serialization/` — **137 cases, 136 with generated
+code, 125 with a schema body** (12 `'not-supported'` sentinels). The hover panel
+shows the `clone` (default) strategy as the representative; the other strategies
+(mutate/direct encoders, strip/preserve decoders) stay in the suite for
+benchmarking/tests but aren't surfaced per-strategy in the docs.
 
-1. **Copy `description` + `serializeNotes`** into the JSON (`buildOutput` change — small; the fields already exist on the cases).
-2. **A generated-code dump.** The serialization exporter does **not** call `writeCaseDump` — add a dump phase mirroring the validation exporter's `runCompilePhase`/`writeCaseDump`.
-3. **A schema body.** Decide which encoder represents the "pure type" body (likely `cloneEncoder`, the default strategy) and confirm/author a value-first **schema thunk** per case (using `SchemaThunk`). If the cases don't yet have schema thunks, authoring them across all serialization cases is the bulk of the effort.
-4. **Presentation decision.** Serialization has 5 fn families (clone/direct/mutate encoders, strip/preserve decoders). Decide whether the hover panel shows one representative or tabs across strategies, and extend the per-case JSON + `SuiteTable.vue` accordingly.
-5. **Transform config.** In `gen-website-suite-data.mjs`, set `SUITES.serialization` `pureField`/`schemaField` to the chosen fields, and the per-case **dump-dir suffix** (validation uses `__validate`; serialization will use its own api, e.g. `__clone`).
-
-> ⚠ **Collision gotcha:** `gendocs/cases/` is shared and keyed
-> `<CATEGORY>__<case>__<api>`. Validation, serialization and the format suites
-> reuse category names (`ATOMIC`, `OBJECT`, …). Add a **suite prefix** to the
-> dump dir (and the transform's lookup) before generating a second suite, or the
-> dumps will clobber each other.
+> **Collision gotcha — RESOLVED.** Dumps are now **suite-scoped**:
+> `gendocs/cases/<suite>/<CATEGORY>__<case>/`. Each exporter wipes only its own
+> subdir; the transform reads `gendocs/cases/<suite>/…`. The format suites
+> (Task 2) inherit this for free.
 
 ### Task 2 — Format suites
 
@@ -120,14 +117,19 @@ encoder/decoder bodies + metrics. To reach validation parity it needs:
 (`FORMAT_SERIALIZATION_SUITE`) reuse the validation / serialization case shapes
 (`FormatValidationCase extends ValidationCase`). Plan:
 
-1. **Generalize the exporter** to take a suite dir + export-const name (today
+1. **Generalize the exporters** to take a suite dir + export-const name (today
    `export-validation-suite.mjs` hard-codes `SUITE_DIR=…/validation`,
-   `mod.VALIDATION_SUITE`, `OUT=validation-suite.json`). Factor a shared lib or
-   add CLI/env params so one script handles `validation` **and**
-   `format-validation`. `format-serialization` depends on Task 1 (it extends the
-   serialization shape).
+   `mod.VALIDATION_SUITE`, `OUT=validation-suite.json`; `export-serialization-suite.mjs`
+   likewise hard-codes `SERIALIZATION_SPEC`). Factor a shared lib or add CLI/env
+   params so the validation exporter also handles `format-validation`
+   (`FORMAT_VALIDATION_SUITE`) and the serialization exporter handles
+   `format-serialization` (`FORMAT_SERIALIZATION_SUITE`). The case shapes already
+   match (`FormatValidationCase extends ValidationCase`; the format-serialization
+   case re-uses `SerializationCase`), and Task 1 already added the schema body +
+   dump to the serialization exporter, so both format suites come almost for free.
 2. Add `SUITES.{format-validation,format-serialization}` entries to
-   `gen-website-suite-data.mjs` (mind the collision gotcha above).
+   `gen-website-suite-data.mjs` (the suite-scoped dump dirs from Task 1 already
+   prevent cross-suite collisions).
 3. Add `gen:format-*-suite-json` npm scripts and fold them into `gen:suite-docs`.
 
 ### Task 3 — Benchmarks (`gen:bench-docs`)
