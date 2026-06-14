@@ -58,9 +58,9 @@ func buildRedirectEntry(entryKey string, tag string, runType *protocol.RunType, 
 		quoteJS(entryKey),
 		quoteJS(rtTypeName(runType)),
 		codeArg,
-		"false",                       // isNoop — an override is never the family identity
-		"[]",                          // rtDependencies — the redirect has no same-family children
-		"[" + quoteJS(cfnKey) + "]",   // pureFnDependencies — the cfn this entry redirects to
+		"false",                     // isNoop — an override is never the family identity
+		"[]",                        // rtDependencies — the redirect has no same-family children
+		"[" + quoteJS(cfnKey) + "]", // pureFnDependencies — the cfn this entry redirects to
 		createRTFnArg,
 	}, fnEntryArgDefaults)
 	return &entrymod.Entry{
