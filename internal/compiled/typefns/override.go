@@ -24,6 +24,35 @@ func overrideOpKeyForTag(tag string) string {
 	return op.FnKey
 }
 
+// primitiveCompositeOpKey maps a JSON-composite PRIMITIVE family tag to the
+// composite operation op key that owns it. When a type's composite op is
+// overridden, the redirect references no primitives, so the primitive entry for
+// that type is dead — and for a type the structural emitter can't handle (the
+// escape-valve case), emitting it would alwaysThrow on the very type the user
+// overrode to avoid. Returns "" for non-primitive tags. The set is closed (the
+// operation registry's collision guard pins it): pj/pjs/sj feed the encoder,
+// rj/ukuw feed the decoder.
+func primitiveCompositeOpKey(tag string) string {
+	switch tag {
+	case "pj", "pjs", "sj":
+		return "jsonEncoder"
+	case "rj", "ukuw":
+		return "jsonDecoder"
+	}
+	return ""
+}
+
+// compositeOverriddenForPrimitive reports whether the runtype's JSON composite
+// op that OWNS this primitive family is overridden — in which case the primitive
+// entry must be skipped entirely (the composite redirect names no primitives).
+func compositeOverriddenForPrimitive(runType *protocol.RunType, primitiveTag string) bool {
+	if runType == nil || len(runType.Overrides) == 0 {
+		return false
+	}
+	opKey := primitiveCompositeOpKey(primitiveTag)
+	return opKey != "" && runType.Overrides[opKey] != ""
+}
+
 // overrideHashForTag returns the cfn body hash an override registered for this
 // (family tag, type), or "" when the type carries no override for that family.
 func overrideHashForTag(runType *protocol.RunType, tag string) string {
