@@ -512,6 +512,12 @@ type Response struct {
 	// Generated is the manifest of live module basenames written under
 	// <OutDir>/types by OpGenerate (the current build's filesystem output).
 	Generated []string `json:"generated,omitempty"`
+	// OutDir is the RunTypes output root OpGenerate actually wrote to. When the
+	// request left OutDir empty the resolver infers <srcDir>/runtypes from the
+	// tsconfig (rootDir → common-ancestor of the program's files → baseUrl →
+	// cwd) and echoes the resolved absolute path here, so the dependency-free
+	// plugin can adopt it (write .gitignore/.gitkeep, reuse it for transform).
+	OutDir string `json:"outDir,omitempty"`
 	// Transformed carries one TransformResult per file for OpTransform: the
 	// fully rewritten source + its source map (+ the cache modules the file now
 	// imports). Keyed by file path, scoped to the request's Files.
@@ -709,6 +715,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if len(response.Generated) > 0 {
 		out["generated"] = response.Generated
+	}
+	if response.OutDir != "" {
+		out["outDir"] = response.OutDir
 	}
 	if len(response.Transformed) > 0 {
 		out["transformed"] = response.Transformed

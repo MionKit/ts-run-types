@@ -751,8 +751,11 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// Filesystem-output sibling of OpDump: the same full-program entry
 		// collection, but the modules are WRITTEN under <OutDir>/types/ (real
 		// files the bundler resolves natively) instead of returned on the wire.
-		if request.OutDir == "" {
-			return protocol.Response{Error: "generate: OutDir is required"}
+		// An empty OutDir infers <srcDir>/runtypes from the tsconfig and echoes
+		// the resolved path back so the plugin can adopt it.
+		outDir := resolver.resolveOutDir(request.OutDir)
+		if outDir == "" {
+			return protocol.Response{Error: "generate: could not resolve an output dir (no OutDir, no tsconfig srcDir)"}
 		}
 		if resolver.Program != nil {
 			resolver.scanAllProgramFiles()
@@ -771,11 +774,11 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		if genModulesErr != nil {
 			return protocol.Response{Error: genModulesErr.Error()}
 		}
-		manifest, genErr := generateToDisk(resolver.absPath(request.OutDir), genModules)
+		manifest, genErr := generateToDisk(outDir, genModules)
 		if genErr != nil {
 			return protocol.Response{Error: genErr.Error()}
 		}
-		genResponse := protocol.Response{Generated: manifest}
+		genResponse := protocol.Response{Generated: manifest, OutDir: outDir}
 		genResponse.Diagnostics = append(genResponse.Diagnostics, genPureFnsDiagnostics...)
 		genResponse.Diagnostics = append(genResponse.Diagnostics, genDiagnostics...)
 		return genResponse
