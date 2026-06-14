@@ -650,9 +650,12 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
 		combinedDiagnostics := append(append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
+		// Override arg-nulling replacements (scoped to the requested files) ride
+		// the same Replacements channel as pure-fn factory nullings.
+		allReplacements := append(append([]protocol.Replacement(nil), pureFnReplacements...), resolver.collectOverrideReplacements(request.Files)...)
 		response := protocol.Response{
 			Sites:         resolver.stampSiteModules(sites),
-			Replacements:  pureFnReplacements,
+			Replacements:  allReplacements,
 			AddedRunTypes: addedRunTypes,
 			AddedPureFns:  addedPureFns,
 			Diagnostics:   combinedDiagnostics,
@@ -841,6 +844,9 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		if metrics != nil {
 			metrics.PureFnsMs = elapsedMs(pureFnsStart)
 		}
+		// Override arg-nulling replacements (scoped to the requested files) join
+		// the pure-fn factory nullings; both are partitioned per file below.
+		allReplacements := append(append([]protocol.Replacement(nil), pureFnReplacements...), resolver.collectOverrideReplacements(request.Files)...)
 		sites = resolver.stampSiteModules(sites)
 		added := resolver.cache.Added(before)
 		addedRunTypes := len(added) > 0
@@ -860,7 +866,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				}
 			}
 			var fileReplacements []protocol.Replacement
-			for _, replacement := range pureFnReplacements {
+			for _, replacement := range allReplacements {
 				if sameTransformPath(replacement.File, file) {
 					fileReplacements = append(fileReplacements, replacement)
 				}
@@ -881,7 +887,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		response := protocol.Response{
 			Transformed:   transformed,
 			Sites:         sites,
-			Replacements:  pureFnReplacements,
+			Replacements:  allReplacements,
 			AddedRunTypes: addedRunTypes,
 			AddedPureFns:  addedPureFns,
 			Diagnostics:   combinedDiagnostics,
