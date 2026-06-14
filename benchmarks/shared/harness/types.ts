@@ -24,19 +24,33 @@ export interface SampleOverride {
   invalid?: unknown[];
 }
 
-/** Builder + optional sample override — the object form of a case entry. */
+/** Every case is measured on up to TWO functions, each independently
+ *  supported/overridable:
+ *   - `build`        → the CHEAP boolean validator (ts-go `createValidate`,
+ *                      typebox `.Check`, ajv default `validate`, typia `createIs`).
+ *   - `buildErrors`  → the VALIDATION-ERRORS function (ts-go `createGetValidationErrors`,
+ *                      typebox `.Errors`, ajv `allErrors:true`, typia `createValidate`,
+ *                      zod `safeParse`), wrapped to a boolean (true = no errors) so the
+ *                      runner can check correctness + time it identically. This path is
+ *                      meant to run only after `validate` fails, so it is much heavier.
+ *  Omit (or set NOT_SUPPORTED on) either function to mark THAT metric not-supported
+ *  for the case — independently. e.g. zod has no cheap boolean validator, so its
+ *  entries provide `buildErrors` only and `validate` is not-supported. A builder that
+ *  THROWS is recorded as a hard `errored` for that metric. */
 export interface CaseBuilder {
-  build: () => Validator;
+  build?: (() => Validator) | NotSupported;
+  buildErrors?: (() => Validator) | NotSupported;
   samples?: SampleOverride;
 }
 
-/** What a competitor declares PER CASE: a LAZY builder that returns the validator
- *  (built once at run start, so compile/build cost is paid then and a throw is
- *  attributable to this one case), OR the same builder paired with a sample
- *  override (`{build, samples}`), OR the explicit opt-out. A builder that THROWS
- *  is recorded as a hard `errored` (a broken plugin rewrite for ts-go, a broken
- *  schema for the others) — never a silent not-supported. */
+/** What a competitor declares PER CASE: a bare LAZY builder (shorthand for
+ *  `{build: fn}` — the cheap validate only), OR the object form `{build?,
+ *  buildErrors?, samples?}`, OR the explicit opt-out (both metrics unsupported). */
 export type CaseEntry = (() => Validator) | CaseBuilder | NotSupported;
+
+/** The two metrics measured per case. */
+export type Metric = 'validate' | 'validationErrors';
+export const METRICS: readonly Metric[] = ['validate', 'validationErrors'];
 
 /** A competitor's cases as a TOTAL map over every shared case key, so TS fails
  *  the build if a case is unhandled. This is the "function OR explicit
