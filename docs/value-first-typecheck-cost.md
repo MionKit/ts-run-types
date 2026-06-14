@@ -1,6 +1,6 @@
 # Value-first schema type-checking cost vs TypeBox
 
-**Status:** investigation notes (no fix proposed). Surfaced by the benchmark's
+**Status:** solution proposed + methodology defined. Surfaced by the benchmark's
 type-instantiation measurement ([`benchmarks/typecost/typecost.mjs`](../benchmarks/typecost/typecost.mjs)):
 ts-go's value-first **schema form** costs noticeably more TypeScript
 instantiations to resolve than TypeBox's `Static<>`. The current run reports
@@ -10,10 +10,17 @@ cases all forms support). The gap is **concentrated, not uniform** — e.g.
 4419 vs 703, `TUPLE.tuple_array` 1269 vs 86 — while TypeBox is in fact the
 costlier form on index-signature / utility-type cases (e.g.
 `OBJECT.index_signature_named_props` 1794 vs 4154, `UTILITY.partial` 561 vs 2028).
-This document records _why_ ts-go is eager (from reading both implementations) and
-how to attack the gap. ts-go's **type-definition form** (`createValidate<T>()`) is
-~0 instantiations and unaffected — this only concerns the value-first
-`createValidate(RT.…)` path.
+ts-go's **type-definition form** (`createValidate<T>()`) is ~0 instantiations and
+unaffected — this only concerns the value-first `createValidate(RT.…)` path.
+
+The original investigation (read off both implementations) hypothesised that ts-go
+is expensive because it materialises the represented type **eagerly and twice** (in
+the builder's return type *and* its `InjectRunTypeId<…>` marker param). Controlled
+experiments **refute that hypothesis** and point at a different, smaller, lower-risk
+fix. The corrected findings, the proposed change, and the methodology that produced
+it are below. Reproduce any number with
+[`benchmarks/typecost/isolated-experiment.mjs`](../benchmarks/typecost/isolated-experiment.mjs)
+(`node benchmarks/typecost/isolated-experiment.mjs` after `pnpm install`).
 
 ## How TypeBox carries the type (cheap)
 
@@ -35,156 +42,259 @@ represented TS type to a **lazy phantom member**:
   **child schemas**, not by the represented type. Building the schema
   instantiates almost nothing.
 - `Static<S> = (S & {params})['static']` (`type/static/static.d.ts`) — a plain
-  **indexed access** that triggers `ObjectStatic` **once**, at extraction. The
-  assembly is a single homomorphic mapped type + key-group filtering for
-  `?`/`readonly`.
+  **indexed access** that triggers `ObjectStatic` **once**, at extraction.
 
-Net: building is ~free; the represented type is computed **once, lazily**, only
-when `Static<>` is read.
+## How ts-go carries the type
 
-## How ts-go carries the type (more expensive)
-
-The value-first builders assemble the **full represented type eagerly** in the
+The value-first builders assemble the represented type **eagerly** in the
 builder's signature (`packages/ts-go-run-types/src/schema/compose.ts`):
 
 ```ts
 function object<const C extends Record<string, unknown>>(
   config: CompTimeArgs<C>,
   id?: InjectRunTypeId<ObjectType<C>> // ← assembled type, reference #1
-): RunType<ObjectType<C>>; // ← assembled type, reference #2
+): RunType<ObjectType<C>>;            // ← assembled type, reference #2
 ```
 
 - `ObjectType<C>` (`src/schema/static.ts`) is the represented object type,
   assembled as a **4-way intersection** of `Pick` groups (the optional×readonly
   combinations — "TS can't apply `?`/`readonly` per-key in one homomorphic map").
-- It is referenced **twice** per builder — in the return type **and** in the
-  `InjectRunTypeId<…>` marker param — so TypeScript materializes it twice at
-  **every** builder call, at every nesting level.
-- The `config: CompTimeArgs<C>` param adds compile-time literal validation on top.
-- `Static<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] : RT` is
-  then a cheap read — the cost was already paid eagerly at the builder calls.
+- `Static<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] : RT` reads
+  that assembled type back through the `RunType<T>` carrier's phantom `__rtType`.
 
-Net: both approaches assemble the same object type once conceptually, but ts-go
-does it **eagerly, ×2 per call, plus literal validation**, while TypeBox does it
-**lazily, ×1 at extraction** — which accounts for most of the gap.
+## Empirical findings (these correct the original hypotheses)
 
-## Two ways to optimize
+Five controlled experiments, each compiling a self-contained probe through the TS
+compiler API (TypeScript 6.0.3, same as the real harness), reading
+`getInstantiationCount()` baseline-subtracted. **Crucially, every measurement is
+gated on FAITHFULNESS** — the recovered type must be mutually assignable with a
+hand-written expected type — because the existing benchmark's value-only forcing
+*cannot* detect a candidate that scores cheaper by silently widening a nested type
+to `unknown` (everything is assignable to `unknown`). The 4-way `ObjectType` model
+is copied **verbatim** from `static.ts`, so the relative numbers are credible (the
+absolute numbers are smaller than the full harness — simplified leaf overloads —
+but directions and magnitudes hold).
 
-The gap can be attacked from two independent angles. They are complementary — the
-architectural path lowers the whole curve; the case-by-case path chips away at the
-specific peaks. Either can be pursued without the other.
+### Finding 1 — the "referenced twice ⇒ 2×" claim is false
 
-### Path A — architectural (lower the whole curve)
+Removing the `id?: InjectRunTypeId<ObjectType<C>>` parameter **entirely** changes
+the measured instantiation count by **0** (199 → 199 on a nested workload). Adding
+it back while making the *return* type a bare `RunType<unknown>` (so `Static<>` is
+never read) costs only ~30 — i.e. the omitted optional `id?` param is **never
+materialised at type-check time**. The entire measured cost flows through the
+**return type → `Static<>` → value assignment**, not the marker.
 
-A single change to how every value-first builder carries its type, benefiting all
-cases at once:
+> Consequence: the convergence marker is **not** a type-check-cost blocker for what
+> the benchmark measures. (At *build* time the Go scanner does read the resolved
+> marker type for value-first↔type-first id convergence — but that is tsgo's cost
+> inside the plugin pipeline, a different concern measured by a different harness.)
 
-1. **Compute the represented type once.** `ObjectType<C>` is materialized in both
-   the return type and the `InjectRunTypeId<…>` marker param; collapsing that to
-   a single materialization would roughly halve the per-call cost.
-2. **Adopt TypeBox's lazy-`static` shape.** Have builders return a shallow carrier
-   parameterized by the child builders (à la `TObject<TProperties>`) and assemble
-   the represented type once inside `Static<>` (à la `ObjectStatic`), instead of
-   eagerly in every builder signature.
+### Finding 2 — going lazy (TypeBox-style) does NOT help
 
-This is the higher-ceiling change but also the riskier one — see **The blocker**
-below for why it isn't free.
+A **faithful** lazy carrier — carriers parameterized by child carriers, a single
+recursive `Static<>` assembling the whole tree at extraction, *proven* to recover
+the identical type — costs the **same or ~9% more** than today's eager form across
+flat / nested / deep / array workloads. The deferred work is the same total work
+plus carrier-discrimination overhead. The tempting "≈40% cheaper" number an early
+naive-lazy probe produced was **entirely an artifact of the lazy carrier widening
+nested element types to `unknown`** (e.g. `array(object({…}))` inferring
+`unknown[]`), which value-only forcing silently accepts. TypeBox is cheaper for
+*other* reasons (its `ObjectStatic` key-grouping, `Evaluate`), **not** laziness.
 
-### Path B — case-by-case (chip away at the peaks)
+> Consequence: **Path A (the architectural lazy refactor) is not worth pursuing.**
+> It is the higher-effort, higher-risk path *and* it does not lower the curve.
 
-A targeted, empirical loop that needs no architectural change. The per-case data
-shows the cost is concentrated in a handful of constructs (unions, tuples,
-discriminated unions, deep nesting); each can be investigated and optimized in
-isolation:
+### Finding 3 — the real cost center is the 4-way `Pick`-group intersection
 
-1. **Rank the outliers.** From a full `bench:typecost` run, list the cases where
-   ts-go(schema) is _abnormally high in absolute terms_ or _multiples higher than
-   TypeBox_ (e.g. `large_union_eight_arms` 4419 vs 703, `tuple_array` 1269 vs 86,
-   `atomic_union` 1554 vs 120). Ignore cases where ts-go is already at/under
-   TypeBox — those aren't where the budget goes.
-2. **Localize the source for one case.** Use `BENCH_DUMP=<key>` to see the exact
-   probe, then trace which builder / type-level helper drives the instantiations —
-   typically a **bootstrap builder signature** (`compose.ts`), a **type-mapping**
-   helper (`static.ts` — the `Pick`-group intersection, union distribution,
-   tuple assembly), or a **comptime-args** validation (`CompTimeArgs<C>`).
-3. **Optimize that one construct** — e.g. simplify a mapped/conditional type,
-   avoid a redundant distribution, narrow a helper's generic surface — touching
-   only what that case exercises.
-4. **Re-measure that case on BOTH axes immediately** with `BENCH_CASE=<key>`
-   (see below) — `pnpm bench:typecost` to confirm the instantiation count dropped,
-   **and** `pnpm bench` to confirm the case's runtime throughput did not regress.
-   Then move on. Commit per construct so each win is bisectable.
+`ObjectType<C>` runs **all four** mapped-type passes over every key on **every**
+object — even an all-required-mutable object, where three of the four groups
+collapse to `{}` but the per-key `IsOptional`/`IsReadonly` conditionals are still
+evaluated 4×. Replacing it with a **tiered** assembly — probe the modifier profile
+once, then pick the leanest *faithful* mapped type — yields (all faithful ✓):
 
-> **Guiding constraint — type-check cost never trumps runtime perf.** Type-checking
-> cost and runtime validation throughput are independent concerns measured by
-> independent harnesses, so **the runtime `bench` for the case is mandatory after
-> _every_ change, not just the typecost run.** The decision rule is absolute:
->
-> - typecost improves **and** runtime is flat-or-better → keep.
-> - **typecost improves but runtime regresses (or correctness breaks) → discard the
->   change**, even though the instantiation count went down. A faster type-check is
->   never worth a slower or broken validator.
->
-> This is why the per-case loop runs both axes ( `pnpm bench:typecost` _and_
-> `pnpm bench` ) before any change is kept.
+| workload (nested)        | current 4-way | tiered | reduction |
+|--------------------------|--------------:|-------:|----------:|
+| all-required (common)    | 1151          | 318    | **−72%**  |
+| optional-only (common)   | 983           | 689    | **−30%**  |
+| readonly-only            | 1048          | 720    | **−31%**  |
+| mixed opt×readonly (rare)| 1074          | 1055   | −2%       |
 
-Because each iteration re-runs a single case across all libraries in seconds
-rather than the full ~260-case suite, the `BENCH_CASE` flag is what makes this
-loop practical (see next section).
+The win **compounds with nesting depth** (each level re-instantiates `ObjectType`
+and independently picks its cheap path), which is exactly why the deeply-nested,
+mostly-required real-world DTOs (`REALWORLD.order`, …) are the top object outliers.
 
-## Per-case investigation workflow (`BENCH_CASE`)
+### Finding 4 — wide unions: more fixed-arity overloads help
 
-`BENCH_CASE` is read by **both** harnesses — the typecost runner
-(`benchmarks/typecost/typecost.mjs`) and the runtime runner
-(`benchmarks/shared/harness/runner.ts`) — and forwarded into the container by
-`scripts/benchmarks.sh`:
+`union` brands the type directly via fixed-arity overloads up to **4** members,
+then falls back to recursive `UnionOf<T>` (annotated `infer`). The named outlier
+`large_union_eight_arms` (8 arms) hits the recursive path. Extending the
+fixed-arity overloads to **8** (recursive fallback kept for 9+) cuts an 8-arm union
+to **74%** of the recursive cost (−26%), faithful ✓.
 
-- **`BENCH_CASE=<substr>`** — restrict the run to cases whose dotted key contains
-  the (case-insensitive) substring, measuring that case **across every library**.
-  Under `bench:typecost` you see ts-go(schema) next to its TypeBox baseline; under
-  `bench` you see the case's validate / validationErrors throughput per competitor.
-  A filtered run prints to the console and **does not** rewrite the results JSON
-  (nor aggregate or publish to `.docdata`), so it never clobbers the canonical
-  full-suite results and is safe to run repeatedly mid-edit.
-- **`BENCH_DUMP=<exact.key>`** — typecost-only: print the assembled, self-contained
-  probe sources for one case (exactly what gets compiled) and exit; the starting
-  point for localizing where a case's instantiations come from.
+### Finding 5 — `CompTimeArgs<C>` literal-validation is negligible
 
-```bash
-# the Path-B inner loop — one construct, both axes:
-BENCH_CASE=large_union_eight_arms pnpm bench:typecost   # instantiation cost, every form
-BENCH_CASE=large_union_eight_arms pnpm bench            # runtime throughput, every competitor
+Dropping the `CompTimeArgs<…>` brand from `config` changes the count by <1%. The
+literal-validation brand is not where the budget goes.
 
-# see the exact probe TypeScript compiles for a case
-BENCH_DUMP=UNION.large_union_eight_arms pnpm bench:typecost
+## Proposed solution
+
+A **localized, faithful rewrite of the hottest type-level helpers** — neither the
+architectural lazy refactor (Finding 2: doesn't help) nor purely case-by-case
+(Findings 3–4 generalise across whole construct families). No marker rework, **no
+runtime change, no Go change** — so the doc's hard constraint (type-check cost
+never trumps runtime perf) is satisfied by construction: the runtime emitter never
+sees these types.
+
+### Primary — tiered `ObjectType<C>` (`src/schema/static.ts`)
+
+Probe the modifier profile once and dispatch to the leanest faithful map; keep the
+current 4-way only for the genuinely-mixed (optional **and** readonly on different
+keys) case. Reuses the existing `IsOptional` / `IsReadonly` / `FieldOf` readers:
+
+```ts
+/** True if ANY field carries the optional / readonly modifier — a single cheap
+ *  key-probe, so an absent profile skips the corresponding split entirely. */
+type AnyOptional<C> = true extends {[K in keyof C]: IsOptional<C[K]>}[keyof C] ? true : false;
+type AnyReadonly<C> = true extends {[K in keyof C]: IsReadonly<C[K]>}[keyof C] ? true : false;
+
+/** Optional present, no readonly — one required group + one optional group. */
+type ObjectOptionalOnly<C> = {
+  -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : K]: FieldOf<C[K]>;
+} & {
+  -readonly [K in keyof C as IsOptional<C[K]> extends true ? K : never]?: FieldOf<C[K]>;
+};
+/** Readonly present, no optional — one mutable group + one readonly group. */
+type ObjectReadonlyOnly<C> = {
+  -readonly [K in keyof C as IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
+} & {
+  readonly [K in keyof C as IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
+};
+/** Both present — the current 4-way Pick-group intersection (unchanged). */
+type ObjectMixed<C> = {
+  -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
+} & {
+  readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
+} & {
+  -readonly [K in keyof C as IsOptional<C[K]> extends true ? (IsReadonly<C[K]> extends true ? never : K) : never]?: FieldOf<C[K]>;
+} & {
+  readonly [K in keyof C as IsOptional<C[K]> extends true ? (IsReadonly<C[K]> extends true ? K : never) : never]?: FieldOf<C[K]>;
+};
+
+export type ObjectType<C> =
+  AnyOptional<C> extends false
+    ? AnyReadonly<C> extends false
+      ? {-readonly [K in keyof C]: FieldOf<C[K]>} // all required + mutable — the common case
+      : ObjectReadonlyOnly<C>
+    : AnyReadonly<C> extends false
+      ? ObjectOptionalOnly<C>
+      : ObjectMixed<C>;
 ```
 
+This is a **single type-alias change**. `object`'s signature, the runtime builder,
+the scanner, and the convergence marker are all untouched (`ObjectType<C>` is still
+referenced exactly where it is today). The faithfulness gate (below) proved each
+arm recovers the identical type to the current 4-way for its profile, so structural
+ids still converge.
+
+### Secondary — widen `union` fixed-arity overloads 4 → 8 (`src/schema/compose.ts`)
+
+Add overloads for 5–8 members that brand the direct `A | B | … | H` union with
+plain generic inference (no `infer`), keeping the recursive `UnionOf<T>` fallback
+for 9+. Faithful, −26% on the 8-arm outlier. **Tradeoff to validate:** more
+overloads enlarge the surface and add a little resolution cost to *every* `union`
+call, and the existing 4-member cap was a deliberate choice (see the `union`
+note in `compose.ts`). Land this **only** if the full-suite `bench:typecost` shows
+a net win with no `bench` regression — it is the one proposal with a real downside.
+
+### Not pursued — Path A (architectural / lazy)
+
+Finding 2 measured it to be flat-to-worse once faithful. Documented here so it is
+not re-proposed: lowering this curve does **not** require going lazy.
+
+## Methodology — how to test a fix without breaking runtime perf
+
+Three gates, in order. A change ships only if it clears **all three**.
+
+### Gate 1 — FAITHFULNESS (new, mandatory, runs first)
+
+> The recovered value-first type must be **identical** to the type-first type for
+> the same case. A cheaper instantiation count earned by *widening* (to `unknown` /
+> `any`) or *narrowing* the type is **not a win — it is a correctness regression**
+> the value-only forcing in `typecost.mjs` cannot see.
+
+Two complementary checks:
+
+- **Isolated (design loop):**
+  [`benchmarks/typecost/isolated-experiment.mjs`](../benchmarks/typecost/isolated-experiment.mjs)
+  compiles each candidate `ObjectType` / `union` formulation against a hand-written
+  `Expected` type and asserts mutual assignability (`✗` = not faithful). Use it to
+  prototype a type-level change **before** touching the real builders.
+- **Integrated (proposed addition to `typecost.mjs`):** the harness already builds
+  both the **type form** (`createValidate<T>()` — ground truth) and the **schema
+  form** (`Static<typeof RT.…>`) for every case. Add a per-case assertion that the
+  two are invariant-equal:
+  ```ts
+  type Eq<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+  const _conv: Eq<TypeFormT, SchemaFormT> = true; // must compile for every supported case
+  ```
+  The project *already requires* value-first and type-first to converge on one
+  structural id, so this oracle is free — any case where they diverge is a bug the
+  benchmark should fail on, independent of cost.
+
+### Gate 2 — TYPE-CHECK COST (the metric we are optimising)
+
+Per-case inner loop, then full-suite confirmation:
+
+```bash
+# inspect the exact probe the harness compiles for a case
+BENCH_DUMP=REALWORLD.order pnpm bench:typecost
+
+# one construct, instantiation cost across every form (does NOT rewrite results JSON)
+BENCH_CASE=order pnpm bench:typecost
+BENCH_CASE=large_union_eight_arms pnpm bench:typecost
+
+# full suite once at the end — refreshes results JSON, confirms the totals moved
+pnpm bench:typecost
+```
 `BENCH_CASE` substring-matches the dotted key, so `BENCH_CASE=union` sweeps every
-union case and `BENCH_CASE=REALWORLD` re-checks the real-world DTOs after a change.
-Run the **full** `pnpm bench:typecost` and `pnpm bench` (no `BENCH_CASE`) once at
-the end of a change to refresh the results JSON and confirm the totals.
+union case, `BENCH_CASE=REALWORLD` re-checks the real-world DTOs. Rank work by the
+outliers (`large_union_eight_arms` 4419 vs 703, `tuple_array` 1269 vs 86,
+`atomic_union` 1554 vs 120, `REALWORLD.order` 3745 vs 1531); ignore cases where
+ts-go is already at/under TypeBox.
 
-## The blocker (why ts-go is eager today — applies to Path A)
+### Gate 3 — RUNTIME THROUGHPUT (the constraint that always wins)
 
-ts-go's value-first **convergence marker** `InjectRunTypeId<ObjectType<C>>`
-deliberately materializes the concrete type at the call site so the value-first
-typeId matches the type-first one (value-first and type-first must converge on
-the same structural id). That materialization is exactly what forces eager — and
-doubled — computation. TypeBox has no equivalent marker, which is _why_ it can
-stay lazy. Any move toward laziness has to rework how the value-first marker
-derives its id without forcing full type materialization at the builder call.
+> **Type-check cost never trumps runtime perf.** They are independent concerns
+> measured by independent harnesses, so the runtime `bench` is mandatory after
+> **every** change, not just the typecost run.
+
+```bash
+BENCH_CASE=order pnpm bench    # validate / validationErrors throughput per competitor
+pnpm bench                     # full suite once at the end
+```
+
+Decision rule (absolute):
+
+- faithful **and** typecost improves **and** runtime flat-or-better → **keep**.
+- typecost improves but runtime regresses, **or** the recovered type changed, **or**
+  correctness breaks → **discard**, even though the instantiation count went down.
+
+For the proposals here Gate 3 is a formality (no runtime/emitter code changes), but
+the run is still required — it is the contract.
+
+### Commit discipline
+
+One construct family per commit (tiered-object as one change; union-overloads as
+another), each independently bisectable, each with its three-gate evidence in the
+message. Re-run the **full** `pnpm bench:typecost` and `pnpm bench` once at the end
+to refresh the canonical results JSON.
 
 ## Scope / priority
 
-Low priority: the value-first form is the secondary authoring path. ts-go's
+Low priority: the value-first form is the secondary authoring path; ts-go's
 type-definition form already type-checks for ~0 instantiations (it beats every
-schema library, including TypeBox), so this only narrows the gap for users who
-prefer the `createValidate(RT.…)` value-first style.
-
-Given that, **Path B (case-by-case) is the lower-risk first step**: it needs no
-marker rework, each win is independently verifiable with `BENCH_CASE`, and the
-outlier data above shows a handful of constructs account for most of the gap.
-Path A (architectural) has the higher ceiling but is gated on the convergence
-marker above — worth it only if Path B's incremental wins prove insufficient.
-Implementation of either is **out of scope for this document** (investigation
-notes only).
+schema library, TypeBox included). The tiered-`ObjectType` change is the
+recommended first step — single-file, faithful by construction, zero runtime risk,
+and it targets the dominant object outliers. The union-overload widening is a
+smaller, optional follow-up gated on a clean full-suite run. The lazy architectural
+rework (former "Path A") is **not** recommended — measured flat-to-worse.
