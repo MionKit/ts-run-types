@@ -159,7 +159,16 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 				if propCode != "" {
 					body = propCode + ";" + setMask
 				}
-				guarded := "if (" + accessor + " !== undefined) {" + body + "}"
+				// A stripped sibling means a value from the stripped member still
+				// carries the key with a foreign type — guard the surviving codec
+				// with a value check so such a value leaves the bit UNSET and
+				// writes no bytes (decode skips it), instead of setting the bit
+				// while the codec writes nothing / crashes (G3 / G4).
+				presence := accessor + " !== undefined"
+				if mp.HasStrippedCandidate {
+					presence += " && (" + mergedPropSurvivingGuard(mp, accessor, ctx) + ")"
+				}
+				guarded := "if (" + presence + ") {" + body + "}"
 				modIndex := i + 1
 				if modIndex%8 == 0 && modIndex < len(optionalProps) {
 					guarded += ";" + bitmapVar + "++"

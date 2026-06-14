@@ -1,15 +1,15 @@
 # Serialization bugs surfaced by the non-data fuzz lane
 
-**Status:** F1, K2, F2 (product side), F3, G1, F2b (emit) FIXED — see the
-Resolution section below. The fuzz lane was also HARDENED (a TS-validity gate +
-valid-type generation — see "Fuzz-lane hardening" below). Re-enabling
-callable-interface fuzz GENERATION is now unblocked from the callable side, but
-stays disabled pending the pre-existing serialization bugs the soak surfaces
-(G2, G3, G4 below — confirmed pre-existing: the seed-20260620 non-data soak
-reports the SAME 8 violations with these changes stashed). Originally four
-findings from the DataOnly non-data fuzz lane (the `createMockType`-driven,
-real-pipeline lane in
-[`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-runtypes/test/fuzz/nonDataTypeFuzz.integration.test.ts)).
+**Status:** F1, K2, F2 (product side), F3, G1, F2b (emit), G3, G4, G5, G6 FIXED;
+G2 not reproducing — see the Resolution section below. The fuzz lane was also
+HARDENED (a TS-validity gate + valid-type generation — see "Fuzz-lane hardening"
+below). Re-enabling callable-interface fuzz GENERATION stays a follow-up (the
+`calls` plumbing is kept), but the pre-existing serialization bugs the soak
+surfaced are now fixed. Originally four findings from the DataOnly non-data fuzz
+lane (the `createMockType`-driven, real-pipeline lane in
+[`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-runtypes/test/fuzz/nonDataTypeFuzz.integration.test.ts));
+broader multi-seed soaking then surfaced G5 / G6 (clean union shapes unrelated to
+the stripped-member work) which are fixed too.
 
 ## Resolution
 
@@ -19,11 +19,13 @@ real-pipeline lane in
 | **K2** | A stripped-valued prop in a UNION member failed the whole union (a standalone object drops it) | **FIXED** — `buildMergedProps` drops the full `isStrippedUnionMember` set + emits the drop warning. Pinned by `TestDataOnlyUnion_ObjectMemberStrippedProp`. |
 | **F2** | Callable interface: function to `validate`, object to the serializers | **FIXED (product)** — `objectHasCallSignature` makes the serializers + validate treat it function-like everywhere (typeof-function at root, dropped at a property). Pinned by `callable_interface_dataonly_test.go`. Re-enabling fuzz GENERATION is deferred (see F2b). |
 | **F2b** | A callable interface at a NON-ROOT propagating position (array element, Map/Record value, tuple slot, intersection) produced an UNCONTROLLED wire error (`reading 'fn'`) + an unresolved binary site (`no id injected`). The serializers latch the callable OBJECTLITERAL as the unsupported leaf, but `DiagCodeForLeaf` had no objectLiteral arm → returned "" → the entry was SILENTLY SKIPPED, leaving a dangling dep that cascaded to a `KindMissing` stub; a JSON composite then bound it with an unguarded `getRT(key).fn`. | **FIXED (emit)** — `callableLeafSubstitute` ([kinds.go](../../internal/compiled/typefns/kinds.go)) maps the callable objectLiteral leaf to its call-signature child at the alwaysThrow site ([module.go](../../internal/compiled/typefns/module.go)), so it renders a controlled alwaysThrow with the family's FUNCTION code (an Error-severity build diagnostic), exactly like a bare function. Pinned by `TestF2b_CallableInArrayElementAlwaysThrows`. Generation re-enable still deferred (G2/G3). |
-| **G2** | NEW (soak): a non-serialisable native or `bigint` at an INDEX-SIGNATURE VALUE position (`{[k: string]: DataView}`, `{[k: number]: bigint}` as the index value itself, distinct from G1's named-sibling corruption) mis-serializes / crashes; the soak also hits `O5 … Too many unknown keys` on `Rec<{2+idx}>`. | **DEFERRED** (pre-existing) — same `internal/compiled/typefns` index-sig family as F1/G1, value-position rather than sibling. |
-| **G3** | NEW (soak): an `invalid union index` error on a generated union/union-array shape on the binary wire. | **DEFERRED** (pre-existing) — union-layout/index bug, unrelated to callable interfaces. |
-| **G4** | NEW (soak): a union/intersection member with a `Date` field throws an UNCONTROLLED error (`.toISOString` / `.getTime` is not a function) when the value reaches the field through the wrong discriminated arm, plus `O10` (both encoders alwaysThrow with no Error-severity diagnostic). Same uncontrolled-error CLASS as F2b, different shape. | **DEFERRED** (pre-existing) — likely a discriminated-union member-resolution or mock value-conformance issue; the TS-validity gate does NOT catch it (the TYPE is valid; the mismatch is value-level). |
+| **G2** | The soak's `O5 … Too many unknown keys` throw (the `MAX_UNKNOWN_KEYS = 10` DoS guard in [`pure-fns-utils.ts`](../../packages/ts-runtypes/src/runtypes/pure-fns-utils.ts)) on an index-signature / `Record` shape with dropped sibling members. (The original "bigint / DataView at the index VALUE position" framing was imprecise — the value position serialises fine; the symptom was an unknown-keys MISCOUNT from a value carrying keys a dropped member declared.) | **NOT REPRODUCING** — does not surface across extensive multi-seed soaking after the generation hardening + the G3–G6 fixes (the same dropped-member class). The guard is a controlled throw; no miscount remains. Re-open with a seed if it recurs. |
+| **G3** | NEW (soak): an `invalid union index` error on a discriminated union whose members share a property NAME where one member's version is DataOnly-stripped (`{kind:'t1'; f0:Set} \| {kind:'t2'; f0:Promise}`). A value from the stripped member carries the key; binary set its optional-prop bitmap bit while the multi-candidate dispatch matched no arm and wrote no bytes, desyncing the decoder. | **FIXED** — see "G3 / G4" below. |
+| **G4** | NEW (soak): the same stripped-merged-prop shape with a `Date` survivor (`{kind:'t1'; f2:Date} \| {kind:'t2'; f2:Uint8Array}`) threw an UNCONTROLLED error (`.toISOString` / `.getTime` is not a function): the merged Date codec was applied to the stripped member's foreign-typed value. | **FIXED** — see "G3 / G4" below. |
+| **G5** | NEW (broader soak): a `Map` / `Set` whose VALUE type contains a union of OBJECT members (`Set<Map<string, Record<string, {kind:'t0'}\|{kind:'t1'}>>>`) threw `invalid union index` on JSON decode / dropped the value on binary. The clone Map/Set fast-path (`Array.from(v)`) trusted `isJsonCompatible`, which wrongly reported a union of objects as needing no transform, skipping the `[-1, …]` envelope on encode while the decoder still unwrapped it. | **FIXED** — see "G5" below. |
+| **G6** | NEW (broader soak): an object mixing an index signature with a DataOnly-stripped named prop (`{p0?: ArrayBuffer; p1: boolean; [k:number]:"red"}`) — JSON and binary wires disagreed: the clone encoder's index for-in copied the DROPPED `p0` back into the clone (`"p0":{}`) while every other family dropped it. | **FIXED** — see "G6" below. |
 | **F3** | An Error-severity diagnostic is emitted for a dropped non-serialisable property, though the value serialises fine; the default `clone` encoder FAILED such a property while the others dropped it; and a structurally-unserialisable property (`symbol[]`) was silently dropped instead of failing | **FIXED** — property-position handling now matches `DataOnly<T>` uniformly across all families. A DIRECTLY-stripped value (symbol / Promise / never / non-serialisable native; functions keep …010) drops with a new child-position **Warning** (…015), and the mutate path `delete`s it so `JSON.stringify` can't leak a typed array / Promise. A value that is only STRUCTURALLY unserialisable (`symbol[]`, `Map<string,symbol>`) now fails (root Error), matching DataOnly keeping `never[]`. An unknown future kind still absorbs gracefully. Pinned by `property_dataonly_test.go`, the updated `runtype-diagnostics.test.ts`, and the `Int8Array in interface` serialization fixture. |
-| **G1** | `O5` JSON round-trip corrupted a named property mixed with an index signature of a DIFFERENT value type (`{p0: number; [k: number]: bigint}` round-tripped `p0` from a number into a bigint; with other shapes the corrupted value crashed a downstream numeric op, `Cannot convert a BigInt value to a number`). The JSON for-in index loop transformed EVERY own key, including declared siblings. | **FIXED** — the JSON walks (mutate `prepareForJson`, `restoreFromJson`, direct `stringifyJson`) now skip declared sibling keys via the same `publishSiblingNamedKeysForIndexSig` + `siblingNamedSkipCode` mechanism binary got in F1 (the clone `prepareForJsonSafe` path always skipped). Pinned by `index_sig_sibling_json_test.go` + `g1-index-sig-sibling.test.ts`; the 40s WILD soak (seed 20260620) is clean (974 types, 0 violations). |
+| **G1** | `O5` JSON round-trip corrupted a named property mixed with an index signature of a DIFFERENT value type (`{p0: number; [k: number]: bigint}` round-tripped `p0` from a number into a bigint; with other shapes the corrupted value crashed a downstream numeric op, `Cannot convert a BigInt value to a number`). The JSON for-in index loop transformed EVERY own key, including declared siblings. | **FIXED** — the JSON walks (mutate `prepareForJson`, `restoreFromJson`, direct `stringifyJson`) now skip declared sibling keys via the same `publishSiblingNamedKeysForIndexSig` + `siblingNamedSkipCode` mechanism binary got in F1 (the clone `prepareForJsonSafe` path already skipped its KEPT siblings — though not its DROPPED ones, the gap G6 later fixed). Pinned by `index_sig_sibling_json_test.go` + `g1-index-sig-sibling.test.ts`; the 40s WILD soak (seed 20260620) is clean (974 types, 0 violations). |
 
 Every original finding replays from the listed seed via the soak:
 
@@ -214,9 +216,10 @@ Callable-interface GENERATION stays disabled in the fuzz generator
 ([`typeGen.ts`](../../packages/ts-runtypes/test/fuzz/typeGen.ts), `genDecl`); the
 `calls` plumbing is kept so it can be re-enabled. F2b is no longer the blocker —
 the investigation soak (generation re-enabled) drove `reading 'fn'` / `no id
-injected` to zero — but it surfaced two SEPARATE pre-existing serialization bugs
-(G2: a non-serialisable native / bigint at an index-signature VALUE position;
-G3: an `invalid union index` on a generated union). Triage those, then re-enable.
+injected` to zero — but it surfaced SEPARATE pre-existing serialization bugs
+(G3 / G4 stripped-merged-prop unions, G5 Map/Set union envelope, G6 index-sig
+dropped-prop skip), all now FIXED below. Re-enabling callable generation is a
+clean follow-up.
 
 ---
 
@@ -262,6 +265,92 @@ properties, so a future diagnostics-assisted tier is now sound. Pinned by
 `internal/compiled/typefns/property_dataonly_test.go`, the updated
 `runtype-diagnostics.test.ts`, the `TestDiag_PropertyAbsorbsUnsupportedChild_NeverProp`
 resolver test, and the `Int8Array in interface` serialization fixture.
+
+---
+
+## G3 / G4 — a flat-union merged prop with a DataOnly-stripped sibling (FIXED)
+
+A discriminated union whose members share a property NAME where one member's
+version is DataOnly-stripped:
+
+```ts
+{kind: "t1"; f2: Date} | {kind: "t2"; f2: Uint8Array}      // G4
+{kind: "t0"; f0?: null} | {kind: "t1"; f0: Promise<string>} | {kind: "t2"; f0: Set<number>}  // G3
+```
+
+The flat-union encoder (`union_flat*.go`) MERGES members' properties into one
+`[-1, mergedObject]` envelope. `buildMergedProps` drops the stripped candidate
+(`f2: Uint8Array`, `f0: Promise`) from the merge — but a value belonging to the
+STRIPPED member still carries that key at runtime (the mock builds the full
+value). The merged encode applied the surviving candidate's codec whenever the
+key was present, without checking the value matched it:
+
+- **G4** (single surviving candidate): the Date codec ran `f2.toISOString()` on
+  the t2 value's `Uint8Array` → uncontrolled crash.
+- **G3** (multi surviving candidate): binary set the optional-prop bitmap bit for
+  the present `f0`, but the multi-candidate sub-dispatch matched neither `null`
+  nor `Set` (the value was a `Promise`), wrote no bytes, and desynced the decoder
+  → `invalid union index` / DataView overrun. JSON's clone path happened to dodge
+  it (its fallthrough returns `undefined`, dropped by `JSON.stringify`).
+
+### Fix
+
+`FlatMergedProp.HasStrippedCandidate` ([union_flat_layout.go](../../internal/compiled/typefns/union_flat_layout.go))
+records when a sibling member declared the prop with a stripped type (always
+implies `!Required`). When set, every encode family guards the surviving codec
+with `mergedPropSurvivingGuard` (the OR of the surviving candidates' validate
+checks) and DROPS the key when the value matches none — its correct DataOnly
+projection. The mutate path `delete`s it, the clone path folds the guard into the
+`!== undefined` presence test, the direct path extends the `=== undefined ? ''`
+drop, and the binary path gates the bitmap bit. Decoders are unchanged (the
+dropped key is simply absent on the wire). The guard fires ONLY for the rare
+stripped-sibling case, so the common discriminated-union path is untouched.
+Pinned by `union_flat_stripped_prop_test.go` + `unionStrippedSibling.smoke.test.ts`.
+
+---
+
+## G5 — a Map/Set value-type containing a union of object members (FIXED)
+
+`Set<Map<string, Record<string, {kind:'t0'} | {kind:'t1'}>>>` threw `invalid
+union index` on JSON decode (and dropped the value on binary). The flat-union
+encoder ALWAYS wraps object members in a `[-1, …]` envelope (for decode
+disambiguation), but `isJsonCompatible` ([json_compat.go](../../internal/compiled/typefns/json_compat.go))
+reported a union of JSON-compatible OBJECT members as compatible (= "no
+transform"). The Map/Set clone fast-path (`Array.from(v)`,
+`emitNativeIterablePrepareForJsonSafe`) trusted that and skipped the envelope on
+encode, while the decoder (driven by the actual compiled child, not the
+predicate) still unwrapped it.
+
+### Fix
+
+`isJsonCompatible`'s `KindUnion` arm now returns false when any member buckets
+into the merged-object branch (`unionMemberEnvelopes`, mirroring
+`buildFlatLayout` + `unionJsonNoop`'s decode arm), so a union of objects is
+correctly "needs transform" everywhere — the Map/Set value is encoded per-entry
+with its envelope. Pinned by the `union of object members (envelopes)` case in
+`json_compat_test.go` + `mapSetUnionEnvelope.smoke.test.ts`.
+
+---
+
+## G6 — clone index-sig for-in copied a DROPPED sibling key (FIXED)
+
+`{p0?: ArrayBuffer; p1: boolean; [k:number]:"red"}` round-tripped differently on
+the JSON-clone vs binary wires: the clone kept `"p0":{}` while every other family
+dropped it. The clone encoder
+(`buildSafeIndexSignatureObject`, [json_prepare_safe.go](../../internal/compiled/typefns/json_prepare_safe.go))
+built its index for-in "skip declared keys" set from the KEPT props only, so the
+DROPPED `p0` fell through to the index arm and was copied back into the clone.
+Binary already skipped it via `collectSiblingNamedKeys` (which keys on the NAME,
+independent of whether the prop is kept or dropped).
+
+### Fix
+
+The clone path now builds its skip set with the same `collectSiblingNamedKeys`
+helper (extracted from `publishSiblingNamedKeysForIndexSig`), so the full
+declared-name set (kept + dropped) is skipped. Pinned by
+`TestG6_CloneIndexSigSkipsDroppedSiblingProp` /
+`TestG6_BinaryAndCloneSkipSameSiblingKeys` in `index_sig_sibling_json_test.go` +
+`indexSigDroppedProp.smoke.test.ts`.
 
 ---
 

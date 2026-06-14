@@ -173,7 +173,19 @@ func jsonCompatRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[str
 			children = rt.Children
 		}
 		for _, child := range children {
-			if !jsonCompatRecursive(ctx.ResolveRef(child), ctx, visited) {
+			resolved := ctx.ResolveRef(child)
+			if !jsonCompatRecursive(resolved, ctx, visited) {
+				return false
+			}
+			// A member that buckets into the flat-union merged-object branch
+			// forces the `[-1, …]` envelope across the WHOLE union
+			// (union_flat_layout.go: AtomicNeedsTuple). So the union does NOT
+			// round-trip raw even when every member is individually JSON-
+			// compatible — without this a Map/Set value-type (or any consumer
+			// trusting "no transform") fast-paths past the envelope on encode
+			// while the decoder still unwraps it (G5). Mirrors unionJsonNoop's
+			// decode arm (noop_types.go).
+			if unionMemberEnvelopes(resolved, ctx) {
 				return false
 			}
 		}
@@ -197,6 +209,28 @@ func jsonCompatRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[str
 		return false
 	}
 	return false
+}
+
+// unionMemberEnvelopes reports whether a resolved union member buckets into the
+// flat-union merged-object branch (ObjectLiteral / plain Class without an index
+// signature), which forces the `[-1, …]` envelope across the whole union.
+// Mirrors buildFlatLayout's ObjectMembers bucketing (union_flat_layout.go) and
+// unionJsonNoop's decode arm (noop_types.go). Object-like members carrying an
+// index signature stay in the ATOMIC bucket (no forced envelope — they only
+// envelope when non-JSON-compatible, already caught by the per-member compat
+// check); class-with-non-default-SubKind members (Date / Map / Set / …) are
+// non-JSON-compatible and caught there too.
+func unionMemberEnvelopes(resolved *protocol.RunType, ctx *EmitContext) bool {
+	if resolved == nil {
+		return false
+	}
+	if isObjectLikeKind(resolved.Kind) && objectHasIndexSignatureChild(resolved, ctx) {
+		return false
+	}
+	if resolved.Kind == protocol.KindObjectLiteral {
+		return true
+	}
+	return resolved.Kind == protocol.KindClass && resolved.SubKind == protocol.SubKindNone
 }
 
 // objectChildrenCompat — shared body for ObjectLiteral and plain Class.

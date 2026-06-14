@@ -247,6 +247,11 @@ type safePropEmit struct {
 	optional   bool
 	accessor   string // input accessor `v.<name>` for the undefined check
 	expr       string // safe-form expression evaluated against `accessor`
+	// presenceGuard, when non-empty, is ANDed into the `!== undefined`
+	// presence check so a merged-union prop with a stripped sibling is
+	// emitted only for values matching a surviving candidate; a value from
+	// the stripped member (present but foreign-typed) omits the key (G4).
+	presenceGuard string
 }
 
 // emitObjectPrepareForJsonSafe — Approach 1 + 3 implementation for
@@ -339,9 +344,12 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 	}
 
 	// When there's an index signature, we must walk every key on v at
-	// runtime — the fastpath / accumulator-only path doesn't apply.
+	// runtime — the fastpath / accumulator-only path doesn't apply. The skip
+	// set is ALL declared named keys (not just the kept `props`): a DROPPED
+	// stripped prop (`p0: ArrayBuffer`) must still be skipped so the for-in
+	// doesn't copy it back into the clone (G6).
 	if len(indexSigs) > 0 {
-		return buildSafeIndexSignatureObject(v, props, indexSigs, ctx)
+		return buildSafeIndexSignatureObject(v, props, collectSiblingNamedKeys(rt, ctx), indexSigs, ctx)
 	}
 
 	if len(props) == 0 {
@@ -373,7 +381,7 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 // sig's child transform applied. Declared keys are NOT walked by the
 // for-in loop (their assignments come AFTER and would otherwise be
 // overridden by raw index-sig values).
-func buildSafeIndexSignatureObject(v string, props []safePropEmit, indexSigs []*protocol.RunType, ctx *EmitContext) RTCode {
+func buildSafeIndexSignatureObject(v string, props []safePropEmit, skipNames []string, indexSigs []*protocol.RunType, ctx *EmitContext) RTCode {
 	var b strings.Builder
 	b.WriteString("const _r = {};")
 	// Build the per-index-sig arms inside one for-in over v.
@@ -416,18 +424,20 @@ func buildSafeIndexSignatureObject(v string, props []safePropEmit, indexSigs []*
 		b.WriteString(" in ")
 		b.WriteString(v)
 		b.WriteString(") {")
-		// Skip declared keys so the explicit declared-prop assignments
-		// below own the slot (their transformed value wins).
-		if len(props) > 0 {
+		// Skip every declared key — the kept props' explicit assignments
+		// below own their slot (transformed value wins), and a DROPPED prop
+		// must not be copied back in by the index arm (G6). skipNames is the
+		// full declared-name set (kept + dropped), a superset of `props`.
+		if len(skipNames) > 0 {
 			var declaredCheck strings.Builder
 			declaredCheck.WriteString("if (")
-			for i, p := range props {
+			for i, name := range skipNames {
 				if i > 0 {
 					declaredCheck.WriteString(" || ")
 				}
 				declaredCheck.WriteString(keyVar)
 				declaredCheck.WriteString(" === ")
-				declaredCheck.WriteString(quoteJS(p.name))
+				declaredCheck.WriteString(quoteJS(name))
 			}
 			declaredCheck.WriteString(") continue;")
 			b.WriteString(declaredCheck.String())
@@ -537,7 +547,13 @@ func buildSafeObjectLiteral(props []safePropEmit, ctx *EmitContext, accessor str
 		}
 		b.WriteString("if (")
 		b.WriteString(p.accessor)
-		b.WriteString(" !== undefined) _r[")
+		b.WriteString(" !== undefined")
+		if p.presenceGuard != "" {
+			b.WriteString(" && (")
+			b.WriteString(p.presenceGuard)
+			b.WriteString(")")
+		}
+		b.WriteString(") _r[")
 		b.WriteString(quoteJS(p.name))
 		b.WriteString("]=")
 		b.WriteString(p.expr)
@@ -812,12 +828,23 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 			if !ok {
 				return RTCode{Code: "", Type: CodeNS}
 			}
+			// A stripped sibling forces the prop through the conditional-presence
+			// branch with the surviving-candidate guard, so a foreign-typed value
+			// from the stripped member omits the key instead of running the
+			// surviving codec on it (G4).
+			presenceGuard := ""
+			optional := !mp.Required
+			if mp.HasStrippedCandidate {
+				optional = true
+				presenceGuard = mergedPropSurvivingGuard(mp, accessor, ctx)
+			}
 			props = append(props, safePropEmit{
-				name:       mp.Name,
-				isSafeName: mp.IsSafeName,
-				optional:   !mp.Required,
-				accessor:   accessor,
-				expr:       propExpr,
+				name:          mp.Name,
+				isSafeName:    mp.IsSafeName,
+				optional:      optional,
+				accessor:      accessor,
+				expr:          propExpr,
+				presenceGuard: presenceGuard,
 			})
 		}
 		objLit := buildSafeObjectLiteral(props, ctx, v)

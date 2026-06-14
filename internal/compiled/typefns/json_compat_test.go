@@ -71,6 +71,11 @@ func TestIsJsonCompatible(t *testing.T) {
 	// Union of compatibles; union with one non-compatible.
 	unionCompat := &protocol.RunType{ID: "uOK", Kind: protocol.KindUnion, Children: []*protocol.RunType{makeRef("str"), makeRef("num")}, SafeUnionChildren: []*protocol.RunType{makeRef("str"), makeRef("num")}}
 	unionMixed := &protocol.RunType{ID: "uMix", Kind: protocol.KindUnion, Children: []*protocol.RunType{makeRef("str"), makeRef("dat")}, SafeUnionChildren: []*protocol.RunType{makeRef("str"), makeRef("dat")}}
+	// Union of two OBJECT members: each is individually JSON-compatible, but the
+	// flat-union envelopes object members ([-1, …]) so the union does NOT round-
+	// trip raw — a Map/Set value-type containing it must NOT fast-path past the
+	// envelope (G5).
+	unionObjs := &protocol.RunType{ID: "uObj", Kind: protocol.KindUnion, Children: []*protocol.RunType{makeRef("objCompat"), makeRef("cls")}, SafeUnionChildren: []*protocol.RunType{makeRef("objCompat"), makeRef("cls")}}
 
 	// Class with all-compatible properties.
 	classCompat := &protocol.RunType{ID: "cls", Kind: protocol.KindClass, SubKind: protocol.SubKindNone, Children: []*protocol.RunType{makeRef("pa"), makeRef("pb")}}
@@ -92,7 +97,7 @@ func TestIsJsonCompatible(t *testing.T) {
 		arrStr, arrDate,
 		propA, propB, propBDate, objCompat, objMixed,
 		tmA, tmB, tmDate, tupleCompat, tupleMixed,
-		unionCompat, unionMixed,
+		unionCompat, unionMixed, unionObjs,
 		classCompat,
 		propSelf, objSelf,
 		propFn, classWithFn,
@@ -136,6 +141,7 @@ func TestIsJsonCompatible(t *testing.T) {
 		{"tuple [string, Date]", tupleMixed, false},
 		{"union string | number", unionCompat, true},
 		{"union string | Date", unionMixed, false},
+		{"union of object members (envelopes)", unionObjs, false},
 		{"class with all-JSON props", classCompat, true},
 		{"class with function prop (function skipped)", classWithFn, true},
 		{"self-referential object literal", objSelf, true},
