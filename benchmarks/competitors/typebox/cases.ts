@@ -6,13 +6,14 @@
 
 import {Type, type TSchema} from '@sinclair/typebox';
 import {TypeCompiler} from '@sinclair/typebox/compiler';
-import {NOT_SUPPORTED, type CompetitorCases, type Validator} from '../../shared/harness/types.ts';
+import {NOT_SUPPORTED, type CaseBuilder, type CompetitorCases, type SampleOverride, type Validator} from '../../shared/harness/types.ts';
 
-// LAZY builder: schema build + compile happen inside the () => (compile is costly).
-const c = (s: TSchema): (() => Validator) => () => {
-  const check = TypeCompiler.Compile(s);
-  return (v) => check.Check(v);
-};
+// LAZY builder: schema build + compile happen inside each builder (compile is costly).
+const c = (s: TSchema, samples?: SampleOverride): CaseBuilder => ({
+  build: () => { const ck = TypeCompiler.Compile(s); return (v) => ck.Check(v); },
+  buildErrors: () => { const ck = TypeCompiler.Compile(s); return (v) => { for (const _ of ck.Errors(v)) return false; return true; }; },
+  ...(samples ? {samples} : {}),
+});
 
 const objA = Type.Object({a: Type.String()});
 
@@ -202,13 +203,13 @@ export const cases: CompetitorCases = {
   ),
   'OBJECT.function_top_level': c(Type.Function([], Type.Any())),
   'OBJECT.interface_callable': NOT_SUPPORTED, // Intersect(Function, Object) compiles typeof 'object' check which rejects functions
-  'OBJECT.interface_all_optional': { // override: TypeBox accepts Date/Map/Set/RegExp for all-optional objects — drop those from invalid
-    build: c(Type.Object({a: Type.Optional(Type.String()), b: Type.Optional(Type.Number())})),
-    samples: {
+  'OBJECT.interface_all_optional': c( // override: TypeBox accepts Date/Map/Set/RegExp for all-optional objects — drop those from invalid
+    Type.Object({a: Type.Optional(Type.String()), b: Type.Optional(Type.Number())}),
+    {
       valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: undefined, b: undefined}],
       invalid: [[], null, 'hello', 42, undefined, true],
     },
-  },
+  ),
   'OBJECT.class_simple': c(Type.Object({date: Type.Date(), name: Type.String()})),
   'OBJECT.rpc_error_class': c(
     Type.Object({
@@ -459,13 +460,13 @@ export const cases: CompetitorCases = {
   ),
 
   // ── UTILITY ──
-  'UTILITY.partial': { // override: TypeBox accepts Date/Map/Set for all-optional objects — drop those from invalid
-    build: c(Type.Partial(Type.Object({name: Type.String(), age: Type.Number(), createdAt: Type.Date()}))),
-    samples: {
+  'UTILITY.partial': c( // override: TypeBox accepts Date/Map/Set for all-optional objects — drop those from invalid
+    Type.Partial(Type.Object({name: Type.String(), age: Type.Number(), createdAt: Type.Date()})),
+    {
       valid: [{}, {name: 'John'}, {createdAt: new Date()}, {name: 'John', age: 30, createdAt: new Date()}],
       invalid: [[], {name: 42}, {createdAt: 'not date'}, null, undefined, {createdAt: new Date('invalid')}, {age: NaN}],
     },
-  },
+  ),
   'UTILITY.required': c(
     Type.Required(Type.Object({name: Type.Optional(Type.String()), age: Type.Optional(Type.Number()), createdAt: Type.Optional(Type.Date())}))
   ),
@@ -536,8 +537,8 @@ export const cases: CompetitorCases = {
   'UTILITY.distributive_conditional_over_union': c(
     Type.Union([Type.Object({w: Type.String()}), Type.Object({w: Type.Number()})])
   ),
-  'UTILITY.deep_partial_recursive_mapped': { // override: TypeBox accepts new Date() for all-optional outer object — drop it from invalid
-    build: c(Type.Object({
+  'UTILITY.deep_partial_recursive_mapped': c( // override: TypeBox accepts new Date() for all-optional outer object — drop it from invalid
+    Type.Object({
       display: Type.Optional(Type.Object({
         theme: Type.Optional(Type.Union([Type.Literal('light'), Type.Literal('dark')])),
         brightness: Type.Optional(Type.Number()),
@@ -546,8 +547,8 @@ export const cases: CompetitorCases = {
         volume: Type.Optional(Type.Number()),
         muted: Type.Optional(Type.Boolean()),
       })),
-    })),
-    samples: {
+    }),
+    {
       valid: [
         {},
         {display: {}},
@@ -557,7 +558,7 @@ export const cases: CompetitorCases = {
       ],
       invalid: [[], {display: 'not object'}, {display: {theme: 'invalid'}}, {audio: {volume: NaN}}, null, undefined],
     },
-  },
+  ),
 
   // ── TYPE_MAPPINGS ──
   'TYPE_MAPPINGS.key_prefix_rename': c(Type.Object({user_id: Type.Number(), user_name: Type.String()})),
