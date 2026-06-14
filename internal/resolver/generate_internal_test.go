@@ -1,8 +1,12 @@
 package resolver
 
 import (
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -111,5 +115,26 @@ func TestIsWithin(t *testing.T) {
 		if got := isWithin(tc.base, tc.target); got != tc.want {
 			t.Errorf("isWithin(%q, %q) = %v, want %v", tc.base, tc.target, got, tc.want)
 		}
+	}
+}
+
+// TestUnwritableOutDirError pins the read-only/permission classification: a
+// permission or read-only-FS failure gets the actionable "writable" guidance
+// (files-mode has no virtual fallback), other failures get a plain wrap.
+func TestUnwritableOutDirError(t *testing.T) {
+	permission := unwritableOutDirError("/out/types", fmt.Errorf("mkdir /out/types: %w", fs.ErrPermission))
+	if !strings.Contains(permission.Error(), "writable") {
+		t.Errorf("permission error should mention the writable-dir requirement, got: %v", permission)
+	}
+	readOnly := unwritableOutDirError("/out/types", errors.New("open /out/types/x.js: read-only file system"))
+	if !strings.Contains(readOnly.Error(), "writable") {
+		t.Errorf("read-only-FS error should mention the writable-dir requirement, got: %v", readOnly)
+	}
+	generic := unwritableOutDirError("/out/types", errors.New("disk full"))
+	if strings.Contains(generic.Error(), "writable") {
+		t.Errorf("generic error should NOT claim a writability fix, got: %v", generic)
+	}
+	if !strings.Contains(generic.Error(), "/out/types") {
+		t.Errorf("generic error should still name the dir, got: %v", generic)
 	}
 }
