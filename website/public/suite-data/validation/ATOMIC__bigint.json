@@ -1,0 +1,1 @@
+{"section":"ATOMIC","key":"bigint","title":"BigInt primitive","description":"Infinity and -Infinity rejected (typeof gate)","notes":[],"pureType":"createValidate<bigint>()","schema":"createValidate(RT.bigint())","generated":"function YOw_ks2yqim(v){return typeof v === 'bigint'}"}

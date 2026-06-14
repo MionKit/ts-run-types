@@ -1,0 +1,1 @@
+{"section":"DATETIME","key":"plainYearMonth","title":"Temporal.PlainYearMonth","description":"","notes":["Must be a Temporal.PlainYearMonth instance (instanceof)."],"pureType":"createValidate<Temporal.PlainYearMonth>()","schema":"createValidate(RT.temporal.plainYearMonth())","generated":"export const __rt_YOw_AOak4uW=['val',,,'YOw_AOak4uW','PlainYearMonth',undefined,true];"}

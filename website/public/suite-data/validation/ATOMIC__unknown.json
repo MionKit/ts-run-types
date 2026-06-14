@@ -1,0 +1,1 @@
+{"section":"ATOMIC","key":"unknown","title":"Unknown type — every value passes","description":"","notes":["No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`."],"pureType":"createValidate<unknown>()","schema":"createValidate(RT.unknown())","generated":"export const __rt_YOw_lT9JZr7=['val',,,'YOw_lT9JZr7','unknown',undefined,true];"}

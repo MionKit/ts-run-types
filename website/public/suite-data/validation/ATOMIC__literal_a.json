@@ -1,0 +1,1 @@
+{"section":"ATOMIC","key":"literal_a","title":"String literal type (case-sensitive)","description":"","notes":["Case-sensitive — \"A\" does not satisfy the literal \"a\"."],"pureType":"createValidate<'a'>()","schema":"createValidate(RT.literal('a'))","generated":"function YOw_uw8c8Ck(v){return v === 'a'}"}
