@@ -78,12 +78,27 @@ export interface NotSupportedRecord {
   metric: Metric;
 }
 
+/** One case the competitor actually ran (at least one metric built a validator),
+ *  with how many distinct samples it disagreed with the shared truth on. This is
+ *  the per-case roll-up the correctness website table reads: 0 = fully aligned, a
+ *  positive count = that many diverging samples. A case absent from this list was
+ *  not supported (rendered n-a). */
+export interface CoverageEntry {
+  caseKey: string;
+  suite: string;
+  group: string;
+  name: string;
+  title: string;
+  divergences: number;
+}
+
 export interface AuditResult {
   competitor: string;
   generatedAt: string;
   records: MisalignmentRecord[];
   builderIssues: BuilderIssue[];
   notSupported: NotSupportedRecord[];
+  coverage: CoverageEntry[];
   totals: {
     casesScanned: number;
     samplesChecked: number;
@@ -138,6 +153,7 @@ export function auditCompetitor(competitorModule: CompetitorModule): AuditResult
   const records: MisalignmentRecord[] = [];
   const builderIssues: BuilderIssue[] = [];
   const notSupported: NotSupportedRecord[] = [];
+  const coverage: CoverageEntry[] = [];
   let casesScanned = 0;
   let samplesChecked = 0;
   let overrides = 0;
@@ -147,6 +163,10 @@ export function auditCompetitor(competitorModule: CompetitorModule): AuditResult
     const norm = normalize(competitorModule.cases[iterated.key]);
     const overridden = norm.override.valid !== undefined || norm.override.invalid !== undefined;
     if (overridden) overrides++;
+    // Per-case coverage: did any metric run, and on how many distinct samples did
+    // it diverge (a (path, sampleIndex) pair, deduped across the two metrics)?
+    let ran = false;
+    const divergentSamples = new Set<string>();
 
     // Samples are computed once per case (shared by both metrics), exactly like the bench.
     let shared: {valid: unknown[]; invalid: unknown[]} | null = null;
@@ -202,8 +222,22 @@ export function auditCompetitor(competitorModule: CompetitorModule): AuditResult
         metric,
         samplesOverridden: overridden,
       };
+      ran = true;
+      const before = records.length;
       samplesChecked += walkPath(validator, valid, 'accept', base, records);
       samplesChecked += walkPath(validator, invalid, 'reject', base, records);
+      for (let i = before; i < records.length; i++) divergentSamples.add(`${records[i].path}#${records[i].sampleIndex}`);
+    }
+
+    if (ran) {
+      coverage.push({
+        caseKey: iterated.key,
+        suite: iterated.suite,
+        group: iterated.group,
+        name: iterated.name,
+        title: iterated.case.title,
+        divergences: divergentSamples.size,
+      });
     }
   }
 
@@ -213,6 +247,7 @@ export function auditCompetitor(competitorModule: CompetitorModule): AuditResult
     records,
     builderIssues,
     notSupported,
+    coverage,
     totals: {
       casesScanned,
       samplesChecked,
