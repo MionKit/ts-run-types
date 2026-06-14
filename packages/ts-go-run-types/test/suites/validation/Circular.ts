@@ -181,6 +181,8 @@ export const CIRCULAR = {
     title: 'Self-referential array whose union element includes the array itself',
     description:
       "mion circularRefs.spec.ts 'Circular array + union' — self-recursive array whose element type is a union including the array itself. Closes the cycle via Array → Union → Array.",
+    validateNotes:
+      'The union check is a boolean delegation that does NOT recurse into per-arm error paths: when a nested-array element fails, getValidationErrors reports a single `expected: "union"` at the outer index, not the deep path of the inner failure.',
     validateSchema: () => {
       const cu = RT.circular((self) => RT.array(RT.union([self, RT.date(), RT.number(), RT.string()])));
       return createValidate(cu);
@@ -404,6 +406,8 @@ export const CIRCULAR = {
     title: 'Self-referential object whose cycle closes via an index signature',
     description:
       "mion circularRefs.spec.ts 'Circular Object with index property' — cycle closed via an index-signature value type. Exercises the index-signature for-in loop calling back into the same validator.",
+    validateNotes:
+      'A `Date` (or any non-null object) passes the `typeof === "object"` guard, then fails because it lacks the required `index` property (`expected: "objectLiteral"` at `["index"]`).',
     validate: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
@@ -660,6 +664,8 @@ export const CIRCULAR = {
     title: 'Non-circular root holding a circular child interface',
     description:
       "mion interface.spec.ts 'Interface with nested circular type where root is not the circular ref' — RootNotCircular is a flat shape (literal discriminator + one prop) whose ciChild property is a self-referential ICircularDeep. Pins the case where the dependency-call layer kicks in BELOW the root rather than at the root itself.",
+    validateNotes:
+      'The root is a flat (non-recursive) shape; recursion lives only in the `ciChild` subtree, so the dependency-call layer is exercised below the root rather than at it.',
     validate: () => {
       interface ICircularDeep {
         name: string;
