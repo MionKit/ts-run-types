@@ -695,7 +695,12 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				response.RunTypes = scoped.RunTypes
 			}
 			if request.IncludeEntryModules {
-				modules, modulesErr := resolver.collectEntryModules(scoped, rtOpts, purefns.CollectEntries(pureFnEntries), metrics)
+				// Override cfn entries (whole-program) ride the pure-fn collection
+				// so the type-fn redirects resolve their `cfn::` dep modules. Kept
+				// out of the per-file pure-fn signals (replacements / addedPureFns)
+				// — those track registerPureFnFactory rewrites, not overrides.
+				allPureFns := append(append([]purefns.Entry(nil), pureFnEntries...), resolver.overrideEntries...)
+				modules, modulesErr := resolver.collectEntryModules(scoped, rtOpts, purefns.CollectEntries(allPureFns), metrics)
 				if modulesErr != nil {
 					return protocol.Response{Error: modulesErr.Error()}
 				}
