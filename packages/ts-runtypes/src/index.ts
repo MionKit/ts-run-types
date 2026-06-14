@@ -121,6 +121,24 @@ export {
   type FromBinaryFn,
 } from './createRTFBinary.ts';
 
+// Per-type custom function overrides — the WRITE side of the createX routing.
+// Registers a custom pure function for one T; every createX<T>() then returns
+// it. Declared after createRTFunctions / createRTFBinary so the Fn aliases they
+// export are initialized first.
+export {
+  overrideValidate,
+  overrideGetValidationErrors,
+  overrideHasUnknownKeys,
+  overrideStripUnknownKeys,
+  overrideUnknownKeyErrors,
+  overrideUnknownKeysToUndefined,
+  overrideFormatTransform,
+  overrideBinaryEncoder,
+  overrideBinaryDecoder,
+  overrideJsonEncoder,
+  overrideJsonDecoder,
+} from './overrideRTFunctions.ts';
+
 // Mock-value generator re-exported from `./mocking/` so bundlers can drop the
 // whole mock subtree when consumers don't reference `createMockType`.
 export {createMockType} from './mocking/createMockType.ts';
