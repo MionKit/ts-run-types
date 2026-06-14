@@ -1,11 +1,11 @@
 // Reads every results/<name>.json (written by each competitor's isolated run),
-// joins by case key, and renders the comparison tables + coverage. The benchmark
-// now measures the ACCEPT (valid) path and the REJECT (invalid) path SEPARATELY,
-// so this prints ONE table per path (they exercise different validator code and
-// usually have very different throughput). A trailing "*" on a cell means that
-// competitor used its OWN samples for the case (overrode the shared data).
-// Exits non-zero if ANY competitor has a fail/errored case. Plain .mjs — no
-// build; run after the per-competitor dists.
+// joins by case key, and renders the comparison tables + coverage. Each case is
+// measured on TWO functions — `validate` (cheap boolean) and `validationErrors`
+// (the heavier error-returning fn, meant to run only after validate fails) — each
+// on the ACCEPT (valid) and REJECT (invalid) paths. So this prints FOUR tables:
+// validate·accept, validate·reject, validationErrors·accept, validationErrors·reject.
+// A trailing "*" means that competitor used its own samples for the case.
+// Exits non-zero if ANY competitor has a fail/errored case. Plain .mjs.
 
 import {readdirSync, readFileSync} from 'node:fs';
 import path from 'node:path';
@@ -19,13 +19,14 @@ const padR = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s.padEnd(n));
 const padL = (s, n) => s.padStart(n);
 const fmt = (n) => (n <= 0 ? '' : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M/s` : n >= 1e3 ? `${(n / 1e3).toFixed(0)}k/s` : `${n.toFixed(0)}/s`);
 
-// `field` selects which path we render: 'validOpsSec' (accept) or 'invalidOpsSec' (reject).
-function cell(c, field) {
-  if (!c || c.status === 'not-supported') return '—';
-  if (c.status === 'fail') return 'FAIL';
-  if (c.status === 'errored') return 'ERROR';
-  const star = c.samplesOverridden ? '*' : '';
-  return (fmt(c[field]) || 'ok') + star;
+// `metric` ∈ {validate, validationErrors}; `field` ∈ {validOpsSec, invalidOpsSec}.
+function cell(c, metric, field) {
+  if (!c) return '—';
+  const m = c[metric];
+  if (!m || m.status === 'not-supported') return '—';
+  if (m.status === 'fail') return 'FAIL';
+  if (m.status === 'errored') return 'ERROR';
+  return (fmt(m[field]) || 'ok') + (c.samplesOverridden ? '*' : '');
 }
 
 function load() {
@@ -40,8 +41,7 @@ function load() {
     .map((f) => JSON.parse(readFileSync(path.join(RESULTS_DIR, f), 'utf8')));
 }
 
-// Render one path's per-suite tables across all competitors.
-function renderPath(title, field, competitors, byKey, rows) {
+function renderSection(title, metric, field, competitors, byKey, rows) {
   console.log(`\n══════ ${title} ══════`);
   let lastSuite = '';
   let lastGroup = '';
@@ -58,7 +58,7 @@ function renderPath(title, field, competitors, byKey, rows) {
       console.log(`· ${row.group}`);
     }
     let line = padR('  ' + row.name, KEYW);
-    for (const name of competitors) line += padL(cell(byKey.get(name).get(row.key), field), COL);
+    for (const name of competitors) line += padL(cell(byKey.get(name).get(row.key), metric, field), COL);
     console.log(line);
   }
 }
@@ -75,35 +75,41 @@ function main() {
   const rows = results.reduce((longest, r) => (r.cases.length > longest.length ? r.cases : longest), []);
 
   const noTiming = results[0].env.noTiming;
-  console.log(`\nFull validation benchmark${noTiming ? ' (correctness only)' : ' — accept vs reject paths'}`);
+  console.log(`\nFull validation benchmark${noTiming ? ' (correctness only)' : ' — validate vs validationErrors, accept vs reject'}`);
   console.log('cells are validations/sec; "*" = competitor used its own samples (overrode shared data).');
+  console.log('validate = cheap boolean; validationErrors = error-returning fn (runs only after validate fails).');
 
-  // Two passes: the accept (valid) path, then the reject (invalid) path.
-  renderPath(noTiming ? 'VALID PATH (accept)' : 'VALID PATH — accepts/sec', 'validOpsSec', competitors, byKey, rows);
-  renderPath(noTiming ? 'INVALID PATH (reject)' : 'INVALID PATH — rejects/sec', 'invalidOpsSec', competitors, byKey, rows);
+  renderSection('VALIDATE · accept/sec', 'validate', 'validOpsSec', competitors, byKey, rows);
+  renderSection('VALIDATE · reject/sec', 'validate', 'invalidOpsSec', competitors, byKey, rows);
+  renderSection('VALIDATION-ERRORS · accept/sec', 'validationErrors', 'validOpsSec', competitors, byKey, rows);
+  renderSection('VALIDATION-ERRORS · reject/sec', 'validationErrors', 'invalidOpsSec', competitors, byKey, rows);
 
-  console.log('\nCoverage:');
+  console.log('\nCoverage (per metric):');
   let failed = 0;
   for (const name of competitors) {
     const r = results.find((x) => x.competitor === name);
-    const s = r.summary;
-    failed += s.fail + s.errored;
-    const err = s.errored ? `  errored=${s.errored}` : '';
+    failed += r.summary.fail + r.summary.errored;
     const over = r.cases.filter((c) => c.samplesOverridden).length;
     const overStr = over ? `  overrides=${over}` : '';
-    console.log(`  ${padR(name, 18)} ok=${s.ok}  fail=${s.fail}${err}  not-supported=${s.notSupported}${overStr}  / ${s.total}`);
+    const line = (label, s) => `${padR(label, 22)} ok=${s.ok}  fail=${s.fail}${s.errored ? `  errored=${s.errored}` : ''}  n/s=${s.notSupported}`;
+    console.log(`  ${name}${overStr}  / ${r.summary.total}`);
+    console.log(`      ${line('validate', r.summary.validate)}`);
+    console.log(`      ${line('validationErrors', r.summary.validationErrors)}`);
   }
 
   if (failed > 0) {
-    console.log(`\n✗ ${failed} fail/errored case(s) across competitors:`);
+    console.log(`\n✗ ${failed} fail/errored metric-case(s) across competitors:`);
     for (const r of results) {
       for (const c of r.cases) {
-        if (c.status === 'fail' || c.status === 'errored') console.log(`  ${r.competitor} / ${c.key}: ${c.status}${c.detail ? ` — ${c.detail}` : ''}`);
+        for (const metric of ['validate', 'validationErrors']) {
+          const m = c[metric];
+          if (m && (m.status === 'fail' || m.status === 'errored')) console.log(`  ${r.competitor} / ${c.key} [${metric}]: ${m.status}${m.detail ? ` — ${m.detail}` : ''}`);
+        }
       }
     }
     return 1;
   }
-  console.log('\n✓ every supported validator passed correctness on BOTH paths for all cases.');
+  console.log('\n✓ every supported function passed correctness on BOTH paths for all cases.');
   return 0;
 }
 
