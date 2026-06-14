@@ -80,6 +80,7 @@ Before opening a PR, confirm the change is **PR ready** — never open one other
 
 - **Front-end tests exist and pass.** Every new or changed behaviour needs Vitest coverage under [packages/](packages/) (`.spec.ts` / `.test.ts`); run the whole JS suite with `pnpm test`. Marker-API work must cover BOTH `getRunTypeId` call shapes (the **Marker test coverage rule** under [Testing](#testing)). Go-side changes also need `go test ./internal/...`.
 - **Docs are updated — especially the website.** Reflect the change in [container-website/content/](container-website/content/) (follow the **Website docs style** section below), and update [README.md](README.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) or [docs/ROADMAP.md](docs/ROADMAP.md) whenever it touches what they describe (CLI flags, execution model, scope, lossy mappings).
+- **If the PR implements a [docs/todos/](docs/todos/) spec, `git mv` it into [docs/done/](docs/done/) (or [docs/partially/](docs/partially/)) and update it to match what shipped.**
 
 ### ⚠️ The FE-test gate needs a built environment — set it up FIRST
 
