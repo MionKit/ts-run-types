@@ -121,6 +121,41 @@ getRunTypeId<{a: number}>();
 	if resp := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: okDir}); resp.Error != "" {
 		t.Fatalf("a RunTypes-only output dir (enriched/ present) must be accepted, got: %s", resp.Error)
 	}
+
+	// Accepted: recognized members alongside harmless OS noise (Finder / Explorer
+	// cruft) — a stray .DS_Store / ._sibling / Thumbs.db must never crash a build.
+	noiseDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(noiseDir, "enriched"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, junk := range []string{".DS_Store", "._enriched", "Thumbs.db"} {
+		if err := os.WriteFile(filepath.Join(noiseDir, junk), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if resp := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: noiseDir}); resp.Error != "" {
+		t.Fatalf("OS-noise files must be tolerated, got: %s", resp.Error)
+	}
+
+	// Adopted: our OWN previous run — a second generate into a dir we already
+	// wrote (it now carries the types/ marker) must not be mistaken for foreign.
+	prev := t.TempDir()
+	if first := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: prev}); first.Error != "" {
+		t.Fatalf("first generate into a fresh dir should succeed: %s", first.Error)
+	}
+	if second := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: prev}); second.Error != "" {
+		t.Fatalf("a second generate into our own previous-run dir must be adopted, got: %s", second.Error)
+	}
+
+	// Refused: an extraneous FOLDER at the root (a real source or sub-project dir)
+	// — anything beyond types/ / enriched/ + VCS markers is treated as not ours.
+	extraneousDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(extraneousDir, "models"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if resp := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: extraneousDir}); resp.Error == "" {
+		t.Fatal("expected refusal of an output dir holding an extraneous folder, got no error")
+	}
 }
 
 // TestGenerateTransformConsistency_Reflection pins the files-mode invariant:

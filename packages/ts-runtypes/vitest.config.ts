@@ -61,6 +61,9 @@ export default defineConfig({
     environment: 'node',
     include: ['test/**/*.test.ts'],
     setupFiles: ['./test/setup.ts'],
+    // Removes the generated <PACKAGE_ROOT>/__runtypes output tree after the
+    // whole suite (teardown only — see the file's note on globalSetup timing).
+    globalSetup: ['./test/global-cleanup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
