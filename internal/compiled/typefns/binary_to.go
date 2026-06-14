@@ -423,8 +423,9 @@ func emitPropertyToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser 
 	if resolved == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
-	if isFunctionLikeKind(resolved.Kind) {
-		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
+	if strippedPropertyDrop(resolved, rt.Name, ctx) {
+		// Directly DataOnly-stripped value — drop the property. See
+		// docs/UNSUPPORTED-KINDS.md.
 		return RTCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
@@ -432,11 +433,11 @@ func emitPropertyToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser 
 	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	if childRT.Type == CodeNS {
-		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
-		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
-			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
+		// Stripped leaf in a propagating slot (symbol[], …) fails the object;
+		// any other unsupported kind is absorbed (F3). See propertyChildFailed.
+		if propertyChildFailed(ctx) {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		ctx.walker.AbsorbUnsupported()
 		return RTCode{Code: "", Type: CodeS}
 	}
 	if rt.Optional {
@@ -507,8 +508,12 @@ func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser st
 		if childResolved == nil {
 			continue
 		}
-		if isFunctionLikeKind(childResolved.Kind) {
-			ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, resolved.Name)
+		if strippedPropertyDrop(childResolved, resolved.Name, ctx) {
+			// Directly DataOnly-stripped value — drop the property from both the
+			// required and optional sets (optional props compile their value
+			// here, bypassing emitPropertyToBinary). A structurally-unserializable
+			// value (symbol[], …) is NOT stripped here; it stays and its CodeNS
+			// propagates from the compile below, failing the object (F3).
 			continue
 		}
 		if resolved.Optional {
@@ -547,7 +552,13 @@ func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser st
 			innerRT := ctx.CompileChild(resolved.Child, CodeS)
 			ctx.SetChildAccessor("")
 			if innerRT.Type == CodeNS {
-				return RTCode{Code: "", Type: CodeNS}
+				if propertyChildFailed(ctx) {
+					return RTCode{Code: "", Type: CodeNS}
+				}
+				// Absorbed unknown kind — keep the optional bit (both wire sides
+				// reserve it) but write no value, so the property drops from the
+				// decoded object while the bitmap stays in sync.
+				innerRT = RTCode{Code: "", Type: CodeS}
 			}
 			bitIdx := strconv.Itoa(i & 7)
 			setMask := ser + ".setBitMask(" + bitmapVar + ", " + bitIdx + ")"

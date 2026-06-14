@@ -1,9 +1,10 @@
 # Serialization bugs surfaced by the non-data fuzz lane
 
-**Status:** F1, K2, F2 (product side) FIXED — see the Resolution section below.
-F3 plus two newly-surfaced issues are DEFERRED to a follow-up. Originally four
-findings from the DataOnly non-data fuzz lane (the `createMockType`-driven,
-real-pipeline lane in [`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-runtypes/test/fuzz/nonDataTypeFuzz.integration.test.ts)).
+**Status:** F1, K2, F2 (product side), F3 FIXED — see the Resolution section
+below. Two newly-surfaced issues (F2b, G1) are DEFERRED to a follow-up.
+Originally four findings from the DataOnly non-data fuzz lane (the
+`createMockType`-driven, real-pipeline lane in
+[`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-runtypes/test/fuzz/nonDataTypeFuzz.integration.test.ts)).
 
 ## Resolution
 
@@ -13,7 +14,7 @@ real-pipeline lane in [`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-
 | **K2** | A stripped-valued prop in a UNION member failed the whole union (a standalone object drops it) | **FIXED** — `buildMergedProps` drops the full `isStrippedUnionMember` set + emits the drop warning. Pinned by `TestDataOnlyUnion_ObjectMemberStrippedProp`. |
 | **F2** | Callable interface: function to `validate`, object to the serializers | **FIXED (product)** — `objectHasCallSignature` makes the serializers + validate treat it function-like everywhere (typeof-function at root, dropped at a property). Pinned by `callable_interface_dataonly_test.go`. Re-enabling fuzz GENERATION is deferred (see F2b). |
 | **F2b** | Re-enabling callable-interface fuzz generation surfaces an UNCONTROLLED wire error (`reading 'fn'`) + an unresolved binary site on a complex callable interface (call sig with `any` / methods / non-serialisable intersection params) | **DEFERRED** — a separate emit/dependency-linking bug. Generation stays disabled in `typeGen.ts`. |
-| **F3** | An Error-severity diagnostic is emitted for a non-serialisable position inside a DROPPED property subtree, though the value serialises fine | **DEFERRED** — cosmetic (runtime correct; the fuzz lane tiers on actual encoder behaviour, so it's invisible there). A correct fix reworks the absorb-path severity (`DiagCodeForLeaf` returns ROOT/Error codes) + scoped diagnostic scrubbing across all 8 property emitters — invasive for the diagnostic catalog, better isolated. |
+| **F3** | An Error-severity diagnostic is emitted for a dropped non-serialisable property, though the value serialises fine; the default `clone` encoder FAILED such a property while the others dropped it; and a structurally-unserialisable property (`symbol[]`) was silently dropped instead of failing | **FIXED** — property-position handling now matches `DataOnly<T>` uniformly across all families. A DIRECTLY-stripped value (symbol / Promise / never / non-serialisable native; functions keep …010) drops with a new child-position **Warning** (…015), and the mutate path `delete`s it so `JSON.stringify` can't leak a typed array / Promise. A value that is only STRUCTURALLY unserialisable (`symbol[]`, `Map<string,symbol>`) now fails (root Error), matching DataOnly keeping `never[]`. An unknown future kind still absorbs gracefully. Pinned by `property_dataonly_test.go`, the updated `runtype-diagnostics.test.ts`, and the `Int8Array in interface` serialization fixture. |
 | **G1** | NEW soak finding: `O5` JSON round-trip throws `Cannot convert a BigInt value to a number` on `{1 prop + index signature}` (a bigint at a numeric-index-sig position). Pre-existing in the WILD lane, unrelated to F1/K2/F2. | **DEFERRED** |
 
 Every original finding replays from the listed seed via the soak:
@@ -137,30 +138,48 @@ this lands, callable-interface GENERATION stays disabled in the fuzz generator
 
 ---
 
-## F3 — an Error diagnostic is emitted for a DROPPED subtree
+## F3 — property-position handling did not match `DataOnly<T>` (FIXED)
 
-The resolver emits an Error-severity diagnostic for a non-serializable position
-that sits inside a DROPPED property subtree, even though the factory serializes
-fine. An Error is supposed to mean "will throw at runtime, build must fail"
-([`codes_runtype.go`](../../internal/diag/codes_runtype.go) convention), but here
-the runtime does not throw, so the diagnostic over-reports.
+Three related divergences at an object PROPERTY position, all surfaced (or
+explained) by the non-data lane:
 
-- Example — `{p2: Promise<Set<Float64Array>>}`. `p2` is a `Promise` property, which
-  is dropped. The binary family still walks into the dropped `Promise` and emits an
-  Error for the `Float64Array` inside the `Set`, yet `binaryEncode` correctly drops
-  `p2` and serializes the rest.
+1. **Wrong severity.** A directly DataOnly-stripped property value (symbol /
+   Promise / never / a non-serialisable native like `Int8Array`) was DROPPED at
+   runtime (correct) but the build emitted a ROOT-position **Error**
+   (`DiagCodeForLeaf` returns the …001/…002/…005/…006 root codes). An Error means
+   "will throw at runtime"; the factory serialises fine, so it over-reported.
+2. **`clone` disagreed with the rest.** The default `clone` encoder
+   (`prepareForJsonSafe`) FAILED such a property (`safeChildExpr` propagated
+   CodeNS), while `mutate` / `direct` / `binary` dropped it — a family
+   disagreement for the SAME type.
+3. **Structural drop was silent.** A property whose value is only STRUCTURALLY
+   unserialisable (`{a: symbol[]}`, `{a: Map<string,symbol>}`) was silently
+   DROPPED, but `DataOnly<{a: symbol[]}>` = `{a: never[]}` KEEPS the property, so
+   it cannot be represented and must fail (the oracle's "can't be safely dropped"
+   case).
 
-This is WHY the fuzz runner tiers serialize-vs-fail from ACTUAL encoder behavior
-rather than from `errorDiagnostics` (an Error can be present on a type that still
-serializes). See the tier note in [`typeFuzzRunner.ts`](../../packages/ts-runtypes/test/fuzz/typeFuzzRunner.ts)
-(`checkMockBehaviour`).
+### Fix
 
-### Proposed fix
+A single classifier, `strippedPropertyDrop` (over `isStrippedUnionMember`), runs
+in every property emitter + the binary/safe object pre-filters:
 
-When a property (or other droppable position) is dropped, do not walk its subtree
-for Error-severity diagnostics, or downgrade those nested diagnostics to Warning so
-"Error" keeps its "this will throw at runtime" meaning. Re-check the
-`errorDiagnostics`-based assumptions in any tooling that trusts Error severity.
+- **Directly stripped** value → drop the property, emit a new child-position
+  **Warning** (`…015`, `CodeXxNonSerializablePropDrop`; function-valued props keep
+  `…010`). The mutate `prepareForJson` path emits `delete v.<name>` for the kinds
+  `JSON.stringify` would otherwise leak as a plain object (Promise, typed arrays,
+  ArrayBuffer / DataView) so its output matches clone / direct / binary.
+- **Structurally unserialisable** value (a stripped LEAF reached through a
+  propagating slot) → propagate CodeNS so the object alwaysThrows with the root
+  Error, via `propertyChildFailed`.
+- **Unknown future kind** (no emit, e.g. a synthetic `KindIntersection`) → still
+  absorbed gracefully (no diagnostic), preserving the pre-DataOnly contract.
+
+The runner still tiers serialize-vs-fail from ACTUAL encoder behaviour (the
+robust default), but the resolver no longer over-reports Errors on dropped
+properties, so a future diagnostics-assisted tier is now sound. Pinned by
+`internal/compiled/typefns/property_dataonly_test.go`, the updated
+`runtype-diagnostics.test.ts`, the `TestDiag_PropertyAbsorbsUnsupportedChild_NeverProp`
+resolver test, and the `Int8Array in interface` serialization fixture.
 
 ---
 

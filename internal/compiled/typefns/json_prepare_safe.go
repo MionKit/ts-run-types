@@ -303,14 +303,25 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 		if propResolved == nil {
 			continue
 		}
-		if isFunctionLikeKind(propResolved.Kind) {
-			ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, resolved.Name)
+		if strippedPropertyDrop(propResolved, resolved.Name, ctx) {
+			// Directly DataOnly-stripped value (symbol / function / Promise /
+			// never / non-serializable native) — drop the property so the clone
+			// omits it, matching `DataOnly<{a: symbol}>` = `{}`. Before, only
+			// function-valued props were dropped here; symbol/Promise/native fell
+			// through to safeChildExpr's CodeNS and wrongly failed the whole
+			// object (F3 — the default clone encoder diverged from the others).
 			continue
 		}
 		accessor := propertyAccessor(v, resolved.Name, resolved.IsSafeName)
 		expr, ok := safeChildExpr(resolved.Child, accessor, ctx)
 		if !ok {
-			return RTCode{Code: "", Type: CodeNS}
+			// Not directly stripped. A DataOnly-stripped leaf in a propagating
+			// slot (symbol[], Map<string,symbol>) is KEPT by DataOnly, so fail the
+			// object; any other unsupported kind is absorbed (drop the prop). (F3)
+			if propertyChildFailed(ctx) {
+				return RTCode{Code: "", Type: CodeNS}
+			}
+			continue
 		}
 		if !isExtraProof(propResolved, ctx) {
 			allExtraProof = false
