@@ -228,6 +228,19 @@ unchanged)
 
 ## Rewrite mechanics
 
+> **Files-mode (landed).** The mechanism below was originally served as
+> **virtual modules** (`virtual:rt/<key>.js`, the plugin's `resolveId`/`load`).
+> It now writes every cache module to a **real file** under `<outDir>/types/`
+> (default `<srcDir>/runtypes`, inferred from tsconfig) at `buildStart`
+> (`OpGenerate`), and the transform injects **relative** imports to those files
+> — so every bundler resolves them natively with no per-bundler virtual-module
+> plumbing. `virtual:rt/<key>.js` is still the INTERNAL render specifier; it is
+> relativized at the resolver layer (post-render for inter-module imports,
+> post-`Apply` for user code), which keeps the transform/entrymod golden corpus
+> byte-stable. Read "virtual module" below as "real file under `<outDir>/types/`".
+> Build-time enrichment (`<outDir>/enriched/`) + two-way dev sync are tracked in
+> [packages/runtypes-devtools/docs/dev-sync-todo.md](../packages/runtypes-devtools/docs/dev-sync-todo.md).
+
 - Rewrites are positioned by **UTF-8 byte offsets, not string indices** — tsgo positions count bytes. The Vite plugin's [rewrite.ts](../packages/runtypes-devtools/src/rewrite.ts) applies edits through the in-house `EditBuffer` ([edit-buffer.ts](../packages/runtypes-devtools/src/edit-buffer.ts) — the from-scratch editor + source-map generator that replaced `magic-string`, keeping the published plugin dependency-free; `transform()` returns a real source map and the user's original lines/columns survive the injected import block + bindings) and converts every resolver offset via `makeByteToChar` before indexing. Don't index the JS string with a raw resolver offset; multibyte source characters will misalign the inserted hash.
 - **Module grouping is configurable** via the plugin's `moduleMode` option (mirrored as the binary's `--module-mode` flag; values in [internal/constants/constants.go](../internal/constants/constants.go)): `default` is described below; `allSingle` bundles EVERYTHING (one module per fn family under `fns/<tag>` with one NAMED export per entry (the same `__rt_` binding name every module mode exports under) plus one `pf` pure-fn bundle, and the reflection facades fold into the runtypes bundle; `Site.Module` / `Replacement.ImportFrom` point the rewrite's clauses at the bundle specifier (the clause shape is the same named import everywhere), and the family bundles join the runtypes bundle as mutable modules invalidated in `handleHotUpdate`); `allModules` splits everything (per-node runtype modules, tuple kind 0 — the pre-bundle layout, kept as an escape hatch; measured slower on dense reflection graphs). The grouping layer is `entrymod.RenderGrouped` + `Resolver.moduleGrouping`; per-entry renderers are identical across modes.
 - **Child inlining is configurable** via the plugin's `inlineMode` option (binary `--inline-mode`; values in [internal/constants/constants.go](../internal/constants/constants.go)): `default` applies the NAME RULE — unnamed compounds (arrays/tuples/object literals/unions/classes) inline into their parents (blocks hoist to per-factory context fns — `ctxFn<N>` — instead of per-call IIFEs) while named types (alias or interface) and circular types stay external as dedupe-worthy shared entries (Date/Temporal builtins always inline — atomic emits); `allInternal` is name-blind — everything except circular types inlines. The walker carries its own cycle breaker (`inlineWouldCycle`): a node already on the walk stack always goes external, because `IsCircular` flags only the serializer's re-entry node and union flattening can re-enter a cycle through an unflagged anonymous wrapper (e.g. the `U | undefined` of an optional `a?: U` prop). The two modes never share disk caches (fingerprint folds inlineMode in).
