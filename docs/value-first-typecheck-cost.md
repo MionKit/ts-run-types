@@ -1,6 +1,9 @@
 # Value-first schema type-checking cost vs TypeBox
 
-**Status:** solution proposed + methodology defined. Surfaced by the benchmark's
+**Status:** implemented (tiered `ObjectType` + 8-arm `union` overloads); faithfulness
+proven and type-cost validated against the real source on the host; Go-side
+structural-id convergence + full-suite `bench:typecost`/`bench` pending in-container
+(see _Implementation & validation results_ below). Surfaced by the benchmark's
 type-instantiation measurement ([`benchmarks/typecost/typecost.mjs`](../benchmarks/typecost/typecost.mjs)):
 ts-go's value-first **schema form** costs noticeably more TypeScript
 instantiations to resolve than TypeBox's `Static<>`. The current run reports
@@ -210,6 +213,58 @@ a net win with no `bench` regression — it is the one proposal with a real down
 
 Finding 2 measured it to be flat-to-worse once faithful. Documented here so it is
 not re-proposed: lowering this curve does **not** require going lazy.
+
+## Implementation & validation results
+
+Both fixes are implemented: tiered `ObjectType<C>` in `src/schema/static.ts`, 8-arm
+`union` overloads in `src/schema/compose.ts`. Validated on the host as far as the
+environment allows (TypeScript 6.0.3, compiler API):
+
+**Faithfulness — PROVEN.** The tiered `ObjectType<C>` is *identical* to the previous
+4-way for all 13 modifier profiles tested (empty, all-required, optional-only,
+readonly-only, mixed, optional+readonly-same-key, nested, union/array/literal
+fields), using the exact oracle `Eq<Flat<4way<C>>, Flat<tiered<C>>>` where
+`Flat<T> = {[K in keyof T]: T[K]}` collapses the 4-way's empty-intersection padding
+yet preserves `readonly`/optional exactly (mutual assignability alone misses
+`readonly`). The 8-arm `union` overload brands the same `A | … | H` the recursive
+`UnionOf` built (asserted). The real package source compiles clean with both edits.
+
+**Type-cost — MEASURED on the real source** (probes importing the actual
+`schema/static.ts` + `compose.ts`, baseline-subtracted; before = edits stashed):
+
+| case (real builders)       | before | after | ratio |
+|----------------------------|-------:|------:|------:|
+| OBJECT.flat_required       | 741    | 214   | 29%   |
+| OBJECT.nested_required     | 1528   | 466   | 30%   |
+| OBJECT.deep_required       | 1367   | 386   | 28%   |
+| OBJECT.optional_heavy      | 899    | 629   | 70%   |
+| OBJECT.readonly_heavy      | 535    | 384   | 72%   |
+| OBJECT.mixed_modifiers     | 564    | 646   | **115%** ⚠ |
+| ARRAY.array_of_objects     | 601    | 245   | 41%   |
+| UNION.union_2 / union_4    | 612/693| 612/693| 100% |
+| UNION.union_8_literals     | 1111   | 975   | 88%   |
+| UNION.union_8_objects      | 6035   | 2477  | 41%   |
+| TUPLE.basic                | 679    | 679   | 100%  |
+| **total**                  | 15365  | 8406  | **55% (−45%)** |
+
+**The one abnormal number, investigated per the methodology:**
+`OBJECT.mixed_modifiers` **regresses +15%** — the mixed profile (one field optional
+AND another readonly) falls through to the 4-way *and* now pays the two profile
+probes. A single-pass guard was prototyped to remove it but measured *slightly
+worse* (the per-key tag-union costs more than two boolean maps), so there is no
+cheaper guard. **Kept** because: the profile is rare, the regression is bounded
+(+82 instantiations), and choosing instead to fast-path only the no-modifier case
+would forfeit the −30% on the very common optional-only objects. The narrow-union
+no-change rows (`union_2`/`union_4` at 100%) confirm the extra overloads don't
+regress small unions — overload resolution stops at the first matching arity.
+
+**Pending in-container (cannot run here — no podman/competitor packages/Go binary):**
+Go-side structural-id convergence (`go test ./internal/...` + the plugin tests that
+spawn the binary), the marker package's vitest type-tests, and the official
+`pnpm bench:typecost` / `pnpm bench`. The host evidence is strong (faithfulness is a
+type-identity proof, and the all-required tiered output is *closer* to the
+type-first plain object than the old 4-way was, so convergence should hold or
+improve), but those three gates are the user's to run before merge.
 
 ## Methodology — how to test a fix without breaking runtime perf
 

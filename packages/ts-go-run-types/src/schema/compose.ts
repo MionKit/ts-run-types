@@ -130,13 +130,14 @@ export function tuple(
  *  `MapTuple<T>[number]`: the indexed-access form is subtype-REDUCED by tsgo, so a
  *  subset arm swallows its superset (`{a} | {a; b}` → `{a}`) and diverges from the
  *  written union. The fixed-arity overloads below brand the direct union with plain
- *  generic inference (NO `infer`) for up to 4 members; beyond that the trailing
- *  array overload falls back to the recursive `UnionOf<T>`. The cutoff is 4 (not 8)
- *  on purpose: `UnionOf` recurses over a FIXED tuple, so at 5–8 members it costs a
- *  handful of conditional instantiations per call site — shallow, nothing like the
- *  deep/structural inference the no-`infer` rule guards against — and capping the
- *  positional overloads at 4 keeps the surface small. (The cost only compounds for
- *  very wide unions, where `UnionOf`'s non-tail recursion nears TS's depth wall.) **/
+ *  generic inference (NO `infer`) for up to 8 members; beyond that the trailing
+ *  array overload falls back to the recursive `UnionOf<T>`. The cutoff is 8 (was 4):
+ *  the 8-arm union is a measured outlier (`UNION.large_union_eight_arms`) where the
+ *  recursive `UnionOf` build costs ~25% more than the direct `A | … | H` brand
+ *  (see docs/value-first-typecheck-cost.md), and overload resolution stops at the
+ *  first matching arity, so narrower unions never pay for the wider overloads.
+ *  9+ members still recurse via `UnionOf<T>` — its non-tail recursion only nears
+ *  TS's depth wall on very wide unions, which the fixed overloads can't cover anyway. **/
 export function union<A, B>(
   members: CompTimeArgs<readonly [RunType<A>, RunType<B>]>,
   id?: InjectRunTypeId<A | B>
@@ -149,7 +150,23 @@ export function union<A, B, C, D>(
   members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>]>,
   id?: InjectRunTypeId<A | B | C | D>
 ): RunType<A | B | C | D>;
-// Variable-arity fallback (5+ members) — recursive `UnionOf<T>`. Captures the
+export function union<A, B, C, D, E>(
+  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>]>,
+  id?: InjectRunTypeId<A | B | C | D | E>
+): RunType<A | B | C | D | E>;
+export function union<A, B, C, D, E, F>(
+  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>, RunType<F>]>,
+  id?: InjectRunTypeId<A | B | C | D | E | F>
+): RunType<A | B | C | D | E | F>;
+export function union<A, B, C, D, E, F, G>(
+  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>, RunType<F>, RunType<G>]>,
+  id?: InjectRunTypeId<A | B | C | D | E | F | G>
+): RunType<A | B | C | D | E | F | G>;
+export function union<A, B, C, D, E, F, G, H>(
+  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>, RunType<F>, RunType<G>, RunType<H>]>,
+  id?: InjectRunTypeId<A | B | C | D | E | F | G | H>
+): RunType<A | B | C | D | E | F | G | H>;
+// Variable-arity fallback (9+ members) — recursive `UnionOf<T>`. Captures the
 // member tuple with `const T` (not a `readonly [...T]` spread, which the
 // CompTimeArgs brand collapses to an array — losing the per-member precision
 // UnionOf needs to recurse).
