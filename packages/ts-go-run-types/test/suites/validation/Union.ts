@@ -190,6 +190,9 @@ export const UNION = {
 
   string_or_number: {
     title: 'Two-arm union of string and number',
+    description: 'the union `string | number` — value passes if either the string or number arm matches',
+    validateNotes:
+      'The number arm uses `Number.isFinite`, so `NaN` and `Infinity` are rejected even though they pass `typeof === "number"`; `BigInt` is rejected (it satisfies neither arm).',
     validate: () => createValidate<string | number>(),
     validateDataOnly: () => createValidate<DataOnly<string | number>>(),
     validateSchema: () => createValidate(RT.union([RT.string(), RT.number()])),

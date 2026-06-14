@@ -49,6 +49,11 @@ export const DATETIME = {
   // ═══════════════════════════ FormatDate (native JS Date) ══════════════════
   date_minmax: {
     title: 'FormatDate<{min,max}> — inclusive edges pass, one step outside fails',
+    description: 'Native `Date` with an inclusive `min`/`max` window; rejects dates outside [min, max]',
+    validateNotes: [
+      'Inclusive bounds: both 2020-01-01T00:00:00 (`min`) and 2020-12-31T23:59:59 (`max`) pass as the exact boundary values.',
+      'One step outside fails: 2019-12-31T23:59:59 trips `min`, 2021-01-01T00:00:00 trips `max`; a non-Date value (`not-a-date`) is also rejected.',
+    ],
     validate: () => createValidate<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     validateReflect: () => {
       const v: FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> = new Date();
@@ -88,6 +93,11 @@ export const DATETIME = {
   },
   date_gtlt: {
     title: 'FormatDate<{gt,lt}> — exclusive edges rejected, interior passes',
+    description: 'Native `Date` with exclusive `gt`/`lt` bounds; only strictly-interior dates pass',
+    validateNotes: [
+      'Exclusive bounds: an interior date (2020-06-15) passes, but the boundary values themselves fail — 2020-01-01T00:00:00 trips `gt` and 2020-12-31T23:59:59 trips `lt`.',
+      'A non-Date value (`not-a-date`) is also rejected.',
+    ],
     validate: () => createValidate<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     validateReflect: () => {
       const v: FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> = new Date();
@@ -128,6 +138,11 @@ export const DATETIME = {
   },
   date_min_lt: {
     title: 'FormatDate<{min,lt}> — inclusive lower + exclusive upper',
+    description: 'Native `Date` mixing an inclusive lower `min` with an exclusive upper `lt`',
+    validateNotes: [
+      'Mixed edges: the lower bound 2020-01-01T00:00:00 (`min`, inclusive) passes, but the upper bound 2020-12-31T23:59:59 (`lt`, exclusive) fails.',
+      'Below-range 2019-12-31T23:59:59 trips `min`; an interior date (2020-06-15) passes.',
+    ],
     validate: () => createValidate<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     validateReflect: () => {
       const v: FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> = new Date();
@@ -167,6 +182,11 @@ export const DATETIME = {
   },
   date_max_now: {
     title: 'FormatDate<{max: now}> — rejects the future (relative)',
+    description: 'Native `Date` with an inclusive relative upper bound `max: now`; rejects future dates',
+    validateNotes: [
+      'The `max` bound is the relative anchor `now`, resolved at validation time — a past date (2020-01-01) passes, a far-future date (2999-01-01) trips `max`.',
+      'Lower bound is unconstrained; a non-Date value (`not-a-date`) is also rejected.',
+    ],
     validate: () => createValidate<FormatDate<{max: 'now'}>>(),
     validateReflect: () => {
       const v: FormatDate<{max: 'now'}> = new Date();
@@ -204,6 +224,11 @@ export const DATETIME = {
   },
   date_rel_window: {
     title: 'FormatDate<{min: now-P1000Y, max: now+P1000Y}> — relative window (Y, both components allowed)',
+    description: 'Native `Date` with a relative inclusive window `now-P1000Y`/`now+P1000Y` (year components, both allowed for Date)',
+    validateNotes: [
+      'Both bounds are relative durations anchored at validation time (`now` ± 1000 years); a present-day date (2020-06-15) passes.',
+      'Far outside the wide window fails: year 1000 trips `min`, year 3500 trips `max`. The margin is deliberately huge so the boolean result holds regardless of the wall clock.',
+    ],
     validate: () => createValidate<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     validateReflect: () => {
       const v: FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = new Date();
@@ -244,6 +269,11 @@ export const DATETIME = {
   },
   date_rel_datetime_components: {
     title: 'FormatDate<{min: now-P1000YT12H}> — relative with both date + time components',
+    description: 'Native `Date` with a relative inclusive lower bound only (`now-P1000YT12H`, mixing year + hour components)',
+    validateNotes: [
+      'Single relative `min` anchored at validation time (1000 years and 12 hours ago); the upper bound is open.',
+      'A present-day date (2020-06-15) passes; far-past year 1000 trips `min`. Date accepts both date (Y) and time (T) duration components.',
+    ],
     validate: () => createValidate<FormatDate<{min: 'now-P1000YT12H'}>>(),
     validateReflect: () => {
       const v: FormatDate<{min: 'now-P1000YT12H'}> = new Date();
@@ -280,6 +310,11 @@ export const DATETIME = {
   // ═══════════════════════════ Temporal.Instant ═════════════════════════════
   instant_minmax: {
     title: 'FormatTemporalInstant<{min,max}> — inclusive edges',
+    description: '`Temporal.Instant` with an inclusive `min`/`max` window; rejects instants outside [min, max]',
+    validateNotes: [
+      'Inclusive bounds: both the `min` instant (2020-01-01T00:00:00Z) and the `max` instant (2020-12-31T23:59:59Z) pass as exact boundaries.',
+      'One second outside fails: 2019-12-31T23:59:59Z trips `min`, 2021-01-01T00:00:00Z trips `max`; a non-Instant value is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -336,6 +371,11 @@ export const DATETIME = {
   },
   instant_gtlt: {
     title: 'FormatTemporalInstant<{gt,lt}> — exclusive edges rejected',
+    description: '`Temporal.Instant` with exclusive `gt`/`lt` bounds; only strictly-interior instants pass',
+    validateNotes: [
+      'Exclusive bounds: an interior instant (2020-06-15T12:00:00Z) passes, but the boundary instants themselves fail — 2020-01-01T00:00:00Z trips `gt`, 2020-12-31T23:59:59Z trips `lt`.',
+      'A non-Instant value is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -392,6 +432,11 @@ export const DATETIME = {
   },
   instant_rel: {
     title: 'FormatTemporalInstant<{min: now-PT8760000H, max: now+PT8760000H}> — relative (time components only)',
+    description: '`Temporal.Instant` with a relative inclusive window expressed in hours (`now±PT8760000H`); Instant only accepts time components',
+    validateNotes: [
+      'Both bounds are relative durations anchored at validation time (±8,760,000 hours ≈ ±1000 years); a present-day instant (2020-06-15T12:00:00Z) passes.',
+      'Far outside the wide window fails: year 1000 trips `min`, year 3500 trips `max`. The margin is huge so the result holds regardless of the wall clock.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -441,6 +486,11 @@ export const DATETIME = {
   // ═══════════════════════════ Temporal.PlainDate ═══════════════════════════
   plainDate_minmax: {
     title: 'FormatTemporalPlainDate<{min,max}> — inclusive edges',
+    description: '`Temporal.PlainDate` with an inclusive `min`/`max` window; rejects dates outside [min, max]',
+    validateNotes: [
+      'Inclusive bounds: both 2020-01-01 (`min`) and 2020-12-31 (`max`) pass as exact boundaries.',
+      'One day outside fails: 2019-12-31 trips `min`, 2021-01-01 trips `max`; a wrong-type value (a `Temporal.Instant`) is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -488,6 +538,11 @@ export const DATETIME = {
   },
   plainDate_gtlt: {
     title: 'FormatTemporalPlainDate<{gt,lt}> — exclusive edges rejected, next day inside passes',
+    description: '`Temporal.PlainDate` with exclusive `gt`/`lt` bounds; only strictly-interior dates pass',
+    validateNotes: [
+      'Exclusive bounds: the next day inside each edge passes (2020-01-02, 2020-12-30), but the boundary dates themselves fail — 2020-01-01 trips `gt`, 2020-12-31 trips `lt`.',
+      'A non-date value is also rejected.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.

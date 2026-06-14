@@ -98,6 +98,8 @@ export const STRING_FORMAT = {
   },
   string_minLength: {
     title: 'FormatString minLength — bounds the lower length',
+    description: 'stringFormat with an inclusive lower-length bound; rejects strings shorter than `minLength`',
+    validateNotes: 'Length 3 passes (`abc`); 2 chars (`ab`) and the empty string both fail with `val` 3 (`minLength`).',
     validate: () => createValidate<FormatString<{minLength: 3}>>(),
     validateReflect: () => {
       const v: FormatString<{minLength: 3}> = 'abc';
@@ -135,6 +137,8 @@ export const STRING_FORMAT = {
   },
   string_length: {
     title: 'FormatString length — exact length only',
+    description: 'stringFormat requiring an exact length; rejects anything not exactly `length` chars',
+    validateNotes: 'Only length 4 passes (`abcd`); both 3 chars (`abc`) and 5 chars (`abcde`) fail with `val` 4 (`length`).',
     validate: () => createValidate<FormatString<{length: 4}>>(),
     validateReflect: () => {
       const v: FormatString<{length: 4}> = 'abcd';
@@ -172,6 +176,8 @@ export const STRING_FORMAT = {
   },
   string_range: {
     title: 'FormatString minLength + maxLength — bounds both ends',
+    description: 'stringFormat with both inclusive length bounds; accepts lengths in `[minLength, maxLength]`',
+    validateNotes: 'Boundary lengths 2 (`ab`) and 4 (`abcd`) pass (inclusive). 1 char (`a`) fails with `val` 2 (`minLength`); 5 chars (`abcde`) fails with `val` 4 (`maxLength`).',
     validate: () => createValidate<FormatString<{minLength: 2; maxLength: 4}>>(),
     validateReflect: () => {
       const v: FormatString<{minLength: 2; maxLength: 4}> = 'ab';
@@ -209,6 +215,12 @@ export const STRING_FORMAT = {
   },
   string_allowedChars: {
     title: 'FormatString allowedChars — only the allowed set passes',
+    description: 'stringFormat restricting every char to the `allowedChars` set (hex digits); rejects any out-of-set char',
+    validateNotes: [
+      'Each character must be in `0123456789abcdef`; `deadbeef` and `0042` pass.',
+      '`xyz` fails with `val` `Invalid characters`.',
+      'The space in `dead beef` is not in the set, so it also fails. The empty string passes (no chars to check).',
+    ],
     validate: () => createValidate<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
     validateReflect: () => {
       const v: FormatString<{allowedChars: {val: '0123456789abcdef'}}> = 'deadbeef';
@@ -245,6 +257,8 @@ export const STRING_FORMAT = {
   },
   string_allowedChars_ignoreCase: {
     title: 'FormatString allowedChars ignoreCase — folds case',
+    description: 'stringFormat allowedChars with `ignoreCase`; both cases of the `abc` set are accepted',
+    validateNotes: 'Case-folded: `ABC` and `aAbBcC` pass even though only lowercase `abc` was listed. `abcd` fails with `val` `Invalid characters` (`d` not in the set).',
     validate: () => createValidate<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     validateReflect: () => {
       const v: FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}> = 'ABC';
@@ -281,6 +295,8 @@ export const STRING_FORMAT = {
   },
   string_allowedChars_literal: {
     title: 'FormatString allowedChars — regex-special chars treated literally',
+    description: 'stringFormat allowedChars where regex-special chars are matched literally; only `.` and `-` pass',
+    validateNotes: 'The set `.-` is treated as literal chars (NOT a regex range), so `...---` passes. `a` fails with `val` `Invalid characters`.',
     validate: () => createValidate<FormatString<{allowedChars: {val: '.-'}}>>(),
     validateReflect: () => {
       const v: FormatString<{allowedChars: {val: '.-'}}> = '...---';
@@ -315,6 +331,8 @@ export const STRING_FORMAT = {
   },
   string_disallowedChars: {
     title: 'FormatString disallowedChars — rejects any disallowed char',
+    description: 'stringFormat blacklisting the `disallowedChars` set (`!@#`); any occurrence rejects the string',
+    validateNotes: 'A string passes only if it contains none of `!`, `@`, `#`; `hello` passes. `hi!` and `a@b` each fail with `val` `Invalid characters`.',
     validate: () => createValidate<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
     validateReflect: () => {
       const v: FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = 'hello';
@@ -354,6 +372,12 @@ export const STRING_FORMAT = {
   },
   string_allowedValues: {
     title: 'FormatString allowedValues — enum-like exact match',
+    description: 'stringFormat restricting the whole value to a fixed set (`red`/`green`/`blue`); enum-like exact match',
+    validateNotes: [
+      'The entire string must equal one listed value; `red` and `blue` pass.',
+      '`yellow` (not listed) fails with `val` `Invalid value`.',
+      'Match is case-sensitive (`RED` fails) and whole-string (`redgreen` fails — no substring/concat).',
+    ],
     validate: () => createValidate<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
     validateReflect: () => {
       const v: FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}> = 'red';
@@ -390,6 +414,8 @@ export const STRING_FORMAT = {
   },
   string_allowedValues_ignoreCase: {
     title: 'FormatString allowedValues ignoreCase — folds case across the set',
+    description: 'stringFormat allowedValues with `ignoreCase`; the fixed set matches regardless of case',
+    validateNotes: 'Case-folded equality: `RED` and `Green` pass. `blue` (not in the `red`/`green` set) fails with `val` `Invalid value`.',
     validate: () => createValidate<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     validateReflect: () => {
       const v: FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = 'RED';
@@ -428,6 +454,8 @@ export const STRING_FORMAT = {
   },
   string_allowedValues_escaped: {
     title: 'FormatString allowedValues — regex-special chars matched literally',
+    description: 'stringFormat allowedValues where regex-special chars in the set are matched literally',
+    validateNotes: 'Listed values `a.b` and `c+d` match literally (the `.` and `+` are not regex metacharacters), so they pass. `axb` and `ccd` each fail with `val` `Invalid value`.',
     validate: () => createValidate<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     validateReflect: () => {
       const v: FormatString<{allowedValues: {val: ['a.b', 'c+d']}}> = 'a.b';
@@ -466,6 +494,8 @@ export const STRING_FORMAT = {
   },
   string_disallowedValues: {
     title: 'FormatString disallowedValues — rejects the listed values',
+    description: 'stringFormat blacklisting whole values (`admin`/`root`); any other string passes',
+    validateNotes: 'A string passes unless it exactly equals a blacklisted value; `alice` passes. `admin` and `root` each fail with `val` `Invalid value`.',
     validate: () => createValidate<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
     validateReflect: () => {
       const v: FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = 'alice';
@@ -511,6 +541,8 @@ export const STRING_FORMAT = {
   },
   string_customErrorMessage: {
     title: 'FormatString allowedValues — custom errorMessage surfaces as format.val',
+    description: 'stringFormat allowedValues with a custom `errorMessage`; on failure the message surfaces as the format error `val`',
+    validateNotes: '`a` and `b` pass. `c` fails with `val` `pick a or b` — the custom `errorMessage` replaces the default `Invalid value`.',
     validate: () => createValidate<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     validateReflect: () => {
       const v: FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = 'a';
@@ -553,6 +585,12 @@ export const STRING_FORMAT = {
   // ─────────────────────── Default string formats ─────────────────
   alpha: {
     title: 'FormatAlpha — letters only',
+    description: 'FormatAlpha (stringFormat with a baked letters-only pattern); rejects digits, spaces, and symbols',
+    validateNotes: [
+      'Only ASCII letters pass; `Hello` and `abcXYZ` pass.',
+      'A digit (`hello1`) or space (`hi there`) fails with `val` `Invalid pattern`.',
+      'The empty string passes (the pattern allows zero letters).',
+    ],
     validate: () => createValidate<FormatAlpha>(),
     validateReflect: () => {
       const v: FormatAlpha = 'Hello';
@@ -587,6 +625,8 @@ export const STRING_FORMAT = {
   },
   alphaNumeric: {
     title: 'FormatAlphaNumeric — letters and digits',
+    description: 'FormatAlphaNumeric (stringFormat with a baked letters+digits pattern); rejects everything else',
+    validateNotes: 'Letters and digits pass (`abc123`, `ABC`, `123`); a hyphen (`a-b`) or space (`a b`) fails with `val` `Invalid pattern`.',
     validate: () => createValidate<FormatAlphaNumeric>(),
     validateReflect: () => {
       const v: FormatAlphaNumeric = 'abc123';
@@ -624,6 +664,8 @@ export const STRING_FORMAT = {
   },
   numeric: {
     title: 'FormatNumeric — digits only',
+    description: 'FormatNumeric (stringFormat with a baked digits-only pattern); rejects non-digit chars',
+    validateNotes: 'Only digit chars pass (`12345`, `007` — leading zeros allowed since it is a string). A decimal point (`12.3`) or letter (`12a`) fails with `val` `Invalid pattern`.',
     validate: () => createValidate<FormatNumeric>(),
     validateReflect: () => {
       const v: FormatNumeric = '12345';
@@ -661,6 +703,8 @@ export const STRING_FORMAT = {
   },
   alpha_withLength: {
     title: 'FormatAlpha with maxLength — char class plus length bound',
+    description: 'FormatAlpha carrying a `maxLength` param; enforces letters-only AND an inclusive upper-length bound',
+    validateNotes: '`abc` (3 letters) passes. `abcd` exceeds the bound and fails with `val` 3 (`maxLength`); `a1` is within length but the digit fails the pattern with `val` `Invalid pattern`.',
     validate: () => createValidate<FormatAlpha<{maxLength: 3}>>(),
     validateReflect: () => {
       const v: FormatAlpha<{maxLength: 3}> = 'abc';
@@ -698,6 +742,8 @@ export const STRING_FORMAT = {
   },
   lowercase_validate: {
     title: 'FormatLowercase — transformer-only, validates as a plain string',
+    description: 'FormatLowercase (transformer-only `lowercase` flag); validate treats it as a plain string',
+    validateNotes: 'The lowercase transform applies only via createFormatTransform, NOT validate — so ANY string passes regardless of case (`already lower` AND `HasUpper` pass). Only a non-string (42) fails, via the typeof gate.',
     validate: () => createValidate<FormatLowercase>(),
     validateReflect: () => {
       const v: FormatLowercase = 'already lower';
@@ -734,6 +780,12 @@ export const STRING_FORMAT = {
   // ─────────────────────────────── UUID ───────────────────────────
   uuidv4: {
     title: 'FormatUUIDv4 — accepts v4, rejects v7 and malformed',
+    description: 'FormatUUIDv4 (format `uuid`, version `4`); accepts only version-4 UUIDs',
+    validateNotes: [
+      'Only a well-formed v4 UUID passes; the version nibble must be `4`.',
+      'A v7 UUID fails with `val` `4`; a non-UUID string (`not-a-uuid`) also fails with `val` `4`.',
+      'The empty string, a hyphen-stripped UUID, and a non-string (123) are all rejected.',
+    ],
     validate: () => createValidate<FormatUUIDv4>(),
     validateReflect: () => {
       const v: FormatUUIDv4 = V4;
@@ -768,6 +820,8 @@ export const STRING_FORMAT = {
   },
   uuidv7: {
     title: 'FormatUUIDv7 — accepts v7, rejects v4',
+    description: 'FormatUUIDv7 (format `uuid`, version `7`); accepts only version-7 UUIDs',
+    validateNotes: 'The version nibble must be `7`; a valid v4 UUID fails with `val` `7`.',
     validate: () => createValidate<FormatUUIDv7>(),
     validateReflect: () => {
       const v: FormatUUIDv7 = V7;
@@ -804,6 +858,12 @@ export const STRING_FORMAT = {
   // ─────────────────────────────── Date ───────────────────────────
   date_iso: {
     title: 'FormatStringDate — ISO / YYYY-MM-DD (default)',
+    description: 'FormatStringDate (format `date`) with the default ISO `YYYY-MM-DD` layout; enforces calendar validity',
+    validateNotes: [
+      'Default layout is ISO `YYYY-MM-DD`; the format error `val` is `ISO`.',
+      'Calendar validity is enforced: `2023-02-29` (not a leap year), `2024-13-01` (month 13), and `2024-04-31` (April has 30 days) all fail.',
+      'Width is exact — `2024-1-1` (single-digit month/day) fails; `not-a-date` fails. `0001-01-01` is accepted.',
+    ],
     validate: () => createValidate<FormatStringDate>(),
     validateReflect: () => {
       const v: FormatStringDate = '2024-02-29';
@@ -841,6 +901,8 @@ export const STRING_FORMAT = {
   },
   date_DMY: {
     title: 'FormatStringDate — DD-MM-YYYY layout',
+    description: 'FormatStringDate with the `DD-MM-YYYY` layout; day-first ordering plus calendar validity',
+    validateNotes: 'Layout is `DD-MM-YYYY` (format error `val` `DD-MM-YYYY`); `29-02-2024` passes. An ISO-ordered string (`2024-02-29`) fails the layout, and `31-04-2024` fails calendar validity (April has 30 days).',
     validate: () => createValidate<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
     validateReflect: () => {
       const v: FormatStringDate<{format: 'DD-MM-YYYY'}> = '29-02-2024';
@@ -878,6 +940,8 @@ export const STRING_FORMAT = {
   },
   date_YM: {
     title: 'FormatStringDate — YYYY-MM layout (no day)',
+    description: 'FormatStringDate with the `YYYY-MM` layout (year-month, no day component)',
+    validateNotes: 'Layout is `YYYY-MM` (format error `val` `YYYY-MM`); `2024-02` passes. Month 13 (`2024-13`) fails, and supplying a day (`2024-02-29`) fails the layout.',
     validate: () => createValidate<FormatStringDate<{format: 'YYYY-MM'}>>(),
     validateReflect: () => {
       const v: FormatStringDate<{format: 'YYYY-MM'}> = '2024-02';
@@ -915,6 +979,8 @@ export const STRING_FORMAT = {
   },
   date_MD: {
     title: 'FormatStringDate — MM-DD layout (no year)',
+    description: 'FormatStringDate with the `MM-DD` layout (month-day, no year component)',
+    validateNotes: 'Layout is `MM-DD` (format error `val` `MM-DD`); `02-29` passes. Month 13 (`13-01`) fails.',
     validate: () => createValidate<FormatStringDate<{format: 'MM-DD'}>>(),
     validateReflect: () => {
       const v: FormatStringDate<{format: 'MM-DD'}> = '02-29';
@@ -949,6 +1015,8 @@ export const STRING_FORMAT = {
   },
   date_minMax_absolute: {
     title: 'FormatStringDate — absolute min/max bounds (inclusive)',
+    description: 'FormatStringDate with inclusive absolute `min`/`max` date bounds; accepts dates within [`min`, `max`]',
+    validateNotes: 'Bounds `2020-01-01`..`2020-12-31` are inclusive — both endpoints pass. `2019-12-31` fails on `min` (formatPathTail `min`); `2021-01-01` fails on `max` (formatPathTail `max`).',
     validate: () => createValidate<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     validateReflect: () => {
       const v: FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '2020-01-01';
@@ -999,6 +1067,11 @@ export const STRING_FORMAT = {
   // ─────────────────────────────── Time ───────────────────────────
   time_iso: {
     title: 'FormatStringTime — ISO (default, tz-aware)',
+    description: 'FormatStringTime (format `time`) with the default ISO layout; requires a timezone and valid time fields',
+    validateNotes: [
+      'Default ISO layout (format error `val` `ISO`) requires a tz suffix; `12:30:45Z`, `12:30:45.123Z` (ms), and offset forms like `+05:30` / `-08:00` pass.',
+      'A tz-less time (`12:30:45`) fails. Field ranges are enforced: hour 24 (`24:00:00Z`) and minute 60 (`12:60:00Z`) both fail.',
+    ],
     validate: () => createValidate<FormatStringTime>(),
     validateReflect: () => {
       const v: FormatStringTime = '12:30:45Z';
@@ -1040,6 +1113,8 @@ export const STRING_FORMAT = {
   },
   time_HHmmss: {
     title: 'FormatStringTime — HH:mm:ss fixed layout',
+    description: 'FormatStringTime with the fixed `HH:mm:ss` layout (no tz, no milliseconds)',
+    validateNotes: '`23:59:59` passes. Out-of-range fields (`99:99:99`) fail with `val` `HH:mm:ss`; a missing seconds component (`23:59`) and hour 24 (`24:00:00`) are also rejected.',
     validate: () => createValidate<FormatStringTime<{format: 'HH:mm:ss'}>>(),
     validateReflect: () => {
       const v: FormatStringTime<{format: 'HH:mm:ss'}> = '23:59:59';
@@ -1074,6 +1149,8 @@ export const STRING_FORMAT = {
   },
   time_HHmmss_ms: {
     title: 'FormatStringTime — HH:mm:ss[.mmm] optional milliseconds',
+    description: 'FormatStringTime with the `HH:mm:ss[.mmm]` layout; milliseconds optional and capped at 3 digits',
+    validateNotes: 'Milliseconds are optional — both `12:30:45` and `12:30:45.999` pass. A 4-digit fraction (`12:30:45.9999`) exceeds the `.mmm` width and fails with `val` `HH:mm:ss[.mmm]`.',
     validate: () => createValidate<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     validateReflect: () => {
       const v: FormatStringTime<{format: 'HH:mm:ss[.mmm]'}> = '12:30:45';
