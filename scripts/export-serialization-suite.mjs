@@ -53,7 +53,7 @@ const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
 const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
 const OUT_PATH = path.join(REPO_ROOT, 'gendocs/serialization-suite.json');
 const MD_PATH = path.join(REPO_ROOT, 'gendocs/serialization-suite.md');
-const FN_FIELDS = ['cloneEncoder', 'mutateEncoder', 'directEncoder', 'stripDecoder', 'preserveDecoder'];
+const FN_FIELDS = ['cloneEncoder', 'schemaEncoder', 'mutateEncoder', 'directEncoder', 'stripDecoder', 'preserveDecoder'];
 
 // One API descriptor per measured shape. Three encoders cover the
 // JsonEncoderStrategy axis exposed by createJsonEncoder:
@@ -476,6 +476,11 @@ function deepClone(value) {
 async function runCompilePhase(metrics, bodies) {
   const client = new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true});
   const overlayDts = {__bench__: 'runtypes.d.ts', body: RUNTYPES_DTS};
+  // Suite-scoped dump dir (gendocs/cases is shared across suites). Wipe only ours.
+  const casesDir = path.join(REPO_ROOT, 'gendocs/cases/serialization');
+  fs.rmSync(casesDir, {recursive: true, force: true});
+  fs.mkdirSync(casesDir, {recursive: true});
+  let modulesWritten = 0;
   const units = [];
   for (const [category, caseBodies] of Object.entries(bodies)) {
     for (const [caseKey, byApi] of Object.entries(caseBodies)) {
@@ -515,12 +520,42 @@ async function runCompilePhase(metrics, bodies) {
       metrics[category][caseKey][api.key] ??= {};
       metrics[category][caseKey][api.key].compileMs = statsOf(compileTimes);
       metrics[category][caseKey][api.key].tsCompileMs = statsOf(tsCompileTimes);
+
+      // Dump the generated modules once per case — the 'clone' strategy is the
+      // type-first default (`createJsonEncoder<T>()`), the doc "pure type"
+      // representative. Untimed extra scan; the synth file is the same shape.
+      if (api.key === 'clone') {
+        await client.reset();
+        await client.setSources(sourcesMap);
+        const dumpResp = await client.scanFiles([relpath], {includeEntryModules: true});
+        totalRpcs += 1;
+        modulesWritten += writeCaseDump(casesDir, category, caseKey, dumpResp);
+      }
     }
   } finally {
     client.close();
   }
   progressEnd('compile');
-  return {totalRpcs, wallMs: performance.now() - startWall};
+  return {totalRpcs, modulesWritten, wallMs: performance.now() - startWall};
+}
+
+// Concatenate the daemon-rendered entry modules for one case into a single
+// generated.js under gendocs/cases/serialization/<CAT>__<case>/. The website
+// transform reads every .js in the dir and lifts the JIT function bodies out.
+function writeCaseDump(casesDir, category, caseKey, resp) {
+  const entries = Object.entries(resp.entryModules ?? {}).filter(([, src]) => typeof src === 'string' && src.length > 0);
+  if (entries.length === 0) return 0;
+  entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const dir = path.join(casesDir, `${safe(category)}__${safe(caseKey)}`);
+  fs.mkdirSync(dir, {recursive: true});
+  const parts = [];
+  for (const [basename, source] of entries) {
+    parts.push(`// === virtual:rt/${basename}.js ===`);
+    parts.push(source.endsWith('\n') ? source.slice(0, -1) : source);
+    parts.push('');
+  }
+  fs.writeFileSync(path.join(dir, 'generated.js'), parts.join('\n'));
+  return 1;
 }
 
 // Wraps the extracted factory body in an arrow probe. The body is the
@@ -626,6 +661,7 @@ function buildOutput(suite, bodies, metrics) {
       const record = {};
       if (typeof caseObj.title === 'string') record.title = caseObj.title;
       if (typeof caseObj.description === 'string') record.description = caseObj.description;
+      if (caseObj.serializeNotes !== undefined) record.serializeNotes = caseObj.serializeNotes;
       if (caseObj.throwsAtCompile) record.throwsAtCompile = true;
       if (caseObj.jsonStringifyThrows) record.jsonStringifyThrows = true;
       if (caseObj.roundTripBestEffort) record.roundTripBestEffort = true;
@@ -660,8 +696,11 @@ async function main() {
   process.stdout.write(`ran runtime ops/sec on ${cases} cases × ${fnsRun} api invocations (${ms(t2)})\n`);
 
   const t3 = performance.now();
-  const {totalRpcs, wallMs} = await runCompilePhase(metrics, bodies);
-  process.stdout.write(`ran compile pass — ${totalRpcs} RPCs, ${COMPILE_CYCLES} cycles per (case,api) (${ms(t3)})\n`);
+  const {totalRpcs, modulesWritten, wallMs} = await runCompilePhase(metrics, bodies);
+  process.stdout.write(
+    `ran compile pass — ${totalRpcs} RPCs, ${COMPILE_CYCLES} cycles per (case,api), ` +
+      `${modulesWritten} cache modules dumped to gendocs/cases/serialization/ (${ms(t3)})\n`
+  );
   void wallMs;
 
   const {out, totalCategories, totalCases, totalBodies} = buildOutput(suite, bodies, metrics);
