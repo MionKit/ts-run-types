@@ -96,6 +96,19 @@ The package-manager files (`package.json`, lockfile, `pnpm-workspace.yaml`, `.np
 
 The website only needs **podman**; the benchmarks additionally need **Node + pnpm + Go** for the host prep (resolver binary + first-party dists, bind-mounted into the container). On macOS the prep cross-compiles a `bin/ts-go-run-types-linux-<arch>` so the Linux container can execute it.
 
+### Website needs the mion packages it documents (repo context)
+
+The docs site is **mion's** documentation: its `<code-import>` and `::twoslash-code` mechanisms read first-party source + built `.d.ts` from `packages/` at build/dev time. Those packages live in the **mion** checkout. `scripts/website.sh` mounts that checkout **read-only** into the container and points the resolvers at it via `MION_REPO_ROOT` — so the website is **merge-agnostic** (works whether the packages sit in a sibling checkout today, get merged into this repo, or this repo is merged into mion; only the env value changes).
+
+- `WEBSITE_REPO_CONTEXT` — host path to the checkout containing `packages/`. **Default:** sibling `../mion` if present, else this repo. Override to point anywhere.
+- Only `packages/` (+ the drizzle-orm `.d.ts` allowlist) is mounted — never the repo root. The resolvers additionally **confine every `path=` read to `packages/`** (`resolveInPackages` in [`server/utils/repo-root.ts`](website/server/utils/repo-root.ts)); a path escaping it is rejected.
+- `pnpm run website:prep` verifies the context packages are built (twoslash hovers need their `.dist/esm/*.d.ts`); if missing it tells you to `pnpm -C <context> run build` first.
+- `pnpm run website:verify-docs` boots the dev server and checks code-import + twoslash + the security boundary end-to-end (curl/grep, no browser).
+
+### Docs read benchmark/test results from `.docdata/`
+
+`pnpm run bench` publishes per-competitor result JSON into the canonical **`<repo>/.docdata/benchmarks/`** (future test results go in `.docdata/tests/`). The website mounts `.docdata` **read-only** at `/app/.docdata` (`MION_DOCDATA`), so doc-gen and content components consume results from there. (`WEBSITE_DOCDATA` overrides the host dir.)
+
 Every runtime command in [`scripts/benchmarks.sh`](scripts/benchmarks.sh) self-syncs prereqs by delegating to [`scripts/check-stale-builds.sh`](scripts/check-stale-builds.sh) (also used by `pretest`): it rebuilds the Go binary, the Linux cross-binary, the plugin dist, and the marker dist when any of them is stale or has a partial tsc emit, and rebuilds the podman image when a **dependency** input changes (the `Containerfile` or anything under `benchmarks/_deps/`). Benchmark source is bind-mounted, so editing it never triggers an image rebuild. Manual `pnpm run bench:prep` remains available for explicit refresh.
 
 macOS-specific knobs:

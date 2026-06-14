@@ -145,7 +145,9 @@ longer pre-warmed at build time — the first `BENCH_TYPIA=1` run compiles it
 `bench` runs each competitor in its **own `--rm` container** (strongest
 isolation), then `aggregate.mjs` prints the table + coverage. It exits non-zero if
 any competitor has a `fail`/`errored` case, so the run doubles as a cross-library
-conformance test. Env knobs: `BENCH_NO_TIMING=1` (correctness only, fast),
+conformance test. Each run also **publishes** the per-competitor JSON into the
+canonical `<repo>/.docdata/benchmarks/` dir, which the docs website mounts
+read-only (`MION_DOCDATA`) to build benchmark docs from. Env knobs: `BENCH_NO_TIMING=1` (correctness only, fast),
 `BENCH_TIME_MS=100` (per-cell window). typia is **opt-in** in the full `bench`
 loop — set `BENCH_TYPIA=1` to include it (its column is always available via
 `bench:one typia`).
