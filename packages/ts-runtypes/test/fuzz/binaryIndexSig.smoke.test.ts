@@ -20,13 +20,18 @@ function prop(name: string, shape: TypeShape, optional = false) {
 
 // `{p0?: Record<string, number>; [k: number]: string}` and
 // `{n0?: Set<number>; [k: number]: Map<string, Date>}` — the two soak crashers
-// (the generator renders a number index whenever an object has named props).
+// (`indexKey: ['number']` keeps a differently-typed named prop valid).
 const cases: {title: string; gen: GeneratedType}[] = [
   {
     title: '{p0?: Record<string, number>; [k: number]: string}',
     gen: {
       decls: [],
-      root: {kind: 'object', props: [prop('p0', {kind: 'record', value: {kind: 'number'}}, true)], index: {kind: 'string'}},
+      root: {
+        kind: 'object',
+        props: [prop('p0', {kind: 'record', value: {kind: 'number'}}, true)],
+        index: {kind: 'string'},
+        indexKey: ['number'],
+      },
     },
   },
   {
@@ -37,6 +42,7 @@ const cases: {title: string; gen: GeneratedType}[] = [
         kind: 'object',
         props: [prop('n0', {kind: 'set', elem: {kind: 'number'}}, true)],
         index: {kind: 'map', key: {kind: 'string'}, value: {kind: 'date'}},
+        indexKey: ['number'],
       },
     },
   },

@@ -55,13 +55,19 @@ could actually occur):
   index value type (TS2411). It also revealed the committed F1 fixtures were
   invalid for the same reason. (Pinned by `tsValidateGate.test.ts` +
   `bugReprosValidTs.test.ts`, which also typechecks every fixed-bug repro.)
-- **Valid-type generation.** The render now emits a NUMBER index (`[k: number]`)
-  whenever an object has named props (a string-named prop is then unconstrained)
-  and a string index for a pure map. To keep the shape-lane value conforming,
-  `shapeValue.ts` mints NUMERIC index keys for those objects (a non-numeric key
-  under a number index is corrupted by the binary number-index codec — the codec's
-  own robustness on type-unsound input is a separate, low-priority concern).
-  `createMockType` already keys on the resolved index kind.
+- **Valid-type generation.** `genObject` now generates the index signature FIRST
+  (lower probability than a regular prop) with a RANDOM key kind set — `string`,
+  `number`, `symbol`, or any union (`[k: string | number]`, …); the resolver
+  splits a union key into one signature per kind, so the value generators + the
+  product mock handle each independently. A key set containing `string` forces the
+  named props to the index value type (a string index constrains every named prop,
+  TS2411), so the object stays valid; otherwise string-named props are free. The
+  shape-lane value (`shapeValue.ts`) keys each index entry by the declared kind
+  (numeric for a number key, dropped for a symbol key) so the value conforms — a
+  non-numeric key under a number index is corrupted by the binary number-index
+  codec. `createMockType` already keys on the resolved index kind. Any residual
+  invalid combo (e.g. a numeric weird-key prop under a number-only key, ~9% of
+  generated types) is dropped by the gate above.
 
 Note the gate only filters TYPE-level false positives. A VALUE-level mismatch (the
 mock building a value that doesn't conform to a valid type, e.g. G4) is not caught

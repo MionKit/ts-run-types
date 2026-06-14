@@ -14,6 +14,7 @@ function mixedObject(propName: string, propShape: TypeShape, indexValue: TypeSha
       kind: 'object',
       props: [{name: propName, optional: false, readonly: false, method: false, shape: propShape}],
       index: indexValue,
+      indexKey: ['number'],
     },
   };
 }

@@ -16,7 +16,7 @@
 // only targets provably-invalidatable positions and never descends through a
 // union / any / unknown (a sibling or catch-all could re-accept).
 
-import type {Decl, GeneratedType, PropShape, TypeShape} from './typeGen.ts';
+import type {Decl, GeneratedType, IndexKeyKind, PropShape, TypeShape} from './typeGen.ts';
 
 function rnd(): number {
   return Math.random();
@@ -122,7 +122,7 @@ function valueOf(shape: TypeShape, ctx: ValueCtx): unknown {
       return out;
     }
     case 'object':
-      return objectValue(shape.props, shape.index, ctx);
+      return objectValue(shape.props, shape.index, shape.indexKey, ctx);
     case 'union':
       return valueOf(pick(shape.members), ctx);
     case 'intersection':
@@ -146,7 +146,12 @@ function omitProp(prop: PropShape): boolean {
   return prop.method || NON_DATA_KINDS.has(prop.shape.kind);
 }
 
-function objectValue(props: PropShape[], index: TypeShape | undefined, ctx: ValueCtx): Record<string, unknown> {
+function objectValue(
+  props: PropShape[],
+  index: TypeShape | undefined,
+  indexKey: IndexKeyKind[] | undefined,
+  ctx: ValueCtx
+): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const prop of props) {
     // Methods / function-typed members are dropped by the validator — omit them
@@ -156,15 +161,19 @@ function objectValue(props: PropShape[], index: TypeShape | undefined, ctx: Valu
     out[prop.name] = valueOf(prop.shape, ctx);
   }
   if (index) {
-    // renderType (typeGen.ts) emits a NUMBER index for a mixed object (named
-    // props present) and a STRING index for a pure map. The runtime index keys
-    // must match that key type, or they don't conform: a non-numeric string key
-    // under a `[k: number]` index is corrupted by the binary number-index codec
-    // (it encodes numeric keys as numbers, so `idx0` collapses to `0`). Mirror
-    // the key-type choice here. createMockType already keys on the resolved
-    // RunType's index kind; this is the shape-lane equivalent.
-    const numericKeys = props.length > 0;
-    for (let i = 0, n = int(3); i < n; i++) out[numericKeys ? i : `idx${i}`] = valueOf(index, ctx);
+    // Each index key must MATCH the declared key kind, or the value doesn't
+    // conform: a non-numeric key under a `[k: number]` index is corrupted by the
+    // binary number-index codec (it encodes numeric keys as numbers). A union
+    // key picks a kind per entry. Symbol keys are dropped by JSON and by the
+    // serializers, so they add no round-trip coverage — skip them (a symbol-only
+    // index yields no entries). createMockType keys on the resolved RunType's
+    // index kind; this is the shape-lane equivalent.
+    const kinds = (indexKey ?? ['string']).filter((kind) => kind !== 'symbol');
+    if (kinds.length) {
+      for (let i = 0, n = int(3); i < n; i++) {
+        out[pick(kinds) === 'number' ? i : `idx${i}`] = valueOf(index, ctx);
+      }
+    }
   }
   return out;
 }
@@ -194,7 +203,8 @@ function refValue(name: string, ctx: ValueCtx): unknown {
     ctx.floored.hit = true;
     return minimalObject(decl.props, ctx);
   }
-  return objectValue(decl.props, undefined, {...ctx, budget: ctx.budget - 1});
+  // A declared interface carries no index signature, so no index key set.
+  return objectValue(decl.props, undefined, undefined, {...ctx, budget: ctx.budget - 1});
 }
 
 // At the recursion floor: required serialisable props get a TERMINAL value
