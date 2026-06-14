@@ -1,5 +1,7 @@
 # Temporal API support
 
+> _Resurfaced historical doc, kept as a record of implemented work. Project names have changed since: `ts-go-run-types` / `@mionjs/ts-go-run-types` is now `ts-runtypes`, the `vite-plugin-runtypes` plugin is now `runtypes-devtools`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
+
 > **Status: implemented.** All eight [TC39 Temporal](https://tc39.es/proposal-temporal/)
 > types are validated, serialized (JSON + binary), and mockable, and the six
 > orderable types support min/max bounds via the `FormatTemporalX<{min,max}>`

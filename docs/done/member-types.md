@@ -1,5 +1,7 @@
 # Member types
 
+> _Resurfaced historical doc, kept as a record of implemented work. `reflectRunTypeId(value)` is now `getRunTypeId(value)`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
+
 This document covers the **member** `ReflectionKind`s — types that carry a single child type, optionally with a name. Atomic kinds live in [atomic-types.md](atomic-types.md); composite kinds (tuples, unions, classes, object literals, …) live in [collection-types.md](collection-types.md).
 
 The members are:
