@@ -23,6 +23,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
 	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/marker"
 	"github.com/mionkit/ts-runtypes/internal/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -152,6 +153,10 @@ type Resolver struct {
 	// (one `cfn::<hash>` per distinct override body), merged into the pure-fn
 	// module emission so the type-fn redirects resolve their `cfn::` dep.
 	overrideEntries []purefns.Entry
+	// overrideDiagnostics holds OVR0xx diagnostics from the override pass
+	// (today: OVR001 duplicate-override conflicts), surfaced on every scan
+	// response for the current Program.
+	overrideDiagnostics []diag.Diagnostic
 }
 
 // markerVerdict is one memoized marker.DetectAny result. typeArg is the
@@ -277,6 +282,7 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 	resolver.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
 	resolver.overridesBuilt = false
 	resolver.overrideEntries = nil
+	resolver.overrideDiagnostics = nil
 	return nil
 }
 
@@ -307,6 +313,7 @@ func (resolver *Resolver) Reset() {
 	resolver.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
 	resolver.overridesBuilt = false
 	resolver.overrideEntries = nil
+	resolver.overrideDiagnostics = nil
 }
 
 func (resolver *Resolver) Close() {
