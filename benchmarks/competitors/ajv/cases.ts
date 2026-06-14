@@ -55,40 +55,40 @@ export const cases: CompetitorCases = {
 
   // ── ATOMIC ──
   'ATOMIC.any': c({}),
-  'ATOMIC.bigint': NOT_SUPPORTED,
+  'ATOMIC.bigint': NOT_SUPPORTED, // no bigint type in JSON Schema
   'ATOMIC.boolean': c({type: 'boolean'}),
-  'ATOMIC.date': NOT_SUPPORTED,
-  'ATOMIC.enum_mixed': NOT_SUPPORTED,
+  'ATOMIC.date': NOT_SUPPORTED, // no Date instance type in JSON Schema
+  'ATOMIC.enum_mixed': NOT_SUPPORTED, // mixed numeric+string TS enum has no JSON Schema analogue
   'ATOMIC.literal_2': c({const: 2}),
   'ATOMIC.literal_a': c({const: 'a'}),
   'ATOMIC.literal_true': c({const: true}),
-  'ATOMIC.literal_1n': NOT_SUPPORTED,
-  'ATOMIC.literal_symbol': NOT_SUPPORTED,
-  'ATOMIC.never': NOT_SUPPORTED,
+  'ATOMIC.literal_1n': NOT_SUPPORTED, // no bigint in JSON Schema
+  'ATOMIC.literal_symbol': NOT_SUPPORTED, // no symbol type in JSON Schema
+  'ATOMIC.never': NOT_SUPPORTED, // no way to express "reject all values" in JSON Schema
   'ATOMIC.null': c({type: 'null'}),
-  'ATOMIC.number': NOT_SUPPORTED,
-  'ATOMIC.object': NOT_SUPPORTED,
-  'ATOMIC.regexp': NOT_SUPPORTED,
+  'ATOMIC.number': NOT_SUPPORTED, // ajv {type:'number'} accepts NaN/Infinity; samples require rejecting them
+  'ATOMIC.object': NOT_SUPPORTED, // TS object type includes arrays/Date/RegExp; ajv {type:'object'} rejects arrays
+  'ATOMIC.regexp': NOT_SUPPORTED, // no RegExp instance type in JSON Schema
   'ATOMIC.string': c({type: 'string'}),
-  'ATOMIC.symbol': NOT_SUPPORTED,
-  'ATOMIC.undefined': NOT_SUPPORTED,
-  'ATOMIC.void': NOT_SUPPORTED,
-  'ATOMIC.literal_2_noLiterals': NOT_SUPPORTED,
-  'ATOMIC.literal_a_noLiterals': NOT_SUPPORTED,
-  'ATOMIC.literal_regexp_noLiterals': NOT_SUPPORTED,
-  'ATOMIC.literal_true_noLiterals': NOT_SUPPORTED,
-  'ATOMIC.literal_1n_noLiterals': NOT_SUPPORTED,
-  'ATOMIC.literal_symbol_noLiterals': NOT_SUPPORTED,
+  'ATOMIC.symbol': NOT_SUPPORTED, // no symbol type in JSON Schema; factoryThrows
+  'ATOMIC.undefined': NOT_SUPPORTED, // no undefined type in JSON Schema
+  'ATOMIC.void': NOT_SUPPORTED, // no undefined/void type in JSON Schema
+  'ATOMIC.literal_2_noLiterals': NOT_SUPPORTED, // degrades to number; ajv {type:'number'} accepts NaN/Infinity
+  'ATOMIC.literal_a_noLiterals': c({type: 'string'}),
+  'ATOMIC.literal_regexp_noLiterals': NOT_SUPPORTED, // degrades to RegExp; no RegExp instance type in JSON Schema
+  'ATOMIC.literal_true_noLiterals': c({type: 'boolean'}),
+  'ATOMIC.literal_1n_noLiterals': NOT_SUPPORTED, // degrades to bigint; no bigint type in JSON Schema
+  'ATOMIC.literal_symbol_noLiterals': NOT_SUPPORTED, // degrades to symbol; no symbol type in JSON Schema; factoryThrows
   'ATOMIC.unknown': c({}),
 
   // ── ARRAY ──
   'ARRAY.string_array': c({type: 'array', items: {type: 'string'}}),
-  'ARRAY.number_array': NOT_SUPPORTED,
+  'ARRAY.number_array': NOT_SUPPORTED, // ajv {type:'number'} accepts NaN/Infinity; samples require rejecting them
   'ARRAY.boolean_array': c({type: 'array', items: {type: 'boolean'}}),
-  'ARRAY.bigint_array': NOT_SUPPORTED,
-  'ARRAY.date_array': NOT_SUPPORTED,
-  'ARRAY.regexp_array': NOT_SUPPORTED,
-  'ARRAY.undefined_array': NOT_SUPPORTED,
+  'ARRAY.bigint_array': NOT_SUPPORTED, // no bigint type in JSON Schema
+  'ARRAY.date_array': NOT_SUPPORTED, // no Date instance type in JSON Schema
+  'ARRAY.regexp_array': NOT_SUPPORTED, // no RegExp instance type in JSON Schema
+  'ARRAY.undefined_array': NOT_SUPPORTED, // no undefined type in JSON Schema
   'ARRAY.null_array': c({type: 'array', items: {type: 'null'}}),
   'ARRAY.array_generic': c({type: 'array', items: {type: 'string'}}),
   'ARRAY.string_array_2d': c({type: 'array', items: {type: 'array', items: {type: 'string'}}}),
@@ -96,26 +96,47 @@ export const cases: CompetitorCases = {
       type: 'array',
       items: {type: 'array', items: {type: 'array', items: {type: 'string'}}},
     }),
-  'ARRAY.string_array_noIsArrayCheck': NOT_SUPPORTED,
+  'ARRAY.string_array_noIsArrayCheck': NOT_SUPPORTED, // mion-specific noIsArrayCheck option; no JSON Schema equivalent
   'ARRAY.object_array': c({type: 'array', items: objA}),
-  'ARRAY.union_array': NOT_SUPPORTED,
+  'ARRAY.union_array': NOT_SUPPORTED, // union includes bigint; no bigint type in JSON Schema
   'ARRAY.tuple_array': c({
       type: 'array',
       items: {type: 'array', items: [{type: 'string'}, {type: 'number'}], minItems: 2, maxItems: 2},
     }),
-  'ARRAY.circular_array': NOT_SUPPORTED,
-  'ARRAY.circular_object_with_array': NOT_SUPPORTED,
-  'ARRAY.symbol_array': NOT_SUPPORTED,
+  'ARRAY.circular_array': c({
+      $id: 'circular_array',
+      type: 'array',
+      items: {$ref: 'circular_array'},
+    }),
+  'ARRAY.circular_object_with_array': c({
+      $id: 'circular_object_with_array',
+      type: 'object',
+      properties: {
+        a: {type: 'string'},
+        deep: {
+          type: 'object',
+          properties: {b: {type: 'string'}, c: {type: 'number'}},
+          required: ['b', 'c'],
+        },
+        d: {type: 'array', items: {$ref: 'circular_object_with_array'}},
+      },
+      required: ['a'],
+    }),
+  'ARRAY.symbol_array': NOT_SUPPORTED, // no symbol type in JSON Schema; factoryThrows
   'ARRAY.readonly_string_array': c({type: 'array', items: {type: 'string'}}),
 
   // ── OBJECT ──
-  'OBJECT.simple_interface': NOT_SUPPORTED,
+  'OBJECT.simple_interface': NOT_SUPPORTED, // number prop — ajv {type:'number'} accepts NaN/Infinity; samples reject them
   'OBJECT.object_as_const_literals': c({
       type: 'object',
       properties: {name: {const: 'john'}, age: {const: 30}},
       required: ['name', 'age'],
     }),
-  'OBJECT.object_via_return_type_utility': NOT_SUPPORTED,
+  'OBJECT.object_via_return_type_utility': c({
+      type: 'object',
+      properties: {id: {type: 'number'}, name: {type: 'string'}},
+      required: ['id', 'name'],
+    }),
   'OBJECT.object_via_property_access': c({
       type: 'object',
       properties: {id: {type: 'number'}, name: {type: 'string'}},
@@ -126,48 +147,117 @@ export const cases: CompetitorCases = {
       properties: {id: {type: 'number'}, name: {type: 'string'}},
       required: ['id', 'name'],
     }),
-  'OBJECT.interface_with_optional': NOT_SUPPORTED,
-  'OBJECT.interface_with_date': NOT_SUPPORTED,
+  'OBJECT.interface_with_optional': NOT_SUPPORTED, // number prop — ajv accepts NaN/Infinity; samples reject them
+  'OBJECT.interface_with_date': NOT_SUPPORTED, // no Date instance type in JSON Schema
   'OBJECT.interface_with_method': c({type: 'object', properties: {name: {type: 'string'}}, required: ['name']}),
-  'OBJECT.nested_object': NOT_SUPPORTED,
+  'OBJECT.nested_object': NOT_SUPPORTED, // number prop — ajv accepts NaN/Infinity; samples reject them
   'OBJECT.interface_string_array_prop': c({
       type: 'object',
       properties: {tags: {type: 'array', items: {type: 'string'}}},
       required: ['tags'],
     }),
-  'OBJECT.circular_interface': NOT_SUPPORTED,
-  'OBJECT.circular_interface_on_array': NOT_SUPPORTED,
-  'OBJECT.circular_interface_on_nested_object': NOT_SUPPORTED,
+  'OBJECT.circular_interface': c({
+      $id: 'circular_interface',
+      type: 'object',
+      properties: {
+        name: {type: 'string'},
+        child: {$ref: 'circular_interface'},
+      },
+      required: ['name'],
+    }),
+  'OBJECT.circular_interface_on_array': c({
+      $id: 'circular_interface_on_array',
+      type: 'object',
+      properties: {
+        name: {type: 'string'},
+        children: {type: 'array', items: {$ref: 'circular_interface_on_array'}},
+      },
+      required: ['name'],
+    }),
+  'OBJECT.circular_interface_on_nested_object': c({
+      $id: 'circular_interface_on_nested_object',
+      type: 'object',
+      properties: {
+        name: {type: 'string'},
+        embedded: {
+          type: 'object',
+          properties: {
+            hello: {type: 'string'},
+            child: {$ref: 'circular_interface_on_nested_object'},
+          },
+          required: ['hello'],
+        },
+      },
+      required: ['name', 'embedded'],
+    }),
   'OBJECT.index_signature_string': c({type: 'object', additionalProperties: {type: 'string'}}),
-  'OBJECT.index_signature_named_props': NOT_SUPPORTED,
-  'OBJECT.index_signature_nested': NOT_SUPPORTED,
-  'OBJECT.index_signature_date_value': NOT_SUPPORTED,
-  'OBJECT.index_signature_non_root': NOT_SUPPORTED,
-  'OBJECT.function_top_level': NOT_SUPPORTED,
-  'OBJECT.interface_callable': NOT_SUPPORTED,
-  'OBJECT.interface_all_optional': NOT_SUPPORTED,
-  'OBJECT.class_simple': NOT_SUPPORTED,
-  'OBJECT.rpc_error_class': NOT_SUPPORTED,
-  'OBJECT.call_signature_params': NOT_SUPPORTED,
-  'OBJECT.call_signature_params_with_optional': NOT_SUPPORTED,
-  'OBJECT.call_signature_params_with_rest': NOT_SUPPORTED,
-  'OBJECT.record_union_keys': NOT_SUPPORTED,
-  'OBJECT.union_value_index': NOT_SUPPORTED,
-  'OBJECT.object_with_union_prop': NOT_SUPPORTED,
-  'OBJECT.interface_inheritance': NOT_SUPPORTED,
-  'OBJECT.class_inheritance': NOT_SUPPORTED,
-  'OBJECT.index_signature_number_key': NOT_SUPPORTED,
+  'OBJECT.index_signature_named_props': c({
+      type: 'object',
+      properties: {
+        a: {type: 'string'},
+        b: {type: 'number'},
+      },
+      required: ['a', 'b'],
+      additionalProperties: {type: ['string', 'number']},
+    }),
+  'OBJECT.index_signature_nested': NOT_SUPPORTED, // number leaf — ajv {type:'number'} accepts NaN; samples reject NaN
+  'OBJECT.index_signature_date_value': NOT_SUPPORTED, // no Date instance type in JSON Schema
+  'OBJECT.index_signature_non_root': c({
+      type: 'object',
+      properties: {
+        b: {type: 'string'},
+        c: {
+          type: 'object',
+          additionalProperties: {type: 'string'},
+        },
+      },
+      required: ['b', 'c'],
+    }),
+  'OBJECT.function_top_level': NOT_SUPPORTED, // no function type in JSON Schema
+  'OBJECT.interface_callable': NOT_SUPPORTED, // callable interface (function with props); no function type in JSON Schema
+  'OBJECT.interface_all_optional': NOT_SUPPORTED, // allOptionalCode guard rejects Date/Map/Set/RegExp; no JSON Schema equivalent for plain-object-only constraint
+  'OBJECT.class_simple': NOT_SUPPORTED, // class has Date prop; no Date instance type in JSON Schema
+  'OBJECT.rpc_error_class': c({
+      type: 'object',
+      properties: {
+        'mion@isΣrrθr': {const: true},
+        type: {const: 'test-error'},
+        publicMessage: {type: 'string'},
+        id: {type: 'string'},
+      },
+      required: ['mion@isΣrrθr', 'type', 'publicMessage'],
+    }),
+  'OBJECT.call_signature_params': NOT_SUPPORTED, // tuple with number — ajv accepts NaN; samples reject NaN
+  'OBJECT.call_signature_params_with_optional': NOT_SUPPORTED, // tuple with number — ajv accepts NaN; samples reject NaN
+  'OBJECT.call_signature_params_with_rest': NOT_SUPPORTED, // rest contains Date instances; no Date type in JSON Schema
+  'OBJECT.record_union_keys': NOT_SUPPORTED, // number values — ajv accepts NaN/Infinity; samples reject them
+  'OBJECT.union_value_index': NOT_SUPPORTED, // union includes bigint; no bigint type in JSON Schema; NaN rejected
+  'OBJECT.object_with_union_prop': NOT_SUPPORTED, // number prop — ajv accepts NaN/Infinity; samples reject them
+  'OBJECT.interface_inheritance': c({
+      type: 'object',
+      properties: {a: {type: 'string'}, b: {type: 'number'}},
+      required: ['a', 'b'],
+    }),
+  'OBJECT.class_inheritance': c({
+      type: 'object',
+      properties: {a: {type: 'string'}, b: {type: 'number'}},
+      required: ['a', 'b'],
+    }),
+  'OBJECT.index_signature_number_key': c({
+      type: 'object',
+      additionalProperties: {type: 'string'},
+    }),
 
   // ── TUPLE ──
-  'TUPLE.string_number_pair': NOT_SUPPORTED,
-  'TUPLE.full_mion_tuple': NOT_SUPPORTED,
-  'TUPLE.tuple_with_optional': NOT_SUPPORTED,
-  'TUPLE.nested_tuple_in_array': NOT_SUPPORTED,
-  'TUPLE.tuple_rest': NOT_SUPPORTED,
-  'TUPLE.tuple_circular': NOT_SUPPORTED,
-  'TUPLE.tuple_multiple_trailing_optionals': NOT_SUPPORTED,
-  'TUPLE.tuple_named_labels': NOT_SUPPORTED,
-  'TUPLE.tuple_with_non_serializable': NOT_SUPPORTED,
+  'TUPLE.string_number_pair': NOT_SUPPORTED, // number slot — ajv accepts NaN; samples reject NaN at number slot
+  'TUPLE.full_mion_tuple': NOT_SUPPORTED, // contains Date, bigint; no Date/bigint type in JSON Schema
+  'TUPLE.tuple_with_optional': NOT_SUPPORTED, // optional bigint slot; no bigint type in JSON Schema
+  'TUPLE.nested_tuple_in_array': NOT_SUPPORTED, // number slot — ajv accepts NaN; samples reject NaN
+  'TUPLE.tuple_rest': NOT_SUPPORTED, // number slot — ajv accepts NaN; samples reject NaN at first slot
+  'TUPLE.tuple_circular': NOT_SUPPORTED, // contains Date, bigint; no Date/bigint type in JSON Schema
+  'TUPLE.tuple_multiple_trailing_optionals': NOT_SUPPORTED, // number and bigint slots; no bigint type in JSON Schema
+  'TUPLE.tuple_named_labels': NOT_SUPPORTED, // number slot — ajv accepts NaN; samples reject NaN
+  'TUPLE.tuple_with_non_serializable': NOT_SUPPORTED, // function slot must be === undefined; no undefined type in JSON Schema
   'TUPLE.empty_tuple': c({type: 'array', maxItems: 0}),
   'TUPLE.single_element_tuple': c({type: 'array', items: [{type: 'string'}], minItems: 1, maxItems: 1}),
   'TUPLE.readonly_tuple': c({
@@ -178,18 +268,23 @@ export const cases: CompetitorCases = {
     }),
 
   // ── UNION ──
-  'UNION.atomic_union': NOT_SUPPORTED,
+  'UNION.atomic_union': NOT_SUPPORTED, // union includes Date, bigint; no Date/bigint type in JSON Schema
   'UNION.string_literal_union': c({enum: ['UNO', 'DOS', 'TRES']}),
-  'UNION.large_union_eight_arms': NOT_SUPPORTED,
-  'UNION.string_or_number': NOT_SUPPORTED,
-  'UNION.union_of_array_types': NOT_SUPPORTED,
-  'UNION.array_of_union': NOT_SUPPORTED,
-  'UNION.union_of_object_shapes': NOT_SUPPORTED,
-  'UNION.discriminated_union': NOT_SUPPORTED,
-  'UNION.circular_union': NOT_SUPPORTED,
-  'UNION.union_with_methods': NOT_SUPPORTED,
-  'UNION.intersection_to_object': NOT_SUPPORTED,
-  'UNION.union_with_index_arm': NOT_SUPPORTED,
+  'UNION.large_union_eight_arms': NOT_SUPPORTED, // arm contains bigint; no bigint type in JSON Schema
+  'UNION.string_or_number': NOT_SUPPORTED, // ajv {type:'number'} accepts NaN/Infinity; samples reject them
+  'UNION.union_of_array_types': NOT_SUPPORTED, // ajv {type:'number'} accepts NaN/Infinity; samples reject them
+  'UNION.array_of_union': NOT_SUPPORTED, // union includes bigint, Date; no bigint/Date type in JSON Schema
+  'UNION.union_of_object_shapes': NOT_SUPPORTED, // arm c has bigint value; no bigint type in JSON Schema
+  'UNION.discriminated_union': NOT_SUPPORTED, // arm has number prop — ajv accepts NaN; samples reject NaN
+  'UNION.circular_union': NOT_SUPPORTED, // union includes Date; no Date instance type in JSON Schema
+  'UNION.union_with_methods': c({
+      anyOf: [
+        {type: 'object', properties: {name: {type: 'string'}}, required: ['name']},
+        {type: 'object', properties: {age: {type: 'number'}}, required: ['age']},
+      ],
+    }),
+  'UNION.intersection_to_object': NOT_SUPPORTED, // number prop — ajv accepts NaN/Infinity; samples reject them
+  'UNION.union_with_index_arm': NOT_SUPPORTED, // arm c has bigint values; no bigint type in JSON Schema
   'UNION.union_same_prop_different_types': c({
       anyOf: [
         {type: 'object', properties: {type: {const: 'a'}, prop: {type: 'boolean'}}, required: ['type', 'prop']},
@@ -197,76 +292,150 @@ export const cases: CompetitorCases = {
         {type: 'object', properties: {type: {const: 'c'}, prop: {type: 'string'}}, required: ['type', 'prop']},
       ],
     }),
-  'UNION.union_mixed_arrays_and_objects': NOT_SUPPORTED,
-  'UNION.union_merged_property': NOT_SUPPORTED,
-  'UNION.union_mixed_with_index': NOT_SUPPORTED,
+  'UNION.union_mixed_arrays_and_objects': NOT_SUPPORTED, // arm {b: number} — ajv accepts NaN; samples allow b:123n (bigint)
+  'UNION.union_merged_property': NOT_SUPPORTED, // number in union — ajv accepts NaN; samples reject NaN
+  'UNION.union_mixed_with_index': NOT_SUPPORTED, // arm has bigint values; no bigint type in JSON Schema
   'UNION.union_with_any_fallback': c({}),
   'UNION.union_with_unknown_fallback': c({}),
-  'UNION.union_subset_small_first': NOT_SUPPORTED,
-  'UNION.union_subset_nested_levels': NOT_SUPPORTED,
-  'UNION.union_subset_mixed_related_unrelated': NOT_SUPPORTED,
+  'UNION.union_subset_small_first': c({
+      anyOf: [
+        {type: 'object', properties: {a: {type: 'string'}}, required: ['a']},
+        {type: 'object', properties: {a: {type: 'string'}, b: {type: 'number'}}, required: ['a', 'b']},
+      ],
+    }),
+  'UNION.union_subset_nested_levels': c({
+      anyOf: [
+        {type: 'object', properties: {x: {type: 'string'}}, required: ['x']},
+        {type: 'object', properties: {x: {type: 'string'}, y: {type: 'number'}}, required: ['x', 'y']},
+        {type: 'object', properties: {x: {type: 'string'}, y: {type: 'number'}, z: {type: 'boolean'}}, required: ['x', 'y', 'z']},
+      ],
+    }),
+  'UNION.union_subset_mixed_related_unrelated': NOT_SUPPORTED, // number arm — ajv {type:'number'} accepts NaN; samples reject NaN
 
   // ── TEMPLATE_LITERAL ──
-  'TEMPLATE_LITERAL.url_with_number_id': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.multi_segment_url': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.leading_string_placeholder': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.regex_special_chars': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.template_literal_nested_in_object': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.template_literal_union_placeholder': NOT_SUPPORTED,
+  'TEMPLATE_LITERAL.url_with_number_id': c({
+      type: 'string',
+      pattern: '^api\\/user\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$',
+    }),
+  'TEMPLATE_LITERAL.multi_segment_url': c({
+      type: 'string',
+      pattern: '^\\/api\\/v\\d+\\/user\\/[\\s\\S]+\\/posts\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$',
+    }),
+  'TEMPLATE_LITERAL.leading_string_placeholder': c({
+      type: 'string',
+      pattern: '^[\\s\\S]*\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$',
+    }),
+  'TEMPLATE_LITERAL.regex_special_chars': c({
+      type: 'string',
+      pattern: '^\\(-?(?:\\d+\\.?\\d*|\\.\\d+)\\)$',
+    }),
+  'TEMPLATE_LITERAL.template_literal_nested_in_object': c({
+      type: 'object',
+      properties: {
+        url: {type: 'string', pattern: '^api\\/user\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$'},
+        method: {type: 'string'},
+      },
+      required: ['url', 'method'],
+    }),
+  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED, // patternProperties key is a regex but samples need key-pattern validation per entry; no exact JSON Schema equivalent for template-literal index key semantics
+  'TEMPLATE_LITERAL.template_literal_union_placeholder': c({
+      type: 'string',
+      pattern: '^(?:a|b)--?(?:\\d+\\.?\\d*|\\.\\d+)$',
+    }),
 
   // ── NATIVE ──
-  'NATIVE.map_string_number': NOT_SUPPORTED,
-  'NATIVE.set_string': NOT_SUPPORTED,
-  'NATIVE.promise_string': NOT_SUPPORTED,
+  'NATIVE.map_string_number': NOT_SUPPORTED, // no Map instance type in JSON Schema
+  'NATIVE.set_string': NOT_SUPPORTED, // no Set instance type in JSON Schema
+  'NATIVE.promise_string': NOT_SUPPORTED, // no thenable/Promise instance type in JSON Schema
   'NATIVE.awaited_promise': c({type: 'string'}),
 
   // ── CIRCULAR ──
-  'CIRCULAR.object_full_mion_shape': NOT_SUPPORTED,
-  'CIRCULAR.array_of_union_with_self_ref': NOT_SUPPORTED,
-  'CIRCULAR.object_with_tuple_prop': NOT_SUPPORTED,
-  'CIRCULAR.object_with_index_prop': NOT_SUPPORTED,
-  'CIRCULAR.object_deeply_nested': NOT_SUPPORTED,
-  'CIRCULAR.circular_child_under_literal_root': NOT_SUPPORTED,
-  'CIRCULAR.multiple_circular_types_cross_referenced': NOT_SUPPORTED,
+  'CIRCULAR.object_full_mion_shape': NOT_SUPPORTED, // number prop — ajv accepts NaN; samples reject NaN; also optional Date prop
+  'CIRCULAR.array_of_union_with_self_ref': NOT_SUPPORTED, // union includes Date; no Date instance type in JSON Schema
+  'CIRCULAR.object_with_tuple_prop': NOT_SUPPORTED, // tuple contains bigint; no bigint type in JSON Schema
+  'CIRCULAR.object_with_index_prop': c({
+      $id: 'circular_object_with_index_prop',
+      type: 'object',
+      properties: {
+        index: {
+          type: 'object',
+          additionalProperties: {$ref: 'circular_object_with_index_prop'},
+        },
+      },
+      required: ['index'],
+    }),
+  'CIRCULAR.object_deeply_nested': NOT_SUPPORTED, // deeply nested self-ref through anonymous object chain; $ref requires registered schema IDs at each level which ajv's single-schema compile doesn't support for anonymous inner types
+  'CIRCULAR.circular_child_under_literal_root': NOT_SUPPORTED, // child contains bigint; no bigint type in JSON Schema
+  'CIRCULAR.multiple_circular_types_cross_referenced': NOT_SUPPORTED, // contains bigint and Date; no bigint/Date type in JSON Schema
 
   // ── UTILITY ──
-  'UTILITY.partial': NOT_SUPPORTED,
-  'UTILITY.required': NOT_SUPPORTED,
-  'UTILITY.pick': NOT_SUPPORTED,
-  'UTILITY.omit': NOT_SUPPORTED,
-  'UTILITY.exclude_atomic': NOT_SUPPORTED,
-  'UTILITY.extract_atomic': NOT_SUPPORTED,
-  'UTILITY.exclude_from_object_union': NOT_SUPPORTED,
-  'UTILITY.non_nullable': NOT_SUPPORTED,
-  'UTILITY.return_type': NOT_SUPPORTED,
-  'UTILITY.readonly': NOT_SUPPORTED,
-  'UTILITY.intersection_with_required_override': NOT_SUPPORTED,
-  'UTILITY.omit_keeping_optional': NOT_SUPPORTED,
-  'UTILITY.keyof_to_literal_union': NOT_SUPPORTED,
-  'UTILITY.typeof_variable_query': NOT_SUPPORTED,
-  'UTILITY.indexed_access_type': NOT_SUPPORTED,
-  'UTILITY.conditional_type_resolved': NOT_SUPPORTED,
-  'UTILITY.mapped_type_custom': NOT_SUPPORTED,
-  'UTILITY.mapped_type_with_conditional_value': NOT_SUPPORTED,
-  'UTILITY.distributive_conditional_over_union': NOT_SUPPORTED,
-  'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED,
+  'UTILITY.partial': NOT_SUPPORTED, // Partial type includes Date prop; no Date instance type in JSON Schema
+  'UTILITY.required': NOT_SUPPORTED, // Required type includes Date prop; no Date instance type in JSON Schema
+  'UTILITY.pick': NOT_SUPPORTED, // Pick result includes Date prop; no Date instance type in JSON Schema
+  'UTILITY.omit': NOT_SUPPORTED, // Omit result includes Date prop; no Date instance type in JSON Schema
+  'UTILITY.exclude_atomic': c({enum: ['name', 'createdAt']}),
+  'UTILITY.extract_atomic': c({enum: ['name', 'createdAt']}),
+  'UTILITY.exclude_from_object_union': NOT_SUPPORTED, // number props — ajv {type:'number'} accepts NaN; samples reject NaN
+  'UTILITY.non_nullable': NOT_SUPPORTED, // ajv {type:'number'} accepts NaN/Infinity; samples reject them
+  'UTILITY.return_type': NOT_SUPPORTED, // ReturnType resolves to Date; no Date instance type in JSON Schema
+  'UTILITY.readonly': NOT_SUPPORTED, // number prop — ajv accepts NaN; samples reject NaN
+  'UTILITY.intersection_with_required_override': NOT_SUPPORTED, // optional Date prop; no Date instance type in JSON Schema
+  'UTILITY.omit_keeping_optional': NOT_SUPPORTED, // optional number prop — ajv {type:'number'} accepts NaN; samples reject NaN
+  'UTILITY.keyof_to_literal_union': c({enum: ['name', 'age', 'createdAt']}),
+  'UTILITY.typeof_variable_query': c({
+      type: 'object',
+      properties: {url: {type: 'string'}, port: {type: 'number'}},
+      required: ['url', 'port'],
+    }),
+  'UTILITY.indexed_access_type': c({type: 'string'}),
+  'UTILITY.conditional_type_resolved': c({type: 'boolean'}),
+  'UTILITY.mapped_type_custom': c({
+      type: 'object',
+      properties: {
+        a: {type: ['string', 'null']},
+        b: {type: ['number', 'null']},
+      },
+      required: ['a', 'b'],
+    }),
+  'UTILITY.mapped_type_with_conditional_value': c({
+      type: 'object',
+      properties: {
+        name: {
+          type: 'object',
+          properties: {kind: {const: 'text'}, value: {type: 'string'}},
+          required: ['kind', 'value'],
+        },
+        age: {
+          type: 'object',
+          properties: {kind: {const: 'number'}, value: {type: 'number'}, min: {type: 'number'}},
+          required: ['kind', 'value'],
+        },
+        admin: {
+          type: 'object',
+          properties: {kind: {const: 'checkbox'}, value: {type: 'boolean'}},
+          required: ['kind', 'value'],
+        },
+      },
+      required: ['name', 'age', 'admin'],
+    }),
+  'UTILITY.distributive_conditional_over_union': NOT_SUPPORTED, // number arm — ajv {type:'number'} accepts NaN; samples reject NaN
+  'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED, // value literals ('light'/'dark') — need enum; deep nested optional structure hard to express without knowing exact shape; also number (NaN issue)
 
   // ── TYPE_MAPPINGS ──
-  'TYPE_MAPPINGS.key_prefix_rename': NOT_SUPPORTED,
-  'TYPE_MAPPINGS.key_conditional_rename': NOT_SUPPORTED,
-  'TYPE_MAPPINGS.key_filter_via_never': NOT_SUPPORTED,
+  'TYPE_MAPPINGS.key_prefix_rename': NOT_SUPPORTED, // key-renaming mapped type; no JSON Schema analogue
+  'TYPE_MAPPINGS.key_conditional_rename': NOT_SUPPORTED, // conditional key-renaming mapped type; no JSON Schema analogue
+  'TYPE_MAPPINGS.key_filter_via_never': NOT_SUPPORTED, // key-filtering mapped type; no JSON Schema analogue
 
   // ── DATETIME ──
-  'DATETIME.date': NOT_SUPPORTED,
-  'DATETIME.instant': NOT_SUPPORTED,
-  'DATETIME.zonedDateTime': NOT_SUPPORTED,
-  'DATETIME.plainDate': NOT_SUPPORTED,
-  'DATETIME.plainTime': NOT_SUPPORTED,
-  'DATETIME.plainDateTime': NOT_SUPPORTED,
-  'DATETIME.plainYearMonth': NOT_SUPPORTED,
-  'DATETIME.plainMonthDay': NOT_SUPPORTED,
-  'DATETIME.duration': NOT_SUPPORTED,
+  'DATETIME.date': NOT_SUPPORTED, // no Date instance type in JSON Schema
+  'DATETIME.instant': NOT_SUPPORTED, // no Temporal.Instant instance type in JSON Schema
+  'DATETIME.zonedDateTime': NOT_SUPPORTED, // no Temporal.ZonedDateTime instance type in JSON Schema
+  'DATETIME.plainDate': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainTime': NOT_SUPPORTED, // no Temporal.PlainTime instance type in JSON Schema
+  'DATETIME.plainDateTime': NOT_SUPPORTED, // no Temporal.PlainDateTime instance type in JSON Schema
+  'DATETIME.plainYearMonth': NOT_SUPPORTED, // no Temporal.PlainYearMonth instance type in JSON Schema
+  'DATETIME.plainMonthDay': NOT_SUPPORTED, // no Temporal.PlainMonthDay instance type in JSON Schema
+  'DATETIME.duration': NOT_SUPPORTED, // no Temporal.Duration instance type in JSON Schema
 
   // ── STRING_FORMAT ──
   'STRING_FORMAT.string_maxLength': c({type: 'string', maxLength: 5}),
@@ -274,11 +443,11 @@ export const cases: CompetitorCases = {
   'STRING_FORMAT.string_length': c({type: 'string', minLength: 4, maxLength: 4}),
   'STRING_FORMAT.string_range': c({type: 'string', minLength: 2, maxLength: 4}),
   'STRING_FORMAT.string_allowedChars': c({type: 'string', pattern: '^[0-9a-f]+$'}),
-  'STRING_FORMAT.string_allowedChars_ignoreCase': NOT_SUPPORTED,
+  'STRING_FORMAT.string_allowedChars_ignoreCase': NOT_SUPPORTED, // case-insensitive regex; JSON Schema pattern has no ignore-case flag
   'STRING_FORMAT.string_allowedChars_literal': c({type: 'string', pattern: '^[.\\-]+$'}),
   'STRING_FORMAT.string_disallowedChars': c({type: 'string', pattern: '^[^!@#]*$'}),
   'STRING_FORMAT.string_allowedValues': c({type: 'string', enum: ['red', 'green', 'blue']}),
-  'STRING_FORMAT.string_allowedValues_ignoreCase': NOT_SUPPORTED,
+  'STRING_FORMAT.string_allowedValues_ignoreCase': NOT_SUPPORTED, // case-insensitive enum match; no JSON Schema equivalent
   'STRING_FORMAT.string_allowedValues_escaped': c({type: 'string', enum: ['a.b', 'c+d']}),
   'STRING_FORMAT.string_disallowedValues': c({type: 'string', not: {enum: ['admin', 'root']}}),
   'STRING_FORMAT.string_customErrorMessage': c({type: 'string', enum: ['a', 'b']}),
@@ -295,31 +464,93 @@ export const cases: CompetitorCases = {
       type: 'string',
       pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
     }),
-  'STRING_FORMAT.date_iso': NOT_SUPPORTED,
-  'STRING_FORMAT.date_DMY': NOT_SUPPORTED,
-  'STRING_FORMAT.date_YM': NOT_SUPPORTED,
-  'STRING_FORMAT.date_MD': NOT_SUPPORTED,
-  'STRING_FORMAT.date_minMax_absolute': NOT_SUPPORTED,
-  'STRING_FORMAT.time_iso': NOT_SUPPORTED,
-  'STRING_FORMAT.time_HHmmss': NOT_SUPPORTED,
-  'STRING_FORMAT.time_HHmmss_ms': NOT_SUPPORTED,
-  'STRING_FORMAT.time_minMax_absolute': NOT_SUPPORTED,
-  'STRING_FORMAT.dateTime_default': NOT_SUPPORTED,
-  'STRING_FORMAT.dateTime_custom': NOT_SUPPORTED,
-  'STRING_FORMAT.dateTime_minMax_absolute': NOT_SUPPORTED,
-  'STRING_FORMAT.ipv4': NOT_SUPPORTED,
-  'STRING_FORMAT.ipv6': NOT_SUPPORTED,
-  'STRING_FORMAT.ip_any': NOT_SUPPORTED,
-  'STRING_FORMAT.ipv4_port': NOT_SUPPORTED,
-  'STRING_FORMAT.ipv6_port': NOT_SUPPORTED,
-  'STRING_FORMAT.domain': NOT_SUPPORTED,
-  'STRING_FORMAT.domainStrict': NOT_SUPPORTED,
-  'STRING_FORMAT.email': NOT_SUPPORTED,
-  'STRING_FORMAT.emailPunycode': NOT_SUPPORTED,
-  'STRING_FORMAT.emailStrict': NOT_SUPPORTED,
-  'STRING_FORMAT.url': NOT_SUPPORTED,
-  'STRING_FORMAT.urlHttp': NOT_SUPPORTED,
-  'STRING_FORMAT.urlFile': NOT_SUPPORTED,
+  'STRING_FORMAT.date_iso': NOT_SUPPORTED, // pattern cannot enforce calendar validity (leap years, month-day bounds)
+  'STRING_FORMAT.date_DMY': NOT_SUPPORTED, // pattern cannot enforce calendar validity (month-day bounds)
+  'STRING_FORMAT.date_YM': c({
+      type: 'string',
+      pattern: '^\\d{4}-(0[1-9]|1[0-2])$',
+    }),
+  'STRING_FORMAT.date_MD': c({
+      type: 'string',
+      pattern: '^(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$',
+    }),
+  'STRING_FORMAT.date_minMax_absolute': NOT_SUPPORTED, // requires date-comparison logic; pattern alone cannot enforce date range
+  'STRING_FORMAT.time_iso': c({
+      type: 'string',
+      pattern: '^([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$',
+    }),
+  'STRING_FORMAT.time_HHmmss': c({
+      type: 'string',
+      pattern: '^([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$',
+    }),
+  'STRING_FORMAT.time_HHmmss_ms': c({
+      type: 'string',
+      pattern: '^([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?$',
+    }),
+  'STRING_FORMAT.time_minMax_absolute': NOT_SUPPORTED, // requires time-comparison logic; pattern alone cannot enforce time range
+  'STRING_FORMAT.dateTime_default': NOT_SUPPORTED, // pattern cannot enforce calendar validity (leap years, month-day bounds)
+  'STRING_FORMAT.dateTime_custom': c({
+      type: 'string',
+      pattern: '^(0[1-9]|[12]\\d|3[01])-(0[1-9]|1[0-2])-\\d{4} ([01]\\d|2[0-3]):[0-5]\\d$',
+    }),
+  'STRING_FORMAT.dateTime_minMax_absolute': NOT_SUPPORTED, // requires datetime-comparison logic; pattern alone cannot enforce range
+  'STRING_FORMAT.ipv4': c({
+      type: 'string',
+      pattern: '^(?:(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)$',
+    }),
+  'STRING_FORMAT.ipv6': c({
+      type: 'string',
+      pattern: '^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){1,7}:$|^(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}$|^(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}$|^(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}$|^(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}$|^[0-9a-fA-F]{1,4}:(?::[0-9a-fA-F]{1,4}){1,6}$|^::$|^::1$|^fe80:(?::[0-9a-fA-F]{0,4}){0,4}$',
+    }),
+  'STRING_FORMAT.ip_any': c({
+      type: 'string',
+      anyOf: [
+        {pattern: '^(?:(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)$'},
+        {pattern: '^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){1,7}:$|^(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$|^::1$|^::$'},
+      ],
+    }),
+  'STRING_FORMAT.ipv4_port': c({
+      type: 'string',
+      pattern: '^(?:(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d):(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5])$',
+    }),
+  'STRING_FORMAT.ipv6_port': c({
+      type: 'string',
+      pattern: '^\\[(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\\]:(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5])$|^\\[::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}\\]:(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5])$|^\\[(?:[0-9a-fA-F]{1,4}:){1,7}:\\]:(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5])$|^\\[(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}\\]:(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5])$|^\\[::1\\]:(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5])$',
+    }),
+  'STRING_FORMAT.domain': c({
+      type: 'string',
+      pattern: '^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$',
+    }),
+  'STRING_FORMAT.domainStrict': c({
+      type: 'string',
+      pattern: '^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.){1,5}[a-zA-Z]{2,}$',
+    }),
+  'STRING_FORMAT.email': c({
+      type: 'string',
+      // local-part 2+ chars (rejects 'a@...'); domain: optional subdomains + 2+ char label + 2+ char TLD
+      pattern: '^[a-zA-Z0-9._%+\\-]{2,}@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]{2,}\\.[a-zA-Z]{2,}$',
+    }),
+  'STRING_FORMAT.emailPunycode': c({
+      type: 'string',
+      pattern: '^[a-zA-Z0-9._%+\\-]{2,}@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]{2,}\\.(?:[a-zA-Z]{2,}|xn--[a-zA-Z0-9]+)$',
+    }),
+  'STRING_FORMAT.emailStrict': c({
+      type: 'string',
+      // strict: no + in local, no _ in domain, 2+ char domain label, 2+ char TLD
+      pattern: '^[a-zA-Z0-9.\\-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]{2,}\\.[a-zA-Z]{2,}$',
+    }),
+  'STRING_FORMAT.url': c({
+      type: 'string',
+      pattern: '^(?:https?|ftp|wss?):\\/\\/.+',
+    }),
+  'STRING_FORMAT.urlHttp': c({
+      type: 'string',
+      pattern: '^https?:\\/\\/.+',
+    }),
+  'STRING_FORMAT.urlFile': c({
+      type: 'string',
+      pattern: '^file:\\/\\/.+',
+    }),
   'STRING_FORMAT.pattern_slug': c({type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'}),
   'STRING_FORMAT.pattern_hex': c({type: 'string', pattern: '^[0-9a-fA-F]+$'}),
 
@@ -336,48 +567,48 @@ export const cases: CompetitorCases = {
   'NUMBER_FORMAT.number_uint8': c({type: 'integer', minimum: 0, maximum: 255}),
 
   // ── BIGINT_FORMAT ──
-  'BIGINT_FORMAT.bigint_max': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_min': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_lt': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_gt': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_multipleOf': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_combined': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_int64': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_uint64': NOT_SUPPORTED,
+  'BIGINT_FORMAT.bigint_max': NOT_SUPPORTED, // no bigint type in JSON Schema
+  'BIGINT_FORMAT.bigint_min': NOT_SUPPORTED, // no bigint type in JSON Schema
+  'BIGINT_FORMAT.bigint_lt': NOT_SUPPORTED, // no bigint type in JSON Schema
+  'BIGINT_FORMAT.bigint_gt': NOT_SUPPORTED, // no bigint type in JSON Schema
+  'BIGINT_FORMAT.bigint_multipleOf': NOT_SUPPORTED, // no bigint type in JSON Schema
+  'BIGINT_FORMAT.bigint_combined': NOT_SUPPORTED, // no bigint type in JSON Schema
+  'BIGINT_FORMAT.bigint_int64': NOT_SUPPORTED, // no bigint type in JSON Schema
+  'BIGINT_FORMAT.bigint_uint64': NOT_SUPPORTED, // no bigint type in JSON Schema
 
   // ── DATETIME ──
-  'DATETIME.date_minmax': NOT_SUPPORTED,
-  'DATETIME.date_gtlt': NOT_SUPPORTED,
-  'DATETIME.date_min_lt': NOT_SUPPORTED,
-  'DATETIME.date_max_now': NOT_SUPPORTED,
-  'DATETIME.date_rel_window': NOT_SUPPORTED,
-  'DATETIME.date_rel_datetime_components': NOT_SUPPORTED,
-  'DATETIME.instant_minmax': NOT_SUPPORTED,
-  'DATETIME.instant_gtlt': NOT_SUPPORTED,
-  'DATETIME.instant_rel': NOT_SUPPORTED,
-  'DATETIME.plainDate_minmax': NOT_SUPPORTED,
-  'DATETIME.plainDate_gtlt': NOT_SUPPORTED,
-  'DATETIME.plainDate_min_lt': NOT_SUPPORTED,
-  'DATETIME.plainDate_gt_max': NOT_SUPPORTED,
-  'DATETIME.plainDate_min_only': NOT_SUPPORTED,
-  'DATETIME.plainDate_max_only': NOT_SUPPORTED,
-  'DATETIME.plainDate_gt_only': NOT_SUPPORTED,
-  'DATETIME.plainDate_lt_only': NOT_SUPPORTED,
-  'DATETIME.plainDate_rel_window': NOT_SUPPORTED,
-  'DATETIME.plainDate_rel_ymd': NOT_SUPPORTED,
-  'DATETIME.plainDate_rel_weeks': NOT_SUPPORTED,
-  'DATETIME.plainTime_minmax': NOT_SUPPORTED,
-  'DATETIME.plainTime_gtlt': NOT_SUPPORTED,
-  'DATETIME.plainDateTime_minmax': NOT_SUPPORTED,
-  'DATETIME.plainDateTime_gtlt': NOT_SUPPORTED,
-  'DATETIME.plainDateTime_rel': NOT_SUPPORTED,
-  'DATETIME.plainDateTime_rel_combo': NOT_SUPPORTED,
-  'DATETIME.plainYearMonth_minmax': NOT_SUPPORTED,
-  'DATETIME.plainYearMonth_gtlt': NOT_SUPPORTED,
-  'DATETIME.plainYearMonth_rel': NOT_SUPPORTED,
-  'DATETIME.zonedDateTime_minmax': NOT_SUPPORTED,
-  'DATETIME.zonedDateTime_gtlt': NOT_SUPPORTED,
-  'DATETIME.zonedDateTime_rel': NOT_SUPPORTED,
+  'DATETIME.date_minmax': NOT_SUPPORTED, // no Date instance type in JSON Schema
+  'DATETIME.date_gtlt': NOT_SUPPORTED, // no Date instance type in JSON Schema
+  'DATETIME.date_min_lt': NOT_SUPPORTED, // no Date instance type in JSON Schema
+  'DATETIME.date_max_now': NOT_SUPPORTED, // no Date instance type in JSON Schema
+  'DATETIME.date_rel_window': NOT_SUPPORTED, // no Date instance type in JSON Schema
+  'DATETIME.date_rel_datetime_components': NOT_SUPPORTED, // no Date instance type in JSON Schema
+  'DATETIME.instant_minmax': NOT_SUPPORTED, // no Temporal.Instant instance type in JSON Schema
+  'DATETIME.instant_gtlt': NOT_SUPPORTED, // no Temporal.Instant instance type in JSON Schema
+  'DATETIME.instant_rel': NOT_SUPPORTED, // no Temporal.Instant instance type in JSON Schema
+  'DATETIME.plainDate_minmax': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainDate_gtlt': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainDate_min_lt': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainDate_gt_max': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainDate_min_only': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainDate_max_only': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainDate_gt_only': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainDate_lt_only': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainDate_rel_window': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainDate_rel_ymd': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainDate_rel_weeks': NOT_SUPPORTED, // no Temporal.PlainDate instance type in JSON Schema
+  'DATETIME.plainTime_minmax': NOT_SUPPORTED, // no Temporal.PlainTime instance type in JSON Schema
+  'DATETIME.plainTime_gtlt': NOT_SUPPORTED, // no Temporal.PlainTime instance type in JSON Schema
+  'DATETIME.plainDateTime_minmax': NOT_SUPPORTED, // no Temporal.PlainDateTime instance type in JSON Schema
+  'DATETIME.plainDateTime_gtlt': NOT_SUPPORTED, // no Temporal.PlainDateTime instance type in JSON Schema
+  'DATETIME.plainDateTime_rel': NOT_SUPPORTED, // no Temporal.PlainDateTime instance type in JSON Schema
+  'DATETIME.plainDateTime_rel_combo': NOT_SUPPORTED, // no Temporal.PlainDateTime instance type in JSON Schema
+  'DATETIME.plainYearMonth_minmax': NOT_SUPPORTED, // no Temporal.PlainYearMonth instance type in JSON Schema
+  'DATETIME.plainYearMonth_gtlt': NOT_SUPPORTED, // no Temporal.PlainYearMonth instance type in JSON Schema
+  'DATETIME.plainYearMonth_rel': NOT_SUPPORTED, // no Temporal.PlainYearMonth instance type in JSON Schema
+  'DATETIME.zonedDateTime_minmax': NOT_SUPPORTED, // no Temporal.ZonedDateTime instance type in JSON Schema
+  'DATETIME.zonedDateTime_gtlt': NOT_SUPPORTED, // no Temporal.ZonedDateTime instance type in JSON Schema
+  'DATETIME.zonedDateTime_rel': NOT_SUPPORTED, // no Temporal.ZonedDateTime instance type in JSON Schema
 
   // ── REALWORLD ──
   'REALWORLD.user': c({
