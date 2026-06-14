@@ -137,14 +137,18 @@ const SOURCE_FIELDS = ['cloneEncoder', 'mutateEncoder', 'directEncoder', 'binary
 const BANDWIDTHS_MBPS = [10, 100, 1000];
 const DEFAULT_BANDWIDTH_MBPS = 100;
 
+// BENCH_QUICK=1 trades accuracy for speed (preview / two-staged website builds):
+// far fewer cycles + iterations, so numbers are noisy but every panel still renders.
+const QUICK = process.env.BENCH_QUICK === '1';
+
 // Workload knobs. Modest vs the suite exporter — every case runs 5 round-trips ×
 // (encode + decode), so keep each measurement cheap but stable.
-const OPS_CYCLES = 8;
-const OPS_ITERS = 800;
-const OPS_WARMUP = 50;
+const OPS_CYCLES = QUICK ? 2 : 8;
+const OPS_ITERS = QUICK ? 100 : 800;
+const OPS_WARMUP = QUICK ? 10 : 50;
 // Cap iters for large payloads so the pre-allocated pool stays a few MB.
 const LARGE_SAMPLE_BYTES = 100 * 1024;
-const LARGE_ITERS = 150;
+const LARGE_ITERS = QUICK ? 25 : 150;
 
 function ensureBinary() {
   if (!fs.existsSync(BIN)) {

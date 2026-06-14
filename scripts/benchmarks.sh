@@ -44,6 +44,10 @@
 #   BENCH_CA_CERT  file/dir of extra CA certs (corporate/MITM proxy), forwarded to the build.
 #   BENCH_BASE_IMAGE / BENCH_PNPM_VERSION  forwarded to the podman-website.sh build.
 #   BENCH_NO_TIMING=1 / BENCH_TIME_MS=N  correctness-only / per-cell window.
+#   BENCH_QUICK=1 (or --quick on any command)  fast/preview mode: maps onto every
+#     stage's native lever (short BENCH_TIME_MS, COMPILETIME_N=1, typia skipped,
+#     serialization iters reduced). Numbers are noisy; every panel still renders.
+#     Any explicitly-set lever wins over the quick default. For two-staged sites.
 #   BENCH_BUILD_NETWORK / BENCH_RUN_NETWORK / BENCH_MOUNT_OPTS
 # -----------------------------------------------------------------------------
 set -euo pipefail
@@ -239,6 +243,8 @@ env_args() {
   [ -n "${BENCH_DUMP:-}" ] && printf -- '-e\nBENCH_DUMP=%s\n' "$BENCH_DUMP"
   # compile-time bench: per-section repeat count (median of N, drop top+bottom).
   [ -n "${COMPILETIME_N:-}" ] && printf -- '-e\nCOMPILETIME_N=%s\n' "$COMPILETIME_N"
+  # Fast/preview mode flag - runners that have their own quick lever read it.
+  [ "${BENCH_QUICK:-}" = 1 ] && printf -- '-e\nBENCH_QUICK=1\n'
   return 0
 }
 
@@ -364,6 +370,7 @@ cmd_serialization() {
     -e RT_BENCH_OUT_DIR=/bench/bench-out \
     -e RT_BENCH_SSR_NOEXTERNAL=ts-runtypes,runtypes-devtools \
     -e RT_BENCH_CACHE_DIR=false \
+    -e BENCH_QUICK="${BENCH_QUICK:-}" \
     -w "$tsgo" "$IMAGE" \
     sh -c 'node gen-serialization-bench.mjs --suite serialization && node gen-serialization-bench.mjs --suite format-serialization' </dev/null
 }
@@ -403,7 +410,7 @@ cmd_typecost() {
 }
 
 # Compile-time cost for the two transform-based libraries (ts-runtypes, typia): the
-# whole suite as ONE file, measured on tsgo in three tiers — strip (transpile only),
+# whole suite as ONE file, measured on tsgo in three tiers - strip (transpile only),
 # typecheck (--noEmit), and full (type-check + transform + emit the validators). Each
 # runs in its own --rm container with cwd = its dir so tsgo/ttsc/vite resolve from that
 # competitor's node_modules. Override the pair via COMPILETIME_COMPETITORS, the repeat
@@ -438,6 +445,19 @@ cmd_clean() {
   "$ENGINE" volume rm -f "$VOL_TTSC" 2>/dev/null || true
 }
 
+# Map the single BENCH_QUICK knob onto each stage's native lever, so one flag
+# speeds up every benchmark. The ${VAR+set} test only fills a lever that is UNSET,
+# so an explicitly-provided value (even empty) always wins over the quick default.
+apply_quick() {
+  [ "${BENCH_QUICK:-}" = 1 ] || return 0
+  [ -z "${BENCH_TIME_MS+set}" ] && BENCH_TIME_MS=20                       # runtime: short per-cell window (vs 100ms)
+  [ -z "${COMPILETIME_N+set}" ] && COMPILETIME_N=1                        # compile-time: single repeat (vs 5)
+  [ -z "${BENCH_NO_TYPIA+set}" ] && BENCH_NO_TYPIA=1                      # skip typia (its native build dominates)
+  [ -z "${COMPILETIME_COMPETITORS+set}" ] && COMPILETIME_COMPETITORS=ts-runtypes
+  export BENCH_QUICK BENCH_TIME_MS COMPILETIME_N BENCH_NO_TYPIA COMPILETIME_COMPETITORS
+  echo "==> BENCH_QUICK on: fast/preview mode (BENCH_TIME_MS=$BENCH_TIME_MS, COMPILETIME_N=$COMPILETIME_N, typia skipped, serialization iters reduced). Numbers are noisy." >&2
+}
+
 main() {
   case "${1:-}" in
     prep)        cmd_prep ;;
@@ -461,4 +481,14 @@ main() {
   esac
 }
 
-main "$@"
+# Pull --quick out of the args from any position (sets BENCH_QUICK); everything
+# else is forwarded to main unchanged.
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --quick) BENCH_QUICK=1 ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+apply_quick
+main ${ARGS[@]+"${ARGS[@]}"}

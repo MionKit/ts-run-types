@@ -1,0 +1,96 @@
+name: website · publish
+
+# Builds the docs site END TO END inside GitHub Actions (podman containers run on
+# the runner, exactly like locally) and deploys the prebuilt static artifact to
+# Cloudflare Pages via direct upload. Cloudflare only SERVES the assets - it does
+# not run this build (it can't: the build needs podman, the Go toolchain, and a
+# multi-minute benchmark suite, none of which fit the Pages build sandbox).
+#
+# The whole pipeline is one orchestrator - scripts/website-publish.sh, exposed as
+# `pnpm run website:publish` - so CI and local never drift:
+#   1. shared website+benchmark podman image
+#   2. Go resolver binary (+ marker/plugin dist)
+#   3. benchmarks -> container-website/public/bench-data/   (git-ignored: must run)
+#   4. static Nuxt build -> container-website/.output/public
+# then wrangler uploads .output/public to Cloudflare Pages.
+#
+# Because bench-data is git-ignored, the benchmarks MUST run before every site
+# build (the bench panels render that data). Note: the numbers are measured on the
+# CI runner, so they carry shared-runner variance - see the repo discussion on
+# committing bench-data if you want stable, comparable published figures.
+#
+# ---------------------------------------------------------------------------
+# REQUIRED ONE-TIME SETUP before this workflow can deploy:
+#   - Create the Pages project once:  wrangler pages project create runtypes-docs
+#   - Add repo secrets:
+#       CLOUDFLARE_API_TOKEN   token with the "Cloudflare Pages: Edit" permission
+#       CLOUDFLARE_ACCOUNT_ID  your Cloudflare account id
+#   - Set PAGES_PROJECT below to the project name you created.
+# ---------------------------------------------------------------------------
+#
+# TRIGGER: every push to the `prod` branch deploys - push there when a release is
+# ready. No path filter: a prod push is an explicit "ship the current state"
+# signal, and the whole site rebuilds from source + freshly-run benchmarks anyway.
+# workflow_dispatch stays for manual runs (and to pick the SSR `build` target).
+on:
+  push:
+    branches: [prod]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Final Nuxt stage (generate = static for Pages; build = SSR/nitro)'
+        type: choice
+        default: generate
+        options: [generate, build]
+
+permissions:
+  contents: read
+
+# A prod push supersedes any in-flight build so the expensive pipeline never stacks;
+# the latest prod state wins. Per-ref so manual runs on other refs stay independent.
+concurrency:
+  group: website-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PAGES_PROJECT: runtypes-docs
+
+jobs:
+  publish:
+    name: build (image + binary + bench + nuxt) and deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive # the Go resolver needs the tsgolint submodule + patches
+
+      # Applies tsgolint patches, sets up Go 1.26 + pnpm + Node 24, installs deps.
+      - uses: ./.github/actions/bootstrap
+
+      # podman ships preinstalled on ubuntu-latest runners.
+      - name: podman version
+        run: podman --version
+
+      # The full pipeline in one command. WEBSITE_USE_LOCAL=1 forces a LOCAL image
+      # build on the runner (no GHCR pull); the orchestrator mirrors it onto the
+      # benchmark stage so every stage uses that same locally-built image.
+      - name: Build image + binary + benchmarks + static site
+        run: pnpm run website:publish ${{ github.event.inputs.target || 'generate' }}
+        env:
+          WEBSITE_USE_LOCAL: '1'
+
+      # Keep the built site as a CI artifact (handy for debugging a deploy).
+      - name: Upload static artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-output
+          path: container-website/.output/public
+          if-no-files-found: error
+
+      # Direct upload to Cloudflare Pages (see the one-time setup block above).
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy container-website/.output/public --project-name=${{ env.PAGES_PROJECT }}
