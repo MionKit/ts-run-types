@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatNumber<{max: 100}>>(), buildErrors: () => noErrs(createGetValidationErrors<FormatNumber<{max: 100}>>())}"},{"name":"zod","source":"c(z.number().finite().max(100))"},{"name":"typebox","source":"c(Type.Number({maximum: 100}))"},{"name":"ajv","source":"c({type: 'number', maximum: 100})"}]}

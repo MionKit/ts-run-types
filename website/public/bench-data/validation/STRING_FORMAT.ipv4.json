@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatIPv4>(), buildErrors: () => noErrs(createGetValidationErrors<FormatIPv4>())}"},{"name":"zod","source":"c(z.ipv4())"},{"name":"typebox","source":"c(Type.String({pattern: `^${IPV4_PAT}$`}))"},{"name":"ajv","source":"c({type: 'string', format: 'ipv4'})"}]}

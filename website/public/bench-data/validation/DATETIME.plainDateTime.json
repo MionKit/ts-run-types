@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<Temporal.PlainDateTime>(), buildErrors: () => noErrs(createGetValidationErrors<Temporal.PlainDateTime>())}"},{"name":"zod","source":"NOT_SUPPORTED"},{"name":"typebox","source":"NOT_SUPPORTED"},{"name":"ajv","source":"NOT_SUPPORTED"}]}

@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<Hex>(), buildErrors: () => noErrs(createGetValidationErrors<Hex>())}"},{"name":"zod","source":"c(z.string().regex(/^[0-9a-fA-F]+$/))"},{"name":"typebox","source":"c(Type.String({pattern: '^[0-9a-fA-F]+$'}))"},{"name":"ajv","source":"c({type: 'string', pattern: '^[0-9a-fA-F]+$'})"}]}

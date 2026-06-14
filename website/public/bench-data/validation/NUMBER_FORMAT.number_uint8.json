@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatUInt8>(), buildErrors: () => noErrs(createGetValidationErrors<FormatUInt8>())}"},{"name":"zod","source":"c(z.number().int().min(0).max(255))"},{"name":"typebox","source":"c(Type.Integer({minimum: 0, maximum: 255}))"},{"name":"ajv","source":"c({type: 'integer', minimum: 0, maximum: 255})"}]}

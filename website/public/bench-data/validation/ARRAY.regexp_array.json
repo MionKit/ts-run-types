@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<RegExp[]>(), buildErrors: () => noErrs(createGetValidationErrors<RegExp[]>())}"},{"name":"zod","source":"c(z.array(z.instanceof(RegExp)))"},{"name":"typebox","source":"NOT_SUPPORTED"},{"name":"ajv","source":"NOT_SUPPORTED"}]}

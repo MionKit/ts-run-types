@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatIPv6>(), buildErrors: () => noErrs(createGetValidationErrors<FormatIPv6>())}"},{"name":"zod","source":"c(z.ipv6())"},{"name":"typebox","source":"c(Type.String({pattern: `^${IPV6_PAT}$`}))"},{"name":"ajv","source":"c({type: 'string', format: 'ipv6'})"}]}
