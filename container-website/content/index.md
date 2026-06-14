@@ -130,7 +130,7 @@ One object, Every function.
 ### The whole toolbelt, in one box
 Stop gluing five libraries together. RunTypes shares a single type graph across everything it generates, so the validator and the serializer always agree on what your type means.
 
-[One type in, every function out.](/guide/serialization){.text-highlighted}
+[One type in, every function out →](/guide/serialization)
 :::::
 
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-type" commentEnd="// end-type" />
@@ -167,7 +167,7 @@ Stop gluing five libraries together. RunTypes shares a single type graph across 
 ### Speaks Standard Schema
 The same type becomes a [Standard Schema](https://github.com/standard-schema/standard-schema), the shared `~standard` contract that tRPC, TanStack Form and Router, Hono and many more accept directly. One call, no adapter to write.
 
-[One spec, every framework.](/guide/validation){.text-highlighted}
+[One spec, every framework →](/guide/validation#standard-schema)
 :::::
 ::::
 :::
@@ -187,7 +187,7 @@ Get back a traversable RunType node — the same graph the library walks interna
 
 <br>
 
-[Reflection you can actually walk.](/guide/markers-and-reflection){.text-highlighted}
+[Reflection you can actually walk →](/guide/markers-and-reflection)
 ::::
 :::
 ::
@@ -408,7 +408,7 @@ Caches are demand-driven and every entry is its own module, so bundlers split an
 
 <br>
 
-[Build-time, not run-time.](/introduction/about-ts-runtypes){.text-highlighted}
+[Build-time, not run-time →](/introduction/about-ts-runtypes#build-time-not-run-time)
 ::::
 
 ::::code-group
