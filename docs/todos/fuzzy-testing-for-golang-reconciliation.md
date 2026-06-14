@@ -1,0 +1,260 @@
+# Fuzzy / property testing for the enrich-mirror reconciler
+
+**Status:** idea, not started. Captured as a scoping note for a future session;
+no design committed, no code touched.
+
+The idea: build a **fuzzer** around `reconcileMirror` (see
+[cmd/ts-runtypes/enrich_reconcile.go](../../cmd/ts-runtypes/enrich_reconcile.go))
+that, starting from a known-good `*.rt.ts` mirror, applies a stream of small
+mutations to the file — both to the source type AND to the mirror itself — and
+after every step asserts the reconciler's invariants:
+
+1. The mirror file is **still parseable TS** after the reconcile.
+2. **All previously-authored content survives.** Every leaf value the user
+   wrote (a label, an error template, a `pool` array, a `min`/`max`, a
+   user-added comment, even a user-added extra property the compiler did not
+   scaffold) is byte-preserved in the output, modulo additions/removals
+   genuinely demanded by the new type shape.
+3. **No spurious orphans.** A field that was only briefly misspelled or
+   half-typed by the developer must not be permanently buried under
+   `/* @rtOrphanChild ... */`. The reconciler must not "punish" intermediate
+   states.
+4. **Idempotence.** Running the reconciler twice on the same input produces a
+   byte-identical file the second time.
+5. **Convergence.** Once the source type stabilises on its final shape, the
+   final reconcile yields the same mirror as a *fresh* `gen` from that final
+   type would have produced (minus authored leaf values, which must still be
+   carried over).
+
+The reconciler runs under **HMR** in real dev loops: a Vite save handler kicks
+it on every keystroke-burst. So the inputs it sees are NOT clean diffs — they
+are **half-typed source files** and **half-typed mirror files**, often both at
+once. The fuzzer's whole point is to walk that mid-edit terrain on purpose.
+
+## Why this is worth doing
+
+The reconciler already has unit tests covering happy paths (merge a renamed
+field, mark a removed const orphan, refresh a stale `@rtType` marker — see
+`enrich_merge_test.go`, `enrich_orphan_test.go`, `enrich_splice_test.go`,
+`enrich_parsefail_test.go`). What it does NOT have is **adversarial coverage
+of the in-between states**: the byte snapshots that exist for a few hundred
+milliseconds while a human is typing. Those are exactly the inputs HMR feeds
+it, and exactly where data loss / spurious orphan churn would actually hurt.
+
+A targeted unit test costs nothing if you know the bug; a fuzzer is for the
+ones we have not thought of yet. The blast radius of a bug here is
+**permanent loss of authored content** (a user's friendly-error template, a
+mock pool) that we silently rename to `/* @rtOrphanChild */` and then strip on
+the next `gen --prune`. We want strong, automated evidence that this cannot
+happen for any sequence of small edits, not just the ones unit tests pinned.
+
+## Breaking scenarios to investigate first
+
+Before writing any fuzzer, the first task is to **enumerate** the failure
+modes. This list is the seed — the agent's first job is to harden it by
+reading the reconcile / merge / orphan / splice code paths and looking for
+cases it does not cover.
+
+### Source-side mutations (the user editing `*.ts`)
+
+- **Field rename** — `user` → `users`. Intermediate states the typist passes
+  through: `use`, `user`, `usere` (typo, then backspace), `users`. Each one
+  triggers a reconcile on save. The mirror's
+  `friendlyUser` / `mockUser` const matches by `@rtType <Name>#<id>` (a stable
+  structural id), so the renamed type gets a NEW id. Risk: the old const goes
+  orphan on the FIRST keystroke, then a new one is generated on the SECOND,
+  and the user's authored leaf values for the field are never carried across
+  the rename because the two `@rtType` ids do not match. We need a story for
+  "this looks like a rename, not two unrelated edits" — either heuristic
+  matching by field name overlap, or a longer debounce window.
+- **Truncated property name** — typing `userN` on the way to `userName`. The
+  source `.ts` is still parseable; the reconciler runs; the partial field
+  briefly becomes a sibling of the real one. Must not orphan the real one and
+  must not write a permanent `userN` entry.
+- **Truncated string literal** — `name: 'Ma` (no closing quote). The TS file
+  is unparseable; the resolver should bail BEFORE the reconciler touches the
+  mirror. Currently `parseMirror` is fatal on parse failures of the MIRROR;
+  the equivalent guard must exist for the SOURCE.
+- **Field deletion-then-restore** within the debounce window. The user
+  deletes a field, the file saves, the reconciler orphans it; one second
+  later the field comes back. Risk: the field is now orphan-tagged forever,
+  even though it's identical to before.
+- **Field type change** — `age: number` → `age: string`. The structural id
+  changes; the const's friendly/mock entry for `age` should re-scaffold the
+  leaves the type-check now demands (e.g. mock `pool` switches from
+  `number[]` to `string[]`). Authored labels / error templates for `age` (NOT
+  type-dependent) must survive.
+- **Whole type renamed** — `User` → `Account`. Same id changes; whole const
+  goes orphan; the new `friendlyAccount` is appended. Risk: same as
+  field-rename, just at the const level — heuristic carry-over of leaf
+  values.
+- **Interim non-compiling source** — `interface User { name }` (missing
+  `: string`). TS-parseable but no type. The compiler can't produce an
+  enrichment desired-set for the file; the reconciler should leave the
+  mirror alone, NOT orphan everything.
+
+### Mirror-side mutations (the user editing `*.rt.ts`)
+
+- **User adds an extra property to a node** — e.g. authors `min: 100` on a
+  number field that does not (yet) have it scaffolded; or adds a custom
+  `pool` to a string field whose default scaffold did not include one. The
+  reconciler must preserve it.
+- **User adds a comment inside a node** — `// only positive ints please`
+  above a `min:` line. Comments and trailing comments are easy to lose in a
+  property-level splice.
+- **User adds a top-of-file import / helper / unrelated const.** The
+  reconciler is supposed to only touch the consts it owns; anything else
+  must come through untouched.
+- **User reorders properties** inside an enrichment node. We probably do NOT
+  promise to preserve order, but we must promise not to drop anything.
+- **User adds a $`...` placeholder string** with weird-but-valid escape
+  sequences inside it.
+- **User authors an extra property the compiler considers "junk"** for the
+  family — e.g. a property name with no corresponding type field. Today this
+  is a `@rtOrphanChild`. Verify the heuristic does not over-fire on
+  user-intentional extras.
+- **Mirror file is mid-edit when HMR fires** — closing brace missing, dangling
+  comma, half-typed identifier. `parseMirror` already exits fatal on parse
+  failure; the fuzzer must confirm the file is left BYTE-IDENTICAL on that
+  exit path (no partial write).
+
+### Concurrent / repeated-fire scenarios
+
+- **HMR fires the reconciler twice within ms** on the same file (save +
+  formatter-on-save). Both processes race for the file. We probably want a
+  lock and a "second run is a no-op if the first run already converged"
+  guard.
+- **HMR fires while the user is mid-undo.** The IDE may replay a sequence
+  of intermediate edits very fast. Repeated reconciles on the rewinding tape
+  must converge back to the original mirror, not accumulate orphan tags.
+
+## Sketched approach
+
+Two complementary test layers:
+
+1. **In-process Go property test.** A `testing/quick`-style harness that
+   takes a (sourceTypes, mirrorBytes) pair, applies a randomly-generated
+   sequence of small mutations (drawn from a small grammar — see below),
+   and after each step calls `updateMirrorFile` and asserts the invariants
+   above. Most of the bug surface lives here; it's also the cheapest to run
+   in CI on every PR.
+2. **E2E HMR simulation.** A Vitest test (or a tiny driver under
+   [packages/vite-plugin-runtypes/test/](../../packages/vite-plugin-runtypes/test/))
+   that boots the plugin in dev mode against a temp project, then drives
+   real filesystem edits from a *sibling* process (so HMR fires for real),
+   and asserts the same invariants on the resulting mirror. This is slower
+   and noisier but it's the only way to catch races and "the reconciler
+   fired before the typer finished" failure modes.
+
+### Mutation grammar
+
+The fuzzer's mutator should NOT be a generic AST scrambler — that produces
+nonsense diffs the reconciler was never asked to handle. It should be a small
+set of HIGH-FIDELITY mutators that mirror what a human does:
+
+- `renameField(typeName, oldKey, newKey)` — applied one character at a time,
+  with a save / reconcile after every character.
+- `renameType(oldName, newName)` — same, character-by-character.
+- `truncateProperty(typeName, key)` — drop the last N chars of an identifier
+  or a string literal, save, reconcile, then restore.
+- `addField(typeName, key, type)` — emit one save AFTER `key:` is typed but
+  BEFORE `type` is typed (so the file is unparseable for one tick); then
+  another save once `type` is in.
+- `deleteField(typeName, key)`.
+- `changeFieldType(typeName, key, newType)`.
+- `addUserPropToMirror(constName, fieldName, propKey, propValue)`.
+- `addCommentToMirror(constName, fieldName, comment)`.
+- `swapOrderInMirror(constName, fieldA, fieldB)`.
+
+Each mutator is a small **deterministic** function; the fuzzer composes
+random sequences of them and seeds the RNG so failures are reproducible. A
+shrinker (or just `testing/quick`'s built-in one) reduces a failing sequence
+to the minimum reproducing edit list.
+
+### Invariant oracles
+
+After every mutation + reconcile, the harness checks:
+
+- The mirror file parses (call `parseMirror` and assert zero diagnostics).
+- Every leaf value present in the PREVIOUS reconciled mirror that does NOT
+  correspond to a now-deleted source field is still present, byte-identical.
+- Every `@rtType` id in the current mirror still corresponds to a const
+  the parser can locate; no dangling markers.
+- The count of `@rtOrphan` / `@rtOrphanChild` blocks does NOT exceed a
+  function of the deletions actually requested (i.e. no orphan-accretion
+  bug — running the same delete twice does not double-tag).
+- Running the reconciler AGAIN on the result is a no-op (idempotence).
+
+## Open questions (decide before implementing)
+
+1. **Heuristic rename-detection: in scope or not?** Right now the reconciler
+   matches strictly by `@rtType` id, so a field rename loses authored leaves.
+   Do we add a "renamed field" heuristic (same parent const, same type, same
+   leaf shape, only the key changed), or do we leave this as a documented
+   limitation and just make sure the FUZZER does not assert that authored
+   leaves survive a rename? Either answer is fine; we just need to pick one
+   and have the fuzzer enforce it.
+2. **Debounce policy.** The HMR path probably needs a configurable debounce
+   so a sequence of keystrokes within N ms collapses to one reconcile. Does
+   the plugin own this debounce, or the reconciler binary itself? The
+   fuzzer's E2E layer is the right venue to settle this — pick the smallest
+   debounce that passes the rename test.
+3. **Parse-failure source policy.** When the SOURCE TS is unparseable, what
+   should `gen --update` do — bail no-op, or run with whatever subset the
+   parser recovered? The conservative answer is "no-op" (mirror untouched).
+   The fuzzer should encode whichever we pick.
+4. **Atomicity of the mirror write.** Is `writeReconciled` already
+   write-to-temp-then-rename? If not, the HMR race fuzzer will flake; we
+   need atomic replace before this is testable in CI.
+5. **What counts as a "user-authored extra"** vs. a real `@rtOrphanChild`?
+   Today the compiler treats every key not in the desired set as an orphan
+   candidate. We probably want a way for users to mark a key "I added this on
+   purpose, do not orphan it" (e.g. a `// @rtKeep` line comment, or a known
+   set of family-extra keys). The fuzzer should pin whichever rule we pick.
+6. **Granularity of the splice merge.** Today the merge is field-level
+   inside `FriendlyType<T>` / `MockData<T>`. Should it descend into
+   array-valued leaves (e.g. preserve user reordering of a `pool: [...]`
+   array)? Probably no; just byte-preserve the leaf. The fuzzer should test
+   that explicitly.
+
+## Documentation impact (when this lands)
+
+When the fuzzer + any rename-detection / debounce / parse-failure policy
+choices it forces ship, the docs need a coordinated update so users
+understand the contracts the reconciler now promises:
+
+- The `rt-enrich-types` skill ([../../.claude/skills/rt-enrich-types/](../../.claude/skills/rt-enrich-types/))
+  is the closest thing to user-facing documentation for the reconciler
+  today and MUST be updated to match whatever invariants the fuzzer
+  pins (rename heuristics, debounce window, "what counts as a
+  user-authored extra"). Skills are the authoritative source for
+  agent-driven enrichment.
+- `container-website/content/` — if the enrichment workflow gets a
+  user-facing guide page (it doesn't today), the rename / orphan /
+  debounce policies belong there. Voice rules apply: plain language, no
+  em-dashes, short frontmatter (see
+  [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent)).
+- The diagnostic catalog page (see
+  [document-compiler-diagnostic-catalog.md](document-compiler-diagnostic-catalog.md))
+  needs entries for any NEW diagnostics the reconciler starts emitting
+  as a result of the fuzzer's findings (parse-failure source policy,
+  rename-detection signals, orphan-accretion guards). Pin the prefix
+  early (likely `RC0xx` or reuse an existing family) so future codes
+  cluster predictably.
+- [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) — extend or add a section
+  on the enrich-mirror reconciler covering the invariants the fuzzer
+  enforces (parseability, leaf preservation, no spurious orphans,
+  idempotence, convergence).
+
+## Not in scope here
+
+- A general TypeScript file fuzzer. The mutators above are deliberately
+  narrow — they mimic what a HUMAN does in an editor, not what an arbitrary
+  AST mutator would do. If a mutation is one no human would ever produce
+  mid-edit, it does not belong in this fuzzer.
+- Fuzzing the Vite plugin's rewrite pipeline. That's a separate concern; this
+  todo is scoped to the **enrichment mirror reconciler** specifically.
+- Fuzzing `gen --prune`. Prune is the only destructive op and is intentionally
+  not run automatically by HMR; it can be unit-tested directly.
+- Performance / load testing. We care about correctness on tiny inputs first;
+  HMR latency budgets are someone else's todo.

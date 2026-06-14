@@ -135,3 +135,28 @@ fires rarely, and never for the string case.
 Before investing in #3/#4/#6, instrument the encoder to record, per key, the
 backstop-loop hit rate and bytes wasted (allocated − used). Pick the next
 strategy on data from a real corpus, not on intuition.
+
+## Documentation impact (when this lands)
+
+When the remaining work (container-boundary reservation, pooled buffers,
+lower cold start, etc.) ships, the docs need an update so users can find
+the tunables without reading source:
+
+- `container-website/content/2.guide/3.serialization.md` — extend the
+  binary section with a short "buffer sizing" paragraph: cold-start
+  default, the Welford prediction model, and the ceiling at `2 ** 32`.
+  Voice rules apply: plain language, no em-dashes, short frontmatter
+  (see [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent)).
+- The serialization-format benchmark in
+  [pending-optimizations.md](pending-optimizations.md) is the right
+  surface for "what does buffer sizing actually cost"; cross-link the
+  two pages once both land.
+- The plugin-config sweep
+  ([expose-go-compiler-constants-via-tsconfig-plugin.md](expose-go-compiler-constants-via-tsconfig-plugin.md))
+  is the natural home for any new plugin option that surfaces
+  `defaultBufferSize` / `sizeMultiplier` / `maxStrCacheLength` /
+  `maxCacheSize`. Coordinate the docs so the runtime knob page links
+  to the rationale here.
+- [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) — if container-boundary
+  reservation lands, mention it in the rewrite-mechanics section so the
+  binary-emitter contract is discoverable.
