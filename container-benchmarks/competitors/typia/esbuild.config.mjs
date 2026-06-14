@@ -30,14 +30,14 @@
 import {build} from 'esbuild';
 import ttscEsbuild from '@ttsc/unplugin/esbuild';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 // Remove TS return-type predicate annotations (": input is <TYPE> =>" -> " =>").
 // Balanced scan past the type (respecting (), [], {}, <>, and string literals) up
 // to the depth-0 "=>", so unions/generics/parenthesized arms are consumed whole.
-function stripReturnPredicates(code) {
+export function stripReturnPredicates(code) {
   const needle = ': input is ';
   let out = '';
   let cursor = 0;
@@ -88,7 +88,7 @@ function stripReturnPredicates(code) {
 
 // Wrap @ttsc/unplugin's esbuild adapter: run the typia transform, then strip the
 // type-predicate annotations from whatever it returns so esbuild can parse it.
-const typiaTsgo = () => {
+export const typiaTsgo = () => {
   const inner = ttscEsbuild();
   return {
     name: 'typia-tsgo',
@@ -107,13 +107,34 @@ const typiaTsgo = () => {
   };
 };
 
-await build({
-  entryPoints: [path.join(here, 'main.ts')],
-  outfile: path.join(here, 'dist', 'run.mjs'),
-  bundle: true,
-  format: 'esm',
-  platform: 'node',
-  target: 'node22',
-  minify: false,
-  plugins: [typiaTsgo()],
-});
+// Build ONE probe entry through the same typia transform, in-memory (write: false)
+// for timing — the compile-time benchmark (compiletime/compiletime.mjs) imports this.
+export async function buildProbe(entry) {
+  await build({
+    entryPoints: [entry],
+    bundle: true,
+    write: false,
+    format: 'esm',
+    platform: 'node',
+    target: 'node22',
+    minify: false,
+    logLevel: 'silent',
+    plugins: [typiaTsgo()],
+  });
+}
+
+// The competitor's `build` script (`node esbuild.config.mjs`) bundles the suite to
+// dist/run.mjs; importing this module (the benchmark) must NOT trigger that.
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  await build({
+    entryPoints: [path.join(here, 'main.ts')],
+    outfile: path.join(here, 'dist', 'run.mjs'),
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'node22',
+    minify: false,
+    plugins: [typiaTsgo()],
+  });
+}

@@ -26,6 +26,7 @@
 #   scripts/benchmarks.sh serialization     # ts-runtypes round-trip bench (+ formats), in-container
 #   scripts/benchmarks.sh website-bench     # ALL website bench data in one shot (Node 26)
 #   scripts/benchmarks.sh typecost          # per-competitor type-instantiation cost
+#   scripts/benchmarks.sh compiletime       # per-competitor wall-clock build cost (cold/warm)
 #   scripts/benchmarks.sh capture-env       # write results/env.json (os / cpu / lib versions)
 #   scripts/benchmarks.sh build [<name>]    # vite build only (all, or one competitor)
 #   scripts/benchmarks.sh smoke             # quick verify: build every competitor's dist
@@ -70,6 +71,11 @@ VOL_TTSC="${BENCH_CONTAINER:-tsrt-bench}-typia-ttsc"
 
 MARKER_PKG="$ROOT_DIR/packages/ts-runtypes"
 PLUGIN_PKG="$ROOT_DIR/packages/runtypes-devtools"
+# The plugin (runtypes-devtools) eagerly imports getExePath from ts-runtypes-bin
+# (dependency-free); mounted alongside the plugin so its `import 'ts-runtypes-bin'`
+# resolves. `unplugin` (the plugin's other runtime dep) is installed via the
+# ts-runtypes competitor _deps so its transitive tree resolves too.
+BIN_PKG="$ROOT_DIR/packages/ts-runtypes-bin"
 
 # GHCR remote ref of the shared image (the same one podman-website.sh publishes). Run
 # commands pull it by default; BENCH_USE_LOCAL=1 builds/uses a local image instead.
@@ -181,6 +187,15 @@ mount_args() {
     case "$base" in node_modules|package.json|dist) continue ;; esac
     printf -- '-v\n%s:/bench/typecost/%s:ro%s\n' "$f" "$base" "$MOUNT_OPTS"
   done
+  # The compile-time runner + the shared AST extractor (_lib) that both typecost and
+  # compiletime import. Mounted whole (no node_modules/dist under either).
+  printf -- '-v\n%s:/bench/_lib:ro%s\n' "$BENCH_DIR/_lib" "$MOUNT_OPTS"
+  for f in "$BENCH_DIR"/compiletime/*; do
+    [ -e "$f" ] || continue
+    base="$(basename "$f")"
+    case "$base" in node_modules|package.json|dist) continue ;; esac
+    printf -- '-v\n%s:/bench/compiletime/%s:ro%s\n' "$f" "$base" "$MOUNT_OPTS"
+  done
   printf -- '-v\n%s:/bench/aggregate.mjs:ro%s\n' "$BENCH_DIR/aggregate.mjs" "$MOUNT_OPTS"
   printf -- '-v\n%s:/bench/capture-env.mjs:ro%s\n' "$BENCH_DIR/capture-env.mjs" "$MOUNT_OPTS"
   printf -- '-v\n%s:/bench/tsconfig.base.json:ro%s\n' "$BENCH_DIR/tsconfig.base.json" "$MOUNT_OPTS"
@@ -190,6 +205,7 @@ mount_args() {
   printf -- '-v\n%s:%s/bin/ts-runtypes:ro%s\n' "$LINUX_BIN" "$tsgo" "$MOUNT_OPTS"
   printf -- '-v\n%s:%s/node_modules/ts-runtypes:ro%s\n' "$MARKER_PKG" "$tsgo" "$MOUNT_OPTS"
   printf -- '-v\n%s:%s/node_modules/runtypes-devtools:ro%s\n' "$PLUGIN_PKG" "$tsgo" "$MOUNT_OPTS"
+  [ -f "$BIN_PKG/lib/index.js" ] && printf -- '-v\n%s:%s/node_modules/ts-runtypes-bin:ro%s\n' "$BIN_PKG" "$tsgo" "$MOUNT_OPTS"
 
   # typia's one-time native-plugin compile persists in a named volume (subpath of
   # the baked node_modules); first typia run fills it, later runs reuse it.
@@ -221,6 +237,10 @@ env_args() {
   # typecost to matching cases; BENCH_DUMP=<exact.key> prints typecost probe sources.
   [ -n "${BENCH_CASE:-}" ] && printf -- '-e\nBENCH_CASE=%s\n' "$BENCH_CASE"
   [ -n "${BENCH_DUMP:-}" ] && printf -- '-e\nBENCH_DUMP=%s\n' "$BENCH_DUMP"
+  # compile-time bench repeat counts + case cap (median of N, drop top+bottom).
+  [ -n "${COMPILETIME_N_COLD:-}" ] && printf -- '-e\nCOMPILETIME_N_COLD=%s\n' "$COMPILETIME_N_COLD"
+  [ -n "${COMPILETIME_N_WARM:-}" ] && printf -- '-e\nCOMPILETIME_N_WARM=%s\n' "$COMPILETIME_N_WARM"
+  [ -n "${COMPILETIME_MAX_CASES:-}" ] && printf -- '-e\nCOMPILETIME_MAX_CASES=%s\n' "$COMPILETIME_MAX_CASES"
   return 0
 }
 
@@ -316,9 +336,20 @@ cmd_serialization() {
   mkdir -p "$out"
   local tsgo=/bench/competitors/ts-runtypes
   read_lines NARGS < <(net_args)
-  echo "==> serialization bench (in-container, Node 26 / native Temporal) -> $out"
+  # On a Node < 26 base (e.g. an air-gapped/mirror BASE_IMAGE without native
+  # Temporal) the driver imports temporal-polyfill; mount the host copy so it
+  # resolves. No-op on Node 26, where globalThis.Temporal exists and the import
+  # is never reached.
+  local extra_mounts=()
+  [ -d "$ROOT_DIR/node_modules/temporal-polyfill" ] && \
+    extra_mounts+=(-v "$ROOT_DIR/node_modules/temporal-polyfill:$tsgo/node_modules/temporal-polyfill:ro$MOUNT_OPTS")
+  # The plugin eagerly imports ts-runtypes-bin; provide the workspace copy.
+  [ -f "$BIN_PKG/lib/index.js" ] && \
+    extra_mounts+=(-v "$BIN_PKG:$tsgo/node_modules/ts-runtypes-bin:ro$MOUNT_OPTS")
+  echo "==> serialization bench (in-container, native or polyfilled Temporal) -> $out"
   "$ENGINE" run --rm --init \
     ${NARGS[@]+"${NARGS[@]}"} \
+    ${extra_mounts[@]+"${extra_mounts[@]}"} \
     -v "$LINUX_BIN:$tsgo/bin/ts-runtypes:ro$MOUNT_OPTS" \
     -v "$LINUX_EXTRACT_BIN:$tsgo/bin/extract-fn-bodies:ro$MOUNT_OPTS" \
     -v "$MARKER_PKG:$tsgo/node_modules/ts-runtypes:ro$MOUNT_OPTS" \
@@ -346,6 +377,7 @@ cmd_serialization() {
 cmd_website_bench() {
   cmd_fullbench
   cmd_serialization
+  cmd_compiletime
   echo "==> gen-bench-docs (host transform -> container-website/public/bench-data)"
   ( cd "$ROOT_DIR" && node scripts/gen-bench-docs.mjs )
   echo "==> website-bench: done. container-website/public/bench-data/ regenerated (Node 26 / native Temporal)."
@@ -369,6 +401,27 @@ cmd_typecost() {
   ensure_prereqs
   echo "==> measuring per-competitor TS type-instantiation cost in the container"
   run_in_container node typecost/typecost.mjs
+}
+
+# Compile-time (wall-clock build) cost: per competitor, build a per-case probe
+# through that competitor's REAL pipeline (vite + the RT plugin / esbuild + typia /
+# plain vite) and time cold (cache wiped) + warm (cache hit). Each competitor runs
+# in its own --rm container with cwd = its dir so vite/esbuild/typescript resolve
+# from that competitor's node_modules. Subset via COMPILETIME_COMPETITORS, tune the
+# repeat counts via COMPILETIME_N_COLD/N_WARM, cap cases via COMPILETIME_MAX_CASES.
+cmd_compiletime() {
+  ensure_prereqs
+  [ -z "${BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; find "$RESULTS_DIR" -maxdepth 1 -name '*.compiletime.json' -delete 2>/dev/null || true; }
+  echo "==> measuring per-competitor compile-time (real build pipeline) in the container"
+  local competitor list
+  list="${COMPILETIME_COMPETITORS:-$(competitor_list)}"
+  for competitor in $list; do
+    echo "-------- compiletime: $competitor --------"
+    run_in_container sh -c "cd competitors/$competitor && node ../../compiletime/compiletime.mjs --competitor $competitor" \
+      || echo "==> compiletime '$competitor' FAILED - see output above"
+  done
+  [ -n "${BENCH_CASE:-}" ] && { echo "==> BENCH_CASE='$BENCH_CASE': per-case console output above; results JSON + docdata left untouched."; return 0; }
+  publish_docdata
 }
 
 cmd_smoke() {
@@ -396,13 +449,14 @@ main() {
     build)       require_engine; cmd_build "${2:-}" ;;
     smoke)       require_engine; cmd_smoke ;;
     typecost)    require_engine; cmd_typecost ;;
+    compiletime) require_engine; cmd_compiletime ;;
     capture-env) require_engine; ensure_prereqs; run_in_container node capture-env.mjs ;;
     shell)       require_engine; cmd_shell ;;
     login)       cmd_login ;;
     push)        cmd_push ;;
     pull)        cmd_pull ;;
     clean)       require_engine; cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | fullbench | serialization | website-bench | build [<name>] | smoke | typecost | shell | login | push | pull | clean" ;;
+    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | fullbench | serialization | website-bench | build [<name>] | smoke | typecost | compiletime | shell | login | push | pull | clean" ;;
   esac
 }
 

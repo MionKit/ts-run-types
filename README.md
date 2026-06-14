@@ -150,6 +150,16 @@ pnpm test
 
 The JS plugin tests spawn `bin/ts-runtypes`, so the Go binary must be built before `pnpm test`.
 
+## Benchmarks
+
+Three axes, isolated per competitor in a podman image (zod / typebox / ajv / typia), over the full 263-case suite — see [container-benchmarks/](container-benchmarks/):
+
+- **Runtime throughput** (`pnpm run bench`) — validations / sec, per case.
+- **Type-checking cost** (`pnpm run bench:typecost`) — TypeScript type instantiations to resolve each form (writing the type is ~free; a schema→type form is 50–150× more).
+- **Compile-time cost** (`pnpm run bench:compiletime`) — wall-clock build seconds per case, cold (cache wiped) vs warm, through each competitor's real build pipeline; the no-transform columns are the baseline.
+
+Round-trip serialization (`pnpm run bench:serialization`) also reports `serialization-formats`: how a format constraint (`int8`, `uint16`, a `min`/`max` bound) packs a value into far fewer **binary** bytes than an unconstrained `number` / `bigint` (a fixed 8 bytes).
+
 ## Repository layout
 
 ```
