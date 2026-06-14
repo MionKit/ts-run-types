@@ -1185,6 +1185,8 @@ export const STRING_FORMAT = {
   },
   time_minMax_absolute: {
     title: 'FormatStringTime — absolute min/max bounds (business hours)',
+    description: 'FormatStringTime with inclusive absolute `min`/`max` time bounds (HH:mm); accepts times within [`min`, `max`]',
+    validateNotes: 'Bounds `09:00`..`17:00` are inclusive — both endpoints pass. `08:59` fails on `min` (formatPathTail `min`); `17:01` fails on `max` (formatPathTail `max`).',
     validate: () => createValidate<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     validateReflect: () => {
       const v: FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '09:00';
@@ -1229,6 +1231,12 @@ export const STRING_FORMAT = {
   // ───────────────────────────── DateTime ─────────────────────────
   dateTime_default: {
     title: 'FormatStringDateTime — default (ISO date T ISO time)',
+    description: 'FormatStringDateTime (format `dateTime`) with the default ISO layout: ISO date, `T` split char, ISO tz-aware time',
+    validateNotes: [
+      'Both halves must be individually valid and joined by `T`; `2024-02-29T12:30:45Z` passes.',
+      'A space separator (`2024-02-29 12:30:45Z`) fails on the split char (formatPathTail `splitChar`).',
+      'A non-leap date (`2023-02-29`), an out-of-range hour (`25:30:45`), and `not-a-datetime` are all rejected.',
+    ],
     validate: () => createValidate<FormatStringDateTime>(),
     validateReflect: () => {
       const v: FormatStringDateTime = '2024-02-29T12:30:45Z';
@@ -1266,6 +1274,12 @@ export const STRING_FORMAT = {
   },
   dateTime_custom: {
     title: 'FormatStringDateTime — custom nested layouts + splitChar',
+    description: 'FormatStringDateTime with custom nested `date`/`time` layouts and a space `splitChar`; each part validated independently',
+    validateNotes: [
+      'Layout is `DD-MM-YYYY` date + `HH:mm` time joined by a space; `29-02-2024 23:59` passes.',
+      'An ISO-ordered date (`2024-02-29 23:59`) fails on the date half (formatPathTail `date`).',
+      'A `T` separator (`29-02-2024T23:59`) fails the split char (formatPathTail `splitChar`); hour 24 (`29-02-2024 24:00`) fails the time half (formatPathTail `time`).',
+    ],
     validate: () =>
       createValidate<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     validateReflect: () => {
@@ -1320,6 +1334,8 @@ export const STRING_FORMAT = {
   },
   dateTime_minMax_absolute: {
     title: 'FormatStringDateTime — absolute min/max bounds',
+    description: 'FormatStringDateTime with inclusive absolute `min`/`max` datetime bounds; accepts values within [`min`, `max`]',
+    validateNotes: 'Bounds `2020-01-01T00:00:00`..`2020-12-31T23:59:59` are inclusive — both endpoints pass. `2019-12-31T23:59:59` fails on `min` (formatPathTail `min`); `2021-01-01T00:00:00` fails on `max` (formatPathTail `max`).',
     validate: () =>
       createValidate<
         FormatStringDateTime<{
@@ -1477,6 +1493,11 @@ export const STRING_FORMAT = {
   // ──────────────────────────────── IP ────────────────────────────
   ipv4: {
     title: 'FormatIPv4 — dotted-quad addresses',
+    description: 'FormatIPv4 (format `ip`, version 4); accepts dotted-quad IPv4 addresses only',
+    validateNotes: [
+      'Each octet must be 0–255; `192.168.0.1`, `0.0.0.0`, and `255.255.255.255` pass.',
+      'Out-of-range octets (`999.999.999.999`, `256.0.0.1`), a 3-octet address (`1.2.3`), and an IPv6 address (`::1`) all fail; the first failure carries `val` 4.',
+    ],
     validate: () => createValidate<FormatIPv4>(),
     validateReflect: () => {
       const v: FormatIPv4 = '192.168.0.1';
@@ -1514,6 +1535,8 @@ export const STRING_FORMAT = {
   },
   ipv6: {
     title: 'FormatIPv6 — colon-separated, loopback allowed',
+    description: 'FormatIPv6 (format `ip`, version 6); accepts colon-separated IPv6 addresses (including `::` compression)',
+    validateNotes: 'Full, compressed (`::1`), and link-local (`fe80::1`) forms pass. An IPv4 address (`192.168.0.1`) and a group exceeding 4 hex digits (`12345::1`) each fail with `val` 6.',
     validate: () => createValidate<FormatIPv6>(),
     validateReflect: () => {
       const v: FormatIPv6 = '2001:db8:0:0:0:0:0:1';
@@ -1551,6 +1574,8 @@ export const STRING_FORMAT = {
   },
   ip_any: {
     title: 'FormatIP — accepts both v4 and v6',
+    description: 'FormatIP (format `ip`, version `any`); accepts either an IPv4 or an IPv6 address',
+    validateNotes: 'Both `10.0.0.1` (v4) and `2001:db8::1` (v6) pass. A non-IP string (`definitely not an ip`) fails with `val` `any`.',
     validate: () => createValidate<FormatIP>(),
     validateReflect: () => {
       const v: FormatIP = '10.0.0.1';
@@ -1585,6 +1610,8 @@ export const STRING_FORMAT = {
   },
   ipv4_port: {
     title: 'FormatIPv4WithPort — v4 with port',
+    description: 'FormatIPv4WithPort (format `ip`, version 4, port allowed); accepts `ipv4:port`',
+    validateNotes: 'The port must be in range; `192.168.0.1:8080` passes, while `192.168.0.1:70000` (port > 65535) fails with `val` 4.',
     validate: () => createValidate<FormatIPv4WithPort>(),
     validateReflect: () => {
       const v: FormatIPv4WithPort = '192.168.0.1:8080';
@@ -1619,6 +1646,8 @@ export const STRING_FORMAT = {
   },
   ipv6_port: {
     title: 'FormatIPv6WithPort — v6 with bracketed port',
+    description: 'FormatIPv6WithPort (format `ip`, version 6, port allowed); accepts bracketed `[ipv6]:port`',
+    validateNotes: 'The port must be in range; `[2001:db8::1]:443` passes, while `[2001:db8::1]:99999` (port > 65535) fails with `val` 6.',
     validate: () => createValidate<FormatIPv6WithPort>(),
     validateReflect: () => {
       const v: FormatIPv6WithPort = '[2001:db8::1]:443';
@@ -1655,6 +1684,11 @@ export const STRING_FORMAT = {
   // ────────────────────────────── Domain ──────────────────────────
   domain: {
     title: 'FormatDomain — standard',
+    description: 'FormatDomain (format `domain`); enforces the baked domain pattern plus `minLength` 5 / `maxLength` 253',
+    validateNotes: [
+      'Multi-label hostnames pass (`mion.io`, `example.com`, `sub.example.co.uk`, `a-b.example.org`).',
+      'Rejected: a bare label (`not-a-domain`), a leading dot (`.com`), a single-char TLD (`example.c`), a leading-hyphen label (`-bad.com`), an embedded space (`exa mple.com`), and the empty string. The format error is `{name: domain}` (no `val`).',
+    ],
     validate: () => createValidate<FormatDomain>(),
     validateReflect: () => {
       const v: FormatDomain = 'mion.io';
@@ -1692,6 +1726,11 @@ export const STRING_FORMAT = {
   },
   domainStrict: {
     title: 'FormatDomainStrict — names/tld decomposition, maxParts, hyphen-edge',
+    description: 'FormatDomainStrict (format `domain`); stricter than FormatDomain — ≤6 labels, ≥2 parts, strict name/TLD patterns',
+    validateNotes: [
+      'Up to 6 labels pass (`mion.io`, `sub.example.com`, `aa.bb.cc.dd.ee.com`).',
+      'Rejected: a leading-hyphen label (`-bad.com`), more than 6 labels (`aa.bb.cc.dd.ee.ff.com`), a numeric TLD (`example.123`), an underscore in a label (`ex_ample.com`), and a single-part name (`localhost`). The format error is `{name: domain}` (no `val`).',
+    ],
     validate: () => createValidate<FormatDomainStrict>(),
     validateReflect: () => {
       const v: FormatDomainStrict = 'mion.io';
@@ -1731,6 +1770,11 @@ export const STRING_FORMAT = {
   // ─────────────────────────────── Email ──────────────────────────
   email: {
     title: 'FormatEmail — standard',
+    description: 'FormatEmail (format `email`); enforces the baked email pattern plus `minLength` 7 / `maxLength` 254',
+    validateNotes: [
+      'Standard addresses pass, including subaddressing (`user+tag@sub.example.org`).',
+      'Rejected: no `@` (`not-an-email`), too short (`a@b.co`, below `minLength` 7), missing local part (`@example.com`), missing domain (`john@`), a TLD-less domain (`john@example`), an embedded space (`john doe@example.com`), and the empty string. The format error is `{name: email}` (no `val`).',
+    ],
     validate: () => createValidate<FormatEmail>(),
     validateReflect: () => {
       const v: FormatEmail = 'john@example.com';
