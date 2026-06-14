@@ -1,4 +1,4 @@
 title: Introduction
-navigation: 
-  icon: icon-park-outline:home
-  redirect: /introduction/about-mion
+navigation:
+  icon: i-lucide-rocket
+  redirect: /introduction/what-is-ts-run-types
