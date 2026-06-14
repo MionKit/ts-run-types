@@ -17,14 +17,14 @@ exemplar while the rest is filled in later.
 - **Pages / IA** — `website/content/6.test-suites/{1.validation,2.format-validation,3.serialization,4.format-serialization}.md` and `website/content/7.benchmarks/{1.validation,2.typecost}.md`. Every page opens with the shared real-world scenario (`packages/examples/src/suites/realworld.ts`).
 - **Components** — `website/app/components/content/{SuiteTable,BenchTable,RealWorldScenario}.vue`. Terminal-style tables; rows expand on hover/click and **lazy-fetch** their detail panel. A missing data file → tidy "not generated yet" notice (never an error).
 - **Pipeline** — `scripts/export-validation-suite.mjs` → `gendocs/`, then `scripts/gen-website-suite-data.mjs` → `website/public/suite-data/`. Wired as `pnpm run gen:suite-docs`.
-- **Data shipped** — `website/public/suite-data/validation/` (160 cases) and `website/public/suite-data/serialization/` (137 cases), committed so the site needs no regeneration to serve them.
+- **Data shipped** — all four suite datasets are committed under `website/public/suite-data/` (`validation` 160, `serialization` 137, `format-validation` 97, `format-serialization` 27), so the site needs no regeneration to serve them.
 
 | Page | Data | State |
 |------|------|-------|
 | Test Suites › validation | ✅ generated | **complete** (type + schema + generated code per case) |
 | Test Suites › serialization | ✅ generated | **complete** (type + schema + generated code per case) |
-| Test Suites › format-validation | ❌ | notice — needs [Task 2](#task-2--format-suites) |
-| Test Suites › format-serialization | ❌ | notice — needs [Task 2](#task-2--format-suites) |
+| Test Suites › format-validation | ✅ generated | **complete** (type + schema + generated code per case) |
+| Test Suites › format-serialization | ✅ generated | **complete** (type + schema + generated code per case) |
 | Benchmarks › validation | ❌ | notice — needs [Task 3](#task-3--benchmarks-gen-bench-docs) |
 | Benchmarks › typecost | ❌ | notice — needs [Task 3](#task-3--benchmarks-gen-bench-docs) |
 
@@ -111,26 +111,19 @@ benchmarking/tests but aren't surfaced per-strategy in the docs.
 > subdir; the transform reads `gendocs/cases/<suite>/…`. The format suites
 > (Task 2) inherit this for free.
 
-### Task 2 — Format suites
+### Task 2 — Format suites ✅ DONE
 
-`format-validation` (`FORMAT_VALIDATION_SUITE`) and `format-serialization`
-(`FORMAT_SERIALIZATION_SUITE`) reuse the validation / serialization case shapes
-(`FormatValidationCase extends ValidationCase`). Plan:
-
-1. **Generalize the exporters** to take a suite dir + export-const name (today
-   `export-validation-suite.mjs` hard-codes `SUITE_DIR=…/validation`,
-   `mod.VALIDATION_SUITE`, `OUT=validation-suite.json`; `export-serialization-suite.mjs`
-   likewise hard-codes `SERIALIZATION_SPEC`). Factor a shared lib or add CLI/env
-   params so the validation exporter also handles `format-validation`
-   (`FORMAT_VALIDATION_SUITE`) and the serialization exporter handles
-   `format-serialization` (`FORMAT_SERIALIZATION_SUITE`). The case shapes already
-   match (`FormatValidationCase extends ValidationCase`; the format-serialization
-   case re-uses `SerializationCase`), and Task 1 already added the schema body +
-   dump to the serialization exporter, so both format suites come almost for free.
-2. Add `SUITES.{format-validation,format-serialization}` entries to
-   `gen-website-suite-data.mjs` (the suite-scoped dump dirs from Task 1 already
-   prevent cross-suite collisions).
-3. Add `gen:format-*-suite-json` npm scripts and fold them into `gen:suite-docs`.
+Both exporters now take a `--suite` flag selecting the suite dir + export const:
+`export-validation-suite.mjs --suite format-validation` (`FORMAT_VALIDATION_SUITE`)
+and `export-serialization-suite.mjs --suite format-serialization`
+(`FORMAT_SERIALIZATION_SUITE`). The case shapes matched already
+(`FormatValidationCase extends ValidationCase`; format-serialization re-uses
+`SerializationCase`), so the schema-body + dump work from Task 1 carried straight
+over. `gen-website-suite-data.mjs` gained `SUITES` entries for both, the
+suite-scoped dump dirs keep them collision-free, and `gen:format-*-suite-json`
+npm scripts are folded into `gen:suite-docs`. Shipped:
+`website/public/suite-data/format-validation` (97 cases) +
+`format-serialization` (27 cases).
 
 ### Task 3 — Benchmarks (`gen:bench-docs`)
 
