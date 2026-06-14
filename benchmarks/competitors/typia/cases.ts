@@ -3,32 +3,39 @@
 // typia validates the FULL TypeScript type via `typia.createIs<T>()`, transformed
 // at build time by typia's tsgo transform (driven through `@ttsc/unplugin` in
 // esbuild.config.mjs). Like ts-go's `createValidate<T>()` it needs the per-case
-// type written LITERALLY at the call site, so each supported
-// entry copies the literal `T` (and any local enum / interface decl) VERBATIM from
-// the ts-go competitor's cases.ts.
+// type written LITERALLY at the call site, so each non-format entry copies the
+// literal `T` (and any local enum / interface / recursive type decl) VERBATIM from
+// the ts-go competitor's cases.ts. Recursion, utility types (Partial/Pick/Omit/
+// Exclude/Extract/keyof/indexed-access/conditional/mapped/key-remapping), and
+// template-literal types are all expressed natively and work.
+//
+// FORMAT suites can't use mion's `Format*` brand types, so they translate to typia
+// tags (`string & tags.MinLength<…>`, `… & tags.Pattern<'…'>`, `number & tags.Type<…>
+// & tags.Minimum<…>`, etc.). Tag semantics confirmed against the installed typings
+// and each case's exact samples; a tag is used only where it matches the samples.
 //
 // A case is marked supported ONLY when (a) typia can express the type and (b) the
-// shared sample data matches typia's runtime semantics. The main divergences that
-// force NOT_SUPPORTED here:
-//   - typia's default `createIs<number>()` is a bare `typeof === "number"` check
-//     (no `Number.isFinite`), so it ACCEPTS NaN / Infinity — every case whose
-//     `invalid` samples rely on rejecting NaN / Infinity at a number position fails.
-//   - `Date` is validated by `instanceof Date`, so Invalid Date instances pass —
-//     cases that reject `new Date('invalid')` fail; Date is also non-serialisable here.
-//   - typia does not model `any` / `unknown` / `void` / `never` / `symbol` /
-//     `bigint` literals / `Map` / `Set` / `Promise` / `RegExp` / the `Format*`
-//     brand types the way these suites expect.
-//   - utility / mapped / template-literal / circular cases are conservatively opted
-//     out even when typia could express them, to keep the transform buildable.
-// When unsure, the entry is NOT_SUPPORTED (favour a buildable file over a risky type).
+// shared sample data matches typia's runtime semantics. Divergences that force
+// NOT_SUPPORTED (each entry below carries the precise reason):
+//   - bare `number` accepts NaN/Infinity (no tag means "finite" without also forcing
+//     integer/range), so every case rejecting NaN/Infinity at a plain-number position fails;
+//   - `Date` is `instanceof Date` only, so Invalid Date (new Date('invalid')) passes;
+//   - calendar/bound-aware string formats (date/date-time with real-calendar or
+//     min/max bounds) exceed what a Pattern can express;
+//   - typia validates function-typed members & methods (mion silently drops them),
+//     mis-renders `void`, treats `never`/`object`/all-optional objects/Promise/Temporal
+//     differently than these suites, and can't hold 64-bit bigint bounds as tag literals.
 
-import typia from 'typia';
+import typia, {tags} from 'typia';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
 import type {User, Order, BlogPost, Product, ProductPage, RegistrationForm} from '../../shared/cases/realworld/index.ts';
 
 export const cases: CompetitorCases = {
   // ── ATOMIC ──
-  'ATOMIC.any': NOT_SUPPORTED,
+  'ATOMIC.any': () => {
+    const check = typia.createIs<any>();
+    return (v) => check(v);
+  },
   'ATOMIC.bigint': () => {
     const check = typia.createIs<bigint>();
     return (v) => check(v);
@@ -37,7 +44,7 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<boolean>();
     return (v) => check(v);
   },
-  'ATOMIC.date': NOT_SUPPORTED,
+  'ATOMIC.date': NOT_SUPPORTED, // Date validated by instanceof; accepts Invalid Date (new Date('invalid'))
   'ATOMIC.enum_mixed': () => {
     enum Color {
       Red,
@@ -59,40 +66,65 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<true>();
     return (v) => check(v);
   },
-  'ATOMIC.literal_1n': NOT_SUPPORTED, // bigint literal
-  'ATOMIC.literal_symbol': NOT_SUPPORTED, // symbol
-  'ATOMIC.never': NOT_SUPPORTED, // never
+  'ATOMIC.literal_1n': NOT_SUPPORTED, // typia does not support bigint literal types (is<1n>() rejects the literal 1n)
+  'ATOMIC.literal_symbol': NOT_SUPPORTED, // mion matches a symbol by its description; typia can't constrain symbol identity/description
+  'ATOMIC.never': NOT_SUPPORTED, // typia is<never>() accepts undefined
   'ATOMIC.null': () => {
     const check = typia.createIs<null>();
     return (v) => check(v);
   },
-  'ATOMIC.number': NOT_SUPPORTED, // default is() accepts NaN / Infinity
-  'ATOMIC.object': NOT_SUPPORTED, // bare `object` keyword
-  'ATOMIC.regexp': NOT_SUPPORTED, // RegExp
+  'ATOMIC.number': NOT_SUPPORTED, // bare number accepts NaN/Infinity; no typia tag means "finite" without also forcing integer/range
+  'ATOMIC.object': NOT_SUPPORTED, // typia is<object>() rejects arrays; the suite treats [] as a valid object
+  'ATOMIC.regexp': () => {
+    const check = typia.createIs<RegExp>();
+    return (v) => check(v);
+  },
   'ATOMIC.string': () => {
     const check = typia.createIs<string>();
     return (v) => check(v);
   },
-  'ATOMIC.symbol': NOT_SUPPORTED,
+  'ATOMIC.symbol': () => {
+    const check = typia.createIs<symbol>();
+    return (v) => check(v);
+  },
   'ATOMIC.undefined': () => {
     const check = typia.createIs<undefined>();
     return (v) => check(v);
   },
-  'ATOMIC.void': NOT_SUPPORTED, // void
-  'ATOMIC.literal_2_noLiterals': NOT_SUPPORTED, // noLiterals degrade is ts-go-only
-  'ATOMIC.literal_a_noLiterals': NOT_SUPPORTED,
-  'ATOMIC.literal_regexp_noLiterals': NOT_SUPPORTED,
-  'ATOMIC.literal_true_noLiterals': NOT_SUPPORTED,
-  'ATOMIC.literal_1n_noLiterals': NOT_SUPPORTED,
-  'ATOMIC.literal_symbol_noLiterals': NOT_SUPPORTED,
-  'ATOMIC.unknown': NOT_SUPPORTED, // unknown
+  'ATOMIC.void': NOT_SUPPORTED, // typia transform emits invalid JS `(void) => true` for the void type
+  // noLiterals degrades a literal to its base type; typia validates that base type directly.
+  'ATOMIC.literal_2_noLiterals': NOT_SUPPORTED, // degrades to number — accepts NaN/Infinity
+  'ATOMIC.literal_a_noLiterals': () => {
+    const check = typia.createIs<string>();
+    return (v) => check(v);
+  },
+  'ATOMIC.literal_regexp_noLiterals': () => {
+    const check = typia.createIs<RegExp>();
+    return (v) => check(v);
+  },
+  'ATOMIC.literal_true_noLiterals': () => {
+    const check = typia.createIs<boolean>();
+    return (v) => check(v);
+  },
+  'ATOMIC.literal_1n_noLiterals': () => {
+    const check = typia.createIs<bigint>();
+    return (v) => check(v);
+  },
+  'ATOMIC.literal_symbol_noLiterals': () => {
+    const check = typia.createIs<symbol>();
+    return (v) => check(v);
+  },
+  'ATOMIC.unknown': () => {
+    const check = typia.createIs<unknown>();
+    return (v) => check(v);
+  },
 
   // ── ARRAY ──
   'ARRAY.string_array': () => {
     const check = typia.createIs<string[]>();
     return (v) => check(v);
   },
-  'ARRAY.number_array': NOT_SUPPORTED, // invalid samples rely on NaN / Infinity rejection
+  'ARRAY.number_array': NOT_SUPPORTED, // element number accepts NaN/Infinity (invalid samples reject them)
   'ARRAY.boolean_array': () => {
     const check = typia.createIs<boolean[]>();
     return (v) => check(v);
@@ -101,8 +133,11 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<bigint[]>();
     return (v) => check(v);
   },
-  'ARRAY.date_array': NOT_SUPPORTED, // Date
-  'ARRAY.regexp_array': NOT_SUPPORTED, // RegExp
+  'ARRAY.date_array': NOT_SUPPORTED, // Date element instanceof accepts Invalid Date (invalid sample rejects it)
+  'ARRAY.regexp_array': () => {
+    const check = typia.createIs<RegExp[]>();
+    return (v) => check(v);
+  },
   'ARRAY.undefined_array': () => {
     const check = typia.createIs<undefined[]>();
     return (v) => check(v);
@@ -131,26 +166,39 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<{a: string}[]>();
     return (v) => check(v);
   },
-  'ARRAY.union_array': NOT_SUPPORTED, // invalid samples rely on Infinity rejection
+  'ARRAY.union_array': NOT_SUPPORTED, // (string|number)[] number arm accepts Infinity element (invalid sample rejects it)
   'ARRAY.tuple_array': () => {
     const check = typia.createIs<[string, number][]>();
     return (v) => check(v);
   },
-  'ARRAY.circular_array': NOT_SUPPORTED, // recursive type
-  'ARRAY.circular_object_with_array': NOT_SUPPORTED, // recursive type
-  'ARRAY.symbol_array': NOT_SUPPORTED,
+  'ARRAY.circular_array': NOT_SUPPORTED, // typia transform stack-overflows on the base-case-free self-referential array (type X = X[])
+  'ARRAY.circular_object_with_array': () => {
+    type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+    const check = typia.createIs<ObjectType>();
+    return (v) => check(v);
+  },
+  'ARRAY.symbol_array': () => {
+    const check = typia.createIs<symbol[]>();
+    return (v) => check(v);
+  },
   'ARRAY.readonly_string_array': () => {
     const check = typia.createIs<ReadonlyArray<string>>();
     return (v) => check(v);
   },
 
   // ── OBJECT ──
-  'OBJECT.simple_interface': NOT_SUPPORTED, // invalid samples rely on NaN / Infinity rejection
+  'OBJECT.simple_interface': NOT_SUPPORTED, // number prop accepts NaN/Infinity (invalid samples reject them)
   'OBJECT.object_as_const_literals': () => {
     const check = typia.createIs<{readonly name: 'john'; readonly age: 30}>();
     return (v) => check(v);
   },
-  'OBJECT.object_via_return_type_utility': NOT_SUPPORTED, // utility type
+  'OBJECT.object_via_return_type_utility': () => {
+    function makeUser(): {id: number; name: string} {
+      return {id: 1, name: 'john'};
+    }
+    const check = typia.createIs<ReturnType<typeof makeUser>>();
+    return (v) => check(v);
+  },
   'OBJECT.object_via_property_access': () => {
     const check = typia.createIs<{id: number; name: string}>();
     return (v) => check(v);
@@ -159,37 +207,79 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<{id: number; name: string}>();
     return (v) => check(v);
   },
-  'OBJECT.interface_with_optional': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'OBJECT.interface_with_date': NOT_SUPPORTED, // Date
-  'OBJECT.interface_with_method': NOT_SUPPORTED, // function-typed property
-  'OBJECT.nested_object': NOT_SUPPORTED, // invalid samples rely on NaN rejection
+  'OBJECT.interface_with_optional': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
+  'OBJECT.interface_with_date': NOT_SUPPORTED, // Date instanceof accepts Invalid Date (invalid samples reject it)
+  'OBJECT.interface_with_method': NOT_SUPPORTED, // typia validates the function prop (cb); mion silently drops it, so valid samples with cb:42/null fail here
+  'OBJECT.nested_object': NOT_SUPPORTED, // nested number prop accepts NaN (invalid sample rejects it)
   'OBJECT.interface_string_array_prop': () => {
     const check = typia.createIs<{tags: string[]}>();
     return (v) => check(v);
   },
-  'OBJECT.circular_interface': NOT_SUPPORTED, // recursive type
-  'OBJECT.circular_interface_on_array': NOT_SUPPORTED, // recursive type
-  'OBJECT.circular_interface_on_nested_object': NOT_SUPPORTED, // recursive type
+  'OBJECT.circular_interface': () => {
+    type ICircular = {name: string; child?: ICircular};
+    const check = typia.createIs<ICircular>();
+    return (v) => check(v);
+  },
+  'OBJECT.circular_interface_on_array': () => {
+    type ICircularArray = {name: string; children?: ICircularArray[]};
+    const check = typia.createIs<ICircularArray>();
+    return (v) => check(v);
+  },
+  'OBJECT.circular_interface_on_nested_object': () => {
+    type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+    const check = typia.createIs<ICircularDeep>();
+    return (v) => check(v);
+  },
   // typia accepts an explicit-`undefined` property value ({a: undefined}) for a
   // string index signature — a genuine runtime-semantics divergence from the suite
   // (mion rejects it: every index value must satisfy the value type). Not fixable
   // at the type level, so opted out rather than left as a perpetual correctness FAIL.
+  // typia accepts an explicit-`undefined` property value ({a: undefined}) for a
+  // string index signature; mion rejects it (every index value must satisfy the value type).
   'OBJECT.index_signature_string': NOT_SUPPORTED,
-  'OBJECT.index_signature_named_props': NOT_SUPPORTED, // named + number + index combo
-  'OBJECT.index_signature_nested': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'OBJECT.index_signature_date_value': NOT_SUPPORTED, // Date
-  'OBJECT.index_signature_non_root': NOT_SUPPORTED, // nested index signature
-  'OBJECT.function_top_level': NOT_SUPPORTED, // function type
-  'OBJECT.interface_callable': NOT_SUPPORTED, // callable interface
-  'OBJECT.interface_all_optional': NOT_SUPPORTED, // all-optional object accepts Date/Map/Set instances
-  'OBJECT.class_simple': NOT_SUPPORTED, // class type with Date / method
-  'OBJECT.rpc_error_class': NOT_SUPPORTED, // class type
-  'OBJECT.call_signature_params': NOT_SUPPORTED, // Parameters<> utility
-  'OBJECT.call_signature_params_with_optional': NOT_SUPPORTED, // Parameters<> utility
-  'OBJECT.call_signature_params_with_rest': NOT_SUPPORTED, // Parameters<> utility (Date rest)
-  'OBJECT.record_union_keys': NOT_SUPPORTED, // invalid samples rely on NaN / Infinity rejection
-  'OBJECT.union_value_index': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'OBJECT.object_with_union_prop': NOT_SUPPORTED, // invalid samples rely on NaN rejection
+  'OBJECT.index_signature_named_props': () => {
+    const check = typia.createIs<{a: string; b: number; [key: string]: string | number}>();
+    return (v) => check(v);
+  },
+  'OBJECT.index_signature_nested': NOT_SUPPORTED, // nested number value accepts NaN (invalid sample rejects it)
+  'OBJECT.index_signature_date_value': NOT_SUPPORTED, // Date instanceof accepts Invalid Date (invalid sample rejects it)
+  'OBJECT.index_signature_non_root': () => {
+    interface Obj1 {
+      a: string;
+      [key: string]: string;
+    }
+    interface Obj2 {
+      b: string;
+      c: Obj1;
+    }
+    const check = typia.createIs<Obj2>();
+    return (v) => check(v);
+  },
+  'OBJECT.function_top_level': NOT_SUPPORTED, // typia transform emits invalid JS for the void return position of () => void
+  'OBJECT.interface_callable': NOT_SUPPORTED, // typia does not validate a callable interface as a function-with-props; rejects the valid function value
+  'OBJECT.interface_all_optional': NOT_SUPPORTED, // typia's all-optional object accepts Date/Map/Set/array instances; mion rejects them
+  'OBJECT.class_simple': NOT_SUPPORTED, // Date prop instanceof accepts Invalid Date (invalid samples reject it)
+  'OBJECT.rpc_error_class': () => {
+    class RpcError<ErrType extends string> {
+      public readonly 'mion@isΣrrθr': true = true;
+      public readonly type: ErrType;
+      public readonly publicMessage: string;
+      public readonly id?: string;
+      constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+        this.type = args.type;
+        this.publicMessage = args.publicMessage;
+        this.id = args.id;
+      }
+    }
+    const check = typia.createIs<RpcError<'test-error'>>();
+    return (v) => check(v);
+  },
+  'OBJECT.call_signature_params': NOT_SUPPORTED, // number param accepts NaN (invalid sample rejects it)
+  'OBJECT.call_signature_params_with_optional': NOT_SUPPORTED, // number param accepts NaN (invalid sample rejects it)
+  'OBJECT.call_signature_params_with_rest': NOT_SUPPORTED, // Date rest element instanceof accepts Invalid Date (invalid sample rejects it)
+  'OBJECT.record_union_keys': NOT_SUPPORTED, // number value accepts NaN/Infinity (invalid samples reject them)
+  'OBJECT.union_value_index': NOT_SUPPORTED, // number value accepts NaN (invalid sample rejects it)
+  'OBJECT.object_with_union_prop': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
   'OBJECT.interface_inheritance': () => {
     interface Base {
       a: string;
@@ -200,19 +290,31 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<Child>();
     return (v) => check(v);
   },
-  'OBJECT.class_inheritance': NOT_SUPPORTED, // class type
-  'OBJECT.index_signature_number_key': NOT_SUPPORTED, // numeric-key index signature
+  'OBJECT.class_inheritance': () => {
+    class Base {
+      a: string = '';
+    }
+    class Sub extends Base {
+      b: number = 0;
+    }
+    const check = typia.createIs<Sub>();
+    return (v) => check(v);
+  },
+  'OBJECT.index_signature_number_key': () => {
+    const check = typia.createIs<{[k: number]: string}>();
+    return (v) => check(v);
+  },
 
   // ── TUPLE ──
-  'TUPLE.string_number_pair': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'TUPLE.full_mion_tuple': NOT_SUPPORTED, // Date + bigint + NaN
-  'TUPLE.tuple_with_optional': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'TUPLE.nested_tuple_in_array': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'TUPLE.tuple_rest': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'TUPLE.tuple_circular': NOT_SUPPORTED, // recursive type
-  'TUPLE.tuple_multiple_trailing_optionals': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'TUPLE.tuple_named_labels': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'TUPLE.tuple_with_non_serializable': NOT_SUPPORTED, // function element
+  'TUPLE.string_number_pair': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
+  'TUPLE.full_mion_tuple': NOT_SUPPORTED, // Date slot accepts Invalid Date + number slot accepts NaN
+  'TUPLE.tuple_with_optional': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
+  'TUPLE.nested_tuple_in_array': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
+  'TUPLE.tuple_rest': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
+  'TUPLE.tuple_circular': NOT_SUPPORTED, // Date slot accepts Invalid Date + number slot accepts NaN
+  'TUPLE.tuple_multiple_trailing_optionals': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
+  'TUPLE.tuple_named_labels': NOT_SUPPORTED, // number slot accepts NaN (invalid sample rejects it)
+  'TUPLE.tuple_with_non_serializable': NOT_SUPPORTED, // typia requires the function slot; mion treats it as must-be-undefined (valid sample [3] omits it)
   'TUPLE.empty_tuple': () => {
     const check = typia.createIs<[]>();
     return (v) => check(v);
@@ -227,33 +329,54 @@ export const cases: CompetitorCases = {
   },
 
   // ── UNION ──
-  'UNION.atomic_union': NOT_SUPPORTED, // Date + bigint + Infinity
+  'UNION.atomic_union': NOT_SUPPORTED, // Date arm accepts Invalid Date + number arm accepts Infinity
   'UNION.string_literal_union': () => {
     const check = typia.createIs<'UNO' | 'DOS' | 'TRES'>();
     return (v) => check(v);
   },
-  'UNION.large_union_eight_arms': NOT_SUPPORTED, // heterogeneous 8-arm union (conservative)
-  'UNION.string_or_number': NOT_SUPPORTED, // invalid samples rely on NaN / Infinity rejection
-  'UNION.union_of_array_types': NOT_SUPPORTED, // invalid samples rely on Infinity rejection
-  'UNION.array_of_union': NOT_SUPPORTED, // Date + bigint
+  'UNION.large_union_eight_arms': () => {
+    const check = typia.createIs<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>();
+    return (v) => check(v);
+  },
+  'UNION.string_or_number': NOT_SUPPORTED, // number arm accepts NaN/Infinity (invalid samples reject them)
+  'UNION.union_of_array_types': NOT_SUPPORTED, // number[] arm accepts Infinity element (invalid sample rejects it)
+  'UNION.array_of_union': NOT_SUPPORTED, // Date arm accepts Invalid Date element (invalid sample rejects it)
   'UNION.union_of_object_shapes': () => {
     const check = typia.createIs<{a: string; aa: boolean} | {b: number} | {c: bigint}>();
     return (v) => check(v);
   },
-  'UNION.discriminated_union': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'UNION.circular_union': NOT_SUPPORTED, // recursive type
-  'UNION.union_with_methods': NOT_SUPPORTED, // method-bearing arms (valid samples omit the method)
-  'UNION.intersection_to_object': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'UNION.union_with_index_arm': NOT_SUPPORTED, // index-signature arm + bigint
+  'UNION.discriminated_union': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
+  'UNION.circular_union': NOT_SUPPORTED, // Date arm accepts Invalid Date + number arm accepts Infinity
+  'UNION.union_with_methods': NOT_SUPPORTED, // typia validates the methods; mion drops them, so valid samples omitting the method fail here
+  'UNION.intersection_to_object': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
+  'UNION.union_with_index_arm': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
   'UNION.union_same_prop_different_types': () => {
     const check = typia.createIs<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>();
     return (v) => check(v);
   },
-  'UNION.union_mixed_arrays_and_objects': NOT_SUPPORTED, // mixed arrays + bigint objects (conservative)
-  'UNION.union_merged_property': NOT_SUPPORTED, // invalid samples rely on NaN rejection
-  'UNION.union_mixed_with_index': NOT_SUPPORTED, // index-signature arms
-  'UNION.union_with_any_fallback': NOT_SUPPORTED, // collapses to any
-  'UNION.union_with_unknown_fallback': NOT_SUPPORTED, // collapses to unknown
+  'UNION.union_mixed_arrays_and_objects': () => {
+    const check = typia.createIs<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>();
+    return (v) => check(v);
+  },
+  'UNION.union_merged_property': NOT_SUPPORTED, // number arm accepts NaN (invalid sample rejects it)
+  'UNION.union_mixed_with_index': () => {
+    const check = typia.createIs<
+      | string[]
+      | {a: string; aa: boolean}
+      | {b: number}
+      | {a: string; [key: string]: string}
+      | {[key: string]: bigint; b: bigint}
+    >();
+    return (v) => check(v);
+  },
+  'UNION.union_with_any_fallback': () => {
+    const check = typia.createIs<string | any>();
+    return (v) => check(v);
+  },
+  'UNION.union_with_unknown_fallback': () => {
+    const check = typia.createIs<string | unknown>();
+    return (v) => check(v);
+  },
   'UNION.union_subset_small_first': () => {
     interface SmallObj {
       a: string;
@@ -281,61 +404,217 @@ export const cases: CompetitorCases = {
     const check = typia.createIs<Tiny | Medium | Large>();
     return (v) => check(v);
   },
-  'UNION.union_subset_mixed_related_unrelated': NOT_SUPPORTED, // invalid samples rely on NaN rejection
+  'UNION.union_subset_mixed_related_unrelated': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
 
   // ── TEMPLATE_LITERAL ──
-  'TEMPLATE_LITERAL.url_with_number_id': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.multi_segment_url': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.leading_string_placeholder': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.regex_special_chars': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.template_literal_nested_in_object': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED,
-  'TEMPLATE_LITERAL.template_literal_union_placeholder': NOT_SUPPORTED,
+  'TEMPLATE_LITERAL.url_with_number_id': () => {
+    const check = typia.createIs<`api/user/${number}`>();
+    return (v) => check(v);
+  },
+  'TEMPLATE_LITERAL.multi_segment_url': () => {
+    const check = typia.createIs<`/api/v${number}/user/${string}/posts/${number}`>();
+    return (v) => check(v);
+  },
+  'TEMPLATE_LITERAL.leading_string_placeholder': () => {
+    const check = typia.createIs<`${string}/${number}`>();
+    return (v) => check(v);
+  },
+  'TEMPLATE_LITERAL.regex_special_chars': () => {
+    const check = typia.createIs<`(${number})`>();
+    return (v) => check(v);
+  },
+  'TEMPLATE_LITERAL.template_literal_nested_in_object': () => {
+    const check = typia.createIs<{url: `api/user/${number}`; method: string}>();
+    return (v) => check(v);
+  },
+  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED, // number index value accepts NaN (invalid sample rejects it)
+  'TEMPLATE_LITERAL.template_literal_union_placeholder': () => {
+    const check = typia.createIs<`${'a' | 'b'}-${number}`>();
+    return (v) => check(v);
+  },
 
   // ── NATIVE ──
-  'NATIVE.map_string_number': NOT_SUPPORTED, // Map
-  'NATIVE.set_string': NOT_SUPPORTED, // Set
-  'NATIVE.promise_string': NOT_SUPPORTED, // Promise
-  'NATIVE.awaited_promise': NOT_SUPPORTED, // Awaited<Promise<…>>
+  'NATIVE.map_string_number': NOT_SUPPORTED, // Map value is number — accepts NaN (invalid sample rejects it)
+  'NATIVE.set_string': () => {
+    const check = typia.createIs<Set<string>>();
+    return (v) => check(v);
+  },
+  'NATIVE.promise_string': NOT_SUPPORTED, // typia does not validate Promise<T> as a thenable; rejects a real Promise
+  'NATIVE.awaited_promise': () => {
+    const check = typia.createIs<Awaited<Promise<string>>>();
+    return (v) => check(v);
+  },
 
   // ── CIRCULAR ──
-  'CIRCULAR.object_full_mion_shape': NOT_SUPPORTED,
-  'CIRCULAR.array_of_union_with_self_ref': NOT_SUPPORTED,
-  'CIRCULAR.object_with_tuple_prop': NOT_SUPPORTED,
-  'CIRCULAR.object_with_index_prop': NOT_SUPPORTED,
-  'CIRCULAR.object_deeply_nested': NOT_SUPPORTED,
-  'CIRCULAR.circular_child_under_literal_root': NOT_SUPPORTED,
-  'CIRCULAR.multiple_circular_types_cross_referenced': NOT_SUPPORTED,
+  'CIRCULAR.object_full_mion_shape': NOT_SUPPORTED, // number prop accepts NaN + Date prop accepts Invalid Date
+  'CIRCULAR.array_of_union_with_self_ref': NOT_SUPPORTED, // Date arm accepts Invalid Date + number arm accepts NaN
+  'CIRCULAR.object_with_tuple_prop': () => {
+    interface CircularTuple {
+      tuple: [bigint, CircularTuple?];
+    }
+    const check = typia.createIs<CircularTuple>();
+    return (v) => check(v);
+  },
+  'CIRCULAR.object_with_index_prop': () => {
+    interface CircularIndex {
+      index: {[key: string]: CircularIndex};
+    }
+    const check = typia.createIs<CircularIndex>();
+    return (v) => check(v);
+  },
+  'CIRCULAR.object_deeply_nested': () => {
+    interface CircularDeep {
+      deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+    }
+    const check = typia.createIs<CircularDeep>();
+    return (v) => check(v);
+  },
+  'CIRCULAR.circular_child_under_literal_root': () => {
+    interface ICircularDeep {
+      name: string;
+      big: bigint;
+      embedded: {hello: string; child?: ICircularDeep};
+    }
+    interface RootNotCircular {
+      isRoot: true;
+      ciChild: ICircularDeep;
+    }
+    const check = typia.createIs<RootNotCircular>();
+    return (v) => check(v);
+  },
+  'CIRCULAR.multiple_circular_types_cross_referenced': () => {
+    interface ICircularDeep {
+      name: string;
+      big: bigint;
+      embedded: {hello: string; child?: ICircularDeep};
+    }
+    interface ICircularDate {
+      date: Date;
+      month: number;
+      year: number;
+      embedded?: ICircularDate;
+      deep?: ICircularDeep;
+    }
+    interface RootCircular {
+      isRoot: true;
+      ciChild: ICircularDeep;
+      ciRoort?: RootCircular;
+      ciDate: ICircularDate;
+    }
+    const check = typia.createIs<RootCircular>();
+    return (v) => check(v);
+  },
 
   // ── UTILITY ──
-  'UTILITY.partial': NOT_SUPPORTED,
-  'UTILITY.required': NOT_SUPPORTED,
-  'UTILITY.pick': NOT_SUPPORTED,
-  'UTILITY.omit': NOT_SUPPORTED,
-  'UTILITY.exclude_atomic': NOT_SUPPORTED,
-  'UTILITY.extract_atomic': NOT_SUPPORTED,
-  'UTILITY.exclude_from_object_union': NOT_SUPPORTED,
-  'UTILITY.non_nullable': NOT_SUPPORTED,
-  'UTILITY.return_type': NOT_SUPPORTED,
-  'UTILITY.readonly': NOT_SUPPORTED,
-  'UTILITY.intersection_with_required_override': NOT_SUPPORTED,
-  'UTILITY.omit_keeping_optional': NOT_SUPPORTED,
-  'UTILITY.keyof_to_literal_union': NOT_SUPPORTED,
-  'UTILITY.typeof_variable_query': NOT_SUPPORTED,
-  'UTILITY.indexed_access_type': NOT_SUPPORTED,
-  'UTILITY.conditional_type_resolved': NOT_SUPPORTED,
-  'UTILITY.mapped_type_custom': NOT_SUPPORTED,
-  'UTILITY.mapped_type_with_conditional_value': NOT_SUPPORTED,
-  'UTILITY.distributive_conditional_over_union': NOT_SUPPORTED,
-  'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED,
+  'UTILITY.partial': NOT_SUPPORTED, // number prop accepts NaN + Date prop accepts Invalid Date
+  'UTILITY.required': NOT_SUPPORTED, // number prop accepts NaN + Date prop accepts Invalid Date
+  'UTILITY.pick': NOT_SUPPORTED, // Date prop accepts Invalid Date (invalid sample rejects it)
+  'UTILITY.omit': NOT_SUPPORTED, // Date prop accepts Invalid Date (invalid sample rejects it)
+  'UTILITY.exclude_atomic': () => {
+    const check = typia.createIs<Exclude<'name' | 'age' | 'createdAt', 'age'>>();
+    return (v) => check(v);
+  },
+  'UTILITY.extract_atomic': () => {
+    const check = typia.createIs<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>();
+    return (v) => check(v);
+  },
+  'UTILITY.exclude_from_object_union': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
+  'UTILITY.non_nullable': NOT_SUPPORTED, // number arm accepts NaN/Infinity (invalid samples reject them)
+  'UTILITY.return_type': NOT_SUPPORTED, // resolves to Date; instanceof accepts Invalid Date (invalid samples reject it)
+  'UTILITY.readonly': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
+  'UTILITY.intersection_with_required_override': NOT_SUPPORTED, // number prop accepts NaN + Date prop accepts Invalid Date
+  'UTILITY.omit_keeping_optional': NOT_SUPPORTED, // number prop accepts NaN (invalid sample rejects it)
+  'UTILITY.keyof_to_literal_union': () => {
+    interface Person {
+      name: string;
+      age: number;
+      createdAt: Date;
+    }
+    const check = typia.createIs<keyof Person>();
+    return (v) => check(v);
+  },
+  'UTILITY.typeof_variable_query': () => {
+    const config = {url: 'http://example.com', port: 8080};
+    const check = typia.createIs<typeof config>();
+    return (v) => check(v);
+  },
+  'UTILITY.indexed_access_type': () => {
+    interface Person {
+      name: string;
+      age: number;
+    }
+    const check = typia.createIs<Person['name']>();
+    return (v) => check(v);
+  },
+  'UTILITY.conditional_type_resolved': () => {
+    type IsString<T> = T extends string ? boolean : number;
+    const check = typia.createIs<IsString<'hello'>>();
+    return (v) => check(v);
+  },
+  'UTILITY.mapped_type_custom': () => {
+    interface Source {
+      a: string;
+      b: number;
+    }
+    type Nullable<T> = {[K in keyof T]: T[K] | null};
+    const check = typia.createIs<Nullable<Source>>();
+    return (v) => check(v);
+  },
+  'UTILITY.mapped_type_with_conditional_value': () => {
+    type FieldFor<T> = T extends string
+      ? {kind: 'text'; value: string}
+      : T extends number
+        ? {kind: 'number'; value: number; min?: number}
+        : T extends boolean
+          ? {kind: 'checkbox'; value: boolean}
+          : never;
+    interface User {
+      name: string;
+      age: number;
+      admin: boolean;
+    }
+    type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+    const check = typia.createIs<UserForm>();
+    return (v) => check(v);
+  },
+  'UTILITY.distributive_conditional_over_union': NOT_SUPPORTED, // number arm accepts NaN (invalid sample rejects it)
+  'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED, // nested number prop accepts NaN (invalid sample rejects it)
 
   // ── TYPE_MAPPINGS ──
-  'TYPE_MAPPINGS.key_prefix_rename': NOT_SUPPORTED,
-  'TYPE_MAPPINGS.key_conditional_rename': NOT_SUPPORTED,
-  'TYPE_MAPPINGS.key_filter_via_never': NOT_SUPPORTED,
+  'TYPE_MAPPINGS.key_prefix_rename': () => {
+    interface Source {
+      id: number;
+      name: string;
+    }
+    type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
+    const check = typia.createIs<Prefixed<Source>>();
+    return (v) => check(v);
+  },
+  'TYPE_MAPPINGS.key_conditional_rename': () => {
+    interface Source {
+      id: number;
+      name: string;
+      createdAt: Date;
+    }
+    type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
+    const check = typia.createIs<MongoForm<Source>>();
+    return (v) => check(v);
+  },
+  'TYPE_MAPPINGS.key_filter_via_never': () => {
+    interface Source {
+      id: number;
+      name: string;
+      secret: string;
+    }
+    type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
+    const check = typia.createIs<Public<Source>>();
+    return (v) => check(v);
+  },
 
   // ── DATETIME ──
-  'DATETIME.date': NOT_SUPPORTED,
+  // Temporal.* are branded class instances; typia validates by structure and can't reliably
+  // distinguish them (and the bench runtime has no Temporal global, so samples can't even build).
+  'DATETIME.date': NOT_SUPPORTED, // Date instanceof accepts Invalid Date (invalid samples reject it)
   'DATETIME.instant': NOT_SUPPORTED,
   'DATETIME.zonedDateTime': NOT_SUPPORTED,
   'DATETIME.plainDate': NOT_SUPPORTED,
@@ -346,77 +625,250 @@ export const cases: CompetitorCases = {
   'DATETIME.duration': NOT_SUPPORTED,
 
   // ── STRING_FORMAT ──
-  'STRING_FORMAT.string_maxLength': NOT_SUPPORTED,
-  'STRING_FORMAT.string_minLength': NOT_SUPPORTED,
-  'STRING_FORMAT.string_length': NOT_SUPPORTED,
-  'STRING_FORMAT.string_range': NOT_SUPPORTED,
-  'STRING_FORMAT.string_allowedChars': NOT_SUPPORTED,
-  'STRING_FORMAT.string_allowedChars_ignoreCase': NOT_SUPPORTED,
-  'STRING_FORMAT.string_allowedChars_literal': NOT_SUPPORTED,
-  'STRING_FORMAT.string_disallowedChars': NOT_SUPPORTED,
-  'STRING_FORMAT.string_allowedValues': NOT_SUPPORTED,
-  'STRING_FORMAT.string_allowedValues_ignoreCase': NOT_SUPPORTED,
-  'STRING_FORMAT.string_allowedValues_escaped': NOT_SUPPORTED,
-  'STRING_FORMAT.string_disallowedValues': NOT_SUPPORTED,
-  'STRING_FORMAT.string_customErrorMessage': NOT_SUPPORTED,
-  'STRING_FORMAT.alpha': NOT_SUPPORTED,
-  'STRING_FORMAT.alphaNumeric': NOT_SUPPORTED,
-  'STRING_FORMAT.numeric': NOT_SUPPORTED,
-  'STRING_FORMAT.alpha_withLength': NOT_SUPPORTED,
-  'STRING_FORMAT.lowercase_validate': NOT_SUPPORTED,
-  'STRING_FORMAT.uuidv4': NOT_SUPPORTED,
-  'STRING_FORMAT.uuidv7': NOT_SUPPORTED,
-  'STRING_FORMAT.date_iso': NOT_SUPPORTED,
-  'STRING_FORMAT.date_DMY': NOT_SUPPORTED,
-  'STRING_FORMAT.date_YM': NOT_SUPPORTED,
-  'STRING_FORMAT.date_MD': NOT_SUPPORTED,
-  'STRING_FORMAT.date_minMax_absolute': NOT_SUPPORTED,
-  'STRING_FORMAT.time_iso': NOT_SUPPORTED,
-  'STRING_FORMAT.time_HHmmss': NOT_SUPPORTED,
-  'STRING_FORMAT.time_HHmmss_ms': NOT_SUPPORTED,
-  'STRING_FORMAT.time_minMax_absolute': NOT_SUPPORTED,
-  'STRING_FORMAT.dateTime_default': NOT_SUPPORTED,
-  'STRING_FORMAT.dateTime_custom': NOT_SUPPORTED,
-  'STRING_FORMAT.dateTime_minMax_absolute': NOT_SUPPORTED,
-  'STRING_FORMAT.ipv4': NOT_SUPPORTED,
-  'STRING_FORMAT.ipv6': NOT_SUPPORTED,
-  'STRING_FORMAT.ip_any': NOT_SUPPORTED,
-  'STRING_FORMAT.ipv4_port': NOT_SUPPORTED,
-  'STRING_FORMAT.ipv6_port': NOT_SUPPORTED,
-  'STRING_FORMAT.domain': NOT_SUPPORTED,
-  'STRING_FORMAT.domainStrict': NOT_SUPPORTED,
-  'STRING_FORMAT.email': NOT_SUPPORTED,
-  'STRING_FORMAT.emailPunycode': NOT_SUPPORTED,
-  'STRING_FORMAT.emailStrict': NOT_SUPPORTED,
-  'STRING_FORMAT.url': NOT_SUPPORTED,
-  'STRING_FORMAT.urlHttp': NOT_SUPPORTED,
-  'STRING_FORMAT.urlFile': NOT_SUPPORTED,
-  'STRING_FORMAT.pattern_slug': NOT_SUPPORTED,
-  'STRING_FORMAT.pattern_hex': NOT_SUPPORTED,
+  'STRING_FORMAT.string_maxLength': () => {
+    const check = typia.createIs<string & tags.MaxLength<5>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_minLength': () => {
+    const check = typia.createIs<string & tags.MinLength<3>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_length': () => {
+    const check = typia.createIs<string & tags.MinLength<4> & tags.MaxLength<4>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_range': () => {
+    const check = typia.createIs<string & tags.MinLength<2> & tags.MaxLength<4>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_allowedChars': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[0-9a-f]+$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_allowedChars_ignoreCase': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[abcABC]+$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_allowedChars_literal': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[.\\-]+$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_disallowedChars': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[^!@#]*$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_allowedValues': () => {
+    const check = typia.createIs<'red' | 'green' | 'blue'>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_allowedValues_ignoreCase': () => {
+    const check = typia.createIs<string & tags.Pattern<'^(?:[Rr][Ee][Dd]|[Gg][Rr][Ee][Ee][Nn])$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_allowedValues_escaped': () => {
+    const check = typia.createIs<'a.b' | 'c+d'>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_disallowedValues': () => {
+    const check = typia.createIs<string & tags.Pattern<'^(?!(?:admin|root)$).*$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.string_customErrorMessage': () => {
+    const check = typia.createIs<'a' | 'b'>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.alpha': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[a-zA-Z]+$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.alphaNumeric': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[a-zA-Z0-9]+$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.numeric': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[0-9]+$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.alpha_withLength': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[a-zA-Z]+$'> & tags.MaxLength<3>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.lowercase_validate': () => {
+    const check = typia.createIs<string>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.uuidv4': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.uuidv7': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.date_iso': NOT_SUPPORTED, // needs calendar validity (rejects 2023-02-29); a Pattern can only check format
+  'STRING_FORMAT.date_DMY': NOT_SUPPORTED, // needs calendar validity (rejects 31-04-2024); a Pattern can only check format
+  'STRING_FORMAT.date_YM': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[0-9]{4}-(0[1-9]|1[0-2])$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.date_MD': () => {
+    const check = typia.createIs<string & tags.Pattern<'^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.date_minMax_absolute': NOT_SUPPORTED, // needs absolute min/max bound comparison on date strings (no typia tag)
+  'STRING_FORMAT.time_iso': () => {
+    const check = typia.createIs<string & tags.Pattern<'^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.time_HHmmss': () => {
+    const check = typia.createIs<string & tags.Pattern<'^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.time_HHmmss_ms': () => {
+    const check = typia.createIs<string & tags.Pattern<'^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,3})?$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.time_minMax_absolute': NOT_SUPPORTED, // needs absolute min/max bound comparison on time strings (no typia tag)
+  'STRING_FORMAT.dateTime_default': NOT_SUPPORTED, // needs calendar validity + T-only split (typia date-time regex allows space split and non-calendar dates)
+  'STRING_FORMAT.dateTime_custom': () => {
+    const check = typia.createIs<string & tags.Pattern<'^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-[0-9]{4} ([01][0-9]|2[0-3]):[0-5][0-9]$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.dateTime_minMax_absolute': NOT_SUPPORTED, // needs absolute min/max bound comparison on datetime strings (no typia tag)
+  'STRING_FORMAT.ipv4': () => {
+    const check = typia.createIs<string & tags.Format<'ipv4'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.ipv6': () => {
+    const check = typia.createIs<string & tags.Format<'ipv6'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.ip_any': () => {
+    const check = typia.createIs<(string & tags.Format<'ipv4'>) | (string & tags.Format<'ipv6'>)>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.ipv4_port': () => {
+    const check = typia.createIs<
+      string &
+        tags.Pattern<'^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]):(?:6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3}|0)$'>
+    >();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.ipv6_port': () => {
+    const check = typia.createIs<
+      string & tags.Pattern<'^\\[[0-9a-fA-F:]+\\]:(?:6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3}|0)$'>
+    >();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.domain': () => {
+    const check = typia.createIs<string & tags.Pattern<'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.domainStrict': () => {
+    const check = typia.createIs<string & tags.Pattern<'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\\.){1,5}[a-zA-Z]{2,}$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.email': NOT_SUPPORTED, // typia email regex accepts a@b.co (1-char domain label) which mion's FormatEmail rejects
+  'STRING_FORMAT.emailPunycode': () => {
+    const check = typia.createIs<string & tags.Format<'email'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.emailStrict': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[a-zA-Z0-9._-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.url': () => {
+    const check = typia.createIs<string & tags.Pattern<'^(?:https?|ftp|wss?):\\/\\/[^\\s.]+(?:\\.[^\\s.]+)+(?:[\\/?][^\\s]*)?$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.urlHttp': () => {
+    const check = typia.createIs<string & tags.Pattern<'^https?:\\/\\/[^\\s.]+(?:\\.[^\\s.]+)+(?:[\\/?][^\\s]*)?$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.urlFile': () => {
+    const check = typia.createIs<string & tags.Pattern<'^file:\\/\\/\\/[^\\s]+$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.pattern_slug': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[a-z0-9-]+$'>>();
+    return (v) => check(v);
+  },
+  'STRING_FORMAT.pattern_hex': () => {
+    const check = typia.createIs<string & tags.Pattern<'^[0-9a-fA-F]+$'>>();
+    return (v) => check(v);
+  },
 
   // ── NUMBER_FORMAT ──
-  'NUMBER_FORMAT.number_max': NOT_SUPPORTED,
-  'NUMBER_FORMAT.number_min': NOT_SUPPORTED,
-  'NUMBER_FORMAT.number_lt': NOT_SUPPORTED,
-  'NUMBER_FORMAT.number_gt': NOT_SUPPORTED,
-  'NUMBER_FORMAT.number_integer': NOT_SUPPORTED,
-  'NUMBER_FORMAT.number_float': NOT_SUPPORTED,
-  'NUMBER_FORMAT.number_multipleOf': NOT_SUPPORTED,
-  'NUMBER_FORMAT.number_combined': NOT_SUPPORTED,
-  'NUMBER_FORMAT.number_int8': NOT_SUPPORTED,
-  'NUMBER_FORMAT.number_uint8': NOT_SUPPORTED,
+  'NUMBER_FORMAT.number_max': () => {
+    const check = typia.createIs<number & tags.Maximum<100>>();
+    return (v) => check(v);
+  },
+  'NUMBER_FORMAT.number_min': () => {
+    const check = typia.createIs<number & tags.Minimum<0>>();
+    return (v) => check(v);
+  },
+  'NUMBER_FORMAT.number_lt': () => {
+    const check = typia.createIs<number & tags.ExclusiveMaximum<10>>();
+    return (v) => check(v);
+  },
+  'NUMBER_FORMAT.number_gt': () => {
+    const check = typia.createIs<number & tags.ExclusiveMinimum<0>>();
+    return (v) => check(v);
+  },
+  'NUMBER_FORMAT.number_integer': () => {
+    const check = typia.createIs<number & tags.Type<'int32'>>();
+    return (v) => check(v);
+  },
+  'NUMBER_FORMAT.number_float': NOT_SUPPORTED, // mion FormatFloat means non-integer; typia Type<'float'> means float32-representable (accepts integers)
+  'NUMBER_FORMAT.number_multipleOf': () => {
+    const check = typia.createIs<number & tags.MultipleOf<5>>();
+    return (v) => check(v);
+  },
+  'NUMBER_FORMAT.number_combined': () => {
+    const check = typia.createIs<number & tags.Type<'int32'> & tags.Minimum<0> & tags.Maximum<100> & tags.MultipleOf<5>>();
+    return (v) => check(v);
+  },
+  'NUMBER_FORMAT.number_int8': () => {
+    const check = typia.createIs<number & tags.Type<'int32'> & tags.Minimum<-128> & tags.Maximum<127>>();
+    return (v) => check(v);
+  },
+  'NUMBER_FORMAT.number_uint8': () => {
+    const check = typia.createIs<number & tags.Type<'uint32'> & tags.Maximum<255>>();
+    return (v) => check(v);
+  },
 
   // ── BIGINT_FORMAT ──
-  'BIGINT_FORMAT.bigint_max': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_min': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_lt': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_gt': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_multipleOf': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_combined': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_int64': NOT_SUPPORTED,
-  'BIGINT_FORMAT.bigint_uint64': NOT_SUPPORTED,
+  'BIGINT_FORMAT.bigint_max': () => {
+    const check = typia.createIs<bigint & tags.Maximum<100n>>();
+    return (v) => check(v);
+  },
+  'BIGINT_FORMAT.bigint_min': () => {
+    const check = typia.createIs<bigint & tags.Minimum<0n>>();
+    return (v) => check(v);
+  },
+  'BIGINT_FORMAT.bigint_lt': () => {
+    const check = typia.createIs<bigint & tags.ExclusiveMaximum<10n>>();
+    return (v) => check(v);
+  },
+  'BIGINT_FORMAT.bigint_gt': () => {
+    const check = typia.createIs<bigint & tags.ExclusiveMinimum<0n>>();
+    return (v) => check(v);
+  },
+  'BIGINT_FORMAT.bigint_multipleOf': () => {
+    const check = typia.createIs<bigint & tags.MultipleOf<5n>>();
+    return (v) => check(v);
+  },
+  'BIGINT_FORMAT.bigint_combined': () => {
+    const check = typia.createIs<bigint & tags.Minimum<0n> & tags.Maximum<1000n> & tags.MultipleOf<10n>>();
+    return (v) => check(v);
+  },
+  'BIGINT_FORMAT.bigint_int64': NOT_SUPPORTED, // typia tag schema can't hold 64-bit bigint bounds as literals (precision loss → "non-literal type")
+  'BIGINT_FORMAT.bigint_uint64': NOT_SUPPORTED, // typia tag schema can't hold 64-bit bigint bounds as literals (precision loss → "non-literal type")
 
   // ── DATETIME (format) ──
+  // All DATETIME format cases need min/max/gt/lt/relative bound comparison on a Date or
+  // Temporal value — typia has no tag for temporal range constraints (Min/Max tags target
+  // number/bigint/string length only), and the Date-backed ones also accept Invalid Date.
   'DATETIME.date_minmax': NOT_SUPPORTED,
   'DATETIME.date_gtlt': NOT_SUPPORTED,
   'DATETIME.date_min_lt': NOT_SUPPORTED,
