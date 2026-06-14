@@ -53,7 +53,7 @@ function safeKey(key) {
 // compiler API and return a Map(caseKey → source text of <expr>). The AST parse
 // is robust against regex literals, template `${}`, comments and nesting that
 // trip a hand-rolled char scanner.
-export function extractCaseSources(file) {
+export function extractCaseSources(file, varName = 'cases') {
   const out = new Map();
   if (!fs.existsSync(file)) return out;
   const src = fs.readFileSync(file, 'utf8');
@@ -62,7 +62,7 @@ export function extractCaseSources(file) {
   for (const stmt of sf.statements) {
     if (!ts.isVariableStatement(stmt)) continue;
     for (const decl of stmt.declarationList.declarations) {
-      if (ts.isIdentifier(decl.name) && decl.name.text === 'cases' && decl.initializer && ts.isObjectLiteralExpression(decl.initializer)) {
+      if (ts.isIdentifier(decl.name) && decl.name.text === varName && decl.initializer && ts.isObjectLiteralExpression(decl.initializer)) {
         obj = decl.initializer;
       }
     }
@@ -131,7 +131,82 @@ function buildValidationBench() {
   return rows.length;
 }
 
+// ── typecost bench ───────────────────────────────────────────────────────────
+// Forms (not runtime competitors): each measures TypeScript type-instantiation
+// count per case (lower is better). Source for the hover comes from each form's
+// authoring file. No ajv — JSON Schema has no static type inference.
+const TYPECOST_FORMS = [
+  {id: 'ts-go-run-types-type', label: 'ts-run-types (type)', srcFile: 'ts-go-run-types/cases.ts', srcVar: 'cases'},
+  {id: 'ts-go-run-types-schema', label: 'ts-run-types (schema)', srcFile: 'ts-go-run-types/schemaCases.ts', srcVar: 'schemaCases'},
+  {id: 'typia', label: 'typia', srcFile: 'typia/cases.ts', srcVar: 'cases'},
+  {id: 'typebox', label: 'typebox', srcFile: 'typebox/cases.ts', srcVar: 'cases'},
+  {id: 'zod', label: 'zod', srcFile: 'zod/cases.ts', srcVar: 'cases'},
+];
+
+function buildTypecostBench() {
+  const byForm = new Map(); // id → Map(key → instantiations)
+  const meta = new Map(); // key → {group, name}
+  const orderedKeys = [];
+  for (const form of TYPECOST_FORMS) {
+    const file = path.join(RESULTS_DIR, `${form.id}.typecost.json`);
+    if (!fs.existsSync(file)) {
+      byForm.set(form.id, new Map());
+      continue;
+    }
+    const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const m = new Map();
+    for (const c of d.cases) {
+      m.set(c.key, c.instantiations);
+      if (!meta.has(c.key)) {
+        meta.set(c.key, {group: c.group, name: c.name});
+        orderedKeys.push(c.key);
+      }
+    }
+    byForm.set(form.id, m);
+  }
+  if (orderedKeys.length === 0) {
+    process.stderr.write(`skip typecost bench: no results/*.typecost.json in ${RESULTS_DIR} (run \`pnpm run bench:typecost\`)\n`);
+    return 0;
+  }
+
+  const forms = TYPECOST_FORMS.filter((f) => byForm.get(f.id)?.size);
+  const sources = new Map(forms.map((f) => [f.id, extractCaseSources(path.join(COMPETITORS_DIR, f.srcFile), f.srcVar)]));
+
+  const outDir = path.join(OUT_ROOT, 'typecost');
+  fs.rmSync(outDir, {recursive: true, force: true});
+  fs.mkdirSync(outDir, {recursive: true});
+
+  const sectionMap = new Map();
+  for (const key of orderedKeys) {
+    const {group, name} = meta.get(key);
+    if (!sectionMap.has(group)) sectionMap.set(group, {key: group, label: sectionLabel(group), cases: []});
+    const results = {};
+    const detailComps = [];
+    for (const form of forms) {
+      const inst = byForm.get(form.id).get(key);
+      if (inst !== undefined) results[form.label] = {validateOpsSec: inst, status: 'ok'};
+      const source = sources.get(form.id)?.get(key);
+      if (source) detailComps.push({name: form.label, source});
+    }
+    sectionMap.get(group).cases.push({key: safeKey(key), title: name, results});
+    fs.writeFileSync(path.join(outDir, `${safeKey(key)}.json`), JSON.stringify({competitors: detailComps}));
+  }
+
+  const index = {
+    bench: 'typecost',
+    label: 'Type Cost',
+    unit: 'count',
+    metricLabel: 'TypeScript type instantiations — lower is better',
+    competitors: forms.map((f) => f.label),
+    sections: [...sectionMap.values()],
+  };
+  fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(index));
+  return orderedKeys.length;
+}
+
 if (process.argv[1] && process.argv[1].endsWith('gen-bench-docs.mjs')) {
-  const did = buildValidationBench();
-  process.stdout.write(`validation bench: ${did} cases → website/public/bench-data/validation/\n`);
+  const v = buildValidationBench();
+  process.stdout.write(`validation bench: ${v} cases → website/public/bench-data/validation/\n`);
+  const t = buildTypecostBench();
+  process.stdout.write(`typecost bench: ${t} cases → website/public/bench-data/typecost/\n`);
 }
