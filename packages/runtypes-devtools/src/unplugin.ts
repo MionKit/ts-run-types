@@ -193,9 +193,9 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       const gen = await resolver!.generate(outDirAbs || undefined);
       if (gen.outDir) outDirAbs = gen.outDir;
       ensureOutputDirs();
-      // Pure-fn extraction errors halt the build (same contract the old
-      // virtual-module load enforced); RT-render diagnostics flow through the
-      // per-file transform path.
+      // Pure-fn extraction errors halt the build (files-mode has no virtual
+      // fallback, so a generation error is fatal); RT-render diagnostics flow
+      // through the per-file transform path.
       surfaceDiagnostics(this, gen.diagnostics ?? [], (d) => d.family === Family.PureFn, {halt: true});
     },
 
