@@ -1,9 +1,11 @@
 import {z} from 'zod';
-import {NOT_SUPPORTED, type CompetitorCases, type Validator} from '../../shared/harness/types.ts';
+import {NOT_SUPPORTED, type CompetitorCases, type Validator, type CaseBuilder} from '../../shared/harness/types.ts';
 
 // LAZY builder: schema is constructed inside the () => so build cost is per-case.
 // zod v4: ZodTypeAny is deprecated; the recommended schema base type is z.ZodType.
-const c = (s: z.ZodType): (() => Validator) => () => (v) => s.safeParse(v).success;
+// zod has NO cheap boolean validator — safeParse always builds the full ZodError on failure.
+// Therefore validate=NOT_SUPPORTED for every case; only validationErrors (safeParse) is measured.
+const c = (s: z.ZodType): CaseBuilder => ({buildErrors: () => (v) => s.safeParse(v).success});
 
 // Shared sub-schemas reused across cases (ported from the original zod map).
 const objA = z.object({a: z.string()});
