@@ -17,7 +17,7 @@ exemplar while the rest is filled in later.
 - **Pages / IA** — `website/content/6.test-suites/{1.validation,2.format-validation,3.serialization,4.format-serialization}.md` and `website/content/7.benchmarks/{1.validation,2.typecost}.md`. Every page opens with the shared real-world scenario (`packages/examples/src/suites/realworld.ts`).
 - **Components** — `website/app/components/content/{SuiteTable,BenchTable,RealWorldScenario}.vue`. Terminal-style tables; rows expand on hover/click and **lazy-fetch** their detail panel. A missing data file → tidy "not generated yet" notice (never an error).
 - **Pipeline** — `scripts/export-validation-suite.mjs` → `gendocs/`, then `scripts/gen-website-suite-data.mjs` → `website/public/suite-data/`. Wired as `pnpm run gen:suite-docs`.
-- **Data shipped** — all four suite datasets are committed under `website/public/suite-data/` (`validation` 160, `serialization` 137, `format-validation` 97, `format-serialization` 27), so the site needs no regeneration to serve them.
+- **Data shipped** — all four suite datasets under `website/public/suite-data/` (`validation` 160, `serialization` 137, `format-validation` 97, `format-serialization` 27) plus both bench datasets under `website/public/bench-data/` (`validation`, `typecost`) are committed, so the site needs no regeneration to serve them.
 
 | Page | Data | State |
 |------|------|-------|
@@ -25,8 +25,8 @@ exemplar while the rest is filled in later.
 | Test Suites › serialization | ✅ generated | **complete** (type + schema + generated code per case) |
 | Test Suites › format-validation | ✅ generated | **complete** (type + schema + generated code per case) |
 | Test Suites › format-serialization | ✅ generated | **complete** (type + schema + generated code per case) |
-| Benchmarks › validation | ❌ | notice — needs [Task 3](#task-3--benchmarks-gen-bench-docs) |
-| Benchmarks › typecost | ❌ | notice — needs [Task 3](#task-3--benchmarks-gen-bench-docs) |
+| Benchmarks › validation | ✅ generated | **complete** (4 competitors, ops/sec + per-case source) |
+| Benchmarks › typecost | ✅ generated | **complete** (5 forms, TS instantiation counts + per-form source) |
 
 ## How the pipeline works
 
@@ -125,31 +125,43 @@ npm scripts are folded into `gen:suite-docs`. Shipped:
 `website/public/suite-data/format-validation` (97 cases) +
 `format-serialization` (27 cases).
 
-### Task 3 — Benchmarks (`gen:bench-docs`)
+### Task 3 — Benchmarks ✅ DONE
 
-Wire a new aggregator (the BenchTable + pages + data shape already exist):
+`scripts/gen-bench-docs.mjs` (`pnpm run gen:bench-docs`) builds both bench
+datasets:
 
-1. Run the containerized benchmarks (`pnpm run bench`, several minutes) →
-   `benchmarks/results/*.json` (one per competitor), plus typecost via
-   `benchmarks/typecost/`.
-2. New `scripts/gen-bench-docs.mjs` that joins `benchmarks/results/*.json`
-   (see `benchmarks/aggregate.mjs` for the join + formatting it already does) into
-   `website/public/bench-data/<bench>/index.json` (shape above), and extracts each
-   competitor's per-case source from `benchmarks/competitors/<lib>/cases.ts`
-   (+ `schemaCases.ts`) into `website/public/bench-data/<bench>/<case>.json`.
-3. Two benches: `validation` and `typecost`. Add a `gen:bench-docs` npm script.
+- **validation** — joins `benchmarks/results/<competitor>.json` (run `pnpm run bench`)
+  into `website/public/bench-data/validation/`. 4 competitors (ts-go-run-types,
+  zod, typebox, ajv; **typia is opt-in** and skipped by default), 263 cases, the
+  `validationErrors·accept` ops/sec column (the metric every competitor implements).
+- **typecost** — joins `benchmarks/results/<form>.typecost.json` (run
+  `pnpm run bench:typecost`) into `website/public/bench-data/typecost/`. 5 forms
+  (ts-run-types type/schema, typia, typebox, zod — no ajv; JSON Schema has no
+  static type inference), 263 cases, TS type-instantiation **count** (lower is
+  better).
 
-`BenchTable.vue` currently surfaces one ops/sec number per competitor; once real
-data lands, decide whether to add the accept/reject (valid/invalid) split as
-extra columns.
+Per-case competitor source for the hover panel is lifted from each
+`benchmarks/competitors/<lib>/cases.ts` (+ `schemaCases.ts`) via a TS-compiler-API
+parse (`extractCaseSources`). `BenchTable.vue` is unit-aware (`ops` → `1.2M/s`,
+`count` → `1.2M`) and shows the metric label.
+
+> The bench run is containerized + heavy; `gen:bench-docs` only reads the result
+> JSON, so it's cheap to re-run after a fresh `pnpm run bench` / `bench:typecost`.
+> Possible follow-up: surface the validate (cheap-boolean) and reject-path columns
+> too — today the validation page shows the single universal `validationErrors·accept`
+> number.
 
 ## Regenerating / adding a suite
 
 ```bash
-pnpm run gen:suite-docs        # validation + serialization exporters + the web transform
+pnpm run gen:suite-docs        # all four suite exporters + the web transform
 # or individually:
 pnpm run gen:validation-suite-json
 pnpm run gen:website-suite-data validation
+
+# benchmarks (containerized run first, then the cheap aggregation):
+pnpm run bench && pnpm run bench:typecost
+pnpm run gen:bench-docs
 ```
 
 Adding a suite: ensure its exporter writes `gendocs/<suite>-suite.json` (+ a
