@@ -47,12 +47,25 @@ import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-cli
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
-const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites/serialization');
+// Suite selection — `--suite serialization` (default) or `--suite format-serialization`.
+// Both use the SerializationCase shape (format-serialization re-uses it).
+const SUITE_CONFIGS = {
+  serialization: {dir: 'serialization', exportConst: 'SERIALIZATION_SPEC'},
+  'format-serialization': {dir: 'format-serialization', exportConst: 'FORMAT_SERIALIZATION_SUITE'},
+};
+const suiteArgIndex = process.argv.indexOf('--suite');
+const SUITE = suiteArgIndex >= 0 ? process.argv[suiteArgIndex + 1] : 'serialization';
+const SUITE_CFG = SUITE_CONFIGS[SUITE];
+if (!SUITE_CFG) {
+  process.stderr.write(`unknown --suite '${SUITE}' (known: ${Object.keys(SUITE_CONFIGS).join(', ')})\n`);
+  process.exit(1);
+}
+const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites', SUITE_CFG.dir);
 const SUITE_PATH = path.join(SUITE_DIR, 'index.ts');
 const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
 const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
-const OUT_PATH = path.join(REPO_ROOT, 'gendocs/serialization-suite.json');
-const MD_PATH = path.join(REPO_ROOT, 'gendocs/serialization-suite.md');
+const OUT_PATH = path.join(REPO_ROOT, `gendocs/${SUITE}-suite.json`);
+const MD_PATH = path.join(REPO_ROOT, `gendocs/${SUITE}-suite.md`);
 const FN_FIELDS = ['cloneEncoder', 'schemaEncoder', 'mutateEncoder', 'directEncoder', 'stripDecoder', 'preserveDecoder'];
 
 // One API descriptor per measured shape. Three encoders cover the
@@ -174,7 +187,7 @@ async function loadSuiteWithPlugin() {
   });
   try {
     const mod = await server.ssrLoadModule(SUITE_PATH);
-    return mod.SERIALIZATION_SPEC;
+    return mod[SUITE_CFG.exportConst];
   } finally {
     await server.close();
   }
@@ -477,7 +490,7 @@ async function runCompilePhase(metrics, bodies) {
   const client = new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true});
   const overlayDts = {__bench__: 'runtypes.d.ts', body: RUNTYPES_DTS};
   // Suite-scoped dump dir (gendocs/cases is shared across suites). Wipe only ours.
-  const casesDir = path.join(REPO_ROOT, 'gendocs/cases/serialization');
+  const casesDir = path.join(REPO_ROOT, 'gendocs/cases', SUITE);
   fs.rmSync(casesDir, {recursive: true, force: true});
   fs.mkdirSync(casesDir, {recursive: true});
   let modulesWritten = 0;
@@ -699,7 +712,7 @@ async function main() {
   const {totalRpcs, modulesWritten, wallMs} = await runCompilePhase(metrics, bodies);
   process.stdout.write(
     `ran compile pass — ${totalRpcs} RPCs, ${COMPILE_CYCLES} cycles per (case,api), ` +
-      `${modulesWritten} cache modules dumped to gendocs/cases/serialization/ (${ms(t3)})\n`
+      `${modulesWritten} cache modules dumped to gendocs/cases/${SUITE}/ (${ms(t3)})\n`
   );
   void wallMs;
 
