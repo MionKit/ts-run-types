@@ -44,10 +44,16 @@ export type ErrorTemplates =
   | ({type?: FriendlyTemplate; $default?: FriendlyTemplate} & {[constraint: string]: FriendlyTemplate | undefined})
   | ((failed: FailedConstraints) => string);
 
-/** Meta keys present on every node: a human label + the field's error templates. */
+/** Meta keys on every node: a human label + the field's error templates, both
+ *  REQUIRED — every node must be addressed (the `@todo`/diagnostic layer enforces
+ *  that the VALUES are filled, which TS can't see). `__rt_typeName` is the lone
+ *  optional meta: a friendly name for a NAMED type (`PG_User` → `'User'`),
+ *  defaulting to the reflected type name. The `__rt_` prefix (not `$`) keeps it
+ *  from colliding with a real field key in the homomorphic child map. */
 export interface FriendlyMeta {
-  $label?: string;
-  $errors?: ErrorTemplates;
+  $label: string;
+  $errors: ErrorTemplates;
+  __rt_typeName?: string;
 }
 
 /** Scalar / native kinds that carry only meta (no child fields). */
@@ -76,11 +82,11 @@ export type FriendlyNode<T, Depth extends number = 8> = Depth extends 0
       // non-Maps so the `infer K, V` never runs off the hot path (per DataOnly).
       T extends ReadonlyMap<any, any>
       ? T extends ReadonlyMap<infer K, infer V>
-        ? FriendlyMeta & {$keys?: FriendlyNode<K, _FriendlyDepth[Depth]>; $values?: FriendlyNode<V, _FriendlyDepth[Depth]>}
+        ? FriendlyMeta & {$keys: FriendlyNode<K, _FriendlyDepth[Depth]>; $values: FriendlyNode<V, _FriendlyDepth[Depth]>}
         : FriendlyMeta // unreachable — gate guarantees a Map
       : T extends ReadonlySet<any>
         ? T extends ReadonlySet<infer U>
-          ? FriendlyMeta & {$values?: FriendlyNode<U, _FriendlyDepth[Depth]>}
+          ? FriendlyMeta & {$values: FriendlyNode<U, _FriendlyDepth[Depth]>}
           : FriendlyMeta // unreachable — gate guarantees a Set
         : T extends readonly unknown[]
           ? // tuple vs array: a tuple has a literal `length`, an array's `length`
@@ -88,10 +94,10 @@ export type FriendlyNode<T, Depth extends number = 8> = Depth extends 0
             // (`{[K in keyof tuple]}` yields a tuple type — the intended
             // `$slots: [node, node]`); array → `$items` element node.
             number extends T['length']
-            ? FriendlyMeta & {$items?: FriendlyNode<T[number], _FriendlyDepth[Depth]>}
-            : FriendlyMeta & {$slots?: {[K in keyof T]: FriendlyNode<T[K], _FriendlyDepth[Depth]>}}
+            ? FriendlyMeta & {$items: FriendlyNode<T[number], _FriendlyDepth[Depth]>}
+            : FriendlyMeta & {$slots: {[K in keyof T]: FriendlyNode<T[K], _FriendlyDepth[Depth]>}}
           : T extends object
-            ? FriendlyMeta & {[K in keyof T]?: FriendlyNode<T[K], _FriendlyDepth[Depth]>}
+            ? FriendlyMeta & {[K in keyof T]-?: FriendlyNode<T[K], _FriendlyDepth[Depth]>}
             : FriendlyMeta;
 
 /** The friendly map for `T` — combined labels + per-field error templates,

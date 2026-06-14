@@ -12,9 +12,17 @@ export const UTILITY = {
       type Person = {name: string; age: number; createdAt: Date};
       type Target = Pick<Person, 'name' | 'createdAt'>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', name: {$label: ''}, createdAt: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        name: {$label: '', $errors: {type: ''}},
+        createdAt: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {name: {pool: []}, createdAt: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        name: {pool: []},
+        createdAt: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -26,9 +34,17 @@ export const UTILITY = {
       // ##### src #####
       type Target = Omit<{a: string; b?: number; c: boolean}, 'a'>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', b: {$label: ''}, c: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        b: {$label: '', $errors: {type: ''}},
+        c: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {b: {pool: []}, c: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        b: {pool: []},
+        c: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -40,9 +56,17 @@ export const UTILITY = {
       // ##### src #####
       type Target = Partial<{name: string; age: number}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', name: {$label: ''}, age: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        name: {$label: '', $errors: {type: ''}},
+        age: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {name: {pool: []}, age: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        name: {pool: []},
+        age: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -54,9 +78,17 @@ export const UTILITY = {
       // ##### src #####
       type Target = Required<{name?: string; age?: number}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', name: {$label: ''}, age: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        name: {$label: '', $errors: {type: ''}},
+        age: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {name: {pool: []}, age: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        name: {pool: []},
+        age: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -68,9 +100,17 @@ export const UTILITY = {
       // ##### src #####
       type Target = Readonly<{name: string; age: number}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', name: {$label: ''}, age: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        name: {$label: '', $errors: {type: ''}},
+        age: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {name: {pool: []}, age: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        name: {pool: []},
+        age: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -82,9 +122,17 @@ export const UTILITY = {
       // ##### src #####
       type Target = Record<'a' | 'b', number>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', a: {$label: ''}, b: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        a: {$label: '', $errors: {type: ''}},
+        b: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {a: {pool: []}, b: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        a: {pool: []},
+        b: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -96,9 +144,17 @@ export const UTILITY = {
       // ##### src #####
       type Target = ReturnType<() => {a: string; b: number}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', a: {$label: ''}, b: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        a: {$label: '', $errors: {type: ''}},
+        b: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {a: {pool: []}, b: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        a: {pool: []},
+        b: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -110,7 +166,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = keyof {name: string; age: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -124,7 +180,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = {name: string; age: number}['name'];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -138,7 +194,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = NonNullable<string | number | null | undefined>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####

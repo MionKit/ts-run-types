@@ -29,44 +29,44 @@ type _MockDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
  *  signatures + object-member unions are OUT OF SCOPE here — index-sig objects
  *  still fall through to the homomorphic object map as today. */
 export type MockNode<T, Depth extends number = 8> = Depth extends 0
-  ? {pool?: T[]} // budget spent — keep as a leaf pool
+  ? {pool: T[]} // budget spent — keep as a leaf pool
   : // Map BEFORE the array check: cheap `ReadonlyMap<any, any>` gate filters
     // non-Maps so the `infer K, V` never runs off the hot path (per DataOnly).
     T extends ReadonlyMap<any, any>
     ? T extends ReadonlyMap<infer K, infer V>
-      ? {$keys?: MockNode<K, _MockDepth[Depth]>; $values?: MockNode<V, _MockDepth[Depth]>; $size?: number | [number, number]}
-      : {pool?: T[]} // unreachable — gate guarantees a Map
+      ? {$keys: MockNode<K, _MockDepth[Depth]>; $values: MockNode<V, _MockDepth[Depth]>; $size?: number | [number, number]}
+      : {pool: T[]} // unreachable — gate guarantees a Map
     : T extends ReadonlySet<any>
       ? T extends ReadonlySet<infer U>
-        ? {$values?: MockNode<U, _MockDepth[Depth]>; $size?: number | [number, number]}
-        : {pool?: T[]} // unreachable — gate guarantees a Set
+        ? {$values: MockNode<U, _MockDepth[Depth]>; $size?: number | [number, number]}
+        : {pool: T[]} // unreachable — gate guarantees a Set
       : T extends readonly unknown[]
         ? // tuple vs array: a tuple has a literal `length`, an array's `length` is
           // the broad `number`. Tuple → per-slot homomorphic `$slots` (fixed
           // length, no `$length`); array → `$items` element node + `$length`.
           number extends T['length']
-          ? {$items?: MockNode<T[number], _MockDepth[Depth]>; $length?: number | [number, number]}
-          : {$slots?: {[K in keyof T]: MockNode<T[K], _MockDepth[Depth]>}}
+          ? {$items: MockNode<T[number], _MockDepth[Depth]>; $length?: number | [number, number]}
+          : {$slots: {[K in keyof T]: MockNode<T[K], _MockDepth[Depth]>}}
         : T extends number
-          ? {pool?: number[]; min?: number; max?: number}
+          ? {pool: number[]; min?: number; max?: number}
           : T extends string
-            ? {pool?: string[]}
+            ? {pool: string[]}
             : T extends Date
-              ? {pool?: Date[]; min?: Date; max?: Date}
+              ? {pool: Date[]; min?: Date; max?: Date}
               : T extends RegExp
-                ? {pool?: RegExp[]}
+                ? {pool: RegExp[]}
                 : // boolean / bigint BEFORE the object branch and BEFORE the fallback:
-                  // `boolean` is `true | false`, so a fallback `{pool?: T[]}` would
-                  // distribute to `{pool?: true[]} | {pool?: false[]}`. A branch whose
+                  // `boolean` is `true | false`, so a fallback `{pool: T[]}` would
+                  // distribute to `{pool: true[]} | {pool: false[]}`. A branch whose
                   // result element type is FIXED (`boolean` / `bigint`, not `T`)
                   // collapses back to one node on reassembly.
                   T extends boolean
-                  ? {pool?: boolean[]}
+                  ? {pool: boolean[]}
                   : T extends bigint
-                    ? {pool?: bigint[]}
+                    ? {pool: bigint[]}
                     : T extends object
-                      ? {[K in keyof T]?: MockNode<T[K], _MockDepth[Depth]>} & {$optional?: number}
-                      : {pool?: T[]};
+                      ? {[K in keyof T]-?: MockNode<T[K], _MockDepth[Depth]>} & {$optional?: number}
+                      : {pool: T[]};
 
 /** The mock-data map for `T`, validated against `T` at scan time — every pool /
  *  range value is checked against the field's type + format (the MD003 rule). */

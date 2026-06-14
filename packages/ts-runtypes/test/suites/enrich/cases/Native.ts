@@ -15,7 +15,7 @@ export const NATIVE = {
       // ##### src #####
       type Target = Date;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -29,7 +29,7 @@ export const NATIVE = {
       // ##### src #####
       type Target = RegExp;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -43,7 +43,12 @@ export const NATIVE = {
       // ##### src #####
       type Target = Map<string, number>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $keys: {$label: ''}, $values: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        $keys: {$label: '', $errors: {type: ''}},
+        $values: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {$keys: {pool: []}, $values: {pool: []}};
       // ##### result #####
@@ -57,7 +62,7 @@ export const NATIVE = {
       // ##### src #####
       type Target = Set<string>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $values: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $values: {$label: '', $errors: {type: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {$values: {pool: []}};
       // ##### result #####

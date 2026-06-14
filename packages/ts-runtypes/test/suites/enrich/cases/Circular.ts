@@ -15,9 +15,17 @@ export const CIRCULAR = {
       }
       type Target = Circular;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', value: {$label: ''}, next: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        value: {$label: '', $errors: {type: ''}},
+        next: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {value: {pool: []}, next: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        value: {pool: []},
+        next: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -35,11 +43,27 @@ export const CIRCULAR = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
-        a: {$label: '', b: {$label: '', c: {$label: ''}}},
-        name: {$label: ''},
+        $errors: {type: ''},
+        a: {
+          $label: '',
+          $errors: {type: ''},
+          b: {
+            $label: '',
+            $errors: {type: ''},
+            c: {$label: '', $errors: {type: ''}},
+          },
+        },
+        name: {$label: '', $errors: {type: ''}},
       };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {a: {b: {c: {pool: []}}}, name: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        a: {
+          b: {
+            c: {pool: []},
+          },
+        },
+        name: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -57,11 +81,15 @@ export const CIRCULAR = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
-        items: {$label: '', $items: {$label: ''}},
-        id: {$label: ''},
+        $errors: {type: ''},
+        items: {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}},
+        id: {$label: '', $errors: {type: ''}},
       };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {items: {$items: {}, $length: [1, 3]}, id: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        items: {$items: {}, $length: [1, 3]},
+        id: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
