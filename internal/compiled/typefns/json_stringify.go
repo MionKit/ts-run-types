@@ -346,6 +346,10 @@ func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) R
 	if objectHasCallSignature(rt, ctx) {
 		return RTCode{Code: "", Type: CodeNS}
 	}
+	// Publish the named-property set so the index signature's for-in loop skips
+	// declared keys (each named prop is emitted with its own type), instead of
+	// stringifying them again under the index value's transform (G1).
+	publishSiblingNamedKeysForIndexSig(rt, ctx)
 	type pendingChild struct {
 		ref      *protocol.RunType
 		optional bool
@@ -627,6 +631,8 @@ func emitIndexSignatureStringifyJson(rt *protocol.RunType, ctx *EmitContext, v s
 		trailingSep = ""
 	}
 	body := "const " + arr + " = []; for (const " + keyVar + " in " + v + ") {" +
+		// Skip declared sibling keys — emitted with their own type above (G1).
+		siblingNamedSkipCode(rt, ctx, keyVar) +
 		"if (" + v + "[" + keyVar + "] !== undefined) " + arr + ".push(JSON.stringify(" + keyVar + ") + ':' + " + childRT.Code + ");" +
 		"} if (!" + arr + ".length) return ''; return " + arr + ".join(',')" + trailingSep
 	return RTCode{Code: body, Type: CodeRB}
