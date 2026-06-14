@@ -51,15 +51,26 @@ func dataOnlyUnionMembers(rt *protocol.RunType, ctx *EmitContext) []*protocol.Ru
 	if len(children) == 0 {
 		children = rt.Children
 	}
-	survivors := make([]*protocol.RunType, 0, len(children))
+	strippedCount := 0
+	for _, ref := range children {
+		if isStrippedUnionMember(ctx.ResolveRef(ref)) {
+			strippedCount++
+		}
+	}
+	// Fast path: nothing stripped — return the ORIGINAL slice untouched so
+	// callers see byte-identical behavior to the pre-DataOnly code (the common
+	// case). All members stripped (DataOnly = never) — also return the original
+	// so the emitter still reaches a CodeNS leaf and renders the alwaysThrow
+	// factory.
+	if strippedCount == 0 || strippedCount == len(children) {
+		return children
+	}
+	survivors := make([]*protocol.RunType, 0, len(children)-strippedCount)
 	for _, ref := range children {
 		if isStrippedUnionMember(ctx.ResolveRef(ref)) {
 			continue
 		}
 		survivors = append(survivors, ref)
-	}
-	if len(survivors) == 0 {
-		return children
 	}
 	return survivors
 }
