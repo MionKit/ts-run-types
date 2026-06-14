@@ -1,6 +1,6 @@
 <template>
   <span class="rt-logo" role="img" aria-label="RunTypes">
-    Run<span class="rt-logo-trademark">Types</span>
+    Run<span class="rt-logo-trademark">Types®</span>
   </span>
 </template>
 
