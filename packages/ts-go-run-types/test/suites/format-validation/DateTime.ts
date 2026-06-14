@@ -590,6 +590,11 @@ export const DATETIME = {
   },
   plainDate_min_lt: {
     title: 'FormatTemporalPlainDate<{min,lt}> — inclusive lower + exclusive upper',
+    description: '`Temporal.PlainDate` mixing an inclusive lower `min` with an exclusive upper `lt`',
+    validateNotes: [
+      'Mixed edges: the lower bound 2020-01-01 (`min`, inclusive) passes, but the upper bound 2020-01-10 (`lt`, exclusive) fails; the day before it (2020-01-09) passes.',
+      'Below-range 2019-12-31 trips `min`.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -636,6 +641,11 @@ export const DATETIME = {
   },
   plainDate_gt_max: {
     title: 'FormatTemporalPlainDate<{gt,max}> — exclusive lower + inclusive upper',
+    description: '`Temporal.PlainDate` mixing an exclusive lower `gt` with an inclusive upper `max`',
+    validateNotes: [
+      'Mixed edges: the lower bound 2020-01-01 (`gt`, exclusive) fails while the day after (2020-01-02) passes; the upper bound 2020-01-10 (`max`, inclusive) passes.',
+      'Above-range 2020-01-11 trips `max`.',
+    ],
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
@@ -682,6 +692,8 @@ export const DATETIME = {
   },
   plainDate_min_only: {
     title: 'FormatTemporalPlainDate<{min}> — lower bound only',
+    description: '`Temporal.PlainDate` with an inclusive lower `min` only; upper end is open',
+    validateNotes: 'Inclusive `min`: the boundary 2020-01-01 passes, as does any later date (2099-12-31); only 2019-12-31 (below `min`) fails.',
     // Temporal-based format types (`Temporal.X & {brand}`) are validated by native
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.

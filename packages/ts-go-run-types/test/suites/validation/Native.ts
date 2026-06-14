@@ -8,6 +8,10 @@ export const NATIVE = {
     title: 'Map with string keys and number values',
     description:
       'mion native/map — `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
+    validateNotes: [
+      'Must be an actual `Map` instance — a plain object, array, or `Set` is rejected.',
+      'The value side reuses the atomic `number` check, so a `NaN` value is rejected (path `{key, index, failed: "mapValue"}`).',
+    ],
     validate: () => createValidate<Map<string, number>>(),
     validateDataOnly: () => createValidate<DataOnly<Map<string, number>>>(),
     validateSchema: () => createValidate(RT.map(RT.string(), RT.number())),
@@ -72,6 +76,8 @@ export const NATIVE = {
   set_string: {
     title: 'Set of strings',
     description: 'mion native/set — `v instanceof Set` plus iteration over `v.values()`.',
+    validateNotes:
+      'Must be an actual `Set` instance — a plain object, array, or `Map` is rejected; each element is checked against the element type (set path is `{key: safe(item), index}`).',
     validate: () => createValidate<Set<string>>(),
     validateDataOnly: () => createValidate<DataOnly<Set<string>>>(),
     validateSchema: () => createValidate(RT.set(RT.string())),
