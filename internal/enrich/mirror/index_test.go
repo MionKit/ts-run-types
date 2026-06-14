@@ -1,10 +1,22 @@
-package main
+package mirror
 
 import (
 	"reflect"
 	"strings"
 	"testing"
 )
+
+// mustParse parses a mirror file that is expected to be valid, failing the test
+// on a parse error — the in-package convenience wrapper now that ParseMirror
+// returns an error.
+func mustParse(t *testing.T, mirrorPath, src string) *Index {
+	t.Helper()
+	index, err := ParseMirror(mirrorPath, []byte(src))
+	if err != nil {
+		t.Fatalf("ParseMirror(%q) error: %v", mirrorPath, err)
+	}
+	return index
+}
 
 // TestParseMirror_IndexConsts indexes consts by their @rtType id (with the
 // @rtIds child map) and falls back to the var name when no marker is present.
@@ -23,7 +35,7 @@ func TestParseMirror_IndexConsts(t *testing.T) {
 		"  name: { pool: ['Alice'] },\n" +
 		"};\n"
 
-	index := parseMirror("/rt/gen/models/user.ts", []byte(src))
+	index := mustParse(t, "/rt/gen/models/user.ts", src)
 
 	// friendlyUser is indexed by its (@rtType id, friendly form).
 	friendly, ok := index.byTypeForm[typeFormKey("abc1234", true)]
@@ -75,7 +87,7 @@ func TestParseMirror_DuplicateTypeIDKeepsFirst(t *testing.T) {
 		"/** @rtType User#dupID */\n" +
 		"export const friendlyUserB: FriendlyType<User> = { $label: 'B' };\n"
 
-	index := parseMirror("/rt/gen/user.ts", []byte(src))
+	index := mustParse(t, "/rt/gen/user.ts", src)
 	entry, ok := index.byTypeForm[typeFormKey("dupID", true)]
 	if !ok {
 		t.Fatalf("dupID not indexed at all")
@@ -97,7 +109,7 @@ func TestParseMirror_IndexImports(t *testing.T) {
 		"import { friendlyAddress, mockAddress } from './address';\n" +
 		"export const friendlyUser: FriendlyType<User> = { $label: '' };\n"
 
-	index := parseMirror("/rt/gen/models/user.ts", []byte(src))
+	index := mustParse(t, "/rt/gen/models/user.ts", src)
 
 	if index.breadcrumb == nil {
 		t.Fatalf("breadcrumb not indexed")
@@ -146,10 +158,10 @@ func TestParseConstMarkers(t *testing.T) {
 // TestMarkerComment renders a deterministic, parse-round-tripping JSDoc marker
 // (sorted @rtIds keys), and omits the comment entirely when there is no id.
 func TestMarkerComment(t *testing.T) {
-	got := markerComment("User", "9f3a", map[string]string{"age": "b2", "name": "a1"})
+	got := MarkerComment("User", "9f3a", map[string]string{"age": "b2", "name": "a1"})
 	want := "/** @rtType User#9f3a @rtIds {age: b2, name: a1} */\n"
 	if got != want {
-		t.Errorf("markerComment = %q, want %q", got, want)
+		t.Errorf("MarkerComment = %q, want %q", got, want)
 	}
 
 	// Round-trip: parseConstMarkers recovers the same id + map.
@@ -162,13 +174,13 @@ func TestMarkerComment(t *testing.T) {
 	}
 
 	// No id → no marker.
-	if markerComment("User", "", nil) != "" {
+	if MarkerComment("User", "", nil) != "" {
 		t.Errorf("expected empty marker for empty typeID")
 	}
 
 	// No childIDs → @rtType only.
-	if markerComment("User", "abc", nil) != "/** @rtType User#abc */\n" {
-		t.Errorf("marker without childIDs = %q", markerComment("User", "abc", nil))
+	if MarkerComment("User", "abc", nil) != "/** @rtType User#abc */\n" {
+		t.Errorf("marker without childIDs = %q", MarkerComment("User", "abc", nil))
 	}
 }
 

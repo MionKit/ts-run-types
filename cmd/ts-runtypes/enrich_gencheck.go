@@ -10,6 +10,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
 )
 
 // breadcrumbPattern matches a mirror file's source breadcrumb:
@@ -155,7 +156,7 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 	}
 
 	// Resolve the breadcrumb specifier relative to the mirror file's directory.
-	resolvedSource := resolveBreadcrumb(mirrorFile, sourceSpec)
+	resolvedSource := mirror.ResolveBreadcrumb(mirrorFile, sourceSpec)
 
 	var findings []driftFinding
 
@@ -175,7 +176,7 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 	sourceText, readErr := os.ReadFile(resolvedSource)
 	if readErr == nil {
 		for _, typeName := range typeNames {
-			if !sourceDeclaresType(string(sourceText), typeName) {
+			if !mirror.SourceDeclaresType(string(sourceText), typeName) {
 				findings = append(findings, driftFinding{
 					File:     mirrorFile,
 					Severity: enrich.Error,
@@ -240,84 +241,4 @@ func splitImportNames(clause string) []string {
 		}
 	}
 	return names
-}
-
-// resolveBreadcrumb resolves a module specifier (as written in the breadcrumb,
-// extension stripped) relative to the mirror file's directory, appending ".ts"
-// (the source is a .ts; a .d.ts-origin mirror still tracks the .ts/.d.ts source,
-// and we probe both). Returns the .ts candidate; the caller's Stat falls through
-// to GE002 when neither exists.
-func resolveBreadcrumb(mirrorFile, spec string) string {
-	base := filepath.Join(filepath.Dir(mirrorFile), filepath.FromSlash(spec))
-	tsCandidate := tspath.NormalizePath(base + ".ts")
-	if _, err := os.Stat(tsCandidate); err == nil {
-		return tsCandidate
-	}
-	dtsCandidate := tspath.NormalizePath(base + ".d.ts")
-	if _, err := os.Stat(dtsCandidate); err == nil {
-		return dtsCandidate
-	}
-	// Neither exists — return the .ts candidate so GE002 reports a concrete path.
-	return tsCandidate
-}
-
-// sourceDeclaresType reports whether sourceText still makes typeName available —
-// as a direct declaration OR a re-export. It is shared by the orphan judgement
-// (A5: a false negative DESTRUCTIVELY orphans a live type) and gen --check
-// (GE003), so it errs toward KEEP on uncertainty. A textual scan — sufficient
-// for "does this name still exist as a declaration or export here?".
-//
-// Recognized:
-//   - direct declaration: interface/type/class/enum Name (declare/abstract/export)
-//   - value binding:      export (declare) const/let/var/function Name / enum / namespace
-//   - named re-export:    export { Name }, export { X as Name }, export type { … }
-//   - wildcard re-export: any `export * from` → UNKNOWN, conservatively KEEP
-//
-// The wildcard case can re-export Name from elsewhere; we cannot prove absence,
-// so we never orphan when one is present.
-func sourceDeclaresType(sourceText, typeName string) bool {
-	// Direct declaration / value binding with the name in the declarator position.
-	declPattern := regexp.MustCompile(`(?m)(^|\b)(export\s+)?(declare\s+)?(abstract\s+)?(interface|type|class|enum|namespace|module|const|let|var|function)\s+` + regexp.QuoteMeta(typeName) + `\b`)
-	if declPattern.MatchString(sourceText) {
-		return true
-	}
-	// Any `export * from` (with or without a namespace alias) — could re-export the
-	// name; cannot prove absence, so KEEP (never orphan on uncertainty).
-	if regexp.MustCompile(`(?m)export\s+\*`).MatchString(sourceText) {
-		return true
-	}
-	// Named re-export: scan every `export [type] { … }` clause for the name as
-	// either the local name or the `as`-aliased exported name.
-	if exportClauseDeclares(sourceText, typeName) {
-		return true
-	}
-	return false
-}
-
-// exportClauseDeclares reports whether any `export { … }` (or `export type
-// { … }`) clause in sourceText exports typeName — matching it as a bare name, as
-// the local side of `Name as X`, or as the exported side of `X as Name`. The
-// clause may or may not carry a `from '<spec>'` tail (re-export vs local
-// re-bind); both count.
-func exportClauseDeclares(sourceText, typeName string) bool {
-	clausePattern := regexp.MustCompile(`(?s)export\s+(?:type\s+)?\{([^}]*)\}`)
-	for _, match := range clausePattern.FindAllStringSubmatch(sourceText, -1) {
-		for _, part := range strings.Split(match[1], ",") {
-			specifier := strings.TrimSpace(part)
-			if specifier == "" {
-				continue
-			}
-			// `Local as Exported` — typeName matches EITHER side (the local declares
-			// it, the exported name makes it importable under that name).
-			localName, exportedName := specifier, specifier
-			if idx := strings.Index(specifier, " as "); idx >= 0 {
-				localName = strings.TrimSpace(specifier[:idx])
-				exportedName = strings.TrimSpace(specifier[idx+len(" as "):])
-			}
-			if localName == typeName || exportedName == typeName {
-				return true
-			}
-		}
-	}
-	return false
 }

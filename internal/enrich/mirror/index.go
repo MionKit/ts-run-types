@@ -1,8 +1,7 @@
-package main
+package mirror
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -13,12 +12,12 @@ import (
 	"github.com/microsoft/typescript-go/shim/tspath"
 )
 
-// mirrorIndex is the parsed view of an existing committed mirror file the
-// reconcile (gen --update) algorithm matches the freshly-regenerated desired
-// set against. It is built by parseMirror over the file's AST; byte ranges are
-// raw offsets into the ORIGINAL file bytes (AST Pos/End are byte offsets), so a
-// splice slices them directly with no char conversion.
-type mirrorIndex struct {
+// Index is the parsed view of an existing committed mirror file the reconcile
+// (gen --update) algorithm matches the freshly-regenerated desired set against.
+// It is built by ParseMirror over the file's AST; byte ranges are raw offsets
+// into the ORIGINAL file bytes (AST Pos/End are byte offsets), so a splice
+// slices them directly with no char conversion.
+type Index struct {
 	// raw is the original file bytes (the splice base).
 	raw []byte
 	// sourceFile is the parsed AST (the scanner needs it for trivia-trimmed
@@ -46,6 +45,10 @@ type mirrorIndex struct {
 	// type previously orphaned), keyed by `<form>:<typeID>` so a reappearing
 	// desired const can RESTORE its preserved value instead of regenerating it.
 	orphanCarcasses map[string]*carcassEntry
+	// Warnings are non-fatal advisories collected while indexing (e.g. a
+	// duplicate @rtType id on two consts of the same form). The CLI prints them
+	// to stderr; the pure package never does I/O.
+	Warnings []string
 }
 
 // carcassEntry is one `@rtOrphan` commented-out const block: its absolute byte
@@ -115,13 +118,13 @@ var rtIdsPattern = regexp.MustCompile(`@rtIds\s*\{([^}]*)\}`)
 // inside an @rtIds block. Group 1 is the dotted field path, group 3 the id.
 var rtIdsEntryPattern = regexp.MustCompile(`([\w.$]+)\s*:\s*(?:([\w$]+)#)?(\w+)`)
 
-// parseMirror parses mirrorBytes as a standalone TypeScript source file and
-// indexes its consts + imports. It is FATAL when the parse reports any
-// diagnostic (a syntax error) — we never silently append to or overwrite a file
-// we cannot parse. A nil sourceFile never happens on a syntax error (the parser
-// returns a node with Diagnostics populated), so the Diagnostics gate is the
-// real check.
-func parseMirror(mirrorPath string, mirrorBytes []byte) *mirrorIndex {
+// ParseMirror parses mirrorBytes as a standalone TypeScript source file and
+// indexes its consts + imports. It returns an error when the parse reports any
+// diagnostic (a syntax error) — the caller never silently appends to or
+// overwrites a file it cannot parse. A nil sourceFile never happens on a syntax
+// error (the parser returns a node with Diagnostics populated), so the
+// Diagnostics gate is the real check.
+func ParseMirror(mirrorPath string, mirrorBytes []byte) (*Index, error) {
 	text := string(mirrorBytes)
 	sourceFile := parser.ParseSourceFile(
 		ast.SourceFileParseOptions{FileName: mirrorPath, Path: tspath.Path(mirrorPath)},
@@ -129,14 +132,14 @@ func parseMirror(mirrorPath string, mirrorBytes []byte) *mirrorIndex {
 		core.ScriptKindTS,
 	)
 	if sourceFile == nil {
-		fatal("gen --update: cannot parse mirror %s; fix or delete it", mirrorPath)
+		return nil, fmt.Errorf("gen --update: cannot parse mirror %s; fix or delete it", mirrorPath)
 	}
 	if diagnostics := sourceFile.Diagnostics(); len(diagnostics) > 0 {
-		fatal("gen --update: cannot parse mirror %s (%d syntax error(s)); fix or delete it: %s",
+		return nil, fmt.Errorf("gen --update: cannot parse mirror %s (%d syntax error(s)); fix or delete it: %s",
 			mirrorPath, len(diagnostics), firstDiagnosticMessage(diagnostics))
 	}
 
-	index := &mirrorIndex{
+	index := &Index{
 		raw:             mirrorBytes,
 		sourceFile:      sourceFile,
 		byTypeForm:      map[string]*constEntry{},
@@ -146,7 +149,7 @@ func parseMirror(mirrorPath string, mirrorBytes []byte) *mirrorIndex {
 
 	root := sourceFile.AsNode()
 	if root == nil {
-		return index
+		return index, nil
 	}
 	for _, statement := range root.Statements() {
 		if statement == nil {
@@ -160,7 +163,7 @@ func parseMirror(mirrorPath string, mirrorBytes []byte) *mirrorIndex {
 		}
 	}
 	index.indexOrphanCarcasses(text)
-	return index
+	return index, nil
 }
 
 // orphanCarcassPattern matches a whole-const `@rtOrphan` block comment:
@@ -172,7 +175,7 @@ var orphanCarcassPattern = regexp.MustCompile(`(?s)/\* @rtOrphan (.*?) \*/`)
 // and its `@rtType <Name>#<id>` id + friendly/mock form so a reappearing desired
 // const can restore it. Carcasses are NOT statements (they are comments), so
 // this is a text scan, not an AST walk.
-func (index *mirrorIndex) indexOrphanCarcasses(text string) {
+func (index *Index) indexOrphanCarcasses(text string) {
 	for _, match := range orphanCarcassPattern.FindAllStringSubmatchIndex(text, -1) {
 		blockStart, blockEnd := match[0], match[1]
 		inner := text[match[2]:match[3]]
@@ -213,7 +216,7 @@ func firstDiagnosticMessage(diagnostics []*ast.Diagnostic) string {
 
 // indexVariableStatement records every `export const friendly*/mock*` the
 // statement declares, keyed by its @rtType id (fallback: var name).
-func (index *mirrorIndex) indexVariableStatement(text string, statement *ast.Node) {
+func (index *Index) indexVariableStatement(text string, statement *ast.Node) {
 	tokenStart := scanner.GetTokenPosOfNode(statement, index.sourceFile, false)
 	leadingComment := text[statement.Pos():tokenStart]
 
@@ -260,9 +263,9 @@ func (index *mirrorIndex) indexVariableStatement(text string, statement *ast.Nod
 			// than silently last-write-wins (which would mis-pair the reconcile).
 			// The duplicate stays reachable via byVar for the var-name fallback.
 			if first, dup := index.byTypeForm[key]; dup {
-				fmt.Fprintf(os.Stderr,
-					"gen --update: duplicate @rtType id %q (form %s) on both %q and %q — keeping the first; fix the marker on the second\n",
-					typeID, formLabel(isFriendly), first.varName, varName)
+				index.Warnings = append(index.Warnings, fmt.Sprintf(
+					"gen --update: duplicate @rtType id %q (form %s) on both %q and %q — keeping the first; fix the marker on the second",
+					typeID, formLabel(isFriendly), first.varName, varName))
 			} else {
 				index.byTypeForm[key] = entry
 			}
@@ -303,7 +306,7 @@ func annotationTypeName(declaration *ast.Node) string {
 
 // indexImport records one import statement: the source breadcrumb, the
 // ts-runtypes DSL import, or a cross-file value import.
-func (index *mirrorIndex) indexImport(text string, statement *ast.Node) {
+func (index *Index) indexImport(text string, statement *ast.Node) {
 	importDecl := statement.AsImportDeclaration()
 	if importDecl == nil || importDecl.ModuleSpecifier == nil {
 		return

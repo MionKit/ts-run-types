@@ -1,8 +1,6 @@
-package main
+package mirror
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -42,7 +40,7 @@ func TestConstBlock_EmitsTodoAfterMarker(t *testing.T) {
 		TypeID:      "uID",
 		ChildIDs:    map[string]string{"name": "nID"},
 	}
-	block := constBlock(named.FriendlyVar, "FriendlyType", named, "{$label: ''}")
+	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{$label: ''}")
 
 	if strings.Count(block, "@todo") != 1 {
 		t.Errorf("a new const must carry exactly one @todo line:\n%s", block)
@@ -78,7 +76,7 @@ func TestConstBlock_EmitsTodoAfterMarker(t *testing.T) {
 // independent of whether the reconcile marker is present.
 func TestConstBlock_EmitsTodoWithoutMarker(t *testing.T) {
 	named := enrich.NamedConst{TypeName: "Anon", FriendlyVar: "friendlyAnon"} // no TypeID
-	block := constBlock(named.FriendlyVar, "FriendlyType", named, "{$label: ''}")
+	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{$label: ''}")
 	if strings.Contains(block, "@rtType") {
 		t.Fatalf("precondition: a const with no TypeID should have no @rtType marker:\n%s", block)
 	}
@@ -96,13 +94,13 @@ func TestConstBlock_EmitsTodoWithoutMarker(t *testing.T) {
 func TestAppendNewConsts_StampsTodo(t *testing.T) {
 	src := "import type { A } from './a';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n"
-	index := parseMirror("/rt/gen/a.ts", []byte(src))
-	spec := mirrorWrite{
-		mirrorPath:   "/rt/gen/a.ts",
-		sourceFile:   "/src/a.ts",
-		out:          "/rt/gen/a.ts", // single-file: skip cross-file import wiring
-		wantFriendly: true,
-		wantMock:     true,
+	index := mustParse(t, "/rt/gen/a.ts", src)
+	spec := Spec{
+		MirrorPath:   "/rt/gen/a.ts",
+		SourceFile:   "/src/a.ts",
+		Out:          "/rt/gen/a.ts", // single-file: skip cross-file import wiring
+		WantFriendly: true,
+		WantMock:     true,
 	}
 	added := []enrich.NamedConst{{
 		TypeName:    "B",
@@ -140,12 +138,12 @@ func TestReconcile_DoesNotReAddTodo(t *testing.T) {
 		"  name: {pool: ['Ann']},\n" +
 		"};\n"
 
-	spec := mirrorWrite{
-		mirrorPath:   "/rt/gen/models.ts",
-		sourceFile:   "/src/models.ts",
-		wantFriendly: true,
-		wantMock:     true,
-		consts: []enrich.NamedConst{{
+	spec := Spec{
+		MirrorPath:   "/rt/gen/models.ts",
+		SourceFile:   "/src/models.ts",
+		WantFriendly: true,
+		WantMock:     true,
+		Consts: []enrich.NamedConst{{
 			TypeName:    "User",
 			DeclFile:    "/src/models.ts",
 			FriendlyVar: "friendlyUser",
@@ -185,7 +183,7 @@ func TestPruneIgnoresTodo(t *testing.T) {
 	src := "/** @rtType User#uID */\n" +
 		todoLine + "\n" +
 		"export const friendlyUser: FriendlyType<User> = { $label: '' };\n"
-	pruned, removed := pruneOrphanBlocks(src)
+	pruned, removed, _ := PruneOrphanBlocks(src)
 	if removed != 0 {
 		t.Errorf("--prune must ignore @todo (removed=%d):\n%s", removed, pruned)
 	}
@@ -236,83 +234,33 @@ func TestSkeletonBody_NoTodo(t *testing.T) {
 	// marker + @todo lines up to `export const`), leaves a body with no @todo —
 	// proving the flag never bleeds into the body the batch path emits.
 	named := enrich.NamedConst{TypeName: "User", FriendlyVar: "friendlyUser", TypeID: "uID"}
-	block := constBlock(named.FriendlyVar, "FriendlyType", named, "{$label: ''}")
+	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{$label: ''}")
 	body := block[strings.Index(block, "= ")+2:]
 	if strings.Contains(body, "@todo") {
 		t.Errorf("the @todo must live in the wrapper, never in the body:\n%s", body)
 	}
 }
 
-// TestWriteMirrorFile_CreateOnly_IdempotentTodo is the create-only first-gen
-// idempotency guard for Task 1: a SECOND create-only write (writeMirrorFile, the
-// no --update path) over an already-populated mirror is a no-op (hasExport skip),
-// so it never duplicates or re-adds the `@todo`. The first write stamps exactly
-// one @todo per const; the re-run leaves the file byte-identical.
-func TestWriteMirrorFile_CreateOnly_IdempotentTodo(t *testing.T) {
-	dir := t.TempDir()
-	mirror := filepath.Join(dir, "models.ts")
-	spec := mirrorWrite{
-		mirrorPath:   mirror,
-		sourceFile:   filepath.Join(dir, "models-src.ts"),
-		out:          mirror, // single-file: skip cross-file import wiring
-		wantFriendly: true,
-		wantMock:     true,
-		consts: []enrich.NamedConst{{
-			TypeName:    "User",
-			FriendlyVar: "friendlyUser",
-			MockVar:     "mockUser",
-			Friendly:    "{$label: ''}",
-			Mock:        "{}",
-			TypeID:      "uID",
-		}},
-	}
-
-	if wrote := writeMirrorFile(spec); !wrote {
-		t.Fatalf("first create-only write should have written the mirror")
-	}
-	first, err := os.ReadFile(mirror)
-	if err != nil {
-		t.Fatalf("read mirror after first write: %v", err)
-	}
-	if n := strings.Count(string(first), "@todo"); n != 2 {
-		t.Errorf("first write should stamp one @todo per const (friendly + mock); got %d:\n%s", n, first)
-	}
-
-	// Re-run create-only: every export is already present → hasExport skip → no-op.
-	if wrote := writeMirrorFile(spec); wrote {
-		t.Errorf("second create-only write must be a no-op (every export already present)")
-	}
-	second, err := os.ReadFile(mirror)
-	if err != nil {
-		t.Fatalf("read mirror after second write: %v", err)
-	}
-	if string(second) != string(first) {
-		t.Errorf("create-only re-run must be byte-identical:\n first  = %q\n second = %q", first, second)
-	}
-	if n := strings.Count(string(second), "@todo"); n != 2 {
-		t.Errorf("re-run must not duplicate or re-add @todo; got %d:\n%s", n, second)
-	}
-}
-
 // reconcileToBytes runs the reconcile against existing bytes and returns the
-// resulting file, WITHOUT writing to disk — it replays reconcileMirror's body
-// over an in-memory index so the @todo / merge assertions stay file-system free.
-// The orphan-const judgement is skipped (no breadcrumb source to read) — these
-// tests exercise the property-merge + append arms, not the orphan arm.
-func reconcileToBytes(t *testing.T, spec mirrorWrite, existing string) []byte {
+// resulting file, WITHOUT writing to disk — it replays Reconcile's property-merge
+// + append arms over an in-memory index so the @todo / merge assertions stay
+// file-system free. The orphan-const judgement is skipped (no breadcrumb source
+// to read) — these tests exercise the property-merge + append arms, not the
+// orphan arm.
+func reconcileToBytes(t *testing.T, spec Spec, existing string) []byte {
 	t.Helper()
-	index := parseMirror(spec.mirrorPath, []byte(existing))
+	index := mustParse(t, spec.MirrorPath, existing)
 
 	var ops []spliceOp
 	var addedConsts []enrich.NamedConst
-	for _, named := range spec.consts {
-		if spec.wantFriendly {
+	for _, named := range spec.Consts {
+		if spec.WantFriendly {
 			reconcileOneConst(&ops, &addedConsts, index, named, true)
 		}
-		if spec.wantMock {
+		if spec.WantMock {
 			reconcileOneConst(&ops, &addedConsts, index, named, false)
 		}
 	}
-	merged := applySplices(index.raw, ops)
-	return appendNewConsts(merged, spec, index, addedConsts)
+	merged := mustSplice(t, index.raw, ops)
+	return appendNewConsts([]byte(merged), spec, index, addedConsts)
 }
