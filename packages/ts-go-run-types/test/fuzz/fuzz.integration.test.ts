@@ -1,0 +1,154 @@
+// End-to-end fuzz: drives REAL compiled validate/serialize functions through
+// the oracle harness. Runs under the package vitest config (with the Vite
+// plugin + Go binary), so the createX call sites below are rewritten with the
+// resolved runtype id at compile time.
+//
+// IMPORTANT: the plugin resolves each createX call STATICALLY from the type of
+// its argument, so every factory must be called against a concretely-typed
+// `const schema` — never a generic `RunType` parameter (that would inject the
+// `unknown` runtype). Hence the per-target inlining instead of a shared helper.
+
+import {describe, it, expect} from 'vitest';
+import * as RT from '@mionjs/ts-go-run-types/schema';
+import {
+  createMockType,
+  createValidate,
+  createGetValidationErrors,
+  createJsonEncoder,
+  createJsonDecoder,
+  createBinaryEncoder,
+  createBinaryDecoder,
+} from '@mionjs/ts-go-run-types';
+import {runFuzz, runFuzzForDuration} from './fuzzRunner.ts';
+import type {FuzzTarget} from './fuzzOracle.ts';
+
+const targets: FuzzTarget[] = [];
+
+// --- target: flat object of primitives ---
+{
+  const schema = RT.object({id: RT.number(), name: RT.string(), active: RT.boolean()});
+  targets.push({
+    title: 'User',
+    schema,
+    mock: createMockType(schema),
+    validate: createValidate(schema),
+    getValidationErrors: createGetValidationErrors(schema),
+    jsonEncode: createJsonEncoder(schema),
+    jsonDecode: createJsonDecoder(schema),
+    binaryEncode: createBinaryEncoder(schema),
+    binaryDecode: createBinaryDecoder(schema),
+  });
+}
+
+// --- target: nested object with an array and a sub-object ---
+{
+  const schema = RT.object({tags: RT.array(RT.string()), meta: RT.object({count: RT.number()})});
+  targets.push({
+    title: 'Nested',
+    schema,
+    mock: createMockType(schema),
+    validate: createValidate(schema),
+    getValidationErrors: createGetValidationErrors(schema),
+    jsonEncode: createJsonEncoder(schema),
+    jsonDecode: createJsonDecoder(schema),
+    binaryEncode: createBinaryEncoder(schema),
+    binaryDecode: createBinaryDecoder(schema),
+  });
+}
+
+// --- target: tuple of mixed primitives ---
+{
+  const schema = RT.tuple([RT.string(), RT.number(), RT.boolean()]);
+  targets.push({
+    title: 'Tuple',
+    schema,
+    mock: createMockType(schema),
+    validate: createValidate(schema),
+    getValidationErrors: createGetValidationErrors(schema),
+    jsonEncode: createJsonEncoder(schema),
+    jsonDecode: createJsonDecoder(schema),
+    binaryEncode: createBinaryEncoder(schema),
+    binaryDecode: createBinaryDecoder(schema),
+  });
+}
+
+// --- target: optional + literal discriminant ---
+{
+  const schema = RT.object({kind: RT.literal('a'), value: RT.number(), note: RT.optional(RT.string())});
+  targets.push({
+    title: 'OptionalLiteral',
+    schema,
+    mock: createMockType(schema),
+    validate: createValidate(schema),
+    getValidationErrors: createGetValidationErrors(schema),
+    jsonEncode: createJsonEncoder(schema),
+    jsonDecode: createJsonDecoder(schema),
+    binaryEncode: createBinaryEncoder(schema),
+    binaryDecode: createBinaryDecoder(schema),
+  });
+}
+
+// --- target: Date + bigint (round-trip through the serializers) ---
+{
+  const schema = RT.object({created: RT.date(), id: RT.bigint()});
+  targets.push({
+    title: 'DateBigint',
+    schema,
+    mock: createMockType(schema),
+    validate: createValidate(schema),
+    getValidationErrors: createGetValidationErrors(schema),
+    jsonEncode: createJsonEncoder(schema),
+    jsonDecode: createJsonDecoder(schema),
+    binaryEncode: createBinaryEncoder(schema),
+    binaryDecode: createBinaryDecoder(schema),
+  });
+}
+
+// --- target: union-typed field (walker must skip it; still corrupts siblings) ---
+{
+  const schema = RT.object({status: RT.union([RT.literal('on'), RT.literal('off')]), n: RT.number()});
+  targets.push({
+    title: 'UnionField',
+    schema,
+    mock: createMockType(schema),
+    validate: createValidate(schema),
+    getValidationErrors: createGetValidationErrors(schema),
+    jsonEncode: createJsonEncoder(schema),
+    jsonDecode: createJsonDecoder(schema),
+    binaryEncode: createBinaryEncoder(schema),
+    binaryDecode: createBinaryDecoder(schema),
+  });
+}
+
+describe('fuzz / integration — oracle sweep over compiled functions', () => {
+  it('finds no oracle violations across all targets', () => {
+    const report = runFuzz(targets, {seed: 0xc0ffee, iterations: 100});
+    if (report.violations.length > 0) {
+      const summary = report.violations
+        .slice(0, 25)
+        .map((v) => `  [${v.oracle}/${v.phase}] ${v.target} (seed=${v.seed}): ${v.message}\n      value=${v.value}`)
+        .join('\n');
+      throw new Error(
+        `${report.violations.length} oracle violation(s) over ${report.runs} runs:\n${summary}` +
+          (report.violations.length > 25 ? `\n  …and ${report.violations.length - 25} more` : '')
+      );
+    }
+    expect(report.runs).toBe(targets.length * 100);
+  });
+
+  // Autonomous soak: opt-in via `FUZZ_SOAK_MS=<ms>`. Runs continuously for the
+  // given duration, logging every violation as it is found (the "run for some
+  // time and log all errors" mode). Skipped in normal CI runs.
+  const soakMs = Number(process.env.FUZZ_SOAK_MS ?? 0);
+  it.runIf(soakMs > 0)(
+    'soak — fuzz continuously and log all findings',
+    () => {
+      const report = runFuzzForDuration(targets, soakMs, {seed: Number(process.env.FUZZ_SEED ?? 1)}, (v) => {
+        console.error(`[fuzz][${v.oracle}/${v.phase}] ${v.target} (seed=${v.seed}): ${v.message}\n    value=${v.value}`);
+      });
+      console.error(`[fuzz] soak finished: ${report.runs} runs, ${report.violations.length} violation(s)`);
+      expect(report.violations).toHaveLength(0);
+    },
+    soakMs + 30_000
+  );
+});
