@@ -33,12 +33,12 @@ func setupInlineModeAllInternal(t testing.TB, sources map[string]string) *resolv
 
 // pairedArraySource exercises both marker forms (static + reflection) per
 // the marker test coverage rule, over a parent embedding an UNNAMED array.
-const pairedArraySource = `import {createValidate, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+const pairedArraySource = `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 type Parent = {tags: string[]};
 export const isParent = createValidate<Parent>();
 export const staticId = getRunTypeId<Parent>();
 const p = {tags: ['a']} as Parent;
-export const reflectedId = reflectRunTypeId(p);
+export const reflectedId = getRunTypeId(p);
 `
 
 // valEntryKeys returns the entryModules keys belonging to the validate
@@ -73,13 +73,13 @@ func TestInlineMode_Default_UnnamedArrayDropsChildEntry(t *testing.T) {
 	}
 }
 
-const namedAliasArraySource = `import {createValidate, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+const namedAliasArraySource = `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 type Tags = string[];
 type Parent = {tags: Tags};
 export const isParent = createValidate<Parent>();
 export const staticId = getRunTypeId<Parent>();
 const p = {tags: ['a']} as Parent;
-export const reflectedId = reflectRunTypeId(p);
+export const reflectedId = getRunTypeId(p);
 `
 
 func TestInlineMode_Default_NamedArrayStaysExternal(t *testing.T) {

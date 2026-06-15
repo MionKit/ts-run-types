@@ -108,9 +108,9 @@ getRunTypeId<string>();
 }
 
 func TestF1_AnnotationPrimitive_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const userName: string = 'mario';
-reflectRunTypeId(userName);
+getRunTypeId(userName);
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindString {
@@ -130,10 +130,10 @@ getRunTypeId<User>();
 }
 
 func TestF2_AnnotationObject_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
-reflectRunTypeId(u);
+getRunTypeId(u);
 `
 	r, root := resolveInline(t, code)
 	assertF2User(t, r, root)
@@ -178,10 +178,10 @@ getRunTypeId<Result>();
 }
 
 func TestF3_Union_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Result = {ok: true; value: number} | {ok: false; error: string};
 declare const x: Result;
-reflectRunTypeId(x);
+getRunTypeId(x);
 `
 	_, root := resolveInline(t, code)
 	assertF3Union(t, root)
@@ -201,14 +201,14 @@ func assertF3Union(t *testing.T, root *protocol.RunType) {
 //
 // F4 is fundamentally about *inference*: the value `42` is typed as the literal
 // `42` at the declared-type level, but TS widens literal types during generic
-// type-parameter inference. So `reflectRunTypeId(x)` where `const x = 42` lands
+// type-parameter inference. So `getRunTypeId(x)` where `const x = 42` lands
 // on `KindNumber`. The static `getRunTypeId<42>()` form asks for the literal
 // type directly and gets `KindLiteral`.
 
 func TestF4_InferredLiteral_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const x = 42;
-reflectRunTypeId(x);
+getRunTypeId(x);
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindNumber {
@@ -237,9 +237,9 @@ getRunTypeId<(a: number, b: number) => number>();
 }
 
 func TestF5_InferredFunction_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const add = (a: number, b: number) => a + b;
-reflectRunTypeId(add);
+getRunTypeId(add);
 `
 	r, root := resolveInline(t, code)
 	assertF5Function(t, r, root)
@@ -279,10 +279,10 @@ getRunTypeId<{sayHello: (name: string) => string}>();
 }
 
 func TestF6_RouterInference_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
-reflectRunTypeId(routes);
+getRunTypeId(routes);
 `
 	r, root := resolveInline(t, code)
 	assertF6Router(t, r, root)
@@ -342,11 +342,11 @@ getRunTypeId<{a: number; b: string}>();
 }
 
 func TestF7_InferredGeneric_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 function wrap<T>(x: T): T {
   return x;
 }
-reflectRunTypeId(wrap({a: 1, b: 'x'}));
+getRunTypeId(wrap({a: 1, b: 'x'}));
 `
 	r, root := resolveInline(t, code)
 	assertF7Object(t, r, root)
@@ -382,10 +382,10 @@ getRunTypeId<{id: number; name: string}>();
 }
 
 func TestF8_FactoryInference_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const makeUser = (id: number, name: string) => ({id, name});
 const u = makeUser(1, 'm');
-reflectRunTypeId(u);
+getRunTypeId(u);
 `
 	r, root := resolveInline(t, code)
 	assertF8IdName(t, r, root)
@@ -410,13 +410,13 @@ func assertF8IdName(t *testing.T, r *resolver.Resolver, root *protocol.RunType) 
 // ---- Dedup -------------------------------------------------------------------
 
 func TestDedupAcrossQueries(t *testing.T) {
-	const primitive = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const primitive = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const userName: string = 'mario';
-reflectRunTypeId(userName);
+getRunTypeId(userName);
 `
-	const inferred = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const inferred = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const x = 42;
-reflectRunTypeId(x);
+getRunTypeId(x);
 `
 	r := setupInline(t, map[string]string{
 		"a.ts": primitive,
@@ -441,9 +441,9 @@ getRunTypeId<string[]>();
 }
 
 func TestF12_Array_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const xs: string[] = ['a', 'b'];
-reflectRunTypeId(xs);
+getRunTypeId(xs);
 `
 	r, root := resolveInline(t, code)
 	assertF12Array(t, r, root)
@@ -472,9 +472,9 @@ getRunTypeId<[number, string?]>();
 }
 
 func TestF13_Tuple_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const tup: [number, string?] = [1];
-reflectRunTypeId(tup);
+getRunTypeId(tup);
 `
 	r, root := resolveInline(t, code)
 	assertF13Tuple(t, r, root)
@@ -516,9 +516,9 @@ getRunTypeId<Promise<number>>();
 }
 
 func TestF14_Promise_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 declare const p: Promise<number>;
-reflectRunTypeId(p);
+getRunTypeId(p);
 `
 	r, root := resolveInline(t, code)
 	assertF14Promise(t, r, root)
@@ -551,13 +551,13 @@ getRunTypeId<User>();
 }
 
 func TestF15_Class_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class User {
   id: number = 0;
   greet(): void {}
 }
 declare const u: User;
-reflectRunTypeId(u);
+getRunTypeId(u);
 `
 	r, root := resolveInline(t, code)
 	assertF15Class(t, r, root)
@@ -596,12 +596,12 @@ getRunTypeId<M>();
 }
 
 func TestF16_IndexSignature_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface M {
   [k: string]: number;
 }
 declare const m: M;
-reflectRunTypeId(m);
+getRunTypeId(m);
 `
 	r, root := resolveInline(t, code)
 	assertF16Index(t, r, root)

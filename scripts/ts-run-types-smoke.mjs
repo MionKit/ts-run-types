@@ -11,7 +11,7 @@
 //
 // Fixture coverage follows the marker test coverage rule (CLAUDE.md):
 //   - getRunTypeId<T>()        — static
-//   - reflectRunTypeId(value)  — reflect
+//   - getRunTypeId(value)      — reflect (T inferred from value)
 //   - createValidate<T>()      — exercises the InjectTypeFnArgs path
 //
 // Exit codes: 0 PASS, 1 FAIL.
@@ -46,8 +46,7 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
-  export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export interface ValidateOptions { noLiterals?: boolean; noIsArrayCheck?: boolean; }
   export type ValidateFn = (value: unknown) => boolean;
   export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
@@ -57,7 +56,7 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 const SOURCES = {
   'runtypes.d.ts': RUNTYPES_DTS,
   'static.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<string>();\n`,
-  'reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\nconst v: string = 'hi';\nreflectRunTypeId(v);\n`,
+  'reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\nconst v: string = 'hi';\ngetRunTypeId(v);\n`,
   'validate.ts': `import {createValidate} from '@mionjs/ts-go-run-types';\nconst isUser = createValidate<{name: string}>();\nisUser({name: 'x'});\n`,
 };
 const FILES = Object.keys(SOURCES).filter((file) => file !== 'runtypes.d.ts');

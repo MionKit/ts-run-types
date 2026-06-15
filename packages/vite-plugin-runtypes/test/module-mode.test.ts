@@ -48,28 +48,25 @@ export const staticId = getRunTypeId<User>();
       expect(sites[0].module).toBe(RUNTYPES_BUNDLE_BASENAME);
       const binding = ENTRY_BINDING_PREFIX + sites[0].id;
       expect(out).toContain(`import {${binding}} from '${VIRTUAL_MODULE_PREFIX}${RUNTYPES_BUNDLE_BASENAME}.js';`);
-      expect(out).toContain(`getRunTypeId<User>(${binding});`);
+      expect(out).toContain(`getRunTypeId<User>(undefined, ${binding});`);
     });
   });
 
-  register(
-    'allSingle reflect: reflectRunTypeId(value) imports its binding as a NAMED export of the runtypes bundle',
-    async () => {
-      const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+  register('allSingle reflect: getRunTypeId(value) imports its binding as a NAMED export of the runtypes bundle', async () => {
+    const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
-export const reflectedId = reflectRunTypeId(u);
+export const reflectedId = getRunTypeId(u);
 `;
-      await withModeClient(MODULE_MODE_ALL_SINGLE, {'user-reflect.ts': code}, async (client) => {
-        const {code: out, sites} = await rewrite('user-reflect.ts', code, client);
-        expect(sites.length).toBe(1);
-        expect(sites[0].module).toBe(RUNTYPES_BUNDLE_BASENAME);
-        const binding = ENTRY_BINDING_PREFIX + sites[0].id;
-        expect(out).toContain(`import {${binding}} from '${VIRTUAL_MODULE_PREFIX}${RUNTYPES_BUNDLE_BASENAME}.js';`);
-        expect(out).toContain(`reflectRunTypeId(u, ${binding});`);
-      });
-    }
-  );
+    await withModeClient(MODULE_MODE_ALL_SINGLE, {'user-reflect.ts': code}, async (client) => {
+      const {code: out, sites} = await rewrite('user-reflect.ts', code, client);
+      expect(sites.length).toBe(1);
+      expect(sites[0].module).toBe(RUNTYPES_BUNDLE_BASENAME);
+      const binding = ENTRY_BINDING_PREFIX + sites[0].id;
+      expect(out).toContain(`import {${binding}} from '${VIRTUAL_MODULE_PREFIX}${RUNTYPES_BUNDLE_BASENAME}.js';`);
+      expect(out).toContain(`getRunTypeId(u, ${binding});`);
+    });
+  });
 
   register('allSingle createX: two validate sites dedupe into ONE family-bundle import statement', async () => {
     const code = `import {createValidate} from '@mionjs/ts-go-run-types';
@@ -171,16 +168,16 @@ export const staticId = getRunTypeId<User>();
     });
   });
 
-  register('allModules reflect: reflectRunTypeId(value) resolves to the same per-node layout', async () => {
-    const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+  register('allModules reflect: getRunTypeId(value) resolves to the same per-node layout', async () => {
+    const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
-export const reflectedId = reflectRunTypeId(u);
+export const reflectedId = getRunTypeId(u);
 `;
     await withModeClient(MODULE_MODE_ALL_MODULES, {'user-reflect.ts': code}, async (client) => {
       const {code: out, sites} = await rewrite('user-reflect.ts', code, client);
       expect(sites.length).toBe(1);
-      expect(out).toContain(`reflectRunTypeId(u, ${ENTRY_BINDING_PREFIX}${sites[0].id});`);
+      expect(out).toContain(`getRunTypeId(u, ${ENTRY_BINDING_PREFIX}${sites[0].id});`);
       const scan = await client.scanFiles(['user-reflect.ts'], {includeEntryModules: true});
       const rootModule = scan.entryModules?.[sites[0].id];
       expect(rootModule).toBeDefined();

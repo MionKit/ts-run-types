@@ -2,7 +2,7 @@
 // per-file projection of the flat batch response, duplicate-file
 // dedupe, pass-through of multi-file calls, and the per-file fallback
 // when a batch fails. The fixture sites cover both marker forms
-// (static getRunTypeId<T>() and reflection reflectRunTypeId(value)
+// (static getRunTypeId<T>() and reflection getRunTypeId(value)
 // shapes — a bare-id site and a value-first site).
 import {describe, expect, it} from 'vitest';
 import {createScanBatcher} from '../src/scan-batcher.ts';
@@ -11,7 +11,7 @@ import type {Site} from '../src/protocol.ts';
 
 function site(file: string, pos: number, argsCount = 0): Site {
   // argsCount 0 = static form (getRunTypeId<T>()); argsCount 1 = the
-  // reflection form's value argument (reflectRunTypeId(value)).
+  // reflection form's value argument (getRunTypeId(value)).
   return {file, pos, id: 'AbC123', argsCount} as Site;
 }
 

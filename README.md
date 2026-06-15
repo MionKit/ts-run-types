@@ -30,7 +30,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
               virtual:rt/<key>.js (per entry)  ──▶  runtime / RT registry
 ```
 
-1. User code imports `InjectRunTypeId<T>` / `getRunTypeId<T>()` (static) or `reflectRunTypeId(val)` (reflection) from `@mionjs/ts-go-run-types`. Any user-defined wrapper function may also declare `id?: InjectRunTypeId<T>` as its trailing parameter to opt into the same flow.
+1. User code imports `InjectRunTypeId<T>` / `getRunTypeId<T>()` (static) or `getRunTypeId(val)` (reflection) from `@mionjs/ts-go-run-types`. Any user-defined wrapper function may also declare `id?: InjectRunTypeId<T>` as its trailing parameter to opt into the same flow.
 2. The Vite plugin sends each source file to the Go binary's `scanFiles` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `InjectRunTypeId<T>` (declared in `@mionjs/ts-go-run-types`) with `T` concretely bound. `scanFiles` accepts an array of files in a single request; opt-in flags (`includeRunTypes`, `includeCacheSource`) project the response down to just those files.
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
 4. Every cache entry is its own virtual module: `virtual:rt/<key>.js` (the cache key — bare type hash for runtypes, `<fnHash>_<typeId>` for function entries, `pf/<ns>/<fn>` for pure fns). The rewrite injects the matching imports into each user file, so bundlers code-split and tree-shake entries natively. Each module exports one positional tuple (`export const e = […]`); the runtime registers a tuple's dependency closure on first use and serves lookups from the `rtUtils` registry (module/naming constants come from [internal/constants/constants.go](internal/constants/constants.go)).
@@ -67,7 +67,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 
 | Path                                                                                                         | Purpose                                                                                           |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| [packages/ts-go-run-types](packages/ts-go-run-types/)                                                       | `@mionjs/ts-go-run-types` — `InjectRunTypeId<T>` marker type, `getRunTypeId`, `reflectRunTypeId`. |
+| [packages/ts-go-run-types](packages/ts-go-run-types/)                                                       | `@mionjs/ts-go-run-types` — `InjectRunTypeId<T>` marker type, `getRunTypeId` (static + value-first forms). |
 | [packages/vite-plugin-runtypes](packages/vite-plugin-runtypes/)                                              | Vite plugin: spawns the Go binary, applies byte-offset rewrites, serves `virtual:rt/*` entry modules. |
 | [packages/vite-plugin-runtypes/src/resolver-client.ts](packages/vite-plugin-runtypes/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                             |
 | [packages/vite-plugin-runtypes/src/rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts)                 | Applies returned `Site[]` as byte-offset insertions into source.                                  |
@@ -75,14 +75,14 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 ## Use
 
 ```ts
-import {getRunTypeId, reflectRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 
 // 1. Static form — explicit type argument, no value.
 const stringId = getRunTypeId<string>();
 const userId = getRunTypeId<{id: number; name: string}>();
 
 // 2. Reflection form — T inferred from a runtime value.
-const sayHelloId = reflectRunTypeId(sayHelloFn);
+const sayHelloId = getRunTypeId(sayHelloFn);
 
 // 3. User-defined wrapper — declare the same trailing InjectRunTypeId<T> param,
 //    the transformer treats it identically.
@@ -96,9 +96,9 @@ validate<User>(payload);
 The transformer rewrites each call to:
 
 ```ts
-getRunTypeId<string>('Lk7Px9');
-getRunTypeId<{id: number; name: string}>('abc123');
-reflectRunTypeId(sayHelloFn, 'qzPnXt');
+getRunTypeId<string>(undefined, 'Lk7Px9');
+getRunTypeId<{id: number; name: string}>(undefined, 'abc123');
+getRunTypeId(sayHelloFn, 'qzPnXt');
 validate<User>(payload, 'mNr4Vw');
 ```
 

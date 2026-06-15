@@ -1,6 +1,6 @@
 // End-to-end member-type round-trip tests. Mirrors atomic.test.ts's
 // `evalCacheFor` + `getTypeFor` setup. Each scenario has paired static
-// (getRunTypeId<T>()) and reflect (reflectRunTypeId(v)) tests per the
+// (getRunTypeId<T>()) and reflect (getRunTypeId(v)) tests per the
 // marker test coverage rule (CLAUDE.md). The recursive fixture is the
 // critical cycle-safety proof — child slots must close on the root via
 // referential equality after the virtual cache evaluates.
@@ -26,9 +26,9 @@ getRunTypeId<string[]>();
   runTest(
     'array of string reflect',
     {
-      'array.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'array.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 declare const xs: string[];
-reflectRunTypeId(xs);
+getRunTypeId(xs);
 `,
     },
     async (sources) => {
@@ -61,9 +61,9 @@ getRunTypeId<{x: number}[]>();
   runTest(
     'array of object literal reflect',
     {
-      'arrobj.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'arrobj.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 declare const xs: {x: number}[];
-reflectRunTypeId(xs);
+getRunTypeId(xs);
 `,
     },
     async (sources) => {
@@ -99,9 +99,9 @@ getRunTypeId<string[][]>();
   runTest(
     'array of array of string reflect',
     {
-      'arrarr.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'arrarr.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 declare const xs: string[][];
-reflectRunTypeId(xs);
+getRunTypeId(xs);
 `,
     },
     async (sources) => {
@@ -140,12 +140,12 @@ getRunTypeId<Tree>();
   runTest(
     'recursive self type reflect closes cycle by reference',
     {
-      'tree.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'tree.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface Tree {
   children: Tree[];
 }
 declare const t: Tree;
-reflectRunTypeId(t);
+getRunTypeId(t);
 `,
     },
     async (sources) => {

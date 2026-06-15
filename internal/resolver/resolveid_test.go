@@ -18,9 +18,9 @@ const resolveIDArrayCodeStatic = `import {getRunTypeId} from '@mionjs/ts-go-run-
 getRunTypeId<string[]>();
 `
 
-const resolveIDArrayCodeReflect = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+const resolveIDArrayCodeReflect = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const xs: string[] = ['a', 'b'];
-reflectRunTypeId(xs);
+getRunTypeId(xs);
 `
 
 func TestResolveID_ArrayRoundTrip_Static(t *testing.T) {

@@ -42,10 +42,10 @@ getRunTypeId<T>();
   runTest(
     'Required<T> strips optional reflect',
     {
-      'req.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'req.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = Required<{a?: string; b?: number}>;
 declare const value: T;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {

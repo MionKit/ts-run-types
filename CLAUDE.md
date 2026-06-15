@@ -22,7 +22,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 
 - pnpm workspaces ([pnpm-workspace.yaml](pnpm-workspace.yaml)) + Lerna ([lerna.json](lerna.json)) for lockstep versioning and topo-ordered scripts.
 - Both JS packages move in lockstep (`forcePublish: true`, `exact: true`).
-- `@mionjs/ts-go-run-types` exposes the `InjectRunTypeId<T>` marker, `getRunTypeId` (static), `reflectRunTypeId` (reflection).
+- `@mionjs/ts-go-run-types` exposes the `InjectRunTypeId<T>` marker and `getRunTypeId` (static `getRunTypeId<T>()` + value-first `getRunTypeId(value)` forms).
 - `vite-plugin-runtypes` spawns the Go binary, applies byte-offset rewrites + import injection, serves the per-entry `virtual:rt/*` modules.
 - Filter a package: `pnpm --filter @mionjs/ts-go-run-types run <cmd>` or `pnpm --filter vite-plugin-runtypes run <cmd>`.
 - All devDependencies live root-level; never per-package.
@@ -52,8 +52,8 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 
 ### ⚠️ Marker test coverage rule
 
-- Any test exercising the marker API (Go under [internal/](internal/) or JS plugin under [packages/vite-plugin-runtypes/test/](packages/vite-plugin-runtypes/test/)) MUST cover both forms: static `getRunTypeId<T>()` (caller supplies T, no value) AND reflection `reflectRunTypeId(value)` (T inferred).
-- Write paired tests (not parameterized); use the natural call shape for each intent — e.g. `getRunTypeId<string>()` vs `const s: string = 'hello'; reflectRunTypeId(s);`. Both forms should resolve to the same cache entry for equivalent T.
+- Any test exercising the marker API (Go under [internal/](internal/) or JS plugin under [packages/vite-plugin-runtypes/test/](packages/vite-plugin-runtypes/test/)) MUST cover both call shapes of `getRunTypeId`: static `getRunTypeId<T>()` (caller supplies T, no value) AND reflection `getRunTypeId(value)` (T inferred from the value).
+- Write paired tests (not parameterized); use the natural call shape for each intent — e.g. `getRunTypeId<string>()` vs `const s: string = 'hello'; getRunTypeId(s);`. Both forms should resolve to the same cache entry for equivalent T.
 - At least one paired test per suite must assert hash equivalence between the two forms (see `TestAtomic_FormEquivalence` in [internal/resolver/atomic_test.go](internal/resolver/atomic_test.go)).
 
 ## Code style
@@ -104,7 +104,7 @@ Full description: [docs/ARCHITECTURE.md → Rewrite mechanics](docs/ARCHITECTURE
 
 Full design: [docs/ARCHITECTURE.md → The second marker — `InjectTypeFnArgs<T, Fn>` and demand-driven caches](docs/ARCHITECTURE.md#the-second-marker--injecttypefnargst-fn-and-demand-driven-caches). Both markers live in [packages/ts-go-run-types/src/markers.ts](packages/ts-go-run-types/src/markers.ts).
 
-- `InjectRunTypeId<T>` — reflection-only (`getRunTypeId`, `reflectRunTypeId`, value-first RT builders, `createMockType`). Injects `"<typeId>"`; drives the `runTypes` reflection cache (1:1 on shape, no options).
+- `InjectRunTypeId<T>` — reflection-only (`getRunTypeId` static + value-first forms, value-first RT builders, `createMockType`). Injects `"<typeId>"`; drives the `runTypes` reflection cache (1:1 on shape, no options).
 - `InjectTypeFnArgs<T, Fn>` — every `createX<T>()` factory (`createValidate`, `createGetValidationErrors`, the `huk`/`suk`/`uke`/`uku`/`fmt` group, `createJsonEncoder/Decoder`, `createBinaryEncoder/Decoder`). Injects `["<typeId>", "<fnHash>"]`; `fnHash` is a length-3 opaque hash Go computes from `Fn` + the call-site `CompTimeFnArgs` literal. Runtime treats `fnId` as an opaque lookup key — **no runtime hashing**. Cache key: `<fnHash>_<typeId>`.
 - `CompTimeFnArgs<T>` is the fn-selecting variant of `CompTimeArgs<T>` — validates literals identically (CTA0xx) and marks the param whose literal value selects the `createX` variant. Plain `CompTimeArgs<T>` stays for other literal params.
 - Function caches are **demand-driven**: a family's cache contains only the types its own call sites request. Scanner computes structured demand on `protocol.Site.Demand []SiteDemand{FamilyTag, VariantSuffix, Options, FnHash}`; `collectFamilyDemand` in [internal/compiled/typefns/module.go](internal/compiled/typefns/module.go) closes it transitively. Gate is `len(dump.Sites) > 0`. A `getRunTypeId`-only file emits ZERO function-cache entries.

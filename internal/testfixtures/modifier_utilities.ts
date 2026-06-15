@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
@@ -7,7 +7,7 @@ export {};
 type R1 = Required<{a?: string; b?: number}>;
 const requiredStrips = getRunTypeId<R1>();
 declare const r1: R1;
-const requiredStripsReflect = reflectRunTypeId(r1);
+const requiredStripsReflect = getRunTypeId(r1);
 
 // 2 — Required<Pick<…>> chains: only picked + required.
 type S2 = {a?: string; b?: number};

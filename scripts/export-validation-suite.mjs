@@ -86,8 +86,7 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
-  export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export interface ValidateOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;

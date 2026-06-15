@@ -94,7 +94,7 @@ func TestNativeDate_ValidateEmitsExclusiveBoundCheck(t *testing.T) {
 }
 
 // TestNativeDate_RunTypeCacheCarriesFormatAnnotation locks in that the
-// reflection cache module (virtual:runtypes-cache, what reflectRunTypeId /
+// reflection cache module (virtual:runtypes-cache, what getRunTypeId /
 // getRunTypeId consumers read) stores `formatAnnotation` on the
 // KindClass/Date node exactly as it does for atomic string formats — the
 // kind-agnostic writeFooter path in compiled/runtype/module.go plus the

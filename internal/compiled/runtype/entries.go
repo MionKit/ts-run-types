@@ -29,7 +29,7 @@ const hoistMinRefs = 3
 // as a headless tuple row with a single combined footer initializer, plus one
 // facade module per reflection ROOT (`virtual:rt/<rootId>.js` — the module
 // the rewrite's binding-only injection already imports at getRunTypeId /
-// reflectRunTypeId / builder / mock sites). Function-family modules never
+// builder / mock sites). Function-family modules never
 // import runtype modules, so the runtype graph is self-contained: the bundle
 // imports nothing and each facade imports only the bundle. Every node row
 // exists exactly once app-wide — no duplication across roots.
@@ -125,7 +125,7 @@ func CollectEntriesPerNode(dump protocol.Dump) entrymod.Graph {
 
 // reflectionRoots returns the deduped, sorted ids of every reflection-only
 // site — sites injecting the bare id (FnId empty), i.e. getRunTypeId /
-// reflectRunTypeId / value-first builders / createMockType. createX sites
+// value-first builders / createMockType. createX sites
 // demand fn entries instead and never import runtype modules.
 func reflectionRoots(sites []protocol.Site) []string {
 	var roots []string

@@ -9,9 +9,8 @@
 //   • `PureFunction<F>` — brands a function-typed argument as "literal AND
 //     passes purity rules". Static check only.
 //
-// Wrappers around `getRunTypeId` / `reflectRunTypeId` are supported — declare
-// the same trailing parameter on the wrapper and the transformer treats it
-// identically.
+// Wrappers around `getRunTypeId` are supported — declare the same trailing
+// parameter on the wrapper and the transformer treats it identically.
 
 import {entryTupleKey, initFromTuple, isEntryTuple} from './runtypes/entryTuple.ts';
 
@@ -53,43 +52,33 @@ export type InjectTypeFnArgs<T, Fn extends string> = string & {
 // universally assignable, so it could never fire at a call site.
 
 /**
- * Static marker. Use with an explicit type and no runtime value:
- * `getRunTypeId<User>()`. Throws if the transformer is not active —
- * the id can only be computed at build time.
+ * Type-id marker. Returns the stable structural id of `T`. One function, two
+ * call shapes — the optional value-first parameter mirrors every `createX`
+ * factory:
  *
- * The plugin injects the runtype's entry-module tuple; the call registers the
- * type (and its transitive children) into rtUtils and returns the id string,
- * so the public contract — "returns the type id" — is unchanged.
+ *   - STATIC — bring the type, no value: `getRunTypeId<User>()`.
+ *   - REFLECTION — let `T` be inferred from a runtime value:
+ *     `getRunTypeId(user)`. The value is read only for its type; at runtime it
+ *     is ignored, so nothing leaks into the output.
  *
- * `T = any` is allowed: it resolves a normal id whose runtime fn is a noop
- * validator / best-effort serializer (with a build-time diagnostic).
+ * Throws if the transformer is not active — the id can only be computed at
+ * build time. The plugin injects the runtype's entry-module tuple at the
+ * trailing `id` slot; the call registers the type (and its transitive children)
+ * into rtUtils and returns the id string, so the public contract — "returns the
+ * type id" — is unchanged.
+ *
+ * `T = any` is allowed (explicit `getRunTypeId<any>()`, or inferred from
+ * `JSON.parse` / untyped library returns / `as any`): it resolves a normal id
+ * whose runtime fn is a noop validator / best-effort serializer (with a
+ * build-time diagnostic).
  */
-export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+export function getRunTypeId<T>(_value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (isEntryTuple(id)) {
     initFromTuple(id);
     return entryTupleKey(id) as InjectRunTypeId<T>;
   }
   if (id === undefined) {
     throw new Error('getRunTypeId(): no id injected. vite-plugin-runtypes must be active.');
-  }
-  return id as InjectRunTypeId<T>;
-}
-
-/**
- * Reflection marker. Use when `T` should be inferred from a runtime value:
- * `reflectRunTypeId(user)`. The `value` is only used for type inference and
- * is ignored at runtime. Throws if the transformer is not active.
- *
- * Inferred-`any` (typical sources: `JSON.parse`, untyped library returns,
- * `as any` casts) is allowed — see the note above `getRunTypeId`.
- */
-export function reflectRunTypeId<T>(_value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
-  if (isEntryTuple(id)) {
-    initFromTuple(id);
-    return entryTupleKey(id) as InjectRunTypeId<T>;
-  }
-  if (id === undefined) {
-    throw new Error('reflectRunTypeId(): no id injected. vite-plugin-runtypes must be active.');
   }
   return id as InjectRunTypeId<T>;
 }

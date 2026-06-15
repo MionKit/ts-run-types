@@ -91,7 +91,7 @@ export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?:
 A function opts into compile-time id injection by declaring `id?: InjectRunTypeId<T>` as its **trailing parameter**. The transformer rewrites every call site of such a function, injecting the resolved hash id at that slot. This includes:
 
 - The static helper `getRunTypeId<T>(id?)` shipped from `@mionjs/ts-go-run-types` — explicit type, no value.
-- The reflection helper `reflectRunTypeId<T>(value, id?)` — `T` inferred from a runtime value.
+- The reflection helper `getRunTypeId<T>(value, id?)` — `T` inferred from a runtime value.
 - Any user-defined wrapper that propagates the marker — `function validate<T>(v, id?: InjectRunTypeId<T>)`.
 
 Detection requires both:
@@ -103,7 +103,7 @@ A call inside a generic body where the marker's `T` is the wrapper's own free ty
 
 ### The second marker — `InjectTypeFnArgs<T, Fn>` and demand-driven caches
 
-`InjectRunTypeId<T>` covers **reflection-only** sites (`getRunTypeId`, `reflectRunTypeId`, value-first RT builders, `createMockType`) and injects a bare `"<typeId>"` string. The `createX<T>()` factory family (`createValidate`, `createGetValidationErrors`, the unknown-keys group, `createJsonEncoder`/`createJsonDecoder`, `createBinaryEncoder`/`createBinaryDecoder`) instead declares a trailing `InjectTypeFnArgs<T, Fn>` marker, whose second type argument `Fn` names the function family (`'val'`, `'verr'`, `'jsonEncoder'`, …). For those sites the transformer injects a `["<typeId>", "<fnHash>"]` **tuple**:
+`InjectRunTypeId<T>` covers **reflection-only** sites (`getRunTypeId` static + value-first forms, value-first RT builders, `createMockType`) and injects a bare `"<typeId>"` string. The `createX<T>()` factory family (`createValidate`, `createGetValidationErrors`, the unknown-keys group, `createJsonEncoder`/`createJsonDecoder`, `createBinaryEncoder`/`createBinaryDecoder`) instead declares a trailing `InjectTypeFnArgs<T, Fn>` marker, whose second type argument `Fn` names the function family (`'val'`, `'verr'`, `'jsonEncoder'`, …). For those sites the transformer injects a `["<typeId>", "<fnHash>"]` **tuple**:
 
 - `typeId` — the structural-id hash of `T`, same as the reflection cache.
 - `fnHash` — an **opaque precomputed hash** (length 3, `hash(operationName + sorted comptime-args)`) the scanner computes from `Fn` plus the relevant `CompTimeFnArgs` literal (the `ValidateOptions` bag for `it`/`te`; the JSON strategy for the encoder/decoder), via the operations registry in [`internal/operations`](../internal/operations/) (`FnHashFor`/`PlainHash`/`Canonical`). Go computes every fnHash — the runtime treats it as an opaque lookup-key prefix and never hashes anything. The injected tuple is the complete demand: it tells the backend exactly what to emit and gives the runtime the exact lookup key, so the runtime no longer re-derives a variant key. The cache key is `<fnHash>_<typeId>`. The canonicalizer is property-order-independent (like the structural type-id, which already sorts object members).
@@ -197,7 +197,7 @@ Pure struct definitions shared between the Go resolver and the TS plugin. Stdio 
 
 The public runtime package, three entry points:
 
-- `.` — the markers (`InjectRunTypeId<T>`, `InjectTypeFnArgs<T, Fn>`, `CompTimeArgs<T>` / `CompTimeFnArgs<T>`, `PureFunction`), the reflection helpers `getRunTypeId<T>()` (static — explicit type argument, no value; throws if the plugin didn't inject an id) and `reflectRunTypeId(value)` (`T` inferred from the value), and the full `createX` factory surface: `createValidate` / `createGetValidationErrors`, the unknown-keys group (`createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors` / `createUnknownKeysToUndefined`), `createFormatTransform`, `createJsonEncoder` / `createJsonDecoder`, `createBinaryEncoder` / `createBinaryDecoder`, `createMockType`, plus the runtime registries (`registerPureFnFactory`, `registerClassSerializer`, `registerMockingFunction`, `registerFormatPattern`) and the DataView serializer helpers.
+- `.` — the markers (`InjectRunTypeId<T>`, `InjectTypeFnArgs<T, Fn>`, `CompTimeArgs<T>` / `CompTimeFnArgs<T>`, `PureFunction`), the reflection helpers `getRunTypeId<T>()` (static — explicit type argument, no value; throws if the plugin didn't inject an id) and `getRunTypeId(value)` (`T` inferred from the value), and the full `createX` factory surface: `createValidate` / `createGetValidationErrors`, the unknown-keys group (`createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors` / `createUnknownKeysToUndefined`), `createFormatTransform`, `createJsonEncoder` / `createJsonDecoder`, `createBinaryEncoder` / `createBinaryDecoder`, `createMockType`, plus the runtime registries (`registerPureFnFactory`, `registerClassSerializer`, `registerMockingFunction`, `registerFormatPattern`) and the DataView serializer helpers.
 - `./schema` — the value-first builders (`string()`, `number()`, `object({...})`, `array()`, `union()`, the `temporal.*` family, utility builders, …) returning live `RunType<T>` nodes; `Static<T>` recovers the TS type. Each builder converges on the same structural id as its type-first equivalent.
 - `./formats` — the type-format brand aliases (`FormatString`, `FormatEmail`, `FormatUUIDv4/v7`, `FormatNumber`, `FormatBigInt`, `FormatStringDate/Time/DateTime`, `FormatDate`, `FormatTemporal*`, fixed-width int presets, …) plus their mock / pure-fn / pattern registrations. Format **validation** happens at build time on the Go side; the runtime only carries mocking + transform helpers.
 
@@ -215,8 +215,8 @@ Cache access goes through the runtime registry (`getRTUtils()` in `src/runtypes/
 The id is injected at the trailing `InjectRunTypeId<T>` slot. The Go binary returns `ParamIndex` + `ArgsCount` per site; the TS-side `buildInsertion()` pads with `undefined` whenever the caller wrote fewer arguments than `paramIndex`:
 
 ```
-getRunTypeId<T>()         →   getRunTypeId<T>(__rt_<hash>)
-reflectRunTypeId(val)     →   reflectRunTypeId(val, __rt_<hash>)
+getRunTypeId<T>()           →   getRunTypeId<T>(undefined, __rt_<hash>)
+getRunTypeId(val)           →   getRunTypeId(val, __rt_<hash>)
 validate<T>(v)              →   validate<T>(v, __rt_<fnHash>_<hash>)
 ```
 
@@ -224,7 +224,7 @@ validate<T>(v)              →   validate<T>(v, __rt_<fnHash>_<hash>)
 file; `getRunTypeId` still RETURNS the id string, so the public contract is
 unchanged)
 
-Neither built-in helper needs padding (`getRunTypeId` puts the id at slot 0; `reflectRunTypeId` already has `value` at slot 0 and the id at slot 1). The padding mechanism remains in place for user-defined wrappers with additional intermediate parameters.
+`getRunTypeId<T>()` (static form, no value) is padded with one `undefined` so the injected id lands in the trailing slot 1 — the same slot the reflection form `getRunTypeId(val)` appends to after its value at slot 0. The padding mechanism also covers user-defined wrappers with additional intermediate parameters.
 
 ## Rewrite mechanics
 
@@ -282,7 +282,7 @@ This project is the full migration of mion's runtime `@mionjs/run-types` / `@mio
 | `hasUnknownKeys` / `stripUnknownKeys` / `unknownKeyErrors` / `unknownKeysToUndefined` JIT fns   | first-class factories: `createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors` / `createUnknownKeysToUndefined`                                                     |
 | `format` JIT fn (trim / case / replace transforms)                                              | `createFormatTransform<T>()`                                                                                                                                                             |
 | `createMockTypeFn<T>()`                                                                         | `createMockType<T>()` — same MockOptions surface, format-aware via the per-kind mock registry                                                                                            |
-| `runType<T>()` instance API (`getTypeID()`, metadata, `mock()`)                                 | `getRunTypeId<T>()` / `reflectRunTypeId(value)` + `getRTUtils().getRunType(id)`; value-first `./schema` builders return live `RunType<T>` nodes                                          |
+| `runType<T>()` instance API (`getTypeID()`, metadata, `mock()`)                                 | `getRunTypeId<T>()` / `getRunTypeId(value)` + `getRTUtils().getRunType(id)`; value-first `./schema` builders return live `RunType<T>` nodes                                          |
 | Pure-fn registry (`registerPureFnFactory`, `mion` / `mionFormats` namespaces)                   | same API, with Go-side purity validation (PFE9xxx diagnostics)                                                                                                                           |
 | `@mionjs/type-formats` built-ins (string/number/bigint/date-time families, branding)            | `./formats` brand aliases — all mion formats plus native-`Date` bounds, `Temporal.*`, and custom pattern registration; validation moved to build time                                    |
 | `reflectFunction<Fn>()`                                                                         | not needed — every `createX` accepts a value and reflects its type; function-shaped work uses `Parameters<typeof fn>` / `ReturnType<typeof fn>`, which tsgo resolves eagerly at the site |

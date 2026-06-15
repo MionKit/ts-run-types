@@ -31,21 +31,22 @@ getRunTypeId<User>();
         expect(sites.length).toBe(1);
         expect(typeof sites[0].id).toBe('string');
         expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
-        // Static form has no preceding arguments — the injected entry-module
-        // binding sits in slot 0, with the matching import at offset 0.
+        // Static form has no value argument — the value slot is padded with
+        // `undefined` so the injected entry-module binding lands in slot 1,
+        // with the matching import at offset 0.
         expect(out).toContain(`import {__rt_${sites[0].id}} from 'virtual:rt/${sites[0].id}.js';`);
-        expect(out).toContain(`getRunTypeId<User>(__rt_${sites[0].id});`);
+        expect(out).toContain(`getRunTypeId<User>(undefined, __rt_${sites[0].id});`);
       });
     }
   );
 
   runTest(
-    'F9 reflect: rewrites reflectRunTypeId(u) to pass a hash site id',
+    'F9 reflect: rewrites getRunTypeId(u) to pass a hash site id',
     {
-      'user-reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'user-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
-reflectRunTypeId(u);
+getRunTypeId(u);
 `,
     },
     async (sources) => {
@@ -56,7 +57,7 @@ reflectRunTypeId(u);
         expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
         // Reflect form: `u` is arg 0, the injected binding is arg 1.
         expect(out).toContain(`import {__rt_${sites[0].id}} from 'virtual:rt/${sites[0].id}.js';`);
-        expect(out).toContain(`reflectRunTypeId(u, __rt_${sites[0].id});`);
+        expect(out).toContain(`getRunTypeId(u, __rt_${sites[0].id});`);
       });
     }
   );
@@ -80,10 +81,10 @@ getRunTypeId<User>();
   runTest(
     'F10 reflect: cache contains User alias with reflection-shape propertySignatures',
     {
-      'user-reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'user-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
-reflectRunTypeId(u);
+getRunTypeId(u);
 `,
     },
     async (sources) => {
@@ -133,12 +134,12 @@ const myAPI = getRunTypeId<{sayHello: (name: string) => string}>();
   );
 
   runTest(
-    'F6 reflect: reflectRunTypeId(routes) infers nested object+function shape',
+    'F6 reflect: getRunTypeId(routes) infers nested object+function shape',
     {
-      'router-reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'router-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
-const myAPI = reflectRunTypeId(routes);
+const myAPI = getRunTypeId(routes);
 `,
     },
     async (sources) => {
@@ -184,9 +185,9 @@ const info = getRunTypeId<string>();
   runTest(
     'dedup reflect: re-resolving the same file adds no new types',
     {
-      'primitive-reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'primitive-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const userName: string = 'mario';
-const info = reflectRunTypeId(userName);
+const info = getRunTypeId(userName);
 `,
     },
     async (sources) => {
@@ -221,10 +222,10 @@ const myAPI = getRunTypeId<{sayHello: (name: string) => string}>();
   runTest(
     'F17 reflect: rendered cache module exports a knotted reflection RunType graph',
     {
-      'router-reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'router-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
-const myAPI = reflectRunTypeId(routes);
+const myAPI = getRunTypeId(routes);
 `,
     },
     async (sources) => {
@@ -278,10 +279,10 @@ const myAPI = reflectRunTypeId(routes);
   runTest(
     "CLI --out-modules writes per-entry modules identical in shape to the plugin's output",
     {
-      'router.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'router.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
-const myAPI = reflectRunTypeId(routes);
+const myAPI = getRunTypeId(routes);
 `,
     },
     async (sources) => {
@@ -325,7 +326,7 @@ getRunTypeId<User>();
         const {code: out, sites} = await rewrite('user-mb.ts', sources['user-mb.ts'], client);
 
         expect(sites.length).toBe(1);
-        expect(out).toContain(`getRunTypeId<User>(__rt_${sites[0].id});`);
+        expect(out).toContain(`getRunTypeId<User>(undefined, __rt_${sites[0].id});`);
         // The original lines must survive untouched — a byte/char skew would
         // splice the binding mid-identifier somewhere earlier in the file.
         expect(out).toContain('— em-dash and 🦄 emoji —');
@@ -337,11 +338,11 @@ getRunTypeId<User>();
   runTest(
     'multibyte reflect: byte offsets convert to char indices before insertion',
     {
-      'user-mb-reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'user-mb-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 // preamble with multibyte chars — em-dash and 🦄 emoji — before the site
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
-reflectRunTypeId(u);
+getRunTypeId(u);
 `,
     },
     async (sources) => {
@@ -349,7 +350,7 @@ reflectRunTypeId(u);
         const {code: out, sites} = await rewrite('user-mb-reflect.ts', sources['user-mb-reflect.ts'], client);
 
         expect(sites.length).toBe(1);
-        expect(out).toContain(`reflectRunTypeId(u, __rt_${sites[0].id});`);
+        expect(out).toContain(`getRunTypeId(u, __rt_${sites[0].id});`);
         expect(out).toContain('— em-dash and 🦄 emoji —');
       });
     }
@@ -379,10 +380,10 @@ getRunTypeId<User>();
   runTest(
     'source map reflect: original lines survive the injected import block',
     {
-      'user-map-reflect.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'user-map-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
-reflectRunTypeId(u);
+getRunTypeId(u);
 `,
     },
     async (sources) => {

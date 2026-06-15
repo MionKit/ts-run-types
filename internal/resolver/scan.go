@@ -540,9 +540,9 @@ func computeSiteFn(fnKey string, options validateOptions, call *ast.Node, lastIn
 // the slot immediately before the trailing id slot — or nil when the call
 // doesn't fill it. Layout convention: options always lives at (lastIndex-1);
 // for `createValidate<T>(val?, options?, id?)` that's slot 1. Marker
-// functions without an options param (`getRunTypeId<T>(id?)`,
-// `reflectRunTypeId(_value, id?)`) are inherently safe — slot 0 holds a
-// value, which may be an object literal but won't carry known option keys.
+// functions without an options param (`getRunTypeId<T>(_value?, id?)`) are
+// inherently safe — slot 0 holds a value, which may be an object literal
+// but won't carry known option keys.
 // Shared by the ValidateOptions / strategy extractors and the noop-option
 // diagnostic anchor.
 func optionsArgumentAt(call *ast.Node, lastIndex, argsCount int) *ast.Node {

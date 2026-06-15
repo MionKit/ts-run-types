@@ -29,11 +29,11 @@ getRunTypeId<C>();
   runTest(
     'class implements single interface reflect',
     {
-      'impl.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'impl.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface I { a: string; }
 class C implements I { a: string = ''; }
 declare const value: C;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {

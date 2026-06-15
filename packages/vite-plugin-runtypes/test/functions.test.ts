@@ -1,6 +1,6 @@
 // Function-family round-trip tests. Mirrors the Go function_test.go cases
 // (F35–F40). Each scenario has paired static (getRunTypeId<T>()) and
-// reflect (reflectRunTypeId(v)) tests per the marker test coverage rule
+// reflect (getRunTypeId(v)) tests per the marker test coverage rule
 // (CLAUDE.md). The shared assertion helpers walk parameters and return
 // after the virtual cache evaluates.
 //
@@ -32,9 +32,9 @@ getRunTypeId<Fn>();
   runTest(
     'rest-only function reflect',
     {
-      'rest.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'rest.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 function fn(...args: string[]): void {}
-reflectRunTypeId(fn);
+getRunTypeId(fn);
 `,
     },
     async (sources) => {
@@ -77,9 +77,9 @@ getRunTypeId<Fn>();
   runTest(
     'mixed function reflect',
     {
-      'mixed.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'mixed.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 function fn(a: number, b?: string, ...rest: boolean[]): string { return ""; }
-reflectRunTypeId(fn);
+getRunTypeId(fn);
 `,
     },
     async (sources) => {
@@ -136,9 +136,9 @@ getRunTypeId<Fn>();
   runTest(
     'promise return reflect',
     {
-      'promise.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'promise.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 async function fn(x: number): Promise<{ok: boolean}> { return {ok: true}; }
-reflectRunTypeId(fn);
+getRunTypeId(fn);
 `,
     },
     async (sources) => {
@@ -182,12 +182,12 @@ getRunTypeId<Service>();
   runTest(
     'class method full shape reflect',
     {
-      'svc.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'svc.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class Service {
   greet(name: string, opts?: {tag: string}): string { return ""; }
 }
 declare const value: Service;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -238,10 +238,10 @@ getRunTypeId<I>();
   runTest(
     'method signature full shape reflect',
     {
-      'i.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'i.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface I { greet(name: string): string; }
 declare const value: I;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
