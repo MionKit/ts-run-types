@@ -58,6 +58,11 @@ export interface BinaryDecoderOptions {
 const noopToBinaryFn: ToBinaryFn = (_v, Ser) => Ser;
 const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
 
+// Hard ceiling for the owns-serializer grow-and-retry loop. Matches the
+// serializer's own guard (`createDataViewSerializer` rejects size >= 2**32);
+// a single payload above this can't be encoded, so we re-throw the RangeError.
+const MAX_BUFFER_BYTES = 2 ** 32;
+
 // binarySizingKey derives the adaptive-sizing bucket from the schema id or the
 // injected tuple's `<fnHash>_<typeId>` key — the bare type id, so every
 // encoder/decoder for the same `T` shares size history (the pre-migration
@@ -86,14 +91,30 @@ export function createBinaryEncoder<T>(
   const cacheKey = options?.cacheKey ?? binarySizingKey(schemaId, id);
   const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinaryEncoder', noopToBinaryFn, schemaId, id);
   return (value, serializer) => {
-    const ownsSer = serializer === undefined;
-    const ser = serializer ?? createDataViewSerializer(cacheKey);
-    encodeFn(value, ser);
-    // Only feed adaptive-sizing history when we own the serializer — a
-    // caller-supplied instance may be reused across encodes and is responsible
-    // for its own end-of-payload semantics.
-    if (ownsSer) ser.markAsEnded();
-    return ser.getBuffer();
+    // Caller-supplied serializer: they own sizing + end-of-payload semantics,
+    // so we don't grow or record history on their behalf.
+    if (serializer !== undefined) {
+      encodeFn(value, serializer);
+      return serializer.getBuffer();
+    }
+    // We own the serializer. Adaptive sizing (predictBufferSize) can
+    // under-allocate for an above-average payload — the serializer throws a
+    // RangeError telling us to "resize and retry". Honor that contract here so
+    // encoding valid data never throws on a buffer miss: grow (doubling) and
+    // re-encode from a clean index until it fits or we hit the 2**32 ceiling.
+    const ser = createDataViewSerializer(cacheKey);
+    for (;;) {
+      try {
+        encodeFn(value, ser);
+        ser.markAsEnded();
+        return ser.getBuffer();
+      } catch (err) {
+        const nextSize = ser.buffer.byteLength * 2;
+        if (!(err instanceof RangeError) || nextSize >= MAX_BUFFER_BYTES) throw err;
+        ser.resize(nextSize);
+        ser.reset();
+      }
+    }
   };
 }
 
