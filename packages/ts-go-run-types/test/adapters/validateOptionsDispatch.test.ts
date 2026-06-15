@@ -22,14 +22,14 @@
 // back to the identity validator.
 
 import {describe, expect, it} from 'vitest';
-import {createValidate, createGetValidationErrors, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, getRunTypeId} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 
 describe('ValidateOptions — type-id stays structural across option combinations', () => {
   it('static and reflect forms of the same T share the same id', () => {
     const staticId = getRunTypeId<'a'>();
     const v = 'a' as const;
-    const reflectId = reflectRunTypeId(v);
+    const reflectId = getRunTypeId(v);
     expect(staticId).toBe(reflectId);
   });
 

@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
@@ -7,7 +7,7 @@ export {};
 type M1 = {a?: string} & {a: string};
 const requiredWins = getRunTypeId<M1>();
 declare const m1: M1;
-const requiredWinsReflect = reflectRunTypeId(m1);
+const requiredWinsReflect = getRunTypeId(m1);
 
 // 2 — both sides optional → stays optional.
 type M2 = {a?: string} & {a?: string};

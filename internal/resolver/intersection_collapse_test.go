@@ -14,7 +14,7 @@ import (
 // table in §Reference algorithms. Each test asserts a single rule.
 // Paired *_Static / *_Reflect tests follow the marker coverage rule
 // (CLAUDE.md): static form via getRunTypeId<T>() vs reflection via
-// reflectRunTypeId(v).
+// getRunTypeId(v).
 // =========================================================================
 
 // ---- two-object-literal merge ------------------------------------------------
@@ -34,10 +34,10 @@ getRunTypeId<AB>();
 }
 
 func TestIntersection_TwoObjectLiterals_Merges_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type AB = {a: string} & {b: number};
 const v = null as unknown as AB;
-reflectRunTypeId(v);
+getRunTypeId(v);
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindObjectLiteral {
@@ -104,10 +104,10 @@ getRunTypeId<Email>();
 }
 
 func TestIntersection_PrimitiveAndBrand_PreservesPrimitive_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Email = string & {readonly __brand: 'Email'};
 const v = null as unknown as Email;
-reflectRunTypeId(v);
+getRunTypeId(v);
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindString {

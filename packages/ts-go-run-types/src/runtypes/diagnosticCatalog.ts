@@ -97,7 +97,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
   MKR001: {
     headline:
       '`{0}()` is being called at runtime just so the marker can read its return type — side effects, throws, or async work run for nothing.',
-    detail: `Reflect-form markers (\`createValidate(value)\`, \`reflectRunTypeId(value)\`)
+    detail: `Reflect-form markers (\`createValidate(value)\`, \`getRunTypeId(value)\`)
 invoke their argument expression at runtime; the value is then discarded —
 only its inferred type is used.
 
@@ -107,7 +107,7 @@ Fix — use the static form with \`ReturnType<>\`:
 
 Fix — pass an existing value of the desired type:
   const existingUser: User = ...;
-  const isUser = reflectRunTypeId(existingUser);`,
+  const isUser = getRunTypeId(existingUser);`,
   },
 
   CTA001: {

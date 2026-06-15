@@ -31,10 +31,10 @@ getRunTypeId<AB>();
   runTest(
     'object × object merge reflect',
     {
-      'merge.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'merge.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type AB = {a: string} & {b: number};
 declare const value: AB;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -70,10 +70,10 @@ getRunTypeId<Email>();
   runTest(
     'primitive & brand reflect',
     {
-      'brand.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'brand.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Email = string & {readonly __brand: 'Email'};
 declare const value: Email;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {

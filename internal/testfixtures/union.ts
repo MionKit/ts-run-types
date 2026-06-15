@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
@@ -10,7 +10,7 @@ const primitives = getRunTypeId<Primitives>();
 
 // 1b — Reflect form for the primitive union.
 declare const primitivesValue: Primitives;
-const primitivesReflect = reflectRunTypeId(primitivesValue);
+const primitivesReflect = getRunTypeId(primitivesValue);
 
 // 2 — Subset hazard: {a} is a structural subset of {a, b}; safe-order
 // must surface the 2-prop member first.

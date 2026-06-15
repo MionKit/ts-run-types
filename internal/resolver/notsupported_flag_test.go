@@ -30,10 +30,10 @@ getRunTypeId<Mixed>();
 }
 
 func TestNotSupportedFlag_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 ` + notSupportedMixed + `
 declare const value: Mixed;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertNotSupportedFlag(t, r, root)

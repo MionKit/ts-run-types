@@ -39,10 +39,10 @@ getRunTypeId<T>();
   runTest(
     'optional & required → required wins reflect',
     {
-      'opt.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+      'opt.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a?: string} & {a: string};
 declare const value: T;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `,
     },
     async (sources) => {

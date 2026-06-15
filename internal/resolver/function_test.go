@@ -35,9 +35,9 @@ getRunTypeId<Fn>();
 }
 
 func TestF35_RestOnlyFunction_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 function fn(...args: string[]): void {}
-reflectRunTypeId(fn);
+getRunTypeId(fn);
 `
 	r, root := resolveInline(t, code)
 	assertF35RestOnlyFunction(t, r, root)
@@ -94,9 +94,9 @@ getRunTypeId<Fn>();
 }
 
 func TestF36_MixedFunction_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 function fn(a: number, b?: string, ...rest: boolean[]): string { return ""; }
-reflectRunTypeId(fn);
+getRunTypeId(fn);
 `
 	r, root := resolveInline(t, code)
 	assertF36MixedFunction(t, r, root)
@@ -172,9 +172,9 @@ getRunTypeId<Fn>();
 }
 
 func TestF37_PromiseReturn_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 async function fn(x: number): Promise<{ok: boolean}> { return {ok: true}; }
-reflectRunTypeId(fn);
+getRunTypeId(fn);
 `
 	r, root := resolveInline(t, code)
 	assertF37PromiseReturn(t, r, root)
@@ -225,12 +225,12 @@ getRunTypeId<Service>();
 }
 
 func TestF38_ClassMethodFullShape_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class Service {
   greet(name: string, opts?: {tag: string}): string { return ""; }
 }
 declare const value: Service;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF38ClassMethodFullShape(t, r, root)
@@ -294,10 +294,10 @@ getRunTypeId<I>();
 }
 
 func TestF39_MethodSignatureFullShape_Reflect(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface I { greet(name: string): string; }
 declare const value: I;
-reflectRunTypeId(value);
+getRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF39MethodSignatureFullShape(t, r, root)

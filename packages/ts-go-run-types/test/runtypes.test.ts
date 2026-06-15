@@ -1,8 +1,9 @@
 import {describe, it, expect} from 'vitest';
-import {getRunTypeId, reflectRunTypeId, type InjectRunTypeId} from '../src/index.ts';
+import {getRunTypeId, type InjectRunTypeId} from '../src/index.ts';
 
 describe('@mionjs/ts-go-run-types', () => {
-  it('getRunTypeId throws when called without an id (runtime backstop)', () => {
+  // Static form — caller supplies T, no value.
+  it('getRunTypeId (static) throws when called without an id (runtime backstop)', () => {
     // Invoke through a type-erased indirection so the marker scanner
     // doesn't see `InjectRunTypeId<T>` at the call site and the transformer
     // leaves the call alone. Confirms the runtime helper's defensive
@@ -12,19 +13,20 @@ describe('@mionjs/ts-go-run-types', () => {
     expect(() => erased()).toThrow(/no id injected/);
   });
 
-  it('getRunTypeId returns the injected id when the transformer is active', () => {
-    // Simulate the transformer by passing the trailing id literal directly.
-    const id = getRunTypeId<{foo: number}>('abc123' as InjectRunTypeId<{foo: number}>);
+  it('getRunTypeId (static) returns the injected id when the transformer is active', () => {
+    // Simulate the transformer: no value, the trailing id literal at slot 1.
+    const id = getRunTypeId<{foo: number}>(undefined, 'abc123' as InjectRunTypeId<{foo: number}>);
     expect(id).toBe('abc123');
   });
 
-  it('reflectRunTypeId throws when called without an id (runtime backstop)', () => {
-    const erased = reflectRunTypeId as (...args: unknown[]) => unknown;
+  // Reflection form — T inferred from a value; the value is ignored at runtime.
+  it('getRunTypeId (reflect) throws when called without an id (runtime backstop)', () => {
+    const erased = getRunTypeId as (...args: unknown[]) => unknown;
     expect(() => erased({foo: 1})).toThrow(/no id injected/);
   });
 
-  it('reflectRunTypeId returns the injected id when the transformer is active', () => {
-    const id = reflectRunTypeId({foo: 1}, 'abc123' as InjectRunTypeId<{foo: number}>);
+  it('getRunTypeId (reflect) returns the injected id when the transformer is active', () => {
+    const id = getRunTypeId({foo: 1}, 'abc123' as InjectRunTypeId<{foo: number}>);
     expect(id).toBe('abc123');
   });
 });

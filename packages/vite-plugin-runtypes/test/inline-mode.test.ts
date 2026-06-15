@@ -70,12 +70,12 @@ export const isA = createValidate<A>();
     });
   });
 
-  register('DEFAULT reflect: reflectRunTypeId over the same parent keeps the single-module layout', async () => {
-    const code = `import {createValidate, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+  register('DEFAULT reflect: getRunTypeId over the same parent keeps the single-module layout', async () => {
+    const code = `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 type Parent = {tags: string[]};
 export const isParent = createValidate<Parent>();
 const p = {tags: ['a']} as Parent;
-export const reflectedId = reflectRunTypeId(p);
+export const reflectedId = getRunTypeId(p);
 `;
     await withClient(undefined, {'parent-reflect.ts': code}, async (client) => {
       const scan = await client.scanFiles(['parent-reflect.ts'], {includeEntryModules: true});

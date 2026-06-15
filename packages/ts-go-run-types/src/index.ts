@@ -6,7 +6,6 @@ export {
   type CompTimeFnArgs,
   type PureFunction,
   getRunTypeId,
-  reflectRunTypeId,
 } from './markers.ts';
 
 // RT registry — exported BEFORE `./createRTFunctions.ts` so rtUtils is a

@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
@@ -14,7 +14,7 @@ class B1 extends A1 {
 }
 const classBasic = getRunTypeId<B1>();
 declare const b1: B1;
-const classBasicReflect = reflectRunTypeId(b1);
+const classBasicReflect = getRunTypeId(b1);
 
 // 2 — Override: child narrows parent's prop type to a literal.
 class A2 {
@@ -57,7 +57,7 @@ interface IB1 extends IA1 {
 }
 const interfaceBasic = getRunTypeId<IB1>();
 declare const ib1: IB1;
-const interfaceBasicReflect = reflectRunTypeId(ib1);
+const interfaceBasicReflect = getRunTypeId(ib1);
 
 // 6 — Multiple parents.
 interface IA2 {

@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
@@ -12,7 +12,7 @@ class C1 implements I1 {
 }
 const singleImplements = getRunTypeId<C1>();
 declare const c1: C1;
-const singleImplementsReflect = reflectRunTypeId(c1);
+const singleImplementsReflect = getRunTypeId(c1);
 
 // 2 — Class implements multiple interfaces (order preserved).
 interface I2A {

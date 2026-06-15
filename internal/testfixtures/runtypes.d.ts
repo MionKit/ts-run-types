@@ -9,10 +9,9 @@ declare module '@mionjs/ts-go-run-types' {
   // Branded-string sentinel — only the phantom `T` matters to the checker.
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
 
-  // Static marker — explicit T, no value.
-  export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  // Reflection marker — T inferred from a runtime value.
-  export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  // Type-id marker — static (`getRunTypeId<T>()`) or value-first reflection
+  // (`getRunTypeId(value)`, T inferred from the value).
+  export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
 
   // Compile-time-args brand — the Go scanner requires the argument to be
   // fully literal at the call site or via a module-scope const initializer.

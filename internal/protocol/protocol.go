@@ -523,7 +523,7 @@ type Site struct {
 	// createX call site routed through the InjectTypeFnArgs<T, Fn> marker (the
 	// readable family/variant token today; an opaque fn hash after the hashed-id
 	// migration). Empty for reflection-only InjectRunTypeId sites (getRunTypeId /
-	// reflectRunTypeId / builders), which inject the bare id string.
+	// builders), which inject the bare id string.
 	FnId string `json:"fnId,omitempty"`
 	// Demand is the structured set of cache entries this createX site requires,
 	// computed by the scanner from the operation registry. The emitter renders
