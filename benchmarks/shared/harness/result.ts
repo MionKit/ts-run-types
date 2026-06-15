@@ -16,6 +16,12 @@ export interface MetricResult {
   /** REJECT-path throughput: function over the (resolved) invalid samples, ops/sec.
    *  0 when not timed (BENCH_NO_TIMING) or when there are no invalid samples. */
   invalidOpsSec: number;
+  /** MIXED-path throughput: function over valid + invalid samples interleaved,
+   *  ops/sec — the realistic workload where input is neither all-good nor all-bad,
+   *  so branch prediction can't settle. 0 when not timed or either path is empty.
+   *  (Older result files predate this field; the docs derive it as the harmonic
+   *  mean of valid + invalid when absent.) */
+  mixedOpsSec: number;
   detail: string | null;
 }
 
@@ -62,7 +68,7 @@ const CASE_FILTER = process.env.BENCH_CASE;
 
 const ops = (n: number): string => (n ? `${Math.round(n).toLocaleString('en-US')}/s` : '-');
 const metricLine = (metric: MetricResult): string =>
-  `${metric.status}${metric.detail ? ` (${metric.detail})` : ''}  valid ${ops(metric.validOpsSec)}  invalid ${ops(metric.invalidOpsSec)}`;
+  `${metric.status}${metric.detail ? ` (${metric.detail})` : ''}  valid ${ops(metric.validOpsSec)}  invalid ${ops(metric.invalidOpsSec)}  mixed ${ops(metric.mixedOpsSec)}`;
 
 // BENCH_CASE inspection run (see runner.ts): print the matched cases and DON'T
 // overwrite the canonical full-suite <name>.json — mirrors typecost so a per-case

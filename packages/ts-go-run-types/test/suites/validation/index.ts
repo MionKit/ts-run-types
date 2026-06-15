@@ -20,9 +20,11 @@ import {CIRCULAR} from './Circular.ts';
 import {UTILITY} from './Utility.ts';
 import {TYPE_MAPPINGS} from './TypeMappings.ts';
 import {DATETIME} from './DateTime.ts';
+import {REALWORLD} from './Realworld.ts';
 import type {ValidationCase} from './types.ts';
 
 export const VALIDATION_SUITE = {
+  REALWORLD,
   ATOMIC,
   ARRAY,
   OBJECT,
@@ -35,6 +37,7 @@ export const VALIDATION_SUITE = {
   TYPE_MAPPINGS,
   DATETIME,
 } as const satisfies {
+  REALWORLD: Record<string, ValidationCase>;
   ATOMIC: Record<string, ValidationCase>;
   ARRAY: Record<string, ValidationCase>;
   OBJECT: Record<string, ValidationCase>;

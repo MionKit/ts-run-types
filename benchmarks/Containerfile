@@ -61,7 +61,7 @@ COPY _deps/pnpm-workspace.yaml _deps/.npmrc competitors/typia/
 COPY _deps/competitors/typia/package.json competitors/typia/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/typia && pnpm install --no-frozen-lockfile \
-    || echo ">> typia install failed (opt-in BENCH_TYPIA column will be skipped)"
+    || echo ">> typia install failed — its column degrades gracefully (left blank that run; BENCH_NO_TYPIA=1 skips it)"
 
 # typecost runner -- its own TypeScript install (it drives the compiler API). The
 # marker package it type-resolves against is the one bind-mounted into the ts-go

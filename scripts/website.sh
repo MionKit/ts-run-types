@@ -82,10 +82,15 @@ DEPS_DIR="$WEBSITE_DIR/_deps"
 
 # Repo context: the checkout that contains packages/ (mion's first-party source +
 # built .d.ts), mounted READ-ONLY so code-import + twoslash can resolve code and
-# types. Defaults to the sibling ../mion checkout when present (today), else this
-# repo (the merged-monorepo future). Override with WEBSITE_REPO_CONTEXT.
+# types. This repo now carries packages/examples itself (the merged-monorepo
+# state), so prefer it whenever those examples are present -- the docs content is
+# written against THIS repo's examples. Only fall back to a sibling ../mion
+# checkout for a legacy split layout where this repo has no examples of its own.
+# Override with WEBSITE_REPO_CONTEXT.
 default_repo_context() {
-  if [ -d "$ROOT_DIR/../mion/packages" ]; then ( cd "$ROOT_DIR/../mion" && pwd ); else echo "$ROOT_DIR"; fi
+  if [ -d "$ROOT_DIR/packages/examples" ]; then echo "$ROOT_DIR"
+  elif [ -d "$ROOT_DIR/../mion/packages" ]; then ( cd "$ROOT_DIR/../mion" && pwd )
+  else echo "$ROOT_DIR"; fi
 }
 REPO_CONTEXT="${WEBSITE_REPO_CONTEXT:-$(default_repo_context)}"
 
@@ -124,6 +129,30 @@ read_lines() {
 require_engine() {
   command -v "$ENGINE" >/dev/null 2>&1 \
     || die "container engine '$ENGINE' not found. Install podman (https://podman.io)."
+  ensure_engine_running
+}
+
+# Make sure the container engine is actually reachable, not just installed. On
+# macOS, podman runs inside a Linux VM ("podman machine") that does NOT
+# auto-start at login -- a stopped machine is still the "default" connection
+# but its socket is dead, and every command fails with "connection refused"
+# (the original symptom that led to this guard). When that happens, init a
+# machine if none exists and start it. Linux podman runs natively (no machine
+# layer), and non-podman engines (e.g. docker) are left alone.
+ensure_engine_running() {
+  [ "$ENGINE" = "podman" ] || return 0
+  [ "$(uname -s)" = "Darwin" ] || return 0
+  "$ENGINE" info >/dev/null 2>&1 && return 0
+  if ! "$ENGINE" machine list --format '{{.Name}}' 2>/dev/null | grep -q .; then
+    echo "==> no podman machine found - initializing (one-time, ~1 min)"
+    "$ENGINE" machine init || die "podman machine init failed"
+  fi
+  if ! "$ENGINE" machine list --format '{{.Running}}' 2>/dev/null | grep -qi true; then
+    echo "==> starting podman machine"
+    "$ENGINE" machine start || die "podman machine start failed"
+  fi
+  "$ENGINE" info >/dev/null 2>&1 \
+    || die "podman is installed but the engine isn't reachable (try: $ENGINE machine start)"
 }
 
 # Populate website/.cacerts/ from $WEBSITE_CA_CERT (file or dir). Always leaves

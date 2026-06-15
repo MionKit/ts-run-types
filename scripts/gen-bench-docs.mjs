@@ -48,6 +48,19 @@ function safeKey(key) {
   return String(key).replace(/[^A-Za-z0-9_.-]/g, '_');
 }
 
+// Project one harness MetricResult onto the docs shape: valid (accept), invalid
+// (reject), and mixed (interleaved) ops/sec. `mixed` uses the harness's measured
+// `mixedOpsSec` when present; older result files predate it, so we derive it as
+// the harmonic mean of valid + invalid — the exact throughput of a 1:1
+// interleaved stream (modulo branch-prediction effects a real run also captures).
+function toMetric(m) {
+  let mixed = typeof m.mixedOpsSec === 'number' && m.mixedOpsSec > 0 ? m.mixedOpsSec : 0;
+  if (mixed === 0 && m.validOpsSec > 0 && m.invalidOpsSec > 0) {
+    mixed = 2 / (1 / m.validOpsSec + 1 / m.invalidOpsSec);
+  }
+  return {valid: m.validOpsSec, invalid: m.invalidOpsSec, mixed, status: m.status};
+}
+
 // ── competitor source extraction ────────────────────────────────────────────
 // Parse `export const cases … = { 'KEY': <expr>, … }` with the TypeScript
 // compiler API and return a Map(caseKey → source text of <expr>). The AST parse
@@ -109,9 +122,15 @@ function buildValidationBench() {
     const detailComps = [];
     for (const comp of competitors) {
       const c = byComp.get(comp)?.get(row.key);
-      // validationErrors·accept — the universal apples-to-apples metric.
-      const m = c?.validationErrors;
-      if (m) resultsForCase[comp] = {validateOpsSec: m.validOpsSec, status: m.status};
+      // Emit BOTH metrics × BOTH paths so the docs can show them split: the cheap
+      // boolean `validate` is-valid check AND the full `validationErrors` report,
+      // each on valid (accept) and invalid (reject) input. Conflating them hides
+      // that libraries with a fast boolean path (ts-run-types, typebox) pay extra
+      // for error reporting, while ajv/zod always compute errors.
+      const metricResult = {};
+      if (c?.validate) metricResult.validate = toMetric(c.validate);
+      if (c?.validationErrors) metricResult.validationErrors = toMetric(c.validationErrors);
+      if (Object.keys(metricResult).length > 0) resultsForCase[comp] = metricResult;
       const source = sources.get(comp)?.get(row.key);
       if (source) detailComps.push({name: comp, source});
     }
@@ -123,7 +142,11 @@ function buildValidationBench() {
     bench: 'validation',
     label: 'Validation',
     unit: 'ops',
-    metricLabel: 'validationErrors · accept (ops/sec, higher is better)',
+    showInvalid: true,
+    metrics: [
+      {key: 'validate', label: 'Is-valid', metricLabel: 'createValidate — boolean is-valid check (ops/sec, higher is better)'},
+      {key: 'validationErrors', label: 'Validation errors', metricLabel: 'getValidationErrors — full error report (ops/sec, higher is better)'},
+    ],
     competitors,
     sections: [...sectionMap.values()],
   };
@@ -184,7 +207,8 @@ function buildTypecostBench() {
     const detailComps = [];
     for (const form of forms) {
       const inst = byForm.get(form.id).get(key);
-      if (inst !== undefined) results[form.label] = {validateOpsSec: inst, status: 'ok'};
+      // Single metric, single path — typecost has no valid/invalid split.
+      if (inst !== undefined) results[form.label] = {typecost: {valid: inst, status: 'ok'}};
       const source = sources.get(form.id)?.get(key);
       if (source) detailComps.push({name: form.label, source});
     }
@@ -196,7 +220,8 @@ function buildTypecostBench() {
     bench: 'typecost',
     label: 'Type Cost',
     unit: 'count',
-    metricLabel: 'TypeScript type instantiations — lower is better',
+    showInvalid: false,
+    metrics: [{key: 'typecost', label: 'Type cost', metricLabel: 'TypeScript type instantiations — lower is better'}],
     competitors: forms.map((f) => f.label),
     sections: [...sectionMap.values()],
   };

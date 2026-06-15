@@ -34,11 +34,24 @@ function normalize(entry: CaseEntry | undefined): {validate: (() => Validator) |
   return {validate: asFn(entry.build), errors: asFn(entry.buildErrors), override: entry.samples ?? {}};
 }
 
-const notSupported = (): MetricResult => ({status: 'not-supported', validOpsSec: 0, invalidOpsSec: 0, detail: null});
-const errored = (detail: string): MetricResult => ({status: 'errored', validOpsSec: 0, invalidOpsSec: 0, detail});
+const notSupported = (): MetricResult => ({status: 'not-supported', validOpsSec: 0, invalidOpsSec: 0, mixedOpsSec: 0, detail: null});
+const errored = (detail: string): MetricResult => ({status: 'errored', validOpsSec: 0, invalidOpsSec: 0, mixedOpsSec: 0, detail});
+
+// Interleave valid + invalid 1:1 so the timed stream alternates accept/reject —
+// the realistic mixed workload where branch prediction can't settle into one path.
+function interleave(valid: unknown[], invalid: unknown[]): unknown[] {
+  const out: unknown[] = [];
+  const max = Math.max(valid.length, invalid.length);
+  for (let i = 0; i < max; i++) {
+    if (i < valid.length) out.push(valid[i]);
+    if (i < invalid.length) out.push(invalid[i]);
+  }
+  return out;
+}
 
 // Measure one metric: build the validator, check correctness on both paths, then
-// time both paths. `shared`/`sharedErr` is the case's sample set (computed once).
+// time the accept, reject, AND interleaved-mixed streams. `shared`/`sharedErr` is
+// the case's sample set (computed once).
 function measureMetric(builder: (() => Validator) | null, shared: {valid: unknown[]; invalid: unknown[]} | null, sharedErr: string | null, override: SampleOverride): MetricResult {
   if (builder === null) return notSupported();
   if (sharedErr !== null) return errored(sharedErr);
@@ -51,13 +64,15 @@ function measureMetric(builder: (() => Validator) | null, shared: {valid: unknow
   const validSamples = override.valid ?? shared!.valid;
   const invalidSamples = override.invalid ?? shared!.invalid;
   const badValid = check(validator, validSamples, true);
-  if (badValid >= 0) return {status: 'fail', validOpsSec: 0, invalidOpsSec: 0, detail: `valid[${badValid}] rejected`};
+  if (badValid >= 0) return {status: 'fail', validOpsSec: 0, invalidOpsSec: 0, mixedOpsSec: 0, detail: `valid[${badValid}] rejected`};
   const badInvalid = check(validator, invalidSamples, false);
-  if (badInvalid >= 0) return {status: 'fail', validOpsSec: 0, invalidOpsSec: 0, detail: `invalid[${badInvalid}] accepted`};
+  if (badInvalid >= 0) return {status: 'fail', validOpsSec: 0, invalidOpsSec: 0, mixedOpsSec: 0, detail: `invalid[${badInvalid}] accepted`};
+  const mixedSamples = validSamples.length > 0 && invalidSamples.length > 0 ? interleave(validSamples, invalidSamples) : [];
   return {
     status: 'ok',
     validOpsSec: NO_TIMING ? 0 : benchOps(validator, validSamples),
     invalidOpsSec: NO_TIMING ? 0 : benchOps(validator, invalidSamples),
+    mixedOpsSec: NO_TIMING || mixedSamples.length === 0 ? 0 : benchOps(validator, mixedSamples),
     detail: null,
   };
 }
