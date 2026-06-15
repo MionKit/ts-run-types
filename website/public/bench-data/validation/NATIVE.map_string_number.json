@@ -1,1 +1,0 @@
-{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<Map<string, number>>(), buildErrors: () => noErrs(createGetValidationErrors<Map<string, number>>())}"},{"name":"zod","source":"c(z.map(z.string(), z.number().finite()))"},{"name":"typebox","source":"NOT_SUPPORTED"},{"name":"ajv","source":"NOT_SUPPORTED"}]}

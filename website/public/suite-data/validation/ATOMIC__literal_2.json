@@ -1,1 +1,0 @@
-{"section":"ATOMIC","key":"literal_2","title":"Numeric literal type (strict equality)","description":"the numeric literal type `2` — matched by strict `===`","notes":["Strict === equality with the literal value. The string \"2\" is not the number 2."],"pureType":"createValidate<2>()","schema":"createValidate(RT.literal(2))","generated":"function YOw_XJTfZFj(v){return v === 2}"}

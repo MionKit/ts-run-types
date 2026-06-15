@@ -1,1 +1,0 @@
-{"section":"ATOMIC","key":"null","title":"null","description":"Root `null` literal round-trips identically across JSON and binary.","notes":[],"pureType":"createJsonEncoder<null>(undefined, {strategy: 'clone'})","schema":"createJsonEncoder(RT.literal(null))","generated":"function BPD_o2yqyUO(v){return JSON.stringify(v);}"}

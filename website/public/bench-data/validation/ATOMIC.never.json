@@ -1,1 +1,0 @@
-{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<never>(), buildErrors: () => noErrs(createGetValidationErrors<never>())}"},{"name":"zod","source":"c(z.never())"},{"name":"typebox","source":"c(Type.Never())"},{"name":"ajv","source":"c({not: {}})"}]}

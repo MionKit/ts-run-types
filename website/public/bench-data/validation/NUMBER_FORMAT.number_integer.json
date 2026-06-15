@@ -1,1 +1,0 @@
-{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatInteger>(), buildErrors: () => noErrs(createGetValidationErrors<FormatInteger>())}"},{"name":"zod","source":"c(z.number().int())"},{"name":"typebox","source":"c(Type.Integer())"},{"name":"ajv","source":"c({type: 'integer'})"}]}

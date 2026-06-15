@@ -1,1 +1,0 @@
-{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<boolean>(), buildErrors: () => noErrs(createGetValidationErrors<boolean>())}"},{"name":"zod","source":"c(z.boolean())"},{"name":"typebox","source":"c(Type.Boolean())"},{"name":"ajv","source":"c({type: 'boolean'})"}]}

@@ -1,1 +1,0 @@
-{"competitors":[{"name":"ts-go-run-types","source":"(() => {\n    type Fn = (a: number, b: boolean) => Date;\n    return {build: () => createValidate<ReturnType<Fn>>(), buildErrors: () => noErrs(createGetValidationErrors<ReturnType<Fn>>())};\n  })()"},{"name":"zod","source":"c(z.date())"},{"name":"typebox","source":"c(Type.Date())"},{"name":"ajv","source":"NOT_SUPPORTED"}]}

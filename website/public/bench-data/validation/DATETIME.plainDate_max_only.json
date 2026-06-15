@@ -1,1 +1,0 @@
-{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatTemporalPlainDate<{max: '2020-12-31'}>>(), buildErrors: () => noErrs(createGetValidationErrors<FormatTemporalPlainDate<{max: '2020-12-31'}>>())}"},{"name":"zod","source":"NOT_SUPPORTED"},{"name":"typebox","source":"NOT_SUPPORTED"},{"name":"ajv","source":"NOT_SUPPORTED"}]}

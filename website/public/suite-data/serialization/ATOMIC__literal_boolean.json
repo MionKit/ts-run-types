@@ -1,1 +1,0 @@
-{"section":"ATOMIC","key":"literal_boolean","title":"boolean literal","description":"A boolean-literal type round-trips identically across JSON and binary as a plain boolean.","notes":[],"pureType":"createJsonEncoder<true>(undefined, {strategy: 'clone'})","schema":"createJsonEncoder(RT.literal(true))","generated":"function BPD_FPrbbZN(v){return JSON.stringify(v);}"}
