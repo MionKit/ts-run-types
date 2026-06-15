@@ -1,0 +1,137 @@
+# Binary encoder buffer sizing — strategy, current fix, and next steps
+
+**Status:** partially improved (this PR). Welford prediction + in-place grow for
+the serializer's own writers landed; container-boundary reservation in the Go
+emitter is the remaining work, tracked below.
+
+This documents how `createBinaryEncoder<T>()` decides how big a buffer to
+allocate, the failure mode the fuzzer surfaced, the change shipped now, and the
+improvements deferred for later.
+
+## Where the code lives
+
+- Encoder entry + backstop loop — [`packages/ts-go-run-types/src/createRTFBinary.ts`](../packages/ts-go-run-types/src/createRTFBinary.ts)
+- Serializer, prediction, and in-place grow — [`packages/ts-go-run-types/src/runtypes/dataView.ts`](../packages/ts-go-run-types/src/runtypes/dataView.ts)
+- Go emitter that inlines scalar/framing writes — [`internal/compiled/typefns/binary_to.go`](../internal/compiled/typefns/binary_to.go), [`union_flat_binary.go`](../internal/compiled/typefns/union_flat_binary.go)
+- Regression test — [`packages/ts-go-run-types/test/fuzz/binaryEncoderResize.test.ts`](../packages/ts-go-run-types/test/fuzz/binaryEncoderResize.test.ts)
+
+## The original strategy (adapted from an API model)
+
+The encoder owns a `DataViewSerializer` and must pick its initial `ArrayBuffer`
+size before encoding. The strategy was lifted from an API framework where each
+endpoint tracked its own buffer size — starting big and shrinking incrementally
+toward observed usage — then adapted for mion's per-type use case. Three coupled
+mechanisms:
+
+1. **Predict** (`predictBufferSize`/`sizeForKey`): per-`cacheKey` rolling
+   average × a fixed `sizeMultiplier` (2), cold-starting at `defaultBufferSize`
+   (16 MiB).
+2. **Record** (`recordObservedSize`): an EMA, `(prev + observed) / 2`, blended
+   against the 16 MiB default so the prediction decays _down_ from "really big"
+   over successive encodes.
+3. **Resize** (encoder loop): when the buffer under-allocated, a raw DataView
+   write threw a `RangeError`; the encoder caught it, **doubled the buffer, and
+   re-encoded the whole payload from a clean index**.
+
+### The failure the fuzzer found
+
+The EMA converges to the **mean** payload size, and the `× 2` multiplier is a
+crude, variance-blind stand-in for the tail. After many small encodes for a key,
+the prediction sits near the small mean; the next above-average payload (e.g. a
+10 KB string after fifty empty ones) overflows and — pre-fix — threw
+`RangeError: buffer too small to encode string … Call resize() and retry.`
+The encoder's catch did eventually grow, but only by **re-encoding from
+scratch**, sometimes several doublings deep. High-variance (bimodal) workloads
+paid this on every large item.
+
+## The fix shipped now
+
+### 1. Welford prediction (mean + k·σ) — replaces the mean-EMA
+
+`sizeHistory` now stores a per-key Welford accumulator (`SizeStats { count,
+mean, m2 }`) instead of a single rolling average. Prediction is:
+
+```
+allocSize = ceil(mean + sizeMultiplier × stddev)
+```
+
+`sizeMultiplier` (default 2) is reinterpreted from "× the average" to "k standard
+deviations of headroom." The headroom now tracks the **observed spread**: stable
+keys get a tight allocation, bursty keys automatically get more. The magic `× 2`
+is gone.
+
+### 2. In-place grow for the serializer's own writers — removes the string re-encode
+
+`DataViewSerializer` gained `ensureCapacity(extraBytes)`, which grows the buffer
+**geometrically but at least to the exact deficit** and **copies the written
+prefix** into the new buffer (`resize` is now prefix-preserving too). Every
+serializer writer that advances the cursor reserves first: `serString` (via
+`reserveForString`, which reserves the worst-case 3 bytes/UTF-16-unit so
+`encodeInto` can never truncate), `serFloat64`, `serEnum`, `serByte`, the
+Temporal writers.
+
+Consequence: the dominant overflow case — an above-average **string**, the one
+the regression test pins — now settles in a **single buffer copy**, with no
+throw and no re-encode. Because a tight Welford prediction is now cheap to miss,
+the two changes reinforce each other.
+
+### Why a backstop loop still exists
+
+The Go-emitted bodies write **scalars and container framing inline** to
+`Ser.view`/`Ser.index` for throughput — numbers (`setFloat64`), array/map length
+prefixes (`setUint32`), union discriminator tags (`setUint8`/`setUint16`), and
+optional-property bitmaps (`setUint8`). These bypass the serializer's methods, so
+they cannot self-grow. If a prediction under-allocates for an all-scalar payload
+(e.g. a large array of numbers with no strings), a raw write still throws a
+`RangeError`.
+
+The encoder therefore keeps a **streamlined retry loop** as a correctness
+backstop: catch the `RangeError`, grow (prefix-preserving `resize`), and
+re-encode until it fits or hits the `2 ** 32` ceiling. With Welford headroom this
+fires rarely, and never for the string case.
+
+## Deferred improvements (take later)
+
+1. **Container-boundary capacity reservation in the emitter — retires the
+   backstop loop.** Instead of letting inline scalar/framing writes throw, have
+   the Go emitter reserve capacity once per container where the size is known:
+   `Ser.ensureCapacity(4)` before a length prefix, `Ser.ensureCapacity(4 + n*8)`
+   before an array-of-numbers loop, the discriminator width before a union tag,
+   `bitmapLength` before the optional-bitmap zero-loop. This is **one reserve per
+   container, not per scalar**, so throughput is preserved, and it eliminates the
+   re-encode path entirely. Requires exposing `ensureCapacity` publicly and
+   editing `binary_to.go` / `union_flat_binary.go` / `class_serializer.go` +
+   rebuilding the Go binary. This is the natural next step.
+
+2. **Buffer pooling per `cacheKey`.** Today a fresh `ArrayBuffer` is allocated on
+   every `encode` call. A pooled, grow-only serializer per key (with occasional
+   shrink) would cut GC pressure on hot encode loops. Orthogonal to prediction.
+   Explicitly deferred.
+
+3. **Forgetting statistics for regime shifts.** Welford keeps an unbiased mean +
+   variance over _all_ observations, so after millions of encodes it stops
+   adapting; a sustained shift in payload size (e.g. a deploy that grows
+   records) is absorbed only slowly. An exponentially-weighted mean+variance
+   (West's online algorithm) or a windowed/decaying accumulator would restore the
+   responsiveness the old aggressive EMA had, without its variance blindness.
+
+4. **Streaming-quantile prediction (p99).** A P²/t-digest sketch per key would
+   bound the backstop/grow rate by construction (size for the p99) rather than
+   assuming a roughly-normal spread around the mean. More per-key state; only
+   worth it if measurements show mean+k·σ mispredicts on real corpora.
+
+5. **Lower the 16 MiB cold start.** With in-place grow + container reservation in
+   place, an under-allocated first encode is no longer catastrophic, so the
+   giant cold-start default could drop substantially (cutting first-encode
+   memory for every new key). Blocked on improvement #1 covering all write paths.
+
+6. **Two-pass measure-then-allocate (opt-in).** A byte-counting pass followed by
+   an exact allocation removes prediction, retries, and over-allocation entirely
+   at ~2× encode CPU — the protobuf `ByteSizeLong` model. Worth offering as an
+   opt-in for very large or highly variable payloads.
+
+## Measuring before picking more
+
+Before investing in #3/#4/#6, instrument the encoder to record, per key, the
+backstop-loop hit rate and bytes wasted (allocated − used). Pick the next
+strategy on data from a real corpus, not on intuition.
