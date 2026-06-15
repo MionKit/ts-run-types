@@ -14,8 +14,8 @@ import type {FormatNumber, FormatInteger, FormatFloat, FormatInt8, FormatUInt8} 
 
 export const NUMBER_FORMAT = {
   number_max: {
-    title: 'FormatNumber<{max: 100}> — inclusive upper bound',
-    description: 'numberFormat with an inclusive upper bound; rejects numbers above max',
+    title: 'Inclusive max',
+    description: 'numberFormat with an inclusive upper bound that rejects numbers above max.',
     validateNotes: 'Boundary value 100 passes (inclusive); 101 fails on `max`. A non-number ("5") fails the number typeof gate before any format check.',
     validate: () => createValidate<FormatNumber<{max: 100}>>(),
     validateReflect: () => {
@@ -50,8 +50,8 @@ export const NUMBER_FORMAT = {
     expectedFormatErrors: () => [{name: 'numberFormat', val: 100, formatPathTail: 'max'}, null],
   },
   number_min: {
-    title: 'FormatNumber<{min: 0}> — inclusive lower bound',
-    description: 'numberFormat with an inclusive lower bound; rejects numbers below min (equivalent to FormatPositive)',
+    title: 'Inclusive min',
+    description: 'numberFormat with an inclusive lower bound that rejects numbers below min, equivalent to FormatPositive.',
     validateNotes: 'Boundary value 0 passes (inclusive); -1 fails on `min`.',
     validate: () => createValidate<FormatNumber<{min: 0}>>(),
     validateReflect: () => {
@@ -86,8 +86,8 @@ export const NUMBER_FORMAT = {
     expectedFormatErrors: () => [{name: 'numberFormat', val: 0, formatPathTail: 'min'}],
   },
   number_lt: {
-    title: 'FormatNumber<{lt: 10}> — exclusive upper bound',
-    description: 'numberFormat with an exclusive upper bound; the bound itself is rejected',
+    title: 'Exclusive max',
+    description: 'numberFormat with an exclusive upper bound where the bound itself is rejected.',
     validateNotes: 'Exclusive `lt`: 9 passes but the boundary 10 fails (and 11 above it). Lower bound is unconstrained, so -100 passes.',
     validate: () => createValidate<FormatNumber<{lt: 10}>>(),
     validateReflect: () => {
@@ -125,8 +125,8 @@ export const NUMBER_FORMAT = {
     ],
   },
   number_gt: {
-    title: 'FormatNumber<{gt: 0}> — exclusive lower bound',
-    description: 'numberFormat with an exclusive lower bound; the bound itself is rejected',
+    title: 'Exclusive min',
+    description: 'numberFormat with an exclusive lower bound where the bound itself is rejected.',
     validateNotes: 'Exclusive `gt`: 1 passes but the boundary 0 fails (and -1 below it).',
     validate: () => createValidate<FormatNumber<{gt: 0}>>(),
     validateReflect: () => {
@@ -164,8 +164,8 @@ export const NUMBER_FORMAT = {
     ],
   },
   number_integer: {
-    title: 'FormatInteger — whole numbers only',
-    description: 'numberFormat with the `integer` flag; rejects any non-whole number',
+    title: 'Integer',
+    description: 'numberFormat with the `integer` flag that rejects any non-whole number.',
     validateNotes: 'Whole numbers (incl. 0 and negatives like -1) pass; fractional values (1.5, 3.14) fail on `integer`. No min/max bound, so any integer magnitude is accepted.',
     validate: () => createValidate<FormatInteger>(),
     validateReflect: () => {
@@ -203,8 +203,8 @@ export const NUMBER_FORMAT = {
     ],
   },
   number_float: {
-    title: 'FormatFloat — non-integer only',
-    description: 'numberFormat with the `float` flag; rejects whole numbers (the inverse of FormatInteger)',
+    title: 'Float',
+    description: 'numberFormat with the `float` flag that rejects whole numbers, the inverse of FormatInteger.',
     validateNotes: 'Fractional values (1.5, -0.5, 3.14) pass; whole numbers (1, 0, -2) fail on `float`. `float` and `integer` are mutually exclusive.',
     validate: () => createValidate<FormatFloat>(),
     validateReflect: () => {
@@ -243,8 +243,8 @@ export const NUMBER_FORMAT = {
     ],
   },
   number_multipleOf: {
-    title: 'FormatNumber<{multipleOf: 5}> — divisible by 5',
-    description: 'numberFormat divisibility constraint; only multiples of 5 pass',
+    title: 'Multiple of',
+    description: 'numberFormat divisibility constraint where only multiples of 5 pass.',
     validateNotes: '0 counts as a multiple and passes; non-multiples (3, 7) fail on `multipleOf`. Negative multiples like -15 pass.',
     validate: () => createValidate<FormatNumber<{multipleOf: 5}>>(),
     validateReflect: () => {
@@ -282,8 +282,8 @@ export const NUMBER_FORMAT = {
     ],
   },
   number_combined: {
-    title: 'FormatNumber<{min:0; max:100; integer:true; multipleOf:5}> — all constraints',
-    description: 'numberFormat combining min, max, integer, and multipleOf; each invalid sample trips a distinct constraint',
+    title: 'Combined constraints',
+    description: 'numberFormat combining min, max, integer, and multipleOf, where each invalid sample trips a distinct constraint.',
     validateNotes: 'All four constraints enforced together: -5 fails `min`, 105 fails `max`, 7 fails `multipleOf`, 2.5 fails `integer`. Boundary values 0 and 100 pass (both inclusive, integers, and multiples of 5).',
     validate: () => createValidate<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
     validateReflect: () => {
@@ -325,8 +325,8 @@ export const NUMBER_FORMAT = {
     ],
   },
   number_int8: {
-    title: 'FormatInt8 — signed 8-bit range',
-    description: 'numberFormat preset for the signed 8-bit range [-128, 127], integer-only; selects 1-byte binary packing',
+    title: 'Int8',
+    description: 'numberFormat preset for the integer-only signed 8-bit range [-128, 127] that selects 1-byte binary packing.',
     validateNotes: 'Inclusive bounds min -128 / max 127, integer required: 128 fails `max`, -129 fails `min`, 1.5 fails `integer`. The fixed min/max drive the 1-byte binary packing optimization.',
     validate: () => createValidate<FormatInt8>(),
     validateReflect: () => {
@@ -365,8 +365,8 @@ export const NUMBER_FORMAT = {
     ],
   },
   number_uint8: {
-    title: 'FormatUInt8 — unsigned 8-bit range',
-    description: 'numberFormat preset for the unsigned 8-bit range [0, 255], integer-only; selects 1-byte binary packing',
+    title: 'UInt8',
+    description: 'numberFormat preset for the integer-only unsigned 8-bit range [0, 255] that selects 1-byte binary packing.',
     validateNotes: 'Inclusive bounds min 0 / max 255, integer required: 256 fails `max`, -1 fails `min`. The fixed min/max drive the 1-byte binary packing optimization.',
     validate: () => createValidate<FormatUInt8>(),
     validateReflect: () => {

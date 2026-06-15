@@ -5,8 +5,8 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 
 export const ARRAY = {
   string_array: {
-    title: 'Array of strings',
-    description: 'mion collection/array — `Array.isArray(v)` then every element validated against the element type (`string`).',
+    title: 'String array',
+    description: '`Array.isArray(v)` then every element validated against the element type `string`; `[]` is valid.',
     validateNotes: [
       'Top-level value must be an actual array (`Array.isArray`).',
       'Every element must satisfy the element type — the empty array `[]` is valid.',
@@ -60,8 +60,8 @@ export const ARRAY = {
   },
 
   number_array: {
-    title: 'Array of numbers (rejects Infinity / NaN per element)',
-    description: 'Infinity / -Infinity / NaN rejected per atomic-number port',
+    title: 'Number array',
+    description: 'Each element goes through the atomic `number` check, so `Infinity`, `-Infinity`, and `NaN` are rejected per element.',
     validateNotes:
       'Each element goes through the atomic `number` check (`Number.isFinite`) — `NaN`, `Infinity`, and `-Infinity` are rejected per-element even though they pass `typeof === "number"`.',
     validate: () => createValidate<number[]>(),
@@ -111,8 +111,8 @@ export const ARRAY = {
   },
 
   boolean_array: {
-    title: 'Array of booleans',
-    description: 'Array whose every element passes the atomic strict-`typeof` boolean check; `[]` is valid.',
+    title: 'Boolean array',
+    description: 'Every element passes the atomic strict-`typeof` boolean check; `[]` is valid.',
     validateNotes: 'Numeric `0` / `1` are rejected per-element — the element check is strict `typeof === "boolean"`, not truthiness.',
     validate: () => createValidate<boolean[]>(),
     validateDataOnly: () => createValidate<DataOnly<boolean[]>>(),
@@ -159,8 +159,8 @@ export const ARRAY = {
   },
 
   bigint_array: {
-    title: 'Array of bigints',
-    description: 'Array whose every element passes the atomic strict-`typeof` bigint check; `[]` is valid.',
+    title: 'BigInt array',
+    description: 'Every element passes the atomic strict-`typeof` bigint check; `[]` is valid.',
     validateNotes: 'Plain `number` elements (e.g. `2`, `Infinity`) are rejected — `typeof 2n === "bigint"` but `typeof 2 === "number"`.',
     validate: () => createValidate<bigint[]>(),
     validateDataOnly: () => createValidate<DataOnly<bigint[]>>(),
@@ -206,8 +206,8 @@ export const ARRAY = {
   },
 
   date_array: {
-    title: 'Array of Dates (rejects Invalid Date per element)',
-    description: 'from mion serialization-suite ARRAYS.array_date',
+    title: 'Date array',
+    description: 'Each element goes through the atomic `Date` check, so Invalid Date instances fail per element.',
     validateNotes: 'Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.',
     validate: () => createValidate<Date[]>(),
     validateDataOnly: () => createValidate<DataOnly<Date[]>>(),
@@ -252,8 +252,8 @@ export const ARRAY = {
   },
 
   regexp_array: {
-    title: 'Array of RegExps',
-    description: 'Array whose every element passes the atomic builtin-class RegExp check (`instanceof RegExp`); `[]` is valid.',
+    title: 'RegExp array',
+    description: 'Every element passes the atomic builtin-class RegExp check (`instanceof RegExp`); `[]` is valid.',
     validateNotes: 'A regex *source string* like `"/abc/"` is rejected — the element check is the nominal `instanceof RegExp`, not a string.',
     validate: () => createValidate<RegExp[]>(),
     validateDataOnly: () => createValidate<DataOnly<RegExp[]>>(),
@@ -299,8 +299,8 @@ export const ARRAY = {
   },
 
   undefined_array: {
-    title: 'Array of undefined values',
-    description: 'from mion serialization-suite ARRAYS.undefined_in_array',
+    title: 'Undefined array',
+    description: 'Every element must strictly `=== undefined`; `null` and other falsy values are rejected per element.',
     validateNotes: 'Every element must strictly === undefined. `null` and other falsy values are rejected per-element.',
     validate: () => createValidate<undefined[]>(),
     validateDataOnly: () => createValidate<DataOnly<undefined[]>>(),
@@ -347,8 +347,8 @@ export const ARRAY = {
   },
 
   null_array: {
-    title: 'Array of nulls',
-    description: 'Array of the `null` literal — every element validated as `=== null`; `[]` is valid.',
+    title: 'Null array',
+    description: 'Every element validated as strictly `=== null`; `[]` is valid.',
     validateNotes: 'Every element must strictly === null. `undefined` and other falsy values are rejected per-element.',
     validate: () => createValidate<null[]>(),
     validateDataOnly: () => createValidate<DataOnly<null[]>>(),
@@ -395,8 +395,8 @@ export const ARRAY = {
   },
 
   array_generic: {
-    title: 'Generic Array<T> form (same emit as T[])',
-    description: 'TypeScript sugar — resolves identically to string[]; carried as a regression check on canonical-id collapse',
+    title: 'Generic Array',
+    description: '`Array<string>` is TypeScript sugar that collapses to the same canonical id as `string[]`, producing an identical validator.',
     validateNotes:
       '`Array<string>` and `string[]` are the same type — they collapse to one canonical id and produce an identical validator.',
     validate: () => createValidate<Array<string>>(),
@@ -441,9 +441,8 @@ export const ARRAY = {
   },
 
   string_array_2d: {
-    title: 'Two-dimensional string array (multi-level dependency call)',
-    description:
-      'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getRT(...).fn(v[i0]))',
+    title: 'String array 2D',
+    description: 'First multi-level test, exercising the Go-side dependency-call layer where the outer array invokes its pre-compiled inner validator.',
     validateNotes:
       'getValidationErrors does NOT early-exit: every failing element accumulates its own error (e.g. a two-element outer array of non-arrays yields two `expected: "array"` entries).',
     validate: () => createValidate<string[][]>(),
@@ -510,8 +509,8 @@ export const ARRAY = {
   },
 
   string_array_3d: {
-    title: 'Three-dimensional string array (depth stress)',
-    description: 'depth stress for the dependency-call layer',
+    title: 'String array 3D',
+    description: 'Depth stress for the dependency-call layer.',
     validate: () => createValidate<string[][][]>(),
     validateDataOnly: () => createValidate<DataOnly<string[][][]>>(),
     validateSchema: () => createValidate(RT.array(RT.array(RT.array(RT.string())))),
@@ -560,9 +559,8 @@ export const ARRAY = {
   },
 
   string_array_noIsArrayCheck: {
-    title: 'Array with noIsArrayCheck (Array.isArray guard stripped)',
-    description:
-      'noIsArrayCheck strips the Array.isArray guard; hashes distinctly from plain string_array — same samples, different validator',
+    title: 'noIsArrayCheck array',
+    description: '`{noIsArrayCheck: true}` strips the `Array.isArray` guard, producing a distinctly-hashed validator that only walks elements.',
     validateNotes: [
       'With `{noIsArrayCheck: true}`, the `Array.isArray` guard is stripped — non-array inputs may slip through.',
       'Use only when the caller has already verified the value is an array; the validator trusts the shape and only walks elements.',
@@ -610,9 +608,8 @@ export const ARRAY = {
   // ---- DEFERRED — sample payloads carried for future activation ----
 
   object_array: {
-    title: 'Array of object literals',
-    description:
-      "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass validate (unknown-key handling is a different adapter).",
+    title: 'Object array',
+    description: 'Array of object literals where extra keys on the elements still pass validate (unknown-key handling is a different adapter).',
     validateNotes:
       'Extra keys on the object elements (e.g. `{a: "hello", extraA: "x"}`) still PASS — validate is structural and ignores undeclared keys.',
     validate: () => createValidate<{a: string}[]>(),
@@ -661,8 +658,8 @@ export const ARRAY = {
   },
 
   union_array: {
-    title: 'Array of unions (OR-chain per element)',
-    description: 'array of union — each element validates against the union OR-chain.',
+    title: 'Union array',
+    description: 'Each element validates against the union OR-chain.',
     validateNotes:
       'Elements may mix `string` and `number` freely. The number arm uses `Number.isFinite`, so `Infinity` / `NaN` fail it; `bigint` matches neither arm — both produce `expected: "union"`.',
     validate: () => createValidate<(string | number)[]>(),
@@ -718,8 +715,8 @@ export const ARRAY = {
   },
 
   tuple_array: {
-    title: 'Array of tuples',
-    description: 'array of tuples — exercises tuple under array dependency call.',
+    title: 'Tuple array',
+    description: 'Exercises a tuple under the array dependency call.',
     validateNotes:
       'Each element is a fixed-length `[string, number]` tuple: an over-length element (e.g. `["a", 1, "extra"]`) fails the tuple-length check (`expected: "tuple"`), not just an element check.',
     validate: () => createValidate<[string, number][]>(),
@@ -780,9 +777,8 @@ export const ARRAY = {
   },
 
   circular_array: {
-    title: 'Self-referential array (CircularArray = CircularArray[])',
-    description:
-      "mion array.spec.ts 'Array circular ref'. Self-referential array — handled via the always-non-inlined KindArray policy plus the isSelf branch in EmitDependencyCall (emits the inner-function-name directly, no .fn).",
+    title: 'Circular array',
+    description: 'Self-referential `CircularArray = CircularArray[]` handled via the always-non-inlined KindArray policy plus the isSelf branch in EmitDependencyCall.',
     validateNotes:
       'Self-referential arrays are validated recursively — depth is bounded only by the caller-supplied value, not the type definition.',
     validate: () => {
@@ -872,9 +868,8 @@ export const ARRAY = {
   },
 
   circular_object_with_array: {
-    title: 'Recursive object whose cycle closes via an array property',
-    description:
-      'type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]} — same dependency-call mechanism as the basic circular interface; the array property d?: ObjectType[] closes the cycle via Array → Object.',
+    title: 'Circular object via array',
+    description: 'Recursive object whose cycle closes through the array property `d?: ObjectType[]`, using the same dependency-call mechanism as a basic circular interface.',
     validateNotes:
       'The recursive `d` property is optional, so `{a: "hello"}` (no children) is valid; nested children are validated recursively to whatever depth the value supplies.',
     validate: () => {
@@ -981,9 +976,8 @@ export const ARRAY = {
   },
 
   symbol_array: {
-    title: 'Array of symbols (non-serializable — factory throws)',
-    description:
-      'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148): mion throws at RT-compile. The port propagates CodeNS from the symbol element to the root, rendering an alwaysThrow factory (T3), so createValidate<symbol[]>() / createGetValidationErrors<symbol[]>() throw on first call — consistent with the unified rule (non-property positions throw). As a *property* child a non-serializable array drops the property instead.',
+    title: 'Symbol array',
+    description: 'A non-serializable symbol element propagates to the root and renders an alwaysThrow factory, so the first `createValidate<symbol[]>()` call throws.',
     validateNotes:
       'Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, …) cannot be validated: the factory is rendered as alwaysThrow and the first createXxx<symbol[]>() call throws. Use a different shape to carry symbol-like data.',
     validate: () => createValidate<symbol[]>(),
@@ -1026,9 +1020,8 @@ export const ARRAY = {
   },
 
   readonly_string_array: {
-    title: 'Readonly array (ReadonlyArray<T> / readonly T[])',
-    description:
-      '`readonly T[]` and `ReadonlyArray<T>` are the same type at runtime — the readonly bit is a TS-only modifier erased at emit. Regression check that both forms produce the same validator as the bare `T[]` shape.',
+    title: 'Readonly array',
+    description: '`readonly T[]` and `ReadonlyArray<T>` erase the TS-only readonly modifier at emit, producing the same validator as the bare `T[]` shape.',
     validateNotes:
       'Readonly modifier has NO runtime impact — the validator is identical to `T[]`. The compiler enforces readonly at write sites; the validator only checks the value shape.',
     validate: () => createValidate<ReadonlyArray<string>>(),

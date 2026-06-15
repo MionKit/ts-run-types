@@ -5,8 +5,8 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 
 export const TUPLE = {
   string_number_pair: {
-    title: 'Two-element tuple (string plus number)',
-    description: 'mion member/tuple — `Array.isArray(v)`, exact length 2, then slot 0 validated as `string` and slot 1 as `number`.',
+    title: 'String number pair',
+    description: 'A two-element tuple that checks `Array.isArray(v)`, exact length 2, then validates slot 0 as `string` and slot 1 as `number` (mion member/tuple).',
     validateNotes: [
       'Tuples enforce exact length — both fewer (missing required) and more (excess) elements fail.',
       'Each slot runs the atomic check for its declared type.',
@@ -84,8 +84,8 @@ export const TUPLE = {
   },
 
   full_mion_tuple: {
-    title: 'Six-element heterogeneous tuple (mion fixture)',
-    description: 'mion tuple.spec.ts "validate tuple"',
+    title: 'Heterogeneous tuple',
+    description: 'A six-element heterogeneous tuple where each slot runs its declared atomic check (mion tuple.spec.ts "validate tuple").',
     validateNotes:
       'Each slot runs its declared atomic check: an Invalid Date at slot 0, `NaN` at slot 1, or `undefined` at the `null`-literal slot 3 all fail (`undefined` is not `null`).',
     validate: () => createValidate<[Date, number, string, null, string[], bigint]>(),
@@ -147,8 +147,8 @@ export const TUPLE = {
   },
 
   tuple_with_optional: {
-    title: 'Tuple with trailing optional elements',
-    description: 'mion tuple.spec.ts "validate tuple with optional parameters"',
+    title: 'Tuple with optionals',
+    description: 'A tuple with trailing optional elements that may each be absent or explicitly undefined (mion tuple.spec.ts "validate tuple with optional parameters").',
     validateNotes:
       'Optional tuple slots may be absent OR explicitly `undefined`. Trailing-only — TS grammar disallows `[A, B?, C]` (required after optional).',
     validate: () => createValidate<[number, bigint?, boolean?, number?]>(),
@@ -200,8 +200,8 @@ export const TUPLE = {
   },
 
   nested_tuple_in_array: {
-    title: 'Tuple as array element (tuple inside array dependency call)',
-    description: 'array of tuples — exercises tuple inside array dependency call',
+    title: 'Tuple in array',
+    description: 'An array of fixed-length tuples that exercises a tuple inside an array dependency call.',
     validateNotes:
       'Each element is a fixed-length tuple, so a non-array element (e.g. `"not tuple"`) fails with `expected: "tuple"` while element-level failures report the nested `[index, slot]` path.',
     validate: () => createValidate<[string, number][]>(),
@@ -263,13 +263,13 @@ export const TUPLE = {
   // ---- DEFERRED — features that aren't yet ported ----
 
   tuple_rest: {
-    title: 'Tuple with a trailing rest segment',
+    title: 'Tuple rest',
     // DataOnly's homomorphic tuple mapping can't preserve a trailing rest
     // (`...T[]`) element — the reconstructed shape widens and accepts inputs the
     // emitter rejects.
     dataOnlyDivergent: true,
     description:
-      "mion tuple.spec.ts 'validate tuple with rest parameter'. Rest TupleMembers (Flags=['rest']) emit a for-loop starting at the member's Position and iterating to v.length, validating every element against the wrapped type. The tuple's length-bound check is skipped (rest absorbs extras).",
+      "A tuple with a trailing rest segment that absorbs any number of trailing elements via a for-loop from the member's position to v.length, skipping the length-bound check (mion tuple.spec.ts 'validate tuple with rest parameter').",
     validateNotes:
       'A trailing rest segment absorbs any number of trailing elements (including zero). Each trailing element must satisfy the rest type.',
     validate: () => createValidate<[number, ...string[]]>(),
@@ -325,12 +325,12 @@ export const TUPLE = {
   },
 
   tuple_circular: {
-    title: 'Self-referential tuple via trailing optional self-ref',
+    title: 'Circular tuple',
     // The self-referential tuple shape doesn't survive DataOnly's recursive
     // homomorphic mapping (the self-ref slot widens), so verdicts diverge.
     dataOnlyDivergent: true,
     description:
-      'mion tuple.spec.ts circular tuple. Same mechanism as circular array — Tuple is always non-inlined, the self-recursive dependency call closes the cycle via the isSelf branch.',
+      'A self-referential tuple whose cycle closes via a trailing optional self-ref slot, where the always-non-inlined tuple makes a self-recursive dependency call through the isSelf branch (mion tuple.spec.ts circular tuple).',
     validateNotes:
       'The cycle closes via a trailing OPTIONAL self-ref slot, so a non-recursive value (the first six slots only) is valid; nested tuples recurse to whatever depth the value supplies.',
     validate: () => {
@@ -428,9 +428,9 @@ export const TUPLE = {
   },
 
   tuple_multiple_trailing_optionals: {
-    title: 'Tuple with multiple trailing optional slots',
+    title: 'Multiple trailing optionals',
     description:
-      "Multiple trailing optionals — TS grammar requires optionals to come after required elements (`[A, B?, C]` is a TS error), so the canonical 'optional middle' form is a chain of trailing optionals. Each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.",
+      "A chain of trailing optional slots (TS grammar bars optionals before required elements) where each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.",
     validateNotes:
       'An optional slot may be absent or explicitly `undefined`. The resolver expands an optional like `boolean?` to a union (`undefined | true | false`), so a wrong value there reports `expected: "union"` rather than `"boolean"`.',
     validate: () => createValidate<[number, bigint?, boolean?, number?]>(),
@@ -500,9 +500,9 @@ export const TUPLE = {
   },
 
   tuple_named_labels: {
-    title: 'Tuple with named element labels (labels erased at runtime)',
+    title: 'Named labels',
     description:
-      "Named tuple labels — `[name: string, age: number]` is the same shape as `[string, number]` at runtime (labels are TS-only metadata, erased at emit). Carried as a regression check that label syntax doesn't affect the validator shape.",
+      "A tuple with named element labels that erase at emit, so `[name: string, age: number]` validates identically to `[string, number]` (a regression check that label syntax doesn't affect the validator shape).",
     validateNotes:
       'Element labels are TS-only metadata erased at emit — the validator is identical to the unlabelled `[string, number]`; only positional types are checked.',
     validate: () => createValidate<[name: string, age: number]>(),
@@ -561,13 +561,13 @@ export const TUPLE = {
   },
 
   tuple_with_non_serializable: {
-    title: 'Tuple with a function slot (must be undefined)',
+    title: 'Function slot',
     // The emitter keeps a function tuple slot as a `notSupported` node that
     // validates `undefined`; DataOnly maps the slot to `never`, so the projected
     // tuple `[string, never]` rejects the valid `[..., undefined]` samples.
     dataOnlyDivergent: true,
     description:
-      "mion serialization-suite TUPLES.tuple_with_non_serializable. Function-typed tuple members emit `v[i] === undefined` per mion's non-serializable handling. The function slot must be absent or explicitly undefined; any other value (a real function, a string, …) fails.",
+      "A tuple whose function-typed slot emits `v[i] === undefined`, so it must be absent or explicitly undefined and any other value (a real function, a string) fails (mion serialization-suite TUPLES.tuple_with_non_serializable).",
     validateNotes: [
       'TS DIVERGENCE: A function-typed tuple slot must be MISSING or explicitly `undefined`. A real function FAILS the check.',
       'This is the opposite of the object-property case (where function-typed props are skipped entirely): tuples enforce `=== undefined` because tuple position is structural.',
@@ -629,9 +629,9 @@ export const TUPLE = {
   },
 
   empty_tuple: {
-    title: 'Empty tuple `[]` (only the empty array passes)',
+    title: 'Empty tuple',
     description:
-      "Zero-length tuple — the validator accepts only `[]` (Array.isArray + length === 0). Edge case for the tuple emit; mirrors mion's `children.length === 0` branch.",
+      "A zero-length tuple whose validator accepts only `[]` via Array.isArray plus length === 0, mirroring mion's `children.length === 0` branch.",
     validateNotes:
       'Only the empty array `[]` passes — any element at all (even `[null]`) fails the exact length-0 check; a plain object `{}` is also rejected.',
     validate: () => createValidate<[]>(),
@@ -679,9 +679,9 @@ export const TUPLE = {
   },
 
   single_element_tuple: {
-    title: 'Single-element tuple `[T]`',
+    title: 'Single element tuple',
     description:
-      'One-slot tuple — corner case for the length-bound check (length must be exactly 1 modulo optional / rest). Exercises the same emit shape as multi-element tuples but with a single member.',
+      'A one-slot tuple that exercises the length-bound corner case (length must be exactly 1 modulo optional/rest) using the same emit shape as multi-element tuples.',
     validateNotes:
       'Length must be exactly 1 — both an empty array `[]` and an over-length `["hello", "extra"]` fail; the single slot runs the atomic check for its declared type.',
     validate: () => createValidate<[string]>(),
@@ -732,9 +732,9 @@ export const TUPLE = {
   },
 
   readonly_tuple: {
-    title: 'Readonly tuple (readonly [T, U])',
+    title: 'Readonly tuple',
     description:
-      '`readonly [T, U]` — readonly modifier on a tuple type. As with arrays, the readonly bit is TS-only and erased at runtime; the validator is identical to the bare `[T, U]` shape.',
+      'A `readonly [T, U]` tuple whose readonly bit is TS-only and erased at runtime, so the validator is identical to the bare `[T, U]` shape.',
     validateNotes:
       'The `readonly` modifier has NO runtime impact — the validator is identical to the mutable `[string, number]`; the compiler enforces readonly at write sites only.',
     validate: () => createValidate<readonly [string, number]>(),

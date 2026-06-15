@@ -14,8 +14,8 @@ import type {FormatBigInt, FormatBigInt64, FormatBigUInt64} from '@mionjs/ts-go-
 
 export const BIGINT_FORMAT = {
   bigint_max: {
-    title: 'FormatBigInt<{max: 100n}> — inclusive upper bound',
-    description: 'bigintFormat with an inclusive upper bound; rejects bigints above max',
+    title: 'BigInt Max',
+    description: 'bigintFormat with an inclusive upper bound that rejects bigints above max.',
     validateNotes: 'Boundary value 100n passes (inclusive); 101n fails on `max`. A non-bigint (5) fails the bigint typeof gate before any format check.',
     validate: () => createValidate<FormatBigInt<{max: 100n}>>(),
     validateReflect: () => {
@@ -50,8 +50,8 @@ export const BIGINT_FORMAT = {
     expectedFormatErrors: () => [{name: 'bigintFormat', val: 100n, formatPathTail: 'max'}, null],
   },
   bigint_min: {
-    title: 'FormatBigInt<{min: 0n}> — inclusive lower bound',
-    description: 'bigintFormat with an inclusive lower bound; rejects bigints below min',
+    title: 'BigInt Min',
+    description: 'bigintFormat with an inclusive lower bound that rejects bigints below min.',
     validateNotes: 'Boundary value 0n passes (inclusive); -1n fails on `min`.',
     validate: () => createValidate<FormatBigInt<{min: 0n}>>(),
     validateReflect: () => {
@@ -86,8 +86,8 @@ export const BIGINT_FORMAT = {
     expectedFormatErrors: () => [{name: 'bigintFormat', val: 0n, formatPathTail: 'min'}],
   },
   bigint_lt: {
-    title: 'FormatBigInt<{lt: 10n}> — exclusive upper bound',
-    description: 'bigintFormat with an exclusive upper bound; the bound itself is rejected',
+    title: 'BigInt LessThan',
+    description: 'bigintFormat with an exclusive upper bound where the bound itself is rejected.',
     validateNotes: 'Exclusive `lt`: 9n passes but the boundary 10n fails (and 11n above it). Lower bound is unconstrained, so -5n passes.',
     validate: () => createValidate<FormatBigInt<{lt: 10n}>>(),
     validateReflect: () => {
@@ -125,8 +125,8 @@ export const BIGINT_FORMAT = {
     ],
   },
   bigint_gt: {
-    title: 'FormatBigInt<{gt: 0n}> — exclusive lower bound',
-    description: 'bigintFormat with an exclusive lower bound; the bound itself is rejected',
+    title: 'BigInt GreaterThan',
+    description: 'bigintFormat with an exclusive lower bound where the bound itself is rejected.',
     validateNotes: 'Exclusive `gt`: 1n passes but the boundary 0n fails (and -1n below it).',
     validate: () => createValidate<FormatBigInt<{gt: 0n}>>(),
     validateReflect: () => {
@@ -164,8 +164,8 @@ export const BIGINT_FORMAT = {
     ],
   },
   bigint_multipleOf: {
-    title: 'FormatBigInt<{multipleOf: 5n}> — divisible by 5',
-    description: 'bigintFormat divisibility constraint; only multiples of 5n pass',
+    title: 'BigInt MultipleOf',
+    description: 'bigintFormat divisibility constraint where only multiples of 5n pass.',
     validateNotes: '0n counts as a multiple and passes; non-multiples (3n, 7n) fail on `multipleOf`. Negative multiples like -15n pass.',
     validate: () => createValidate<FormatBigInt<{multipleOf: 5n}>>(),
     validateReflect: () => {
@@ -203,8 +203,8 @@ export const BIGINT_FORMAT = {
     ],
   },
   bigint_combined: {
-    title: 'FormatBigInt<{min:0n; max:1000n; multipleOf:10n}> — all constraints',
-    description: 'bigintFormat combining min, max, and multipleOf; each invalid sample trips a distinct constraint',
+    title: 'BigInt Combined',
+    description: 'bigintFormat combining min, max, and multipleOf where each invalid sample trips a distinct constraint.',
     validateNotes: 'All three bounds enforced together: -10n fails `min`, 1010n fails `max`, 7n fails `multipleOf`. Boundary values 0n and 1000n pass (both inclusive and multiples of 10n).',
     validate: () => createValidate<FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     validateReflect: () => {
@@ -244,8 +244,8 @@ export const BIGINT_FORMAT = {
     ],
   },
   bigint_int64: {
-    title: 'FormatBigInt64 — full signed 64-bit range',
-    description: 'bigintFormat preset for the signed 64-bit range [-2^63, 2^63-1]; selects 8-byte binary packing',
+    title: 'Int64',
+    description: 'bigintFormat preset for the signed 64-bit range [-2^63, 2^63-1] that selects 8-byte binary packing.',
     validateNotes: 'Inclusive bounds min -9223372036854775808n / max 9223372036854775807n; one past either end (2^63 / -(2^63)-1) fails on `max` / `min` respectively.',
     validate: () => createValidate<FormatBigInt64>(),
     validateReflect: () => {
@@ -286,8 +286,8 @@ export const BIGINT_FORMAT = {
     ],
   },
   bigint_uint64: {
-    title: 'FormatBigUInt64 — full unsigned 64-bit range',
-    description: 'bigintFormat preset for the unsigned 64-bit range [0, 2^64-1]; selects 8-byte binary packing',
+    title: 'UInt64',
+    description: 'bigintFormat preset for the unsigned 64-bit range [0, 2^64-1] that selects 8-byte binary packing.',
     validateNotes: 'Inclusive bounds min 0n / max 18446744073709551615n; 2^64 fails `max` and -1n fails `min`.',
     validate: () => createValidate<FormatBigUInt64>(),
     validateReflect: () => {

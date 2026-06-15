@@ -62,10 +62,37 @@ function toMetric(m) {
 }
 
 // ── competitor source extraction ────────────────────────────────────────────
-// Parse `export const cases … = { 'KEY': <expr>, … }` with the TypeScript
-// compiler API and return a Map(caseKey → source text of <expr>). The AST parse
-// is robust against regex literals, template `${}`, comments and nesting that
-// trip a hand-rolled char scanner.
+// Parse `export const cases … = { 'KEY': <entry>, … }` with the TypeScript
+// compiler API and return Map(caseKey → {validate?, validationErrors?}) — the
+// per-metric builder bodies, so the docs hover can show ONLY the function the
+// page measures (the cheap `build` is-valid check, or the `buildErrors` report).
+// Each competitor's cases are authored as self-contained per-metric builders, so
+// the body shown is copy-paste runnable. The AST parse is robust against regex
+// literals, template `${}`, comments and nesting that trip a char scanner.
+
+// Dedent a block's inner text to its minimum indentation.
+function dedent(text) {
+  const lines = text.replace(/^\r?\n/, '').replace(/\s+$/, '').split('\n');
+  let min = Infinity;
+  for (const line of lines) if (line.trim()) min = Math.min(min, line.match(/^\s*/)[0].length);
+  if (!Number.isFinite(min)) min = 0;
+  return lines.map((line) => line.slice(min)).join('\n');
+}
+
+// The readable "code inside the function" of a builder thunk: a block's inner
+// statements (dedented) or an expression body verbatim.
+function builderBody(node, sf) {
+  if (node && (ts.isArrowFunction(node) || ts.isFunctionExpression(node))) {
+    const body = node.body;
+    if (ts.isBlock(body)) {
+      const full = body.getText(sf);
+      return dedent(full.slice(full.indexOf('{') + 1, full.lastIndexOf('}')));
+    }
+    return body.getText(sf);
+  }
+  return node ? node.getText(sf).trim() : '';
+}
+
 export function extractCaseSources(file, varName = 'cases') {
   const out = new Map();
   if (!fs.existsSync(file)) return out;
@@ -86,12 +113,28 @@ export function extractCaseSources(file, varName = 'cases') {
     const name = prop.name;
     const key = ts.isStringLiteralLike(name) ? name.text : ts.isIdentifier(name) ? name.text : null;
     if (key == null) continue;
-    out.set(key, prop.initializer.getText(sf).trim());
+    const init = prop.initializer;
+    const sources = {};
+    if (ts.isObjectLiteralExpression(init)) {
+      for (const member of init.properties) {
+        if (!ts.isPropertyAssignment(member)) continue;
+        const mname = ts.isStringLiteralLike(member.name) || ts.isIdentifier(member.name) ? member.name.text : member.name.getText(sf);
+        if (mname === 'build') sources.validate = builderBody(member.initializer, sf);
+        else if (mname === 'buildErrors') sources.validationErrors = builderBody(member.initializer, sf);
+      }
+    } else if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
+      sources.validate = builderBody(init, sf); // bare builder (schemaCases / shorthand) = validate only
+    }
+    // NOT_SUPPORTED (identifier) and shapes with neither metric → skip.
+    if (sources.validate || sources.validationErrors) out.set(key, sources);
   }
   return out;
 }
 
 // ── runtime (validation) bench ───────────────────────────────────────────────
+// Split into TWO benches that mirror the suite pages: `validation` (the data types
+// + realworld DTOs) and `validation-formats` (the format-validation suite). DATETIME
+// lives in BOTH suites, so the split is by the CASE's suite, not by section.
 function buildValidationBench() {
   const files = fs.existsSync(RESULTS_DIR)
     ? fs.readdirSync(RESULTS_DIR).filter((f) => f.endsWith('.json') && !f.endsWith('.typecost.json'))
@@ -110,37 +153,48 @@ function buildValidationBench() {
   const sources = new Map();
   for (const comp of competitors) sources.set(comp, extractCaseSources(path.join(COMPETITORS_DIR, comp, 'cases.ts')));
 
+  const isFormat = (row) => row.suite === 'format-validation';
+  const core = emitValidationBench('validation', 'Validation', rows.filter((row) => !isFormat(row)), competitors, byComp, sources);
+  const formats = emitValidationBench('validation-formats', 'Validation Formats', rows.filter(isFormat), competitors, byComp, sources);
+  return core + formats;
+}
+
+// Emit one validation bench (index.json + per-case source JSON) for a filtered set of
+// rows. Both the is-valid and validation-errors metrics ship; the page picks one.
+function emitValidationBench(outName, label, rows, competitors, byComp, sources) {
   const sectionMap = new Map(); // group → {key,label,cases[]}
-  const outDir = path.join(OUT_ROOT, 'validation');
+  const outDir = path.join(OUT_ROOT, outName);
   fs.rmSync(outDir, {recursive: true, force: true});
   fs.mkdirSync(outDir, {recursive: true});
 
   for (const row of rows) {
-    const group = row.group;
+    // Split the mixed DATETIME group into a Date section (JS Date / date-string
+    // formats) and a Temporal section (Temporal.* types — instant, plainDate, etc.).
+    let group = row.group;
+    if (group === 'DATETIME') {
+      const casePart = row.key.slice(row.group.length + 1);
+      group = /^date($|_)/.test(casePart) ? 'DATE' : 'TEMPORAL';
+    }
     if (!sectionMap.has(group)) sectionMap.set(group, {key: group, label: sectionLabel(group), cases: []});
     const resultsForCase = {};
     const detailComps = [];
     for (const comp of competitors) {
       const c = byComp.get(comp)?.get(row.key);
-      // Emit BOTH metrics × BOTH paths so the docs can show them split: the cheap
-      // boolean `validate` is-valid check AND the full `validationErrors` report,
-      // each on valid (accept) and invalid (reject) input. Conflating them hides
-      // that libraries with a fast boolean path (ts-run-types, typebox) pay extra
-      // for error reporting, while ajv/zod always compute errors.
       const metricResult = {};
       if (c?.validate) metricResult.validate = toMetric(c.validate);
       if (c?.validationErrors) metricResult.validationErrors = toMetric(c.validationErrors);
       if (Object.keys(metricResult).length > 0) resultsForCase[comp] = metricResult;
-      const source = sources.get(comp)?.get(row.key);
-      if (source) detailComps.push({name: comp, source});
+      // Per-metric source so the hover shows ONLY the function this page measures.
+      const caseSources = sources.get(comp)?.get(row.key);
+      if (caseSources) detailComps.push({name: comp, sources: caseSources});
     }
     sectionMap.get(group).cases.push({key: safeKey(row.key), title: row.name, results: resultsForCase});
     fs.writeFileSync(path.join(outDir, `${safeKey(row.key)}.json`), JSON.stringify({competitors: detailComps}));
   }
 
   const index = {
-    bench: 'validation',
-    label: 'Validation',
+    bench: outName,
+    label,
     unit: 'ops',
     showInvalid: true,
     metrics: [
@@ -209,7 +263,10 @@ function buildTypecostBench() {
       const inst = byForm.get(form.id).get(key);
       // Single metric, single path — typecost has no valid/invalid split.
       if (inst !== undefined) results[form.label] = {typecost: {valid: inst, status: 'ok'}};
-      const source = sources.get(form.id)?.get(key);
+      // typecost is single-metric: show the type/schema form (validate body), or the
+      // error form for libraries with no cheap validator (zod).
+      const caseSources = sources.get(form.id)?.get(key);
+      const source = caseSources?.validate ?? caseSources?.validationErrors;
       if (source) detailComps.push({name: form.label, source});
     }
     sectionMap.get(group).cases.push({key: safeKey(key), title: name, results});

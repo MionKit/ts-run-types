@@ -3,7 +3,7 @@ import type {SerializationCase} from './types.ts';
 
 export const OTHERS = {
   promise_jsonStringify_error: {
-    title: 'Promise top-level throws',
+    title: 'Root Promise',
     description:
       'A root `Promise<string>` is non-serializable, so the Go pipeline renders the factory as alwaysThrow and every encoder / decoder invocation throws.',
     serializeNotes: [
@@ -26,7 +26,7 @@ export const OTHERS = {
     getTestData: () => ({values: []}),
   },
   non_serializable: {
-    title: 'non-serializable type throws (Int8Array)',
+    title: 'Root Int8Array',
     description:
       'A root `Int8Array` is non-serializable, so the factory renders as alwaysThrow and every encoder / decoder invocation throws for both JSON and binary.',
     serializeNotes: 'No value-first builder exists for Int8Array, so all schema variants are not-supported and test data is empty.',
@@ -46,7 +46,7 @@ export const OTHERS = {
     getTestData: () => ({values: []}),
   },
   non_serializable_interface: {
-    title: 'non-serializable inside interface throws',
+    title: 'Int8Array in interface',
     description:
       'An interface with a non-serializable `Int8Array` member renders the factory as alwaysThrow, so every encoder / decoder invocation throws for both JSON and binary.',
     serializeNotes: 'No value-first builder can express the enclosing object, so all schema variants are not-supported and test data is empty.',
@@ -66,9 +66,9 @@ export const OTHERS = {
     getTestData: () => ({values: []}),
   },
   non_serializable_array: {
-    title: 'non-serializable inside array throws',
+    title: 'Int8Array in array',
     description:
-      'An array of non-serializable `Int8Array` elements renders the factory as alwaysThrow — a non-serializable element is a propagating position, so every encoder / decoder invocation throws for both JSON and binary.',
+      'An array of non-serializable `Int8Array` elements renders the factory as alwaysThrow because a non-serializable element is a propagating position, so every encoder / decoder invocation throws for both JSON and binary.',
     serializeNotes: 'No value-first builder can express the enclosing array, so all schema variants are not-supported and test data is empty.',
     mutateEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {strategy: 'clone'}),
@@ -86,9 +86,9 @@ export const OTHERS = {
     getTestData: () => ({values: []}),
   },
   non_serializable_tuple: {
-    title: 'non-serializable inside tuple throws',
+    title: 'Int8Array in tuple',
     description:
-      'A tuple with a non-serializable `Int8Array` slot renders the factory as alwaysThrow — a non-serializable tuple slot is a propagating position, so every encoder / decoder invocation throws for both JSON and binary.',
+      'A tuple with a non-serializable `Int8Array` slot renders the factory as alwaysThrow because a non-serializable tuple slot is a propagating position, so every encoder / decoder invocation throws for both JSON and binary.',
     serializeNotes: 'No value-first builder can express the enclosing tuple, so all schema variants are not-supported and test data is empty.',
     mutateEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {strategy: 'clone'}),

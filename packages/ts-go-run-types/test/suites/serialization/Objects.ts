@@ -4,9 +4,9 @@ import type {SerializationCase} from './types.ts';
 
 export const OBJECTS = {
   interface: {
-    title: 'interface',
+    title: 'Interface',
     description:
-      'Object literal mixing a Date field, bigint, number, string, null, a string array, a weird-named key, and an optional string. Exercises Date and bigint wire round-trip plus an optional prop present in one sample and absent in the other.',
+      'Object literal mixing a Date field, bigint, number, string, null, a string array, a weird-named key, and an optional string, exercising Date and bigint wire round-trip plus an optional prop present in one sample and absent in the other.',
     serializeNotes: 'Date serialises to ISO string and restores to a Date; bigint round-trips through both JSON and binary.',
     mutateEncoder: () =>
       createJsonEncoder<{
@@ -152,9 +152,9 @@ export const OBJECTS = {
     },
   },
   many_optional_props: {
-    title: 'many optional properties',
+    title: 'Many optional props',
     description:
-      'Object with 32 optional number properties. Samples carry sparse subsets (and an empty object), exercising optional-prop presence/absence handling across JSON and binary at scale.',
+      'Object with 32 optional number properties whose samples carry sparse subsets and an empty object, exercising optional-prop presence/absence handling across JSON and binary at scale.',
     mutateEncoder: () => {
       type N = number;
       // prettier-ignore
@@ -393,9 +393,9 @@ export const OBJECTS = {
     }),
   },
   class: {
-    title: 'class',
+    title: 'Class',
     description:
-      'Class instance with string, number, and Date data fields plus a getFullName() method. Serializes its data fields only and decodes to a plain object — the method is dropped and the prototype is lost.',
+      'Class instance with string, number, and Date data fields plus a getFullName() method that serializes its data fields only and decodes to a plain object, dropping the method and losing the prototype.',
     serializeNotes: [
       'Class instance decodes to a plain object (asymmetric deserializedValues): the getFullName method is non-serializable and dropped, the instance prototype is not restored.',
       'The startDate Date field round-trips via ISO string.',
@@ -620,9 +620,9 @@ export const OBJECTS = {
     },
   },
   extended_class: {
-    title: 'extended class',
+    title: 'Extended class',
     description:
-      'Subclass instance whose serializable shape combines its own extendedProp with the inherited baseProp. Confirms inherited string fields are walked and round-tripped alongside own fields.',
+      'Subclass instance whose serializable shape combines its own extendedProp with the inherited baseProp, confirming inherited string fields are walked and round-tripped alongside own fields.',
     serializeNotes: 'Inherited baseProp is included in the projection; both fields are plain strings so the round-trip is symmetric (no deserializedValues override).',
     mutateEncoder: () => {
       class BaseClass {
@@ -734,9 +734,9 @@ export const OBJECTS = {
     },
   },
   non_serializable_class: {
-    title: 'non-serializable class via deserialize function',
+    title: 'Non-serializable class',
     description:
-      'mion registers a deserialize fn so the class instance can be reconstructed; without that registration, JSON yields a plain object.',
+      'Class instance that mion can reconstruct only when a deserialize fn is registered; without that registration JSON yields a plain object, dropping the method and losing the prototype.',
     serializeNotes: [
       'Class instance decodes to a plain object (asymmetric deserializedValues): the getFullName method is non-serializable and dropped, the instance prototype is not restored.',
       'The startDate Date field round-trips via ISO string.',
@@ -913,9 +913,9 @@ export const OBJECTS = {
     },
   },
   undefined_in_object: {
-    title: 'undefined is omitted in object prop',
+    title: 'Undefined prop',
     description:
-      'Object with an explicitly `undefined`-typed property alongside string and number fields. The undefined-valued key is omitted from JSON output, so the restored shape drops it (asymmetric deserializedValues).',
+      'Object with an explicitly `undefined`-typed property alongside string and number fields, where the undefined-valued key is omitted from JSON output so the restored shape drops it (asymmetric deserializedValues).',
     serializeNotes: 'An undefined-valued property is omitted on the wire and absent after the round-trip.',
     mutateEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'clone'}),
@@ -934,9 +934,9 @@ export const OBJECTS = {
     }),
   },
   optional_properties_order: {
-    title: 'optional properties order',
+    title: 'Optional props order',
     description:
-      'Object with a required string followed by an optional string. Samples cover the optional prop present and absent, checking each round-trips without reordering or dropping the required field.',
+      'Object with a required string followed by an optional string whose samples cover the optional prop present and absent, checking each round-trips without reordering or dropping the required field.',
     mutateEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'direct'}),
@@ -951,9 +951,9 @@ export const OBJECTS = {
     getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}]}),
   },
   all_optional_fields: {
-    title: 'all optional fields',
+    title: 'All optional fields',
     description:
-      'Object where every property is an optional string. Samples cover both present, one present, and the empty object, verifying a fully-optional shape round-trips with any subset of keys.',
+      'Object where every property is an optional string, with samples covering both present, one present, and the empty object to verify a fully-optional shape round-trips with any subset of keys.',
     mutateEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'direct'}),
@@ -968,9 +968,9 @@ export const OBJECTS = {
     getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}, {}]}),
   },
   extras_passthrough_unsafe: {
-    title: 'unsafe path preserves extras (mion semantic — JSON.stringify does not strip)',
+    title: 'Extras passthrough',
     description:
-      "Canonical baseline for the `prepareForJson + JSON.stringify` path: declared children get transformed, structural extras (both top-level and nested-in-declared-composites) pass through unchanged. Mirrors mion's `03JsonObjects.spec.ts` strip-extras case where the strip expectation is explicitly commented out (`// native JSON.stringify do not strip extra params`). The safe path (`stripUnknownKeys + prepareForJson + JSON.stringify`) strips the extras — that divergence is exercised in EXTRA_PARAMS.",
+      "Canonical baseline for the unsafe `prepareForJson + JSON.stringify` path where declared children get transformed while structural extras (top-level and nested-in-declared-composites) pass through unchanged, mirroring mion's `03JsonObjects.spec.ts` strip-extras case whose strip expectation is commented out, with the safe `stripUnknownKeys` divergence exercised in EXTRA_PARAMS.",
     serializeNotes: [
       "Strategy split: `mutate` walks declared children only and lets `JSON.stringify` pass undeclared extras through, so `getTestData` round-trips them unchanged; `clone` and `direct` are shape-derived and strip extras pre-serialise, so `getTestDataForStringify` restores the declared-only shape (`deserializedValues` drops the extras).",
       "Decode split: the `preserve` decoder passes undeclared keys through to the restored value, while the default `strip` decoder nukes them to `undefined`.",
@@ -1179,9 +1179,9 @@ export const OBJECTS = {
     },
   },
   interface_circular: {
-    title: 'interface circular',
+    title: 'Circular interface',
     description:
-      'Self-referential interface with an optional `child` of its own type. Exercises (de)serialization of a recursively-defined object across a finite nested tree.',
+      'Self-referential interface with an optional `child` of its own type, exercising (de)serialization of a recursively-defined object across a finite nested tree.',
     mutateEncoder: () => {
       interface ICircular {
         name: string;
@@ -1250,9 +1250,9 @@ export const OBJECTS = {
     getTestData: () => ({values: [{name: 'hello', child: {name: 'world'}}]}),
   },
   interface_circular_array: {
-    title: 'interface circular array',
+    title: 'Circular array',
     description:
-      'Self-referential interface that recurses through an optional array of its own type. Samples cover an empty children array and a populated one, exercising recursion via an array element.',
+      'Self-referential interface that recurses through an optional array of its own type, with samples covering an empty children array and a populated one to exercise recursion via an array element.',
     mutateEncoder: () => {
       interface ICircularArray {
         name: string;
@@ -1326,9 +1326,9 @@ export const OBJECTS = {
     }),
   },
   interface_circular_deep: {
-    title: 'interface circular deep',
+    title: 'Circular deep',
     description:
-      'Self-referential interface whose recursion is buried inside a nested `embedded` object, with a bigint field at each level. Exercises deep recursion plus bigint round-trip at multiple depths.',
+      'Self-referential interface whose recursion is buried inside a nested `embedded` object with a bigint field at each level, exercising deep recursion plus bigint round-trip at multiple depths.',
     serializeNotes: 'Each level carries a bigint that round-trips through both JSON and binary.',
     mutateEncoder: () => {
       interface ICircularDeep {
@@ -1443,9 +1443,9 @@ export const OBJECTS = {
     }),
   },
   interface_root_not_circular: {
-    title: 'interface root not circular',
+    title: 'Non-circular root',
     description:
-      'Non-recursive root (literal `isRoot: true` plus a circular `ciChild`) that wraps a deeply-recursive bigint-bearing member. Confirms a non-circular root resolves correctly when it embeds a circular type.',
+      'Non-recursive root with literal `isRoot: true` and a circular `ciChild` that wraps a deeply-recursive bigint-bearing member, confirming a non-circular root resolves correctly when it embeds a circular type.',
     serializeNotes: 'The nested ciChild carries a bigint at each level that round-trips through both JSON and binary.',
     mutateEncoder: () => {
       interface ICircularDeep {
@@ -1574,9 +1574,9 @@ export const OBJECTS = {
     }),
   },
   interface_multiple_circular: {
-    title: 'interface multiple circular',
+    title: 'Multiple circular',
     description:
-      'Self-referential root that also references two further circular interfaces (a bigint-bearing tree and a Date-bearing one). Exercises several distinct circular types coexisting in one graph with Date and bigint fields.',
+      'Self-referential root that also references two further circular interfaces, a bigint-bearing tree and a Date-bearing one, exercising several distinct circular types coexisting in one graph with Date and bigint fields.',
     serializeNotes: 'Mixes Date (ISO-string) and bigint round-trips across multiple self-referential interfaces.',
     mutateEncoder: () => {
       interface ICircularDeep {
@@ -1804,9 +1804,9 @@ export const OBJECTS = {
     },
   },
   interface_with_methods: {
-    title: 'methods should be excluded from interface when serializing',
+    title: 'Interface with methods',
     description:
-      'Interface with a string field plus a function-typed `methodProp`. The non-serializable method is dropped from the projection, so the restored shape keeps only the data field (asymmetric deserializedValues).',
+      'Interface with a string field plus a function-typed `methodProp` where the non-serializable method is dropped from the projection, so the restored shape keeps only the data field (asymmetric deserializedValues).',
     serializeNotes: 'The function-typed property is non-serializable and silently dropped on the wire; only the string field round-trips.',
     mutateEncoder: () => {
       interface ObjectWithMethods {

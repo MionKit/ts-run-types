@@ -4,9 +4,9 @@ import type {SerializationCase} from './types.ts';
 
 export const UNIONS = {
   union: {
-    title: 'atomic union',
+    title: 'Atomic union',
     description:
-      'Untagged union of scalar atoms (Date | number | string | null | bigint). Members resolve by runtime kind — no discriminator. Date encodes to an ISO string and bigint to a decimal string on the wire; number, string and null pass through unchanged.',
+      'Untagged union of scalar atoms (Date | number | string | null | bigint) whose members resolve by runtime kind with no discriminator, encoding Date to an ISO string and bigint to a decimal string while number, string and null pass through unchanged.',
     serializeNotes: 'Date and bigint members carry per-kind wire transforms (Date↔ISO string, bigint↔decimal string); the decoder restores each from its scalar form.',
     mutateEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'clone'}),
@@ -24,9 +24,9 @@ export const UNIONS = {
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, 3n]}),
   },
   union_array: {
-    title: 'union of arrays',
+    title: 'Union of arrays',
     description:
-      'Untagged union of homogeneous arrays (string[] | number[] | boolean[] | Date[]). The matched member is chosen by element kind; only the Date[] arm applies a per-element transform (Date↔ISO string), the rest round-trip their elements verbatim. An empty `[]` value satisfies every arm.',
+      'Untagged union of homogeneous arrays (string[] | number[] | boolean[] | Date[]) where the matched member is chosen by element kind, only the Date[] arm applies a per-element Date↔ISO string transform, and an empty `[]` value satisfies every arm.',
     serializeNotes: 'Empty array sample matches all four arms structurally — the round-trip stays an empty array regardless of which member resolves.',
     mutateEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'clone'}),
@@ -54,9 +54,9 @@ export const UNIONS = {
     }),
   },
   with_discriminator: {
-    title: 'array of union with discriminator',
+    title: 'Array of scalar union',
     description:
-      'Array whose element type is an untagged scalar union (string | bigint | boolean | Date). Each element resolves independently by runtime kind; bigint elements encode to decimal strings and Date elements to ISO strings. The mixed sample [1n, "b", date] exercises per-element member selection within one array.',
+      'Array whose element type is an untagged scalar union (string | bigint | boolean | Date) where each element resolves independently by runtime kind (bigint to decimal strings, Date to ISO strings), and the mixed sample [1n, "b", date] exercises per-element member selection within one array.',
     serializeNotes: 'Member selection is per-element, not per-array — a single array can hold elements that resolve to different union arms (bigint↔string, Date↔ISO, raw string/boolean).',
     mutateEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'clone'}),
@@ -82,9 +82,9 @@ export const UNIONS = {
     },
   },
   union_object_with_discriminator: {
-    title: 'union of object shapes',
+    title: 'Union of object shapes',
     description:
-      'Untagged union of object shapes ({a; aa} | {b} | {c: bigint} | {d?}) with no literal discriminator — members resolve structurally by which required keys are present. The {c: bigint} arm applies bigint↔string; the all-optional {d?} arm matches an empty object.',
+      'Untagged union of object shapes ({a; aa} | {b} | {c: bigint} | {d?}) with no literal discriminator, where members resolve structurally by which required keys are present, the {c: bigint} arm applies bigint↔string, and the all-optional {d?} arm matches an empty object.',
     serializeNotes: 'Empty-object sample {} resolves to the all-optional {d?: string} arm (its only member with no required key); the {c: bigint} arm encodes bigint to a decimal string.',
     mutateEncoder: () =>
       createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'mutate'}),
@@ -136,9 +136,9 @@ export const UNIONS = {
     getTestData: () => ({values: [{a: 'world', aa: true}, {c: 1n}, {d: 'hello'}, {}]}),
   },
   union_with_discriminator_property: {
-    title: 'union with discriminator property',
+    title: 'Discriminated union',
     description:
-      'Discriminated union keyed on `type`: literal arms type:"a"/"b"/"c" plus a non-literal type:boolean arm. The decoder picks the member by the `type` discriminator; the type:"c" arm carries a Date↔ISO transform on its `time` prop.',
+      'Union keyed on a `type` discriminator with literal arms type:"a"/"b"/"c" plus a non-literal type:boolean arm, where the decoder picks the member by `type` and the type:"c" arm carries a Date↔ISO transform on its `time` prop.',
     serializeNotes: [
       'Discriminator is the literal `type` field for three arms; the fourth (type:boolean) is matched on the non-literal kind, so dispatch falls back from literal value to value-type for that member.',
       'Only the type:"c" arm has a wire transform (Date↔ISO string on `time`); the other arms carry plain scalars.',
@@ -238,9 +238,9 @@ export const UNIONS = {
     }),
   },
   union_mixed_with_discriminator: {
-    title: 'union mixed arrays and objects',
+    title: 'Mixed arrays and objects',
     description:
-      'Untagged union mixing array members (string[] | number[] | boolean[]) and object members ({a; aa} | {b} | {c: bigint; aa: "string"}). Dispatch first splits on array-vs-object kind, then resolves the matched shape structurally. The {c: bigint} object arm carries bigint↔string.',
+      'Untagged union mixing array members (string[] | number[] | boolean[]) and object members ({a; aa} | {b} | {c: bigint; aa: "string"}) where dispatch first splits on array-vs-object kind, then resolves the matched shape structurally, and the {c: bigint} object arm carries bigint↔string.',
     serializeNotes: 'No literal discriminator across the family — array members are told apart from object members by structural kind, then by element type or required keys.',
     mutateEncoder: () =>
       createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
@@ -315,9 +315,9 @@ export const UNIONS = {
     getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}]}),
   },
   union_index_property_with_discriminator: {
-    title: 'union with index property and discriminator',
+    title: 'Union with index signatures',
     description:
-      'Untagged union including members with index signatures (record-like {a; [key]: string} and {[key]: bigint; b: bigint}), modelled value-first as record∩object intersections. Members resolve structurally; the bigint-record arm encodes every index-keyed value (including the {b: 1n, c: 2n} sample) bigint↔string.',
+      'Untagged union including record-like members with index signatures ({a; [key]: string} and {[key]: bigint; b: bigint}) modelled value-first as record∩object intersections, where members resolve structurally and the bigint-record arm encodes every index-keyed value (including the {b: 1n, c: 2n} sample) bigint↔string.',
     serializeNotes: 'Index-signature members serialize all enumerable keys, not just the named ones — the bigint-record arm applies bigint↔string to both the declared `b` and the open index entries (e.g. `c`).',
     mutateEncoder: () =>
       createJsonEncoder<
@@ -418,9 +418,9 @@ export const UNIONS = {
     getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}, {b: 1n, c: 2n}]}),
   },
   circular_union_with_discriminator: {
-    title: 'Circular union with discriminator',
+    title: 'Circular union',
     description:
-      'Self-referential union UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[], recursing through the optional object prop `a` and the array arm. Each node resolves by kind; the value-first form uses RT.circular(self => …) so encode/decode follow the recursion to arbitrary depth. Date members encode Date↔ISO.',
+      'Self-referential union UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[] recursing through the optional prop `a` and the array arm, where each node resolves by kind, the value-first form uses RT.circular(self => …) to follow the recursion to arbitrary depth, and Date members encode Date↔ISO.',
     serializeNotes: 'Recursive union — encoder and decoder must walk the self-reference (nested objects and arrays) without diverging; member selection happens fresh at every level.',
     mutateEncoder: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -517,9 +517,9 @@ export const UNIONS = {
     },
   },
   union_with_methods: {
-    title: 'union with methods — methods should be excluded',
+    title: 'Union with methods',
     description:
-      'Union of object shapes each carrying a method ({name; getName()} | {age; getAge()} | {active; isActive()}). Methods are non-serializable at a property position, so each matched member serializes its data prop only and the method is silently dropped — restored values are {name}, {age}, {active}.',
+      'Union of object shapes each carrying a method ({name; getName()} | {age; getAge()} | {active; isActive()}), where methods are non-serializable at a property position so each matched member serializes its data prop only and the method is silently dropped, restoring {name}, {age}, {active}.',
     serializeNotes: 'Method members are dropped, not throwing — they sit at a property position, so the build emits a per-family Warning and the round-trip yields the data-only projection (deserializedValues omit getName/getAge/isActive).',
     mutateEncoder: () =>
       createJsonEncoder<
@@ -607,9 +607,9 @@ export const UNIONS = {
     },
   },
   union_with_any: {
-    title: 'union with any — checked last as fallback',
+    title: 'Union with any',
     description:
-      'Union containing `any` (number | {name} | any). The `any` arm absorbs the whole union at the type-checker layer, so the compiled type is bare `any` and the value-first equivalent is RT.any(). Serialization is a best-effort JSON pass over whatever value arrives (number, object, string, boolean, null).',
+      'Union containing `any` (number | {name} | any) where the `any` arm absorbs the whole union at the type-checker layer so the compiled type is bare `any` (value-first equivalent RT.any()), and serialization is a best-effort JSON pass over whatever value arrives (number, object, string, boolean, null).',
     serializeNotes: [
       'TS DIVERGENCE: `T | any` collapses to `any` in the checker, so the named number/{name} arms never participate — the case compiles to the same factory as a bare `any` type.',
       'roundTripBestEffort: the adapter only requires JSON.stringify to yield a defined string, not a deep-equal round-trip, since `any` carries no shape to restore.',
@@ -631,8 +631,9 @@ export const UNIONS = {
     getTestData: () => ({values: [42, {name: 'test'}, 'fallback to any', true, null]}),
   },
   union_with_non_serializable: {
-    title: 'union with non-serializable type throws',
-    description: 'function in union — mion throws at RT-compile time.',
+    title: 'Union with non-serializable member',
+    description:
+      'A function arm in the union sits at a propagating union-member position, so it is non-serializable as an Error rather than a droppable Warning and mion throws at RT-compile time.',
     serializeNotes:
       'The function arm sits at a propagating (union-member) position, so it is non-serializable as an Error, not a droppable Warning: the Go pipeline renders an alwaysThrow factory and every encoder/decoder (JSON and binary) throws at the first call. factoryThrows is set; the schema thunks resolve the same throwing factory via the value-first path.',
     mutateEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate'}),
@@ -667,9 +668,9 @@ export const UNIONS = {
   // the throw-asserting adapter path.
 
   union_extra_bigint_prop_throws: {
-    title: 'union member with extra bigint prop throws at JSON.stringify',
+    title: 'Extra bigint prop',
     description:
-      'Input `{b: 123, c: 123n}` matches the `{b: number}` arm; mion preserves the structural extra `c: 123n` (no implicit strip). JSON.stringify then throws on the bigint. Contract: extras pass through unchanged — pre-strip them if they may carry non-serializable values.',
+      'Input `{b: 123, c: 123n}` matches the `{b: number}` arm and mion preserves the structural extra `c: 123n` with no implicit strip, so JSON.stringify throws on the bigint — extras pass through unchanged unless pre-stripped when they may carry non-serializable values.',
     serializeNotes:
       'jsonStringifyThrows applies to the unsafe (mutate/preserve) path only — the matched member transforms its declared `b`, the bigint extra survives into JSON.stringify and throws. The safe (clone/direct) path strips the extra pre-serialise, so getTestDataForStringify expects a clean declared-only {b: 123} round-trip.',
     mutateEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate'}),
@@ -692,9 +693,9 @@ export const UNIONS = {
   },
 
   union_extra_symbol_prop_drops: {
-    title: 'union member with extra symbol prop is dropped by JSON.stringify',
+    title: 'Extra symbol prop',
     description:
-      'Same contract as `union_extra_bigint_prop_throws` but with a symbol extra. JSON.stringify silently drops symbols (returns `{"b":123}` — no throw), so this case round-trips with the extra silently lost. Rename from the original `_throws` name (which advertised a throw that never fires) for honesty.',
+      'Same contract as the extra-bigint case but with a symbol extra that JSON.stringify silently drops (returns `{"b":123}` with no throw), so this case round-trips with the extra silently lost.',
     serializeNotes:
       'No throw flag — symbol-valued extras are dropped by JSON.stringify per ECMAScript spec, so both paths converge on declared-only output. The lossy round-trip is captured via deserializedValues ({b: 123}) rather than jsonStringifyThrows.',
     mutateEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate'}),
@@ -730,9 +731,9 @@ export const UNIONS = {
   // ----------------------------------------------------------------
 
   shared_prop_same_type: {
-    title: 'shared prop — same declared type in both members (Date)',
+    title: 'Shared prop same type',
     description:
-      'Discriminator `kind` selects the member; shared prop `at: Date` has the identical transform on both branches, so the round-trip only needs to prove that the dispatch does not lose the prop or double-transform it.',
+      'Discriminator `kind` selects the member and shared prop `at: Date` has the identical Date↔ISO transform on both branches, so the round-trip only needs to prove the dispatch does not lose the prop or double-transform it.',
     serializeNotes:
       'Shared `at: Date` carries Date↔ISO on whichever arm the `kind` literal selects; the per-member companion props (`by` string vs `reviewers` string[]) pass through verbatim.',
     mutateEncoder: () =>
@@ -794,9 +795,9 @@ export const UNIONS = {
   },
 
   shared_prop_divergent_date_string: {
-    title: 'shared prop — Date in one member, string in the other',
+    title: 'Shared prop Date or string',
     description:
-      'Discriminator `kind` resolves which member matched. Shared prop `when: Date | string` MUST take the matched-member transform: `kind:event` → Date↔ISO; `kind:note` → raw string passthrough. Composing both transforms would corrupt either branch (a `Date.toISOString()` reapplied to a plain string, or a string parsed as Date when it should not be).',
+      'Discriminator `kind` resolves the member and shared prop `when: Date | string` must take the matched-member transform (`kind:event` → Date↔ISO, `kind:note` → raw string passthrough), since composing both would corrupt either branch by reapplying `Date.toISOString()` to a plain string or parsing a string as a Date.',
     serializeNotes:
       'Divergent shared-prop transform keyed on the `kind` discriminator: the `when` slot encodes Date↔ISO for the event arm but passes the string through untouched for the note arm — the two transforms must never compose on the same value.',
     mutateEncoder: () =>
@@ -858,9 +859,9 @@ export const UNIONS = {
   },
 
   shared_prop_divergent_bigint_number: {
-    title: 'shared prop — bigint in one member, number in the other',
+    title: 'Shared prop bigint or number',
     description:
-      'Discriminator `form` resolves the member. Shared prop `id: bigint | number` must follow the matched-member transform: `form:big` → bigint↔string; `form:small` → raw number. Other shared prop `label: string` is identical on both branches and must survive either dispatch.',
+      'Discriminator `form` resolves the member and shared prop `id: bigint | number` must follow the matched-member transform (`form:big` → bigint↔string, `form:small` → raw number) while the other shared prop `label: string` is identical on both branches and must survive either dispatch.',
     serializeNotes:
       'The big-arm sample id (9007199254740993n) is past Number.MAX_SAFE_INTEGER, so the bigint↔string transform is what preserves it losslessly — a number transform would round it; the small arm keeps its number verbatim.',
     mutateEncoder: () =>
@@ -922,9 +923,9 @@ export const UNIONS = {
   },
 
   shared_prop_no_discriminator_structural: {
-    title: 'shared prop — no literal discriminator, member resolved structurally',
+    title: 'Shared prop structural',
     description:
-      'No tag-like literal field. Members differentiated by (a) shared prop `a` having divergent type (string vs boolean — a sub-union) and (b) unique companion props (`b: number` vs `c: Date`). The encoder/decoder dispatch must work purely on shape: which member’s required props match the input. Verifies the dispatch is not silently relying on a literal-discriminator fast path.',
+      "With no tag-like literal field, members are differentiated by a divergent shared prop `a` (string vs boolean sub-union) and unique companion props (`b: number` vs `c: Date`), so the encoder/decoder dispatch must work purely on which member's required props match the input rather than a literal-discriminator fast path.",
     serializeNotes:
       'Structural dispatch with no discriminator: the matched member is chosen by required-key shape, then the second arm applies Date↔ISO on `c` while the first arm carries only plain scalars.',
     mutateEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'mutate'}),

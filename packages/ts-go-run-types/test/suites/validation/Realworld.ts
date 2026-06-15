@@ -88,8 +88,8 @@ const sampleUser = (over: Partial<User> = {}): User => ({
 
 export const REALWORLD = {
   user: {
-    title: 'user',
-    description: 'A relational user record: numeric id, email, name, an optional age, a roles union array, an active flag and a createdAt string.',
+    title: 'User',
+    description: 'A relational user record with a numeric id, email, name, optional age, a roles union array, an active flag and a createdAt string.',
     validate: () => {
       interface User {
         id: number;
@@ -174,8 +174,8 @@ export const REALWORLD = {
   },
 
   order: {
-    title: 'order',
-    description: 'A nested order: an inline customer ref, an array of line items, a shipping address, a status union, a total, and an optional note.',
+    title: 'Order',
+    description: 'A nested order with an inline customer ref, an array of line items, a shipping address, a status union, a total, and an optional note.',
     validate: () => {
       interface OrderItem {
         sku: string;
@@ -278,8 +278,8 @@ export const REALWORLD = {
   },
 
   blogPost: {
-    title: 'blogPost',
-    description: 'A CMS post: ids, slug, body, a tags array, an inline author, a published flag with optional publishedAt, and a nested meta counter object.',
+    title: 'Blog post',
+    description: 'A CMS post with ids, slug, body, a tags array, an inline author, a published flag with optional publishedAt, and a nested meta counter object.',
     validate: () => {
       interface BlogPost {
         id: number;
@@ -366,8 +366,8 @@ export const REALWORLD = {
   },
 
   product: {
-    title: 'product',
-    description: 'A catalog product: a currency union, an inStock flag, a categories array, and an optional nested dimensions object.',
+    title: 'Product',
+    description: 'A catalog product with a currency union, an inStock flag, a categories array, and an optional nested dimensions object.',
     validate: () => {
       interface Product {
         id: string;
@@ -451,8 +451,8 @@ export const REALWORLD = {
   },
 
   productPage: {
-    title: 'productPage',
-    description: 'A paginated API response: an array of products plus page / pageSize / total / hasMore metadata.',
+    title: 'Product page',
+    description: 'A paginated API response with an array of products plus page / pageSize / total / hasMore metadata.',
     validate: () => {
       interface Product {
         id: string;
@@ -560,8 +560,8 @@ export const REALWORLD = {
   },
 
   registrationForm: {
-    title: 'registrationForm',
-    description: 'A signup form: email, password, an `acceptedTerms: true` literal that must be exactly true, and a nested profile with an optional age.',
+    title: 'Registration form',
+    description: "A signup form with email, password, an acceptedTerms literal that must be exactly true, and a nested profile with an optional age.",
     validate: () => {
       interface RegistrationForm {
         email: string;

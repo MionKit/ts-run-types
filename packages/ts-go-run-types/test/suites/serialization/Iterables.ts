@@ -6,7 +6,7 @@ export const ITERABLES = {
   set_string: {
     title: 'Set<string>',
     description:
-      'Root `Set<string>`. JSON serializes the set to an array via `Array.from(v)` and restores it with `new Set(v)`; string elements are atomic so no per-element transform runs. Binary writes a uint32 size prefix followed by the encoded elements, then rebuilds the Set.',
+      'Root `Set<string>` serializes to a JSON array via `Array.from(v)` and restores with `new Set(v)` (atomic string elements need no per-element transform), while binary writes a uint32 size prefix followed by the encoded elements then rebuilds the Set.',
     serializeNotes: 'Set round-trips as a JSON array (insertion order preserved), rehydrated to a Set on decode.',
     mutateEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'clone'}),
@@ -24,7 +24,7 @@ export const ITERABLES = {
   set_small_object: {
     title: 'Set<SmallObject>',
     description:
-      'Root `Set<SmallObject>` where each element has string / number / boolean fields plus optional `Date` and `bigint`. JSON serializes the set to an array of objects and restores via `new Set(v)`; per-element the `Date` becomes an ISO string (restored with `new Date`) and the `bigint` a decimal string (restored with `BigInt(...)`). Binary writes a size-prefixed entry list.',
+      'Root `Set<SmallObject>` whose elements carry string/number/boolean fields plus optional `Date` and `bigint` serializes to a JSON array of objects restored via `new Set(v)`, with each `Date` becoming an ISO string (restored with `new Date`) and each `bigint` a decimal string (restored with `BigInt(...)`), while binary writes a size-prefixed entry list.',
     serializeNotes: [
       'Set materialises to a JSON array of element objects, rehydrated to a Set on decode.',
       'Optional `prop4: Date` round-trips via its ISO string; optional `prop5: bigint` via a decimal string (not natively JSON-encodable).',
@@ -167,9 +167,9 @@ export const ITERABLES = {
     },
   },
   objects_with_nested_sets: {
-    title: 'objects with nested sets',
+    title: 'Nested sets',
     description:
-      'Object with two `Set<{s: string; arr: number[]}>` properties. Each nested set serializes to a JSON array of objects and restores via `new Set(v)`; the elements are atomic-shaped (string + number array) so no value transform applies. Binary nests a size-prefixed entry list per set.',
+      'Object with two `Set<{s: string; arr: number[]}>` properties where each nested set serializes to a JSON array of objects restored via `new Set(v)` (atomic-shaped elements need no value transform) and binary nests a size-prefixed entry list per set.',
     serializeNotes: 'Each nested Set round-trips as a JSON array, rehydrated to a Set on decode.',
     mutateEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -281,7 +281,7 @@ export const ITERABLES = {
   map_string_number: {
     title: 'Map<string, number>',
     description:
-      'Root `Map<string, number>`. JSON serializes the map to an array of `[key, value]` entry pairs via `Array.from(v)` and restores it with `new Map(v)`; string keys and number values are atomic so no per-entry transform runs. Binary writes a uint32 size prefix followed by encoded entries.',
+      'Root `Map<string, number>` serializes to a JSON array of `[key, value]` pairs via `Array.from(v)` and restores with `new Map(v)` (atomic string keys and number values need no per-entry transform), while binary writes a uint32 size prefix followed by encoded entries.',
     serializeNotes: 'Map round-trips as a JSON array of [key, value] pairs (insertion order preserved), rehydrated to a Map on decode.',
     mutateEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'clone'}),
@@ -307,7 +307,7 @@ export const ITERABLES = {
   map_string_small_object: {
     title: 'Map<string, SmallObject>',
     description:
-      'Root `Map<string, SmallObject>` with string keys and object values carrying optional `Date` and `bigint`. JSON serializes to an array of `[key, value]` pairs and restores via `new Map(v)`; inside each value the `Date` becomes an ISO string and the `bigint` a decimal string. Binary writes a size-prefixed entry list.',
+      'Root `Map<string, SmallObject>` with string keys and object values carrying optional `Date` and `bigint` serializes to a JSON array of `[key, value]` pairs restored via `new Map(v)`, with each value\'s `Date` becoming an ISO string and `bigint` a decimal string, while binary writes a size-prefixed entry list.',
     serializeNotes: [
       'Map materialises to a JSON array of [key, value] pairs, rehydrated to a Map on decode.',
       'Value-side `prop4: Date` round-trips via its ISO string; `prop5: bigint` via a decimal string.',
@@ -456,7 +456,7 @@ export const ITERABLES = {
   map_small_object_number: {
     title: 'Map<SmallObject, number>',
     description:
-      'Root `Map<SmallObject, number>` keyed by an object (optional `Date` / `bigint` fields) with number values. JSON serializes to an array of `[keyObject, value]` pairs and restores via `new Map(v)`; the key-side transform applies, so a `Date` field becomes an ISO string and a `bigint` field a decimal string before being rebuilt. Binary writes a size-prefixed entry list.',
+      'Root `Map<SmallObject, number>` keyed by an object with optional `Date`/`bigint` fields serializes to a JSON array of `[keyObject, value]` pairs restored via `new Map(v)`, with the key-side transform turning a `Date` field into an ISO string and a `bigint` field into a decimal string before rebuild, while binary writes a size-prefixed entry list.',
     serializeNotes: [
       'Object keys are emitted as the entry tuple key (a JSON object) and rebuilt into a fresh Map key on decode.',
       'Key-side `prop4: Date` round-trips via its ISO string; `prop5: bigint` via a decimal string.',
@@ -603,9 +603,9 @@ export const ITERABLES = {
     },
   },
   objects_with_nested_maps: {
-    title: 'objects with nested maps',
+    title: 'Nested maps',
     description:
-      'Object with a nested `Map<string, {sm: {s: string; arr: number[]}}>` property. The nested map serializes to a JSON array of `[key, value]` pairs and restores via `new Map(v)`; values are atomic-shaped so no value transform applies. Binary nests a size-prefixed entry list.',
+      'Object with a nested `Map<string, {sm: {s: string; arr: number[]}}>` property where the map serializes to a JSON array of `[key, value]` pairs restored via `new Map(v)` (atomic-shaped values need no value transform) and binary nests a size-prefixed entry list.',
     serializeNotes: 'The nested Map round-trips as a JSON array of [key, value] pairs, rehydrated to a Map on decode.',
     mutateEncoder: () => {
       interface DeepWithMap {
@@ -697,9 +697,9 @@ export const ITERABLES = {
     }),
   },
   map_with_bigint_keys: {
-    title: 'Map with bigint keys',
+    title: 'Bigint keys',
     description:
-      'Root `Map<bigint, number>` keyed by bigint with number values. JSON serializes to an array of `[key, value]` pairs and restores via `new Map(v)`; each bigint key is emitted as a decimal string (not natively JSON-encodable) and rebuilt with `BigInt(...)`, while number values pass through atomically. Binary writes a size-prefixed entry list, encoding bigint keys natively.',
+      'Root `Map<bigint, number>` keyed by bigint with number values serializes to a JSON array of `[key, value]` pairs restored via `new Map(v)`, with each bigint key emitted as a decimal string (not natively JSON-encodable) and rebuilt with `BigInt(...)` while number values pass through atomically, and binary writes a size-prefixed entry list encoding bigint keys natively.',
     serializeNotes: [
       'Map round-trips as a JSON array of [key, value] pairs, rehydrated to a Map on decode.',
       'bigint keys serialize as decimal strings and restore via BigInt(...); JSON cannot encode bigint directly.',
@@ -726,9 +726,9 @@ export const ITERABLES = {
     }),
   },
   map_with_date_values: {
-    title: 'Map with Date values',
+    title: 'Date values',
     description:
-      'Root `Map<string, Date>` with string keys and `Date` values. JSON serializes to an array of `[key, value]` pairs and restores via `new Map(v)`; each `Date` value becomes an ISO string on encode and is rebuilt with `new Date(...)` on decode. Binary writes a size-prefixed entry list.',
+      'Root `Map<string, Date>` with string keys and `Date` values serializes to a JSON array of `[key, value]` pairs restored via `new Map(v)`, with each `Date` value becoming an ISO string on encode and rebuilt with `new Date(...)` on decode, while binary writes a size-prefixed entry list.',
     serializeNotes: [
       'Map round-trips as a JSON array of [key, value] pairs, rehydrated to a Map on decode.',
       'Date values serialize via their ISO string and restore with new Date(...).',

@@ -30,9 +30,9 @@ const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
 
 export const DATETIME = {
   date: {
-    title: 'FormatDate<{min,max}>',
+    title: 'FormatDate',
     description:
-      'JSON + binary (de)serialization of FormatDate<{min,max}> (a native Date branded with date-range bounds); the min/max brand constrains validation only, so the Date serializes exactly like an unbranded Date — toJSON() ISO string in JSON, numeric packing in binary.',
+      'JSON and binary round-trip of FormatDate, a native Date branded with date-range bounds; the min/max brand constrains validation only, so the Date serializes exactly like an unbranded Date, carrying the toJSON() ISO string in JSON and numeric packing in binary.',
     serializeNotes:
       'Branded native Date: serialization uses the base Date kind (brand is validation-only). JSON carries the toJSON() ISO string and restores via the Date constructor; binary uses the numeric Date packing.',
     mutateEncoder: () =>
@@ -54,9 +54,9 @@ export const DATETIME = {
   },
 
   instant: {
-    title: 'FormatTemporalInstant<{min,max}>',
+    title: 'FormatTemporalInstant',
     description:
-      'JSON + binary (de)serialization of FormatTemporalInstant<{min,max}> (a Temporal.Instant branded with an instant range); the bounds constrain validation only, so the Instant serializes exactly like an unbranded one — toJSON() string in JSON, restored via Temporal.Instant.from().',
+      'JSON and binary round-trip of FormatTemporalInstant, a Temporal.Instant branded with an instant range; the bounds constrain validation only, so the Instant serializes exactly like an unbranded one, carrying the toJSON() string in JSON and restoring via Temporal.Instant.from().',
     serializeNotes:
       'Branded Temporal.Instant: serialization uses the base Temporal kind (brand is validation-only); JSON carries the canonical instant string and restores via .from(), binary uses the Instant packing.',
     mutateEncoder: () =>
@@ -88,9 +88,9 @@ export const DATETIME = {
   },
 
   plainDate: {
-    title: 'FormatTemporalPlainDate<{min,max}>',
+    title: 'FormatTemporalPlainDate',
     description:
-      'JSON + binary (de)serialization of FormatTemporalPlainDate<{min,max}> (a Temporal.PlainDate branded with a date range); the bounds constrain validation only, so the PlainDate serializes exactly like an unbranded one — toJSON() "YYYY-MM-DD" string in JSON, restored via Temporal.PlainDate.from().',
+      'JSON and binary round-trip of FormatTemporalPlainDate, a Temporal.PlainDate branded with a date range; the bounds constrain validation only, so the PlainDate serializes exactly like an unbranded one, carrying the toJSON() "YYYY-MM-DD" string in JSON and restoring via Temporal.PlainDate.from().',
     serializeNotes:
       'Branded Temporal.PlainDate: serialization uses the base Temporal kind (brand is validation-only); JSON carries the plain-date string and restores via .from().',
     mutateEncoder: () =>
@@ -112,9 +112,9 @@ export const DATETIME = {
   },
 
   plainTime: {
-    title: 'FormatTemporalPlainTime<{min,max}>',
+    title: 'FormatTemporalPlainTime',
     description:
-      'JSON + binary (de)serialization of FormatTemporalPlainTime<{min,max}> (a Temporal.PlainTime branded with a time-of-day range); the bounds constrain validation only, so the PlainTime serializes exactly like an unbranded one — toJSON() "HH:mm:ss" string in JSON, restored via Temporal.PlainTime.from().',
+      'JSON and binary round-trip of FormatTemporalPlainTime, a Temporal.PlainTime branded with a time-of-day range; the bounds constrain validation only, so the PlainTime serializes exactly like an unbranded one, carrying the toJSON() "HH:mm:ss" string in JSON and restoring via Temporal.PlainTime.from().',
     serializeNotes:
       'Branded Temporal.PlainTime: serialization uses the base Temporal kind (brand is validation-only); JSON carries the plain-time string and restores via .from().',
     mutateEncoder: () =>
@@ -136,9 +136,9 @@ export const DATETIME = {
   },
 
   plainDateTime: {
-    title: 'FormatTemporalPlainDateTime<{min,max}>',
+    title: 'FormatTemporalPlainDateTime',
     description:
-      'JSON + binary (de)serialization of FormatTemporalPlainDateTime<{min,max}> (a Temporal.PlainDateTime branded with a date-time range); the bounds constrain validation only, so the PlainDateTime serializes exactly like an unbranded one — toJSON() "YYYY-MM-DDTHH:mm:ss" string in JSON, restored via Temporal.PlainDateTime.from().',
+      'JSON and binary round-trip of FormatTemporalPlainDateTime, a Temporal.PlainDateTime branded with a date-time range; the bounds constrain validation only, so the PlainDateTime serializes exactly like an unbranded one, carrying the toJSON() "YYYY-MM-DDTHH:mm:ss" string in JSON and restoring via Temporal.PlainDateTime.from().',
     serializeNotes:
       'Branded Temporal.PlainDateTime: serialization uses the base Temporal kind (brand is validation-only); JSON carries the plain-date-time string and restores via .from().',
     mutateEncoder: () =>
@@ -173,9 +173,9 @@ export const DATETIME = {
   },
 
   plainYearMonth: {
-    title: 'FormatTemporalPlainYearMonth<{min,max}>',
+    title: 'FormatTemporalPlainYearMonth',
     description:
-      'JSON + binary (de)serialization of FormatTemporalPlainYearMonth<{min,max}> (a Temporal.PlainYearMonth branded with a year-month range); the bounds constrain validation only, so the PlainYearMonth serializes exactly like an unbranded one — toJSON() "YYYY-MM" string in JSON, restored via Temporal.PlainYearMonth.from().',
+      'JSON and binary round-trip of FormatTemporalPlainYearMonth, a Temporal.PlainYearMonth branded with a year-month range; the bounds constrain validation only, so the PlainYearMonth serializes exactly like an unbranded one, carrying the toJSON() "YYYY-MM" string in JSON and restoring via Temporal.PlainYearMonth.from().',
     serializeNotes:
       'Branded Temporal.PlainYearMonth: serialization uses the base Temporal kind (brand is validation-only); JSON carries the year-month string and restores via .from().',
     mutateEncoder: () =>
@@ -197,9 +197,9 @@ export const DATETIME = {
   },
 
   zonedDateTime: {
-    title: 'FormatTemporalZonedDateTime<{min,max}>',
+    title: 'FormatTemporalZonedDateTime',
     description:
-      'JSON + binary (de)serialization of FormatTemporalZonedDateTime<{min,max}> (a Temporal.ZonedDateTime branded with a zoned range); the bounds constrain validation only, so the ZonedDateTime serializes exactly like an unbranded one — toJSON() string carrying the "[timezone]" annotation in JSON, restored via Temporal.ZonedDateTime.from().',
+      'JSON and binary round-trip of FormatTemporalZonedDateTime, a Temporal.ZonedDateTime branded with a zoned range; the bounds constrain validation only, so the ZonedDateTime serializes exactly like an unbranded one, carrying the toJSON() string with its "[timezone]" annotation in JSON and restoring via Temporal.ZonedDateTime.from().',
     serializeNotes:
       'Branded Temporal.ZonedDateTime: serialization uses the base Temporal kind (brand is validation-only); the wire string preserves the [UTC] time-zone annotation and restores via .from(), so the zone survives the round-trip.',
     mutateEncoder: () =>

@@ -13,8 +13,8 @@ import type {FormatEmail, FormatUUIDv4} from '@mionjs/ts-go-run-types/formats';
 
 export const REALWORLD = {
   user: {
-    title: 'user',
-    description: 'A DTO whose id is a `FormatUUIDv4` and email a `FormatEmail`. Both brands serialise as their plain underlying string, so the round-trip is symmetric on every strategy.',
+    title: 'User',
+    description: 'A DTO whose id is a `FormatUUIDv4` and email a `FormatEmail`, both serialising as their plain underlying string so the round-trip is symmetric on every strategy.',
     serializeNotes: 'Format brands are a validation-time constraint only — on the wire they are plain strings.',
     mutateEncoder: () => {
       interface User {id: FormatUUIDv4; name: string; email: FormatEmail}
@@ -57,8 +57,8 @@ export const REALWORLD = {
   },
 
   order: {
-    title: 'order',
-    description: 'A DTO mixing two formats (a `FormatUUIDv4` id and a `FormatEmail` contact) with a numeric total, a `Date` (placedAt) and a string-literal status union.',
+    title: 'Order',
+    description: 'A DTO mixing two formats, a `FormatUUIDv4` id and a `FormatEmail` contact, with a numeric total, a `Date` placedAt and a string-literal status union.',
     serializeNotes: [
       '`placedAt` serialises to an ISO string and restores to a real `Date`.',
       'The uuid / email brands round-trip as plain strings through both JSON and binary.',

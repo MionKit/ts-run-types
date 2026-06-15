@@ -8,9 +8,9 @@ export const FUNCTIONS = {
   // bespoke createSerializationParamsFn / createSerializationReturnFn
   // helpers. Same type-level slicing, no extra factories.
   parameters: {
-    title: 'function parameters',
+    title: 'Function parameters',
     description:
-      'Parameters<fn> resolves to the fixed-length tuple [number, boolean, string]; all three slots are scalar and round-trip identically across JSON and binary.',
+      'Parameters<fn> resolves to the fixed-length tuple [number, boolean, string], and all three scalar slots round-trip identically across JSON and binary.',
     mutateEncoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
@@ -66,9 +66,9 @@ export const FUNCTIONS = {
     }),
   },
   optional_params: {
-    title: 'optional parameters',
+    title: 'Optional parameters',
     description:
-      'Parameters<fn> resolves to the tuple [Date, boolean?] with a trailing optional slot; the Date slot encodes to an ISO string and restores to a Date, the optional boolean may be absent.',
+      'Parameters<fn> resolves to the tuple [Date, boolean?] where the Date slot encodes to an ISO string and restores to a Date and the trailing optional boolean may be absent.',
     serializeNotes: 'The Date slot serializes to an ISO string on the JSON wire and is rebuilt to a Date on decode; samples cover the optional boolean both present and absent.',
     mutateEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -137,9 +137,9 @@ export const FUNCTIONS = {
     },
   },
   function_return: {
-    title: 'function return',
+    title: 'Function return',
     description:
-      'ReturnType<fn> resolves to a root Date; it encodes to an ISO string on the JSON wire and is rebuilt to a Date on decode.',
+      'ReturnType<fn> resolves to a root Date that encodes to an ISO string on the JSON wire and is rebuilt to a Date on decode.',
     mutateEncoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
         void a;
@@ -211,9 +211,9 @@ export const FUNCTIONS = {
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
   },
   function_with_rest_parameters: {
-    title: 'function with rest parameters',
+    title: 'Rest parameters',
     description:
-      'Parameters<fn> resolves to [number, boolean, ...Date[]] with two fixed slots and a trailing Date rest segment; each rest Date encodes to an ISO string and restores to a Date, and the rest segment may be empty.',
+      'Parameters<fn> resolves to [number, boolean, ...Date[]] with two fixed slots and a trailing Date rest segment, where each rest Date encodes to an ISO string and restores to a Date and the rest segment may be empty.',
     serializeNotes: 'Rest Date elements serialize to ISO strings on the JSON wire and rebuild to Dates on decode; samples cover the rest segment populated and empty.',
     mutateEncoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -291,9 +291,9 @@ export const FUNCTIONS = {
     }),
   },
   function_with_date_parameters: {
-    title: 'function with Date parameters',
+    title: 'Date parameters',
     description:
-      'Parameters<fn> resolves to [Date, boolean?]; the Date slot encodes to an ISO string and restores to a Date, the trailing boolean is optional.',
+      'Parameters<fn> resolves to [Date, boolean?] where the Date slot encodes to an ISO string and restores to a Date and the trailing boolean is optional.',
     serializeNotes: 'The Date slot serializes to an ISO string on the JSON wire and is rebuilt to a Date on decode.',
     mutateEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -362,9 +362,9 @@ export const FUNCTIONS = {
     },
   },
   required_function_return: {
-    title: 'required function return',
+    title: 'Bigint return',
     description:
-      'ReturnType<fn> resolves to a root bigint; JSON encodes it to a decimal string and rebuilds it with BigInt(...) on decode.',
+      'ReturnType<fn> resolves to a root bigint that JSON encodes to a decimal string and rebuilds with BigInt(...) on decode.',
     serializeNotes: 'Plain bigint takes the binary string-fallback path (variable length), so no fixed byte size is asserted.',
     mutateEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -430,9 +430,9 @@ export const FUNCTIONS = {
     getTestData: () => ({values: [1n]}),
   },
   function_with_only_rest_parameters: {
-    title: 'function with only rest parameters',
+    title: 'Rest only parameters',
     description:
-      'Parameters<fn> resolves to [...number[]] — no fixed slots, just a number rest segment; it round-trips as a plain number array across JSON and binary, including the empty case.',
+      'Parameters<fn> resolves to [...number[]] with no fixed slots, just a number rest segment that round-trips as a plain number array across JSON and binary, including the empty case.',
     mutateEncoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
@@ -490,9 +490,9 @@ export const FUNCTIONS = {
     getTestData: () => ({values: [[3, 2, 1], []]}),
   },
   non_serializable_params: {
-    title: 'non serializable params',
+    title: 'Function parameter slot',
     description:
-      'Parameters<fn> ends in an optional function slot (() => null), so the parameter tuple is [number, boolean, (() => null)?]. A function-typed tuple slot is non-serializable at every family, so the factory is rendered as alwaysThrow — invoking any encoder or decoder throws.',
+      'Parameters<fn> ends in an optional function slot so the tuple is [number, boolean, (() => null)?], and because a function-typed tuple slot is non-serializable at every family the factory renders as alwaysThrow so invoking any encoder or decoder throws.',
     serializeNotes: 'Function-typed tuple slots were previously dropped silently (JSON) or rejected (binary); both paths now render as alwaysThrow, so factoryThrows fires on first lookup and no round-trip runs.',
     mutateEncoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -570,8 +570,8 @@ export const FUNCTIONS = {
     getTestData: () => ({values: []}),
   },
   function_promise_return_type: {
-    title: 'function returns a promise',
-    description: 'Promise<T> as a return type — Promises are non-serializable in mion.',
+    title: 'Promise return',
+    description: 'A Promise<T> return type is non-serializable at root in mion, so every family renders the factory as alwaysThrow.',
     serializeNotes: 'A Promise return type is non-serializable at root, so every family renders the factory as alwaysThrow (factoryThrows); no value-first builder can express it.',
     mutateEncoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
@@ -645,8 +645,8 @@ export const FUNCTIONS = {
     getTestData: () => ({values: []}),
   },
   function_return_type_is_function: {
-    title: 'return type of a closure',
-    description: 'fn returns another fn — non-serializable.',
+    title: 'Function return slot',
+    description: 'A function that returns another function is non-serializable at root, so every family renders the factory as alwaysThrow.',
     serializeNotes: 'A function-typed return is non-serializable at root, so every family renders the factory as alwaysThrow (factoryThrows); no value-first builder can express it.',
     mutateEncoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
@@ -720,9 +720,9 @@ export const FUNCTIONS = {
     getTestData: () => ({values: []}),
   },
   call_signature_params: {
-    title: 'call signature params',
+    title: 'Call signature params',
     description:
-      'Parameters of a call-signature interface resolve to the fixed-length tuple [number, boolean]; both scalar slots round-trip identically across JSON and binary.',
+      'Parameters of a call-signature interface resolve to the fixed-length tuple [number, boolean], and both scalar slots round-trip identically across JSON and binary.',
     mutateEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
@@ -738,9 +738,9 @@ export const FUNCTIONS = {
     getTestData: () => ({values: [[3, true]]}),
   },
   call_signature_return: {
-    title: 'call signature return',
+    title: 'Call signature return',
     description:
-      'The return type of a call-signature interface resolves to a root string; it round-trips identically across JSON and binary.',
+      'The return type of a call-signature interface resolves to a root string that round-trips identically across JSON and binary.',
     mutateEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),

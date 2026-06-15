@@ -28,7 +28,6 @@
 
 import typia, {tags} from 'typia';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
-import type {User, Order, BlogPost, Product, ProductPage, RegistrationForm} from '../../shared/cases/realworld/index.ts';
 
 export const cases: CompetitorCases = {
   // ── ATOMIC ──
@@ -835,7 +834,9 @@ export const cases: CompetitorCases = {
       const val = typia.createValidate<[string, number]>();
       return (v) => val(v).success;
     },
-    samples: {invalid: [[], ['hello'], ['hello', 1, 'extra'], [1, 'hello'], 'not array', null, undefined, [null, 1], ['hello', null]]},
+    samples: {
+      invalid: [[], ['hello'], ['hello', 1, 'extra'], [1, 'hello'], 'not array', null, undefined, [null, 1], ['hello', null]],
+    },
   }, // override: typia number slot accepts NaN; invalid drops ['hello',NaN]
   'TUPLE.full_mion_tuple': {
     build: () => {
@@ -973,7 +974,9 @@ export const cases: CompetitorCases = {
       return (v) => check(v);
     },
     buildErrors: () => {
-      const val = typia.createValidate<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>();
+      const val = typia.createValidate<
+        'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}
+      >();
       return (v) => val(v).success;
     },
   },
@@ -1029,7 +1032,9 @@ export const cases: CompetitorCases = {
       const val = typia.createValidate<{kind: 'a'; n: number} | {kind: 'b'; s: string}>();
       return (v) => val(v).success;
     },
-    samples: {invalid: [{kind: 'c', n: 1}, {kind: 'a', n: 'not number'}, {n: 1}, null, 'not object', undefined, {kind: 'a'}, {kind: 'b'}]},
+    samples: {
+      invalid: [{kind: 'c', n: 1}, {kind: 'a', n: 'not number'}, {n: 1}, null, 'not object', undefined, {kind: 'a'}, {kind: 'b'}],
+    },
   }, // override: typia number prop accepts NaN; invalid drops {kind:'a',n:NaN}
   'UNION.circular_union': {
     build: () => {
@@ -1079,11 +1084,15 @@ export const cases: CompetitorCases = {
   },
   'UNION.union_mixed_arrays_and_objects': {
     build: () => {
-      const check = typia.createIs<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>();
+      const check = typia.createIs<
+        string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+      >();
       return (v) => check(v);
     },
     buildErrors: () => {
-      const val = typia.createValidate<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>();
+      const val = typia.createValidate<
+        string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+      >();
       return (v) => val(v).success;
     },
   },
@@ -1289,7 +1298,17 @@ export const cases: CompetitorCases = {
       return (v) => val(v).success;
     },
     samples: {
-      invalid: [{}, [], null, 'not map', new Map<any, number>([[1, 1]]), new Map<string, any>([['a', 'not number']]), undefined, new Date(), new Set()],
+      invalid: [
+        {},
+        [],
+        null,
+        'not map',
+        new Map<any, number>([[1, 1]]),
+        new Map<string, any>([['a', 'not number']]),
+        undefined,
+        new Date(),
+        new Set(),
+      ],
     },
   }, // override: typia Map number value accepts NaN; invalid drops the NaN-valued Map (keeps wrongKey/wrongValue)
   'NATIVE.set_string': {
@@ -2002,21 +2021,29 @@ export const cases: CompetitorCases = {
   },
   'STRING_FORMAT.uuidv4': {
     build: () => {
-      const check = typia.createIs<string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>>();
+      const check = typia.createIs<
+        string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>
+      >();
       return (v) => check(v);
     },
     buildErrors: () => {
-      const val = typia.createValidate<string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>>();
+      const val = typia.createValidate<
+        string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>
+      >();
       return (v) => val(v).success;
     },
   },
   'STRING_FORMAT.uuidv7': {
     build: () => {
-      const check = typia.createIs<string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>>();
+      const check = typia.createIs<
+        string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>
+      >();
       return (v) => check(v);
     },
     buildErrors: () => {
-      const val = typia.createValidate<string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>>();
+      const val = typia.createValidate<
+        string & tags.Pattern<'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'>
+      >();
       return (v) => val(v).success;
     },
   },
@@ -2045,11 +2072,15 @@ export const cases: CompetitorCases = {
   'STRING_FORMAT.date_minMax_absolute': NOT_SUPPORTED, // needs absolute min/max bound comparison on date strings (no typia tag)
   'STRING_FORMAT.time_iso': {
     build: () => {
-      const check = typia.createIs<string & tags.Pattern<'^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$'>>();
+      const check = typia.createIs<
+        string & tags.Pattern<'^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$'>
+      >();
       return (v) => check(v);
     },
     buildErrors: () => {
-      const val = typia.createValidate<string & tags.Pattern<'^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$'>>();
+      const val = typia.createValidate<
+        string & tags.Pattern<'^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$'>
+      >();
       return (v) => val(v).success;
     },
   },
@@ -2077,11 +2108,15 @@ export const cases: CompetitorCases = {
   'STRING_FORMAT.dateTime_default': NOT_SUPPORTED, // verified typia tags.Format<'date-time'> accepts the space-split form '2024-02-29 12:30:45Z' (RFC 3339 allows space) + no calendar check; mion needs a T-only split with calendar validity
   'STRING_FORMAT.dateTime_custom': {
     build: () => {
-      const check = typia.createIs<string & tags.Pattern<'^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-[0-9]{4} ([01][0-9]|2[0-3]):[0-5][0-9]$'>>();
+      const check = typia.createIs<
+        string & tags.Pattern<'^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-[0-9]{4} ([01][0-9]|2[0-3]):[0-5][0-9]$'>
+      >();
       return (v) => check(v);
     },
     buildErrors: () => {
-      const val = typia.createValidate<string & tags.Pattern<'^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-[0-9]{4} ([01][0-9]|2[0-3]):[0-5][0-9]$'>>();
+      const val = typia.createValidate<
+        string & tags.Pattern<'^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-[0-9]{4} ([01][0-9]|2[0-3]):[0-5][0-9]$'>
+      >();
       return (v) => val(v).success;
     },
   },
@@ -2135,13 +2170,15 @@ export const cases: CompetitorCases = {
   'STRING_FORMAT.ipv6_port': {
     build: () => {
       const check = typia.createIs<
-        string & tags.Pattern<'^\\[[0-9a-fA-F:]+\\]:(?:6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3}|0)$'>
+        string &
+          tags.Pattern<'^\\[[0-9a-fA-F:]+\\]:(?:6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3}|0)$'>
       >();
       return (v) => check(v);
     },
     buildErrors: () => {
       const val = typia.createValidate<
-        string & tags.Pattern<'^\\[[0-9a-fA-F:]+\\]:(?:6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3}|0)$'>
+        string &
+          tags.Pattern<'^\\[[0-9a-fA-F:]+\\]:(?:6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3}|0)$'>
       >();
       return (v) => val(v).success;
     },
@@ -2162,7 +2199,9 @@ export const cases: CompetitorCases = {
       return (v) => check(v);
     },
     buildErrors: () => {
-      const val = typia.createValidate<string & tags.Pattern<'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\\.){1,5}[a-zA-Z]{2,}$'>>();
+      const val = typia.createValidate<
+        string & tags.Pattern<'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\\.){1,5}[a-zA-Z]{2,}$'>
+      >();
       return (v) => val(v).success;
     },
   },
@@ -2192,21 +2231,29 @@ export const cases: CompetitorCases = {
   },
   'STRING_FORMAT.emailStrict': {
     build: () => {
-      const check = typia.createIs<string & tags.Pattern<'^[a-zA-Z0-9._-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$'>>();
+      const check = typia.createIs<
+        string & tags.Pattern<'^[a-zA-Z0-9._-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$'>
+      >();
       return (v) => check(v);
     },
     buildErrors: () => {
-      const val = typia.createValidate<string & tags.Pattern<'^[a-zA-Z0-9._-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$'>>();
+      const val = typia.createValidate<
+        string & tags.Pattern<'^[a-zA-Z0-9._-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$'>
+      >();
       return (v) => val(v).success;
     },
   },
   'STRING_FORMAT.url': {
     build: () => {
-      const check = typia.createIs<string & tags.Pattern<'^(?:https?|ftp|wss?):\\/\\/[^\\s.]+(?:\\.[^\\s.]+)+(?:[\\/?][^\\s]*)?$'>>();
+      const check = typia.createIs<
+        string & tags.Pattern<'^(?:https?|ftp|wss?):\\/\\/[^\\s.]+(?:\\.[^\\s.]+)+(?:[\\/?][^\\s]*)?$'>
+      >();
       return (v) => check(v);
     },
     buildErrors: () => {
-      const val = typia.createValidate<string & tags.Pattern<'^(?:https?|ftp|wss?):\\/\\/[^\\s.]+(?:\\.[^\\s.]+)+(?:[\\/?][^\\s]*)?$'>>();
+      const val = typia.createValidate<
+        string & tags.Pattern<'^(?:https?|ftp|wss?):\\/\\/[^\\s.]+(?:\\.[^\\s.]+)+(?:[\\/?][^\\s]*)?$'>
+      >();
       return (v) => val(v).success;
     },
   },
@@ -2448,60 +2495,210 @@ export const cases: CompetitorCases = {
   // ── REALWORLD ──
   'REALWORLD.user': {
     build: () => {
+      interface User {
+        id: number;
+        email: string;
+        name: string;
+        age?: number;
+        roles: ('admin' | 'editor' | 'user')[];
+        active: boolean;
+        createdAt: string;
+      }
       const check = typia.createIs<User>();
       return (v) => check(v);
     },
     buildErrors: () => {
+      interface User {
+        id: number;
+        email: string;
+        name: string;
+        age?: number;
+        roles: ('admin' | 'editor' | 'user')[];
+        active: boolean;
+        createdAt: string;
+      }
       const val = typia.createValidate<User>();
       return (v) => val(v).success;
     },
   },
   'REALWORLD.order': {
     build: () => {
+      interface Address {
+        street: string;
+        city: string;
+        state: string;
+        zip: string;
+        country: string;
+      }
+      interface OrderItem {
+        sku: string;
+        name: string;
+        qty: number;
+        price: number;
+      }
+      interface Order {
+        id: string;
+        customer: {id: number; email: string};
+        items: OrderItem[];
+        shipping: Address;
+        status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
+        total: number;
+        note?: string;
+      }
       const check = typia.createIs<Order>();
       return (v) => check(v);
     },
     buildErrors: () => {
+      interface Address {
+        street: string;
+        city: string;
+        state: string;
+        zip: string;
+        country: string;
+      }
+      interface OrderItem {
+        sku: string;
+        name: string;
+        qty: number;
+        price: number;
+      }
+      interface Order {
+        id: string;
+        customer: {id: number; email: string};
+        items: OrderItem[];
+        shipping: Address;
+        status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
+        total: number;
+        note?: string;
+      }
       const val = typia.createValidate<Order>();
       return (v) => val(v).success;
     },
   },
   'REALWORLD.blogPost': {
     build: () => {
+      interface BlogPost {
+        id: number;
+        title: string;
+        slug: string;
+        body: string;
+        tags: string[];
+        author: {name: string; email: string};
+        published: boolean;
+        publishedAt?: string;
+        meta: {views: number; likes: number};
+      }
       const check = typia.createIs<BlogPost>();
       return (v) => check(v);
     },
     buildErrors: () => {
+      interface BlogPost {
+        id: number;
+        title: string;
+        slug: string;
+        body: string;
+        tags: string[];
+        author: {name: string; email: string};
+        published: boolean;
+        publishedAt?: string;
+        meta: {views: number; likes: number};
+      }
       const val = typia.createValidate<BlogPost>();
       return (v) => val(v).success;
     },
   },
   'REALWORLD.product': {
     build: () => {
+      interface Product {
+        id: string;
+        name: string;
+        description: string;
+        price: number;
+        currency: 'USD' | 'EUR' | 'GBP';
+        inStock: boolean;
+        categories: string[];
+        dimensions?: {width: number; height: number; depth: number};
+      }
       const check = typia.createIs<Product>();
       return (v) => check(v);
     },
     buildErrors: () => {
+      interface Product {
+        id: string;
+        name: string;
+        description: string;
+        price: number;
+        currency: 'USD' | 'EUR' | 'GBP';
+        inStock: boolean;
+        categories: string[];
+        dimensions?: {width: number; height: number; depth: number};
+      }
       const val = typia.createValidate<Product>();
       return (v) => val(v).success;
     },
   },
   'REALWORLD.productPage': {
     build: () => {
+      interface Product {
+        id: string;
+        name: string;
+        description: string;
+        price: number;
+        currency: 'USD' | 'EUR' | 'GBP';
+        inStock: boolean;
+        categories: string[];
+        dimensions?: {width: number; height: number; depth: number};
+      }
+      interface ProductPage {
+        data: Product[];
+        page: number;
+        pageSize: number;
+        total: number;
+        hasMore: boolean;
+      }
       const check = typia.createIs<ProductPage>();
       return (v) => check(v);
     },
     buildErrors: () => {
+      interface Product {
+        id: string;
+        name: string;
+        description: string;
+        price: number;
+        currency: 'USD' | 'EUR' | 'GBP';
+        inStock: boolean;
+        categories: string[];
+        dimensions?: {width: number; height: number; depth: number};
+      }
+      interface ProductPage {
+        data: Product[];
+        page: number;
+        pageSize: number;
+        total: number;
+        hasMore: boolean;
+      }
       const val = typia.createValidate<ProductPage>();
       return (v) => val(v).success;
     },
   },
   'REALWORLD.registrationForm': {
     build: () => {
+      interface RegistrationForm {
+        email: string;
+        password: string;
+        acceptedTerms: true;
+        profile: {firstName: string; lastName: string; age?: number};
+      }
       const check = typia.createIs<RegistrationForm>();
       return (v) => check(v);
     },
     buildErrors: () => {
+      interface RegistrationForm {
+        email: string;
+        password: string;
+        acceptedTerms: true;
+        profile: {firstName: string; lastName: string; age?: number};
+      }
       const val = typia.createValidate<RegistrationForm>();
       return (v) => val(v).success;
     },

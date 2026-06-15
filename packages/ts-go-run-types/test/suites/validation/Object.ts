@@ -5,9 +5,8 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 
 export const OBJECT = {
   simple_interface: {
-    title: 'Simple interface with string and number props',
-    description:
-      'mion interface.spec.ts "validate object" (simplified to the atomic-prop subset that the current Go port can validate end-to-end)',
+    title: 'Simple interface',
+    description: 'Interface with string and number props, the atomic-prop subset validated end-to-end.',
     validateNotes: [
       'Structural typing — extra properties beyond the declared shape PASS.',
       'Each declared property runs the atomic check for its type (number props reject NaN / Infinity).',
@@ -75,9 +74,9 @@ export const OBJECT = {
   },
 
   object_as_const_literals: {
-    title: 'Object pinned with `as const` (readonly literal props)',
+    title: 'As const literals',
     description:
-      'Object literal pinned with `as const` — every property becomes a readonly literal type. Verifies that the type-id resolution and validator emit handle the readonly-literal-props shape end-to-end and that the static / reflect forms agree.',
+      'Object pinned with `as const` so every property becomes a readonly literal type, verifying the static and reflect forms agree.',
     validateNotes:
       '`readonly` is erased at runtime. Every property must strictly === its literal value (name === "john", age === 30) — no looser matches.',
     validate: () => createValidate<{readonly name: 'john'; readonly age: 30}>(),
@@ -147,9 +146,9 @@ export const OBJECT = {
   },
 
   object_via_return_type_utility: {
-    title: 'Object inferred via ReturnType<typeof factory>',
+    title: 'ReturnType utility',
     description:
-      'Static-form usage of the recommended `ReturnType<typeof fn>` idiom when you have a factory function whose return type you want to validate. The reflect form `createValidate(makeUser())` would invoke the function at runtime purely for type inference — anti-pattern that the resolver now flags as a build-time warning. The reflect-form thunk is intentionally omitted; the diagnostic test in vite-plugin-runtypes covers the warning.',
+      'Static-form `ReturnType<typeof fn>` idiom to validate a factory return type, since the reflect form would invoke the function at runtime and is flagged as a build-time warning.',
     validateNotes:
       'Prefer the static form `createValidate<ReturnType<typeof fn>>()` over `createValidate(fn())` — the latter invokes the function at runtime just to infer its type. The build pipeline emits a warning for the function-call reflect pattern.',
     validate: () => {
@@ -224,9 +223,9 @@ export const OBJECT = {
   },
 
   object_via_property_access: {
-    title: 'Object inferred via property access on a parent shape',
+    title: 'Property access inference',
     description:
-      "Reflect form with a property-access argument (`createValidate(outer.user)`). T comes from the property's declared type on the parent shape — property accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
+      "Reflect form with a property-access argument (`createValidate(outer.user)`), where T comes from the property's declared type and produces the same hash as the static form.",
     validate: () => createValidate<{id: number; name: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{id: number; name: string}>>(),
     validateSchema: () => createValidate(RT.object({id: RT.number(), name: RT.string()})),
@@ -271,9 +270,9 @@ export const OBJECT = {
   },
 
   object_via_array_access: {
-    title: 'Object inferred via array element access',
+    title: 'Array access inference',
     description:
-      "Reflect form with an array-element-access argument (`createValidate(items[0])`). T comes from the array's declared element type — indexed accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
+      "Reflect form with an array-element-access argument (`createValidate(items[0])`), where T comes from the array's element type and produces the same hash as the static form.",
     validate: () => createValidate<{id: number; name: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{id: number; name: string}>>(),
     validateSchema: () => createValidate(RT.object({id: RT.number(), name: RT.string()})),
@@ -318,8 +317,8 @@ export const OBJECT = {
   },
 
   interface_with_optional: {
-    title: 'Interface with one optional property',
-    description: 'optional property — `(v.b === undefined || Number.isFinite(v.b))` per PropertyRunType.emitIsType',
+    title: 'Optional property',
+    description: 'Interface with one optional property emitting `(v.b === undefined || Number.isFinite(v.b))`.',
     validateNotes:
       'Optional (`?`) properties may be missing OR explicitly `undefined`. If present, the value must satisfy the declared type — `b: NaN` still fails.',
     validate: () => createValidate<{a: string; b?: number}>(),
@@ -369,8 +368,8 @@ export const OBJECT = {
   },
 
   interface_with_date: {
-    title: 'Interface with a Date property',
-    description: 'tests that Date child validates via instanceof inside the AND chain — mion interface.spec.ts ObjectType subset',
+    title: 'Date property',
+    description: 'Interface whose Date child validates via instanceof inside the AND chain.',
     validateNotes: 'Date-typed properties run the atomic `Date` check — Invalid Date instances inside the property fail too.',
     validate: () => createValidate<{date: Date; name: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{date: Date; name: string}>>(),
@@ -425,9 +424,9 @@ export const OBJECT = {
   },
 
   interface_with_method: {
-    title: 'Interface with a method (function prop skipped from check)',
+    title: 'Method property',
     description:
-      "mion: objectSkipProps — function-typed properties are skipped from validate (mion's `getRTChild → undefined` for function children). validate({name:'x'}) PASSES even without `cb`.",
+      "Interface with a method, where function-typed properties are skipped from validate so `validate({name:'x'})` passes even without `cb`.",
     validateNotes: [
       'TS DIVERGENCE: Function-typed properties are completely IGNORED by validate.',
       'The property may be absent, `undefined`, `null`, a number, a string — anything passes. Even a fresh function is fine.',
@@ -475,8 +474,8 @@ export const OBJECT = {
   },
 
   nested_object: {
-    title: 'Interface with a nested object property',
-    description: 'nested object — outer + inner AND-chains; mion ObjectType "deep" subset',
+    title: 'Nested object',
+    description: 'Interface with a nested object property, validated via outer plus inner AND-chains.',
     validateNotes:
       'Nested objects are validated recursively. Atomic-level rejections (NaN, Invalid Date) bubble up from the inner shape.',
     validate: () => createValidate<{a: string; deep: {b: string; c: number}}>(),
@@ -535,8 +534,8 @@ export const OBJECT = {
   },
 
   interface_string_array_prop: {
-    title: 'Interface with a string-array property',
-    description: 'an array-typed property — exercises the dependency-call layer through an object',
+    title: 'String-array property',
+    description: 'Interface with an array-typed property, exercising the dependency-call layer through an object.',
     validateNotes: [
       'A missing required array property is reported as `expected: \'array\'` at the property path, not as an object error at the root.',
       'Element failures carry the array index in the path (e.g. `[\'tags\', 1]`); `null` / `undefined` elements fail the element check.',
@@ -588,9 +587,8 @@ export const OBJECT = {
   },
 
   circular_interface: {
-    title: 'Self-referential interface (linked-list shape)',
-    description:
-      "mion interface.spec.ts 'validate circular object'. Exercises self-recursive dependency call (mion isSelf branch — `<innerFnName>(v.child)` without `.fn`).",
+    title: 'Circular interface',
+    description: 'Self-referential linked-list shape exercising the self-recursive dependency call.',
     validateNotes: 'Self-referential shapes are validated recursively — depth is bounded only by the input value, not the type.',
     validate: () => {
       type ICircular = {name: string; child?: ICircular};
@@ -677,8 +675,8 @@ export const OBJECT = {
   },
 
   circular_interface_on_array: {
-    title: 'Self-referential interface via an array-of-self property',
-    description: "mion interface.spec.ts 'validate circular interface on array' — circular type traversed via an array property.",
+    title: 'Circular interface via array',
+    description: 'Self-referential interface traversed via an array-of-self property.',
     validateNotes:
       'The recursive `children` array is optional, so a leaf node `{name: "r"}` is valid; each array element is validated recursively, with the array index in the path (e.g. `["children", 0, "name"]`).',
     validate: () => {
@@ -754,9 +752,8 @@ export const OBJECT = {
   },
 
   circular_interface_on_nested_object: {
-    title: 'Self-referential interface buried in a nested object',
-    description:
-      "mion interface.spec.ts 'validate circular interface on nested object' — circular reference deep inside a property.",
+    title: 'Circular interface in nested object',
+    description: 'Self-referential interface with the circular reference buried deep inside a nested property.',
     validateNotes:
       'The `embedded` wrapper object is required (a missing `embedded` fails as `expected: "objectLiteral"`), but the recursive `embedded.child` is optional, so the cycle terminates wherever the value stops nesting.',
     validate: () => {
@@ -845,9 +842,8 @@ export const OBJECT = {
   },
 
   index_signature_string: {
-    title: 'Index signature with string values',
-    description:
-      "mion indexProperty.spec.ts 'validate index run type' — for-in loop over own keys, value must satisfy the value type.",
+    title: 'String index signature',
+    description: 'Index signature with string values, looping over own keys so each value must satisfy the value type.',
     validateNotes: [
       'Validates own enumerable keys via `for...in` (not inherited). The empty object `{}` is valid.',
       "Every key's value must satisfy the value type — `{ a: 1 }` fails on `{[key: string]: string}`.",
@@ -897,9 +893,9 @@ export const OBJECT = {
   },
 
   index_signature_named_props: {
-    title: 'Index signature combined with named properties',
+    title: 'Index signature with named props',
     description:
-      "mion indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
+      'Index signature combined with named props, where both the named props and the index signature validate and extras must satisfy the union value type.',
     validateNotes:
       "Named-prop checks and the index-signature for-in loop both run; an extra key whose value misses the index value type is reported as `expected: 'union'` at that key's path.",
     validate: () => createValidate<{a: string; b: number; [key: string]: string | number}>(),
@@ -967,8 +963,8 @@ export const OBJECT = {
   },
 
   index_signature_nested: {
-    title: 'Nested index signatures (number leaf values)',
-    description: 'mion indexProperty.spec.ts nested rtNested — index sig pointing at another index sig.',
+    title: 'Nested index signatures',
+    description: 'Index signature pointing at another index signature with number leaf values.',
     validateNotes: [
       "Each outer value must itself be an object — a non-object value (e.g. `{a: 1}`) fails as `expected: 'objectLiteral'` at that key.",
       'Leaf values run the atomic `number` check, so `NaN` at a leaf is rejected despite passing `typeof === "number"`.',
@@ -1017,8 +1013,8 @@ export const OBJECT = {
   },
 
   index_signature_date_value: {
-    title: 'Nested index signatures with Date leaf values',
-    description: 'mion indexProperty.spec.ts rtNested2 — Date as the leaf value type.',
+    title: 'Index signature with Date leaves',
+    description: 'Nested index signatures using Date as the leaf value type.',
     validateNotes:
       'Each leaf value runs the atomic `Date` check — an Invalid Date (`new Date(\'invalid\')`) at a leaf is rejected as `expected: \'date\'` despite being a `Date` instance.',
     validate: () => createValidate<{[key: string]: {[key: string]: Date}}>(),
@@ -1064,9 +1060,8 @@ export const OBJECT = {
   },
 
   index_signature_non_root: {
-    title: 'Index signature on a nested (non-root) object property',
-    description:
-      "mion indexProperty.spec.ts 'IndexType non root' — index signature attached to a nested (non-root) object property.",
+    title: 'Non-root index signature',
+    description: 'Index signature attached to a nested, non-root object property.',
     validateNotes:
       "The nested property `c` combines a named prop (`a: string`) with a string index signature, so every extra key on `c` must also satisfy the index value type — a non-string extra value fails as `expected: 'string'` at e.g. `['c', 'c']`.",
     validate: () => {
@@ -1230,8 +1225,8 @@ export const OBJECT = {
   },
 
   function_top_level: {
-    title: 'Function type at top level (any function passes)',
-    description: "mion FunctionRunType.emitIsType — `typeof v === 'function'`. Param-arity check is deferred (mion-level).",
+    title: 'Top-level function',
+    description: "Function type at the root, validated with `typeof v === 'function'` so any function passes.",
     validateNotes: [
       'TS DIVERGENCE: ANY function passes, regardless of signature — arrow functions, async functions, class declarations (typeof === "function") all satisfy `() => void`.',
       'Parameter types and return type are NOT verified at runtime. If you need a specific call shape, validate at the call boundary.',
@@ -1293,9 +1288,9 @@ export const OBJECT = {
   // ---- DEFERRED — kept as data for future adapter activation ----
 
   interface_callable: {
-    title: 'Callable interface (function plus data properties)',
+    title: 'Callable interface',
     description:
-      'mion interface.spec.ts "validate callable interface" — the emit detects a CallSignature child and switches the typeof guard from `object` to `function`, then AND-chains the remaining properties on top (JS functions can carry properties).',
+      'Interface with a call signature plus data properties, switching the typeof guard from `object` to `function` and AND-chaining the remaining properties.',
     validateNotes:
       'Callable interfaces require a function value (`typeof === "function"`) PLUS the declared data properties. JS functions can carry properties; this case validates both halves.',
     // Callable interface: it has a call signature, so DataOnly<T> matches the
@@ -1399,9 +1394,9 @@ export const OBJECT = {
   },
 
   interface_all_optional: {
-    title: 'Interface with every property optional (plain-object guard)',
+    title: 'All-optional interface',
     description:
-      "mion interface.spec.ts \"validate empty object for ObjectAllOptional type\". The `allOptionalCode` guard `(!Array.isArray(v) && Object.prototype.toString.call(v) === '[object Object]')` is added when every contributing child is optional, so arrays / Date / Map / Set are explicitly rejected (without the guard they'd slip through the bare `typeof === 'object'` check).",
+      "Interface with every property optional, adding the `allOptionalCode` plain-object guard so arrays, Date, Map, and Set are explicitly rejected.",
     validateNotes: [
       'When every property is optional, the empty object `{}` would otherwise pass any non-plain-object input that has `typeof === "object"`.',
       'An extra guard rejects arrays, Date, Map, Set, RegExp, and other non-plain objects via `Object.prototype.toString.call(v) === "[object Object]"`.',
@@ -1459,13 +1454,13 @@ export const OBJECT = {
   },
 
   class_simple: {
-    title: 'Class with two atomic props (instance or plain match)',
+    title: 'Class instance',
     // The emitter validates a class type with the nominal `class` kind; DataOnly
     // maps the instance to a plain object shape, so the validator reports
     // `objectLiteral` instead of `class`.
     dataOnlyDivergent: true,
     description:
-      "mion class.spec.ts 'validate class'. ClassRunType inherits InterfaceRunType.emitIsType in mion, so the KindClass+SubKindNone arm in istype.go falls through to emitObjectValidate. The serializer filters synthetic `prototype` members from class projections so the AND chain only includes user-declared properties + methods (methods drop out via the function-skip rule).",
+      'Class with two atomic props validated structurally, where synthetic `prototype` members are filtered and methods drop out via the function-skip rule.',
     validateNotes: [
       'Plain object literals matching the class shape PASS — `instanceof` is NOT checked.',
       'Methods are skipped per the function-property rule; only data properties are validated.',
@@ -1706,12 +1701,12 @@ export const OBJECT = {
   },
 
   rpc_error_class: {
-    title: 'RpcError-shaped class with branded discriminator',
+    title: 'RpcError class',
     // Nominal `class` kind (see class_simple) — DataOnly's structural projection
     // can't preserve class identity, so the validated kind diverges.
     dataOnlyDivergent: true,
     description:
-      "mion classRpcError.spec.ts — verifies the standard class projection handles RpcError-shaped classes (the actual @mionjs/core RpcError isn't a built-in node kind; it's a regular class with a literal-true brand + generic type discriminator). We define a local equivalent here to exercise the same shape end-to-end without pulling in the @mionjs/core dependency for a single test.",
+      'Local RpcError-shaped class with a literal-true brand plus generic type discriminator, exercising the standard class projection end-to-end.',
     validateNotes: [
       'Brand property + `type` discriminator + `publicMessage` are all required.',
       '`Error` base-class fields (`message`, `name`, `stack`) are NOT declared on the class shape and so are NOT validated.',
@@ -1996,9 +1991,9 @@ export const OBJECT = {
   },
 
   call_signature_params: {
-    title: 'Function parameters extracted via Parameters<F>',
+    title: 'Parameters tuple',
     description:
-      "mion callSignature.spec.ts 'should validate correct parameters' — mion exposes this via `rt.getCallSignature().createRTParamsFunction(RTFunctions.validate)`; our pipeline uses TypeScript's built-in `Parameters<F>` to extract the param tuple as a first-class type and reuses the standard tuple emit. Same observable behavior: the validator accepts `[number, boolean]`, rejects wrong-type args, accepts missing trailing args (treats them as undefined per mion's `v.length <= N` policy), rejects excess args.",
+      'Function parameters extracted via `Parameters<F>` as a first-class tuple reusing the standard tuple emit, accepting the right args and rejecting wrong-type or excess args.',
     validateNotes: [
       'The value validated is the ARGUMENTS array — a positional tuple, not the function. Each slot runs its parameter type check.',
       'Excess args are rejected as `expected: \'tuple\'` at the root; a missing required arg fails its slot type (e.g. `[1]` → `expected: \'boolean\'` at index 1), since the omitted value reads as `undefined`.',
@@ -2096,9 +2091,9 @@ export const OBJECT = {
   },
 
   call_signature_params_with_optional: {
-    title: 'Parameters<F> tuple with a trailing optional argument',
+    title: 'Parameters tuple with optional',
     description:
-      "mion function.spec.ts 'validate function parameters' — params tuple with a trailing optional. `Parameters<F>` resolves to `[number, boolean, string?]`; the optional slot accepts undefined OR a string.",
+      '`Parameters<F>` tuple with a trailing optional resolving to `[number, boolean, string?]`, where the optional slot accepts undefined or a string.',
     validateNotes:
       'The trailing optional slot may be omitted (`[3, false]` passes), but if present it must satisfy its type; excess args beyond the optional are still rejected as `expected: \'tuple\'`.',
     validate: () => {
@@ -2188,12 +2183,12 @@ export const OBJECT = {
   },
 
   call_signature_params_with_rest: {
-    title: 'Parameters<F> tuple with a trailing rest segment',
+    title: 'Parameters tuple with rest',
     // `Parameters<F>` is a tuple with a trailing rest; DataOnly's homomorphic
     // tuple mapping can't preserve the rest element (see Tuple.tuple_rest).
     dataOnlyDivergent: true,
     description:
-      "mion function.spec.ts 'validate function with rest parameters' — params tuple ending in a rest segment. `Parameters<F>` resolves to `[number, boolean, ...Date[]]`; all trailing slots must satisfy Date.",
+      '`Parameters<F>` tuple ending in a rest segment resolving to `[number, boolean, ...Date[]]`, where all trailing slots must satisfy Date.',
     validateNotes:
       'Every trailing rest slot runs the rest element check (here `Date`); each failing rest entry is reported at its own index, and an Invalid Date in a rest slot is rejected as `expected: \'date\'`.',
     validate: () => {
@@ -2294,9 +2289,9 @@ export const OBJECT = {
   },
 
   record_union_keys: {
-    title: 'Record<UnionKey, V> — resolves to a fixed-property shape',
+    title: 'Record with union keys',
     description:
-      '`Record<K, V>` with a literal-union key resolves to a fixed-property object literal (`{a: V; b: V}`) at the type-checker level — tsgo distributes the union over the property names. Same emit path as a hand-written object literal; each key is a required property of type V.',
+      '`Record<K, V>` with a literal-union key resolves to a fixed-property object literal where each key is a required property of type V.',
     validateNotes: [
       'Each union member becomes a REQUIRED property — a missing key (e.g. `{a: 1}`) fails at that key.',
       "`Record<UnionKey, V>` is NOT closed: extra keys (e.g. `{a: 1, b: 2, c: 3}`) PASS, since validation is structural.",
@@ -2366,9 +2361,8 @@ export const OBJECT = {
   },
 
   union_value_index: {
-    title: 'Index signature with a union value type',
-    description:
-      'index signature with union value type — union emit landed; for-in loop applies the union check to every own key.',
+    title: 'Union-value index signature',
+    description: 'Index signature with a union value type, applying the union check to every own key in the for-in loop.',
     validateNotes:
       "Every own key's value must satisfy the `string | number` union, reported as `expected: 'union'` on failure. The number arm uses `Number.isFinite`, so a `NaN` value fails the union; `bigint` matches neither arm and also fails.",
     validate: () => createValidate<{[key: string]: string | number}>(),
@@ -2416,9 +2410,9 @@ export const OBJECT = {
   },
 
   object_with_union_prop: {
-    title: 'Object with a discriminated-union string property',
+    title: 'Union property',
     description:
-      'discriminated union as a property type — union emit handles the literal-string union as an OR-chain of `===` checks.',
+      'Object with a discriminated-union string property, emitting the literal-string union as an OR-chain of `===` checks.',
     validateNotes:
       "Both a wrong literal value (`kind: 'c'`) and a missing `kind` (undefined matches no arm) report `expected: 'union'` at `['kind']`, rather than a root-level object error.",
     validate: () => createValidate<{kind: 'a' | 'b'; n: number}>(),
@@ -2470,9 +2464,9 @@ export const OBJECT = {
   },
 
   interface_inheritance: {
-    title: 'Interface that extends a parent interface',
+    title: 'Interface inheritance',
     description:
-      "TS `interface Child extends Base {…}` — inherited props are merged into the child's RunType.Children by tsgo's GetPropertiesOfType. The validator's emit walks the merged set; runtime behaviour matches a hand-flattened object literal.",
+      'Interface that extends a parent interface, where inherited props are merged into the child and the validator walks the merged set.',
     validateNotes:
       '`extends` is resolved at the type-checker layer — the runtype carries every inherited prop directly in its children list, so the validator does NOT separately walk the parent type.',
     validate: () => {
@@ -2613,12 +2607,12 @@ export const OBJECT = {
   },
 
   class_inheritance: {
-    title: 'Class that extends a parent class',
+    title: 'Class inheritance',
     // Nominal `class` kind (see class_simple) — DataOnly's structural projection
     // can't preserve class identity, so the validated kind diverges.
     dataOnlyDivergent: true,
     description:
-      "TS `class Sub extends Base {…}` — same merging as interface inheritance, but on the KindClass branch. Inherited data members appear in the child class's Children alongside its own.",
+      "Class that extends a parent class, where inherited data members appear in the child's children alongside its own on the class branch.",
     validateNotes:
       'Validated structurally — a plain object `{a: "x", b: 1}` PASSES (no `instanceof` check); inherited props are checked directly alongside the child\'s own, so a missing parent prop fails just like a missing own prop.',
     validate: () => {
@@ -2775,9 +2769,9 @@ export const OBJECT = {
   },
 
   index_signature_number_key: {
-    title: 'Index signature with a number key',
+    title: 'Number-key index signature',
     description:
-      '`{[k: number]: T}` — TS lets you declare number-keyed index signatures. JS object keys are always strings at runtime, so the resolver normalises this to the same shape as `{[k: string]: T}` and the validator behaves identically.',
+      '`{[k: number]: T}` normalises to the same shape as a string-key index signature, since JS object keys are always strings at runtime.',
     validateNotes:
       'TS DIVERGENCE: At runtime, all object keys are strings; the number key type constraint is enforced only by the TS compiler. The validator accepts any own enumerable key whose value satisfies T.',
     validate: () => createValidate<{[k: number]: string}>(),

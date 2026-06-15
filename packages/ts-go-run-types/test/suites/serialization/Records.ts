@@ -4,9 +4,9 @@ import type {SerializationCase} from './types.ts';
 
 export const RECORDS = {
   index_property: {
-    title: 'index property',
+    title: 'Index property',
     description:
-      'Root `{[key: string]: string}` — a dynamic-key record of string values. JSON and binary round-trip every key/value pair as a plain object; empty objects also round-trip. String values are atomic so no per-value transform runs.',
+      'Root `{[key: string]: string}` dynamic-key record of string values where JSON and binary round-trip every key/value pair (and empty objects) as a plain object with no per-value transform on the atomic string values.',
     serializeNotes:
       'The index signature admits every key, so strip and preserve decode identically — there are no undeclared keys to drop.',
     mutateEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'mutate'}),
@@ -23,9 +23,9 @@ export const RECORDS = {
     getTestData: () => ({values: [{key1: 'value1', key2: 'value2'}, {}]}),
   },
   index_property_and_prop: {
-    title: 'interface with a single property and index property',
+    title: 'Property and index',
     description:
-      'Root `{a: string; [key: string]: string}` — a declared `a` plus a string-valued index signature. JSON and binary round-trip the declared property alongside any number of dynamic string keys; samples cover the index-only-on-`a` shape and one with an extra `b` key.',
+      'Root `{a: string; [key: string]: string}` with a declared `a` plus a string-valued index signature where JSON and binary round-trip the declared property alongside any number of dynamic string keys, with samples covering the `a`-only shape and one with an extra `b` key.',
     serializeNotes:
       'The index signature admits every key, so strip and preserve decode identically — dynamic keys are never treated as undeclared.',
     mutateEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'mutate'}),
@@ -42,9 +42,9 @@ export const RECORDS = {
     getTestData: () => ({values: [{a: 'helloA'}, {a: 'helloA', b: 'helloB'}]}),
   },
   index_property_extra: {
-    title: 'index property with extra props and unions',
+    title: 'Index with unions',
     description:
-      'Root `{a: string; b: number; [key: string]: string | number}` — declared `a`/`b` plus a `string | number` index signature. JSON and binary round-trip the declared props alongside dynamic keys whose values are either string or number; the per-value union is resolved structurally on encode and decode.',
+      'Root `{a: string; b: number; [key: string]: string | number}` with declared `a`/`b` plus a `string | number` index signature where JSON and binary round-trip the declared props alongside dynamic keys whose per-value union is resolved structurally on encode and decode.',
     serializeNotes:
       'The index signature admits every key, so strip and preserve decode identically — dynamic string-or-number keys are never dropped.',
     mutateEncoder: () =>
@@ -76,9 +76,9 @@ export const RECORDS = {
     getTestData: () => ({values: [{key1: 'value1', key2: 'value2', a: 'extra1', b: 123}]}),
   },
   multiple_index_props: {
-    title: 'multiple index properties (symbol keys skipped)',
+    title: 'Multiple index signatures',
     description:
-      'Root `{[key: string]: string; [key: number]: string; [abc: symbol]: Date}` with three heterogeneous index signatures. String and number keys round-trip as object keys; symbol-keyed entries are non-serializable and are silently dropped, so the decoded value carries only the string/number keys.',
+      'Root `{[key: string]: string; [key: number]: string; [abc: symbol]: Date}` with three heterogeneous index signatures where string and number keys round-trip as object keys while non-serializable symbol-keyed entries are silently dropped, leaving the decoded value with only the string/number keys.',
     serializeNotes: [
       'Symbol-keyed entries are non-serializable: JSON.stringify omits them and the round-trip restores only the string/number keys (deserializedValues reflects the dropped symbol keys).',
       'No value-first schema can express multiple heterogeneous index signatures (RT.record takes a single key/value pair), so the schema variants opt out via not-supported.',
@@ -119,9 +119,9 @@ export const RECORDS = {
     },
   },
   index_property_nested: {
-    title: 'index property nested',
+    title: 'Nested index',
     description:
-      'Root `{[key: string]: {[key: string]: number}}` — a record whose values are themselves string-keyed number records. JSON and binary round-trip both levels of dynamic keys as nested plain objects; number values are atomic so no per-value transform runs.',
+      'Root `{[key: string]: {[key: string]: number}}` record whose values are themselves string-keyed number records, where JSON and binary round-trip both levels of dynamic keys as nested plain objects with no per-value transform on the atomic number values.',
     serializeNotes:
       'Both index signatures admit every key at their level, so strip and preserve decode identically — no key is undeclared.',
     mutateEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'mutate'}),
@@ -138,9 +138,9 @@ export const RECORDS = {
     getTestData: () => ({values: [{key1: {nestedKey1: 1, nestedKey2: 2}}]}),
   },
   index_property_nested_date: {
-    title: 'index property nested with Date values',
+    title: 'Nested Date index',
     description:
-      'Root `{[key: string]: {[key: string]: Date}}` — a record of string-keyed records whose innermost values are `Date`. JSON and binary round-trip both levels of dynamic keys; each `Date` becomes an ISO string on encode and is rebuilt with `new Date(...)` on decode.',
+      'Root `{[key: string]: {[key: string]: Date}}` record of string-keyed records whose innermost values are `Date`, where JSON and binary round-trip both levels of dynamic keys with each `Date` becoming an ISO string on encode and rebuilt via `new Date(...)` on decode.',
     serializeNotes:
       'Innermost Date values serialize via their ISO string and restore with new Date(...); both index signatures admit every key, so strip and preserve decode identically.',
     mutateEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'mutate'}),
@@ -166,9 +166,9 @@ export const RECORDS = {
     }),
   },
   index_property_bigint: {
-    title: 'index property with bigint values',
+    title: 'Bigint index',
     description:
-      'Root `{[key: string]: bigint}` — a dynamic-key record of bigint values. JSON serializes each bigint value as a decimal string (not natively JSON-encodable) and restores it with `BigInt(...)`; binary encodes bigint values natively. Keys round-trip as plain object keys.',
+      'Root `{[key: string]: bigint}` dynamic-key record of bigint values where JSON serializes each value as a decimal string (not natively JSON-encodable) and restores it with `BigInt(...)`, binary encodes the values natively, and keys round-trip as plain object keys.',
     serializeNotes: [
       'bigint values serialize as decimal strings and restore via BigInt(...); JSON cannot encode bigint directly.',
       'The index signature admits every key, so strip and preserve decode identically.',
@@ -192,9 +192,9 @@ export const RECORDS = {
     }),
   },
   index_property_non_root: {
-    title: 'index property non-root',
+    title: 'Non-root index',
     description:
-      'Root object `{b: string; c: {...}}` where the nested `c` carries a declared `a` plus a string-valued index signature. JSON and binary round-trip the fixed root shape while the nested `c` admits arbitrary dynamic string keys alongside `a`.',
+      'Root object `{b: string; c: {...}}` where the nested `c` carries a declared `a` plus a string-valued index signature, so JSON and binary round-trip the fixed root shape while the nested `c` admits arbitrary dynamic string keys alongside `a`.',
     serializeNotes:
       'Only the nested `c` has an index signature, so its dynamic keys survive strip and preserve identically; the root has a fixed declared shape.',
     mutateEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'mutate'}),

@@ -5,8 +5,8 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 
 export const ATOMIC = {
   any: {
-    title: 'Any type — every value passes',
-    description: 'the `any` keyword — validator accepts every value (no-op)',
+    title: 'Any',
+    description: 'The `any` keyword produces a no-op validator that accepts every value.',
     validateNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
     validate: () => createValidate<any>(),
     validateDataOnly: () => createValidate<DataOnly<any>>(),
@@ -45,8 +45,8 @@ export const ATOMIC = {
   },
 
   bigint: {
-    title: 'BigInt primitive',
-    description: 'Infinity and -Infinity rejected (typeof gate)',
+    title: 'BigInt',
+    description: 'The `bigint` primitive uses a strict typeof gate, so plain numbers including Infinity and -Infinity are rejected.',
     validateNotes:
       'Strict `typeof === "bigint"`. Plain `number` values (including `Infinity` / `-Infinity`) are rejected — `42` is not `42n`.',
     validate: () => createValidate<bigint>(),
@@ -94,8 +94,8 @@ export const ATOMIC = {
   },
 
   boolean: {
-    title: 'Boolean primitive (strict typeof)',
-    description: 'the `boolean` primitive — strict `typeof === "boolean"`',
+    title: 'Boolean',
+    description: 'The `boolean` primitive uses strict `typeof === "boolean"`.',
     validateNotes:
       'Strict typeof === "boolean". Truthy/falsy values that are not actual booleans (e.g., 0, 1, "", "true") are rejected.',
     validate: () => createValidate<boolean>(),
@@ -142,8 +142,8 @@ export const ATOMIC = {
   },
 
   date: {
-    title: 'Date instance (rejects Invalid Date)',
-    description: 'Invalid Date instances (getTime() === NaN) rejected',
+    title: 'Date',
+    description: 'A `Date` instance is required, and Invalid Date instances whose `getTime()` is NaN are rejected.',
     validateNotes: [
       'Must be an actual Date instance (instanceof Date).',
       'Invalid Date instances are rejected — e.g., `new Date("not-a-date")` or `new Date(NaN)`, whose `.getTime()` returns NaN.',
@@ -185,8 +185,8 @@ export const ATOMIC = {
   },
 
   enum_mixed: {
-    title: 'Enum with mixed numeric and string members',
-    description: 'enum Color {Red, Green="green", Blue=2} — numeric reverse-mapping + string values',
+    title: 'Mixed enum',
+    description: 'An `enum Color {Red, Green="green", Blue=2}` validates its underlying numeric and string values, not the member names.',
     validateNotes: [
       'Validator accepts the underlying enum VALUES (0, "green", 2 for Color {Red, Green="green", Blue=2}).',
       'Enum member NAMES as strings ("Red", "Green", "Blue") are NOT accepted — these are TS-only handles, not runtime values.',
@@ -339,8 +339,8 @@ export const ATOMIC = {
   },
 
   literal_2: {
-    title: 'Numeric literal type (strict equality)',
-    description: 'the numeric literal type `2` — matched by strict `===`',
+    title: 'Numeric literal',
+    description: 'The numeric literal type `2` is matched by strict `===`, so the string "2" fails.',
     validateNotes: 'Strict === equality with the literal value. The string "2" is not the number 2.',
     validate: () => createValidate<2>(),
     validateDataOnly: () => createValidate<DataOnly<2>>(),
@@ -381,8 +381,8 @@ export const ATOMIC = {
   },
 
   literal_a: {
-    title: 'String literal type (case-sensitive)',
-    description: "the string literal type `'a'` — matched by strict `===`",
+    title: 'String literal',
+    description: "The string literal type `'a'` is matched by strict, case-sensitive `===`.",
     validateNotes: 'Case-sensitive — "A" does not satisfy the literal "a".',
     validate: () => createValidate<'a'>(),
     validateDataOnly: () => createValidate<DataOnly<'a'>>(),
@@ -424,8 +424,8 @@ export const ATOMIC = {
   },
 
   literal_true: {
-    title: 'Boolean literal type (only true)',
-    description: 'the boolean literal type `true` — only the value `true` passes',
+    title: 'Boolean literal',
+    description: 'The boolean literal type `true` accepts only the value `true` via strict `===`.',
     validateNotes:
       'Strict === equality. Truthy values like 1 or "true" do NOT satisfy the literal `true`; only the boolean true does.',
     validate: () => createValidate<true>(),
@@ -467,8 +467,8 @@ export const ATOMIC = {
   },
 
   literal_1n: {
-    title: 'BigInt literal type (only 1n)',
-    description: 'the bigint literal type `1n` — matched by strict `===`',
+    title: 'BigInt literal',
+    description: 'The bigint literal type `1n` is matched by strict `===`, so the number 1 fails.',
     validateNotes: 'Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.',
     validate: () => createValidate<1n>(),
     validateDataOnly: () => createValidate<DataOnly<1n>>(),
@@ -510,11 +510,11 @@ export const ATOMIC = {
   },
 
   literal_symbol: {
-    title: 'Symbol literal type (matched by description)',
+    title: 'Symbol literal',
     // DataOnly<unique symbol> collapses to `never` (symbols are non-data), so
     // createValidate<DataOnly<T>>() can't reproduce the symbol validator.
     dataOnlyDivergent: true,
-    description: 'symbol identity via description match (mion semantics)',
+    description: 'A symbol literal is matched by its `description` rather than unique-symbol identity, per mion semantics.',
     validateNotes:
       'TS DIVERGENCE: Symbol literal types are matched by `description`, not by unique-symbol identity. A different `Symbol("hello")` instance with the same description WILL satisfy the type. Strict TS treats each `typeof sym` as a unique-symbol referring to that exact value.',
     validate: () => {
@@ -592,8 +592,8 @@ export const ATOMIC = {
   },
 
   never: {
-    title: 'Never — no value passes',
-    description: 'the `never` keyword — validator rejects every value (mockType throws)',
+    title: 'Never',
+    description: 'The `never` keyword rejects every value, and mockType throws.',
     validateNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
     validate: () => createValidate<never>(),
     validateDataOnly: () => createValidate<DataOnly<never>>(),
@@ -644,8 +644,8 @@ export const ATOMIC = {
   },
 
   null: {
-    title: 'Null primitive (distinct from undefined)',
-    description: 'null and undefined are distinct',
+    title: 'Null',
+    description: 'A strict `=== null` check treats null as distinct from undefined and other falsy values.',
     validateNotes:
       'Strict === null check. `undefined`, `0`, `""`, `false`, `NaN`, `{}`, `[]` and other "falsy" or "nullish-feeling" values are all rejected.',
     validate: () => createValidate<null>(),
@@ -695,8 +695,8 @@ export const ATOMIC = {
   },
 
   number: {
-    title: 'Number primitive (rejects NaN and Infinity)',
-    description: 'Infinity and -Infinity rejected (Number.isFinite)',
+    title: 'Number',
+    description: 'The `number` primitive uses `Number.isFinite`, so NaN, Infinity, and -Infinity are rejected.',
     validateNotes: [
       'Uses `Number.isFinite(v)` rather than bare `typeof v === "number"`.',
       '`NaN`, `Infinity`, and `-Infinity` are rejected even though they pass `typeof === "number"`.',
@@ -745,8 +745,8 @@ export const ATOMIC = {
   },
 
   object: {
-    title: 'Object type — any non-null non-primitive value',
-    description: 'null rejected despite JS typeof null === "object"',
+    title: 'Object',
+    description: 'The `object` type accepts any non-null non-primitive value, rejecting null despite JS `typeof null === "object"`.',
     validateNotes: [
       'Emit is `typeof v === "object" && v !== null` — strict TS semantics (any non-primitive non-null value).',
       'Arrays, Date instances, RegExp, Map, Set, and class instances all PASS — they are TS-`object` per the spec.',
@@ -799,8 +799,8 @@ export const ATOMIC = {
   },
 
   regexp: {
-    title: 'RegExp instance',
-    description: 'the `RegExp` builtin — `instanceof RegExp` check',
+    title: 'RegExp',
+    description: 'The `RegExp` builtin uses an `instanceof RegExp` check.',
     validateNotes: [
       'Must be an actual RegExp instance (`instanceof RegExp`). A string like `"/abc/"` does NOT satisfy.',
       'The getValidationErrors and mockType REFLECT forms are not supported: a reflect value `const v: RegExp = /abc/` narrows to the literal-regex type `/abc/`, dispatching to the regexp-literal arm — getValidationErrors would then report `expected: "literal"` instead of `"regexp"`, and mockType would resolve a regexp-literal runtype. The validate reflect forms survive because the validator body coincides on the samples; only the kindname-reporting paths diverge.',
@@ -843,8 +843,8 @@ export const ATOMIC = {
   },
 
   string: {
-    title: 'String primitive',
-    description: 'the `string` primitive — strict `typeof === "string"` (empty string accepted)',
+    title: 'String',
+    description: 'The `string` primitive uses strict `typeof === "string"`, accepting the empty string.',
     validateNotes: 'Strict typeof === "string". The empty string ("") is accepted.',
     validate: () => createValidate<string>(),
     validateDataOnly: () => createValidate<DataOnly<string>>(),
@@ -888,8 +888,8 @@ export const ATOMIC = {
   },
 
   symbol: {
-    title: 'Symbol primitive',
-    description: 'the bare `symbol` primitive — unsupported at root, factory throws on first call',
+    title: 'Symbol',
+    description: 'The bare `symbol` primitive is unsupported at root, so the factory throws on first call.',
     validateNotes:
       'Symbol at root is unsupported — identity does not survive across realms or round-trips, so a `typeof === "symbol"` check would give false confidence. The Go pipeline renders the factory as alwaysThrow (codes VL002 / VE002 / IS002), and the very first `createXxx<symbol>()` call throws. See docs/UNSUPPORTED-KINDS.md.',
     validate: () => createValidate<symbol>(),
@@ -928,8 +928,8 @@ export const ATOMIC = {
   },
 
   undefined: {
-    title: 'Undefined primitive (distinct from null)',
-    description: 'undefined and null are distinct',
+    title: 'Undefined',
+    description: 'A strict `=== undefined` check treats undefined as distinct from null and other falsy values.',
     validateNotes: 'Strict === undefined check. `null`, `0`, `""`, `false`, `{}`, `[]` are all rejected.',
     validate: () => createValidate<undefined>(),
     validateDataOnly: () => createValidate<DataOnly<undefined>>(),
@@ -977,8 +977,8 @@ export const ATOMIC = {
   },
 
   void: {
-    title: 'Void — accepts undefined, rejects null',
-    description: 'void accepts undefined (and bare function return); rejects null',
+    title: 'Void',
+    description: 'The `void` type validates like undefined, accepting undefined and a bare function return but rejecting null.',
     validateNotes:
       'TS DIVERGENCE: `void` validates like `undefined` — it accepts `undefined` (and a bare `(): void => {}` return) but rejects `null`, unlike a `null | undefined` type.',
     validate: () => createValidate<void>(),
@@ -1029,8 +1029,8 @@ export const ATOMIC = {
   // these cases reuse the existing base-kind emit code.
 
   literal_2_noLiterals: {
-    title: 'Numeric literal with noLiterals (degrades to number)',
-    description: 'degrades to number — Number.isFinite check',
+    title: 'Numeric literal noLiterals',
+    description: 'With `{noLiterals: true}` the numeric literal degrades to `number`, using a `Number.isFinite` check.',
     validateNotes:
       'With `{noLiterals: true}` the literal degrades to its base type (`number`). The exact-literal check is replaced by `Number.isFinite` — same rules as the atomic `number` validator (NaN / Infinity / -Infinity rejected).',
     validate: () => createValidate<2>(undefined, {noLiterals: true}),
@@ -1076,8 +1076,8 @@ export const ATOMIC = {
   },
 
   literal_a_noLiterals: {
-    title: 'String literal with noLiterals (degrades to string)',
-    description: 'degrades to string — typeof check',
+    title: 'String literal noLiterals',
+    description: 'With `{noLiterals: true}` the string literal degrades to `string`, using a typeof check.',
     validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `string`. Any string passes, including the empty string.',
     validate: () => createValidate<'a'>(undefined, {noLiterals: true}),
@@ -1119,8 +1119,8 @@ export const ATOMIC = {
   },
 
   literal_regexp_noLiterals: {
-    title: 'RegExp literal with noLiterals (degrades to RegExp)',
-    description: 'degrades to RegExp — instanceof check',
+    title: 'RegExp literal noLiterals',
+    description: 'With `{noLiterals: true}` the RegExp literal degrades to `RegExp`, using an instanceof check.',
     validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `RegExp`. Any RegExp instance passes (constructor form `new RegExp(...)` included); source + flags are no longer matched.',
     validate: () => {
@@ -1191,8 +1191,8 @@ export const ATOMIC = {
   },
 
   literal_true_noLiterals: {
-    title: 'Boolean literal with noLiterals (degrades to boolean)',
-    description: 'degrades to boolean — typeof check',
+    title: 'Boolean literal noLiterals',
+    description: 'With `{noLiterals: true}` the boolean literal degrades to `boolean`, using a typeof check.',
     validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `boolean`. Either `true` or `false` passes; truthy values like 1 are still rejected.',
     validate: () => createValidate<true>(undefined, {noLiterals: true}),
@@ -1235,8 +1235,8 @@ export const ATOMIC = {
   },
 
   literal_1n_noLiterals: {
-    title: 'BigInt literal with noLiterals (degrades to bigint)',
-    description: 'degrades to bigint — typeof check',
+    title: 'BigInt literal noLiterals',
+    description: 'With `{noLiterals: true}` the bigint literal degrades to `bigint`, using a typeof check.',
     validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `bigint`. Any bigint passes; the number `1` does NOT.',
     validate: () => createValidate<1n>(undefined, {noLiterals: true}),
@@ -1279,8 +1279,8 @@ export const ATOMIC = {
   },
 
   literal_symbol_noLiterals: {
-    title: 'Symbol literal with noLiterals (degrades to symbol)',
-    description: 'degrades to bare symbol — unsupported at root',
+    title: 'Symbol literal noLiterals',
+    description: 'With `{noLiterals: true}` the symbol literal degrades to bare symbol, which is unsupported at root.',
     validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `symbol`, which is unsupported at root (see the `symbol` case above). The factory is rendered as alwaysThrow; the first `createXxx<typeof sym>()` call throws.',
     validate: () => {
@@ -1350,8 +1350,8 @@ export const ATOMIC = {
   // include it here for full TS keyword coverage so a regression
   // can't silently change the always-pass semantics.
   unknown: {
-    title: 'Unknown type — every value passes',
-    description: 'the `unknown` keyword — validator accepts every value, same as `any` (no-op)',
+    title: 'Unknown',
+    description: 'The `unknown` keyword produces a no-op validator that accepts every value, same as `any`.',
     validateNotes: 'No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`.',
     validate: () => createValidate<unknown>(),
     validateDataOnly: () => createValidate<DataOnly<unknown>>(),

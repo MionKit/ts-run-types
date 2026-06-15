@@ -20,8 +20,8 @@ export const DATETIME = {
   // Duplicated from Atomic.ts so the date/time family reads as one group here
   // too (Atomic keeps its own copy).
   date: {
-    title: 'Date instance (rejects Invalid Date)',
-    description: 'Invalid Date instances (getTime() === NaN) rejected',
+    title: 'Date',
+    description: 'A Date instance, rejecting Invalid Date whose getTime() returns NaN.',
     validateNotes: [
       'Must be an actual Date instance (instanceof Date).',
       'Invalid Date instances are rejected — e.g., `new Date("not-a-date")` or `new Date(NaN)`, whose `.getTime()` returns NaN.',
@@ -64,7 +64,7 @@ export const DATETIME = {
 
   instant: {
     title: 'Temporal.Instant',
-    description: 'the TC39 `Temporal.Instant` leaf — validated by `instanceof`',
+    description: 'The TC39 Temporal.Instant leaf, validated by instanceof.',
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
@@ -107,7 +107,7 @@ export const DATETIME = {
 
   zonedDateTime: {
     title: 'Temporal.ZonedDateTime',
-    description: 'the TC39 `Temporal.ZonedDateTime` leaf — validated by `instanceof`',
+    description: 'The TC39 Temporal.ZonedDateTime leaf, validated by instanceof.',
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
@@ -150,7 +150,7 @@ export const DATETIME = {
 
   plainDate: {
     title: 'Temporal.PlainDate',
-    description: 'the TC39 `Temporal.PlainDate` leaf — validated by `instanceof`',
+    description: 'The TC39 Temporal.PlainDate leaf, validated by instanceof.',
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
@@ -193,7 +193,7 @@ export const DATETIME = {
 
   plainTime: {
     title: 'Temporal.PlainTime',
-    description: 'the TC39 `Temporal.PlainTime` leaf — validated by `instanceof`',
+    description: 'The TC39 Temporal.PlainTime leaf, validated by instanceof.',
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
@@ -236,7 +236,7 @@ export const DATETIME = {
 
   plainDateTime: {
     title: 'Temporal.PlainDateTime',
-    description: 'the TC39 `Temporal.PlainDateTime` leaf — validated by `instanceof`',
+    description: 'The TC39 Temporal.PlainDateTime leaf, validated by instanceof.',
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
@@ -279,7 +279,7 @@ export const DATETIME = {
 
   plainYearMonth: {
     title: 'Temporal.PlainYearMonth',
-    description: 'the TC39 `Temporal.PlainYearMonth` leaf — validated by `instanceof`',
+    description: 'The TC39 Temporal.PlainYearMonth leaf, validated by instanceof.',
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
@@ -325,7 +325,7 @@ export const DATETIME = {
 
   plainMonthDay: {
     title: 'Temporal.PlainMonthDay',
-    description: 'the TC39 `Temporal.PlainMonthDay` leaf — validated by `instanceof`',
+    description: 'The TC39 Temporal.PlainMonthDay leaf, validated by instanceof.',
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
@@ -368,7 +368,7 @@ export const DATETIME = {
 
   duration: {
     title: 'Temporal.Duration',
-    description: 'the TC39 `Temporal.Duration` leaf — validated by `instanceof`',
+    description: 'The TC39 Temporal.Duration leaf, validated by instanceof.',
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,

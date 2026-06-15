@@ -141,6 +141,11 @@ async function loadDetail(item: {id: string; title: string}) {
     </div>
 
     <template v-else-if="index">
+      <div class="suite-legend">
+        <span class="suite-legend-note">hover any row for its type, schema, and generated code</span>
+        <span class="suite-legend-note"><span class="suite-has-notes">&#9888;</span> marks cases with notes worth reading</span>
+      </div>
+
       <section v-for="section in orderedSections" :key="section.key" class="suite-section">
         <header class="suite-caption">
           <span class="suite-prompt">&gt;</span> {{ section.label }}
@@ -230,6 +235,24 @@ async function loadDetail(item: {id: string; title: string}) {
 .suite-note--muted {
   color: var(--ui-text-muted, #9aa0a6);
   border-style: dashed;
+}
+
+/* How-to-read box at the top of the table (mirrors the benchmark info section). */
+.suite-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0 0 1.25rem;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.74rem;
+  border: 1px solid var(--ui-border, rgba(138, 168, 94, 0.25));
+  border-radius: 0.4rem;
+  background: var(--rt-surface, rgba(20, 20, 20, 0.4));
+}
+
+.suite-legend-note {
+  color: var(--ui-text-muted, #9aa0a6);
+  line-height: 1.4;
 }
 
 .suite-section {
