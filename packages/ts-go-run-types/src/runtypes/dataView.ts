@@ -8,9 +8,16 @@
 // Two ported optimisations:
 //   - String bytes cache — short strings (<64 chars) are UTF-8-encoded once
 //     and blitted on repeat encodes. Bounded with half-LRU eviction.
-//   - Adaptive buffer sizing — pre-allocates `historicalAverage × multiplier`,
-//     falling back to `defaultBufferSize` on a cold cache. Keyed on the
-//     caller-supplied `cacheKey`.
+//   - Adaptive buffer sizing — pre-allocates from per-key Welford statistics
+//     (running mean + variance), allocating `mean + sizeMultiplier × stddev`
+//     so the headroom tracks the observed payload spread instead of a fixed
+//     multiple of the average. Falls back to `defaultBufferSize` on a cold
+//     cache. Keyed on the caller-supplied `cacheKey`.
+//
+// The serializer also GROWS IN PLACE: write methods reserve capacity via
+// `ensureCapacity`, which copies the written prefix into a larger buffer when a
+// payload exceeds the prediction. An above-average payload therefore costs one
+// buffer copy, never a throw + re-encode-from-scratch.
 //
 // Tune via `setSerializationOptions({...})`. The `sizeHistory` and
 // `stringBytesCache` overrides let tests / multi-tenant consumers scope state.
@@ -127,23 +134,34 @@ export type StrictArrayBuffer = ArrayBuffer & {__brand?: 'StrictArrayBuffer'};
 /** Buffer-like input for the deserializer. **/
 export type BinaryInput = StrictArrayBuffer | ArrayBufferView;
 
+/** Per-key Welford accumulator over observed payload sizes. `mean` is the
+ *  running average bytes-written; `m2` is the sum of squared deviations from
+ *  which sample variance (and thus stddev) is derived. **/
+export interface SizeStats {
+  count: number;
+  mean: number;
+  m2: number;
+}
+
 /** Tunable serializer behaviour. **/
 export interface SerializationOptions {
-  /** Cold-start buffer size. Default 16 MiB (`2 ** 24`). **/
+  /** Cold-start buffer size, used until a key has size history. Default 16 MiB (`2 ** 24`). **/
   defaultBufferSize: number;
-  /** Safety headroom factor: `allocSize = avg * sizeMultiplier`. Default 2. **/
+  /** Sigma multiplier for headroom: `allocSize = mean + sizeMultiplier * stddev`.
+   *  Default 2 (≈ covers payloads up to two standard deviations above the mean
+   *  in one shot; larger ones grow in place). **/
   sizeMultiplier: number;
   /** Strings shorter than this bypass the bytes cache. Default 64. **/
   maxStrCacheLength: number;
   /** Half-LRU eviction triggers above this. Default 1000. **/
   maxCacheSize: number;
-  /** Cache-key → rolling-average bytes-written. Pass a fresh `Map` to scope. **/
-  sizeHistory: Map<string, number>;
+  /** Cache-key → Welford size statistics. Pass a fresh `Map` to scope. **/
+  sizeHistory: Map<string, SizeStats>;
   /** Source-string → cached UTF-8 bytes. Pass a fresh `Map` to scope. **/
   stringBytesCache: Map<string, Uint8Array>;
 }
 
-const moduleSizeHistory = new Map<string, number>();
+const moduleSizeHistory = new Map<string, SizeStats>();
 const moduleStringBytesCache = new Map<string, Uint8Array>();
 
 const DEFAULTS: SerializationOptions = {
@@ -247,18 +265,29 @@ function predictBufferSize(cacheKey: string, relatedKeys?: string[]): number {
   return sizeForKey(cacheKey);
 }
 
+/** Predict from Welford stats: `mean + sizeMultiplier * stddev`. A tight
+ *  prediction is safe because the serializer grows in place on a miss — under-
+ *  allocation costs one buffer copy, not a throw. Falls back to the cold-start
+ *  default until the key has been observed. **/
 function sizeForKey(key: string): number {
-  const avg = opts.sizeHistory.get(key);
-  if (avg === undefined) return opts.defaultBufferSize;
-  return avg * opts.sizeMultiplier;
+  const stats = opts.sizeHistory.get(key);
+  if (stats === undefined || stats.count === 0) return opts.defaultBufferSize;
+  // Sample variance (Bessel-corrected); zero for a single observation.
+  const variance = stats.count > 1 ? stats.m2 / (stats.count - 1) : 0;
+  const stddev = Math.sqrt(variance);
+  return Math.ceil(stats.mean + opts.sizeMultiplier * stddev);
 }
 
-/** EMA-against-default: the cold-start sample blends against
- *  `defaultBufferSize` so predicted size never drops below half the
- *  default — preventing under-allocation when the first observation is tiny. **/
+/** Welford online update of the per-key mean + variance accumulator. Unlike the
+ *  previous EMA it keeps an unbiased running mean/variance over ALL observations
+ *  (see SizeStats); regime-shift responsiveness is the documented trade-off. **/
 function recordObservedSize(cacheKey: string, observed: number): void {
-  const prev = opts.sizeHistory.get(cacheKey) ?? opts.defaultBufferSize;
-  opts.sizeHistory.set(cacheKey, Math.floor((prev + observed) / 2));
+  const stats = opts.sizeHistory.get(cacheKey) ?? {count: 0, mean: 0, m2: 0};
+  stats.count += 1;
+  const delta = observed - stats.mean;
+  stats.mean += delta / stats.count;
+  stats.m2 += delta * (observed - stats.mean);
+  opts.sizeHistory.set(cacheKey, stats);
 }
 
 /** Half-LRU eviction. **/
@@ -289,9 +318,38 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.hasEnded = false;
   }
   resize(size: number): void {
+    // Preserve the already-written prefix (up to the new size) so a grow never
+    // discards work — callers no longer have to re-encode from a clean index.
+    const old = this.uint8View;
+    const keep = Math.min(this.index, size);
     this.buffer = new ArrayBuffer(size);
     this.view = new DataView(this.buffer);
     this.uint8View = new Uint8Array(this.buffer);
+    if (keep > 0) this.uint8View.set(old.subarray(0, keep));
+  }
+  /** Reserve `extraBytes` of headroom past the cursor, growing in place when the
+   *  prediction under-allocated. Grows geometrically but at least to the exact
+   *  deficit, so a one-off large payload settles in a single copy. Throws only
+   *  at the hard `2 ** 32` ceiling (a payload that genuinely cannot be encoded). **/
+  private ensureCapacity(extraBytes: number): void {
+    const required = this.index + extraBytes;
+    if (required <= this.buffer.byteLength) return;
+    if (required >= POW_2_32)
+      throw new RangeError(`DataViewSerializer: payload exceeds max buffer size (need ${required} bytes, max ${POW_2_32}).`);
+    let nextSize = this.buffer.byteLength * 2;
+    if (nextSize < required) nextSize = required;
+    if (nextSize >= POW_2_32) nextSize = required;
+    this.resize(nextSize);
+  }
+  /** Reserve room for a string write. Worst-case UTF-8 is 3 bytes per UTF-16
+   *  code unit; reserving it up front means `encodeInto` can never truncate.
+   *  When that worst case would top the `2 ** 32` ceiling (only for multi-GB
+   *  strings whose real UTF-8 size may still fit) grow as far as the ceiling
+   *  allows and let the post-encode guard reject a genuinely unencodable one. **/
+  private reserveForString(charLength: number): void {
+    const worstCase = 4 + charLength * 3;
+    if (this.index + worstCase < POW_2_32) this.ensureCapacity(worstCase);
+    else this.ensureCapacity(POW_2_32 - 1 - this.index);
   }
   getBuffer(): StrictArrayBuffer {
     return this.buffer.slice(0, this.index) as StrictArrayBuffer;
@@ -307,17 +365,18 @@ class DataViewSerializerImpl implements DataViewSerializer {
     return this.index;
   }
   serString(str: string, skipCache?: boolean): void {
-    // Long strings or explicit bypass: encode straight into the buffer.
+    // Long strings or explicit bypass: encode straight into the buffer. Reserve
+    // the worst-case UTF-8 size (≤3 bytes per UTF-16 code unit) up front so
+    // `encodeInto` never truncates and we never re-encode on a buffer miss.
     if (str.length >= opts.maxStrCacheLength || skipCache) {
+      this.reserveForString(str.length);
       const targetView = this.uint8View.subarray(this.index + 4);
       const result = textEncoder.encodeInto(str, targetView);
       const read = result.read ?? 0;
-      // `encodeInto` silently truncates on small destinations; surface as
-      // RangeError so callers don't persist a corrupted length prefix.
+      // `encodeInto` silently truncates on small destinations; the reservation
+      // above prevents that, so this guard only catches an internal accounting bug.
       if (read < str.length)
-        throw new RangeError(
-          `DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars). Call resize() and retry.`
-        );
+        throw new RangeError(`DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars).`);
       const written = result.written ?? 0;
       this.view.setUint32(this.index, written, LE);
       this.index += 4 + written;
@@ -325,10 +384,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
     }
     const cached = opts.stringBytesCache.get(str);
     if (cached) {
-      if (this.index + 4 + cached.length > this.buffer.byteLength)
-        throw new RangeError(
-          `DataViewSerializer: buffer too small for cached string (need ${4 + cached.length} bytes, have ${this.buffer.byteLength - this.index}). Call resize() and retry.`
-        );
+      this.ensureCapacity(4 + cached.length);
       this.uint8View.set(cached, this.index + 4);
       this.view.setUint32(this.index, cached.length, LE);
       this.index += 4 + cached.length;
@@ -336,13 +392,12 @@ class DataViewSerializerImpl implements DataViewSerializer {
     }
     // Cache miss: encode in place, then snapshot the written bytes. The slice
     // copies (mandatory — the working buffer is overwritten on later writes).
+    this.ensureCapacity(4 + str.length * 3);
     const targetView = this.uint8View.subarray(this.index + 4);
     const result = textEncoder.encodeInto(str, targetView);
     const read = result.read ?? 0;
     if (read < str.length)
-      throw new RangeError(
-        `DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars). Call resize() and retry.`
-      );
+      throw new RangeError(`DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars).`);
     const written = result.written ?? 0;
     this.view.setUint32(this.index, written, LE);
     this.index += 4 + written;
@@ -350,17 +405,20 @@ class DataViewSerializerImpl implements DataViewSerializer {
     opts.stringBytesCache.set(str, this.uint8View.slice(this.index - written, this.index));
   }
   serFloat64(n: number): void {
+    this.ensureCapacity(8);
     this.view.setFloat64(this.index, n, LE);
     this.index += 8;
   }
   serEnum(n: number | string): void {
     if (typeof n === 'number') {
+      this.ensureCapacity(8);
       this.view.setUint32(this.index, NUM, LE);
       this.index += 4;
       this.view.setUint32(this.index, n, LE);
       this.index += 4;
       return;
     }
+    this.ensureCapacity(4);
     this.view.setUint32(this.index, STR, LE);
     this.index += 4;
     this.serString(n);
@@ -370,6 +428,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.view.setUint8(bitMaskIndex, newBitmask);
   }
   serTemporalInstant(value: InstantValue): void {
+    this.ensureCapacity(12);
     // BigInt / and % both truncate toward zero, so the (possibly negative)
     // remainder recombines exactly: seconds * 1e9 + subNs === epochNanoseconds.
     this.view.setBigInt64(this.index, value.epochNanoseconds / NANOS_PER_SECOND, LE);
@@ -394,6 +453,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
   serTemporalPlainYearMonth(value: PlainYearMonthValue): void {
     if (value.calendarId !== ISO_CALENDAR) return this.serNonIsoFallback(value);
     this.serByte(1);
+    this.ensureCapacity(4);
     this.view.setInt32(this.index, value.year, LE);
     this.index += 4;
     this.serByte(value.month);
@@ -404,10 +464,12 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.serString(value.toJSON());
   }
   private serByte(value: number): void {
+    this.ensureCapacity(1);
     this.view.setUint8(this.index, value);
     this.index += 1;
   }
   private writePlainDateFields(value: {year: number; month: number; day: number}): void {
+    this.ensureCapacity(4);
     this.view.setInt32(this.index, value.year, LE);
     this.index += 4;
     this.serByte(value.month);
@@ -417,6 +479,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.serByte(value.hour);
     this.serByte(value.minute);
     this.serByte(value.second);
+    this.ensureCapacity(6);
     this.view.setUint16(this.index, value.millisecond, LE);
     this.index += 2;
     this.view.setUint16(this.index, value.microsecond, LE);
