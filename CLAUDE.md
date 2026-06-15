@@ -73,6 +73,20 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 - Pre-commit hook ([.husky/pre-commit](.husky/pre-commit)) runs `lint-staged` automatically — activated by `pnpm install` via the root `prepare` script.
 - Containerized website + benchmarks have their own self-syncing scripts ([scripts/website.sh](scripts/website.sh), [scripts/benchmarks.sh](scripts/benchmarks.sh)) — see [SETUP.md → Containerized apps](SETUP.md#containerized-apps-docs-website--benchmarks).
 
+## Git workflow
+
+- **PRs land via Rebase-and-merge — keep every branch LINEAR (no merge commits).**
+- **Integrate upstream by rebasing, never merging.** When `main` moves (it may be **force-updated** / history-rewritten), rebase onto it:
+  ```
+  git fetch origin main
+  git rebase origin/main            # resolve conflicts here, per replayed commit
+  git push --force-with-lease origin <branch>
+  ```
+- **Never `git merge main` into a feature branch.** A merge commit makes the *final tree* clean — so the merge API reports `mergeable` and `git merge-base --is-ancestor` looks fine — but GitHub's rebase-merge replays your ORIGINAL commits one-by-one and fails with **"this branch cannot be rebased due to conflicts."** The merge check and the rebase check disagree, so a branch that looks mergeable still can't land.
+- Commits authored before a `main` change (e.g. deleting/renaming files `main` later edited) MUST be rebased so they're rewritten on top of the new `main`. A branch that won't rebase cleanly must be linearized onto current `main` before review — rebase, or rebuild as a single commit: `git commit-tree $(git rev-parse HEAD^{tree}) -p origin/main` then `git reset --hard <new>`.
+- Before pushing, confirm the branch is linear: `git log --oneline origin/main..HEAD` lists only your own commits, with **no merge commits**.
+- After any rebase, push with `git push --force-with-lease` — never plain `--force` (the lease refuses the push if the remote branch moved under you).
+
 ## Marker package self-import resolution
 
 - The marker package's own tests import its public name `@mionjs/ts-go-run-types`; both vitest and tsgo must resolve that to in-tree `src/index.ts`, NOT the (un)built `dist/`.
