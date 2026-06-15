@@ -156,3 +156,36 @@ pre.px-4 {
   }
 }
 
+/* ── Wide data pages (Suites & Benchmarks) ──────────────────────────────────
+   These pages set `pageClass: wide-page` and hide the right-hand TOC
+   (`toc: false`) in frontmatter. The dense suite/benchmark tables then reclaim
+   the freed space instead of being capped at prose width. Both knobs are safe:
+   bumping the container token only takes effect where it's used, and dropping
+   the prose max-width just lets the content fill its (now wider) parent. */
+:root:has(.wide-page) {
+  --ui-container: 88rem;
+}
+
+.wide-page :is(.prose, article) {
+  max-width: none;
+}
+
+/* ── Suite & benchmark surfaces — theme-aware ────────────────────────────────
+   The suite/benchmark tables + hover panels were a fixed dark "terminal". These
+   vars let the surrounding chrome flip with the color mode (text already rides
+   the theme-aware `--ui-*` tokens; code blocks carry Shiki's own dual-theme
+   colors). Dark values match the original look so dark mode is unchanged. */
+:root.dark {
+  --rt-surface: rgba(20, 20, 20, 0.55);
+  --rt-panel: rgba(12, 12, 14, 0.97);
+  --rt-code-bg: rgba(0, 0, 0, 0.45);
+  --rt-note: #c8b072;
+}
+
+:root.light {
+  --rt-surface: rgba(255, 255, 255, 0.85);
+  --rt-panel: #ffffff;
+  --rt-code-bg: rgba(15, 20, 10, 0.05);
+  --rt-note: #8a6a1e;
+}
+
