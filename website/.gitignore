@@ -39,3 +39,10 @@ logs
 # Extra CA certs injected for proxied builds (never commit certs)
 .cacerts/*
 !.cacerts/.gitkeep
+
+# Generated docs data — suite/benchmark result JSON the tables fetch at runtime.
+# Produced locally by `pnpm run gen:suite-docs` / `pnpm run gen:bench-docs`
+# (Go binary + benchmark harness); a run output, not something we version.
+# A fresh clone shows the "data not generated yet" fallback until you regenerate.
+/public/suite-data/
+/public/bench-data/
