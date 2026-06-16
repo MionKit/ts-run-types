@@ -25,7 +25,7 @@ interface FormatParams_UUID {
 // positions + version digit at slot 14 + hex character class on
 // every other slot. Matches the runtime behaviour of the canonical
 // UUIDv4 / UUIDv7 patterns without pulling in a regex engine.
-registerPureFnFactory('rtFormats', 'isUUID', function () {
+registerPureFnFactory('rtFormats::isUUID', function () {
   return function _isUUID(value: string, params: FormatParams_UUID): boolean {
     if (typeof value !== 'string' || value.length !== 36) return false;
     for (let i = 0; i < 36; i++) {
@@ -59,7 +59,7 @@ interface FormatParams_IP {
 
 type IsIpFn = (ip: string, params: FormatParams_IP) => boolean;
 
-registerPureFnFactory('rtFormats', 'isLocalHost', function () {
+registerPureFnFactory('rtFormats::isLocalHost', function () {
   const lhr = /^localhost$/i;
   return function _is_local_host(ip: string, params: FormatParams_IP): boolean {
     if (params.version === 4) return lhr.test(ip) || ip === '127:0:0:1';
@@ -68,7 +68,7 @@ registerPureFnFactory('rtFormats', 'isLocalHost', function () {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isIPV4', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isIPV4', function (utl: RTUtils) {
   const isLocalHost = utl.getPureFn('rtFormats::isLocalHost') as IsIpFn;
   function getAddress(ip: string, params: FormatParams_IP): false | string {
     if (!params.allowPort) return ip;
@@ -96,7 +96,7 @@ registerPureFnFactory('rtFormats', 'isIPV4', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isIPV6', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isIPV6', function (utl: RTUtils) {
   const isLocalHost = utl.getPureFn('rtFormats::isLocalHost') as IsIpFn;
   const ipv6PortRegexp = /^\[([^\]]+)\](?::(\d+))?$/;
   function getAddress(ip: string, params: FormatParams_IP): false | string {

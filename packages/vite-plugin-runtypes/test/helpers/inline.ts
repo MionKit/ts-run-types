@@ -33,6 +33,7 @@ export const RUNTYPES_DTS = `declare module 'ts-runtypes' {
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
+  export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export interface ValidateOptions {
     noLiterals?: boolean;
@@ -56,8 +57,7 @@ export const RUNTYPES_DTS = `declare module 'ts-runtypes' {
     findCompiledPureFn(fnName: CompTimeArgs<string>): any;
   }
   export function registerPureFnFactory(
-    namespace: CompTimeArgs<string>,
-    functionID: CompTimeArgs<string>,
+    pureFnId: CompTimeArgs<PureFnId>,
     factory: PureFunction<(utl: RTUtils) => any> | null
   ): any;
   // Minimal DataOnly stand-in — preserves the alias-clearing key-filtering

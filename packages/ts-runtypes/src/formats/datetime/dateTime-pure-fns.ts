@@ -24,7 +24,7 @@ type SegmentFn = (segment: string) => boolean;
 // layout wrappers split on '-' and delegate. Wrappers reach the base fn
 // via utl.getPureFn so the Go extractor records the transitive dep.
 
-registerPureFnFactory('rtFormats', 'isDateString', function () {
+registerPureFnFactory('rtFormats::isDateString', function () {
   return function _isDateString(year: string | undefined, month: string, day?: string): boolean {
     let y: number | undefined;
     if (year) {
@@ -50,7 +50,7 @@ registerPureFnFactory('rtFormats', 'isDateString', function () {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isDateString_YMD', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isDateString_YMD', function (utl: RTUtils) {
   const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_ymd(value: string): boolean {
     const parts = value.split('-');
@@ -58,7 +58,7 @@ registerPureFnFactory('rtFormats', 'isDateString_YMD', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isDateString_DMY', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isDateString_DMY', function (utl: RTUtils) {
   const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_dmy(value: string): boolean {
     const parts = value.split('-');
@@ -66,7 +66,7 @@ registerPureFnFactory('rtFormats', 'isDateString_DMY', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isDateString_MDY', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isDateString_MDY', function (utl: RTUtils) {
   const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_mdy(value: string): boolean {
     const parts = value.split('-');
@@ -74,7 +74,7 @@ registerPureFnFactory('rtFormats', 'isDateString_MDY', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isDateString_YM', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isDateString_YM', function (utl: RTUtils) {
   const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_ym(value: string): boolean {
     const parts = value.split('-');
@@ -82,7 +82,7 @@ registerPureFnFactory('rtFormats', 'isDateString_YM', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isDateString_MD', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isDateString_MD', function (utl: RTUtils) {
   const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_md(value: string): boolean {
     const parts = value.split('-');
@@ -90,7 +90,7 @@ registerPureFnFactory('rtFormats', 'isDateString_MD', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isDateString_DM', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isDateString_DM', function (utl: RTUtils) {
   const isDate = utl.getPureFn('rtFormats::isDateString') as IsDateStringFn;
   return function _is_dm(value: string): boolean {
     const parts = value.split('-');
@@ -100,7 +100,7 @@ registerPureFnFactory('rtFormats', 'isDateString_DM', function (utl: RTUtils) {
 
 // ############### Time pure fns ###############
 
-registerPureFnFactory('rtFormats', 'isHours', function () {
+registerPureFnFactory('rtFormats::isHours', function () {
   return function _is_h(hours: string): boolean {
     if (!hours.length || hours.length > 2) return false;
     const n = Number(hours);
@@ -109,7 +109,7 @@ registerPureFnFactory('rtFormats', 'isHours', function () {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isMinutes', function () {
+registerPureFnFactory('rtFormats::isMinutes', function () {
   return function _is_m(mins: string): boolean {
     if (!mins.length || mins.length > 2) return false;
     const n = Number(mins);
@@ -118,7 +118,7 @@ registerPureFnFactory('rtFormats', 'isMinutes', function () {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isSeconds', function () {
+registerPureFnFactory('rtFormats::isSeconds', function () {
   return function _is_s(secs: string): boolean {
     if (!secs.length || secs.length > 2) return false;
     const n = Number(secs);
@@ -127,7 +127,7 @@ registerPureFnFactory('rtFormats', 'isSeconds', function () {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isSecondsWithMs', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isSecondsWithMs', function (utl: RTUtils) {
   const isS = utl.getPureFn('rtFormats::isSeconds') as SegmentFn;
   return function _is_s_ms(secsAndMs: string): boolean {
     const parts = secsAndMs.split('.');
@@ -143,7 +143,7 @@ registerPureFnFactory('rtFormats', 'isSecondsWithMs', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isTimeZone', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isTimeZone', function (utl: RTUtils) {
   const isH = utl.getPureFn('rtFormats::isHours') as SegmentFn;
   const isM = utl.getPureFn('rtFormats::isMinutes') as SegmentFn;
   return function _is_tz(timeZone: string): boolean {
@@ -153,7 +153,7 @@ registerPureFnFactory('rtFormats', 'isTimeZone', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isTimeString_ISO', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isTimeString_ISO', function (utl: RTUtils) {
   const isH = utl.getPureFn('rtFormats::isHours') as SegmentFn;
   const isM = utl.getPureFn('rtFormats::isMinutes') as SegmentFn;
   const isSms = utl.getPureFn('rtFormats::isSecondsWithMs') as SegmentFn;
@@ -163,7 +163,7 @@ registerPureFnFactory('rtFormats', 'isTimeString_ISO', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('rtFormats', 'isTimeString_ISO_TZ', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isTimeString_ISO_TZ', function (utl: RTUtils) {
   const isTime = utl.getPureFn('rtFormats::isTimeString_ISO') as SegmentFn;
   const isTZ = utl.getPureFn('rtFormats::isTimeZone') as SegmentFn;
   return function _is_iso_tz(value: string): boolean {
@@ -177,7 +177,7 @@ registerPureFnFactory('rtFormats', 'isTimeString_ISO_TZ', function (utl: RTUtils
   };
 });
 
-registerPureFnFactory('rtFormats', 'isTimeString_HHmmss', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isTimeString_HHmmss', function (utl: RTUtils) {
   const isH = utl.getPureFn('rtFormats::isHours') as SegmentFn;
   const isM = utl.getPureFn('rtFormats::isMinutes') as SegmentFn;
   const isS = utl.getPureFn('rtFormats::isSeconds') as SegmentFn;
@@ -187,7 +187,7 @@ registerPureFnFactory('rtFormats', 'isTimeString_HHmmss', function (utl: RTUtils
   };
 });
 
-registerPureFnFactory('rtFormats', 'isTimeString_HHmm', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isTimeString_HHmm', function (utl: RTUtils) {
   const isH = utl.getPureFn('rtFormats::isHours') as SegmentFn;
   const isM = utl.getPureFn('rtFormats::isMinutes') as SegmentFn;
   return function _is_hhmm(value: string): boolean {
@@ -196,7 +196,7 @@ registerPureFnFactory('rtFormats', 'isTimeString_HHmm', function (utl: RTUtils) 
   };
 });
 
-registerPureFnFactory('rtFormats', 'isTimeString_mmss', function (utl: RTUtils) {
+registerPureFnFactory('rtFormats::isTimeString_mmss', function (utl: RTUtils) {
   const isM = utl.getPureFn('rtFormats::isMinutes') as SegmentFn;
   const isS = utl.getPureFn('rtFormats::isSeconds') as SegmentFn;
   return function _is_mmss(value: string): boolean {
@@ -221,7 +221,7 @@ registerPureFnFactory('rtFormats', 'isTimeString_mmss', function (utl: RTUtils) 
 
 // dateStrToMs — UTC epoch ms for a date value already known to be valid
 // in `layout`. `layout` is one of the DateFmt strings.
-registerPureFnFactory('rtFormats', 'dateStrToMs', function () {
+registerPureFnFactory('rtFormats::dateStrToMs', function () {
   return function _date_to_ms(value: string, layout: string): number {
     const parts = value.split('-');
     // Canonical fill for yearless layouts (MM-DD / DD-MM): a fixed year is
@@ -268,7 +268,7 @@ registerPureFnFactory('rtFormats', 'dateStrToMs', function () {
 
 // timeStrToMs — ms-of-day for a time value valid in `layout`. The tz
 // (when present) is stripped and ignored (wall-clock comparison).
-registerPureFnFactory('rtFormats', 'timeStrToMs', function () {
+registerPureFnFactory('rtFormats::timeStrToMs', function () {
   return function _time_to_ms(value: string, layout: string): number {
     let body = value;
     if (layout === 'ISO' || layout === 'HH:mm:ss[.mmm]TZ') {
@@ -317,7 +317,7 @@ registerPureFnFactory('rtFormats', 'timeStrToMs', function () {
 // (calendar-correct add via Date arithmetic); 'timeOfDay' → ms-of-day
 // (only T-section components apply; date components are rejected
 // build-time so won't appear here).
-registerPureFnFactory('rtFormats', 'relativeNowKey', function () {
+registerPureFnFactory('rtFormats::relativeNowKey', function () {
   // Parse the ISO-8601 duration tail into {years, months, weeks, days,
   // hours, minutes, seconds}. Returns null for bare `now`.
   function parseDuration(tail: string): Record<string, number> {

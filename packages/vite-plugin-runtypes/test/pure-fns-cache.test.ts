@@ -19,13 +19,14 @@ import {hasBinary, withInlineSources, evalEntryModules} from './helpers/inline.t
 
 // runtypesDts is the ambient marker declaration prepended to every
 // fixture below. registerPureFnFactory's discovery is now marker-driven
-// (CompTimeArgs<string> × 2 + PureFunction<F> brands on the three
-// params), so test fixtures need a branded signature in scope —
-// otherwise the walker silently skips the call.
+// (CompTimeArgs<string> + PureFunction<F> brands on the two params), so
+// test fixtures need a branded signature in scope — otherwise the walker
+// silently skips the call.
 const runtypesDts = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
+  export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};
   export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
     getPureFn(key: CompTimeArgs<string>): any;
@@ -34,8 +35,7 @@ const runtypesDts = `declare module 'ts-runtypes' {
     findCompiledPureFn(fnName: CompTimeArgs<string>): any;
   }
   export function registerPureFnFactory(
-    namespace: CompTimeArgs<string>,
-    functionID: CompTimeArgs<string>,
+    pureFnId: CompTimeArgs<PureFnId>,
     factory: PureFunction<(utl: RTUtils) => any> | null
   ): any;
 }
@@ -87,12 +87,12 @@ describe('vite-plugin-runtypes / pure-fns virtual module', () => {
   register('emits pureFns entries with structurally-valid metadata', async () => {
     const sources = {
       'pure.ts': `import {registerPureFnFactory} from 'ts-runtypes';
-export const a = registerPureFnFactory('rt', 'asJSONString', function () {
+export const a = registerPureFnFactory('rt::asJSONString', function () {
   return function _stringify(s: string): string {
     return JSON.stringify(s);
   };
 });
-export const b = registerPureFnFactory('rt', 'safeKey', function () {
+export const b = registerPureFnFactory('rt::safeKey', function () {
   return function _safe(value: any): any {
     return value;
   };
@@ -130,7 +130,7 @@ export const b = registerPureFnFactory('rt', 'safeKey', function () {
   register('emits Replacement entries that swap each factory argument for the entry binding', async () => {
     const sources = {
       'src.ts': `import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'foo', function () {
+export const _ = registerPureFnFactory('rt::foo', function () {
   return function _f(x: number) { return x + 1; };
 });
 `,
@@ -150,14 +150,14 @@ export const _ = registerPureFnFactory('rt', 'foo', function () {
         Buffer.from(reps[0].text, 'utf8'),
         buf.subarray(reps[0].end),
       ]).toString('utf8');
-      expect(after).toContain("registerPureFnFactory('rt', 'foo',__rt_pf$2Frt$2Ffoo)");
+      expect(after).toContain("registerPureFnFactory('rt::foo',__rt_pf$2Frt$2Ffoo)");
     });
   });
 
   register('extracts pureFnDependencies statically from utl.getPureFn calls', async () => {
     const sources = {
       'deps.ts': `import {registerPureFnFactory, type RTUtils} from 'ts-runtypes';
-export const _ = registerPureFnFactory('rt', 'consumer', function (utl: RTUtils) {
+export const _ = registerPureFnFactory('rt::consumer', function (utl: RTUtils) {
   return function _f(x: any) {
     return utl.getPureFn('rt::dep')(x);
   };
@@ -171,16 +171,16 @@ export const _ = registerPureFnFactory('rt', 'consumer', function (utl: RTUtils)
     });
   });
 
-  register('emits CTA001 for non-literal namespace (was PFE9001 pre-marker-migration)', async () => {
+  register('emits CTA001 for non-literal id (was PFE9001 pre-marker-migration)', async () => {
     const sources = {
       'bad-ns.ts': `import {registerPureFnFactory} from 'ts-runtypes';
-declare function getNs(): string;
-export const x = registerPureFnFactory(getNs(), 'fn', function () { return function() {}; });
+declare function getId(): string;
+export const x = registerPureFnFactory(getId(), function () { return function() {}; });
 `,
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeEntryModules: true});
-      // CompTimeArgs<string> brand on the namespace param fires a CTA0xx
+      // CompTimeArgs<string> brand on the id param fires a CTA0xx
       // diagnostic from the marker layer (resolver.scanCall) — the exact
       // sub-code depends on the failure mode (CTA001 non-literal, CTA003
       // function-call construct). The walker silently skips extraction.
@@ -197,7 +197,7 @@ export const x = registerPureFnFactory(getNs(), 'fn', function () { return funct
     const sources = {
       'bad-fn.ts': `import {registerPureFnFactory} from 'ts-runtypes';
 declare const externalFn: (utl: unknown) => () => void;
-export const x = registerPureFnFactory('rt', 'fn', externalFn);
+export const x = registerPureFnFactory('rt::fn', externalFn);
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -215,12 +215,12 @@ export const x = registerPureFnFactory('rt', 'fn', externalFn);
   register('emits PFE9004 collision diagnostic for mismatched bodies', async () => {
     const sources = {
       'a.ts': `import {registerPureFnFactory} from 'ts-runtypes';
-export const a = registerPureFnFactory('rt', 'collideFn', function () {
+export const a = registerPureFnFactory('rt::collideFn', function () {
   return function v1() { return 1; };
 });
 `,
       'b.ts': `import {registerPureFnFactory} from 'ts-runtypes';
-export const b = registerPureFnFactory('rt', 'collideFn', function () {
+export const b = registerPureFnFactory('rt::collideFn', function () {
   return function v2() { return 2; };
 });
 `,
@@ -246,7 +246,7 @@ export const b = registerPureFnFactory('rt', 'collideFn', function () {
   register('emits PFE9010 (forbidden identifier) for eval inside a factory body', async () => {
     const sources = {
       'impure.ts': `import {registerPureFnFactory} from 'ts-runtypes';
-export const x = registerPureFnFactory('rt', 'evilFn', function () {
+export const x = registerPureFnFactory('rt::evilFn', function () {
   return function _evil() {
     return eval('1+1');
   };
@@ -272,7 +272,7 @@ export const x = registerPureFnFactory('rt', 'evilFn', function () {
     const sources = {
       'closure.ts': `import {registerPureFnFactory} from 'ts-runtypes';
 const PRECISION = 0.001;
-export const x = registerPureFnFactory('rt', 'rounder', function () {
+export const x = registerPureFnFactory('rt::rounder', function () {
   return function _round(n: number) {
     return Math.round(n / PRECISION) * PRECISION;
   };

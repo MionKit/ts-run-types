@@ -174,4 +174,4 @@ eslint.config.js                 flat ESLint config (TypeScript-aware)
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+Proprietary — all rights reserved. No use, copying, or distribution without prior written authorization. See [LICENSE](./LICENSE).

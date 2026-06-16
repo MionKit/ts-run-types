@@ -12,7 +12,7 @@ import (
 func withFactoryBody(t *testing.T, body string) []Diagnostic {
 	t.Helper()
 	source := `import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('test', 'fn', function () {
+export const _ = registerPureFnFactory('test::fn', function () {
 ` + body + `
 });`
 	_, diags := extractFromOverlay(t, map[string]string{"case.ts": source})
@@ -284,7 +284,7 @@ func TestPurity_ModuleLevelConst_StillClosureViolation(t *testing.T) {
 	_, diags := extractFromOverlay(t, map[string]string{
 		"case.ts": `import {registerPureFnFactory} from 'ts-runtypes';
 const name = 'John';
-export const sayHello = registerPureFnFactory('myNamespace', 'sayHello', function () {
+export const sayHello = registerPureFnFactory('myNamespace::sayHello', function () {
   return function _greet() {
     return 'Hello ' + name;
   };
@@ -306,7 +306,7 @@ func TestPurity_ModuleLevelFunction_StillClosureViolation(t *testing.T) {
 	_, diags := extractFromOverlay(t, map[string]string{
 		"case.ts": `import {registerPureFnFactory} from 'ts-runtypes';
 function helper(x: number) { return x * 2; }
-export const x = registerPureFnFactory('ns', 'fn', function () {
+export const x = registerPureFnFactory('ns::fn', function () {
   return function _f(n: number) {
     return helper(n);
   };
@@ -328,7 +328,7 @@ func TestPurity_ImportedSymbol_StillClosureViolation(t *testing.T) {
 	_, diags := extractFromOverlay(t, map[string]string{
 		"case.ts": `import {registerPureFnFactory} from 'ts-runtypes';
 declare const someImportedHelper: (n: number) => number;
-export const x = registerPureFnFactory('ns', 'fn', function () {
+export const x = registerPureFnFactory('ns::fn', function () {
   return function _f(n: number) {
     return someImportedHelper(n);
   };
