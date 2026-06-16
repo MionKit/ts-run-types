@@ -103,6 +103,27 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 }
 `;
 
+// A REAL overlay module (NOT an ambient `declare module`) that re-exports the format
+// brand aliases the synthetic probes import. Why this exists / this shape:
+//  - The brands live in the `@mionjs/ts-go-run-types/formats` subpath, but the sandbox
+//    can't resolve the real package by name (that's why the marker itself is provided
+//    as the RUNTYPES_DTS ambient stub) — so the probes can't import from the real path.
+//  - An ambient `declare module '…' { export type * from './real.ts' }` does NOT pull
+//    the types through (relative re-export inside `declare module` resolves oddly).
+//  - A real module file re-exporting the TYPE files resolves normally: its relative
+//    specifiers resolve against its own path on the on-disk VFS, and the brand-alias
+//    type files only have relative type deps (TypeFormat, patterns) — no runtime/root
+//    edges — so they load cleanly. We mirror src/formats/index.ts's TYPE-only re-export
+//    surface (derived from it, so new formats are picked up) and skip the index's
+//    side-effect runtime imports (pure-fns / mocking), which the type probe doesn't need.
+// Lives at the repo root (key 'rt-formats.ts'); the probes import it as '../rt-formats.ts'.
+const FORMATS_MODULE_PATH = 'rt-formats.ts';
+const FORMATS_MODULE = (() => {
+  const indexSrc = fs.readFileSync(path.join(REPO_ROOT, 'packages/ts-go-run-types/src/formats/index.ts'), 'utf8');
+  const rels = [...indexSrc.matchAll(/export type \* from '\.\/([^']+)'/g)].map((m) => m[1]);
+  return rels.map((rel) => `export type * from './packages/ts-go-run-types/src/formats/${rel}';`).join('\n') + '\n';
+})();
+
 // UPPER_SNAKE group name -> PascalCase data-file basename ('TEMPLATE_LITERAL' -> 'TemplateLiteral').
 function groupToFile(group) {
   const pascal = group
@@ -314,7 +335,7 @@ async function runCompilePhase(metrics, bodies) {
       metrics[category] ??= {};
       const relpath = `__bench__/${safe(category)}__${safe(caseKey)}__${api}.ts`;
       const synth = buildSynthetic(body);
-      const sourcesMap = {[overlayDts.__bench__]: overlayDts.body, [relpath]: synth};
+      const sourcesMap = {[overlayDts.__bench__]: overlayDts.body, [FORMATS_MODULE_PATH]: FORMATS_MODULE, [relpath]: synth};
       const compileTimes = [];
       const tsCompileTimes = [];
       for (let c = 0; c < COMPILE_CYCLES; c++) {
@@ -396,8 +417,20 @@ function writeCaseDump(casesDir, category, caseKey, api, resp) {
   return n;
 }
 
+// The case bodies are SELF-DECLARING (the interface is written inline), but the
+// format brands they reference (FormatUUIDv4, FormatEmail, FormatString<…>, …) live
+// in the `@mionjs/ts-go-run-types/formats` subpath. The synthetic probe carries no
+// file-level imports, so without this the brands resolve to nothing and a
+// format-typed field projects as plain `string` — dropping the format check from the
+// generated-code dump. Pull in every `Format*` the body names so all examples render
+// their real constraints. The subpath resolves off the on-disk VFS (the ambient
+// overlay only shadows the bare marker specifier, not its subpaths).
 function buildSynthetic(body) {
-  return `import {createValidate} from '@mionjs/ts-go-run-types';\nconst _probe = () => {\n${body}\n};\n`;
+  const formats = [...new Set(body.match(/\bFormat[A-Z][A-Za-z0-9_]*\b/g) ?? [])];
+  const formatImport = formats.length
+    ? `import type {${formats.join(', ')}} from '../${FORMATS_MODULE_PATH.replace(/\.ts$/, '')}.ts';\n`
+    : '';
+  return `import {createValidate} from '@mionjs/ts-go-run-types';\n${formatImport}const _probe = () => {\n${body}\n};\n`;
 }
 
 function safe(s) {

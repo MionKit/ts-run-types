@@ -18,6 +18,7 @@
 #   scripts/benchmarks.sh bench             # build + run EVERY competitor + aggregate
 #   scripts/benchmarks.sh bench-one <name>  # build + run ONE competitor + aggregate
 #   scripts/benchmarks.sh typecost          # per-competitor type-instantiation cost
+#   scripts/benchmarks.sh capture-env       # write results/env.json (os / cpu / lib versions)
 #   scripts/benchmarks.sh build [<name>]    # vite build only (all, or one competitor)
 #   scripts/benchmarks.sh smoke             # quick verify: build every competitor's dist
 #   scripts/benchmarks.sh shell             # debug shell inside the container
@@ -237,6 +238,7 @@ mount_args() {
     printf -- '-v\n%s:/app/typecost/%s:ro%s\n' "$f" "$base" "$MOUNT_OPTS"
   done
   printf -- '-v\n%s:/app/aggregate.mjs:ro%s\n' "$BENCH_DIR/aggregate.mjs" "$MOUNT_OPTS"
+  printf -- '-v\n%s:/app/capture-env.mjs:ro%s\n' "$BENCH_DIR/capture-env.mjs" "$MOUNT_OPTS"
   printf -- '-v\n%s:/app/tsconfig.base.json:ro%s\n' "$BENCH_DIR/tsconfig.base.json" "$MOUNT_OPTS"
 
   # TS-GO competitor: host Go binary + first-party packages (writable RT cache aside).
@@ -254,8 +256,21 @@ mount_args() {
 
 net_args() { [ -n "$RUN_NETWORK" ] && printf -- '--network=%s\n' "$RUN_NETWORK"; return 0; }
 
+# Host CPU model - the container (a Linux VM on macOS) can't see it, so we read it
+# host-side and pass it in for capture-env.mjs. sysctl on macOS, /proc/cpuinfo on Linux.
+host_cpu() {
+  local cpu=""
+  if cpu="$(sysctl -n machdep.cpu.brand_string 2>/dev/null)" && [ -n "$cpu" ]; then
+    printf '%s' "$cpu"
+  elif [ -r /proc/cpuinfo ]; then
+    cpu="$(grep -m1 -i 'model name' /proc/cpuinfo)" && printf '%s' "${cpu#*: }"
+  fi
+}
+
 env_args() {
   printf -- '-e\nBENCH_RESULTS_DIR=/app/results\n'
+  local hostCpu; hostCpu="$(host_cpu)"
+  [ -n "$hostCpu" ] && printf -- '-e\nBENCH_HOST_CPU=%s\n' "$hostCpu"
   [ -n "${BENCH_NO_TIMING:-}" ] && printf -- '-e\nBENCH_NO_TIMING=%s\n' "$BENCH_NO_TIMING"
   [ -n "${BENCH_TIME_MS:-}" ]   && printf -- '-e\nBENCH_TIME_MS=%s\n' "$BENCH_TIME_MS"
   # Inspection knobs: BENCH_CASE=<substr> restricts BOTH the runtime bench and
@@ -306,7 +321,7 @@ cmd_bench() {
   ensure_prereqs
   # BENCH_CASE inspection run: each competitor prints its matched case(s) and
   # leaves the canonical results JSON untouched, so skip the wipe/aggregate/publish.
-  [ -z "${BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR"/*.json 2>/dev/null || true; }
+  [ -z "${BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; find "$RESULTS_DIR" -maxdepth 1 -name '*.json' ! -name 'env.json' -delete 2>/dev/null || true; }
   local competitor
   for competitor in $(competitor_list); do build_and_run_one "$competitor"; done
   [ -n "${BENCH_CASE:-}" ] && { echo "==> BENCH_CASE='$BENCH_CASE': per-case console output above; results JSON, aggregate and docdata left untouched."; return 0; }
@@ -330,13 +345,15 @@ cmd_bench_one() {
 # result JSON (runtime + typecost) to .docdata so the docs website renders them.
 cmd_fullbench() {
   ensure_prereqs
-  mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR"/*.json 2>/dev/null || true
+  mkdir -p "$RESULTS_DIR"; find "$RESULTS_DIR" -maxdepth 1 -name '*.json' ! -name 'env.json' -delete 2>/dev/null || true
   local competitor
   for competitor in $(competitor_list); do build_and_run_one "$competitor"; done
   echo "==> aggregate"
   run_in_container node aggregate.mjs
   echo "==> typecost"
   run_in_container node typecost/typecost.mjs
+  echo "==> capture run environment (os / cpu / library versions)"
+  run_in_container node capture-env.mjs
   publish_docdata
   echo "==> fullbench: done. Published runtime + typecost results to $DOCDATA_DIR/benchmarks"
 }
@@ -386,6 +403,7 @@ main() {
     build)       require_engine; cmd_build "${2:-}" ;;
     smoke)       require_engine; cmd_smoke ;;
     typecost)    require_engine; cmd_typecost ;;
+    capture-env) require_engine; ensure_prereqs; run_in_container node capture-env.mjs ;;
     shell)       require_engine; cmd_shell ;;
     login)       cmd_login ;;
     push)        cmd_push ;;

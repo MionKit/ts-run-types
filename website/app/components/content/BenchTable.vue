@@ -41,6 +41,10 @@ interface BenchIndex {
   showInvalid?: boolean;
   metrics: Metric[];
   competitors: string[];
+  /** competitor/form label -> installed library version (shown under the header) */
+  versions?: Record<string, string>;
+  /** run environment captured at benchmark time */
+  meta?: {generatedAt?: string; os?: string; cpu?: string; cores?: number | null; node?: string; typescript?: string};
   sections: BenchSection[];
 }
 
@@ -153,6 +157,42 @@ function strategyOf(competitor: string): 'comptime' | 'jit' | 'interpreted' {
  *  the throughput benches — the typecost (type-instantiation count) table hides them. */
 const showStrategy = computed(() => index.value?.unit !== 'count');
 
+/** Installed library version for a column (competitor name, or typecost form label). */
+function versionOf(competitor: string): string | undefined {
+  return index.value?.versions?.[competitor];
+}
+
+/** major.minor, dropping the patch / prerelease noise (4.4.3 → 4.4, 13.0.0-dev → 13.0).
+ *  Exception: for 0.x packages the patch IS the meaningful release axis (semver treats
+ *  0.minor.patch as breaking.feature), so keep a non-zero patch — e.g. typebox 0.34.49. */
+function shortVersion(version: string | undefined): string {
+  if (!version) return '';
+  const parts = version.split('.');
+  const [major, minor] = parts;
+  if (minor === undefined) return major;
+  if (major === '0') {
+    const patch = parts[2]?.match(/^\d+/)?.[0];
+    if (patch && Number(patch) !== 0) return `${major}.${minor}.${patch}`;
+  }
+  return `${major}.${minor}`;
+}
+
+/** One-line run-environment summary (date · cpu · os · runtimes) for the info header. */
+const runInfo = computed<string | null>(() => {
+  const meta = index.value?.meta;
+  if (!meta) return null;
+  const parts: string[] = [];
+  if (meta.generatedAt) {
+    const date = new Date(meta.generatedAt);
+    if (!Number.isNaN(date.getTime())) parts.push(date.toLocaleDateString('en-US', {year: 'numeric', month: 'short', day: 'numeric'}));
+  }
+  if (meta.cpu && meta.cpu !== 'unknown') parts.push(meta.cores ? `${meta.cpu} (${meta.cores} cores)` : meta.cpu);
+  if (meta.os) parts.push(meta.os);
+  if (meta.node) parts.push(`Node ${shortVersion(meta.node.replace(/^v/, ''))}`);
+  if (meta.typescript) parts.push(`TypeScript ${shortVersion(meta.typescript)}`);
+  return parts.length ? parts.join(' · ') : null;
+});
+
 /** Metrics to render — one block per metric, or just the `metric` prop's block. */
 const displayedMetrics = computed<Metric[]>(() => {
   if (!index.value) return [];
@@ -259,15 +299,18 @@ function combinedAggCell(values: {valid: number | null; invalid: number | null})
  *  lower-is-better. Small gaps are dampened toward neutral (0.5) so a row of near-ties
  *  isn't painted a dramatic red→green spread. Dampening is always on. */
 function ranksFor(values: (number | null)[]): (number | null)[] {
-  const present = values.filter((value): value is number => value != null && value > 0);
+  const lowerBetter = index.value?.unit === 'count';
+  // For typecost (lower-is-better) a 0 is a real value (free) and ranks BEST; for
+  // throughput a 0 means "didn't run" and is excluded.
+  const counts = (value: number | null): value is number => value != null && (lowerBetter ? value >= 0 : value > 0);
+  const present = values.filter(counts);
   if (present.length < 2) return values.map(() => null);
   const min = Math.min(...present);
   const max = Math.max(...present);
   const spread = max > 0 ? (max - min) / max : 0;
   const factor = Math.min(1, spread / 0.25);
-  const lowerBetter = index.value?.unit === 'count';
   return values.map((value) => {
-    if (value == null || value <= 0) return null;
+    if (!counts(value)) return null;
     let rank = max === min ? 0.5 : (value - min) / (max - min);
     if (lowerBetter) rank = 1 - rank;
     return 0.5 + (rank - 0.5) * factor;
@@ -279,9 +322,11 @@ function ranksFor(values: (number | null)[]): (number | null)[] {
 function sectionCells(kase: BenchCase, metricKey: string): CombinedCell[] {
   if (!index.value) return [];
   const comps = index.value.competitors;
+  const lowerBetter = index.value.unit === 'count';
   const vals = comps.map((comp) => {
     const result = kase.results[comp]?.[metricKey];
-    return result && result.status === 'ok' && typeof result.valid === 'number' && result.valid > 0 ? result.valid : null;
+    if (!result || result.status !== 'ok' || typeof result.valid !== 'number') return null;
+    return lowerBetter || result.valid > 0 ? result.valid : null;
   });
   const ranks = ranksFor(vals);
   return comps.map((comp, i) => ({...combinedCell(kase, metricKey, comp), rank: ranks[i]}));
@@ -290,9 +335,11 @@ function sectionCells(kase: BenchCase, metricKey: string): CombinedCell[] {
 function aggCells(row: AggRow): CombinedCell[] {
   if (!index.value) return [];
   const comps = index.value.competitors;
+  const lowerBetter = index.value.unit === 'count';
   const vals = comps.map((comp) => {
     const value = row.values[comp]?.valid;
-    return typeof value === 'number' && value > 0 ? value : null;
+    if (typeof value !== 'number') return null;
+    return lowerBetter || value > 0 ? value : null;
   });
   const ranks = ranksFor(vals);
   return comps.map((comp, i) => ({...combinedAggCell(row.values[comp]), rank: ranks[i]}));
@@ -325,22 +372,29 @@ function commonBasis(cases: BenchCase[], metricKey: string): {participants: stri
   return {participants, common};
 }
 
-/** Geometric mean of one competitor's `path` values over the given cases. Returns 0
- *  when it measured them but every value was 0 (a real "all free" typecost), or null
- *  when there's no data (renders as n-a / —). */
+/** Geometric mean of one competitor's `path` values over the given cases. For
+ *  throughput (higher-is-better, ops) a 0/absent value means the case didn't run, so
+ *  only positive values count. For typecost (count, lower-is-better) a value of 0 is
+ *  REAL and the BEST outcome — a type that resolves with zero extra instantiations —
+ *  so zeros are kept via +1 smoothing (geomean of value+1, minus 1) instead of being
+ *  dropped: dropping them would compute the mean over only a library's EXPENSIVE
+ *  cases and hide how often it's free (e.g. TypeBox is free on ~40% of cases, so a
+ *  drop-zero geomean wrongly ranked it costlier than zod). Returns 0 when every
+ *  measured value was 0, or null when there's no data (renders as n-a / —). */
 function geomeanOver(cases: BenchCase[], metricKey: string, comp: string, path: Path): number | null {
-  const positive: number[] = [];
+  const lowerBetter = index.value?.unit === 'count';
+  const values: number[] = [];
   let measured = false;
   for (const kase of cases) {
     const result = kase.results[comp]?.[metricKey];
     if (result && result.status !== 'fail' && result.status !== 'not-supported' && typeof result[path] === 'number') {
       measured = true;
-      if (result[path]! > 0) positive.push(result[path]!);
+      if (lowerBetter || result[path]! > 0) values.push(result[path]!);
     }
   }
-  const mean = geomean(positive);
-  if (mean != null) return mean;
-  return measured ? 0 : null;
+  if (!measured) return null;
+  if (lowerBetter) return Math.exp(values.reduce((acc, value) => acc + Math.log(value + 1), 0) / values.length) - 1;
+  return geomean(values) ?? 0;
 }
 
 /** Per-category + Overall geometric-mean summary for one metric. */
@@ -350,11 +404,26 @@ function aggregateFor(metricKey: string): AggRow[] {
   const rows: AggRow[] = [];
   const allCases: BenchCase[] = [];
 
-  // Each row: geomean every participant over the SAME common set; non-participants
-  // (can't express any case here) render n-a. Means are then directly comparable.
+  // Typecost (lower-is-better): PER-COMPETITOR basis. Each library is geomean'd over
+  // the cases IT supports — its own n-a cases drop out (geomeanOver skips them), but a
+  // case still counts for the other libraries that DO support it; a library that
+  // supports nothing here renders n-a. Throughput (higher-is-better): COMMON basis —
+  // every participant over the same cases all support, so a library that skips slow
+  // cases can't look faster than one that runs them.
+  const lowerBetter = index.value?.unit === 'count';
   const rowValues = (cases: BenchCase[]): AggRow['values'] => {
-    const {participants, common} = commonBasis(cases, metricKey);
     const values: AggRow['values'] = {};
+    if (lowerBetter) {
+      for (const comp of competitors) {
+        values[comp] = {
+          valid: geomeanOver(cases, metricKey, comp, 'valid'),
+          invalid: geomeanOver(cases, metricKey, comp, 'invalid'),
+          mixed: geomeanOver(cases, metricKey, comp, 'mixed'),
+        };
+      }
+      return values;
+    }
+    const {participants, common} = commonBasis(cases, metricKey);
     for (const comp of competitors) {
       values[comp] = participants.includes(comp)
         ? {
@@ -404,6 +473,10 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
         <p class="bench-metric-hint">hover any row for each competitor's source</p>
 
         <div class="bench-legend">
+          <!-- Run environment: when the benchmarks ran + the machine + library versions. -->
+          <div v-if="runInfo" class="bench-runinfo">
+            <span class="bench-prompt">@</span> <span class="bench-runinfo-text">measured {{ runInfo }}</span>
+          </div>
           <div v-if="index.showInvalid" class="bench-legend-row bench-legend-metric">
             <span class="bench-legend-sample"><span class="bench-val-wrap"><span class="bench-val-primary bench-val--ok">24M/s</span><span class="bench-val-secondary">47M</span></span></span>
             <span class="bench-legend-note">
@@ -449,6 +522,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   <th class="bench-th bench-th--case">category</th>
                   <th v-for="comp in index.competitors" :key="comp" class="bench-th bench-th--comp">
                     <span class="bench-th-name">{{ comp }}</span>
+                    <span v-if="versionOf(comp)" class="bench-th-version" :title="versionOf(comp)">v{{ shortVersion(versionOf(comp)) }}</span>
                     <span v-if="showStrategy" class="bench-tag" :class="`bench-tag--${strategyOf(comp)}`">{{ strategyOf(comp) }}</span>
                   </th>
                 </tr>
@@ -486,6 +560,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   <th class="bench-th bench-th--case">case</th>
                   <th v-for="comp in index.competitors" :key="comp" class="bench-th bench-th--comp">
                     <span class="bench-th-name">{{ comp }}</span>
+                    <span v-if="versionOf(comp)" class="bench-th-version" :title="versionOf(comp)">v{{ shortVersion(versionOf(comp)) }}</span>
                     <span v-if="showStrategy" class="bench-tag" :class="`bench-tag--${strategyOf(comp)}`">{{ strategyOf(comp) }}</span>
                   </th>
                 </tr>
@@ -804,9 +879,33 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   display: block;
 }
 
+/* installed library version under the column name — dim + monospace-ish */
+.bench-th-version {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72em;
+  font-weight: 400;
+  color: var(--ui-text-dimmed, #9aa0a6);
+  font-variant-numeric: tabular-nums;
+}
+
 .bench-th--comp .bench-tag {
   margin-top: 0.2rem;
   font-weight: 600;
+}
+
+/* Run-environment line above the tables — quiet, terminal-style. */
+.bench-runinfo {
+  margin: 0 0 0.85rem;
+  font-size: 0.7rem;
+  color: var(--ui-text-muted, #b3b8bd);
+}
+.bench-runinfo .bench-prompt {
+  margin-right: 0.4rem;
+  opacity: 0.7;
+}
+.bench-runinfo-text {
+  font-variant-numeric: tabular-nums;
 }
 
 .bench-th--case {
