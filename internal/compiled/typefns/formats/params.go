@@ -2,10 +2,10 @@ package formats
 
 import "strconv"
 
-// ParamVal unwraps mion's `{val, errorMessage, desc}` param meta-object
+// ParamVal unwraps the `{val, errorMessage, desc}` param meta-object
 // (utils.ts paramVal): returns raw["val"] for map-shaped params, raw
 // unchanged otherwise. The current TS param surfaces declare plain
-// literals, so the unwrap is defensive mion-parity — kept in ONE place
+// literals, so the unwrap is defensive parity — kept in ONE place
 // instead of a copy inside every reader.
 func ParamVal(raw any) any {
 	if obj, isMap := raw.(map[string]any); isMap {

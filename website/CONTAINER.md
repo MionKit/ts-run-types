@@ -79,7 +79,7 @@ image (offline, or to test a dep bump before pushing).
 
 The `<code-import>` and `::twoslash-code` mechanisms read first-party source +
 built `.d.ts` from `packages/`. Those packages live in the **mion** checkout, which
-`website.sh` mounts **read-only** and points the resolvers at via `MION_REPO_ROOT`
+`website.sh` mounts **read-only** and points the resolvers at via `RT_REPO_ROOT`
 — so the website works whether mion is a sibling checkout (today) or merged in
 later. Only `packages/` (+ a drizzle-orm `.d.ts` allowlist) is exposed, and every
 `path=` read is confined to `packages/` (`server/utils/repo-root.ts`). Run

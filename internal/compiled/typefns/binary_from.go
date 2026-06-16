@@ -12,10 +12,10 @@ import (
 // instance. Paired with ToBinaryEmitter for the round-trip
 // `fromBinary(toBinary(v, ser).getBuffer(), des) ⟶ v`.
 //
-// Mirrors mion's mega-switch at
-// mion/packages/run-types/src/rtCompilers/binary/fromBinary.ts.
+// Mirrors the mega-switch at
+// (ref: packages/run-types/src/rtCompilers/binary/fromBinary.ts).
 //
-// Args mirror mion's `rtBinaryDeserializerArgs = {vλl: 'ret', dεs:
+// Args mirror `rtBinaryDeserializerArgs = {vλl: 'ret', dεs:
 // 'Des'}` (constants.functions.ts:54). The first arg `ret` starts
 // `undefined` at call time — the body assigns the decoded value to it
 // and returns it. The second arg `Des` is the deserializer instance.
@@ -78,14 +78,14 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 
 	// ###################### ATOMIC TYPES ######################
 	case protocol.KindAny, protocol.KindUnknown, protocol.KindObject:
-		// mion:binary/fromBinary.ts — `ret = JSON.parse(desString())`.
+		// ref:binary/fromBinary.ts — `ret = JSON.parse(desString())`.
 		return RTCode{Code: ret + " = JSON.parse(" + des + ".desString())", Type: CodeS}
 
 	case protocol.KindNull:
 		// Encoder wrote a 0 byte sentinel; decoder consumes it and
 		// returns null. Comma-expression folds the `index++` advance
-		// into the assignment RHS — mion uses the same trick
-		// (binary/fromBinary.ts:55) to keep the emit as a single
+		// into the assignment RHS — the reference uses the same trick
+		// (ref: binary/fromBinary.ts:55) to keep the emit as a single
 		// expression-shaped statement instead of two consecutive
 		// statements.
 		return RTCode{Code: ret + " = (" + des + ".index++, null)", Type: CodeS}
@@ -97,7 +97,7 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		// Comma-expression trick — `getFloat64` is variadic-tolerant; the
 		// 3rd positional slot is ignored at runtime but its side-effect
 		// (`index += 8`) still runs as part of the call's argument
-		// evaluation. Mirrors mion's binary/fromBinary.ts:59 emit.
+		// evaluation. Mirrors the binary/fromBinary.ts:59 emit.
 		// Equivalent to `ret = getFloat64(des.index, 1); des.index += 8`
 		// but one statement instead of two. A numberFormat brand may
 		// decode 1/2/4 bytes instead — byte-symmetric with its encode.
@@ -121,7 +121,7 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		return RTCode{Code: ret + " = " + expr, Type: CodeS}
 
 	case protocol.KindUndefined, protocol.KindVoid:
-		// Same comma-expression pattern as KindNull — mion
+		// Same comma-expression pattern as KindNull —
 		// binary/fromBinary.ts:69.
 		return RTCode{Code: ret + " = (" + des + ".index++, undefined)", Type: CodeS}
 
@@ -224,7 +224,7 @@ func (FromBinaryEmitter) Finalize(raw string) (string, bool) {
 
 func emitLiteralFromBinary(rt *protocol.RunType, ret, des string) RTCode {
 	_ = des
-	// Mion's binary/fromBinary.ts treats literals as compile-time noops
+	// The reference binary/fromBinary.ts treats literals as compile-time noops
 	// because the RT body that REFERENCES the literal already has the
 	// value statically. For us, the RT body is shared across consumers
 	// and the decoded value must be a usable object — so we restore the

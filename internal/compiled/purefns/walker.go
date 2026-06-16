@@ -12,7 +12,7 @@ import (
 )
 
 // Entry is the in-Go shape that mirrors TS-side `Entry`.
-// Code is the JS-stripped factory body; BodyHash is mion-byte-compatible.
+// Code is the JS-stripped factory body; BodyHash is byte-compatible.
 //
 // sourceFile/callPos are unexported origin-tracking fields used internally
 // by ExtractFromProgram to build cross-file collision diagnostics. They're
@@ -388,7 +388,7 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 		return nil, diags
 	}
 
-	// Purity validation — port of mion's eslint-plugin-mion
+	// Purity validation — port of the reference eslint rules'
 	// `pure-functions.ts` rule. Emits PFE9006-PFE9011 diagnostics for
 	// this/await/yield, dynamic import, forbidden identifiers, and
 	// closure-variable references. Build never fails; the entry still

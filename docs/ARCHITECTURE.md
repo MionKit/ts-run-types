@@ -1,6 +1,6 @@
 # Architecture
 
-RunTypes is a compile-time **type resolver** for [mion runtypes](https://github.com/mionkit) targeting **TypeScript 7 / tsgo**. It provides a native side-channel into tsgo's type checker for tools (Vite plugin, codegen, test harness) that need to know a TypeScript type at a specific call site without relying on the legacy custom-transformer API (which the Go port does not expose; see [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516)).
+RunTypes is a compile-time **type resolver** targeting **TypeScript 7 / tsgo**. It provides a native side-channel into tsgo's type checker for tools (Vite plugin, codegen, test harness) that need to know a TypeScript type at a specific call site without relying on the legacy custom-transformer API (which the Go port does not expose; see [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516)).
 
 ## Big picture
 
@@ -85,7 +85,7 @@ The user's tsconfig drives both worlds: the binary parses it to bootstrap the sa
 Detection is anchored on a single TypeScript type alias exported from the `ts-runtypes` package:
 
 ```ts
-export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
 ```
 
 A function opts into compile-time id injection by declaring `id?: InjectRunTypeId<T>` as its **trailing parameter**. The transformer rewrites every call site of such a function, injecting the resolved hash id at that slot. This includes:
@@ -240,7 +240,7 @@ unchanged)
 
 ## Reflection shape
 
-The protocol's `RunType` is the canonical mion runtypes reflection-shape discriminated union. Specifically:
+The protocol's `RunType` is the canonical reflection-shape discriminated union. Specifically:
 
 - **Numeric `ReflectionKind`** is declared in a stable order (never=0, any=1, …, callSignature=35) so the integer values are wire-safe across releases. Sentinel `-1` is reserved for ref slots.
 - **Container shape**: `KindObjectLiteral.children` is an array of `KindPropertySignature`/`KindMethodSignature`/`KindIndexSignature`/`KindCallSignature` nodes; `KindFunction.parameters` is an array of `KindParameter` nodes; tuple elements are wrapped as `KindTupleMember`.
@@ -269,31 +269,31 @@ Cycles close at two layers without special-case code:
 
 Callers walking a member type's child ref can ask the resolver for the canonical RunType via the `resolveId` op (see `OpResolveID` in `internal/protocol/protocol.go`). The returned RunType's child slots remain `KindRef` sentinels — the caller drills in by re-issuing `resolveId` per id.
 
-## Parity with `@mionjs/run-types` — port complete
+## Factory reference
 
-This project is the full migration of mion's runtime `@mionjs/run-types` / `@mionjs/type-formats` packages (and their deepkit type-compiler dependency) onto tsgo: the JIT compiler is replaced by AOT Go emit, so every cache that mion compiled at first call is now emitted at build time. Every user-facing mion feature has an equivalent here:
+The full set of AOT factories. The JIT compiler is replaced by AOT Go emit, so every cache that would otherwise compile at first call is emitted at build time:
 
-| mion (JIT, runtime reflection)                                                                | RunTypes (AOT)                                                                                                                                                                    |
-| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `createIsTypeFn<T>()`                                                                         | `createValidate<T>()`                                                                                                                                                                    |
-| `createTypeErrorsFn<T>()`                                                                     | `createGetValidationErrors<T>()`                                                                                                                                                         |
-| `createPrepareForJsonFn` / `createRestoreFromJsonFn` / `createStringifyJsonFn`                | internal `pj`/`pjs`/`rj`/`sj` primitives behind `createJsonEncoder` (strategies `clone`/`mutate`/`direct`) and `createJsonDecoder` (`strip`/`preserve`)                                  |
-| `createToBinaryFn` / `createFromBinaryFn`                                                     | `createBinaryEncoder` / `createBinaryDecoder` (same wire spec: typed-int packing, `[index, value]` union encoding, buffer reuse)                                                         |
-| `hasUnknownKeys` / `stripUnknownKeys` / `unknownKeyErrors` / `unknownKeysToUndefined` JIT fns | first-class factories: `createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors` / `createUnknownKeysToUndefined`                                                     |
-| `format` JIT fn (trim / case / replace transforms)                                            | `createFormatTransform<T>()`                                                                                                                                                             |
-| `createMockTypeFn<T>()`                                                                       | `createMockType<T>()` — same MockOptions surface, format-aware via the per-kind mock registry                                                                                            |
-| `runType<T>()` instance API (`getTypeID()`, metadata, `mock()`)                               | `getRunTypeId<T>()` / `getRunTypeId(value)` + `getRTUtils().getRunType(id)`; value-first `./schema` builders return live `RunType<T>` nodes                                              |
-| Pure-fn registry (`registerPureFnFactory`, `mion` / `mionFormats` namespaces)                 | same API, with Go-side purity validation (PFE9xxx diagnostics)                                                                                                                           |
-| `@mionjs/type-formats` built-ins (string/number/bigint/date-time families, branding)          | `./formats` brand aliases — all mion formats plus native-`Date` bounds, `Temporal.*`, and custom pattern registration; validation moved to build time                                    |
-| `reflectFunction<Fn>()`                                                                       | not needed — every `createX` accepts a value and reflects its type; function-shaped work uses `Parameters<typeof fn>` / `ReturnType<typeof fn>`, which tsgo resolves eagerly at the site |
-| `RunTypeOptions.paramsSlice` (router convenience)                                             | type-level tuple slicing (`Tail<Parameters<typeof fn>>`-style conditional types resolve to concrete tuples at the marker site) — see ROADMAP "function-params router conveniences"       |
-| `createToJavascriptFn` / `toJSCode`                                                           | obsolete — emitting JS ahead of time IS the Go compiler's job                                                                                                                            |
-| `reflection: true` tsconfig, `@reflection never` tags, `import type` / `typeof` pitfalls      | obsolete — types come from the tsgo checker at build time, not from bytecode embedded in the emitted JS, so type-only imports and `typeof` work normally                                 |
+| RunTypes (AOT)                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createValidate<T>()`                                                                                                                                                                    |
+| `createGetValidationErrors<T>()`                                                                                                                                                         |
+| internal `pj`/`pjs`/`rj`/`sj` primitives behind `createJsonEncoder` (strategies `clone`/`mutate`/`direct`) and `createJsonDecoder` (`strip`/`preserve`)                                  |
+| `createBinaryEncoder` / `createBinaryDecoder` (wire spec: typed-int packing, `[index, value]` union encoding, buffer reuse)                                                              |
+| first-class factories: `createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors` / `createUnknownKeysToUndefined`                                                     |
+| `createFormatTransform<T>()` (trim / case / replace transforms)                                                                                                                          |
+| `createMockType<T>()` — full MockOptions surface, format-aware via the per-kind mock registry                                                                                            |
+| `getRunTypeId<T>()` / `getRunTypeId(value)` + `getRTUtils().getRunType(id)`; value-first `./schema` builders return live `RunType<T>` nodes                                              |
+| Pure-fn registry (`registerPureFnFactory`, `rtFormats` namespace), with Go-side purity validation (PFE9xxx diagnostics)                                                                  |
+| `./formats` brand aliases — string/number/bigint/date-time families, native-`Date` bounds, `Temporal.*`, and custom pattern registration; validation moved to build time                |
+| function-shaped work uses `Parameters<typeof fn>` / `ReturnType<typeof fn>`, which tsgo resolves eagerly at the site                                                                     |
+| type-level tuple slicing (`Tail<Parameters<typeof fn>>`-style conditional types resolve to concrete tuples at the marker site) — see ROADMAP "function-params router conveniences"       |
 
-Remaining deltas, all deliberate:
+Notes:
 
+- Emitting JS ahead of time IS the Go compiler's job, so there is no `toJSCode`-style runtime code generator.
+- Types come from the tsgo checker at build time, not from bytecode embedded in the emitted JS, so type-only imports and `typeof` work normally — no `reflection: true` tsconfig or `@reflection never` tags needed.
 - `RunTypeOptions.strictTypes` is not wired yet — compose `createValidate` + `createHasUnknownKeys` until it lands (ROADMAP "`strictTypes` validate option").
-- Symbols, functions and other non-serialisable members are **dropped** under the serializable-data contract instead of validated (CLAUDE.md "validate contract"; mion validated symbol values at runtime).
+- Symbols, functions and other non-serialisable members are **dropped** under the serializable-data contract instead of validated (CLAUDE.md "validate contract").
 - Decoders return `DataOnly<T>` rather than over-promising bare `T`.
 
 ## Shims — reaching into tsgo's `internal/`

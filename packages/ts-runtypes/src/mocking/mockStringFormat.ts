@@ -62,7 +62,7 @@ function mockStringParams(params: StringParams): string {
   if (params.allowedValues) return pickSample(params.allowedValues.val) ?? '';
   // Pattern / disallowed-value samples can't be reversed from a regex, so
   // we draw from the supplied samples. When length bounds are present, keep
-  // only the samples that satisfy them (mion's pattern formats encode their
+  // only the samples that satisfy them (the pattern formats encode their
   // mockSamples as a char-set string and length-bound that; the ts-go port
   // keeps array samples + filters by length — e.g. FormatAlpha<{maxLength:3}>
   // must not pick a 5-char sample).
@@ -222,7 +222,7 @@ function randomPort(): number {
 
 function mockDomain(params: FormatParams_Domain): string {
   // names/tld decomposition (FormatDomainStrict): draw a label + tld from
-  // their sub-pattern samples (mion uses the names/tld char-sets). The
+  // their sub-pattern samples (we use the names/tld char-sets). The
   // samples live under `<part>.pattern.mockSamples` (or a bare mockSamples).
   if (params.names || params.tld) {
     const name = pickSample(domainPartSamples(params.names)) ?? 'example';

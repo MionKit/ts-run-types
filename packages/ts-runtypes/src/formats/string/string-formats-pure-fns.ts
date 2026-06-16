@@ -1,11 +1,11 @@
 // Registration module for every pure fn the Go-side format emitters
-// reach via `utl.getPureFn('mionFormats::<name>')`. Each pf_* below
+// reach via `utl.getPureFn('rtFormats::<name>')`. Each pf_* below
 // is registered at module load; importing this file from
 // `src/formats/index.ts` (the `ts-runtypes/formats`
 // subpath surface) is enough to guarantee the registrations happen
 // before any user code references a format type.
 //
-// Mirrors mion's `packages/type-formats/src/type-formats-pure-fns.ts`
+// Mirrors (ref: packages/type-formats/src/type-formats-pure-fns.ts)
 // minus the deepkit-coupled `getPureFn` typing — our utl is the
 // runtime helper exported from ts-runtypes.
 //
@@ -15,17 +15,17 @@ import {registerPureFnFactory} from '../../runtypes/pureFn.ts';
 import type {RTUtils} from '../../runtypes/rtUtils.ts';
 
 // FormatParams_UUID — the wire-shape params object the Go emitter
-// passes to pf_isUUID at runtime. Mirrors mion's FormatParams_UUID
+// passes to pf_isUUID at runtime. Mirrors the FormatParams_UUID
 // keeping only what the validator needs.
 interface FormatParams_UUID {
   version: string;
 }
 
-// pf_isUUID — port of mion's same-named pure fn. Length + dash
+// pf_isUUID — port of the same-named pure fn. Length + dash
 // positions + version digit at slot 14 + hex character class on
 // every other slot. Matches the runtime behaviour of the canonical
 // UUIDv4 / UUIDv7 patterns without pulling in a regex engine.
-registerPureFnFactory('mionFormats', 'isUUID', function () {
+registerPureFnFactory('rtFormats', 'isUUID', function () {
   return function _isUUID(value: string, params: FormatParams_UUID): boolean {
     if (typeof value !== 'string' || value.length !== 36) return false;
     for (let i = 0; i < 36; i++) {
@@ -59,7 +59,7 @@ interface FormatParams_IP {
 
 type IsIpFn = (ip: string, params: FormatParams_IP) => boolean;
 
-registerPureFnFactory('mionFormats', 'isLocalHost', function () {
+registerPureFnFactory('rtFormats', 'isLocalHost', function () {
   const lhr = /^localhost$/i;
   return function _is_local_host(ip: string, params: FormatParams_IP): boolean {
     if (params.version === 4) return lhr.test(ip) || ip === '127:0:0:1';
@@ -68,8 +68,8 @@ registerPureFnFactory('mionFormats', 'isLocalHost', function () {
   };
 });
 
-registerPureFnFactory('mionFormats', 'isIPV4', function (utl: RTUtils) {
-  const isLocalHost = utl.getPureFn('mionFormats::isLocalHost') as IsIpFn;
+registerPureFnFactory('rtFormats', 'isIPV4', function (utl: RTUtils) {
+  const isLocalHost = utl.getPureFn('rtFormats::isLocalHost') as IsIpFn;
   function getAddress(ip: string, params: FormatParams_IP): false | string {
     if (!params.allowPort) return ip;
     const parts = ip.split(':');
@@ -96,8 +96,8 @@ registerPureFnFactory('mionFormats', 'isIPV4', function (utl: RTUtils) {
   };
 });
 
-registerPureFnFactory('mionFormats', 'isIPV6', function (utl: RTUtils) {
-  const isLocalHost = utl.getPureFn('mionFormats::isLocalHost') as IsIpFn;
+registerPureFnFactory('rtFormats', 'isIPV6', function (utl: RTUtils) {
+  const isLocalHost = utl.getPureFn('rtFormats::isLocalHost') as IsIpFn;
   const ipv6PortRegexp = /^\[([^\]]+)\](?::(\d+))?$/;
   function getAddress(ip: string, params: FormatParams_IP): false | string {
     if (!params.allowPort) return ip;

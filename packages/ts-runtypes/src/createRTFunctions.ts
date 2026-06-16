@@ -14,7 +14,7 @@ import type {CompTimeFnArgs, InjectTypeFnArgs} from './index.ts';
 // Type definitions
 // =============================================================================
 
-/** Subset of mion's RunTypeOptions that parameterises the generated
+/** Subset of the RunTypeOptions that parameterises the generated
  *  `validate` / `getValidationErrors` validators (NOT a property of the type itself).
  *  Pass an OBJECT LITERAL at the call site — the Go-side marker scanner reads
  *  the values at build time and routes the call to a per-option variant of
@@ -44,7 +44,7 @@ export interface ValidateOptions {
  *  typedefs that don't carry a source type. **/
 export type ValidateFn<T = unknown> = (value: unknown) => value is DataOnly<T>;
 
-/** Mirror of mion's RunTypeError shape. Map / Set emitters add
+/** Mirror of the RunTypeError shape. Map / Set emitters add
  *  `{key, index, failed: 'mapKey' | 'mapValue'}` path segments. **/
 export type RunTypeErrorPathSegment = string | number | object;
 

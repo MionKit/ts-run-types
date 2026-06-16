@@ -3,9 +3,9 @@ package typefns
 import "github.com/mionkit/ts-runtypes/internal/protocol"
 
 // InlineContext is the input to an Emitter.IsRTInlined call. Mirrors
-// the surface mion's `BaseRunType.isRTInlined` reads from `this`
-// (run-types/src/lib/baseRunTypes.ts:52) plus the env / depth flags
-// that live caller-side in mion's RTFnCompiler. Keeping the fields
+// the surface the `BaseRunType.isRTInlined` reads from `this`
+// (ref: run-types/src/lib/baseRunTypes.ts:52) plus the env / depth flags
+// that live caller-side in the RTFnCompiler. Keeping the fields
 // explicit makes the predicate easy to override per-fn (the user's
 // stated reason for moving inlining decisions onto Emitters) without
 // forcing every implementation to reach back into the Walker.
@@ -15,7 +15,7 @@ import "github.com/mionkit/ts-runtypes/internal/protocol"
 // predicate poke at walker internals through method calls.
 type InlineContext struct {
 	// RT is the RunType under consideration. The predicate inspects
-	// Kind, TypeName, and FamilyOf(Kind) — same triplet mion uses.
+	// Kind, TypeName, and FamilyOf(Kind) — same triplet the reference uses.
 	RT *protocol.RunType
 	// InlineAllInternal is RenderOpts.InlineMode == allInternal: EVERY
 	// non-circular node inlines into its parent, names ignored (supersedes

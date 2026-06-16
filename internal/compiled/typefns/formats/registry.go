@@ -88,7 +88,7 @@ type Emitter interface {
 
 // ParamValidator is an OPTIONAL Emitter capability: formats that have
 // build-time param invariants (mutual exclusivity, ranges, required
-// mockSamples, enum membership) implement it. Replaces mion's JS-side
+// mockSamples, enum membership) implement it. Replaces the JS-side
 // `validateParams` throw — we run it AOT in Go and the host emits a
 // CodeFMTInvalidParams diagnostic per returned message. Returns nil when
 // the params are valid.
@@ -114,16 +114,16 @@ type FormatTransformer interface {
 // BinaryEncoder is an OPTIONAL Emitter capability: formats that pack the
 // value into fewer (or different) bytes than the base-kind binary
 // serializer — the numeric int8/16/32 ladder, the bigint 64-bit path —
-// implement it. Mirrors mion's emitToBinary override. Returns a JS
+// implement it. Mirrors the emitToBinary override. Returns a JS
 // STATEMENT that writes `vλl` into the serializer named `ser` (advancing
 // `ser.index`), or "" to fall back to the host's base-kind binary arm
-// (mion's `{code: undefined}` → run-types default). The host splices the
+// (`{code: undefined}` → run-types default). The host splices the
 // non-empty result in place of the base KindNumber / KindBigInt arm.
 type BinaryEncoder interface {
 	EmitToBinary(annotation *protocol.FormatAnnotation, vλl, ser string, ctx EmitContext) string
 }
 
-// BinaryDecoder is the read-side sibling of BinaryEncoder (mion's
+// BinaryDecoder is the read-side sibling of BinaryEncoder (the
 // emitFromBinary override). Returns a JS EXPRESSION that reads the next
 // value from the deserializer named `des` (advancing `des.index`); the
 // host wraps it as `ret = <expr>`. Returns "" to fall back to the

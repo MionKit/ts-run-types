@@ -18,7 +18,7 @@
 // the literal `T` users write — no schema object, no transform needed (the runtime
 // transform is irrelevant to type-checking cost). It still earns its own column
 // because the FORMAT suites express constraints as typia tag intersections
-// (`string & tags.MinLength<…>`) whose instantiation cost differs from mion's
+// (`string & tags.MinLength<…>`) whose instantiation cost differs from the
 // `Format*` brands, and because typia supports a different subset of cases.
 //
 // The probe sources are EXTRACTED (TS compiler API) from the real competitor maps:

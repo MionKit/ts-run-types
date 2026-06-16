@@ -12,7 +12,7 @@
 //   2. Extras stripped in the EMIT — bigint extras don't reach
 //      JSON.stringify, so no throw. prepareForJson + JSON.stringify
 //      would throw.
-//   3. Per-kind raw output — atomic types where mion's encoding is
+//   3. Per-kind raw output — atomic types where the encoding is
 //      canonical (bigint → `"123"`, Date → `"<iso>"`, etc.) get
 //      byte-level checks.
 
@@ -48,7 +48,7 @@ describe('createStringifyJson — atomic raw output', () => {
   test('undefined — top-level returns the JS value undefined', () => {
     const sjs = createJsonEncoder<undefined>();
     expect(sjs(undefined)).toBeUndefined();
-    // Mion-parity: `expect(typeof serialized).toBe('undefined')` —
+    // Parity: `expect(typeof serialized).toBe('undefined')` —
     // top-level undefined is not a valid JSON document, so the RT
     // fn returns the JS undefined sentinel rather than a string.
     expect(typeof sjs(undefined)).toBe('undefined');
@@ -56,7 +56,7 @@ describe('createStringifyJson — atomic raw output', () => {
 
   test('void — top-level returns the JS value undefined', () => {
     const sjs = createJsonEncoder<void>();
-    // Same as undefined — mion's stringifyJson emits `undefined` for
+    // Same as undefined — stringifyJson emits `undefined` for
     // both KindUndefined and KindVoid.
     expect(sjs(undefined)).toBeUndefined();
     expect(typeof sjs(undefined)).toBe('undefined');
@@ -76,9 +76,9 @@ describe('createStringifyJson — atomic raw output', () => {
   });
 
   // ============================================================================
-  // Numeric-enum: mion emits the bare value (`v`) at the JS literal slot
+  // Numeric-enum: emit the bare value (`v`) at the JS literal slot
   // rather than `JSON.stringify(v)`, because a JS number is already a
-  // valid JSON literal at any position. Mirrors mion's
+  // valid JSON literal at any position. Mirrors the reference
   // rtCompilers/json/stringifyJson.ts:51-53 — the protocol's `IndexT`
   // field carries the enum's underlying kind, and our emit branches on
   // `KindNumber` to elide the wrap. String enums keep the JSON.stringify
@@ -165,8 +165,8 @@ describe('createStringifyJson — compound shapes', () => {
     expect(JSON.parse(out!)).toEqual(['a', 'b']);
   });
 
-  test('optional last + undefined — produces valid JSON (mion-parity sort puts optional first)', () => {
-    // Without mion's optional-first sort, the trailing-comma logic
+  test('optional last + undefined — produces valid JSON (parity sort puts optional first)', () => {
+    // Without the optional-first sort, the trailing-comma logic
     // would emit `{"a":"x",}` here — invalid JSON. We port the sort,
     // so optional `b` is emitted FIRST (empty when undefined), then
     // required `a` last (with skipCommas), giving `{"a":"x"}`.
@@ -186,7 +186,7 @@ describe('createStringifyJson — compound shapes', () => {
   });
 });
 
-// Mion's `compileStringifyInterface` has TWO paths:
+// The `compileStringifyInterface` path has TWO modes:
 //
 //   1. At-least-one-required → static `+` concat with optional-first
 //      sort + skipCommas-on-last. Fast; no allocations.
@@ -199,7 +199,7 @@ describe('createStringifyJson — compound shapes', () => {
 // emit produces `{"a":"x",}` (trailing comma) and JSON.parse throws.
 // They MUST run through the actual RT factory (not JSON.stringify
 // fallback) to exercise the emit.
-describe('createStringifyJson — all-optional objects (mion array-join fallback)', () => {
+describe('createStringifyJson — all-optional objects (array-join fallback)', () => {
   test('all-optional, first present + second absent — must NOT emit trailing comma', () => {
     type T = {a?: string; b?: string};
     const sjs = createJsonEncoder<T>();

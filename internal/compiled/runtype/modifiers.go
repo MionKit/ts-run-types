@@ -6,7 +6,7 @@ import (
 )
 
 // Visibility values mirror deepkit's ReflectionVisibility enum so the wire
-// shape matches what downstream mion consumers already understand.
+// shape matches what downstream consumers already understand.
 const (
 	visibilityPublic    = 0
 	visibilityProtected = 1
@@ -80,7 +80,7 @@ func applyMemberModifiers(member *protocol.RunType, symbol *ast.Symbol, asClass 
 // applyParameterDefault inspects the parameter's declaration for an
 // initializer expression. Literal values land in `DefaultVal`; non-literal
 // initializers (function/expression/computed) leave DefaultVal nil and append
-// the "nonLiteralDefault" marker to Flags — mirrors mion's convention.
+// the "nonLiteralDefault" marker to Flags — mirrors the reference convention.
 func applyParameterDefault(parameter *protocol.RunType, symbol *ast.Symbol) {
 	paramNode := parameterDeclaration(symbol)
 	if paramNode == nil || paramNode.Initializer == nil {

@@ -4,7 +4,7 @@ export const NATIVE = {
   map_string_number: {
     title: 'Map with string keys and number values',
     description:
-      'mion native/map — `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
+      'native/map — `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
     getSamples: () => {
       const empty = new Map();
       const one = new Map([['a', 1]]);
@@ -23,7 +23,7 @@ export const NATIVE = {
   },
   set_string: {
     title: 'Set of strings',
-    description: 'mion native/set — `v instanceof Set` plus iteration over `v.values()`.',
+    description: 'native/set — `v instanceof Set` plus iteration over `v.values()`.',
     getSamples: () => {
       const empty = new Set<string>();
       const one = new Set(['a']);
@@ -39,7 +39,7 @@ export const NATIVE = {
   promise_string: {
     title: 'Promise — thenable check, wrapped type not validated',
     description:
-      "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below). prepareForJson/restoreFromJson throw at RT compile (mion's nodes/native/promise.ts).",
+      "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below). prepareForJson/restoreFromJson throw at RT compile (ref: nodes/native/promise.ts).",
     getSamples: () => {
       const realPromise = Promise.resolve('x');
       const thenable = {then: () => null};

@@ -15,22 +15,22 @@ func TestCollectEntries_EmptyInput(t *testing.T) {
 
 func TestCollectEntries_SingleEntry(t *testing.T) {
 	graph := CollectEntries([]Entry{{
-		Namespace:    "mion",
+		Namespace:    "rt",
 		FunctionName: "asJSONString",
 		ParamNames:   []string{},
 		Code:         "return function _f() {};",
 		BodyHash:     "aBcDeFgHiJkLmN",
 	}})
-	entry := graph["mion::asJSONString"]
+	entry := graph["rt::asJSONString"]
 	if entry == nil {
-		t.Fatalf("expected an entry keyed by 'mion::asJSONString', got %v", graph)
+		t.Fatalf("expected an entry keyed by 'rt::asJSONString', got %v", graph)
 	}
 	if entry.Kind != entrymod.KindPureFn {
 		t.Errorf("Kind: got %v want KindPureFn", entry.Kind)
 	}
 	// 6-arg tail: key, bodyHash, paramNames, code, pureFnDependencies, createPureFn.
 	// createPureFn is the inline `function(utl){<code>}` literal templated from `code`.
-	want := "'mion::asJSONString','aBcDeFgHiJkLmN',[],'return function _f() {};',[],function(){return function _f() {};}"
+	want := "'rt::asJSONString','aBcDeFgHiJkLmN',[],'return function _f() {};',[],function(){return function _f() {};}"
 	if entry.ArgsText != want {
 		t.Errorf("ArgsText mismatch:\n got: %s\nwant: %s", entry.ArgsText, want)
 	}
@@ -41,21 +41,21 @@ func TestCollectEntries_SingleEntry(t *testing.T) {
 
 func TestCollectEntries_WithDependencies(t *testing.T) {
 	graph := CollectEntries([]Entry{{
-		Namespace:          "mion",
+		Namespace:          "rt",
 		FunctionName:       "consumer",
 		ParamNames:         []string{"x"},
-		Code:               "return function _f(x){return utl.getPureFn('mion::dep')(x);};",
+		Code:               "return function _f(x){return utl.getPureFn('rt::dep')(x);};",
 		BodyHash:           "h1",
-		PureFnDependencies: []string{"mion::dep", "other::helper"},
+		PureFnDependencies: []string{"rt::dep", "other::helper"},
 	}})
-	entry := graph["mion::consumer"]
+	entry := graph["rt::consumer"]
 	if entry == nil {
 		t.Fatal("missing entry")
 	}
-	if !strings.Contains(entry.ArgsText, `['mion::dep','other::helper']`) {
+	if !strings.Contains(entry.ArgsText, `['rt::dep','other::helper']`) {
 		t.Errorf("dep array not rendered correctly:\n%s", entry.ArgsText)
 	}
-	if len(entry.SoftDeps) != 2 || entry.SoftDeps[0] != "mion::dep" || entry.SoftDeps[1] != "other::helper" {
+	if len(entry.SoftDeps) != 2 || entry.SoftDeps[0] != "rt::dep" || entry.SoftDeps[1] != "other::helper" {
 		t.Errorf("module SoftDeps should carry the pure-fn dep keys, got %v", entry.SoftDeps)
 	}
 }
@@ -104,7 +104,7 @@ func TestCollectEntries_RenderedModuleShape(t *testing.T) {
 
 func TestReplacements_SwapsFactoryArgForBinding(t *testing.T) {
 	entries := []Entry{{
-		Namespace:       "mion",
+		Namespace:       "rt",
 		FunctionName:    "foo",
 		FilePath:        "/abs/a.ts",
 		FactoryArgStart: 50,
@@ -117,10 +117,10 @@ func TestReplacements_SwapsFactoryArgForBinding(t *testing.T) {
 	if got[0].File != "/abs/a.ts" || got[0].Start != 50 || got[0].End != 100 {
 		t.Errorf("unexpected replacement bounds: %+v", got[0])
 	}
-	if got[0].Text != "__rt_pf$2Fmion$2Ffoo" {
+	if got[0].Text != "__rt_pf$2Frt$2Ffoo" {
 		t.Errorf("Text should be the entry-module binding, got %q", got[0].Text)
 	}
-	if got[0].ImportFrom != "virtual:rt/pf/mion/foo.js" {
+	if got[0].ImportFrom != "virtual:rt/pf/rt/foo.js" {
 		t.Errorf("ImportFrom should be the virtual specifier, got %q", got[0].ImportFrom)
 	}
 }

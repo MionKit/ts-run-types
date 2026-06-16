@@ -9,7 +9,7 @@ import (
 // These tests prove the regex VALUE is recoverable from the type system
 // — not the erased `RegExp` interface shape — by walking the
 // registerFormatPattern({regexp: /…/, …}) call AST from `typeof p`.
-// Mirrors mion's deepkit-transformer behaviour, which is likewise an
+// Mirrors the reference deepkit-transformer behaviour, which is likewise an
 // AST-level read, not a type-level one. (A regex's source can't live at
 // the type level, so the call-site AST is the only door.)
 

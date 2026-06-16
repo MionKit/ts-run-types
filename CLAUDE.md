@@ -59,7 +59,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 ## Code style
 
 - No `I` prefix on interfaces; no `T` prefix on type parameters.
-- `InjectRunTypeId` (capital T mid-word) — same casing as mion's `RunType`.
+- `InjectRunTypeId` (capital T mid-word) — same casing as `RunType`.
 - Prefer type casting over assertions.
 - No `@param` / `@returns` in JSDoc; prefer one-liner comments and one-line `if`s.
 - Use meaningful names in Go + TS; avoid one-letter abbreviations like `p`, `c`, `t`; when a struct field has a JSON tag, reuse that name for the local variable. Loop indices (`i`, `k`, `v`) and `err` are fine.
@@ -148,5 +148,5 @@ Full rationale: [docs/ARCHITECTURE.md → Validate contract](docs/ARCHITECTURE.m
 - [README.md](README.md) — project overview, how-it-works, usage, CLI flags.
 - [SETUP.md](SETUP.md) — single setup doc: prereqs, bootstrap, build, test, lint, dev loop, containerized apps, publishing, troubleshooting.
 - [.claude/skills/ts-runtypes-setup/](.claude/skills/ts-runtypes-setup/) — automated host bootstrap + smoke verification skill.
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed design, execution model, sentinel markers, lossy mappings, `@mionjs/run-types` parity record.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed design, execution model, sentinel markers, lossy mappings, factory reference.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — scope + known lossy mappings.

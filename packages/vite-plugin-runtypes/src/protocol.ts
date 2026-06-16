@@ -1,7 +1,7 @@
 // Wire types mirroring internal/protocol/protocol.go. Hand-maintained rather
 // than code-generated to keep the plugin dep-free.
 //
-// The shape is the canonical mion runtypes reflection `RunType` discriminated
+// The shape is the canonical runtypes reflection `RunType` discriminated
 // union. Child RunType slots in the JSON wire format are sentinels
 // (`{kind: -1, id: N}`); consumers either re-knot themselves (raw JSON) or
 // import the generated runtypes-cache.ts module which contains a fully-knotted
@@ -141,8 +141,8 @@ export interface RunType {
   // property node may be a discriminator in one parent union but not
   // in another.
   //
-  // Wire-format equivalent of mion's FlattenedProp[] output
-  // (mion-run-types: packages/run-types/src/nodes/collection/unionDiscriminator.ts).
+  // Wire-format equivalent of the FlattenedProp[] output
+  // (ref: packages/run-types/src/nodes/collection/unionDiscriminator.ts).
   // Only the strictly-new field (the property ref) lives on the wire;
   // the other FlattenedProp fields are reconstructible. Consumers
   // call `flattenUnionDiscriminators` from ts-runtypes
@@ -157,7 +157,7 @@ export interface RunType {
 
   // populated when a primitive is branded with a TypeFormat<Base, Name,
   // Params, ...> marker from `ts-runtypes/formats`. Sibling of
-  // mion's FormatAnnotation (packages/run-types/src/lib/formats.ts) —
+  // the FormatAnnotation (ref: packages/run-types/src/lib/formats.ts) —
   // the name + params pair that drives format-aware emit. The
   // structural id folds name + canonicalised params in, so two
   // distinct param sets produce two distinct cache entries while
@@ -239,7 +239,7 @@ export interface Replacement {
   end: number;
   text: string;
   // When non-empty, the virtual-module specifier the rewrite must import for
-  // the substituted expression to resolve — e.g. `virtual:rt/pf/mion/foo.js`.
+  // the substituted expression to resolve — e.g. `virtual:rt/pf/rt/foo.js`.
   // `text` IS the module's export name (every entry exports under its binding
   // name), so the rewrite imports `{<text>}` directly.
   importFrom?: string;
@@ -334,7 +334,7 @@ export interface Response {
   addedStringifyJson?: boolean;
   addedPrepareForJsonSafe?: boolean;
   // Siblings of addedValidate for the unknown-keys family ported from
-  // mion's emitHasUnknownKeys et al. Set when at least one newly-interned
+  // the reference emitHasUnknownKeys et al. Set when at least one newly-interned
   // RunType has a supported emit arm in the matching emitter.
   addedHasUnknownKeys?: boolean;
   addedStripUnknownKeys?: boolean;

@@ -8,23 +8,23 @@ import (
 )
 
 // numberFormatEmitter implements the format with name "numberFormat" —
-// FormatNumber<P> in `ts-runtypes/formats`. Mirrors mion's
-// NumberRunTypeFormat (packages/type-formats/src/number/numberFormat.runtype.ts).
+// FormatNumber<P> in `ts-runtypes/formats`. Mirrors
+// NumberRunTypeFormat (ref: packages/type-formats/src/number/numberFormat.runtype.ts).
 //
 // Surface: integer / float, min / max / lt / gt, multipleOf — emitted in
-// mion's emitIsType order. Beyond validate / validationErrors / validateParams it
+// emitIsType order. Beyond validate / validationErrors / validateParams it
 // also implements formats.BinaryEncoder / BinaryDecoder: the binary
 // serializer packs an integer into the narrowest of int8/16/32 (signed
 // or unsigned) its min/max allows, falling back to the base float64 arm
-// otherwise (mion's emitToBinary, numberFormat.runtype.ts:133-191).
+// otherwise (emitToBinary, numberFormat.runtype.ts:133-191).
 type numberFormatEmitter struct{}
 
 // numberFormatName is the canonical FormatAnnotation.name the JS-side
-// FormatNumber alias brands under (mion's NumberRunTypeFormat.id).
+// FormatNumber alias brands under (the NumberRunTypeFormat.id).
 const numberFormatName = "numberFormat"
 
 // Safe-integer bounds — the getIntegerType defaults when min/max are
-// unset (mion uses Number.MIN/MAX_SAFE_INTEGER, numberFormat.runtype.ts:288-289).
+// unset (uses Number.MIN/MAX_SAFE_INTEGER, numberFormat.runtype.ts:288-289).
 const (
 	minSafeInteger = -9007199254740991
 	maxSafeInteger = 9007199254740991
@@ -43,7 +43,7 @@ func (numberFormatEmitter) Kind() protocol.ReflectionKind {
 }
 
 // EmitValidateCheck returns the AND of every active number predicate, in
-// mion's emitIsType order (numberFormat.runtype.ts:40-81): integer/float,
+// emitIsType order (numberFormat.runtype.ts:40-81): integer/float,
 // max, min, lt, gt, multipleOf. Returns "" when no params constrain the
 // value — the host keeps its base Number.isFinite check.
 func (numberFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
@@ -81,7 +81,7 @@ func numberConditions(params map[string]any, vλl string) []string {
 }
 
 // EmitValidationErrorsCheck emits one `if (failed) <push error>` statement per
-// active predicate, in mion's emitIsTypeErrors order
+// active predicate, in emitIsTypeErrors order
 // (numberFormat.runtype.ts:83-125). integer/float tag the error `val`
 // with the literal `true`; the range/multipleOf params tag it with the
 // bound.
@@ -121,7 +121,7 @@ func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Format
 	return strings.Join(statements, ";")
 }
 
-// EmitToBinary implements formats.BinaryEncoder — mion's emitToBinary
+// EmitToBinary implements formats.BinaryEncoder — emitToBinary
 // (numberFormat.runtype.ts:133-161). Returns "" (→ base float64 arm) for
 // floats, unconstrained integers, and integer ranges wider than int32;
 // otherwise the narrowest setUint8/16/32 / setInt8/16/32 the range fits.
@@ -154,7 +154,7 @@ func (numberFormatEmitter) EmitToBinary(annotation *protocol.FormatAnnotation, v
 	}
 }
 
-// EmitFromBinary implements formats.BinaryDecoder — mion's emitFromBinary
+// EmitFromBinary implements formats.BinaryDecoder — emitFromBinary
 // (numberFormat.runtype.ts:163-191). Byte-symmetric with EmitToBinary;
 // returns the RHS expression the host assigns to `ret`, or "" for the
 // float64 fallback cases.
@@ -187,7 +187,7 @@ func (numberFormatEmitter) EmitFromBinary(annotation *protocol.FormatAnnotation,
 	}
 }
 
-// integerKind enumerates the packed integer encodings, in mion's
+// integerKind enumerates the packed integer encodings, in the
 // switch(true) precedence (unsigned first, narrowest first).
 type integerKind int
 
@@ -201,7 +201,7 @@ const (
 	intInt32
 )
 
-// integerType ports mion's getIntegerType (numberFormat.runtype.ts:286-297)
+// integerType ports getIntegerType (numberFormat.runtype.ts:286-297)
 // + the switch(true) ordering in emitToBinary: it returns the FIRST
 // matching encoding in unsigned-then-signed, narrowest-first order.
 // Defaults min/max to the safe-integer bounds so an unbounded integer
@@ -233,11 +233,11 @@ func integerType(params map[string]any) integerKind {
 	}
 }
 
-// ValidateParams ports mion's NumberRunTypeFormat.validateParams
+// ValidateParams ports NumberRunTypeFormat.validateParams
 // (numberFormat.runtype.ts:234-283) to the build-time AOT path. Returns
 // one message per violation (surfaced as CodeFMTInvalidParams). The
 // `[x, y].filter(Boolean)` mutual-exclusivity / range checks are kept
-// mion-faithful: a `0` bound is falsy in mion and so escapes these
+// spec-faithful: a `0` bound is falsy per the reference and so escapes these
 // checks — replicated here via numberTruthy for byte-for-byte parity.
 func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
 	if annotation == nil {
@@ -288,7 +288,7 @@ func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 }
 
 // numberTruthy returns 1 when the param is present AND its value is
-// non-zero (mion's `[…].filter(Boolean)` drops 0), else 0.
+// non-zero (the `[…].filter(Boolean)` drops 0), else 0.
 func numberTruthy(params map[string]any, key string) int {
 	if value, ok := formats.ReadNumberParam(params, key); ok && value != 0 {
 		return 1

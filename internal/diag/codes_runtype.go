@@ -129,7 +129,7 @@ const (
 	// (mutually-exclusive options, out-of-range bound, missing required
 	// mockSamples, unknown enum value, …). Error severity: the type
 	// definition is malformed and the emitted validator would be
-	// unreachable or wrong. Args: [violation message]. Replaces mion's
+	// unreachable or wrong. Args: [violation message]. Replaces the
 	// build-time `validateParams` throw (run JS-side at JIT compile; we
 	// run it AOT in Go and surface it as a diagnostic).
 	CodeFMTInvalidParams = "FMT002"

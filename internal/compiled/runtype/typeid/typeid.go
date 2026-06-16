@@ -1,6 +1,6 @@
-// Package typeid computes mion's structural type id directly from a tsgo
+// Package typeid computes the structural type id directly from a tsgo
 // *checker.Type. The output mirrors `_createTypeId` in
-// packages/run-types/src/lib/typeId.ts so two structurally-equal types
+// (ref: packages/run-types/src/lib/typeId.ts) so two structurally-equal types
 // (identical kind + identical children, regardless of alias name) produce the
 // same string. Atomic kinds are just `String(kind)`; collections compose
 // `${kind}{c1,c2,…}`; cycles emit a back-ref token `$<kind>_<i>:<structuralSig>`
@@ -24,7 +24,7 @@ import (
 
 // Computer is the stateful walker. Memoises results on *checker.Type pointer
 // to avoid re-walking. Stack tracks the active recursion path for cycle
-// detection (mirrors mion's `checkCircularAndGetRefId`).
+// detection (mirrors the `checkCircularAndGetRefId` algorithm).
 type Computer struct {
 	typeChecker *checker.Checker
 	cache       map[*checker.Type]string
@@ -149,12 +149,12 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 		return strconv.Itoa(int(kind))
 	}
 
-	// Enum — mion's algorithm uses just `String(kind)` for enums, but that
-	// causes all enums to collapse to the same id. We disambiguate by
+	// Enum — the reference algorithm uses just `String(kind)` for enums, but
+	// that causes all enums to collapse to the same id. We disambiguate by
 	// appending the typeName + sorted member values so two different enum
-	// declarations don't dedup at the cache level. (mion gets away with the
-	// bare-kind id because each enum is handed a distinct Type object per
-	// declaration at runtime — we have to dedup ourselves.)
+	// declarations don't dedup at the cache level. (The reference gets away
+	// with the bare-kind id because each enum is handed a distinct Type object
+	// per declaration at runtime — we have to dedup ourselves.)
 	if flags&checker.TypeFlagsEnum != 0 || flags&checker.TypeFlagsEnumLike != 0 || flags&checker.TypeFlagsEnumLiteral != 0 {
 		return strconv.Itoa(int(protocol.KindEnum)) + ":" + enumDiscriminator(tsType, computer.typeChecker)
 	}
@@ -214,15 +214,15 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 
 func (computer *Computer) objectID(tsType *checker.Type, kind protocol.ReflectionKind) string {
 	if checker.IsTupleType(tsType) {
-		// Tuple — bracket-delimited child list per mion's algorithm, with each
-		// element's variadic FLAGS (rest / variadic) folded into the id. Mion
-		// RT-compiles per call so a rest tail and a fixed slot never share a
-		// runtime Type; our AOT cache is project-global, so without the flag a
-		// rest tuple `[number, ...string[]]` and a fixed tuple `[number, string]`
-		// both reduce to `Tuple[<number>,<string>]`, collide on a single cache
-		// slot, and the (nondeterministically chosen) winner gives one of them
-		// the wrong validator. Mirrors the flag handling in
-		// internal/compiled/runtype/serialize.go:projectTuple.
+		// Tuple — bracket-delimited child list per the reference algorithm, with
+		// each element's variadic FLAGS (rest / variadic) folded into the id.
+		// The reference RT-compiles per call so a rest tail and a fixed slot
+		// never share a runtime Type; our AOT cache is project-global, so
+		// without the flag a rest tuple `[number, ...string[]]` and a fixed
+		// tuple `[number, string]` both reduce to `Tuple[<number>,<string>]`,
+		// collide on a single cache slot, and the (nondeterministically chosen)
+		// winner gives one of them the wrong validator. Mirrors the flag
+		// handling in internal/compiled/runtype/serialize.go:projectTuple.
 		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 		elementInfos := tsType.TargetTupleType().ElementInfos()
 		ids := make([]string, 0, len(typeArguments))
@@ -269,7 +269,7 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 	}
 
 	// Built-in classes — Date / Map / Set — get their own subKind id, exactly
-	// as mion's `computeClassTypeId` does in `lib/typeId.ts:149`. The numeric
+	// as `computeClassTypeId` does (ref: lib/typeId.ts:149). The numeric
 	// prefix is the SubKind (2001 / 2002 / 2003), not KindClass.
 	if symbol := tsType.Symbol(); symbol != nil {
 		switch symbol.Name {
@@ -298,7 +298,7 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 	}
 	// Non-serialisable globals (Error, WeakMap, typed arrays, …) are tagged
 	// with SubKindNonSerializable and use that as their structural prefix —
-	// matches mion's `subKind || kind` rule.
+	// matches the `subKind || kind` rule.
 	if symbol := tsType.Symbol(); symbol != nil && protocol.IsNonSerializableSymbol(symbol.Name) {
 		ids := computer.memberIDs(tsType, true)
 		return collectionID(int(protocol.SubKindNonSerializable), ids, false)
@@ -612,7 +612,7 @@ func objectKind(typeChecker *checker.Checker, tsType *checker.Type) protocol.Ref
 		return protocol.KindArray
 	}
 	// Builtin Temporal types are namespace-member interfaces tsgo reports as
-	// object literals; mion-style we treat them as classes (atomic builtins).
+	// object literals; standard, we treat them as classes (atomic builtins).
 	if _, ok := TemporalInfoForType(tsType); ok {
 		return protocol.KindClass
 	}
@@ -623,7 +623,7 @@ func objectKind(typeChecker *checker.Checker, tsType *checker.Type) protocol.Ref
 		case "RegExp":
 			return protocol.KindRegexp
 		case "Date", "Map", "Set":
-			// Built-in interfaces from lib.d.ts that mion treats as classes
+			// Built-in interfaces from lib.d.ts that we treat as classes
 			// (dispatched through initClassRunType in createRunType.ts).
 			return protocol.KindClass
 		}
@@ -655,7 +655,7 @@ func isClass(tsType *checker.Type) bool {
 // collectionID composes a structural id with the given numeric prefix.
 // Accepts a bare int because the prefix may be either a ReflectionKind
 // (e.g. KindTuple) or a ReflectionSubKind (e.g. SubKindNonSerializable)
-// per mion's `subKind || kind` rule.
+// per the `subKind || kind` rule.
 func collectionID(prefix int, children []string, brackets bool) string {
 	if brackets {
 		return strconv.Itoa(prefix) + "[" + strings.Join(children, ",") + "]"

@@ -620,7 +620,7 @@ getRunTypeId(sym);
 	if !ok {
 		t.Fatalf("expected literal to be a map, got %T", tn.Literal)
 	}
-	// Mion validates symbol literals against the runtime `.description`
+	// The reference validates symbol literals against the runtime `.description`
 	// of the constructed symbol (literal.ts:103), so the resolver carries
 	// the description argument from the `Symbol(<desc>)` call site —
 	// NOT the binding name. For `const sym = Symbol('hello')` the
@@ -1078,9 +1078,9 @@ getRunTypeId(user);
 // `createJsonEncoder<T>(undefined, {strategy: 'mutate'})` share one id.
 func TestResolver_EncoderOptionsShareTypeID(t *testing.T) {
 	const dts = `declare module 'ts-runtypes' {
-  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
+  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
+  export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'};
   export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
 }
@@ -1133,8 +1133,8 @@ createJsonEncoder<string>(undefined, {strategy: 'direct'});
 // is covered, not just options-named ones.
 func TestResolver_CompTimeArgs_NonLiteralDiagnostic(t *testing.T) {
 	const dts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
@@ -1175,8 +1175,8 @@ createValidate<string>(undefined, getOptions());
 // are covered by TestResolver_ValidateOptions_NoLiteralsNoop.
 func TestResolver_CompTimeArgs_LiteralAccepted(t *testing.T) {
 	const dts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
@@ -1206,8 +1206,8 @@ createValidate<string>(undefined, {});
 // member. The fallback recognises the marker via the property name.
 func TestResolver_CompTimeArgs_UnionBrandFallback(t *testing.T) {
 	const dts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
   export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectRunTypeId<T>): (v: unknown) => string | undefined;
 }
@@ -1238,8 +1238,8 @@ createJsonEncoder<string>(undefined, getOptions());
 // objects.
 func TestResolver_CompTimeArgs_ConstChainAccepted(t *testing.T) {
 	const dts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
@@ -1264,8 +1264,8 @@ createValidate<string>(undefined, opts);
 // is branded `PureFunction<(v: unknown) => boolean>` so the scanner
 // dispatches to the purity walker for that argument.
 const pureFunctionDts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
   export function withValidator<T>(validate: PureFunction<(v: unknown) => boolean>, val?: T, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
@@ -1377,8 +1377,8 @@ withValidator<number>((v) => v === outer);
 // slot is CompTimeArgs<string>. Used by the two tests below to confirm
 // the marker validation fires even without an injection slot.
 const markerOnlyDts = `declare module 'ts-runtypes' {
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-  export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
+  export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
   export function noInjectWrapper(label: CompTimeArgs<string>, value: number): number;
   export function pureOnlyWrapper(fn: PureFunction<(v: unknown) => boolean>): void;
 }
@@ -1429,8 +1429,8 @@ pureOnlyWrapper(isString);
 // MKR003 / argsCount early-returns dropped accumulated diagnostics.
 func TestResolver_TrailingInjectionStillEmitsSite(t *testing.T) {
 	const dts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean}
   export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
@@ -1475,8 +1475,8 @@ createValidate<string>(undefined, getOptions());
 // variant factory keyed `<tag><variantSuffix>_<id>`.
 func TestResolver_ValidateOptions_DoNotChangeID(t *testing.T) {
 	const dts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
@@ -1545,8 +1545,8 @@ createValidate<Composite>(undefined, {noLiterals: true, noIsArrayCheck: true});
 // diagnostic is the only build-time signal.
 func TestResolver_ValidateOptions_NoLiteralsNoop(t *testing.T) {
 	const dts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
@@ -1589,10 +1589,10 @@ createValidate<{a: string}>(undefined, {noIsArrayCheck: true});
 // the Site sits on the createValidate call.
 func TestResolver_SchemaForm_ConvergesAndObservesOptions(t *testing.T) {
 	const dts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
+  export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export interface RunType<T = unknown> {id: string; readonly __rtType?: {t: T}}
   export function createValidate<T>(schema: RunType<T>, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
@@ -1645,8 +1645,8 @@ createValidate(array(string()), {noIsArrayCheck: true});
 // warning below never fired.
 func TestResolver_ValidateOptions_AsConstExtracted(t *testing.T) {
 	const dts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }

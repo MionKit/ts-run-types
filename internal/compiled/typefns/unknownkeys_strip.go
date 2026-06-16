@@ -8,7 +8,7 @@ import (
 
 // StripUnknownKeysEmitter implements the `stripUnknownKeys` rt function —
 // mutates the input value by removing any property not declared in the
-// schema. Ported from mion's emitStripUnknownKeys methods.
+// schema. Ported from the reference emitStripUnknownKeys methods.
 //
 // Arg shape: single value (`v`). The mutation is in place; returns v
 // unchanged.
@@ -75,7 +75,7 @@ func (StripUnknownKeysEmitter) Finalize(raw string) (string, bool) {
 	return code, false
 }
 
-// emitObjectStripUnknownKeys ports mion's
+// emitObjectStripUnknownKeys ports
 // InterfaceRunType.emitStripUnknownKeys (interface.ts:173-187). Three
 // pieces:
 //
@@ -105,7 +105,7 @@ func emitObjectStripUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return RTCode{Code: combined, Type: CodeS}
 }
 
-// emitIndexSignatureStripUnknownKeys ports mion's
+// emitIndexSignatureStripUnknownKeys ports
 // IndexSignatureRunType.emitStripUnknownKeys (indexProperty.ts:133-143).
 func emitIndexSignatureStripUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {

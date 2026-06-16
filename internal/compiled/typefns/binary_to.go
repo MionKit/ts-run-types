@@ -17,11 +17,11 @@ import (
 // for every valid sample. Tests assert the round-trip; the half can't
 // be verified independently.
 //
-// Mirrors mion's mega-switch at
-// mion/packages/run-types/src/rtCompilers/binary/toBinary.ts (no
+// Mirrors the mega-switch at
+// (ref: packages/run-types/src/rtCompilers/binary/toBinary.ts) (no
 // per-kind files — single 437-line switch).
 //
-// Wire encoding (per mion's binarySPEC.md):
+// Wire encoding (per binarySPEC.md):
 //   - null/undefined/void:    uint8 sentinel (0 / 1)
 //   - boolean:                uint8 (0 / 1)
 //   - number:                 float64 LE
@@ -43,8 +43,8 @@ import (
 // entries. Subsequent phases enable kinds one bucket at a time.
 type ToBinaryEmitter struct{}
 
-// Args mirrors mion's `rtBinarySerializerArgs = {vλl: 'v', sεr: 'Ser'}`
-// (mion-run-types:constants.functions.ts:51). Returns the serializer
+// Args mirrors `rtBinarySerializerArgs = {vλl: 'v', sεr: 'Ser'}`
+// (ref: constants.functions.ts:51). Returns the serializer
 // (`Ser`) so callers can chain `.getBuffer()`.
 func (ToBinaryEmitter) Args() []ArgSpec {
 	return []ArgSpec{
@@ -111,7 +111,7 @@ func (ToBinaryEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
-// ReturnName is the serializer arg (`Ser`). Mion's
+// ReturnName is the serializer arg (`Ser`). Per
 // `RTFunctions.toBinary.returnName = rtBinarySerializerArgs.sεr`
 // (constants.functions.ts:111) — the inner fn returns the serializer
 // instance so callers can chain `.getBuffer()`.
@@ -122,7 +122,7 @@ func (ToBinaryEmitter) ReturnName() string {
 // binaryToOverride returns a format-specific binary-encode STATEMENT when
 // rt carries a FormatAnnotation whose emitter implements
 // formats.BinaryEncoder and yields a non-empty body, else "". Empty =
-// keep the host's base-kind arm (mion's `{code: undefined}` → run-types
+// keep the host's base-kind arm (the `{code: undefined}` → run-types
 // default). Mirrors the optional-interface type-assert pattern in
 // formattransform.go:nodeFormatTransform.
 func binaryToOverride(rt *protocol.RunType, v, ser string, ctx *EmitContext) string {
@@ -140,7 +140,7 @@ func binaryToOverride(rt *protocol.RunType, v, ser string, ctx *EmitContext) str
 	return encoder.EmitToBinary(rt.FormatAnnotation, v, ser, ctx)
 }
 
-// Emit dispatches the per-kind switch. Each arm mirrors mion's
+// Emit dispatches the per-kind switch. Each arm mirrors the
 // emitToBinary switch (binary/toBinary.ts:35-405).
 //
 // Phase 1: every arm returns CodeNS so no entries get emitted. The
@@ -157,20 +157,20 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 
 	// ###################### ATOMIC TYPES ######################
 	case protocol.KindAny, protocol.KindUnknown, protocol.KindObject:
-		// mion:binary/toBinary.ts:47-49,73-75 —
+		// ref:binary/toBinary.ts:47-49,73-75 —
 		// `serString(JSON.stringify(v))`. Serialized as JSON string.
 		return RTCode{Code: ser + ".serString(JSON.stringify(" + v + "))", Type: CodeS}
 
 	case protocol.KindNull:
-		// mion:binary/toBinary.ts:52 — `view.setUint8(index++, 0)`.
+		// ref:binary/toBinary.ts:52 — `view.setUint8(index++, 0)`.
 		return RTCode{Code: ser + ".view.setUint8(" + ser + ".index++, 0)", Type: CodeS}
 
 	case protocol.KindBoolean:
-		// mion:binary/toBinary.ts:54 — `view.setUint8(index++, !!v)`.
+		// ref:binary/toBinary.ts:54 — `view.setUint8(index++, !!v)`.
 		return RTCode{Code: ser + ".view.setUint8(" + ser + ".index++, !!" + v + ")", Type: CodeS}
 
 	case protocol.KindNumber:
-		// mion:binary/toBinary.ts:56 —
+		// ref:binary/toBinary.ts:56 —
 		// `view.setFloat64(index, v, 1, (index += 8))`. A numberFormat
 		// brand may pack the value into 1/2/4 bytes (int8/16/32) — see
 		// formats/numeric. Empty override = keep the float64 base arm.
@@ -181,11 +181,11 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		return RTCode{Code: code, Type: CodeS}
 
 	case protocol.KindString, protocol.KindTemplateLiteral:
-		// mion:binary/toBinary.ts:59,85 — `serString(v)`.
+		// ref:binary/toBinary.ts:59,85 — `serString(v)`.
 		return RTCode{Code: ser + ".serString(" + v + ")", Type: CodeS}
 
 	case protocol.KindBigInt:
-		// mion:binary/toBinary.ts:62 — `serString(v.toString(), true)`.
+		// ref:binary/toBinary.ts:62 — `serString(v.toString(), true)`.
 		// `true` flag bypasses the string cache (bigints rarely repeat).
 		// A bigintFormat brand whose min/max fit signed/unsigned 64-bit
 		// packs into 8 bytes via setBigInt64/setBigUint64 — see
@@ -197,7 +197,7 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		return RTCode{Code: code, Type: CodeS}
 
 	case protocol.KindUndefined, protocol.KindVoid:
-		// mion:binary/toBinary.ts:66 — `view.setUint8(index++, 1)`.
+		// ref:binary/toBinary.ts:66 — `view.setUint8(index++, 1)`.
 		return RTCode{Code: ser + ".view.setUint8(" + ser + ".index++, 1)", Type: CodeS}
 
 	case protocol.KindSymbol:
@@ -206,26 +206,26 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
-		// mion:binary/toBinary.ts:71 —
+		// ref:binary/toBinary.ts:71 —
 		// `serString(v.source); serString(v.flags)`.
 		return RTCode{Code: ser + ".serString(" + v + ".source);" + ser + ".serString(" + v + ".flags)", Type: CodeS}
 
 	case protocol.KindEnum:
-		// mion:binary/toBinary.ts:77 — `serEnum(v)`.
+		// ref:binary/toBinary.ts:77 — `serEnum(v)`.
 		return RTCode{Code: ser + ".serEnum(" + v + ")", Type: CodeS}
 
 	case protocol.KindNever:
-		// mion:binary/toBinary.ts:82 — throws "Never type cannot be
+		// ref:binary/toBinary.ts:82 — throws "Never type cannot be
 		// serialized to Binary".
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
-		// mion:binary/toBinary.ts:218 — throws
+		// ref:binary/toBinary.ts:218 — throws
 		// "RT compilation disabled for Non Serializable types.".
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindLiteral:
-		// mion:binary/toBinary.ts:86-106 — when opts.noLiterals, dispatch
+		// ref:binary/toBinary.ts:86-106 — when opts.noLiterals, dispatch
 		// to the underlying primitive's emit. Otherwise the literal is
 		// restored from the RunType at decode time (no bytes written /
 		// read), so emit is a noop.
@@ -240,8 +240,8 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
-		// mion:binary/toBinary.ts:156-164 — top-level function types are
-		// not directly serializable; mion exposes compileParams /
+		// ref:binary/toBinary.ts:156-164 — top-level function types are
+		// not directly serializable; the reference exposes compileParams /
 		// compileReturn for that. The Go side has no params subkind
 		// (see protocol/subkind.go) so we always throw at top-level
 		// function types.
@@ -272,7 +272,7 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		}
 		switch rt.SubKind {
 		case protocol.SubKindDate:
-			// mion:binary/toBinary.ts:265 —
+			// ref:binary/toBinary.ts:265 —
 			// `view.setFloat64(index, v.getTime(), 1, (index += 8))`.
 			return RTCode{Code: ser + ".view.setFloat64(" + ser + ".index, " + v + ".getTime(), 1, (" + ser + ".index += 8))", Type: CodeS}
 		case protocol.SubKindMap, protocol.SubKindSet:
@@ -316,7 +316,7 @@ func (ToBinaryEmitter) Finalize(raw string) (string, bool) {
 	return code, false
 }
 
-// emitLiteralToBinary mirrors mion's literal.ts emitToBinary —
+// emitLiteralToBinary mirrors the literal.ts emitToBinary —
 // dispatches to the underlying primitive's emit when noLiterals is set.
 // Without noLiterals the literal value is restored from the RunType
 // definition at decode time, so no bytes are written.
@@ -331,7 +331,7 @@ func emitLiteralToBinary(rt *protocol.RunType, v string, ser string) RTCode {
 	return RTCode{Code: "", Type: CodeS}
 }
 
-// emitArrayToBinary mirrors mion's binary/toBinary.ts:110-126.
+// emitArrayToBinary mirrors binary/toBinary.ts:110-126.
 //
 // Wire shape: `[uint32 length, items...]`. The length prefix is written
 // before the loop body so the decoder can preallocate.
@@ -357,7 +357,7 @@ func emitArrayToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 	return RTCode{Code: body, Type: CodeS}
 }
 
-// emitIndexSignatureToBinary mirrors mion's binary/toBinary.ts:127-154.
+// emitIndexSignatureToBinary mirrors binary/toBinary.ts:127-154.
 //
 // Wire shape: `[uint32 count, (keyOrUint32, value)*]`. Count is
 // back-patched after the loop so dynamic keysets are supported.
@@ -403,7 +403,7 @@ func emitIndexSignatureToBinary(rt *protocol.RunType, ctx *EmitContext, v string
 	return RTCode{Code: body, Type: CodeS}
 }
 
-// emitPropertyToBinary mirrors mion's binary/toBinary.ts:181-195.
+// emitPropertyToBinary mirrors binary/toBinary.ts:181-195.
 //
 // Required properties: just emit child code (no header — order is
 // determined by declaration). Optional properties: emit child code
@@ -449,7 +449,7 @@ func emitPropertyToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser 
 	return childRT
 }
 
-// emitObjectToBinary mirrors mion's binary/toBinary.ts:222-261.
+// emitObjectToBinary mirrors binary/toBinary.ts:222-261.
 //
 // Wire shape:
 //   - required props in declaration order (no header)
@@ -564,8 +564,8 @@ func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser st
 // current serializer index, zeroes the bytes, and returns the init
 // code + the JS variable holding the bitmap's start index.
 //
-// `isTuple` flag exists for naming parity with mion (`tbmI` for tuple,
-// `bmI` for object) so debug names are recognisable in stack traces.
+// `isTuple` flag exists for naming parity with the reference (`tbmI` for
+// tuple, `bmI` for object) so debug names are recognisable in stack traces.
 func emitOptionalBitmapInit(ctx *EmitContext, ser string, optionalLength int, isTuple bool) (string, string) {
 	prefix := ""
 	if isTuple {
@@ -617,7 +617,7 @@ func bitCheckExpr(des, bitmapVar string, i int) string {
 	return "(" + des + ".view.getUint8(" + bitmapVar + " + " + strconv.Itoa(byteOffset) + ") & " + strconv.Itoa(1<<bitIdx) + ")"
 }
 
-// emitTupleToBinary mirrors mion's binary/toBinary.ts:306-349.
+// emitTupleToBinary mirrors binary/toBinary.ts:306-349.
 //
 // Wire shape: required, optional bitmap + values, rest. Function-param
 // subkind: every non-rest param is treated as optional (binary protocol
@@ -628,7 +628,7 @@ func emitTupleToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 	}
 	// Function params are treated as a plain tuple: a member is optional
 	// iff its own `optional` flag is set, exactly like every other tuple.
-	// There is no SubKindParams on the protocol — mion's router-only
+	// There is no SubKindParams on the protocol — the router-only
 	// all-optional / paramsSlice conveniences are intentionally not ported
 	// (see docs/ROADMAP.md → "Binary serialization — function-params router
 	// conveniences").
@@ -757,7 +757,7 @@ func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, s
 	return childRT
 }
 
-// emitNativeIterableToBinary handles Map / Set — mirrors mion's
+// emitNativeIterableToBinary handles Map / Set — mirrors
 // binary/toBinary.ts:269-285.
 //
 // Wire shape: `[uint32 size, entries...]`. Each entry is the wrapped

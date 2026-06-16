@@ -148,7 +148,7 @@ async function main() {
   const dump = await resolver.dump();
   const entries = dump.entryModules ?? {};
   // Pure-fn entry basenames carry their namespace as path segments
-  // (e.g. `pf/mion/asJSONString`), so mkdir-p the parent before writing.
+  // (e.g. `pf/rt/asJSONString`), so mkdir-p the parent before writing.
   for (const [basename, source] of Object.entries(entries)) {
     const target = path.join(VIRTUAL_DIR, `${basename}.js`);
     fs.mkdirSync(path.dirname(target), {recursive: true});

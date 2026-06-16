@@ -16,9 +16,9 @@ import (
 // discovery in walker.go recognises calls in test fixtures the same
 // way it recognises them in real consumer code.
 const runtypesDts = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-  export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
+  export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
   export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
     getPureFn(key: CompTimeArgs<string>): any;
@@ -73,7 +73,7 @@ func TestExtract_HappyPath_FunctionExpression(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const cpf = registerPureFnFactory('mion', 'asJSONString', function () {
+export const cpf = registerPureFnFactory('rt', 'asJSONString', function () {
   return function _stringify(s: string): string {
     return JSON.stringify(s);
   };
@@ -86,7 +86,7 @@ export const cpf = registerPureFnFactory('mion', 'asJSONString', function () {
 		t.Fatalf("expected 1 entry, got %d", len(entries))
 	}
 	got := entries[0]
-	if got.Namespace != "mion" || got.FunctionName != "asJSONString" {
+	if got.Namespace != "rt" || got.FunctionName != "asJSONString" {
 		t.Errorf("unexpected key: ns=%q fn=%q", got.Namespace, got.FunctionName)
 	}
 	if len(got.ParamNames) != 0 {
@@ -139,14 +139,14 @@ func TestExtract_TracedNamespaceConst(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-const NS = 'mion';
+const NS = 'rt';
 export const cpf = registerPureFnFactory(NS, 'foo', function () { return function() {}; });`,
 	})
 	if len(diags) != 0 {
 		t.Fatalf("unexpected diagnostics: %+v", diags)
 	}
-	if len(entries) != 1 || entries[0].Namespace != "mion" {
-		t.Fatalf("expected traced namespace mion, got entries=%+v", entries)
+	if len(entries) != 1 || entries[0].Namespace != "rt" {
+		t.Fatalf("expected traced namespace, got entries=%+v", entries)
 	}
 }
 
@@ -155,7 +155,7 @@ func TestExtract_TracedFactoryConst(t *testing.T) {
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
 const myFactory = function () { return function inner(x: number) { return x; }; };
-export const cpf = registerPureFnFactory('mion', 'tracedFn', myFactory);`,
+export const cpf = registerPureFnFactory('rt', 'tracedFn', myFactory);`,
 	})
 	if len(diags) != 0 {
 		t.Fatalf("unexpected diagnostics: %+v", diags)
@@ -170,7 +170,7 @@ func TestExtract_TracedFunctionDeclaration(t *testing.T) {
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
 function myFactory() { return function inner() { return 1; }; }
-export const cpf = registerPureFnFactory('mion', 'tracedFnDecl', myFactory);`,
+export const cpf = registerPureFnFactory('rt', 'tracedFnDecl', myFactory);`,
 	})
 	if len(diags) != 0 {
 		t.Fatalf("unexpected diagnostics: %+v", diags)
@@ -208,7 +208,7 @@ func TestExtract_NonLiteralFunctionID_SilentSkip(t *testing.T) {
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
 declare const name: string;
-export const cpf = registerPureFnFactory('mion', name, function () { return function() {}; });`,
+export const cpf = registerPureFnFactory('rt', name, function () { return function() {}; });`,
 	})
 	if len(entries) != 0 {
 		t.Fatalf("expected no entry for non-literal fnId, got %+v", entries)
@@ -223,7 +223,7 @@ func TestExtract_NonInlineFactory_SilentSkip(t *testing.T) {
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
 declare const someFn: () => () => void;
-export const cpf = registerPureFnFactory('mion', 'fn', someFn);`,
+export const cpf = registerPureFnFactory('rt', 'fn', someFn);`,
 	})
 	if len(entries) != 0 {
 		t.Fatalf("expected no entry for non-inline factory, got %+v", entries)
@@ -237,7 +237,7 @@ func TestExtract_DestructuredParam_PFE9005(t *testing.T) {
 	_, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const cpf = registerPureFnFactory('mion', 'fn', function ({a, b}) {
+export const cpf = registerPureFnFactory('rt', 'fn', function ({a, b}) {
   return function() {};
 });`,
 	})
@@ -250,12 +250,12 @@ func TestExtract_BodyHashCollision_PFE9004(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const a = registerPureFnFactory('mion', 'asJSONString', function () {
+export const a = registerPureFnFactory('rt', 'asJSONString', function () {
   return function v1() { return 1; };
 });`,
 		"b.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const b = registerPureFnFactory('mion', 'asJSONString', function () {
+export const b = registerPureFnFactory('rt', 'asJSONString', function () {
   return function v2() { return 2; };
 });`,
 	})
@@ -283,12 +283,12 @@ func TestExtract_IdempotentSameBodyHash_NoDiagnostic(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const a = registerPureFnFactory('mion', 'sameFn', function () {
+export const a = registerPureFnFactory('rt', 'sameFn', function () {
   return function _fn() { return 1; };
 });`,
 		"b.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const b = registerPureFnFactory('mion', 'sameFn', function () {
+export const b = registerPureFnFactory('rt', 'sameFn', function () {
   return function _fn() { return 1; };
 });`,
 	})

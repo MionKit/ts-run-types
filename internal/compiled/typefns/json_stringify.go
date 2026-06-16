@@ -9,7 +9,7 @@ import (
 )
 
 // StringifyJsonEmitter implements the `stringifyJson` rt function —
-// mion's single-pass JSON serialiser that builds the output string
+// the single-pass JSON serialiser that builds the output string
 // directly from the TYPE rather than mutating `v` in place and
 // delegating to JSON.stringify. Extras are stripped by construction:
 // the emit walks declared members only, so unknown keys never reach
@@ -18,13 +18,13 @@ import (
 // Paired with RestoreFromJsonEmitter — round-trip
 // `restoreFromJson(JSON.parse(stringifyJson(v)))` must deep-equal v
 // for every valid sample. Output is observably equivalent to
-// `JSON.stringify(prepareForJson(v))` modulo property order (mion
+// `JSON.stringify(prepareForJson(v))` modulo property order (the spec
 // sorts optional members first; we keep declaration order — see
-// docs/port-status.md "Intentional deviations from mion") and the
+// docs/port-status.md "Intentional deviations") and the
 // no-mutation contract on `v`.
 //
-// Mirrors mion's per-kind switch in
-// mion/packages/run-types/src/rtCompilers/json/stringifyJson.ts
+// Mirrors the per-kind switch in
+// (ref: packages/run-types/src/rtCompilers/json/stringifyJson.ts)
 // (`createStringifyCompiler`).
 type StringifyJsonEmitter struct{}
 
@@ -34,7 +34,7 @@ func (StringifyJsonEmitter) Args() []ArgSpec {
 	return []ArgSpec{{Key: "vλl", Name: "v", Default: ""}}
 }
 
-// Supports gates the renderer's top-level loop. Mirrors mion's
+// Supports gates the renderer's top-level loop. Mirrors the
 // stringifyJson which supports every reflection kind (some via
 // emit-time throws — see Emit below). Function-shaped kinds at root
 // throw at emit; function-shaped as object-property children get
@@ -103,14 +103,14 @@ func (StringifyJsonEmitter) ReturnName() string {
 }
 
 // Emit dispatches the per-kind switch. Each arm mirrors the body of
-// mion's `createStringifyCompiler` switch
+// the `createStringifyCompiler` switch
 // (rtCompilers/json/stringifyJson.ts:41).
 //
 // Convention: every arm returns a JS expression (CodeE) that
 // evaluates to a JSON-encoded string fragment. Root-frame arms
 // produce a complete JSON document; nested arms produce a fragment
 // the parent emit concatenates with `+`. `IsRoot()` distinguishes
-// the two (mirrors mion's `comp.getNestLevel(runType) === 0`).
+// the two (mirrors `comp.getNestLevel(runType) === 0`).
 func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
 		return RTCode{Code: "", Type: CodeS}
@@ -119,27 +119,27 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 	switch rt.Kind {
 
 	case protocol.KindAny, protocol.KindUnknown, protocol.KindObject:
-		// mion:stringifyJson.ts:44-46, 100-101 — delegate to
+		// (ref: stringifyJson.ts:44-46, 100-101) — delegate to
 		// JSON.stringify when the type carries no schema info.
 		return RTCode{Code: "JSON.stringify(" + v + ")", Type: CodeE}
 
 	case protocol.KindString, protocol.KindTemplateLiteral:
-		// mion:stringifyJson.ts:105-112 — string + template-literal
+		// (ref: stringifyJson.ts:105-112) — string + template-literal
 		// runtime values are plain strings.
 		return RTCode{Code: "JSON.stringify(" + v + ")", Type: CodeE}
 
 	case protocol.KindBigInt:
-		// mion:stringifyJson.ts:47-48 — manually-quoted decimal
+		// (ref: stringifyJson.ts:47-48) — manually-quoted decimal
 		// string; matches `JSON.stringify(v.toString())` byte-for-byte
 		// but skips one function call.
 		return RTCode{Code: "'\"'+" + v + ".toString()+'\"'", Type: CodeE}
 
 	case protocol.KindBoolean:
-		// mion:stringifyJson.ts:49-50.
+		// (ref: stringifyJson.ts:49-50).
 		return RTCode{Code: "(" + v + " ? 'true' : 'false')", Type: CodeE}
 
 	case protocol.KindEnum:
-		// mion:stringifyJson.ts:51-53 — number-indexed enums emit the
+		// (ref: stringifyJson.ts:51-53) — number-indexed enums emit the
 		// bare value (already a valid JSON number literal at any
 		// position); string enums quote via JSON.stringify. The
 		// serializer populates RunType.IndexT for every enum so we can
@@ -156,11 +156,11 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		return emitLiteralStringifyJson(rt, ctx, v)
 
 	case protocol.KindNever:
-		// mion:stringifyJson.ts:90-91 — `Never type cannot be stringified.`
+		// (ref: stringifyJson.ts:90-91) — `Never type cannot be stringified.`
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindNull, protocol.KindNumber:
-		// mion:stringifyJson.ts:92-99 — at root, `String(v)` wraps
+		// (ref: stringifyJson.ts:92-99) — at root, `String(v)` wraps
 		// the value into a JS string so the RT fn returns a
 		// JSON-parseable result. At non-root, the bare `v` works
 		// because the parent concatenates with `+` (auto-stringifies).
@@ -170,7 +170,7 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		return RTCode{Code: v, Type: CodeE}
 
 	case protocol.KindRegexp:
-		// mion:stringifyJson.ts:102-104.
+		// (ref: stringifyJson.ts:102-104).
 		return RTCode{Code: "JSON.stringify(" + v + ".toString())", Type: CodeE}
 
 	case protocol.KindSymbol:
@@ -178,7 +178,7 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindUndefined:
-		// mion:stringifyJson.ts:113-118 — at root, emit `undefined`
+		// (ref: stringifyJson.ts:113-118) — at root, emit `undefined`
 		// so the RT fn returns the JS value undefined (top-level
 		// undefined is not a valid JSON document). In an array
 		// position, emit `'null'` so the slot is JSON-valid. Inside
@@ -193,7 +193,7 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		return RTCode{Code: "null", Type: CodeE}
 
 	case protocol.KindVoid:
-		// mion:stringifyJson.ts:120-121.
+		// (ref: stringifyJson.ts:120-121).
 		return RTCode{Code: "undefined", Type: CodeE}
 
 	case protocol.KindArray:
@@ -209,7 +209,7 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		}
 		switch rt.SubKind {
 		case protocol.SubKindDate:
-			// mion:stringifyJson.ts:405-406 — manually quoted to skip
+			// (ref: stringifyJson.ts:405-406) — manually quoted to skip
 			// one JSON.stringify call.
 			return RTCode{Code: "'\"'+" + v + ".toJSON()+'\"'", Type: CodeE}
 		case protocol.SubKindNone:
@@ -223,7 +223,7 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
-		// mion:stringifyJson.ts:250-252.
+		// (ref: stringifyJson.ts:250-252).
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindProperty, protocol.KindPropertySignature:
@@ -245,7 +245,7 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
-		// mion:stringifyJson.ts:183-187 — function-shaped at root
+		// (ref: stringifyJson.ts:183-187) — function-shaped at root
 		// throws; param-shaped is handled by function-param emit
 		// (not reachable as a top-level RT fn).
 		return RTCode{Code: "", Type: CodeNS}
@@ -278,7 +278,7 @@ func (StringifyJsonEmitter) Finalize(raw string) (string, bool) {
 	return code, false
 }
 
-// emitLiteralStringifyJson — mion:stringifyJson.ts:56-89 defers
+// emitLiteralStringifyJson — (ref: stringifyJson.ts:56-89) defers
 // literal kinds to their underlying primitive emit. We replicate
 // the dispatch inline based on the literal's Flags / shape.
 func emitLiteralStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
@@ -290,11 +290,11 @@ func emitLiteralStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 	}
 	// Primitive literal (number / string / boolean / null) — defer
 	// to JSON.stringify, which handles each shape correctly. This
-	// matches mion's `JSON.stringify(${comp.vλl})` default branch.
+	// matches the `JSON.stringify(${comp.vλl})` default branch.
 	return RTCode{Code: "JSON.stringify(" + v + ")", Type: CodeE}
 }
 
-// emitArrayStringifyJson — mion:stringifyJson.ts:125-144. Builds
+// emitArrayStringifyJson — (ref: stringifyJson.ts:125-144). Builds
 // the JSON array by mapping each element through the child emit and
 // joining with ','.
 func emitArrayStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
@@ -319,12 +319,12 @@ func emitArrayStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RT
 	return RTCode{Code: body, Type: CodeRB}
 }
 
-// emitObjectStringifyJson — mion:stringifyJson.ts:367-401
+// emitObjectStringifyJson — (ref: stringifyJson.ts:367-401)
 // (compileStringifyInterface / compileInterfaceIntoArray /
-// compileStringifyClass). Two paths matching mion's perf split:
+// compileStringifyClass). Two paths matching the perf split:
 //
 //  1. **At least one required child** — static `+` concat with
-//     mion's optional-first sort + `skipCommas=true` on the last
+//     the optional-first sort + `skipCommas=true` on the last
 //     iteration. Fast — pure string concatenation, no array
 //     allocation, no runtime filtering. The optional-first sort
 //     guarantees the last child is required (always emits a
@@ -332,7 +332,7 @@ func emitArrayStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RT
 //     static.
 //
 //  2. **All children optional** — fallback array-join path mirroring
-//     mion's `compileInterfaceIntoArray`. Each prop's emit
+//     `compileInterfaceIntoArray`. Each prop's emit
 //     conditionally contributes (empty string when undefined); the
 //     parent runs `[...emits].filter(Boolean).join(',')` to drop
 //     gaps and rejoin. Slower (extra array + filter), but correct
@@ -364,7 +364,7 @@ func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) R
 		// Index signatures emit a for-in loop that may produce an
 		// empty fragment when the object has no own keys. Treat them
 		// as "optional-equivalent" for both the sort and the
-		// all-optional check — mion's getJsonStringifySortedChildren
+		// all-optional check — getJsonStringifySortedChildren
 		// + compileInterfaceIntoArray do the same.
 		if resolved.Kind == protocol.KindIndexSignature {
 			opt = true
@@ -395,7 +395,7 @@ func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) R
 	}
 
 	if allOptional {
-		// Array-join fallback — mion's compileInterfaceIntoArray. We
+		// Array-join fallback — compileInterfaceIntoArray. We
 		// run each prop emit with skipCommas=true (no per-prop
 		// trailing comma) so the prop returns a bare value fragment
 		// or empty string. The outer wrap filters the empties out
@@ -419,7 +419,7 @@ func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) R
 		}
 		// `[a, b, ...].filter(Boolean).join(',')` — Boolean coerces
 		// '' to false and any non-empty string to true, so empty
-		// entries drop out. Equivalent to mion's `ns.push` + final
+		// entries drop out. Equivalent to the `ns.push` + final
 		// `ns.join(',')` shape (one allocation + one walk), inlined
 		// without the IIFE so the caller still sees a CodeE result.
 		return RTCode{Code: "'{'+[" + strings.Join(parts, ",") + "].filter(Boolean).join(',')+'}'", Type: CodeE}
@@ -450,7 +450,7 @@ func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) R
 	return RTCode{Code: "'{'+" + strings.Join(parts, "+") + "+'}'", Type: CodeE}
 }
 
-// emitPropertyStringifyJson — mion:stringifyJson.ts:199-216.
+// emitPropertyStringifyJson — (ref: stringifyJson.ts:199-216).
 // Renders one property as `'"name":' + childCode + ','` (or without
 // the trailing comma when the parent flagged skipCommas).
 //
@@ -578,10 +578,10 @@ func jsEscapeForSingleQuote(s string) string {
 	return b.String()
 }
 
-// emitIndexSignatureStringifyJson — mion:stringifyJson.ts:145-170.
+// emitIndexSignatureStringifyJson — (ref: stringifyJson.ts:145-170).
 // for-in over the value's own keys, building `"key":value` pairs.
 // Symbol-keyed sigs are skipped per the shared isSymbolKeyedIndexSig
-// helper (mion's skipRT contract).
+// helper (the skipRT contract).
 func emitIndexSignatureStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeE}
@@ -609,9 +609,9 @@ func emitIndexSignatureStringifyJson(rt *protocol.RunType, ctx *EmitContext, v s
 		return RTCode{Code: "", Type: CodeE}
 	}
 	arr := ctx.NextLocalVar("ls")
-	// Separator suffix matches mion's `+","` when not skipping commas
+	// Separator suffix matches the `+","` when not skipping commas
 	// after the last property. Index sig results don't know whether
-	// they're "last" — mion's heuristic is: when the parent has other
+	// they're "last" — the heuristic is: when the parent has other
 	// children (named props), the index loop's output trails with
 	// `,`; when it's the only producer, trailing comma is omitted by
 	// the outer wrap. Use the parent's skipCommas flag (same as
@@ -626,7 +626,7 @@ func emitIndexSignatureStringifyJson(rt *protocol.RunType, ctx *EmitContext, v s
 	return RTCode{Code: body, Type: CodeRB}
 }
 
-// emitTupleStringifyJson — mion:stringifyJson.ts:269-279.
+// emitTupleStringifyJson — (ref: stringifyJson.ts:269-279).
 // `'[' + slotEmits.join('+') + ']'`. Empty tuple → `'[]'`.
 func emitTupleStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if len(rt.Children) == 0 {
@@ -648,8 +648,8 @@ func emitTupleStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RT
 	return RTCode{Code: "'['+" + strings.Join(parts, "+") + "+']'", Type: CodeE}
 }
 
-// emitTupleMemberStringifyJson — mion:stringifyJson.ts:239-249 for
-// non-rest slots, mion:stringifyJson.ts:217-238 (the KindRest case)
+// emitTupleMemberStringifyJson — (ref: stringifyJson.ts:239-249) for
+// non-rest slots, (ref: stringifyJson.ts:217-238) (the KindRest case)
 // for rest slots. Each non-rest slot emits its child code prefixed by
 // a separator (`,` unless the slot is at index 0). Optional slots
 // emit `'null'` when undefined. Rest slots emit a for-loop that
@@ -704,7 +704,7 @@ func emitTupleMemberStringifyJson(rt *protocol.RunType, ctx *EmitContext, v stri
 }
 
 // emitTupleRestStringifyJson handles the trailing `...rest: T[]` slot
-// of a tuple — mion:stringifyJson.ts:217-238 (the KindRest case).
+// of a tuple — (ref: stringifyJson.ts:217-238) (the KindRest case).
 // Emits a for-loop that walks v from the rest's start index, builds
 // per-item JSON fragments, and joins with `,`. Early-returns the
 // empty string when there are no trailing items. Prefixed with `,`
@@ -745,7 +745,7 @@ func emitTupleRestStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string
 }
 
 // emitNativeIterableStringifyJson handles Map / Set —
-// mion:stringifyJson.ts:407-414 + createStringifyIterable lines 446-473.
+// (ref: stringifyJson.ts:407-414) + createStringifyIterable lines 446-473.
 // Both iterate `for (const entry of v)`, building per-entry fragments
 // joined as a JSON array.
 func emitNativeIterableStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
@@ -773,7 +773,7 @@ func emitNativeIterableStringifyJson(rt *protocol.RunType, ctx *EmitContext, v s
 	}
 	if len(childParts) == 0 {
 		// Fall back to JSON.stringify(Array.from(v)) — gives the
-		// same `[[k,v],…]` / `[item,…]` shape mion produces when
+		// same `[[k,v],…]` / `[item,…]` shape produced when
 		// every element is a JSON-noop type.
 		return RTCode{Code: "JSON.stringify(Array.from(" + v + "))", Type: CodeE}
 	}

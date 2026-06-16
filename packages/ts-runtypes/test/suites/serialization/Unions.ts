@@ -641,7 +641,7 @@ export const UNIONS = {
   union_with_non_serializable: {
     title: 'Union with non-serializable member',
     description:
-      'A function arm in the union sits at a propagating union-member position, so it is non-serializable as an Error rather than a droppable Warning and mion throws at RT-compile time.',
+      'A function arm in the union sits at a propagating union-member position, so it is non-serializable as an Error rather than a droppable Warning and we throw at RT-compile time.',
     serializeNotes:
       'The function arm sits at a propagating (union-member) position, so it is non-serializable as an Error, not a droppable Warning: the Go pipeline renders an alwaysThrow factory and every encoder/decoder (JSON and binary) throws at the first call. factoryThrows is set; the schema thunks resolve the same throwing factory via the value-first path.',
     mutateEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate'}),
@@ -662,7 +662,7 @@ export const UNIONS = {
   },
 
   // ──────────────────────────────────────────────────────────────
-  // Documented throw cases: mion's prepareForJson does NOT strip
+  // Documented throw cases: prepareForJson does NOT strip
   // extras (`03JsonObjects.spec.ts` strip extra params:
   //   `// expect(deserializedValues[i]).toEqual(deserialized);`
   //   `// native JSON.stringify do not strip extra params`).
@@ -678,7 +678,7 @@ export const UNIONS = {
   union_extra_bigint_prop_throws: {
     title: 'Extra bigint prop',
     description:
-      'Input `{b: 123, c: 123n}` matches the `{b: number}` arm and mion preserves the structural extra `c: 123n` with no implicit strip, so JSON.stringify throws on the bigint — extras pass through unchanged unless pre-stripped when they may carry non-serializable values.',
+      'Input `{b: 123, c: 123n}` matches the `{b: number}` arm and we preserve the structural extra `c: 123n` with no implicit strip, so JSON.stringify throws on the bigint — extras pass through unchanged unless pre-stripped when they may carry non-serializable values.',
     serializeNotes:
       'jsonStringifyThrows applies to the unsafe (mutate/preserve) path only — the matched member transforms its declared `b`, the bigint extra survives into JSON.stringify and throws. The safe (clone/direct) path strips the extra pre-serialise, so getTestDataForStringify expects a clean declared-only {b: 123} round-trip.',
     mutateEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate'}),

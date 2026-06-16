@@ -79,7 +79,7 @@ export const ARRAYS = {
   non_serializable_in_array: {
     title: 'Non-serializable array elements',
     description:
-      '`symbol[]` should throw at RT-compile time per mion semantics because a non-serializable element propagates to the root.',
+      '`symbol[]` should throw at RT-compile time per the reference semantics because a non-serializable element propagates to the root.',
     mutateEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'direct'}),

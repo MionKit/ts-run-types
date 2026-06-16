@@ -1,5 +1,5 @@
 // Shared **validation** suite — single source of truth for every
-// behavioral assertion ported from mion's
+// behavioral assertion ported from the reference
 // packages/run-types/src/nodes/**/*.spec.ts (atomic, collection,
 // member, utility, native).
 //

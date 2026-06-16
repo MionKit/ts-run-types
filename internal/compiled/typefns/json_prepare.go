@@ -18,11 +18,11 @@ import (
 // `restoreFromJson(JSON.parse(JSON.stringify(prepareForJson(v))))`
 // must deep-equal v for every valid sample.
 //
-// Mirrors mion's per-kind emitPrepareForJson methods under
-// mion/packages/run-types/src/nodes/**.
+// Mirrors the per-kind emitPrepareForJson methods under
+// (ref: packages/run-types/src/nodes/**).
 type PrepareForJsonEmitter struct{}
 
-// Args mirrors mion's `rtArgs.vλl = 'v'` + empty default in
+// Args mirrors the `rtArgs.vλl = 'v'` + empty default in
 // run-types/src/constants.functions.ts:45. Same single-arg shape as
 // validate — prepareForJson mutates v in place and returns it.
 func (PrepareForJsonEmitter) Args() []ArgSpec {
@@ -30,10 +30,10 @@ func (PrepareForJsonEmitter) Args() []ArgSpec {
 }
 
 // Supports gates the renderer's top-level loop. Phase 1 covers every
-// atomic kind whose mion node ships an emitPrepareForJson. Subsequent
+// atomic kind whose node ships an emitPrepareForJson. Subsequent
 // phases extend the set kind by kind.
 //
-// Kinds that throw at RT-compile time in mion (never, enumMember) are
+// Kinds that throw at RT-compile time (never, enumMember) are
 // excluded — Supports false means no factory is emitted.
 func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 	if rt == nil {
@@ -49,7 +49,7 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		protocol.KindLiteral, protocol.KindEnum:
 		return true
 	case protocol.KindNever:
-		// mion:nodes/atomic/never.ts:20 — emitPrepareForJson throws
+		// ref: nodes/atomic/never.ts:20 — emitPrepareForJson throws
 		// "Never type cannot be encoded to JSON.". We surface that
 		// via a throw-factory; Supports() returns true so the
 		// renderer compiles the entry (and the compile produces the
@@ -70,7 +70,7 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 	case protocol.KindTupleMember:
 		return true
 	case protocol.KindUnion:
-		// Unions encode as `[memberIndex, transformedValue]` per mion's
+		// Unions encode as `[memberIndex, transformedValue]` per the
 		// nodes/collection/union.ts — see emitUnionPrepareForJson below
 		// for the full implementation. The wrapping is per-member: a
 		// noop-on-both-sides member doesn't tuple-encode (the decode's
@@ -79,7 +79,7 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 	case protocol.KindIntersection:
 		// Intersection types are resolved by tsgo at the type-checker
 		// layer (`A & B` → merged object literal, `string & number` →
-		// `never`). Mion throws if its IntersectionRunType is ever
+		// `never`). The reference throws if its IntersectionRunType is ever
 		// invoked. We support it as a defensive noop in case some
 		// resolution path produces an unresolved intersection.
 		return true
@@ -97,12 +97,12 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		// kinds are filtered out by the object emit.
 		return true
 	case protocol.KindClass:
-		// Date is atomic in mion — its prepareForJson is a noop (Date
+		// Date is atomic — its prepareForJson is a noop (Date
 		// has its own toJSON()). User classes (SubKindNone) use the
 		// object emit. Map / Set get their own arms that materialise
 		// the iterable into an Array (JSON-encodable form).
 		// NonSerializable IS supported so the renderer emits a
-		// throw-factory (mion's NonSerializableRunType throws).
+		// throw-factory (the NonSerializableRunType throws).
 		switch rt.SubKind {
 		case protocol.SubKindDate, protocol.SubKindNone,
 			protocol.SubKindMap, protocol.SubKindSet,
@@ -111,7 +111,7 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		}
 		return protocol.IsTemporalSubKind(rt.SubKind)
 	case protocol.KindPromise:
-		// mion:nodes/native/promise.ts:23 — emitPrepareForJson throws
+		// ref: nodes/native/promise.ts:23 — emitPrepareForJson throws
 		// "RT compilation disabled for Non Serializable types.".
 		// Supports() returns true so the renderer compiles and surfaces
 		// the throw via a runtime-throwing factory.
@@ -121,7 +121,7 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 }
 
 // IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
-// validate / validationErrors. Mion shares the predicate across all rt fns
+// validate / validationErrors. The reference shares the predicate across all rt fns
 // via BaseRunType.isRTInlined.
 func (PrepareForJsonEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
@@ -142,8 +142,8 @@ func (PrepareForJsonEmitter) ReturnName() string {
 }
 
 // Emit dispatches the per-kind switch. Each arm mirrors the body of
-// the corresponding mion `emitPrepareForJson` method under
-// mion/packages/run-types/src/nodes/atomic/<name>.ts.
+// the corresponding `emitPrepareForJson` method under
+// (ref: packages/run-types/src/nodes/atomic/<name>.ts).
 //
 // Most atomic kinds are noops (return CodeS with empty code). The
 // non-noop atomics:
@@ -154,7 +154,7 @@ func (PrepareForJsonEmitter) ReturnName() string {
 //
 // All non-noop atomics return CodeE so the walker's
 // expression-in-statement-context wrap appends `;` before the
-// `return v` tail. Mion uses bare expression form for the same
+// `return v` tail. The reference uses bare expression form for the same
 // emits (e.g. `${comp.vλl}.toString()`); we adopt the
 // `v = <expression>` form so the walker's expression-shape handling
 // produces well-formed JS that actually mutates v before returning.
@@ -172,7 +172,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		protocol.KindNull, protocol.KindUndefined,
 		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
 		protocol.KindObject, protocol.KindEnum:
-		// mion: AtomicRunType default `{code: undefined, type: 'S'}`.
+		// AtomicRunType default `{code: undefined, type: 'S'}`.
 		// Finalize collapses empty bodies to `return v` + noop flag.
 		return RTCode{Code: "", Type: CodeS}
 
@@ -182,7 +182,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindBigInt:
-		// mion:nodes/atomic/bigInt.ts:20 — `v.toString()`.
+		// ref: nodes/atomic/bigInt.ts:20 — `v.toString()`.
 		// Reassign so the mutated value is what gets returned.
 		return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
 
@@ -194,20 +194,20 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
-		// mion:nodes/atomic/regexp.ts:20 — `v.toString()` (e.g. "/abc/i").
+		// ref: nodes/atomic/regexp.ts:20 — `v.toString()` (e.g. "/abc/i").
 		return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
 
 	case protocol.KindVoid:
-		// mion:nodes/atomic/void.ts:20 — `v = undefined`.
+		// ref: nodes/atomic/void.ts:20 — `v = undefined`.
 		return RTCode{Code: v + " = undefined", Type: CodeE}
 
 	case protocol.KindClass:
 		// Date prepareForJson is a noop (Date has its own toJSON()).
 		// User classes (SubKindNone) flow through the object emit —
-		// mion's class.ts extends InterfaceRunType, same emit body.
+		// class.ts extends InterfaceRunType, same emit body.
 		// Map / Set materialise their iterable contents into an Array
 		// so JSON.stringify has a serializable form. NonSerializable
-		// (Int8Array, WeakMap, …) throws — mion's
+		// (Int8Array, WeakMap, …) throws — the
 		// NonSerializableRunType.emitPrepareForJson at
 		// nodes/native/nonSerializable.ts:24 raises the same message.
 		if protocol.IsTemporalSubKind(rt.SubKind) {
@@ -248,7 +248,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
-		// mion:nodes/function/function.ts:83-85 —
+		// ref: nodes/function/function.ts:83-85 —
 		// `emitPrepareForJson(): RTCode { throw new Error('Compile
 		// function PrepareForJson not supported, call compileParams
 		// or compileReturn instead.'); }`. Functions as ROOT or as a
@@ -279,14 +279,14 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindLiteral:
-		// mion:nodes/atomic/literal.ts:77 — defers to the underlying
+		// ref: nodes/atomic/literal.ts:77 — defers to the underlying
 		// kind's emit (`getRunTypeForLiteral(comp).emitPrepareForJson(comp)`).
 		// Inline the dispatch here: bigint / symbol / regexp literals
 		// behave like the bare kind; primitive literals are noops.
 		return emitLiteralPrepareForJson(rt, v)
 
 	case protocol.KindArray:
-		// mion:nodes/member/array.ts:emitPrepareForJson. Allocates an
+		// ref: nodes/member/array.ts:emitPrepareForJson. Allocates an
 		// index counter, sets the child accessor (`v[i0]`) so the
 		// element's CompileChild adopts the subscript, then composes:
 		//
@@ -318,7 +318,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 	return RTCode{Code: "", Type: CodeNS}
 }
 
-// emitLiteralPrepareForJson mirrors mion's literal.ts:77 — defers to
+// emitLiteralPrepareForJson mirrors literal.ts:77 — defers to
 // the base kind. The Go side knows the literal's primitive flavour via
 // Flags ("bigint", "symbol") and Literal shape (regexp envelope vs
 // primitive).
@@ -333,13 +333,13 @@ func emitLiteralPrepareForJson(rt *protocol.RunType, v string) RTCode {
 	return RTCode{Code: "", Type: CodeS}
 }
 
-// emitObjectJsonChildren mirrors mion's
+// emitObjectJsonChildren mirrors
 // nodes/collection/interface.ts:emitPrepareForJson — iterate non-skip
 // children, collect each child's emit, join with `;`. Children that
-// are method-shaped or static are dropped (mion's getRTChildren).
+// are method-shaped or static are dropped (getRTChildren).
 // A child returning CodeNS propagates upward (unsupported descendant
 // short-circuits the whole entry). Shared verbatim by the restore side
-// (mion's emitRestoreFromJson is the same walk — the per-property
+// (emitRestoreFromJson is the same walk — the per-property
 // encode/decode difference lives in the child emits).
 func emitObjectJsonChildren(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	var parts []string
@@ -371,7 +371,7 @@ func emitObjectJsonChildren(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
 }
 
-// emitPropertyPrepareForJson mirrors mion's
+// emitPropertyPrepareForJson mirrors
 // nodes/member/property.ts:emitPrepareForJson. Sets the child
 // accessor (`v.<name>` / `v["name"]`), recurses, optionally wraps
 // with the undefined-guard for optional properties.
@@ -419,7 +419,7 @@ func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string
 	return childRT
 }
 
-// emitIndexSignaturePrepareForJson mirrors mion's
+// emitIndexSignaturePrepareForJson mirrors
 // nodes/member/indexProperty.ts:emitPrepareForJson — for-in over keys
 // invoking the child's emit on each. Template-literal key constraints
 // add a per-key regex.test skip; without one, every key is processed.
@@ -427,10 +427,10 @@ func emitIndexSignaturePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v 
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
-	// Mion's IndexSignatureRunType.skipRT (indexProperty.ts:30-36)
+	// The IndexSignatureRunType.skipRT (indexProperty.ts:30-36)
 	// drops symbol-keyed sigs from every RT fn except toJSCode.
 	// for-in doesn't enumerate symbol keys anyway, so the loop body
-	// would be dead, but matching mion's emit shape avoids
+	// would be dead, but matching the emit shape avoids
 	// corrupting unrelated string/number keys when the symbol-keyed
 	// value type is non-noop (e.g. `[k: symbol]: Date` running
 	// `new Date(v[k])` over every enumerable key).
@@ -474,7 +474,7 @@ func emitIndexSignaturePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v 
 	return RTCode{Code: body, Type: CodeS}
 }
 
-// emitTuplePrepareForJson mirrors mion's
+// emitTuplePrepareForJson mirrors
 // nodes/collection/tuple.ts:emitPrepareForJson — iterate tuple members,
 // emit each one's code, join with `;`. Empty tuple → noop.
 func emitTuplePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
@@ -497,7 +497,7 @@ func emitTuplePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) R
 	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
 }
 
-// emitTupleMemberPrepareForJson mirrors mion's
+// emitTupleMemberPrepareForJson mirrors
 // nodes/member/tupleMember.ts:emitPrepareForJson. Sets the element
 // accessor `v[<position>]`, then composes:
 //
@@ -557,7 +557,7 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 }
 
 // unionMemberValidateCheck returns a JS expression that checks whether
-// the current value (`v`) satisfies `member`'s type. Mirrors mion's
+// the current value (`v`) satisfies `member`'s type. Mirrors the
 // `getChildValidateWithLooseCheck` (union.ts:56) — the union's dispatch
 // runs each member's validate in declaration order (or safe order),
 // taking the first match.
@@ -570,7 +570,7 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 // For all-optional object members (weak types in TS), the bare validate
 // would match ANY object (no required props to fail on), so an input
 // like `{c: 1n}` against union `... | {d?: string}` would incorrectly
-// dispatch to the {d?} arm. Mirror mion's getChildValidateWithLooseCheck
+// dispatch to the {d?} arm. Mirror the getChildValidateWithLooseCheck
 // (union.ts:56-78) by appending a property-presence gate from
 // looseCheckGate — TypeScript's actual weak-type semantic requires
 // at least one of the member's own props to be present, or the value
@@ -586,7 +586,7 @@ func unionMemberValidateCheck(member *protocol.RunType, ctx *EmitContext, v stri
 	return "(" + base + " && " + gate + ")"
 }
 
-// looseCheckGate mirrors mion's getChildValidateWithLooseCheck
+// looseCheckGate mirrors the getChildValidateWithLooseCheck
 // (union.ts:56-78). Returns the additional property-presence gate
 // when a union member is an all-optional object-like type with no
 // index signature; returns "" when no gate is needed (member is not
@@ -635,7 +635,7 @@ func looseCheckGate(member *protocol.RunType, ctx *EmitContext, v string) string
 	return "(" + strings.Join(parts, " || ") + ")"
 }
 
-// emitNativeIterablePrepareForJson handles Map / Set — mirrors mion's
+// emitNativeIterablePrepareForJson handles Map / Set — mirrors
 // nodes/native/Iterable.ts:49-65 emitPrepareForJson. For each entry,
 // the wrapped child types (KindParameter wrappers in rt.Arguments
 // carrying SubKindMapKey / SubKindMapValue / SubKindSetItem) get
@@ -653,7 +653,7 @@ func looseCheckGate(member *protocol.RunType, ctx *EmitContext, v string) string
 //	v = ml0
 //
 // Accessors:
-//   - Set: the loop binding e0 IS the element (mion's
+//   - Set: the loop binding e0 IS the element (the
 //     SetKeyRunType.skipSettingAccessor() returns true)
 //   - Map: e0 is the [k, v] tuple; accessors are e0[0] (key) and
 //     e0[1] (value) — mirrors MapKeyRunType / MapValueRunType
@@ -719,17 +719,17 @@ func (PrepareForJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID st
 	return ctx.emitDepCall(childID, ctx.Vλl, ctx.Vλl)
 }
 
-// Finalize matches mion's handleFunctionReturn for the
+// Finalize matches the handleFunctionReturn for the
 // prepareForJson / restoreFromJson family (rtFnCompiler.ts:435):
 // empty / identity bodies are rewritten to `return v` and the
 // isNoop flag is set to true, but the factory is STILL emitted
-// (mion's createRTFunction wraps the body unconditionally). The
+// (createRTFunction wraps the body unconditionally). The
 // renderer keeps every supported entry as a live factory so
 // dep-call chains from parents resolve cleanly — a parent's
 // `<childHash>.fn(v[i])` must hit a real fn, even when that fn is
 // the identity. Payload cost is ~30 bytes per noop factory.
 //
-// Mion's `00JsonOnly.spec.ts` asserts `isNoop === true` for shapes
+// The `00JsonOnly.spec.ts` asserts `isNoop === true` for shapes
 // where no JSON transformation is required (interfaces of primitive
 // strings/numbers, tuples of the same, etc.). The flag is exposed
 // to consumers on the RTCompiledFn entry so they can short-circuit

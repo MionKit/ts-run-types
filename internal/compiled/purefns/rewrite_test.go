@@ -8,7 +8,7 @@ import (
 func TestExtract_CapturesFactoryArgBounds(t *testing.T) {
 	source := `
 import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('mion', 'foo', function (utl) {
+export const _ = registerPureFnFactory('rt', 'foo', function (utl) {
   return function _f(x: number) { return x + 1; };
 });`
 	entries, diags := extractFromOverlay(t, map[string]string{"a.ts": source})
@@ -31,10 +31,10 @@ export const _ = registerPureFnFactory('mion', 'foo', function (utl) {
 	if len(reps) != 1 {
 		t.Fatalf("expected 1 replacement, got %d (%+v)", len(reps), reps)
 	}
-	if reps[0].Text != "__rt_pf$2Fmion$2Ffoo" {
+	if reps[0].Text != "__rt_pf$2Frt$2Ffoo" {
 		t.Errorf("expected the entry-module binding, got %q", reps[0].Text)
 	}
-	if reps[0].ImportFrom != "virtual:rt/pf/mion/foo.js" {
+	if reps[0].ImportFrom != "virtual:rt/pf/rt/foo.js" {
 		t.Errorf("expected the virtual specifier, got %q", reps[0].ImportFrom)
 	}
 	if reps[0].Start != entry.FactoryArgStart || reps[0].End != entry.FactoryArgEnd {
@@ -50,7 +50,7 @@ export const _ = registerPureFnFactory('mion', 'foo', function (utl) {
 	// The factory-arg byte range includes its leading trivia (the space
 	// after the comma), so the rewrite collapses to `'foo',<binding>` rather
 	// than `'foo', <binding>` — both forms parse identically.
-	if !strings.Contains(rewritten, "registerPureFnFactory('mion', 'foo',__rt_pf$2Fmion$2Ffoo)") {
+	if !strings.Contains(rewritten, "registerPureFnFactory('rt', 'foo',__rt_pf$2Frt$2Ffoo)") {
 		t.Errorf("rewritten source missing binding-swapped call form:\n%s", rewritten)
 	}
 }
@@ -64,7 +64,7 @@ func TestExtract_NoReplacement_OnFailedExtraction(t *testing.T) {
 	source := `
 import {registerPureFnFactory} from 'ts-runtypes';
 declare function buildFactory(): any;
-export const _ = registerPureFnFactory('mion', 'bad', buildFactory());`
+export const _ = registerPureFnFactory('rt', 'bad', buildFactory());`
 	entries, _ := extractFromOverlay(t, map[string]string{"a.ts": source})
 	if len(entries) != 0 {
 		t.Fatalf("expected no entries, got %+v", entries)

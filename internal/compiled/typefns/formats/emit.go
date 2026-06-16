@@ -5,7 +5,7 @@ import "strconv"
 // FormatErrCall emits a statement that pushes the canonical nested
 // RunTypeError — `{expected, path, format: {name, formatPath, val}}` —
 // onto the errors array. This is the shape the base validationErrors path
-// (pf_newRunTypeErr) and consumers expect (mirrors mion's pf_formatErr
+// (pf_newRunTypeErr) and consumers expect (mirrors the pf_formatErr
 // output); a bare `{name, formatPath, val}` push would not conform to
 // RunTypeError and is invisible to consumers reading `.path`/`.format`.
 //
@@ -39,7 +39,7 @@ func FormatNumber(value float64) string {
 	return strconv.FormatFloat(value, 'g', -1, 64)
 }
 
-// PureFnAlias registers a pure-fn dependency in the `mionFormats`
+// PureFnAlias registers a pure-fn dependency in the `rtFormats`
 // namespace, hoists the `const pf_<fnName> = utl.getPureFn(...)`
 // declaration into the factory prologue (deduped), and returns the
 // alias the emitted body uses. filePath is the canonical source path
@@ -48,10 +48,10 @@ func FormatNumber(value float64) string {
 // the wrapper fn calls internally are picked up by the JS-side pure-fn
 // extractor, not declared here.
 func PureFnAlias(ctx EmitContext, fnName, filePath string) string {
-	ctx.AddPureFnDependency("mionFormats", fnName, filePath)
+	ctx.AddPureFnDependency("rtFormats", fnName, filePath)
 	alias := "pf_" + fnName
 	if !ctx.HasContextItem(alias) {
-		ctx.SetContextItem(alias, "const "+alias+" = utl.getPureFn('mionFormats::"+fnName+"')")
+		ctx.SetContextItem(alias, "const "+alias+" = utl.getPureFn('rtFormats::"+fnName+"')")
 	}
 	return alias
 }

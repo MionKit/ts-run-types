@@ -2,8 +2,8 @@
 // format family (FormatNumber + the integer/float/range/int-width
 // defaults). Validation, serialization (incl. the int8/16/32 binary
 // packing) and mocking are emitted/registered elsewhere; this file is
-// type-only + the brand wiring. Mirrors mion's
-// packages/type-formats/src/number/{numberFormat.runtype.ts,defaultNumberFormats.ts}.
+// type-only + the brand wiring. Mirrors
+// (ref: packages/type-formats/src/number/{numberFormat.runtype.ts,defaultNumberFormats.ts}).
 //
 // `TypeFormat` IS imported as a value (not `import type`): the value-level
 // import keeps each brand alias's reflection metadata reachable for tsgo.
@@ -28,7 +28,7 @@ export interface NumberParams {
 
 // FormatNumber — the branded number alias users annotate with:
 // `FormatNumber<{min: 0; max: 100}>`. `BrandName` produces a nominal type
-// when needed (mion's convention).
+// when needed (by convention).
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type FormatNumber<P extends NumberParams = {}, BrandName extends string = never> = TypeFormat<
   number,
@@ -37,7 +37,7 @@ export type FormatNumber<P extends NumberParams = {}, BrandName extends string =
   BrandName
 >;
 
-// Default number formats — ported from mion's defaultNumberFormats.ts.
+// Default number formats — ported from the reference defaultNumberFormats.ts.
 // The fixed-width int formats SET the min/max that drive the binary
 // packing optimization (FormatInt8 → 1 byte, FormatUInt16 → 2 bytes, …).
 export type FormatInteger = FormatNumber<{integer: true}>;

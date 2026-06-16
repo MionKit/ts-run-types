@@ -7,7 +7,7 @@ const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PACKAGE_ROOT = resolve(HERE);
 const REPO_ROOT = resolve(HERE, '../..');
 
-// Mirrors mion's run-types/vitest.config.ts shape: install the runtype
+// Mirrors the run-types/vitest.config.ts shape: install the runtype
 // transformer as a Vite plugin so test source files (which import
 // `createValidate` and friends from `ts-runtypes`) get
 // rewritten with the resolved runtype id at compile time, AND the

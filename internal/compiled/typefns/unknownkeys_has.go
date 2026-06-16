@@ -10,10 +10,10 @@ import (
 // HasUnknownKeysEmitter implements the `hasUnknownKeys` rt function —
 // a boolean predicate that returns true if the value (or any nested
 // child) carries property keys not declared in the schema. Ported from
-// mion's emitHasUnknownKeys methods on InterfaceRunType, MemberRunType,
+// the emitHasUnknownKeys methods on InterfaceRunType, MemberRunType,
 // IterableRunType, etc.
 //
-// Arg shape mirrors mion's `rtArgsWithOptions` (constants.functions.ts:49):
+// Arg shape mirrors the `rtArgsWithOptions` (constants.functions.ts:49):
 // the function takes (v, opts) where opts is a runtime options bag
 // carrying `checkNonRTProps` — when true, the keys-list against which
 // unknown is decided expands from RT children to ALL children (including
@@ -22,7 +22,7 @@ import (
 // list is unknown.
 type HasUnknownKeysEmitter struct{}
 
-// Args mirrors mion's rtArgsWithOptions = {vλl: 'v', θpts: 'opts'}.
+// Args mirrors rtArgsWithOptions = {vλl: 'v', θpts: 'opts'}.
 // `opts` defaults to `{}` so callers can invoke `huk(v)` without
 // explicitly passing the options bag.
 func (HasUnknownKeysEmitter) Args() []ArgSpec {
@@ -40,10 +40,10 @@ func (HasUnknownKeysEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
-// ReturnName is `v` — mion's hasUnknownKeys returns the value? No:
+// ReturnName is `v` — does hasUnknownKeys return the value? No:
 // `returnName: rtArgsWithOptions.vλl` (constants.functions.ts:153)
 // means the SOURCE-LEVEL "what's returned by an empty body" is `v`,
-// but the BODY itself returns booleans. Mion's Finalize for this
+// but the BODY itself returns booleans. The Finalize for this
 // family rewrites an empty body to `return false` — and the noop
 // fast path on the JS side is `() => false`. We honour ReturnName
 // as `v` for the walker's statement-shape return wrap, then
@@ -89,14 +89,14 @@ func (HasUnknownKeysEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 }
 
 // EmitDependencyCall — composite parents may need to invoke a child's
-// hasUnknownKeys factory. The call shape mirrors mion's: pass v + opts
+// hasUnknownKeys factory. The call shape mirrors the reference: pass v + opts
 // through unchanged.
 func (HasUnknownKeysEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	optsArg := ctx.ArgName("θpts")
 	return ctx.emitDepCall(childID, ctx.Vλl+","+optsArg, "")
 }
 
-// Finalize matches mion's handleFunctionReturn for hasUnknownKeys:
+// Finalize matches the handleFunctionReturn for hasUnknownKeys:
 // empty body → `return false`, noop=true. Other shapes wrap to
 // `return <expr>` per the walker's CodeE → "return <expr>" handling.
 func (HasUnknownKeysEmitter) Finalize(raw string) (string, bool) {
@@ -108,7 +108,7 @@ func (HasUnknownKeysEmitter) Finalize(raw string) (string, bool) {
 	return code, false
 }
 
-// emitObjectHasUnknownKeys ports mion's
+// emitObjectHasUnknownKeys ports
 // InterfaceRunType.emitHasUnknownKeys (interface.ts:147-156). Two
 // pieces combined with `||`:
 //
@@ -176,7 +176,7 @@ func emitPropertyHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return RTCode{Code: childRT.Code, Type: CodeE}
 }
 
-// emitArrayHasUnknownKeys ports mion's
+// emitArrayHasUnknownKeys ports
 // ArrayRunType.emitHasUnknownKeys (array.ts:94-114). Atomic element →
 // noop. Otherwise iterate elements; if any reports true, return true.
 //
@@ -189,7 +189,7 @@ func emitArrayHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if resolved == nil {
 		return RTCode{Code: "", Type: CodeE}
 	}
-	// mion: `if (this.getMemberType().getFamily() === 'A') return undefined`
+	// Reference: `if (this.getMemberType().getFamily() === 'A') return undefined`
 	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
 		return RTCode{Code: "", Type: CodeE}
 	}
@@ -285,7 +285,7 @@ func emitTupleMemberHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCod
 	return RTCode{Code: childRT.Code, Type: CodeE}
 }
 
-// emitIndexSignatureHasUnknownKeys ports mion's
+// emitIndexSignatureHasUnknownKeys ports
 // IndexSignatureRunType.emitHasUnknownKeys (indexProperty.ts:103-121).
 // When the value type is atomic AND there's no key pattern, every key
 // is "known" — emit nothing. Otherwise iterate `for (const k in v)`,
@@ -294,7 +294,7 @@ func emitIndexSignatureHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RT
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeE}
 	}
-	// Symbol-keyed sigs are skipped from RT compilation per mion's
+	// Symbol-keyed sigs are skipped from RT compilation per
 	// IndexSignatureRunType.skipRT (indexProperty.ts:30-36). Empty
 	// CodeE drops the sig from the parent's OR chain; if this is the
 	// root, Finalize collapses the empty body to `return false`.
@@ -363,7 +363,7 @@ func emitUnionHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	})
 }
 
-// emitNativeIterableHasUnknownKeys mirrors mion's
+// emitNativeIterableHasUnknownKeys mirrors
 // IterableRunType.emitHasUnknownKeys (nodes/native/Iterable.ts:86-103).
 // For each entry in the Map/Set, runs the wrapped child's
 // hasUnknownKeys expression; returns true on the first hit. When every
@@ -375,7 +375,7 @@ func emitUnionHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 //   - Set: the loop binding `e0` IS the element (no array unwrap)
 //   - Map: `e0` is the `[key, value]` tuple; `e0[0]` is key, `e0[1]` is
 //     value — matches the prepare/restore-side accessor convention used
-//     elsewhere (mion's MapKeyRunType / MapValueRunType useArrayAccessor).
+//     elsewhere (MapKeyRunType / MapValueRunType useArrayAccessor).
 func emitNativeIterableHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	isMap := rt.SubKind == protocol.SubKindMap
 	ctorName := "Map"

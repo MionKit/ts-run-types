@@ -328,7 +328,7 @@ verify the referenced pure-fn is registered.
 Fix:
   -  const key = buildKey();
 -  return utl.usePureFn(key)(input);
-+  return utl.usePureFn('mion::myFn')(input);`,
++  return utl.usePureFn('rt::myFn')(input);`,
   },
 
   // ──────────── RunType family (root throws and child drops) ────────────

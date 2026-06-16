@@ -147,23 +147,23 @@ func TestRender_MissingStub(t *testing.T) {
 
 func TestRender_PureFnModuleNameEncoding(t *testing.T) {
 	graph := Graph{}
-	graph.Add(&Entry{Key: "mion::newRunTypeErr", Kind: KindPureFn, ArgsText: "'mion::newRunTypeErr','h1'"})
-	graph.Add(&Entry{Key: "we ird::fn$x", Kind: KindPureFn, ArgsText: "'we ird::fn$x','h2'", Deps: []string{"mion::newRunTypeErr"}})
+	graph.Add(&Entry{Key: "rt::newRunTypeErr", Kind: KindPureFn, ArgsText: "'rt::newRunTypeErr','h1'"})
+	graph.Add(&Entry{Key: "we ird::fn$x", Kind: KindPureFn, ArgsText: "'we ird::fn$x','h2'", Deps: []string{"rt::newRunTypeErr"}})
 	out, err := Render(graph)
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
-	if _, ok := out["pf/mion/newRunTypeErr"]; !ok {
+	if _, ok := out["pf/rt/newRunTypeErr"]; !ok {
 		t.Fatalf("plain pure-fn basename missing: %v", keysOf(out))
 	}
 	weird, ok := out["pf/we$20ird/fn$24x"]
 	if !ok {
 		t.Fatalf("escaped pure-fn basename missing: %v", keysOf(out))
 	}
-	if !strings.Contains(weird, "import {__rt_pf$2Fmion$2FnewRunTypeErr} from 'virtual:rt/pf/mion/newRunTypeErr.js';") {
+	if !strings.Contains(weird, "import {__rt_pf$2Frt$2FnewRunTypeErr} from 'virtual:rt/pf/rt/newRunTypeErr.js';") {
 		t.Fatalf("pure-fn dep import should use the encoded basename: %q", weird)
 	}
-	if !strings.Contains(weird, "export const __rt_pf$2Fwe$20ird$2Ffn$24x=[2,()=>[__rt_pf$2Fmion$2FnewRunTypeErr],,'we ird::fn$x','h2'];") {
+	if !strings.Contains(weird, "export const __rt_pf$2Fwe$20ird$2Ffn$24x=[2,()=>[__rt_pf$2Frt$2FnewRunTypeErr],,'we ird::fn$x','h2'];") {
 		t.Fatalf("pure-fn tuple should keep the RAW cache key: %q", weird)
 	}
 }
@@ -186,9 +186,9 @@ func TestCascade_DropsTypeFnWithMissingDepTransitively(t *testing.T) {
 
 func TestAddMissingStubs_CoversUnresolvedDeps(t *testing.T) {
 	graph := Graph{}
-	graph.Add(&Entry{Key: "pf-user", Kind: KindPureFn, ArgsText: "'pf-user','h'", SoftDeps: []string{"mion::elsewhere"}})
+	graph.Add(&Entry{Key: "pf-user", Kind: KindPureFn, ArgsText: "'pf-user','h'", SoftDeps: []string{"rt::elsewhere"}})
 	graph.AddMissingStubs(nil)
-	if entry := graph["mion::elsewhere"]; entry == nil || entry.Kind != KindMissing {
+	if entry := graph["rt::elsewhere"]; entry == nil || entry.Kind != KindMissing {
 		t.Fatalf("unresolved pure-fn dep should be stubbed")
 	}
 	if _, err := Render(graph); err != nil {

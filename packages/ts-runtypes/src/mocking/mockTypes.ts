@@ -1,9 +1,9 @@
-// Public types for the mock-value generator. Surface mirrors mion's
-// `MockOptions`. `createMockType<T>()` merges caller options over
+// Public types for the mock-value generator. Surface mirrors the
+// `MockOptions` shape. `createMockType<T>()` merges caller options over
 // `defaultMockOptions` before walking the runtype graph.
 
 /** Per-call options steering atomic-value generation and optional/recursive
- *  shape handling. Ported field-for-field from mion. **/
+ *  shape handling. Ported field-for-field from the reference implementation. **/
 export interface MockOptions {
   /** Pool for `any` / `unknown` kinds. **/
   anyValuesList: unknown[];

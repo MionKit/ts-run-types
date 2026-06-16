@@ -23,8 +23,8 @@ export const TUPLE = {
     }),
   },
   full_mion_tuple: {
-    title: 'Six-element heterogeneous tuple (mion fixture)',
-    description: 'mion tuple.spec.ts "validate tuple"',
+    title: 'Six-element heterogeneous tuple (reference fixture)',
+    description: 'tuple.spec.ts "validate tuple"',
     getSamples: () => ({
       valid: [[new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
       invalid: [
@@ -41,7 +41,7 @@ export const TUPLE = {
   },
   tuple_with_optional: {
     title: 'Tuple with trailing optional elements',
-    description: 'mion tuple.spec.ts "validate tuple with optional parameters"',
+    description: 'tuple.spec.ts "validate tuple with optional parameters"',
     getSamples: () => ({
       valid: [[3, undefined, true, 4], [3], [3, 1n], [3, 1n, false]],
       invalid: [[], [3, 'not bigint'], [3, 1n, false, 4, 'extra'], 'not array', null, undefined, [NaN], ['not number']],
@@ -65,7 +65,7 @@ export const TUPLE = {
   tuple_rest: {
     title: 'Tuple with a trailing rest segment',
     description:
-      "mion tuple.spec.ts 'validate tuple with rest parameter'. Rest TupleMembers (Flags=['rest']) emit a for-loop starting at the member's Position and iterating to v.length, validating every element against the wrapped type. The tuple's length-bound check is skipped (rest absorbs extras).",
+      "tuple.spec.ts 'validate tuple with rest parameter'. Rest TupleMembers (Flags=['rest']) emit a for-loop starting at the member's Position and iterating to v.length, validating every element against the wrapped type. The tuple's length-bound check is skipped (rest absorbs extras).",
     getSamples: () => ({
       valid: [[3], [3, 'a'], [3, 'a', 'b', 'c']],
       invalid: [[3, 'a', 4], ['not number'], [], 'not array', [3, 1], null, undefined, [NaN, 'a'], [3, null]],
@@ -74,7 +74,7 @@ export const TUPLE = {
   tuple_circular: {
     title: 'Self-referential tuple via trailing optional self-ref',
     description:
-      'mion tuple.spec.ts circular tuple. Same mechanism as circular array — Tuple is always non-inlined, the self-recursive dependency call closes the cycle via the isSelf branch.',
+      'tuple.spec.ts circular tuple. Same mechanism as circular array — Tuple is always non-inlined, the self-recursive dependency call closes the cycle via the isSelf branch.',
     getSamples: () => {
       const tc: any = [new Date(), 1, 'a', null, [], 1n];
       const tcRec: any = [new Date(), 1, 'a', null, [], 1n, [new Date(), 1, 'a', null, [], 1n]];
@@ -133,7 +133,7 @@ export const TUPLE = {
   tuple_with_non_serializable: {
     title: 'Tuple with a function slot (must be undefined)',
     description:
-      "mion serialization-suite TUPLES.tuple_with_non_serializable. Function-typed tuple members emit `v[i] === undefined` per mion's non-serializable handling. The function slot must be absent or explicitly undefined; any other value (a real function, a string, …) fails.",
+      "the serialization-suite TUPLES.tuple_with_non_serializable. Function-typed tuple members emit `v[i] === undefined` per the non-serializable handling. The function slot must be absent or explicitly undefined; any other value (a real function, a string, …) fails.",
     getSamples: () => ({
       // `[3]` is valid — v[1] is undefined which satisfies the
       // `v[1] === undefined` check the function slot emits.
@@ -153,7 +153,7 @@ export const TUPLE = {
   empty_tuple: {
     title: 'Empty tuple `[]` (only the empty array passes)',
     description:
-      "Zero-length tuple — the validator accepts only `[]` (Array.isArray + length === 0). Edge case for the tuple emit; mirrors mion's `children.length === 0` branch.",
+      "Zero-length tuple — the validator accepts only `[]` (Array.isArray + length === 0). Edge case for the tuple emit; mirrors the `children.length === 0` branch.",
     getSamples: () => ({
       valid: [[]],
       invalid: [['extra'], [1], null, undefined, {}, 'not array', [null]],

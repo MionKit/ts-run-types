@@ -16,7 +16,7 @@ import (
 // sentinel properties carrying the format name and the literal params —
 // so the scanner exercises the real detection path, not a parallel one.
 const runtypesWithFormatsDTS = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function getRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export type TypeFormat<Base, Name extends string, Params, BrandName extends string = never> = Base & {
@@ -234,7 +234,7 @@ func TestFormatAnnotation_StructuralKey_Canonicalises(t *testing.T) {
 // TestFormatAnnotation_SamplesExcludedFromKey pins that mockSamples and
 // message — mock/diagnostic metadata, not validation behaviour — are
 // excluded from the structural key, so validation-equivalent formats
-// dedup to one cache entry (mion's defaultIgnoreFormatProps rule).
+// dedup to one cache entry (the defaultIgnoreFormatProps rule).
 func TestFormatAnnotation_SamplesExcludedFromKey(t *testing.T) {
 	withSamples := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
 		Name:   "stringFormat",

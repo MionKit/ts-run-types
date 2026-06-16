@@ -1,4 +1,5 @@
-// DataView-based binary serializer + deserializer ported from mion. Wire format:
+// DataView-based binary serializer + deserializer ported from the reference
+// implementation. Wire format:
 //   - Little-endian.
 //   - Strings: `[uint32 length, utf8 bytes]`.
 //   - Numbers: float64.
@@ -237,7 +238,7 @@ export interface CreateSerializerOptions {
 
 /** Creates a DataView-based serializer. **/
 export function createDataViewSerializer(cacheKey: string, options?: CreateSerializerOptions | number): DataViewSerializer {
-  // Number overload kept for back-compat with mion-style callers.
+  // Number overload kept for back-compat with standard callers.
   const explicitSize = typeof options === 'number' ? options : options?.size;
   const relatedKeys = typeof options === 'object' ? options.relatedKeys : undefined;
   const size = explicitSize ?? predictBufferSize(cacheKey, relatedKeys);

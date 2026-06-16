@@ -721,10 +721,10 @@ func formatCallSiteHint(provenance []diag.Site) string {
 }
 
 // rtTypeName resolves the `typeName` field for a RTCompiledFn entry.
-// Mion uses the RunType's declared TypeName when present; for anonymous
+// We use the RunType's declared TypeName when present; for anonymous
 // atomics it falls back to a name derived from the kind. Names mirror
-// mion's ReflectionKindName table at
-// mion-run-types:packages/run-types/src/constants.kind.ts.
+// the ReflectionKindName table at
+// (ref: packages/run-types/src/constants.kind.ts).
 func rtTypeName(runType *protocol.RunType) string {
 	if runType.TypeName != "" {
 		return runType.TypeName
@@ -763,7 +763,7 @@ func rtTypeName(runType *protocol.RunType) string {
 	case protocol.KindSymbol:
 		return "symbol"
 	case protocol.KindObject:
-		// mion's ReflectionKindName maps deepkit's KindObject (4) to
+		// The ReflectionKindName maps deepkit's KindObject (4) to
 		// 'objectLiteral'; the atomic node lives at nodes/atomic/object.ts.
 		return "objectLiteral"
 	case protocol.KindRegexp:

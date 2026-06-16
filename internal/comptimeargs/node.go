@@ -10,7 +10,7 @@ import (
 // SYNTACTICALLY references the CompTimeArgs marker alias (`x: CompTimeArgs<…>`).
 //
 // CompTimeArgs is the zero-cost identity `type CompTimeArgs<T> = T` (markers.ts):
-// the old `T & {__mionCompTimeArgsBrand?: never}` cost ~700 TS instantiations when
+// the old `T & {__rtCompTimeArgsBrand?: never}` cost ~700 TS instantiations when
 // T was a tuple — the `tuple` / `union` / `func` member lists (see
 // docs/value-first-typecheck-cost.md). Identity removes the cost, but its
 // instantiation drops the alias from the RESOLVED parameter type, so

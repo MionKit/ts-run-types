@@ -258,7 +258,7 @@ func TestPurity_GlobalThis_Forbidden(t *testing.T) {
 func TestPurity_ClosureVariable_PFE9011(t *testing.T) {
 	// Reference an identifier that's neither in scope nor a known global.
 	// In the test fixture, `SECRET` is referenced from inside the factory
-	// without being declared. (mion's ESLint rule sees it as a closure
+	// without being declared. (The reference ESLint rule sees it as a closure
 	// variable from the outer module; here, since the factory's parent
 	// chain doesn't include any module-level declaration of SECRET, the
 	// scope check fails and PFE9011 fires.)

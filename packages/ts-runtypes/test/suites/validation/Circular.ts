@@ -7,7 +7,7 @@ export const CIRCULAR = {
   object_full_mion_shape: {
     title: 'Self-referential object',
     description:
-      "Full mion fixture (number + string + optional self-ref + Date) exercising the same self-recursive dependency call as OBJECT.circular_interface but pinning the exact mion 'Circular object' shape.",
+      "Full fixture (number + string + optional self-ref + Date) exercising the same self-recursive dependency call as OBJECT.circular_interface but pinning the exact 'Circular object' shape.",
     validateNotes:
       'Self-referential shapes are validated recursively. Atomic rules apply at every level (NaN at `n`, Invalid Date at `d`, etc.).',
     validate: () => {
@@ -180,7 +180,7 @@ export const CIRCULAR = {
   array_of_union_with_self_ref: {
     title: 'Self-referential array union',
     description:
-      "Self-recursive array whose union element type includes the array itself, closing the cycle via Array to Union to Array (mion 'Circular array + union').",
+      "Self-recursive array whose union element type includes the array itself, closing the cycle via Array to Union to Array ('Circular array + union').",
     validateNotes:
       'The union check is a boolean delegation that does NOT recurse into per-arm error paths: when a nested-array element fails, getValidationErrors reports a single `expected: "union"` at the outer index, not the deep path of the inner failure.',
     validateSchema: () => {
@@ -269,7 +269,7 @@ export const CIRCULAR = {
       // index 2 is [{a,b}] — the inner array fails the union check
       // (its element doesn't match any arm), so the OUTER union
       // reports one error at index 2 (union emit doesn't recurse —
-      // it's a boolean delegation to validate per mion semantic).
+      // it's a boolean delegation to validate per the reference semantics).
       [{path: [2], expected: 'union'}],
       [{path: [], expected: 'array'}],
       [{path: [], expected: 'array'}],
@@ -283,7 +283,7 @@ export const CIRCULAR = {
   object_with_tuple_prop: {
     title: 'Circular tuple property',
     description:
-      "Self-referential object whose cycle closes via a tuple-typed property, sending the recursion through an object to tuple boundary like TUPLE.tuple_circular (mion 'Circular object with tuple').",
+      "Self-referential object whose cycle closes via a tuple-typed property, sending the recursion through an object to tuple boundary like TUPLE.tuple_circular ('Circular object with tuple').",
     validate: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
@@ -405,7 +405,7 @@ export const CIRCULAR = {
   object_with_index_prop: {
     title: 'Circular index signature',
     description:
-      "Self-referential object whose cycle closes via an index-signature value type, exercising the index-signature for-in loop calling back into the same validator (mion 'Circular Object with index property').",
+      "Self-referential object whose cycle closes via an index-signature value type, exercising the index-signature for-in loop calling back into the same validator ('Circular Object with index property').",
     validateNotes:
       'A `Date` (or any non-null object) passes the `typeof === "object"` guard, then fails because it lacks the required `index` property (`expected: "objectLiteral"` at `["index"]`).',
     validate: () => {
@@ -526,7 +526,7 @@ export const CIRCULAR = {
   object_deeply_nested: {
     title: 'Deeply nested cycle',
     description:
-      "Self-referential object with the cycle buried four levels deep in an anonymous-shape chain, stressing the dependency-call layer when the self-ref is deeply nested (mion 'Circular Object with deep nested properties').",
+      "Self-referential object with the cycle buried four levels deep in an anonymous-shape chain, stressing the dependency-call layer when the self-ref is deeply nested ('Circular Object with deep nested properties').",
     validate: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
@@ -663,7 +663,7 @@ export const CIRCULAR = {
   circular_child_under_literal_root: {
     title: 'Circular child under flat root',
     description:
-      "RootNotCircular is a flat shape (literal discriminator + one prop) whose ciChild property is a self-referential ICircularDeep, pinning the case where the dependency-call layer kicks in below the root rather than at it (mion 'Interface with nested circular type where root is not the circular ref').",
+      "RootNotCircular is a flat shape (literal discriminator + one prop) whose ciChild property is a self-referential ICircularDeep, pinning the case where the dependency-call layer kicks in below the root rather than at it ('Interface with nested circular type where root is not the circular ref').",
     validateNotes:
       'The root is a flat (non-recursive) shape; recursion lives only in the `ciChild` subtree, so the dependency-call layer is exercised below the root rather than at it.',
     validate: () => {
@@ -915,7 +915,7 @@ export const CIRCULAR = {
   multiple_circular_types_cross_referenced: {
     title: 'Cross-referenced circular types',
     description:
-      "RootCircular carries an optional self-ref plus two distinct circular siblings (ICircularDeep, ICircularDate) where ICircularDate also references ICircularDeep, stressing the resolver when several crossing recursive types are in flight at once (mion 'Interface with nested circular + multiple circular').",
+      "RootCircular carries an optional self-ref plus two distinct circular siblings (ICircularDeep, ICircularDate) where ICircularDate also references ICircularDeep, stressing the resolver when several crossing recursive types are in flight at once ('Interface with nested circular + multiple circular').",
     validate: () => {
       interface ICircularDeep {
         name: string;

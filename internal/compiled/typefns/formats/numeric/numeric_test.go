@@ -13,7 +13,7 @@ func annotation(name string, params map[string]any) *protocol.FormatAnnotation {
 }
 
 // TestNumberBinary_IntegerWidthLadder pins the int8/16/32 + float64
-// fallback selection (mion's getIntegerType + emitToBinary switch). The
+// fallback selection (getIntegerType + emitToBinary switch). The
 // emitted DataView call width is the observable proof of the byte size.
 func TestNumberBinary_IntegerWidthLadder(t *testing.T) {
 	emitter := numberFormatEmitter{}
@@ -143,7 +143,7 @@ func TestNumberValidate_IntegerAndMultipleOf(t *testing.T) {
 	}
 }
 
-// TestValidateParams covers the mion-faithful invariants (including the
+// TestValidateParams covers the spec-faithful invariants (including the
 // filter(Boolean) quirk where a 0 bound escapes the range checks).
 func TestValidateParams(t *testing.T) {
 	number := numberFormatEmitter{}
@@ -170,7 +170,7 @@ func TestValidateParams(t *testing.T) {
 	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"multipleOf": 5.0, "float": true})); len(errs) == 0 {
 		t.Error("expected multipleOf+float error")
 	}
-	// mion's filter(Boolean) quirk: {min:0, gt:0} both falsy → no error.
+	// The filter(Boolean) quirk: {min:0, gt:0} both falsy → no error.
 	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"min": 0.0, "gt": 0.0})); len(errs) != 0 {
 		t.Errorf("expected no error for {min:0, gt:0} (filter(Boolean) quirk), got %v", errs)
 	}

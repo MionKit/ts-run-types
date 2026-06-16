@@ -3,7 +3,7 @@ import { resolve, sep } from 'node:path'
 // The website documents the mion monorepo. At build/dev time the code-import and
 // twoslash mechanisms read first-party source + built .d.ts from <repoRoot>/packages.
 //
-// MION_REPO_ROOT points at the directory that CONTAINS `packages/` (and, for
+// RT_REPO_ROOT points at the directory that CONTAINS `packages/` (and, for
 // twoslash's external type defs, `node_modules/drizzle-orm`). It is set by
 // scripts/website.sh to the read-only-mounted repo context inside the container;
 // when unset (host runs / tests) the caller's fallback keeps today's behaviour.
@@ -11,7 +11,7 @@ import { resolve, sep } from 'node:path'
 // sibling checkout, be merged into this repo, or this repo merged into mion —
 // only the env value changes, never the code.
 export function getRepoRoot(fallback: string): string {
-  return process.env.MION_REPO_ROOT ? resolve(process.env.MION_REPO_ROOT) : resolve(fallback)
+  return process.env.RT_REPO_ROOT ? resolve(process.env.RT_REPO_ROOT) : resolve(fallback)
 }
 
 export function packagesDir(root: string): string {
@@ -33,6 +33,6 @@ export function resolveInPackages(root: string, relPath: string): string {
 }
 
 // Read-only-mounted directory holding generated benchmark/test result JSON the
-// docs are built from (scripts/website.sh sets MION_DOCDATA=/app/.docdata).
+// docs are built from (scripts/website.sh sets RT_DOCDATA=/app/.docdata).
 // Empty string when unset so callers can detect "no results available".
-export const DOCDATA_DIR = process.env.MION_DOCDATA ? resolve(process.env.MION_DOCDATA) : ''
+export const DOCDATA_DIR = process.env.RT_DOCDATA ? resolve(process.env.RT_DOCDATA) : ''

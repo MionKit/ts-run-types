@@ -10,14 +10,14 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-// StackItem mirrors mion's StackItem (rtFnCompiler.ts:33). One frame
+// StackItem mirrors the reference StackItem (rtFnCompiler.ts:33). One frame
 // per RunType the walker is currently inside. Vλl is snapshotted on
 // push so popStack can restore the parent's accessor.
 //
 // ChildAccessor is the JS expression the NEXT pushStack should adopt
 // as the child's Vλl. Collection emitters (Array, Object, Tuple, …)
 // set it before each CompileChild call so the child frame inherits
-// the correct subscript / property expression. Mirrors mion's
+// the correct subscript / property expression. Mirrors the
 // `getChildVλl()` (rtFnCompiler.ts:734) which queries the parent's
 // `useArrayAccessor()` + `getChildLiteral()` to assemble the
 // expression — our Go port hands the assembled expression directly.
@@ -33,7 +33,7 @@ import (
 // PathLiteral is the snapshot of the parent's ChildPathLiteral at
 // pushStack time. AccessPathLiteral walks every stack frame and joins
 // non-empty PathLiterals into a `[seg1, seg2, …]` array literal.
-// Mirrors mion's getAccessPath (rtFnCompiler.ts:753) where each
+// Mirrors getAccessPath (rtFnCompiler.ts:753) where each
 // frame's `getStaticPathLiteral()` or `getChildLiteral()` contributes.
 type StackItem struct {
 	Vλl              string
@@ -44,7 +44,7 @@ type StackItem struct {
 }
 
 // orderedItems maintains insertion order for context items so the
-// emitted JS source is deterministic across runs. Mirrors mion's
+// emitted JS source is deterministic across runs. Mirrors the
 // `contextCodeItems = new Map<string, string>()` (rtFnCompiler.ts:96):
 // JS Maps preserve insertion order; Go's built-in maps don't, so we
 // keep an explicit slice of keys.
@@ -82,7 +82,7 @@ func (o *orderedItems) ordered() []string {
 	return out
 }
 
-// Walker is the Go-side port of mion's BaseFnCompiler
+// Walker is the Go-side port of BaseFnCompiler
 // (rtFnCompiler.ts:49), minus the per-fn specifics. Walks a RunType
 // graph, dispatches each node through the supplied Emitter, reconciles
 // child code types with parent expectations, and assembles the final
@@ -104,7 +104,7 @@ type Walker struct {
 	// entry per rt fn (validate + validationErrors + …) without colliding
 	// in the global rtFnsCache. Required by EmitDependencyCall to
 	// detect self-recursive calls (childID == RTFnHash → emit
-	// `<hash>(args)` without the `.fn` indirection, mirroring mion's
+	// `<hash>(args)` without the `.fn` indirection, mirroring the
 	// `isSelf` branch).
 	RTFnHash string
 	// InnerPrefix is the namespacing prefix the current emitter uses
@@ -144,7 +144,7 @@ type Walker struct {
 	Stack []StackItem
 	// localVarCounters assigns unique names to each emitter-local
 	// variable allocated via EmitContext.NextLocalVar, partitioned
-	// by prefix. Mirrors mion's getLocalVarName (rtFnCompiler.ts:236)
+	// by prefix. Mirrors getLocalVarName (rtFnCompiler.ts:236)
 	// which keys the counter on (prefix × RT identity) — our flat
 	// per-prefix counter is equivalent for the access pattern where
 	// each Emit allocates a fixed number of names once.
@@ -404,7 +404,7 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 }
 
 // nextLocalVar hands out a fresh local-variable name (e.g. "i0",
-// "res0", "i1", "res1"). Mirrors mion's getLocalVarName (per-prefix
+// "res0", "i1", "res1"). Mirrors getLocalVarName (per-prefix
 // counter) — each prefix has its own numbering so a single Emit can
 // allocate `i0` + `res0` without the second name colliding with the
 // first.
@@ -483,7 +483,7 @@ func (w *Walker) AddPureFnDependency(namespace, fnName, filePath string) {
 // whenever a composite emit fires a dependency-call into a non-inlined
 // child; the parent's `rtDependencies` slot on the rendered
 // RTCompiledFn entry then reflects every nested validator the body
-// reaches via `utl.getRT(<hash>)(…)`. Mirrors mion's
+// reaches via `utl.getRT(<hash>)(…)`. Mirrors
 // BaseFnCompiler.updateDependencies (rtFnCompiler.ts:222).
 func (w *Walker) UpdateDependencies(childHash string, childIsNoop bool) {
 	if childIsNoop {
@@ -529,7 +529,7 @@ func (w *Walker) recordCrossFamilyDep(childID string) {
 // the runtime cache miss is caught by createValidate's
 // hasRunType-but-no-rt fallback.
 //
-// Mirrors mion's BaseFnCompiler.compile (rtFnCompiler.ts:279) +
+// Mirrors BaseFnCompiler.compile (rtFnCompiler.ts:279) +
 // createRTFunction (rtFnCompiler.ts:175) + getRTFnCode helper
 // (createRTFunction.ts:71).
 func (w *Walker) Compile() (innerFnDecl string, isNoop bool, isUnsupported bool) {
@@ -615,7 +615,7 @@ func (w *Walker) resolveRef(rt *protocol.RunType) *protocol.RunType {
 }
 
 // dispatch decides between inline emission and a dependency call.
-// Mirrors mion's BaseFnCompiler.shouldCallDependency
+// Mirrors BaseFnCompiler.shouldCallDependency
 // (rtFnCompiler.ts:218–221): a dependency call happens only when
 // BOTH (a) the predicate says the node is NOT inline-cheap AND
 // (b) the walker is past depth 1 — the root always inlines so the
@@ -695,12 +695,12 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 		emitCtx := w.getEmitContext(w.Vλl)
 		callCode := w.Emitter.EmitDependencyCall(rt, childID, emitCtx)
 		w.putEmitContext(emitCtx)
-		// Mirror mion's updateDependencies (rtFnCompiler.ts:222):
+		// Mirror updateDependencies (rtFnCompiler.ts:222):
 		// record the child hash on the walker (dedup is internal).
 		// Children the noop gate above proved identity never reach this
 		// line; for emitters without a predicate the compiled noop bit
 		// isn't known at dispatch time, so false is passed and the dep IS
-		// recorded — mion's own behaviour for any non-noop child.
+		// recorded — the reference behaviour for any non-noop child.
 		w.UpdateDependencies(childID, false)
 		return RTCode{Code: callCode, Type: CodeE}
 	}
@@ -773,7 +773,7 @@ func (w *Walker) peekStack() *StackItem {
 // Reads the parent frame's ChildAccessor when set (member kinds —
 // array, object, tuple — register it before calling CompileChild),
 // otherwise falls back to the parent's own Vλl. With an empty stack
-// the function's first arg name is the base accessor. Mirrors mion's
+// the function's first arg name is the base accessor. Mirrors
 // rtFnCompiler.ts:734 — the parent's `useArrayAccessor()` /
 // `getChildVarName()` are folded into the precomputed accessor
 // string the parent emit pushes.
@@ -789,7 +789,7 @@ func (w *Walker) getStackVλl() string {
 }
 
 // argsList renders the function's parameter list. With
-// includeDefaults=true the output mirrors mion's getRTFnArgs
+// includeDefaults=true the output mirrors getRTFnArgs
 // (createRTFunction.ts:79): each parameter is `name` when it has no
 // default, or `name=defaultValue` when it does.
 func (w *Walker) argsList(includeDefaults bool) string {
