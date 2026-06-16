@@ -2052,6 +2052,11 @@ export const cases: CompetitorCases = {
     },
   },
 
+  // ── CIRCULAR_REFS ── (cyclic VALUES; TypeBox has no cyclic-value detection)
+  'CIRCULAR_REFS.linked_list_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+  'CIRCULAR_REFS.tree_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+  'CIRCULAR_REFS.object_self_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+
   // ── UTILITY ──
   'UTILITY.partial': {
     build: () => {

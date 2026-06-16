@@ -1464,6 +1464,11 @@ export const cases: CompetitorCases = {
     };
   })(),
 
+  // ── CIRCULAR_REFS ── (cyclic VALUES; typia has no cyclic-value detection)
+  'CIRCULAR_REFS.linked_list_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+  'CIRCULAR_REFS.tree_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+  'CIRCULAR_REFS.object_self_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
+
   // ── UTILITY ──
   'UTILITY.partial': NOT_SUPPORTED, // all-optional object: typia accepts a Date/Map/Set instance (verified: new Date() passes) where mion rejects it — a structural divergence, same as OBJECT.interface_all_optional (not purely sample-semantics)
   'UTILITY.required': {

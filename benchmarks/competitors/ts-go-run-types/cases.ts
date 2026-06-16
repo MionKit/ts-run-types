@@ -1308,6 +1308,59 @@ export const cases: CompetitorCases = {
     },
   },
 
+  // ── CIRCULAR_REFS ── (cyclic VALUES; ts-go rejects via the {checkCircular} guard)
+  'CIRCULAR_REFS.linked_list_cycle': {
+    build: () => {
+      interface Node {
+        value: number;
+        next: Node | null;
+      }
+      return createValidate<Node>(undefined, {checkCircular: true});
+    },
+    buildErrors: () => {
+      interface Node {
+        value: number;
+        next: Node | null;
+      }
+      const getErrors = createGetValidationErrors<Node>(undefined, {checkCircular: true});
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+  'CIRCULAR_REFS.tree_cycle': {
+    build: () => {
+      interface Node {
+        label: string;
+        children: Node[];
+      }
+      return createValidate<Node>(undefined, {checkCircular: true});
+    },
+    buildErrors: () => {
+      interface Node {
+        label: string;
+        children: Node[];
+      }
+      const getErrors = createGetValidationErrors<Node>(undefined, {checkCircular: true});
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+  'CIRCULAR_REFS.object_self_cycle': {
+    build: () => {
+      interface Node {
+        name: string;
+        next?: Node;
+      }
+      return createValidate<Node>(undefined, {checkCircular: true});
+    },
+    buildErrors: () => {
+      interface Node {
+        name: string;
+        next?: Node;
+      }
+      const getErrors = createGetValidationErrors<Node>(undefined, {checkCircular: true});
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+
   // ── UTILITY ──
   'UTILITY.partial': {
     build: () => {
