@@ -30,7 +30,7 @@ titles:
   - 'Say hello to RunTypes®'
 ---
 #description
-TypeScript decided it is **Just a Linter** and to erase types.
+TypeScript decided it is **"Just a Linter"** that erases types.
 <br/>We respectfully **put them back in the runtime** in a way that's reliable and makes sense.
 :::
 
@@ -85,6 +85,35 @@ Write a plain TypeScript type (fastest, zero ceremony) **or** reach for the `RT.
 
 ::::code-group
 <code-import path="packages/examples/src/_homepage/define-schema.ts" lang="ts [Schema]" />
+::::
+:::
+::
+
+::u-page-section
+#title
+Formats baked into your types
+
+#body
+:::div{class="rt-formats-cols"}
+::::card{class="rt-feature-card"}
+### Validate the shape, not just the kind
+Ensure type safety with formats like:    
+`email`, `uuidv4`, `ipv4`, `int32`, `positive` and more. 
+
+The validator checks its exact shape, not just its kind. No regex to wire up, no separate schema to keep in sync.
+
+:::::div{class="rt-formats-tile"}
+#### Temporal Support
+Full TC39 Temporal — `PlainDate`, `ZonedDateTime`, `Duration`… validated and serialized like any built-in.
+:::::
+::::
+
+::::code-group
+<code-import path="packages/examples/src/_homepage/formats-type.ts" lang="ts [Type definition]" />
+::::
+
+::::code-group
+<code-import path="packages/examples/src/_homepage/formats-schema.ts" lang="ts [Schema]" />
 ::::
 :::
 ::
@@ -156,8 +185,9 @@ Performance is nothing without control
 #body
 :::div{class="rt-feature-row rt-feature-row--top"}
 ::::card{class="rt-feature-card"}
-### Toe to toe with the fastest
-On the is-valid check, ts-run-types matches the fastest JIT (AJV, TypeBox) and compile-time (typia) validators — within a few percent, and with no per-call setup cost.
+### Toe to Toe with the fastest
+Our performance matches the fastest validators (AJV, TypeBox, Typia)    
+Even in their faster JIT mode, but without any JIT compilation cost.
 
 :::::perf-bars
 ---
@@ -171,10 +201,10 @@ bars:
   - name: typia
     score: 39.7
     label: 39.7M
-  - name: typebox
+  - name: typebox-Jit
     score: 38.2
     label: 38.2M
-  - name: ajv
+  - name: ajv-Jit
     score: 36.9
     label: 36.9M
   - name: zod
@@ -190,7 +220,7 @@ bars:
 ::::
 
 ::::card{class="rt-feature-card"}
-### Tested to the same standard
+### Tested to the highest standard
 :::::stat-tiles
 ---
 tiles:

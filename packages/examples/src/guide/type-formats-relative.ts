@@ -1,0 +1,19 @@
+import {createValidate} from '@mionjs/ts-go-run-types';
+import type {FormatStringDate, FormatStringDateTime} from '@mionjs/ts-go-run-types/formats';
+
+// A bound can be RELATIVE: `now`, or `now` ± an ISO-8601 duration. The build
+// resolves it against the current time each time it validates a value.
+
+// A birth date in the past, no more than 120 years ago.
+type BirthDate = FormatStringDate<{min: 'now-P120Y'; max: 'now'}>;
+
+// A meeting that starts within the next 30 days.
+type StartsSoon = FormatStringDateTime<{min: 'now'; max: 'now+P30D'}>;
+
+const isBirthDate = createValidate<BirthDate>();
+const startsSoon = createValidate<StartsSoon>();
+
+isBirthDate('1990-05-20'); // true
+isBirthDate('1850-01-01'); // false — more than 120 years ago
+
+export {isBirthDate, startsSoon};
