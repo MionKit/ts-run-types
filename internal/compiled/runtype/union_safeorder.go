@@ -6,10 +6,10 @@ import (
 
 // finalizeUnion runs once after a union's children are serialized. It:
 //
-//  1. Buckets children into simple / object-like / any (per mion's
+//  1. Buckets children into simple / object-like / any (per
 //     splitUnionItems);
 //  2. Reorders the object-like bucket so superset shapes precede their
-//     subset equivalents (per mion's sortUnreachableTypes) — prevents
+//     subset equivalents (per sortUnreachableTypes) — prevents
 //     unreachable union members at validate time;
 //  3. Records the resulting order on the union's SafeUnionChildren slice;
 //  4. Runs the discriminator pass — populates UnionDiscriminators with
@@ -40,13 +40,13 @@ func (cache *Cache) finalizeUnion(node *protocol.RunType) {
 	cache.markDiscriminators(node, sortedObjects)
 }
 
-// splitUnionItems mirrors mion's splitUnionItems
-// (packages/run-types/src/nodes/collection/unionDiscriminator.ts:36-58):
+// splitUnionItems mirrors splitUnionItems
+// (ref: packages/run-types/src/nodes/collection/unionDiscriminator.ts:36-58):
 // object-like members go to objectRefs, atomics to simpleItems, and the
 // first any/unknown member is held aside for last-position placement.
 // Subsequent any/unknown members are kept in their bucket (duplicates
 // would already have been deduped by the TS checker, but we don't
-// re-emit a separate any node — mion's algorithm drops them silently).
+// re-emit a separate any node — the reference algorithm drops them silently).
 func (cache *Cache) splitUnionItems(children []*protocol.RunType) (simpleItems, objectRefs []*protocol.RunType, anyItem *protocol.RunType) {
 	for _, ref := range children {
 		canonical := cache.nodes[ref.ID]
@@ -59,7 +59,7 @@ func (cache *Cache) splitUnionItems(children []*protocol.RunType) (simpleItems, 
 			if anyItem == nil {
 				anyItem = ref
 			}
-			// duplicates dropped per mion's "Only keep the first" comment
+			// duplicates dropped per the "Only keep the first" comment
 		case protocol.KindObjectLiteral, protocol.KindClass:
 			objectRefs = append(objectRefs, ref)
 		default:
@@ -69,8 +69,8 @@ func (cache *Cache) splitUnionItems(children []*protocol.RunType) (simpleItems, 
 	return
 }
 
-// sortUnreachableTypes is a Go port of mion's sortUnreachableTypes
-// (unionDiscriminator.ts:69-116). Object-like members whose property
+// sortUnreachableTypes is a Go port of sortUnreachableTypes
+// (ref: unionDiscriminator.ts:69-116). Object-like members whose property
 // type-id sets are subset-related to one another get grouped, then the
 // group is sorted descending by property count so the most-specific
 // shape is validated first. Unrelated members keep their declaration
@@ -141,7 +141,7 @@ func (cache *Cache) sortUnreachableTypes(objectRefs []*protocol.RunType) []*prot
 
 // propertyTypeIDSet returns the set of property type-ids on an
 // object-like canonical node. The "type-id" of a property is the id of
-// its child type — same value mion's PropertyRunType.getTypeID() returns
+// its child type — same value PropertyRunType.getTypeID() returns
 // at the runtype layer.
 func (cache *Cache) propertyTypeIDSet(ref *protocol.RunType) map[string]struct{} {
 	out := make(map[string]struct{})
@@ -175,8 +175,8 @@ type discriminatorAssignment struct {
 
 // markDiscriminators populates the union's UnionDiscriminators slot
 // with per-member refs to the property selected as the discriminator.
-// Mirrors mion's markDiscriminators + getDiscriminatorProperties +
-// getUniqueDiscriminatorProperties (unionDiscriminator.ts:122-251).
+// Mirrors markDiscriminators + getDiscriminatorProperties +
+// getUniqueDiscriminatorProperties (ref: unionDiscriminator.ts:122-251).
 // Tries shared-name first (every member has a property with the same
 // name and distinct type-ids); falls back to unique-prop (each member
 // picks its own property whose type-id is unique across the union).

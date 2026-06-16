@@ -28,11 +28,11 @@ export const hasBinary = (): boolean => fs.existsSync(BIN);
 // `withInlineSources` so per-test fixtures don't have to redeclare the
 // fake `ts-runtypes` module.
 export const RUNTYPES_DTS = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
-  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
-  export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
+  export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
+  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
+  export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export interface ValidateOptions {
     noLiterals?: boolean;

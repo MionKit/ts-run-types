@@ -64,11 +64,11 @@ export const ATOMIC = {
   },
   literal_symbol: {
     title: 'Symbol literal type (matched by description)',
-    description: 'symbol identity via description match (mion semantics)',
+    description: 'symbol identity via description match (reference semantics)',
     getSamples: () => {
       const sym = Symbol('hello');
       return {
-        // identity by description per mion semantics:
+        // identity by description per the reference semantics:
         // emit is `typeof === 'symbol' && v.description === 'hello'`
         valid: [sym, Symbol('hello')],
         invalid: [Symbol('nice'), 'hello', null, undefined],

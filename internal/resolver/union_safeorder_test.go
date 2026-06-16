@@ -9,8 +9,8 @@ import (
 // =========================================================================
 // Union safe-order + discriminator pass — per-rule coverage.
 //
-// Algorithms ported from mion-run-types
-// (packages/run-types/src/nodes/collection/unionDiscriminator.ts).
+// Algorithms ported from the reference implementation
+// (ref: packages/run-types/src/nodes/collection/unionDiscriminator.ts).
 // =========================================================================
 
 // ---- safe-order: subset-related members get sorted by prop count -----------

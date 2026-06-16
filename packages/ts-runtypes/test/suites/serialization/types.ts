@@ -5,8 +5,8 @@ import type {BinaryDecoderFn, BinaryEncoderFn, JsonDecoderFn, JsonEncoderFn} fro
  *  Mirrors the validation suite's `Thunk`. **/
 export type SchemaThunk<F> = (() => F) | 'not-supported';
 
-/** One case in the JSON serialization suite. Mirrors mion's `SingleTest`
- *  but with our marker-based thunks in place of the raw RunType. **/
+/** One case in the JSON serialization suite. Mirrors the `SingleTest`
+ *  shape but with our marker-based thunks in place of the raw RunType. **/
 export interface SerializationCase {
   title: string;
   description?: string;
@@ -32,8 +32,8 @@ export interface SerializationCase {
 
   /** Direct-mode only: when set, the case's input produces a JSON string
    *  that is not parseable by `JSON.parse` — e.g. number-at-root with
-   *  `Infinity` (mion's `String(Infinity)` = `"Infinity"`). Mirrors
-   *  mion's number-not-supported spec, which accepts either a throw OR
+   *  `Infinity` (`String(Infinity)` = `"Infinity"`). Mirrors the
+   *  number-not-supported spec, which accepts either a throw OR
    *  a non-matching round-trip as a "value not supported by JSON"
    *  signal. Only the `direct + *` pairings consult this flag (direct
    *  uses single-pass `stringifyJson` which emits the unparseable
@@ -68,7 +68,7 @@ export interface SerializationCase {
    *  functions in tuples decode to undefined, JSON.stringify drops
    *  symbol-keyed extras, etc.
    *
-   *  Mirrors mion's `getTestData` shape. **/
+   *  Mirrors the `getTestData` shape. **/
   getTestData: () => {values: unknown[]; deserializedValues?: unknown[]};
 
   /** Optional override consumed by the **clone** (shape-derived, strips)
@@ -82,7 +82,7 @@ export interface SerializationCase {
    *  identical behaviour between paths) leave this unset; the clone
    *  adapter falls back to `getTestData`.
    *
-   *  Mirrors the split between mion's jsonSpec (prepareForJson +
+   *  Mirrors the split between the jsonSpec (prepareForJson +
    *  JSON.stringify) and stringifySpec (stringifyJson) test
    *  helpers. **/
   getTestDataForStringify?: () => {values: unknown[]; deserializedValues?: unknown[]};
@@ -112,9 +112,9 @@ export interface SerializationCase {
   factoryThrows?: boolean;
 
   /** When the factory builds successfully but `JSON.stringify(prepared)`
-   *  is expected to throw at runtime. Documents mion's "extras pass
+   *  is expected to throw at runtime. Documents the "extras pass
    *  through" semantic: prepareForJson does NOT strip structural extras
-   *  (see comment in mion's `jsonSpec/03JsonObjects.spec.ts` strip
+   *  (see comment in `jsonSpec/03JsonObjects.spec.ts` strip
    *  extra params test — "native JSON.stringify do not strip extra
    *  params"). When an input carries an extra prop holding a
    *  non-serializable value (bigint, symbol, circular ref), prepareForJson

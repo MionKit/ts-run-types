@@ -111,7 +111,7 @@ func writeEntryModuleConstants(out *strings.Builder) {
 
 // writeReflectionSubKind emits a TS `as const` map mirroring
 // internal/protocol/subkind.go's ReflectionSubKind enum. The numeric
-// values must match mion's own ReflectionSubKind exactly so structural
+// values must match the reference ReflectionSubKind exactly so structural
 // ids agree byte-for-byte across the Go and TS halves.
 func writeReflectionSubKind(out *strings.Builder) {
 	entries := []struct {
@@ -135,8 +135,8 @@ func writeReflectionSubKind(out *strings.Builder) {
 }
 
 // writeNonSerializableGlobals emits the symbol-name list used by both
-// halves to detect non-serialisable native types. Mirrors mion's
-// `nonSerializableGlobals` in `packages/run-types/src/constants.ts`.
+// halves to detect non-serialisable native types. Mirrors the
+// `nonSerializableGlobals` in (ref: packages/run-types/src/constants.ts).
 func writeNonSerializableGlobals(out *strings.Builder) {
 	out.WriteString("export const NON_SERIALIZABLE_GLOBALS = [\n")
 	for _, name := range protocol.NonSerializableGlobals {

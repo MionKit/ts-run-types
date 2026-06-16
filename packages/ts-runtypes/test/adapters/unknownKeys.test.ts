@@ -1,5 +1,5 @@
 // End-to-end tests for the unknown-keys rt family. Verifies that the
-// four functions ported from mion's emit* methods on InterfaceRunType
+// four functions ported from the emit* methods on InterfaceRunType
 // produce correct runtime behavior for the common cases:
 //
 //   - hasUnknownKeys: boolean predicate
@@ -7,7 +7,7 @@
 //   - unknownKeyErrors: accumulate errors with path tracking
 //   - unknownKeysToUndefined: set unknown keys to undefined in place
 //
-// Mirrors mion's `nodes/collection/__tests__/unknownKeys.spec.ts` shape
+// Mirrors `nodes/collection/__tests__/unknownKeys.spec.ts` shape
 // but scoped to the subset of behavior currently exercised.
 
 import {describe, expect, it} from 'vitest';
@@ -298,13 +298,13 @@ describe('union types — strip/has/keyErrors', () => {
 // Map<K, V> and Set<T> — iterable unknown-keys
 // ============================================================================
 //
-// Mion's IterableRunType (mion/packages/run-types/src/nodes/native/Iterable.ts)
+// The IterableRunType (ref: packages/run-types/src/nodes/native/Iterable.ts)
 // emits per-entry iteration for all four unknown-keys variants. When the
 // element / key / value type carries its own unknown-keys handling (a nested
 // object with extras), the iterable recurses into each entry.
 //
 // `hasUnknownKeys(Map<string, SmallObject>)` must report `true` when an
-// inner object carries an extra property — mirrors mion's map.spec.ts:159-216
+// inner object carries an extra property — mirrors map.spec.ts:159-216
 // and the equivalent set.spec.ts. Same logic applies to the strip / report /
 // undefine variants.
 
@@ -345,7 +345,7 @@ describe('iterables — Map<K, V> unknown-keys', () => {
     expect(out).toHaveLength(1);
     expect(out[0].expected).toBe('never');
     // The extra-key segment should appear in the path; we don't pin the
-    // exact intermediate shape (mion uses `{key, index, failed}` envelope
+    // exact intermediate shape (the reference uses `{key, index, failed}` envelope
     // tokens). Required minimum: the extra key name itself.
     expect(out[0].path).toContain('extra');
   });

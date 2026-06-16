@@ -12,7 +12,7 @@
 //
 // `TypeFormat` IS imported as a value (not `import type`): the value-level
 // import keeps each brand alias's reflection metadata reachable for tsgo
-// (same constraint mion documents and the sibling format files follow).
+// (same constraint the reference documents and the sibling format files follow).
 
 import {TypeFormat} from '../../runtypes/typeFormat.ts';
 import type {MinMax, DateBound, TimeBound, DateTimeBound} from './dateTimeParams.ts';

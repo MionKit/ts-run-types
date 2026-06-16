@@ -14,14 +14,14 @@ import (
 //
 // Why a pure fn rather than inline JS: the UUID character-class
 // check runs a tight 36-character loop; inlining its body at every
-// call site would explode the cache module's bytes. Mion's
-// equivalent (packages/type-formats/src/string/uuid.runtype.ts)
+// call site would explode the cache module's bytes. The reference
+// equivalent (ref: packages/type-formats/src/string/uuid.runtype.ts)
 // makes the same call out to pf_isUUID for the same reason.
 type uuidEmitter struct{}
 
 // typeFormatsPureFnFilePath is the canonical source path the
 // resolver registers pf_isUUID under. Matches the file where the
-// JS-side `registerPureFnFactory('mionFormats', 'isUUID', ...)` call
+// JS-side `registerPureFnFactory('rtFormats', 'isUUID', ...)` call
 // lives — keep these in sync when either side moves.
 const typeFormatsPureFnFilePath = "packages/ts-runtypes/src/formats/string/string-formats-pure-fns.ts"
 
@@ -70,7 +70,7 @@ func (uuidEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotati
 		formats.FormatErrCall(pathExpr, errorsArr, "string", "uuid", "version", strconv.Quote(version))
 }
 
-// ValidateParams ports mion's UUID validateParams: the version must be
+// ValidateParams ports the UUID validateParams: the version must be
 // '4' or '7' when present.
 func (uuidEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
 	if annotation == nil {

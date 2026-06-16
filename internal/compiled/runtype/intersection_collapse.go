@@ -189,7 +189,7 @@ func (cache *Cache) projectPrimitiveInto(tsType *checker.Type, node *protocol.Ru
 	}
 }
 
-// builtinClassNames are the lib.d.ts interfaces mion treats as classes
+// builtinClassNames are the lib.d.ts interfaces we treat as classes
 // (mirrors the switch in projectClass / projectObjectType). A member with
 // one of these symbol names is the "base" of a `Builtin & {brand}`
 // intersection — currently only Date carries a format family, but the set

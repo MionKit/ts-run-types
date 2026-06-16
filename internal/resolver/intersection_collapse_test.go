@@ -57,7 +57,7 @@ type AB = I & {b: number};
 getRunTypeId<AB>();
 `
 	r, tn := resolveInline(t, code)
-	// Interfaces with no class flag are object literals to mion.
+	// Interfaces with no class flag are object literals per the reference semantics.
 	if tn.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected object-like, got kind=%d", tn.Kind)
 	}

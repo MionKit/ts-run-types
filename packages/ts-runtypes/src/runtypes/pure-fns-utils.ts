@@ -6,8 +6,8 @@
  * ######## */
 import {registerPureFnFactory} from './pureFn.ts';
 
-// Slim type aliases copied from `@mionjs/core` so this file stays
-// dependency-free. Fully erased at runtime.
+// Slim local type aliases for the RT utils surface, kept here so this
+// file stays dependency-free. Fully erased at runtime.
 type StrNumber = string | number;
 type TypeFormatError = {
   name: string;
@@ -20,7 +20,7 @@ interface RunTypeError {
   format?: TypeFormatError;
 }
 
-export const pf_asJSONString = registerPureFnFactory('mion', 'asJSONString', function () {
+export const pf_asJSONString = registerPureFnFactory('rt', 'asJSONString', function () {
   // @ts-expect-error 2867
   if (typeof Bun !== 'undefined') return JSON.stringify; // bun has a faster JSON.stringify
   // eslint-disable-next-line no-control-regex
@@ -35,7 +35,7 @@ export const pf_asJSONString = registerPureFnFactory('mion', 'asJSONString', fun
   };
 });
 
-export const pf_getUnknownKeysFromArray = registerPureFnFactory('mion', 'getUnknownKeysFromArray', function () {
+export const pf_getUnknownKeysFromArray = registerPureFnFactory('rt', 'getUnknownKeysFromArray', function () {
   const MAX_UNKNOWN_KEYS = 10;
   return function _getUnknownKeysFromArray(obj: Record<StrNumber, any>, keys: StrNumber[]): StrNumber[] {
     const unknownKeys: StrNumber[] = [];
@@ -56,7 +56,7 @@ export const pf_getUnknownKeysFromArray = registerPureFnFactory('mion', 'getUnkn
   };
 });
 
-export const pf_hasUnknownKeysFromArray = registerPureFnFactory('mion', 'hasUnknownKeysFromArray', function () {
+export const pf_hasUnknownKeysFromArray = registerPureFnFactory('rt', 'hasUnknownKeysFromArray', function () {
   return function _hasUnknownKeysFromArray(obj: Record<StrNumber, any>, keys: StrNumber[]): boolean {
     for (const prop in obj) {
       let found = false;
@@ -72,7 +72,7 @@ export const pf_hasUnknownKeysFromArray = registerPureFnFactory('mion', 'hasUnkn
   };
 });
 
-export const pf_newRunTypeErr = registerPureFnFactory('mion', 'newRunTypeErr', function () {
+export const pf_newRunTypeErr = registerPureFnFactory('rt', 'newRunTypeErr', function () {
   return function _err(
     pλth: readonly StrNumber[],
     εrr: RunTypeError[],
@@ -85,7 +85,7 @@ export const pf_newRunTypeErr = registerPureFnFactory('mion', 'newRunTypeErr', f
   };
 });
 
-export const pf_formatErr = registerPureFnFactory('mion', 'formatErr', function () {
+export const pf_formatErr = registerPureFnFactory('rt', 'formatErr', function () {
   return function _formatErr(
     pλth: StrNumber[],
     εrr: RunTypeError[],
@@ -105,7 +105,7 @@ export const pf_formatErr = registerPureFnFactory('mion', 'formatErr', function 
   };
 });
 
-export const pf_safeIterableKey = registerPureFnFactory('mion', 'safeIterableKey', function () {
+export const pf_safeIterableKey = registerPureFnFactory('rt', 'safeIterableKey', function () {
   return function _safeKey(value: any): any {
     if (value === undefined) return null;
     if (value === null) return null;
@@ -116,7 +116,7 @@ export const pf_safeIterableKey = registerPureFnFactory('mion', 'safeIterableKey
 });
 
 /** @reflection never */
-export const pf_sanitizeCompiledFn = registerPureFnFactory('mion', 'sanitizeCompiledFn', function () {
+export const pf_sanitizeCompiledFn = registerPureFnFactory('rt', 'sanitizeCompiledFn', function () {
   const anonymousRegex = /^\s*function\s+anonymous\s*\(/;
   return function sanitizeCompiled(fnCode: string): string {
     if (anonymousRegex.test(fnCode)) {

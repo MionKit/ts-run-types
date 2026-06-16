@@ -23,7 +23,7 @@ import type {DataOnly} from './runtypes/dataOnly.ts';
 // =============================================================================
 
 /** toBinary RT primitive. Writes bytes for `value` into the supplied
- *  serializer and returns the same instance (mirrors mion's `sεr` convention). **/
+ *  serializer and returns the same instance (mirrors the `sεr` convention). **/
 export type ToBinaryFn = (value: unknown, Ser: DataViewSerializer) => DataViewSerializer;
 
 /** fromBinary RT primitive. Reads bytes from the supplied deserializer and

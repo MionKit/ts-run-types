@@ -1,6 +1,6 @@
 # vite-plugin-runtypes
 
-Vite plugin that rewrites **mion runtypes** marker calls (`getTypeInfo`, `validate`, `router`) into cache lookups, driven by the [RunTypes](../../README.md) Go resolver.
+Vite plugin that rewrites **RunTypes** marker calls (`getTypeInfo`, `validate`, `router`) into cache lookups, driven by the [RunTypes](../../README.md) Go resolver.
 
 ## Install
 

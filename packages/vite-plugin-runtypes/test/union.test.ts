@@ -6,7 +6,7 @@
 // scenario below pins down one of those wire-format outputs.
 //
 // Algorithm references:
-//   - mion-run-types unionDiscriminator.ts: sortUnreachableTypes,
+//   - unionDiscriminator.ts (ref: packages/run-types/src): sortUnreachableTypes,
 //     markDiscriminators, splitUnionItems
 //   - Go port: internal/serialize/union_safeorder.go
 

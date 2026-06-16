@@ -1,5 +1,5 @@
 // Package protocol defines the wire types exchanged between the ts-runtypes
-// resolver and its callers. The shape is the canonical mion runtypes reflection
+// resolver and its callers. The shape is the canonical runtypes reflection
 // `RunType` discriminated union so the user's runtypes RT — which already
 // understands this runtime shape — can consume our cache directly.
 //
@@ -13,7 +13,7 @@
 //  2. JSON-only consumers walk `Dump.RunTypes` themselves to re-knot.
 //
 // IDs are short alphanumeric hash strings (default 7 chars, configurable). The
-// hash is derived from the type's structural id (mirroring mion's
+// hash is derived from the type's structural id (mirroring the
 // `_createTypeId` algorithm) — two structurally-equal types share the same
 // hash regardless of declaration order or alias name.
 package protocol
@@ -95,7 +95,7 @@ type RunType struct {
 	// Zero (SubKindNone) is "not applicable"; only set on nodes that need it.
 	SubKind ReflectionSubKind `json:"subKind,omitempty"`
 	// Family classifies the runtype into Atomic/Collection/Member/Function
-	// per mion's RunTypeFamily (run-types/src/types.ts:41). Derived from
+	// per the RunTypeFamily (ref: packages/run-types/src/types.ts:41). Derived from
 	// Kind via FamilyOf in family.go; populated by PopulateFamily at
 	// cache-exit time (Cache.Dump / Cache.Added / Cache.NodesForIDs).
 	// Refs (Kind=KindRef) and reserved kinds get FamilyUnknown (the empty
@@ -105,8 +105,8 @@ type RunType struct {
 	TypeName      string     `json:"typeName,omitempty"`
 	TypeArguments []*RunType `json:"typeArguments,omitempty"`
 	// IsCircular flags a RunType that appears inside its own subtree
-	// (e.g. `type CA = CA[]`). Mirrors mion's `isCircular` flag on
-	// BaseRunType (run-types/src/lib/baseRunTypes.ts) — the RT compiler
+	// (e.g. `type CA = CA[]`). Mirrors the `isCircular` flag on
+	// BaseRunType (ref: packages/run-types/src/lib/baseRunTypes.ts) — the RT compiler
 	// uses it to force a self-recursive dependency call instead of
 	// inlining the body. Auto-set by the serializer's projection pass
 	// (runtype/serialize.go assignID: a back-edge to an in-progress id
@@ -151,7 +151,7 @@ type RunType struct {
 
 	// IsSafeName — true when Name is a valid JS identifier and the
 	// consumer can emit `obj.<name>` dot access; false (omitted) means
-	// bracket notation is required. Mirrors mion's isSafeName helper
+	// bracket notation is required. Mirrors the isSafeName helper
 	// at runtype level so downstream codegen need not re-run the regex.
 	// Populated only on TypeProperty / TypePropertySignature / TypeMethod /
 	// TypeMethodSignature.
@@ -203,8 +203,8 @@ type RunType struct {
 	// the same canonical property node may be a discriminator in one
 	// parent union but not in another.
 	//
-	// Wire-format equivalent of mion's FlattenedProp[] output
-	// (packages/run-types/src/nodes/collection/unionDiscriminator.ts).
+	// Wire-format equivalent of the FlattenedProp[] output
+	// (ref: packages/run-types/src/nodes/collection/unionDiscriminator.ts).
 	// We carry only the strictly-new field (a ref to the property);
 	// the other FlattenedProp fields are reconstructible from the
 	// surrounding context. JS-side consumers use
@@ -227,8 +227,8 @@ type RunType struct {
 
 	// FormatAnnotation — populated when a primitive is branded with a
 	// TypeFormat<Base, Name, Params, ...> marker from
-	// `ts-runtypes/formats`. Mirrors mion's FormatAnnotation
-	// (packages/run-types/src/lib/formats.ts) — the name + params pair
+	// `ts-runtypes/formats`. Mirrors the FormatAnnotation
+	// (ref: packages/run-types/src/lib/formats.ts) — the name + params pair
 	// that drives format-aware emit for validate / validationErrors. The
 	// structural id folds Name + canonicalised Params into the hash so
 	// two distinct param sets produce two distinct cache entries;
@@ -274,7 +274,7 @@ type RunType struct {
 // ClassRef captures enough provenance for a v2 footer to wire up
 // `t.classType = ImportedConstructor` in the generated `.ts` artifact.
 //
-// For built-in classes recognised by mion (Date, Map, Set, RegExp), Builtin
+// For recognised built-in classes (Date, Map, Set, RegExp), Builtin
 // is set to the constructor name and the footer emits
 // `t.classType = globalThis.<Name>`. For user classes, Module is the
 // originating module path and Name the exported symbol.
@@ -450,7 +450,7 @@ type Response struct {
 	AddedPrepareForJsonSafe bool `json:"addedPrepareForJsonSafe,omitempty"`
 	// AddedHasUnknownKeys / AddedStripUnknownKeys / AddedUnknownKeyErrors
 	// / AddedUnknownKeysToUndefined mirror AddedValidate for the
-	// unknown-keys family ported from mion's
+	// unknown-keys family ported from the reference implementation's
 	// emitHasUnknownKeys / emitStripUnknownKeys / emitUnknownKeyErrors /
 	// emitUnknownKeysToUndefined methods on InterfaceRunType. Set per
 	// emitter so the Vite plugin invalidates each cache module
@@ -565,7 +565,7 @@ type Replacement struct {
 	Text  string `json:"text"`
 	// ImportFrom, when non-empty, is the virtual-module specifier the Vite
 	// plugin must import for the substituted expression to resolve — e.g.
-	// `virtual:rt/pf/mion/foo.js`. Text IS the module's export name (every
+	// `virtual:rt/pf/rt/foo.js`. Text IS the module's export name (every
 	// entry exports under its binding name), so the plugin imports `{<Text>}`
 	// directly. Empty for plain text substitutions.
 	ImportFrom string `json:"importFrom,omitempty"`

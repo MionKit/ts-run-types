@@ -19,7 +19,7 @@ const unknownKeysPureFnFilePath = "packages/ts-runtypes/src/run-types-pure-fns.t
 // known-key arrays (RT children and ALL children) and the variable
 // names used to refer to them in the closure prologue.
 //
-// Mirrors mion's addObjectPropsToContext output (interface.ts:232-269).
+// Mirrors addObjectPropsToContext output (interface.ts:232-269).
 type objectKeysContext struct {
 	keysName         string   // variable name in closure scope for the RT-children key array
 	allKeysName      string   // variable name in closure scope for the ALL-children key array
@@ -31,9 +31,9 @@ type objectKeysContext struct {
 // addObjectPropsToContext computes (and registers in the closure
 // prologue) the known-key arrays for an interface/object. The arrays
 // are emitted once per unique RunType per closure via context items —
-// mion does the same so the same hash → same key-array literal.
+// the reference does the same so the same hash → same key-array literal.
 //
-// Mirrors mion's addObjectPropsToContext (interface.ts:243-269).
+// Mirrors addObjectPropsToContext (interface.ts:243-269).
 func addObjectPropsToContext(rt *protocol.RunType, ctx *EmitContext) objectKeysContext {
 	rtNames, allNames := collectObjectChildNames(rt, ctx)
 
@@ -42,7 +42,7 @@ func addObjectPropsToContext(rt *protocol.RunType, ctx *EmitContext) objectKeysC
 
 	hasNonRTChildren := !sameStringSet(rtChildrenNames, allChildrenNames)
 
-	// Variable names mirror mion's `k_<hash>` / `kA_<hash>` scheme. We
+	// Variable names mirror the `k_<hash>` / `kA_<hash>` scheme. We
 	// use the RunType ID as the hash so the same canonical object
 	// reuses the same context-item key across emit calls.
 	keysName := "k_" + rt.ID
@@ -70,7 +70,7 @@ func addObjectPropsToContext(rt *protocol.RunType, ctx *EmitContext) objectKeysC
 // serialised shape). Both lists exclude index-signature children (those
 // don't have property names) AND children with empty names.
 //
-// Mirrors mion's getRTChildren + getChildRunTypes filter+name pluck
+// Mirrors getRTChildren + getChildRunTypes filter+name pluck
 // in addObjectPropsToContext.
 func collectObjectChildNames(rt *protocol.RunType, ctx *EmitContext) (rtNames []string, allNames []string) {
 	for _, child := range rt.Children {
@@ -109,7 +109,7 @@ func collectObjectChildNames(rt *protocol.RunType, ctx *EmitContext) (rtNames []
 
 // dedupSortStrings deduplicates + sorts a string slice. Sorting keeps
 // the emitted array literal deterministic across runs (Go's `for k :=
-// range map` iteration order is random); mion's New JS Set + Array.from
+// range map` iteration order is random); the JS Set + Array.from
 // preserves insertion order, but our Go side has to be deterministic
 // for byte-stable cache outputs.
 func dedupSortStrings(in []string) []string {
@@ -145,7 +145,7 @@ func sameStringSet(a, b []string) bool {
 
 // arrayToJSLiteral renders a string slice as a JS array literal — each
 // element quoted as a single-quoted string with backslash + single-quote
-// escapes applied. Mirrors mion's arrayToLiteral helper.
+// escapes applied. Mirrors the arrayToLiteral helper.
 func arrayToJSLiteral(items []string) string {
 	if len(items) == 0 {
 		return "[]"
@@ -174,7 +174,7 @@ func objectHasIndexSignatureChild(rt *protocol.RunType, ctx *EmitContext) bool {
 	return false
 }
 
-// callCheckUnknownPropertiesForHas mirrors mion's
+// callCheckUnknownPropertiesForHas mirrors
 // callCheckUnknownProperties (interface.ts:272-300) for the
 // hasUnknownKeys family. Emits a JS expression that's `true` when
 // the value has at least one key outside the known-keys array.
@@ -183,7 +183,7 @@ func objectHasIndexSignatureChild(rt *protocol.RunType, ctx *EmitContext) bool {
 // keys instead of a boolean — used by strip/error/undefined emitters.
 //
 // checkObject controls whether the result is wrapped in a
-// `typeof v === 'object' && v !== null && …` guard. mion sets it from
+// `typeof v === 'object' && v !== null && …` guard. The reference sets it from
 // `!this.isPartOfUnion()` — for our purposes, every top-level emit IS
 // safe to guard because we never compose hasUnknownKeys into a union
 // condition. The `keepObjectCheck` parameter exposes this lever.
@@ -203,19 +203,19 @@ func callCheckUnknownPropertiesForHas(rt *protocol.RunType, ctx *EmitContext, re
 		}
 	}
 	if returnKeys {
-		ctx.AddPureFnDependency("mion", "getUnknownKeysFromArray", unknownKeysPureFnFilePath)
+		ctx.AddPureFnDependency("rt", "getUnknownKeysFromArray", unknownKeysPureFnFilePath)
 		fnVar := pureFnAlias("getUnknownKeysFromArray")
 		if !ctx.HasContextItem(fnVar) {
-			ctx.SetContextItem(fnVar, "const "+fnVar+" = utl.getPureFn('mion::getUnknownKeysFromArray')")
+			ctx.SetContextItem(fnVar, "const "+fnVar+" = utl.getPureFn('rt::getUnknownKeysFromArray')")
 		}
 		return fnVar + "(" + v + ", " + conditional + ")"
 	}
-	ctx.AddPureFnDependency("mion", "hasUnknownKeysFromArray", unknownKeysPureFnFilePath)
+	ctx.AddPureFnDependency("rt", "hasUnknownKeysFromArray", unknownKeysPureFnFilePath)
 	fnVar := pureFnAlias("hasUnknownKeysFromArray")
 	if !ctx.HasContextItem(fnVar) {
-		ctx.SetContextItem(fnVar, "const "+fnVar+" = utl.getPureFn('mion::hasUnknownKeysFromArray')")
+		ctx.SetContextItem(fnVar, "const "+fnVar+" = utl.getPureFn('rt::hasUnknownKeysFromArray')")
 	}
-	// Object guard around the pure-fn call: mion's emit prepends
+	// Object guard around the pure-fn call: the emit prepends
 	// `typeof v === 'object' && v !== null` so non-object inputs don't
 	// reach the pure-fn (which expects an object). Match that.
 	return objectGuard(v, fnVar+"("+v+", "+conditional+")")
@@ -297,9 +297,9 @@ func siblingNamedKeysCtxKey(idxSig *protocol.RunType) string {
 // IndexSignature child, registers a closure-prologue
 // `const siblingNamed_<idxSigID> = new Set(['name1', 'name2'])` so the
 // index-sig emit can guard `if (siblingNamed_X.has(prop)) continue;`
-// at the top of its for-in loop. Mirrors mion's
+// at the top of its for-in loop. Mirrors
 // IndexSignatureRunType.getSkipCode + InterfaceRunType.getNamedChildren
-// (mion/packages/run-types/src/nodes/member/indexProperty.ts:166-173,
+// (ref: packages/run-types/src/nodes/member/indexProperty.ts:166-173,
 // nodes/collection/interface.ts:getNamedChildren).
 //
 // Called from every per-family object emit (validate, validationErrors,
@@ -344,9 +344,9 @@ func publishSiblingNamedKeysForIndexSig(rt *protocol.RunType, ctx *EmitContext) 
 // sibling named property are skipped. Returns "" when the parent
 // object emit didn't publish a sibling-names set for this idxSig
 // (objects without named props alongside the index sig). Mirrors
-// mion's getSkipCode return shape (indexProperty.ts:172) —
+// the getSkipCode return shape (indexProperty.ts:172) —
 // `if (sib === prop) continue;`. Multi-sibling form uses the published
-// Set for O(1) membership; mion emits `if (a===prop || b===prop) continue;`
+// Set for O(1) membership; the reference emits `if (a===prop || b===prop) continue;`
 // but Set.has(prop) reads the same at runtime and we already build the
 // set for the unknownKeysToUndefined consumer.
 func siblingNamedSkipCode(idxSig *protocol.RunType, ctx *EmitContext, prop string) string {
@@ -434,13 +434,13 @@ func unknownKeysSupports(rt *protocol.RunType) bool {
 	case protocol.KindIntersection:
 		return true
 	case protocol.KindPromise:
-		// mion: Promise wraps don't track unknown keys (the value is a
+		// Promise wraps don't track unknown keys (the value is a
 		// then-able, not a plain object). Same noop stance as atomic.
 		return true
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
 		// Function values aren't objects with enumerable own keys to
-		// check; mion's function emit is a noop. Same here.
+		// check; the function emit is a noop. Same here.
 		return true
 	}
 	return false

@@ -1,18 +1,18 @@
 package protocol
 
-// ReflectionSubKind is mion's second discriminator alongside ReflectionKind.
-// Mirrors the numeric values in mion's
+// ReflectionSubKind is the second discriminator alongside ReflectionKind.
+// Mirrors the numeric values in
 // `packages/run-types/src/constants.kind.ts` so structural ids computed on
 // either side agree byte-for-byte.
 //
-// Wherever a SubKind is non-zero, mion's id algorithm uses `subKind || kind`
+// Wherever a SubKind is non-zero, the id algorithm uses `subKind || kind`
 // as the numeric prefix when composing a structural id. The Go-side typeid
 // computer mirrors that rule (see internal/typeid/typeid.go).
 //
-// Note: mion's `params` subKind (1701) is deliberately not mirrored here.
-// It exists in mion only because deepkit's RT iterates a generic `children`
+// Note: the `params` subKind (1701) is deliberately not mirrored here.
+// It exists in the reference only because deepkit's RT iterates a generic `children`
 // collection on every node and `TypeFunction` keeps its parameters on a
-// separate `parameters` property; mion synthesises a `subKind=1701` wrapper
+// separate `parameters` property; the reference synthesises a `subKind=1701` wrapper
 // purely so the iterator picks parameters up. The Go side carries
 // parameters directly on the function node — no wrapper, no subKind.
 type ReflectionSubKind int
@@ -27,8 +27,8 @@ const (
 	SubKindSet             ReflectionSubKind = 2003
 	SubKindNonSerializable ReflectionSubKind = 2004
 
-	// Temporal API SubKinds (2101–2108). NOT mirrored from mion — Temporal
-	// predates mion's adoption here, so ts-runtypes owns this numbering.
+	// Temporal API SubKinds (2101–2108). NOT mirrored from the reference —
+	// Temporal predates its adoption here, so ts-runtypes owns this numbering.
 	// One per builtin Temporal type; each is encoded as KindClass + this
 	// SubKind + ClassRef.Builtin = "Temporal.<Name>" (so the cache footer
 	// wires `t.classType = globalThis.Temporal.<Name>`). Mirror to JS in
@@ -43,10 +43,10 @@ const (
 	SubKindTemporalDuration       ReflectionSubKind = 2108
 )
 
-// NonSerializableGlobals mirrors mion's `nonSerializableGlobals` list
-// (`packages/run-types/src/constants.ts`). These are global type names whose
-// runtime representation can't be serialised; mion treats them as classes
-// and stamps SubKindNonSerializable so the structural id distinguishes them
+// NonSerializableGlobals mirrors the `nonSerializableGlobals` list
+// (ref: packages/run-types/src/constants.ts). These are global type names whose
+// runtime representation can't be serialised; we treat them as classes
+// and stamp SubKindNonSerializable so the structural id distinguishes them
 // from a "normal" user class.
 //
 // Match is by symbol name — tsgo gives us symbols, not JS constructors, so
@@ -92,7 +92,7 @@ var nonSerializableSet = func() map[string]struct{} {
 	return set
 }()
 
-// IsNonSerializableSymbol reports whether name matches one of mion's
+// IsNonSerializableSymbol reports whether name matches one of the
 // non-serialisable globals. Used by both the typeid computer and the
 // serializer so the two paths stay in lockstep.
 func IsNonSerializableSymbol(name string) bool {

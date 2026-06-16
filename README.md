@@ -1,6 +1,6 @@
 # RunTypes
 
-Compile-time type resolver for [mion runtypes](https://github.com/mionkit) on **TypeScript 7 / typescript-go (tsgo)**.
+Compile-time runtime-type resolver on **TypeScript 7 / typescript-go (tsgo)**.
 
 RunTypes is a native Go binary that reaches into tsgo's type checker (via the `oxc-project/tsgolint` shim layer) and answers _call-site_ type queries. A paired Vite plugin rewrites every call whose trailing parameter is the sentinel marker `InjectRunTypeId<T>` (from `ts-runtypes`) and emits a deduplicated type-metadata module the runtime (and the RT) can consume.
 
@@ -35,12 +35,12 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
 4. Every cache entry is its own virtual module: `virtual:rt/<key>.js` (the cache key — bare type hash for runtypes, `<fnHash>_<typeId>` for function entries, `pf/<ns>/<fn>` for pure fns). The rewrite injects the matching imports into each user file, so bundlers code-split and tree-shake entries natively. Each module exports one positional tuple (`export const e = […]`); the runtime registers a tuple's dependency closure on first use and serves lookups from the `rtUtils` registry (module/naming constants come from [internal/constants/constants.go](internal/constants/constants.go)).
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — execution model, the sentinel markers, the reflection shape, and the parity record against the original `@mionjs/run-types` / `@mionjs/type-formats` (the port is complete; the intentional divergences are listed there and in [docs/ROADMAP.md](docs/ROADMAP.md)).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — execution model, the sentinel markers, the reflection shape, and the factory reference (the intentional divergences are listed there and in [docs/ROADMAP.md](docs/ROADMAP.md)).
 
 ### Data flow
 
 - **Types are deduplicated twice.** [internal/compiled/runtype/](internal/compiled/runtype/) holds a cache keyed by both _pointer identity_ (the same `*checker.Type` visited via two paths) **and** _structural id_ (two distinct `Type` objects with the same shape). Both collapse to a single cache entry, so the emitted metadata is stable across runs.
-- **Structural ids are deterministic.** [internal/compiled/runtype/typeid/](internal/compiled/runtype/typeid/) mirrors mion's `_createTypeId` to compose `${kind}{child1,child2,…}` recursively, with a back-reference token for cycles. The structural id is then run through mion's quickHash rolling hash (prime-37, letter-first alphanumeric alphabet) in [internal/hashid](internal/hashid/), yielding a 7-character hash.
+- **Structural ids are deterministic.** [internal/compiled/runtype/typeid/](internal/compiled/runtype/typeid/) mirrors the reference `_createTypeId` to compose `${kind}{child1,child2,…}` recursively, with a back-reference token for cycles. The structural id is then run through the quickHash rolling hash (prime-37, letter-first alphanumeric alphabet) in [internal/hashid](internal/hashid/), yielding a 7-character hash.
 - **Rewrites are positioned by byte offsets, not string indices.** tsgo positions are UTF-8 byte offsets. The Vite plugin's [rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts) therefore converts every resolver offset to a UTF-16 index before editing (otherwise multibyte source characters would misalign the inserted hash) and applies the edits through an in-house `EditBuffer` ([edit-buffer.ts](packages/vite-plugin-runtypes/src/edit-buffer.ts)), so the transform returns a real source map — breakpoints and stack traces land on the user's original lines. The plugin ships **no runtime dependencies**: `EditBuffer` is a small from-scratch string-editor + source-map generator covering just the slice of `magic-string` the rewrite needs.
 - **Entry modules defer all wiring to runtime registration.** [internal/compiled/entrymod](internal/compiled/entrymod/) assembles one ES module per function entry: imports of the entry's DIRECT dependencies (leaves-first, alphabetical within a dependency level; recursive types collapse via SCC so cycles import each other safely — the transitive closure loads through the dep modules' own imports) and a lazy `deps()` thunk the runtime walks recursively. Runtype nodes are denser: they ride as rows of the single data bundle `virtual:rt/runtypes.js` (one combined `ini(rtu)` patches reference slots through the registry), aliased by a tiny facade module per reflection root so each node exists exactly once app-wide. Tuples never reference imported bindings eagerly, so circular type graphs evaluate without TDZ hazards. Module naming/export constants come from [internal/constants/constants.go](internal/constants/constants.go) — the JS side reads the same values from a generated mirror (`pnpm run gen:ts-constants`), so the two halves can't drift. The Vite plugin serves module bodies verbatim from the resolver's `dump` response (`entryModules`) — there's no JS-side renderer to keep in sync.
 - **The marker is detected by name _and_ declaring module.** [internal/marker](internal/marker/) checks both `InjectRunTypeId` and that the alias is declared in `ts-runtypes`, so a user's own `type InjectRunTypeId<T> = ...` declared elsewhere does not trigger rewrites.
@@ -56,7 +56,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 | [internal/resolver](internal/resolver/)                              | `scanFiles` / `dump` op dispatch; AST call-walk (`walk.go` + `scan.go`); asks checker for resolved signatures. |
 | [internal/marker](internal/marker/)                                  | `InjectRunTypeId<T>` sentinel detection (name + module check); filters free type parameters.                    |
 | [internal/compiled/runtype/](internal/compiled/runtype/)             | `*checker.Type` → reflection-shape `Type`; pointer + structural dedup; JSON/TS-module renderers.                |
-| [internal/compiled/runtype/typeid/](internal/compiled/runtype/typeid/) | Structural-id computer mirroring mion's `_createTypeId`; deterministic, cycle-aware.                         |
+| [internal/compiled/runtype/typeid/](internal/compiled/runtype/typeid/) | Structural-id computer mirroring the reference `_createTypeId`; deterministic, cycle-aware.                         |
 | [internal/compiled/typefns/](internal/compiled/typefns/)             | Per-fn AOT emitters (validate, validationErrors, JSON, binary, formats, …).                                             |
 | [internal/hashid](internal/hashid/)                                  | quickHash rolling hash → short alphanumeric id dictionary; configurable length.                                |
 | [internal/constants](internal/constants/)                            | Cross-package constants (cache module settings). Mirrored to TS via `cmd/gen-ts-constants`.                    |
@@ -160,7 +160,7 @@ internal/                        Go pipeline (program, resolver, marker,
 packages/ts-runtypes/        ts-runtypes — marker type + helpers
 packages/vite-plugin-runtypes/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
-docs/ARCHITECTURE.md             detailed design + @mionjs/run-types parity record
+docs/ARCHITECTURE.md             detailed design + factory reference
 docs/ROADMAP.md                  scope + known lossy mappings
 scripts/                         publish / unpublish / pre-publish-test / pack
 pnpm-workspace.yaml              workspace + supply-chain hardening
@@ -170,7 +170,7 @@ eslint.config.js                 flat ESLint config (TypeScript-aware)
 .prettierrc                      formatter config
 ```
 
-`packages/*` is a pnpm workspace managed by Lerna, mirroring the [mion](https://github.com/MionKit/mion) monorepo setup.
+`packages/*` is a pnpm workspace managed by Lerna.
 
 ## License
 

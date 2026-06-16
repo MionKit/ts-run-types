@@ -568,7 +568,7 @@ func optionsArgumentAt(call *ast.Node, lastIndex, argsCount int) *ast.Node {
 // when the slot is unfilled or isn't an object literal — the resolver runs
 // at build time and can't evaluate non-literal expressions, so variable
 // references / spreads / calls silently yield zero options. This matches
-// mion's compile-time-baked options model (baseRunTypes.ts:82-86 hashes
+// the compile-time-baked options model (baseRunTypes.ts:82-86 hashes
 // options into the RT cache key).
 func eachOptionProperty(call *ast.Node, lastIndex, argsCount int, visit func(name string, initializer *ast.Node)) {
 	// Unwrap `as const` / parens / `satisfies` so extraction accepts

@@ -92,10 +92,10 @@ const COMPILE_CYCLES = 3;
 // package without resolving a real package.json. Mirrors the validation
 // suite's RUNTYPES_DTS, extended with the JSON serializer signatures.
 const RUNTYPES_DTS = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
-  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
+  export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
+  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export interface ValidateOptions {
     noLiterals?: boolean;

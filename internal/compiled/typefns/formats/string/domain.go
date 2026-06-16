@@ -8,7 +8,7 @@ import (
 )
 
 // domainEmitter implements the format named "domain" — FormatDomain /
-// FormatDomainStrict. Two validation paths, mirroring mion's
+// FormatDomainStrict. Two validation paths, mirroring the
 // DomainRunTypeFormat:
 //
 //   - pattern path: the type carries the domain regex (FormatDomain) —
@@ -44,14 +44,14 @@ func (domainEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnota
 	return namedPatternErrors(ctx, annotation, vλl, pathExpr, errorsArr, "domain")
 }
 
-// EmitFormatTransform lowercases the domain (mion domain.runtype.ts:229
+// EmitFormatTransform lowercases the domain (ref: domain.runtype.ts:229
 // — all domains are case-insensitive, canonicalised to lower case).
 func (domainEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	return vλl + ".toLowerCase()"
 }
 
-// ValidateParams ports mion's DomainRunTypeFormat.validateParams
-// (domain.runtype.ts:235-248): names/tld travel together, are mutually
+// ValidateParams ports DomainRunTypeFormat.validateParams
+// (ref: domain.runtype.ts:235-248): names/tld travel together, are mutually
 // exclusive with pattern, and the length/part bounds stay in range.
 func (domainEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
 	if annotation == nil {
@@ -82,14 +82,14 @@ func (domainEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []str
 
 // domainHasNames reports whether the decomposition path applies — i.e.
 // the params carry a `names` sub-format object (names/tld come together,
-// mion validateParams enforces it).
+// validateParams enforces it).
 func domainHasNames(params map[string]any) bool {
 	_, ok := params["names"].(map[string]any)
 	return ok
 }
 
 // hasAllowedValues reports whether a sub-param map has an allowedValues
-// param. mion skips the hyphen-edge label check when names is an
+// param. We skip the hyphen-edge label check when names is an
 // enum (allowedValues) — the explicit value set already pins the labels.
 func hasAllowedValues(params map[string]any) bool {
 	if params == nil {
@@ -101,7 +101,7 @@ func hasAllowedValues(params map[string]any) bool {
 
 // domainValidateExprFor builds the decomposition validate IIFE for a domain
 // applied to valExpr (the whole value at the root, or the domain
-// substring when reached from email). Mirrors mion domain.runtype.ts:
+// substring when reached from email). Mirrors domain.runtype.ts:
 // 101-116. Returns an expression evaluating to true iff valExpr is a
 // well-formed domain under params. The bound `s` plus the loop locals
 // (count/start/pos/name/tld) are arrow-scoped, so fixed names can't
@@ -146,7 +146,7 @@ func domainValidateExprFor(ctx formats.EmitContext, params map[string]any, valEx
 }
 
 // domainErrorsBlockFor builds the decomposition validationErrors statement
-// block (mion domain.runtype.ts:145-159). Error-accumulating (no early
+// block (ref: domain.runtype.ts:145-159). Error-accumulating (no early
 // returns): every failing label / bound pushes onto errorsArr. count
 // starts at 0 and is bumped once post-loop so it equals the segment
 // count (labels + tld). Wrapped in its own `{ }` so the block locals

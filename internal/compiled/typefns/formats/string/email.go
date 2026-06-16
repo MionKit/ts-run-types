@@ -8,7 +8,7 @@ import (
 )
 
 // emailEmitter implements the format named "email" — FormatEmail /
-// FormatEmailStrict. Like domain it has two paths (mion
+// FormatEmailStrict. Like domain it has two paths (the
 // EmailRunTypeFormat):
 //
 //   - pattern path: a single baked email regex (FormatEmail).
@@ -41,7 +41,7 @@ func (emailEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotat
 }
 
 // emailHasParts reports whether the decomposition path applies — i.e.
-// the params carry a localPart or domain sub-format (mion validateParams
+// the params carry a localPart or domain sub-format (validateParams
 // requires them together, but either signals decomposition).
 func emailHasParts(params map[string]any) bool {
 	if _, ok := params["localPart"].(map[string]any); ok {
@@ -51,7 +51,7 @@ func emailHasParts(params map[string]any) bool {
 	return ok
 }
 
-// emailValidateExprFor builds the decomposition validate IIFE (mion
+// emailValidateExprFor builds the decomposition validate IIFE (ref:
 // email.runtype.ts:78-88): root length, split on the last '@', validate
 // localPart and the domain half. The bound `e` and the locals are
 // arrow-scoped, so fixed names are collision-free.
@@ -82,7 +82,7 @@ func emailValidateExprFor(ctx formats.EmitContext, params map[string]any, valExp
 	return b.String()
 }
 
-// emailErrorsBlockFor builds the decomposition validationErrors block (mion
+// emailErrorsBlockFor builds the decomposition validationErrors block (ref:
 // email.runtype.ts:109-117). When '@' is absent we push that error and
 // skip the part checks (avoids spurious localPart/domain errors over the
 // un-splittable value); otherwise both halves accumulate their errors.
@@ -115,14 +115,14 @@ func emailErrorsBlockFor(ctx formats.EmitContext, params map[string]any, valExpr
 	return b.String()
 }
 
-// EmitFormatTransform lowercases the email (mion email.runtype.ts:148 —
+// EmitFormatTransform lowercases the email (ref: email.runtype.ts:148 —
 // emails are case-insensitive, so the canonical form is lower case).
 func (emailEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	return vλl + ".toLowerCase()"
 }
 
-// ValidateParams ports mion's EmailRunTypeFormat.validateParams
-// (email.runtype.ts:152-187): pattern is mutually exclusive with the
+// ValidateParams ports EmailRunTypeFormat.validateParams
+// (ref: email.runtype.ts:152-187): pattern is mutually exclusive with the
 // localPart/domain decomposition, and maxLength stays in range.
 func (emailEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
 	if annotation == nil {

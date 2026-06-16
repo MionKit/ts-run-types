@@ -14,7 +14,7 @@ func quoteJS(s string) string { return jsquote.Single(s) }
 
 // stringSliceJS renders xs as a JS array literal of quoted strings.
 // Empty/nil slices become `[]` (not `null`) so the rendered J(...) arg
-// matches mion's `rtDependencies: []` / `pureFnDependencies: []`
+// matches the `rtDependencies: []` / `pureFnDependencies: []`
 // invariant on every entry.
 func stringSliceJS(xs []string) string {
 	if len(xs) == 0 {

@@ -21,7 +21,7 @@ import {entryTupleKey, initFromTuple, isEntryTuple} from './runtypes/entryTuple.
  * satisfying the marker.
  */
 export type InjectRunTypeId<T> = string & {
-  readonly __mionInjectRunTypeIdBrand?: T;
+  readonly __rtInjectRunTypeIdBrand?: T;
 };
 
 /**
@@ -39,8 +39,8 @@ export type InjectRunTypeId<T> = string & {
  * phantom; the runtime value is a two-string array injected post-typecheck.
  */
 export type InjectTypeFnArgs<T, Fn extends string> = string & {
-  readonly __mionInjectTypeFnArgsBrand?: T;
-  readonly __mionInjectTypeFnArgsFn?: Fn;
+  readonly __rtInjectTypeFnArgsBrand?: T;
+  readonly __rtInjectTypeFnArgsFn?: Fn;
 };
 
 // NOTE: `any` is intentionally PERMITTED — there is no type-level `any` guard.
@@ -93,7 +93,7 @@ export function getRunTypeId<T>(_value?: T, id?: InjectRunTypeId<T>): InjectRunT
  * It is the IDENTITY `T` (the value flows through unwrapped, and the marker
  * adds zero type-check cost). It deliberately carries NO phantom brand
  * property: intersecting one onto a TUPLE parameter — the old
- * `T & {__mionCompTimeArgsBrand?: never}` used by `tuple`/`union`/`func` —
+ * `T & {__rtCompTimeArgsBrand?: never}` used by `tuple`/`union`/`func` —
  * cost ~700 TS instantiations per call (the array-literal-vs-tuple-intersection
  * check; see docs/value-first-typecheck-cost.md). The Go scanner therefore
  * detects this marker SYNTACTICALLY, off the parameter's `CompTimeArgs<…>` type
@@ -111,7 +111,7 @@ export type CompTimeArgs<T> = T;
  * (see `InjectTypeFnArgs`). Phantom intersection; the value flows through
  * unwrapped.
  */
-export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
+export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
 
 /**
  * Pure-function marker. Brands a function-typed parameter so the Go scanner
@@ -122,4 +122,4 @@ export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never}
  * Strictly stronger than `CompTimeArgs<F>` when F is a function. Inline-shape
  * violations → `PFN001`; purity violations → `PFE9006`–`PFE9011`.
  */
-export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
+export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};

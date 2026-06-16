@@ -20,7 +20,7 @@ improvements deferred for later.
 The encoder owns a `DataViewSerializer` and must pick its initial `ArrayBuffer`
 size before encoding. The strategy was lifted from an API framework where each
 endpoint tracked its own buffer size — starting big and shrinking incrementally
-toward observed usage — then adapted for mion's per-type use case. Three coupled
+toward observed usage — then adapted for our per-type use case. Three coupled
 mechanisms:
 
 1. **Predict** (`predictBufferSize`/`sizeForKey`): per-`cacheKey` rolling

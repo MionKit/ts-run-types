@@ -19,14 +19,14 @@ exemplar while the rest is filled in later.
 - **Pipeline** — `scripts/export-validation-suite.mjs` → `gendocs/`, then `scripts/gen-website-suite-data.mjs` → `website/public/suite-data/`. Wired as `pnpm run gen:suite-docs`.
 - **Data shipped** — all four suite datasets under `website/public/suite-data/` (`validation` 160, `serialization` 137, `format-validation` 97, `format-serialization` 27) plus both bench datasets under `website/public/bench-data/` (`validation`, `typecost`) are committed, so the site needs no regeneration to serve them.
 
-| Page | Data | State |
-|------|------|-------|
-| Test Suites › validation | ✅ generated | **complete** (type + schema + generated code per case) |
-| Test Suites › serialization | ✅ generated | **complete** (type + schema + generated code per case) |
-| Test Suites › format-validation | ✅ generated | **complete** (type + schema + generated code per case) |
-| Test Suites › format-serialization | ✅ generated | **complete** (type + schema + generated code per case) |
-| Benchmarks › validation | ✅ generated | **complete** (4 competitors, ops/sec + per-case source) |
-| Benchmarks › typecost | ✅ generated | **complete** (5 forms, TS instantiation counts + per-form source) |
+| Page                               | Data         | State                                                             |
+| ---------------------------------- | ------------ | ----------------------------------------------------------------- |
+| Test Suites › validation           | ✅ generated | **complete** (type + schema + generated code per case)            |
+| Test Suites › serialization        | ✅ generated | **complete** (type + schema + generated code per case)            |
+| Test Suites › format-validation    | ✅ generated | **complete** (type + schema + generated code per case)            |
+| Test Suites › format-serialization | ✅ generated | **complete** (type + schema + generated code per case)            |
+| Benchmarks › validation            | ✅ generated | **complete** (4 competitors, ops/sec + per-case source)           |
+| Benchmarks › typecost              | ✅ generated | **complete** (5 forms, TS instantiation counts + per-form source) |
 
 ## How the pipeline works
 
@@ -66,28 +66,55 @@ committed and served at `/suite-data/…`.
 Keep these stable — they are the boundary between the generator and the UI.
 
 **Suite `index.json`**
+
 ```jsonc
-{ "suite": "validation", "label": "Validation",
-  "sections": [ { "key": "OBJECT", "label": "Object",
-    "cases": [ { "key": "simple_interface", "title": "…", "description": "…", "notes": true } ] } ] }
+{
+  "suite": "validation",
+  "label": "Validation",
+  "sections": [
+    {"key": "OBJECT", "label": "Object", "cases": [{"key": "simple_interface", "title": "…", "description": "…", "notes": true}]},
+  ],
+}
 ```
+
 **Suite `<SECTION>__<case>.json`**
+
 ```jsonc
-{ "section": "OBJECT", "key": "simple_interface", "title": "…", "description": "…",
-  "notes": ["…"], "pureType": "createValidate<{a: string}>()",
+{
+  "section": "OBJECT",
+  "key": "simple_interface",
+  "title": "…",
+  "description": "…",
+  "notes": ["…"],
+  "pureType": "createValidate<{a: string}>()",
   "schema": "createValidate(RT.object({a: RT.string()}))",
-  "generated": "function YOw…(v){return (typeof v === 'object' && …)}" }
+  "generated": "function YOw…(v){return (typeof v === 'object' && …)}",
+}
 ```
+
 **Bench `index.json`** (not produced yet)
+
 ```jsonc
-{ "bench": "validation", "label": "Validation", "competitors": ["ts-runtypes","zod","typebox","ajv","typia"],
-  "sections": [ { "key": "…", "label": "…",
-    "cases": [ { "key": "…", "title": "…",
-      "results": { "zod": { "validateOpsSec": 1200000, "invalidOpsSec": 900000, "status": "ok" } } } ] } ] }
+{
+  "bench": "validation",
+  "label": "Validation",
+  "competitors": ["ts-runtypes", "zod", "typebox", "ajv", "typia"],
+  "sections": [
+    {
+      "key": "…",
+      "label": "…",
+      "cases": [
+        {"key": "…", "title": "…", "results": {"zod": {"validateOpsSec": 1200000, "invalidOpsSec": 900000, "status": "ok"}}},
+      ],
+    },
+  ],
+}
 ```
+
 **Bench `<case>.json`** (not produced yet)
+
 ```jsonc
-{ "competitors": [ { "name": "zod", "source": "z.object({ … })" } ] }
+{"competitors": [{"name": "zod", "source": "z.object({ … })"}]}
 ```
 
 ## Pending work

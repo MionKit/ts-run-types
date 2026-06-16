@@ -9,7 +9,7 @@ import "strings"
 // `(utl){ … }` braces — what gets stored in `RTCompiledFnData.code`
 // for `new Function('utl', body)` reconstruction on the consumer side).
 //
-// Shape (a hoisted-declaration variant of mion's createRTFunction.ts:47 +
+// Shape (a hoisted-declaration variant of createRTFunction.ts:47 +
 // printClosure, rtFnCompiler.ts:732):
 //
 //	function <factoryName>(utl){
@@ -34,8 +34,8 @@ import "strings"
 // and inflate the wire size of every entry.
 //
 // `factoryName` is the outer (exported) function name — e.g.
-// "get_validate_<hash>". The caller owns the prefix convention (mion uses
-// "get_" to disambiguate the outer factory from the inner validator;
+// "get_validate_<hash>". The caller owns the prefix convention ("get_"
+// disambiguates the outer factory from the inner validator;
 // the same name is shared on the validator itself).
 //
 // `innerFnName` is the inner fn's name — the same identifier the caller

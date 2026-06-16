@@ -9,8 +9,8 @@ import (
 // FormatIPv6 / *WithPort in `ts-runtypes/formats`. Dispatches
 // to pf_isIPV4 / pf_isIPV6 based on the `version` param (4, 6, or
 // 'any' → OR of both), passing the whole params object so the pure fn
-// can honour allowLocalHost / allowPort. Mirrors mion's IPRunTypeFormat
-// (packages/type-formats/src/string/ip.runtype.ts).
+// can honour allowLocalHost / allowPort. Mirrors the IPRunTypeFormat
+// (ref: packages/type-formats/src/string/ip.runtype.ts).
 type ipEmitter struct{}
 
 func init() {
@@ -21,7 +21,7 @@ func (ipEmitter) Name() string                  { return "ip" }
 func (ipEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
 
 // ipVersion reads the `version` param. Accepts 4 / 6 (numeric) and
-// 'any' (string). Defaults to "any" when absent — matches mion's
+// 'any' (string). Defaults to "any" when absent — matches the
 // DEFAULT_IP_PARAMS.
 func ipVersion(params map[string]any) string {
 	raw, ok := params["version"]
@@ -79,7 +79,7 @@ func (ipEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation
 		formats.FormatErrCall(pathExpr, errorsArr, "string", "ip", "version", versionLiteral)
 }
 
-// EmitFormatTransform lowercases the IP (mion ip.runtype.ts:44 —
+// EmitFormatTransform lowercases the IP (ref: ip.runtype.ts:44 —
 // canonicalises IPv6 hex digits to lower case; a no-op for IPv4).
 func (ipEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	return vλl + ".toLowerCase()"

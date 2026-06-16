@@ -3,7 +3,7 @@ import type {SharedCase} from '../types.ts';
 export const UNION = {
   atomic_union: {
     title: 'Union of common atomic types (with Date and bigint)',
-    description: 'mion union.spec.ts "validate union" — Atomic Union suite',
+    description: 'union.spec.ts "validate union" — Atomic Union suite',
     getSamples: () => ({
       valid: [new Date(), 123, 'hello', null, 1n],
       invalid: [{}, [], true, undefined, new Date('invalid'), Infinity, Symbol(), () => null],
@@ -11,7 +11,7 @@ export const UNION = {
   },
   string_literal_union: {
     title: 'Union of string literals (case-sensitive)',
-    description: 'mion union.spec.ts "validate union discriminator string"',
+    description: 'union.spec.ts "validate union discriminator string"',
     getSamples: () => ({
       valid: ['UNO', 'DOS', 'TRES'],
       invalid: ['INVALID', 'uno', '', 42, null, undefined, true, 'Uno', {}],
@@ -35,7 +35,7 @@ export const UNION = {
   },
   union_of_array_types: {
     title: 'Union of array types (whole-array dispatch)',
-    description: 'mion union.spec.ts "Union Arr"',
+    description: 'union.spec.ts "Union Arr"',
     getSamples: () => ({
       valid: [['a'], [1], [true, false], [], ['a', 'b']],
       invalid: [['a', 1], [1, 'a'], 'not array', null, undefined, [Infinity], [null], [BigInt(1)]],
@@ -43,7 +43,7 @@ export const UNION = {
   },
   array_of_union: {
     title: 'Array whose element type is a union',
-    description: 'mion union.spec.ts "Arr with union of types"',
+    description: 'union.spec.ts "Arr with union of types"',
     getSamples: () => ({
       valid: [[1n, 'b', new Date(), true]],
       invalid: [
@@ -59,9 +59,9 @@ export const UNION = {
   union_of_object_shapes: {
     title: 'Union of disjoint object shapes',
     description:
-      "mion union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
+      "union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
     getSamples: () => ({
-      // mion union.spec.ts uses loose matching — `{a, b, c}` passes
+      // union.spec.ts uses loose matching — `{a, b, c}` passes
       // because `{b: number}` is satisfied. Our emit accepts any
       // object that satisfies AT LEAST one member's required props.
       valid: [{a: 'x', aa: true}, {b: 1}, {c: 1n}, {a: 'x', aa: true, b: 1}],
@@ -71,7 +71,7 @@ export const UNION = {
   discriminated_union: {
     title: 'Discriminated union (shared kind literal, different payloads)',
     description:
-      'mion union.spec.ts "Union with discriminator property" — the OR-chain is semantically correct; the discriminator-aware optimization (early-return on the discriminator literal) is a separate emit-shape concern handled later.',
+      'union.spec.ts "Union with discriminator property" — the OR-chain is semantically correct; the discriminator-aware optimization (early-return on the discriminator literal) is a separate emit-shape concern handled later.',
     getSamples: () => ({
       valid: [
         {kind: 'a', n: 1},
@@ -93,7 +93,7 @@ export const UNION = {
   circular_union: {
     title: 'Self-referential union via object and array arms',
     description:
-      'mion union.spec.ts "Union circular". Handled via always-non-inlined Union + Object + Array (no IsCircular detection needed; the dependency-call layer terminates via the lazy-init two-phase cache registration).',
+      'union.spec.ts "Union circular". Handled via always-non-inlined Union + Object + Array (no IsCircular detection needed; the dependency-call layer terminates via the lazy-init two-phase cache registration).',
     getSamples: () => ({
       valid: [new Date(), 123, 'hello', {}, {a: {a: {}}}, {b: 'hello'}, [], [{a: {}}, [123, 'hello']]],
       invalid: [true, null, undefined, {a: true}, [true], new Date('invalid'), Infinity, Symbol()],
@@ -102,7 +102,7 @@ export const UNION = {
   union_with_methods: {
     title: 'Union of object arms each carrying a method',
     description:
-      'mion union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
+      'union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
     getSamples: () => ({
       valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
       invalid: [{}, null, 'not object', [], undefined, true, 42, {name: 1}, {age: 'x'}],
@@ -111,7 +111,7 @@ export const UNION = {
   intersection_to_object: {
     title: 'Intersection of object shapes (resolved to one merged shape)',
     description:
-      'mion intersection.spec.ts — tsgo / deepkit resolves intersections to ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection that needs validation. Runtime behavior matches `{a: string; b: number}` byte-for-byte.',
+      'intersection.spec.ts — tsgo / deepkit resolves intersections to ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection that needs validation. Runtime behavior matches `{a: string; b: number}` byte-for-byte.',
     getSamples: () => ({
       valid: [
         {a: 'x', b: 1},
@@ -123,7 +123,7 @@ export const UNION = {
   union_with_index_arm: {
     title: 'Union where one arm carries an index signature',
     description:
-      "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
+      "union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
     getSamples: () => ({
       valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
       invalid: [
@@ -141,7 +141,7 @@ export const UNION = {
   union_same_prop_different_types: {
     title: 'Discriminated union sharing one prop with arm-dependent type',
     description:
-      "mion union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
+      "union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
     getSamples: () => ({
       valid: [
         {type: 'a', prop: true},
@@ -163,7 +163,7 @@ export const UNION = {
   union_mixed_arrays_and_objects: {
     title: 'Union mixing array types and object shapes',
     description:
-      "mion union.spec.ts 'Union Mixed' — arrays and objects in the same union; the OR-chain dispatches on shape (Array.isArray vs object typeof).",
+      "union.spec.ts 'Union Mixed' — arrays and objects in the same union; the OR-chain dispatches on shape (Array.isArray vs object typeof).",
     getSamples: () => ({
       valid: [
         ['a', 'b', 'c'],
@@ -186,7 +186,7 @@ export const UNION = {
   union_merged_property: {
     title: 'Union of shapes sharing a prop with different value types',
     description:
-      "mion union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
+      "union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
     getSamples: () => ({
       valid: [{a: true}, {a: false}, {a: 123}, {a: 0}],
       invalid: [{a: 'hello'}, {}, null, undefined, {a: 'string not boolean or number'}, {a: null}, {a: NaN}],
@@ -195,7 +195,7 @@ export const UNION = {
   union_mixed_with_index: {
     title: 'Union mixing arrays, plain objects, and index-signature shapes',
     description:
-      "mion union.spec.ts 'Union mixed with index property' — arrays + objects (some with index signatures) in the same union.",
+      "union.spec.ts 'Union mixed with index property' — arrays + objects (some with index signatures) in the same union.",
     getSamples: () => ({
       valid: [
         ['a', 'b', 'c'],
@@ -210,7 +210,7 @@ export const UNION = {
   union_with_any_fallback: {
     title: 'Union with an `any` arm (collapses to any)',
     description:
-      "mion union.spec.ts 'support union with any type' — tsgo collapses `T | any` to `any`, so any value passes (the validator is effectively a no-op true).",
+      "union.spec.ts 'support union with any type' — tsgo collapses `T | any` to `any`, so any value passes (the validator is effectively a no-op true).",
     getSamples: () => ({
       valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
       invalid: [],
@@ -219,7 +219,7 @@ export const UNION = {
   union_with_unknown_fallback: {
     title: 'Union with an `unknown` arm (collapses to unknown)',
     description:
-      "mion union.spec.ts 'support union with unknown type' — tsgo collapses `T | unknown` to `unknown`, so any value passes.",
+      "union.spec.ts 'support union with unknown type' — tsgo collapses `T | unknown` to `unknown`, so any value passes.",
     getSamples: () => ({
       valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
       invalid: [],
@@ -228,7 +228,7 @@ export const UNION = {
   union_subset_small_first: {
     title: 'Union with the smaller arm declared before its superset',
     description:
-      "mion union.spec.ts 'sortUnreachableTypes' — `{a}` defined before `{a; b}`. Both arms must be reachable: matching SmallObj must not swallow LargeObj-shaped inputs (semantically the same since either arm matching returns true, but pins the regression).",
+      "union.spec.ts 'sortUnreachableTypes' — `{a}` defined before `{a; b}`. Both arms must be reachable: matching SmallObj must not swallow LargeObj-shaped inputs (semantically the same since either arm matching returns true, but pins the regression).",
     getSamples: () => ({
       valid: [{a: 'hello'}, {a: 'hello', b: 123}],
       // Note: `{a: 'hello', b: <anything>}` passes the SmallObj arm
@@ -240,7 +240,7 @@ export const UNION = {
   union_subset_nested_levels: {
     title: 'Union with a three-level subset chain',
     description:
-      "mion union.spec.ts 'multiple levels of subset relationships' — three arms, each a strict superset of the previous.",
+      "union.spec.ts 'multiple levels of subset relationships' — three arms, each a strict superset of the previous.",
     getSamples: () => ({
       valid: [{x: 'hello'}, {x: 'hello', y: 123}, {x: 'hello', y: 123, z: true}],
       // Note: `{x: 'hello', ...}` passes the Tiny arm regardless of
@@ -252,7 +252,7 @@ export const UNION = {
   union_subset_mixed_related_unrelated: {
     title: 'Union mixing a subset pair with a disjoint arm',
     description:
-      "mion union.spec.ts 'mixed related and unrelated types' — Base and Extended are subset-related, Unrelated is disjoint.",
+      "union.spec.ts 'mixed related and unrelated types' — Base and Extended are subset-related, Unrelated is disjoint.",
     getSamples: () => ({
       valid: [{id: '123'}, {id: '123', name: 'test'}, {value: 42}],
       invalid: [{}, {name: 'test'}, {id: 123}, {value: 'not number'}, null, undefined, {value: NaN}],

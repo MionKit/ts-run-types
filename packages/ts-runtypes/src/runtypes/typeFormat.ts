@@ -4,8 +4,8 @@
 // subpath); this module just provides the alias and the runtime registry
 // plumbing they import.
 //
-// The shape mirrors mion's `TypeFormat<Base, Name, Params, BrandName>`
-// (packages/run-types/src/lib/formats.runtype.ts) but uses a plain
+// The shape mirrors `TypeFormat<Base, Name, Params, BrandName>`
+// (ref: packages/run-types/src/lib/formats.runtype.ts) but uses a plain
 // two-property brand object — `__rtFormatName` + `__rtFormatParams` —
 // instead of deepkit's TypeAnnotation tag. Both sides of the wire
 // agree on the same brand shape: the tsgo-backed format scanner in
@@ -13,7 +13,7 @@
 // these two sentinel properties and lifts them into the RunType's
 // FormatAnnotation field.
 
-// Base types a format may wrap. Primitives (mion's TypeFormatPrimitives)
+// Base types a format may wrap. Primitives (the TypeFormatPrimitives set)
 // plus the native `Date` object for the FormatDate family — the Go-side
 // scanner lifts the brand off a `Date & {brand}` intersection the same
 // way it does for `string & {brand}`.
@@ -41,7 +41,7 @@ export type TypeFormatParams = Record<string, unknown>;
 // `Name | undefined` / `Params | undefined`; the scanner strips the
 // `undefined` — see internal/compiled/runtype/typeid/formats.go.)
 //
-// `BrandName` follows mion's convention: pass it (`FormatString<P,
+// `BrandName` follows the standard convention: pass it (`FormatString<P,
 // 'UserId'>`) to opt INTO a nominal brand — a REQUIRED `__rtFormatBrand`
 // marker that makes the type no longer assignable from a bare primitive,
 // so the compiler forces values through a validation/cast boundary. The

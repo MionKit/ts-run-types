@@ -57,7 +57,7 @@ func (UnknownKeysToUndefinedWireEmitter) Finalize(raw string) (string, bool) {
 // instance, but wrong for the safe decoder's pipeline which composes
 // `restore(ukuWire(JSON.parse(s)))` — at the ukuWire stage `v` is still
 // the JSON.parse-output array, so the `instanceof` check fails and the
-// body falls through with no return (mion's bare `return;` returns
+// body falls through with no return (the bare `return;` returns
 // undefined), which would crash the downstream restore on `v.length`.
 //
 // The safe encoder (`prepareForJsonSafe`) already strips extras at

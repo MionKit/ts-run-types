@@ -46,7 +46,7 @@ func emitPropertyUnknownKeys(rt *protocol.RunType, ctx *EmitContext, trackPath b
 		return RTCode{Code: "", Type: CodeS}
 	}
 	// Wrap optional properties in a defined-check so the recursion only
-	// runs on present values (matches mion's per-property strip semantics).
+	// runs on present values (matches the per-property strip semantics).
 	if rt.Optional {
 		return RTCode{Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}", Type: CodeS}
 	}

@@ -1,17 +1,17 @@
-// Package hashid ports mion's quickHash algorithm to Go: a 32-bit-modular
+// Package hashid ports the quickHash algorithm to Go: a 32-bit-modular
 // rolling hash that produces short alphanumeric strings whose first character
 // is a letter (so the result is a valid JS identifier when used as a binding
 // name). On collisions the length grows by 2 per attempt and the previous
 // hash is used as a seed so the new value is a prefix-shared extension.
 //
-// We mirror mion's algorithm semantically (PRIME=37, alpha-first char,
+// We mirror the reference algorithm semantically (PRIME=37, alpha-first char,
 // collision-extends-by-2) without claiming byte-for-byte equivalence with the
 // JS implementation. The only contracts that matter here are:
 //
 //   - idempotence: hashing the same input twice within one Dict yields the same hash
 //   - uniqueness: distinct inputs yield distinct hashes (collision-extension guarantees this)
 //
-// See packages/core/src/pureFns/quickHash.ts in mion-run-types.
+// See (ref: packages/core/src/pureFns/quickHash.ts).
 package hashid
 
 import (

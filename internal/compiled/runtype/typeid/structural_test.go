@@ -11,7 +11,7 @@ import (
 )
 
 const runtypesDTS = `declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
 }
 `
@@ -126,7 +126,7 @@ getRunTypeId<Map<string, string>>();
 // `[number, ...string[]]` and a fixed tuple `[number, string]` reduce to the
 // same element TYPE list, but the rest flag makes them different shapes (the
 // tail absorbs zero-or-more trailing strings, so `[3]` is valid for the rest
-// tuple but not the fixed one). mion RT-compiles per call so the two never
+// tuple but not the fixed one). The reference RT-compiles per call so the two never
 // share a runtime Type; our AOT cache is project-global, so without folding
 // the element flags into the id they collapse to one entry and the
 // nondeterministically-chosen winner gives one of them the wrong validator.

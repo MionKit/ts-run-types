@@ -7,7 +7,7 @@ export const UTILITY = {
   partial: {
     title: 'Partial',
     description:
-      'mion utility/partial.spec.ts makes all properties optional, resolving to {name?: string; age?: number; createdAt?: Date} and reusing the object emit with the allOptionalCode array-rejection guard.',
+      'utility/partial.spec.ts makes all properties optional, resolving to {name?: string; age?: number; createdAt?: Date} and reusing the object emit with the allOptionalCode array-rejection guard.',
     validateNotes:
       'Resolves to an all-optional object shape, so the `allOptionalCode` guard kicks in: arrays, Date, Map, Set, RegExp are rejected at the top level even though `{}` is valid. Present properties still run their atomic checks (Invalid Date in `createdAt` fails).',
     validate: () => {
@@ -150,7 +150,7 @@ export const UTILITY = {
   required: {
     title: 'Required',
     description:
-      'mion utility/required.spec.ts makes all properties required, resolving to a plain object literal and reusing the object emit.',
+      'utility/required.spec.ts makes all properties required, resolving to a plain object literal and reusing the object emit.',
     validateNotes:
       'Optional props become required, so a value missing any of them now FAILS — `{}` and `{name: "John"}` are rejected (they were valid under the original optional shape).',
     validate: () => {
@@ -297,7 +297,7 @@ export const UTILITY = {
 
   pick: {
     title: 'Pick',
-    description: 'mion utility/pick.spec.ts keeps only the named properties, resolving to {name: string; createdAt: Date}.',
+    description: 'utility/pick.spec.ts keeps only the named properties, resolving to {name: string; createdAt: Date}.',
     validateNotes:
       'Resolves to a fixed-property object with only the picked keys. Extra properties on the input still pass (structural typing).',
     validate: () => {
@@ -434,7 +434,7 @@ export const UTILITY = {
 
   omit: {
     title: 'Omit',
-    description: 'mion utility/omit.spec.ts drops the named properties, resolving to {name: string; createdAt: Date}.',
+    description: 'utility/omit.spec.ts drops the named properties, resolving to {name: string; createdAt: Date}.',
     validateNotes:
       'Resolves to the original shape minus the omitted keys. The omitted property can still appear on the input — structural typing accepts extras.',
     validate: () => {
@@ -561,7 +561,7 @@ export const UTILITY = {
   exclude_atomic: {
     title: 'Exclude',
     description:
-      'mion utility/exclude.spec.ts (atomic case) excludes members of a string-literal union, resolving to "name" | "createdAt".',
+      'utility/exclude.spec.ts (atomic case) excludes members of a string-literal union, resolving to "name" | "createdAt".',
     validateNotes: 'Resolves the union down to the two surviving members, so the excluded "age" now FAILS the union check.',
     validate: () => createValidate<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
     validateDataOnly: () => createValidate<DataOnly<Exclude<'name' | 'age' | 'createdAt', 'age'>>>(),
@@ -615,7 +615,7 @@ export const UTILITY = {
   extract_atomic: {
     title: 'Extract',
     description:
-      'mion utility/extract.spec.ts (atomic case) extracts the matching members of a string-literal union, resolving to "name" | "createdAt".',
+      'utility/extract.spec.ts (atomic case) extracts the matching members of a string-literal union, resolving to "name" | "createdAt".',
     validateNotes: 'Keeps only the members assignable to the filter, so the dropped "age" now FAILS the union check.',
     validate: () => createValidate<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     validateDataOnly: () => createValidate<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
@@ -678,7 +678,7 @@ export const UTILITY = {
 
   exclude_from_object_union: {
     title: 'Exclude object union',
-    description: 'mion utility/exclude.spec.ts (object union) excludes object members from a discriminated union.',
+    description: 'utility/exclude.spec.ts (object union) excludes object members from a discriminated union.',
     validateNotes:
       'Drops the `circle` arm from the union, so `{kind: "circle", radius: 3}` now FAILS — only the `square` and `triangle` shapes remain valid.',
     validate: () => {
@@ -820,7 +820,7 @@ export const UTILITY = {
 
   non_nullable: {
     title: 'NonNullable',
-    description: 'mion utility/nonNullable.spec.ts strips null and undefined from a union.',
+    description: 'utility/nonNullable.spec.ts strips null and undefined from a union.',
     validateNotes:
       'Drops `null` and `undefined` from the union, so both now FAIL the union check; only `string` and `number` members pass.',
     validate: () => createValidate<NonNullable<string | number | null | undefined>>(),
@@ -871,7 +871,7 @@ export const UTILITY = {
 
   return_type: {
     title: 'ReturnType',
-    description: "mion utility/params-return.spec.ts extracts a function's return type, resolving to Date.",
+    description: "utility/params-return.spec.ts extracts a function's return type, resolving to Date.",
     validateNotes:
       "Resolves to the function's return type (`Date`), so the validator checks for a valid Date instance — NOT a function. Invalid Dates (`new Date(NaN)`) are rejected like any other Date case.",
     validate: () => {
@@ -1065,7 +1065,7 @@ export const UTILITY = {
   // string" — is a value-shape predicate, not a type check, and
   // lives in the future validation-constraints library alongside
   // the number brand types (int / uint8 / Range<a, b> / etc.).
-  // Mion's own utility/string.spec.ts is `.skip()`'d for the
+  // The reference utility/string.spec.ts is `.skip()`'d for the
   // same reason.
 
   intersection_with_required_override: {

@@ -13,7 +13,7 @@ type CacheModuleSettings struct {
 	Tag       string // short family tag for emitted inner-fn name + fnID (e.g. "verr" → inner "verr_<hash>", fnID "verr")
 }
 
-// CacheModuleGroup mirrors mion's RTFunctionsGroup pattern: a map of named
+// CacheModuleGroup mirrors the RTFunctionsGroup pattern: a map of named
 // entries, each carrying its own settings. Future emit modules add an entry
 // here so each can have its own variable prefix without touching the renderer.
 type CacheModuleGroup map[string]CacheModuleSettings
@@ -21,7 +21,7 @@ type CacheModuleGroup map[string]CacheModuleSettings
 // CacheModules is the registry of every emitted cache-module shape.
 //
 // `VarPrefix` is retained as the prefix the renderer uses for inner
-// closure names inside the body of an validate validator (mion's
+// closure names inside the body of an validate validator (the
 // printClosure convention — outer "get_<fnName>" wraps inner "<fnName>"
 // at rtFnCompiler.ts:732). After the move to the splice-based emitter
 // the prefix is NOT used to key cache entries any more: every cache is

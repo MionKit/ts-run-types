@@ -77,7 +77,7 @@ describe('ValidateOptions — variant bodies actually differ in behaviour', () =
     // Plain validator rejects 42 (typeof !== array).
     expect(plain(42)).toBe(false);
     // Variant strips the Array.isArray guard — 42 has no .length, the
-    // for-loop body never enters, so the validator passes. Mirrors mion's
+    // for-loop body never enters, so the validator passes. Mirrors the
     // documented trade-off (Array.ts:570-573).
     expect(variant(42)).toBe(true);
     // Both still walk elements when an array is supplied.

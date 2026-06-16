@@ -23,7 +23,7 @@ const (
 	formatNameProp   = "__rtFormatName"
 	formatParamsProp = "__rtFormatParams"
 	// formatBrandProp marks the OPTIONAL nominal-brand member of a TypeFormat
-	// (mion's `BrandName` convention): `Base & {sentinels} & {__rtFormatBrand: B}`.
+	// (the `BrandName` convention): `Base & {sentinels} & {__rtFormatBrand: B}`.
 	// It is a PURE TS-level discriminator — the scanner reads only the two
 	// sentinels above for the FormatAnnotation and ignores the brand — so a
 	// branded format and its unbranded twin must resolve ONE structural id.
@@ -186,7 +186,7 @@ func stringLiteralOf(tsType *checker.Type) (string, bool) {
 // declared as `typeof someConst`, where someConst is initialised by a
 // registerFormatPattern({regexp, mockSamples, message}) call. Returns
 // the RESOLVED literal object {source, flags, mockSamples?, message?} —
-// the AST is only the means of recovery, never stored (mion's
+// the AST is only the means of recovery, never stored (the
 // resolveFormatParams equivalent). Returns (nil, false) when the param
 // isn't a typeof pointing at such a call.
 func formatPatternFromSymbol(typeChecker *checker.Checker, symbol *ast.Symbol) (map[string]any, bool) {
@@ -395,7 +395,7 @@ func FormatAnnotationStructuralKey(annotation *protocol.FormatAnnotation) string
 // identically but differ only in samples or error message must still
 // dedup to one cache entry (and the surviving entry's samples are valid
 // for all of them, since they share the same validation structure).
-// Mirrors mion's `defaultIgnoreFormatProps`.
+// Mirrors the `defaultIgnoreFormatProps` rule.
 var structuralKeyIgnoredParams = map[string]bool{
 	"mockSamples": true,
 	"message":     true,

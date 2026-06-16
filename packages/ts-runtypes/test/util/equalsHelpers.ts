@@ -1,5 +1,5 @@
-// Ported verbatim from
-// mion/packages/run-types/src/rtCompilers/equalsHelpers.ts. Used by the
+// Ported verbatim from the reference
+// packages/run-types/src/rtCompilers/equalsHelpers.ts. Used by the
 // prepareForJson + restoreFromJson adapter tests to normalise both sides
 // of a round-trip comparison before invoking `expect(...).toEqual(...)`.
 //
@@ -93,7 +93,7 @@ export function normalizeForComparison(actual: any, expected: any): {actual: any
 }
 
 /** Pads `arr` with `undefined` up to `targetLength`. Mirrors
- *  mion's `normalizeArrayForComparison`. **/
+ *  the `normalizeArrayForComparison`. **/
 function normalizeArrayForComparison(arr: any[], targetLength: number): any[] {
   if (arr.length >= targetLength) return arr;
   return [...arr, ...Array(targetLength - arr.length).fill(undefined)];

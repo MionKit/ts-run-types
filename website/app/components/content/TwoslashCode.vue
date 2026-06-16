@@ -123,7 +123,7 @@ const getRequestBody = () => {
 // Create a unique cache key (include hoverMode to differentiate cached results)
 const cacheKey = props.path
   ? `twoslash-path-${props.path}-${props.hoverMode}`
-  : `mion-two-slash-code-${props.code.slice(0, 50)}-${props.hoverMode}`
+  : `rt-two-slash-code-${props.code.slice(0, 50)}-${props.hoverMode}`
 
 // Use useAsyncData for server-side rendering
 const { data, status, error } = await useAsyncData(
@@ -192,7 +192,7 @@ const handleCopy = () => {
     </div>
 
     <!-- Twoslash rendered code -->
-    <div v-else-if="data?.html" v-html="data.html" class="mion-two-slash-code" :class="{'with-title': title}"/>
+    <div v-else-if="data?.html" v-html="data.html" class="rt-two-slash-code" :class="{'with-title': title}"/>
   </div>
 </template>
 
@@ -252,7 +252,7 @@ const handleCopy = () => {
 }
 
 /* Twoslash code container */
-.mion-two-slash-code .shiki {
+.rt-two-slash-code .shiki {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.875rem;
   line-height: 1.5rem;
@@ -264,45 +264,45 @@ const handleCopy = () => {
   margin: 0;
 }
 
-.mion-two-slash-code.with-title .shiki {
+.rt-two-slash-code.with-title .shiki {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
 
-.mion-two-slash-code .twoslash-meta-line,
-.mion-two-slash-code .twoslash-tag-line {
+.rt-two-slash-code .twoslash-meta-line,
+.rt-two-slash-code .twoslash-tag-line {
   max-width: 100%;
   text-wrap-mode: wrap;
 }
 
-.mion-two-slash-code .shiki code {
+.rt-two-slash-code .shiki code {
   display: block;
 }
 
 /* Ensure empty lines have proper height */
-.mion-two-slash-code .shiki .line:empty::before {
+.rt-two-slash-code .shiki .line:empty::before {
   content: ' ';
 }
 
-.mion-two-slash-code .shiki .line {
+.rt-two-slash-code .shiki .line {
   display: block;
   max-width: 100%;
 }
 
 /* Dark mode: Use Shiki's dark theme CSS variables */
-:root.dark .mion-two-slash-code .shiki,
-:root.dark .mion-two-slash-code .shiki span {
+:root.dark .rt-two-slash-code .shiki,
+:root.dark .rt-two-slash-code .shiki span {
   color: var(--shiki-dark) !important;
   background-color: var(--shiki-dark-bg) !important;
 }
 
 /* Twoslash hover token - ensure popups stay within bounds */
-.mion-two-slash-code .twoslash-hover {
+.rt-two-slash-code .twoslash-hover {
   position: relative;
 }
 
 /* Twoslash popup styling */
-.mion-two-slash-code .twoslash-popup-code {
+.rt-two-slash-code .twoslash-popup-code {
   border-radius: calc(var(--ui-radius) * 1.5);
   box-shadow: 0 0 8px 0 #99db3580;
   padding: 0;
@@ -312,30 +312,30 @@ const handleCopy = () => {
   overflow: hidden;
 }
 
-.mion-two-slash-code .twoslash-completion-cursor  .twoslash-completion-list {
+.rt-two-slash-code .twoslash-completion-cursor  .twoslash-completion-list {
   border-radius: calc(var(--ui-radius) * 1.5);
   box-shadow: 0 0 8px 0 #99db3580;
 }
 
 /* Popup arrow styling */
-:root.dark .mion-two-slash-code .twoslash-popup-arrow {
+:root.dark .rt-two-slash-code .twoslash-popup-arrow {
   background: var(--shiki-dark-bg, #1e1e1e);
 }
 
-:root.light .mion-two-slash-code .twoslash-popup-arrow {
+:root.light .rt-two-slash-code .twoslash-popup-arrow {
   background: var(--shiki-light-bg, #ffffff);
 }
 
 /* Dark mode popup container */
-:root.dark .mion-two-slash-code .twoslash-popup-container,
-:root.dark .mion-two-slash-code .twoslash-completion-cursor .twoslash-completion-list {
+:root.dark .rt-two-slash-code .twoslash-popup-container,
+:root.dark .rt-two-slash-code .twoslash-completion-cursor .twoslash-completion-list {
   background: var(--shiki-dark-bg, #1e1e1e);
   border-color: var(--color-green-700);
 }
 
 /* Light mode popup container */
-:root.light .mion-two-slash-code .twoslash-popup-container,
-:root.light .mion-two-slash-code .twoslash-completion-cursor .twoslash-completion-list {
+:root.light .rt-two-slash-code .twoslash-popup-container,
+:root.light .rt-two-slash-code .twoslash-completion-cursor .twoslash-completion-list {
   background: var(--shiki-light-bg, #ffffff);
   border-color: var(--color-green-700);
 }

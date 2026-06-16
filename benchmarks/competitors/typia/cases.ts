@@ -9,7 +9,7 @@
 // Exclude/Extract/keyof/indexed-access/conditional/mapped/key-remapping), and
 // template-literal types are all expressed natively and work.
 //
-// FORMAT suites can't use mion's `Format*` brand types, so they translate to typia
+// FORMAT suites can't use the `Format*` brand types, so they translate to typia
 // tags (`string & tags.MinLength<…>`, `… & tags.Pattern<'…'>`, `number & tags.Type<…>
 // & tags.Minimum<…>`, etc.). Tag semantics confirmed against the installed typings
 // and each case's exact samples; a tag is used only where it matches the samples.
@@ -22,7 +22,7 @@
 //   - `Date` is `instanceof Date` only, so Invalid Date (new Date('invalid')) passes;
 //   - calendar/bound-aware string formats (date/date-time with real-calendar or
 //     min/max bounds) exceed what a Pattern can express;
-//   - typia validates function-typed members & methods (mion silently drops them),
+//   - typia validates function-typed members & methods (we silently drop them),
 //     mis-renders `void`, treats `never`/`object`/all-optional objects/Promise/Temporal
 //     differently than these suites, and can't hold 64-bit bigint bounds as tag literals.
 
@@ -120,7 +120,7 @@ export const cases: CompetitorCases = {
     },
   },
   'ATOMIC.literal_1n': NOT_SUPPORTED, // typia does not support bigint literal types (is<1n>() rejects the literal 1n)
-  'ATOMIC.literal_symbol': NOT_SUPPORTED, // mion matches a symbol by its description; typia can't constrain symbol identity/description
+  'ATOMIC.literal_symbol': NOT_SUPPORTED, // we match a symbol by its description; typia can't constrain symbol identity/description
   'ATOMIC.never': NOT_SUPPORTED, // typia is<never>() accepts undefined
   'ATOMIC.null': {
     build: () => {
@@ -526,7 +526,7 @@ export const cases: CompetitorCases = {
     },
     samples: {invalid: [{date: 'not date', name: 'x'}, {date: new Date(), name: 1}, {name: 'x'}, null, undefined]},
   }, // override: typia Date prop is instanceof (accepts Invalid Date); invalid drops the two Invalid Date entries
-  'OBJECT.interface_with_method': NOT_SUPPORTED, // typia validates the function prop (cb); mion silently drops it, so valid samples with cb:42/null fail here
+  'OBJECT.interface_with_method': NOT_SUPPORTED, // typia validates the function prop (cb); we silently drop it, so valid samples with cb:42/null fail here
   'OBJECT.nested_object': {
     build: () => {
       const check = typia.createIs<{a: string; deep: {b: string; c: number}}>();
@@ -589,10 +589,10 @@ export const cases: CompetitorCases = {
   })(),
   // typia accepts an explicit-`undefined` property value ({a: undefined}) for a
   // string index signature — a genuine runtime-semantics divergence from the suite
-  // (mion rejects it: every index value must satisfy the value type). Not fixable
+  // (we reject it: every index value must satisfy the value type). Not fixable
   // at the type level, so opted out rather than left as a perpetual correctness FAIL.
   // typia accepts an explicit-`undefined` property value ({a: undefined}) for a
-  // string index signature; mion rejects it (every index value must satisfy the value type).
+  // string index signature; we reject it (every index value must satisfy the value type).
   'OBJECT.index_signature_string': NOT_SUPPORTED,
   'OBJECT.index_signature_named_props': {
     build: () => {
@@ -648,7 +648,7 @@ export const cases: CompetitorCases = {
   })(),
   'OBJECT.function_top_level': NOT_SUPPORTED, // typia transform emits invalid JS for the void return position of () => void
   'OBJECT.interface_callable': NOT_SUPPORTED, // typia does not validate a callable interface as a function-with-props; rejects the valid function value
-  'OBJECT.interface_all_optional': NOT_SUPPORTED, // typia's all-optional object accepts Date/Map/Set/array instances; mion rejects them
+  'OBJECT.interface_all_optional': NOT_SUPPORTED, // typia's all-optional object accepts Date/Map/Set/array instances; we reject them
   'OBJECT.class_simple': {
     build: () => {
       class MySerializableClass {
@@ -914,7 +914,7 @@ export const cases: CompetitorCases = {
     },
     samples: {invalid: [[], ['Alice'], ['Alice', '30'], [30, 'Alice'], null, 'not array', undefined, [null, 30]]},
   }, // override: typia number slot accepts NaN; invalid drops ['Alice',NaN]
-  'TUPLE.tuple_with_non_serializable': NOT_SUPPORTED, // typia requires the function slot; mion treats it as must-be-undefined (valid sample [3] omits it)
+  'TUPLE.tuple_with_non_serializable': NOT_SUPPORTED, // typia requires the function slot; we treat it as must-be-undefined (valid sample [3] omits it)
   'TUPLE.empty_tuple': {
     build: () => {
       const check = typia.createIs<[]>();
@@ -1049,7 +1049,7 @@ export const cases: CompetitorCases = {
     },
     samples: {invalid: [true, null, undefined, {a: true}, [true], Symbol()]},
   }, // override: typia Date arm is instanceof + number arm accepts Infinity; invalid drops new Date('invalid') + Infinity
-  'UNION.union_with_methods': NOT_SUPPORTED, // typia validates the methods; mion drops them, so valid samples omitting the method fail here
+  'UNION.union_with_methods': NOT_SUPPORTED, // typia validates the methods; we drop them, so valid samples omitting the method fail here
   'UNION.intersection_to_object': {
     build: () => {
       const check = typia.createIs<{a: string} & {b: number}>();
@@ -1275,7 +1275,7 @@ export const cases: CompetitorCases = {
       return (v) => val(v).success;
     },
   },
-  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED, // verified typia accepts {foo:1} for a template-literal index key — it ignores keys not matching the pattern, where mion requires every own key to match (structural divergence, not purely sample-semantics)
+  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED, // verified typia accepts {foo:1} for a template-literal index key — it ignores keys not matching the pattern, where we require every own key to match (structural divergence, not purely sample-semantics)
   'TEMPLATE_LITERAL.template_literal_union_placeholder': {
     build: () => {
       const check = typia.createIs<`${'a' | 'b'}-${number}`>();
@@ -1470,7 +1470,7 @@ export const cases: CompetitorCases = {
   'CIRCULAR_REFS.object_self_cycle': NOT_SUPPORTED, // a reference cycle would stack-overflow
 
   // ── UTILITY ──
-  'UTILITY.partial': NOT_SUPPORTED, // all-optional object: typia accepts a Date/Map/Set instance (verified: new Date() passes) where mion rejects it — a structural divergence, same as OBJECT.interface_all_optional (not purely sample-semantics)
+  'UTILITY.partial': NOT_SUPPORTED, // all-optional object: typia accepts a Date/Map/Set instance (verified: new Date() passes) where we reject it — a structural divergence, same as OBJECT.interface_all_optional (not purely sample-semantics)
   'UTILITY.required': {
     build: () => {
       interface MaybePerson {
@@ -1763,7 +1763,7 @@ export const cases: CompetitorCases = {
     },
     samples: {invalid: [{w: true}, {w: null}, {}, null, undefined]},
   }, // override: typia number arm accepts NaN; invalid drops {w:NaN}
-  'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED, // all-optional outer object: typia accepts a Date instance (verified: new Date() passes) where mion rejects it — a structural divergence, same as OBJECT.interface_all_optional (not purely sample-semantics)
+  'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED, // all-optional outer object: typia accepts a Date instance (verified: new Date() passes) where we reject it — a structural divergence, same as OBJECT.interface_all_optional (not purely sample-semantics)
 
   // ── TYPE_MAPPINGS ──
   'TYPE_MAPPINGS.key_prefix_rename': (() => {
@@ -2110,7 +2110,7 @@ export const cases: CompetitorCases = {
     },
   },
   'STRING_FORMAT.time_minMax_absolute': NOT_SUPPORTED, // needs absolute min/max bound comparison on time strings (no typia tag)
-  'STRING_FORMAT.dateTime_default': NOT_SUPPORTED, // verified typia tags.Format<'date-time'> accepts the space-split form '2024-02-29 12:30:45Z' (RFC 3339 allows space) + no calendar check; mion needs a T-only split with calendar validity
+  'STRING_FORMAT.dateTime_default': NOT_SUPPORTED, // verified typia tags.Format<'date-time'> accepts the space-split form '2024-02-29 12:30:45Z' (RFC 3339 allows space) + no calendar check; we need a T-only split with calendar validity
   'STRING_FORMAT.dateTime_custom': {
     build: () => {
       const check = typia.createIs<
@@ -2223,7 +2223,7 @@ export const cases: CompetitorCases = {
       valid: ['john@example.com', 'jane.doe@mion.io', 'ab@cd.co', 'user+tag@sub.example.org'],
       invalid: ['not-an-email', '@example.com', 'john@', 'john@example', 'john doe@example.com', ''],
     },
-  }, // override: typia email accepts a@b.co (1-char domain label) which mion rejects; invalid drops only that one sample
+  }, // override: typia email accepts a@b.co (1-char domain label) which we reject; invalid drops only that one sample
   'STRING_FORMAT.emailPunycode': {
     build: () => {
       const check = typia.createIs<string & tags.Format<'email'>>();
@@ -2354,7 +2354,7 @@ export const cases: CompetitorCases = {
       return (v) => val(v).success;
     },
   },
-  'NUMBER_FORMAT.number_float': NOT_SUPPORTED, // mion FormatFloat means non-integer; typia Type<'float'> means float32-representable (accepts integers)
+  'NUMBER_FORMAT.number_float': NOT_SUPPORTED, // our FormatFloat means non-integer; typia Type<'float'> means float32-representable (accepts integers)
   'NUMBER_FORMAT.number_multipleOf': {
     build: () => {
       const check = typia.createIs<number & tags.MultipleOf<5>>();

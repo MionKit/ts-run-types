@@ -36,7 +36,7 @@
 #   WEBSITE_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline)
 #   WEBSITE_REMOTE_IMAGE  remote ref   (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest)
 #   GHCR_OWNER / GHCR_USER / GHCR_PAT / GHCR_PAT_FILE  (see scripts/lib-ghcr.sh)
-#   WEBSITE_REPO_CONTEXT  host checkout that contains packages/ (mion's source +
+#   WEBSITE_REPO_CONTEXT  host checkout that contains packages/ (the source +
 #                        built .d.ts), mounted read-only for code-import/twoslash.
 #                        Default: sibling ../mion if present, else this repo.
 #   WEBSITE_DOCDATA      host dir of generated benchmark/test result JSON the docs
@@ -80,7 +80,7 @@ RUN_NETWORK="${WEBSITE_RUN_NETWORK:-}"
 CACERTS_DIR="$WEBSITE_DIR/.cacerts"
 DEPS_DIR="$WEBSITE_DIR/_deps"
 
-# Repo context: the checkout that contains packages/ (mion's first-party source +
+# Repo context: the checkout that contains packages/ (the first-party source +
 # built .d.ts), mounted READ-ONLY so code-import + twoslash can resolve code and
 # types. This repo now carries packages/examples itself (the merged-monorepo
 # state), so prefer it whenever those examples are present -- the docs content is
@@ -237,7 +237,7 @@ mount_args() {
 
   # Repo context, READ-ONLY: only packages/ (+ the drizzle-orm d.ts allowlist) is
   # exposed — never the repo root — so code-import/twoslash can read first-party
-  # code + types but nothing else. MION_REPO_ROOT=/repo-context (see env_args).
+  # code + types but nothing else. RT_REPO_ROOT=/repo-context (see env_args).
   if [ -d "$REPO_CONTEXT/packages" ]; then
     printf -- '-v\n%s:/repo-context/packages:ro%s\n' "$REPO_CONTEXT/packages" "$MOUNT_OPTS"
   fi
@@ -245,7 +245,7 @@ mount_args() {
     printf -- '-v\n%s:/repo-context/node_modules/drizzle-orm:ro%s\n' "$REPO_CONTEXT/node_modules/drizzle-orm" "$MOUNT_OPTS"
   fi
 
-  # Generated benchmark/test results the docs read (MION_DOCDATA=/app/.docdata).
+  # Generated benchmark/test results the docs read (RT_DOCDATA=/app/.docdata).
   mkdir -p "$DOCDATA_DIR"
   printf -- '-v\n%s:/app/.docdata:ro%s\n' "$DOCDATA_DIR" "$MOUNT_OPTS"
 
@@ -261,8 +261,8 @@ net_args() {
 
 # Echo the env args pointing the resolvers at the mounted repo context + results.
 env_args() {
-  printf -- '-e\nMION_REPO_ROOT=/repo-context\n'
-  printf -- '-e\nMION_DOCDATA=/app/.docdata\n'
+  printf -- '-e\nRT_REPO_ROOT=/repo-context\n'
+  printf -- '-e\nRT_DOCDATA=/app/.docdata\n'
 }
 
 # Echo watcher env args when polling is requested (needed on macOS / VM mounts).
@@ -469,7 +469,7 @@ cmd_lock() {
 cmd_prep() {
   echo "==> repo context: $REPO_CONTEXT"
   local pkgdir="$REPO_CONTEXT/packages" missing=0 p
-  [ -d "$pkgdir" ] || die "no packages/ under repo context '$REPO_CONTEXT' - set WEBSITE_REPO_CONTEXT to the mion checkout"
+  [ -d "$pkgdir" ] || die "no packages/ under repo context '$REPO_CONTEXT' - set WEBSITE_REPO_CONTEXT to the repo checkout"
   for p in core run-types; do
     if ls "$pkgdir/$p/.dist/esm/"*.d.ts >/dev/null 2>&1; then
       echo "  ok: packages/$p built"

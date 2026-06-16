@@ -1,17 +1,17 @@
 package protocol
 
 // Family classifies a RunType into one of four buckets: Atomic (A),
-// Collection (C), Member (M), or Function (F). Mirrors mion's
-// `RunTypeFamily` (run-types/src/types.ts:41) and the per-class
+// Collection (C), Member (M), or Function (F). Mirrors the
+// `RunTypeFamily` (ref: packages/run-types/src/types.ts:41) and the per-class
 // `getFamily()` overrides in BaseRunType / AtomicRunType /
 // CollectionRunType / MemberRunType / FunctionRunType.
 //
 // Used by the RT compiler's inline-vs-dependent predicate
 // (BaseRunType.isRTInlined treats named Collections as dependencies
 // so their factories can be reused across reference sites — see
-// run-types/src/lib/baseRunTypes.ts:52).
+// ref: packages/run-types/src/lib/baseRunTypes.ts:52).
 //
-// Single-character string values match mion's wire form so JS-side
+// Single-character string values match the wire form so JS-side
 // consumers can compare without translation.
 type Family string
 
@@ -21,18 +21,18 @@ const (
 	// (KindRef sentinel) and reserved kinds (TypeParameter / Infer)
 	// have no family classification.
 	FamilyUnknown Family = ""
-	// FamilyAtomic is mion's 'A'. Single-shape values that have no
+	// FamilyAtomic is 'A'. Single-shape values that have no
 	// children (string, number, null, literal, …) and inline cheaply.
 	FamilyAtomic Family = "A"
-	// FamilyCollection is mion's 'C'. Has children that compose into
+	// FamilyCollection is 'C'. Has children that compose into
 	// the parent's emitted code (objectLiteral, class, union,
 	// intersection, tuple, templateLiteral).
 	FamilyCollection Family = "C"
-	// FamilyMember is mion's 'M'. Wraps a single child with a parent-
+	// FamilyMember is 'M'. Wraps a single child with a parent-
 	// relative accessor (property, parameter, array, rest,
 	// indexSignature, tupleMember, promise).
 	FamilyMember Family = "M"
-	// FamilyFunction is mion's 'F'. Functions / methods /
+	// FamilyFunction is 'F'. Functions / methods /
 	// call-signatures — anything with parameters + a return type.
 	FamilyFunction Family = "F"
 )
@@ -47,11 +47,11 @@ const (
 // `omitempty` strips them.
 //
 // Stays in lockstep with the family-per-class declarations in
-// mion's run-types/src/nodes/*/*.ts — see the spec files for which
+// packages/run-types/src/nodes/*/*.ts — see the spec files for which
 // node class each ReflectionKind maps to.
 func FamilyOf(kind ReflectionKind) Family {
 	switch kind {
-	// Atomic — run-types/src/nodes/atomic/*.ts.
+	// Atomic — packages/run-types/src/nodes/atomic/*.ts.
 	case KindAny, KindUnknown, KindNever, KindVoid,
 		KindNull, KindUndefined,
 		KindString, KindNumber, KindBoolean, KindBigInt, KindSymbol,
@@ -59,8 +59,8 @@ func FamilyOf(kind ReflectionKind) Family {
 		KindEnum, KindEnumMember:
 		return FamilyAtomic
 
-	// Collection — run-types/src/nodes/collection/*.ts. Note:
-	// templateLiteral lives under collection/ in mion despite
+	// Collection — packages/run-types/src/nodes/collection/*.ts. Note:
+	// templateLiteral lives under collection/ despite
 	// "atomic" connotations — its emitted code composes a regex from
 	// child segments, so it's a Collection family-wise.
 	case KindObjectLiteral, KindClass,
@@ -68,9 +68,9 @@ func FamilyOf(kind ReflectionKind) Family {
 		KindTuple, KindTemplateLiteral:
 		return FamilyCollection
 
-	// Member — run-types/src/nodes/member/*.ts + native/promise.ts.
-	// Each wraps a single child accessor. KindArray is a Member in
-	// mion (member/array.ts) even though we name it "Array" — the
+	// Member — packages/run-types/src/nodes/member/*.ts + native/promise.ts.
+	// Each wraps a single child accessor. KindArray is a Member
+	// (member/array.ts) even though we name it "Array" — the
 	// node wraps one element-type child via `Child`.
 	case KindProperty, KindPropertySignature, KindParameter,
 		KindArray, KindRest,
@@ -78,10 +78,10 @@ func FamilyOf(kind ReflectionKind) Family {
 		KindPromise:
 		return FamilyMember
 
-	// Function — run-types/src/nodes/function/function.ts +
+	// Function — packages/run-types/src/nodes/function/function.ts +
 	// member/method.ts + member/methodSignature.ts +
 	// member/callSignature.ts. Despite living under member/ in
-	// mion's directory layout, method / methodSignature /
+	// the directory layout, method / methodSignature /
 	// callSignature all extend FunctionRunType and getFamily()
 	// returns 'F'.
 	case KindFunction, KindMethod, KindMethodSignature, KindCallSignature:

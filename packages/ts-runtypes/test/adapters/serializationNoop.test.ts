@@ -1,11 +1,11 @@
 // Ports the three ad-hoc noop-marker tests from
-// `mion/packages/run-types/src/rtCompilers/json/jsonSpec/00JsonOnly.spec.ts`.
+// `00JsonOnly.spec.ts` (ref: packages/run-types/src/rtCompilers/json/jsonSpec/).
 //
 // Verifies the renderer's treatment of trivially JSON-safe shapes, which is
-// now STRONGER than mion's `isNoop: true` marker: the noop verdict is decided
+// now STRONGER than the `isNoop: true` marker: the noop verdict is decided
 // semantically over the type graph (typefns/noop_types.go), and the JSON
 // composites ELIDE identity primitives outright — no binding, no import, no
-// module load. So where mion asserts `entry.isNoop === true`, our runtime
+// module load. So where the reference asserts `entry.isNoop === true`, our runtime
 // cache simply never receives the pj/rj entry for a noop shape (the jeMU/jdST
 // composite collapses to bare `JSON.stringify(v)` / `rjOrUkuw(JSON.parse(s))`
 // with the dead half gone). Shapes that DO need a transform keep their
@@ -68,7 +68,7 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     createJsonDecoder<SonENCDECRequired>();
 
     // Noop shapes: the composites elided their pj/rj bindings, so the
-    // primitive entries never load — stronger than mion's isNoop flag.
+    // primitive entries never load — stronger than the isNoop flag.
     expect(pjEntry(noopId)).toBeUndefined();
     expect(rjEntry(noopId)).toBeUndefined();
     expect(pjEntry(encId)?.isNoop).toBe(false);
@@ -90,8 +90,8 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
   });
 
   it('atomic union — pj keeps the dispatch, rj collapses when no member needs the wrap', () => {
-    // Per mion's per-member `skipEncode + needsTupleEncoding` optimisation
-    // (rtCompilers/json/stringifyJson.ts:295-306), a union member skips
+    // Per the per-member `skipEncode + needsTupleEncoding` optimisation
+    // (ref: rtCompilers/json/stringifyJson.ts:295-306), a union member skips
     // the `[memberIndex, value]` envelope when BOTH its prepareForJson
     // and restoreFromJson would compile to noop. For `number | string`,
     // every member is noop on both halves, so:

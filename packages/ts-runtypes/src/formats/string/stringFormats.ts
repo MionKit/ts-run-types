@@ -6,7 +6,7 @@
 //
 // `TypeFormat` IS imported as a value (not `import type`): the value-level
 // import keeps each brand alias's reflection metadata reachable for tsgo
-// (mion documents the same constraint).
+// (the spec documents the same constraint).
 
 import {TypeFormat} from '../../runtypes/typeFormat.ts';
 import type {FormatPattern, StringPatternArgs} from '../../runtypes/formatPattern.ts';
@@ -105,10 +105,10 @@ export interface StringParams {
   lowercase?: boolean;
   uppercase?: boolean;
   capitalize?: boolean;
-  // String replacement transforms (mion's StringTransformers): the value
+  // String replacement transforms (the StringTransformers): the value
   // has `searchValue` replaced with `replaceValue` (first match for
   // `replace`, every match for `replaceAll`). Applied before the
-  // case/trim formatters, matching mion's emitFormat order.
+  // case/trim formatters, matching the emitFormat order.
   replace?: {searchValue: string; replaceValue: string};
   replaceAll?: {searchValue: string; replaceValue: string};
 }
@@ -124,7 +124,7 @@ export type StringParamsValueFirst = Omit<StringParams, 'pattern'> & {pattern?: 
 
 // FormatString — the branded string alias users annotate with:
 // `FormatString<{maxLength: 32}>`. `BrandName` produces a nominal type
-// when needed (mion's convention).
+// when needed (the convention).
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type FormatString<P extends StringParams = {}, BrandName extends string = never> = TypeFormat<
   string,
@@ -195,7 +195,7 @@ export type FormatIPv6WithPort = FormatIP<{version: 6; allowLocalHost: true; all
 // ────────────────────────────── Domain ──────────────────────────────
 
 // DomainPartParams — the sub-validators a `names` label or the `tld`
-// accepts (mion's Omit<StringValidators, 'length'|'allowedChars'|'disallowedChars'>).
+// accepts (Omit<StringValidators, 'length'|'allowedChars'|'disallowedChars'>).
 export interface DomainPartParams {
   maxLength?: number;
   minLength?: number;

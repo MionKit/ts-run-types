@@ -9,7 +9,7 @@ import (
 
 // UnknownKeyErrorsEmitter implements the `unknownKeyErrors` rt
 // function — accumulator that records one RunTypeError of expected
-// `'never'` per unknown key. Ported from mion's emitUnknownKeyErrors.
+// `'never'` per unknown key. Ported from the reference emitUnknownKeyErrors.
 //
 // Arg shape mirrors validationErrors: (v, pth=[], er=[]). Returns `er`.
 type UnknownKeyErrorsEmitter struct{}
@@ -93,10 +93,10 @@ func (UnknownKeyErrorsEmitter) Finalize(rawCode string) (string, bool) {
 // appends a 'never' error for an unknown key. `extra` is the key
 // variable (since the key is a runtime value, not a static name).
 func callUnknownKeyErr(ctx *EmitContext, extra string) string {
-	ctx.AddPureFnDependency("mion", "newRunTypeErr", validationErrorsPureFnFilePath)
+	ctx.AddPureFnDependency("rt", "newRunTypeErr", validationErrorsPureFnFilePath)
 	key := pureFnAlias("newRunTypeErr")
 	if !ctx.HasContextItem(key) {
-		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('mion::newRunTypeErr')")
+		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('rt::newRunTypeErr')")
 	}
 	pthArg := ctx.ArgName("pλth")
 	errArg := ctx.ArgName("εrr")
@@ -107,7 +107,7 @@ func callUnknownKeyErr(ctx *EmitContext, extra string) string {
 	return key + "(" + strings.Join(args, ",") + ")"
 }
 
-// emitObjectUnknownKeyErrors ports mion's
+// emitObjectUnknownKeyErrors ports
 // InterfaceRunType.emitUnknownKeyErrors (interface.ts:157-172).
 func emitObjectUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	hasIndex := objectHasIndexSignatureChild(rt, ctx)
@@ -129,7 +129,7 @@ func emitObjectUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return RTCode{Code: combined, Type: CodeS}
 }
 
-// emitIndexSignatureUnknownKeyErrors ports mion's
+// emitIndexSignatureUnknownKeyErrors ports
 // IndexSignatureRunType.emitUnknownKeyErrors (indexProperty.ts:122-132).
 func emitIndexSignatureUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {
@@ -181,10 +181,10 @@ func emitIndexSignatureUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) 
 	return RTCode{Code: body, Type: CodeS}
 }
 
-// emitMapUnknownKeyErrors mirrors mion's
+// emitMapUnknownKeyErrors mirrors
 // IterableRunType.emitUnknownKeyErrors (nodes/native/Iterable.ts:105-120).
 // For each entry, sets the key/value accessor and a `{key, index,
-// failed: 'mapKey' | 'mapValue'}` path segment (matching mion's
+// failed: 'mapKey' | 'mapValue'}` path segment (matching
 // MapKeyRunType.getStaticPathLiteral / MapValueRunType.getStaticPathLiteral)
 // before recursing into the wrapped child's unknownKeyErrors emit. The
 // child's emit (object/property/etc) emits its own per-error
@@ -250,7 +250,7 @@ func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 }
 
 // emitSetUnknownKeyErrors mirrors the same Iterable.ts emit on the Set
-// side. Path segment is {key: safe(item), index} — mion's set.ts DOES
+// side. Path segment is {key: safe(item), index} — set.ts DOES
 // override getStaticPathLiteral (it returns the safe item value + the
 // loop index), so the failing item is locatable for an unordered Set.
 func emitSetUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {

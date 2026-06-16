@@ -5,7 +5,7 @@
  * The software is provided "as is", without warranty of any kind.
  * ######## */
 
-// Type surface copied from `@mionjs/core` so rtUtils stays dependency-free.
+// Local type surface for the RT utils, kept dependency-free.
 // Only the symbols `rtUtils.ts` actually reaches are kept here.
 
 import type {RTUtils} from './rtUtils.ts';

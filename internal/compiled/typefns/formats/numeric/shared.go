@@ -14,7 +14,7 @@ import (
 )
 
 // 64-bit range bounds for the bigint binary optimization, parsed once.
-// Mirror mion's BIGINT64_MIN/MAX + BIGUINT64_MIN/MAX
+// Mirror BIGINT64_MIN/MAX + BIGUINT64_MIN/MAX
 // (bigIntFormat.runtype.ts:27-31).
 var (
 	bigInt64Min  = mustBigInt("-9223372036854775808")

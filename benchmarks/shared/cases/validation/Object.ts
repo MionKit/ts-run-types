@@ -4,7 +4,7 @@ export const OBJECT = {
   simple_interface: {
     title: 'Simple interface with string and number props',
     description:
-      'mion interface.spec.ts "validate object" (simplified to the atomic-prop subset that the current Go port can validate end-to-end)',
+      'interface.spec.ts "validate object" (simplified to the atomic-prop subset that the current Go port can validate end-to-end)',
     getSamples: () => ({
       valid: [
         {a: 'hello', b: 1},
@@ -89,7 +89,7 @@ export const OBJECT = {
   },
   interface_with_date: {
     title: 'Interface with a Date property',
-    description: 'tests that Date child validates via instanceof inside the AND chain — mion interface.spec.ts ObjectType subset',
+    description: 'tests that Date child validates via instanceof inside the AND chain — interface.spec.ts ObjectType subset',
     getSamples: () => ({
       valid: [{date: new Date(), name: 'x'}],
       invalid: [
@@ -106,7 +106,7 @@ export const OBJECT = {
   interface_with_method: {
     title: 'Interface with a method (function prop skipped from check)',
     description:
-      "mion: objectSkipProps — function-typed properties are skipped from validate (mion's `getRTChild → undefined` for function children). validate({name:'x'}) PASSES even without `cb`.",
+      "objectSkipProps — function-typed properties are skipped from validate (`getRTChild → undefined` for function children). validate({name:'x'}) PASSES even without `cb`.",
     getSamples: () => ({
       valid: [{name: 'x'}, {name: 'x', cb: () => null}, {name: 'x', cb: 42}, {name: 'x', cb: null}, {name: 'x', cb: 'not-a-fn'}],
       invalid: [{name: 1}, null, undefined],
@@ -114,7 +114,7 @@ export const OBJECT = {
   },
   nested_object: {
     title: 'Interface with a nested object property',
-    description: 'nested object — outer + inner AND-chains; mion ObjectType "deep" subset',
+    description: 'nested object — outer + inner AND-chains; ObjectType "deep" subset',
     getSamples: () => ({
       valid: [{a: 'x', deep: {b: 'y', c: 1}}],
       invalid: [
@@ -139,7 +139,7 @@ export const OBJECT = {
   circular_interface: {
     title: 'Self-referential interface (linked-list shape)',
     description:
-      "mion interface.spec.ts 'validate circular object'. Exercises self-recursive dependency call (mion isSelf branch — `<innerFnName>(v.child)` without `.fn`).",
+      "interface.spec.ts 'validate circular object'. Exercises self-recursive dependency call (isSelf branch — `<innerFnName>(v.child)` without `.fn`).",
     getSamples: () => ({
       valid: [{name: 'root'}, {name: 'root', child: {name: 'a'}}, {name: 'root', child: {name: 'a', child: {name: 'b'}}}],
       invalid: [
@@ -155,7 +155,7 @@ export const OBJECT = {
   },
   circular_interface_on_array: {
     title: 'Self-referential interface via an array-of-self property',
-    description: "mion interface.spec.ts 'validate circular interface on array' — circular type traversed via an array property.",
+    description: "interface.spec.ts 'validate circular interface on array' — circular type traversed via an array property.",
     getSamples: () => ({
       valid: [{name: 'r'}, {name: 'r', children: []}, {name: 'r', children: [{name: 'a'}, {name: 'b', children: [{name: 'c'}]}]}],
       invalid: [{name: 'r', children: [{name: 1}]}, {name: 'r', children: 'not array'}, {name: 1}],
@@ -164,7 +164,7 @@ export const OBJECT = {
   circular_interface_on_nested_object: {
     title: 'Self-referential interface buried in a nested object',
     description:
-      "mion interface.spec.ts 'validate circular interface on nested object' — circular reference deep inside a property.",
+      "interface.spec.ts 'validate circular interface on nested object' — circular reference deep inside a property.",
     getSamples: () => ({
       valid: [
         {name: 'r', embedded: {hello: 'h'}},
@@ -176,7 +176,7 @@ export const OBJECT = {
   index_signature_string: {
     title: 'Index signature with string values',
     description:
-      "mion indexProperty.spec.ts 'validate index run type' — for-in loop over own keys, value must satisfy the value type.",
+      "indexProperty.spec.ts 'validate index run type' — for-in loop over own keys, value must satisfy the value type.",
     getSamples: () => ({
       valid: [{}, {a: 'x'}, {a: 'x', b: 'y'}],
       invalid: [{a: 1}, {a: 'x', b: 2}, null, 'not object', undefined, {a: null}, {a: undefined}],
@@ -185,7 +185,7 @@ export const OBJECT = {
   index_signature_named_props: {
     title: 'Index signature combined with named properties',
     description:
-      "mion indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
+      "indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
     getSamples: () => ({
       valid: [
         {a: 'x', b: 1},
@@ -197,7 +197,7 @@ export const OBJECT = {
   },
   index_signature_nested: {
     title: 'Nested index signatures (number leaf values)',
-    description: 'mion indexProperty.spec.ts nested rtNested — index sig pointing at another index sig.',
+    description: 'indexProperty.spec.ts nested rtNested — index sig pointing at another index sig.',
     getSamples: () => ({
       valid: [{}, {a: {x: 1, y: 2}}, {a: {}, b: {n: 0}}],
       invalid: [{a: 1}, {a: {x: 'not number'}}, null, undefined, {a: {x: NaN}}, {a: {x: null}}],
@@ -205,7 +205,7 @@ export const OBJECT = {
   },
   index_signature_date_value: {
     title: 'Nested index signatures with Date leaf values',
-    description: 'mion indexProperty.spec.ts rtNested2 — Date as the leaf value type.',
+    description: 'indexProperty.spec.ts rtNested2 — Date as the leaf value type.',
     getSamples: () => ({
       valid: [{}, {a: {x: new Date()}}],
       invalid: [{a: {x: 'not date'}}, {a: 'not object'}, null, undefined, {a: {x: new Date('invalid')}}],
@@ -214,7 +214,7 @@ export const OBJECT = {
   index_signature_non_root: {
     title: 'Index signature on a nested (non-root) object property',
     description:
-      "mion indexProperty.spec.ts 'IndexType non root' — index signature attached to a nested (non-root) object property.",
+      "indexProperty.spec.ts 'IndexType non root' — index signature attached to a nested (non-root) object property.",
     getSamples: () => ({
       valid: [
         {b: 'hello', c: {a: 'world', c: 'world'}},
@@ -225,7 +225,7 @@ export const OBJECT = {
   },
   function_top_level: {
     title: 'Function type at top level (any function passes)',
-    description: "mion FunctionRunType.emitIsType — `typeof v === 'function'`. Param-arity check is deferred (mion-level).",
+    description: "FunctionRunType.emitIsType — `typeof v === 'function'`. Param-arity check is deferred.",
     getSamples: () => ({
       valid: [() => {}, function () {}, async () => {}, class {}],
       invalid: [null, undefined, 42, 'function', {}, [], true],
@@ -234,7 +234,7 @@ export const OBJECT = {
   interface_callable: {
     title: 'Callable interface (function plus data properties)',
     description:
-      'mion interface.spec.ts "validate callable interface" — the emit detects a CallSignature child and switches the typeof guard from `object` to `function`, then AND-chains the remaining properties on top (JS functions can carry properties).',
+      'interface.spec.ts "validate callable interface" — the emit detects a CallSignature child and switches the typeof guard from `object` to `function`, then AND-chains the remaining properties on top (JS functions can carry properties).',
     getSamples: () => ({
       valid: [
         Object.assign(
@@ -257,7 +257,7 @@ export const OBJECT = {
   interface_all_optional: {
     title: 'Interface with every property optional (plain-object guard)',
     description:
-      "mion interface.spec.ts \"validate empty object for ObjectAllOptional type\". The `allOptionalCode` guard `(!Array.isArray(v) && Object.prototype.toString.call(v) === '[object Object]')` is added when every contributing child is optional, so arrays / Date / Map / Set are explicitly rejected (without the guard they'd slip through the bare `typeof === 'object'` check).",
+      "interface.spec.ts \"validate empty object for ObjectAllOptional type\". The `allOptionalCode` guard `(!Array.isArray(v) && Object.prototype.toString.call(v) === '[object Object]')` is added when every contributing child is optional, so arrays / Date / Map / Set are explicitly rejected (without the guard they'd slip through the bare `typeof === 'object'` check).",
     getSamples: () => ({
       valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: undefined, b: undefined}],
       invalid: [[], new Date(), new Map(), new Set(), null, 'hello', 42, undefined, /regex/, true],
@@ -266,7 +266,7 @@ export const OBJECT = {
   class_simple: {
     title: 'Class with two atomic props (instance or plain match)',
     description:
-      "mion class.spec.ts 'validate class'. ClassRunType inherits InterfaceRunType.emitIsType in mion, so the KindClass+SubKindNone arm in istype.go falls through to emitObjectValidate. The serializer filters synthetic `prototype` members from class projections so the AND chain only includes user-declared properties + methods (methods drop out via the function-skip rule).",
+      "class.spec.ts 'validate class'. ClassRunType inherits InterfaceRunType.emitIsType, so the KindClass+SubKindNone arm in istype.go falls through to emitObjectValidate. The serializer filters synthetic `prototype` members from class projections so the AND chain only includes user-declared properties + methods (methods drop out via the function-skip rule).",
     getSamples: () => {
       class Match {
         date = new Date();
@@ -293,7 +293,7 @@ export const OBJECT = {
   rpc_error_class: {
     title: 'RpcError-shaped class with branded discriminator',
     description:
-      "mion classRpcError.spec.ts — verifies the standard class projection handles RpcError-shaped classes (the actual @mionjs/core RpcError isn't a built-in node kind; it's a regular class with a literal-true brand + generic type discriminator). We define a local equivalent here to exercise the same shape end-to-end without pulling in the @mionjs/core dependency for a single test.",
+      "classRpcError.spec.ts — verifies the standard class projection handles RpcError-shaped classes (the actual RpcError class isn't a built-in node kind; it's a regular class with a literal-true brand + generic type discriminator). We define a local equivalent here to exercise the same shape end-to-end without pulling in that dependency for a single test.",
     getSamples: () => {
       const validInstance = {
         'mion@isΣrrθr': true,
@@ -324,12 +324,12 @@ export const OBJECT = {
   call_signature_params: {
     title: 'Function parameters extracted via Parameters<F>',
     description:
-      "mion callSignature.spec.ts 'should validate correct parameters' — mion exposes this via `rt.getCallSignature().createRTParamsFunction(RTFunctions.validate)`; our pipeline uses TypeScript's built-in `Parameters<F>` to extract the param tuple as a first-class type and reuses the standard tuple emit. Same observable behavior: the validator accepts `[number, boolean]`, rejects wrong-type args, accepts missing trailing args (treats them as undefined per mion's `v.length <= N` policy), rejects excess args.",
+      "callSignature.spec.ts 'should validate correct parameters' — the reference exposes this via `rt.getCallSignature().createRTParamsFunction(RTFunctions.validate)`; our pipeline uses TypeScript's built-in `Parameters<F>` to extract the param tuple as a first-class type and reuses the standard tuple emit. Same observable behavior: the validator accepts `[number, boolean]`, rejects wrong-type args, accepts missing trailing args (treats them as undefined per the `v.length <= N` policy), rejects excess args.",
     getSamples: () => ({
       valid: [
         [1, true],
         [0, false],
-        // mion: missing trailing args treated as undefined; if the
+        // missing trailing args treated as undefined; if the
         // param type is `boolean` (not `boolean | undefined`) then
         // `[1]` fails because v[1] === undefined doesn't satisfy
         // typeof === 'boolean'. Same shape here.
@@ -350,7 +350,7 @@ export const OBJECT = {
   call_signature_params_with_optional: {
     title: 'Parameters<F> tuple with a trailing optional argument',
     description:
-      "mion function.spec.ts 'validate function parameters' — params tuple with a trailing optional. `Parameters<F>` resolves to `[number, boolean, string?]`; the optional slot accepts undefined OR a string.",
+      "function.spec.ts 'validate function parameters' — params tuple with a trailing optional. `Parameters<F>` resolves to `[number, boolean, string?]`; the optional slot accepts undefined OR a string.",
     getSamples: () => ({
       valid: [
         [3, true, 'hello'],
@@ -370,7 +370,7 @@ export const OBJECT = {
   call_signature_params_with_rest: {
     title: 'Parameters<F> tuple with a trailing rest segment',
     description:
-      "mion function.spec.ts 'validate function with rest parameters' — params tuple ending in a rest segment. `Parameters<F>` resolves to `[number, boolean, ...Date[]]`; all trailing slots must satisfy Date.",
+      "function.spec.ts 'validate function with rest parameters' — params tuple ending in a rest segment. `Parameters<F>` resolves to `[number, boolean, ...Date[]]`; all trailing slots must satisfy Date.",
     getSamples: () => {
       const date1 = new Date();
       const date2 = new Date();

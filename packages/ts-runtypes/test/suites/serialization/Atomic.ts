@@ -84,10 +84,10 @@ export const ATOMIC = {
       // After JSON.stringify(Infinity) === 'null', restore yields null.
       deserializedValues: [null, null, null],
     }),
-    // Safe-path adapter: stringifyJson at root uses `String(v)` per
-    // mion (stringifyJson.ts:97). `String(Infinity) === "Infinity"`
+    // Safe-path adapter: stringifyJson at root uses `String(v)`
+    // (ref: stringifyJson.ts:97). `String(Infinity) === "Infinity"`
     // which is not valid JSON — JSON.parse throws. The flag opts the
-    // safe adapter into mion's loose "throw OR non-equal" semantic
+    // safe adapter into the loose "throw OR non-equal" semantic
     // for this case.
     safeAdapterStringifyJsonNotParseable: true,
   },

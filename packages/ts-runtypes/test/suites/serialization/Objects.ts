@@ -737,7 +737,7 @@ export const OBJECTS = {
   non_serializable_class: {
     title: 'Non-serializable class',
     description:
-      'Class instance that mion can reconstruct only when a deserialize fn is registered; without that registration JSON yields a plain object, dropping the method and losing the prototype.',
+      'Class instance that can be reconstructed only when a deserialize fn is registered; without that registration JSON yields a plain object, dropping the method and losing the prototype.',
     serializeNotes: [
       'Class instance decodes to a plain object (asymmetric deserializedValues): the getFullName method is non-serializable and dropped, the instance prototype is not restored.',
       'The startDate Date field round-trips via ISO string.',
@@ -971,7 +971,7 @@ export const OBJECTS = {
   extras_passthrough_unsafe: {
     title: 'Extras passthrough',
     description:
-      "Canonical baseline for the unsafe `prepareForJson + JSON.stringify` path where declared children get transformed while structural extras (top-level and nested-in-declared-composites) pass through unchanged, mirroring mion's `03JsonObjects.spec.ts` strip-extras case whose strip expectation is commented out, with the safe `stripUnknownKeys` divergence exercised in EXTRA_PARAMS.",
+      'Canonical baseline for the unsafe `prepareForJson + JSON.stringify` path where declared children get transformed while structural extras (top-level and nested-in-declared-composites) pass through unchanged, mirroring the `03JsonObjects.spec.ts` strip-extras case whose strip expectation is commented out, with the safe `stripUnknownKeys` divergence exercised in EXTRA_PARAMS.',
     serializeNotes: [
       'Strategy split: `mutate` walks declared children only and lets `JSON.stringify` pass undeclared extras through, so `getTestData` round-trips them unchanged; `clone` and `direct` are shape-derived and strip extras pre-serialise, so `getTestDataForStringify` restores the declared-only shape (`deserializedValues` drops the extras).',
       'Decode split: the `preserve` decoder passes undeclared keys through to the restored value, while the default `strip` decoder nukes them to `undefined`.',
