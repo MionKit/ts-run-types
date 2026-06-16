@@ -44,18 +44,17 @@ const hoistMinRefs = 3
 // Vite plugin invalidates it on addedRunTypes).
 func CollectEntries(dump protocol.Dump) entrymod.Graph {
 	graph := entrymod.Graph{}
-	roots := reflectionRoots(dump.Sites)
-	if len(roots) == 0 {
+	nodes := indexNodes(dump.RunTypes)
+	// Facades are emitted for reflection-only roots; circular createX types
+	// contribute their graph as bundle ROWS (so the circular-reference guard
+	// can walk a value at runtime) but get no facade — their fn entry imports
+	// the bundle directly via the dep wired in wireCircularRunTypeDeps.
+	facadeRoots := reflectionRoots(dump.Sites)
+	rowRoots := unionRoots(facadeRoots, circularGuardTypeIDs(dump.Sites, nodes))
+	if len(rowRoots) == 0 {
 		return graph
 	}
-
-	nodes := make(map[string]*protocol.RunType, len(dump.RunTypes))
-	for _, runType := range dump.RunTypes {
-		if runType != nil && runType.ID != "" {
-			nodes[runType.ID] = runType
-		}
-	}
-	rows := closureRows(roots, nodes)
+	rows := closureRows(rowRoots, nodes)
 	hoist := buildHoistTable(rows, nodes)
 
 	var rowsText strings.Builder
@@ -80,10 +79,10 @@ func CollectEntries(dump protocol.Dump) entrymod.Graph {
 		ArgsText: quoteJS(bundleKey) + ",[" + rowsText.String() + "]",
 		InitBody: footer.String(),
 	})
-	// Facades are emitted for every demanded root — even one whose node never
+	// Facades are emitted for every reflection root — even one whose node never
 	// made it into the dump (defensive): the injected import must resolve, and
 	// the runtime degrades to a registry miss exactly as before.
-	for _, root := range roots {
+	for _, root := range facadeRoots {
 		graph.Add(&entrymod.Entry{
 			Key:      root,
 			Kind:     entrymod.KindRunTypeFacade,
@@ -92,6 +91,97 @@ func CollectEntries(dump protocol.Dump) entrymod.Graph {
 		})
 	}
 	return graph
+}
+
+// indexNodes maps every dumped RunType by its id, skipping nil / id-less nodes.
+func indexNodes(runTypes []*protocol.RunType) map[string]*protocol.RunType {
+	nodes := make(map[string]*protocol.RunType, len(runTypes))
+	for _, runType := range runTypes {
+		if runType != nil && runType.ID != "" {
+			nodes[runType.ID] = runType
+		}
+	}
+	return nodes
+}
+
+// unionRoots merges reflection facade roots with the circular createX type-id
+// set into one deduped, sorted row-root list.
+func unionRoots(facadeRoots []string, circular map[string]bool) []string {
+	set := make(map[string]bool, len(facadeRoots)+len(circular))
+	for _, root := range facadeRoots {
+		set[root] = true
+	}
+	for id := range circular {
+		set[id] = true
+	}
+	out := make([]string, 0, len(set))
+	for id := range set {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// CircularGuardTypeIDs returns the set of type ids referenced by a createX
+// (function-cache) site whose reflected graph contains a circular node. These
+// types get their RunType graph emitted into the data bundle AND (by the
+// resolver) linked into the guarded fn entries' dep closure, so the runtime
+// circular-reference guard can walk values of cyclic types. Single source of
+// truth shared by CollectEntries (bundle rows) and the resolver's dep wiring.
+func CircularGuardTypeIDs(dump protocol.Dump) map[string]bool {
+	return circularGuardTypeIDs(dump.Sites, indexNodes(dump.RunTypes))
+}
+
+// circularGuardTypeIDs collects the createX (FnId-bearing) site type ids whose
+// reflected closure contains at least one circular node. Reflection-only sites
+// (FnId empty) are excluded — their graph already ships via reflectionRoots.
+func circularGuardTypeIDs(sites []protocol.Site, nodes map[string]*protocol.RunType) map[string]bool {
+	out := map[string]bool{}
+	memo := map[string]bool{}
+	for _, site := range sites {
+		if site.ID == "" || site.FnId == "" || out[site.ID] {
+			continue
+		}
+		if closureHasCircular(site.ID, nodes, memo) {
+			out[site.ID] = true
+		}
+	}
+	return out
+}
+
+// closureHasCircular reports whether any node reachable from rootID over the
+// ref-bearing slots is flagged circular by the serializer (RunType.IsCircular).
+// Memoised by root id across one collection pass.
+func closureHasCircular(rootID string, nodes map[string]*protocol.RunType, memo map[string]bool) bool {
+	if cached, ok := memo[rootID]; ok {
+		return cached
+	}
+	visited := make(map[string]bool)
+	queue := []string{rootID}
+	found := false
+	for len(queue) > 0 {
+		id := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		if visited[id] {
+			continue
+		}
+		visited[id] = true
+		node := nodes[id]
+		if node == nil {
+			continue
+		}
+		if node.IsCircular {
+			found = true
+			break
+		}
+		for _, dep := range collectRefDeps(node) {
+			if !visited[dep] {
+				queue = append(queue, dep)
+			}
+		}
+	}
+	memo[rootID] = found
+	return found
 }
 
 // CollectEntriesPerNode is the allModules-mode collector: one entrymod.Entry
