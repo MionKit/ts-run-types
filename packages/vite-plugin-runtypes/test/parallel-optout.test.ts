@@ -10,7 +10,7 @@ import {BIN, RUNTYPES_DTS, hasBinary} from './helpers/inline.ts';
 
 const ROOT = path.resolve(__dirname, '../../..');
 
-const SOURCE = `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
+const SOURCE = `import {createValidate, getRunTypeId} from 'ts-runtypes';
 export interface User {id: number; name: string}
 export const v = createValidate<User>();
 export const idStatic = getRunTypeId<User>();

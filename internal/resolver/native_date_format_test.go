@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/all"
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // native_date_format_test.go covers the FormatDate (native Date) family:
@@ -20,7 +20,7 @@ import (
 // and any FMT002 diagnostics.
 func scanNativeDate(t *testing.T, params string) (string, []*protocol.RunType, []diag.Diagnostic) {
 	t.Helper()
-	code := `import {createValidate} from '@mionjs/ts-go-run-types';
+	code := `import {createValidate} from 'ts-runtypes';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<Date, 'nativeDate', ` + params + `>>();
 `
@@ -101,7 +101,7 @@ func TestNativeDate_ValidateEmitsExclusiveBoundCheck(t *testing.T) {
 // brand lift in collapseIntersection. A regression here would silently
 // strip format metadata from native-Date runtypes.
 func TestNativeDate_RunTypeCacheCarriesFormatAnnotation(t *testing.T) {
-	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	code := `import {getRunTypeId} from 'ts-runtypes';
 ` + typeFormatBrandDecl + `
 export const _ = getRunTypeId<TypeFormat<Date, 'nativeDate', {min: 'now'}>>();
 `

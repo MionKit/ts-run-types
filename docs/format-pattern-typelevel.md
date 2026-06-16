@@ -1,13 +1,13 @@
 # Format patterns must live in the type, not in a runtime value
 
 **Status:** implemented. Discovered while building the cross-library validation
-benchmarks (`benchmarks/`), where ts-go-run-types resolves the marker package
+benchmarks (`benchmarks/`), where RunTypes resolves the marker package
 through its published `dist/*.d.ts` instead of `src/`. The proposed solution
 below is now live — `registerFormatPattern` / `FormatPattern` are generic over
 the args literal, the built-ins are authored as `{source, flags, mockSamples}`,
 and the Go scanner recovers the pattern from the resolved TYPE
 (`formatPatternFromType`). The benchmark's `alpha`/`email`/`url`/`domain` cases
-validate for ts-go-run-types through `dist/*.d.ts`.
+validate for RunTypes through `dist/*.d.ts`.
 
 ## TL;DR
 
@@ -29,7 +29,7 @@ straight from the type, surviving `.d.ts`.
 
 ## Background — two ways a format carries its params
 
-ts-go-run-types resolves `createValidate<T>()` by reading `T` with the tsgo
+RunTypes resolves `createValidate<T>()` by reading `T` with the tsgo
 type checker. Format params reach the scanner by one of two routes:
 
 1. **Type-argument literals (survive `.d.ts`).** `FormatString<{maxLength: 5}>`,
@@ -39,21 +39,21 @@ type checker. Format params reach the scanner by one of two routes:
 
 2. **`typeof` an opaque runtime value (does NOT survive `.d.ts`).** The
    char-class formats in
-   [`src/formats/string/stringFormats.ts`](../packages/ts-go-run-types/src/formats/string/stringFormats.ts):
+   [`src/formats/string/stringFormats.ts`](../packages/ts-runtypes/src/formats/string/stringFormats.ts):
 
    ```ts
    export type FormatAlpha<P = {}> = TypeFormat<string, 'stringFormat', P & {pattern: typeof ALPHA_PATTERN}, never>;
    ```
 
    where, in
-   [`src/formats/string/string-patterns.ts`](../packages/ts-go-run-types/src/formats/string/string-patterns.ts):
+   [`src/formats/string/string-patterns.ts`](../packages/ts-runtypes/src/formats/string/string-patterns.ts):
 
    ```ts
    export const ALPHA_PATTERN = registerFormatPattern({ regexp: /^[\p{L}]+$/u, mockSamples: [...] });
    ```
 
    `registerFormatPattern` is typed to return a **non-generic, opaque** interface
-   ([`src/runtypes/formatPattern.ts`](../packages/ts-go-run-types/src/runtypes/formatPattern.ts)):
+   ([`src/runtypes/formatPattern.ts`](../packages/ts-runtypes/src/runtypes/formatPattern.ts)):
 
    ```ts
    export interface FormatPattern {
@@ -103,13 +103,13 @@ to "literal in the call AST", which is recoverable first-party but not through a
 
 ## Why it matters
 
-- **Downstream npm consumers** of `@mionjs/ts-go-run-types` always resolve via
+- **Downstream npm consumers** of RunTypes always resolve via
   `dist/*.d.ts`. Today, every format whose pattern is a registered package
   constant (alpha/alphaNumeric/numeric, domain, email, url, …) silently fails to
   compile for them — exactly the formats most users want.
 - The benchmark surfaced it because it deliberately consumes the published
   shape: `alpha`/`alphaNumeric`/`numeric`/`alpha_withLength` show as
-  not-supported for ts-go-run-types while zod/typebox/ajv handle them.
+  not-supported for RunTypes while zod/typebox/ajv handle them.
 
 ## Guiding principle
 
@@ -182,7 +182,7 @@ mockSamples, message?}` shape, all string literals, still wrapped in
 4. **Migrate every built-in pattern to the string form.** Convert all
    `registerFormatPattern({regexp: /…/})` calls (alpha/alphaNumeric/numeric,
    domain, email, url, …) in
-   [`src/formats/string/string-patterns.ts`](../packages/ts-go-run-types/src/formats/string/string-patterns.ts)
+   [`src/formats/string/string-patterns.ts`](../packages/ts-runtypes/src/formats/string/string-patterns.ts)
    to `{source: '…', flags: '…', mockSamples: […]}`. A regex's `.source` /
    `.flags` are mechanical to extract; the only manual care is backslash
    double-escaping in the string literal.
@@ -215,5 +215,5 @@ mockSamples, message?}` shape, all string literals, still wrapped in
   (`formatPatternFromType` in `internal/compiled/runtype/typeid/formats.go`); the
   AST reader stays as the value-first fallback.
 - ✅ The benchmark's `alpha` / `alphaNumeric` / `numeric` / `alpha_withLength`
-  (and domain/email/url) compile and validate for ts-go-run-types through
+  (and domain/email/url) compile and validate for RunTypes through
   `dist/*.d.ts` — no `"source"` resolution condition.

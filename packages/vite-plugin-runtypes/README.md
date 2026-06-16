@@ -1,6 +1,6 @@
 # vite-plugin-runtypes
 
-Vite plugin that rewrites **mion runtypes** marker calls (`getTypeInfo`, `validate`, `router`) into cache lookups, driven by the [`ts-go-run-types`](../../README.md) Go resolver.
+Vite plugin that rewrites **mion runtypes** marker calls (`getTypeInfo`, `validate`, `router`) into cache lookups, driven by the [RunTypes](../../README.md) Go resolver.
 
 ## Install
 
@@ -8,7 +8,7 @@ Vite plugin that rewrites **mion runtypes** marker calls (`getTypeInfo`, `valida
 pnpm add -D vite-plugin-runtypes
 ```
 
-You must also build the `ts-go-run-types` binary from the parent repo and pass its path to the plugin.
+You must also build the `ts-runtypes` binary from the parent repo and pass its path to the plugin.
 
 ## Usage
 
@@ -20,7 +20,7 @@ import runtypes from 'vite-plugin-runtypes';
 export default defineConfig({
   plugins: [
     runtypes({
-      binary: './bin/ts-go-run-types', // built from the parent Go module
+      binary: './bin/ts-runtypes', // built from the parent Go module
       tsconfig: 'tsconfig.json',
     }),
   ],
@@ -47,7 +47,7 @@ The cache module is a flat list of `export const t_<hash> = {…}` declarations.
 
 | Option            | Default                           | Description                                                                |
 | ----------------- | --------------------------------- | -------------------------------------------------------------------------- |
-| `binary`          | — (required)                      | Path to the compiled `ts-go-run-types` Go binary.                          |
+| `binary`          | — (required)                      | Path to the compiled `ts-runtypes` Go binary.                              |
 | `cwd`             | Vite's root                       | Project root used to resolve `tsconfig` and source paths                   |
 | `tsconfig`        | `"tsconfig.json"`                 | tsconfig, relative to `cwd`.                                               |
 | `markers`         | `[getTypeInfo, validate, router]` | Marker functions to rewrite.                                               |

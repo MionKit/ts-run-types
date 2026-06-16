@@ -1,10 +1,10 @@
 # Setup
 
-Single setup document for `ts-go-run-types`. Architecture + workflow rules live in [CLAUDE.md](CLAUDE.md); design deep-dive in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Single setup document for RunTypes. Architecture + workflow rules live in [CLAUDE.md](CLAUDE.md); design deep-dive in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-> **Automated path:** the `ts-run-types-setup` skill ([.claude/skills/ts-run-types-setup/](.claude/skills/ts-run-types-setup/)) drives this whole document end-to-end — host deps, submodule bootstrap + patches, `pnpm install`, Go + plugin builds, podman engine, and smoke verification. Run `bash .claude/skills/ts-run-types-setup/setup.sh` and the rest of this doc is reference material.
+> **Automated path:** the `ts-runtypes-setup` skill ([.claude/skills/ts-runtypes-setup/](.claude/skills/ts-runtypes-setup/)) drives this whole document end-to-end — host deps, submodule bootstrap + patches, `pnpm install`, Go + plugin builds, podman engine, and smoke verification. Run `bash .claude/skills/ts-runtypes-setup/setup.sh` and the rest of this doc is reference material.
 
-The repository contains a **Go binary** at [cmd/ts-go-run-types/](cmd/ts-go-run-types/) and a **pnpm/Lerna workspace** of JS packages under [packages/](packages/). The monorepo setup mirrors [mion](https://github.com/MionKit/mion). Two **podman-containerized** apps ship alongside: the docs website ([website/](website/)) and the validation benchmarks ([benchmarks/](benchmarks/)).
+The repository contains a **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) and a **pnpm/Lerna workspace** of JS packages under [packages/](packages/). The monorepo setup mirrors [mion](https://github.com/MionKit/mion). Two **podman-containerized** apps ship alongside: the docs website ([website/](website/)) and the validation benchmarks ([benchmarks/](benchmarks/)).
 
 ---
 
@@ -25,8 +25,8 @@ The repository contains a **Go binary** at [cmd/ts-go-run-types/](cmd/ts-go-run-
 ## Clone & bootstrap
 
 ```bash
-git clone git@github.com:mionkit/ts-go-run-types.git
-cd ts-go-run-types
+git clone git@github.com:mionkit/ts-runtypes.git
+cd ts-runtypes
 git submodule update --init --recursive
 (cd third_party/tsgolint/typescript-go && git apply --3way ../patches/*.patch)
 pnpm install --frozen-lockfile
@@ -47,7 +47,7 @@ The Go module graph resolves against the patched `typescript-go` working tree �
 ### Go binary
 
 ```bash
-go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
+go build -o bin/ts-runtypes ./cmd/ts-runtypes
 ```
 
 The Vite plugin spawns this binary at JS test time and at build time — **build it before `pnpm test`**. The root `pretest` script runs [`scripts/check-stale-builds.sh`](scripts/check-stale-builds.sh) which auto-rebuilds the Go binary, the marker package dist, and the vite plugin dist when any of them is stale or partially emitted.
@@ -56,7 +56,7 @@ The Vite plugin spawns this binary at JS test time and at build time — **build
 
 ```bash
 pnpm run build                                       # all packages, lerna-orchestrated
-pnpm --filter @mionjs/ts-go-run-types run build      # single package
+pnpm --filter ts-runtypes run build      # single package
 pnpm --filter vite-plugin-runtypes run build         # the other
 ```
 
@@ -70,7 +70,7 @@ Outputs land in `packages/*/dist/`. The plugin's dist must be present for marker
 go test ./internal/...                          # Go suite
 pnpm test                                       # all JS packages (Vitest projects)
 pnpm --filter vite-plugin-runtypes test         # single package
-pnpm --filter @mionjs/ts-go-run-types test      # the other
+pnpm --filter ts-runtypes test      # the other
 ```
 
 JS plugin tests in [packages/vite-plugin-runtypes/test/](packages/vite-plugin-runtypes/test/) spawn the Go binary — `pretest` rebuilds it.
@@ -94,7 +94,7 @@ The package-manager files (`package.json`, lockfile, `pnpm-workspace.yaml`, `.np
 | Benchmarks  | `pnpm run bench:smoke`   | Build every competitor's dist (no run) — minutes shorter.                           |
 | Benchmarks  | `pnpm run bench:typecost`| Per-competitor type-instantiation-cost benchmark.                                  |
 
-The website only needs **podman**; the benchmarks additionally need **Node + pnpm + Go** for the host prep (resolver binary + first-party dists, bind-mounted into the container). On macOS the prep cross-compiles a `bin/ts-go-run-types-linux-<arch>` so the Linux container can execute it.
+The website only needs **podman**; the benchmarks additionally need **Node + pnpm + Go** for the host prep (resolver binary + first-party dists, bind-mounted into the container). On macOS the prep cross-compiles a `bin/ts-runtypes-linux-<arch>` so the Linux container can execute it.
 
 > **Agents:** start the website with `scripts/website.sh dev --isAgent` (not plain `dev`). It runs in a separate container (`tsrt-website-agent`) on the reserved port **`:3100`** and self-stops after ~5 min idle, so an agent-driven server never collides with a human's `:3000` and never lingers. Hot-reload polling auto-enables on macOS; force it anywhere with `WEBSITE_POLL=1`.
 
@@ -184,14 +184,14 @@ func New(program *program.Program, checker *checker.Checker) { ... }
 printf '%s\n%s\n' \
   '{"op":"scanFiles","files":["internal/testfixtures/f6_router_inference.ts"]}' \
   '{"op":"dump"}' \
-  | bin/ts-go-run-types --one-shot --tsconfig internal/testfixtures/tsconfig.json \
+  | bin/ts-runtypes --one-shot --tsconfig internal/testfixtures/tsconfig.json \
   > cache.json
 ```
 
 ### Daemon (Unix socket — used for HMR scenarios)
 
 ```bash
-bin/ts-go-run-types --daemon --tsconfig tsconfig.json --socket /tmp/ts-go-run-types.sock
+bin/ts-runtypes --daemon --tsconfig tsconfig.json --socket /tmp/ts-runtypes.sock
 ```
 
 ### Flags reference
@@ -240,7 +240,7 @@ To add a new patch:
 ```bash
 cd third_party/tsgolint/typescript-go
 # 1. Make changes and commit them in this nested repo.
-git commit -m "ts-go-run-types: <description>"
+git commit -m "ts-runtypes: <description>"
 
 # 2. Produce a portable patch.
 git format-patch -1 -o ../patches
@@ -285,11 +285,11 @@ pnpm run npm-unpublish <version>
 | `git apply` fails with "patch does not apply"                  | tsgolint upstream moved                                                     | Resolve manually with `git apply --3way --reject`, then resolve `.rej` files and refresh via `git format-patch`.               |
 | `pnpm install` rejects a dependency with "minimum release age" | `pnpm-workspace.yaml` blocks packages <30 days old                          | Wait or add a targeted entry under `minimumReleaseAgeExclude`.                                                                 |
 | `pnpm install` fails on a peer dep                             | `strictPeerDependencies: true`                                              | Add the peer to the package's `peerDependencies` or `devDependencies`.                                                         |
-| JS plugin tests error spawning the resolver                    | `bin/ts-go-run-types` not built                                             | `pnpm run check:builds` or `go build -o bin/ts-go-run-types ./cmd/ts-go-run-types`.                                            |
+| JS plugin tests error spawning the resolver                    | `bin/ts-runtypes` not built                                             | `pnpm run check:builds` or `go build -o bin/ts-runtypes ./cmd/ts-runtypes`.                                            |
 | ESLint errors `tsconfigRootDir` cannot find project            | New package missing from root `tsconfig.json` `references`                  | Add the package path to the root `tsconfig.json`.                                                                              |
 | Husky hook not firing                                          | `prepare` script did not run                                                | `pnpm install` again, or `pnpm exec husky` to force activation.                                                                |
 | `podman machine start` fails with `vfkit exited unexpectedly`  | Rosetta 2 missing on Apple Silicon                                          | `softwareupdate --install-rosetta --agree-to-license`, then re-run `podman machine start`.                                     |
-| `vite-plugin-runtypes` container build fails with garbled errors | Host-arch Go binary mounted into a Linux container                        | The bench script auto-cross-compiles `bin/ts-go-run-types-linux-<arch>`; force a refresh with `pnpm run bench:prep`.           |
+| `vite-plugin-runtypes` container build fails with garbled errors | Host-arch Go binary mounted into a Linux container                        | The bench script auto-cross-compiles `bin/ts-runtypes-linux-<arch>`; force a refresh with `pnpm run bench:prep`.           |
 | Marker package `tsc --build` fails with `Cannot find namespace 'Temporal'` | Missing `esnext.temporal` in the marker `tsconfig.json` `lib`           | Restore the `esnext.temporal` entry — its absence makes tsc skip declaration emit on the offending file, leaving `markers.d.ts` / `createRTFunctions.d.ts` missing and breaking call-site resolution. |
 | Bench errors `createValidate(): no id injected`                | Stale or partial marker/plugin `dist/` (`.d.ts.map` without `.d.ts`)        | `pnpm run check:builds` — wipes `tsconfig.tsbuildinfo` and rebuilds the affected dist clean. CI never hits this; only fresh-checkout-then-interrupt scenarios do. |
 
@@ -299,8 +299,8 @@ pnpm run npm-unpublish <version>
 
 ```bash
 pnpm exec lerna list                         # list workspace packages
-pnpm exec lerna run <script> --scope @mionjs/ts-go-run-types
-pnpm --filter @mionjs/ts-go-run-types <cmd>  # equivalent
+pnpm exec lerna run <script> --scope ts-runtypes
+pnpm --filter ts-runtypes <cmd>  # equivalent
 pnpm -r <cmd>                                # run in every workspace package
 pnpm exec nx reset                           # clear nx build cache
 ```

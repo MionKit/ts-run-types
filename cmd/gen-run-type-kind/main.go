@@ -13,7 +13,7 @@
 //
 // Run:
 //
-//	go run ./cmd/gen-run-type-kind > packages/ts-go-run-types/src/runTypeKind.ts
+//	go run ./cmd/gen-run-type-kind > packages/ts-runtypes/src/runTypeKind.ts
 //
 // Or via the pnpm script:
 //

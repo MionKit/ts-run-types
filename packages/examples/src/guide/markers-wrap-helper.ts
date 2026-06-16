@@ -1,6 +1,6 @@
-import {getRTUtils, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRTUtils, type InjectRunTypeId} from 'ts-runtypes';
 
-// Wrap ts-run-types into your OWN helper. Declare a trailing
+// Wrap ts-runtypes into your OWN helper. Declare a trailing
 // `id?: InjectRunTypeId<T>` parameter and the build fills it in at every
 // call site — you never pass the id yourself.
 function describe<T>(id?: InjectRunTypeId<T>): string {

@@ -1,5 +1,5 @@
 // Vendored copy of the diagnostic catalog from
-// packages/ts-go-run-types/src/runtypes/diagnosticCatalog.ts. Kept in sync
+// packages/ts-runtypes/src/runtypes/diagnosticCatalog.ts. Kept in sync
 // manually for now — a follow-up `gen:diag-catalog` script will pick one
 // canonical source-of-truth file and emit both copies.
 //
@@ -240,7 +240,7 @@ Fix — accept a pre-computed id from the caller:
   TMP001: {
     headline:
       "Temporal type `{0}` resolved to `any` — the Temporal lib isn't in your tsconfig `lib`, so the generated validator would accept any value.",
-    detail: `ts-go-run-types reads types through TypeScript's lib definitions, so it
+    detail: `ts-runtypes reads types through TypeScript's lib definitions, so it
 can only validate \`Temporal.*\` types when the Temporal namespace is loaded.
 With the lib missing, \`{0}\` silently degrades to \`any\` and the validator
 becomes a no-op that accepts everything — almost never what you intended.

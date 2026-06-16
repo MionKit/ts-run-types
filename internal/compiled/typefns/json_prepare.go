@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/operations"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/operations"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // PrepareForJsonEmitter implements the `prepareForJson` rt function —

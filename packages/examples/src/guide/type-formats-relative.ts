@@ -1,5 +1,5 @@
-import {createValidate} from '@mionjs/ts-go-run-types';
-import type {FormatStringDate, FormatStringDateTime} from '@mionjs/ts-go-run-types/formats';
+import {createValidate} from 'ts-runtypes';
+import type {FormatStringDate, FormatStringDateTime} from 'ts-runtypes/formats';
 
 // A bound can be RELATIVE: `now`, or `now` ± an ISO-8601 duration. The build
 // resolves it against the current time each time it validates a value.

@@ -1,4 +1,4 @@
-import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId} from 'ts-runtypes';
 
 // A stable id for any type — the reflection TypeScript refused to ship.
 const userId = getRunTypeId<{id: number; name: string}>(); // e.g. "Ab3Xy7"

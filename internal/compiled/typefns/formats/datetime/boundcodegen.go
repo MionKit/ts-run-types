@@ -3,7 +3,7 @@ package datetime
 import (
 	"strconv"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
 )
 
 // boundcodegen.go emits the runtime min/max comparison for a validated

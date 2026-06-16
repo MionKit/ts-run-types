@@ -1,5 +1,5 @@
-import {createValidate, registerFormatPattern} from '@mionjs/ts-go-run-types';
-import type {FormatString} from '@mionjs/ts-go-run-types/formats';
+import {createValidate, registerFormatPattern} from 'ts-runtypes';
+import type {FormatString} from 'ts-runtypes/formats';
 
 // Register a reusable string pattern once. `mockSamples` are required —
 // they double as canonical values the mock generator draws from, and each

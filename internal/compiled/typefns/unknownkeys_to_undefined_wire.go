@@ -1,7 +1,7 @@
 package typefns
 
 import (
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // UnknownKeysToUndefinedWireEmitter — decoder-internal sibling of
@@ -12,7 +12,7 @@ import (
 //
 // This family is NOT exposed via the public createUnknownKeysToUndefined
 // API. The decoder's safe pipeline at
-// packages/ts-go-run-types/src/createRTFunctions.ts composes:
+// packages/ts-runtypes/src/createRTFunctions.ts composes:
 //
 //	restore(ukuWire(JSON.parse(s)))
 //

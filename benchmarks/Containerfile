@@ -8,7 +8,7 @@
 # DEPS-ONLY IMAGE: this image bakes THIRD-PARTY node_modules ONLY. No first-party
 # benchmark code lives here -- the shared suite, the per-competitor source, the
 # typecost runner and aggregate.mjs are all BIND-MOUNTED at run time (see
-# scripts/benchmarks.sh:mount_args), as is the ts-go-run-types Go binary + the
+# scripts/benchmarks.sh:mount_args), as is the ts-runtypes Go binary + the
 # first-party packages. The package-manager manifests come from _deps/ (kept out
 # of the host project roots so nobody can accidentally `pnpm install` there).
 # Consequence: the image changes ONLY when a dependency manifest changes; source
@@ -16,8 +16,8 @@
 # -----------------------------------------------------------------------------
 FROM mcr.microsoft.com/devcontainers/javascript-node:22
 
-LABEL org.opencontainers.image.source=https://github.com/MionKit/ts-run-types
-LABEL org.opencontainers.image.description="ts-go-run-types validation benchmarks - deps-only image (source bind-mounted at run time)"
+LABEL org.opencontainers.image.source=https://github.com/MionKit/ts-runtypes
+LABEL org.opencontainers.image.description="ts-runtypes validation benchmarks - deps-only image (source bind-mounted at run time)"
 
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     DO_NOT_TRACK=1
@@ -52,10 +52,10 @@ COPY _deps/competitors/ajv/package.json competitors/ajv/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd competitors/ajv && pnpm install --no-frozen-lockfile
 
-COPY _deps/pnpm-workspace.yaml _deps/.npmrc competitors/ts-go-run-types/
-COPY _deps/competitors/ts-go-run-types/package.json competitors/ts-go-run-types/package.json
+COPY _deps/pnpm-workspace.yaml _deps/.npmrc competitors/ts-runtypes/
+COPY _deps/competitors/ts-runtypes/package.json competitors/ts-runtypes/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    cd competitors/ts-go-run-types && pnpm install --no-frozen-lockfile
+    cd competitors/ts-runtypes && pnpm install --no-frozen-lockfile
 
 COPY _deps/pnpm-workspace.yaml _deps/.npmrc competitors/typia/
 COPY _deps/competitors/typia/package.json competitors/typia/package.json

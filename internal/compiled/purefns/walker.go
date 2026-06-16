@@ -5,10 +5,10 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-run-types/internal/comptimeargs"
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/marker"
-	"github.com/mionkit/ts-run-types/internal/textpos"
+	"github.com/mionkit/ts-runtypes/internal/comptimeargs"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 
 // Entry is the in-Go shape that mirrors TS-side `Entry`.
@@ -271,7 +271,7 @@ const pureFnFactoryCalleeName = "registerPureFnFactory"
 //     slots 0+1 carry `CompTimeArgs<string>` and slot 2 carries
 //     `PureFunction<F>`. Module-of-origin is implicit in the brand
 //     check (markers only match aliases declared in the
-//     `@mionjs/ts-go-run-types` package), so a user's own
+//     `ts-runtypes` package), so a user's own
 //     `function registerPureFnFactory()` is rejected here even if it
 //     passes the name filter.
 func isPureFnFactoryCall(typeChecker *checker.Checker, markerOpts marker.Options, call *ast.Node) bool {

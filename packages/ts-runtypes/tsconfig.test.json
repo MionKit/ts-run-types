@@ -1,0 +1,35 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true,
+    // This is a NO-EMIT type-check of src + test. The root config enables
+    // `composite`/`declaration` for the BUILD's .d.ts emit, but test files are
+    // never emitted — so declaration-emit checks (TS4023/4025/2527: "exported
+    // const uses private name", inaccessible `unique symbol`) are noise here.
+    // They only fire once nothing else blocks emit, and would force exporting
+    // throwaway test-fixture model types. Disable them so this check stays
+    // focused on real type-correctness; the build (tsconfig.json) still
+    // declaration-checks the published src.
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    // Drop `rootDir` from the build config (tests live alongside src)
+    // so `pnpm typecheck:test` can include both src/ and test/ without
+    // hitting TS6059. Set to the repo root (not just the package) so the
+    // Phase-2 type-fuzz harness under test/fuzz/ can import the shared
+    // vite-plugin-runtypes resolver-client + inline test helpers across the
+    // package boundary. Build/publish still uses tsconfig.json (rootDir = src)
+    // — dist/ stays clean of test artifacts.
+    "rootDir": "../..",
+    // Resolve `ts-runtypes` (this package's self-import in
+    // tests) to `src/index.ts` via the `"source"` exports condition in
+    // package.json, instead of the un-built `dist/index.d.ts`.
+    // Mirrors what `resolve.conditions: ['source']` does for vite at
+    // runtime — keeps test-time module resolution pinned to the
+    // workspace source we're actually exercising.
+    "customConditions": ["source"]
+  },
+  "include": ["src/**/*", "test/**/*", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

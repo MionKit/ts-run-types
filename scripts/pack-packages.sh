@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Packs all public ts-go-run-types packages into tarballs with unversioned names.
+# Packs all public ts-runtypes packages into tarballs with unversioned names.
 # Tarballs are placed in <dest>/tarballs/ by default.
 #
 # Usage: bash scripts/pack-packages.sh [--dest <dir>]
@@ -20,7 +20,7 @@ done
 
 # ── Public packages to pack ──
 PACKAGES=(
-  "@mionjs/ts-go-run-types"
+  "ts-runtypes"
   "vite-plugin-runtypes"
 )
 

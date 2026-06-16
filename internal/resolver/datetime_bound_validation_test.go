@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/all"
-	"github.com/mionkit/ts-run-types/internal/diag"
+	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
+	"github.com/mionkit/ts-runtypes/internal/diag"
 )
 
 // datetime_bound_validation_test.go is the ESSENTIAL acceptance suite for
@@ -29,7 +29,7 @@ type boundCase struct {
 // snippet and returns the FMT002 diagnostics.
 func scanBoundCase(t *testing.T, format, params string) []diag.Diagnostic {
 	t.Helper()
-	code := `import {createValidate} from '@mionjs/ts-go-run-types';
+	code := `import {createValidate} from 'ts-runtypes';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<string, '` + format + `', ` + params + `>>();
 `

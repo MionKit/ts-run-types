@@ -1,23 +1,23 @@
 export default defineAppConfig({
   seo: {
-    title: 'ts-run-types — TypeScript types that show up at runtime',
+    title: 'ts-runtypes — TypeScript types that show up at runtime',
     description:
       'Validation, JSON + binary serialization, mock data and reflection — generated straight from your TypeScript types. No schemas, no drift.',
     image: '',
   },
   docus: {
-    title: 'ts-run-types',
+    title: 'ts-runtypes',
     description:
       'TypeScript decided it is "just a linter". We respectfully bolted the runtime back on.',
     image: '',
     socials: {
-      github: 'mionkit/ts-run-types',
+      github: 'mionkit/ts-runtypes',
       twitter: '@Ma_jrz',
     },
     github: {
       dir: 'website/content',
       branch: 'main',
-      repo: 'ts-run-types',
+      repo: 'ts-runtypes',
       owner: 'mionkit',
       edit: false
     },
@@ -48,7 +48,7 @@ export default defineAppConfig({
       credits: {
         icon: 'icon-park-outline:copyright',
         text: `MIT license - Copyright ${new Date().getFullYear()} mion`,
-        href: 'https://github.com/mionkit/ts-run-types/blob/main/LICENSE',
+        href: 'https://github.com/mionkit/ts-runtypes/blob/main/LICENSE',
       },
     }
   },

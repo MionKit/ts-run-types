@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/operations"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/operations"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // makeRef returns a KindRef sentinel pointing at the supplied id —

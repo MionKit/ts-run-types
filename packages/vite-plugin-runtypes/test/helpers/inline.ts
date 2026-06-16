@@ -1,9 +1,9 @@
 // Test helpers for in-memory inline sources.
 //
-// Process model: one ts-go-run-types process per VITEST WORKER (not per
+// Process model: one ts-runtypes process per VITEST WORKER (not per
 // test file). Vitest's default `pool: 'forks'` spawns one Node child per
 // worker; each worker can run multiple test files sequentially. Within a
-// single worker we share one ts-go-run-types subprocess and clear its
+// single worker we share one ts-runtypes subprocess and clear its
 // state between test files via a `reset` op. Across workers, each worker
 // has its own subprocess — no inter-process shared state, parallel-file
 // execution stays safe.
@@ -21,13 +21,13 @@ import {rewrite} from '../../src/rewrite.ts';
 import {type Site, type RunType} from '../../src/protocol.ts';
 
 const ROOT = path.resolve(__dirname, '../../../..');
-export const BIN = path.resolve(ROOT, 'bin/ts-go-run-types');
+export const BIN = path.resolve(ROOT, 'bin/ts-runtypes');
 export const hasBinary = (): boolean => fs.existsSync(BIN);
 
 // Mirror of internal/testfixtures/runtypes.d.ts. Always overlaid by
 // `withInlineSources` so per-test fixtures don't have to redeclare the
-// fake `@mionjs/ts-go-run-types` module.
-export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
+// fake `ts-runtypes` module.
+export const RUNTYPES_DTS = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
@@ -117,10 +117,10 @@ function workerStash(): WorkerStash {
 function getClient(): ResolverClient {
   const stash = workerStash();
   if (stash.client) return stash.client;
-  if (!hasBinary()) throw new Error(`ts-go-run-types binary not built: ${BIN}`);
+  if (!hasBinary()) throw new Error(`ts-runtypes binary not built: ${BIN}`);
   // --inline-server: no startup Program, no handshake. cwd = repo root so
   // setSources keys like "user.ts" resolve to <repo>/user.ts.
-  // emitMode:'both' mirrors the sibling `ts-go-run-types` vitest config —
+  // emitMode:'both' mirrors the sibling `ts-runtypes` vitest config —
   // every cache module rendered during the test run carries BOTH the body
   // string AND the inline `createRTFn` closure so the helper's
   // diagnostic-style tests can assert against either form. Per-test cases that
@@ -223,7 +223,7 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
 // family tag, slot 1 the deps thunk (undefined when dep-less; never self),
 // slot 2 the ini fn, slot 3 the cache key, slot 4+ the legacy positional
 // args. Mirrors the layout contract in
-// packages/ts-go-run-types/src/runtypes/entryTuple.ts.
+// packages/ts-runtypes/src/runtypes/entryTuple.ts.
 export type EntryTuple = readonly unknown[];
 
 const IMPORT_LINE = /^import \{(__rt_[A-Za-z0-9_$]+)\} from 'virtual:rt\/(.+)\.js';\n/gm;
@@ -292,7 +292,7 @@ export function instantiateRunTypes(tuples: Record<string, EntryTuple>): Record<
 }
 
 // buildRunTypeFromRow mirrors the 20-slot row construction in
-// packages/ts-go-run-types/src/runtypes/entryTuple.ts (registerRunTypeBundle):
+// packages/ts-runtypes/src/runtypes/entryTuple.ts (registerRunTypeBundle):
 // every ref-bearing slot starts undefined and is patched by the ini pass.
 function buildRunTypeFromRow(row: readonly unknown[]): RunType {
   const arg = (offset: number) => row[offset];

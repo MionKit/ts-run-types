@@ -15,12 +15,12 @@ import runtypes from '../src/index.ts';
 import {BIN, hasBinary} from './helpers/inline.ts';
 import {decodeMappings, type MappingSegment} from './helpers/sourcemap.ts';
 
-const PACKAGE_ROOT = path.resolve(__dirname, '../../ts-go-run-types');
+const PACKAGE_ROOT = path.resolve(__dirname, '../../ts-runtypes');
 // Lives under the marker package's test/ tree so tsconfig.test.json puts the
 // fixture in the Go resolver's Program (the plugin scans real program files).
 const FIXTURE_DIR = path.join(PACKAGE_ROOT, 'test', 'tmp-build-sourcemap');
 
-const FIXTURE = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+const FIXTURE = `import {getRunTypeId} from 'ts-runtypes';
 // padding line with a multibyte em-dash — keeps byte/char conversion honest
 export interface MapThing {
   mapProp: string;

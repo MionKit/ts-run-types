@@ -1,4 +1,4 @@
-import {createValidate} from '@mionjs/ts-go-run-types';
+import {createValidate} from 'ts-runtypes';
 
 // Your TypeScript type. The single source of truth — nothing else to write.
 type User = {

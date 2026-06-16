@@ -1,8 +1,8 @@
 package typefns
 
 import (
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // Custom class-serializer plumbing shared by the JSON + binary emitter

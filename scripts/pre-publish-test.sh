@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Pre-publish verification for ts-go-run-types monorepo.
+# Pre-publish verification for ts-runtypes monorepo.
 # Runs Go + JS test suites, lint, formatting check, and a fresh build.
 
 RED='\033[0;31m'
@@ -28,11 +28,11 @@ pnpm run fresh-start
 # ── Step 2: Build the Go binary ──
 # JS plugin tests spawn this binary, so it must exist before `pnpm test`.
 # The binary `//go:embed`s the cache skeletons directly from
-# packages/ts-go-run-types/src/caches/ via a Go shim in that directory —
+# packages/ts-runtypes/src/caches/ via a Go shim in that directory —
 # no mirror to keep in sync.
 print_step "Build Go binary"
-go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
-./bin/ts-go-run-types --help > /dev/null || true
+go build -o bin/ts-runtypes ./cmd/ts-runtypes
+./bin/ts-runtypes --help > /dev/null || true
 
 # ── Step 3: Go test suite ──
 print_step "Go tests"

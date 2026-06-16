@@ -1,4 +1,4 @@
-import {createJsonEncoder, createJsonDecoder} from '@mionjs/ts-go-run-types';
+import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
 
 // A type with members JSON.stringify quietly mangles: a Date and a Map.
 type Session = {

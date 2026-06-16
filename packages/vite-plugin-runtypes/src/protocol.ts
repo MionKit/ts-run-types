@@ -145,7 +145,7 @@ export interface RunType {
   // (mion-run-types: packages/run-types/src/nodes/collection/unionDiscriminator.ts).
   // Only the strictly-new field (the property ref) lives on the wire;
   // the other FlattenedProp fields are reconstructible. Consumers
-  // call `flattenUnionDiscriminators` from @mionjs/ts-go-run-types
+  // call `flattenUnionDiscriminators` from ts-runtypes
   // to materialise the full per-member struct in one pass.
   unionDiscriminators?: (RunType | null | undefined)[];
 
@@ -156,7 +156,7 @@ export interface RunType {
   typeMeta?: RunType[];
 
   // populated when a primitive is branded with a TypeFormat<Base, Name,
-  // Params, ...> marker from `@mionjs/ts-go-run-types/formats`. Sibling of
+  // Params, ...> marker from `ts-runtypes/formats`. Sibling of
   // mion's FormatAnnotation (packages/run-types/src/lib/formats.ts) —
   // the name + params pair that drives format-aware emit. The
   // structural id folds name + canonicalised params in, so two
@@ -376,7 +376,7 @@ export interface Response {
   // tsCompile only — wall-time (ms) of the embedded tsgo's bind +
   // typecheck + emit pass on the current source overlay. Bench
   // orchestrators record this alongside scanFiles latency to show the
-  // pure-TypeScript compile cost next to ts-go-run-types' own work.
+  // pure-TypeScript compile cost next to ts-runtypes' own work.
   tsCompileMs?: number;
   // Per-op performance block; present only when the request set
   // includeMetrics.
@@ -425,7 +425,7 @@ export interface DiagnosticRelated extends DiagnosticSite {
 // classifies impact.
 //
 // The user-facing message is NOT carried on the wire. Per-code message
-// templates live in `packages/ts-go-run-types/src/runtypes/diagnosticCatalog.ts`
+// templates live in `packages/ts-runtypes/src/runtypes/diagnosticCatalog.ts`
 // (alongside the runtime alwaysThrow catalog) and resolve at format time
 // against `args` — typically 0–2 positional substitution values (a
 // property name, a kind label, etc.). The Vite plugin renders the final

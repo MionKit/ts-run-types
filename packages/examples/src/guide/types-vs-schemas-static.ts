@@ -1,5 +1,5 @@
-import {type Static} from '@mionjs/ts-go-run-types';
-import * as RT from '@mionjs/ts-go-run-types/schema';
+import {type Static} from 'ts-runtypes';
+import * as RT from 'ts-runtypes/schema';
 
 // Build a schema as a value you can pass around, store, or compose.
 const address = RT.object({

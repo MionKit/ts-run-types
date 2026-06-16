@@ -10,10 +10,10 @@ improvements deferred for later.
 
 ## Where the code lives
 
-- Encoder entry + backstop loop — [`packages/ts-go-run-types/src/createRTFBinary.ts`](../packages/ts-go-run-types/src/createRTFBinary.ts)
-- Serializer, prediction, and in-place grow — [`packages/ts-go-run-types/src/runtypes/dataView.ts`](../packages/ts-go-run-types/src/runtypes/dataView.ts)
+- Encoder entry + backstop loop — [`packages/ts-runtypes/src/createRTFBinary.ts`](../packages/ts-runtypes/src/createRTFBinary.ts)
+- Serializer, prediction, and in-place grow — [`packages/ts-runtypes/src/runtypes/dataView.ts`](../packages/ts-runtypes/src/runtypes/dataView.ts)
 - Go emitter that inlines scalar/framing writes — [`internal/compiled/typefns/binary_to.go`](../internal/compiled/typefns/binary_to.go), [`union_flat_binary.go`](../internal/compiled/typefns/union_flat_binary.go)
-- Regression test — [`packages/ts-go-run-types/test/fuzz/binaryEncoderResize.test.ts`](../packages/ts-go-run-types/test/fuzz/binaryEncoderResize.test.ts)
+- Regression test — [`packages/ts-runtypes/test/fuzz/binaryEncoderResize.test.ts`](../packages/ts-runtypes/test/fuzz/binaryEncoderResize.test.ts)
 
 ## The original strategy (adapted from an API model)
 

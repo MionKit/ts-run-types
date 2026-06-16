@@ -6,7 +6,7 @@ import runtypes from 'vite-plugin-runtypes';
 export default defineConfig({
   plugins: [
     runtypes({
-      binary: './bin/ts-go-run-types',
+      binary: './bin/ts-runtypes',
       // Optional: where your tsconfig lives. Defaults to 'tsconfig.json'.
       tsconfig: 'tsconfig.json',
     }),

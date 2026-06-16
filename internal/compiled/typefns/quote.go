@@ -3,8 +3,8 @@ package typefns
 import (
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/jsquote"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/jsquote"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // quoteJS produces a single-quoted JS string literal — package-local

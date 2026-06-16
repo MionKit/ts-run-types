@@ -18,7 +18,7 @@ export interface ResolverClientOptions {
   // test in a vitest file.
   serverMode?: boolean;
   // Base directory for the on-disk RT artifact cache (forwarded as
-  // --cache-dir). Typically `<projectRoot>/node_modules/.cache/ts-go-run-types`.
+  // --cache-dir). Typically `<projectRoot>/node_modules/.cache/ts-runtypes`.
   // The Go binary fingerprints non-version build options into a subdir
   // and folds binary version into every typeID hash, so cache files
   // never cross-contaminate between configurations or releases. Empty
@@ -220,7 +220,7 @@ abstract class ResolverClientBase implements ResolverConnection {
 
   // tsCompile runs the embedded tsgo through bind + typecheck + Emit() on
   // the current source overlay and returns the wall-time in milliseconds.
-  // Does NOT walk markers and does NOT render any ts-go-run-types cache
+  // Does NOT walk markers and does NOT render any ts-runtypes cache
   // modules — purely the TypeScript baseline. Caller must have called
   // setSources first.
   async tsCompile(): Promise<number> {
@@ -234,7 +234,7 @@ abstract class ResolverClientBase implements ResolverConnection {
   }
 }
 
-// ResolverClient spawns the ts-go-run-types binary and drives it over its
+// ResolverClient spawns the ts-runtypes binary and drives it over its
 // JSON-per-line stdio protocol. The child process is kept alive until
 // `close()` so the Program + checker pool are amortised across queries.
 //
@@ -267,7 +267,7 @@ export class ResolverClient extends ResolverClientBase {
     if (opts.inlineMode) args.push('--inline-mode', opts.inlineMode);
     this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit']});
     if (!this.child.stdin || !this.child.stdout) {
-      throw new Error('failed to spawn ts-go-run-types (no stdio pipes)');
+      throw new Error('failed to spawn ts-runtypes (no stdio pipes)');
     }
     const stdin = this.child.stdin;
     const stdout = this.child.stdout;
@@ -286,7 +286,7 @@ export class ResolverClient extends ResolverClientBase {
   }
 }
 
-// ResolverSocketClient connects to a daemon-mode `ts-go-run-types` process
+// ResolverSocketClient connects to a daemon-mode `ts-runtypes` process
 // over a Unix socket. Kept for future use cases (shared daemon across
 // workers); the current vitest setup uses ResolverClient with serverMode.
 export class ResolverSocketClient extends ResolverClientBase {

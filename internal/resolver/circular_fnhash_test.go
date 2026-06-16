@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // The per-call `{rejectCircularRefs}` override is a runtime-only flag — it must NOT
@@ -13,7 +13,7 @@ import (
 // ValidateOptions variant) DOES fork the hash; rejectCircularRefs rides alongside it
 // without changing it.
 func TestRejectCircularRefsExcludedFromFnHash(t *testing.T) {
-	const src = `import {createValidate} from '@mionjs/ts-go-run-types';
+	const src = `import {createValidate} from 'ts-runtypes';
 interface Node {name: string; next?: Node}
 createValidate<Node>();
 createValidate<Node>(undefined, {rejectCircularRefs: true});

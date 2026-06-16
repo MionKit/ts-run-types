@@ -1,0 +1,72 @@
+// Wire-size spec for the Temporal binary packing. Round-trip tests
+// (temporal.test.ts) prove the encoding is *lossless*; these prove it is
+// *compact* — they pin the exact byte count of each numeric layout and assert
+// it beats the toJSON() string it replaced. Without this, a regression that
+// silently fell back to the string encoding (e.g. the ISO discriminator always
+// taking the else branch) would still pass every round-trip test.
+//
+// createBinaryEncoder returns the trimmed buffer (sliced to the bytes written),
+// so `.byteLength` is exactly the on-wire size for a top-level value.
+
+import {describe, expect, it} from 'vitest';
+import {createBinaryEncoder} from 'ts-runtypes';
+
+const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
+
+// bytes the string (serString) encoding would cost: 4-byte length prefix + UTF-8.
+const stringFormSize = (v: {toJSON(): string}): number => 4 + new TextEncoder().encode(v.toJSON()).length;
+
+describe('Temporal binary wire size — numeric layouts are exact and compact', () => {
+  it('Instant — 12 bytes (int64 seconds + int32 sub-second ns), beats the string form', () => {
+    const v = T.Instant.from('2020-01-15T10:30:00.123456789Z');
+    const bytes = createBinaryEncoder<Temporal.Instant>()(v as never);
+    expect(bytes.byteLength).toBe(12);
+    expect(bytes.byteLength).toBeLessThan(stringFormSize(v));
+  });
+
+  it('PlainTime — 9 bytes (u8 h/m/s + u16 ms/us/ns)', () => {
+    const v = T.PlainTime.from('19:39:09.068346205');
+    const bytes = createBinaryEncoder<Temporal.PlainTime>()(v as never);
+    expect(bytes.byteLength).toBe(9);
+    expect(bytes.byteLength).toBeLessThan(stringFormSize(v));
+  });
+
+  it('PlainDate (ISO) — 7 bytes (1 disc + i32 year + u8 month + u8 day)', () => {
+    const v = T.PlainDate.from('2020-08-24');
+    const bytes = createBinaryEncoder<Temporal.PlainDate>()(v as never);
+    expect(bytes.byteLength).toBe(7);
+    expect(bytes.byteLength).toBeLessThan(stringFormSize(v));
+  });
+
+  it('PlainDateTime (ISO) — 16 bytes (1 disc + date 6 + time 9)', () => {
+    const v = T.PlainDateTime.from('1995-12-07T15:00:00');
+    const bytes = createBinaryEncoder<Temporal.PlainDateTime>()(v as never);
+    expect(bytes.byteLength).toBe(16);
+    expect(bytes.byteLength).toBeLessThan(stringFormSize(v));
+  });
+
+  it('PlainYearMonth (ISO) — 6 bytes (1 disc + i32 year + u8 month)', () => {
+    const v = T.PlainYearMonth.from('2020-10');
+    const bytes = createBinaryEncoder<Temporal.PlainYearMonth>()(v as never);
+    expect(bytes.byteLength).toBe(6);
+    expect(bytes.byteLength).toBeLessThan(stringFormSize(v));
+  });
+
+  it('PlainDate (non-ISO calendar) — 1-byte disc + serString(toJSON()) fallback', () => {
+    const v = T.PlainDate.from('2024-03-20[u-ca=hebrew]');
+    const bytes = createBinaryEncoder<Temporal.PlainDate>()(v as never);
+    // disc byte (0) + the exact string-encoded toJSON
+    expect(bytes.byteLength).toBe(1 + stringFormSize(v));
+    // and the fallback genuinely costs more than the 7-byte ISO packing
+    expect(bytes.byteLength).toBeGreaterThan(7);
+  });
+
+  it('string-encoded types stay string-sized (ZonedDateTime / Duration / PlainMonthDay)', () => {
+    const zdt = T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]');
+    expect(createBinaryEncoder<Temporal.ZonedDateTime>()(zdt as never).byteLength).toBe(stringFormSize(zdt));
+    const dur = T.Duration.from('P1Y2M10DT2H30M');
+    expect(createBinaryEncoder<Temporal.Duration>()(dur as never).byteLength).toBe(stringFormSize(dur));
+    const md = T.PlainMonthDay.from('07-14');
+    expect(createBinaryEncoder<Temporal.PlainMonthDay>()(md as never).byteLength).toBe(stringFormSize(md));
+  });
+});

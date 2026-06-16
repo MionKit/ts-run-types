@@ -19,13 +19,13 @@ import (
 	"errors"
 
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-run-types/internal/cache/disk"
-	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
-	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
-	"github.com/mionkit/ts-run-types/internal/constants"
-	"github.com/mionkit/ts-run-types/internal/marker"
-	"github.com/mionkit/ts-run-types/internal/program"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/cache/disk"
+	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
+	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
+	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/program"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // Options controls the resolver's hash budget and the marker-detection
@@ -34,7 +34,7 @@ type Options struct {
 	HashLength int
 	// Marker selects which type alias the scanner treats as the
 	// transformer's id-injection sentinel. Zero values default to
-	// `InjectRunTypeId` from `@mionjs/ts-go-run-types`.
+	// `InjectRunTypeId` from `ts-runtypes`.
 	Marker marker.Options
 	// Cwd is the working directory used when SetSources builds an inferred
 	// Program. Required for server-mode resolvers; ignored when a Program
@@ -61,7 +61,7 @@ type Options struct {
 	DisableParallelRender bool
 	// CacheDir, when non-empty, points at a directory under which the
 	// resolver persists per-(typeID, fnTag) RT artifacts. Typically
-	// <projectRoot>/node_modules/.cache/ts-go-run-types. The disk layer
+	// <projectRoot>/node_modules/.cache/ts-runtypes. The disk layer
 	// fingerprints non-version build options (hash lengths, marker
 	// settings) into a subdirectory so distinct configurations don't
 	// share cache entries; binary version is folded into the typeID

@@ -1,7 +1,7 @@
 package typefns
 
 import (
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // isJsonCompatible reports whether values of type `rt` round-trip

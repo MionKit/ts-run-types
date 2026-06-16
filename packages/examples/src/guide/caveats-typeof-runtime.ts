@@ -1,4 +1,4 @@
-import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId} from 'ts-runtypes';
 
 type User = {id: number; name: string};
 const user: User = {id: 1, name: 'Ada'};
@@ -9,7 +9,7 @@ const byType = getRunTypeId<typeof user>(); // TS typeof: the type of `user`
 const byValue = getRunTypeId(user); // same thing, from the value
 
 // Heads up: the runtime `typeof` operator returns a string like 'object' —
-// that's a value, not a type, and won't help ts-run-types.
+// that's a value, not a type, and won't help ts-runtypes.
 const runtimeTag = typeof user; // 'object' (just a string, unrelated)
 
 export {byType, byValue, runtimeTag};

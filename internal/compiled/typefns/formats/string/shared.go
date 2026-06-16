@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
-	"github.com/mionkit/ts-run-types/internal/jsquote"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-runtypes/internal/jsquote"
 )
 
 // pureFnAlias binds this package's pure-fn source path into the shared

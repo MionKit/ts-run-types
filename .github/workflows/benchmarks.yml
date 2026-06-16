@@ -1,6 +1,6 @@
 # Runs the validation benchmarks in the SAME isolated podman image used locally.
 # Mirrors `pnpm run bench:prep` + `bench:build-image` + `bench`, so CI and local
-# never drift. Requires the ts-go-run-types toolchain (Go + the tsgolint
+# never drift. Requires the ts-runtypes toolchain (Go + the tsgolint
 # submodule bootstrap) to build the resolver binary the benchmark mounts.
 name: benchmarks
 
@@ -42,7 +42,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Builds the Go resolver binary + the marker/plugin packages on the runner.
-      - name: Prep ts-go-run-types toolchain
+      - name: Prep ts-runtypes toolchain
         run: bash scripts/benchmarks.sh prep
 
       # podman ships preinstalled on ubuntu-latest runners.

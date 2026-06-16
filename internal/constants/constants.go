@@ -194,7 +194,7 @@ type ValidateOption struct {
 //  1. Append an entry here — the scanner's extraction is table-driven
 //     off this registry, so the option is read automatically.
 //  2. Add the field to `ValidateOptions` in
-//     packages/ts-go-run-types/src/createRTFunctions.ts.
+//     packages/ts-runtypes/src/createRTFunctions.ts.
 //  3. Teach the emitters to honour it (plus any per-option scanner
 //     semantics, e.g. a noop-option diagnostic in analyzeCall).
 //  4. Regenerate the TS mirror (`pnpm run gen:ts-constants`).
@@ -406,7 +406,7 @@ var JsonCompositeHostTags = func() map[string]string {
 
 // Version is the binary version, injected at build time via
 //
-//	-ldflags "-X github.com/mionkit/ts-run-types/internal/constants.Version=<v>"
+//	-ldflags "-X github.com/mionkit/ts-runtypes/internal/constants.Version=<v>"
 //
 // Embedded into the typeID hashing input (see internal/compiled/runtype.assignID)
 // so the same structural type gets a different short hash across binary versions —

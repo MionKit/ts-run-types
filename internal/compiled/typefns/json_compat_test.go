@@ -3,7 +3,7 @@ package typefns
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // jsonCompatCtx builds the minimal EmitContext + RefTable that

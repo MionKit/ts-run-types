@@ -3,12 +3,12 @@ package resolver
 import (
 	"time"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
-	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/textpos"
+	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 
 // rtRenderOpts builds the RenderOpts the typefns entry collectors expect

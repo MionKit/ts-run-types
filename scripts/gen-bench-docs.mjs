@@ -33,7 +33,7 @@ const COMPETITORS_DIR = path.join(BENCH_DIR, 'competitors');
 const OUT_ROOT = path.join(REPO_ROOT, 'website/public/bench-data');
 
 // Stable competitor column order (mirrors aggregate.mjs PREFERRED).
-const PREFERRED = ['ts-go-run-types', 'zod', 'typebox', 'ajv', 'typia'];
+const PREFERRED = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
 const order = (a, b) => ((PREFERRED.indexOf(a) + 1 || 99) - (PREFERRED.indexOf(b) + 1 || 99)) || a.localeCompare(b);
 
 // Run environment (os / cpu / library versions) captured by benchmarks/capture-env.mjs.
@@ -233,8 +233,8 @@ function emitValidationBench(outName, label, rows, competitors, byComp, sources)
 // count per case (lower is better). Source for the hover comes from each form's
 // authoring file. No ajv — JSON Schema has no static type inference.
 const TYPECOST_FORMS = [
-  {id: 'ts-go-run-types-type', label: 'ts-run-types (type)', srcFile: 'ts-go-run-types/cases.ts', srcVar: 'cases'},
-  {id: 'ts-go-run-types-schema', label: 'ts-run-types (schema)', srcFile: 'ts-go-run-types/schemaCases.ts', srcVar: 'schemaCases'},
+  {id: 'ts-runtypes-type', label: 'ts-runtypes (type)', srcFile: 'ts-runtypes/cases.ts', srcVar: 'cases'},
+  {id: 'ts-runtypes-schema', label: 'ts-runtypes (schema)', srcFile: 'ts-runtypes/schemaCases.ts', srcVar: 'schemaCases'},
   {id: 'typia', label: 'typia', srcFile: 'typia/cases.ts', srcVar: 'cases'},
   {id: 'typebox', label: 'typebox', srcFile: 'typebox/cases.ts', srcVar: 'cases'},
   {id: 'zod', label: 'zod', srcFile: 'zod/cases.ts', srcVar: 'cases'},
@@ -295,8 +295,8 @@ function buildTypecostBench() {
 
   // Each typecost form maps to the library whose installed version it measures.
   const FORM_LIB = {
-    'ts-go-run-types-type': 'ts-go-run-types',
-    'ts-go-run-types-schema': 'ts-go-run-types',
+    'ts-runtypes-type': 'ts-runtypes',
+    'ts-runtypes-schema': 'ts-runtypes',
     typia: 'typia',
     typebox: 'typebox',
     zod: 'zod',

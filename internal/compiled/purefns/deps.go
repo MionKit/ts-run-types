@@ -5,9 +5,9 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-run-types/internal/comptimeargs"
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/comptimeargs"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/marker"
 )
 
 // extractDeps walks factoryFn's body for `<utlName>.<method>(<keyLit>)`
@@ -15,7 +15,7 @@ import (
 // pureFnDependencies. The recognised methods are discovered via the
 // `CompTimeArgs<string>` brand on their first parameter (see the brand
 // annotations on rtUtils' pure-fn lookup methods in
-// packages/ts-go-run-types/src/runtypes/rtUtils.ts). The string-literal
+// packages/ts-runtypes/src/runtypes/rtUtils.ts). The string-literal
 // `<keyLit>` is resolved against a factory-local symbol table first
 // (fast path for `const KEY = '…'` declared inside the factory body),
 // then via `comptimeargs.ResolveLiteralString` (covers file-level /

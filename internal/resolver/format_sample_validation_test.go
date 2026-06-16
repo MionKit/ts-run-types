@@ -6,13 +6,13 @@ import (
 	// Register the concrete format emitters (stringFormat, …) — the
 	// in-process resolver test doesn't go through main.go, which is
 	// where the binary normally blank-imports this aggregator.
-	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/all"
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // A locally-declared TypeFormat alias produces the same brand
-// intersection the published `@mionjs/ts-go-run-types/formats` one does —
+// intersection the published `ts-runtypes/formats` one does —
 // the scanner recognises it structurally (the two sentinel properties),
 // not by import source. Lets these tests stay self-contained.
 const typeFormatBrandDecl = `type TypeFormat<Base, Name extends string, Params> = Base & {
@@ -26,7 +26,7 @@ const typeFormatBrandDecl = `type TypeFormat<Base, Name extends string, Params> 
 // build time (the sample would otherwise feed createMockType an
 // invalid value).
 func TestFormatSamples_MismatchEmitsFMT001(t *testing.T) {
-	code := `import {createValidate} from '@mionjs/ts-go-run-types';
+	code := `import {createValidate} from 'ts-runtypes';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<string, 'stringFormat', {
   pattern: {source: '^[0-9]+$'; flags: ''};
@@ -64,7 +64,7 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 // TestFormatSamples_AllValidNoDiagnostic — when every sample matches
 // the pattern, no FMT001 fires.
 func TestFormatSamples_AllValidNoDiagnostic(t *testing.T) {
-	code := `import {createValidate} from '@mionjs/ts-go-run-types';
+	code := `import {createValidate} from 'ts-runtypes';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<string, 'stringFormat', {
   pattern: {source: '^[0-9]+$'; flags: ''};

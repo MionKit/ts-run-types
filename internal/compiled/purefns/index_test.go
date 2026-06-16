@@ -8,9 +8,9 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	chk "github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-run-types/internal/marker"
-	"github.com/mionkit/ts-run-types/internal/program"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/program"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // programChecker fetches the type checker for a Program built by
@@ -107,7 +107,7 @@ func TestNewIndex_GetAndScanned(t *testing.T) {
 
 func TestValidatePureFnDependencies_AllSatisfied(t *testing.T) {
 	prog, files := programForSources(t, map[string]string{
-		"pure.ts": `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+		"pure.ts": `import {registerPureFnFactory} from 'ts-runtypes';
 export const a = registerPureFnFactory('mion', 'asJSONString', function () { return function () { return 1; }; });
 `,
 	})
@@ -152,7 +152,7 @@ func TestValidatePureFnDependencies_LazyExpansion_FindsRegistration(t *testing.T
 	// a key that's registered in a.ts. Validation lazily parses a.ts,
 	// finds the registration, and emits NO diagnostic.
 	prog, _ := programForSources(t, map[string]string{
-		"a.ts": `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+		"a.ts": `import {registerPureFnFactory} from 'ts-runtypes';
 export const r = registerPureFnFactory('mion', 'asJSONString', function () { return function () { return 1; }; });
 `,
 		"b.ts": `export const x = 1;`,
@@ -202,7 +202,7 @@ func TestValidatePureFnDependencies_LazyExpansion_StillMissing(t *testing.T) {
 	// registration. Lazy expansion parses it, finds nothing matching
 	// the key, and emits PFE9012.
 	prog, files := programForSources(t, map[string]string{
-		"a.ts": `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+		"a.ts": `import {registerPureFnFactory} from 'ts-runtypes';
 export const x = registerPureFnFactory('mion', 'somethingElse', function () { return function () {}; });
 `,
 	})
@@ -249,7 +249,7 @@ func TestValidatePureFnDependencies_FileNeverReparsed(t *testing.T) {
 	// dep. The lookup should be invoked exactly ONCE for the dep's
 	// filePath — once expanded, the scanned flag prevents re-parse.
 	prog, files := programForSources(t, map[string]string{
-		"a.ts": `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+		"a.ts": `import {registerPureFnFactory} from 'ts-runtypes';
 export const r = registerPureFnFactory('mion', 'asJSONString', function () { return function () {}; });
 `,
 	})

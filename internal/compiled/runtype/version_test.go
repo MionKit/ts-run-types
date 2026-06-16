@@ -3,8 +3,8 @@ package runtype
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/constants"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // TestVersionEmbedded_HashesDifferAcrossVersions — the same structural

@@ -1,6 +1,6 @@
 package typefns
 
-import "github.com/mionkit/ts-run-types/internal/protocol"
+import "github.com/mionkit/ts-runtypes/internal/protocol"
 
 // InlineContext is the input to an Emitter.IsRTInlined call. Mirrors
 // the surface mion's `BaseRunType.isRTInlined` reads from `this`

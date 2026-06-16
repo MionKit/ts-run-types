@@ -1,5 +1,5 @@
-import {createValidate} from '@mionjs/ts-go-run-types';
-import * as RT from '@mionjs/ts-go-run-types/schema';
+import {createValidate} from 'ts-runtypes';
+import * as RT from 'ts-runtypes/schema';
 
 // Mix both in one file — a pure type nested inside a schema and back again.
 type Money = {amount: number; currency: 'USD' | 'EUR'};

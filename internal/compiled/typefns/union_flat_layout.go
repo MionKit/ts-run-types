@@ -1,7 +1,7 @@
 package typefns
 
 import (
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // union_flat_layout.go owns the structural decisions every flat-union

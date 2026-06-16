@@ -6,12 +6,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/cache/disk"
-	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
-	"github.com/mionkit/ts-run-types/internal/constants"
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/operations"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/cache/disk"
+	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/operations"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // RenderOpts threads the per-session disk cache into the per-entry collectors.
@@ -634,7 +634,7 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 		// keep it simple — fmt.Fprintln on the first failure is
 		// enough to surface FS-permission misconfigurations without
 		// spamming.
-		fmt.Fprintln(os.Stderr, "ts-go-run-types: disk-cache write failed:", err)
+		fmt.Fprintln(os.Stderr, "ts-runtypes: disk-cache write failed:", err)
 	}
 }
 

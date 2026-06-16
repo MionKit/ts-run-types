@@ -55,7 +55,7 @@ function compile(text) {
   return {count: program.getInstantiationCount(), errors};
 }
 
-// Shared machinery — faithful to packages/ts-go-run-types/src (markers.ts,
+// Shared machinery — faithful to packages/ts-runtypes/src (markers.ts,
 // runtypes/types.ts, schema/static.ts). The leaf/array/union/propMod/optional
 // builders are the carriers the OBJECT forms below compose.
 const MACHINERY = `

@@ -1,9 +1,4 @@
-import {
-  createJsonEncoder,
-  createBinaryEncoder,
-  CircularReferenceError,
-  setRejectCircularRefs,
-} from '@mionjs/ts-go-run-types';
+import {createJsonEncoder, createBinaryEncoder, CircularReferenceError, setRejectCircularRefs} from 'ts-runtypes';
 
 // A self-referential shape: a node that can point at another Node.
 interface Node {

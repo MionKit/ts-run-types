@@ -3,7 +3,7 @@ package typefns
 import (
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // unknownkeys_union.go owns the union-arm emit for every member of the

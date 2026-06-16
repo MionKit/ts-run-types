@@ -1,6 +1,6 @@
 package typefns
 
-import "github.com/mionkit/ts-run-types/internal/protocol"
+import "github.com/mionkit/ts-runtypes/internal/protocol"
 
 // Kind-classification predicates shared across the emitters. Relocated from
 // istype.go (where they accreted as de-facto package utilities) so the shared
