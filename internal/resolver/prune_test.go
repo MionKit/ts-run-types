@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/operations"
+	"github.com/mionkit/ts-runtypes/internal/operations"
 )
 
 // prune_test.go pins the emission-side completion of noop elision
@@ -19,7 +19,7 @@ import (
 // elides it, and the rj module must disappear from the payload while the live
 // ukuw half stays imported.
 func TestPrune_ElidedPrimitivesNotEmitted(t *testing.T) {
-	resp := scopeScan(t, `import {createJsonDecoder} from '@mionjs/ts-go-run-types';
+	resp := scopeScan(t, `import {createJsonDecoder} from 'ts-runtypes';
 type PlainDTO = {a: string; b?: number};
 export const dec = createJsonDecoder<PlainDTO>();
 `)
@@ -41,7 +41,7 @@ export const dec = createJsonDecoder<PlainDTO>();
 // keeps its rj entry (real `new Date(v)` rebuild) referenced by the composite
 // and therefore emitted.
 func TestPrune_LivePrimitivesStayEmitted(t *testing.T) {
-	resp := scopeScan(t, `import {createJsonDecoder} from '@mionjs/ts-go-run-types';
+	resp := scopeScan(t, `import {createJsonDecoder} from 'ts-runtypes';
 type Stamped = {a: string; at: Date};
 export const dec = createJsonDecoder<Stamped>();
 `)
@@ -58,7 +58,7 @@ export const dec = createJsonDecoder<Stamped>();
 // over `any` collapses to identity, but the site imports `__rt_<val>_<id>`
 // directly, so the module must survive the prune.
 func TestPrune_KeepsDirectlyDemandedNoopRoots(t *testing.T) {
-	resp := scopeScan(t, `import {createValidate} from '@mionjs/ts-go-run-types';
+	resp := scopeScan(t, `import {createValidate} from 'ts-runtypes';
 export const isAnything = createValidate<any>();
 `)
 	keys := familyEntryKeys(resp, "validate")
@@ -77,7 +77,7 @@ export const isAnything = createValidate<any>();
 // unconditional roots: a reflection-only file keeps its facade + runtype
 // bundle payload.
 func TestPrune_ReflectionAndPureFnModulesUntouched(t *testing.T) {
-	resp := scopeScan(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	resp := scopeScan(t, `import {getRunTypeId} from 'ts-runtypes';
 export const id = getRunTypeId<{a: string}>();
 `)
 	if entryModule(resp, "runtypes") == "" {
@@ -94,7 +94,7 @@ export const id = getRunTypeId<{a: string}>();
 // throws with the RJ code at factory-creation time instead of silently
 // decoding garbage.
 func TestPrune_AlwaysThrowPrimitiveSurvives(t *testing.T) {
-	resp := scopeScan(t, `import {createJsonDecoder} from '@mionjs/ts-go-run-types';
+	resp := scopeScan(t, `import {createJsonDecoder} from 'ts-runtypes';
 export const dec = createJsonDecoder<symbol>();
 `)
 	if !hasFamilyEntry(resp, "restoreFromJson") {
@@ -110,7 +110,7 @@ export const dec = createJsonDecoder<symbol>();
 // (rj live): exactly the live rj survives, keyed to the Date-bearing type,
 // proving liveness is per-entry rather than per-family.
 func TestPrune_MixedSitesDoNotCrossContaminate(t *testing.T) {
-	resp := scopeScan(t, `import {createJsonDecoder} from '@mionjs/ts-go-run-types';
+	resp := scopeScan(t, `import {createJsonDecoder} from 'ts-runtypes';
 type PlainDTO = {a: string; b?: number};
 type Stamped = {a: string; at: Date};
 export const decPlain = createJsonDecoder<PlainDTO>();

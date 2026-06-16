@@ -8,7 +8,7 @@
 //     inline factory (emitMode 'both' on the shared client)
 //     materialises a working validator.
 //
-// Sibling test packages/ts-go-run-types/test/createValidate.test.ts
+// Sibling test packages/ts-runtypes/test/createValidate.test.ts
 // exercises the same entries through the public `createValidate<T>()`
 // API. This file goes a level lower: it asserts the rendered tuple
 // shape, so regressions in the entry emitter surface here before they
@@ -25,7 +25,7 @@ describe('vite-plugin-runtypes / validate precompiler', () => {
     // validate family this test inspects, and getRunTypeId<string>() drives
     // the runtype bundle (a createX-only file emits ZERO runtype modules).
     const sources = {
-      'string.ts': `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
+      'string.ts': `import {createValidate, getRunTypeId} from 'ts-runtypes';
 createValidate<string>();
 getRunTypeId<string>();
 `,

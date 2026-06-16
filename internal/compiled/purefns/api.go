@@ -2,7 +2,7 @@ package purefns
 
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
-	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diag"
 )
 
 // CheckPurity runs the package's purity rules against an inline

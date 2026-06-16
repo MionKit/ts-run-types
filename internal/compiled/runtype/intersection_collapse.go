@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-run-types/internal/compiled/runtype/typeid"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // collapseIntersection projects a TS intersection type into a single

@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/operations"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/operations"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // keyPrefixFor returns the `<plainFnHash>_` entry-key prefix a family's

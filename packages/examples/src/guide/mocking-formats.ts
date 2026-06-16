@@ -1,5 +1,5 @@
-import {createMockType} from '@mionjs/ts-go-run-types';
-import type {FormatEmail, FormatUUIDv4} from '@mionjs/ts-go-run-types/formats';
+import {createMockType} from 'ts-runtypes';
+import type {FormatEmail, FormatUUIDv4} from 'ts-runtypes/formats';
 
 // Type formats don't just validate — mocks respect them too.
 type Contact = {

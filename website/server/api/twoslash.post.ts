@@ -174,7 +174,7 @@ function loadMionPackageTypes(): Map<string, string> {
     // The marker package — built .d.ts under dist/. Subpath exports (/schema,
     // /formats) resolve via the per-directory index.d.ts under classic node
     // resolution, which is all examples import.
-    { dir: 'ts-go-run-types', name: 'ts-go-run-types', distPath: 'dist' },
+    { dir: 'ts-runtypes', name: 'ts-runtypes', distPath: 'dist' },
   ]
 
   for (const pkg of packageConfigs) {

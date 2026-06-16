@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // HasUnknownKeysEmitter implements the `hasUnknownKeys` rt function —

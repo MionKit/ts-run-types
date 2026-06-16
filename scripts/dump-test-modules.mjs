@@ -42,9 +42,9 @@ import {
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
-const MARKER_PKG = path.join(REPO_ROOT, 'packages/ts-go-run-types');
+const MARKER_PKG = path.join(REPO_ROOT, 'packages/ts-runtypes');
 const SUITES_ROOT = path.join(MARKER_PKG, 'test/suites');
-const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
+const BIN = path.join(REPO_ROOT, 'bin/ts-runtypes');
 
 const MODULE_MODES = [MODULE_MODE_DEFAULT, MODULE_MODE_ALL_SINGLE, MODULE_MODE_ALL_MODULES];
 const moduleModeArgIndex = process.argv.indexOf('--module-mode');
@@ -95,8 +95,8 @@ function listFixtures(root) {
 
 async function main() {
   if (!fs.existsSync(BIN)) {
-    console.error(`ts-go-run-types binary not built: ${BIN}`);
-    console.error('Run: go build -o bin/ts-go-run-types ./cmd/ts-go-run-types');
+    console.error(`ts-runtypes binary not built: ${BIN}`);
+    console.error('Run: go build -o bin/ts-runtypes ./cmd/ts-runtypes');
     process.exit(1);
   }
 

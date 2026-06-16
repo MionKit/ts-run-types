@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/all"
-	"github.com/mionkit/ts-run-types/internal/diag"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
+	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // temporal_format_test.go covers the FormatTemporalX<{min,max}> family: the
@@ -18,7 +18,7 @@ import (
 // and returns the validate source + FMT002 diagnostics.
 func scanTemporalFormat(t *testing.T, typ, formatName, params string) (string, []diag.Diagnostic) {
 	t.Helper()
-	code := `import {createValidate} from '@mionjs/ts-go-run-types';
+	code := `import {createValidate} from 'ts-runtypes';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<Temporal.` + typ + `, '` + formatName + `', ` + params + `>>();
 `

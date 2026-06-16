@@ -1,6 +1,6 @@
 package typefns
 
-import "github.com/mionkit/ts-run-types/internal/protocol"
+import "github.com/mionkit/ts-runtypes/internal/protocol"
 
 // Semantic noop predicates — "would this family's entry for T be the family
 // identity fn?" — decided over the TYPE GRAPH, not the emitted code shape.

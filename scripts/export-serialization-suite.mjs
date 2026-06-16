@@ -14,7 +14,7 @@
 //     ResolverClient, synthesise a .ts file wrapping the case body
 //     around the right create* import, drive reset + setSources +
 //     scanFiles with includeEntryModules for COMPILE_CYCLES rounds,
-//     record scanFiles wall time. Measures the ts-go-run-types marker
+//     record scanFiles wall time. Measures the ts-runtypes marker
 //     scan + per-entry module collection phase (demand-driven: only the
 //     families the probe's call sites request render).
 //   - Pure-TS compile latency (tsCompileMs): same setSources +
@@ -60,10 +60,10 @@ if (!SUITE_CFG) {
   process.stderr.write(`unknown --suite '${SUITE}' (known: ${Object.keys(SUITE_CONFIGS).join(', ')})\n`);
   process.exit(1);
 }
-const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites', SUITE_CFG.dir);
+const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-runtypes/test/suites', SUITE_CFG.dir);
 const SUITE_PATH = path.join(SUITE_DIR, 'index.ts');
-const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
-const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
+const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-runtypes');
+const BIN = path.join(REPO_ROOT, 'bin/ts-runtypes');
 const OUT_PATH = path.join(REPO_ROOT, `gendocs/${SUITE}-suite.json`);
 const MD_PATH = path.join(REPO_ROOT, `gendocs/${SUITE}-suite.md`);
 const FN_FIELDS = ['cloneEncoder', 'schemaEncoder', 'mutateEncoder', 'directEncoder', 'stripDecoder', 'preserveDecoder'];
@@ -91,7 +91,7 @@ const COMPILE_CYCLES = 3;
 // Ambient overlay so the synthetic compile-pass files can import the marker
 // package without resolving a real package.json. Mirrors the validation
 // suite's RUNTYPES_DTS, extended with the JSON serializer signatures.
-const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
+const RUNTYPES_DTS = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
@@ -115,7 +115,7 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 
 // A real overlay module re-exporting the format brand aliases the synthetic probes
 // reference (FormatUUIDv4, FormatEmail, FormatString<…>, …). The format brands live in
-// the `@mionjs/ts-go-run-types/formats` subpath, but the sandbox can't resolve the real
+// the `ts-runtypes/formats` subpath, but the sandbox can't resolve the real
 // package by name (the marker itself is the RUNTYPES_DTS ambient stub), so without this
 // a format-typed field projects structurally and the generated-code dump drops the
 // format check. Mirrors the TYPE-only re-export surface of src/formats/index.ts (derived
@@ -123,9 +123,9 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 // in export-validation-suite.mjs. Lives at the repo root; probes import '../rt-formats.ts'.
 const FORMATS_MODULE_PATH = 'rt-formats.ts';
 const FORMATS_MODULE = (() => {
-  const indexSrc = fs.readFileSync(path.join(REPO_ROOT, 'packages/ts-go-run-types/src/formats/index.ts'), 'utf8');
+  const indexSrc = fs.readFileSync(path.join(REPO_ROOT, 'packages/ts-runtypes/src/formats/index.ts'), 'utf8');
   const rels = [...indexSrc.matchAll(/export type \* from '\.\/([^']+)'/g)].map((m) => m[1]);
-  return rels.map((rel) => `export type * from './packages/ts-go-run-types/src/formats/${rel}';`).join('\n') + '\n';
+  return rels.map((rel) => `export type * from './packages/ts-runtypes/src/formats/${rel}';`).join('\n') + '\n';
 })();
 
 // UPPER_SNAKE group name -> PascalCase data-file basename ('CIRCULAR_REFS' -> 'CircularRefs').
@@ -170,8 +170,8 @@ function runGoExtractor(groups) {
 
 function ensureBinary() {
   if (!fs.existsSync(BIN)) {
-    process.stderr.write(`ts-go-run-types binary not found at ${BIN}\n`);
-    process.stderr.write(`build it with: go build -o bin/ts-go-run-types ./cmd/ts-go-run-types\n`);
+    process.stderr.write(`ts-runtypes binary not found at ${BIN}\n`);
+    process.stderr.write(`build it with: go build -o bin/ts-runtypes ./cmd/ts-runtypes\n`);
     process.exit(1);
   }
 }
@@ -594,7 +594,7 @@ function buildSynthetic(body) {
   // the generated codec shows the real format handling instead of a plain-string fallback.
   const formats = [...new Set(body.match(/\bFormat[A-Z][A-Za-z0-9_]*\b/g) ?? [])];
   const formatImport = formats.length ? `import type {${formats.join(', ')}} from '../${FORMATS_MODULE_PATH.replace(/\.ts$/, '')}.ts';\n` : '';
-  return `import {createJsonEncoder, createJsonDecoder} from '@mionjs/ts-go-run-types';\n${formatImport}const _probe = () => {\n${body}\n};\n`;
+  return `import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';\n${formatImport}const _probe = () => {\n${body}\n};\n`;
 }
 
 function safe(s) {
@@ -609,10 +609,10 @@ function renderMarkdown(out) {
   lines.push('# Serialization suite');
   lines.push('');
   lines.push(
-    'Generated from `SERIALIZATION_SPEC` in `packages/ts-go-run-types/test/suites/serialization/`. ' +
+    'Generated from `SERIALIZATION_SPEC` in `packages/ts-runtypes/test/suites/serialization/`. ' +
       'Full per-case metrics (including compile-time scanFiles latency and pure-TS compile time) live in `serialization-suite.json`. ' +
       'All ops/sec columns are absolute (no ratios). `ts-compile` measures pure tsgo typecheck + emit on the synthetic case file; ' +
-      '`compile` measures the ts-go-run-types marker scan + cache emit. The two phases run sequentially in a real build, not nested.'
+      '`compile` measures the ts-runtypes marker scan + cache emit. The two phases run sequentially in a real build, not nested.'
   );
   lines.push('');
   // Column order: title, ts-compile (ms), compile (ms), then one ops/sec

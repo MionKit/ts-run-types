@@ -19,7 +19,7 @@ describe('vite-plugin-runtypes / rewrite', () => {
   runTest(
     'F9 static: rewrites getRunTypeId<User>() to pass a hash site id',
     {
-      'user.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'user.ts': `import {getRunTypeId} from 'ts-runtypes';
 type User = {id: number; name: string};
 getRunTypeId<User>();
 `,
@@ -43,7 +43,7 @@ getRunTypeId<User>();
   runTest(
     'F9 reflect: rewrites getRunTypeId(u) to pass a hash site id',
     {
-      'user-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'user-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
 getRunTypeId(u);
@@ -65,7 +65,7 @@ getRunTypeId(u);
   runTest(
     'F10 static: cache contains User alias with reflection-shape propertySignatures',
     {
-      'user.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'user.ts': `import {getRunTypeId} from 'ts-runtypes';
 type User = {id: number; name: string};
 getRunTypeId<User>();
 `,
@@ -81,7 +81,7 @@ getRunTypeId<User>();
   runTest(
     'F10 reflect: cache contains User alias with reflection-shape propertySignatures',
     {
-      'user-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'user-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
 getRunTypeId(u);
@@ -116,7 +116,7 @@ getRunTypeId(u);
   runTest(
     'F6 static: getRunTypeId<routes>() carries nested object+function shape',
     {
-      'router-static.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'router-static.ts': `import {getRunTypeId} from 'ts-runtypes';
 const myAPI = getRunTypeId<{sayHello: (name: string) => string}>();
 `,
     },
@@ -136,7 +136,7 @@ const myAPI = getRunTypeId<{sayHello: (name: string) => string}>();
   runTest(
     'F6 reflect: getRunTypeId(routes) infers nested object+function shape',
     {
-      'router-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'router-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
 const myAPI = getRunTypeId(routes);
@@ -173,7 +173,7 @@ const myAPI = getRunTypeId(routes);
   runTest(
     'dedup static: re-resolving the same file adds no new types',
     {
-      'primitive-static.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'primitive-static.ts': `import {getRunTypeId} from 'ts-runtypes';
 const info = getRunTypeId<string>();
 `,
     },
@@ -185,7 +185,7 @@ const info = getRunTypeId<string>();
   runTest(
     'dedup reflect: re-resolving the same file adds no new types',
     {
-      'primitive-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'primitive-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
 const userName: string = 'mario';
 const info = getRunTypeId(userName);
 `,
@@ -210,7 +210,7 @@ describe('vite-plugin-runtypes / generated module', () => {
   runTest(
     'F17 static: rendered cache module exports a knotted reflection RunType graph',
     {
-      'router-static.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'router-static.ts': `import {getRunTypeId} from 'ts-runtypes';
 const myAPI = getRunTypeId<{sayHello: (name: string) => string}>();
 `,
     },
@@ -222,7 +222,7 @@ const myAPI = getRunTypeId<{sayHello: (name: string) => string}>();
   runTest(
     'F17 reflect: rendered cache module exports a knotted reflection RunType graph',
     {
-      'router-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'router-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
 const myAPI = getRunTypeId(routes);
@@ -279,7 +279,7 @@ const myAPI = getRunTypeId(routes);
   runTest(
     "CLI --out-modules writes per-entry modules identical in shape to the plugin's output",
     {
-      'router.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'router.ts': `import {getRunTypeId} from 'ts-runtypes';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
 const myAPI = getRunTypeId(routes);
@@ -315,7 +315,7 @@ const myAPI = getRunTypeId(routes);
   runTest(
     'multibyte static: byte offsets convert to char indices before insertion',
     {
-      'user-mb.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'user-mb.ts': `import {getRunTypeId} from 'ts-runtypes';
 // preamble with multibyte chars — em-dash and 🦄 emoji — before the site
 type User = {id: number; name: string};
 getRunTypeId<User>();
@@ -338,7 +338,7 @@ getRunTypeId<User>();
   runTest(
     'multibyte reflect: byte offsets convert to char indices before insertion',
     {
-      'user-mb-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'user-mb-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
 // preamble with multibyte chars — em-dash and 🦄 emoji — before the site
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
@@ -364,7 +364,7 @@ getRunTypeId(u);
   runTest(
     'source map static: original lines survive the injected import block',
     {
-      'user-map.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'user-map.ts': `import {getRunTypeId} from 'ts-runtypes';
 type User = {id: number; name: string};
 getRunTypeId<User>();
 `,
@@ -380,7 +380,7 @@ getRunTypeId<User>();
   runTest(
     'source map reflect: original lines survive the injected import block',
     {
-      'user-map-reflect.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'user-map-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
 getRunTypeId(u);

@@ -13,7 +13,7 @@ describe('vite-plugin-runtypes / member round-trip', () => {
   runTest(
     'array of string static',
     {
-      'array.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'array.ts': `import {getRunTypeId} from 'ts-runtypes';
 getRunTypeId<string[]>();
 `,
     },
@@ -26,7 +26,7 @@ getRunTypeId<string[]>();
   runTest(
     'array of string reflect',
     {
-      'array.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'array.ts': `import {getRunTypeId} from 'ts-runtypes';
 declare const xs: string[];
 getRunTypeId(xs);
 `,
@@ -48,7 +48,7 @@ getRunTypeId(xs);
   runTest(
     'array of object literal static',
     {
-      'arrobj.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'arrobj.ts': `import {getRunTypeId} from 'ts-runtypes';
 getRunTypeId<{x: number}[]>();
 `,
     },
@@ -61,7 +61,7 @@ getRunTypeId<{x: number}[]>();
   runTest(
     'array of object literal reflect',
     {
-      'arrobj.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'arrobj.ts': `import {getRunTypeId} from 'ts-runtypes';
 declare const xs: {x: number}[];
 getRunTypeId(xs);
 `,
@@ -86,7 +86,7 @@ getRunTypeId(xs);
   runTest(
     'array of array of string static',
     {
-      'arrarr.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'arrarr.ts': `import {getRunTypeId} from 'ts-runtypes';
 getRunTypeId<string[][]>();
 `,
     },
@@ -99,7 +99,7 @@ getRunTypeId<string[][]>();
   runTest(
     'array of array of string reflect',
     {
-      'arrarr.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'arrarr.ts': `import {getRunTypeId} from 'ts-runtypes';
 declare const xs: string[][];
 getRunTypeId(xs);
 `,
@@ -124,7 +124,7 @@ getRunTypeId(xs);
   runTest(
     'recursive self type static closes cycle by reference',
     {
-      'tree.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'tree.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface Tree {
   children: Tree[];
 }
@@ -140,7 +140,7 @@ getRunTypeId<Tree>();
   runTest(
     'recursive self type reflect closes cycle by reference',
     {
-      'tree.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'tree.ts': `import {getRunTypeId} from 'ts-runtypes';
 interface Tree {
   children: Tree[];
 }

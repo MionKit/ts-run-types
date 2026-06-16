@@ -1,4 +1,4 @@
-import {createJsonDecoder} from '@mionjs/ts-go-run-types';
+import {createJsonDecoder} from 'ts-runtypes';
 
 // A type with a method — methods don't survive a JSON round-trip.
 type Cart = {

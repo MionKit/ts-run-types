@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
-	"github.com/mionkit/ts-run-types/internal/constants"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // emit collects + renders the runtype modules (the bundle plus one facade per

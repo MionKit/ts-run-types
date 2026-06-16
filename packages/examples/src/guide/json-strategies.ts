@@ -1,4 +1,4 @@
-import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+import {createJsonEncoder} from 'ts-runtypes';
 
 type Profile = {name: string; age: number};
 

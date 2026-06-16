@@ -6,8 +6,8 @@ import {
   createBinaryEncoder,
   createBinaryDecoder,
   createMockType,
-} from '@mionjs/ts-go-run-types';
-import type {FormatUUIDv4, FormatEmail} from '@mionjs/ts-go-run-types/formats';
+} from 'ts-runtypes';
+import type {FormatUUIDv4, FormatEmail} from 'ts-runtypes/formats';
 
 // One real-world type — the single source of truth every suite + benchmark
 // below is generated from. A handful of formats (uuid, email), a Date, a

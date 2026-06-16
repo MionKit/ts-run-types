@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
 )
 
 // 64-bit range bounds for the bigint binary optimization, parsed once.

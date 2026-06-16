@@ -1,4 +1,4 @@
-import {createBinaryEncoder, createBinaryDecoder} from '@mionjs/ts-go-run-types';
+import {createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
 
 type Telemetry = {
   deviceId: string;

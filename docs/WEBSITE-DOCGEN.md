@@ -43,7 +43,7 @@ test/suites/<suite>/*.ts ──exporter──▶ gendocs/<suite>-suite.json   (t
 ```
 
 1. **`scripts/export-validation-suite.mjs`** (`pnpm run gen:validation-suite-json`)
-   loads `packages/ts-go-run-types/test/suites/validation/index.ts`
+   loads `packages/ts-runtypes/test/suites/validation/index.ts`
    (`export const VALIDATION_SUITE`) through Vite + the runtypes plugin, extracts
    the TS source of the thunk fields in `FN_FIELDS`
    (`validate`, `validateSchema`, `validateReflect`, `getSamples`) via
@@ -80,7 +80,7 @@ Keep these stable — they are the boundary between the generator and the UI.
 ```
 **Bench `index.json`** (not produced yet)
 ```jsonc
-{ "bench": "validation", "label": "Validation", "competitors": ["ts-go-run-types","zod","typebox","ajv","typia"],
+{ "bench": "validation", "label": "Validation", "competitors": ["ts-runtypes","zod","typebox","ajv","typia"],
   "sections": [ { "key": "…", "label": "…",
     "cases": [ { "key": "…", "title": "…",
       "results": { "zod": { "validateOpsSec": 1200000, "invalidOpsSec": 900000, "status": "ok" } } } ] } ] }
@@ -131,12 +131,12 @@ npm scripts are folded into `gen:suite-docs`. Shipped:
 datasets:
 
 - **validation** — joins `benchmarks/results/<competitor>.json` (run `pnpm run bench`)
-  into `website/public/bench-data/validation/`. 4 competitors (ts-go-run-types,
+  into `website/public/bench-data/validation/`. 4 competitors (RunTypes,
   zod, typebox, ajv; **typia is opt-in** and skipped by default), 263 cases, the
   `validationErrors·accept` ops/sec column (the metric every competitor implements).
 - **typecost** — joins `benchmarks/results/<form>.typecost.json` (run
   `pnpm run bench:typecost`) into `website/public/bench-data/typecost/`. 5 forms
-  (ts-run-types type/schema, typia, typebox, zod — no ajv; JSON Schema has no
+  (RunTypes type/schema, typia, typebox, zod — no ajv; JSON Schema has no
   static type inference), 263 cases, TS type-instantiation **count** (lower is
   better).
 

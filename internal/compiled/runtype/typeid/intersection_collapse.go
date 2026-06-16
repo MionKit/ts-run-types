@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // collapsedIntersectionID mirrors the serialize-side collapse so two

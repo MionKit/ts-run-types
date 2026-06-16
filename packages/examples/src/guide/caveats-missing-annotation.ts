@@ -1,4 +1,4 @@
-import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId} from 'ts-runtypes';
 
 // getRunTypeId reads the STATIC type of what you hand it. If the value
 // has no useful type, there's nothing to read.

@@ -226,7 +226,7 @@ const panelColumns = computed(() => {
  *  is walked on every call (zod). */
 function strategyOf(competitor: string): 'comptime' | 'jit' | 'interpreted' {
   const name = competitor.toLowerCase();
-  if (name.includes('typia') || name.includes('ts-go') || name.includes('ts-run-types')) return 'comptime';
+  if (name.includes('typia') || name.includes('ts-go') || name.includes('ts-runtypes')) return 'comptime';
   if (name.includes('ajv') || name.includes('typebox')) return 'jit';
   return 'interpreted';
 }

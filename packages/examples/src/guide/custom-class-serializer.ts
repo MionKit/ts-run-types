@@ -1,6 +1,6 @@
-import {registerClassSerializer, createJsonEncoder, createJsonDecoder} from '@mionjs/ts-go-run-types';
+import {registerClassSerializer, createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
 
-// Your own class. ts-run-types can't guess how to put it on the wire, so
+// Your own class. ts-runtypes can't guess how to put it on the wire, so
 // you teach it once: a serialize/deserialize pair keyed by the class name.
 class Money {
   constructor(

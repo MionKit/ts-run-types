@@ -23,8 +23,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/constants"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 const vitePluginConstantsPath = "packages/vite-plugin-runtypes/src/runtypes-constants.generated.ts"

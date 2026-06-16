@@ -1,6 +1,6 @@
 package typefns
 
-import "github.com/mionkit/ts-run-types/internal/protocol"
+import "github.com/mionkit/ts-runtypes/internal/protocol"
 
 // ArgSpec describes one parameter of the emitted rt function. Mirrors
 // mion's `args[key] = name` + `defaultParamValues[key] = default`

@@ -1,7 +1,7 @@
 package datetime
 
 import (
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
 )
 
 // dateTimePureFnFilePath is the canonical source path the resolver
@@ -11,7 +11,7 @@ import (
 // live — keep these in sync when either side moves. (The string-format
 // pure fns stay at ../string/string-formats-pure-fns.ts; only the
 // date/time ones moved here.)
-const dateTimePureFnFilePath = "packages/ts-go-run-types/src/formats/datetime/dateTime-pure-fns.ts"
+const dateTimePureFnFilePath = "packages/ts-runtypes/src/formats/datetime/dateTime-pure-fns.ts"
 
 // pureFnAlias binds this package's pure-fn source path into the shared
 // formats.PureFnAlias helper.

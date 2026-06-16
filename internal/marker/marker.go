@@ -3,7 +3,7 @@
 //
 //  1. InjectRunTypeId<T> — the trailing-parameter brand that opts a
 //     function into compile-time type-id injection by the
-//     ts-go-run-types transformer.
+//     ts-runtypes transformer.
 //  2. CompTimeArgs<T> — brands a parameter whose corresponding argument
 //     must be a literal at the call site (or via a module-scope `const`
 //     whose initializer is itself entirely literal).
@@ -14,7 +14,7 @@
 //  1. Name match — the type alias' symbol name must equal the configured
 //     marker name (defaults below).
 //  2. Module-of-origin match — the alias must be declared inside the
-//     configured marker package (default "@mionjs/ts-go-run-types"). This
+//     configured marker package (default "ts-runtypes"). This
 //     stops a user's own `type InjectRunTypeId<T> = ...` (or similarly
 //     named local brand) from accidentally triggering rewrites.
 package marker
@@ -75,7 +75,7 @@ const DefaultCompTimeFnArgsName = "CompTimeFnArgs"
 const DefaultPureFunctionName = "PureFunction"
 
 // DefaultModule is the package the marker types must be declared in.
-const DefaultModule = "@mionjs/ts-go-run-types"
+const DefaultModule = "ts-runtypes"
 
 // Spec describes a single marker the scanner should recognise.
 type Spec struct {
@@ -99,7 +99,7 @@ type Spec struct {
 
 // Brand property names for each marker kind. Kept in sync with the
 // public TypeScript declarations in
-// packages/ts-go-run-types/src/markers.ts.
+// packages/ts-runtypes/src/markers.ts.
 const (
 	BrandInjectRunTypeId  = "__mionInjectRunTypeIdBrand"
 	BrandCompTimeArgs     = "__mionCompTimeArgsBrand"
@@ -326,8 +326,8 @@ func IsFreeTypeParameter(tsType *checker.Type) bool {
 //
 // Earlier versions of this function compared the source-file path
 // against `"/" + module + "/"`. That heuristic broke for workspace
-// self-imports (the on-disk directory `packages/ts-go-run-types/` does
-// not literally contain the published name `@mionjs/ts-go-run-types`),
+// self-imports (the on-disk directory `packages/ts-runtypes/` does
+// not literally contain the published name `ts-runtypes`),
 // forcing tests to insert an ambient-module overlay file as a
 // workaround. The package.json walk removes that workaround and uses
 // the same identity check as the rest of the JS ecosystem.

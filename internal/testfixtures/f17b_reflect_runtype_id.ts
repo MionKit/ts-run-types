@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId, type InjectRunTypeId} from 'ts-runtypes';
 
 export {};
 

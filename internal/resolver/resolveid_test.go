@@ -3,7 +3,7 @@ package resolver_test
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // ---- OpResolveID -------------------------------------------------------------
@@ -14,11 +14,11 @@ import (
 // child slots stay as refs so payloads stay bounded — and that NodeByID
 // returns nil for unknown ids.
 
-const resolveIDArrayCodeStatic = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+const resolveIDArrayCodeStatic = `import {getRunTypeId} from 'ts-runtypes';
 getRunTypeId<string[]>();
 `
 
-const resolveIDArrayCodeReflect = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+const resolveIDArrayCodeReflect = `import {getRunTypeId} from 'ts-runtypes';
 const xs: string[] = ['a', 'b'];
 getRunTypeId(xs);
 `

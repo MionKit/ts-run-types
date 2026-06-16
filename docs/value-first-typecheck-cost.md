@@ -14,7 +14,7 @@ work. Reproduce the guardrail measurements with
 Each looks more complex than necessary; each is shaped to avoid a specific,
 measured instantiation cost. Re-simplifying silently reintroduces it.
 
-1. **`ObjectType<C>` is tiered** ([src/schema/static.ts](../packages/ts-go-run-types/src/schema/static.ts)).
+1. **`ObjectType<C>` is tiered** ([src/schema/static.ts](../packages/ts-runtypes/src/schema/static.ts)).
    It probes the modifier profile and emits the leanest *exact* mapped type — a
    single homomorphic map for the common all-required object — falling to the 4-way
    `Pick`-group intersection ONLY when one field is optional AND another readonly.
@@ -22,7 +22,7 @@ measured instantiation cost. Re-simplifying silently reintroduces it.
    (collapsing it back is ~+70%). Every tier must recover the IDENTICAL type to the
    4-way — proven across modifier profiles in `isolated-experiment.mjs`.
 
-2. **`CompTimeArgs<T>` is the identity `T`** ([src/markers.ts](../packages/ts-go-run-types/src/markers.ts)),
+2. **`CompTimeArgs<T>` is the identity `T`** ([src/markers.ts](../packages/ts-runtypes/src/markers.ts)),
    detected off the parameter's `CompTimeArgs<…>` annotation node, NOT a brand
    property (`comptimeargs.IsCompTimeArgsParamNode`, shared by the resolver scan and
    the pure-fn extractor). **Do not re-add `& {__mionCompTimeArgsBrand?: never}`** —
@@ -32,7 +32,7 @@ measured instantiation cost. Re-simplifying silently reintroduces it.
    resolution. (The nominal FORMAT brand `brand('UserId')` in `TypeFormat` is a
    separate mechanism and is untouched.)
 
-3. **`union` fixed-arity overloads go to 8** ([src/schema/compose.ts](../packages/ts-go-run-types/src/schema/compose.ts)).
+3. **`union` fixed-arity overloads go to 8** ([src/schema/compose.ts](../packages/ts-runtypes/src/schema/compose.ts)).
    Direct `A | … | H` brands (no `infer`); 9+ fall back to recursive `UnionOf<T>`.
    The recursive build is ~25% costlier on the 8-arm case; overload resolution stops
    at the first matching arity, so narrower unions pay nothing for the wider ones.

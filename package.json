@@ -1,17 +1,17 @@
 {
-  "name": "ts-go-run-types-monorepo",
+  "name": "ts-runtypes-monorepo",
   "version": "0.1.0",
   "description": "Compile-time type resolver for mion runtypes on TypeScript 7 / typescript-go (tsgo).",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.1.1",
-  "homepage": "https://github.com/mionkit/ts-run-types#readme",
+  "homepage": "https://github.com/mionkit/ts-runtypes#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mionkit/ts-run-types.git"
+    "url": "git+https://github.com/mionkit/ts-runtypes.git"
   },
   "bugs": {
-    "url": "https://github.com/mionkit/ts-run-types/issues"
+    "url": "https://github.com/mionkit/ts-runtypes/issues"
   },
   "license": "MIT",
   "author": "ma-jerez",
@@ -23,7 +23,7 @@
     "pretest": "pnpm run check:builds",
     "test": "vitest run",
     "check:builds": "bash scripts/check-stale-builds.sh",
-    "fuzz:unit": "vitest run --config packages/ts-go-run-types/test/fuzz/vitest.fuzz-unit.config.ts",
+    "fuzz:unit": "vitest run --config packages/ts-runtypes/test/fuzz/vitest.fuzz-unit.config.ts",
     "prefuzz": "pnpm run check:builds",
     "fuzz": "vitest run fuzz.integration typeFuzz.integration binaryEncoderResize",
     "prefuzz:soak": "pnpm run check:builds",
@@ -32,14 +32,14 @@
     "fuzz:types": "vitest run typeFuzz.integration",
     "prefuzz:types:soak": "pnpm run check:builds",
     "fuzz:types:soak": "FUZZ_TYPES_SOAK_MS=60000 vitest run typeFuzz.integration",
-    "prets-run-types:smoke": "pnpm run check:builds",
-    "ts-run-types:smoke": "node scripts/ts-run-types-smoke.mjs",
+    "prets-runtypes:smoke": "pnpm run check:builds",
+    "ts-runtypes:smoke": "node scripts/ts-runtypes-smoke.mjs",
     "predump:test-modules": "pnpm run check:builds",
     "dump:test-modules": "node scripts/dump-test-modules.mjs",
     "dump:test-modules:allSingle": "pnpm run dump:test-modules --module-mode allSingle",
     "dump:test-modules:allModules": "pnpm run dump:test-modules --module-mode allModules",
     "gen:ts-constants": "go run ./cmd/gen-ts-constants",
-    "gen:run-type-kind": "go run ./cmd/gen-run-type-kind > packages/ts-go-run-types/src/runTypeKind.ts",
+    "gen:run-type-kind": "go run ./cmd/gen-run-type-kind > packages/ts-runtypes/src/runTypeKind.ts",
     "pregen:validation-suite-json": "pnpm run check:builds",
     "gen:validation-suite-json": "node scripts/export-validation-suite.mjs",
     "pregen:serialization-suite-json": "pnpm run check:builds",

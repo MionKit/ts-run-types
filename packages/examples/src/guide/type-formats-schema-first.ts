@@ -1,5 +1,5 @@
-import {createValidate, type Static} from '@mionjs/ts-go-run-types';
-import * as RT from '@mionjs/ts-go-run-types/schema';
+import {createValidate, type Static} from 'ts-runtypes';
+import * as RT from 'ts-runtypes/schema';
 
 // Schema-first formats: the same constraints as builders. RT.email(),
 // RT.uuidv4(), RT.int32(), RT.positive() — pick the style you like.

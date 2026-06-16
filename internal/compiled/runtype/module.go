@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // renderFactoryArgs builds the positional-arg slice for one `rt(…)` call.

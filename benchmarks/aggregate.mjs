@@ -11,7 +11,7 @@ import {readdirSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 
 const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? path.resolve(process.cwd(), 'results');
-const PREFERRED = ['ts-go-run-types', 'zod', 'typebox', 'ajv', 'typia'];
+const PREFERRED = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
 
 const COL = 16;
 const KEYW = 30;

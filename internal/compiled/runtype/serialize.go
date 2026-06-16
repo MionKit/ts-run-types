@@ -26,10 +26,10 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-run-types/internal/compiled/runtype/typeid"
-	"github.com/mionkit/ts-run-types/internal/constants"
-	"github.com/mionkit/ts-run-types/internal/hashid"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
+	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/hashid"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // Options configures the serializer's hash budget. Zero value uses the
@@ -500,7 +500,7 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 			}
 		}
 	} else if name, ok := dataOnlyTypeName(tsType); ok {
-		// DataOnly<T> from @mionjs/ts-go-run-types: the conditional + key-filtering
+		// DataOnly<T> from ts-runtypes: the conditional + key-filtering
 		// mapped type strips the alias chain by the time the result reaches us,
 		// so the alias check above misses. Recognise it explicitly so the entry
 		// stays external in default inline mode (DefaultIsRTInlined treats

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/all"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // temporal_emit_test.go asserts each RT-fn family emits the right code for a
@@ -29,7 +29,7 @@ func emitSourcesFor(t *testing.T, typeName string) *protocol.Response {
 // family under assertion (binary→createBinaryEncoder/createBinaryDecoder).
 func emitSourcesForFn(t *testing.T, fnName, typeName string) *protocol.Response {
 	t.Helper()
-	code := `import {` + fnName + `} from '@mionjs/ts-go-run-types';
+	code := `import {` + fnName + `} from 'ts-runtypes';
 export const _ = ` + fnName + `<Temporal.` + typeName + `>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
@@ -67,7 +67,7 @@ func TestTemporal_EmitRestoreFromJson(t *testing.T) {
 
 func TestTemporal_EmitStringifyJson(t *testing.T) {
 	// sj is demand-driven now: only createJsonEncoder(direct) → [sj] seeds it.
-	code := `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+	code := `import {createJsonEncoder} from 'ts-runtypes';
 export const _ = createJsonEncoder<Temporal.Instant>(undefined, {strategy: 'direct'});
 `
 	r := setupInline(t, map[string]string{"a.ts": code})

@@ -1,4 +1,4 @@
-import type {FormatString, FormatNumber} from '@mionjs/ts-go-run-types/formats';
+import type {FormatString, FormatNumber} from 'ts-runtypes/formats';
 
 // Add a brand name (the 2nd type arg) and the format becomes a NOMINAL type.
 // A plain string is no longer assignable — you must opt in with `as`.

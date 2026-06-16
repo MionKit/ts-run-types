@@ -19,7 +19,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // Computer is the stateful walker. Memoises results on *checker.Type pointer

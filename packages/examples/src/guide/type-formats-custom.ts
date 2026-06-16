@@ -1,5 +1,5 @@
-import {createValidate} from '@mionjs/ts-go-run-types';
-import type {FormatString, FormatNumber, FormatBigInt} from '@mionjs/ts-go-run-types/formats';
+import {createValidate} from 'ts-runtypes';
+import type {FormatString, FormatNumber, FormatBigInt} from 'ts-runtypes/formats';
 
 // FormatString / FormatNumber / FormatBigInt are the escape hatches: pass
 // your own params when no named format fits.

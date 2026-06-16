@@ -1,4 +1,4 @@
-import {createValidate} from '@mionjs/ts-go-run-types';
+import {createValidate} from 'ts-runtypes';
 
 type Flag = {kind: 'on' | 'off'; values: number[]};
 

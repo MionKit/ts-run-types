@@ -5,16 +5,16 @@ import (
 	"testing"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-run-types/internal/program"
-	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/resolver"
+	"github.com/mionkit/ts-runtypes/internal/program"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // runtypesDTS mirrors internal/testfixtures/runtypes.d.ts — the fake
-// `@mionjs/ts-go-run-types` module declaration. setupInline always
+// `ts-runtypes` module declaration. setupInline always
 // overlays it under the test cwd so caller snippets stay terse, the
 // same trick the FE helper uses (packages/vite-plugin-runtypes/test/helpers/inline.ts:30).
-const runtypesDTS = `declare module '@mionjs/ts-go-run-types' {
+const runtypesDTS = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};

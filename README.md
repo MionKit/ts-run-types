@@ -1,14 +1,14 @@
-# ts-go-run-types
+# RunTypes
 
 Compile-time type resolver for [mion runtypes](https://github.com/mionkit) on **TypeScript 7 / typescript-go (tsgo)**.
 
-`ts-go-run-types` is a native Go binary that reaches into tsgo's type checker (via the `oxc-project/tsgolint` shim layer) and answers _call-site_ type queries. A paired Vite plugin rewrites every call whose trailing parameter is the sentinel marker `InjectRunTypeId<T>` (from `@mionjs/ts-go-run-types`) and emits a deduplicated type-metadata module the runtime (and the RT) can consume.
+RunTypes is a native Go binary that reaches into tsgo's type checker (via the `oxc-project/tsgolint` shim layer) and answers _call-site_ type queries. A paired Vite plugin rewrites every call whose trailing parameter is the sentinel marker `InjectRunTypeId<T>` (from `ts-runtypes`) and emits a deduplicated type-metadata module the runtime (and the RT) can consume.
 
 ## Why
 
 TypeScript 7 ships the compiler as a compiled Go binary. The legacy custom-transformer API has not been ported (see [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516)), and the compiler can no longer be monkey-patched from Node. Runtime type-reflection libraries that relied on patching `tsc` therefore need a new, native side-channel into the checker.
 
-`ts-go-run-types` provides that channel — driven by a single primitive (the `InjectRunTypeId<T>` sentinel) rather than a hard-coded list of function names, so users can wrap the canonical helpers freely.
+RunTypes provides that channel — driven by a single primitive (the `InjectRunTypeId<T>` sentinel) rather than a hard-coded list of function names, so users can wrap the canonical helpers freely.
 
 ## Status
 
@@ -17,7 +17,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 ## How it works
 
 ```
-  app.ts ──▶ vite-plugin-runtypes ──[scanFiles]──▶  ts-go-run-types (Go)
+  app.ts ──▶ vite-plugin-runtypes ──[scanFiles]──▶  ts-runtypes (Go)
                        │                                 │
                        │                                 │ tsgo Checker
                        │                                 │
@@ -30,8 +30,8 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
               virtual:rt/<key>.js (per entry)  ──▶  runtime / RT registry
 ```
 
-1. User code imports `InjectRunTypeId<T>` / `getRunTypeId<T>()` (static) or `getRunTypeId(val)` (reflection) from `@mionjs/ts-go-run-types`. Any user-defined wrapper function may also declare `id?: InjectRunTypeId<T>` as its trailing parameter to opt into the same flow.
-2. The Vite plugin sends each source file to the Go binary's `scanFiles` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `InjectRunTypeId<T>` (declared in `@mionjs/ts-go-run-types`) with `T` concretely bound. `scanFiles` accepts an array of files in a single request; opt-in flags (`includeRunTypes`, `includeCacheSource`) project the response down to just those files.
+1. User code imports `InjectRunTypeId<T>` / `getRunTypeId<T>()` (static) or `getRunTypeId(val)` (reflection) from `ts-runtypes`. Any user-defined wrapper function may also declare `id?: InjectRunTypeId<T>` as its trailing parameter to opt into the same flow.
+2. The Vite plugin sends each source file to the Go binary's `scanFiles` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `InjectRunTypeId<T>` (declared in `ts-runtypes`) with `T` concretely bound. `scanFiles` accepts an array of files in a single request; opt-in flags (`includeRunTypes`, `includeCacheSource`) project the response down to just those files.
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
 4. Every cache entry is its own virtual module: `virtual:rt/<key>.js` (the cache key — bare type hash for runtypes, `<fnHash>_<typeId>` for function entries, `pf/<ns>/<fn>` for pure fns). The rewrite injects the matching imports into each user file, so bundlers code-split and tree-shake entries natively. Each module exports one positional tuple (`export const e = […]`); the runtime registers a tuple's dependency closure on first use and serves lookups from the `rtUtils` registry (module/naming constants come from [internal/constants/constants.go](internal/constants/constants.go)).
 
@@ -43,7 +43,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 - **Structural ids are deterministic.** [internal/compiled/runtype/typeid/](internal/compiled/runtype/typeid/) mirrors mion's `_createTypeId` to compose `${kind}{child1,child2,…}` recursively, with a back-reference token for cycles. The structural id is then run through mion's quickHash rolling hash (prime-37, letter-first alphanumeric alphabet) in [internal/hashid](internal/hashid/), yielding a 7-character hash.
 - **Rewrites are positioned by byte offsets, not string indices.** tsgo positions are UTF-8 byte offsets. The Vite plugin's [rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts) therefore converts every resolver offset to a UTF-16 index before editing (otherwise multibyte source characters would misalign the inserted hash) and applies the edits through an in-house `EditBuffer` ([edit-buffer.ts](packages/vite-plugin-runtypes/src/edit-buffer.ts)), so the transform returns a real source map — breakpoints and stack traces land on the user's original lines. The plugin ships **no runtime dependencies**: `EditBuffer` is a small from-scratch string-editor + source-map generator covering just the slice of `magic-string` the rewrite needs.
 - **Entry modules defer all wiring to runtime registration.** [internal/compiled/entrymod](internal/compiled/entrymod/) assembles one ES module per function entry: imports of the entry's DIRECT dependencies (leaves-first, alphabetical within a dependency level; recursive types collapse via SCC so cycles import each other safely — the transitive closure loads through the dep modules' own imports) and a lazy `deps()` thunk the runtime walks recursively. Runtype nodes are denser: they ride as rows of the single data bundle `virtual:rt/runtypes.js` (one combined `ini(rtu)` patches reference slots through the registry), aliased by a tiny facade module per reflection root so each node exists exactly once app-wide. Tuples never reference imported bindings eagerly, so circular type graphs evaluate without TDZ hazards. Module naming/export constants come from [internal/constants/constants.go](internal/constants/constants.go) — the JS side reads the same values from a generated mirror (`pnpm run gen:ts-constants`), so the two halves can't drift. The Vite plugin serves module bodies verbatim from the resolver's `dump` response (`entryModules`) — there's no JS-side renderer to keep in sync.
-- **The marker is detected by name _and_ declaring module.** [internal/marker](internal/marker/) checks both `InjectRunTypeId` and that the alias is declared in `@mionjs/ts-go-run-types`, so a user's own `type InjectRunTypeId<T> = ...` declared elsewhere does not trigger rewrites.
+- **The marker is detected by name _and_ declaring module.** [internal/marker](internal/marker/) checks both `InjectRunTypeId` and that the alias is declared in `ts-runtypes`, so a user's own `type InjectRunTypeId<T> = ...` declared elsewhere does not trigger rewrites.
 
 ## Components
 
@@ -51,7 +51,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 
 | Path                                                       | Purpose                                                                                                      |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [cmd/ts-go-run-types/main.go](cmd/ts-go-run-types/main.go) | CLI entry; stdio one-shot and Unix-socket daemon modes.                                                      |
+| [cmd/ts-runtypes/main.go](cmd/ts-runtypes/main.go) | CLI entry; stdio one-shot and Unix-socket daemon modes.                                                      |
 | [internal/program](internal/program/)                      | Loads tsconfig + VFS, bootstraps tsgo `Program` + `Checker`.                                                 |
 | [internal/resolver](internal/resolver/)                              | `scanFiles` / `dump` op dispatch; AST call-walk (`walk.go` + `scan.go`); asks checker for resolved signatures. |
 | [internal/marker](internal/marker/)                                  | `InjectRunTypeId<T>` sentinel detection (name + module check); filters free type parameters.                    |
@@ -67,7 +67,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 
 | Path                                                                                                         | Purpose                                                                                           |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| [packages/ts-go-run-types](packages/ts-go-run-types/)                                                       | `@mionjs/ts-go-run-types` — `InjectRunTypeId<T>` marker type, `getRunTypeId` (static + value-first forms). |
+| [packages/ts-runtypes](packages/ts-runtypes/)                                                       | `ts-runtypes` — `InjectRunTypeId<T>` marker type, `getRunTypeId` (static + value-first forms). |
 | [packages/vite-plugin-runtypes](packages/vite-plugin-runtypes/)                                              | Vite plugin: spawns the Go binary, applies byte-offset rewrites, serves `virtual:rt/*` entry modules. |
 | [packages/vite-plugin-runtypes/src/resolver-client.ts](packages/vite-plugin-runtypes/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                             |
 | [packages/vite-plugin-runtypes/src/rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts)                 | Applies returned `Site[]` as byte-offset insertions into source.                                  |
@@ -75,7 +75,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 ## Use
 
 ```ts
-import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId, type InjectRunTypeId} from 'ts-runtypes';
 
 // 1. Static form — explicit type argument, no value.
 const stringId = getRunTypeId<string>();
@@ -109,7 +109,7 @@ A free type parameter (a call inside a generic body where the marker's `T` is th
 ### One-shot (stdio JSON)
 
 ```bash
-bin/ts-go-run-types --one-shot --tsconfig tsconfig.json < requests.jsonl > cache.json
+bin/ts-runtypes --one-shot --tsconfig tsconfig.json < requests.jsonl > cache.json
 ```
 
 `requests.jsonl` is newline-delimited queries:
@@ -122,12 +122,12 @@ bin/ts-go-run-types --one-shot --tsconfig tsconfig.json < requests.jsonl > cache
 ### Daemon (Vite / HMR)
 
 ```bash
-bin/ts-go-run-types --daemon --tsconfig tsconfig.json --socket /tmp/ts-go-run-types.sock
+bin/ts-runtypes --daemon --tsconfig tsconfig.json --socket /tmp/ts-runtypes.sock
 ```
 
 ### Marker family
 
-Three marker brands are exported from `@mionjs/ts-go-run-types`:
+Three marker brands are exported from `ts-runtypes`:
 
 - `InjectRunTypeId<T>` — trailing-slot brand; the build injects a stable type-id at the call site.
 - `CompTimeArgs<T>` — the argument at this slot must be a literal (or a `const`-of-literal chain).
@@ -142,22 +142,22 @@ The repository contains a Go binary and a pnpm/Lerna workspace of JS packages. S
 ```bash
 git submodule update --init --recursive
 (cd third_party/tsgolint/typescript-go && git am --3way --no-gpg-sign ../patches/*.patch)
-go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
+go build -o bin/ts-runtypes ./cmd/ts-runtypes
 pnpm install --frozen-lockfile
 go test ./internal/...
 pnpm test
 ```
 
-The JS plugin tests spawn `bin/ts-go-run-types`, so the Go binary must be built before `pnpm test`.
+The JS plugin tests spawn `bin/ts-runtypes`, so the Go binary must be built before `pnpm test`.
 
 ## Repository layout
 
 ```
-cmd/ts-go-run-types/                CLI entry point
+cmd/ts-runtypes/                CLI entry point
 internal/                        Go pipeline (program, resolver, marker,
                                   compiled/runtype, compiled/typefns, compiled/purefns,
                                   protocol, constants, diag, cache, entrymod, hashid, testfixtures)
-packages/ts-go-run-types/        @mionjs/ts-go-run-types — marker type + helpers
+packages/ts-runtypes/        ts-runtypes — marker type + helpers
 packages/vite-plugin-runtypes/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
 docs/ARCHITECTURE.md             detailed design + @mionjs/run-types parity record

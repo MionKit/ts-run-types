@@ -1,4 +1,4 @@
-import {createUnknownKeysToUndefined} from '@mionjs/ts-go-run-types';
+import {createUnknownKeysToUndefined} from 'ts-runtypes';
 
 type User = {id: number; name: string};
 

@@ -1,4 +1,4 @@
-// Package protocol defines the wire types exchanged between the ts-go-run-types
+// Package protocol defines the wire types exchanged between the ts-runtypes
 // resolver and its callers. The shape is the canonical mion runtypes reflection
 // `RunType` discriminated union so the user's runtypes RT — which already
 // understands this runtime shape — can consume our cache directly.
@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diag"
 )
 
 func jsonMarshal(v any) ([]byte, error) { return json.Marshal(v) }
@@ -208,7 +208,7 @@ type RunType struct {
 	// We carry only the strictly-new field (a ref to the property);
 	// the other FlattenedProp fields are reconstructible from the
 	// surrounding context. JS-side consumers use
-	// `flattenUnionDiscriminators` from @mionjs/ts-go-run-types to
+	// `flattenUnionDiscriminators` from ts-runtypes to
 	// materialise the full per-member struct.
 	UnionDiscriminators []*RunType `json:"unionDiscriminators,omitempty"`
 
@@ -227,7 +227,7 @@ type RunType struct {
 
 	// FormatAnnotation — populated when a primitive is branded with a
 	// TypeFormat<Base, Name, Params, ...> marker from
-	// `@mionjs/ts-go-run-types/formats`. Mirrors mion's FormatAnnotation
+	// `ts-runtypes/formats`. Mirrors mion's FormatAnnotation
 	// (packages/run-types/src/lib/formats.ts) — the name + params pair
 	// that drives format-aware emit for validate / validationErrors. The
 	// structural id folds Name + canonicalised Params into the hash so
@@ -336,7 +336,7 @@ const (
 	// OpTsCompile runs the embedded tsgo through bind + typecheck + emit
 	// on the resolver's current source overlay, returns the wall time in
 	// the response's TsCompileMs field, and discards the emit output.
-	// Does NOT walk markers, does NOT render any ts-go-run-types cache
+	// Does NOT walk markers, does NOT render any ts-runtypes cache
 	// modules — it's the pure-TypeScript baseline measurement used by
 	// the bench orchestrators to show "what would tsc cost" next to the
 	// existing scanFiles latency. Caller seeds sources via OpSetSources

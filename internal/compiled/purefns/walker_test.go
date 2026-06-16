@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-run-types/internal/marker"
-	"github.com/mionkit/ts-run-types/internal/program"
+	"github.com/mionkit/ts-runtypes/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/program"
 )
 
 // runtypesDts is the ambient marker declaration injected into every
@@ -15,7 +15,7 @@ import (
 // brand-branded registerPureFnFactory signature so the marker-driven
 // discovery in walker.go recognises calls in test fixtures the same
 // way it recognises them in real consumer code.
-const runtypesDts = `declare module '@mionjs/ts-go-run-types' {
+const runtypesDts = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
@@ -72,7 +72,7 @@ func extractFromOverlay(t *testing.T, files map[string]string) ([]Entry, []Diagn
 func TestExtract_HappyPath_FunctionExpression(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 export const cpf = registerPureFnFactory('mion', 'asJSONString', function () {
   return function _stringify(s: string): string {
     return JSON.stringify(s);
@@ -103,7 +103,7 @@ export const cpf = registerPureFnFactory('mion', 'asJSONString', function () {
 func TestExtract_HappyPath_ArrowFunction(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 export const cpf = registerPureFnFactory('test', 'arrowFn', (jUtils) => {
   return function _fn(x: number) {
     return x;
@@ -124,7 +124,7 @@ export const cpf = registerPureFnFactory('test', 'arrowFn', (jUtils) => {
 func TestExtract_HappyPath_ArrowExpressionBody(t *testing.T) {
 	entries, _ := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 export const cpf = registerPureFnFactory('t', 'inline', (j) => () => 42);`,
 	})
 	if len(entries) != 1 {
@@ -138,7 +138,7 @@ export const cpf = registerPureFnFactory('t', 'inline', (j) => () => 42);`,
 func TestExtract_TracedNamespaceConst(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 const NS = 'mion';
 export const cpf = registerPureFnFactory(NS, 'foo', function () { return function() {}; });`,
 	})
@@ -153,7 +153,7 @@ export const cpf = registerPureFnFactory(NS, 'foo', function () { return functio
 func TestExtract_TracedFactoryConst(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 const myFactory = function () { return function inner(x: number) { return x; }; };
 export const cpf = registerPureFnFactory('mion', 'tracedFn', myFactory);`,
 	})
@@ -168,7 +168,7 @@ export const cpf = registerPureFnFactory('mion', 'tracedFn', myFactory);`,
 func TestExtract_TracedFunctionDeclaration(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 function myFactory() { return function inner() { return 1; }; }
 export const cpf = registerPureFnFactory('mion', 'tracedFnDecl', myFactory);`,
 	})
@@ -191,7 +191,7 @@ export const cpf = registerPureFnFactory('mion', 'tracedFnDecl', myFactory);`,
 func TestExtract_NonLiteralNamespace_SilentSkip(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 export const cpf = registerPureFnFactory(getNs(), 'fn', function () { return function() {}; });
 declare function getNs(): string;`,
 	})
@@ -206,7 +206,7 @@ declare function getNs(): string;`,
 func TestExtract_NonLiteralFunctionID_SilentSkip(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 declare const name: string;
 export const cpf = registerPureFnFactory('mion', name, function () { return function() {}; });`,
 	})
@@ -221,7 +221,7 @@ export const cpf = registerPureFnFactory('mion', name, function () { return func
 func TestExtract_NonInlineFactory_SilentSkip(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 declare const someFn: () => () => void;
 export const cpf = registerPureFnFactory('mion', 'fn', someFn);`,
 	})
@@ -236,7 +236,7 @@ export const cpf = registerPureFnFactory('mion', 'fn', someFn);`,
 func TestExtract_DestructuredParam_PFE9005(t *testing.T) {
 	_, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 export const cpf = registerPureFnFactory('mion', 'fn', function ({a, b}) {
   return function() {};
 });`,
@@ -249,12 +249,12 @@ export const cpf = registerPureFnFactory('mion', 'fn', function ({a, b}) {
 func TestExtract_BodyHashCollision_PFE9004(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 export const a = registerPureFnFactory('mion', 'asJSONString', function () {
   return function v1() { return 1; };
 });`,
 		"b.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 export const b = registerPureFnFactory('mion', 'asJSONString', function () {
   return function v2() { return 2; };
 });`,
@@ -282,12 +282,12 @@ func TestExtract_IdempotentSameBodyHash_NoDiagnostic(t *testing.T) {
 	// Same key + same body in two files → silent dedupe (no diagnostic).
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 export const a = registerPureFnFactory('mion', 'sameFn', function () {
   return function _fn() { return 1; };
 });`,
 		"b.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 export const b = registerPureFnFactory('mion', 'sameFn', function () {
   return function _fn() { return 1; };
 });`,
@@ -305,7 +305,7 @@ export const b = registerPureFnFactory('mion', 'sameFn', function () {
 func TestExtract_DeterministicOrder(t *testing.T) {
 	entries, _ := extractFromOverlay(t, map[string]string{
 		"a.ts": `
-import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from 'ts-runtypes';
 export const a = registerPureFnFactory('z', 'zeta', function () { return function() {}; });
 export const b = registerPureFnFactory('a', 'alpha', function () { return function() {}; });
 export const c = registerPureFnFactory('m', 'mu', function () { return function() {}; });`,

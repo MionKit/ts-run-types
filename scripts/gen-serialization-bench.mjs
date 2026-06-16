@@ -8,7 +8,7 @@
 //   <case>.json         — { competitors: [{ name, source }] }  (lazy hover)
 //
 // Unlike the validation/typecost benches there are NO competitor libraries: the
-// "columns" are ts-run-types' own round-trips plus a native-JSON baseline, all
+// "columns" are ts-runtypes' own round-trips plus a native-JSON baseline, all
 // measured in-process from the SERIALIZATION test suite. So this is built like
 // the suite exporters (load the suite through Vite + the runtypes plugin, time
 // the real generated encoders/decoders), NOT like benchmarks/ (no podman, no
@@ -70,10 +70,10 @@ if (!SUITE_CFG) {
   process.exit(1);
 }
 
-const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites', SUITE_CFG.dir);
+const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-runtypes/test/suites', SUITE_CFG.dir);
 const SUITE_PATH = path.join(SUITE_DIR, 'index.ts');
-const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
-const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
+const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-runtypes');
+const BIN = path.join(REPO_ROOT, 'bin/ts-runtypes');
 const OUT_DIR = path.join(REPO_ROOT, 'website/public/bench-data', SUITE_CFG.bench);
 
 // The round-trips shown as columns. `enc`/`dec` name the SerializationCase thunk
@@ -104,8 +104,8 @@ const LARGE_ITERS = 150;
 
 function ensureBinary() {
   if (!fs.existsSync(BIN)) {
-    process.stderr.write(`ts-go-run-types binary not found at ${BIN}\n`);
-    process.stderr.write(`build it with: go build -o bin/ts-go-run-types ./cmd/ts-go-run-types\n`);
+    process.stderr.write(`ts-runtypes binary not found at ${BIN}\n`);
+    process.stderr.write(`build it with: go build -o bin/ts-runtypes ./cmd/ts-runtypes\n`);
     process.exit(1);
   }
 }

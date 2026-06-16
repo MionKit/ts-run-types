@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/program"
-	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/resolver"
+	"github.com/mionkit/ts-runtypes/internal/program"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Parallel-scan equivalence suite. Every fixture-bearing test follows the
@@ -20,7 +20,7 @@ import (
 // group carries projection-heavy work.
 func parallelFixtureLarge() string {
 	var sb strings.Builder
-	sb.WriteString("import {createValidate, createGetValidationErrors} from '@mionjs/ts-go-run-types';\n")
+	sb.WriteString("import {createValidate, createGetValidationErrors} from 'ts-runtypes';\n")
 	sb.WriteString("export interface Big {\n")
 	for i := 0; i < 6; i++ {
 		fmt.Fprintf(&sb, "  s%d: string; n%d: number; o%d?: {a: string; b: number[]; c: 'x' | 'y' | %d}; d%d: Date;\n", i, i, i, i, i)
@@ -38,7 +38,7 @@ func parallelFixtureLarge() string {
 // reflect-form annotation honoring, and classes/builtins.
 func parallelFixtureSources() map[string]string {
 	return map[string]string{
-		"a_objects.ts": `import {createValidate, createGetValidationErrors, getRunTypeId} from '@mionjs/ts-go-run-types';
+		"a_objects.ts": `import {createValidate, createGetValidationErrors, getRunTypeId} from 'ts-runtypes';
 export interface Address {street: string; city: string; zip?: string}
 export interface User {
   id: number;
@@ -56,7 +56,7 @@ export const idStatic = getRunTypeId<Address>();
 const addr: Address = {street: 's', city: 'c'};
 export const idReflect = getRunTypeId(addr);
 `,
-		"b_unions.ts": `import {createValidate, createJsonEncoder, createJsonDecoder, getRunTypeId} from '@mionjs/ts-go-run-types';
+		"b_unions.ts": `import {createValidate, createJsonEncoder, createJsonDecoder, getRunTypeId} from 'ts-runtypes';
 export type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; size: number} | {kind: 'rect'; w: number; h: number};
 export type Mixed = string | number | Date | {a: string} | string[];
 export const v = createValidate<Shape>();
@@ -67,14 +67,14 @@ const sh: Shape = {kind: 'circle', radius: 1};
 export const idReflect = getRunTypeId(sh);
 `,
 		"c_large.ts": parallelFixtureLarge(),
-		"d_shared.ts": `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
+		"d_shared.ts": `import {createValidate, getRunTypeId} from 'ts-runtypes';
 export interface AddressClone {street: string; city: string; zip?: string}
 export const v = createValidate<AddressClone>();
 export const idStatic = getRunTypeId<AddressClone>();
 const a: AddressClone = {street: 'x', city: 'y'};
 export const idReflect = getRunTypeId(a);
 `,
-		"e_diags.ts": `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
+		"e_diags.ts": `import {createValidate, getRunTypeId} from 'ts-runtypes';
 export function wrap<T>() { return createValidate<T>(); }
 function make() { return {a: 1}; }
 export const viaCall = createValidate(make());
@@ -84,7 +84,7 @@ export const nonLiteral = createValidate<string>(undefined, opts);
 const made: {a: number} = {a: 2};
 export const reflected = getRunTypeId(made);
 `,
-		"f_enum_literals.ts": `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
+		"f_enum_literals.ts": `import {createValidate, getRunTypeId} from 'ts-runtypes';
 export enum Color {Red, Green = 'green', Blue = 2}
 export type Route = ` + "`api/user/${number}`" + `;
 export type Pair = [string, number?];
@@ -94,14 +94,14 @@ export const c = createValidate<Pair>();
 const pair: Pair = ['x', 1];
 export const d = getRunTypeId(pair);
 `,
-		"g_reflect.ts": `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
+		"g_reflect.ts": `import {createValidate, getRunTypeId} from 'ts-runtypes';
 export type Mode = 'on' | 'off';
 const mode: Mode = 'on';
 export const fromValue = createValidate(mode);
 export const fromType = createValidate<Mode>();
 export const idStatic = getRunTypeId<Mode>();
 `,
-		"h_classes.ts": `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
+		"h_classes.ts": `import {createValidate, getRunTypeId} from 'ts-runtypes';
 export class Account {
   id: number = 0;
   name = '';
@@ -119,7 +119,7 @@ export const idReflect = getRunTypeId(acc);
 		// diagnostics (VL010 / VE010 / json-family codes) — multiple
 		// families emit RT-render diagnostics for the same type, which
 		// pins the cross-family diagnostic merge order in parallel mode.
-		"i_dropped.ts": `import {createValidate, createGetValidationErrors, createJsonEncoder, getRunTypeId} from '@mionjs/ts-go-run-types';
+		"i_dropped.ts": `import {createValidate, createGetValidationErrors, createJsonEncoder, getRunTypeId} from 'ts-runtypes';
 export interface WithFn { name: string; onClick: () => void; }
 export const v = createValidate<WithFn>();
 export const e = createGetValidationErrors<WithFn>();

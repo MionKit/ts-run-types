@@ -1,4 +1,4 @@
-import {createValidate, createJsonEncoder} from '@mionjs/ts-go-run-types';
+import {createValidate, createJsonEncoder} from 'ts-runtypes';
 
 type Flag = {kind: 'on' | 'off'};
 

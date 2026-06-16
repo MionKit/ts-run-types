@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
-	"github.com/mionkit/ts-run-types/internal/operations"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-runtypes/internal/operations"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // ValidationErrorsEmitter implements the `validationErrors` rt function — produces
@@ -31,7 +31,7 @@ type ValidationErrorsEmitter struct{}
 // the factory in run-types-pure-fns.ts (the same file validate uses for
 // its own pure-fn deps), and the Go-side integrity check on
 // PureFnDependencies resolves it through the same path.
-const validationErrorsPureFnFilePath = "packages/ts-go-run-types/src/run-types-pure-fns.ts"
+const validationErrorsPureFnFilePath = "packages/ts-runtypes/src/run-types-pure-fns.ts"
 
 // Args returns the three parameters the inner validationErrors function takes.
 // Mirrors mion's `rtErrorArgs` (run-types/src/constants.functions.ts:47):
@@ -510,7 +510,7 @@ func callRTErr(ctx *EmitContext, expected string, extra string) string {
 	if !ctx.HasContextItem(key) {
 		// rtUtils.getPureFn takes a single composite key
 		// `<namespace>::<fnName>` (see pureFnKey helper in
-		// packages/ts-go-run-types/src/runtypes/rtUtils.ts:45). The literal
+		// packages/ts-runtypes/src/runtypes/rtUtils.ts:45). The literal
 		// is duplicated in both the body STRING and the createRTFn
 		// closure because the body is also evaluated through
 		// `new Function('utl', code)` where module-level consts like

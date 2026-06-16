@@ -3,9 +3,9 @@ import {defineConfig} from 'vitest/config';
 // Root vitest config is intentionally minimal — each package's own
 // vitest.config.ts is loaded as a workspace project via
 // vitest.workspace.ts so their plugins (vite-plugin-runtypes installed
-// in ts-go-run-types/vitest.config.ts) actually apply at test time.
+// in ts-runtypes/vitest.config.ts) actually apply at test time.
 //
-// The Go binary at bin/ts-go-run-types is built by the root `pretest`
+// The Go binary at bin/ts-runtypes is built by the root `pretest`
 // script (see package.json) — it MUST be in place before vitest boots,
 // because vite-plugin-runtypes spawns it from its `configResolved`
 // hook, which fires during workspace-project initialization (before

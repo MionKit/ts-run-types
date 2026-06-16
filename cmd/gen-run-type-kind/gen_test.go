@@ -6,7 +6,7 @@ import (
 )
 
 // TestRunTypeKindFileInSync is the single source-of-truth check that
-// `packages/ts-go-run-types/src/runTypeKind.ts` matches what the
+// `packages/ts-runtypes/src/runTypeKind.ts` matches what the
 // generator produces from the current protocol consts. If someone
 // adds a Kind*/SubKind* in internal/protocol/ but forgets to
 // regenerate, this test fails with a hint to run the codegen script.

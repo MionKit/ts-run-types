@@ -18,7 +18,7 @@ package builders
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-run-types/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/marker"
 )
 
 // RunTypeName is the marker module's run-type interface symbol name. The

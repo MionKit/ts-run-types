@@ -1,4 +1,4 @@
-import {createMockType} from '@mionjs/ts-go-run-types';
+import {createMockType} from 'ts-runtypes';
 
 type Account = {
   balance: number;

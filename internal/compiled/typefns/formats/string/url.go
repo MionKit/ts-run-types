@@ -1,8 +1,8 @@
 package string
 
 import (
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // urlEmitter implements the format named "url" — FormatUrl /

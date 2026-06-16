@@ -3,7 +3,7 @@ package resolver_test
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // TestDataOnly_TypeName_NamedInterfaceArg — the headline behavior. When the
@@ -14,7 +14,7 @@ import (
 // so the inlining predicate keeps the entry external (DefaultIsRTInlined
 // treats TypeName-empty KindObjectLiteral as inlinable).
 func TestDataOnly_TypeName_NamedInterfaceArg(t *testing.T) {
-	const code = `import {getRunTypeId, type DataOnly} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type DataOnly} from 'ts-runtypes';
 interface RootCircular {
   isRoot: true;
   ciRoort?: RootCircular;
@@ -35,7 +35,7 @@ getRunTypeId<DataOnly<RootCircular>>();
 // inner T is a `type` alias rather than an `interface`. The composed name
 // should still pick up the alias' symbol name.
 func TestDataOnly_TypeName_NamedAliasArg(t *testing.T) {
-	const code = `import {getRunTypeId, type DataOnly} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type DataOnly} from 'ts-runtypes';
 type User = {id: number; name: string};
 getRunTypeId<DataOnly<User>>();
 `
@@ -55,7 +55,7 @@ getRunTypeId<DataOnly<User>>();
 // stays empty — same behavior as any other anonymous compound. Stamping
 // `"DataOnly<__type>"` or `"DataOnly<>"` would just be misleading labels.
 func TestDataOnly_TypeName_AnonymousArg(t *testing.T) {
-	const code = `import {getRunTypeId, type DataOnly} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type DataOnly} from 'ts-runtypes';
 getRunTypeId<DataOnly<{a: number; b: number}>>();
 `
 	_, tn := resolveInline(t, code)
@@ -72,7 +72,7 @@ getRunTypeId<DataOnly<{a: number; b: number}>>();
 // the special-case TypeName stamp; everything else preserves current
 // "anonymous mapped result" behavior (TypeName empty → inlines).
 func TestDataOnly_NonDataOnlyMappedTypeUntouched(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 type StripSymbols<T> = T extends object
   ? {[K in keyof T as K extends symbol ? never : K]: StripSymbols<T[K]>}
   : T;

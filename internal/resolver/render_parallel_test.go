@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/program"
-	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/resolver"
+	"github.com/mionkit/ts-runtypes/internal/program"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Parallel-render equivalence suite (track B). Renders are checker-free

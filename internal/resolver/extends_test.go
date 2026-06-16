@@ -3,7 +3,7 @@ package resolver_test
 import (
 	"testing"
 
-	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // =========================================================================
@@ -16,7 +16,7 @@ import (
 // ---- class extends ---------------------------------------------------------
 
 func TestClassExtends_PopulatesExtendsArguments(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 class A { a = ''; }
 class B extends A { b = 0; }
 getRunTypeId<B>();
@@ -35,7 +35,7 @@ getRunTypeId<B>();
 }
 
 func TestClassExtends_InheritsParentProperties(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 class A { a: string = ''; }
 class B extends A { b: number = 0; }
 getRunTypeId<B>();
@@ -48,7 +48,7 @@ getRunTypeId<B>();
 }
 
 func TestClassExtends_PropertyOverride_LastWins(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 class A { name: string = ''; }
 class B extends A { name: 'fixed' = 'fixed'; }
 getRunTypeId<B>();
@@ -65,7 +65,7 @@ getRunTypeId<B>();
 }
 
 func TestClassExtends_ChainedInheritance(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 class A { a: string = ''; }
 class B extends A { b: number = 0; }
 class C extends B { c: boolean = false; }
@@ -86,7 +86,7 @@ getRunTypeId<C>();
 }
 
 func TestClassExtends_GenericParent(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 class A<T> { value!: T; }
 class B extends A<string> { extra: number = 0; }
 getRunTypeId<B>();
@@ -111,7 +111,7 @@ getRunTypeId<B>();
 }
 
 func TestClassExtends_AddsOwnPropertiesAfter(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 class Base { foo: string = ''; }
 class Child extends Base { bar: number = 0; }
 getRunTypeId<Child>();
@@ -126,7 +126,7 @@ getRunTypeId<Child>();
 // ---- interface extends -----------------------------------------------------
 
 func TestInterfaceExtends_PopulatesExtends(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 interface A { a: string; }
 interface B extends A { b: number; }
 getRunTypeId<B>();
@@ -149,7 +149,7 @@ getRunTypeId<B>();
 }
 
 func TestInterfaceExtends_FlattensInheritedProps(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 interface A { a: string; }
 interface B extends A { b: number; }
 getRunTypeId<B>();
@@ -162,7 +162,7 @@ getRunTypeId<B>();
 }
 
 func TestInterfaceExtends_PropertyOverride_LastWins(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 interface A { x: string; }
 interface B extends A { x: 'a' | 'b'; }
 getRunTypeId<B>();
@@ -179,7 +179,7 @@ getRunTypeId<B>();
 }
 
 func TestInterfaceExtends_MultipleParents(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 interface A { a: string; }
 interface B { b: number; }
 interface C extends A, B { c: boolean; }
@@ -196,7 +196,7 @@ getRunTypeId<C>();
 }
 
 func TestInterfaceExtends_DiamondInheritance(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 interface A { a: string; }
 interface B extends A { b: number; }
 interface C extends A { c: boolean; }
@@ -224,7 +224,7 @@ getRunTypeId<D>();
 }
 
 func TestInterfaceExtends_TypeAliasHasNoExtends(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 type T = {a: string};
 getRunTypeId<T>();
 `
@@ -235,7 +235,7 @@ getRunTypeId<T>();
 }
 
 func TestInterfaceExtends_AnonymousHasNoExtends(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from 'ts-runtypes';
 getRunTypeId<{a: string}>();
 `
 	_, tn := resolveInline(t, code)

@@ -13,7 +13,7 @@ const RESULTS = process.env.BENCH_RESULTS_DIR ?? path.join(HERE, 'results');
 
 // competitor dir -> the npm package whose version represents that competitor.
 const LIBS = {
-  'ts-go-run-types': '@mionjs/ts-go-run-types',
+  'ts-runtypes': 'ts-runtypes',
   zod: 'zod',
   typebox: '@sinclair/typebox',
   ajv: 'ajv',
