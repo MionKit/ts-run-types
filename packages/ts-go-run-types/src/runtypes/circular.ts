@@ -1,6 +1,6 @@
 // Runtime circular-reference detector for the live-object families
 // (validate / getValidationErrors / jsonEncode / binaryEncode). Opt-in and
-// OFF by default — `setCircularCheck(true)` arms it. The Go resolver only
+// OFF by default — `setRejectCircularRefs(true)` arms it. The Go resolver only
 // links a type's reflection RunType graph into a createX entry's dependency
 // closure when that type's graph contains a circular node (see
 // internal/compiled/runtype/entries.go), so the guard is pay-for-use: types
@@ -48,17 +48,17 @@ export function formatCircularPath(path: CircularPath): string {
 // factory also accepts a per-call `{rejectCircularRefs}` override that wins over this
 // flag for that one instance (see ValidateOptions / JsonEncoderOptions /
 // BinaryEncoderOptions).
-let circularCheckEnabled = false;
+let rejectCircularRefsEnabled = false;
 
 /** Arms (or disarms) circular-reference checking for every guarded createX
  *  factory. Off by default; a per-call `{rejectCircularRefs}` option overrides it. **/
-export function setCircularCheck(enabled: boolean): void {
-  circularCheckEnabled = enabled;
+export function setRejectCircularRefs(enabled: boolean): void {
+  rejectCircularRefsEnabled = enabled;
 }
 
 /** Whether circular-reference checking is currently armed. **/
-export function isCircularCheckEnabled(): boolean {
-  return circularCheckEnabled;
+export function isRejectCircularRefsEnabled(): boolean {
+  return rejectCircularRefsEnabled;
 }
 
 // Memoised "does this type's graph contain a circular node?" keyed by the root
