@@ -608,7 +608,8 @@ export function resolveEntryTupleFn<F extends AnyFn>(
   fnName: string,
   identityFn: F,
   schemaId: string | undefined,
-  injected: unknown
+  injected: unknown,
+  checkCircular?: boolean
 ): F {
   const utils = getRTUtils();
   if (isMissingTuple(injected)) return identityFn;
@@ -630,8 +631,10 @@ export function resolveEntryTupleFn<F extends AnyFn>(
   const entry = utils.getRT(key);
   if (entry) {
     const fn = entry.fn as F;
-    // Disarmed is the hot path — skip the RunType lookup entirely.
-    return isCircularCheckEnabled() ? maybeGuardCircular(fnName, fn, utils.getRunType(typeId)) : fn;
+    // Per-call `{checkCircular}` overrides the global flag; undefined falls
+    // back to it. Disarmed is the hot path — skip the RunType lookup entirely.
+    const armed = checkCircular ?? isCircularCheckEnabled();
+    return armed ? maybeGuardCircular(fnName, fn, utils.getRunType(typeId)) : fn;
   }
   if (utils.hasRunType(typeId)) return identityFn;
   throw new Error(
@@ -675,12 +678,12 @@ function encoderCircularGuard(fn: AnyFn, rt: RunType): AnyFn {
   };
 }
 
-/** Wraps `fn` with its family's circular-reference guard when checking is armed
- *  AND `rt`'s type graph can actually cycle. Returns `fn` untouched otherwise —
- *  non-guarded families, disarmed flag, missing RunType, or an acyclic type all
- *  no-op for free. **/
+/** Wraps `fn` with its family's circular-reference guard when `rt`'s type graph
+ *  can actually cycle. Callers gate on the armed flag (global or per-call) first;
+ *  this returns `fn` untouched for non-guarded families, a missing RunType, or
+ *  an acyclic type — all no-op for free. **/
 function maybeGuardCircular<F extends AnyFn>(fnName: string, fn: F, rt: RunType | undefined): F {
-  if (!isCircularCheckEnabled() || !rt) return fn;
+  if (!rt) return fn;
   const guard = circularGuards[fnName];
   if (!guard || !typeGraphIsCircular(rt)) return fn;
   return guard(fn, rt) as F;
