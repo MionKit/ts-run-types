@@ -18,14 +18,14 @@ export const CIRCULAR_GUARD = {
         id: FormatUUIDv4;
         next?: Node;
       }
-      return createJsonEncoder<Node>(undefined, {checkCircular: true});
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         id: FormatUUIDv4;
         next?: Node;
       }
-      return createBinaryEncoder<Node>(undefined, {checkCircular: true});
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {id: string; next?: unknown} = {id: UUID_V4};
@@ -42,14 +42,14 @@ export const CIRCULAR_GUARD = {
         id: FormatUUIDv4;
         children: Node[];
       }
-      return createJsonEncoder<Node>(undefined, {checkCircular: true});
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         id: FormatUUIDv4;
         children: Node[];
       }
-      return createBinaryEncoder<Node>(undefined, {checkCircular: true});
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const shared = {id: UUID_V4, children: [] as unknown[]};

@@ -1,6 +1,6 @@
 // Circular-reference GUARD cases for the serialization suite. Each recursive
 // TYPE is fed a runtime VALUE containing a reference cycle; with the per-call
-// `{checkCircular: true}` option armed, `createJsonEncoder` / `createBinaryEncoder`
+// `{rejectCircularRefs: true}` option armed, `createJsonEncoder` / `createBinaryEncoder`
 // throw `CircularReferenceError` before recursing forever (matching
 // JSON.stringify). Acyclic controls (DAG, disarmed) encode without throwing.
 
@@ -15,14 +15,14 @@ export const CIRCULAR_GUARD = {
         name: string;
         next?: Node;
       }
-      return createJsonEncoder<Node>(undefined, {checkCircular: true});
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         name: string;
         next?: Node;
       }
-      return createBinaryEncoder<Node>(undefined, {checkCircular: true});
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {name: string; next?: unknown} = {name: 'a'};
@@ -39,14 +39,14 @@ export const CIRCULAR_GUARD = {
         label: string;
         children: Node[];
       }
-      return createJsonEncoder<Node>(undefined, {checkCircular: true});
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         label: string;
         children: Node[];
       }
-      return createBinaryEncoder<Node>(undefined, {checkCircular: true});
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {label: string; children: unknown[]} = {label: 'r', children: []};
@@ -63,14 +63,14 @@ export const CIRCULAR_GUARD = {
         head: number;
         tail?: [Node];
       }
-      return createJsonEncoder<Node>(undefined, {checkCircular: true});
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         head: number;
         tail?: [Node];
       }
-      return createBinaryEncoder<Node>(undefined, {checkCircular: true});
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {head: number; tail?: unknown[]} = {head: 1};
@@ -86,13 +86,13 @@ export const CIRCULAR_GUARD = {
       interface Node {
         [key: string]: Node;
       }
-      return createJsonEncoder<Node>(undefined, {checkCircular: true});
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         [key: string]: Node;
       }
-      return createBinaryEncoder<Node>(undefined, {checkCircular: true});
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: Record<string, unknown> = {};
@@ -109,14 +109,14 @@ export const CIRCULAR_GUARD = {
         value: number;
         next: Node | null;
       }
-      return createJsonEncoder<Node>(undefined, {checkCircular: true});
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         value: number;
         next: Node | null;
       }
-      return createBinaryEncoder<Node>(undefined, {checkCircular: true});
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {value: number; next: unknown} = {value: 1, next: null};
@@ -133,14 +133,14 @@ export const CIRCULAR_GUARD = {
         name: string;
         a: {b: {c?: Node}};
       }
-      return createJsonEncoder<Node>(undefined, {checkCircular: true});
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         name: string;
         a: {b: {c?: Node}};
       }
-      return createBinaryEncoder<Node>(undefined, {checkCircular: true});
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const root: {name: string; a: {b: {c?: unknown}}} = {name: 'r', a: {b: {}}};
@@ -161,7 +161,7 @@ export const CIRCULAR_GUARD = {
         id: number;
         node?: Recursive;
       }
-      return createJsonEncoder<Wrapper>(undefined, {checkCircular: true});
+      return createJsonEncoder<Wrapper>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Recursive {
@@ -172,7 +172,7 @@ export const CIRCULAR_GUARD = {
         id: number;
         node?: Recursive;
       }
-      return createBinaryEncoder<Wrapper>(undefined, {checkCircular: true});
+      return createBinaryEncoder<Wrapper>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const child: {name: string; next?: unknown} = {name: 'x'};
@@ -193,7 +193,7 @@ export const CIRCULAR_GUARD = {
         tag: string;
         a?: A;
       }
-      return createJsonEncoder<A>(undefined, {checkCircular: true});
+      return createJsonEncoder<A>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface A {
@@ -204,7 +204,7 @@ export const CIRCULAR_GUARD = {
         tag: string;
         a?: A;
       }
-      return createBinaryEncoder<A>(undefined, {checkCircular: true});
+      return createBinaryEncoder<A>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const a: {name: string; b?: unknown} = {name: 'a'};
@@ -223,14 +223,14 @@ export const CIRCULAR_GUARD = {
         label: string;
         children: Node[];
       }
-      return createJsonEncoder<Node>(undefined, {checkCircular: true});
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         label: string;
         children: Node[];
       }
-      return createBinaryEncoder<Node>(undefined, {checkCircular: true});
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const shared = {label: 'shared', children: [] as unknown[]};
