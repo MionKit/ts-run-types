@@ -18,6 +18,13 @@ interface Metric {
   key: string;
   label: string;
   metricLabel?: string;
+  /** Per-metric overrides (serialization bench): the cell unit + heatmap
+   *  direction, a value DERIVED client-side (`roundtrip`), and the legend hint.
+   *  All fall back to the index-level `unit` when absent (validation/typecost). */
+  unit?: 'ops' | 'count' | 'bytes';
+  lowerBetter?: boolean;
+  derived?: 'roundtrip';
+  cellHint?: string;
 }
 
 interface BenchCase {
@@ -25,6 +32,9 @@ interface BenchCase {
   title: string;
   /** results[competitor][metricKey] -> {valid, invalid, status} */
   results: Record<string, Record<string, PathResult>>;
+  /** serialization bench: false when native JSON can't round-trip this case's
+   *  data (bigint / Date / Map / Set / Temporal) — drives the "non-JSON" badge. */
+  jsonSafe?: boolean;
 }
 
 interface BenchSection {
@@ -39,6 +49,13 @@ interface BenchIndex {
   unit?: 'ops' | 'count';
   /** when true, each competitor splits into valid (accept) + invalid (reject) columns */
   showInvalid?: boolean;
+  /** false hides the comptime/jit/interpreted build-strategy tags (serialization
+   *  columns are our own round-trips, not competitor libraries). Defaults true. */
+  showStrategy?: boolean;
+  /** serialization bench: link-speed options (Mbps) for the derived round-trip
+   *  metric's selector, and the initial selection. */
+  bandwidthsMbps?: number[];
+  defaultBandwidthMbps?: number;
   metrics: Metric[];
   competitors: string[];
   /** competitor/form label -> installed library version (shown under the header) */
@@ -89,7 +106,68 @@ const indexState = ref<'loading' | 'ready' | 'missing'>('loading');
 /** Row-heatmap coloring style — toggled from the legend; 'tint' background or 'text'. */
 const colorMode = ref<'tint' | 'text'>('tint');
 
+/** Link speed (Mbps) for the derived round-trip metric — picked in its block. */
+const bandwidthMbps = ref<number>(100);
+
 const details = reactive<Record<string, DetailEntry>>({});
+
+function metricByKey(key: string): Metric | undefined {
+  return index.value?.metrics.find((m) => m.key === key);
+}
+
+/** Cell unit for a metric — per-metric override, else the index-level unit. */
+function unitFor(metricKey: string): BenchIndex['unit'] | 'bytes' {
+  return metricByKey(metricKey)?.unit ?? index.value?.unit;
+}
+
+/** Heatmap direction for a metric — explicit `lowerBetter`, else count/bytes. */
+function lowerBetterFor(metricKey: string): boolean {
+  const metric = metricByKey(metricKey);
+  if (metric?.lowerBetter != null) return metric.lowerBetter;
+  return unitFor(metricKey) === 'count';
+}
+
+/** Row-extrema labels for the heatmap legend, by unit. */
+function extremaLabels(metricKey: string): {worst: string; best: string} {
+  const unit = unitFor(metricKey);
+  if (unit === 'bytes') return {worst: 'largest', best: 'smallest'};
+  if (unit === 'count') return {worst: 'most', best: 'fewest'};
+  return {worst: 'slowest', best: 'fastest'};
+}
+
+/** Derived round-trip ops/sec = 1 / (1/encode + 1/decode + network(bytes)), where
+ *  network time = bytes·8 / (Mbps·1e6). Returns null when encode/decode are absent. */
+function roundtripValue(perMetric: Record<string, PathResult> | undefined, mbps: number): number | null {
+  const enc = perMetric?.encdec?.valid;
+  const dec = perMetric?.encdec?.invalid;
+  const bytes = perMetric?.payload?.valid;
+  if (typeof enc !== 'number' || enc <= 0 || typeof dec !== 'number' || dec <= 0) return null;
+  const network = typeof bytes === 'number' && bytes > 0 && mbps > 0 ? (bytes * 8) / (mbps * 1_000_000) : 0;
+  const total = 1 / enc + 1 / dec + network;
+  return total > 0 ? 1 / total : null;
+}
+
+/** Sections with the derived `roundtrip` result injected per competitor (reactive
+ *  on bandwidth), so the existing per-metric rendering + aggregate work unchanged.
+ *  A no-op (same ref) when no metric is `derived` — validation/typecost untouched. */
+const enrichedSections = computed<BenchSection[]>(() => {
+  if (!index.value) return [];
+  if (!index.value.metrics.some((m) => m.derived === 'roundtrip')) return index.value.sections;
+  const mbps = bandwidthMbps.value;
+  const comps = index.value.competitors;
+  return index.value.sections.map((section) => ({
+    ...section,
+    cases: section.cases.map((kase) => {
+      const results: BenchCase['results'] = {};
+      for (const [comp, byMetric] of Object.entries(kase.results)) results[comp] = byMetric;
+      for (const comp of comps) {
+        const value = roundtripValue(kase.results[comp], mbps);
+        if (value != null) results[comp] = {...(results[comp] ?? {}), roundtrip: {valid: value, status: 'ok'}};
+      }
+      return {...kase, results};
+    }),
+  }));
+});
 
 function rowItem(key: string, title: string) {
   return {key, title};
@@ -113,7 +191,7 @@ function metricSource(competitor: BenchCompetitorSource): string | undefined {
  *  the panel can echo the same metric the table cell shows. */
 const activeCase = computed<BenchCase | undefined>(() => {
   if (!index.value || !active.value) return undefined;
-  for (const section of index.value.sections) {
+  for (const section of enrichedSections.value) {
     const found = section.cases.find((kase) => kase.key === active.value!.key);
     if (found) return found;
   }
@@ -155,7 +233,7 @@ function strategyOf(competitor: string): 'comptime' | 'jit' | 'interpreted' {
 
 /** Build-strategy tags describe RUNTIME validator construction, so they only apply to
  *  the throughput benches — the typecost (type-instantiation count) table hides them. */
-const showStrategy = computed(() => index.value?.unit !== 'count');
+const showStrategy = computed(() => index.value?.showStrategy !== false && index.value?.unit !== 'count');
 
 /** Installed library version for a column (competitor name, or typecost form label). */
 function versionOf(competitor: string): string | undefined {
@@ -199,11 +277,13 @@ const displayedMetrics = computed<Metric[]>(() => {
   return props.metric ? index.value.metrics.filter((m) => m.key === props.metric) : index.value.metrics;
 });
 
-/** REALWORLD section first (when present), then the rest in their original order. */
+/** REALWORLD section first (when present), then the rest in their original order.
+ *  Reads the bandwidth-enriched sections so the derived round-trip metric + its
+ *  aggregate pick up the selected link speed. */
 const orderedSections = computed<BenchSection[]>(() => {
   if (!index.value) return [];
-  const realworld = index.value.sections.filter((section) => section.key === 'REALWORLD');
-  const rest = index.value.sections.filter((section) => section.key !== 'REALWORLD');
+  const realworld = enrichedSections.value.filter((section) => section.key === 'REALWORLD');
+  const rest = enrichedSections.value.filter((section) => section.key !== 'REALWORLD');
   return [...realworld, ...rest];
 });
 
@@ -215,6 +295,7 @@ onMounted(async () => {
       return;
     }
     index.value = (await res.json()) as BenchIndex;
+    if (typeof index.value.defaultBandwidthMbps === 'number') bandwidthMbps.value = index.value.defaultBandwidthMbps;
     indexState.value = 'ready';
   } catch {
     indexState.value = 'missing';
@@ -252,7 +333,12 @@ async function loadDetail(item: {key: string; title: string}) {
 /** Compact value — ops/sec (1.2M/s) for runtime, or a bare count (1.2M) for the
  *  typecost bench. `bare` drops the `/s` (used for the invalid number, whose unit
  *  is already established by the valid number it sits beside). */
-function formatValue(value: number, unit: BenchIndex['unit'], bare = false): string {
+function formatValue(value: number, unit: BenchIndex['unit'] | 'bytes', bare = false): string {
+  if (unit === 'bytes') {
+    if (value >= 1_048_576) return `${(value / 1_048_576).toFixed(1)}MB`;
+    if (value >= 1_024) return `${(value / 1_024).toFixed(1)}KB`;
+    return `${Math.round(value)} B`;
+  }
   const suffix = bare || unit === 'count' ? '' : '/s';
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M${suffix}`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}k${suffix}`;
@@ -279,15 +365,17 @@ function combinedCell(kase: BenchCase, metricKey: string, comp: string): Combine
   if (!result) return {cls: 'bench-val--na', valid: 'n-a', invalid: ''};
   if (result.status === 'fail') return {cls: 'bench-val--fail', valid: 'FAIL', invalid: ''};
   if (result.status === 'not-supported') return {cls: 'bench-val--na', valid: 'n-a', invalid: ''};
-  const valid = typeof result.valid === 'number' && result.valid >= 0 ? formatValue(result.valid, index.value?.unit) : '';
-  const invalid = typeof result.invalid === 'number' && result.invalid > 0 ? formatValue(result.invalid, index.value?.unit, true) : '';
+  const unit = unitFor(metricKey);
+  const valid = typeof result.valid === 'number' && result.valid >= 0 ? formatValue(result.valid, unit) : '';
+  const invalid = typeof result.invalid === 'number' && result.invalid > 0 ? formatValue(result.invalid, unit, true) : '';
   if (!valid && !invalid) return {cls: 'bench-val--none', valid: '—', invalid: ''};
   return {cls: 'bench-val--ok', valid: valid || '—', invalid};
 }
 
-function combinedAggCell(values: {valid: number | null; invalid: number | null}): CombinedCell {
-  const valid = values.valid != null ? formatValue(values.valid, index.value?.unit) : '';
-  const invalid = values.invalid != null ? formatValue(values.invalid, index.value?.unit, true) : '';
+function combinedAggCell(values: {valid: number | null; invalid: number | null}, metricKey: string): CombinedCell {
+  const unit = unitFor(metricKey);
+  const valid = values.valid != null ? formatValue(values.valid, unit) : '';
+  const invalid = values.invalid != null ? formatValue(values.invalid, unit, true) : '';
   // null geomean = the competitor doesn't participate in this row (geomeanOver
   // collapses an all-zero category to 0), so it's n-a — same as a cell.
   if (!valid && !invalid) return {cls: 'bench-val--na', valid: 'n-a', invalid: ''};
@@ -298,10 +386,9 @@ function combinedAggCell(values: {valid: number | null; invalid: number | null})
  *  only (others null). Direction follows the metric — count benches (typecost) are
  *  lower-is-better. Small gaps are dampened toward neutral (0.5) so a row of near-ties
  *  isn't painted a dramatic red→green spread. Dampening is always on. */
-function ranksFor(values: (number | null)[]): (number | null)[] {
-  const lowerBetter = index.value?.unit === 'count';
-  // For typecost (lower-is-better) a 0 is a real value (free) and ranks BEST; for
-  // throughput a 0 means "didn't run" and is excluded.
+function ranksFor(values: (number | null)[], lowerBetter = false): (number | null)[] {
+  // For lower-is-better metrics (typecost count / payload bytes) a 0 is a real value
+  // (free) and ranks BEST; for throughput a 0 means "didn't run" and is excluded.
   const counts = (value: number | null): value is number => value != null && (lowerBetter ? value >= 0 : value > 0);
   const present = values.filter(counts);
   if (present.length < 2) return values.map(() => null);
@@ -328,11 +415,11 @@ function sectionCells(kase: BenchCase, metricKey: string): CombinedCell[] {
     if (!result || result.status !== 'ok' || typeof result.valid !== 'number') return null;
     return lowerBetter || result.valid > 0 ? result.valid : null;
   });
-  const ranks = ranksFor(vals);
+  const ranks = ranksFor(vals, lowerBetterFor(metricKey));
   return comps.map((comp, i) => ({...combinedCell(kase, metricKey, comp), rank: ranks[i]}));
 }
 
-function aggCells(row: AggRow): CombinedCell[] {
+function aggCells(row: AggRow, metricKey: string): CombinedCell[] {
   if (!index.value) return [];
   const comps = index.value.competitors;
   const lowerBetter = index.value.unit === 'count';
@@ -341,8 +428,8 @@ function aggCells(row: AggRow): CombinedCell[] {
     if (typeof value !== 'number') return null;
     return lowerBetter || value > 0 ? value : null;
   });
-  const ranks = ranksFor(vals);
-  return comps.map((comp, i) => ({...combinedAggCell(row.values[comp]), rank: ranks[i]}));
+  const ranks = ranksFor(vals, lowerBetterFor(metricKey));
+  return comps.map((comp, i) => ({...combinedAggCell(row.values[comp], metricKey), rank: ranks[i]}));
 }
 
 /** Geometric mean of the positive values — outlier-resistant summary across cases. */
@@ -477,7 +564,12 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
           <div v-if="runInfo" class="bench-runinfo">
             <span class="bench-prompt">@</span> <span class="bench-runinfo-text">measured {{ runInfo }}</span>
           </div>
-          <div v-if="index.showInvalid" class="bench-legend-row bench-legend-metric">
+          <div v-if="metric.cellHint" class="bench-legend-row bench-legend-metric">
+            <span class="bench-legend-note">
+              each cell = {{ metric.cellHint }}; <code>n-a</code> = unsupported or not JSON-safe
+            </span>
+          </div>
+          <div v-else-if="index.showInvalid" class="bench-legend-row bench-legend-metric">
             <span class="bench-legend-sample"><span class="bench-val-wrap"><span class="bench-val-primary bench-val--ok">24M/s</span><span class="bench-val-secondary">47M</span></span></span>
             <span class="bench-legend-note">
               each cell = ops/sec on <span class="bench-legend-valid">valid input</span> (headline) and, smaller, on
@@ -490,6 +582,18 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
               <code>0</code> is a real value, <code>n-a</code> = unsupported
             </span>
           </div>
+          <div v-if="metric.derived === 'roundtrip' && index.bandwidthsMbps" class="bench-legend-row bench-legend-footer">
+            <span class="bench-legend-note">link speed</span>
+            <button
+              v-for="bw in index.bandwidthsMbps"
+              :key="bw"
+              type="button"
+              class="bench-color-btn"
+              :class="{'bench-color-btn--on': bandwidthMbps === bw}"
+              @click="bandwidthMbps = bw"
+            >{{ bw >= 1000 ? `${bw / 1000} Gbps` : `${bw} Mbps` }}</button>
+            <span class="bench-legend-note">— round-trip folds in transmit time = payload ÷ link speed</span>
+          </div>
           <div v-if="showStrategy" class="bench-legend-strategy">
             <span class="bench-legend-srow"><span class="bench-tag bench-tag--comptime">comptime</span> <span class="bench-legend-note">generated at build time<br /><span class="bench-strat-perf">(no perf hit)</span></span></span>
             <span class="bench-legend-srow"><span class="bench-tag bench-tag--jit">jit</span> <span class="bench-legend-note">compiled at runtime<br /><span class="bench-strat-perf">(perf hit when creating fn)</span></span></span>
@@ -499,9 +603,9 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
             <span class="bench-legend-note">row colour</span>
             <button type="button" class="bench-color-btn" :class="{'bench-color-btn--on': colorMode === 'tint'}" @click="colorMode = 'tint'">tint</button>
             <button type="button" class="bench-color-btn" :class="{'bench-color-btn--on': colorMode === 'text'}" @click="colorMode = 'text'">text</button>
-            <span class="bench-legend-note">{{ index.unit === 'count' ? 'most' : 'slowest' }}</span>
+            <span class="bench-legend-note">{{ extremaLabels(metric.key).worst }}</span>
             <span class="bench-grad" aria-hidden="true"></span>
-            <span class="bench-legend-note">{{ index.unit === 'count' ? 'fewest' : 'fastest' }} · per row</span>
+            <span class="bench-legend-note">{{ extremaLabels(metric.key).best }} · per row</span>
           </div>
         </div>
 
@@ -509,7 +613,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
         <section class="bench-section">
           <header class="bench-caption">
             <span class="bench-prompt">&Sigma;</span> Aggregated · geometric mean
-            <span class="bench-agg-hint">{{ index.unit === 'count' ? 'lower is better' : 'higher is better' }}</span>
+            <span class="bench-agg-hint">{{ lowerBetterFor(metric.key) ? 'lower is better' : 'higher is better' }}</span>
           </header>
           <div class="bench-scroll">
             <table class="bench-grid">
@@ -535,7 +639,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   :class="{'bench-row--overall': row.key === '__overall__'}"
                 >
                   <td class="bench-cell bench-cell--case">{{ row.label }}</td>
-                  <td v-for="(cc, ci) in aggCells(row)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
+                  <td v-for="(cc, ci) in aggCells(row, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
                     <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
                   </td>
                 </tr>
@@ -580,7 +684,15 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   @keydown.enter.prevent="pin(rowItem(kase.key, kase.title))"
                   @keydown.space.prevent="pin(rowItem(kase.key, kase.title))"
                 >
-                  <td class="bench-cell bench-cell--case">{{ kase.title }}</td>
+                  <td class="bench-cell bench-cell--case">
+                    {{ kase.title }}
+                    <span
+                      v-if="kase.jsonSafe === false"
+                      class="bench-badge-nonjson"
+                      title="native JSON can't round-trip this data (bigint / Date / Map / Set / Temporal)"
+                      >non-JSON</span
+                    >
+                  </td>
                   <td v-for="(cc, ci) in sectionCells(kase, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
                     <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
                   </td>
@@ -940,6 +1052,23 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+/* "non-JSON" tag on a case whose data native JSON.stringify/parse can't round-trip
+   (bigint / Date / Map / Set / Temporal). Amber, same token as the jit tag. */
+.bench-badge-nonjson {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.02rem 0.3rem;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  white-space: nowrap;
+  color: var(--rt-note, #c8b072);
+  border: 1px solid color-mix(in srgb, var(--rt-note, #c8b072) 45%, transparent);
+  border-radius: 0.25rem;
 }
 
 /* Subtle separator between competitor columns. The combined value is centered so
