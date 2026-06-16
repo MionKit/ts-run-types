@@ -44,6 +44,7 @@
 import {getRTUtils} from './rtUtils.ts';
 import type {RTUtils} from './rtUtils.ts';
 import type {AnyFn, CompiledFnArgs, CompiledFnData, CompiledPureFunction, CompiledTypeFn, RunType} from './types.ts';
+import {CircularReferenceError, findCycle, isCircularCheckEnabled, typeGraphIsCircular} from './circular.ts';
 
 // Numeric slot-0 kinds (Go: constants.TupleKind*). Type-fn entries carry their
 // family tag string instead. Runtype nodes normally ride as headless ROWS of
@@ -625,11 +626,62 @@ export function resolveEntryTupleFn<F extends AnyFn>(
   initFromTuple(injected);
   let key = entryTupleKey(injected);
   if (schemaId !== undefined) key = key.slice(0, FN_HASH_LEN) + '_' + schemaId;
-  const entry = utils.getRT(key);
-  if (entry) return entry.fn as F;
   const typeId = key.slice(FN_HASH_LEN + 1);
+  const entry = utils.getRT(key);
+  if (entry) {
+    const fn = entry.fn as F;
+    // Disarmed is the hot path — skip the RunType lookup entirely.
+    return isCircularCheckEnabled() ? maybeGuardCircular(fnName, fn, utils.getRunType(typeId)) : fn;
+  }
   if (utils.hasRunType(typeId)) return identityFn;
   throw new Error(
     `${fnName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
   );
+}
+
+// =============================================================================
+// Circular-reference guard
+// =============================================================================
+
+// Per-family guard wrappers, keyed by the createX factory's fnName. Only the
+// four live-object families guard; each applies its own policy — validate
+// stays total (returns false), getValidationErrors records a diagnostic, and
+// the encoders throw (matching JSON.stringify). Decoders and the
+// huk/suk/uke/uku/fmt leaf families are absent and never wrap.
+const circularGuards: Record<string, (fn: AnyFn, rt: RunType) => AnyFn> = {
+  createValidate: (fn, rt) => (value: unknown) => (findCycle(value, rt) ? false : fn(value)),
+  createGetValidationErrors: (fn, rt) => (value: unknown, pth?: unknown, errs?: unknown) => {
+    const cycle = findCycle(value, rt);
+    // A cycle short-circuits: record it and STOP — descending into the base
+    // validator would recurse forever on the same cyclic value.
+    if (cycle) {
+      const out = Array.isArray(errs) ? (errs as unknown[]) : [];
+      out.push({path: Array.isArray(pth) ? [...(pth as unknown[]), ...cycle] : cycle, expected: 'circular'});
+      return out;
+    }
+    return fn(value, pth, errs);
+  },
+  createJsonEncoder: encoderCircularGuard,
+  createBinaryEncoder: encoderCircularGuard,
+};
+
+// Shared encoder policy: a cycle throws CircularReferenceError before the base
+// encoder runs; trailing args (e.g. the binary serializer) flow through.
+function encoderCircularGuard(fn: AnyFn, rt: RunType): AnyFn {
+  return (value: unknown, ...rest: unknown[]) => {
+    const cycle = findCycle(value, rt);
+    if (cycle) throw new CircularReferenceError(cycle);
+    return fn(value, ...rest);
+  };
+}
+
+/** Wraps `fn` with its family's circular-reference guard when checking is armed
+ *  AND `rt`'s type graph can actually cycle. Returns `fn` untouched otherwise —
+ *  non-guarded families, disarmed flag, missing RunType, or an acyclic type all
+ *  no-op for free. **/
+function maybeGuardCircular<F extends AnyFn>(fnName: string, fn: F, rt: RunType | undefined): F {
+  if (!isCircularCheckEnabled() || !rt) return fn;
+  const guard = circularGuards[fnName];
+  if (!guard || !typeGraphIsCircular(rt)) return fn;
+  return guard(fn, rt) as F;
 }
