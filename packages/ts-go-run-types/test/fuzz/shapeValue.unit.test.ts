@@ -1,16 +1,17 @@
 // Offline unit tests for the Phase-2 value layer. Pins the soundness contract
-// the O1/O2 oracles depend on, using a structural validator built directly from
-// the shape (independent of the runtime emitter — so this test stays offline
-// AND cross-checks the generated values against an independent reference).
+// the O1/O2 oracles depend on, using a reference structural validator built
+// directly from the type (independent of the runtime emitter). Only types the
+// strong oracles actually run on (`valueOracleSafe`, non-recursive) are checked.
 
 import {describe, it, expect} from 'vitest';
 import {withSeededRandom, mixSeed} from './seededRng.ts';
-import {genShape, type TypeShape} from './typeGen.ts';
-import {validValue, corruptValue} from './shapeValue.ts';
+import {genType, isRecursive, type Decl, type GeneratedType, type TypeShape} from './typeGen.ts';
+import {genValidValue, validValue, corruptValue, valueOracleSafe} from './shapeValue.ts';
 
-// A reference structural validator. Deliberately NOT the library's emitter — an
-// independent oracle for the generated values. Unions accept any member.
-function conforms(shape: TypeShape, value: unknown): boolean {
+// Reference validator over the safe subset (an INDEPENDENT oracle for the
+// generated values). Methods / function-typed props are dropped (omitted from
+// the value), so a missing such prop is fine.
+function conforms(shape: TypeShape, value: unknown, decls: Map<string, Decl>): boolean {
   switch (shape.kind) {
     case 'number':
       return typeof value === 'number' && Number.isFinite(value);
@@ -22,63 +23,136 @@ function conforms(shape: TypeShape, value: unknown): boolean {
       return typeof value === 'bigint';
     case 'null':
       return value === null;
+    case 'undefined':
+      return value === undefined;
     case 'date':
       return value instanceof Date && !Number.isNaN(value.getTime());
+    case 'regexp':
+      return value instanceof RegExp;
     case 'literal':
       return value === shape.value;
     case 'array':
-      return Array.isArray(value) && value.every((v) => conforms(shape.elem, v));
+      return Array.isArray(value) && value.every((v) => conforms(shape.elem, v, decls));
+    case 'set':
+      return value instanceof Set && [...value].every((v) => conforms(shape.elem, v, decls));
+    case 'map':
+      return (
+        value instanceof Map && [...value].every(([k, v]) => conforms(shape.key, k, decls) && conforms(shape.value, v, decls))
+      );
+    case 'record':
+      return isPlainObject(value) && Object.values(value).every((v) => conforms(shape.value, v, decls));
     case 'tuple':
-      return Array.isArray(value) && value.length === shape.elems.length && shape.elems.every((s, i) => conforms(s, value[i]));
-    case 'object': {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-      const obj = value as Record<string, unknown>;
-      for (const prop of shape.props) {
-        const present = Object.prototype.hasOwnProperty.call(obj, prop.name);
-        if (!present) {
-          if (!prop.optional) return false;
-          continue;
-        }
-        if (!conforms(prop.shape, obj[prop.name])) return false;
-      }
-      return true;
-    }
+      return (
+        Array.isArray(value) && value.length === shape.elems.length && shape.elems.every((s, i) => conforms(s, value[i], decls))
+      );
     case 'union':
-      return shape.members.some((m) => conforms(m, value));
+      return shape.members.some((m) => conforms(m, value, decls));
+    case 'intersection':
+      return shape.members.every((m) => conforms(m, value, decls));
+    case 'object':
+      return objectConforms(shape.props, value, decls);
+    case 'ref':
+      return refConforms(shape.name, value, decls);
+    default:
+      return true; // any/unknown/symbol/function/… aren't generated in safe types
   }
 }
 
+function objectConforms(
+  props: {name: string; optional: boolean; method: boolean; shape: TypeShape}[],
+  value: unknown,
+  decls: Map<string, Decl>
+): boolean {
+  if (!isPlainObject(value)) return false;
+  for (const prop of props) {
+    if (prop.method || prop.shape.kind === 'function') continue; // dropped
+    const present = Object.prototype.hasOwnProperty.call(value, prop.name);
+    if (!present) {
+      if (!prop.optional) return false;
+      continue;
+    }
+    if (!conforms(prop.shape, value[prop.name], decls)) return false;
+  }
+  return true;
+}
+
+function refConforms(name: string, value: unknown, decls: Map<string, Decl>): boolean {
+  const decl = decls.get(name);
+  if (!decl) return false;
+  if (decl.kind === 'enum') return decl.members.some((m, i) => value === (m.value !== undefined ? m.value : i));
+  if (decl.kind === 'type') return conforms(decl.shape, value, decls);
+  if (decl.kind === 'interface') return objectConforms(decl.props, value, decls);
+  return false;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    !(value instanceof Set) &&
+    !(value instanceof Map) &&
+    !(value instanceof Date) &&
+    !(value instanceof RegExp)
+  );
+}
+
+function declMap(gen: GeneratedType): Map<string, Decl> {
+  return new Map(gen.decls.map((d) => [d.name, d]));
+}
+
+// A safe, non-recursive, non-floored type plus its value — the exact subset the
+// runner applies the strong oracles to.
+function safeSample(seed: number): {gen: GeneratedType; value: unknown} | null {
+  const gen = withSeededRandom(seed, () => genType());
+  if (isRecursive(gen) || !valueOracleSafe(gen)) return null;
+  const {value, floored} = genValidValue(gen);
+  if (floored) return null;
+  return {gen, value};
+}
+
 describe('shapeValue — validValue conforms', () => {
-  it('every generated value conforms to its shape (reference validator)', () => {
-    for (let i = 0; i < 400; i++) {
+  it('every safe generated value conforms to its type (reference validator)', () => {
+    let checked = 0;
+    for (let i = 0; i < 1000; i++) {
       withSeededRandom(mixSeed(0x222, 'valid', i), () => {
-        const shape = genShape();
-        const value = validValue(shape);
-        expect(conforms(shape, value), `shape=${JSON.stringify(shape)} value=${String(value)}`).toBe(true);
+        const s = safeSample(mixSeed(0x222, 'valid', i));
+        if (!s) return;
+        checked++;
+        expect(conforms(s.gen.root, s.value, declMap(s.gen)), `type=${JSON.stringify(s.gen)} value=${String(s.value)}`).toBe(
+          true
+        );
       });
     }
+    expect(checked).toBeGreaterThan(150); // the safe subset is actually exercised
   });
 });
 
 describe('shapeValue — corruptValue is sound', () => {
   it('a corruption is always rejected by the reference validator', () => {
-    let corruptedCount = 0;
-    for (let i = 0; i < 400; i++) {
-      withSeededRandom(mixSeed(0x333, 'corrupt', i), () => {
-        const shape = genShape();
-        const valid = validValue(shape);
-        const corrupted = corruptValue(shape, valid);
-        if (!corrupted) return; // null is allowed (e.g. top-level union) — only costs coverage
-        corruptedCount++;
-        // SOUNDNESS: a returned corruption must NOT conform.
-        expect(conforms(shape, corrupted.value), `shape=${JSON.stringify(shape)} corrupted=${String(corrupted.value)}`).toBe(
-          false
-        );
-        // The original valid value must be untouched (corruption clones).
-        expect(conforms(shape, valid)).toBe(true);
+    let corrupted = 0;
+    for (let i = 0; i < 1000; i++) {
+      const s = safeSample(mixSeed(0x333, 'corrupt', i));
+      if (!s) continue;
+      const c = corruptValue(s.gen, s.value);
+      if (!c) continue;
+      corrupted++;
+      const decls = declMap(s.gen);
+      expect(conforms(s.gen.root, c.value, decls), `type=${JSON.stringify(s.gen)} corrupted=${String(c.value)}`).toBe(false);
+      // original untouched
+      expect(conforms(s.gen.root, s.value, decls)).toBe(true);
+    }
+    expect(corrupted).toBeGreaterThan(100);
+  });
+});
+
+describe('shapeValue — validValue never throws on the wild space', () => {
+  it('produces a value (or undefined) for any generated type without throwing', () => {
+    for (let i = 0; i < 300; i++) {
+      withSeededRandom(mixSeed(0x444, 'wild', i), () => {
+        const gen = withSeededRandom(mixSeed(0x444, 'wild', i), () => genType());
+        expect(() => validValue(gen)).not.toThrow();
       });
     }
-    // Sanity: the corruptor actually fires for the vast majority of shapes.
-    expect(corruptedCount).toBeGreaterThan(300);
   });
 });
