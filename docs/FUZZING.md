@@ -22,20 +22,20 @@ hold for **all** inputs. The first run already found and fixed a real bug — se
 
 All under [`packages/ts-go-run-types/test/fuzz/`](../packages/ts-go-run-types/test/fuzz/):
 
-| File                           | Role                                                                                                                                                                 |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `seededRng.ts`                 | Deterministic PRNG (`mulberry32`) + `withSeededRandom(seed, fn)` — scopes a seeded `Math.random` so a whole run replays from one number.                             |
-| `invalidValue.ts`              | The metamorphic **giant switch** — the inverse of `mockType.ts`. Per-kind wrong-value generation + the tandem tree walk that corrupts one provably-invalid position. |
-| `fuzzOracle.ts`                | The oracle layer: `FuzzTarget` shape + the O1–O7 (value) and TR1–TR4 (resolver/emit) invariant checks.                                                               |
-| `fuzzRunner.ts`                | The Phase-1 driver: `runFuzz` (fixed iterations) and `runFuzzForDuration` (autonomous soak). Type-blind junk generator.                                              |
-| `*.unit.test.ts`               | Offline unit tests (no Go binary) over hand-built `RunType` graphs + the Phase-2 generator/value layers.                                                             |
-| `fuzz.integration.test.ts`     | Phase-1 end-to-end sweep over REAL compiled functions (needs the plugin + binary).                                                                                   |
-| `binaryEncoderResize.test.ts`  | Pinned regression for the first finding.                                                                                                                             |
-| `typeGen.ts` _(Phase 2)_       | The THIRD giant switch — a seeded recursive generator of random serialisable type SHAPES + a renderer to `.ts` source.                                               |
-| `shapeValue.ts` _(Phase 2)_    | Shape→value: a conforming value for any shape, and a sound one-position corruption (mirrors invalidValue.ts's contract).                                             |
-| `typeFuzzHarness.ts` _(Ph 2)_  | Drives generated source through the resolver (`--inline-server`) → entry modules → REAL runtime functions; records the resolver/emit observations.                   |
-| `typeFuzzRunner.ts` _(Ph 2)_   | The Phase-2 driver: `runTypeFuzz` / `runTypeFuzzForDuration` — Tier-A (resolver/emit) + Tier-B (value) oracles per generated type.                                   |
-| `typeFuzz.integration.test.ts` | Phase-2 end-to-end sweep over generated TYPES (needs the binary).                                                                                                    |
+| File                           | Role                                                                                                                                                                                                                                            |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `seededRng.ts`                 | Deterministic PRNG (`mulberry32`) + `withSeededRandom(seed, fn)` — scopes a seeded `Math.random` so a whole run replays from one number.                                                                                                        |
+| `invalidValue.ts`              | The metamorphic **giant switch** — the inverse of `mockType.ts`. Per-kind wrong-value generation + the tandem tree walk that corrupts one provably-invalid position.                                                                            |
+| `fuzzOracle.ts`                | The oracle layer: `FuzzTarget` shape + the O1–O7 (value) and TR1–TR4 (resolver/emit) invariant checks.                                                                                                                                          |
+| `fuzzRunner.ts`                | The Phase-1 driver: `runFuzz` (fixed iterations) and `runFuzzForDuration` (autonomous soak). Type-blind junk generator.                                                                                                                         |
+| `*.unit.test.ts`               | Offline unit tests (no Go binary) over hand-built `RunType` graphs + the Phase-2 generator/value layers.                                                                                                                                        |
+| `fuzz.integration.test.ts`     | Phase-1 end-to-end sweep over REAL compiled functions (needs the plugin + binary).                                                                                                                                                              |
+| `binaryEncoderResize.test.ts`  | Pinned regression for the first finding.                                                                                                                                                                                                        |
+| `typeGen.ts` _(Phase 2)_       | The THIRD giant switch — a seeded generator of random types across the WIDEST space (classes, functions, symbols, index sigs, native builtins, intersections, circular interfaces, any/unknown/never/void) + named decls + a renderer to `.ts`. |
+| `shapeValue.ts` _(Phase 2)_    | Type→value: a conforming value for the serialisable subset, a strict `valueOracleSafe` gate, and a sound one-position corruption (mirrors invalidValue.ts's contract).                                                                          |
+| `typeFuzzHarness.ts` _(Ph 2)_  | Drives generated source through the resolver (`--inline-server`) → entry modules → REAL runtime factories; records diagnostics + per-factory wire outcome.                                                                                      |
+| `typeFuzzRunner.ts` _(Ph 2)_   | The Phase-2 driver: `runTypeFuzz` / `runTypeFuzzForDuration` — owns the resolver (restarts it on a hang), Tier-A (resolver/emit) on every type + Tier-B (value/robustness) per type.                                                            |
+| `typeFuzz.integration.test.ts` | Phase-2 end-to-end sweep over generated TYPES (needs the binary).                                                                                                                                                                               |
 
 ## Data generation — three streams
 
@@ -143,79 +143,79 @@ switch — type declarations + `createX<T>()` call sites), runs the whole pipeli
 and the same value oracles, catching resolver/emitter bugs hand-written fixtures
 miss.
 
-### The third giant switch
+### The third giant switch — the widest space we can throw
 
-[`typeGen.ts`](../packages/ts-go-run-types/test/fuzz/typeGen.ts) generates an
-abstract `TypeShape` (one variant per serialisable RunType kind) seeded from
-`Math.random`, then renders it to a TS type expression. The space:
+[`typeGen.ts`](../packages/ts-go-run-types/test/fuzz/typeGen.ts) generates a
+`GeneratedType` = `{decls, root}` (named declarations + a root type) seeded from
+`Math.random`, then renders it to real `.ts`. The point is to stress the
+pipeline with **arbitrary weird types**, not just clean DTOs:
 
-- primitives (`number` / `string` / `boolean` / `bigint` / `null`), `Date`,
-- string/number/boolean literals,
-- arrays, tuples, objects with optional + non-identifier-keyed properties,
-- three value-disjoint union flavours (distinct literals; distinct primitive
-  kinds; tagged objects with a discriminant literal),
-- nesting to a depth/breadth bound.
+- scalars + literals + `Date` / `RegExp` / `bigint`,
+- arrays, tuples, objects (optional / `readonly` / **method** / non-identifier
+  keys), **index signatures** + `Record<…>`, unions, **intersections**,
+- native builtins **`Map`** / **`Set`** / **`Promise`**,
+- non-serialisable kinds — **`function`**, **`symbol`**, **`any`** / `unknown` /
+  `never` / `void` / `undefined`,
+- named declarations — **`interface`** (incl. **recursive / circular**),
+  **`declare class`** (with methods), **`enum`** (string- or auto-numbered).
 
-The space is **deliberately data-only** (no functions / methods / symbols /
-index signatures): those silently drop under the validate / JSON / binary
-contracts, which would turn a strong oracle into a false positive.
+Whether a type is serialisable is **not** a generation concern: the generator
+emits anything that type-checks, and the oracle tier is chosen per type at run
+time. The behaviour the fuzzer asserts is the **documented contract** — a
+non-serialisable type is _supposed_ to emit Error-severity diagnostics and
+degrade its factories to `alwaysThrow`; that's the contract working, not a bug.
 
-### Two streams, generated from the shape
-
-Because we already hold the abstract shape, both value streams come straight
-from it ([`shapeValue.ts`](../packages/ts-go-run-types/test/fuzz/shapeValue.ts)) —
-no dependency on `createMockType`:
-
-1. **Valid** — `validValue(shape)`: a conforming value (finite numbers, valid
-   `Date`s, sometimes-omitted optionals).
-2. **Invalid** — `corruptValue(shape, valid)`: clones the value and replaces ONE
-   position with a value of a disjoint kind. Same one-directional soundness
-   contract as `invalidValue.ts`: never descends through a `union` (a sibling
-   could re-accept), so a returned corruption is always rejected.
-
-### The pipeline harness
-
-[`typeFuzzHarness.ts`](../packages/ts-go-run-types/test/fuzz/typeFuzzHarness.ts)
-turns a shape into REAL compiled runtime functions, reusing the vite-plugin test
-helpers ([`helpers/inline.ts`](../packages/vite-plugin-runtypes/test/helpers/inline.ts)):
-
-1. render the `.ts` fixture (one call site per family + a `getRunTypeId<T>()`
-   reflection site),
-2. push it to a persistent `--inline-server` `ResolverClient` via `setSources`
-   (atop the `RUNTYPES_DTS` ambient overlay — a small inferred Program, no
-   node_modules), then `scanFiles` with `includeEntryModules`,
-3. `evalEntryModules` executes the emitted per-entry virtual modules into their
-   positional tuples,
-4. each fn tuple is passed as the injected id to the REAL factory
-   (`createValidate(undefined, undefined, tuple)` → `initFromTuple` links the
-   whole dependency closure into the live `rtUtils`, exactly as a rewritten call
-   site would).
-
-### Two oracle tiers
+### Two oracle tiers, chosen from the resolver's own signals
 
 [`typeFuzzRunner.ts`](../packages/ts-go-run-types/test/fuzz/typeFuzzRunner.ts)
 checks, per generated type:
 
-| Tier  | Id      | Invariant                                                                                                                        |
-| ----- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **A** | **TR1** | resolver doesn't crash + no Error-severity diagnostics                                                                           |
-| **A** | **TR2** | every `createX<T>()` resolved to a site (6 fn + 1 reflection)                                                                    |
-| **A** | **TR3** | every demanded entry module evaluates (emitted factory code is valid JS, no dangling ref)                                        |
-| **A** | **TR4** | the real `createX` factories materialise from the tuples                                                                         |
-| **B** | O1–O7   | the Phase-1 value oracles hold for the generated type (valid accepted, corruption rejected, JSON/binary wire-stable, junk total) |
+| Tier  | Id      | Applies to       | Invariant                                                                                                                 |
+| ----- | ------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **A** | **TR1** | every type       | resolver doesn't crash / hang (a per-type timeout restarts a wedged resolver and flags it)                                |
+| **A** | **TR2** | every type       | every `createX<T>()` resolved to a site (6 fn + 1 reflection)                                                             |
+| **A** | **TR3** | every type       | every emitted module is valid JS (evaluates) + the reflection graph knots (no dangling ref)                               |
+| **A** | **TR4** | every type       | each factory either wires OR throws a **controlled** `[CODE]` alwaysThrow (an _uncontrolled_ wire failure is the bug)     |
+| **B** | O1–O7   | serialisable     | the Phase-1 value oracles hold (valid accepted, corruption rejected, JSON/binary wire-stable, junk total)                 |
+| **B** | O3/O4'  | non-serialisable | robustness probe: `validate` / `getValidationErrors` return sanely or throw an **Error** — never a non-Error, never crash |
 
-Tier A alone catches resolver panics, malformed emit (invalid JS), and dangling
-cache refs; Tier B closes the loop between random _types_ and random _values_,
-reusing the Phase-1 `fuzzOracle.ts` checks verbatim.
+Tier A (every type) catches resolver panics, hangs, malformed emit (invalid JS),
+and dangling refs — the highest-value bugs. Tier B routes by a strict
+`valueOracleSafe` gate: types whose value-generation provably matches the
+validator get the full strong oracles (reusing the Phase-1 `fuzzOracle.ts` checks
+verbatim); everything else gets the robustness probe. The value streams come
+straight from the abstract type (`validValue` / `corruptValue` in
+[`shapeValue.ts`](../packages/ts-go-run-types/test/fuzz/shapeValue.ts)), so no
+dependency on `createMockType`.
 
-Each iteration seeds `genShape` and the value stream from one number (the
-resolver step between them is deterministic from the shape), so a reported
-violation replays the exact type AND values from its `seed`.
+The harness ([`typeFuzzHarness.ts`](../packages/ts-go-run-types/test/fuzz/typeFuzzHarness.ts))
+reuses the vite-plugin test helpers
+([`helpers/inline.ts`](../packages/vite-plugin-runtypes/test/helpers/inline.ts)):
+render the fixture → `--inline-server` `ResolverClient.setSources` (atop the
+`RUNTYPES_DTS` ambient overlay — a tiny inferred Program, no node_modules) →
+`scanFiles` → `evalEntryModules` executes the emitted virtual modules into their
+tuples → each fn tuple is passed as the injected id to the REAL factory
+(`createValidate(undefined, undefined, tuple)` → `initFromTuple` links the whole
+dependency closure into the live `rtUtils`, exactly as a rewritten call site
+would). Each iteration seeds the type AND its value stream from one number, so a
+reported violation replays exactly.
 
-### Known limitations / future kinds
+### Known limitations
 
+- **Recursive types run Tier A only.** The in-process `evalEntryModules` linker
+  can't materialise a cyclic function graph the way Vite's real module graph
+  does (it recurses depth-first and overflows), so recursive types are policed
+  by the resolver/emit oracles (TR1–TR3) and **not** executed in-process — their
+  runtime is covered by the real
+  [`serialization/CircularRefs.test.ts`](../packages/ts-go-run-types/test/suites/serialization/CircularRefs.test.ts)
+  suite.
+- **The strong value oracles cover a conservative subset.** `valueOracleSafe`
+  deliberately excludes `any` / `unknown`, primitive-bearing intersections
+  (which collapse to a branded primitive), class refs, and anything else whose
+  value-gen can't provably match the validator — those are robustness-probed
+  instead. Widening the subset means teaching `shapeValue.ts` the exact
+  validator semantics for each kind.
 - The live `rtUtils` registry accumulates across a long soak (every distinct
-  generated type registers its closure once); fine for time-bounded runs.
-- Not yet generated: intersections, `Record`/index signatures, enums, classes,
-  recursive (named self-referential) types, branded `TypeFormat` primitives.
-  Each is a natural new arm of `typeGen.ts` + `shapeValue.ts`.
+  type registers its closure once); fine for time-bounded runs.
+- Not yet generated: branded `TypeFormat` primitives, generics / conditional /
+  mapped types, template-literal types. Each is a natural new arm of `typeGen.ts`.
