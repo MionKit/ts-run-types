@@ -13,5 +13,3 @@ const orderRT = getRunType<Order>();
 // Walk it like any tree: its kind, property names, nested children…
 console.log(orderRT.kind === RunTypeKind.objectLiteral); // true
 console.log(orderRT.children?.map((prop) => prop.name)); // ['id', 'total', 'items']
-
-export {orderRT};

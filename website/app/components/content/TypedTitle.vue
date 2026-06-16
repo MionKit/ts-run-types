@@ -7,6 +7,16 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  // A word in `leading` to strike through (e.g. "fixed"), with `enhancedWord`
+  // written as a handwritten correction over it. No HTML in the markdown.
+  strikeWord: {
+    type: String,
+    default: '',
+  },
+  enhancedWord: {
+    type: String,
+    default: '',
+  },
   suffix: {
     type: String,
     default: '',
@@ -20,6 +30,16 @@ const props = defineProps({
     default: 1,
     validator: (value) => value >= 1 && value <= 6,
   },
+});
+
+// Split `leading` around `strikeWord` so the struck word + its handwritten
+// correction render as real elements (no v-html, no markup in the frontmatter).
+const leadingParts = computed(() => {
+  const text = props.leading;
+  const word = props.strikeWord;
+  if (!word || !text.includes(word)) return { before: text, after: '' };
+  const index = text.indexOf(word);
+  return { before: text.slice(0, index), after: text.slice(index + word.length) };
 });
 
 // Initial text shown during SSR (first item)
@@ -39,7 +59,7 @@ onMounted(() => {
 <template>
   <div class="typed-title-container">
     <component :is="`h${level}`" class="typed-title-heading">
-      <span v-if="leading" class="typed-title-leading">{{ leading }}</span>
+      <span v-if="leading" class="typed-title-leading">{{ leadingParts.before }}<span v-if="strikeWord" class="title-strike"><span class="title-strike-word">{{ strikeWord }}</span><span class="title-strike-line" aria-hidden="true" /><span v-if="enhancedWord" class="title-enhanced">{{ enhancedWord }}</span></span>{{ leadingParts.after }}</span>
       <span class="typed-title">
         <!-- Show VueWriter only after mounting (client-side) -->
         <template v-if="isMounted">
@@ -102,6 +122,50 @@ onMounted(() => {
   animation: gradient-flow 6s linear infinite;
 }
 
+/* "We fixed → enhanced" hero correction: "fixed" is struck through and
+   "enhanced" is written over it as a smaller, tilted handwritten label
+   (absolutely positioned relative to the struck word). */
+.title-strike {
+  position: relative;
+  display: inline-block;
+}
+
+/* the struck word, a touch smaller than the rest of the title */
+.title-strike-word {
+  color: var(--ui-text-dimmed);
+  -webkit-text-fill-color: var(--ui-text-dimmed);
+}
+
+/* a real strike line (not text-decoration) so it can tilt, round its ends and
+   bow into a gentle curve for a hand-drawn feel */
+.title-strike-line {
+  position: absolute;
+  left: -7%;
+  right: -7%;
+  top: 54%;
+  height: 4px;
+  border-radius: 4px;
+  transform: rotate(-4.5deg);
+  pointer-events: none;
+  background-color: #daa520;
+}
+
+.title-enhanced {
+  transform: translateX(-55%) rotate(-3.5deg);
+  position: absolute;
+  left: 50%;
+  bottom: 1.6em;
+  font-family: 'Comic Sans MS', 'Brush Script MT', 'Caveat', cursive;
+  font-size: 0.62em;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  color: #daa520;
+  -webkit-text-fill-color: #daa520;
+  text-decoration: none;
+  pointer-events: none;
+}
+
 @keyframes gradient-flow {
   0% {
     background-position: 0% center;
@@ -141,17 +205,19 @@ onMounted(() => {
   display: inline;
 }
 
-/* Style for both SSR fallback and VueWriter underscore caret */
+/* Style for both SSR fallback and VueWriter caret — a vertical typing bar.
+   (Swapped the underscore's width/height so it stands upright, rather than a
+   rotate() which would leave a wide, mis-aligned layout box.) */
 :deep(.is-typed span.underscore),
 .typed-title :deep(.is-typed span.underscore) {
-  display: inline-flex;
-  width: 0.8em;
-  height: 0.08em;
-  align-items: flex-end;
+  display: inline-block;
+  width: 0.08em;
+  height: 1em;
   background-color: var(--ui-primary, #4ade80);
   color: var(--ui-primary0, #4ade80);
   animation: blink 1.5s infinite;
-  margin-left: 0.2em;
+  margin-left: 0.12em;
+  vertical-align: text-bottom;
 }
 
 :deep(.is-typed span.cursor.typing) {
