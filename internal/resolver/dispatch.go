@@ -519,7 +519,7 @@ var circularGuardedFamilyTags = map[string]bool{
 
 // wireCircularRunTypeDeps links the reflection RunType graph into the dep
 // closure of every guarded fn entry whose type can cycle, so the runtime guard
-// (setCircularCheck) can walk the value against its RunType. The graph rides as
+// (setRejectCircularRefs) can walk the value against its RunType. The graph rides as
 // a SOFT dep — imported and registered by initFromTuple, but never cascaded
 // (the fn body never references it; only the runtime wrapper does). In the
 // default / allSingle bundle modes the dep is the single data bundle; in

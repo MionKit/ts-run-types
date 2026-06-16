@@ -27,7 +27,7 @@ export interface ValidateOptions {
    *  The variant cache key changes (e.g. `val_<id>` → `valNA_<id>`) so
    *  the same type id can serve both the guarded and unguarded factory. **/
   noIsArrayCheck?: boolean;
-  /** Per-call circular-reference guard — overrides the global `setCircularCheck`
+  /** Per-call circular-reference guard — overrides the global `setRejectCircularRefs`
    *  for THIS validator (`true` arms, `false` disables). Runtime-only: it is
    *  deliberately NOT one of the Go scanner's `ValidateOptions`, so it never
    *  folds into the fnHash / cache key (a circular-checking and a plain

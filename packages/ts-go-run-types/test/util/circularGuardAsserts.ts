@@ -5,7 +5,7 @@
 // opt-in guard catches it.
 //
 // Each case arms the guard via the per-call `{rejectCircularRefs: true}` option in
-// its factory thunks, so there is NO global `setCircularCheck` state to set or
+// its factory thunks, so there is NO global `setRejectCircularRefs` state to set or
 // reset — runs can't leak into each other. The thunk's value (if any) is for
 // TYPE INFERENCE only; the cyclic value under test comes from `getValue()`.
 
