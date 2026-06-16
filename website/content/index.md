@@ -27,7 +27,7 @@ titles:
   - 'And writing types twice'
   - 'And your validation layer'
   - 'And handwritten serialization'
-  - 'Say hello ro RunTypes®'
+  - 'Say hello to RunTypes®'
 ---
 #description
 TypeScript decided it is **Just a Linter** and to erase types.
