@@ -61,7 +61,7 @@ Give us a Star
 class: home-features
 ---
 #title
-Two ways to describe a shape. One source of truth.
+Two ways to describe a shape, One source of truth.
 
 #root
 :::gradient-bg
@@ -76,39 +76,134 @@ blur: 140px
 #body
 Write a plain TypeScript type (fastest, zero ceremony) **or** reach for the `RT.*` schema builders if you like the Zod / TypeBox feel. Both compile to the exact same validator — pick whichever you fancy, mix them in the same file.
 
-:::code-group
+:::div{class="rt-define-cols"}
+::::code-group
 <code-import path="packages/examples/src/_homepage/define-type.ts" lang="ts [Pure type]" />
+::::
+
+::::code-group
 <code-import path="packages/examples/src/_homepage/define-schema.ts" lang="ts [Schema]" />
+::::
 :::
 ::
 
 ::u-page-section
 #title
-One object. Every function.
+One object, Every function.
 
 #body
-Define a real type once, then ask for whatever you need — a validator, an error reporter, JSON that round-trips `Date`s, a compact binary codec, or believable mock data. No reflection at runtime: each one is a specialized function generated at build time.
+:::div{class="rt-feature-row"}
+::::card{class="rt-feature-card"}
+### Define it once
+Then ask for whatever you need — a validator, an error reporter, JSON that round-trips `Date`s, a compact binary codec, or believable mock data. No reflection at runtime: each one is a specialized function generated at build time.
 
-Here's the type everything below is generated from:
+<br>
+
+[One type in, every function out.]{.text-highlighted}
+::::
 
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-type" commentEnd="// end-type" />
+:::
 
-:::code-group
+:::div{class="rt-object-fns"}
+::::code-group
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [validate]" commentStart="// start-validate" commentEnd="// end-validate" />
+::::
+
+::::code-group
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [json]" commentStart="// start-json" commentEnd="// end-json" />
+::::
+
+::::code-group
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [binary]" commentStart="// start-binary" commentEnd="// end-binary" />
+::::
+
+::::code-group
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [mock]" commentStart="// start-mock" commentEnd="// end-mock" />
+::::
 :::
 ::
 
 ::u-page-section
 #title
-The reflection TypeScript refused to ship
+The reflection TypeScript never had
 
 #body
-Get a stable id for any type, infer it from a value, or wrap ts-run-types into your own helpers with a single marker — `InjectRunTypeId<T>`. The build fills it in at every call site.
-
+:::div{class="rt-feature-row"}
 <code-import path="packages/examples/src/_homepage/reflection.ts" lang="ts" />
+
+::::card{class="rt-feature-card"}
+### Recover the type graph
+Get back a traversable RunType node — kind, property names, nested children, format annotations. Bring a type, or infer it from a runtime value.
+
+<br>
+
+[Reflection you can actually walk.]{.text-highlighted}
+::::
+:::
+::
+
+::u-page-section
+#title
+Performance with control
+
+#body
+:::div{class="rt-feature-row rt-feature-row--top"}
+::::card{class="rt-feature-card"}
+### Toe to toe with the fastest
+On the is-valid check, ts-run-types matches the fastest JIT (AJV, TypeBox) and compile-time (typia) validators — within a few percent, and with no per-call setup cost.
+
+:::::perf-bars
+---
+caption: Validation throughput — is-valid check (ops/sec, higher is better)
+footnote: Zod has no fast is-valid path — it validates by parsing to errors, so its bar is the error-reporting result.
+bars:
+  - name: ts-run-types
+    score: 40.6
+    label: 40.6M
+    highlight: true
+  - name: typia
+    score: 39.7
+    label: 39.7M
+  - name: typebox
+    score: 38.2
+    label: 38.2M
+  - name: ajv
+    score: 36.9
+    label: 36.9M
+  - name: zod
+    score: 7.9
+    label: 7.9M
+    muted: true
+---
+:::::
+
+[See the full head-to-head →](/benchmarks/validation)
+::::
+
+::::card{class="rt-feature-card"}
+### Tested to the same standard
+:::::stat-tiles
+---
+tiles:
+  - value: "6,025"
+    label: front-end tests
+    sub: Vitest — marker + plugin
+    hue: 145
+  - value: "846"
+    label: Go tests
+    sub: go test ./internal
+    hue: 198
+---
+:::::
+
+Every transform, cache shape and generated function is covered — on top of an extensive structured suite spanning validation, JSON, binary, mocks and reflection.
+
+<br>
+
+[Correctness, pinned down.]{.text-highlighted}
+::::
+:::
 ::
 
 ::u-page-section
@@ -177,30 +272,55 @@ class: sm:grid-cols-2 lg:grid-cols-3
 Tree-shaken to the bone
 
 #body
-You only ship the functions you actually call. Caches are demand-driven and every entry is its own module, so a file that only reflects an id ships zero validation code.
+:::div{class="rt-treeshake-cols"}
+::::card{class="rt-feature-card"}
+### Ship only what you call
+Caches are demand-driven and every entry is its own module, so bundlers split and tree-shake natively. A file that only reflects an id ships zero validation code — and the Vite plugin adds zero runtime dependencies.
 
-:::stylish-list
----
-type: check
----
-- [Demand-driven caches]{.text-highlighted} — a family's cache holds only the types its own call sites request.
-- [Per-call-site code-splitting]{.text-highlighted} — every cache entry is its own module, so bundlers split and tree-shake natively.
-- [Zero runtime dependencies]{.text-highlighted} — the Vite plugin adds nothing to your runtime `node_modules`.
-- [Build-time, not run-time]{.text-highlighted} — no schema objects to construct, no reflection cost when your app runs.
-:::
-::
+<br>
 
-::u-page-section
-#title
-How does it stack up?
+[Build-time, not run-time.]{.text-highlighted}
+::::
 
-#body
-:::card
----
-to: /benchmarks/validation
----
-ts-run-types is the rare library that does **both** type-first _and_ schema-first — and adds JSON, binary, mocks and reflection on top. See the honest, head-to-head benchmarks against **Zod, TypeBox and AJV**.
+::::code-group
+```ts [Source Code]
+type Order = {
+  id: string;
+  name: number;
+  email: string;
+};
+
+const isUser = createValidate<User>();
+```
+
+```ts [Transformed]
+import {__rt_a1b_Xk7} from 'virtual:rt/Xk7.js';
+
+type Order = {
+  id: string;
+  name: number;
+  email: string;
+};
+
+const isUser = createValidate<User>(__rt_a1b_Xk7);
+```
+::::
+
+::::code-group
+```js [Generated Module]
+// shown as a function for clarity — the real emit is a positional
+// tuple: faster to initialise, fewer bytes on the wire
+export function __rt_a1b_Xk7(value) {
+  return typeof value === "object" && value !== null &&
+  typeof value.id === "number" &&
+  typeof value.name === "string" &&
+  typeof value.email === "string";
+}
+```
+::::
 :::
 ::
 
 [&nbsp;]{style="padding-bottom: 6rem;"}
+
+<!-- code-import-timestamp 1781575032973 -->

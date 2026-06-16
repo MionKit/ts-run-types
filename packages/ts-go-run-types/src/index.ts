@@ -17,6 +17,10 @@ export {getRTUtils, getRTFnCaches, type RTUtils} from './runtypes/rtUtils.ts';
 // a `RunType<T>` carries (`Static<typeof schema>`). Both are part of the
 // value-first surface: builders return `RunType<T>`, `Static` maps back.
 export {type RunType} from './runtypes/types.ts';
+// `getRunType` is the value-bearing twin of `getRunTypeId` — same two call
+// shapes, but returns the traversable RunType<T> node instead of its id string.
+// Exported after getRTUtils so the registry is initialised first.
+export {getRunType} from './getRunType.ts';
 export {type DataOnly} from './runtypes/dataOnly.ts';
 export {type Static} from './schema/static.ts';
 

@@ -1,19 +1,17 @@
-import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+import {getRunType, RunTypeKind} from '@mionjs/ts-go-run-types';
 
-// A stable id for any type — the reflection TypeScript refused to ship.
-const userId = getRunTypeId<{id: number; name: string}>(); // e.g. "Ab3Xy7"
+// One real type — the single source of truth.
+type Order = {
+  id: string;
+  total: number;
+  items: {sku: string; qty: number}[];
+};
 
-// Or let it be inferred from a runtime value.
-const order = {id: 1, total: 42};
-const orderId = getRunTypeId(order);
+// Recover the actual RunType node — the traversable type graph TypeScript erased.
+const orderRT = getRunType<Order>();
 
-// Wrap ts-run-types into your OWN helper: declare a trailing InjectRunTypeId<T>
-// parameter and the build fills it in at every call site for you.
-function parseJson<T>(raw: string, id?: InjectRunTypeId<T>): T {
-  // ...look the type's validator / decoder up by `id`, then parse safely.
-  return JSON.parse(raw) as T;
-}
+// Walk it like any tree: its kind, property names, nested children…
+console.log(orderRT.kind === RunTypeKind.objectLiteral); // true
+console.log(orderRT.children?.map((prop) => prop.name)); // ['id', 'total', 'items']
 
-parseJson<{id: number}>('{"id":1}');
-
-export {userId, orderId};
+export {orderRT};
