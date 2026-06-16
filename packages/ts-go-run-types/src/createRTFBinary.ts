@@ -43,6 +43,10 @@ export interface BinaryEncoderOptions {
   /** Stable string used to bucket adaptive-sizing history. Defaults to the
    *  runtype hash so every encoder for the same `T` shares size history. **/
   cacheKey?: string;
+  /** Per-call circular-reference guard — overrides the global `setCircularCheck`
+   *  for THIS encoder (`true` arms, `false` disables). Runtime-only (binary
+   *  options are not compile-time args), so it never affects the cache key. **/
+  checkCircular?: boolean;
 }
 
 /** Caller-controlled options for `createBinaryDecoder<T>()`. **/
@@ -89,7 +93,7 @@ export function createBinaryEncoder<T>(
 ): BinaryEncoderFn {
   const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
   const cacheKey = options?.cacheKey ?? binarySizingKey(schemaId, id);
-  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinaryEncoder', noopToBinaryFn, schemaId, id);
+  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinaryEncoder', noopToBinaryFn, schemaId, id, options?.checkCircular);
   return (value, serializer) => {
     // Caller-supplied serializer: they own sizing + end-of-payload semantics,
     // so we don't record history on their behalf.

@@ -135,6 +135,50 @@ describe('circular-reference guard', () => {
     });
   });
 
+  describe('per-call {checkCircular} override', () => {
+    // The global flag stays OFF for this whole block — the override alone arms
+    // each factory.
+    it('createValidate: {checkCircular: true} arms the guard with the global off', () => {
+      const isNode = createValidate<Node>(undefined, {checkCircular: true});
+      expect(isNode(selfCycle())).toBe(false);
+      expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
+    });
+
+    it('createGetValidationErrors: {checkCircular: true} arms the guard', () => {
+      const getErrors = createGetValidationErrors<Node>(undefined, {checkCircular: true});
+      expect(getErrors(selfCycle()).some((error) => error.expected === 'circular')).toBe(true);
+    });
+
+    it('createJsonEncoder: {checkCircular: true} arms the guard', () => {
+      const encode = createJsonEncoder<Node>(undefined, {checkCircular: true});
+      expect(() => encode(selfCycle())).toThrow(CircularReferenceError);
+    });
+
+    it('createBinaryEncoder: {checkCircular: true} arms the guard', () => {
+      const encode = createBinaryEncoder<Node>(undefined, {checkCircular: true});
+      expect(() => encode(selfCycle())).toThrow(CircularReferenceError);
+    });
+
+    it('{checkCircular: false} keeps the guard off even when the global is armed', () => {
+      setCircularCheck(true);
+      const isNode = createValidate<Node>(undefined, {checkCircular: false});
+      // Guard disabled for this validator → an acyclic value validates as usual.
+      // (A cyclic value would overflow, exactly as an unguarded validator does.)
+      expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
+    });
+
+    it('does NOT fork the cache: plain and checkCircular validators share one entry', () => {
+      // Same fnHash (checkCircular is excluded from hashing) → both factories
+      // resolve to the SAME compiled `val` entry and behave identically on
+      // acyclic data. A cache fork would surface as a missing-entry throw here.
+      const plain = createValidate<Node>();
+      const guarded = createValidate<Node>(undefined, {checkCircular: true});
+      const sample = {name: 'a', next: {name: 'b'}};
+      expect(plain(sample)).toBe(true);
+      expect(guarded(sample)).toBe(true);
+    });
+  });
+
   describe('non-circular types', () => {
     // The resolver never links a RunType graph for a type that cannot cycle, so
     // the guard stays completely inert even while armed — no behaviour change.

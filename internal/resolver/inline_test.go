@@ -19,7 +19,7 @@ const runtypesDTS = `declare module '@mionjs/ts-go-run-types' {
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
-  export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean; checkCircular?: boolean}
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
   export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
@@ -30,7 +30,7 @@ const runtypesDTS = `declare module '@mionjs/ts-go-run-types' {
   export function createFormatTransform<T>(val?: T, id?: InjectTypeFnArgs<T, 'fmt'>): (v: unknown) => unknown;
   export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (v: unknown) => unknown;
   export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (v: unknown) => unknown;
-  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'};
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'; checkCircular?: boolean};
   export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
   export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
   export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (s: string) => unknown;
