@@ -132,7 +132,7 @@ Then ask for whatever you need — a validator, an error reporter, JSON that rou
 
 ::u-page-section
 #title
-The reflection TypeScript never had
+The reflection TypeScript never shipped
 
 #body
 :::div{class="rt-feature-row"}
@@ -151,7 +151,7 @@ Get back a traversable RunType node — the same graph the library walks interna
 
 ::u-page-section
 #title
-Performance with control
+Performance is nothing without control
 
 #body
 :::div{class="rt-feature-row rt-feature-row--top"}
@@ -308,7 +308,7 @@ const isUser = createValidate<User>();
 ```
 
 ```ts [Transformed]
-import {__rt_a1b_Xk7} from 'virtual:rt/Xk7.js';
+import {__rt_a1b_Xk7} from 'virtual:rt/a1b_Xk7.js';
 
 type Order = {
   id: string;
@@ -321,7 +321,7 @@ const isUser = createValidate<User>(__rt_a1b_Xk7);
 ::::
 
 ::::code-group
-```js [Generated Module]
+```js [Generated Module a1b_Xk7]
 // shown as a function for clarity — the real emit is a positional
 // tuple: faster to initialise, fewer bytes on the wire
 export function __rt_a1b_Xk7(value) {
