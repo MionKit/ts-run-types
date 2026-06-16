@@ -1,7 +1,7 @@
 // validation / CircularGuard — every circular-guard case run through validate
 // and getValidationErrors, in both the static `<T>()` and reflect `(value)`
 // call shapes (the marker both-shapes rule). The guard is armed per-call via
-// `{checkCircular: true}` inside each thunk, so no global state is touched.
+// `{rejectCircularRefs: true}` inside each thunk, so no global state is touched.
 import {describe, it} from 'vitest';
 import {CIRCULAR_GUARD} from './CircularGuard.ts';
 import {assertCircularGetValidationErrors, assertCircularValidate} from '../../util/circularGuardAsserts.ts';

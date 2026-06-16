@@ -4,7 +4,7 @@
 // these feed a runtime VALUE that contains a reference cycle and assert the
 // opt-in guard catches it.
 //
-// Each case arms the guard via the per-call `{checkCircular: true}` option in
+// Each case arms the guard via the per-call `{rejectCircularRefs: true}` option in
 // its factory thunks, so there is NO global `setCircularCheck` state to set or
 // reset — runs can't leak into each other. The thunk's value (if any) is for
 // TYPE INFERENCE only; the cyclic value under test comes from `getValue()`.
@@ -20,11 +20,11 @@ type AnyBinaryEncoderFn = (value: unknown) => unknown;
 export interface CircularGuardValidationCase {
   title: string;
   description?: string;
-  /** `createValidate<T>(undefined, {checkCircular: true})` — STATIC form. */
+  /** `createValidate<T>(undefined, {rejectCircularRefs: true})` — STATIC form. */
   validate: () => AnyValidateFn;
   /** Reflect form — `T` inferred from an acyclic annotated value. */
   validateReflect: () => AnyValidateFn;
-  /** `createGetValidationErrors<T>(undefined, {checkCircular: true})` — STATIC. */
+  /** `createGetValidationErrors<T>(undefined, {rejectCircularRefs: true})` — STATIC. */
   getValidationErrors: () => GetValidationErrorsFn;
   /** Reflect-form companion. */
   getValidationErrorsReflect: () => GetValidationErrorsFn;
@@ -58,9 +58,9 @@ export function assertCircularGetValidationErrors(testCase: CircularGuardValidat
 export interface CircularGuardSerializationCase {
   title: string;
   description?: string;
-  /** `createJsonEncoder<T>(undefined, {checkCircular: true})`. */
+  /** `createJsonEncoder<T>(undefined, {rejectCircularRefs: true})`. */
   jsonEncoder: () => AnyJsonEncoderFn;
-  /** `createBinaryEncoder<T>(undefined, {checkCircular: true})`. */
+  /** `createBinaryEncoder<T>(undefined, {rejectCircularRefs: true})`. */
   binaryEncoder: () => AnyBinaryEncoderFn;
   /** Builds the runtime value under test — cyclic, or an acyclic control. */
   getValue: () => unknown;

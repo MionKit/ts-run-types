@@ -1,6 +1,6 @@
 // validation / CircularGuard modes — the cross-cutting arming behaviour the
 // per-vector CircularGuard cases don't cover: the global `setCircularCheck`
-// toggle, the per-call `{checkCircular:false}` opt-out overriding an armed
+// toggle, the per-call `{rejectCircularRefs:false}` opt-out overriding an armed
 // global, and the no-op on a non-circular type while armed. The per-vector
 // cases (CircularGuard.ts) all arm per-call; these pin the global flag and the
 // override precedence. afterEach disarms so the global flag never leaks.
@@ -28,14 +28,14 @@ describe('validation / CircularGuard modes', () => {
     expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
   });
 
-  it('disarmed by default — per-call {checkCircular:true} still arms', () => {
-    const isNode = createValidate<Node>(undefined, {checkCircular: true});
+  it('disarmed by default — per-call {rejectCircularRefs:true} still arms', () => {
+    const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
     expect(isNode(selfCycle())).toBe(false);
   });
 
-  it('per-call {checkCircular:false} overrides an armed global', () => {
+  it('per-call {rejectCircularRefs:false} overrides an armed global', () => {
     setCircularCheck(true);
-    const isNode = createValidate<Node>(undefined, {checkCircular: false});
+    const isNode = createValidate<Node>(undefined, {rejectCircularRefs: false});
     // Guard disabled for this validator → an acyclic value validates as usual.
     // (A cyclic value would overflow, exactly as an unguarded validator does.)
     expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);

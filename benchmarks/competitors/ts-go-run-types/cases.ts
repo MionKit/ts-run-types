@@ -1308,21 +1308,21 @@ export const cases: CompetitorCases = {
     },
   },
 
-  // ── CIRCULAR_REFS ── (cyclic VALUES; ts-go rejects via the {checkCircular} guard)
+  // ── CIRCULAR_REFS ── (cyclic VALUES; ts-go rejects via the {rejectCircularRefs} guard)
   'CIRCULAR_REFS.linked_list_cycle': {
     build: () => {
       interface Node {
         value: number;
         next: Node | null;
       }
-      return createValidate<Node>(undefined, {checkCircular: true});
+      return createValidate<Node>(undefined, {rejectCircularRefs: true});
     },
     buildErrors: () => {
       interface Node {
         value: number;
         next: Node | null;
       }
-      const getErrors = createGetValidationErrors<Node>(undefined, {checkCircular: true});
+      const getErrors = createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1332,14 +1332,14 @@ export const cases: CompetitorCases = {
         label: string;
         children: Node[];
       }
-      return createValidate<Node>(undefined, {checkCircular: true});
+      return createValidate<Node>(undefined, {rejectCircularRefs: true});
     },
     buildErrors: () => {
       interface Node {
         label: string;
         children: Node[];
       }
-      const getErrors = createGetValidationErrors<Node>(undefined, {checkCircular: true});
+      const getErrors = createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1349,14 +1349,14 @@ export const cases: CompetitorCases = {
         name: string;
         next?: Node;
       }
-      return createValidate<Node>(undefined, {checkCircular: true});
+      return createValidate<Node>(undefined, {rejectCircularRefs: true});
     },
     buildErrors: () => {
       interface Node {
         name: string;
         next?: Node;
       }
-      const getErrors = createGetValidationErrors<Node>(undefined, {checkCircular: true});
+      const getErrors = createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },

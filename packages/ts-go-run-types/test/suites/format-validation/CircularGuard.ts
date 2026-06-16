@@ -19,7 +19,7 @@ export const CIRCULAR_GUARD = {
         id: FormatUUIDv4;
         next?: Node;
       }
-      return createValidate<Node>(undefined, {checkCircular: true});
+      return createValidate<Node>(undefined, {rejectCircularRefs: true});
     },
     validateReflect: () => {
       interface Node {
@@ -27,14 +27,14 @@ export const CIRCULAR_GUARD = {
         next?: Node;
       }
       const inference: Node = {id: UUID_V4};
-      return createValidate(inference, {checkCircular: true});
+      return createValidate(inference, {rejectCircularRefs: true});
     },
     getValidationErrors: () => {
       interface Node {
         id: FormatUUIDv4;
         next?: Node;
       }
-      return createGetValidationErrors<Node>(undefined, {checkCircular: true});
+      return createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
     },
     getValidationErrorsReflect: () => {
       interface Node {
@@ -42,7 +42,7 @@ export const CIRCULAR_GUARD = {
         next?: Node;
       }
       const inference: Node = {id: UUID_V4};
-      return createGetValidationErrors(inference, {checkCircular: true});
+      return createGetValidationErrors(inference, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {id: string; next?: unknown} = {id: UUID_V4};
@@ -59,7 +59,7 @@ export const CIRCULAR_GUARD = {
         id: FormatUUIDv4;
         children: Node[];
       }
-      return createValidate<Node>(undefined, {checkCircular: true});
+      return createValidate<Node>(undefined, {rejectCircularRefs: true});
     },
     validateReflect: () => {
       interface Node {
@@ -67,14 +67,14 @@ export const CIRCULAR_GUARD = {
         children: Node[];
       }
       const inference: Node = {id: UUID_V4, children: []};
-      return createValidate(inference, {checkCircular: true});
+      return createValidate(inference, {rejectCircularRefs: true});
     },
     getValidationErrors: () => {
       interface Node {
         id: FormatUUIDv4;
         children: Node[];
       }
-      return createGetValidationErrors<Node>(undefined, {checkCircular: true});
+      return createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
     },
     getValidationErrorsReflect: () => {
       interface Node {
@@ -82,7 +82,7 @@ export const CIRCULAR_GUARD = {
         children: Node[];
       }
       const inference: Node = {id: UUID_V4, children: []};
-      return createGetValidationErrors(inference, {checkCircular: true});
+      return createGetValidationErrors(inference, {rejectCircularRefs: true});
     },
     getValue: () => {
       const shared = {id: UUID_V4, children: [] as unknown[]};
