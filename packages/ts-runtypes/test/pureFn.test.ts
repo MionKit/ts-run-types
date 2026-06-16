@@ -1,7 +1,7 @@
 /* ########
- * 2026 mion
+ * 2026 ma-jerez
  * Author: Ma-jerez
- * License: MIT
+ * License: UNLICENSED - proprietary, see LICENSE
  * The software is provided "as is", without warranty of any kind.
  * ######## */
 
@@ -24,7 +24,7 @@ it('register and get pure function with extracted data', () => {
     isLowercase?: boolean;
     isNumeric?: boolean;
   };
-  registerPureFnFactory(TEST_NAMESPACE, 'stringPureFn', function () {
+  registerPureFnFactory('test::stringPureFn', function () {
     const isNumericRegexp = /^[0-9]+$/;
     return function is_s(s: string, p: StringParams): boolean {
       if (p.isLowercase && s !== s.toLowerCase()) return false;
@@ -44,13 +44,13 @@ it('throws when no cache entry is found', () => {
   // this one — which dynamically constructs a key the binary never saw —
   // should throw on lookup. (Vite plugin rewrites the factory arg to
   // `null`, so the runtime path is purely the cache lookup.)
-  expect(() => registerPureFnFactory(TEST_NAMESPACE + '_unscanned_' + Math.random(), 'noSuchFn', null)).toThrow(
+  expect(() => registerPureFnFactory(`${TEST_NAMESPACE}_unscanned_${Math.random()}::noSuchFn`, null)).toThrow(
     /no cache entry for/
   );
 });
 
 it('populates bodyHash, paramNames, and code from extracted data', () => {
-  registerPureFnFactory(TEST_NAMESPACE, 'metadataTestFn', function () {
+  registerPureFnFactory('test::metadataTestFn', function () {
     return function test_fn(val: string): string {
       return val.toUpperCase();
     };
@@ -70,13 +70,13 @@ it('auto-detects dependencies via proxy when factory calls getPureFn', () => {
     isA?: boolean;
     isB?: boolean;
   };
-  registerPureFnFactory(TEST_NAMESPACE, 'pureFunctionA', function (_jUtils: RTUtils) {
+  registerPureFnFactory('test::pureFunctionA', function (_jUtils: RTUtils) {
     return function is_a(s: string, p: Params): boolean {
       if (p.isA) return s.includes('a');
       return true;
     };
   });
-  registerPureFnFactory(TEST_NAMESPACE, 'pureFunctionB', function (jUtils: RTUtils) {
+  registerPureFnFactory('test::pureFunctionB', function (jUtils: RTUtils) {
     const isA = jUtils.getPureFn('test::pureFunctionA') as (s: string, p: Params) => boolean;
     return function is_b(s: string, p: Params): boolean {
       const isAResult = isA(s, p);
@@ -104,7 +104,7 @@ describe('arrow function factory functions', () => {
     type StringParams = {
       isLowercase?: boolean;
     };
-    registerPureFnFactory(TEST_NAMESPACE, 'arrowWithParens', (_jUtils: RTUtils) => {
+    registerPureFnFactory('test::arrowWithParens', (_jUtils: RTUtils) => {
       return function is_s(s: string, p: StringParams): boolean {
         if (p.isLowercase) return s === s.toLowerCase();
         return true;
@@ -125,8 +125,7 @@ describe('arrow function factory functions', () => {
       multiplier?: number;
     };
     registerPureFnFactory(
-      TEST_NAMESPACE,
-      'arrowExpression',
+      'test::arrowExpression',
       (_jUtils: RTUtils) =>
         function multiply(n: number, p: NumParams): number {
           return n * (p.multiplier ?? 1);
@@ -147,13 +146,13 @@ describe('arrow function factory functions', () => {
       isA?: boolean;
       isB?: boolean;
     };
-    registerPureFnFactory(TEST_NAMESPACE, 'arrowFnA', (_jUtils: RTUtils) => {
+    registerPureFnFactory('test::arrowFnA', (_jUtils: RTUtils) => {
       return function is_a(s: string, p: Params): boolean {
         if (p.isA) return s.includes('a');
         return true;
       };
     });
-    registerPureFnFactory(TEST_NAMESPACE, 'arrowFnB', (jUtils: RTUtils) => {
+    registerPureFnFactory('test::arrowFnB', (jUtils: RTUtils) => {
       const isA = jUtils.getPureFn('test::arrowFnA') as (s: string, p: Params) => boolean;
       return function is_b(s: string, p: Params): boolean {
         const isAResult = isA(s, p);

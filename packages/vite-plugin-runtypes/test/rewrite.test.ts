@@ -63,6 +63,45 @@ getRunTypeId(u);
   );
 
   runTest(
+    'trailing comma: value-first marker call rewrites to syntactically valid JS',
+    {
+      // Formatter-wrapped value-first call with a trailing comma in its OWN
+      // argument list. The injected binding must NOT add a second comma after
+      // the existing one — `f(user, , …)` is a syntax error.
+      'trailing-comma.ts': `import {createValidate} from 'ts-runtypes';
+const user: {id: number; name: string} = {id: 1, name: 'john'};
+export const isUser = createValidate(
+  user,
+);
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const {code: out, sites} = await rewrite('trailing-comma.ts', sources['trailing-comma.ts'], client);
+
+        expect(sites.length).toBe(1);
+        expect(sites[0].trailingComma).toBe(true);
+        // The pre-existing trailing comma must NOT be doubled — no `, ,` and no
+        // empty argument anywhere in the rewritten output.
+        expect(out).not.toMatch(/,\s*,/);
+        // The binding lands at the close-paren position (right after the
+        // existing `user,`), padded so it occupies the id slot (createValidate
+        // is `val?, options?, id?` → one `undefined` placeholder), and the
+        // closing `)` follows immediately. No leading comma is injected because
+        // the source already supplies the separator.
+        const binding = `__rt_${sites[0].fnId}_${sites[0].id}`;
+        expect(out).toContain(`user,\nundefined, ${binding});`);
+        // The injected call's argument list is well-formed: the close-paren
+        // follows the binding with no empty argument before it (the bug emitted
+        // `createValidate(user, , undefined, …)`). Strip the TypeScript type
+        // annotation so the call statement parses as plain JS.
+        const callJs = `const user = {id: 1, name: 'john'};\n${out.split('export const isUser = ')[1]}`;
+        expect(() => new Function('createValidate', `${callJs.replace(binding, 'null')}`)).not.toThrow();
+      });
+    }
+  );
+
+  runTest(
     'F10 static: cache contains User alias with reflection-shape propertySignatures',
     {
       'user.ts': `import {getRunTypeId} from 'ts-runtypes';

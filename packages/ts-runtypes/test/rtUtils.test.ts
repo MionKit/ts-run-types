@@ -1,7 +1,7 @@
 /* ########
- * 2025 mion
+ * 2025 ma-jerez
  * Author: Ma-jerez
- * License: MIT
+ * License: UNLICENSED - proprietary, see LICENSE
  * The software is provided "as is", without warranty of any kind.
  * ######## */
 

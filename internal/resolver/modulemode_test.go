@@ -228,11 +228,12 @@ func TestModuleMode_AllSingle_PureFnBundleAndNamedReplacement(t *testing.T) {
 	dts := strings.Replace(runtypesDTS,
 		"export function createJsonDecoder",
 		"export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};\n"+
-			"  export function registerPureFnFactory(namespace: CompTimeArgs<string>, functionID: CompTimeArgs<string>, factory: PureFunction<(utl: unknown) => unknown> | null): unknown;\n"+
+			"  export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};\n"+
+			"  export function registerPureFnFactory(pureFnId: CompTimeArgs<PureFnId>, factory: PureFunction<(utl: unknown) => unknown> | null): unknown;\n"+
 			"  export function createJsonDecoder",
 		1)
 	source := `import {registerPureFnFactory} from 'ts-runtypes';
-export const _ = registerPureFnFactory('test', 'double', function (utl) {
+export const _ = registerPureFnFactory('test::double', function (utl) {
   return function double(x: number): number { return x * 2; };
 });
 `

@@ -17,7 +17,7 @@ import (
 // whose body is the same `code` string templated in directly. The
 // per-entry module is the canonical runtime home of every pure-fn body —
 // the Vite plugin separately rewrites the user's
-// `registerPureFnFactory(ns, fn, factory)` call so the factory argument
+// `registerPureFnFactory(pureFnId, factory)` call so the factory argument
 // becomes the imported entry binding (see Replacements), and the runtime
 // registers the tuple at that call site.
 //
@@ -48,12 +48,13 @@ func CollectEntries(entries []Entry) entrymod.Graph {
 	return graph
 }
 
-// Replacements builds the wire-shaped byte-range rewrites that swap the third
-// argument of every successfully-extracted `registerPureFnFactory(ns, fn,
-// factory)` call for the pure fn's entry-module import binding. The Vite
-// plugin applies these in `rewrite.ts` (adding the matching import via
-// ImportFrom) so the user's source ends up as
-// `registerPureFnFactory('rt','foo', __rt_pf$2Frt$2Ffoo)` and the runtime
+// Replacements builds the wire-shaped byte-range rewrites that swap the
+// factory (second) argument of every successfully-extracted
+// `registerPureFnFactory(pureFnId, factory)` call for the pure fn's
+// entry-module import binding. The Vite plugin applies these in
+// `rewrite.ts` (adding the matching import via ImportFrom) so the user's
+// source ends up as
+// `registerPureFnFactory('rt::foo', __rt_pf$2Frt$2Ffoo)` and the runtime
 // registers the tuple at the call site — the body itself lives only in the
 // entry module.
 //
