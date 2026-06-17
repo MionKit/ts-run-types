@@ -3,6 +3,11 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/microsoft/typescript-go/shim/ast"
+	"github.com/microsoft/typescript-go/shim/core"
+	"github.com/microsoft/typescript-go/shim/parser"
+	"github.com/microsoft/typescript-go/shim/tspath"
 )
 
 // mergeFriendly parses an existing friendly object body + a desired friendly
@@ -39,7 +44,10 @@ func TestMerge_KeepLeafValues(t *testing.T) {
 }
 
 // TestMerge_AddField: a desired-only field is inserted as a fresh skeleton at
-// the object's end, other fields untouched.
+// the object's end, other fields untouched. The merged body MUST re-parse with
+// zero diagnostics — the existing object's last property has NO trailing comma
+// (a Prettier-collapsed single-line object), so the insert must inject the
+// separator itself (regression for the missing-separator-comma bug A1).
 func TestMerge_AddField(t *testing.T) {
 	existing := "{$label: '', name: {$label: 'Full name'}}"
 	desired := "{$label: '', name: {$label: ''}, isActive: {$label: ''}}"
@@ -49,6 +57,46 @@ func TestMerge_AddField(t *testing.T) {
 	}
 	if !strings.Contains(got, "isActive: {$label: ''}") {
 		t.Errorf("added field 'isActive' missing:\n%s", got)
+	}
+	assertReparses(t, got)
+}
+
+// TestMerge_AddFieldNoTrailingComma: adding a field to an object whose last
+// property has NO trailing comma (Prettier-collapsed single-line) must inject a
+// separator comma so the result re-parses. Without it the merged body reads
+// `name: {…}\n  isActive: {…},` — two properties with no separator → syntax
+// error → the next gen --update fatals at parseMirror. This is the A1 regression.
+func TestMerge_AddFieldNoTrailingComma(t *testing.T) {
+	existing := "{$label: '', name: {$label: 'Full name'}}"
+	desired := "{$label: '', name: {$label: ''}, isActive: {$label: ''}}"
+	got := mergeFriendly(t, existing, desired)
+	assertReparses(t, got)
+	// The separator must be present: between the `name` value's closing `}` and the
+	// added `isActive` there is a comma (possibly preceded by the object's `}` for
+	// the value).
+	if !strings.Contains(got, "isActive: {$label: ''}") {
+		t.Errorf("added field missing:\n%s", got)
+	}
+}
+
+// assertReparses asserts that a merged `const _ = <body>;` wrapper (the
+// mergeFriendly output) re-parses with ZERO diagnostics — the only sound check
+// that the merge produced syntactically-valid bytes. A missing-separator object
+// (`{a: {} b: {}}`) still yields an object-literal NODE via error recovery, so
+// we must inspect Diagnostics, not just node-kind.
+func assertReparses(t *testing.T, wrapped string) {
+	t.Helper()
+	sourceFile := parser.ParseSourceFile(
+		ast.SourceFileParseOptions{FileName: "/reparse.ts", Path: tspath.Path("/reparse.ts")},
+		wrapped,
+		core.ScriptKindTS,
+	)
+	if sourceFile == nil {
+		t.Fatalf("re-parse returned nil source file:\n%s", wrapped)
+	}
+	if diagnostics := sourceFile.Diagnostics(); len(diagnostics) > 0 {
+		t.Errorf("merged body re-parses with %d diagnostic(s) (first: %s):\n%s",
+			len(diagnostics), diagnostics[0].String(), wrapped)
 	}
 }
 
