@@ -15,6 +15,11 @@ import (
 type NamedConst struct {
 	// TypeName is the source type name, e.g. "User".
 	TypeName string
+	// DeclFile is the absolute path of the source file the type is DECLARED in
+	// (followed through re-exports to the original). Empty when it could not be
+	// resolved — callers fall back to the root file. Drives the cross-file mirror
+	// split + import emission (see docs/AI_ENRICHMENT.md → Named-type-driven emission).
+	DeclFile string
 	// FriendlyVar / MockVar are the const identifiers, e.g. "friendlyUser".
 	FriendlyVar string
 	MockVar     string
@@ -30,6 +35,11 @@ type ClosureOptions struct {
 	// Resolve looks up a KindRef sentinel's canonical node by id (cache.NodeByID);
 	// REQUIRED — the closure walk follows refs to detect named-type targets.
 	Resolve func(id string) *protocol.RunType
+	// DeclFiles maps a named type's RunType.ID to the absolute path of its
+	// declaration source file. Optional: when nil (or a type is absent) the
+	// emitted NamedConst's DeclFile is left empty and the caller falls back to the
+	// root file. Built by the bridge from the checker symbol declarations.
+	DeclFiles map[string]string
 }
 
 // emitState tracks a named type through the closure emit: unvisited → inProgress
@@ -48,11 +58,12 @@ const (
 // child rendered as a const-var reference (or a broken-cycle leaf for a back-edge)
 // instead of an inlined body.
 type closureEmitter struct {
-	resolve func(id string) *protocol.RunType
-	state   map[string]emitState // keyed by named type's RunType.ID
-	consts  []NamedConst         // accumulated in topological order
-	names   map[string]string    // ID → sanitized base name (e.g. "User"), unique
-	usedVar map[string]bool      // taken sanitized base names, for disambiguation
+	resolve   func(id string) *protocol.RunType
+	declFiles map[string]string    // ID → absolute declaration source file (optional)
+	state     map[string]emitState // keyed by named type's RunType.ID
+	consts    []NamedConst         // accumulated in topological order
+	names     map[string]string    // ID → sanitized base name (e.g. "User"), unique
+	usedVar   map[string]bool      // taken sanitized base names, for disambiguation
 }
 
 // EmitClosure walks the named-type closure rooted at a NAMED type and emits one
@@ -72,10 +83,11 @@ func EmitClosure(root *protocol.RunType, opts ClosureOptions) []NamedConst {
 		return nil
 	}
 	emitter := &closureEmitter{
-		resolve: opts.Resolve,
-		state:   map[string]emitState{},
-		names:   map[string]string{},
-		usedVar: map[string]bool{},
+		resolve:   opts.Resolve,
+		declFiles: opts.DeclFiles,
+		state:     map[string]emitState{},
+		names:     map[string]string{},
+		usedVar:   map[string]bool{},
 	}
 	// Seed the root's display name so its const uses the caller-supplied TypeName
 	// even if the projected node's TypeName differs (re-export aliases etc.).
@@ -111,6 +123,7 @@ func (emitter *closureEmitter) emitNamed(named *protocol.RunType, displayName st
 	}
 	emitter.consts = append(emitter.consts, NamedConst{
 		TypeName:    displayName,
+		DeclFile:    emitter.declFiles[id],
 		FriendlyVar: "friendly" + baseName,
 		MockVar:     "mock" + baseName,
 		Friendly:    friendlyBody,

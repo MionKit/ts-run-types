@@ -49,9 +49,51 @@ func emitClosure(t *testing.T, relPath, typeName string, sources map[string]stri
 	t.Helper()
 	resolved := resolveRawFixture(t, relPath, typeName, sources)
 	return enrichment.EmitClosure(resolved.Node, enrichment.ClosureOptions{
-		TypeName: typeName,
-		Resolve:  resolved.Resolve,
+		TypeName:  typeName,
+		Resolve:   resolved.Resolve,
+		DeclFiles: resolved.DeclFiles,
 	})
+}
+
+// TestEmitClosure_DeclFileCrossFile: a User in user.ts referencing an Address
+// declared in address.ts stamps each NamedConst.DeclFile with its own
+// declaration source file, so the caller can split the mirror tree cross-file.
+func TestEmitClosure_DeclFileCrossFile(t *testing.T) {
+	closure := emitClosure(t, "user.ts", "User", map[string]string{
+		"address.ts": "export interface Address { street: string }\n",
+		"user.ts": "import type { Address } from './address';\n" +
+			"export interface User { name: string; address: Address }\n",
+	})
+	_, user := findConst(closure, "User")
+	_, addr := findConst(closure, "Address")
+	if user.DeclFile == "" || addr.DeclFile == "" {
+		t.Fatalf("DeclFile not populated: User=%q Address=%q", user.DeclFile, addr.DeclFile)
+	}
+	if !strings.HasSuffix(user.DeclFile, "user.ts") {
+		t.Errorf("User DeclFile = %q, want suffix user.ts", user.DeclFile)
+	}
+	if !strings.HasSuffix(addr.DeclFile, "address.ts") {
+		t.Errorf("Address DeclFile = %q, want suffix address.ts", addr.DeclFile)
+	}
+	if user.DeclFile == addr.DeclFile {
+		t.Errorf("User and Address should have distinct DeclFiles; both = %q", user.DeclFile)
+	}
+}
+
+// TestEmitClosure_DeclFileSameFile: two interfaces in one file share a DeclFile.
+func TestEmitClosure_DeclFileSameFile(t *testing.T) {
+	closure := emitClosure(t, "models.ts", "User", map[string]string{
+		"models.ts": "export interface Address { street: string }\n" +
+			"export interface User { name: string; address: Address }\n",
+	})
+	_, user := findConst(closure, "User")
+	_, addr := findConst(closure, "Address")
+	if user.DeclFile == "" || user.DeclFile != addr.DeclFile {
+		t.Errorf("same-file types should share DeclFile: User=%q Address=%q", user.DeclFile, addr.DeclFile)
+	}
+	if !strings.HasSuffix(user.DeclFile, "models.ts") {
+		t.Errorf("DeclFile = %q, want suffix models.ts", user.DeclFile)
+	}
 }
 
 // findConst returns the NamedConst with the given source TypeName and its index,
