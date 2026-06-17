@@ -90,6 +90,57 @@ func TestSourceDeclaresType(t *testing.T) {
 	}
 }
 
+// TestSourceDeclaresType_ReExports is the A5 regression: a LIVE type made
+// available via a re-export / value binding must NOT be seen as "no longer
+// declared" (which would destructively orphan it). Covers named re-exports
+// (with/without `as`, with/without `from`), value bindings, and the wildcard
+// re-export (UNKNOWN → conservatively KEEP).
+func TestSourceDeclaresType_ReExports(t *testing.T) {
+	keepCases := []struct {
+		name   string
+		src    string
+		typeNm string
+	}{
+		{"named re-export from", "export { Name } from './x';\n", "Name"},
+		{"named re-export local", "import { Name } from './x';\nexport { Name };\n", "Name"},
+		{"aliased re-export exported side", "export { Internal as Name } from './x';\n", "Name"},
+		{"aliased re-export local side", "export { Name as Public } from './x';\n", "Name"},
+		{"type-only re-export", "export type { Name } from './x';\n", "Name"},
+		{"multi-name clause", "export { A, Name, B } from './x';\n", "Name"},
+		{"value const binding", "export const Name = makeIt();\n", "Name"},
+		{"function binding", "export function Name() {}\n", "Name"},
+		{"namespace binding", "export namespace Name {}\n", "Name"},
+		{"wildcard re-export keeps everything", "export * from './barrel';\n", "Whatever"},
+		{"wildcard with namespace alias", "export * as ns from './barrel';\n", "Whatever"},
+	}
+	for _, test := range keepCases {
+		t.Run(test.name, func(t *testing.T) {
+			if !sourceDeclaresType(test.src, test.typeNm) {
+				t.Errorf("sourceDeclaresType(%q, %q) = false, want true (would destructively orphan a live type)", test.src, test.typeNm)
+			}
+		})
+	}
+
+	// Negative: a clause re-exporting OTHER names must not match (no false keep),
+	// and a substring of a re-exported name must not match (word boundary).
+	dropCases := []struct {
+		name   string
+		src    string
+		typeNm string
+	}{
+		{"clause without the name", "export { Other, AlsoOther } from './x';\n", "Name"},
+		{"substring of an exported name", "export { UserProfile } from './x';\n", "User"},
+		{"aliased substring", "export { X as UserProfile } from './x';\n", "User"},
+	}
+	for _, test := range dropCases {
+		t.Run(test.name, func(t *testing.T) {
+			if sourceDeclaresType(test.src, test.typeNm) {
+				t.Errorf("sourceDeclaresType(%q, %q) = true, want false", test.src, test.typeNm)
+			}
+		})
+	}
+}
+
 // TestResolveBreadcrumb verifies the specifier resolves relative to the mirror
 // file's directory, probing .ts then .d.ts.
 func TestResolveBreadcrumb(t *testing.T) {
