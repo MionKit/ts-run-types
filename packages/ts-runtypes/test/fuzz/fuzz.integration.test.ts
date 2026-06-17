@@ -8,6 +8,7 @@
 // `const schema` — never a generic `RunType` parameter (that would inject the
 // `unknown` runtype). Hence the per-target inlining instead of a shared helper.
 
+import * as TF from 'ts-runtypes/formats';
 import {describe, it, expect} from 'vitest';
 import * as RT from 'ts-runtypes/schema';
 import {
@@ -26,7 +27,7 @@ const targets: FuzzTarget[] = [];
 
 // --- target: flat object of primitives ---
 {
-  const schema = RT.object({id: RT.number(), name: RT.string(), active: RT.boolean()});
+  const schema = RT.object({id: TF.number(), name: TF.string(), active: RT.boolean()});
   targets.push({
     title: 'User',
     schema,
@@ -42,7 +43,7 @@ const targets: FuzzTarget[] = [];
 
 // --- target: nested object with an array and a sub-object ---
 {
-  const schema = RT.object({tags: RT.array(RT.string()), meta: RT.object({count: RT.number()})});
+  const schema = RT.object({tags: RT.array(TF.string()), meta: RT.object({count: TF.number()})});
   targets.push({
     title: 'Nested',
     schema,
@@ -58,7 +59,7 @@ const targets: FuzzTarget[] = [];
 
 // --- target: tuple of mixed primitives ---
 {
-  const schema = RT.tuple([RT.string(), RT.number(), RT.boolean()]);
+  const schema = RT.tuple([TF.string(), TF.number(), RT.boolean()]);
   targets.push({
     title: 'Tuple',
     schema,
@@ -74,7 +75,7 @@ const targets: FuzzTarget[] = [];
 
 // --- target: optional + literal discriminant ---
 {
-  const schema = RT.object({kind: RT.literal('a'), value: RT.number(), note: RT.optional(RT.string())});
+  const schema = RT.object({kind: RT.literal('a'), value: TF.number(), note: RT.optional(TF.string())});
   targets.push({
     title: 'OptionalLiteral',
     schema,
@@ -90,7 +91,7 @@ const targets: FuzzTarget[] = [];
 
 // --- target: Date + bigint (round-trip through the serializers) ---
 {
-  const schema = RT.object({created: RT.date(), id: RT.bigint()});
+  const schema = RT.object({created: TF.date(), id: TF.bigInt()});
   targets.push({
     title: 'DateBigint',
     schema,
@@ -106,7 +107,7 @@ const targets: FuzzTarget[] = [];
 
 // --- target: union-typed field (walker must skip it; still corrupts siblings) ---
 {
-  const schema = RT.object({status: RT.union([RT.literal('on'), RT.literal('off')]), n: RT.number()});
+  const schema = RT.object({status: RT.union([RT.literal('on'), RT.literal('off')]), n: TF.number()});
   targets.push({
     title: 'UnionField',
     schema,

@@ -1,13 +1,13 @@
+import type * as TF from 'ts-runtypes/formats';
 import {createValidate} from 'ts-runtypes';
-import type {FormatUUIDv4, FormatEmail, FormatIPv4, FormatPositiveInt} from 'ts-runtypes/formats';
 
 // A format brands a string or number — the validator checks its exact
 // shape, not just "is it a string".
 type Account = {
-  id: FormatUUIDv4;
-  email: FormatEmail;
-  ip: FormatIPv4;
-  logins: FormatPositiveInt;
+  id: TF.UUIDv4;
+  email: TF.Email;
+  ip: TF.IPv4;
+  logins: TF.PositiveInt;
 };
 
 const isAccount = createValidate<Account>();

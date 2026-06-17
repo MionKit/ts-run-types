@@ -10,6 +10,7 @@
 // `createValidate` returns the cached factory for a structural id, so `toBe`
 // (reference identity) is a same-id (convergence) assertion.
 
+import * as TF from 'ts-runtypes/formats';
 import {describe, expect, it} from 'vitest';
 import {createValidate, type Static} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
@@ -17,7 +18,7 @@ import * as RT from 'ts-runtypes/schema';
 type CallableIface = {(a: number, b: boolean): string; extra: string};
 
 describe('value-first callable builder', () => {
-  const schema = RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}));
+  const schema = RT.callable(RT.func([TF.number(), RT.boolean()], TF.string()), RT.object({extra: TF.string()}));
 
   it('converges with the type-first callable interface', () => {
     expect(createValidate(schema)).toBe(createValidate<CallableIface>());

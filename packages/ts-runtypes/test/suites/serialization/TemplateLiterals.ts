@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
@@ -16,10 +17,10 @@ export const TEMPLATE_LITERALS = {
     preserveDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<`api/users/${number}`>(),
     binaryDecoder: () => createBinaryDecoder<`api/users/${number}`>(),
-    schemaEncoder: () => createJsonEncoder(RT.templateLiteral(['api/users/', RT.number()])),
-    schemaDecoder: () => createJsonDecoder(RT.templateLiteral(['api/users/', RT.number()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.templateLiteral(['api/users/', RT.number()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.templateLiteral(['api/users/', RT.number()])),
+    schemaEncoder: () => createJsonEncoder(RT.templateLiteral(['api/users/', TF.number()])),
+    schemaDecoder: () => createJsonDecoder(RT.templateLiteral(['api/users/', TF.number()])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.templateLiteral(['api/users/', TF.number()])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.templateLiteral(['api/users/', TF.number()])),
     getTestData: () => ({
       values: [
         'api/users/0',
@@ -42,12 +43,12 @@ export const TEMPLATE_LITERALS = {
     preserveDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{url: `api/user/${number}`; method: string}>(),
     binaryDecoder: () => createBinaryDecoder<{url: `api/user/${number}`; method: string}>(),
-    schemaEncoder: () => createJsonEncoder(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
-    schemaDecoder: () => createJsonDecoder(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+    schemaEncoder: () => createJsonEncoder(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+      createBinaryEncoder(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+      createBinaryDecoder(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
     getTestData: () => ({
       values: [
         {url: 'api/user/1', method: 'GET'},
@@ -69,10 +70,10 @@ export const TEMPLATE_LITERALS = {
     preserveDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{[key: `api/${string}`]: number}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: `api/${string}`]: number}>(),
-    schemaEncoder: () => createJsonEncoder(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
-    schemaDecoder: () => createJsonDecoder(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
+    schemaEncoder: () => createJsonEncoder(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
+    schemaDecoder: () => createJsonDecoder(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
     getTestData: () => ({values: [{}, {'api/users': 1, 'api/posts': 2}, {'api/v1/users': 7, 'api/admin': 0}]}),
   },
   url_index_key_with_named: {
@@ -96,29 +97,29 @@ export const TEMPLATE_LITERALS = {
     schemaEncoder: () =>
       createJsonEncoder(
         RT.intersection(
-          RT.record(RT.templateLiteral(['api/', RT.string()]), RT.union([RT.string(), RT.number()])),
-          RT.object({meta: RT.string()})
+          RT.record(RT.templateLiteral(['api/', TF.string()]), RT.union([TF.string(), TF.number()])),
+          RT.object({meta: TF.string()})
         )
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.intersection(
-          RT.record(RT.templateLiteral(['api/', RT.string()]), RT.union([RT.string(), RT.number()])),
-          RT.object({meta: RT.string()})
+          RT.record(RT.templateLiteral(['api/', TF.string()]), RT.union([TF.string(), TF.number()])),
+          RT.object({meta: TF.string()})
         )
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.intersection(
-          RT.record(RT.templateLiteral(['api/', RT.string()]), RT.union([RT.string(), RT.number()])),
-          RT.object({meta: RT.string()})
+          RT.record(RT.templateLiteral(['api/', TF.string()]), RT.union([TF.string(), TF.number()])),
+          RT.object({meta: TF.string()})
         )
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.intersection(
-          RT.record(RT.templateLiteral(['api/', RT.string()]), RT.union([RT.string(), RT.number()])),
-          RT.object({meta: RT.string()})
+          RT.record(RT.templateLiteral(['api/', TF.string()]), RT.union([TF.string(), TF.number()])),
+          RT.object({meta: TF.string()})
         )
       ),
     getTestData: () => ({

@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
@@ -16,10 +17,10 @@ export const RECORDS = {
     preserveDecoder: () => createJsonDecoder<{[key: string]: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{[key: string]: string}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: string]: string}>(),
-    schemaEncoder: () => createJsonEncoder(RT.record(RT.string())),
-    schemaDecoder: () => createJsonDecoder(RT.record(RT.string())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(RT.string())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(RT.string())),
+    schemaEncoder: () => createJsonEncoder(RT.record(TF.string())),
+    schemaDecoder: () => createJsonDecoder(RT.record(TF.string())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(TF.string())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(TF.string())),
     getTestData: () => ({values: [{key1: 'value1', key2: 'value2'}, {}]}),
   },
   index_property_and_prop: {
@@ -35,10 +36,10 @@ export const RECORDS = {
     preserveDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; [key: string]: string}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; [key: string]: string}>(),
-    schemaEncoder: () => createJsonEncoder(RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))),
-    schemaDecoder: () => createJsonDecoder(RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))),
+    schemaEncoder: () => createJsonEncoder(RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))),
+    schemaDecoder: () => createJsonDecoder(RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))),
     getTestData: () => ({values: [{a: 'helloA'}, {a: 'helloA', b: 'helloB'}]}),
   },
   index_property_extra: {
@@ -59,19 +60,19 @@ export const RECORDS = {
     binaryDecoder: () => createBinaryDecoder<{a: string; b: number; [key: string]: string | number}>(),
     schemaEncoder: () =>
       createJsonEncoder(
-        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+        RT.intersection(RT.record(RT.union([TF.string(), TF.number()])), RT.object({a: TF.string(), b: TF.number()}))
       ),
     schemaDecoder: () =>
       createJsonDecoder(
-        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+        RT.intersection(RT.record(RT.union([TF.string(), TF.number()])), RT.object({a: TF.string(), b: TF.number()}))
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
-        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+        RT.intersection(RT.record(RT.union([TF.string(), TF.number()])), RT.object({a: TF.string(), b: TF.number()}))
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
-        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+        RT.intersection(RT.record(RT.union([TF.string(), TF.number()])), RT.object({a: TF.string(), b: TF.number()}))
       ),
     getTestData: () => ({values: [{key1: 'value1', key2: 'value2', a: 'extra1', b: 123}]}),
   },
@@ -96,7 +97,7 @@ export const RECORDS = {
     binaryDecoder: () => createBinaryDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
     // No value-first builder can express MULTIPLE heterogeneous index signatures
     // (string + number + symbol keys) in one shape — `RT.record(...)` takes a
-    // single key/value pair, so e.g. `RT.record(RT.string())` types as
+    // single key/value pair, so e.g. `RT.record(TF.string())` types as
     // `Record<string, string>`, which does not match the declared multi-index type.
     schemaEncoder: 'not-supported',
     schemaDecoder: 'not-supported',
@@ -131,10 +132,10 @@ export const RECORDS = {
     preserveDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{[key: string]: {[key: string]: number}}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: string]: {[key: string]: number}}>(),
-    schemaEncoder: () => createJsonEncoder(RT.record(RT.record(RT.number()))),
-    schemaDecoder: () => createJsonDecoder(RT.record(RT.record(RT.number()))),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(RT.record(RT.number()))),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(RT.record(RT.number()))),
+    schemaEncoder: () => createJsonEncoder(RT.record(RT.record(TF.number()))),
+    schemaDecoder: () => createJsonDecoder(RT.record(RT.record(TF.number()))),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(RT.record(TF.number()))),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(RT.record(TF.number()))),
     getTestData: () => ({values: [{key1: {nestedKey1: 1, nestedKey2: 2}}]}),
   },
   index_property_nested_date: {
@@ -150,10 +151,10 @@ export const RECORDS = {
     preserveDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{[key: string]: {[key: string]: Date}}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: string]: {[key: string]: Date}}>(),
-    schemaEncoder: () => createJsonEncoder(RT.record(RT.record(RT.date()))),
-    schemaDecoder: () => createJsonDecoder(RT.record(RT.record(RT.date()))),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(RT.record(RT.date()))),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(RT.record(RT.date()))),
+    schemaEncoder: () => createJsonEncoder(RT.record(RT.record(TF.date()))),
+    schemaDecoder: () => createJsonDecoder(RT.record(RT.record(TF.date()))),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(RT.record(TF.date()))),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(RT.record(TF.date()))),
     getTestData: () => ({
       values: [
         {
@@ -180,10 +181,10 @@ export const RECORDS = {
     preserveDecoder: () => createJsonDecoder<{[key: string]: bigint}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{[key: string]: bigint}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: string]: bigint}>(),
-    schemaEncoder: () => createJsonEncoder(RT.record(RT.bigint())),
-    schemaDecoder: () => createJsonDecoder(RT.record(RT.bigint())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(RT.bigint())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(RT.bigint())),
+    schemaEncoder: () => createJsonEncoder(RT.record(TF.bigInt())),
+    schemaDecoder: () => createJsonDecoder(RT.record(TF.bigInt())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(TF.bigInt())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(TF.bigInt())),
     getTestData: () => ({
       values: [
         {key1: 1n, key2: 2n},
@@ -206,13 +207,13 @@ export const RECORDS = {
     binaryEncoder: () => createBinaryEncoder<{b: string; c: {a: string; [key: string]: string}}>(),
     binaryDecoder: () => createBinaryDecoder<{b: string; c: {a: string; [key: string]: string}}>(),
     schemaEncoder: () =>
-      createJsonEncoder(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
+      createJsonEncoder(RT.object({b: TF.string(), c: RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))})),
     schemaDecoder: () =>
-      createJsonDecoder(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
+      createJsonDecoder(RT.object({b: TF.string(), c: RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))})),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
+      createBinaryEncoder(RT.object({b: TF.string(), c: RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))})),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
+      createBinaryDecoder(RT.object({b: TF.string(), c: RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))})),
     getTestData: () => ({values: [{b: 'hello', c: {a: 'world', c: 'world'}}]}),
   },
 } as const satisfies Record<string, SerializationCase>;

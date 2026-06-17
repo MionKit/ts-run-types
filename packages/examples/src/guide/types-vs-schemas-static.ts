@@ -1,11 +1,12 @@
+import * as TF from 'ts-runtypes/formats';
 import {type Static} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 
 // Build a schema as a value you can pass around, store, or compose.
 const address = RT.object({
-  street: RT.string(),
-  city: RT.string(),
-  zip: RT.string(),
+  street: TF.string(),
+  city: TF.string(),
+  zip: TF.string(),
 });
 
 // Static<typeof schema> hands you the TypeScript type back.

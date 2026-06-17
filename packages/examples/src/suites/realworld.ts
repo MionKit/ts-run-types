@@ -1,3 +1,4 @@
+import type * as TF from 'ts-runtypes/formats';
 import {
   createValidate,
   createGetValidationErrors,
@@ -7,20 +8,19 @@ import {
   createBinaryDecoder,
   createMockType,
 } from 'ts-runtypes';
-import type {FormatUUIDv4, FormatEmail} from 'ts-runtypes/formats';
 
 // One real-world type — the single source of truth every suite + benchmark
 // below is generated from. A handful of formats (uuid, email), a Date, a
 // string-literal union and a nested array, exactly the shape you'd put on a
 // wire in a real app.
 type User = {
-  id: FormatUUIDv4;
+  id: TF.UUIDv4;
   name: string;
-  email: FormatEmail;
+  email: TF.Email;
 };
 
 type Order = {
-  id: FormatUUIDv4;
+  id: TF.UUIDv4;
   customer: User;
   items: {sku: string; qty: number; price: number}[];
   total: number;
@@ -29,11 +29,11 @@ type Order = {
 };
 
 const order: Order = {
-  id: '6f9619ff-8b86-d011-b42d-00cf4fc964ff' as FormatUUIDv4,
+  id: '6f9619ff-8b86-d011-b42d-00cf4fc964ff' as TF.UUIDv4,
   customer: {
-    id: '0d8f2b1c-1e2a-4d3b-9f4c-5a6b7c8d9e0f' as FormatUUIDv4,
+    id: '0d8f2b1c-1e2a-4d3b-9f4c-5a6b7c8d9e0f' as TF.UUIDv4,
     name: 'Ada Lovelace',
-    email: 'ada@example.com' as FormatEmail,
+    email: 'ada@example.com' as TF.Email,
   },
   items: [
     {sku: 'TS-7', qty: 1, price: 42},

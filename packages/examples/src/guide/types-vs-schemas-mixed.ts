@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createValidate} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 
@@ -6,11 +7,11 @@ type Money = {amount: number; currency: 'USD' | 'EUR'};
 
 // A schema that references the plain type via RT.* leaves.
 const invoice = RT.object({
-  id: RT.string(),
+  id: TF.string(),
   lines: RT.array(
     RT.object({
-      sku: RT.string(),
-      total: RT.object({amount: RT.number(), currency: RT.union([RT.literal('USD'), RT.literal('EUR')])}),
+      sku: TF.string(),
+      total: RT.object({amount: TF.number(), currency: RT.union([RT.literal('USD'), RT.literal('EUR')])}),
     })
   ),
 });

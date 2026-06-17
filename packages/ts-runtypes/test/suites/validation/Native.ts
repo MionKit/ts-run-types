@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
@@ -14,7 +15,7 @@ export const NATIVE = {
     ],
     validate: () => createValidate<Map<string, number>>(),
     validateDataOnly: () => createValidate<DataOnly<Map<string, number>>>(),
-    validateSchema: () => createValidate(RT.map(RT.string(), RT.number())),
+    validateSchema: () => createValidate(RT.map(TF.string(), TF.number())),
     deserializeValidate: () => deserializeValidate<Map<string, number>>(),
     validateReflect: () => {
       const v: Map<string, number> = new Map();
@@ -26,7 +27,7 @@ export const NATIVE = {
     },
     getValidationErrors: () => createGetValidationErrors<Map<string, number>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Map<string, number>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.map(RT.string(), RT.number())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.map(TF.string(), TF.number())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Map<string, number>>(),
     getValidationErrorsReflect: () => {
       const v: Map<string, number> = new Map();
@@ -80,7 +81,7 @@ export const NATIVE = {
       'Must be an actual `Set` instance — a plain object, array, or `Map` is rejected; each element is checked against the element type (set path is `{key: safe(item), index}`).',
     validate: () => createValidate<Set<string>>(),
     validateDataOnly: () => createValidate<DataOnly<Set<string>>>(),
-    validateSchema: () => createValidate(RT.set(RT.string())),
+    validateSchema: () => createValidate(RT.set(TF.string())),
     deserializeValidate: () => deserializeValidate<Set<string>>(),
     validateReflect: () => {
       const v: Set<string> = new Set();
@@ -92,7 +93,7 @@ export const NATIVE = {
     },
     getValidationErrors: () => createGetValidationErrors<Set<string>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Set<string>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.set(RT.string())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.set(TF.string())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Set<string>>(),
     getValidationErrorsReflect: () => {
       const v: Set<string> = new Set();
@@ -151,7 +152,7 @@ export const NATIVE = {
     ],
     validate: () => createValidate<Promise<string>>(),
     validateDataOnly: () => createValidate<DataOnly<Promise<string>>>(),
-    validateSchema: () => createValidate(RT.promise(RT.string())),
+    validateSchema: () => createValidate(RT.promise(TF.string())),
     deserializeValidate: () => deserializeValidate<Promise<string>>(),
     validateReflect: () => {
       const v: Promise<string> = Promise.resolve('x');
@@ -163,7 +164,7 @@ export const NATIVE = {
     },
     getValidationErrors: () => createGetValidationErrors<Promise<string>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Promise<string>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.promise(RT.string())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.promise(TF.string())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Promise<string>>(),
     getValidationErrorsReflect: () => {
       const v: Promise<string> = Promise.resolve('x');
@@ -208,7 +209,7 @@ export const NATIVE = {
       '`Awaited<P>` is resolved at the type-checker layer to the resolved value type — `Awaited<Promise<string>>` becomes plain `string`. The validator is identical to the atomic-string emit; a real Promise does NOT satisfy it.',
     validate: () => createValidate<Awaited<Promise<string>>>(),
     validateDataOnly: () => createValidate<DataOnly<Awaited<Promise<string>>>>(),
-    validateSchema: () => createValidate(RT.string()),
+    validateSchema: () => createValidate(TF.string()),
     deserializeValidate: () => deserializeValidate<Awaited<Promise<string>>>(),
     validateReflect: () => {
       const v: Awaited<Promise<string>> = 'hello';
@@ -220,7 +221,7 @@ export const NATIVE = {
     },
     getValidationErrors: () => createGetValidationErrors<Awaited<Promise<string>>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Awaited<Promise<string>>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.string()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TF.string()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Awaited<Promise<string>>>(),
     getValidationErrorsReflect: () => {
       const v: Awaited<Promise<string>> = 'hello';

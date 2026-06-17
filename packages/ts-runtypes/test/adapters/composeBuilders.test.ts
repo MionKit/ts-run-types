@@ -6,38 +6,13 @@
 //
 // Convergence cases deliberately use `boolean` / object-of-boolean / literals —
 // kinds with NO format brand — so the value-first id equals the bare type-first
-// id. (A `string()` builder carries `FormatString<{}>`, which converges with
+// id. (A `TF.string()` builder carries `FormatString<{}>`, which converges with
 // `FormatString<{}>`, not the bare `string`; behaviour is identical either way.)
 
+import * as TF from 'ts-runtypes/formats';
 import {describe, expect, it} from 'vitest';
 import {createValidate, createGetValidationErrors} from 'ts-runtypes';
-import {
-  array,
-  tuple,
-  union,
-  intersection,
-  record,
-  object,
-  string,
-  number,
-  boolean,
-  literal,
-  regexp,
-  circular,
-  func,
-  parameters,
-  templateLiteral,
-  optional,
-  partial,
-  required,
-  pick,
-  omit,
-  exclude,
-  extract,
-  nonNullable,
-  readonly,
-  returnType,
-} from 'ts-runtypes/schema';
+import {array, tuple, union, intersection, record, object, boolean, literal, regexp, circular, func, parameters, templateLiteral, optional, partial, required, pick, omit, exclude, extract, nonNullable, readonly, returnType} from 'ts-runtypes/schema';
 import 'ts-runtypes/formats';
 
 describe('compose builders — array', () => {
@@ -52,7 +27,7 @@ describe('compose builders — array', () => {
   });
 
   it('validates a string-format element array', () => {
-    const isStrArr = createValidate(array(string()));
+    const isStrArr = createValidate(array(TF.string()));
     expect(isStrArr(['a', 'b'])).toBe(true);
     expect(isStrArr([1])).toBe(false);
   });
@@ -60,7 +35,7 @@ describe('compose builders — array', () => {
 
 describe('compose builders — tuple', () => {
   it('validates a fixed [string, number] tuple', () => {
-    const isPair = createValidate(tuple([string(), number()]));
+    const isPair = createValidate(tuple([TF.string(), TF.number()]));
     expect(isPair(['a', 1])).toBe(true);
     expect(isPair(['a', 'b'])).toBe(false);
     expect(isPair(['a'])).toBe(false);
@@ -74,7 +49,7 @@ describe('compose builders — tuple', () => {
 
 describe('compose builders — tuple with rest', () => {
   it('validates [number, ...string[]]', () => {
-    const isRest = createValidate(tuple([number()], string()));
+    const isRest = createValidate(tuple([TF.number()], TF.string()));
     expect(isRest([1])).toBe(true);
     expect(isRest([1, 'a', 'b'])).toBe(true);
     expect(isRest([1, 'a', 2])).toBe(false); // rest element must be string
@@ -99,7 +74,7 @@ describe('compose builders — union', () => {
   });
 
   it('validates a discriminated union of objects', () => {
-    const isShape = createValidate(union([object({kind: literal('a'), n: number()}), object({kind: literal('b'), s: string()})]));
+    const isShape = createValidate(union([object({kind: literal('a'), n: TF.number()}), object({kind: literal('b'), s: TF.string()})]));
     expect(isShape({kind: 'a', n: 1})).toBe(true);
     expect(isShape({kind: 'b', s: 'hi'})).toBe(true);
     expect(isShape({kind: 'a', s: 'hi'})).toBe(false);
@@ -130,7 +105,7 @@ describe('compose builders — record', () => {
 
 describe('compose builders — object (now RunType<T>)', () => {
   it('validates via createValidate and converges with type-first', () => {
-    const isObj = createValidate(object({a: boolean(), b: number()}));
+    const isObj = createValidate(object({a: boolean(), b: TF.number()}));
     expect(isObj({a: true, b: 1})).toBe(true);
     expect(isObj({a: true, b: 'x'})).toBe(false);
     expect(isObj({a: true})).toBe(false);
@@ -188,7 +163,7 @@ describe('compose builders — null member survives composition (Static carrier)
 
 describe('compose builders — circular (recursive self-reference)', () => {
   it('validates a recursive linked-list node', () => {
-    const LNodeSchema = circular((self) => object({value: number(), next: union([self, literal(null)])}));
+    const LNodeSchema = circular((self) => object({value: TF.number(), next: union([self, literal(null)])}));
     const isNode = createValidate(LNodeSchema);
     expect(isNode({value: 1, next: null})).toBe(true);
     expect(isNode({value: 1, next: {value: 2, next: null}})).toBe(true);
@@ -226,9 +201,9 @@ describe('compose builders — parameters (Parameters<F>) + func tuple-overload'
 
   it('keeps a rest param via the func tuple-overload (behavioral — mirrors the wired case)', () => {
     // Head ≠ rest type (number head, string rest) so the rest segment is exercised
-    // distinctly; number()/string() carry a format brand so this asserts behavior,
+    // distinctly; TF.number()/TF.string() carry a format brand so this asserts behavior,
     // not `.toBe`. Same shape the call_signature_params_with_rest case proves.
-    const isRest = createValidate(parameters(func(tuple([number()], string()))));
+    const isRest = createValidate(parameters(func(tuple([TF.number()], TF.string()))));
     expect(isRest([1])).toBe(true); // head only, zero rest
     expect(isRest([1, 'a', 'b'])).toBe(true);
     expect(isRest([1, 'a', 2])).toBe(false); // rest element must be string
@@ -236,7 +211,7 @@ describe('compose builders — parameters (Parameters<F>) + func tuple-overload'
   });
 
   it('validates realistic (branded) params behaviorally — mirrors call_signature_params', () => {
-    const isArgs = createValidate(parameters(func([number(), boolean()], string())));
+    const isArgs = createValidate(parameters(func([TF.number(), boolean()], TF.string())));
     expect(isArgs([1, true])).toBe(true);
     expect(isArgs([1, 'no'])).toBe(false);
     expect(isArgs(['no', true])).toBe(false);
@@ -245,7 +220,7 @@ describe('compose builders — parameters (Parameters<F>) + func tuple-overload'
 
 describe('compose builders — record key (string | number | template-literal)', () => {
   it('validates a template-literal-keyed record and converges', () => {
-    const isApi = createValidate(record(templateLiteral(['api/', string()]), boolean()));
+    const isApi = createValidate(record(templateLiteral(['api/', TF.string()]), boolean()));
     expect(isApi({'api/users': true})).toBe(true);
     expect(isApi({})).toBe(true);
     expect(isApi({'api/users': 1})).toBe(false); // value must be boolean
@@ -259,7 +234,7 @@ describe('utility builders — convergence with type-first', () => {
   // (reference identity ⇒ same structural id) proves `createValidate(partial(model))`
   // lands on the SAME cached factory as the type-first `createValidate<Partial<T>>()`.
   // Brand-free kinds (boolean / literals) so the value-first id equals the BARE
-  // type-first id — a `string()`/`number()`/`date()` builder carries `FormatX<{}>`,
+  // type-first id — a `TF.string()`/`TF.number()`/`date()` builder carries `FormatX<{}>`,
   // which converges with `FormatX<{}>`, not the bare kind (see header).
   it('partial(model) converges with Partial<T>', () => {
     expect(createValidate(partial(object({a: boolean(), b: boolean()})))).toBe(

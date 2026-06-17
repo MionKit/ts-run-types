@@ -22,10 +22,10 @@
 // doesn't flag them. The real check is tsc:
 //   pnpm exec tsc --noEmit -p packages/ts-runtypes/tsconfig.test.json
 
+import * as TF from 'ts-runtypes/formats';
 import {expect, test} from 'vitest';
 import * as RT from 'ts-runtypes/schema';
 import type {Static} from 'ts-runtypes';
-import type {FormatString, FormatNumber} from 'ts-runtypes/formats';
 
 /** Asserts `S` and `T` are mutually assignable (the helper form of cross-assigning
  *  a value of each type to the other). No-arg call compiles iff equivalent. */
@@ -49,11 +49,11 @@ test('Static ⇄ type-first equivalence assertions are referenced (compile-time 
 
 // ── Atomic leaves (no params → plain base type) ──────────────────────
 function atomicLeaves(): void {
-  const str = RT.string();
-  const num = RT.number();
+  const str = TF.string();
+  const num = TF.number();
   const bool = RT.boolean();
-  const big = RT.bigint();
-  const dat = RT.date();
+  const big = TF.bigInt();
+  const dat = TF.date();
   const re = RT.regexp();
   const litS = RT.literal('a');
   const litN = RT.literal(42);
@@ -75,29 +75,29 @@ function atomicLeaves(): void {
 
 // ── Leaves with params (→ branded format type) ───────────────────────
 function brandedLeaves(): void {
-  const str = RT.string({maxLength: 5});
-  const num = RT.number({min: 0, max: 9});
-  assertMutual<Static<typeof str>, FormatString<{maxLength: 5}>>();
-  assertMutual<Static<typeof num>, FormatNumber<{min: 0; max: 9}>>();
+  const str = TF.string({maxLength: 5});
+  const num = TF.number({min: 0, max: 9});
+  assertMutual<Static<typeof str>, TF.String<{maxLength: 5}>>();
+  assertMutual<Static<typeof num>, TF.Number<{min: 0; max: 9}>>();
 }
 
 // ── Composers ────────────────────────────────────────────────────────
 function composers(): void {
-  const arr = RT.array(RT.string());
-  const arrObj = RT.array(RT.object({a: RT.number()}));
-  const tup = RT.tuple([RT.string(), RT.number()]);
-  const tupOpt = RT.tuple([RT.string()], [RT.number()]);
-  const tupRest = RT.tuple([RT.string()], RT.number());
-  const uni = RT.union([RT.string(), RT.number()]);
+  const arr = RT.array(TF.string());
+  const arrObj = RT.array(RT.object({a: TF.number()}));
+  const tup = RT.tuple([TF.string(), TF.number()]);
+  const tupOpt = RT.tuple([TF.string()], [TF.number()]);
+  const tupRest = RT.tuple([TF.string()], TF.number());
+  const uni = RT.union([TF.string(), TF.number()]);
   const uniLit = RT.union([RT.literal('a'), RT.literal('b')]);
-  const inter = RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}));
-  const rec = RT.record(RT.number());
-  const recKV = RT.record(RT.string(), RT.boolean());
-  const mp = RT.map(RT.string(), RT.number());
-  const st = RT.set(RT.string());
-  const prom = RT.promise(RT.string());
-  const fn = RT.func([RT.string(), RT.number()], RT.boolean());
-  const tmpl = RT.templateLiteral(['user/', RT.number()]);
+  const inter = RT.intersection(RT.object({a: TF.string()}), RT.object({b: TF.number()}));
+  const rec = RT.record(TF.number());
+  const recKV = RT.record(TF.string(), RT.boolean());
+  const mp = RT.map(TF.string(), TF.number());
+  const st = RT.set(TF.string());
+  const prom = RT.promise(TF.string());
+  const fn = RT.func([TF.string(), TF.number()], RT.boolean());
+  const tmpl = RT.templateLiteral(['user/', TF.number()]);
   assertMutual<Static<typeof arr>, string[]>();
   assertMutual<Static<typeof arrObj>, {a: number}[]>();
   assertMutual<Static<typeof tup>, [string, number]>();
@@ -118,11 +118,11 @@ function composers(): void {
 // ── object() + property modifiers ────────────────────────────────────
 function objects(): void {
   // The request's headline example.
-  const obj = RT.object({a: RT.string(), b: RT.optional(RT.number())});
-  const nested = RT.object({id: RT.number(), tags: RT.array(RT.string()), meta: RT.object({ok: RT.boolean()})});
+  const obj = RT.object({a: TF.string(), b: RT.optional(TF.number())});
+  const nested = RT.object({id: TF.number(), tags: RT.array(TF.string()), meta: RT.object({ok: RT.boolean()})});
   // readonly modifier (note: TS treats readonly/mutable as mutually assignable, so
   // this asserts the shape, not the readonly bit itself).
-  const ro = RT.object({a: RT.propMod({readonly: true}, RT.string())});
+  const ro = RT.object({a: RT.propMod({readonly: true}, TF.string())});
   assertMutual<Static<typeof obj>, {a: string; b?: number}>();
   assertMutual<Static<typeof nested>, {id: number; tags: string[]; meta: {ok: boolean}}>();
   assertMutual<Static<typeof ro>, {readonly a: string}>();
@@ -130,14 +130,14 @@ function objects(): void {
 
 // ── Utility-type builders ────────────────────────────────────────────
 function utilities(): void {
-  const par = RT.partial(RT.object({a: RT.string(), b: RT.number()}));
-  const req = RT.required(RT.object({a: RT.string(), b: RT.optional(RT.number())}));
-  const pck = RT.pick(RT.object({a: RT.string(), b: RT.number()}), ['a']);
-  const omt = RT.omit(RT.object({a: RT.string(), b: RT.number()}), ['b']);
-  const nn = RT.nonNullable(RT.union([RT.string(), RT.literal(null), RT.literal(undefined)]));
-  const roT = RT.readonlyType(RT.object({a: RT.string()}));
-  const ret = RT.returnType(RT.func([], RT.number()));
-  const params = RT.parameters(RT.func([RT.string(), RT.number()], RT.boolean()));
+  const par = RT.partial(RT.object({a: TF.string(), b: TF.number()}));
+  const req = RT.required(RT.object({a: TF.string(), b: RT.optional(TF.number())}));
+  const pck = RT.pick(RT.object({a: TF.string(), b: TF.number()}), ['a']);
+  const omt = RT.omit(RT.object({a: TF.string(), b: TF.number()}), ['b']);
+  const nn = RT.nonNullable(RT.union([TF.string(), RT.literal(null), RT.literal(undefined)]));
+  const roT = RT.readonlyType(RT.object({a: TF.string()}));
+  const ret = RT.returnType(RT.func([], TF.number()));
+  const params = RT.parameters(RT.func([TF.string(), TF.number()], RT.boolean()));
   assertMutual<Static<typeof par>, {a?: string; b?: number}>();
   assertMutual<Static<typeof req>, {a: string; b: number}>();
   assertMutual<Static<typeof pck>, {a: string}>();

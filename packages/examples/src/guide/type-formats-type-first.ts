@@ -1,13 +1,13 @@
+import type * as TF from 'ts-runtypes/formats';
 import {createValidate} from 'ts-runtypes';
-import type {FormatEmail, FormatUUIDv4, FormatInt32, FormatPositive} from 'ts-runtypes/formats';
 
 // Type-first formats: import a Format* alias and annotate. The constraint
 // lives in the type — the build reads it and validates accordingly.
 type Account = {
-  id: FormatUUIDv4;
-  email: FormatEmail;
-  age: FormatInt32;
-  credits: FormatPositive;
+  id: TF.UUIDv4;
+  email: TF.Email;
+  age: TF.Int32;
+  credits: TF.Positive;
 };
 
 const isAccount = createValidate<Account>();

@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
@@ -13,7 +14,7 @@ export const ARRAY = {
     ],
     validate: () => createValidate<string[]>(),
     validateDataOnly: () => createValidate<DataOnly<string[]>>(),
-    validateSchema: () => createValidate(RT.array(RT.string())),
+    validateSchema: () => createValidate(RT.array(TF.string())),
     deserializeValidate: () => deserializeValidate<string[]>(),
     validateReflect: () => {
       const v: string[] = [];
@@ -25,7 +26,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<string[]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string[]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.string())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(TF.string())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<string[]>(),
     getValidationErrorsReflect: () => {
       const v: string[] = [];
@@ -67,7 +68,7 @@ export const ARRAY = {
       'Each element goes through the atomic `number` check (`Number.isFinite`) — `NaN`, `Infinity`, and `-Infinity` are rejected per-element even though they pass `typeof === "number"`.',
     validate: () => createValidate<number[]>(),
     validateDataOnly: () => createValidate<DataOnly<number[]>>(),
-    validateSchema: () => createValidate(RT.array(RT.number())),
+    validateSchema: () => createValidate(RT.array(TF.number())),
     deserializeValidate: () => deserializeValidate<number[]>(),
     validateReflect: () => {
       const v: number[] = [];
@@ -79,7 +80,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<number[]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<number[]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.number())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(TF.number())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<number[]>(),
     getValidationErrorsReflect: () => {
       const v: number[] = [];
@@ -167,7 +168,7 @@ export const ARRAY = {
       'Plain `number` elements (e.g. `2`, `Infinity`) are rejected — `typeof 2n === "bigint"` but `typeof 2 === "number"`.',
     validate: () => createValidate<bigint[]>(),
     validateDataOnly: () => createValidate<DataOnly<bigint[]>>(),
-    validateSchema: () => createValidate(RT.array(RT.bigint())),
+    validateSchema: () => createValidate(RT.array(TF.bigInt())),
     deserializeValidate: () => deserializeValidate<bigint[]>(),
     validateReflect: () => {
       const v: bigint[] = [];
@@ -179,7 +180,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<bigint[]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<bigint[]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.bigint())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(TF.bigInt())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<bigint[]>(),
     getValidationErrorsReflect: () => {
       const v: bigint[] = [];
@@ -214,7 +215,7 @@ export const ARRAY = {
     validateNotes: 'Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.',
     validate: () => createValidate<Date[]>(),
     validateDataOnly: () => createValidate<DataOnly<Date[]>>(),
-    validateSchema: () => createValidate(RT.array(RT.date())),
+    validateSchema: () => createValidate(RT.array(TF.date())),
     deserializeValidate: () => deserializeValidate<Date[]>(),
     validateReflect: () => {
       const v: Date[] = [];
@@ -226,7 +227,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<Date[]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Date[]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.date())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(TF.date())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Date[]>(),
     getValidationErrorsReflect: () => {
       const v: Date[] = [];
@@ -406,7 +407,7 @@ export const ARRAY = {
       '`Array<string>` and `string[]` are the same type — they collapse to one canonical id and produce an identical validator.',
     validate: () => createValidate<Array<string>>(),
     validateDataOnly: () => createValidate<DataOnly<Array<string>>>(),
-    validateSchema: () => createValidate(RT.array(RT.string())),
+    validateSchema: () => createValidate(RT.array(TF.string())),
     deserializeValidate: () => deserializeValidate<Array<string>>(),
     validateReflect: () => {
       const v: Array<string> = [];
@@ -418,7 +419,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<Array<string>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Array<string>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.string())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(TF.string())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Array<string>>(),
     getValidationErrorsReflect: () => {
       const v: Array<string> = [];
@@ -453,7 +454,7 @@ export const ARRAY = {
       'getValidationErrors does NOT early-exit: every failing element accumulates its own error (e.g. a two-element outer array of non-arrays yields two `expected: "array"` entries).',
     validate: () => createValidate<string[][]>(),
     validateDataOnly: () => createValidate<DataOnly<string[][]>>(),
-    validateSchema: () => createValidate(RT.array(RT.array(RT.string()))),
+    validateSchema: () => createValidate(RT.array(RT.array(TF.string()))),
     deserializeValidate: () => deserializeValidate<string[][]>(),
     validateReflect: () => {
       const v: string[][] = [];
@@ -465,7 +466,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<string[][]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string[][]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.array(RT.string()))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.array(TF.string()))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<string[][]>(),
     getValidationErrorsReflect: () => {
       const v: string[][] = [];
@@ -519,7 +520,7 @@ export const ARRAY = {
     description: 'Depth stress for the dependency-call layer.',
     validate: () => createValidate<string[][][]>(),
     validateDataOnly: () => createValidate<DataOnly<string[][][]>>(),
-    validateSchema: () => createValidate(RT.array(RT.array(RT.array(RT.string())))),
+    validateSchema: () => createValidate(RT.array(RT.array(RT.array(TF.string())))),
     deserializeValidate: () => deserializeValidate<string[][][]>(),
     validateReflect: () => {
       const v: string[][][] = [];
@@ -531,7 +532,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<string[][][]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string[][][]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.array(RT.array(RT.string())))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.array(RT.array(TF.string())))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<string[][][]>(),
     getValidationErrorsReflect: () => {
       const v: string[][][] = [];
@@ -583,7 +584,7 @@ export const ARRAY = {
       const v: string[] = [];
       return deserializeValidate(v, {noIsArrayCheck: true});
     },
-    validateSchema: () => createValidate(RT.array(RT.string()), {noIsArrayCheck: true}),
+    validateSchema: () => createValidate(RT.array(TF.string()), {noIsArrayCheck: true}),
     getValidationErrors: () => createGetValidationErrors<string[]>(undefined, {noIsArrayCheck: true}),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string[]>>(undefined, {noIsArrayCheck: true}),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<string[]>(undefined, {noIsArrayCheck: true}),
@@ -595,7 +596,7 @@ export const ARRAY = {
       const v: string[] = [];
       return deserializeGetValidationErrors(v, {noIsArrayCheck: true});
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.string()), {noIsArrayCheck: true}),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(TF.string()), {noIsArrayCheck: true}),
     mockType: () => createMockType<string[]>(undefined, undefined),
     mockTypeReflect: () => {
       const v: string[] = [];
@@ -622,7 +623,7 @@ export const ARRAY = {
       'Extra keys on the object elements (e.g. `{a: "hello", extraA: "x"}`) still PASS — validate is structural and ignores undeclared keys.',
     validate: () => createValidate<{a: string}[]>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string}[]>>(),
-    validateSchema: () => createValidate(RT.array(RT.object({a: RT.string()}))),
+    validateSchema: () => createValidate(RT.array(RT.object({a: TF.string()}))),
     deserializeValidate: () => deserializeValidate<{a: string}[]>(),
     validateReflect: () => {
       const v: {a: string}[] = [];
@@ -634,7 +635,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<{a: string}[]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string}[]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.object({a: RT.string()}))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.object({a: TF.string()}))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string}[]>(),
     getValidationErrorsReflect: () => {
       const v: {a: string}[] = [];
@@ -672,7 +673,7 @@ export const ARRAY = {
       'Elements may mix `string` and `number` freely. The number arm uses `Number.isFinite`, so `Infinity` / `NaN` fail it; `bigint` matches neither arm — both produce `expected: "union"`.',
     validate: () => createValidate<(string | number)[]>(),
     validateDataOnly: () => createValidate<DataOnly<(string | number)[]>>(),
-    validateSchema: () => createValidate(RT.array(RT.union([RT.string(), RT.number()]))),
+    validateSchema: () => createValidate(RT.array(RT.union([TF.string(), TF.number()]))),
     deserializeValidate: () => deserializeValidate<(string | number)[]>(),
     validateReflect: () => {
       const v: (string | number)[] = [];
@@ -684,7 +685,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<(string | number)[]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<(string | number)[]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.union([RT.string(), RT.number()]))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.union([TF.string(), TF.number()]))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<(string | number)[]>(),
     getValidationErrorsReflect: () => {
       const v: (string | number)[] = [];
@@ -729,7 +730,7 @@ export const ARRAY = {
       'Each element is a fixed-length `[string, number]` tuple: an over-length element (e.g. `["a", 1, "extra"]`) fails the tuple-length check (`expected: "tuple"`), not just an element check.',
     validate: () => createValidate<[string, number][]>(),
     validateDataOnly: () => createValidate<DataOnly<[string, number][]>>(),
-    validateSchema: () => createValidate(RT.array(RT.tuple([RT.string(), RT.number()]))),
+    validateSchema: () => createValidate(RT.array(RT.tuple([TF.string(), TF.number()]))),
     deserializeValidate: () => deserializeValidate<[string, number][]>(),
     validateReflect: () => {
       const v: [string, number][] = [];
@@ -741,7 +742,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<[string, number][]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[string, number][]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.tuple([RT.string(), RT.number()]))),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.tuple([TF.string(), TF.number()]))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[string, number][]>(),
     getValidationErrorsReflect: () => {
       const v: [string, number][] = [];
@@ -893,8 +894,8 @@ export const ARRAY = {
     validateSchema: () => {
       const ot = RT.circular((self) =>
         RT.object({
-          a: RT.string(),
-          deep: RT.optional(RT.object({b: RT.string(), c: RT.number()})),
+          a: TF.string(),
+          deep: RT.optional(RT.object({b: TF.string(), c: TF.number()})),
           d: RT.optional(RT.array(self)),
         })
       );
@@ -925,8 +926,8 @@ export const ARRAY = {
     getValidationErrorsSchema: () => {
       const ot = RT.circular((self) =>
         RT.object({
-          a: RT.string(),
-          deep: RT.optional(RT.object({b: RT.string(), c: RT.number()})),
+          a: TF.string(),
+          deep: RT.optional(RT.object({b: TF.string(), c: TF.number()})),
           d: RT.optional(RT.array(self)),
         })
       );
@@ -1038,7 +1039,7 @@ export const ARRAY = {
       'Readonly modifier has NO runtime impact — the validator is identical to `T[]`. The compiler enforces readonly at write sites; the validator only checks the value shape.',
     validate: () => createValidate<ReadonlyArray<string>>(),
     validateDataOnly: () => createValidate<DataOnly<ReadonlyArray<string>>>(),
-    validateSchema: () => createValidate(RT.array(RT.string())),
+    validateSchema: () => createValidate(RT.array(TF.string())),
     deserializeValidate: () => deserializeValidate<ReadonlyArray<string>>(),
     validateReflect: () => {
       const v: ReadonlyArray<string> = [];
@@ -1050,7 +1051,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrors<ReadonlyArray<string>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<ReadonlyArray<string>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.string())),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(TF.string())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<ReadonlyArray<string>>(),
     getValidationErrorsReflect: () => {
       const v: ReadonlyArray<string> = [];

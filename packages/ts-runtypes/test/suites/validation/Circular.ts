@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
@@ -31,10 +32,10 @@ export const CIRCULAR = {
     validateSchema: () => {
       const cir = RT.circular((self) =>
         RT.object({
-          n: RT.number(),
-          s: RT.string(),
+          n: TF.number(),
+          s: TF.string(),
           c: RT.optional(self),
-          d: RT.optional(RT.date()),
+          d: RT.optional(TF.date()),
         })
       );
       return createValidate(cir);
@@ -89,10 +90,10 @@ export const CIRCULAR = {
     getValidationErrorsSchema: () => {
       const cir = RT.circular((self) =>
         RT.object({
-          n: RT.number(),
-          s: RT.string(),
+          n: TF.number(),
+          s: TF.string(),
           c: RT.optional(self),
-          d: RT.optional(RT.date()),
+          d: RT.optional(TF.date()),
         })
       );
       return createGetValidationErrors(cir);
@@ -184,7 +185,7 @@ export const CIRCULAR = {
     validateNotes:
       'The union check is a boolean delegation that does NOT recurse into per-arm error paths: when a nested-array element fails, getValidationErrors reports a single `expected: "union"` at the outer index, not the deep path of the inner failure.',
     validateSchema: () => {
-      const cu = RT.circular((self) => RT.array(RT.union([self, RT.date(), RT.number(), RT.string()])));
+      const cu = RT.circular((self) => RT.array(RT.union([self, TF.date(), TF.number(), TF.string()])));
       return createValidate(cu);
     },
     validate: () => {
@@ -218,7 +219,7 @@ export const CIRCULAR = {
       return createGetValidationErrors<DataOnly<CuArray>>();
     },
     getValidationErrorsSchema: () => {
-      const cu = RT.circular((self) => RT.array(RT.union([self, RT.date(), RT.number(), RT.string()])));
+      const cu = RT.circular((self) => RT.array(RT.union([self, TF.date(), TF.number(), TF.string()])));
       return createGetValidationErrors(cu);
     },
     deserializeGetValidationErrors: () => {
@@ -297,7 +298,7 @@ export const CIRCULAR = {
       return createValidate<DataOnly<CircularTuple>>();
     },
     validateSchema: () => {
-      const ct = RT.circular((self) => RT.object({tuple: RT.tuple([RT.bigint()], [self])}));
+      const ct = RT.circular((self) => RT.object({tuple: RT.tuple([TF.bigInt()], [self])}));
       return createValidate(ct);
     },
     deserializeValidate: () => {
@@ -333,7 +334,7 @@ export const CIRCULAR = {
       return createGetValidationErrors<DataOnly<CircularTuple>>();
     },
     getValidationErrorsSchema: () => {
-      const ct = RT.circular((self) => RT.object({tuple: RT.tuple([RT.bigint()], [self])}));
+      const ct = RT.circular((self) => RT.object({tuple: RT.tuple([TF.bigInt()], [self])}));
       return createGetValidationErrors(ct);
     },
     deserializeGetValidationErrors: () => {
@@ -695,9 +696,9 @@ export const CIRCULAR = {
       // schema referencing it — no hand-written types at all.
       const icd = RT.circular((self) =>
         RT.object({
-          name: RT.string(),
-          big: RT.bigint(),
-          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+          name: TF.string(),
+          big: TF.bigInt(),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
         })
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
@@ -774,9 +775,9 @@ export const CIRCULAR = {
     getValidationErrorsSchema: () => {
       const icd = RT.circular((self) =>
         RT.object({
-          name: RT.string(),
-          big: RT.bigint(),
-          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+          name: TF.string(),
+          big: TF.bigInt(),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
         })
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
@@ -963,16 +964,16 @@ export const CIRCULAR = {
       // cross-references to an already-declared run-type are plain const refs.
       const icd = RT.circular((self) =>
         RT.object({
-          name: RT.string(),
-          big: RT.bigint(),
-          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+          name: TF.string(),
+          big: TF.bigInt(),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
         })
       );
       const icDate = RT.circular((self) =>
         RT.object({
-          date: RT.date(),
-          month: RT.number(),
-          year: RT.number(),
+          date: TF.date(),
+          month: TF.number(),
+          year: TF.number(),
           embedded: RT.optional(self),
           deep: RT.optional(icd),
         })
@@ -1105,16 +1106,16 @@ export const CIRCULAR = {
     getValidationErrorsSchema: () => {
       const icd = RT.circular((self) =>
         RT.object({
-          name: RT.string(),
-          big: RT.bigint(),
-          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+          name: TF.string(),
+          big: TF.bigInt(),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
         })
       );
       const icDate = RT.circular((self) =>
         RT.object({
-          date: RT.date(),
-          month: RT.number(),
-          year: RT.number(),
+          date: TF.date(),
+          month: TF.number(),
+          year: TF.number(),
           embedded: RT.optional(self),
           deep: RT.optional(icd),
         })
