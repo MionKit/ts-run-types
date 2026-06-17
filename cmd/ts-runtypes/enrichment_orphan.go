@@ -65,14 +65,28 @@ func orphanConsts(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite) []*cons
 }
 
 // orphanConstOp builds the splice that comments out a whole const as an
-// @rtOrphan carcass. The range starts at the marker block (so the marker is
-// preserved inside the carcass, carrying the id for a later restore) or the
-// keyword when there is none, and runs to the statement End (plus a trailing
-// newline). The preserved text keeps the const restorable verbatim.
+// @rtOrphan carcass. The range starts at the const's leading-trivia content (its
+// first non-whitespace byte from fullStart) — so a HAND-AUTHORED leading comment
+// above the marker is folded INTO the carcass and --prune removes it cleanly
+// instead of leaving dangling cruft — and runs to the statement End (plus a
+// trailing newline). The marker + the const + any leading comment are preserved
+// verbatim for a later restore.
 func orphanConstOp(raw []byte, entry *constEntry) spliceOp {
+	// Default to the marker block (preserves the id) or the keyword.
 	start := entry.tokenStart
 	if entry.markerStart != entry.markerEnd {
 		start = entry.markerStart
+	}
+	// Prefer the first non-whitespace byte from fullStart: this folds a
+	// hand-authored leading comment (which sits before the marker) into the
+	// carcass. Never advance PAST the default start (guard against a fullStart that
+	// somehow lands inside the const).
+	if entry.fullStart >= 0 && entry.fullStart < start {
+		cursor := entry.fullStart
+		for cursor < start && isSpaceByte(raw[cursor]) {
+			cursor++
+		}
+		start = cursor
 	}
 	end := entry.end
 	original := strings.TrimRight(string(raw[start:end]), "\n")
