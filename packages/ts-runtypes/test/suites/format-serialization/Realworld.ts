@@ -1,8 +1,8 @@
+import * as TF from 'ts-runtypes/formats';
 import type {SerializationCase} from './types.ts';
 import * as RT from 'ts-runtypes/schema';
 import 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
-import type {FormatEmail, FormatUUIDv4} from 'ts-runtypes/formats';
 
 // Real-world DTOs whose fields carry type-formats, taken to the wire. A format brand
 // (uuid / email) constrains validation only — on the wire it is the plain underlying
@@ -15,68 +15,68 @@ export const REALWORLD = {
   user: {
     title: 'User',
     description:
-      'A DTO whose id is a `FormatUUIDv4` and email a `FormatEmail`, both serialising as their plain underlying string so the round-trip is symmetric on every strategy.',
+      'A DTO whose id is a `TF.UUIDv4` and email a `TF.Email`, both serialising as their plain underlying string so the round-trip is symmetric on every strategy.',
     serializeNotes: 'Format brands are a validation-time constraint only — on the wire they are plain strings.',
     mutateEncoder: () => {
       interface User {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         name: string;
-        email: FormatEmail;
+        email: TF.Email;
       }
       return createJsonEncoder<User>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface User {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         name: string;
-        email: FormatEmail;
+        email: TF.Email;
       }
       return createJsonEncoder<User>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface User {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         name: string;
-        email: FormatEmail;
+        email: TF.Email;
       }
       return createJsonEncoder<User>(undefined, {strategy: 'direct'});
     },
     stripDecoder: () => {
       interface User {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         name: string;
-        email: FormatEmail;
+        email: TF.Email;
       }
       return createJsonDecoder<User>();
     },
     preserveDecoder: () => {
       interface User {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         name: string;
-        email: FormatEmail;
+        email: TF.Email;
       }
       return createJsonDecoder<User>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface User {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         name: string;
-        email: FormatEmail;
+        email: TF.Email;
       }
       return createBinaryEncoder<User>();
     },
     binaryDecoder: () => {
       interface User {
-        id: FormatUUIDv4;
+        id: TF.UUIDv4;
         name: string;
-        email: FormatEmail;
+        email: TF.Email;
       }
       return createBinaryDecoder<User>();
     },
-    schemaEncoder: () => createJsonEncoder(RT.object({id: RT.uuidv4(), name: RT.string(), email: RT.email()})),
-    schemaDecoder: () => createJsonDecoder(RT.object({id: RT.uuidv4(), name: RT.string(), email: RT.email()})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({id: RT.uuidv4(), name: RT.string(), email: RT.email()})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({id: RT.uuidv4(), name: RT.string(), email: RT.email()})),
+    schemaEncoder: () => createJsonEncoder(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
     getTestData: () => ({
       values: [
         {id: '0d8f2b1c-1e2a-4d3b-9f4c-5a6b7c8d9e0f', name: 'Ada Lovelace', email: 'ada@example.com'},
@@ -88,15 +88,15 @@ export const REALWORLD = {
   order: {
     title: 'Order',
     description:
-      'A DTO mixing two formats, a `FormatUUIDv4` id and a `FormatEmail` contact, with a numeric total, a `Date` placedAt and a string-literal status union.',
+      'A DTO mixing two formats, a `TF.UUIDv4` id and a `TF.Email` contact, with a numeric total, a `Date` placedAt and a string-literal status union.',
     serializeNotes: [
       '`placedAt` serialises to an ISO string and restores to a real `Date`.',
       'The uuid / email brands round-trip as plain strings through both JSON and binary.',
     ],
     mutateEncoder: () => {
       interface Order {
-        id: FormatUUIDv4;
-        email: FormatEmail;
+        id: TF.UUIDv4;
+        email: TF.Email;
         total: number;
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
@@ -105,8 +105,8 @@ export const REALWORLD = {
     },
     cloneEncoder: () => {
       interface Order {
-        id: FormatUUIDv4;
-        email: FormatEmail;
+        id: TF.UUIDv4;
+        email: TF.Email;
         total: number;
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
@@ -115,8 +115,8 @@ export const REALWORLD = {
     },
     directEncoder: () => {
       interface Order {
-        id: FormatUUIDv4;
-        email: FormatEmail;
+        id: TF.UUIDv4;
+        email: TF.Email;
         total: number;
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
@@ -125,8 +125,8 @@ export const REALWORLD = {
     },
     stripDecoder: () => {
       interface Order {
-        id: FormatUUIDv4;
-        email: FormatEmail;
+        id: TF.UUIDv4;
+        email: TF.Email;
         total: number;
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
@@ -135,8 +135,8 @@ export const REALWORLD = {
     },
     preserveDecoder: () => {
       interface Order {
-        id: FormatUUIDv4;
-        email: FormatEmail;
+        id: TF.UUIDv4;
+        email: TF.Email;
         total: number;
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
@@ -145,8 +145,8 @@ export const REALWORLD = {
     },
     binaryEncoder: () => {
       interface Order {
-        id: FormatUUIDv4;
-        email: FormatEmail;
+        id: TF.UUIDv4;
+        email: TF.Email;
         total: number;
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
@@ -155,8 +155,8 @@ export const REALWORLD = {
     },
     binaryDecoder: () => {
       interface Order {
-        id: FormatUUIDv4;
-        email: FormatEmail;
+        id: TF.UUIDv4;
+        email: TF.Email;
         total: number;
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
@@ -166,40 +166,40 @@ export const REALWORLD = {
     schemaEncoder: () =>
       createJsonEncoder(
         RT.object({
-          id: RT.uuidv4(),
-          email: RT.email(),
-          total: RT.number(),
-          placedAt: RT.date(),
+          id: TF.uuidv4(),
+          email: TF.email(),
+          total: TF.number(),
+          placedAt: TF.date(),
           status: RT.union([RT.literal('pending'), RT.literal('paid'), RT.literal('shipped'), RT.literal('cancelled')]),
         })
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.object({
-          id: RT.uuidv4(),
-          email: RT.email(),
-          total: RT.number(),
-          placedAt: RT.date(),
+          id: TF.uuidv4(),
+          email: TF.email(),
+          total: TF.number(),
+          placedAt: TF.date(),
           status: RT.union([RT.literal('pending'), RT.literal('paid'), RT.literal('shipped'), RT.literal('cancelled')]),
         })
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.object({
-          id: RT.uuidv4(),
-          email: RT.email(),
-          total: RT.number(),
-          placedAt: RT.date(),
+          id: TF.uuidv4(),
+          email: TF.email(),
+          total: TF.number(),
+          placedAt: TF.date(),
           status: RT.union([RT.literal('pending'), RT.literal('paid'), RT.literal('shipped'), RT.literal('cancelled')]),
         })
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.object({
-          id: RT.uuidv4(),
-          email: RT.email(),
-          total: RT.number(),
-          placedAt: RT.date(),
+          id: TF.uuidv4(),
+          email: TF.email(),
+          total: TF.number(),
+          placedAt: TF.date(),
           status: RT.union([RT.literal('pending'), RT.literal('paid'), RT.literal('shipped'), RT.literal('cancelled')]),
         })
       ),

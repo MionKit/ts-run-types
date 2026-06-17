@@ -7,13 +7,14 @@
 // the written prefix into a larger buffer), so an above-average payload settles
 // in a single copy with no throw and no re-encode-from-scratch.
 
+import * as TF from 'ts-runtypes/formats';
 import {describe, it, expect} from 'vitest';
 import * as RT from 'ts-runtypes/schema';
 import {createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
 
 describe('fuzz / regression — binary encoder grows its buffer on overflow', () => {
   it('encodes an above-average string after the size history converged down', () => {
-    const schema = RT.object({s: RT.string()});
+    const schema = RT.object({s: TF.string()});
     const encode = createBinaryEncoder(schema);
     const decode = createBinaryDecoder(schema);
 
@@ -30,7 +31,7 @@ describe('fuzz / regression — binary encoder grows its buffer on overflow', ()
   });
 
   it('round-trips a bimodal small/large stream (Welford variance + in-place grow)', () => {
-    const schema = RT.object({s: RT.string()});
+    const schema = RT.object({s: TF.string()});
     const encode = createBinaryEncoder(schema);
     const decode = createBinaryDecoder(schema);
 

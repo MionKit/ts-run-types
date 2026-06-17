@@ -9,9 +9,10 @@
 // injects the resolved id there), so each thunk spells out its own factory and
 // the reflect thunks annotate a runtime value with the concrete type.
 
+import * as TF from 'ts-runtypes/formats';
+import * as TFT from 'ts-runtypes/formats/temporal';
 import type {ValidationCase} from './types.ts';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
@@ -28,7 +29,7 @@ export const DATETIME = {
     ],
     validate: () => createValidate<Date>(),
     validateDataOnly: () => createValidate<DataOnly<Date>>(),
-    validateSchema: () => createValidate(RT.date()),
+    validateSchema: () => createValidate(TF.date()),
     deserializeValidate: () => deserializeValidate<Date>(),
     validateReflect: () => {
       const v: Date = new Date();
@@ -40,7 +41,7 @@ export const DATETIME = {
     },
     getValidationErrors: () => createGetValidationErrors<Date>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Date>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.date()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TF.date()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Date>(),
     getValidationErrorsReflect: () => {
       const v: Date = new Date();
@@ -71,7 +72,7 @@ export const DATETIME = {
     validateNotes: 'Must be a Temporal.Instant instance (instanceof).',
     validate: () => createValidate<Temporal.Instant>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.Instant>>(),
-    validateSchema: () => createValidate(RT.temporal.instant()),
+    validateSchema: () => createValidate(TFT.instant()),
     deserializeValidate: () => deserializeValidate<Temporal.Instant>(),
     validateReflect: () => {
       const v: Temporal.Instant = T.Instant.from('2020-01-15T10:30:00Z');
@@ -83,7 +84,7 @@ export const DATETIME = {
     },
     getValidationErrors: () => createGetValidationErrors<Temporal.Instant>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.Instant>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.instant()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TFT.instant()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.Instant>(),
     getValidationErrorsReflect: () => {
       const v: Temporal.Instant = T.Instant.from('2020-01-15T10:30:00Z');
@@ -114,7 +115,7 @@ export const DATETIME = {
     validateNotes: 'Must be a Temporal.ZonedDateTime instance (instanceof).',
     validate: () => createValidate<Temporal.ZonedDateTime>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.ZonedDateTime>>(),
-    validateSchema: () => createValidate(RT.temporal.zonedDateTime()),
+    validateSchema: () => createValidate(TFT.zonedDateTime()),
     deserializeValidate: () => deserializeValidate<Temporal.ZonedDateTime>(),
     validateReflect: () => {
       const v: Temporal.ZonedDateTime = T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]');
@@ -126,7 +127,7 @@ export const DATETIME = {
     },
     getValidationErrors: () => createGetValidationErrors<Temporal.ZonedDateTime>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.ZonedDateTime>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.zonedDateTime()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TFT.zonedDateTime()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.ZonedDateTime>(),
     getValidationErrorsReflect: () => {
       const v: Temporal.ZonedDateTime = T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]');
@@ -157,7 +158,7 @@ export const DATETIME = {
     validateNotes: 'Must be a Temporal.PlainDate instance (instanceof).',
     validate: () => createValidate<Temporal.PlainDate>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.PlainDate>>(),
-    validateSchema: () => createValidate(RT.temporal.plainDate()),
+    validateSchema: () => createValidate(TFT.plainDate()),
     deserializeValidate: () => deserializeValidate<Temporal.PlainDate>(),
     validateReflect: () => {
       const v: Temporal.PlainDate = T.PlainDate.from('2020-08-24');
@@ -169,7 +170,7 @@ export const DATETIME = {
     },
     getValidationErrors: () => createGetValidationErrors<Temporal.PlainDate>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.PlainDate>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainDate()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.PlainDate>(),
     getValidationErrorsReflect: () => {
       const v: Temporal.PlainDate = T.PlainDate.from('2020-08-24');
@@ -200,7 +201,7 @@ export const DATETIME = {
     validateNotes: 'Must be a Temporal.PlainTime instance (instanceof).',
     validate: () => createValidate<Temporal.PlainTime>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.PlainTime>>(),
-    validateSchema: () => createValidate(RT.temporal.plainTime()),
+    validateSchema: () => createValidate(TFT.plainTime()),
     deserializeValidate: () => deserializeValidate<Temporal.PlainTime>(),
     validateReflect: () => {
       const v: Temporal.PlainTime = T.PlainTime.from('19:39:09');
@@ -212,7 +213,7 @@ export const DATETIME = {
     },
     getValidationErrors: () => createGetValidationErrors<Temporal.PlainTime>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.PlainTime>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainTime()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainTime()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.PlainTime>(),
     getValidationErrorsReflect: () => {
       const v: Temporal.PlainTime = T.PlainTime.from('19:39:09');
@@ -243,7 +244,7 @@ export const DATETIME = {
     validateNotes: 'Must be a Temporal.PlainDateTime instance (instanceof).',
     validate: () => createValidate<Temporal.PlainDateTime>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.PlainDateTime>>(),
-    validateSchema: () => createValidate(RT.temporal.plainDateTime()),
+    validateSchema: () => createValidate(TFT.plainDateTime()),
     deserializeValidate: () => deserializeValidate<Temporal.PlainDateTime>(),
     validateReflect: () => {
       const v: Temporal.PlainDateTime = T.PlainDateTime.from('1995-12-07T15:00:00');
@@ -255,7 +256,7 @@ export const DATETIME = {
     },
     getValidationErrors: () => createGetValidationErrors<Temporal.PlainDateTime>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.PlainDateTime>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDateTime()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainDateTime()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.PlainDateTime>(),
     getValidationErrorsReflect: () => {
       const v: Temporal.PlainDateTime = T.PlainDateTime.from('1995-12-07T15:00:00');
@@ -286,7 +287,7 @@ export const DATETIME = {
     validateNotes: 'Must be a Temporal.PlainYearMonth instance (instanceof).',
     validate: () => createValidate<Temporal.PlainYearMonth>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.PlainYearMonth>>(),
-    validateSchema: () => createValidate(RT.temporal.plainYearMonth()),
+    validateSchema: () => createValidate(TFT.plainYearMonth()),
     deserializeValidate: () => deserializeValidate<Temporal.PlainYearMonth>(),
     validateReflect: () => {
       const v: Temporal.PlainYearMonth = T.PlainYearMonth.from('2020-10');
@@ -298,7 +299,7 @@ export const DATETIME = {
     },
     getValidationErrors: () => createGetValidationErrors<Temporal.PlainYearMonth>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.PlainYearMonth>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainYearMonth()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainYearMonth()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.PlainYearMonth>(),
     getValidationErrorsReflect: () => {
       const v: Temporal.PlainYearMonth = T.PlainYearMonth.from('2020-10');
@@ -332,7 +333,7 @@ export const DATETIME = {
     validateNotes: 'Must be a Temporal.PlainMonthDay instance (instanceof).',
     validate: () => createValidate<Temporal.PlainMonthDay>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.PlainMonthDay>>(),
-    validateSchema: () => createValidate(RT.temporal.plainMonthDay()),
+    validateSchema: () => createValidate(TFT.plainMonthDay()),
     deserializeValidate: () => deserializeValidate<Temporal.PlainMonthDay>(),
     validateReflect: () => {
       const v: Temporal.PlainMonthDay = T.PlainMonthDay.from('07-14');
@@ -344,7 +345,7 @@ export const DATETIME = {
     },
     getValidationErrors: () => createGetValidationErrors<Temporal.PlainMonthDay>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.PlainMonthDay>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainMonthDay()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainMonthDay()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.PlainMonthDay>(),
     getValidationErrorsReflect: () => {
       const v: Temporal.PlainMonthDay = T.PlainMonthDay.from('07-14');
@@ -375,7 +376,7 @@ export const DATETIME = {
     validateNotes: 'Must be a Temporal.Duration instance (instanceof).',
     validate: () => createValidate<Temporal.Duration>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.Duration>>(),
-    validateSchema: () => createValidate(RT.temporal.duration()),
+    validateSchema: () => createValidate(TFT.duration()),
     deserializeValidate: () => deserializeValidate<Temporal.Duration>(),
     validateReflect: () => {
       const v: Temporal.Duration = T.Duration.from('P1Y2M10DT2H30M');
@@ -387,7 +388,7 @@ export const DATETIME = {
     },
     getValidationErrors: () => createGetValidationErrors<Temporal.Duration>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Temporal.Duration>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.duration()),
+    getValidationErrorsSchema: () => createGetValidationErrors(TFT.duration()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Temporal.Duration>(),
     getValidationErrorsReflect: () => {
       const v: Temporal.Duration = T.Duration.from('P1Y2M10DT2H30M');

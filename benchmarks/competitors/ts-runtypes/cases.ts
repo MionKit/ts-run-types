@@ -8,49 +8,9 @@
 // propagating position) opt out with NOT_SUPPORTED. This map also drives the
 // runtime ts-go column and typecost's ts-go-type column. TOTAL over every key.
 
+import type * as TF from 'ts-runtypes/formats';
+import type * as TFT from 'ts-runtypes/formats/temporal';
 import {createValidate, createGetValidationErrors, registerFormatPattern} from 'ts-runtypes';
-import type {
-  FormatString,
-  FormatAlpha,
-  FormatAlphaNumeric,
-  FormatNumeric,
-  FormatLowercase,
-  FormatUUIDv4,
-  FormatUUIDv7,
-  FormatStringDate,
-  FormatStringTime,
-  FormatStringDateTime,
-  FormatIP,
-  FormatIPv4,
-  FormatIPv6,
-  FormatIPv4WithPort,
-  FormatIPv6WithPort,
-  FormatDomain,
-  FormatDomainStrict,
-  FormatEmail,
-  FormatEmailPunycode,
-  FormatEmailStrict,
-  FormatUrl,
-  FormatUrlHttp,
-  FormatUrlFile,
-  FormatNumber,
-  FormatInteger,
-  FormatFloat,
-  FormatInt8,
-  FormatUInt8,
-  FormatBigInt,
-  FormatBigInt64,
-  FormatBigUInt64,
-  FormatDate,
-} from 'ts-runtypes/formats';
-import type {
-  FormatTemporalInstant,
-  FormatTemporalPlainDate,
-  FormatTemporalPlainTime,
-  FormatTemporalPlainDateTime,
-  FormatTemporalPlainYearMonth,
-  FormatTemporalZonedDateTime,
-} from 'ts-runtypes/formats/temporal';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
 
 // Custom string-format patterns the STRING_FORMAT.pattern_* cases reference —
@@ -62,10 +22,10 @@ const slug = registerFormatPattern({
   mockSamples: ['my-slug', 'abc', 'a-b-c'],
   message: 'must be a slug',
 });
-type Slug = FormatString<{pattern: typeof slug}>;
+type Slug = TF.String<{pattern: typeof slug}>;
 
 const hex = registerFormatPattern({source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef', '0042']});
-type Hex = FormatString<{pattern: typeof hex}>;
+type Hex = TF.String<{pattern: typeof hex}>;
 
 export const cases: CompetitorCases = {
   // ── ATOMIC ──
@@ -1803,224 +1763,224 @@ export const cases: CompetitorCases = {
 
   // ── STRING_FORMAT ──
   'STRING_FORMAT.string_maxLength': {
-    build: () => createValidate<FormatString<{maxLength: 5}>>(),
+    build: () => createValidate<TF.String<{maxLength: 5}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{maxLength: 5}>>();
+      const getErrors = createGetValidationErrors<TF.String<{maxLength: 5}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_minLength': {
-    build: () => createValidate<FormatString<{minLength: 3}>>(),
+    build: () => createValidate<TF.String<{minLength: 3}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{minLength: 3}>>();
+      const getErrors = createGetValidationErrors<TF.String<{minLength: 3}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_length': {
-    build: () => createValidate<FormatString<{length: 4}>>(),
+    build: () => createValidate<TF.String<{length: 4}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{length: 4}>>();
+      const getErrors = createGetValidationErrors<TF.String<{length: 4}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_range': {
-    build: () => createValidate<FormatString<{minLength: 2; maxLength: 4}>>(),
+    build: () => createValidate<TF.String<{minLength: 2; maxLength: 4}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{minLength: 2; maxLength: 4}>>();
+      const getErrors = createGetValidationErrors<TF.String<{minLength: 2; maxLength: 4}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedChars': {
-    build: () => createValidate<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
+    build: () => createValidate<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>();
+      const getErrors = createGetValidationErrors<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedChars_ignoreCase': {
-    build: () => createValidate<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
+    build: () => createValidate<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>();
+      const getErrors = createGetValidationErrors<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedChars_literal': {
-    build: () => createValidate<FormatString<{allowedChars: {val: '.-'}}>>(),
+    build: () => createValidate<TF.String<{allowedChars: {val: '.-'}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{allowedChars: {val: '.-'}}>>();
+      const getErrors = createGetValidationErrors<TF.String<{allowedChars: {val: '.-'}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_disallowedChars': {
-    build: () => createValidate<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
+    build: () => createValidate<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>();
+      const getErrors = createGetValidationErrors<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedValues': {
-    build: () => createValidate<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
+    build: () => createValidate<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>();
+      const getErrors = createGetValidationErrors<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedValues_ignoreCase': {
-    build: () => createValidate<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+    build: () => createValidate<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>();
+      const getErrors = createGetValidationErrors<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedValues_escaped': {
-    build: () => createValidate<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
+    build: () => createValidate<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>();
+      const getErrors = createGetValidationErrors<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_disallowedValues': {
-    build: () => createValidate<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
+    build: () => createValidate<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>();
+        createGetValidationErrors<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_customErrorMessage': {
-    build: () => createValidate<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
+    build: () => createValidate<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>();
+        createGetValidationErrors<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.alpha': {
-    build: () => createValidate<FormatAlpha>(),
+    build: () => createValidate<TF.Alpha>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatAlpha>();
+      const getErrors = createGetValidationErrors<TF.Alpha>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.alphaNumeric': {
-    build: () => createValidate<FormatAlphaNumeric>(),
+    build: () => createValidate<TF.AlphaNumeric>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatAlphaNumeric>();
+      const getErrors = createGetValidationErrors<TF.AlphaNumeric>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.numeric': {
-    build: () => createValidate<FormatNumeric>(),
+    build: () => createValidate<TF.Numeric>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatNumeric>();
+      const getErrors = createGetValidationErrors<TF.Numeric>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.alpha_withLength': {
-    build: () => createValidate<FormatAlpha<{maxLength: 3}>>(),
+    build: () => createValidate<TF.Alpha<{maxLength: 3}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatAlpha<{maxLength: 3}>>();
+      const getErrors = createGetValidationErrors<TF.Alpha<{maxLength: 3}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.lowercase_validate': {
-    build: () => createValidate<FormatLowercase>(),
+    build: () => createValidate<TF.Lowercase>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatLowercase>();
+      const getErrors = createGetValidationErrors<TF.Lowercase>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.uuidv4': {
-    build: () => createValidate<FormatUUIDv4>(),
+    build: () => createValidate<TF.UUIDv4>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatUUIDv4>();
+      const getErrors = createGetValidationErrors<TF.UUIDv4>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.uuidv7': {
-    build: () => createValidate<FormatUUIDv7>(),
+    build: () => createValidate<TF.UUIDv7>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatUUIDv7>();
+      const getErrors = createGetValidationErrors<TF.UUIDv7>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.date_iso': {
-    build: () => createValidate<FormatStringDate>(),
+    build: () => createValidate<TF.StringDate>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatStringDate>();
+      const getErrors = createGetValidationErrors<TF.StringDate>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.date_DMY': {
-    build: () => createValidate<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
+    build: () => createValidate<TF.StringDate<{format: 'DD-MM-YYYY'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatStringDate<{format: 'DD-MM-YYYY'}>>();
+      const getErrors = createGetValidationErrors<TF.StringDate<{format: 'DD-MM-YYYY'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.date_YM': {
-    build: () => createValidate<FormatStringDate<{format: 'YYYY-MM'}>>(),
+    build: () => createValidate<TF.StringDate<{format: 'YYYY-MM'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatStringDate<{format: 'YYYY-MM'}>>();
+      const getErrors = createGetValidationErrors<TF.StringDate<{format: 'YYYY-MM'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.date_MD': {
-    build: () => createValidate<FormatStringDate<{format: 'MM-DD'}>>(),
+    build: () => createValidate<TF.StringDate<{format: 'MM-DD'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatStringDate<{format: 'MM-DD'}>>();
+      const getErrors = createGetValidationErrors<TF.StringDate<{format: 'MM-DD'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.date_minMax_absolute': {
-    build: () => createValidate<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+    build: () => createValidate<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
+        createGetValidationErrors<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.time_iso': {
-    build: () => createValidate<FormatStringTime>(),
+    build: () => createValidate<TF.StringTime>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatStringTime>();
+      const getErrors = createGetValidationErrors<TF.StringTime>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.time_HHmmss': {
-    build: () => createValidate<FormatStringTime<{format: 'HH:mm:ss'}>>(),
+    build: () => createValidate<TF.StringTime<{format: 'HH:mm:ss'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatStringTime<{format: 'HH:mm:ss'}>>();
+      const getErrors = createGetValidationErrors<TF.StringTime<{format: 'HH:mm:ss'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.time_HHmmss_ms': {
-    build: () => createValidate<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
+    build: () => createValidate<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>();
+      const getErrors = createGetValidationErrors<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.time_minMax_absolute': {
-    build: () => createValidate<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
+    build: () => createValidate<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>();
+      const getErrors = createGetValidationErrors<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.dateTime_default': {
-    build: () => createValidate<FormatStringDateTime>(),
+    build: () => createValidate<TF.StringDateTime>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatStringDateTime>();
+      const getErrors = createGetValidationErrors<TF.StringDateTime>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.dateTime_custom': {
-    build: () => createValidate<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+    build: () => createValidate<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     buildErrors: () => {
       const getErrors =
         createGetValidationErrors<
-          FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>
+          TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>
         >();
       return (value: unknown) => getErrors(value).length === 0;
     },
@@ -2028,7 +1988,7 @@ export const cases: CompetitorCases = {
   'STRING_FORMAT.dateTime_minMax_absolute': {
     build: () =>
       createValidate<
-        FormatStringDateTime<{
+        TF.StringDateTime<{
           date: {format: 'YYYY-MM-DD'};
           time: {format: 'HH:mm:ss'};
           splitChar: 'T';
@@ -2038,7 +1998,7 @@ export const cases: CompetitorCases = {
       >(),
     buildErrors: () => {
       const getErrors = createGetValidationErrors<
-        FormatStringDateTime<{
+        TF.StringDateTime<{
           date: {format: 'YYYY-MM-DD'};
           time: {format: 'HH:mm:ss'};
           splitChar: 'T';
@@ -2050,93 +2010,93 @@ export const cases: CompetitorCases = {
     },
   },
   'STRING_FORMAT.ipv4': {
-    build: () => createValidate<FormatIPv4>(),
+    build: () => createValidate<TF.IPv4>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatIPv4>();
+      const getErrors = createGetValidationErrors<TF.IPv4>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.ipv6': {
-    build: () => createValidate<FormatIPv6>(),
+    build: () => createValidate<TF.IPv6>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatIPv6>();
+      const getErrors = createGetValidationErrors<TF.IPv6>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.ip_any': {
-    build: () => createValidate<FormatIP>(),
+    build: () => createValidate<TF.IP>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatIP>();
+      const getErrors = createGetValidationErrors<TF.IP>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.ipv4_port': {
-    build: () => createValidate<FormatIPv4WithPort>(),
+    build: () => createValidate<TF.IPv4WithPort>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatIPv4WithPort>();
+      const getErrors = createGetValidationErrors<TF.IPv4WithPort>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.ipv6_port': {
-    build: () => createValidate<FormatIPv6WithPort>(),
+    build: () => createValidate<TF.IPv6WithPort>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatIPv6WithPort>();
+      const getErrors = createGetValidationErrors<TF.IPv6WithPort>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.domain': {
-    build: () => createValidate<FormatDomain>(),
+    build: () => createValidate<TF.Domain>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatDomain>();
+      const getErrors = createGetValidationErrors<TF.Domain>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.domainStrict': {
-    build: () => createValidate<FormatDomainStrict>(),
+    build: () => createValidate<TF.DomainStrict>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatDomainStrict>();
+      const getErrors = createGetValidationErrors<TF.DomainStrict>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.email': {
-    build: () => createValidate<FormatEmail>(),
+    build: () => createValidate<TF.Email>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatEmail>();
+      const getErrors = createGetValidationErrors<TF.Email>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.emailPunycode': {
-    build: () => createValidate<FormatEmailPunycode>(),
+    build: () => createValidate<TF.EmailPunycode>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatEmailPunycode>();
+      const getErrors = createGetValidationErrors<TF.EmailPunycode>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.emailStrict': {
-    build: () => createValidate<FormatEmailStrict>(),
+    build: () => createValidate<TF.EmailStrict>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatEmailStrict>();
+      const getErrors = createGetValidationErrors<TF.EmailStrict>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.url': {
-    build: () => createValidate<FormatUrl>(),
+    build: () => createValidate<TF.Url>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatUrl>();
+      const getErrors = createGetValidationErrors<TF.Url>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.urlHttp': {
-    build: () => createValidate<FormatUrlHttp>(),
+    build: () => createValidate<TF.UrlHttp>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatUrlHttp>();
+      const getErrors = createGetValidationErrors<TF.UrlHttp>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.urlFile': {
-    build: () => createValidate<FormatUrlFile>(),
+    build: () => createValidate<TF.UrlFile>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatUrlFile>();
+      const getErrors = createGetValidationErrors<TF.UrlFile>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -2157,367 +2117,367 @@ export const cases: CompetitorCases = {
 
   // ── NUMBER_FORMAT ──
   'NUMBER_FORMAT.number_max': {
-    build: () => createValidate<FormatNumber<{max: 100}>>(),
+    build: () => createValidate<TF.Number<{max: 100}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatNumber<{max: 100}>>();
+      const getErrors = createGetValidationErrors<TF.Number<{max: 100}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_min': {
-    build: () => createValidate<FormatNumber<{min: 0}>>(),
+    build: () => createValidate<TF.Number<{min: 0}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatNumber<{min: 0}>>();
+      const getErrors = createGetValidationErrors<TF.Number<{min: 0}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_lt': {
-    build: () => createValidate<FormatNumber<{lt: 10}>>(),
+    build: () => createValidate<TF.Number<{lt: 10}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatNumber<{lt: 10}>>();
+      const getErrors = createGetValidationErrors<TF.Number<{lt: 10}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_gt': {
-    build: () => createValidate<FormatNumber<{gt: 0}>>(),
+    build: () => createValidate<TF.Number<{gt: 0}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatNumber<{gt: 0}>>();
+      const getErrors = createGetValidationErrors<TF.Number<{gt: 0}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_integer': {
-    build: () => createValidate<FormatInteger>(),
+    build: () => createValidate<TF.Integer>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatInteger>();
+      const getErrors = createGetValidationErrors<TF.Integer>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_float': {
-    build: () => createValidate<FormatFloat>(),
+    build: () => createValidate<TF.Float>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatFloat>();
+      const getErrors = createGetValidationErrors<TF.Float>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_multipleOf': {
-    build: () => createValidate<FormatNumber<{multipleOf: 5}>>(),
+    build: () => createValidate<TF.Number<{multipleOf: 5}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatNumber<{multipleOf: 5}>>();
+      const getErrors = createGetValidationErrors<TF.Number<{multipleOf: 5}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_combined': {
-    build: () => createValidate<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+    build: () => createValidate<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>();
+      const getErrors = createGetValidationErrors<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_int8': {
-    build: () => createValidate<FormatInt8>(),
+    build: () => createValidate<TF.Int8>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatInt8>();
+      const getErrors = createGetValidationErrors<TF.Int8>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_uint8': {
-    build: () => createValidate<FormatUInt8>(),
+    build: () => createValidate<TF.UInt8>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatUInt8>();
+      const getErrors = createGetValidationErrors<TF.UInt8>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── BIGINT_FORMAT ──
   'BIGINT_FORMAT.bigint_max': {
-    build: () => createValidate<FormatBigInt<{max: 100n}>>(),
+    build: () => createValidate<TF.BigInt<{max: 100n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatBigInt<{max: 100n}>>();
+      const getErrors = createGetValidationErrors<TF.BigInt<{max: 100n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_min': {
-    build: () => createValidate<FormatBigInt<{min: 0n}>>(),
+    build: () => createValidate<TF.BigInt<{min: 0n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatBigInt<{min: 0n}>>();
+      const getErrors = createGetValidationErrors<TF.BigInt<{min: 0n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_lt': {
-    build: () => createValidate<FormatBigInt<{lt: 10n}>>(),
+    build: () => createValidate<TF.BigInt<{lt: 10n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatBigInt<{lt: 10n}>>();
+      const getErrors = createGetValidationErrors<TF.BigInt<{lt: 10n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_gt': {
-    build: () => createValidate<FormatBigInt<{gt: 0n}>>(),
+    build: () => createValidate<TF.BigInt<{gt: 0n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatBigInt<{gt: 0n}>>();
+      const getErrors = createGetValidationErrors<TF.BigInt<{gt: 0n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_multipleOf': {
-    build: () => createValidate<FormatBigInt<{multipleOf: 5n}>>(),
+    build: () => createValidate<TF.BigInt<{multipleOf: 5n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatBigInt<{multipleOf: 5n}>>();
+      const getErrors = createGetValidationErrors<TF.BigInt<{multipleOf: 5n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_combined': {
-    build: () => createValidate<FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
+    build: () => createValidate<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>();
+      const getErrors = createGetValidationErrors<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_int64': {
-    build: () => createValidate<FormatBigInt64>(),
+    build: () => createValidate<TF.BigInt64>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatBigInt64>();
+      const getErrors = createGetValidationErrors<TF.BigInt64>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_uint64': {
-    build: () => createValidate<FormatBigUInt64>(),
+    build: () => createValidate<TF.BigUInt64>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatBigUInt64>();
+      const getErrors = createGetValidationErrors<TF.BigUInt64>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── DATETIME ──
   'DATETIME.date_minmax': {
-    build: () => createValidate<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    build: () => createValidate<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+      const getErrors = createGetValidationErrors<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.date_gtlt': {
-    build: () => createValidate<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    build: () => createValidate<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
+      const getErrors = createGetValidationErrors<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.date_min_lt': {
-    build: () => createValidate<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    build: () => createValidate<TF.Date<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatDate<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
+      const getErrors = createGetValidationErrors<TF.Date<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.date_max_now': {
-    build: () => createValidate<FormatDate<{max: 'now'}>>(),
+    build: () => createValidate<TF.Date<{max: 'now'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatDate<{max: 'now'}>>();
+      const getErrors = createGetValidationErrors<TF.Date<{max: 'now'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.date_rel_window': {
-    build: () => createValidate<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    build: () => createValidate<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
+      const getErrors = createGetValidationErrors<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.date_rel_datetime_components': {
-    build: () => createValidate<FormatDate<{min: 'now-P1000YT12H'}>>(),
+    build: () => createValidate<TF.Date<{min: 'now-P1000YT12H'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatDate<{min: 'now-P1000YT12H'}>>();
+      const getErrors = createGetValidationErrors<TF.Date<{min: 'now-P1000YT12H'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.instant_minmax': {
-    build: () => createValidate<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
+    build: () => createValidate<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
+        createGetValidationErrors<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.instant_gtlt': {
-    build: () => createValidate<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
+    build: () => createValidate<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>();
+        createGetValidationErrors<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.instant_rel': {
-    build: () => createValidate<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
+    build: () => createValidate<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>();
+      const getErrors = createGetValidationErrors<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_minmax': {
-    build: () => createValidate<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
+    build: () => createValidate<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_gtlt': {
-    build: () => createValidate<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
+    build: () => createValidate<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_min_lt': {
-    build: () => createValidate<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
+    build: () => createValidate<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_gt_max': {
-    build: () => createValidate<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
+    build: () => createValidate<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_min_only': {
-    build: () => createValidate<FormatTemporalPlainDate<{min: '2020-01-01'}>>(),
+    build: () => createValidate<TFT.PlainDate<{min: '2020-01-01'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: '2020-01-01'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_max_only': {
-    build: () => createValidate<FormatTemporalPlainDate<{max: '2020-12-31'}>>(),
+    build: () => createValidate<TFT.PlainDate<{max: '2020-12-31'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{max: '2020-12-31'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{max: '2020-12-31'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_gt_only': {
-    build: () => createValidate<FormatTemporalPlainDate<{gt: '2020-01-01'}>>(),
+    build: () => createValidate<TFT.PlainDate<{gt: '2020-01-01'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{gt: '2020-01-01'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_lt_only': {
-    build: () => createValidate<FormatTemporalPlainDate<{lt: '2020-12-31'}>>(),
+    build: () => createValidate<TFT.PlainDate<{lt: '2020-12-31'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{lt: '2020-12-31'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{lt: '2020-12-31'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_rel_window': {
-    build: () => createValidate<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    build: () => createValidate<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_rel_ymd': {
-    build: () => createValidate<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>(),
+    build: () => createValidate<TFT.PlainDate<{min: 'now-P100Y6M15D'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{min: 'now-P100Y6M15D'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: 'now-P100Y6M15D'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_rel_weeks': {
-    build: () => createValidate<FormatTemporalPlainDate<{min: 'now-P52200W'}>>(),
+    build: () => createValidate<TFT.PlainDate<{min: 'now-P52200W'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{min: 'now-P52200W'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: 'now-P52200W'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainTime_minmax': {
-    build: () => createValidate<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
+    build: () => createValidate<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainTime_gtlt': {
-    build: () => createValidate<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
+    build: () => createValidate<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDateTime_minmax': {
-    build: () => createValidate<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    build: () => createValidate<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+        createGetValidationErrors<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDateTime_gtlt': {
-    build: () => createValidate<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    build: () => createValidate<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<FormatTemporalPlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
+        createGetValidationErrors<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDateTime_rel': {
-    build: () => createValidate<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    build: () => createValidate<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDateTime_rel_combo': {
-    build: () => createValidate<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>(),
+    build: () => createValidate<TFT.PlainDateTime<{min: 'now-P500YT12H'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainDateTime<{min: 'now-P500YT12H'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainDateTime<{min: 'now-P500YT12H'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainYearMonth_minmax': {
-    build: () => createValidate<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
+    build: () => createValidate<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainYearMonth_gtlt': {
-    build: () => createValidate<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
+    build: () => createValidate<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainYearMonth_rel': {
-    build: () => createValidate<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    build: () => createValidate<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
+      const getErrors = createGetValidationErrors<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.zonedDateTime_minmax': {
     build: () =>
-      createValidate<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+      createValidate<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     buildErrors: () => {
       const getErrors =
         createGetValidationErrors<
-          FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>
+          TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>
         >();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.zonedDateTime_gtlt': {
-    build: () => createValidate<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
+    build: () => createValidate<TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
     buildErrors: () => {
       const getErrors =
         createGetValidationErrors<
-          FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>
+          TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>
         >();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.zonedDateTime_rel': {
-    build: () => createValidate<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    build: () => createValidate<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<FormatTemporalZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
+      const getErrors = createGetValidationErrors<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },

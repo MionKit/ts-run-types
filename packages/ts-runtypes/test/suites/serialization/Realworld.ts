@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
@@ -78,20 +79,20 @@ interface RegistrationForm {
 
 const userSchema = () =>
   RT.object({
-    id: RT.number(),
-    email: RT.string(),
-    name: RT.string(),
-    age: RT.optional(RT.number()),
+    id: TF.number(),
+    email: TF.string(),
+    name: TF.string(),
+    age: RT.optional(TF.number()),
     roles: RT.array(RT.union([RT.literal('admin'), RT.literal('editor'), RT.literal('user')])),
     active: RT.boolean(),
-    createdAt: RT.string(),
+    createdAt: TF.string(),
   });
 const orderSchema = () =>
   RT.object({
-    id: RT.string(),
-    customer: RT.object({id: RT.number(), email: RT.string()}),
-    items: RT.array(RT.object({sku: RT.string(), name: RT.string(), qty: RT.number(), price: RT.number()})),
-    shipping: RT.object({street: RT.string(), city: RT.string(), state: RT.string(), zip: RT.string(), country: RT.string()}),
+    id: TF.string(),
+    customer: RT.object({id: TF.number(), email: TF.string()}),
+    items: RT.array(RT.object({sku: TF.string(), name: TF.string(), qty: TF.number(), price: TF.number()})),
+    shipping: RT.object({street: TF.string(), city: TF.string(), state: TF.string(), zip: TF.string(), country: TF.string()}),
     status: RT.union([
       RT.literal('pending'),
       RT.literal('paid'),
@@ -99,46 +100,46 @@ const orderSchema = () =>
       RT.literal('delivered'),
       RT.literal('cancelled'),
     ]),
-    total: RT.number(),
-    note: RT.optional(RT.string()),
+    total: TF.number(),
+    note: RT.optional(TF.string()),
   });
 const productModel = () =>
   RT.object({
-    id: RT.string(),
-    name: RT.string(),
-    description: RT.string(),
-    price: RT.number(),
+    id: TF.string(),
+    name: TF.string(),
+    description: TF.string(),
+    price: TF.number(),
     currency: RT.union([RT.literal('USD'), RT.literal('EUR'), RT.literal('GBP')]),
     inStock: RT.boolean(),
-    categories: RT.array(RT.string()),
-    dimensions: RT.optional(RT.object({width: RT.number(), height: RT.number(), depth: RT.number()})),
+    categories: RT.array(TF.string()),
+    dimensions: RT.optional(RT.object({width: TF.number(), height: TF.number(), depth: TF.number()})),
   });
 const blogPostSchema = () =>
   RT.object({
-    id: RT.number(),
-    title: RT.string(),
-    slug: RT.string(),
-    body: RT.string(),
-    tags: RT.array(RT.string()),
-    author: RT.object({name: RT.string(), email: RT.string()}),
+    id: TF.number(),
+    title: TF.string(),
+    slug: TF.string(),
+    body: TF.string(),
+    tags: RT.array(TF.string()),
+    author: RT.object({name: TF.string(), email: TF.string()}),
     published: RT.boolean(),
-    publishedAt: RT.optional(RT.string()),
-    meta: RT.object({views: RT.number(), likes: RT.number()}),
+    publishedAt: RT.optional(TF.string()),
+    meta: RT.object({views: TF.number(), likes: TF.number()}),
   });
 const productPageSchema = () =>
   RT.object({
     data: RT.array(productModel()),
-    page: RT.number(),
-    pageSize: RT.number(),
-    total: RT.number(),
+    page: TF.number(),
+    pageSize: TF.number(),
+    total: TF.number(),
     hasMore: RT.boolean(),
   });
 const registrationFormSchema = () =>
   RT.object({
-    email: RT.string(),
-    password: RT.string(),
+    email: TF.string(),
+    password: TF.string(),
     acceptedTerms: RT.literal(true),
-    profile: RT.object({firstName: RT.string(), lastName: RT.string(), age: RT.optional(RT.number())}),
+    profile: RT.object({firstName: TF.string(), lastName: TF.string(), age: RT.optional(TF.number())}),
   });
 
 export const REALWORLD = {

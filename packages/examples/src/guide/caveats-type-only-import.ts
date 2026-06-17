@@ -1,10 +1,10 @@
+import type * as TF from 'ts-runtypes/formats';
 import {createValidate} from 'ts-runtypes';
 // The Format* aliases are types, so `import type` reads naturally — and it's
 // fine here, because the alias is used purely at the type level.
-import type {FormatEmail} from 'ts-runtypes/formats';
 
 // This works: createValidate is a real value import, the format is a type.
-type Contact = {email: FormatEmail};
+type Contact = {email: TF.Email};
 const isContact = createValidate<Contact>();
 
 // The trap is the OTHER direction: don't `import type { createValidate }`.

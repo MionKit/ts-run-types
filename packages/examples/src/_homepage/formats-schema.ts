@@ -1,12 +1,13 @@
+import * as TF from 'ts-runtypes/formats';
 import {createValidate, type Static} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 
 // The same formats, schema-first — the RT.* builders.
 const account = RT.object({
-  id: RT.uuidv4(),
-  email: RT.email(),
-  ip: RT.ipv4(),
-  logins: RT.positiveInt(),
+  id: TF.uuidv4(),
+  email: TF.email(),
+  ip: TF.ipv4(),
+  logins: TF.positiveInt(),
 });
 
 // Recover the TypeScript type from the schema.

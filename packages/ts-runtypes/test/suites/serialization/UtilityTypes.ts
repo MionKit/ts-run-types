@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
@@ -18,11 +19,11 @@ export const UTILITY_TYPES = {
     binaryDecoder: () => createBinaryDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
     // Awaited<Promise<T>> resolves to T at the type-checker layer; the value-first
     // model is the resolved object shape (mirrors validation Native.awaited_promise,
-    // which models Awaited<Promise<string>> as plain RT.string()).
-    schemaEncoder: () => createJsonEncoder(RT.object({a: RT.string(), b: RT.number(), c: RT.date()})),
-    schemaDecoder: () => createJsonDecoder(RT.object({a: RT.string(), b: RT.number(), c: RT.date()})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({a: RT.string(), b: RT.number(), c: RT.date()})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({a: RT.string(), b: RT.number(), c: RT.date()})),
+    // which models Awaited<Promise<string>> as plain TF.string()).
+    schemaEncoder: () => createJsonEncoder(RT.object({a: TF.string(), b: TF.number(), c: TF.date()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({a: TF.string(), b: TF.number(), c: TF.date()})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({a: TF.string(), b: TF.number(), c: TF.date()})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({a: TF.string(), b: TF.number(), c: TF.date()})),
     getTestData: () => ({values: [{a: 'hello', b: 1, c: new Date('2000-08-06T02:13:00.000Z')}]}),
   },
   exclude_atomic: {
@@ -37,13 +38,13 @@ export const UTILITY_TYPES = {
     binaryEncoder: () => createBinaryEncoder<Exclude<'name' | 'age' | number, 'age'>>(),
     binaryDecoder: () => createBinaryDecoder<Exclude<'name' | 'age' | number, 'age'>>(),
     schemaEncoder: () =>
-      createJsonEncoder(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.number()]), RT.literal('age'))),
+      createJsonEncoder(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), TF.number()]), RT.literal('age'))),
     schemaDecoder: () =>
-      createJsonDecoder(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.number()]), RT.literal('age'))),
+      createJsonDecoder(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), TF.number()]), RT.literal('age'))),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.number()]), RT.literal('age'))),
+      createBinaryEncoder(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), TF.number()]), RT.literal('age'))),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.number()]), RT.literal('age'))),
+      createBinaryDecoder(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), TF.number()]), RT.literal('age'))),
     getTestData: () => ({values: ['name', 3, 4]}),
   },
   exclude_objects: {
@@ -103,44 +104,44 @@ export const UTILITY_TYPES = {
       createJsonEncoder(
         RT.exclude(
           RT.union([
-            RT.object({kind: RT.literal('circle'), radius: RT.number()}),
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('circle'), radius: TF.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ]),
-          RT.object({kind: RT.literal('circle'), radius: RT.number()})
+          RT.object({kind: RT.literal('circle'), radius: TF.number()})
         )
       ),
     schemaDecoder: () =>
       createJsonDecoder(
         RT.exclude(
           RT.union([
-            RT.object({kind: RT.literal('circle'), radius: RT.number()}),
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('circle'), radius: TF.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ]),
-          RT.object({kind: RT.literal('circle'), radius: RT.number()})
+          RT.object({kind: RT.literal('circle'), radius: TF.number()})
         )
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
         RT.exclude(
           RT.union([
-            RT.object({kind: RT.literal('circle'), radius: RT.number()}),
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('circle'), radius: TF.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ]),
-          RT.object({kind: RT.literal('circle'), radius: RT.number()})
+          RT.object({kind: RT.literal('circle'), radius: TF.number()})
         )
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
         RT.exclude(
           RT.union([
-            RT.object({kind: RT.literal('circle'), radius: RT.number()}),
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('circle'), radius: TF.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ]),
-          RT.object({kind: RT.literal('circle'), radius: RT.number()})
+          RT.object({kind: RT.literal('circle'), radius: TF.number()})
         )
       ),
     getTestData: () => ({
@@ -171,19 +172,19 @@ export const UTILITY_TYPES = {
     binaryDecoder: () => createBinaryDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
     schemaEncoder: () =>
       createJsonEncoder(
-        RT.required(RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())}))
+        RT.required(RT.object({name: RT.optional(TF.string()), age: RT.optional(TF.number()), createdAt: RT.optional(TF.date())}))
       ),
     schemaDecoder: () =>
       createJsonDecoder(
-        RT.required(RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())}))
+        RT.required(RT.object({name: RT.optional(TF.string()), age: RT.optional(TF.number()), createdAt: RT.optional(TF.date())}))
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
-        RT.required(RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())}))
+        RT.required(RT.object({name: RT.optional(TF.string()), age: RT.optional(TF.number()), createdAt: RT.optional(TF.date())}))
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
-        RT.required(RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())}))
+        RT.required(RT.object({name: RT.optional(TF.string()), age: RT.optional(TF.number()), createdAt: RT.optional(TF.date())}))
       ),
     getTestData: () => ({
       values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}],
@@ -277,13 +278,13 @@ export const UTILITY_TYPES = {
       createJsonEncoder(
         RT.extract(
           RT.union([
-            RT.object({kind: RT.literal('circle'), radius: RT.number()}),
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('circle'), radius: TF.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ]),
           RT.union([
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ])
         )
       ),
@@ -291,13 +292,13 @@ export const UTILITY_TYPES = {
       createJsonDecoder(
         RT.extract(
           RT.union([
-            RT.object({kind: RT.literal('circle'), radius: RT.number()}),
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('circle'), radius: TF.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ]),
           RT.union([
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ])
         )
       ),
@@ -305,13 +306,13 @@ export const UTILITY_TYPES = {
       createBinaryEncoder(
         RT.extract(
           RT.union([
-            RT.object({kind: RT.literal('circle'), radius: RT.number()}),
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('circle'), radius: TF.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ]),
           RT.union([
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ])
         )
       ),
@@ -319,13 +320,13 @@ export const UTILITY_TYPES = {
       createBinaryDecoder(
         RT.extract(
           RT.union([
-            RT.object({kind: RT.literal('circle'), radius: RT.number()}),
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('circle'), radius: TF.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ]),
           RT.union([
-            RT.object({kind: RT.literal('square'), x: RT.number()}),
-            RT.object({kind: RT.literal('triangle'), x: RT.number(), y: RT.number()}),
+            RT.object({kind: RT.literal('square'), x: TF.number()}),
+            RT.object({kind: RT.literal('triangle'), x: TF.number(), y: TF.number()}),
           ])
         )
       ),
@@ -349,12 +350,12 @@ export const UTILITY_TYPES = {
       createJsonDecoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Partial<{name: string; age: number; createdAt: Date}>>(),
     binaryDecoder: () => createBinaryDecoder<Partial<{name: string; age: number; createdAt: Date}>>(),
-    schemaEncoder: () => createJsonEncoder(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
-    schemaDecoder: () => createJsonDecoder(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
+    schemaEncoder: () => createJsonEncoder(RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}))),
+    schemaDecoder: () => createJsonDecoder(RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}))),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
+      createBinaryEncoder(RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}))),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
+      createBinaryDecoder(RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}))),
     getTestData: () => {
       const createdAt = new Date('2000-08-06T02:13:00.000Z');
       return {values: [{name: 'John'}, {age: 30}, {createdAt}, {}]};
@@ -390,19 +391,19 @@ export const UTILITY_TYPES = {
       createBinaryDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
     schemaEncoder: () =>
       createJsonEncoder(
-        RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date(), email: RT.string()}), ['name', 'createdAt'])
+        RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date(), email: TF.string()}), ['name', 'createdAt'])
       ),
     schemaDecoder: () =>
       createJsonDecoder(
-        RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date(), email: RT.string()}), ['name', 'createdAt'])
+        RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date(), email: TF.string()}), ['name', 'createdAt'])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
-        RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date(), email: RT.string()}), ['name', 'createdAt'])
+        RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date(), email: TF.string()}), ['name', 'createdAt'])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
-        RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date(), email: RT.string()}), ['name', 'createdAt'])
+        RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date(), email: TF.string()}), ['name', 'createdAt'])
       ),
     getTestData: () => ({values: [{name: 'John', createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
   },
@@ -433,19 +434,19 @@ export const UTILITY_TYPES = {
     binaryDecoder: () => createBinaryDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
     schemaEncoder: () =>
       createJsonEncoder(
-        RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date(), email: RT.string()}), ['email'])
+        RT.omit(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date(), email: TF.string()}), ['email'])
       ),
     schemaDecoder: () =>
       createJsonDecoder(
-        RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date(), email: RT.string()}), ['email'])
+        RT.omit(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date(), email: TF.string()}), ['email'])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
-        RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date(), email: RT.string()}), ['email'])
+        RT.omit(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date(), email: TF.string()}), ['email'])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
-        RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date(), email: RT.string()}), ['email'])
+        RT.omit(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date(), email: TF.string()}), ['email'])
       ),
     getTestData: () => ({values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
   },
@@ -464,10 +465,10 @@ export const UTILITY_TYPES = {
     binaryDecoder: () => createBinaryDecoder<Record<string, Date>>(),
     // Record<string, V> — value-only builder; the key defaults to string (mirrors
     // validation Object.ts string-keyed record cases using RT.record(<value>)).
-    schemaEncoder: () => createJsonEncoder(RT.record(RT.date())),
-    schemaDecoder: () => createJsonDecoder(RT.record(RT.date())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(RT.date())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(RT.date())),
+    schemaEncoder: () => createJsonEncoder(RT.record(TF.date())),
+    schemaDecoder: () => createJsonDecoder(RT.record(TF.date())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(TF.date())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(TF.date())),
     getTestData: () => ({
       values: [
         {

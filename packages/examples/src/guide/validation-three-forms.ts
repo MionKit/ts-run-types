@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createValidate, type Static} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 
@@ -12,7 +13,7 @@ const origin: Point = {x: 0, y: 0};
 const isPointB = createValidate(origin);
 
 // 3. Schema-first — pass an RT.* schema; T is inferred from the schema.
-const pointSchema = RT.object({x: RT.number(), y: RT.number()});
+const pointSchema = RT.object({x: TF.number(), y: TF.number()});
 const isPointC = createValidate(pointSchema);
 // end-forms
 

@@ -10,22 +10,15 @@
 // ambient test/temporal-ambient.d.ts + the
 // ts-runtypes/formats/temporal subpath.
 
+import type * as TFT from 'ts-runtypes/formats/temporal';
 import {describe, expect, it} from 'vitest';
 import {createValidate, createGetValidationErrors, createMockType} from 'ts-runtypes';
-import type {
-  FormatTemporalPlainDate,
-  FormatTemporalInstant,
-  FormatTemporalPlainTime,
-  FormatTemporalPlainDateTime,
-  FormatTemporalPlainYearMonth,
-  FormatTemporalZonedDateTime,
-} from 'ts-runtypes/formats/temporal';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
 
-describe('FormatTemporalPlainDate — absolute min/max', () => {
+describe('TFT.PlainDate — absolute min/max', () => {
   it('accepts in-range, rejects out-of-range, rejects non-PlainDate', () => {
-    const validate = createValidate<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
+    const validate = createValidate<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
     expect(validate(T.PlainDate.from('2020-01-01'))).toBe(true);
     expect(validate(T.PlainDate.from('2020-06-15'))).toBe(true);
     expect(validate(T.PlainDate.from('2020-12-31'))).toBe(true);
@@ -37,7 +30,7 @@ describe('FormatTemporalPlainDate — absolute min/max', () => {
   });
 
   it('getValidationErrors reports the failing bound via formatPath', () => {
-    const getErrors = createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'}>>();
+    const getErrors = createGetValidationErrors<TFT.PlainDate<{min: '2020-01-01'}>>();
     expect(getErrors(T.PlainDate.from('2020-06-15'))).toEqual([]);
     const errs = getErrors(T.PlainDate.from('2019-01-01'));
     expect(errs.length).toBe(1);
@@ -47,27 +40,27 @@ describe('FormatTemporalPlainDate — absolute min/max', () => {
   });
 });
 
-describe('FormatTemporalInstant — absolute bounds', () => {
+describe('TFT.Instant — absolute bounds', () => {
   it('accepts in-range instants', () => {
-    const validate = createValidate<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
+    const validate = createValidate<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
     expect(validate(T.Instant.from('2020-06-15T12:00:00Z'))).toBe(true);
     expect(validate(T.Instant.from('2019-06-15T12:00:00Z'))).toBe(false);
     expect(validate(T.Instant.from('2021-06-15T12:00:00Z'))).toBe(false);
   });
 });
 
-describe('FormatTemporalPlainTime — absolute bounds', () => {
+describe('TFT.PlainTime — absolute bounds', () => {
   it('business hours window', () => {
-    const validate = createValidate<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>();
+    const validate = createValidate<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>();
     expect(validate(T.PlainTime.from('12:30:00'))).toBe(true);
     expect(validate(T.PlainTime.from('08:59:59'))).toBe(false);
     expect(validate(T.PlainTime.from('17:00:01'))).toBe(false);
   });
 });
 
-describe('FormatTemporalPlainDateTime — absolute bounds', () => {
+describe('TFT.PlainDateTime — absolute bounds', () => {
   it('accepts in-range datetimes', () => {
-    const validate = createValidate<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+    const validate = createValidate<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
     expect(validate(T.PlainDateTime.from('2020-06-15T12:00:00'))).toBe(true);
     expect(validate(T.PlainDateTime.from('2019-06-15T12:00:00'))).toBe(false);
   });
@@ -75,23 +68,23 @@ describe('FormatTemporalPlainDateTime — absolute bounds', () => {
 
 describe('Temporal relative now±P bounds (wide margins, clock-independent)', () => {
   it('PlainDate min:now-P1000Y accepts a recent date, rejects an ancient one', () => {
-    const validate = createValidate<FormatTemporalPlainDate<{min: 'now-P1000Y'}>>();
+    const validate = createValidate<TFT.PlainDate<{min: 'now-P1000Y'}>>();
     expect(validate(T.PlainDate.from('2020-06-15'))).toBe(true);
     expect(validate(T.PlainDate.from('0500-01-01'))).toBe(false);
   });
 
   it('PlainDate max:now-P1000Y rejects any recent date', () => {
-    const validate = createValidate<FormatTemporalPlainDate<{max: 'now-P1000Y'}>>();
+    const validate = createValidate<TFT.PlainDate<{max: 'now-P1000Y'}>>();
     expect(validate(T.PlainDate.from('2020-06-15'))).toBe(false);
   });
 
   it('Instant min:now-PT1000000H accepts recent instants (time-only relative)', () => {
-    const validate = createValidate<FormatTemporalInstant<{min: 'now-PT1000000H'}>>();
+    const validate = createValidate<TFT.Instant<{min: 'now-PT1000000H'}>>();
     expect(validate(T.Instant.from('2020-06-15T12:00:00Z'))).toBe(true);
   });
 
   it('bare now as max rejects the far future', () => {
-    const validate = createValidate<FormatTemporalPlainDate<{max: 'now'}>>();
+    const validate = createValidate<TFT.PlainDate<{max: 'now'}>>();
     expect(validate(T.PlainDate.from('2999-01-01'))).toBe(false);
   });
 });
@@ -103,52 +96,52 @@ describe('FormatTemporalX mock — every generated value satisfies its bounds', 
   const ITERATIONS = 40;
 
   it('PlainDate min/max — mock stays in range', () => {
-    const validate = createValidate<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
-    const mock = createMockType<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
+    const validate = createValidate<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
+    const mock = createMockType<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('PlainDate gt/lt — mock stays strictly inside', () => {
-    const validate = createValidate<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-01-10'}>>();
-    const mock = createMockType<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-01-10'}>>();
+    const validate = createValidate<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-01-10'}>>();
+    const mock = createMockType<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-01-10'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('Instant min/max — mock stays in range', () => {
-    const validate = createValidate<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
-    const mock = createMockType<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
+    const validate = createValidate<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
+    const mock = createMockType<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('PlainTime gt/lt — mock stays strictly inside', () => {
-    const validate = createValidate<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
-    const mock = createMockType<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
+    const validate = createValidate<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
+    const mock = createMockType<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('PlainDateTime min/max — mock stays in range', () => {
-    const validate = createValidate<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
-    const mock = createMockType<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+    const validate = createValidate<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+    const mock = createMockType<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('PlainYearMonth min/max — mock stays in range', () => {
-    const validate = createValidate<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
-    const mock = createMockType<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
+    const validate = createValidate<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
+    const mock = createMockType<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('ZonedDateTime min/max — mock stays in range', () => {
     const validate =
-      createValidate<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
+      createValidate<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
     const mock =
-      createMockType<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
+      createMockType<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('PlainDate relative min:now-P1Y max:now+P1Y — mock stays in range', () => {
-    const validate = createValidate<FormatTemporalPlainDate<{min: 'now-P1Y'; max: 'now+P1Y'}>>();
-    const mock = createMockType<FormatTemporalPlainDate<{min: 'now-P1Y'; max: 'now+P1Y'}>>();
+    const validate = createValidate<TFT.PlainDate<{min: 'now-P1Y'; max: 'now+P1Y'}>>();
+    const mock = createMockType<TFT.PlainDate<{min: 'now-P1Y'; max: 'now+P1Y'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 });

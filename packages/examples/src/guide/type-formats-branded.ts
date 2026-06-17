@@ -1,9 +1,9 @@
-import type {FormatString, FormatNumber} from 'ts-runtypes/formats';
+import type * as TF from 'ts-runtypes/formats';
 
 // Add a brand name (the 2nd type arg) and the format becomes a NOMINAL type.
 // A plain string is no longer assignable — you must opt in with `as`.
-type UserId = FormatString<{minLength: 1}, 'UserId'>;
-type Cents = FormatNumber<{min: 0; integer: true}, 'Cents'>;
+type UserId = TF.String<{minLength: 1}, 'UserId'>;
+type Cents = TF.Number<{min: 0; integer: true}, 'Cents'>;
 
 // A bare string won't fit — that's the point. Cast at the boundary where
 // you've actually checked the value.

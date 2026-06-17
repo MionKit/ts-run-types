@@ -1,30 +1,30 @@
+import type * as TF from 'ts-runtypes/formats';
 import type {FormatTransformCase} from './types.ts';
 import 'ts-runtypes/formats';
 import {createFormatTransform} from 'ts-runtypes';
-import type {FormatInteger, FormatInt8, FormatNumber} from 'ts-runtypes/formats';
 
 export const NUMBER_FORMAT = {
   identity_integer: {
-    title: 'FormatInteger — no transform, passes through unchanged',
-    formatTransform: () => createFormatTransform<FormatInteger>(),
+    title: 'TF.Integer — no transform, passes through unchanged',
+    formatTransform: () => createFormatTransform<TF.Integer>(),
     getCases: () => [
       {input: 42, expected: 42},
       {input: -7, expected: -7},
     ],
   },
   identity_int8: {
-    title: 'FormatInt8 — no transform',
-    formatTransform: () => createFormatTransform<FormatInt8>(),
+    title: 'TF.Int8 — no transform',
+    formatTransform: () => createFormatTransform<TF.Int8>(),
     getCases: () => [{input: 127, expected: 127}],
   },
   identity_ranged: {
-    title: 'FormatNumber<{min:0; max:100}> — no transform',
-    formatTransform: () => createFormatTransform<FormatNumber<{min: 0; max: 100}>>(),
+    title: 'TF.Number<{min:0; max:100}> — no transform',
+    formatTransform: () => createFormatTransform<TF.Number<{min: 0; max: 100}>>(),
     getCases: () => [{input: 50, expected: 50}],
   },
   nested_number_field: {
     title: 'nested object — number-branded field passes through unchanged',
-    formatTransform: () => createFormatTransform<{count: FormatInt8; label: string}>(),
+    formatTransform: () => createFormatTransform<{count: TF.Int8; label: string}>(),
     getCases: () => [{input: {count: 5, label: 'KEEP'}, expected: {count: 5, label: 'KEEP'}}],
   },
 } as const satisfies Record<string, FormatTransformCase>;

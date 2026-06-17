@@ -1,10 +1,10 @@
+import type * as TF from 'ts-runtypes/formats';
 import {createMockType} from 'ts-runtypes';
-import type {FormatEmail, FormatUUIDv4} from 'ts-runtypes/formats';
 
 // Type formats don't just validate — mocks respect them too.
 type Contact = {
-  id: FormatUUIDv4;
-  email: FormatEmail;
+  id: TF.UUIDv4;
+  email: TF.Email;
   name: string;
 };
 

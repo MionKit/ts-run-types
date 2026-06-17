@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
@@ -17,13 +18,13 @@ export const TUPLES = {
     binaryEncoder: () => createBinaryEncoder<[Date, number, string, null, string[], bigint]>(),
     binaryDecoder: () => createBinaryDecoder<[Date, number, string, null, string[], bigint]>(),
     schemaEncoder: () =>
-      createJsonEncoder(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
+      createJsonEncoder(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
     schemaDecoder: () =>
-      createJsonDecoder(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
+      createJsonDecoder(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
+      createBinaryEncoder(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
+      createBinaryDecoder(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
     getTestData: () => ({
       values: [[new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
     }),
@@ -41,10 +42,10 @@ export const TUPLES = {
     preserveDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<[number, bigint?, boolean?, number?]>(),
     binaryDecoder: () => createBinaryDecoder<[number, bigint?, boolean?, number?]>(),
-    schemaEncoder: () => createJsonEncoder(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
+    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
     getTestData: () => ({
       values: [
         [3, undefined, true, 4],
@@ -65,10 +66,10 @@ export const TUPLES = {
     preserveDecoder: () => createJsonDecoder<[number, ...bigint[]]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<[number, ...bigint[]]>(),
     binaryDecoder: () => createBinaryDecoder<[number, ...bigint[]]>(),
-    schemaEncoder: () => createJsonEncoder(RT.tuple([RT.number()], RT.bigint())),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([RT.number()], RT.bigint())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([RT.number()], RT.bigint())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([RT.number()], RT.bigint())),
+    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number()], TF.bigInt())),
+    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number()], TF.bigInt())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number()], TF.bigInt())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number()], TF.bigInt())),
     getTestData: () => ({values: [[34567, 1n, 2n, 3n], [3]]}),
   },
   tuple_with_non_serializable: {
@@ -85,10 +86,10 @@ export const TUPLES = {
     // Expressible value-first (mirrors validation TUPLE.tuple_with_non_serializable),
     // but a function-typed tuple slot resolves the same alwaysThrow factory — each
     // thunk throws like the type-first form (factoryThrows below); adapter asserts it.
-    schemaEncoder: () => createJsonEncoder(RT.tuple([RT.number(), RT.func([], RT.any())])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([RT.number(), RT.func([], RT.any())])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([RT.number(), RT.func([], RT.any())])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([RT.number(), RT.func([], RT.any())])),
+    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number(), RT.func([], RT.any())])),
+    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number(), RT.func([], RT.any())])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number(), RT.func([], RT.any())])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number(), RT.func([], RT.any())])),
     factoryThrows: true,
     getTestData: () => ({values: []}),
   },
@@ -212,19 +213,19 @@ export const TUPLES = {
     },
     schemaEncoder: () =>
       createJsonEncoder(
-        RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))
+        RT.circular((self) => RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), self]))}))
       ),
     schemaDecoder: () =>
       createJsonDecoder(
-        RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))
+        RT.circular((self) => RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), self]))}))
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(
-        RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))
+        RT.circular((self) => RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), self]))}))
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoder(
-        RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))
+        RT.circular((self) => RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), self]))}))
       ),
     getTestData: () => {
       interface ICircularTuple {

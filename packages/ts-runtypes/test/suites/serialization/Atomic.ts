@@ -1,3 +1,4 @@
+import * as TF from 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
@@ -15,10 +16,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<string>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<string>(),
     binaryDecoder: () => createBinaryDecoder<string>(),
-    schemaEncoder: () => createJsonEncoder(RT.string()),
-    schemaDecoder: () => createJsonDecoder(RT.string()),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.string()),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.string()),
+    schemaEncoder: () => createJsonEncoder(TF.string()),
+    schemaDecoder: () => createJsonDecoder(TF.string()),
+    schemaBinaryEncoder: () => createBinaryEncoder(TF.string()),
+    schemaBinaryDecoder: () => createBinaryDecoder(TF.string()),
     getTestData: () => ({values: ['hello', '', 'world', '', '你好', 'مرحبا', 'Здравствуйте', '🌍🚀✨']}),
   },
   number: {
@@ -33,10 +34,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<number>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<number>(),
     binaryDecoder: () => createBinaryDecoder<number>(),
-    schemaEncoder: () => createJsonEncoder(RT.number()),
-    schemaDecoder: () => createJsonDecoder(RT.number()),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.number()),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.number()),
+    schemaEncoder: () => createJsonEncoder(TF.number()),
+    schemaDecoder: () => createJsonDecoder(TF.number()),
+    schemaBinaryEncoder: () => createBinaryEncoder(TF.number()),
+    schemaBinaryDecoder: () => createBinaryDecoder(TF.number()),
     getTestData: () => ({
       values: [
         0,
@@ -69,10 +70,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<number>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<number>(),
     binaryDecoder: () => createBinaryDecoder<number>(),
-    schemaEncoder: () => createJsonEncoder(RT.number()),
-    schemaDecoder: () => createJsonDecoder(RT.number()),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.number()),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.number()),
+    schemaEncoder: () => createJsonEncoder(TF.number()),
+    schemaDecoder: () => createJsonDecoder(TF.number()),
+    schemaBinaryEncoder: () => createBinaryEncoder(TF.number()),
+    schemaBinaryDecoder: () => createBinaryDecoder(TF.number()),
     // Binary writes float64, which preserves Infinity/NaN natively —
     // no conversion to null like JSON.stringify does.
     getBinaryTestData: () => ({
@@ -125,10 +126,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<bigint>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<bigint>(),
     binaryDecoder: () => createBinaryDecoder<bigint>(),
-    schemaEncoder: () => createJsonEncoder(RT.bigint()),
-    schemaDecoder: () => createJsonDecoder(RT.bigint()),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.bigint()),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.bigint()),
+    schemaEncoder: () => createJsonEncoder(TF.bigInt()),
+    schemaDecoder: () => createJsonDecoder(TF.bigInt()),
+    schemaBinaryEncoder: () => createBinaryEncoder(TF.bigInt()),
+    schemaBinaryDecoder: () => createBinaryDecoder(TF.bigInt()),
     getTestData: () => ({values: [1n]}),
   },
   boolean: {
@@ -233,10 +234,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<Date>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date>(),
     binaryDecoder: () => createBinaryDecoder<Date>(),
-    schemaEncoder: () => createJsonEncoder(RT.date()),
-    schemaDecoder: () => createJsonDecoder(RT.date()),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.date()),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.date()),
+    schemaEncoder: () => createJsonEncoder(TF.date()),
+    schemaDecoder: () => createJsonDecoder(TF.date()),
+    schemaBinaryEncoder: () => createBinaryEncoder(TF.date()),
+    schemaBinaryDecoder: () => createBinaryDecoder(TF.date()),
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
   },
   enum_color: {
