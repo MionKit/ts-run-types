@@ -341,8 +341,19 @@ func pruneOrphanBlocks(text string) (string, int) {
 	}
 	var builder strings.Builder
 	cursor := 0
+	removed := 0
 	for _, match := range matches {
 		start, end := match[0], match[1]
+		// Malformed-carcass guard: a hand-edited carcass whose ` */` terminator is
+		// missing/misplaced makes the non-greedy match span PAST its own content into
+		// the next live const, swallowing it. Reject (skip + warn) such a block so
+		// prune never eats a live statement; the user fixes the carcass by hand.
+		if carcassCrossesStatement(text[start:end]) {
+			fmt.Fprintf(os.Stderr,
+				"gen --prune: skipping a malformed orphan carcass that appears to span a live statement boundary — fix it by hand:\n%.120s…\n",
+				text[start:end])
+			continue
+		}
 		// Extend start back over leading spaces/tabs on the block's own line so an
 		// indented orphan line is removed cleanly (no orphaned indentation).
 		lineStart := start
@@ -358,7 +369,27 @@ func pruneOrphanBlocks(text string) (string, int) {
 		}
 		builder.WriteString(text[cursor:start])
 		cursor = end
+		removed++
 	}
 	builder.WriteString(text[cursor:])
-	return builder.String(), len(matches)
+	return builder.String(), removed
+}
+
+// statementBoundaryPattern matches a newline-anchored `export const`/`export
+// type`/`export interface`/`export class`/`export enum`/`export function`
+// declaration — a top-level statement boundary.
+var statementBoundaryPattern = regexp.MustCompile(`(?m)^\s*export\s+(const|type|interface|class|enum|function|namespace)\s`)
+
+// carcassCrossesStatement reports whether a matched orphan block body spans MORE
+// live statements than it legitimately should: an `@rtOrphan` (whole-const)
+// carcass wraps exactly ONE `export …` declaration (its own preserved const), so
+// >1 means its terminator ate the next live const; an `@rtOrphanChild` (field)
+// carcass wraps NO statement, so any `export …` declaration means it spilled
+// past the field. block is the full `/* @rtOrphan… */` match.
+func carcassCrossesStatement(block string) bool {
+	count := len(statementBoundaryPattern.FindAllStringIndex(block, -1))
+	if strings.HasPrefix(block, "/* @rtOrphanChild") {
+		return count > 0
+	}
+	return count > 1
 }
