@@ -2,6 +2,7 @@ package main
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/ast"
@@ -251,6 +252,85 @@ func mergeObject(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 	for _, key := range dropKeys {
 		*ops = append(*ops, orphanChildOp(existing, existing.props[key]))
 	}
+
+	// META-RECURSE: the structural meta nodes ($items array element, $keys/$values
+	// Map/Set element, $slots tuple slots) carry NESTED enrichment shapes that are
+	// NOT data fields — so they are excluded from the field merge above, yet they
+	// still drift when the underlying element type gains a sub-field. Descend into
+	// them so nested enrichment is merged like any other object. Scalar meta
+	// ($length/$size/$optional and the like) is author data, left untouched.
+	mergeMetaNodes(ops, existing, desired, ctx)
+}
+
+// objectMetaKeys are the meta keys whose VALUE is itself an object node carrying
+// a nested enrichment shape — the merge descends into each (existing↔desired)
+// the same way it recurses a data field. $keys/$values/$items appear on
+// Map/Set/array nodes. $slots is handled separately (it is an ARRAY of nodes).
+var objectMetaKeys = []string{"$items", "$keys", "$values"}
+
+// mergeMetaNodes recurses through the structural meta nodes of a pair of object
+// views: each object-valued meta key ($items/$keys/$values) is merged in place
+// when present-and-object on both sides, and $slots is walked positionally
+// (paired by index, each slot recursed). It never adds/drops/renames meta keys —
+// only descends into the ones present on both sides — so the node's own shape is
+// owned by the emitter, not the merge.
+func mergeMetaNodes(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
+	for _, metaKey := range objectMetaKeys {
+		existingProp := existing.props[metaKey]
+		desiredProp := desired.props[metaKey]
+		if existingProp == nil || desiredProp == nil {
+			continue
+		}
+		if !existingProp.isObject() || !desiredProp.isObject() {
+			continue // a leaf meta value (e.g. `$items: {pool: []}` is an object; a
+			// non-object would be author scalar data) — nothing to recurse
+		}
+		childExisting := newObjectView(existing.text, existing.sourceFile, existingProp.value)
+		childDesired := newObjectView(desired.text, desired.sourceFile, desiredProp.value)
+		mergeObject(ops, childExisting, childDesired, ctx.descend(metaKey))
+	}
+	mergeSlots(ops, existing, desired, ctx)
+}
+
+// mergeSlots walks a tuple's `$slots` array positionally: it pairs existing slot
+// i with desired slot i and recurses each (when both are objects). Slots are
+// fixed-position, so a length change (a slot added/removed) is left to the
+// emitter on regenerate — we only merge the overlap (the shorter length), never
+// inserting or dropping array elements (which would shift positions). The dotted
+// path segment matches the emitter's `$slots.<i>` convention for @rtIds lookups.
+func mergeSlots(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
+	existingProp := existing.props["$slots"]
+	desiredProp := desired.props["$slots"]
+	if existingProp == nil || desiredProp == nil {
+		return
+	}
+	existingSlots := arrayElementNodes(existingProp.value)
+	desiredSlots := arrayElementNodes(desiredProp.value)
+	n := len(existingSlots)
+	if len(desiredSlots) < n {
+		n = len(desiredSlots)
+	}
+	for i := 0; i < n; i++ {
+		existingSlot, desiredSlot := existingSlots[i], desiredSlots[i]
+		if existingSlot == nil || desiredSlot == nil {
+			continue
+		}
+		if !ast.IsObjectLiteralExpression(existingSlot) || !ast.IsObjectLiteralExpression(desiredSlot) {
+			continue // a leaf slot — no nested shape to merge
+		}
+		childExisting := newObjectView(existing.text, existing.sourceFile, existingSlot)
+		childDesired := newObjectView(desired.text, desired.sourceFile, desiredSlot)
+		mergeObject(ops, childExisting, childDesired, ctx.descend("$slots."+strconv.Itoa(i)))
+	}
+}
+
+// arrayElementNodes returns the element expression nodes of an array-literal
+// node, or nil when node is not an array literal.
+func arrayElementNodes(node *ast.Node) []*ast.Node {
+	if node == nil || !ast.IsArrayLiteralExpression(node) {
+		return nil
+	}
+	return node.AsArrayLiteralExpression().Elements.Nodes
 }
 
 // childTypeChanged reports whether the @rtIds child id at childPath differs
