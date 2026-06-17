@@ -153,3 +153,26 @@ func TestCheckMirrorFile_GE003(t *testing.T) {
 		t.Errorf("want a GE003 finding; got %+v", findings)
 	}
 }
+
+// TestIsUnder covers the source-vs-mirror gate that lets `gen <source> --check`
+// redirect to the source's mirror instead of misreading the source as a mirror.
+func TestIsUnder(t *testing.T) {
+	dir := filepath.FromSlash("/repo/runtypes/generated")
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{"the dir itself", dir, true},
+		{"a mirror inside", filepath.Join(dir, "models", "user.ts"), true},
+		{"a source outside", filepath.FromSlash("/repo/src/models/user.ts"), false},
+		{"a sibling prefix-sharing dir", filepath.FromSlash("/repo/runtypes/generated-x/a.ts"), false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := isUnder(dir, test.path); got != test.want {
+				t.Errorf("isUnder(%q, %q) = %v, want %v", dir, test.path, got, test.want)
+			}
+		})
+	}
+}

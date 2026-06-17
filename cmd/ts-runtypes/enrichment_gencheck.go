@@ -44,9 +44,19 @@ type driftFinding struct {
 // argument, it walks the enrich dir resolved from the current directory's
 // tsconfig. Exits 1 when any Error finding is present.
 func runGenCheck(positional []string, enrichDirFlag string) {
-	target := ""
+	var target string
 	if len(positional) > 0 {
-		target = tspath.NormalizePath(mustAbs(positional[0]))
+		candidate := tspath.NormalizePath(mustAbs(positional[0]))
+		config := resolveEnrichConfig(candidate, enrichDirFlag)
+		// A path OUTSIDE the enrich dir is a SOURCE file (the `gen <source> --check`
+		// form): check ITS mirror, not the source file itself — whose own
+		// `import type { … }` lines would otherwise be misread as breadcrumbs. A
+		// path inside the enrich dir (a mirror file, or the dir) is scanned directly.
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() && !isUnder(config.EnrichDir, candidate) {
+			target = config.mirrorPath(candidate)
+		} else {
+			target = candidate
+		}
 	} else {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -85,6 +95,16 @@ func runGenCheck(positional []string, enrichDirFlag string) {
 		os.Exit(1)
 	}
 	os.Exit(0)
+}
+
+// isUnder reports whether path is dir itself or lies within it (neither escaping
+// with ".." nor on a different volume).
+func isUnder(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil {
+		return false
+	}
+	return rel == "." || !strings.HasPrefix(rel, "..")
 }
 
 // collectMirrorFiles returns the .ts mirror files to check: target itself when
