@@ -451,3 +451,213 @@ func TestMerge_NestedRecurse(t *testing.T) {
 		t.Errorf("nested added field 'score' missing:\n%s", got)
 	}
 }
+
+// --- Task 2: comment preservation across every reconcile path ---
+//
+// A hand-authored field comment (and a const-level comment) MUST survive every
+// merge path, and a leading comment MUST move with a renamed field. The paths and
+// their contracts:
+//   (a) A4 kept-key TYPE CHANGE → replaceChildOp: the field STAYS, so its leading
+//       comment survives ABOVE the field (not folded away, not stripped).
+//   (b) Tier-1 NAMED-TYPE rename: the leading comment moves with the renamed key
+//       (same as Tier-2, already covered by TestMerge_RenameTier2).
+//   (c) ORPHANED field → orphanChildOp: the field is GONE, so its leading comment
+//       folds INTO the carcass and is pruneable (no dangling cruft).
+//   (d) NESTED-object sub-field comment: survives the recurse.
+//   (e) trailing/inline comment on a KEPT field: survives untouched.
+
+// TestComment_KeptTypeChange_SurvivesAbove is path (a): a kept key whose child
+// type changed is replaced in place; its leading comment must survive ABOVE the
+// field (the field still exists, so the comment is NOT folded into the carcass and
+// is NOT stripped). It survives a later --prune (it describes the live field).
+func TestComment_KeptTypeChange_SurvivesAbove(t *testing.T) {
+	existing := "{$label: '',\n  // age in years\n  age: {min: 0, max: 120}}"
+	desired := "{$label: '', age: {pool: ['x']}}"
+	ctx := mergeCtx{
+		metaKeys:      mockReservedKeys,
+		existingChild: map[string]string{"age": "numID"},
+		desiredChild:  map[string]string{"age": "strID"},
+	}
+	got := mergeWithCtx(t, existing, desired, ctx)
+	assertReparses(t, got)
+	if !strings.Contains(got, "// age in years") {
+		t.Errorf("leading comment must survive a type-change replace:\n%s", got)
+	}
+	// The comment precedes the field (it describes the field that stays).
+	if strings.Index(got, "// age in years") > strings.Index(got, "age: {pool: ['x']}") {
+		t.Errorf("leading comment should stay ABOVE the replaced field:\n%s", got)
+	}
+	// It survives prune (the field is live, so the comment is not in the carcass).
+	pruned, _ := pruneOrphanBlocks(got)
+	if !strings.Contains(pruned, "// age in years") {
+		t.Errorf("a live field's leading comment must survive --prune:\n%s", pruned)
+	}
+}
+
+// TestComment_Tier1Rename_MovesWithField is path (b): a named-type field renamed
+// (home → residence, both `friendlyAddress`) carries its leading comment under the
+// new key — the comment moves with the field, same as the Tier-2 primitive case.
+func TestComment_Tier1Rename_MovesWithField(t *testing.T) {
+	existing := "{$label: '',\n  // where the user lives\n  home: friendlyAddress}"
+	desired := "{$label: '', residence: friendlyAddress}"
+	got := mergeWithCtx(t, existing, desired, mergeCtx{metaKeys: friendlyReservedKeys})
+	assertReparses(t, got)
+	if strings.Contains(got, "@rtOrphanChild") {
+		t.Errorf("a Tier-1 rename must NOT orphan:\n%s", got)
+	}
+	if !strings.Contains(got, "// where the user lives") {
+		t.Errorf("leading comment must survive the rename:\n%s", got)
+	}
+	// The comment is directly above the renamed field.
+	if strings.Index(got, "// where the user lives") > strings.Index(got, "residence: friendlyAddress") {
+		t.Errorf("leading comment must move WITH the renamed field (above 'residence'):\n%s", got)
+	}
+	if strings.Contains(got, "home:") {
+		t.Errorf("old key 'home' must be gone:\n%s", got)
+	}
+}
+
+// TestComment_Tier2Rename_MovesWithField is path (b)'s primitive twin: a primitive
+// field renamed (fullName → name) carries its leading comment under the new key.
+// (The in-place key-splice leaves the leading comment untouched, so it stays
+// above the renamed field.)
+func TestComment_Tier2Rename_MovesWithField(t *testing.T) {
+	existing := "{$label: '',\n  // the person's legal name\n  fullName: {$label: 'Full name'}}"
+	desired := "{$label: '', name: {$label: ''}}"
+	ctx := mergeCtx{
+		metaKeys:      friendlyReservedKeys,
+		existingChild: map[string]string{"fullName": "strID"},
+		desiredChild:  map[string]string{"name": "strID"},
+	}
+	got := mergeWithCtx(t, existing, desired, ctx)
+	assertReparses(t, got)
+	if strings.Contains(got, "@rtOrphanChild") {
+		t.Errorf("a Tier-2 rename must NOT orphan:\n%s", got)
+	}
+	if !strings.Contains(got, "// the person's legal name") {
+		t.Errorf("leading comment must survive the rename:\n%s", got)
+	}
+	if strings.Index(got, "// the person's legal name") > strings.Index(got, "name: {$label: 'Full name'}") {
+		t.Errorf("leading comment must move WITH the renamed field (above 'name'):\n%s", got)
+	}
+}
+
+// TestComment_DroppedField_FoldsIntoCarcass is path (c): a dropped field's leading
+// comment folds INTO its @rtOrphanChild carcass, so --prune removes it cleanly
+// with the carcass — no dangling comment left above the surviving sibling. Covers
+// both a `//` line comment and a `/* … */` block comment.
+func TestComment_DroppedField_FoldsIntoCarcass(t *testing.T) {
+	cases := []struct {
+		name    string
+		comment string
+	}{
+		{"line", "// note about age"},
+		{"block", "/* note about age */"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			existing := "{$label: '',\n  " + tc.comment + "\n  age: {$label: 'Age'}, name: {$label: ''}}"
+			desired := "{$label: '', name: {$label: ''}}"
+			got := mergeFriendly(t, existing, desired)
+			assertReparses(t, got)
+			if !strings.Contains(got, "@rtOrphanChild") {
+				t.Fatalf("the dropped field must become an @rtOrphanChild carcass:\n%s", got)
+			}
+			// The comment is folded INSIDE the carcass: it sits AFTER the `@rtOrphanChild`
+			// tag and BEFORE the carcass terminator (i.e. it is part of the comment body,
+			// not dangling above it). A `/* … */` block has its `*/` sanitized to `*\/`.
+			needle := tc.comment
+			if tc.name == "block" {
+				needle = sanitizeForComment(tc.comment)
+			}
+			orphanIdx := strings.Index(got, "@rtOrphanChild")
+			commentIdx := strings.Index(got, needle)
+			if commentIdx < orphanIdx {
+				t.Errorf("the leading comment must fold INTO the carcass (after the tag), not dangle above it:\n%s", got)
+			}
+			// After prune, the comment is gone with the carcass — nothing dangling.
+			pruned, removed := pruneOrphanBlocks(got)
+			if removed == 0 {
+				t.Errorf("prune should remove the field carcass:\n%s", got)
+			}
+			if strings.Contains(pruned, "age") {
+				t.Errorf("the dropped field + its folded comment must be gone after --prune:\n%s", pruned)
+			}
+			// The surviving sibling is untouched.
+			if !strings.Contains(pruned, "name: {$label: ''}") {
+				t.Errorf("the surviving field must remain after prune:\n%s", pruned)
+			}
+		})
+	}
+}
+
+// TestComment_DroppedField_NoComment_Unchanged: the no-leading-comment drop is
+// unaffected by the fold logic — the carcass starts at the field key as before.
+func TestComment_DroppedField_NoComment_Unchanged(t *testing.T) {
+	existing := "{$label: '', age: {$label: 'Age'}, name: {$label: ''}}"
+	desired := "{$label: '', name: {$label: ''}}"
+	got := mergeFriendly(t, existing, desired)
+	assertReparses(t, got)
+	if !strings.Contains(got, "/* @rtOrphanChild age: {$label: 'Age'},") {
+		t.Errorf("a no-comment drop must carcass exactly the field (no fold):\n%s", got)
+	}
+}
+
+// TestComment_NestedSubField_SurvivesRecurse is path (d): a comment on a sub-field
+// inside a nested object that the merge RECURSES into must survive, while a new
+// sibling sub-field is added.
+func TestComment_NestedSubField_SurvivesRecurse(t *testing.T) {
+	existing := "{$label: '', profile: {$label: '',\n    // the contact email\n    email: {$label: 'Email'}}}"
+	desired := "{$label: '', profile: {$label: '', email: {$label: ''}, score: {$label: ''}}}"
+	got := mergeFriendly(t, existing, desired)
+	assertReparses(t, got)
+	if !strings.Contains(got, "// the contact email") {
+		t.Errorf("a nested sub-field comment must survive the recurse:\n%s", got)
+	}
+	if !strings.Contains(got, "email: {$label: 'Email'}") {
+		t.Errorf("the nested authored value must survive:\n%s", got)
+	}
+	if !strings.Contains(got, "score: {$label: ''}") {
+		t.Errorf("the new nested sub-field must be added:\n%s", got)
+	}
+}
+
+// TestComment_InlineKeptField_Survives is path (e): a trailing/inline comment on a
+// KEPT field is left byte-identical (the merge never touches a kept leaf's bytes),
+// even when a sibling field is added.
+func TestComment_InlineKeptField_Survives(t *testing.T) {
+	existing := "{$label: '', name: {$label: 'N'} /* inline on name */, age: {$label: ''}}"
+	desired := "{$label: '', name: {$label: ''}, age: {$label: ''}, extra: {$label: ''}}"
+	got := mergeFriendly(t, existing, desired)
+	assertReparses(t, got)
+	if !strings.Contains(got, "/* inline on name */") {
+		t.Errorf("an inline comment on a kept field must survive:\n%s", got)
+	}
+	if !strings.Contains(got, "extra: {$label: ''}") {
+		t.Errorf("the added sibling must be present:\n%s", got)
+	}
+}
+
+// TestCarcassFoldStart_Detection unit-tests the fold-start helper: it folds back
+// over a leading `//` or `/* */` comment, but NOT over plain whitespace, and never
+// past propStart.
+func TestCarcassFoldStart_Detection(t *testing.T) {
+	t.Run("line comment folds", func(t *testing.T) {
+		view := parseDesiredObject("{$label: '',\n  // c\n  age: {$label: 'A'}}")
+		prop := view.props["age"]
+		start := carcassFoldStart(view.text, prop)
+		if start >= prop.propStart {
+			t.Errorf("a leading // comment should fold (start %d < propStart %d)", start, prop.propStart)
+		}
+		if !strings.HasPrefix(view.text[start:], "// c") {
+			t.Errorf("fold start should land on the // comment; got %q", view.text[start:start+8])
+		}
+	})
+	t.Run("no comment keeps propStart", func(t *testing.T) {
+		view := parseDesiredObject("{$label: '', age: {$label: 'A'}}")
+		prop := view.props["age"]
+		if carcassFoldStart(view.text, prop) != prop.propStart {
+			t.Errorf("a no-comment field must keep propStart")
+		}
+	})
+}
