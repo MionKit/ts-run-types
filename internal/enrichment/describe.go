@@ -45,13 +45,13 @@ func describeNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth 
 		b.WriteString(suffix)
 	}
 	b.WriteString("\n")
-	if !isObjectLike(rt) || ctx.seen[rt] {
+	if !isObjectLike(ctx, rt) || ctx.seen[rt] {
 		return
 	}
 	ctx.seen[rt] = true
 	defer delete(ctx.seen, rt)
 	inner := strings.Repeat("  ", depth+1)
-	for _, prop := range propertyChildren(rt) {
+	for _, prop := range propertyChildren(ctx, rt) {
 		b.WriteString(inner)
 		b.WriteString(prop.Name)
 		if prop.Optional {

@@ -38,7 +38,28 @@ const maxWalkDepth = 64
 type walkCtx struct {
 	resolve func(id string) *protocol.RunType
 	seen    map[*protocol.RunType]bool
+	// namedRef is the named-type-closure hook (set only by EmitClosure). When a
+	// node derefs to a NAMED type that is NOT the body currently being emitted, it
+	// returns the action the emitter should take instead of walking the body: a
+	// const-var reference, or a broken-cycle leaf. nil ⇒ inline everything (the
+	// single-const path and the unit-test shape).
+	namedRef func(rt *protocol.RunType) namedRefAction
 }
+
+// namedRefAction tells a node walker how to handle a child that is a reference to
+// another named type. Zero value (kind == namedRefInline) ⇒ walk the body inline.
+type namedRefAction struct {
+	kind    namedRefKind
+	varName string // the const var name to emit, for namedRefReference
+}
+
+type namedRefKind int
+
+const (
+	namedRefInline    namedRefKind = iota // not a named ref (or the current body) — walk inline
+	namedRefReference                     // a forward/back ref to a fully-emitted named const — emit the var
+	namedRefBroken                        // a back-edge to an in-progress named type — emit a leaf
+)
 
 func newWalkCtx(resolve func(id string) *protocol.RunType) *walkCtx {
 	return &walkCtx{resolve: resolve, seen: map[*protocol.RunType]bool{}}
@@ -59,9 +80,21 @@ func (ctx *walkCtx) deref(rt *protocol.RunType) *protocol.RunType {
 // propertyChildren returns the data-bearing object members of rt (Property /
 // PropertySignature), skipping methods, index signatures, call signatures, and
 // any node the emitters treat as non-data. Order is declaration order.
-func propertyChildren(rt *protocol.RunType) []*protocol.RunType {
+//
+// In the EmitClosure walk (ctx.namedRef set), a parent's Children ride as
+// `{kind:-1, id}` ref sentinels and must be deref'd before their Kind is
+// inspected, so each child is resolved first. The single-const inlined path
+// (ctx.namedRef nil) does NOT deref: its children are already canonical clones,
+// AND a deep back-edge there deliberately surfaces as a ref child — leaving it a
+// ref makes propertyChildren return empty, which is how that path breaks a cycle
+// to a leaf object. Dereffing on the inlined path would over-expand the cycle.
+func propertyChildren(ctx *walkCtx, rt *protocol.RunType) []*protocol.RunType {
+	derefChildren := ctx != nil && ctx.namedRef != nil
 	out := make([]*protocol.RunType, 0, len(rt.Children))
 	for _, child := range rt.Children {
+		if derefChildren {
+			child = ctx.deref(child)
+		}
 		if child == nil || child.NotSupported {
 			continue
 		}
@@ -77,12 +110,15 @@ func propertyChildren(rt *protocol.RunType) []*protocol.RunType {
 // object literals, interfaces, intersections, and USER classes (which carry
 // property children). Builtin classes (Date/Map/Set/RegExp/Temporal) have a
 // SubKind and no property members, so they fall through to leaf handling.
-func isObjectLike(rt *protocol.RunType) bool {
+//
+// The KindClass arm reuses propertyChildren, so it derefs ref children only on
+// the closure walk (ctx.namedRef set) — matching the inlined-vs-raw split above.
+func isObjectLike(ctx *walkCtx, rt *protocol.RunType) bool {
 	switch rt.Kind {
 	case protocol.KindObjectLiteral, protocol.KindIntersection:
 		return true
 	case protocol.KindClass:
-		return len(propertyChildren(rt)) > 0
+		return len(propertyChildren(ctx, rt)) > 0
 	default:
 		return false
 	}

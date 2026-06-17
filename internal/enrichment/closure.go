@@ -1,0 +1,258 @@
+package enrichment
+
+import (
+	"strings"
+	"unicode"
+
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+)
+
+// NamedConst is one emitted `export const friendly<Name> / mock<Name>` of a
+// named-type closure. Friendly and Mock are the rendered object-literal bodies
+// (no `export const … =` wrapper); the CLI wraps them with the const + type
+// annotation. Order in a []NamedConst slice is dependency (topological) order —
+// a type's const follows every named type it references.
+type NamedConst struct {
+	// TypeName is the source type name, e.g. "User".
+	TypeName string
+	// FriendlyVar / MockVar are the const identifiers, e.g. "friendlyUser".
+	FriendlyVar string
+	MockVar     string
+	// Friendly / Mock are the rendered object-literal bodies.
+	Friendly string
+	Mock     string
+}
+
+// ClosureOptions configures EmitClosure.
+type ClosureOptions struct {
+	// TypeName is the root named type, e.g. "User".
+	TypeName string
+	// Resolve looks up a KindRef sentinel's canonical node by id (cache.NodeByID);
+	// REQUIRED — the closure walk follows refs to detect named-type targets.
+	Resolve func(id string) *protocol.RunType
+}
+
+// emitState tracks a named type through the closure emit: unvisited → inProgress
+// (its body is being emitted; a back-edge here breaks the cycle) → done (its
+// const is emitted; a reference here is safe — declared before use).
+type emitState int
+
+const (
+	stateUnvisited emitState = iota
+	stateInProgress
+	stateDone
+)
+
+// closureEmitter drives the named-type-closure walk: emit every named type
+// reachable from the root in dependency (topological) order, with each named-typed
+// child rendered as a const-var reference (or a broken-cycle leaf for a back-edge)
+// instead of an inlined body.
+type closureEmitter struct {
+	resolve func(id string) *protocol.RunType
+	state   map[string]emitState // keyed by named type's RunType.ID
+	consts  []NamedConst         // accumulated in topological order
+	names   map[string]string    // ID → sanitized base name (e.g. "User"), unique
+	usedVar map[string]bool      // taken sanitized base names, for disambiguation
+}
+
+// EmitClosure walks the named-type closure rooted at a NAMED type and emits one
+// NamedConst per reachable named type, in dependency (topological) order. A field
+// whose type is another NAMED type is emitted as a reference to that type's const
+// var (friendly<Name> / mock<Name>); anonymous/inline shapes are inlined into the
+// parent const via the existing emitFriendlyNode/emitMockNode arms. Cycles break
+// at the back-edge: a reference to an in-progress named type becomes a leaf node
+// (friendly `{$label: ”}`, mock `{}`), never a const reference, so the emitted
+// const graph never hits a TDZ self-reference.
+//
+// A named root whose fields are all anonymous yields exactly ONE NamedConst whose
+// bodies equal EmitFriendly/EmitMock's — the single-const path is the degenerate
+// case.
+func EmitClosure(root *protocol.RunType, opts ClosureOptions) []NamedConst {
+	if root == nil {
+		return nil
+	}
+	emitter := &closureEmitter{
+		resolve: opts.Resolve,
+		state:   map[string]emitState{},
+		names:   map[string]string{},
+		usedVar: map[string]bool{},
+	}
+	// Seed the root's display name so its const uses the caller-supplied TypeName
+	// even if the projected node's TypeName differs (re-export aliases etc.).
+	rootName := opts.TypeName
+	if rootName == "" {
+		rootName = root.TypeName
+	}
+	if root.ID != "" {
+		emitter.names[root.ID] = emitter.uniqueName(sanitizeIdent(rootName))
+	}
+	emitter.emitNamed(root, rootName)
+	return emitter.consts
+}
+
+// emitNamed emits the const for one named type (if not already emitted), having
+// first emitted every named type it references. Returns the type's base name (the
+// `<Name>` in friendly<Name> / mock<Name>).
+func (emitter *closureEmitter) emitNamed(named *protocol.RunType, displayName string) string {
+	id := named.ID
+	baseName := emitter.baseNameFor(id, displayName)
+	if id != "" && emitter.state[id] == stateDone {
+		return baseName
+	}
+	if id != "" {
+		emitter.state[id] = stateInProgress
+	}
+
+	friendlyBody := emitter.renderBody(named, true)
+	mockBody := emitter.renderBody(named, false)
+
+	if id != "" {
+		emitter.state[id] = stateDone
+	}
+	emitter.consts = append(emitter.consts, NamedConst{
+		TypeName:    displayName,
+		FriendlyVar: "friendly" + baseName,
+		MockVar:     "mock" + baseName,
+		Friendly:    friendlyBody,
+		Mock:        mockBody,
+	})
+	return baseName
+}
+
+// renderBody walks the body of one named type with the existing emit arms, but
+// installs the namedRef hook so a named-typed CHILD becomes a const reference (or
+// a broken-cycle leaf) rather than an inlined body. self is the named node whose
+// body we are emitting — it must walk inline (otherwise the body would be a
+// reference to itself).
+func (emitter *closureEmitter) renderBody(self *protocol.RunType, friendly bool) string {
+	ctx := newWalkCtx(emitter.resolve)
+	// The body's ROOT node (self, first encounter) must walk inline — otherwise the
+	// const body would be a reference to itself. enteredBody flips on that first
+	// encounter; a LATER encounter of self is a genuine back-edge (e.g. a
+	// self-recursive `next: Node`) and breaks the cycle to a leaf.
+	enteredBody := false
+	ctx.namedRef = func(rt *protocol.RunType) namedRefAction {
+		// rt is already deref'd by the caller (emitFriendlyNode/emitMockNode call
+		// deref before the hook). Compare by ID, not pointer — a back-edge resolves
+		// through NodeByID and the root may be a distinct SerializeTopLevel pointer.
+		if isSelf(rt, self) {
+			if !enteredBody {
+				enteredBody = true
+				return namedRefAction{kind: namedRefInline}
+			}
+			return namedRefAction{kind: namedRefBroken}
+		}
+		if rt.TypeName == "" {
+			return namedRefAction{kind: namedRefInline}
+		}
+		switch emitter.stateOf(rt.ID) {
+		case stateInProgress:
+			return namedRefAction{kind: namedRefBroken}
+		case stateDone:
+			prefix := "mock"
+			if friendly {
+				prefix = "friendly"
+			}
+			return namedRefAction{kind: namedRefReference, varName: prefix + emitter.baseNameFor(rt.ID, rt.TypeName)}
+		default:
+			// Not yet emitted: emit it first (recursively, with its own friendly +
+			// mock consts) so the reference is declared-before-use, then reference.
+			baseName := emitter.emitNamed(rt, rt.TypeName)
+			prefix := "mock"
+			if friendly {
+				prefix = "friendly"
+			}
+			return namedRefAction{kind: namedRefReference, varName: prefix + baseName}
+		}
+	}
+	var b strings.Builder
+	if friendly {
+		emitFriendlyNode(&b, ctx, self, 0)
+	} else {
+		emitMockNode(&b, ctx, self, 0)
+	}
+	return b.String()
+}
+
+// isSelf reports whether rt is the named type whose body is currently being
+// emitted: same pointer, or (the robust case) same non-empty structural ID.
+func isSelf(rt, self *protocol.RunType) bool {
+	if rt == self {
+		return true
+	}
+	return self.ID != "" && rt.ID == self.ID
+}
+
+func (emitter *closureEmitter) stateOf(id string) emitState {
+	if id == "" {
+		return stateUnvisited
+	}
+	return emitter.state[id]
+}
+
+// baseNameFor returns the (memoized, disambiguated) base name for a named type's
+// id, assigning one from displayName on first sight.
+func (emitter *closureEmitter) baseNameFor(id, displayName string) string {
+	if id != "" {
+		if name, ok := emitter.names[id]; ok {
+			return name
+		}
+	}
+	name := emitter.uniqueName(sanitizeIdent(displayName))
+	if id != "" {
+		emitter.names[id] = name
+	}
+	return name
+}
+
+// uniqueName disambiguates a base name against the names already handed out so
+// two distinct named types (e.g. generic instantiations sharing a TypeName)
+// don't collide on the same const identifier.
+func (emitter *closureEmitter) uniqueName(name string) string {
+	if name == "" {
+		name = "Type"
+	}
+	candidate := name
+	for i := 2; emitter.usedVar[candidate]; i++ {
+		candidate = name + itoa(i)
+	}
+	emitter.usedVar[candidate] = true
+	return candidate
+}
+
+// sanitizeIdent turns a type name into a valid JS identifier fragment suitable for
+// `friendly<Name>` / `mock<Name>`: keep ASCII letters/digits/`_`/`$`, drop the
+// rest, upper-case the first rune so the concatenation reads as camelCase.
+func sanitizeIdent(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		switch {
+		case r == '_' || r == '$':
+			b.WriteRune(r)
+		case unicode.IsLetter(r) && r < unicode.MaxASCII:
+			b.WriteRune(r)
+		case unicode.IsDigit(r) && r < unicode.MaxASCII && b.Len() > 0:
+			b.WriteRune(r)
+		}
+	}
+	out := b.String()
+	if out == "" {
+		return ""
+	}
+	runes := []rune(out)
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
+}
+
+// itoa is a tiny base-10 formatter (avoids pulling strconv for a 1-3 digit suffix).
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var digits []byte
+	for n > 0 {
+		digits = append([]byte{byte('0' + n%10)}, digits...)
+		n /= 10
+	}
+	return string(digits)
+}
