@@ -96,6 +96,84 @@ func arrayElement(rt *protocol.RunType) *protocol.RunType {
 	return nil
 }
 
+// isMap / isSet report whether rt is a builtin Map / Set class (KindClass +
+// the registry subKind). The structural-node arms run BEFORE isObjectLike so a
+// Map/Set never falls through to the object/leaf arms.
+func isMap(rt *protocol.RunType) bool {
+	return rt.Kind == protocol.KindClass && rt.SubKind == protocol.SubKindMap
+}
+
+func isSet(rt *protocol.RunType) bool {
+	return rt.Kind == protocol.KindClass && rt.SubKind == protocol.SubKindSet
+}
+
+// tupleSlots returns the per-slot value nodes of a tuple: each KindTupleMember
+// child's `.Child` (the slot type). Non-tuple-member children are skipped.
+// Order is declaration order; an empty tuple yields an empty slice.
+func tupleSlots(ctx *walkCtx, rt *protocol.RunType) []*protocol.RunType {
+	out := make([]*protocol.RunType, 0, len(rt.Children))
+	for _, member := range rt.Children {
+		member = ctx.deref(member)
+		if member == nil {
+			continue
+		}
+		out = append(out, member.Child)
+	}
+	return out
+}
+
+// isVariadicTuple reports whether the tuple carries a rest / variadic member
+// (`[A, ...B[]]`). Such a tuple has a broad `length: number`, so the
+// FriendlyType / MockData mapped types route it through the ARRAY branch
+// (`number extends T['length']`), NOT the fixed `$slots` branch. The emitter
+// mirrors that: a variadic tuple emits the array shape (`$items`/`$length`) so
+// the skeleton stays assignable to the Phase-A type. A member is flagged "rest"
+// or "variadic" by the serializer (serialize.go projectTuple).
+func isVariadicTuple(ctx *walkCtx, rt *protocol.RunType) bool {
+	for _, member := range rt.Children {
+		member = ctx.deref(member)
+		if member == nil {
+			continue
+		}
+		for _, flag := range member.Flags {
+			if flag == "rest" || flag == "variadic" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// mapKeyValue returns the (key, value) slot nodes of a Map<K,V>. The wire stores
+// them as KindParameter wrappers in rt.Arguments (Arguments[0]=key wrapper,
+// Arguments[1]=value wrapper); the underlying type rides on each wrapper's
+// `.Child`. Wrappers are ref sentinels (Arguments isn't inlined by the bridge),
+// so deref each before reading its Child. Either may be nil for a malformed node.
+func mapKeyValue(ctx *walkCtx, rt *protocol.RunType) (keyType, valueType *protocol.RunType) {
+	keyType = argumentChild(ctx, rt, 0)
+	valueType = argumentChild(ctx, rt, 1)
+	return keyType, valueType
+}
+
+// setElement returns the element slot node of a Set<U> — Arguments[0]'s
+// KindParameter wrapper's `.Child`. Nil for a malformed node.
+func setElement(ctx *walkCtx, rt *protocol.RunType) *protocol.RunType {
+	return argumentChild(ctx, rt, 0)
+}
+
+// argumentChild derefs rt.Arguments[index] (a KindParameter wrapper ref) and
+// returns its `.Child` (the wrapped type). Nil when the slot is absent.
+func argumentChild(ctx *walkCtx, rt *protocol.RunType, index int) *protocol.RunType {
+	if index < 0 || index >= len(rt.Arguments) {
+		return nil
+	}
+	wrapper := ctx.deref(rt.Arguments[index])
+	if wrapper == nil {
+		return nil
+	}
+	return wrapper.Child
+}
+
 // formatConstraintKeys returns the candidate failed-constraint keys for a
 // format-carrying node — the param names the type declares (minLength, max,
 // pattern, version, …), sorted for deterministic output. These are exactly the

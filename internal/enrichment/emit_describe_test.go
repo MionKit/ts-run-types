@@ -102,6 +102,128 @@ func TestDescribe(t *testing.T) {
 	}
 }
 
+// tupleMember wraps a slot type in a KindTupleMember node (the shape the tuple
+// walker reads via member.Child).
+func tupleMember(child *protocol.RunType) *protocol.RunType {
+	return &protocol.RunType{Kind: protocol.KindTupleMember, Child: child}
+}
+
+// mapArg / setArg wrap a type in the synthetic KindParameter slot the Map/Set
+// projection stores in rt.Arguments (the underlying type rides on .Child).
+func mapArg(subKind protocol.ReflectionSubKind, child *protocol.RunType) *protocol.RunType {
+	return &protocol.RunType{Kind: protocol.KindParameter, SubKind: subKind, Child: child}
+}
+
+// tupleFixture mirrors `[string, number]`.
+func tupleFixture() *protocol.RunType {
+	return &protocol.RunType{
+		ID: "tuple", Kind: protocol.KindTuple,
+		Children: []*protocol.RunType{
+			tupleMember(leaf(protocol.KindString)),
+			tupleMember(leaf(protocol.KindNumber)),
+		},
+	}
+}
+
+// mapFixture mirrors `Map<string, number>`.
+func mapFixture() *protocol.RunType {
+	return &protocol.RunType{
+		ID: "map", Kind: protocol.KindClass, SubKind: protocol.SubKindMap, TypeName: "Map",
+		Arguments: []*protocol.RunType{
+			mapArg(protocol.SubKindMapKey, leaf(protocol.KindString)),
+			mapArg(protocol.SubKindMapValue, leaf(protocol.KindNumber)),
+		},
+	}
+}
+
+// setFixture mirrors `Set<string>`.
+func setFixture() *protocol.RunType {
+	return &protocol.RunType{
+		ID: "set", Kind: protocol.KindClass, SubKind: protocol.SubKindSet, TypeName: "Set",
+		Arguments: []*protocol.RunType{
+			mapArg(protocol.SubKindSetItem, leaf(protocol.KindString)),
+		},
+	}
+}
+
+// TestEmitFriendlyTuple pins the structural `$slots` shape (solution A).
+func TestEmitFriendlyTuple(t *testing.T) {
+	got := EmitFriendly(tupleFixture(), EmitOptions{VarName: "tupleFriendly", TypeName: "Target"})
+	want := "export const tupleFriendly: FriendlyType<Target> = {$label: '', $slots: [{$label: ''}, {$label: ''}]};\n"
+	if got != want {
+		t.Errorf("EmitFriendly(tuple) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+// TestEmitMockTuple pins the structural `$slots` shape (fixed length, no $length).
+func TestEmitMockTuple(t *testing.T) {
+	got := EmitMock(tupleFixture(), EmitOptions{VarName: "tupleMock", TypeName: "Target"})
+	want := "export const tupleMock: MockData<Target> = {$slots: [{pool: []}, {pool: []}]};\n"
+	if got != want {
+		t.Errorf("EmitMock(tuple) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+// TestEmitMockEmptyTuple confirms an empty tuple yields an empty $slots array.
+func TestEmitMockEmptyTuple(t *testing.T) {
+	empty := &protocol.RunType{ID: "empty", Kind: protocol.KindTuple}
+	got := MockSkeleton(empty, nil)
+	if got != "{$slots: []}" {
+		t.Errorf("MockSkeleton(empty tuple) = %q, want %q", got, "{$slots: []}")
+	}
+}
+
+// TestEmitVariadicTuple confirms a rest/variadic tuple (`[number, ...string[]]`)
+// routes through the ARRAY shape ($items/$length), matching the Phase-A type's
+// `number extends T['length']` branch — NOT the fixed `$slots`.
+func TestEmitVariadicTuple(t *testing.T) {
+	rest := &protocol.RunType{Kind: protocol.KindTupleMember, Flags: []string{"rest"}, Child: leaf(protocol.KindString)}
+	tuple := &protocol.RunType{
+		ID: "vtuple", Kind: protocol.KindTuple,
+		Children: []*protocol.RunType{tupleMember(leaf(protocol.KindNumber)), rest},
+	}
+	gotFriendly := FriendlySkeleton(tuple, nil)
+	if gotFriendly != "{$label: '', $items: {$label: ''}}" {
+		t.Errorf("FriendlySkeleton(variadic tuple) = %q", gotFriendly)
+	}
+	gotMock := MockSkeleton(tuple, nil)
+	if gotMock != "{$items: {pool: []}, $length: [1, 3]}" {
+		t.Errorf("MockSkeleton(variadic tuple) = %q", gotMock)
+	}
+}
+
+// TestEmitFriendlyMap pins the structural `$keys`/`$values` shape.
+func TestEmitFriendlyMap(t *testing.T) {
+	got := EmitFriendly(mapFixture(), EmitOptions{VarName: "mapFriendly", TypeName: "Target"})
+	want := "export const mapFriendly: FriendlyType<Target> = {$label: '', $keys: {$label: ''}, $values: {$label: ''}};\n"
+	if got != want {
+		t.Errorf("EmitFriendly(map) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+// TestEmitMockMap pins the structural `$keys`/`$values` shape (no $size emitted).
+func TestEmitMockMap(t *testing.T) {
+	got := EmitMock(mapFixture(), EmitOptions{VarName: "mapMock", TypeName: "Target"})
+	want := "export const mapMock: MockData<Target> = {$keys: {pool: []}, $values: {pool: []}};\n"
+	if got != want {
+		t.Errorf("EmitMock(map) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+// TestEmitSet pins the structural `$values` shape for both emitters.
+func TestEmitSet(t *testing.T) {
+	gotFriendly := EmitFriendly(setFixture(), EmitOptions{VarName: "setFriendly", TypeName: "Target"})
+	wantFriendly := "export const setFriendly: FriendlyType<Target> = {$label: '', $values: {$label: ''}};\n"
+	if gotFriendly != wantFriendly {
+		t.Errorf("EmitFriendly(set) mismatch:\n--- got ---\n%s\n--- want ---\n%s", gotFriendly, wantFriendly)
+	}
+	gotMock := EmitMock(setFixture(), EmitOptions{VarName: "setMock", TypeName: "Target"})
+	wantMock := "export const setMock: MockData<Target> = {$values: {pool: []}};\n"
+	if gotMock != wantMock {
+		t.Errorf("EmitMock(set) mismatch:\n--- got ---\n%s\n--- want ---\n%s", gotMock, wantMock)
+	}
+}
+
 // TestEmitFriendlyCyclic confirms the seen-guard breaks a self-referential graph
 // instead of recursing forever.
 func TestEmitFriendlyCyclic(t *testing.T) {

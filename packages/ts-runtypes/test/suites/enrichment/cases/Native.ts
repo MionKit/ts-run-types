@@ -2,11 +2,12 @@ import type {FriendlyType, MockData} from 'ts-runtypes';
 import type {EnrichmentCase} from './types.ts';
 
 // Builtin / native kinds. Date and RegExp are scalar-like leaves — friendly
-// `{$label: ''}`, mock `{pool: []}` (both valid). Map and Set are emitted as
-// opaque leaves too (no Map/Set arm in the emitter), but `MockData<Map>` /
-// `MockData<Set>` model them as homomorphic object maps, so their `{pool: []}`
-// mock is authored with an `as MockData<Target>` assertion (the harness strips
-// the cast before comparing). Mirrors the validation suite's NATIVE range.
+// `{$label: ''}`, mock `{pool: []}`. Map and Set reflect their STRUCTURE
+// (solution A): the emitter walks the key/value/element types. `Map<K,V>` →
+// friendly `{$label: '', $keys, $values}` / mock `{$keys, $values}` (the
+// optional `$size` is left for the author to add); `Set<U>` → friendly
+// `{$label: '', $values}` / mock `{$values}`. All are valid `FriendlyType` /
+// `MockData` — no `as` cast needed. Mirrors the validation suite's NATIVE range.
 export const NATIVE = {
   date: {
     title: 'Date',
@@ -42,9 +43,9 @@ export const NATIVE = {
       // ##### src #####
       type Target = Map<string, number>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $keys: {$label: ''}, $values: {$label: ''}};
       // ##### mock #####
-      const mockTarget: MockData<Target> = {pool: []} as MockData<Target>;
+      const mockTarget: MockData<Target> = {$keys: {pool: []}, $values: {pool: []}};
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -56,9 +57,9 @@ export const NATIVE = {
       // ##### src #####
       type Target = Set<string>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $values: {$label: ''}};
       // ##### mock #####
-      const mockTarget: MockData<Target> = {pool: []} as MockData<Target>;
+      const mockTarget: MockData<Target> = {$values: {pool: []}};
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
