@@ -20,22 +20,22 @@ func findCarcass(index *mirrorIndex, named enrichment.NamedConst, friendly bool)
 }
 
 // orphanConsts wraps each existing OWNED const that is no longer wanted in an
-// `/* @rtOrphan … */` block, and returns the set of source type names that were
-// orphaned (for the breadcrumb-clause recompute). The rule is CONSERVATIVE: a
-// const is orphaned only when it is BOTH (a) absent from the desired set AND
-// (b) its source type is no longer declared by the resolved breadcrumb source.
-// Condition (b) is what distinguishes a genuinely-deleted type from one simply
-// not in this gen invocation's closure (another type in the same mirror file) —
-// the latter is left untouched.
-func orphanConsts(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite) map[string]bool {
-	orphanedTypeNames := map[string]bool{}
+// `/* @rtOrphan … */` block, and returns the orphaned const entries (for the
+// breadcrumb-clause recompute, which needs both their type names and byte
+// ranges). The rule is CONSERVATIVE: a const is orphaned only when it is BOTH
+// (a) absent from the desired set AND (b) its source type is no longer declared
+// by the resolved breadcrumb source. Condition (b) is what distinguishes a
+// genuinely-deleted type from one simply not in this gen invocation's closure
+// (another type in the same mirror file) — the latter is left untouched.
+func orphanConsts(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite) []*constEntry {
+	var orphaned []*constEntry
 	if index.breadcrumb == nil {
-		return orphanedTypeNames // no source link → can't safely judge declaration
+		return orphaned // no source link → can't safely judge declaration
 	}
 	resolvedSource := resolveBreadcrumb(spec.mirrorPath, index.breadcrumb.specifier)
 	sourceText, err := readFileString(resolvedSource)
 	if err != nil {
-		return orphanedTypeNames // source unreadable → be conservative, orphan nothing
+		return orphaned // source unreadable → be conservative, orphan nothing
 	}
 
 	desiredVars := desiredVarSet(spec)
@@ -53,9 +53,9 @@ func orphanConsts(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite) map[str
 		// Orphan it: wrap the whole const (from its marker/keyword start to End) in
 		// an @rtOrphan block, preserving the original text verbatim for restore.
 		*ops = append(*ops, orphanConstOp(index.raw, entry))
-		orphanedTypeNames[typeName] = true
+		orphaned = append(orphaned, entry)
 	}
-	return orphanedTypeNames
+	return orphaned
 }
 
 // orphanConstOp builds the splice that comments out a whole const as an
@@ -83,11 +83,21 @@ func orphanConstOp(raw []byte, entry *constEntry) spliceOp {
 // clause from the surviving consts and replaces ONLY the clause (the
 // `from '<src>'` specifier stays byte-identical). Surviving names = existing
 // const type names (minus orphaned) ∪ DESIRED const type names that are declared
-// in THIS mirror's source file (covers added AND restored consts). No-op when
-// the recomputed clause equals the current one (idempotent).
-func syncBreadcrumbClause(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite, orphanedTypeNames map[string]bool) {
+// in THIS mirror's source file (covers added AND restored consts) ∪ any CURRENT
+// breadcrumb name still textually referenced in the post-splice file outside the
+// orphaned ranges (covers a name a HAND-AUTHORED const still uses — never drop
+// it, or that const's type breaks). No-op when the recomputed clause equals the
+// current one (idempotent).
+func syncBreadcrumbClause(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite, orphanedEntries []*constEntry) {
 	if index.breadcrumb == nil || index.breadcrumb.clauseStart == 0 {
 		return
+	}
+
+	orphanedTypeNames := map[string]bool{}
+	for _, entry := range orphanedEntries {
+		if entry.typeName != "" {
+			orphanedTypeNames[entry.typeName] = true
+		}
 	}
 
 	names := map[string]bool{}
@@ -108,6 +118,21 @@ func syncBreadcrumbClause(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite,
 		}
 		if tspath.NormalizePath(declFile) == thisSource && named.TypeName != "" {
 			names[named.TypeName] = true
+		}
+	}
+	// ADD-only safety: a current breadcrumb name still textually referenced
+	// OUTSIDE the orphaned const ranges (e.g. in a hand-authored `const x:
+	// SomeType = …` the enrichment owns no entry for) MUST stay — dropping it
+	// breaks that const's type annotation. We only ever ADD here, never remove.
+	// The breadcrumb import statement itself references every name (the `import
+	// type { … }` clause), so blank ITS range too — only USES outside the import
+	// count as live.
+	blanked := orphanRanges(orphanedEntries)
+	blanked = append(blanked, [2]int{index.breadcrumb.tokenStart, index.breadcrumb.end})
+	survivingText := textOutsideRanges(index.raw, blanked)
+	for _, name := range index.breadcrumb.names {
+		if name != "" && referencesIdentifier(survivingText, name) {
+			names[name] = true
 		}
 	}
 
@@ -217,4 +242,77 @@ func readFileString(path string) (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+// orphanRanges returns each orphaned const's orphan-op byte range — [markerStart
+// or tokenStart, end) — the span that will be commented out by the @rtOrphan
+// wrap, so references inside it no longer count as live.
+func orphanRanges(orphaned []*constEntry) [][2]int {
+	ranges := make([][2]int, 0, len(orphaned))
+	for _, entry := range orphaned {
+		start := entry.tokenStart
+		if entry.markerStart != entry.markerEnd {
+			start = entry.markerStart
+		}
+		ranges = append(ranges, [2]int{start, entry.end})
+	}
+	return ranges
+}
+
+// textOutsideRanges returns raw with each given byte range blanked (replaced by
+// spaces, newlines preserved). It models the POST-splice file: the blanked spans
+// (orphaned consts + the breadcrumb import itself) are content whose token
+// references must NOT count as a live use of a type name.
+func textOutsideRanges(raw []byte, ranges [][2]int) string {
+	if len(ranges) == 0 {
+		return string(raw)
+	}
+	out := make([]byte, len(raw))
+	copy(out, raw)
+	for _, r := range ranges {
+		start, end := r[0], r[1]
+		if start < 0 {
+			start = 0
+		}
+		if end > len(out) {
+			end = len(out)
+		}
+		for i := start; i < end; i++ {
+			if out[i] != '\n' {
+				out[i] = ' ' // blank the range but keep newlines for readability
+			}
+		}
+	}
+	return string(out)
+}
+
+// referencesIdentifier reports whether text contains name as a standalone
+// identifier token (word-boundary on both sides — a letter/digit/`_`/`$`
+// neighbour disqualifies it, so `User` does not match inside `UserProfile`).
+func referencesIdentifier(text, name string) bool {
+	if name == "" {
+		return false
+	}
+	from := 0
+	for {
+		idx := strings.Index(text[from:], name)
+		if idx < 0 {
+			return false
+		}
+		pos := from + idx
+		beforeOK := pos == 0 || !isIdentByte(text[pos-1])
+		afterPos := pos + len(name)
+		afterOK := afterPos >= len(text) || !isIdentByte(text[afterPos])
+		if beforeOK && afterOK {
+			return true
+		}
+		from = pos + 1
+	}
+}
+
+// isIdentByte reports whether b is a JS identifier byte (letter, digit, `_`,
+// or `$`) — used for the word-boundary check in referencesIdentifier.
+func isIdentByte(b byte) bool {
+	return b == '_' || b == '$' ||
+		(b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
 }
