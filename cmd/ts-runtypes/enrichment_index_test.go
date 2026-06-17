@@ -119,6 +119,35 @@ func TestParseConstMarkers(t *testing.T) {
 	}
 }
 
+// TestMarkerComment renders a deterministic, parse-round-tripping JSDoc marker
+// (sorted @rtIds keys), and omits the comment entirely when there is no id.
+func TestMarkerComment(t *testing.T) {
+	got := markerComment("User", "9f3a", map[string]string{"age": "b2", "name": "a1"})
+	want := "/** @rtType User#9f3a @rtIds {age: b2, name: a1} */\n"
+	if got != want {
+		t.Errorf("markerComment = %q, want %q", got, want)
+	}
+
+	// Round-trip: parseConstMarkers recovers the same id + map.
+	typeID, childIDs := parseConstMarkers(got)
+	if typeID != "9f3a" {
+		t.Errorf("round-trip typeID = %q", typeID)
+	}
+	if !reflect.DeepEqual(childIDs, map[string]string{"age": "b2", "name": "a1"}) {
+		t.Errorf("round-trip childIDs = %v", childIDs)
+	}
+
+	// No id → no marker.
+	if markerComment("User", "", nil) != "" {
+		t.Errorf("expected empty marker for empty typeID")
+	}
+
+	// No childIDs → @rtType only.
+	if markerComment("User", "abc", nil) != "/** @rtType User#abc */\n" {
+		t.Errorf("marker without childIDs = %q", markerComment("User", "abc", nil))
+	}
+}
+
 // TestHasCamelSuffix gates friendly*/mock* var recognition on a CamelCase suffix.
 func TestHasCamelSuffix(t *testing.T) {
 	cases := map[string]bool{
