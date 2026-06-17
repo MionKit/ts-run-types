@@ -6,13 +6,37 @@
 //
 // Convergence cases deliberately use `boolean` / object-of-boolean / literals —
 // kinds with NO format brand — so the value-first id equals the bare type-first
-// id. (A `TF.string()` builder carries `FormatString<{}>`, which converges with
-// `FormatString<{}>`, not the bare `string`; behaviour is identical either way.)
+// id. (A `TF.string()` builder carries `TF.String<{}>`, which converges with
+// `TF.String<{}>`, not the bare `string`; behaviour is identical either way.)
 
 import * as TF from 'ts-runtypes/formats';
 import {describe, expect, it} from 'vitest';
 import {createValidate, createGetValidationErrors} from 'ts-runtypes';
-import {array, tuple, union, intersection, record, object, boolean, literal, regexp, circular, func, parameters, templateLiteral, optional, partial, required, pick, omit, exclude, extract, nonNullable, readonly, returnType} from 'ts-runtypes/schema';
+import {
+  array,
+  tuple,
+  union,
+  intersection,
+  record,
+  object,
+  boolean,
+  literal,
+  regexp,
+  circular,
+  func,
+  parameters,
+  templateLiteral,
+  optional,
+  partial,
+  required,
+  pick,
+  omit,
+  exclude,
+  extract,
+  nonNullable,
+  readonly,
+  returnType,
+} from 'ts-runtypes/schema';
 import 'ts-runtypes/formats';
 
 describe('compose builders — array', () => {
@@ -74,7 +98,9 @@ describe('compose builders — union', () => {
   });
 
   it('validates a discriminated union of objects', () => {
-    const isShape = createValidate(union([object({kind: literal('a'), n: TF.number()}), object({kind: literal('b'), s: TF.string()})]));
+    const isShape = createValidate(
+      union([object({kind: literal('a'), n: TF.number()}), object({kind: literal('b'), s: TF.string()})])
+    );
     expect(isShape({kind: 'a', n: 1})).toBe(true);
     expect(isShape({kind: 'b', s: 'hi'})).toBe(true);
     expect(isShape({kind: 'a', s: 'hi'})).toBe(false);

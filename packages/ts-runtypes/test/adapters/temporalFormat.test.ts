@@ -1,4 +1,4 @@
-// Temporal format family runtime spec — FormatTemporalX<{min,max}> bound
+// Temporal format family runtime spec — TFT.X<{min,max}> bound
 // constraints. Validates that the emitted `Temporal.X.compare(v, bound)`
 // checks accept in-range values and reject out-of-range ones, for both
 // absolute Temporal-string bounds and relative `now±P` bounds.
@@ -92,7 +92,7 @@ describe('Temporal relative now±P bounds (wide margins, clock-independent)', ()
 // Bound-aware mocking — every generated value must re-pass validate for the
 // same bounded type, across all orderable Temporal types and both inclusive
 // (min/max) and exclusive (gt/lt) bounds.
-describe('FormatTemporalX mock — every generated value satisfies its bounds', () => {
+describe('TFT.X mock — every generated value satisfies its bounds', () => {
   const ITERATIONS = 40;
 
   it('PlainDate min/max — mock stays in range', () => {
@@ -132,10 +132,8 @@ describe('FormatTemporalX mock — every generated value satisfies its bounds', 
   });
 
   it('ZonedDateTime min/max — mock stays in range', () => {
-    const validate =
-      createValidate<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
-    const mock =
-      createMockType<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
+    const validate = createValidate<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
+    const mock = createMockType<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 

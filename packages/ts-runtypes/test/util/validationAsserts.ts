@@ -323,7 +323,7 @@ export function assertGetValidationErrorsDeserializeReflect(c: AssertableCase): 
 
 /** Schema form: createGetValidationErrors(<value-first builder schema>).
  *  A value-first leaf builder reflects the FORMAT of a type (e.g. `string()`
- *  → `FormatString<{}>`), so its error detail may carry format metadata the
+ *  → `TF.String<{}>`), so its error detail may carry format metadata the
  *  bare type-first error doesn't — we therefore assert the CONTRACT
  *  (valid → no errors; invalid → at least one error) rather than deep-equality
  *  with the type-first `expected`, which the static pass above already pins. **/

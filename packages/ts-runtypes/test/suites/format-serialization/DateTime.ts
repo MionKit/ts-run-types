@@ -1,5 +1,5 @@
 // format-serialization / DateTime — the date/time FORMAT family round-tripped:
-// format-branded `TF.Date<P>` + the 6 orderable `FormatTemporal*<P>` types
+// format-branded `TF.Date<P>` + the 6 orderable `TFT.*<P>` types
 // through every JSON encoder × decoder pairing and the binary round-trip. The
 // format brand only constrains validation (bounds); serialization uses the base
 // kind (Date / Temporal.X), so this proves the branded types serialize exactly
@@ -72,10 +72,8 @@ export const DATETIME = {
     binaryDecoder: () => createBinaryDecoder<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     schemaEncoder: () => createJsonEncoder(TFT.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
     schemaDecoder: () => createJsonDecoder(TFT.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
-    schemaBinaryEncoder: () =>
-      createBinaryEncoder(TFT.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
-    schemaBinaryDecoder: () =>
-      createBinaryDecoder(TFT.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
+    schemaBinaryEncoder: () => createBinaryEncoder(TFT.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
+    schemaBinaryDecoder: () => createBinaryDecoder(TFT.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
     getTestData: () => ({values: [T.Instant.from('2020-06-15T12:00:00Z')]}),
   },
 
@@ -87,8 +85,7 @@ export const DATETIME = {
       'Branded Temporal.PlainDate: serialization uses the base Temporal kind (brand is validation-only); JSON carries the plain-date string and restores via .from().',
     mutateEncoder: () =>
       createJsonEncoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () =>
-      createJsonEncoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'clone'}),
+    cloneEncoder: () => createJsonEncoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'clone'}),
     directEncoder: () =>
       createJsonEncoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
@@ -109,12 +106,9 @@ export const DATETIME = {
       'JSON and binary round-trip of TFT.PlainTime, a Temporal.PlainTime branded with a time-of-day range; the bounds constrain validation only, so the PlainTime serializes exactly like an unbranded one, carrying the toJSON() "HH:mm:ss" string in JSON and restoring via Temporal.PlainTime.from().',
     serializeNotes:
       'Branded Temporal.PlainTime: serialization uses the base Temporal kind (brand is validation-only); JSON carries the plain-time string and restores via .from().',
-    mutateEncoder: () =>
-      createJsonEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () =>
-      createJsonEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'clone'}),
-    directEncoder: () =>
-      createJsonEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'direct'}),
+    mutateEncoder: () => createJsonEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     preserveDecoder: () =>
       createJsonDecoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'preserve'}),
@@ -145,22 +139,17 @@ export const DATETIME = {
       createJsonEncoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {
         strategy: 'direct',
       }),
-    stripDecoder: () =>
-      createJsonDecoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    stripDecoder: () => createJsonDecoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     preserveDecoder: () =>
       createJsonDecoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {
         strategy: 'preserve',
       }),
-    binaryEncoder: () =>
-      createBinaryEncoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
-    binaryDecoder: () =>
-      createBinaryDecoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    binaryEncoder: () => createBinaryEncoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    binaryDecoder: () => createBinaryDecoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     schemaEncoder: () => createJsonEncoder(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     schemaDecoder: () => createJsonDecoder(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
-    schemaBinaryEncoder: () =>
-      createBinaryEncoder(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
-    schemaBinaryDecoder: () =>
-      createBinaryDecoder(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    schemaBinaryEncoder: () => createBinaryEncoder(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    schemaBinaryDecoder: () => createBinaryDecoder(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     getTestData: () => ({values: [T.PlainDateTime.from('2020-06-15T12:00:00')]}),
   },
 
@@ -170,12 +159,9 @@ export const DATETIME = {
       'JSON and binary round-trip of TFT.PlainYearMonth, a Temporal.PlainYearMonth branded with a year-month range; the bounds constrain validation only, so the PlainYearMonth serializes exactly like an unbranded one, carrying the toJSON() "YYYY-MM" string in JSON and restoring via Temporal.PlainYearMonth.from().',
     serializeNotes:
       'Branded Temporal.PlainYearMonth: serialization uses the base Temporal kind (brand is validation-only); JSON carries the year-month string and restores via .from().',
-    mutateEncoder: () =>
-      createJsonEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () =>
-      createJsonEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'clone'}),
-    directEncoder: () =>
-      createJsonEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'direct'}),
+    mutateEncoder: () => createJsonEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     preserveDecoder: () =>
       createJsonDecoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'preserve'}),
@@ -195,35 +181,29 @@ export const DATETIME = {
     serializeNotes:
       'Branded Temporal.ZonedDateTime: serialization uses the base Temporal kind (brand is validation-only); the wire string preserves the [UTC] time-zone annotation and restores via .from(), so the zone survives the round-trip.',
     mutateEncoder: () =>
-      createJsonEncoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(
-        undefined,
-        {strategy: 'mutate'}
-      ),
+      createJsonEncoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(undefined, {
+        strategy: 'mutate',
+      }),
     cloneEncoder: () =>
-      createJsonEncoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(
-        undefined,
-        {strategy: 'clone'}
-      ),
+      createJsonEncoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(undefined, {
+        strategy: 'clone',
+      }),
     directEncoder: () =>
-      createJsonEncoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(
-        undefined,
-        {strategy: 'direct'}
-      ),
+      createJsonEncoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(undefined, {
+        strategy: 'direct',
+      }),
     stripDecoder: () =>
       createJsonDecoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     preserveDecoder: () =>
-      createJsonDecoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(
-        undefined,
-        {strategy: 'preserve'}
-      ),
+      createJsonDecoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(undefined, {
+        strategy: 'preserve',
+      }),
     binaryEncoder: () =>
       createBinaryEncoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     binaryDecoder: () =>
       createBinaryDecoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
-    schemaEncoder: () =>
-      createJsonEncoder(TFT.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
-    schemaDecoder: () =>
-      createJsonDecoder(TFT.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
+    schemaEncoder: () => createJsonEncoder(TFT.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
+    schemaDecoder: () => createJsonDecoder(TFT.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
     schemaBinaryEncoder: () =>
       createBinaryEncoder(TFT.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
     schemaBinaryDecoder: () =>

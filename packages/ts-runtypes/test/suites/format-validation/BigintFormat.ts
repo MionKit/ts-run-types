@@ -235,8 +235,7 @@ export const BIGINT_FORMAT = {
     validateDataOnly: () => createValidate<DataOnly<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>>(),
     validateSchema: () => createValidate(TF.bigInt({min: 0n, max: 1000n, multipleOf: 10n})),
     getValidationErrors: () => createGetValidationErrors<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
-    getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<DataOnly<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.bigInt({min: 0n, max: 1000n, multipleOf: 10n})),
     mockType: () => createMockType<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     getSamples: () => ({valid: [0n, 10n, 1000n], invalid: [-10n, 1010n, 7n]}),
