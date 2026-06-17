@@ -28,11 +28,17 @@ export const ATOMIC = {
   stringFormat: {
     title: 'String with min/max length format',
     // ONE self-enclosing function: the type + both expecteds, type-checked together.
+    // `// ##### … #####` markers delimit the spans the harness slices; the const
+    // names derive from the type name (friendly<Type> / mock<Type>).
     case: () => {
+      // ##### src #####
       type Target = TF.String<{minLength: 2; maxLength: 60}>;
-      const friendly: FriendlyType<Target> = {$label: '', $errors: {type: '', maxLength: '', minLength: ''}};
-      const mock: MockData<Target> = {pool: []};
-      return {friendly, mock};
+      // ##### friendly #####
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', maxLength: '', minLength: ''}};
+      // ##### mock #####
+      const mockTarget: MockData<Target> = {pool: []};
+      // ##### result #####
+      return {friendlyTarget, mockTarget};
     },
   },
   // …
@@ -42,20 +48,31 @@ export const ATOMIC = {
 Per category file the harness (in a `beforeAll`):
 
 1. **Extract** every case's `case` arrow-function body via `cmd/extract-fn-bodies`
-   (already returns the verbatim, dedented body text). From each body, pull the three
-   spans: `type Target = …;`, the `friendly` initializer, the `mock` initializer (a
-   small regex/AST sub-parse — the bodies are uniform by construction).
-2. **Synthesize** a temp `.ts`: the suite file's import block + one
-   `export type Case_<key> = <Target source>;` per case.
-3. **Generate** in ONE CLI call: `ts-runtypes gen <temp> --types Case_a,Case_b,… --stdout --json`
-   → `{ "Case_a": { "friendly": "<obj-literal text>", "mock": "<obj-literal text>" }, … }`.
-4. **Compare** generated vs the extracted expected for each case, after **normalizing
-   both** (parse to an AST and re-print, or run each through Prettier wrapped as
-   `const _ = <expr>`) so whitespace/quote style never causes a false diff.
+   (verbatim, dedented, comments preserved), then **split by the `// ##### … #####`
+   markers** into the `src` / `friendly` / `mock` spans (the `result` span is for
+   runtime only — ignored by the shape comparison). A plain string split — no AST
+   sub-parse needed.
+2. **Synthesize** a temp `.ts`: the suite file's import block + each case's `src` span
+   (the `type …` declaration) re-exported. *(Batching wrinkle — see below.)*
+3. **Generate** with the CLI: `ts-runtypes gen … --stdout --json` →
+   `{ "<type>": { "friendly": "<obj-literal text>", "mock": "<obj-literal text>" }, … }`.
+4. **Compare** the generated object-literal against the `friendly` / `mock` span's
+   initializer, **AST-normalizing both** (const name / `export` / annotation stripped —
+   only the object literal compared) so whitespace/quote style never false-diffs.
 
-Because the expected is authored as `const friendly: FriendlyType<Target> = …`, **tsc
-proves the expected is a well-formed `FriendlyType<T>`** — a case can't encode an
-invalid expectation. The input type is real too, so cases can't drift into invalid TS.
+**Dual-use.** The `case()` body is real, type-checked code that also *runs*: `tsc`
+proves the `friendly`/`mock` expecteds are well-formed `FriendlyType<T>`/`MockData<T>`
+(a case can't encode an invalid expectation), and the `result` return lets a test
+optionally execute the case and exercise the runtime (`createFriendly`,
+`createMockType`) on the authored values. **The primary assertion is the source
+extraction + comparison**; runtime use is opt-in per case.
+
+**Batching wrinkle (impl decision B-batch).** A uniform `Target` name collides if all
+cases are synthesized into one file. Two ways out: (a) cases name the type **uniquely**
+(derived from the case key) → one temp file + one batched `gen --types …` per category
+(fast, recursive-safe); or (b) keep a uniform `Target` → **one temp file per case** and
+gen per case, driving a **persistent binary** (`--daemon`) so there's no respawn cost.
+Recommend (a) — unique names — unless the uniform `Target` reads materially better.
 
 ## Decisions (recommended — confirm)
 
@@ -64,11 +81,11 @@ invalid expectation. The input type is real too, so cases can't drift into inval
   text; both are AST-/Prettier-normalized before `===`. *(Supersedes the earlier
   structured-shape idea — no `emit.go` shape-tree refactor needed; `gen` already emits
   text.)*
-- **D2 — One self-enclosing `case()` function per type**, declaring `type Target` +
-  `const friendly`/`const mock`, returned. Co-locates the type with its expecteds,
-  type-checks them together, avoids module-scope name pollution, and is uniform to
-  sub-parse. *(Alternative: module-scope `type Case_X` + extracted `friendly`/`mock`
-  thunks — skips synthesis but pollutes the namespace. Recommend self-enclosing.)*
+- **D2 — One self-enclosing `case()` function per type — CONFIRMED.** Declares the
+  type + `const friendly<Type>` / `const mock<Type>` (names derived from the type) and
+  returns them. `// ##### src/friendly/mock/result #####` comment markers delimit the
+  spans, so extraction is a **string split by markers** (no AST sub-parse). Co-locates
+  the type with its expecteds, type-checks them together, and is dual-use (runnable).
 - **D3 — Reuse the validation type ranges**, re-declared in the enrichment cases
   (independent + readable). *(Alternative: extract the inline `T` from the validation
   suite's `createValidate<T>()` thunks and gen those directly — DRYer but couples the
@@ -103,10 +120,11 @@ packages/ts-runtypes/test/suites/enrichment-gen/
 test/util/enrichmentGen.ts  # extract (extract-fn-bodies) + synthesize temp + spawn gen + normalize
 ```
 
-- **`EnrichmentCase`** is tiny: a `title` and a `case()` function. The `case` body is
-  never executed for its return value — it exists to (a) type-check the expecteds and
-  (b) be source-extracted. (`TypeFriendlyCase` / `MockDataCase` survive as the *types*
-  of `friendly` / `mock` inside `case`, i.e. `FriendlyType<T>` / `MockData<T>`.)
+- **`EnrichmentCase`** is tiny: a `title` and a `case()` function whose body carries
+  the marker-delimited spans. The body is dual-use — source-extracted for the primary
+  comparison, and runnable for opt-in runtime checks via its `result` return.
+  (`TypeFriendlyCase` / `MockDataCase` survive as the *types* of `friendly` / `mock`
+  inside `case`, i.e. `FriendlyType<T>` / `MockData<T>`.)
 - **Drift guard:** `index.ts` `as const satisfies` (compile-time), exactly like
   `validation/index.ts`; the adapter also asserts every case's type was generated
   (a typo'd case yields no CLI output → red).
@@ -118,9 +136,10 @@ test/util/enrichmentGen.ts  # extract (extract-fn-bodies) + synthesize temp + sp
 - [ ] **B1** — `gen --types … --stdout --json` batch mode (returns object-literal text
   per type) + a Go test (hermetic, assert JSON for 1–2 types).
 - [ ] **T1** — `test/util/enrichmentGen.ts`: invoke `extract-fn-bodies` (or reuse
-  `scripts/export-validation-suite.mjs`'s spawn), sub-parse the case body into
-  `{type, friendly, mock}`, synthesize the temp file, spawn `gen`, AST/Prettier-normalize,
-  return a `{caseKey → {friendly, mock}}` lookup of generated + expected.
+  `scripts/export-validation-suite.mjs`'s spawn), **split each case body by the
+  `// ##### … #####` markers** into `{src, friendly, mock}`, synthesize the temp
+  file(s) (per B-batch), spawn `gen`, AST-normalize, return a
+  `{caseKey → {friendly, mock}}` lookup of generated + expected.
 - [ ] **T2** — `types.ts` (`EnrichmentCase`, the `case()` contract).
 - [ ] **T3** — the category files, porting the validation suite's type ranges.
 - [ ] **T4** — `index.ts` (`as const satisfies`) + `enrichmentGen.test.ts`.
@@ -138,11 +157,13 @@ output. This makes the comparison about **shape + keys + values**, not formattin
 
 ## Open decisions for you
 
-1. **D2** self-enclosing `case()` (recommended) vs module-scope named type + extracted
-   `friendly`/`mock` thunks?
-2. **D3** re-declare type ranges (recommended) vs reuse the validation suite's inline
-   types via extraction?
-3. Normalization via the **TS compiler API** vs **Prettier** (recommend TS API — no
-   extra wrapping, exact AST equivalence)?
-4. Suite dir `enrichment-gen/` vs fold into existing `enrichment/`?
-5. Should `check` validation also get a case suite now, or stay on Go unit tests?
+*(D1 text-compare and D2 self-enclosing `case()` + comment markers are confirmed.)*
+
+1. **B-batch** — unique per-case type names → one batched `gen` per category file
+   (recommended), vs uniform `Target` → per-case gen via a persistent `--daemon`.
+2. **Normalization** — TS compiler API (recommend — exact AST equivalence) vs Prettier.
+3. **Suite dir** — `enrichment-gen/` (recommended) vs fold into existing `enrichment/`.
+4. **`check` suite** — give validation its own case suite now, or keep it on the Go
+   unit tests for this pass?
+5. **D3** — re-declare the validation type ranges in the enrichment cases (recommended)
+   vs reuse the validation suite's inline `T`s via extraction.
