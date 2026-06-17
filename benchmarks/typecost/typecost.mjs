@@ -55,13 +55,20 @@ import url from 'node:url';
 import {spawnSync} from 'node:child_process';
 
 // Sample loading imports the shared cases as .ts via Node's type stripping; some
-// `getSamples()` thunks contain `enum`, which plain strip-only mode rejects. Re-
-// exec ourselves ONCE with --experimental-transform-types (enum-aware) so the
-// value-forcing path works. Guarded by a sentinel so it can't loop; if the spawn
-// fails (flag unsupported on an old Node) we fall through and run anyway — sample
-// loading then degrades to declare-only (still correct, just less forcing).
+// `getSamples()` thunks contain `enum`, which plain strip-only mode rejects. When
+// the running Node supports it, re-exec ourselves ONCE with
+// --experimental-transform-types (enum-aware) so the value-forcing path works.
+// Node >= 25 REMOVED that flag (type stripping is strip-only / unflagged), so we
+// probe for it first and, when absent, skip the re-exec and run in-process —
+// enum-containing samples then degrade to declare-only (still correct, just less
+// value-forcing; loadSampleValues catches the import error). Guarded by a
+// sentinel so it can't loop.
 const TRANSFORM_FLAG = '--experimental-transform-types';
-if (!process.execArgv.includes(TRANSFORM_FLAG) && !process.env.__TYPECOST_REEXEC) {
+function nodeSupportsFlag(flag) {
+  const probe = spawnSync(process.execPath, [flag, '-e', '0'], {stdio: 'ignore'});
+  return probe.error === undefined && probe.status === 0;
+}
+if (!process.execArgv.includes(TRANSFORM_FLAG) && !process.env.__TYPECOST_REEXEC && nodeSupportsFlag(TRANSFORM_FLAG)) {
   const self = url.fileURLToPath(import.meta.url);
   const child = spawnSync(process.execPath, [TRANSFORM_FLAG, self, ...process.argv.slice(2)], {
     stdio: 'inherit',

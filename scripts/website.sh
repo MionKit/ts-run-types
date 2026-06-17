@@ -29,6 +29,9 @@
 # Env overrides:
 #   WEBSITE_ENGINE   container engine (default: podman)
 #   WEBSITE_IMAGE    image tag        (default: tsrt-website:dev)
+#   WEBSITE_BASE_IMAGE   Node 26 base image (default: node:26-bookworm); point at
+#                        a mirror / locally-built base for air-gapped or offline builds.
+#   WEBSITE_PNPM_VERSION override the pinned pnpm baked into the image.
 #   WEBSITE_PORT     host port        (default: 3000)
 #   WEBSITE_AGENT_PORT          agent host port      (default: 3100)
 #   WEBSITE_AGENT_IDLE_SECONDS  agent idle shutdown  (default: 300)
@@ -183,11 +186,24 @@ prepare_cacerts() {
   touch "$CACERTS_DIR/.gitkeep"
 }
 
+# Populate BUILD_ARG_FLAGS from optional env overrides. WEBSITE_BASE_IMAGE swaps
+# the Containerfile's default Node 26 base (mirror / air-gapped / offline-built
+# base); WEBSITE_PNPM_VERSION overrides the pinned pnpm. Honored by both
+# build_image and the multi-arch push (so a published image matches a local one).
+BUILD_ARG_FLAGS=()
+build_arg_flags() {
+  BUILD_ARG_FLAGS=()
+  [ -n "${WEBSITE_BASE_IMAGE:-}" ] && BUILD_ARG_FLAGS+=(--build-arg "BASE_IMAGE=$WEBSITE_BASE_IMAGE")
+  [ -n "${WEBSITE_PNPM_VERSION:-}" ] && BUILD_ARG_FLAGS+=(--build-arg "PNPM_VERSION=$WEBSITE_PNPM_VERSION")
+  return 0
+}
+
 build_image() {
   prepare_cacerts
+  build_arg_flags
   echo "==> building $IMAGE from website/Containerfile"
   local net=(); [ -n "$BUILD_NETWORK" ] && net=(--network="$BUILD_NETWORK")
-  ( cd "$WEBSITE_DIR" && "$ENGINE" build ${net[@]+"${net[@]}"} -t "$IMAGE" -f Containerfile . )
+  ( cd "$WEBSITE_DIR" && "$ENGINE" build ${net[@]+"${net[@]}"} ${BUILD_ARG_FLAGS[@]+"${BUILD_ARG_FLAGS[@]}"} -t "$IMAGE" -f Containerfile . )
 }
 
 # Make the working image ready before a run. DEFAULT: pull the latest published
@@ -215,7 +231,9 @@ ensure_image_local() {
   [ -z "$img_epoch" ] && img_epoch=0
   for f in "$WEBSITE_DIR/Containerfile" "$DEPS_DIR/package.json" "$DEPS_DIR/pnpm-lock.yaml" "$DEPS_DIR/pnpm-workspace.yaml" "$DEPS_DIR/.npmrc"; do
     [ -f "$f" ] || continue
-    t="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)"
+    # GNU stat (Linux) uses -c %Y; BSD stat (macOS) uses -f %m. Try GNU first —
+    # on Linux `stat -f` SUCCEEDS but prints filesystem info, not the mtime.
+    t="$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null || echo 0)"
     [ "$t" -gt "$src_epoch" ] && src_epoch="$t"
   done
   if [ "$src_epoch" -gt "$img_epoch" ]; then
@@ -562,6 +580,7 @@ cmd_login() { require_engine; ghcr_login; }
 cmd_push() {
   require_engine
   prepare_cacerts
+  build_arg_flags
   ghcr_push_multiarch "$MANIFEST_NAME" "$WEBSITE_DIR" "$REMOTE_IMAGE" "$BUILD_NETWORK"
 }
 

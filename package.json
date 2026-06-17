@@ -79,6 +79,8 @@
     "bench": "bash scripts/benchmarks.sh bench",
     "bench:one": "bash scripts/benchmarks.sh bench-one",
     "bench:full": "bash scripts/benchmarks.sh fullbench",
+    "bench:serialization": "bash scripts/benchmarks.sh serialization",
+    "bench:website": "bash scripts/benchmarks.sh website-bench",
     "bench:build": "bash scripts/benchmarks.sh build",
     "bench:smoke": "bash scripts/benchmarks.sh smoke",
     "bench:typecost": "bash scripts/benchmarks.sh typecost",

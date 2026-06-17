@@ -9,6 +9,9 @@
 #   linux-go      bin/ts-runtypes-linux-<arch> matches the host binary —
 #                 cross-compiled on macOS, copied on Linux. Used by the bench
 #                 container to mount a Linux ELF on the host.
+#   linux-extract bin/extract-fn-bodies-linux-<arch> — the source-body extractor
+#                 as a Linux ELF, mounted into the bench container so the
+#                 in-container serialization bench needs no Go toolchain.
 #   marker-dist   packages/ts-runtypes/dist is internally consistent
 #                 (every .d.ts.map has a matching .d.ts, sentinel files present,
 #                 src not newer than dist). Repairs by wiping tsbuildinfo and
@@ -44,6 +47,7 @@ NC='\033[0m'
 
 GO_BIN="bin/ts-runtypes"
 GO_PKG="./cmd/ts-runtypes"
+EXTRACT_PKG="./cmd/extract-fn-bodies"
 MARKER_PKG_DIR="packages/ts-runtypes"
 PLUGIN_PKG_DIR="packages/vite-plugin-runtypes"
 
@@ -181,6 +185,38 @@ check_linux_go() {
   fi
 }
 
+# ── linux-extract ────────────────────────────────────────────────────────────
+
+check_linux_extract() {
+  # The serialization benchmark runs inside the Node 26 container (no Go
+  # toolchain), so the source-extractor `go run ./cmd/extract-fn-bodies` becomes
+  # a bind-mounted Linux ELF at bin/extract-fn-bodies-linux-<arch>. No version
+  # ldflags (only ts-runtypes embeds the cache version). A fresh reference build
+  # + build-id compare detects staleness; on a Linux host GOOS=linux is native.
+  local goarch; goarch="$(linux_goarch)"
+  local linux_bin="bin/extract-fn-bodies-linux-${goarch}"
+  command -v go >/dev/null 2>&1 || fail "Go toolchain not found (needed to build $linux_bin)."
+
+  info "Checking $linux_bin..."
+  local tmp_bin; tmp_bin="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$tmp_bin'" EXIT
+  GOOS=linux GOARCH="$goarch" go build -o "$tmp_bin" "$EXTRACT_PKG" || fail "Cross-build failed."
+  local disk_id ref_id
+  disk_id="$(go tool buildid "$linux_bin" 2>/dev/null || true)"
+  ref_id="$(go tool buildid "$tmp_bin"    2>/dev/null || true)"
+  if [ ! -f "$linux_bin" ] || [ -z "$disk_id" ] || [ "$disk_id" != "$ref_id" ]; then
+    mkdir -p "$(dirname "$linux_bin")"
+    info "Replacing $linux_bin (stale or missing)..."
+    mv "$tmp_bin" "$linux_bin"
+    success "Built $linux_bin."
+  else
+    rm -f "$tmp_bin"
+    success "$linux_bin is up to date with source."
+  fi
+  trap - EXIT
+}
+
 # ── marker-dist / plugin-dist ───────────────────────────────────────────────
 
 # Returns 0 (truthy "stale") if ANY of:
@@ -256,6 +292,7 @@ run_target() {
   case "$1" in
     go)           check_go ;;
     linux-go)     check_linux_go ;;
+    linux-extract) check_linux_extract ;;
     marker-dist)  check_marker_dist ;;
     plugin-dist)  check_plugin_dist ;;
     all)          check_go; check_marker_dist; check_plugin_dist ;;
