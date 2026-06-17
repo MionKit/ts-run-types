@@ -210,3 +210,46 @@ func TestPruneOrphanBlocks(t *testing.T) {
 		t.Errorf("clean text should be untouched; n=%d out=%q", n, out)
 	}
 }
+
+// TestPruneOrphanBlocks_MalformedCarcassSkipped is the C2 guard: a hand-edited
+// whole-const carcass whose terminator is misplaced so the non-greedy match
+// spans into the NEXT live const must be SKIPPED (not removed) so prune never
+// eats live code. Here the first carcass's own ` */` was deleted, so the regex
+// match runs to the SECOND carcass's terminator, swallowing the live
+// friendlyLive const between them.
+func TestPruneOrphanBlocks_MalformedCarcassSkipped(t *testing.T) {
+	src := "/* @rtOrphan /** @rtType A#aID *\\/\n" +
+		"export const friendlyA = { a: {$label: ''} };\n" + // terminator removed here
+		"export const friendlyLive = { live: {$label: ''} };\n" +
+		"/* @rtOrphan /** @rtType B#bID *\\/\n" +
+		"export const friendlyB = { b: {$label: ''} }; */\n"
+
+	pruned, removed := pruneOrphanBlocks(src)
+	// The malformed first match (which spans friendlyLive) is skipped → 0 removed,
+	// and the live const survives intact.
+	if !strings.Contains(pruned, "friendlyLive") {
+		t.Errorf("malformed carcass prune ate the live const:\n%s", pruned)
+	}
+	if removed != 0 {
+		t.Errorf("a carcass spanning a live statement must be skipped; removed=%d", removed)
+	}
+}
+
+// TestCarcassCrossesStatement covers the per-tag thresholds directly.
+func TestCarcassCrossesStatement(t *testing.T) {
+	// A well-formed whole-const carcass wraps exactly one declaration → fine.
+	if carcassCrossesStatement("/* @rtOrphan\nexport const friendlyA = {}; */") {
+		t.Errorf("a single-const @rtOrphan carcass must not be flagged")
+	}
+	// Two declarations in a whole-const carcass → ate the next one.
+	if !carcassCrossesStatement("/* @rtOrphan\nexport const a = {};\nexport const b = {}; */") {
+		t.Errorf("a two-const @rtOrphan carcass must be flagged")
+	}
+	// A field carcass should wrap NO declaration; one means it spilled.
+	if !carcassCrossesStatement("/* @rtOrphanChild old: {},\nexport const leak = {}; */") {
+		t.Errorf("an @rtOrphanChild carcass containing a declaration must be flagged")
+	}
+	if carcassCrossesStatement("/* @rtOrphanChild old: {$label: 'Old'}, */") {
+		t.Errorf("a clean @rtOrphanChild field carcass must not be flagged")
+	}
+}
