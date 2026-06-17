@@ -367,17 +367,17 @@ export function __rt_a1b_Xk7(value) {
 
 ::u-page-section
 #title
-Enrichment your agent can author
+Built for AI agents
 
 #body
 :::div{class="rt-feature-row"}
 ::::card{class="rt-feature-card"}
-### Labels, messages and mock data, type-keyed
-Some things a generator can't invent — a clear field label, a friendly error message, a believable sample name. So you author them once with an LLM's help, **commit** them next to the type, and let the compiler validate them against that type forever after. An LLM that hallucinates a malformed email into a mock pool is caught at build time.
+### Your agent writes it, the compiler checks it
+Some things code can't invent — a clear field label, a friendly error message, a believable sample name. An AI agent writes them, commits them next to your type, and the compiler checks them against that type from then on. If the agent gets a field wrong or invents a malformed email, the build catches it. The agent does the writing; the compiler keeps it honest.
 
 <br>
 
-[The compiler is the agent's correctness check.]{.text-highlighted}
+[The compiler keeps the AI honest.]{.text-highlighted}
 
 :::::div{class="rt-card-footer"}
 [Explore AI integration →](/ai-integration/workflow-and-commands)
@@ -390,29 +390,20 @@ class: sm:grid-cols-1
 ---
   :::::card
   ---
-  title: FriendlyType<T>
+  title: Human-readable labels & errors
   icon: i-lucide-message-square-text
   to: /ai-integration/friendly-type
   ---
-  Combined per-field labels + error-message templates, with a `$[…]` placeholder DSL. Render `getValidationErrors` output into readable messages with `createFriendly`.
+  Friendly field labels and error messages for your forms and UI — written for people, kept in sync with your type.
   :::::
 
   :::::card
   ---
-  title: MockData<T>
+  title: Real-world mock data
   icon: i-lucide-dices
   to: /ai-integration/mock-data
   ---
-  Realistic per-field pools and ranges that feed `createMockType`. Every value is validated against its field's type at build time.
-  :::::
-
-  :::::card
-  ---
-  title: Agent workflow
-  icon: i-lucide-sparkles
-  to: /ai-integration/workflow-and-commands
-  ---
-  `describe` for prompt context, `check --file --json` for ground truth, `gen` for the committed `.rt.ts` sibling — the compiler as a tool for the LLM.
+  Believable sample data — real names, emails, addresses — for your tests and demos, with every value valid for its field.
   :::::
 ::::
 :::
