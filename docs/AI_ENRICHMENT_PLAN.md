@@ -308,5 +308,26 @@ file's checkboxes in the same commit that lands the work.
   already catches the bulk of drift, so the Go validation pass (P3) is a *refinement*
   layer (FT003/FT005/MD003/drift-hash), not the core — the feature is already usable
   with P1/P2/P5 + the editor.
-- **Remaining (Go, focused session):** P0.1 declFile, P0.2 `$[val]`, P3 validation
-  diagnostics, P4 CLI (`describe`/`check`/`gen`) — per the process-model split above.
+- **Process-model corrected** — the `gen` emitter is Go-side + CLI-arg-driven (a
+  giant `RunType.kind` switch belongs with the other emitters; doing it in JS would
+  duplicate the walk). `describe`/`check`/`gen` are one-shot CLI modes of the existing
+  binary; `--daemon` gives loop warmth. Supersedes the earlier JS-file-writes split.
+
+- **P4 core done (Go)** — new **separate** package `internal/enrichment/` (consumes
+  `protocol.RunType` as a library; nothing added to the hot scan/render path):
+  - **Emit / Describe walkers** (commit `f2ff16a`): kind-switch `EmitFriendly`/
+    `EmitMock` (`.rt.ts` skeletons, `$errors` pre-keyed by declared format constraints)
+    + `Describe` (prompt text). Unit-tested with hand-built RunTypes + cyclic bound.
+  - **`describe` / `gen` CLI bridge** (commit `fec8997`): resolves a named type
+    (walk statements → `GetSymbolAtLocation` → `getDeclaredTypeOfSymbol` →
+    `cache.SerializeTopLevel` → `inlineNode` to flatten the ref-graph, clone-only).
+    Minimal shared touch: 5-line pre-`flag.Parse` dispatch in `main.go` (flags never
+    match a subcommand → plugin path untouched) + a `Resolver.Checker()` accessor.
+    Hermetic bridge tests; end-to-end `describe`+`gen` verified; create-only writes.
+  - **`check` (FT002/FT003/FT005, MD001)** — IN PROGRESS (background agent): the
+    literal-AST paired walker. **MD003** (pool values validate — needs the runtime
+    validator) + FT004/MD002 (TS already catches) + the always-on Vite-build
+    diagnostic surfacing are deferred refinements.
+- **Still deferred:** P0.1 declFile (only needed for demand-driven `gen` from marker
+  usage; current `gen` takes file+type explicitly), P0.2 `$[val]`, MD003, build-time
+  diagnostic integration, P6 registry accessors. None are architectural unknowns.
