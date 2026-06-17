@@ -490,6 +490,48 @@ This is the **first committed RunTypes artifact** — every other output is giti
 cache. The `import type` line is best-effort: if a consumed type isn't exported,
 the generated file simply fails to compile and the user fixes the export.
 
+### Named-type-driven emission (decided)
+
+Generation is driven by **type names** — the same principle as the cache (*one entry
+per named type*). An inlined/anonymous type cannot own a `const`, so the split of the
+emitted output mirrors the **named-type** structure:
+
+- **Each named type → its own `const`** (`friendly<Name>` / `mock<Name>`). A field
+  whose type is *another named type* is a **reference by name**, not an inlined copy —
+  a cross-file `import` from that type's definition-anchored sibling (this is why
+  `declFile`, [Prerequisites](#prerequisites-on-the-existing-system), is **required**,
+  not deferred). Within one file (e.g. a test fixture declaring several interfaces)
+  the references are intra-file const references, no imports.
+- **Anonymous / inline shapes are inlined** into their parent const (no name → no const).
+- **Cycles break at the back-edge.** Emit named consts in dependency (topological)
+  order; a back-edge to an already-in-progress named type becomes a **leaf node**
+  (friendly `{$label:''}`, mock `{}`) so the const graph never hits a TDZ self-reference.
+
+```ts
+// interface A { id: string; b: B }   interface B { id: string; a: A }
+export const friendlyB: FriendlyType<B> = {$label: '', id: {$label: ''}, a: {$label: ''}}; // back-edge → leaf
+export const friendlyA: FriendlyType<A> = {$label: '', id: {$label: ''}, b: friendlyB};     // forward ref
+```
+
+### Structural node shapes (solution A)
+
+The emitter **reflects type structure at the node level too** — composite kinds are NOT
+collapsed to opaque leaves. New DSL shapes (the `FriendlyType<T>`/`MockData<T>` mapped
+types model the same):
+
+| Kind | friendly node | mock node |
+| --- | --- | --- |
+| tuple `[A, B]` | `{$label?, $slots: [node, node]}` | `{$slots: [node, node]}` (fixed length, no `$length`) |
+| `Map<K,V>` | `{$label?, $keys: node, $values: node}` | `{$keys: node, $values: node, $size?: [min,max]}` |
+| `Set<U>` | `{$label?, $values: node}` | `{$values: node, $size?: [min,max]}` |
+| index sig `{[k]:V}` | `{$label?, $values: node}` | `{$values: node, $size?: [min,max]}` |
+| array `U[]` | `{$label?, $items: node}` | `{$items: node, $length?}` |
+
+Tuples use **`$slots`** (per-slot, homomorphic `{[K in keyof T]: node}`) — the correct
+reflection of a fixed tuple — distinct from arrays' `$items`/`$length`. Map/Set/index-sig
+get `$keys`/`$values`/`$size`. This supersedes the earlier leaf-pool divergence: the
+emitter and the DSL types now agree structurally for every kind.
+
 ### Trigger policy
 
 | Artifact         | Generated for…                                                              |
