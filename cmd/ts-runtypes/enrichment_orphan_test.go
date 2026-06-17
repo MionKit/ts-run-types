@@ -11,7 +11,7 @@ func TestIndexOrphanCarcasses(t *testing.T) {
 	src := "import type { A } from './a';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n" +
 		"\n" +
-		"/* @rtOrphan /** @rtType B#bID @rtIds {y: yid} * /\n" +
+		"/* @rtOrphan /** @rtType B#bID @rtIds {y: yid} *\\/\n" +
 		"export const friendlyB: FriendlyType<B> = {\n" +
 		"  $label: '',\n" +
 		"  y: {$label: 'Year'},\n" +
@@ -28,7 +28,7 @@ func TestIndexOrphanCarcasses(t *testing.T) {
 	if !strings.Contains(carcass.inner, "y: {$label: 'Year'}") {
 		t.Errorf("carcass inner should preserve the authored value: %q", carcass.inner)
 	}
-	// The restore reverses the comment-sanitization (`* /` → `*/`).
+	// The restore reverses the comment-sanitization (`*\/` → `*/`).
 	restored := unsanitizeFromComment(carcass.inner)
 	if !strings.Contains(restored, "@rtType B#bID @rtIds {y: yid} */") {
 		t.Errorf("restored marker should end in `*/`: %q", restored)
@@ -69,7 +69,7 @@ func TestPruneOrphanBlocks(t *testing.T) {
 		"  /* @rtOrphanChild old: {$label: 'Old'}, */\n" +
 		"};\n" +
 		"\n" +
-		"/* @rtOrphan /** @rtType B#bID * /\n" +
+		"/* @rtOrphan /** @rtType B#bID *\\/\n" +
 		"export const friendlyB = { y: {$label: ''} }; */\n" +
 		"\n" +
 		"export const friendlyC = { z: {$label: ''} };\n"

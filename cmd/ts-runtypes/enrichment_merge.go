@@ -415,17 +415,27 @@ func indexOfByte(s string, b byte) int {
 }
 
 // sanitizeForComment makes original safe inside a `/* … */` block comment by
-// neutralizing any nested `*/` terminator. Newlines are preserved so the
-// orphaned value stays readable.
+// neutralizing any nested `*/` terminator, REVERSIBLY. It escapes the escape
+// character first (`\` → `\\`) so an author value containing the escaped form is
+// distinguishable, then breaks the terminator (`*/` → `*\/`). The result is
+// guaranteed to contain no literal `*/`, and unsanitizeFromComment recovers the
+// original byte-for-byte. Newlines are preserved so the orphaned value stays
+// readable.
+//
+// Order matters: backslash-escaping FIRST, then terminator-breaking, so a value
+// that literally contains `*\/` (or `*/`, or stray backslashes) round-trips.
 func sanitizeForComment(original string) string {
-	return strings.ReplaceAll(original, "*/", "* /")
+	escaped := strings.ReplaceAll(original, "\\", "\\\\")
+	return strings.ReplaceAll(escaped, "*/", "*\\/")
 }
 
-// unsanitizeFromComment reverses sanitizeForComment, restoring `* /` to `*/`
-// when an @rtOrphan / @rtOrphanChild carcass is restored, so the recovered text
-// is byte-identical to the pre-orphan original.
+// unsanitizeFromComment reverses sanitizeForComment in EXACT inverse order
+// (terminator-restore first, then backslash-unescape), so the recovered text is
+// byte-identical to the pre-orphan original even when that original itself
+// contained `*/`, `*\/`, or backslashes.
 func unsanitizeFromComment(sanitized string) string {
-	return strings.ReplaceAll(sanitized, "* /", "*/")
+	restored := strings.ReplaceAll(sanitized, "*\\/", "*/")
+	return strings.ReplaceAll(restored, "\\\\", "\\")
 }
 
 // computeRenames pairs an existing-only DROP field with a desired-only ADD field

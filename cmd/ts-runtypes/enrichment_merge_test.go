@@ -149,6 +149,40 @@ func mergeWithCtx(t *testing.T, existingBody, desiredBody string, ctx mergeCtx) 
 	return string(applySplices([]byte(existing.text), ops))
 }
 
+// TestSanitizeForComment_RoundTrip: a value containing every tricky byte
+// sequence — the comment terminator `*/`, the OLD escape form `* /`, the new
+// escape form `*\/`, and bare backslashes — round-trips byte-identically through
+// sanitize → embed-in-comment → restore. This is the A2 regression: the old
+// `*/`→`* /` scheme corrupted an authored literal `* /` on restore. The result
+// must also be safe to embed (no surviving `*/`).
+func TestSanitizeForComment_RoundTrip(t *testing.T) {
+	cases := []string{
+		"plain value",
+		"contains */ terminator",
+		"contains * / spaced form",
+		"contains *\\/ backslash form",
+		"both */ and * / together",
+		"both */ and *\\/ together: */*\\/",
+		"trailing backslash \\",
+		"double backslash \\\\ middle",
+		"path/to\\file with */ and \\ mixed",
+		"*/",
+		"* /",
+		"*\\/",
+		"\\",
+	}
+	for _, original := range cases {
+		sanitized := sanitizeForComment(original)
+		if strings.Contains(sanitized, "*/") {
+			t.Errorf("sanitized form still contains a `*/` terminator for %q: %q", original, sanitized)
+		}
+		restored := unsanitizeFromComment(sanitized)
+		if restored != original {
+			t.Errorf("round-trip not byte-identical:\n original  = %q\n sanitized = %q\n restored  = %q", original, sanitized, restored)
+		}
+	}
+}
+
 // TestMerge_RenameTier1: a named-type field renamed (home → residence) shares the
 // `friendlyAddress` reference identity → the value is carried under the new key.
 func TestMerge_RenameTier1(t *testing.T) {
