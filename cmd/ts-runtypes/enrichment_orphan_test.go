@@ -61,6 +61,40 @@ func TestOrphanConstOp(t *testing.T) {
 	}
 }
 
+// TestOrphanConstOp_FoldsLeadingComment is the C3 guard: a hand-authored leading
+// comment ABOVE the const's marker is folded INTO the carcass (start extends to
+// the leading-trivia content), so --prune removes it cleanly instead of leaving
+// it dangling. The carcass start must precede the marker block.
+func TestOrphanConstOp_FoldsLeadingComment(t *testing.T) {
+	src := "import type { B } from './b';\n" +
+		"\n" +
+		"// hand-authored note about friendlyB\n" +
+		"/** @rtType B#bID */\n" +
+		"export const friendlyB: FriendlyType<B> = { $label: '' };\n"
+	index := parseMirror("/rt/gen/a.ts", []byte(src))
+	entry := index.byTypeForm[typeFormKey("bID", true)]
+	if entry == nil {
+		t.Fatalf("friendlyB not indexed")
+	}
+	op := orphanConstOp(index.raw, entry)
+	// The carcass must start at the hand-authored comment, not the marker.
+	if op.start >= entry.markerStart {
+		t.Errorf("carcass start %d should precede markerStart %d (fold the leading comment)", op.start, entry.markerStart)
+	}
+	if !strings.Contains(op.text, "hand-authored note") {
+		t.Errorf("the leading comment should be folded into the carcass:\n%q", op.text)
+	}
+	// Applying the op and pruning leaves NO trace of the hand-authored comment.
+	merged := string(applySplices(index.raw, []spliceOp{op}))
+	pruned, _ := pruneOrphanBlocks(merged)
+	if strings.Contains(pruned, "hand-authored note") {
+		t.Errorf("--prune should remove the folded leading comment:\n%s", pruned)
+	}
+	if !strings.Contains(pruned, "import type { B }") {
+		t.Errorf("the live import must survive prune:\n%s", pruned)
+	}
+}
+
 // TestSyncBreadcrumbClause_KeepsHandAuthoredName: the breadcrumb sync must NOT
 // drop a type name still referenced by a HAND-AUTHORED (non-enrichment) const in
 // the same file, even when the enrichment const for the orphaned type goes away.
