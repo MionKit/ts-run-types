@@ -68,6 +68,53 @@ func ResolveType(prog *program.Program, res *resolver.Resolver, absPath, typeNam
 	return resolved, nil
 }
 
+// ResolveTypeRaw is the named-type-closure resolution bridge: like ResolveType,
+// but it returns the RAW (non-inlined) projected node. The raw graph keeps every
+// `{kind:-1, id}` ref sentinel intact, so the closure emitter can tell a
+// named-type reference (a ref whose resolved target carries TypeName != "") from
+// an anonymous inline shape. The returned Resolve closure (cache.NodeByID) is how
+// the emitter follows those refs.
+//
+// Use this for EmitClosure (multi-const, references between named types); the
+// single-const describe/gen path stays on ResolveType (which inlines).
+func ResolveTypeRaw(prog *program.Program, res *resolver.Resolver, absPath, typeName string) (*Resolved, error) {
+	if prog == nil {
+		return nil, fmt.Errorf("enrichment.ResolveTypeRaw: program is nil")
+	}
+	if res == nil {
+		return nil, fmt.Errorf("enrichment.ResolveTypeRaw: resolver is nil")
+	}
+	sourceFile := prog.SourceFile(absPath)
+	if sourceFile == nil {
+		return nil, fmt.Errorf("enrichment.ResolveTypeRaw: source file not in program: %s", absPath)
+	}
+	typeChecker := res.Checker()
+	if typeChecker == nil {
+		return nil, fmt.Errorf("enrichment.ResolveTypeRaw: resolver has no checker")
+	}
+
+	nameNode := findTypeNameNode(sourceFile, typeName)
+	if nameNode == nil {
+		return nil, fmt.Errorf("enrichment.ResolveTypeRaw: no type/interface/class named %q in %s", typeName, absPath)
+	}
+
+	symbol := typeChecker.GetSymbolAtLocation(nameNode)
+	if symbol == nil {
+		return nil, fmt.Errorf("enrichment.ResolveTypeRaw: no symbol for %q in %s", typeName, absPath)
+	}
+	tsType := checker.Checker_getDeclaredTypeOfSymbol(typeChecker, symbol)
+	if tsType == nil {
+		return nil, fmt.Errorf("enrichment.ResolveTypeRaw: no declared type for %q in %s", typeName, absPath)
+	}
+
+	cache := res.Cache()
+	node := cache.SerializeTopLevel(tsType)
+	if node == nil {
+		return nil, fmt.Errorf("enrichment.ResolveTypeRaw: projection produced no node for %q", typeName)
+	}
+	return &Resolved{Node: node, Resolve: cache.NodeByID}, nil
+}
+
 // ProjectType projects an already-resolved checker type through cache to a
 // canonical, fully-inlined *Resolved — the shape the enrichment walkers expect.
 // Use this when the caller already holds the *checker.Type for the type of

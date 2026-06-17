@@ -173,29 +173,24 @@ func runGen(args []string) {
 		outPath = filepath.Join(dir, base+".rt.ts")
 	}
 
-	resolved, err := resolveOne(absPath, typeName)
+	// Named-type-driven emission: resolve the RAW (non-inlined) graph so the
+	// closure walk can tell a named-type reference from an anonymous inline shape,
+	// then emit ONE friendly+mock const per named type in the closure, in
+	// dependency (topological) order, with cross-const references between them.
+	prog, res, err := buildProgram(absPath)
+	if err != nil {
+		fatal("gen: %v", err)
+	}
+	defer res.Close()
+	resolved, err := enrichment.ResolveTypeRaw(prog, res, absPath, typeName)
 	if err != nil {
 		fatal("gen: %v", err)
 	}
 
-	lower := lowerFirst(typeName)
-	type emitPlan struct {
-		want    bool
-		varName string
-		emit    func() string
-	}
-	plans := []emitPlan{
-		{wantFriendly, lower + "Friendly", func() string {
-			return enrichment.EmitFriendly(resolved.Node, enrichment.EmitOptions{
-				VarName: lower + "Friendly", TypeName: typeName, Resolve: resolved.Resolve,
-			})
-		}},
-		{wantMock, lower + "Mock", func() string {
-			return enrichment.EmitMock(resolved.Node, enrichment.EmitOptions{
-				VarName: lower + "Mock", TypeName: typeName, Resolve: resolved.Resolve,
-			})
-		}},
-	}
+	closure := enrichment.EmitClosure(resolved.Node, enrichment.ClosureOptions{
+		TypeName: typeName,
+		Resolve:  resolved.Resolve,
+	})
 
 	existing := ""
 	if bytes, err := os.ReadFile(outPath); err == nil {
@@ -204,18 +199,20 @@ func runGen(args []string) {
 		fatal("gen: read %s: %v", outPath, err)
 	}
 
+	// One block per (named type × wanted artifact), create-only: skip an export the
+	// file already declares. `closure` is already topologically ordered, so a
+	// referenced const is declared before its referrer.
 	var added []string
 	var blocks []string
-	for _, plan := range plans {
-		if !plan.want {
-			continue
+	for _, named := range closure {
+		if wantFriendly && !hasExport(existing, named.FriendlyVar) {
+			blocks = append(blocks, constBlock(named.FriendlyVar, "FriendlyType", named.TypeName, named.Friendly))
+			added = append(added, named.FriendlyVar)
 		}
-		// Create-only: skip an export the file already declares.
-		if hasExport(existing, plan.varName) {
-			continue
+		if wantMock && !hasExport(existing, named.MockVar) {
+			blocks = append(blocks, constBlock(named.MockVar, "MockData", named.TypeName, named.Mock))
+			added = append(added, named.MockVar)
 		}
-		blocks = append(blocks, plan.emit())
-		added = append(added, plan.varName)
 	}
 
 	if len(blocks) == 0 {
@@ -225,10 +222,11 @@ func runGen(args []string) {
 
 	var builder strings.Builder
 	if existing == "" {
-		// New file: lead with the import type lines.
+		// New file: lead with the import type lines — every named type in the
+		// closure (the root + all referenced types defined in this file).
 		importSpec := filepath.Base(absPath)
 		builder.WriteString("import type { ")
-		builder.WriteString(typeName)
+		builder.WriteString(strings.Join(closureTypeNames(closure), ", "))
 		builder.WriteString(" } from './")
 		builder.WriteString(strings.TrimSuffix(importSpec, filepath.Ext(importSpec)))
 		builder.WriteString("';\n")
@@ -251,6 +249,27 @@ func runGen(args []string) {
 	}
 	fmt.Printf("gen: %s %s (%s)\n", verb, outPath, strings.Join(added, ", "))
 	os.Exit(0)
+}
+
+// constBlock wraps a rendered object-literal body in the
+// `export const <var>: <Wrapper><<TypeName>> = <body>;` declaration.
+func constBlock(varName, wrapper, typeName, body string) string {
+	return "export const " + varName + ": " + wrapper + "<" + typeName + "> = " + body + ";\n"
+}
+
+// closureTypeNames returns the distinct source type names in a closure, in
+// emission order, for the generated `import type { … }` line.
+func closureTypeNames(closure []enrichment.NamedConst) []string {
+	seen := make(map[string]bool, len(closure))
+	names := make([]string, 0, len(closure))
+	for _, named := range closure {
+		if named.TypeName == "" || seen[named.TypeName] {
+			continue
+		}
+		seen[named.TypeName] = true
+		names = append(names, named.TypeName)
+	}
+	return names
 }
 
 // runGenBatch is the `gen --files a.ts,b.ts --type Target` path: ONE Program over
@@ -338,14 +357,6 @@ func hasExport(source, varName string) bool {
 	}
 	pattern := regexp.MustCompile(`export\s+const\s+` + regexp.QuoteMeta(varName) + `\b`)
 	return pattern.MatchString(source)
-}
-
-// lowerFirst lowercases the first rune of s (User -> user).
-func lowerFirst(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToLower(s[:1]) + s[1:]
 }
 
 // mustAbs resolves path to an absolute path, exiting on failure.
