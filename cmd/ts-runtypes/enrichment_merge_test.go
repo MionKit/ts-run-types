@@ -339,6 +339,74 @@ func TestMerge_ChildTypeChangedLastField(t *testing.T) {
 	}
 }
 
+// TestMerge_MetaRecurseItems: an `$items` element OBJECT gains a sub-field on
+// the desired side — the merge must descend through the `$items` meta node and
+// ADD the new sub-field while preserving the authored sibling. This is the B1
+// regression: meta keys were excluded from the merge entirely, so nested
+// enrichment under arrays froze at first generation.
+func TestMerge_MetaRecurseItems(t *testing.T) {
+	// `tags: SomeObj[]` — the array element is an object with enrichment.
+	existing := "{$label: '', tags: {$label: 'Tags', $items: {$label: '', id: {$label: 'ID'}}}}"
+	desired := "{$label: '', tags: {$label: '', $items: {$label: '', id: {$label: ''}, name: {$label: ''}}}}"
+	got := mergeFriendly(t, existing, desired)
+	if !strings.Contains(got, "id: {$label: 'ID'}") {
+		t.Errorf("authored $items sub-field value must survive:\n%s", got)
+	}
+	if !strings.Contains(got, "name: {$label: ''}") {
+		t.Errorf("new $items sub-field 'name' must be added:\n%s", got)
+	}
+	assertReparses(t, got)
+}
+
+// TestMerge_MetaRecurseValues: a Map/Set `$values` element object gains a
+// sub-field — merged through the `$values` meta node.
+func TestMerge_MetaRecurseValues(t *testing.T) {
+	existing := "{$label: '', cache: {$label: '', $values: {$label: '', a: {$label: 'A'}}}}"
+	desired := "{$label: '', cache: {$label: '', $values: {$label: '', a: {$label: ''}, b: {$label: ''}}}}"
+	got := mergeFriendly(t, existing, desired)
+	if !strings.Contains(got, "a: {$label: 'A'}") {
+		t.Errorf("authored $values sub-field must survive:\n%s", got)
+	}
+	if !strings.Contains(got, "b: {$label: ''}") {
+		t.Errorf("new $values sub-field 'b' must be added:\n%s", got)
+	}
+	assertReparses(t, got)
+}
+
+// TestMerge_MetaRecurseSlots: a tuple `$slots` entry (positional) gains a
+// sub-field — paired by index and merged. Slot 0 keeps its authored value; slot
+// 1 gains a field.
+func TestMerge_MetaRecurseSlots(t *testing.T) {
+	existing := "{$label: '', pair: {$label: '', $slots: [{$label: 'First'}, {$label: '', x: {$label: 'X'}}]}}"
+	desired := "{$label: '', pair: {$label: '', $slots: [{$label: ''}, {$label: '', x: {$label: ''}, y: {$label: ''}}]}}"
+	got := mergeFriendly(t, existing, desired)
+	if !strings.Contains(got, "$label: 'First'") {
+		t.Errorf("slot 0 authored value must survive:\n%s", got)
+	}
+	if !strings.Contains(got, "x: {$label: 'X'}") {
+		t.Errorf("slot 1 authored sub-field value must survive:\n%s", got)
+	}
+	if !strings.Contains(got, "y: {$label: ''}") {
+		t.Errorf("slot 1 new sub-field 'y' must be added:\n%s", got)
+	}
+	assertReparses(t, got)
+}
+
+// TestMerge_MetaRecurseScalarUntouched: scalar meta ($length) is author data and
+// must never be touched by the meta recursion.
+func TestMerge_MetaRecurseScalarUntouched(t *testing.T) {
+	existing := "{$items: {pool: [1, 2]}, $length: [2, 5]}"
+	desired := "{$items: {pool: []}, $length: [1, 3]}"
+	got := mergeFriendly(t, existing, desired)
+	if !strings.Contains(got, "$length: [2, 5]") {
+		t.Errorf("authored scalar $length must survive untouched:\n%s", got)
+	}
+	if !strings.Contains(got, "pool: [1, 2]") {
+		t.Errorf("authored $items pool must survive:\n%s", got)
+	}
+	assertReparses(t, got)
+}
+
 // TestMerge_NestedRecurse: a nested object field gains a new sub-field while its
 // sibling's authored value survives.
 func TestMerge_NestedRecurse(t *testing.T) {
