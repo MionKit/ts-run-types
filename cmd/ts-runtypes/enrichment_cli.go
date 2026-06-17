@@ -141,8 +141,12 @@ func runGen(args []string) {
 	check := fs.Bool("check", false, "drift check: validate mirror-file breadcrumbs instead of generating")
 	files := fs.String("files", "", "batch mode: comma-separated files; resolve --type in each, print JSON skeletons to stdout (no writes)")
 	typeFlag := fs.String("type", "", "batch mode: the type name to resolve in every --files entry")
+	update := fs.Bool("update", false, "reconcile an existing committed mirror file against the freshly regenerated desired set (property merge, never clobbers values)")
+	prune := fs.Bool("prune", false, "destructive: remove every comment block/line tagged @rtOrphan / @rtOrphanChild")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--enrich-dir <dir>] [--out <path>]")
+		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen <file.ts> <TypeName> --update   (reconcile an existing mirror)")
+		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --prune [<mirror-file-or-dir>]   (strip @rtOrphan carcasses)")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --check [<mirror-file-or-dir>]   (breadcrumb drift)")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --files a.ts,b.ts --type Target   (batch, JSON to stdout)")
 	}
@@ -150,6 +154,32 @@ func runGen(args []string) {
 	if err := fs.Parse(flags); err != nil {
 		fatal("gen: %v", err)
 	}
+
+	// Mutual-exclusion guards. --update is the reconcile op; it cannot combine
+	// with --check (drift report) or --files (batch stdout, no writes). --prune
+	// is the standalone destructive sweep and likewise excludes the others.
+	if *update {
+		if *check {
+			fatal("gen: --update cannot be combined with --check")
+		}
+		if *files != "" {
+			fatal("gen: --update cannot be combined with --files")
+		}
+		if *prune {
+			fatal("gen: --update cannot be combined with --prune")
+		}
+	}
+	if *prune {
+		if *check {
+			fatal("gen: --prune cannot be combined with --check")
+		}
+		if *files != "" {
+			fatal("gen: --prune cannot be combined with --files")
+		}
+		runGenPrune(positional, *enrichDirFlag)
+		return
+	}
+
 	if *files != "" {
 		if *typeFlag == "" {
 			fatal("gen --files: --type is required")
@@ -221,7 +251,7 @@ func runGen(args []string) {
 		if *out != "" {
 			mirror = tspath.NormalizePath(mustAbs(*out))
 		}
-		wrote := writeMirrorFile(mirrorWrite{
+		spec := mirrorWrite{
 			mirrorPath:   mirror,
 			sourceFile:   group.declFile,
 			consts:       group.consts,
@@ -230,7 +260,13 @@ func runGen(args []string) {
 			out:          *out,
 			wantFriendly: wantFriendly,
 			wantMock:     wantMock,
-		})
+		}
+		var wrote bool
+		if *update {
+			wrote = updateMirrorFile(spec)
+		} else {
+			wrote = writeMirrorFile(spec)
+		}
 		if wrote {
 			written++
 		} else {
