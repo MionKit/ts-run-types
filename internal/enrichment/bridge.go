@@ -5,6 +5,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
+	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
 	"github.com/mionkit/ts-runtypes/internal/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/resolver"
@@ -60,10 +61,26 @@ func ResolveType(prog *program.Program, res *resolver.Resolver, absPath, typeNam
 		return nil, fmt.Errorf("enrichment.ResolveType: no declared type for %q in %s", typeName, absPath)
 	}
 
-	cache := res.Cache()
+	resolved := ProjectType(res.Cache(), tsType)
+	if resolved == nil {
+		return nil, fmt.Errorf("enrichment.ResolveType: projection produced no node for %q", typeName)
+	}
+	return resolved, nil
+}
+
+// ProjectType projects an already-resolved checker type through cache to a
+// canonical, fully-inlined *Resolved — the shape the enrichment walkers expect.
+// Use this when the caller already holds the *checker.Type for the type of
+// interest (e.g. the `check` command, which reads T off a `FriendlyType<T>`
+// annotation's type argument) rather than a named declaration in a file.
+// Returns nil when the projection yields no node.
+func ProjectType(cache *runtype.Cache, tsType *checker.Type) *Resolved {
+	if cache == nil || tsType == nil {
+		return nil
+	}
 	node := cache.SerializeTopLevel(tsType)
 	if node == nil {
-		return nil, fmt.Errorf("enrichment.ResolveType: projection produced no node for %q", typeName)
+		return nil
 	}
 	// The cache hands back a REF graph: a compound node's Children / Child slots
 	// are `{kind:-1, id}` sentinels into the type table. The enrichment walkers
@@ -73,7 +90,7 @@ func ResolveType(prog *program.Program, res *resolver.Resolver, absPath, typeNam
 	// canonical shape (cycle-guarded; deep cycles keep their ref, which the
 	// walkers' own deref still follows via the returned Resolve).
 	inlined := inlineNode(node, cache.NodeByID, map[string]bool{})
-	return &Resolved{Node: inlined, Resolve: cache.NodeByID}, nil
+	return &Resolved{Node: inlined, Resolve: cache.NodeByID}
 }
 
 // inlineNode returns a copy of rt with every ref-bearing structural slot
