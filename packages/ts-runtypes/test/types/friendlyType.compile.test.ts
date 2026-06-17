@@ -1,8 +1,8 @@
 // Per-branch correctness + instantiation-budget test for `FriendlyType<T>`.
 //
 // Each `it` compiles a representative snippet for ONE branch of `FriendlyNode`
-// (src/enrichment/friendlyType.ts) through the real TypeScript compiler (see
-// enrichmentHarness.ts) and asserts two things:
+// (src/enrich/friendlyType.ts) through the real TypeScript compiler (see
+// enrichHarness.ts) and asserts two things:
 //   1. it type-checks cleanly — valid maps are assignable, and INVALID maps are
 //      rejected (a `@ts-expect-error` that fails to fire becomes a TS2578 error,
 //      so a too-loose type reds the test);
@@ -14,7 +14,7 @@
 // budget-update protocol. Counts are deterministic (typescript is exact-pinned).
 
 import {describe, it, expect} from 'vitest';
-import {measureFriendly} from './enrichmentHarness.ts';
+import {measureFriendly} from './enrichHarness.ts';
 
 function check(snippet: string, budget: number): number {
   const r = measureFriendly(snippet);

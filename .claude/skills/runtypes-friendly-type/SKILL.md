@@ -17,7 +17,7 @@ A `FriendlyType<T>` is a combined, per-field map of:
 - **error-message templates** — `$errors`, one template per failed constraint.
 
 It is **pure data**. The shipped runtime renderer is
-[`createFriendly<T>(map)`](../../../packages/ts-runtypes/src/enrichment/createFriendly.ts);
+[`createFriendly<T>(map)`](../../../packages/ts-runtypes/src/enrich/createFriendly.ts);
 it turns `createGetValidationErrors<T>()` output into readable messages. No type-id
 injection, no `rtUtils` — error rendering needs only `(map, errors)`.
 
@@ -34,9 +34,9 @@ map involved.
 ## What is shipped today vs designed
 
 - **Shipped:** the `FriendlyType<T>` DSL type
-  ([`friendlyType.ts`](../../../packages/ts-runtypes/src/enrichment/friendlyType.ts))
+  ([`friendlyType.ts`](../../../packages/ts-runtypes/src/enrich/friendlyType.ts))
   and the `createFriendly<T>(map)` renderer
-  ([`createFriendly.ts`](../../../packages/ts-runtypes/src/enrichment/createFriendly.ts)),
+  ([`createFriendly.ts`](../../../packages/ts-runtypes/src/enrich/createFriendly.ts)),
   both exported from `ts-runtypes`.
 - **Designed (not yet wired):** build-time validation of the authored literal against
   the live type (the `FT0xx` diagnostics + the `ShapeCheckedArgs<T>` axis), the `gen`

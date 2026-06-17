@@ -5,7 +5,7 @@
 >   structural node shapes — solution A), the pure-data `createFriendly<T>(map)`
 >   renderer, and the `createMockType<T>({ data })` integration — all exported from
 >   `ts-runtypes`;
-> - the Go CLI trio `describe` / `check` / `gen` (`internal/enrichment`, a separate
+> - the Go CLI trio `describe` / `check` / `gen` (`internal/enrich`, a separate
 >   package), incl. **named-type-driven emission** (one `const` per named type) and
 >   the `check` diagnostics **FT002 / FT003 / FT005 / MD001**;
 > - **`gen --update` reconcile + `gen --prune`** — a value-preserving merge of an
@@ -377,7 +377,7 @@ export type MockData<T> = MockNode<T>;
 `FriendlyType<T>` / `MockData<T>` const declarations, resolves `T`'s `RunType`, and
 runs a **kind-switch paired walk** of the authored object-literal against the
 `RunType` — the emitter convention, in
-[`internal/enrichment/validate.go`](../internal/enrichment/validate.go) over a tiny
+[`internal/enrich/validate.go`](../internal/enrich/validate.go) over a tiny
 `LiteralView` adapter (so the checks are unit-testable without a Program). Wired
 diagnostics: **FT002, FT003, FT005, MD001** (the others below are deferred).
 
