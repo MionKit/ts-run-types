@@ -393,6 +393,13 @@ func sanitizeForComment(original string) string {
 	return strings.ReplaceAll(original, "*/", "* /")
 }
 
+// unsanitizeFromComment reverses sanitizeForComment, restoring `* /` to `*/`
+// when an @rtOrphan / @rtOrphanChild carcass is restored, so the recovered text
+// is byte-identical to the pre-orphan original.
+func unsanitizeFromComment(sanitized string) string {
+	return strings.ReplaceAll(sanitized, "* /", "*/")
+}
+
 // computeRenames pairs an existing-only DROP field with a desired-only ADD field
 // that share a UNIQUE child identity, returning oldKey → newKey for each match.
 // Child identity is two-tier:
