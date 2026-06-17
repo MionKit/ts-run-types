@@ -1,20 +1,26 @@
 # AI enrichment — `FriendlyType<T>` and `MockData<T>`
 
-> **Status: implemented** (branch `feat/ai-enrichment`; see
-> [AI_ENRICHMENT_PLAN.md](./AI_ENRICHMENT_PLAN.md) for the phase tracker).
-> **Shipped + tested:**
-> - the `FriendlyType<T>` / `MockData<T>` DSL types (type-checked against `T`), the
->   pure-data `createFriendly<T>(map)` renderer, and the `createMockType<T>({ data })`
->   integration — all exported from `ts-runtypes`;
+> **Status: implemented** (branch `feat/ai-enrichment`). **Shipped + tested:**
+> - the `FriendlyType<T>` / `MockData<T>` DSL types (type-checked against `T`, with
+>   structural node shapes — solution A), the pure-data `createFriendly<T>(map)`
+>   renderer, and the `createMockType<T>({ data })` integration — all exported from
+>   `ts-runtypes`;
 > - the Go CLI trio `describe` / `check` / `gen` (`internal/enrichment`, a separate
->   package), incl. the `check` diagnostics **FT002 / FT003 / FT005 / MD001**.
+>   package), incl. **named-type-driven emission** (one `const` per named type) and
+>   the `check` diagnostics **FT002 / FT003 / FT005 / MD001**.
+>
+> **Storage + consumption model (this doc):** enrichment is committed to a **mirror
+> directory** (`runtypes/generated/`, configured via the tsconfig `plugins` entry)
+> and consumed through **real, committed imports** — never plugin-injected. This
+> follows the persistence invariant ([below](#persistence-invariant--committed-artifacts-get-committed-links)):
+> a committed artifact gets a committed (visible) link; only *ephemeral* cache modules
+> are injected. The Vite plugin is **not** involved in enrichment at runtime.
 >
 > **Deferred refinements (design-stage below):** **MD003** (pool values validate —
 > needs the runtime validator), the always-on *Vite-build* surfacing of the
 > `FT0xx`/`MD0xx` diagnostics (today they run via the `check` CLI, not the build),
 > `FT004`/`MD002` (the precise types already make TS catch these), `FT010`/`MD010`
-> drift + `MD004`, the `$[val]` enrichment, `declFile` (only needed for demand-driven
-> `gen`), and the `rtUtils` registry accessors (P6). Sections describing those note it.
+> drift + `MD004`, and the `$[val]` enrichment. Sections describing those note it.
 
 ## Why this is a new artifact class
 
@@ -37,10 +43,32 @@ All of it lives only as ephemeral `virtual:rt/*` modules + the gitignored
 
 So these are **satellite artifacts keyed by a type**: authored once, committed,
 and validated against the type forever after. They are *not* a code-emit family
-like `validate`/`json`/`binary` — there is no Go emitter and no runtime codegen.
-The compiler's only jobs are (1) **validate** the authored literal against the
-live type during the normal scan, and (2) later, route it through `rtUtils` by id.
-This makes the feature mostly a *validation + authoring + registry* concern.
+like `validate`/`json`/`binary` — there is no runtime codegen and nothing on the
+hot Vite path. The compiler's only jobs are (1) **`gen`** — emit a committed
+skeleton from the live type, and (2) **`check`** — validate the authored literal
+against the live type. Consumers reach the result through an ordinary committed
+`import`, not through any id-routing or injection. This makes the feature a
+*generation + validation + authoring* concern, entirely CLI-driven.
+
+### Persistence invariant — committed artifacts get committed links
+
+The cache and enrichment differ in *identity*, and that dictates how each is
+linked:
+
+| | identified by | link to it |
+| --- | --- | --- |
+| Cache module (`virtual:rt/*`) | **structural id** (location-independent, recomputed) | **plugin-injected** (invisible) — there is no file to import |
+| Enrichment (`runtypes/generated/*`) | **type name + source path** (human-meaningful, committed) | **real `import`** (visible, IDE-managed, in the dep graph) |
+
+The rule: **a link's persistence matches its target's**. Committed artifact ⟹
+committed (visible) import; ephemeral artifact ⟹ injected (invisible) link. The
+dangerous middle — a *committed* file reached by an *invisible injected* link —
+is rejected: it would hide a committed dependency from review, go-to-definition,
+and the dependency graph, using the *same* injection channel that already carries
+ephemeral cache links, so a reader could not tell a throwaway virtual module from
+a file they are meant to edit. Keeping injection **exclusively** for ephemeral
+modules gives a reliable tell: *invisible link ⟹ ephemeral; visible import ⟹
+committed*. Enrichment therefore never rides the plugin's injection path.
 
 The two artifacts:
 
@@ -270,7 +298,8 @@ rest, in declaration order) the runtime must read the type's field set — i.e. 
 reflection node, fetched by injecting the type id and looking it up in `rtUtils`,
 exactly as [`getRunTypeId<T>()`](../packages/ts-runtypes/src/markers.ts) does. We
 ship `createFriendly` **pure-data** first; the runtype pairing lands with the UI
-feature. The registry roadmap below is what makes that pairing a one-line addition.
+feature — joined at the call site (committed friendly import + `getRunTypeId<T>()`),
+no new registry needed (see [Consumption](#consumption--committed-imports)).
 
 ---
 
@@ -394,7 +423,7 @@ CLI (below) rather than scraping editor output.
 | `ts-runtypes check [glob]`                      | Run FT/MD validation standalone; non-zero exit on Error. CI / pre-commit.                 |
 | `ts-runtypes check --file <p> --json`           | Validate **one file**, structured JSON out. The agent's tight feedback tool.              |
 | `ts-runtypes describe <file>#<Type> --format prompt\|json` | Emit the type's shape (names, kinds, optionality, formats, literals — all already in the `RunType` struct) as LLM prompt context. |
-| `ts-runtypes gen <file> [--mock] [--friendly] [--check]` | Generate / refresh the `.rt.ts` sibling (see below).                             |
+| `ts-runtypes gen <file> [--mock] [--friendly] [--check]` | Generate / refresh the type's mirror file under `enrichDir`; `--check` reports drift (see below). |
 
 All three are **implemented** as out-of-band CLI modes of the Go binary. Validation
 runs via the `check` verb (CI / agents); surfacing the same FT/MD diagnostics
@@ -403,9 +432,9 @@ runs via the `check` verb (CI / agents); surfacing the same FT/MD diagnostics
 ### The agent loop — the compiler as a tool for the LLM
 
 ```
-describe ./models/user.ts#User  ──►  agent writes/patches user.rt.ts  ──►  check --file user.rt.ts --json
-        ▲                                                                          │
-        └──────────────────────────  loop until clean  ◄────────────────────────────┘
+describe ./models/user.ts#User  ──►  agent writes/patches the mirror file  ──►  check --file <mirror> --json
+        ▲                                                                              │
+        └──────────────────────────────  loop until clean  ◄──────────────────────────┘
                                             │
                                  human reviews the diff, commits
 ```
@@ -422,14 +451,14 @@ can drive generation, vendor-neutral.
 new **command-line modes** of the existing binary (`main.go` is flag-only today —
 add subcommand/positional dispatch). They are **out-of-band, one-shot commands a
 developer or agent runs deliberately — NOT part of the Vite build.** The Vite
-resolver process is untouched and still emits no `.rt.ts`; "build time" is the wrong
-label for generation.
+resolver process is untouched and writes no enrichment files; "build time" is the
+wrong label for generation.
 
 - **The `gen` codegen emitter lives in Go.** It walks the `RunType` graph — a giant
   `switch` over `RunType.kind`, the same emitter pattern as
   [`serialize.go`](../internal/compiled/runtype/serialize.go) and the typefns
-  families — and **emits new `.rt.ts` files or appends to existing ones**. Keeping it
-  Go-side reuses that walk; doing it in JS would mean shipping the graph to Node and
+  families — and **emits new mirror files under `enrichDir` or appends to existing
+  ones**. Keeping it Go-side reuses that walk; doing it in JS would mean shipping the graph to Node and
   re-implementing the kind-switch — duplicating the emitter for nothing. Because
   `gen` is one-shot (not a tight loop), paying the `Program` build per invocation is
   fine — it builds, walks, writes, exits.
@@ -451,35 +480,63 @@ reviewable diff; results are always committed and human-reviewed.
 
 ---
 
-## The `.rt.ts` sibling
+## Storage — the mirror directory
 
-Enrichment is stored in a committed sibling of the file where the **type is
-defined** — not where it is consumed. This mirrors the cache's core rule (*one
-canonical entry per structural id, app-wide*, demand discovered at scattered call
-sites): the `.rt.ts` sibling is the committed analog — **one enrichment home per
-type, at the type's definition**, however many files consume it.
+Enrichment is stored in a committed **mirror directory** whose tree shadows your
+source tree: a type defined in `<rootDir>/models/user.ts` gets its enrichment in
+`<enrichDir>/models/user.ts`. Storage is anchored to the **type's definition** (not
+its call sites) — the committed analog of the cache's *one canonical entry per type*
+rule: **one enrichment home per type, at its definition**, however many files
+consume it. A mirror tree (rather than `.rt.ts` siblings interleaved with source)
+keeps generated, committed artifacts out of the hand-authored source tree entirely.
 
 ```
-src/models/user.ts        interface User { … }              ← definition
-src/services/userApi.ts   createMockType<User>()            ← consumer
-src/test/fixtures.ts      createMockType<User>()            ← consumer
-                          ──────────────────────────────────
-gen ⇒  src/models/user.rt.ts   export const userMock: MockData<User> = { … }
-                               (ONE sibling, at the definition — not at the call sites)
+<rootDir>/models/user.ts          interface User { … }          ← definition
+<rootDir>/services/userApi.ts     createMockType<User>()        ← consumer
+<rootDir>/test/fixtures.ts        createMockType<User>()        ← consumer
+                                  ──────────────────────────────────
+gen ⇒  <enrichDir>/models/user.ts   export const userMock: MockData<User> = { … }
+                                    (ONE mirror file, at the definition's mirror path)
 ```
+
+### Configuration — the tsconfig `plugins` entry
+
+Global settings live in a `ts-runtypes` entry under `compilerOptions.plugins` in
+`tsconfig.json` — the natural home for project-wide type-tooling config, and where
+tsgo already looks:
+
+```jsonc
+{
+  "compilerOptions": {
+    "plugins": [
+      {
+        "name": "ts-runtypes",
+        "enrichDir": "runtypes/generated", // mirror root (default); relative to rootDir
+        "moduleMode": "default",
+        "emitMode": "code",
+        "inlineMode": "default"
+      }
+    ]
+  }
+}
+```
+
+Precedence is **CLI flag > tsconfig entry > built-in default**. `enrichDir` defaults
+to `runtypes/generated`; the mirror path for a type is
+`<enrichDir>/<declFile relative to rootDir>`.
 
 ### Algorithm
 
 - **Demand discovery — global.** Scan all call sites across the project.
-- **Output location — the definition.** For each demanded *named* type `T`, resolve
-  `T` to its declaration's source file `F` (following re-exports to the original),
-  and write/refresh `F.rt.ts`.
+- **Output location — the definition's mirror.** For each demanded *named* type `T`,
+  resolve `T` to its declaration's source file `F` (following re-exports to the
+  original), compute `F`'s mirror path under `enrichDir`, and write/refresh it.
 
-One `.rt.ts` per source file holds one export per enriched type defined there:
+One mirror file per source file holds one export per enriched type defined there:
 
 ```ts
-// src/models/user.rt.ts — GENERATED, COMMITTED, hand-editable.  rt-id: 9f3a  (User structural hash)
-import type { User, Post } from './user';
+// runtypes/generated/models/user.ts — GENERATED, COMMITTED, hand-editable.
+import type { User, Post } from '../../../models/user';
 
 export const userMock:     MockData<User>     = { /* … */ };
 export const userFriendly: FriendlyType<User> = { /* … */ };
@@ -487,8 +544,12 @@ export const postMock:     MockData<Post>     = { /* … */ };
 ```
 
 This is the **first committed RunTypes artifact** — every other output is gitignored
-cache. The `import type` line is best-effort: if a consumed type isn't exported,
-the generated file simply fails to compile and the user fixes the export.
+cache. The `import type { … }` line is a **real, IDE-managed import** pointing back
+at the source file (strictly `import type`, so no value-level cycle source→mirror→
+source can form); it is best-effort — if a consumed type isn't exported, the
+generated file simply fails to compile and the user fixes the export. That same
+`import type` line doubles as the **breadcrumb** for drift detection (see
+[`gen` semantics](#gen-semantics)).
 
 ### Named-type-driven emission (decided)
 
@@ -497,11 +558,13 @@ per named type*). An inlined/anonymous type cannot own a `const`, so the split o
 emitted output mirrors the **named-type** structure:
 
 - **Each named type → its own `const`** (`friendly<Name>` / `mock<Name>`). A field
-  whose type is *another named type* is a **reference by name**, not an inlined copy —
-  a cross-file `import` from that type's definition-anchored sibling (this is why
-  `declFile`, [Prerequisites](#prerequisites-on-the-existing-system), is **required**,
-  not deferred). Within one file (e.g. a test fixture declaring several interfaces)
-  the references are intra-file const references, no imports.
+  whose type is *another named type* is a **reference by name**, not an inlined copy.
+  When that type is defined in another source file, the reference is a cross-file
+  value `import` from its mirror file (`import { friendlyAddress } from
+  '../models/address'`) — this is why `declFile`
+  ([Prerequisites](#prerequisites-on-the-existing-system)) is **required**, not
+  deferred. Within one file (e.g. a test fixture declaring several interfaces) the
+  references are intra-file const references, no imports.
 - **Anonymous / inline shapes are inlined** into their parent const (no name → no const).
 - **Cycles break at the back-edge.** Emit named consts in dependency (topological)
   order; a back-edge to an already-in-progress named type becomes a **leaf node**
@@ -541,34 +604,49 @@ emitter and the DSL types now agree structurally for every kind.
 
 ### `gen` semantics
 
-- **Best-effort.** Emits the sibling + `import type`; broken exports are the user's
-  to fix.
+- **Best-effort.** Emits the mirror file + `import type`; broken exports are the
+  user's to fix.
 - **Create-only (for now).** Detect existing entries (parse, or even a regex on the
   export name); if present, **skip**. Append missing entries. Never rewrite existing
   content — these files are hand-editable and AI-authored. (Parsing an existing entry
   to fill *missing fields within it* is a future enhancement.)
+- **Stable names — `gen` never edits hand-authored source.** Once a mirror file
+  exists, `gen` does not rename or relocate it on a source rename, and never touches
+  the consumer's `import`. This keeps the "`gen` only ever writes inside `enrichDir`"
+  property intact (itself part of the persistence invariant: the committed imports
+  are the *user's* to own, not `gen`'s to rewrite).
+- **`gen --check` — drift detection via the breadcrumb.** Each mirror file's
+  `import type { … } from '<src>'` is an IDE-maintained breadcrumb: on an IDE-driven
+  source rename/move it is auto-updated to the new path, so the consumer's value
+  import (pointing at the *mirror* file, which did not move) keeps working — nothing
+  breaks. `gen --check` resolves each breadcrumb and **warns** when a mirror file's
+  location no longer matches its source (cosmetic drift), or **errors** when the
+  breadcrumb resolves to nothing (the source type was deleted → orphaned mirror) or
+  the source no longer declares the type. A non-IDE rename (`git mv`, find/replace)
+  leaves a dangling breadcrumb that `--check` flags for a manual `gen`.
 
 ### Edge cases
 
 | Case                                          | Policy                                                                  |
 | --------------------------------------------- | ----------------------------------------------------------------------- |
-| Named type in user `.ts`                      | sibling of its definition file — the rule                               |
-| Several types in one file                     | one `.rt.ts`, one export per type                                       |
-| Re-exported / `import type` aliased           | follow to the original declaration; sibling lives there                 |
-| Anonymous/inline `createMockType<{a:string}>()` | no named home → **skip** (no sibling)                                 |
-| Generic instantiations `Box<string>` vs `Box<number>` | separate entries in `Box`'s sibling, one per structural id, name-disambiguated |
-| Type declared only in a `.d.ts`               | sibling can't be `.d.ts` (no runtime value) → emit a `.ts` sibling next to it |
-| Existing hand-edited `.rt.ts`                 | create-only — skip present entries, append missing ones, never clobber  |
+| Named type in user `.ts`                      | mirror file at its definition's mirror path — the rule                  |
+| Several types in one file                     | one mirror file, one export per type                                    |
+| Re-exported / `import type` aliased           | follow to the original declaration; the mirror tracks that file         |
+| Anonymous/inline `createMockType<{a:string}>()` | no named home → **skip** (no mirror file)                             |
+| Generic instantiations `Box<string>` vs `Box<number>` | separate entries in `Box`'s mirror file, one per structural id, name-disambiguated |
+| Type declared only in a `.d.ts`               | mirror is always a `.ts` (it holds runtime const values), at the `.d.ts`'s mirror path |
+| Existing hand-edited mirror file              | create-only — skip present entries, append missing ones, never clobber  |
 
 ### External / library types — a resolution order
 
-A type defined in `node_modules` can't get a sibling there (the dir is ephemeral
-and wiped on install). And a dependency might **already ship** enrichment for its
-own types — so we must never blindly generate over it. That makes external-type
-enrichment a lookup-precedence problem. **Enrichment for `T`, first match wins:**
+A type defined in `node_modules` has no mirror under your `enrichDir` (the mirror
+tree only shadows *your* source). And a dependency might **already ship** enrichment
+for its own types — so we must never blindly generate over it. That makes
+external-type enrichment a lookup-precedence problem. **Enrichment for `T`, first
+match wins:**
 
-1. **`T` defined in your source** → its definition-file sibling `*.rt.ts`. *(generated by `gen`)*
-2. **`T` from a dependency that ships enrichment** → use the library's `*.rt.ts` / named enrichment exports. *(read-only, vendored — we consume, never generate)*
+1. **`T` defined in your source** → its mirror file under `enrichDir`. *(generated by `gen`)*
+2. **`T` from a dependency that ships enrichment** → use the library's named enrichment exports. *(read-only — we consume, never generate)*
 3. **`T` from a dependency, user opted in** via a `@rtEnrich` JSDoc tag → user-authored override in a configured dir (`rt-overrides/`). *(opt-in only)*
 4. **No match** → emit nothing; factories fall back (mock = mechanical `createMockType`; friendly = raw field names).
 
@@ -580,8 +658,8 @@ Two implications:
 
 - **Enrichment becomes part of a library's public API.** A library that wants to
   support this adds `ts-runtypes` (for the `FriendlyType`/`MockData` types) and
-  ships `customer.rt.ts` next to `customer.d.ts`; our resolver finds it by the same
-  sibling convention — no special-casing.
+  exports its enrichment consts as named exports; a consumer imports them directly,
+  same as any other library value — no special-casing.
 - **The opt-in tag needs an anchor.** The cleanest is a tagged local re-export,
   which gives both the opt-in signal and a stable import:
 
@@ -596,63 +674,65 @@ Two implications:
 
 ---
 
-## Wiring and the `rtUtils` registry roadmap
+## Consumption — committed imports
 
-### v1 — explicit wiring
-
-The consumer imports the enrichment from the sibling and passes it. Plain,
-greppable code, no injection magic:
+The consumer imports the enrichment const from its mirror file and passes it. Plain,
+greppable, IDE-managed code — no injection, no id-routing, no registry:
 
 ```ts
-import { userMock } from '../models/user.rt';
+import { userMock }     from 'runtypes/generated/models/user';
+import { userFriendly } from 'runtypes/generated/models/user';
+
 createMockType<User>({ data: userMock });
+const friendly = createFriendly<User>(userFriendly);
 ```
 
-### v2 — registry accessors (the on-ramp to UI)
+`createFriendly<T>(map)` and `createMockType<T>({ data })` are already **explicit**
+in their shipped signatures (the map/data are real arguments), so this model is the
+*smaller* change — the engine is untouched; the only new machinery is `gen`
+producing the committed mirror files. `createFriendly` stays a pure-data function
+(no marker, no type id); `createMockType<T>` keeps its runtype injection (that is the
+*ephemeral* cache, correctly invisible), with `data` as the *committed* import.
 
-The natural RunTypes-native evolution is to route enrichment through `rtUtils` by
-**injected type id**, exactly like the reflection cache. The consumer stops caring
-*where* the data physically lives:
+### Why not inject the link (rejected)
 
-```ts
-// reflection accessors, all keyed by InjectRunTypeId<T>, all resolving from rtUtils
-getRunTypeId<User>()                  // exists today
-getFriendlyType<User>()               // → rtUtils.getFriendly(id)
-getMockData<User>()                   // → rtUtils.getMock(id)
+A "magic" variant — `createFriendly<User>()` with the map plugin-injected from the
+resolved mirror file — was considered and rejected. It violates the
+[persistence invariant](#persistence-invariant--committed-artifacts-get-committed-links):
+it would hide a committed dependency behind the same invisible channel that carries
+ephemeral cache links, so a reader could not distinguish the two. The explicit import
+also wins on the lifecycle: it is the *value* import (to the mirror file, which
+`gen`'s stable-names policy never moves) so it survives source renames untouched,
+goes to definition, and works under plain `tsc` with no plugin. Injection stays
+exclusively for the ephemeral cache.
 
-// the .rt.ts self-registers — also a marker call, id injected at scan time
-registerFriendly<User>(userFriendly); // → rtUtils.registerFriendly(id, data)
-```
+### Forward note — UI form-building
 
-This is the same machinery the deferred UI case needs: once enrichment resolves by
-injected id through `rtUtils`, `getFriendlyType<T>()` can hand back *both* the
-friendly map and the runtype node by that one id — so building the registry now is
-what makes the UI form-builder a one-line addition later.
+The deferred form-builder UI wants both a type's friendly map **and** its runtype
+node. With committed imports that is still a one-liner: the friendly map arrives via
+its import, and the runtype via the existing `getRunTypeId<T>()` reflection (already
+keyed by `InjectRunTypeId<T>`). No new registry is needed — the two are joined at the
+call site, not through a shared id table.
 
-Two caveats to bank for when v2 is built:
+### Forward note — mock data must not bloat production
 
-1. **The registry is only populated if the `.rt.ts` was loaded.** So
-   `getFriendlyType<User>()` still needs a thin **injected side-effect import**
-   (plugin resolves `User → user.rt.ts` and injects `import 'user.rt.ts'` for its
-   registration side-effect) — much lighter than threading data through call args,
-   and the same import-injection RunTypes already does for the runtype bundle. The
-   wiring moves from the user to the plugin; it does not vanish.
-2. **Mock data must not bloat production.** Friendly labels/messages belong in the
-   prod bundle (UI); 50+-item mock pools almost never do. Side-effect registration
-   resists tree-shaking, so gate mock registration to dev/test (a condition or a
-   test-only entry) while friendly ships normally.
+Friendly labels/messages belong in the prod bundle (UI); 50+-item mock pools almost
+never do. Because consumption is an ordinary `import`, this is handled by **normal
+tree-shaking + import hygiene** — keep `createMockType({ data: … })` calls in
+dev/test entry points (or behind a dev condition) so the mock pools never reach a
+production graph. No special registration-gating mechanism required.
 
 ---
 
 ## Prerequisites on the existing system
 
-- **Surface the type's declaration file.** Placing the sibling at the definition
-  requires `declFile` (+ `declName`) on the resolved type. The binary already reads
-  this internally (`symbol.Declarations → GetSourceFileOfNode()`;
-  `declarationPos` in
-  [`serialize.go`](../internal/compiled/runtype/serialize.go)) but does not
-  serialize it — it's the "location" slot the protocol reserves but never populates.
-  It's also what `describe` wants for prompt context, so it pays for itself.
+- **Surface the type's declaration file.** Computing the mirror path (and emitting
+  cross-file `import type` / value imports) **requires** `declFile` (+ `declName`) on
+  the resolved type — not deferred. The binary already reads this internally
+  (`symbol.Declarations → GetSourceFileOfNode()`; `declarationPos` in
+  [`serialize.go`](../internal/compiled/runtype/serialize.go)) but does not serialize
+  it — it's the "location" slot the protocol reserves but never populates. It's also
+  what `describe` wants for prompt context, so it pays for itself.
 - **`$[val]` enrichment.** `format.val` is overloaded — the param for
   numeric/length constraints, a pre-baked *message* for `pattern`/`allowedChars`,
   *absent* for date bounds. For `$[val]` to resolve uniformly to the declared
@@ -660,9 +740,9 @@ Two caveats to bank for when v2 is built:
   A small, localized change to the format-error emit in
   [`internal/compiled/typefns/formats/emit.go`](../internal/compiled/typefns/formats/emit.go).
 - **No new emit family.** Unlike `validate`/`json`/`binary`, this feature adds **no**
-  Go emitter and **no** runtime codegen. It needs only (1) the `ShapeCheckedArgs<T>`
-  validation axis, and (2) for v2, the `rtUtils` accessors + side-effect import
-  injection. Keep it out of the `operations` / `typefns.Families` registries.
+  runtime codegen and nothing on the hot Vite path. The `gen` skeleton emitter is a
+  one-shot CLI walk; there is no per-build emitter, no id-routing, and no registry.
+  Keep it out of the `operations` / `typefns.Families` registries.
 
 ---
 
@@ -678,8 +758,9 @@ overall architecture) and documented here:
   into the renderer or added to `RunTypeError`. Revisit with the `$[val]` enrichment.
 - **Union per-member addressing** (`$members`) — node-level `$label`/`$errors` only
   for v1.
-- **Auto-wire vs explicit** — explicit in v1; auto-wire arrives with the v2 registry
-  accessors (as an injected side-effect import).
+- **Auto-wire vs explicit** — **explicit committed imports, permanently** (per the
+  persistence invariant). The injected/registry "auto-wire" variant was considered
+  and rejected; it is not a future phase.
 - **`MockData` pool floor** (MD005) — warn-only, threshold configurable, off by
   default.
 
