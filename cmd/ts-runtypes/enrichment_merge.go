@@ -632,19 +632,24 @@ func computeRenames(existing, desired *objectView, existingFields, desiredFields
 	return renames
 }
 
-// fieldIdentity computes a field's rename identity: Tier 1 (the field value's
-// `friendly*/mock*` reference name) when the value is such a bare identifier,
-// else Tier 2 (the @rtIds child id at fullPath). Returns "" when neither is
-// available (the field cannot participate in a rename).
+// fieldIdentity computes a field's rename identity, preferring the
+// form-INDEPENDENT @rtIds child id (canonical: same structural id for the
+// friendly and mock forms, so a renamed field re-pairs identically in both, and
+// a var-name reuse across structurally-different types cannot mis-pair). The
+// `friendly*/mock*` reference NAME is only the FALLBACK — used when no child id
+// is recorded at this path (the closure records named-type-ref ids, so this is
+// rare, but a hand-authored const without an @rtIds marker relies on it).
+// Returns "" when neither is available (the field cannot participate in a
+// rename).
 func fieldIdentity(view *objectView, prop *propView, fullPath string, childIDs map[string]string) string {
+	if id, ok := childIDs[fullPath]; ok && id != "" {
+		return "id:" + id // canonical, form-independent
+	}
 	if prop != nil && prop.value != nil && prop.value.Kind == ast.KindIdentifier {
 		name := prop.value.Text()
 		if isFriendlyVar(name) || isMockVar(name) {
-			return "ref:" + name // Tier 1
+			return "ref:" + name // fallback (form-dependent var name)
 		}
-	}
-	if id, ok := childIDs[fullPath]; ok && id != "" {
-		return "id:" + id // Tier 2
 	}
 	return ""
 }

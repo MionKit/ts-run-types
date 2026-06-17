@@ -219,6 +219,37 @@ func TestMerge_RenameTier2(t *testing.T) {
 	}
 }
 
+// TestMerge_RenameIdentityPrefersChildID is the C4 regression: when a field has
+// BOTH a `friendly*` ref value AND an @rtIds child id, the CHILD ID is the
+// canonical (form-independent) rename identity. Here two named-type fields reuse
+// the same ref var name `friendlyThing` but have DIFFERENT child ids — pairing
+// by ref name would mis-pair them, but pairing by child id keeps them apart.
+func TestMerge_RenameIdentityPrefersChildID(t *testing.T) {
+	// `a` (id aID) renamed to `x` (id aID) → should pair; `b` (id bID) renamed to
+	// `y` (id bID) → should pair. Both old fields share the ref `friendlyThing`, so
+	// ref-name identity would make 2 drops + 2 adds collide → ambiguous → no
+	// rename. Child-id identity keeps a↔x and b↔y as distinct singleton buckets.
+	existing := "{$label: '', a: friendlyThing, b: friendlyThing}"
+	desired := "{$label: '', x: friendlyThing, y: friendlyThing}"
+	ctx := mergeCtx{
+		metaKeys:      friendlyReservedKeys,
+		existingChild: map[string]string{"a": "aID", "b": "bID"},
+		desiredChild:  map[string]string{"x": "aID", "y": "bID"},
+	}
+	got := mergeWithCtx(t, existing, desired, ctx)
+	// Child-id pairing renames a→x and b→y (no orphan).
+	if strings.Contains(got, "@rtOrphanChild") {
+		t.Errorf("child-id identity should pair both renames, not orphan:\n%s", got)
+	}
+	if !strings.Contains(got, "x: friendlyThing") || !strings.Contains(got, "y: friendlyThing") {
+		t.Errorf("both renames should land under their new keys:\n%s", got)
+	}
+	if strings.Contains(got, "a: friendlyThing") || strings.Contains(got, "b: friendlyThing") {
+		t.Errorf("old keys should be gone:\n%s", got)
+	}
+	assertReparses(t, got)
+}
+
 // TestMerge_RenameAmbiguousFallback: two primitive fields share the SAME child
 // id (e.g. both string) — the identity is ambiguous, so NO rename; the drop is
 // orphaned and the add inserted.
