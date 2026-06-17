@@ -1,11 +1,13 @@
 # AI enrichment — `FriendlyType<T>` and `MockData<T>`
 
-> **Status: design.** Nothing in this document is implemented yet. It captures the
-> agreed shape of two AI-authored, type-keyed enrichment artifacts, how the
-> compiler validates and keeps them in sync, the CLI/agent surface that drives
-> generation, and the `.rt.ts` sibling convention that stores them. Diagnostics
-> codes (`FT0xx` / `MD0xx`), CLI verbs, and the `rtUtils` accessors named here are
-> proposed, not shipped.
+> **Status: partially implemented** (branch `feat/ai-enrichment`; see
+> [AI_ENRICHMENT_PLAN.md](./AI_ENRICHMENT_PLAN.md) for the phase tracker).
+> **Shipped:** the `FriendlyType<T>` / `MockData<T>` DSL types (type-checked against
+> `T`), the pure-data `createFriendly<T>(map)` renderer, and the
+> `createMockType<T>({ data })` integration — all exported from `ts-runtypes` and
+> tested. **Still design-stage:** the build-time `FT0xx` / `MD0xx` diagnostics + the
+> `ShapeCheckedArgs<T>` axis (P3), the `describe` / `check` / `gen` CLI (P4), and the
+> `rtUtils` registry accessors (P6). Those sections below describe the intended shape.
 
 ## Why this is a new artifact class
 
