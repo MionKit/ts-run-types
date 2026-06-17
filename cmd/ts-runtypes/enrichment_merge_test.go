@@ -240,6 +240,105 @@ func TestMerge_RenameAmbiguousFallback(t *testing.T) {
 	}
 }
 
+// TestMerge_ChildTypeChanged: a kept key whose @rtIds child id CHANGED (e.g.
+// `age: number`→`age: string`) is replaced in place — the stale value becomes an
+// @rtOrphanChild carcass and a fresh skeleton is spliced in. Without this the old
+// (number-pool) value silently rides the now-string field. This is the A4
+// regression for the childID-change arm.
+func TestMerge_ChildTypeChanged(t *testing.T) {
+	existing := "{$label: '', age: {min: 0, max: 120}}"
+	desired := "{$label: '', age: {pool: ['x']}}"
+	ctx := mergeCtx{
+		metaKeys:      mockReservedKeys,
+		existingChild: map[string]string{"age": "numID"},
+		desiredChild:  map[string]string{"age": "strID"},
+	}
+	got := mergeWithCtx(t, existing, desired, ctx)
+	if !strings.Contains(got, "@rtOrphanChild") {
+		t.Errorf("changed child type should orphan the stale value:\n%s", got)
+	}
+	if !strings.Contains(got, "min: 0, max: 120") {
+		t.Errorf("stale value must be preserved in the carcass:\n%s", got)
+	}
+	if !strings.Contains(got, "age: {pool: ['x']}") {
+		t.Errorf("fresh skeleton for the new type must be inserted:\n%s", got)
+	}
+	assertReparses(t, got)
+}
+
+// TestMerge_ChildTypeUnchanged: a kept key whose @rtIds child id is IDENTICAL on
+// both sides keeps its authored value byte-for-byte (no orphan, no replace) — the
+// childID-change arm only fires on a real change.
+func TestMerge_ChildTypeUnchanged(t *testing.T) {
+	existing := "{$label: '', age: {pool: [42]}}"
+	desired := "{$label: '', age: {pool: ['x']}}"
+	ctx := mergeCtx{
+		metaKeys:      mockReservedKeys,
+		existingChild: map[string]string{"age": "numID"},
+		desiredChild:  map[string]string{"age": "numID"},
+	}
+	got := mergeWithCtx(t, existing, desired, ctx)
+	if strings.Contains(got, "@rtOrphanChild") {
+		t.Errorf("unchanged child id must NOT orphan:\n%s", got)
+	}
+	if !strings.Contains(got, "pool: [42]") {
+		t.Errorf("authored value must survive unchanged:\n%s", got)
+	}
+}
+
+// TestMerge_ShapeMismatchObjectToReference: a kept key that was an inline object
+// but is now a named-type REFERENCE (e.g. `address: {…}` → `address:
+// friendlyAddress`) switches to the reference; the old object is orphaned. This
+// is the A4 regression for the object↔leaf shape-mismatch arm.
+func TestMerge_ShapeMismatchObjectToReference(t *testing.T) {
+	existing := "{$label: '', address: {$label: '', street: {$label: 'St'}}}"
+	desired := "{$label: '', address: friendlyAddress}"
+	got := mergeWithCtx(t, existing, desired, mergeCtx{metaKeys: friendlyReservedKeys})
+	if !strings.Contains(got, "@rtOrphanChild") {
+		t.Errorf("object→reference shape change should orphan the old object:\n%s", got)
+	}
+	if !strings.Contains(got, "address: friendlyAddress") {
+		t.Errorf("the field must switch to the reference:\n%s", got)
+	}
+	if !strings.Contains(got, "street: {$label: 'St'}") {
+		t.Errorf("the old object must be preserved in the carcass:\n%s", got)
+	}
+	assertReparses(t, got)
+}
+
+// TestMerge_ShapeMismatchReferenceToObject: the inverse — a leaf/reference that
+// became an inline object is replaced the same way.
+func TestMerge_ShapeMismatchReferenceToObject(t *testing.T) {
+	existing := "{$label: '', address: friendlyAddress}"
+	desired := "{$label: '', address: {$label: '', city: {$label: ''}}}"
+	got := mergeWithCtx(t, existing, desired, mergeCtx{metaKeys: friendlyReservedKeys})
+	if !strings.Contains(got, "@rtOrphanChild") {
+		t.Errorf("reference→object shape change should orphan the old reference:\n%s", got)
+	}
+	if !strings.Contains(got, "city: {$label: ''}") {
+		t.Errorf("the field must switch to the fresh object skeleton:\n%s", got)
+	}
+	assertReparses(t, got)
+}
+
+// TestMerge_ChildTypeChangedLastField: the replaced field is the LAST property
+// (no trailing comma) — the in-place replace must still re-parse cleanly (the
+// fresh property carries its own trailing comma, valid before `}`).
+func TestMerge_ChildTypeChangedLastField(t *testing.T) {
+	existing := "{$label: '', name: {pool: ['n']}, age: {min: 0}}"
+	desired := "{$label: '', name: {pool: ['n']}, age: {pool: ['x']}}"
+	ctx := mergeCtx{
+		metaKeys:      mockReservedKeys,
+		existingChild: map[string]string{"name": "strID", "age": "numID"},
+		desiredChild:  map[string]string{"name": "strID", "age": "strID"},
+	}
+	got := mergeWithCtx(t, existing, desired, ctx)
+	assertReparses(t, got)
+	if !strings.Contains(got, "@rtOrphanChild") || !strings.Contains(got, "min: 0") {
+		t.Errorf("last-field replace should orphan the stale value:\n%s", got)
+	}
+}
+
 // TestMerge_NestedRecurse: a nested object field gains a new sub-field while its
 // sibling's authored value survives.
 func TestMerge_NestedRecurse(t *testing.T) {
