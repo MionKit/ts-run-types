@@ -1,6 +1,6 @@
 export default defineAppConfig({
   seo: {
-    title: 'ts-runtypes — TypeScript types that show up at runtime',
+    title: 'RunTypes — TypeScript types that show up at runtime',
     description:
       'Validation, JSON + binary serialization, mock data and reflection — generated straight from your TypeScript types. No schemas, no drift.',
     image: '',
