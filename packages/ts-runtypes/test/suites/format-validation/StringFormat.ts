@@ -206,8 +206,7 @@ export const STRING_FORMAT = {
       const v: TF.String<{allowedChars: {val: '0123456789abcdef'}}> = 'deadbeef';
       return createGetValidationErrors(v);
     },
-    deserializeGetValidationErrors: () =>
-      deserializeGetValidationErrors<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>(),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>(),
     deserializeGetValidationErrorsReflect: () => {
       const v: TF.String<{allowedChars: {val: '0123456789abcdef'}}> = 'deadbeef';
       return deserializeGetValidationErrors(v);
@@ -417,8 +416,7 @@ export const STRING_FORMAT = {
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
     validateSchema: () => createValidate(TF.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
-    getValidationErrors: () =>
-      createGetValidationErrors<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+    getValidationErrors: () => createGetValidationErrors<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
     getValidationErrorsSchema: () =>
@@ -458,8 +456,7 @@ export const STRING_FORMAT = {
     validateDataOnly: () => createValidate<DataOnly<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
     validateSchema: () => createValidate(TF.string({allowedValues: {val: ['a.b', 'c+d']}})),
     getValidationErrors: () => createGetValidationErrors<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
-    getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<DataOnly<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({allowedValues: {val: ['a.b', 'c+d']}})),
     mockType: () => createMockType<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     getSamples: () => ({valid: ['a.b', 'c+d'], invalid: ['axb', 'ccd']}),
@@ -526,8 +523,7 @@ export const STRING_FORMAT = {
       const v: TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = 'a';
       return createValidate(v);
     },
-    deserializeValidate: () =>
-      deserializeValidate<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
+    deserializeValidate: () => deserializeValidate<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     deserializeValidateReflect: () => {
       const v: TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = 'a';
       return deserializeValidate(v);
@@ -1007,8 +1003,7 @@ export const STRING_FORMAT = {
       const v: TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '2020-01-01';
       return createValidate(v);
     },
-    deserializeValidate: () =>
-      deserializeValidate<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+    deserializeValidate: () => deserializeValidate<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     deserializeValidateReflect: () => {
       const v: TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '2020-01-01';
       return deserializeValidate(v);
@@ -1272,8 +1267,7 @@ export const STRING_FORMAT = {
       'An ISO-ordered date (`2024-02-29 23:59`) fails on the date half (formatPathTail `date`).',
       'A `T` separator (`29-02-2024T23:59`) fails the split char (formatPathTail `splitChar`); hour 24 (`29-02-2024 24:00`) fails the time half (formatPathTail `time`).',
     ],
-    validate: () =>
-      createValidate<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+    validate: () => createValidate<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     validateReflect: () => {
       const v: TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '29-02-2024 23:59';
       return createValidate(v);
@@ -1312,8 +1306,7 @@ export const STRING_FORMAT = {
       >(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TF.stringDateTime({date: {format: 'DD-MM-YYYY'}, time: {format: 'HH:mm'}, splitChar: ' '})),
-    mockType: () =>
-      createMockType<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+    mockType: () => createMockType<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     getSamples: () => ({
       valid: ['29-02-2024 23:59'],
       invalid: ['2024-02-29 23:59', '29-02-2024T23:59', '29-02-2024 24:00'],
@@ -1326,8 +1319,7 @@ export const STRING_FORMAT = {
   },
   dateTime_minMax_absolute: {
     title: 'String dateTime min/max',
-    description:
-      'TF.StringDateTime with inclusive absolute `min`/`max` datetime bounds, accepting values within [`min`, `max`].',
+    description: 'TF.StringDateTime with inclusive absolute `min`/`max` datetime bounds, accepting values within [`min`, `max`].',
     validateNotes:
       'Bounds `2020-01-01T00:00:00`..`2020-12-31T23:59:59` are inclusive — both endpoints pass. `2019-12-31T23:59:59` fails on `min` (formatPathTail `min`); `2021-01-01T00:00:00` fails on `max` (formatPathTail `max`).',
     validate: () =>

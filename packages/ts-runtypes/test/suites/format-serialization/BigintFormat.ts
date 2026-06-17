@@ -78,7 +78,7 @@ export const BIGINT_FORMAT = {
     description:
       'JSON + binary (de)serialization of an ad-hoc TF.BigInt<{min:0n; max:255n}> (small [0,255] range); unlike the number formats, bigint has NO sub-8-byte path, so even this tiny range packs the full 8 bytes via setBigUint64 while JSON writes the decimal string.',
     serializeNotes: [
-      'TS DIVERGENCE from the number widths: [0,255] picks a 1-byte width for FormatUInt8 but a bigint always uses the 8-byte int64/uint64 packing — bigint binary has only the 8-byte path and a variable-length string fallback, nothing narrower (getBinaryByteSizes [8,8,8]).',
+      'TS DIVERGENCE from the number widths: [0,255] picks a 1-byte width for TF.UInt8 but a bigint always uses the 8-byte int64/uint64 packing — bigint binary has only the 8-byte path and a variable-length string fallback, nothing narrower (getBinaryByteSizes [8,8,8]).',
       'JSON carries the decimal string form (no bigint primitive).',
     ],
     mutateEncoder: () => createJsonEncoder<TF.BigInt<{min: 0n; max: 255n}>>(undefined, {strategy: 'mutate'}),

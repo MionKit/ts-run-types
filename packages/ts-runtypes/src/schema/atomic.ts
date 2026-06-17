@@ -1,27 +1,29 @@
-// Value-first ATOMIC / LEAF builders — a Zod/TypeBox-style BUILDER API. Each
-// builder returns a generic `RunType<T>` (the runtime run-type node, typed with
-// the source type `T` it represents); `Static<typeof X>` recovers `T`:
+// Value-first ATOMIC / NON-FORMAT builders — a Zod/TypeBox-style BUILDER API for
+// the kinds that carry no format params: `boolean` / `literal` / `regexp` /
+// `symbol`, the top / bottom kinds (`any` / `unknown` / `never` / `void`), the
+// class-instance builder, and the enum builder. Each returns a generic
+// `RunType<T>` (the runtime run-type node, typed with the source type `T`);
+// `Static<typeof X>` recovers `T`:
 //
-//   import {string, number, boolean, bigint, date, temporal} from 'ts-runtypes/schema';
+//   import {boolean, literal, enumType} from 'ts-runtypes/schema';
 //   import {createValidate, type Static} from 'ts-runtypes';
 //
-//   const Name = string({minLength: 1, maxLength: 50}); // RunType<String<…>>
-//   type Name  = Static<typeof Name>;                   // String<…>
-//   const isName = createValidate(Name);                  // validator from the schema
+//   const Flag = boolean();              // RunType<boolean>
+//   const isFlag = createValidate(Flag); // validator from the schema
 //
-// The leaf builder's carried `T` is sourced from the leaf reverse map
-// (static.ts `LeafType`) keyed by format name — the single place the format→type
-// mapping lives. The Go scanner reflects the SAME branded type off the builder's
-// `InjectRunTypeId<…>` brand as the type-first surface, so a value-first leaf and
-// the hand-written `Format*<P>` form converge on one structural id; the runtime
-// then resolves the same precompiled factory (see createValidate).
+// The Go scanner reflects the SAME kind off the builder's `InjectRunTypeId<…>`
+// brand as the type-first surface, so a value-first leaf and the hand-written type
+// converge on one structural id; the runtime then resolves the same precompiled
+// factory (see createValidate).
 //
-// The date/time leaf builders (`date` / `temporal.*`) live in datetime.ts;
-// composition (`object` / `array` / `union` / … and the property modifiers
-// `propMod` / `optional`) lives in compose.ts; the standard-library utility
-// builders in utility.ts. All the type-level helpers these builders carry live in
-// static.ts, so this file is runtime-only. The Go binary, not the type system, is
-// the validation engine.
+// The FORMAT leaf builders (`string` / `number` / `bigInt` / `date` / `email` / …
+// and the `temporal.*` family) moved to the `ts-runtypes/formats` surface
+// (namespaced `TF` / `TFT`); composition (`object` / `array` / `union` / … plus
+// the `propMod` / `optional` modifiers) lives in compose.ts; the standard-library
+// utility builders in utility.ts. The shared builder primitive `builderResult`
+// lives in runtypes/builderCore.ts and the type helpers in static.ts /
+// runtypes/builderTypes.ts, so this file is runtime-only. The Go binary, not the
+// type system, is the validation engine.
 
 import {builderResult} from '../runtypes/builderCore.ts';
 import type {RunType} from '../runtypes/types.ts';

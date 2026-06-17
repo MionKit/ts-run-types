@@ -50,7 +50,7 @@ export const STRING_FORMAT = {
     description:
       'JSON and binary (de)serialization of TF.StringDate, a STRING date such as "2024-02-29" rather than a native Date object, where the value stays an ISO date string on the wire and round-trips unchanged in both formats.',
     serializeNotes:
-      'String-on-wire date: unlike the native FormatDate (DateTime.ts), the value is already a string, so there is no toJSON/.from conversion — JSON and binary both carry the plain date string. Samples cover a leap day and the 0001 lower edge.',
+      'String-on-wire date: unlike the native TF.Date (DateTime.ts), the value is already a string, so there is no toJSON/.from conversion — JSON and binary both carry the plain date string. Samples cover a leap day and the 0001 lower edge.',
     mutateEncoder: () => createJsonEncoder<TF.StringDate>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<TF.StringDate>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<TF.StringDate>(undefined, {strategy: 'direct'}),
@@ -108,12 +108,9 @@ export const STRING_FORMAT = {
       'JSON and binary (de)serialization of an object whose fields are format-branded strings ({id: TF.UUIDv4; name: TF.String<{maxLength: 20}>}), proving format brands compose under an objectLiteral where each field serializes as its base string.',
     serializeNotes:
       'Format brands are validation-only at each property; the wire shape is a plain object of strings (binary writes each field as a variable-length string, no UUID/length packing).',
-    mutateEncoder: () =>
-      createJsonEncoder<{id: TF.UUIDv4; name: TF.String<{maxLength: 20}>}>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () =>
-      createJsonEncoder<{id: TF.UUIDv4; name: TF.String<{maxLength: 20}>}>(undefined, {strategy: 'clone'}),
-    directEncoder: () =>
-      createJsonEncoder<{id: TF.UUIDv4; name: TF.String<{maxLength: 20}>}>(undefined, {strategy: 'direct'}),
+    mutateEncoder: () => createJsonEncoder<{id: TF.UUIDv4; name: TF.String<{maxLength: 20}>}>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<{id: TF.UUIDv4; name: TF.String<{maxLength: 20}>}>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoder<{id: TF.UUIDv4; name: TF.String<{maxLength: 20}>}>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<{id: TF.UUIDv4; name: TF.String<{maxLength: 20}>}>(),
     preserveDecoder: () =>
       createJsonDecoder<{id: TF.UUIDv4; name: TF.String<{maxLength: 20}>}>(undefined, {strategy: 'preserve'}),

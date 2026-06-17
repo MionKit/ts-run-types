@@ -41,12 +41,7 @@ export interface TimeParams extends MinMax<TimeBound> {
   format: TimeFmt;
 }
 export type DEFAULT_TIME_FORMAT_PARAMS = {format: 'ISO'};
-export type StringTime<P extends Partial<TimeParams> = DEFAULT_TIME_FORMAT_PARAMS> = TypeFormat<
-  string,
-  'time',
-  P,
-  never
->;
+export type StringTime<P extends Partial<TimeParams> = DEFAULT_TIME_FORMAT_PARAMS> = TypeFormat<string, 'time', P, never>;
 
 // ───────────────────────────── DateTime ─────────────────────────────
 

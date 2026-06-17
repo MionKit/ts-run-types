@@ -124,6 +124,12 @@ const FORMATS_MODULE = (() => {
   return rels.map((rel) => `export type * from './packages/ts-runtypes/src/formats/${rel}';`).join('\n') + '\n';
 })();
 
+// rt-temporal.ts — TYPE-only overlay for the `ts-runtypes/formats/temporal`
+// subpath (deliberately NOT re-exported from formats/index.ts). Probes that name
+// `TFT.*` resolve their temporal types here.
+const TEMPORAL_MODULE_PATH = 'rt-temporal.ts';
+const TEMPORAL_MODULE = `export type * from './packages/ts-runtypes/src/formats/datetime/temporalFormats.ts';\n`;
+
 // UPPER_SNAKE group name -> PascalCase data-file basename ('TEMPLATE_LITERAL' -> 'TemplateLiteral').
 function groupToFile(group) {
   const pascal = group
@@ -335,7 +341,12 @@ async function runCompilePhase(metrics, bodies) {
       metrics[category] ??= {};
       const relpath = `__bench__/${safe(category)}__${safe(caseKey)}__${api}.ts`;
       const synth = buildSynthetic(body);
-      const sourcesMap = {[overlayDts.__bench__]: overlayDts.body, [FORMATS_MODULE_PATH]: FORMATS_MODULE, [relpath]: synth};
+      const sourcesMap = {
+        [overlayDts.__bench__]: overlayDts.body,
+        [FORMATS_MODULE_PATH]: FORMATS_MODULE,
+        [TEMPORAL_MODULE_PATH]: TEMPORAL_MODULE,
+        [relpath]: synth,
+      };
       const compileTimes = [];
       const tsCompileTimes = [];
       for (let c = 0; c < COMPILE_CYCLES; c++) {
@@ -426,11 +437,10 @@ function writeCaseDump(casesDir, category, caseKey, api, resp) {
 // their real constraints. The subpath resolves off the on-disk VFS (the ambient
 // overlay only shadows the bare marker specifier, not its subpaths).
 function buildSynthetic(body) {
-  const formats = [...new Set(body.match(/\bFormat[A-Z][A-Za-z0-9_]*\b/g) ?? [])];
-  const formatImport = formats.length
-    ? `import type {${formats.join(', ')}} from '../${FORMATS_MODULE_PATH.replace(/\.ts$/, '')}.ts';\n`
-    : '';
-  return `import {createValidate} from 'ts-runtypes';\n${formatImport}const _probe = () => {\n${body}\n};\n`;
+  const imports = [`import {createValidate} from 'ts-runtypes';`];
+  if (/\bTF\./.test(body)) imports.push(`import type * as TF from '../${FORMATS_MODULE_PATH.replace(/\.ts$/, '')}.ts';`);
+  if (/\bTFT\./.test(body)) imports.push(`import type * as TFT from '../${TEMPORAL_MODULE_PATH.replace(/\.ts$/, '')}.ts';`);
+  return `${imports.join('\n')}\nconst _probe = () => {\n${body}\n};\n`;
 }
 
 function safe(s) {
