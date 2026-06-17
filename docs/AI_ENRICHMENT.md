@@ -408,24 +408,32 @@ can drive generation, vendor-neutral.
 
 ### Process model — where each command runs (decided)
 
-**No new binary.** Split by concern, reusing the one warm resolver:
+**No new binary, all Go-side, CLI-arg-driven.** `describe` / `check` / `gen` are
+new **command-line modes** of the existing binary (`main.go` is flag-only today —
+add subcommand/positional dispatch). They are **out-of-band, one-shot commands a
+developer or agent runs deliberately — NOT part of the Vite build.** The Vite
+resolver process is untouched and still emits no `.rt.ts`; "build time" is the wrong
+label for generation.
 
-- **Type-info + validation (`describe`, the `check` analysis) → new resolver OPs**
-  in the existing Go binary (alongside `scanFiles`/`dump`). They are pure
-  type-reflection that returns data and writes nothing — a perfect fit for the
-  binary's "side-channel, emits no JS, answers queries" contract — and they reuse
-  the **warm `Program` + checker**. A fresh binary per call would re-pay the
-  multi-second program-init on every `check`, which kills the tight agent loop.
-- **User-facing commands + file writing (`gen`, the `describe`/`check` front-ends,
-  the MCP wrapper) → the JS public surface.** Per CLAUDE.md ("the Go binary is the
-  side-channel; the JS packages are the only public surface"), the CLI spawns/reuses
-  the resolver for type info and does the `.rt.ts` rendering + file writes itself —
-  file I/O already lives JS-side (the plugin writes the cache there). This keeps the
-  Go binary pure (it never writes into the user's source tree) and avoids shipping a
-  second binary. The CLI keeps one resolver process warm across a loop's calls.
+- **The `gen` codegen emitter lives in Go.** It walks the `RunType` graph — a giant
+  `switch` over `RunType.kind`, the same emitter pattern as
+  [`serialize.go`](../internal/compiled/runtype/serialize.go) and the typefns
+  families — and **emits new `.rt.ts` files or appends to existing ones**. Keeping it
+  Go-side reuses that walk; doing it in JS would mean shipping the graph to Node and
+  re-implementing the kind-switch — duplicating the emitter for nothing. Because
+  `gen` is one-shot (not a tight loop), paying the `Program` build per invocation is
+  fine — it builds, walks, writes, exits.
+- **`describe` / `check` are the same kind-switch walk** (output: prompt text / JSON
+  / diagnostics rather than files). For a tight agent loop that wants them fast and
+  repeated, the binary's existing **`--daemon`** keeps one warm `Program` alive — no
+  new binary, warmth is an existing knob. `check`'s analysis is the *same* validation
+  the always-on scan runs during a real Vite build; the CLI just runs it standalone.
+- **Public surface stays in the npm package** via a thin `ts-runtypes` bin that
+  shells to the Go binary — per CLAUDE.md ("the JS packages are the only public
+  surface") — but the *logic* (the emitter, the walk, file I/O) is Go.
 
-So the Go side gains pure analysis OPs; everything that touches argv or disk lives
-in the npm package.
+(Earlier draft split file-writing onto the JS side; superseded — the emitter is a
+`RunType.kind` switch, so it belongs in Go with the other emitters.)
 
 **Never call an LLM inside a build.** Builds stay pure and deterministic. Any
 LLM-backed generation is an explicit, opt-in CLI/agent action that writes a
