@@ -37,6 +37,8 @@ export {
   type FailedConstraints,
 } from './enrichment/friendlyType.ts';
 export {type MockData, type MockNode} from './enrichment/mockData.ts';
+// Pure-data runtime: render `getValidationErrors` output into human messages.
+export {createFriendly, type FriendlyMessage, type FriendlyRenderer} from './enrichment/createFriendly.ts';
 
 // Run-type registration is per-entry now: each marker call site imports its
 // type's virtual entry module and registers it (plus transitive children) on
