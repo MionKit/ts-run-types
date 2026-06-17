@@ -51,6 +51,22 @@ func EmitMock(rt *protocol.RunType, opts EmitOptions) string {
 	return b.String()
 }
 
+// FriendlySkeleton renders ONLY the FriendlyType object-literal skeleton for rt
+// (no `export const … =` wrapper, no trailing `;`) — the value the batch/stdout
+// `gen` mode returns so the test harness compares against a case's initializer.
+func FriendlySkeleton(rt *protocol.RunType, resolve func(id string) *protocol.RunType) string {
+	var b strings.Builder
+	emitFriendlyNode(&b, newWalkCtx(resolve), rt, 0)
+	return b.String()
+}
+
+// MockSkeleton renders ONLY the MockData object-literal skeleton for rt.
+func MockSkeleton(rt *protocol.RunType, resolve func(id string) *protocol.RunType) string {
+	var b strings.Builder
+	emitMockNode(&b, newWalkCtx(resolve), rt, 0)
+	return b.String()
+}
+
 func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth int) {
 	rt = ctx.deref(rt)
 	if rt == nil || depth > maxWalkDepth || ctx.seen[rt] {

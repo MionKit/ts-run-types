@@ -26,6 +26,12 @@ type Options struct {
 	// Overlay lets callers inject virtual file contents (absolute path → source)
 	// on top of the on-disk VFS. Used by tests and by the in-memory daemon path.
 	Overlay map[string]string
+	// Conditions are extra package.json export/import resolution conditions
+	// (CustomConditions). The enrichment CLI passes ["source"] so `ts-runtypes`
+	// resolves to its in-tree `src` — where the TypeFormat brands live — so a
+	// `TF.String<{minLength}>` projects with its FormatAnnotation rather than as a
+	// bare `string`. Empty (the default) leaves resolution unchanged. NewInferred only.
+	Conditions []string
 }
 
 type Program struct {
@@ -108,6 +114,7 @@ func NewInferred(opts Options, fileNames []string) (*Program, error) {
 					ESModuleInterop:            core.TSTrue,
 					AllowNonTsExtensions:       core.TSTrue,
 					ResolveJsonModule:          core.TSTrue,
+					CustomConditions:           opts.Conditions,
 				},
 				FileNames: fileNames,
 			},
