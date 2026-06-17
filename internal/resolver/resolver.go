@@ -305,6 +305,12 @@ func (resolver *Resolver) Close() {
 
 func (resolver *Resolver) Cache() *runtype.Cache { return resolver.cache }
 
+// Checker returns the bound type checker. Used by the out-of-band enrichment
+// bridge (internal/enrichment) to resolve a named type declaration to its
+// *checker.Type before projecting it through the cache. The hot scan/render
+// path keeps using the unexported field directly.
+func (resolver *Resolver) Checker() *checker.Checker { return resolver.checker }
+
 // Sites returns the running list of resolved call-site ids. Callers (CLI,
 // plugin) read this at end-of-build to write out the manifest.
 func (resolver *Resolver) Sites() []protocol.Site {
