@@ -96,7 +96,7 @@ Formats baked into your types
 #body
 :::div{class="rt-formats-cols"}
 ::::card{class="rt-feature-card"}
-### Validate the shape, not just the kind
+### TypeFormats®
 Ensure type safety with formats like:    
 `email`, `uuidv4`, `ipv4`, `int32`, `positive` and more. 
 
@@ -118,6 +118,7 @@ Full TC39 Temporal — `PlainDate`, `ZonedDateTime`, `Duration`… validated and
 :::
 ::
 
+
 ::u-page-section
 #title
 One object, Every function.
@@ -125,8 +126,8 @@ One object, Every function.
 #body
 :::div{class="rt-feature-row"}
 ::::card{class="rt-feature-card"}
-### Define it once
-Then ask for whatever you need — a validator, an error reporter, JSON that round-trips `Date`s, a compact binary codec, or believable mock data. No reflection at runtime: each one is a specialized function generated at build time.
+### The whole toolbelt, in one box
+Stop gluing five libraries together. RunTypes shares a single type graph across everything it generates — so the validator and the serializer always agree on what your type means.
 
 <br>
 
@@ -177,6 +178,70 @@ Get back a traversable RunType node — the same graph the library walks interna
 ::::
 :::
 ::
+
+
+::u-page-section
+---
+class: ai-section
+---
+#title
+:u-icon{name="i-lucide-sparkles" class="ai-title-icon"} AI Agents meets Deterministic
+
+#body
+
+:::card-group
+---
+class: sm:grid-cols-2 ai-artifacts
+---
+  ::::card
+  ---
+  title: AI-generated human-readable labels & errors
+  icon: i-lucide-message-square-text
+  to: /ai-integration/friendly-type
+  ---
+  Friendly field labels and error messages for your forms and UI — written for people, kept in sync with your type.
+  ::::
+
+  ::::card
+  ---
+  title: AI-generated real-world mock data
+  icon: i-lucide-dices
+  to: /ai-integration/mock-data
+  ---
+  Believable sample data — real names, emails, addresses — for your tests and demos, with every value valid for its field.
+  ::::
+:::
+
+:::div{class="ai-steps-head"}
+### The compiler writes the code, your agent fills the blanks
+Some values the compiler can't invent — a clear field label, a friendly error message, a believable sample name. So it does the hard part: it scaffolds a real, type-accurate source file, your agent fills in the blanks, and the compiler keeps it all in sync.
+:::
+
+:::div{class="ai-steps"}
+::::div{class="ai-step"}
+[1]{.ai-step-num}[The compiler scaffolds]{.ai-step-title}
+
+From your type it writes a real source file — every field in place, correctly typed, with each blank marked.
+::::
+
+::::div{class="ai-step"}
+[2]{.ai-step-num}[The AI agent fills the gaps]{.ai-step-title}
+
+Guided by the type, the agent writes the labels, messages and sample values into the blanks.
+::::
+
+::::div{class="ai-step"}
+[3]{.ai-step-num}[The compiler checks & keeps in sync]{.ai-step-title}
+
+It checks every value against the type and updates the file as your type changes — your edits kept.
+::::
+:::
+
+:::div{class="ai-explore"}
+[Explore AI integration →](/ai-integration/workflow-and-commands)
+:::
+::
+
 
 ::u-page-section
 #title
@@ -252,67 +317,6 @@ Every transform, cache shape and generated function is covered — on top of an 
 
 ::u-page-section
 #title
-The whole toolbelt, in one box
-
-#body
-Stop gluing five libraries together. RunTypes shares a single type graph across everything it generates — so the validator and the serializer always agree on what your type means.
-
-:::card-group
----
-class: sm:grid-cols-2 lg:grid-cols-3 home-toolbelt
----
-  ::::card
-  ---
-  title: Validation
-  icon: i-lucide-shield-check
-  ---
-  `createValidate` for fast yes/no checks, `createGetValidationErrors` for detailed reports.
-  ::::
-
-  ::::card
-  ---
-  title: JSON that round-trips
-  icon: i-lucide-braces
-  ---
-  `Date`, `BigInt`, `Map`, `Set` survive the trip. Three strategies: clone, mutate, direct.
-  ::::
-
-  ::::card
-  ---
-  title: Binary codec
-  icon: i-lucide-binary
-  ---
-  `createBinaryEncoder` / `createBinaryDecoder` for compact, fast payloads.
-  ::::
-
-  ::::card
-  ---
-  title: Mock data
-  icon: i-lucide-dices
-  ---
-  `createMockType` invents valid, type-shaped data for your tests and fixtures.
-  ::::
-
-  ::::card
-  ---
-  title: Reflection
-  icon: i-lucide-scan-text
-  ---
-  `getRunTypeId` (static or from a value), plus function-signature reflection.
-  ::::
-
-  ::::card
-  ---
-  title: Type formats
-  icon: i-lucide-mail-check
-  ---
-  `email`, `uuidv4`, `ipv4`, `int32`, `positive`… baked straight into your types.
-  ::::
-:::
-::
-
-::u-page-section
-#title
 Tree-shaken to the bone
 
 #body
@@ -361,50 +365,6 @@ export function __rt_a1b_Xk7(value) {
   typeof value.email === "string";
 }
 ```
-::::
-:::
-::
-
-::u-page-section
-#title
-Built for AI agents
-
-#body
-:::div{class="rt-feature-row"}
-::::card{class="rt-feature-card"}
-### Your agent writes it, the compiler checks it
-Some things code can't invent — a clear field label, a friendly error message, a believable sample name. An AI agent writes them, commits them next to your type, and the compiler checks them against that type from then on. If the agent gets a field wrong or invents a malformed email, the build catches it. The agent does the writing; the compiler keeps it honest.
-
-<br>
-
-[The compiler keeps the AI honest.]{.text-highlighted}
-
-:::::div{class="rt-card-footer"}
-[Explore AI integration →](/ai-integration/workflow-and-commands)
-:::::
-::::
-
-::::card-group
----
-class: sm:grid-cols-1
----
-  :::::card
-  ---
-  title: Human-readable labels & errors
-  icon: i-lucide-message-square-text
-  to: /ai-integration/friendly-type
-  ---
-  Friendly field labels and error messages for your forms and UI — written for people, kept in sync with your type.
-  :::::
-
-  :::::card
-  ---
-  title: Real-world mock data
-  icon: i-lucide-dices
-  to: /ai-integration/mock-data
-  ---
-  Believable sample data — real names, emails, addresses — for your tests and demos, with every value valid for its field.
-  :::::
 ::::
 :::
 ::
