@@ -80,12 +80,12 @@ func collectPruneTargets(positional []string, enrichDirFlag string) []string {
 	return files
 }
 
-// reconcileMirror is implemented in milestones M2+ (parse + index + property
-// merge + splice). For M1 it is a placeholder that does nothing — the flag
-// dispatch is in place; the algorithm lands incrementally.
+// reconcileMirror parses + indexes the existing mirror file (fatal on syntax
+// error), then reconciles it against spec's desired const set. The property
+// merge + splice land in milestones M5+; M2 establishes the parse + index.
 func reconcileMirror(spec mirrorWrite, existingBytes []byte) bool {
-	_ = spec
-	_ = existingBytes
+	index := parseMirror(spec.mirrorPath, existingBytes)
+	_ = index
 	return false
 }
 
