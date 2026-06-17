@@ -490,7 +490,8 @@ func constBlock(varName, wrapper string, named enrichment.NamedConst, body strin
 }
 
 // markerComment renders the reconcile JSDoc for a const: a single leading line
-// `/** @rtType <Name>#<id> @rtIds {field: <ref>#<id>, …} */\n`. It is omitted
+// `/** @rtType <Name>#<id> @rtIds {field: <id>, …} */\n` (the @rtIds entries
+// carry the BARE child id — see formatChildIDs/ChildIDs). It is omitted
 // (empty string) when there is no structural id (an unresolved/anonymous root),
 // so a degenerate const stays marker-free. The encoding survives Prettier
 // (leading JSDoc on a declaration is preserved) and round-trips through
