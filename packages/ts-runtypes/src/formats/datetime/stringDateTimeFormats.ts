@@ -20,28 +20,28 @@ import type {MinMax, DateBound, TimeBound, DateTimeBound} from './dateTimeParams
 // ─────────────────────────────── Date ───────────────────────────────
 
 export type DateFmt = 'ISO' | 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'MM-DD-YYYY' | 'YYYY-MM' | 'MM-DD' | 'DD-MM';
-// FormatParams_Date — the chosen layout plus optional min/max. Each bound
+// DateParams — the chosen layout plus optional min/max. Each bound
 // is a DateBound: an absolute literal in `format`'s layout, or a relative
 // `now±P…` using ONLY date components (Go rejects time components for a
 // date format).
-export interface FormatParams_Date extends MinMax<DateBound> {
+export interface DateParams extends MinMax<DateBound> {
   format: DateFmt;
 }
 export type DEFAULT_DATE_PARAMS = {format: 'ISO'};
-export type FormatStringDate<P extends Partial<FormatParams_Date> = DEFAULT_DATE_PARAMS> = TypeFormat<string, 'date', P, never>;
+export type StringDate<P extends Partial<DateParams> = DEFAULT_DATE_PARAMS> = TypeFormat<string, 'date', P, never>;
 
 // ─────────────────────────────── Time ───────────────────────────────
 
 export type TimeFmt = 'ISO' | 'HH:mm:ss[.mmm]TZ' | 'HH:mm:ss[.mmm]' | 'HH:mm:ss' | 'HH:mm' | 'mm:ss' | 'HH' | 'mm' | 'ss';
-// FormatParams_Time — the chosen layout plus optional min/max. Each bound
+// TimeParams — the chosen layout plus optional min/max. Each bound
 // is a TimeBound: an absolute literal in `format`'s layout, or a relative
 // `now±P…` using ONLY time components (Go rejects date components for a
 // time format).
-export interface FormatParams_Time extends MinMax<TimeBound> {
+export interface TimeParams extends MinMax<TimeBound> {
   format: TimeFmt;
 }
 export type DEFAULT_TIME_FORMAT_PARAMS = {format: 'ISO'};
-export type FormatStringTime<P extends Partial<FormatParams_Time> = DEFAULT_TIME_FORMAT_PARAMS> = TypeFormat<
+export type StringTime<P extends Partial<TimeParams> = DEFAULT_TIME_FORMAT_PARAMS> = TypeFormat<
   string,
   'time',
   P,
@@ -50,12 +50,12 @@ export type FormatStringTime<P extends Partial<FormatParams_Time> = DEFAULT_TIME
 
 // ───────────────────────────── DateTime ─────────────────────────────
 
-// FormatParams_DateTime — nested date + time layouts, the split char, and
+// DateTimeParams — nested date + time layouts, the split char, and
 // optional top-level min/max. A dateTime bound (DateTimeBound) may use
 // both date and time duration components.
-export interface FormatParams_DateTime extends MinMax<DateTimeBound> {
-  date: FormatParams_Date;
-  time: FormatParams_Time;
+export interface DateTimeParams extends MinMax<DateTimeBound> {
+  date: DateParams;
+  time: TimeParams;
   splitChar: string;
 }
 export type DEFAULT_DATE_TIME_PARAMS = {
@@ -66,7 +66,7 @@ export type DEFAULT_DATE_TIME_PARAMS = {
 // P is passed through verbatim (NOT intersected with defaults — that
 // would collapse overridden `format` literals to `never`); the Go side
 // defaults missing nested formats / splitChar to ISO / 'T'.
-export type FormatStringDateTime<P extends Partial<FormatParams_DateTime> = DEFAULT_DATE_TIME_PARAMS> = TypeFormat<
+export type StringDateTime<P extends Partial<DateTimeParams> = DEFAULT_DATE_TIME_PARAMS> = TypeFormat<
   string,
   'dateTime',
   P,

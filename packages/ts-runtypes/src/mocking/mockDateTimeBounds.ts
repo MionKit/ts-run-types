@@ -19,7 +19,7 @@
 // [minKey, maxKey]. This module therefore MUST mirror the validator's scale
 // math exactly — keep it in sync with literals.go / dateTime-pure-fns.ts.
 
-import type {DateFmt, TimeFmt, FormatParams_DateTime} from '../formats/datetime/stringDateTimeFormats.ts';
+import type {DateFmt, TimeFmt, DateTimeParams} from '../formats/datetime/stringDateTimeFormats.ts';
 
 // Fill year for yearless date layouts (MM-DD / DD-MM) — MUST match Go's
 // defaultFillYear (literals.go) and the JS dateStrToMs fill (a leap year so
@@ -355,7 +355,7 @@ export function mockBoundedTime(layout: TimeFmt, bounds: BoundInputs): string {
 
 // mockBoundedDateTime returns a dateTime string honoring the nested layouts,
 // splitChar, and top-level min/max/gt/lt bounds.
-export function mockBoundedDateTime(params: Partial<FormatParams_DateTime>): string {
+export function mockBoundedDateTime(params: Partial<DateTimeParams>): string {
   const dateLayout = (params.date?.format ?? 'ISO') as DateFmt;
   const timeLayout = (params.time?.format ?? 'ISO') as TimeFmt;
   const splitChar = params.splitChar ?? 'T';
@@ -380,7 +380,7 @@ export function mockBoundedDateTime(params: Partial<FormatParams_DateTime>): str
   return `${formatDate(dayMs, dateLayout)}${splitChar}${formatTime(timeOfDay, timeLayout)}`;
 }
 
-// mockBoundedNativeDate returns a Date within the bound set for FormatDate.
+// mockBoundedNativeDate returns a Date within the bound set for Date.
 // The scale is full UTC epoch ms; the exclusive grid step is 1 ms (a Date's
 // resolution).
 export function mockBoundedNativeDate(bounds: BoundInputs): Date {

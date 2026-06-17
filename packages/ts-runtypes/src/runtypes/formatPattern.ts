@@ -6,7 +6,7 @@
 //     mockSamples: ['my-slug', 'abc'],
 //     message: 'must be a slug',
 //   });
-//   type Slug = FormatString<{pattern: typeof slug}>;
+//   type Slug = String<{pattern: typeof slug}>;
 //
 // Why string literals and not a `/regex/`: the Go scanner recovers
 // {source, flags, mockSamples, message} from the RESOLVED TYPE of the `pattern`

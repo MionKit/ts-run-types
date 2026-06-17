@@ -25,10 +25,62 @@ import '../mocking/mockBigIntFormat.ts';
 // mockSamples against its regex at load.
 import './string/string-patterns.ts';
 
-// Re-export the full type surface of every format family.
+// Re-export the full TYPE surface of every format family. (Kept as `export type *`
+// — the suite exporters' FORMATS_MODULE overlay keys off these lines.)
 export type * from './string/stringFormats.ts';
 export type * from './datetime/dateTimeParams.ts';
 export type * from './datetime/stringDateTimeFormats.ts';
 export type * from './datetime/dateFormats.ts';
 export type * from './numberFormats.ts';
 export type * from './bigintFormats.ts';
+
+// Re-export the value-first BUILDER surface — the scalar leaves (`TF.string()` /
+// `TF.number()` / `TF.bigInt()` / `TF.date()`), the `brand` nominal tag, and one
+// builder per predefined format. (Temporal builders live on the dedicated
+// `ts-runtypes/formats/temporal` subpath, NOT re-exported here, so non-Temporal
+// consumers never pull in the Temporal lib.)
+export {string, number, bigInt, date, brand} from './scalars.ts';
+export {
+  alpha,
+  alphaNumeric,
+  numeric,
+  lowercase,
+  uppercase,
+  capitalize,
+  uuidv4,
+  uuidv7,
+  ip,
+  ipv4,
+  ipv6,
+  ipWithPort,
+  ipv4WithPort,
+  ipv6WithPort,
+  domain,
+  domainUnicode,
+  domainPunycode,
+  domainStrict,
+  email,
+  emailPunycode,
+  emailStrict,
+  url,
+  urlHttp,
+  urlFile,
+  stringDate,
+  stringTime,
+  stringDateTime,
+} from './string/stringFormats.ts';
+export {
+  integer,
+  float,
+  positive,
+  negative,
+  positiveInt,
+  negativeInt,
+  int8,
+  int16,
+  int32,
+  uint8,
+  uint16,
+  uint32,
+} from './numberFormats.ts';
+export {bigPositive, bigNegative, bigPositiveInt, bigNegativeInt, bigInt64, bigUInt64} from './bigintFormats.ts';

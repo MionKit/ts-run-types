@@ -1,6 +1,6 @@
 // Consolidated string-format TYPE aliases — the public type surface of
-// every string format (FormatString, FormatUUIDv4, FormatStringDate,
-// FormatDomain, FormatEmail, …). Mocking lives in `stringFormatMock.ts`
+// every string format (String, UUIDv4, StringDate,
+// Domain, Email, …). Mocking lives in `stringFormatMock.ts`
 // (one switch keyed by format name) and validation is build-time on the
 // Go side; this file is type-only + the brand wiring.
 //
@@ -29,6 +29,17 @@ import {
   URL_HTTP_PATTERN,
   URL_FILE_PATTERN,
 } from './string-patterns.ts';
+import {builderResult, presetBuilder} from '../../runtypes/builderCore.ts';
+import type {RunType} from '../../runtypes/types.ts';
+import type {InjectRunTypeId, CompTimeArgs} from '../../markers.ts';
+import type {
+  StringDate,
+  StringTime,
+  StringDateTime,
+  DateParams,
+  TimeParams,
+  DateTimeParams,
+} from '../datetime/stringDateTimeFormats.ts';
 
 // ─────────────────────────── StringFormat ───────────────────────────
 
@@ -40,8 +51,8 @@ import {
 // is deliberately NOT accepted (the mock generator needs samples to produce
 // matching values):
 //   const slug = registerFormatPattern({source: '^[a-z-]+$', mockSamples: ['a-b']});
-//   type Slug = FormatString<{pattern: typeof slug}>;
-//   type Digits = FormatString<{pattern: {source: '^[0-9]+$'; mockSamples: ['1', '42']}}>;
+//   type Slug = String<{pattern: typeof slug}>;
+//   type Digits = String<{pattern: {source: '^[0-9]+$'; mockSamples: ['1', '42']}}>;
 // (Built-ins encode their pattern as an inline `{source, flags, mockSamples}`
 // literal — a published .d.ts can't carry a regex VALUE for `typeof` recovery.)
 export type PatternParam = FormatPattern | StringPatternArgs;
@@ -87,7 +98,7 @@ export interface DisallowedValuesParam {
   mockSamples: Samples;
 }
 
-// StringParams — the wire-serialisable params shape for FormatString.
+// StringParams — the wire-serialisable params shape for String.
 // Cross-param invariants are validated build-time in Go (FMT002).
 export interface StringParams {
   maxLength?: number;
@@ -119,14 +130,14 @@ export interface StringParams {
 // (now a generic `FormatPattern<A>` that carries its own literals) is assignable
 // here too — both forms keep source/flags/mockSamples as literal TYPES, so a
 // value-first builder reflecting `T` recovers them faithfully and converges on
-// the same id as the type-first `FormatString<{pattern: typeof x}>` form.
+// the same id as the type-first `String<{pattern: typeof x}>` form.
 export type StringParamsValueFirst = Omit<StringParams, 'pattern'> & {pattern?: StringPatternArgs};
 
-// FormatString — the branded string alias users annotate with:
-// `FormatString<{maxLength: 32}>`. `BrandName` produces a nominal type
+// String — the branded string alias users annotate with:
+// `String<{maxLength: 32}>`. `BrandName` produces a nominal type
 // when needed (the convention).
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export type FormatString<P extends StringParams = {}, BrandName extends string = never> = TypeFormat<
+export type String<P extends StringParams = {}, BrandName extends string = never> = TypeFormat<
   string,
   'stringFormat',
   P,
@@ -138,36 +149,36 @@ export type FormatString<P extends StringParams = {}, BrandName extends string =
 // Alpha/AlphaNumeric/Numeric reference the registered char-class patterns
 // by `typeof` (see ./string-patterns.ts).
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-export type FormatAlpha<P extends StringParams = {}> = TypeFormat<
+export type Alpha<P extends StringParams = {}> = TypeFormat<
   string,
   'stringFormat',
   P & {pattern: typeof ALPHA_PATTERN},
   never
 >;
-export type FormatAlphaNumeric<P extends StringParams = {}> = TypeFormat<
+export type AlphaNumeric<P extends StringParams = {}> = TypeFormat<
   string,
   'stringFormat',
   P & {pattern: typeof ALPHANUMERIC_PATTERN},
   never
 >;
-export type FormatNumeric<P extends StringParams = {}> = TypeFormat<
+export type Numeric<P extends StringParams = {}> = TypeFormat<
   string,
   'stringFormat',
   P & {pattern: typeof NUMERIC_PATTERN},
   never
 >;
-export type FormatLowercase<P extends StringParams = {}> = FormatString<P & {lowercase: true}>;
-export type FormatUppercase<P extends StringParams = {}> = FormatString<P & {uppercase: true}>;
-export type FormatCapitalize<P extends StringParams = {}> = FormatString<P & {capitalize: true}>;
+export type Lowercase<P extends StringParams = {}> = String<P & {lowercase: true}>;
+export type Uppercase<P extends StringParams = {}> = String<P & {uppercase: true}>;
+export type Capitalize<P extends StringParams = {}> = String<P & {capitalize: true}>;
 /* eslint-enable @typescript-eslint/no-empty-object-type */
 
 // ─────────────────────────────── UUID ───────────────────────────────
 
-export interface FormatParams_UUID {
+export interface UUIDParams {
   version: '4' | '7';
 }
-export type FormatUUIDv4 = TypeFormat<string, 'uuid', {version: '4'}, never>;
-export type FormatUUIDv7 = TypeFormat<string, 'uuid', {version: '7'}, never>;
+export type UUIDv4 = TypeFormat<string, 'uuid', {version: '4'}, never>;
+export type UUIDv7 = TypeFormat<string, 'uuid', {version: '7'}, never>;
 
 // ──────────────────── Date / Time / DateTime ────────────────────────
 //
@@ -179,18 +190,18 @@ export type FormatUUIDv7 = TypeFormat<string, 'uuid', {version: '7'}, never>;
 
 // ──────────────────────────────── IP ────────────────────────────────
 
-export interface FormatParams_IP {
+export interface IPParams {
   version: 4 | 6 | 'any';
   allowLocalHost?: boolean;
   allowPort?: boolean;
 }
 type DEFAULT_IP_PARAMS = {version: 'any'; allowLocalHost: true};
-export type FormatIP<P extends FormatParams_IP = DEFAULT_IP_PARAMS> = TypeFormat<string, 'ip', P, never>;
-export type FormatIPv4 = FormatIP<{version: 4; allowLocalHost: true}>;
-export type FormatIPv6 = FormatIP<{version: 6; allowLocalHost: true}>;
-export type FormatIPWithPort = FormatIP<{version: 'any'; allowLocalHost: true; allowPort: true}>;
-export type FormatIPv4WithPort = FormatIP<{version: 4; allowLocalHost: true; allowPort: true}>;
-export type FormatIPv6WithPort = FormatIP<{version: 6; allowLocalHost: true; allowPort: true}>;
+export type IP<P extends IPParams = DEFAULT_IP_PARAMS> = TypeFormat<string, 'ip', P, never>;
+export type IPv4 = IP<{version: 4; allowLocalHost: true}>;
+export type IPv6 = IP<{version: 6; allowLocalHost: true}>;
+export type IPWithPort = IP<{version: 'any'; allowLocalHost: true; allowPort: true}>;
+export type IPv4WithPort = IP<{version: 4; allowLocalHost: true; allowPort: true}>;
+export type IPv6WithPort = IP<{version: 6; allowLocalHost: true; allowPort: true}>;
 
 // ────────────────────────────── Domain ──────────────────────────────
 
@@ -205,9 +216,9 @@ export interface DomainPartParams {
   mockSamples?: Samples;
 }
 
-// FormatParams_Domain — pattern path (single baked regex) OR names+tld
+// DomainParams — pattern path (single baked regex) OR names+tld
 // decomposition, never both (Go FMT002 enforces it).
-export interface FormatParams_Domain {
+export interface DomainParams {
   maxLength?: number;
   minLength?: number;
   maxParts?: number;
@@ -218,14 +229,14 @@ export interface FormatParams_Domain {
   tld?: DomainPartParams;
 }
 
-export type FormatDomain = TypeFormat<string, 'domain', {pattern: typeof DOMAIN_PATTERN; maxLength: 253; minLength: 5}, never>;
-export type FormatDomainUnicode = TypeFormat<
+export type Domain = TypeFormat<string, 'domain', {pattern: typeof DOMAIN_PATTERN; maxLength: 253; minLength: 5}, never>;
+export type DomainUnicode = TypeFormat<
   string,
   'domain',
   {pattern: typeof DOMAIN_UNICODE_PATTERN; maxLength: 253; minLength: 5},
   never
 >;
-export type FormatDomainPunycode = TypeFormat<
+export type DomainPunycode = TypeFormat<
   string,
   'domain',
   {pattern: typeof DOMAIN_PUNYCODE_PATTERN; maxLength: 253; minLength: 5},
@@ -240,24 +251,24 @@ export type DEFAULT_STRICT_DOMAIN_PARAMS = {
   names: {maxLength: 63; minLength: 2; pattern: typeof DOMAIN_NAME_PATTERN};
   tld: {maxLength: 12; minLength: 2; pattern: typeof DOMAIN_TLD_PATTERN};
 };
-// FormatDomainStrict — ≤6 labels, ≥2 parts, no hyphen-edge labels,
+// DomainStrict — ≤6 labels, ≥2 parts, no hyphen-edge labels,
 // alphabetical tld.
-export type FormatDomainStrict = TypeFormat<string, 'domain', DEFAULT_STRICT_DOMAIN_PARAMS, never>;
+export type DomainStrict = TypeFormat<string, 'domain', DEFAULT_STRICT_DOMAIN_PARAMS, never>;
 
 // ─────────────────────────────── Email ──────────────────────────────
 
-// FormatParams_Email — pattern path, or localPart + domain decomposition.
-export interface FormatParams_Email {
+// EmailParams — pattern path, or localPart + domain decomposition.
+export interface EmailParams {
   maxLength?: number;
   minLength?: number;
   pattern?: {source: string; flags?: string} | {val: RegExp};
   mockSamples?: readonly string[];
   localPart?: StringParams;
-  domain?: FormatParams_Domain;
+  domain?: DomainParams;
 }
 
-export type FormatEmail = TypeFormat<string, 'email', {pattern: typeof EMAIL_PATTERN; maxLength: 254; minLength: 7}, never>;
-export type FormatEmailPunycode = TypeFormat<
+export type Email = TypeFormat<string, 'email', {pattern: typeof EMAIL_PATTERN; maxLength: 254; minLength: 7}, never>;
+export type EmailPunycode = TypeFormat<
   string,
   'email',
   {pattern: typeof EMAIL_PUNYCODE_PATTERN; maxLength: 254; minLength: 7},
@@ -277,17 +288,141 @@ export type DEFAULT_STRICT_EMAIL_PARAMS = {
   };
   domain: DEFAULT_STRICT_DOMAIN_PARAMS;
 };
-// FormatEmailStrict — split on the last '@'; local part rejects spaces /
+// EmailStrict — split on the last '@'; local part rejects spaces /
 // brackets / aliasing chars; domain validated strictly.
-export type FormatEmailStrict = TypeFormat<string, 'email', DEFAULT_STRICT_EMAIL_PARAMS, never>;
+export type EmailStrict = TypeFormat<string, 'email', DEFAULT_STRICT_EMAIL_PARAMS, never>;
 
 // ──────────────────────────────── URL ───────────────────────────────
 
-export interface FormatParams_Url {
+export interface UrlParams {
   pattern?: {source: string; flags?: string} | {val: RegExp};
   mockSamples?: readonly string[];
 }
 
-export type FormatUrl = TypeFormat<string, 'url', {pattern: typeof URL_PATTERN; maxLength: 2048}, never>;
-export type FormatUrlHttp = TypeFormat<string, 'url', {pattern: typeof URL_HTTP_PATTERN; maxLength: 2048}, never>;
-export type FormatUrlFile = TypeFormat<string, 'url', {pattern: typeof URL_FILE_PATTERN; maxLength: 2048}, never>;
+export type Url = TypeFormat<string, 'url', {pattern: typeof URL_PATTERN; maxLength: 2048}, never>;
+export type UrlHttp = TypeFormat<string, 'url', {pattern: typeof URL_HTTP_PATTERN; maxLength: 2048}, never>;
+export type UrlFile = TypeFormat<string, 'url', {pattern: typeof URL_FILE_PATTERN; maxLength: 2048}, never>;
+
+// ───────────────────── Predefined string builders ───────────────────
+//
+// Value-first builder per named alias (`TF.email()` → `RunType<Email>`,
+// `TF.ipv4()`, `TF.uuidv4()`, `TF.stringDate({format: 'DD-MM-YYYY'})`, …), each
+// carrying the CONCRETE alias above so the value-first id converges with the
+// type-first `createValidate<Email>()`. Two shapes: fixed presets (no params) via
+// `presetBuilder`, and parameterised families (alpha / stringDate / …) with the
+// no-params/plain ↔ params two-overload split. For ad-hoc constraints use
+// `TF.string({…})`.
+
+/** Alphabetic-only string (`Alpha`); `alpha({maxLength: 3})` adds bounds. **/
+export function alpha(id?: InjectRunTypeId<Alpha>): RunType<Alpha>;
+export function alpha<const P extends StringParams>(
+  formatParams: CompTimeArgs<P>,
+  id?: InjectRunTypeId<Alpha<P>>
+): RunType<Alpha<P>>;
+export function alpha(
+  formatParamsOrId?: StringParams | InjectRunTypeId<Alpha>,
+  id?: InjectRunTypeId<Alpha>
+): RunType<Alpha> {
+  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
+  return builderResult(injectedId, {type: 'stringFormat', formatParams});
+}
+
+/** Alphanumeric-only string (`AlphaNumeric`). **/
+export const alphaNumeric = presetBuilder<AlphaNumeric>('stringFormat');
+/** Digits-only string (`Numeric`). **/
+export const numeric = presetBuilder<Numeric>('stringFormat');
+/** Lowercase string (`Lowercase`) — the transform applies only via
+ *  `createFormatTransform`; validate validates it as a plain string. **/
+export const lowercase = presetBuilder<Lowercase>('stringFormat');
+/** Uppercase string (`Uppercase`). **/
+export const uppercase = presetBuilder<Uppercase>('stringFormat');
+/** Capitalized string (`Capitalize`). **/
+export const capitalize = presetBuilder<Capitalize>('stringFormat');
+
+/** UUID v4 (`UUIDv4`). **/
+export const uuidv4 = presetBuilder<UUIDv4>('uuid');
+/** UUID v7 (`UUIDv7`). **/
+export const uuidv7 = presetBuilder<UUIDv7>('uuid');
+
+/** IP address, any version with localhost (`IP`). **/
+export const ip = presetBuilder<IP>('ip');
+/** IPv4 (`IPv4`). **/
+export const ipv4 = presetBuilder<IPv4>('ip');
+/** IPv6 (`IPv6`). **/
+export const ipv6 = presetBuilder<IPv6>('ip');
+/** IP (any) with port (`IPWithPort`). **/
+export const ipWithPort = presetBuilder<IPWithPort>('ip');
+/** IPv4 with port (`IPv4WithPort`). **/
+export const ipv4WithPort = presetBuilder<IPv4WithPort>('ip');
+/** IPv6 with port (`IPv6WithPort`). **/
+export const ipv6WithPort = presetBuilder<IPv6WithPort>('ip');
+
+/** Domain name (`Domain`). **/
+export const domain = presetBuilder<Domain>('domain');
+/** Unicode domain (`DomainUnicode`). **/
+export const domainUnicode = presetBuilder<DomainUnicode>('domain');
+/** Punycode domain (`DomainPunycode`). **/
+export const domainPunycode = presetBuilder<DomainPunycode>('domain');
+/** Strict domain — ≤6 labels, ≥2 parts, alphabetical tld (`DomainStrict`). **/
+export const domainStrict = presetBuilder<DomainStrict>('domain');
+
+/** Email (`Email`). **/
+export const email = presetBuilder<Email>('email');
+/** Punycode-domain email (`EmailPunycode`). **/
+export const emailPunycode = presetBuilder<EmailPunycode>('email');
+/** Strict email — strict local part + strict domain (`EmailStrict`). **/
+export const emailStrict = presetBuilder<EmailStrict>('email');
+
+/** URL (`Url`). **/
+export const url = presetBuilder<Url>('url');
+/** HTTP(S) URL (`UrlHttp`). **/
+export const urlHttp = presetBuilder<UrlHttp>('url');
+/** file:// URL (`UrlFile`). **/
+export const urlFile = presetBuilder<UrlFile>('url');
+
+/** A string-date field (`StringDate`); `stringDate({format: 'DD-MM-YYYY'})`
+ *  picks the layout and may add min/max bounds. **/
+export function stringDate(id?: InjectRunTypeId<StringDate>): RunType<StringDate>;
+export function stringDate<const P extends Partial<DateParams>>(
+  formatParams: CompTimeArgs<P>,
+  id?: InjectRunTypeId<StringDate<P>>
+): RunType<StringDate<P>>;
+export function stringDate(
+  formatParamsOrId?: Partial<DateParams> | InjectRunTypeId<StringDate>,
+  id?: InjectRunTypeId<StringDate>
+): RunType<StringDate> {
+  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
+  return builderResult(injectedId, {type: 'date', formatParams});
+}
+
+/** A string-time field (`StringTime`). **/
+export function stringTime(id?: InjectRunTypeId<StringTime>): RunType<StringTime>;
+export function stringTime<const P extends Partial<TimeParams>>(
+  formatParams: CompTimeArgs<P>,
+  id?: InjectRunTypeId<StringTime<P>>
+): RunType<StringTime<P>>;
+export function stringTime(
+  formatParamsOrId?: Partial<TimeParams> | InjectRunTypeId<StringTime>,
+  id?: InjectRunTypeId<StringTime>
+): RunType<StringTime> {
+  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
+  return builderResult(injectedId, {type: 'time', formatParams});
+}
+
+/** A string-dateTime field (`StringDateTime`). **/
+export function stringDateTime(id?: InjectRunTypeId<StringDateTime>): RunType<StringDateTime>;
+export function stringDateTime<const P extends Partial<DateTimeParams>>(
+  formatParams: CompTimeArgs<P>,
+  id?: InjectRunTypeId<StringDateTime<P>>
+): RunType<StringDateTime<P>>;
+export function stringDateTime(
+  formatParamsOrId?: Partial<DateTimeParams> | InjectRunTypeId<StringDateTime>,
+  id?: InjectRunTypeId<StringDateTime>
+): RunType<StringDateTime> {
+  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
+  return builderResult(injectedId, {type: 'dateTime', formatParams});
+}
