@@ -30,7 +30,7 @@ describe('MockData<T> — per-branch correctness + instantiation budget', () => 
       // number must not accept a string min
       type _05 = ExpectFalse<Assignable<{min: 'x'}, MockData<number>>>;
       `,
-      71
+      81
     );
   });
 
@@ -48,7 +48,7 @@ describe('MockData<T> — per-branch correctness + instantiation budget', () => 
       // @ts-expect-error — age is a number; a string pool is wrong
       const _bad2: MockData<User> = { age: { pool: ['nope'] } };
       `,
-      94
+      100
     );
   });
 
@@ -61,7 +61,52 @@ describe('MockData<T> — per-branch correctness + instantiation budget', () => 
         scores: { $items: { min: 0, max: 10 }, $length: 3 },
       };
       `,
-      78
+      110
+    );
+  });
+
+  it('tuples carry $slots (per-slot nodes), distinct from arrays', () => {
+    check(
+      `
+      const _ok: MockData<[string, number]> = {
+        $slots: [{ pool: ['a', 'b'] }, { min: 0, max: 9 }],
+      };
+      type _slots = Expect<Assignable<{$slots: [{pool: string[]}, {pool: number[]}]}, MockData<[string, number]>>>;
+      // an array still gets $items (NOT $slots) — tuple/array discrimination
+      type _items = Expect<Assignable<{$items: {pool: string[]}; $length: 3}, MockData<string[]>>>;
+      // an array does NOT accept $slots
+      type _noslots = ExpectFalse<Assignable<{$slots: [{pool: string[]}]}, MockData<string[]>>>;
+      // a tuple does NOT accept $length (fixed length)
+      type _nolength = ExpectFalse<Assignable<{$length: 3}, MockData<[string, number]>>>;
+      `,
+      108
+    );
+  });
+
+  it('Map carries $keys / $values / $size', () => {
+    check(
+      `
+      const _ok: MockData<Map<string, number>> = {
+        $keys: { pool: ['a', 'b'] },
+        $values: { min: 0, max: 9 },
+        $size: [0, 3],
+      };
+      type _map = Expect<Assignable<{$keys: {pool: string[]}; $values: {pool: number[]}; $size: [0, 3]}, MockData<Map<string, number>>>>;
+      `,
+      272
+    );
+  });
+
+  it('Set carries $values / $size', () => {
+    check(
+      `
+      const _ok: MockData<Set<string>> = {
+        $values: { pool: ['a', 'b'] },
+        $size: 3,
+      };
+      type _set = Expect<Assignable<{$values: {pool: string[]}; $size: 3}, MockData<Set<string>>>>;
+      `,
+      212
     );
   });
 
@@ -76,7 +121,7 @@ describe('MockData<T> — per-branch correctness + instantiation budget', () => 
         },
       };
       `,
-      77
+      85
     );
   });
 
@@ -86,7 +131,7 @@ describe('MockData<T> — per-branch correctness + instantiation budget', () => 
       interface Deep { a: { b: { c: { d: { e: string } } } } }
       const _ok: MockData<Deep> = { a: { b: { c: { d: { e: { pool: ['x'] } } } } } };
       `,
-      154
+      166
     );
   });
 
@@ -96,7 +141,7 @@ describe('MockData<T> — per-branch correctness + instantiation budget', () => 
       interface Node { value: string; next: Node | null }
       const _ok: MockData<Node> = { value: { pool: ['v'] }, next: { value: { pool: ['v'] } } };
       `,
-      86
+      96
     );
   });
 });

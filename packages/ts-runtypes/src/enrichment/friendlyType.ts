@@ -58,18 +58,41 @@ type FriendlyLeaf = string | number | boolean | bigint | null | undefined | Date
  *  mutually-recursive types to a finite instantiation (no TS2589). */
 type _FriendlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
-/** Recursive friendly node. Scalars/natives → meta only; arrays/tuples → meta +
+/** Recursive friendly node — structural per solution A (docs/AI_ENRICHMENT.md):
+ *  composite kinds reflect their structure, NOT an opaque leaf. Scalars/natives →
+ *  meta only; tuples → meta + per-slot homomorphic `$slots` (`{[K in keyof T]}`);
+ *  `Map` → meta + `$keys`/`$values`; `Set` → meta + `$values`; arrays → meta +
  *  `$items` (element node, via `T[number]`); objects → meta + a homomorphic
- *  optional child map. */
+ *  optional child map. Branch order is most-specific-first; `Map`/`Set` gates run
+ *  BEFORE the array check (a Map is not an array, but the cheap `Readonly{Map,Set}`
+ *  gates keep `infer` off the hot path, mirroring `DataOnly`). NOTE: index
+ *  signatures + object-member unions are OUT OF SCOPE here — index-sig objects
+ *  still fall through to the homomorphic object map as today. */
 export type FriendlyNode<T, Depth extends number = 8> = Depth extends 0
   ? FriendlyMeta // budget spent — keep as a leaf
   : T extends FriendlyLeaf
     ? FriendlyMeta // scalar / native — no children
-    : T extends readonly unknown[]
-      ? FriendlyMeta & {$items?: FriendlyNode<T[number], _FriendlyDepth[Depth]>}
-      : T extends object
-        ? FriendlyMeta & {[K in keyof T]?: FriendlyNode<T[K], _FriendlyDepth[Depth]>}
-        : FriendlyMeta;
+    : // Map BEFORE the array check: cheap `ReadonlyMap<any, any>` gate filters
+      // non-Maps so the `infer K, V` never runs off the hot path (per DataOnly).
+      T extends ReadonlyMap<any, any>
+      ? T extends ReadonlyMap<infer K, infer V>
+        ? FriendlyMeta & {$keys?: FriendlyNode<K, _FriendlyDepth[Depth]>; $values?: FriendlyNode<V, _FriendlyDepth[Depth]>}
+        : FriendlyMeta // unreachable — gate guarantees a Map
+      : T extends ReadonlySet<any>
+        ? T extends ReadonlySet<infer U>
+          ? FriendlyMeta & {$values?: FriendlyNode<U, _FriendlyDepth[Depth]>}
+          : FriendlyMeta // unreachable — gate guarantees a Set
+        : T extends readonly unknown[]
+          ? // tuple vs array: a tuple has a literal `length`, an array's `length`
+            // is the broad `number`. Tuple → per-slot homomorphic `$slots`
+            // (`{[K in keyof tuple]}` yields a tuple type — the intended
+            // `$slots: [node, node]`); array → `$items` element node.
+            number extends T['length']
+            ? FriendlyMeta & {$items?: FriendlyNode<T[number], _FriendlyDepth[Depth]>}
+            : FriendlyMeta & {$slots?: {[K in keyof T]: FriendlyNode<T[K], _FriendlyDepth[Depth]>}}
+          : T extends object
+            ? FriendlyMeta & {[K in keyof T]?: FriendlyNode<T[K], _FriendlyDepth[Depth]>}
+            : FriendlyMeta;
 
 /** The friendly map for `T` — combined labels + per-field error templates,
  *  validated against `T` at scan time (the `ShapeCheckedArgs<T>` axis). */
