@@ -4,11 +4,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
+
+// orphanBlockPattern matches both `/* @rtOrphan … */` (whole-const carcass) and
+// `/* @rtOrphanChild … */` (a single dropped field) block comments. The body is
+// non-greedy up to the first ` */`; the carcass's own inner `*/` was
+// comment-sanitized to `* /` when it was written, so the first ` */` is its true
+// terminator.
+var orphanBlockPattern = regexp.MustCompile(`(?s)/\* @rtOrphan(?:Child)? .*? \*/`)
 
 // friendlyReservedKeys / mockReservedKeys are the META keys each family's nodes
 // carry alongside their field children — never treated as renamable/mergeable
@@ -298,8 +306,59 @@ func writeReconciled(mirrorPath string, content []byte) {
 	fmt.Printf("gen --update: reconciled %s\n", mirrorPath)
 }
 
-// pruneMirrorFile is implemented in milestone M8. For M1 it is a placeholder.
+// pruneMirrorFile strips every `@rtOrphan` / `@rtOrphanChild` block comment (the
+// commented-out carcasses the reconcile left behind) from one mirror file,
+// rewriting it in place. It returns the number of blocks removed (0 → file
+// untouched, not rewritten). This is the ONLY path that truly deletes content.
 func pruneMirrorFile(mirrorFile string) int {
-	_ = mirrorFile
-	return 0
+	bytes, err := os.ReadFile(mirrorFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0
+		}
+		fatal("gen --prune: read %s: %v", mirrorFile, err)
+	}
+	pruned, removed := pruneOrphanBlocks(string(bytes))
+	if removed == 0 {
+		return 0
+	}
+	if err := os.WriteFile(mirrorFile, []byte(pruned), 0o644); err != nil {
+		fatal("gen --prune: write %s: %v", mirrorFile, err)
+	}
+	fmt.Printf("gen --prune: %s — removed %d orphan block(s)\n", mirrorFile, removed)
+	return removed
+}
+
+// pruneOrphanBlocks removes every `@rtOrphan` / `@rtOrphanChild` block comment
+// from text and returns the cleaned text + the count removed. A removed block
+// takes its OWN trailing newline with it; a leading-whitespace-only line left
+// dangling (the block sat on its own line, indented) is also cleaned so no blank
+// gap remains. Returns (text, 0) when there is nothing to prune.
+func pruneOrphanBlocks(text string) (string, int) {
+	matches := orphanBlockPattern.FindAllStringIndex(text, -1)
+	if len(matches) == 0 {
+		return text, 0
+	}
+	var builder strings.Builder
+	cursor := 0
+	for _, match := range matches {
+		start, end := match[0], match[1]
+		// Extend start back over leading spaces/tabs on the block's own line so an
+		// indented orphan line is removed cleanly (no orphaned indentation).
+		lineStart := start
+		for lineStart > 0 && (text[lineStart-1] == ' ' || text[lineStart-1] == '\t') {
+			lineStart--
+		}
+		if lineStart == 0 || text[lineStart-1] == '\n' {
+			start = lineStart // the block began the line — drop the indentation too
+		}
+		// Swallow a single trailing newline so the line disappears entirely.
+		if end < len(text) && text[end] == '\n' {
+			end++
+		}
+		builder.WriteString(text[cursor:start])
+		cursor = end
+	}
+	builder.WriteString(text[cursor:])
+	return builder.String(), len(matches)
 }
