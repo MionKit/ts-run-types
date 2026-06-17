@@ -135,24 +135,50 @@ func desiredInitializer(sourceFile *ast.SourceFile) *ast.Node {
 	return nil
 }
 
-// mergeObject merges one desired object view INTO one existing object view,
-// appending splice ops against the existing file bytes. It is recursive: a
-// field present in both AS OBJECTS recurses; a field present in both as leaves
-// is left byte-identical (the author's value survives); a desired-only field is
-// ADDED (inserted skeleton); an existing-only field is ORPHANED (commented out
-// with @rtOrphanChild). The rename pass (M6) runs first over the raw drop/add
-// sets via mergeRename, pairing renamed fields before they fall through here.
-//
-// metaKeys is the family's reserved-key set (friendly vs mock); renamePairs maps
-// an existing-only key → the desired-only key it was renamed to (a key-only
-// splice), populated by the rename pass.
-func mergeObject(ops *[]spliceOp, existing, desired *objectView, metaKeys map[string]bool, renamePairs map[string]string) {
-	existingFields := keySet(existing.fieldKeys(metaKeys))
-	desiredFields := keySet(desired.fieldKeys(metaKeys))
+// mergeCtx threads the reconcile's per-merge state through the recursive walk:
+// the family reserved-key set, the current dotted PATH PREFIX (for @rtIds
+// lookups in nested objects), and the existing + desired @rtIds child-id maps
+// (Tier-2 rename identity). The two child-id maps are the const's full @rtIds
+// (existing-side parsed from the marker, desired-side from named.ChildIDs),
+// keyed by full dotted path.
+type mergeCtx struct {
+	metaKeys      map[string]bool
+	pathPrefix    string
+	existingChild map[string]string
+	desiredChild  map[string]string
+}
 
-	// Apply renames first: an existing key renamed to a desired key gets a
-	// key-only splice (value bytes untouched), and both keys drop out of the
-	// drop/add sets below.
+// childPath joins the ctx prefix with a field key (root prefix is "").
+func (ctx mergeCtx) childPath(key string) string {
+	if ctx.pathPrefix == "" {
+		return key
+	}
+	return ctx.pathPrefix + "." + key
+}
+
+// descend returns a child ctx for a nested object field, extending the path.
+func (ctx mergeCtx) descend(key string) mergeCtx {
+	child := ctx
+	child.pathPrefix = ctx.childPath(key)
+	return child
+}
+
+// mergeObject merges one desired object view INTO one existing object view,
+// appending splice ops against the existing file bytes. It is recursive: the
+// rename pass runs FIRST over the raw drop/add sets (pairing a uniquely-matched
+// drop↔add by child identity → a key-only splice that carries the old value);
+// then a field present in both AS OBJECTS recurses, a field present in both as
+// leaves is left byte-identical (the author's value survives), a desired-only
+// field is ADDED (inserted skeleton), and an existing-only field is ORPHANED
+// (commented out with @rtOrphanChild).
+func mergeObject(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
+	existingFields := keySet(existing.fieldKeys(ctx.metaKeys))
+	desiredFields := keySet(desired.fieldKeys(ctx.metaKeys))
+
+	// RENAME pass: pair an existing-only DROP with a desired-only ADD that share a
+	// unique child identity. A matched pair becomes a key-only splice (old value
+	// bytes untouched) and both keys leave the drop/add sets.
+	renamePairs := computeRenames(existing, desired, existingFields, desiredFields, ctx)
 	renamedExisting := map[string]bool{}
 	renamedDesired := map[string]bool{}
 	for oldKey, newKey := range renamePairs {
@@ -182,10 +208,7 @@ func mergeObject(ops *[]spliceOp, existing, desired *objectView, metaKeys map[st
 		if existingProp.isObject() && desiredProp.isObject() {
 			childExisting := newObjectView(existing.text, existing.sourceFile, existingProp.value)
 			childDesired := newObjectView(desired.text, desired.sourceFile, desiredProp.value)
-			// Nested rename pairs are computed by the recursive driver
-			// (reconcileConst); for the merge of a NESTED object we recompute them.
-			childRenames := computeRenames(childExisting, childDesired, metaKeys, nil)
-			mergeObject(ops, childExisting, childDesired, metaKeys, childRenames)
+			mergeObject(ops, childExisting, childDesired, ctx.descend(key))
 		}
 		// Leaf-in-both: leave the existing bytes untouched (no splice).
 	}
@@ -370,16 +393,80 @@ func sanitizeForComment(original string) string {
 	return strings.ReplaceAll(original, "*/", "* /")
 }
 
-// computeRenames pairs an existing-only DROP with a desired-only ADD that share
-// a unique child identity (the rename pass). Implemented in milestone M6; for M5
-// it pairs nothing (every drop/add falls through to orphan-child / insert).
+// computeRenames pairs an existing-only DROP field with a desired-only ADD field
+// that share a UNIQUE child identity, returning oldKey → newKey for each match.
+// Child identity is two-tier:
 //
-// existing/desired are the two object views at one level; metaKeys the family
-// reserved set; childIDs the @rtIds map for THIS const (Tier-2 identity), or nil.
-func computeRenames(existing, desired *objectView, metaKeys map[string]bool, childIDs map[string]string) map[string]string {
-	_ = existing
-	_ = desired
-	_ = metaKeys
-	_ = childIDs
-	return nil
+//   - Tier 1 — the field's VALUE is a `friendly*/mock*` const reference
+//     (named-type field): identity is that reference name. No marker needed.
+//   - Tier 2 — otherwise (primitive / inline field): identity is the field's
+//     @rtIds child id (existing-side from the existing const's parsed @rtIds,
+//     desired-side from the desired const's ChildIDs), keyed by full dotted path.
+//
+// A pairing is made only when an identity maps to EXACTLY ONE drop and EXACTLY
+// ONE add (unique match). An identity shared by >1 drop or >1 add is ambiguous —
+// no rename; those fields fall through to orphan-child / insert.
+func computeRenames(existing, desired *objectView, existingFields, desiredFields map[string]bool, ctx mergeCtx) map[string]string {
+	drops := dropOnlyKeys(existingFields, desiredFields)
+	adds := dropOnlyKeys(desiredFields, existingFields)
+	if len(drops) == 0 || len(adds) == 0 {
+		return nil
+	}
+
+	// Bucket drops + adds by identity; only singleton↔singleton buckets pair.
+	dropByIdentity := map[string][]string{}
+	for _, key := range drops {
+		identity := fieldIdentity(existing, existing.props[key], ctx.childPath(key), ctx.existingChild)
+		if identity != "" {
+			dropByIdentity[identity] = append(dropByIdentity[identity], key)
+		}
+	}
+	addByIdentity := map[string][]string{}
+	for _, key := range adds {
+		identity := fieldIdentity(desired, desired.props[key], ctx.childPath(key), ctx.desiredChild)
+		if identity != "" {
+			addByIdentity[identity] = append(addByIdentity[identity], key)
+		}
+	}
+
+	var renames map[string]string
+	for identity, dropKeys := range dropByIdentity {
+		addKeys := addByIdentity[identity]
+		if len(dropKeys) != 1 || len(addKeys) != 1 {
+			continue // ambiguous (shared by >1 drop or >1 add) — no rename
+		}
+		if renames == nil {
+			renames = map[string]string{}
+		}
+		renames[dropKeys[0]] = addKeys[0]
+	}
+	return renames
+}
+
+// fieldIdentity computes a field's rename identity: Tier 1 (the field value's
+// `friendly*/mock*` reference name) when the value is such a bare identifier,
+// else Tier 2 (the @rtIds child id at fullPath). Returns "" when neither is
+// available (the field cannot participate in a rename).
+func fieldIdentity(view *objectView, prop *propView, fullPath string, childIDs map[string]string) string {
+	if prop != nil && prop.value != nil && prop.value.Kind == ast.KindIdentifier {
+		name := prop.value.Text()
+		if isFriendlyVar(name) || isMockVar(name) {
+			return "ref:" + name // Tier 1
+		}
+	}
+	if id, ok := childIDs[fullPath]; ok && id != "" {
+		return "id:" + id // Tier 2
+	}
+	return ""
+}
+
+// dropOnlyKeys returns the keys present in `from` but not in `other`.
+func dropOnlyKeys(from, other map[string]bool) []string {
+	var out []string
+	for key := range from {
+		if !other[key] {
+			out = append(out, key)
+		}
+	}
+	return out
 }
