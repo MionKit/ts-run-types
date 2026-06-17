@@ -1,5 +1,5 @@
 ---
-name: runtypes-enrich
+name: rt-enrich-types
 description: Drive the RunTypes enrichment workflow — author and maintain the committed, type-keyed FriendlyType<T> (human labels + error messages) and MockData<T> (realistic sample data) for a type. Use when scaffolding or filling a type's enrichment file, when running the `ts-runtypes` CLI (`describe` / `gen` / `gen --update` / `gen --prune` / `check`), when filling `@todo` blanks the compiler left, or when working with the enrichment JSDoc tags (`@rtType`, `@rtIds`, `@rtOrphan`, `@rtOrphanChild`, `@todo`). Covers the mirror directory, the compiler-scaffolds/agent-fills loop, the node shapes, and the placeholder DSL.
 ---
 
