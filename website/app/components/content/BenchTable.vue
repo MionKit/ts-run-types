@@ -271,9 +271,28 @@ const runInfo = computed<string | null>(() => {
   return parts.length ? parts.join(' · ') : null;
 });
 
-/** Metrics to render — one block per metric, or just the `metric` prop's block. */
+/** Serialization "verdict" layout: a bench with a DERIVED round-trip metric collapses
+ *  its three metrics (round-trip + encode/decode + payload) into ONE stacked table
+ *  instead of one block each. Round-trip is the headline + heatmap; enc/dec + bytes
+ *  ride along in each cell. */
+const isVerdict = computed(() => !!index.value?.metrics.some((m) => m.derived === 'roundtrip'));
+
+/** The metric keys the verdict cell reads, derived by ROLE (not literal key) so a
+ *  rename in the gen script doesn't silently break the stacked cell. */
+const verdictKeys = computed(() => {
+  const metrics = index.value?.metrics ?? [];
+  return {
+    rt: metrics.find((m) => m.derived === 'roundtrip')?.key,
+    throughput: metrics.find((m) => !m.derived && m.unit === 'ops')?.key,
+    payload: metrics.find((m) => m.lowerBetter)?.key,
+  };
+});
+
+/** Metrics to render — one block per metric, the `metric` prop's block, or (verdict)
+ *  a single round-trip block that folds the other two into its cells. */
 const displayedMetrics = computed<Metric[]>(() => {
   if (!index.value) return [];
+  if (isVerdict.value) return index.value.metrics.filter((m) => m.derived === 'roundtrip');
   return props.metric ? index.value.metrics.filter((m) => m.key === props.metric) : index.value.metrics;
 });
 
@@ -432,6 +451,78 @@ function aggCells(row: AggRow, metricKey: string): CombinedCell[] {
   return comps.map((comp, i) => ({...combinedAggCell(row.values[comp], metricKey), rank: ranks[i]}));
 }
 
+/** A stacked verdict cell: round-trip headline (heatmap driver, higher-better) over a
+ *  dim encode/decode line and a payload byte line that carries its OWN lower-better
+ *  "fewest bytes = green" cue, independent of the throughput ramp. */
+interface VerdictCell {
+  cls: string;
+  rt: string;
+  rank: number | null;
+  enc: string;
+  dec: string;
+  bytes: string;
+  bytesMin: boolean;
+}
+
+/** Assemble VerdictCell[] from per-column round-trip values + an (enc,dec,bytes) getter.
+ *  Shared by the per-case and the geomean-aggregate rows. */
+function buildVerdict(rtVals: (number | null)[], get: (i: number) => {enc?: number | null; dec?: number | null; bytes?: number | null}): VerdictCell[] {
+  if (!index.value) return [];
+  const rtRanks = ranksFor(rtVals, false);
+  const ingredients = index.value.competitors.map((_c, i) => get(i));
+  // 0 bytes is a REAL, valid (and best) payload, not "absent": a binary literal bakes
+  // its single possible value into the compiled fn, so nothing rides the wire. Include
+  // it so it wins the "fewest bytes" cue (>= 0, matching ranksFor's lower-better path).
+  const present = ingredients.map((g) => g.bytes).filter((v): v is number => typeof v === 'number' && v >= 0);
+  const byteMin = present.length ? Math.min(...present) : NaN;
+  return ingredients.map(({enc, dec, bytes}, i) => {
+    const rtv = rtVals[i];
+    if (rtv == null) return {cls: 'bench-val--na', rt: 'n-a', rank: null, enc: '', dec: '', bytes: '', bytesMin: false};
+    return {
+      cls: 'bench-val--ok',
+      rt: formatValue(rtv, 'ops'),
+      rank: rtRanks[i],
+      enc: typeof enc === 'number' ? formatValue(enc, 'ops', true) : '',
+      dec: typeof dec === 'number' ? formatValue(dec, 'ops', true) : '',
+      bytes: typeof bytes === 'number' ? formatValue(bytes, 'bytes') : '',
+      bytesMin: typeof bytes === 'number' && bytes === byteMin,
+    };
+  });
+}
+
+function verdictCells(kase: BenchCase): VerdictCell[] {
+  if (!index.value) return [];
+  const comps = index.value.competitors;
+  const {rt, throughput, payload} = verdictKeys.value;
+  const rtVals = comps.map((comp) => {
+    const v = rt ? kase.results[comp]?.[rt]?.valid : undefined;
+    return typeof v === 'number' && v > 0 ? v : null;
+  });
+  return buildVerdict(rtVals, (i) => {
+    const tp = throughput ? kase.results[comps[i]]?.[throughput] : undefined;
+    return {enc: tp?.valid, dec: tp?.invalid, bytes: payload ? kase.results[comps[i]]?.[payload]?.valid : undefined};
+  });
+}
+
+function verdictAggCells(row: AggRow): VerdictCell[] {
+  if (!index.value) return [];
+  const comps = index.value.competitors;
+  // The three tiers come from three independent geomean passes (round-trip / encode-
+  // decode / payload), matched by row.key. Today every serialization competitor that
+  // has encode/decode also has payload and round-trip, so all three tiers average over
+  // the same case set. If a future bench gave a competitor encdec without payload (or a
+  // metric-specific fail), this cell could pair a round-trip number with enc/dec/bytes
+  // computed over a different basis — revisit the per-tier basis if that becomes possible.
+  const {throughput, payload} = verdictKeys.value;
+  const tRow = throughput ? aggregates.value[throughput]?.find((r) => r.key === row.key) : undefined;
+  const pRow = payload ? aggregates.value[payload]?.find((r) => r.key === row.key) : undefined;
+  const rtVals = comps.map((comp) => {
+    const v = row.values[comp]?.valid;
+    return typeof v === 'number' && v > 0 ? v : null;
+  });
+  return buildVerdict(rtVals, (i) => ({enc: tRow?.values[comps[i]]?.valid, dec: tRow?.values[comps[i]]?.invalid, bytes: pRow?.values[comps[i]]?.valid}));
+}
+
 /** Geometric mean of the positive values — outlier-resistant summary across cases. */
 function geomean(values: number[]): number | null {
   const positive = values.filter((value) => typeof value === 'number' && value > 0);
@@ -555,16 +646,48 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
       <div v-for="metric in displayedMetrics" :key="metric.key" class="bench-metric-block">
         <div class="bench-metric">
           <span class="bench-prompt">#</span> <strong class="bench-metric-name">{{ metric.label }}</strong>
-          <span v-if="metric.metricLabel" class="bench-metric-sub">{{ metric.metricLabel }}</span>
+          <span v-if="isVerdict" class="bench-metric-sub">@ {{ bandwidthMbps >= 1000 ? `${bandwidthMbps / 1000} Gbps` : `${bandwidthMbps} Mbps` }}</span>
+          <span v-else-if="metric.metricLabel" class="bench-metric-sub">{{ metric.metricLabel }}</span>
         </div>
         <p class="bench-metric-hint">hover any row for each competitor's source</p>
+
+        <!-- Serialization verdict: page-level sticky link-speed bar — re-derives every
+             round-trip headline + the heatmap live; enc/dec + bytes stay frozen below. -->
+        <div v-if="isVerdict && index.bandwidthsMbps" class="bench-bw-bar">
+          <span id="bench-bw-label" class="bench-bw-label"><i class="ti ti-wifi" aria-hidden="true"></i> link speed</span>
+          <span class="bench-bw-seg" role="group" aria-labelledby="bench-bw-label">
+            <button
+              v-for="bw in index.bandwidthsMbps"
+              :key="bw"
+              type="button"
+              class="bench-bw-btn"
+              :class="{'bench-bw-btn--on': bandwidthMbps === bw}"
+              :aria-pressed="bandwidthMbps === bw"
+              @click="bandwidthMbps = bw"
+            >{{ bw >= 1000 ? `${bw / 1000} Gbps` : `${bw} Mbps` }}</button>
+          </span>
+          <span class="bench-bw-hint">round-trip = encode + transmit + decode · transmit = payload × 8 ÷ link speed</span>
+        </div>
 
         <div class="bench-legend">
           <!-- Run environment: when the benchmarks ran + the machine + library versions. -->
           <div v-if="runInfo" class="bench-runinfo">
             <span class="bench-prompt">@</span> <span class="bench-runinfo-text">measured {{ runInfo }}</span>
           </div>
-          <div v-if="metric.cellHint" class="bench-legend-row bench-legend-metric">
+          <div v-if="isVerdict" class="bench-legend-row bench-legend-metric">
+            <span class="bench-legend-sample">
+              <span class="bench-val-col">
+                <span class="bench-val-rt bench-val-primary bench-val--ok">180k/s</span>
+                <span class="bench-val-io">&uarr;3.4M &darr;2.5M</span>
+                <span class="bench-val-pl bench-val-pl--min">55 B</span>
+              </span>
+            </span>
+            <span class="bench-legend-note">
+              each cell stacks <span class="bench-legend-valid">round-trip/sec</span> at the link speed (headline, tinted — green = fastest), then <code>&uarr;encode &darr;decode</code>, then
+              <span class="bench-legend-pl">bytes on the wire</span> (green = fewest).<br/><code>n-a</code> = can't round-trip this case (no encode/decode result — mostly the native JSON baseline)
+            </span>
+          </div>
+          <div v-else-if="metric.cellHint" class="bench-legend-row bench-legend-metric">
             <span class="bench-legend-note">
               each cell = {{ metric.cellHint }}; <code>n-a</code> = unsupported or not JSON-safe
             </span>
@@ -581,18 +704,6 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
               each cell = {{ index.unit === 'count' ? 'TypeScript type-instantiations — lower is better' : 'validations/sec — higher is better' }};
               <code>0</code> is a real value, <code>n-a</code> = unsupported
             </span>
-          </div>
-          <div v-if="metric.derived === 'roundtrip' && index.bandwidthsMbps" class="bench-legend-row bench-legend-footer">
-            <span class="bench-legend-note">link speed</span>
-            <button
-              v-for="bw in index.bandwidthsMbps"
-              :key="bw"
-              type="button"
-              class="bench-color-btn"
-              :class="{'bench-color-btn--on': bandwidthMbps === bw}"
-              @click="bandwidthMbps = bw"
-            >{{ bw >= 1000 ? `${bw / 1000} Gbps` : `${bw} Mbps` }}</button>
-            <span class="bench-legend-note">— round-trip folds in transmit time = payload ÷ link speed</span>
           </div>
           <div v-if="showStrategy" class="bench-legend-strategy">
             <span class="bench-legend-srow"><span class="bench-tag bench-tag--comptime">comptime</span> <span class="bench-legend-note">generated at build time<br /><span class="bench-strat-perf">(no perf hit)</span></span></span>
@@ -639,9 +750,20 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   :class="{'bench-row--overall': row.key === '__overall__'}"
                 >
                   <td class="bench-cell bench-cell--case">{{ row.label }}</td>
-                  <td v-for="(cc, ci) in aggCells(row, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
-                    <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
-                  </td>
+                  <template v-if="isVerdict">
+                    <td v-for="(vc, ci) in verdictAggCells(row)" :key="ci" class="bench-cell bench-val" :class="[vc.cls, {'bench-val--ranked': vc.rank != null}]" :style="vc.rank != null ? {'--rank': vc.rank} : undefined">
+                      <span class="bench-val-col">
+                        <span class="bench-val-rt bench-val-primary">{{ vc.rt }}</span>
+                        <span v-if="vc.enc" class="bench-val-io">&uarr;{{ vc.enc }} &darr;{{ vc.dec }}</span>
+                        <span v-if="vc.bytes" class="bench-val-pl" :class="{'bench-val-pl--min': vc.bytesMin}">{{ vc.bytes }}</span>
+                      </span>
+                    </td>
+                  </template>
+                  <template v-else>
+                    <td v-for="(cc, ci) in aggCells(row, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
+                      <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
+                    </td>
+                  </template>
                 </tr>
               </tbody>
             </table>
@@ -684,18 +806,21 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   @keydown.enter.prevent="pin(rowItem(kase.key, kase.title))"
                   @keydown.space.prevent="pin(rowItem(kase.key, kase.title))"
                 >
-                  <td class="bench-cell bench-cell--case">
-                    {{ kase.title }}
-                    <span
-                      v-if="kase.jsonSafe === false"
-                      class="bench-badge-nonjson"
-                      title="native JSON can't round-trip this data (bigint / Date / Map / Set / Temporal)"
-                      >non-JSON</span
-                    >
-                  </td>
-                  <td v-for="(cc, ci) in sectionCells(kase, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
-                    <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
-                  </td>
+                  <td class="bench-cell bench-cell--case">{{ kase.title }}</td>
+                  <template v-if="isVerdict">
+                    <td v-for="(vc, ci) in verdictCells(kase)" :key="ci" class="bench-cell bench-val" :class="[vc.cls, {'bench-val--ranked': vc.rank != null}]" :style="vc.rank != null ? {'--rank': vc.rank} : undefined">
+                      <span class="bench-val-col">
+                        <span class="bench-val-rt bench-val-primary">{{ vc.rt }}</span>
+                        <span v-if="vc.enc" class="bench-val-io">&uarr;{{ vc.enc }} &darr;{{ vc.dec }}</span>
+                        <span v-if="vc.bytes" class="bench-val-pl" :class="{'bench-val-pl--min': vc.bytesMin}">{{ vc.bytes }}</span>
+                      </span>
+                    </td>
+                  </template>
+                  <template v-else>
+                    <td v-for="(cc, ci) in sectionCells(kase, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
+                      <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
+                    </td>
+                  </template>
                 </tr>
               </tbody>
             </table>
@@ -1054,23 +1179,6 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   word-break: break-word;
 }
 
-/* "non-JSON" tag on a case whose data native JSON.stringify/parse can't round-trip
-   (bigint / Date / Map / Set / Temporal). Amber, same token as the jit tag. */
-.bench-badge-nonjson {
-  display: inline-block;
-  margin-left: 0.4rem;
-  padding: 0.02rem 0.3rem;
-  font-size: 0.58rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  vertical-align: middle;
-  white-space: nowrap;
-  color: var(--rt-note, #c8b072);
-  border: 1px solid color-mix(in srgb, var(--rt-note, #c8b072) 45%, transparent);
-  border-radius: 0.25rem;
-}
-
 /* Subtle separator between competitor columns. The combined value is centered so
    the valid number sits centered and the invalid annotation hangs off its corner. */
 .bench-val {
@@ -1133,5 +1241,103 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   color: var(--ui-text-dimmed, var(--ui-text-muted, #9aa0a6));
+}
+
+/* ── Serialization "verdict" layout ──────────────────────────────────────────
+   Sticky page-level link-speed bar — the one knob that re-derives every round-trip
+   headline + the heatmap. Sits under the fixed docs header. */
+.bench-bw-bar {
+  position: sticky;
+  top: var(--ui-header-height, 4rem);
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin: 0 0 0.85rem;
+  padding: 0.45rem 0.7rem;
+  background: var(--rt-surface, rgba(20, 20, 20, 0.7));
+  border: 1px solid rgba(138, 168, 94, 0.18);
+  border-radius: 0.5rem;
+  backdrop-filter: blur(8px);
+}
+.bench-bw-label {
+  font-size: 0.82rem;
+  color: var(--ui-text-muted, #b3b8bd);
+}
+.bench-bw-label .ti {
+  font-size: 0.95rem;
+  vertical-align: -0.12em;
+  margin-right: 0.15rem;
+}
+.bench-bw-seg {
+  display: inline-flex;
+  border: 1px solid rgba(138, 168, 94, 0.28);
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+.bench-bw-btn {
+  border: none;
+  border-right: 1px solid rgba(138, 168, 94, 0.18);
+  background: transparent;
+  padding: 0.22rem 0.7rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-muted, #b3b8bd);
+  cursor: pointer;
+}
+.bench-bw-btn:last-child {
+  border-right: none;
+}
+.bench-bw-btn--on {
+  background: rgba(138, 168, 94, 0.22);
+  color: var(--ui-text-highlighted, #e8eaed);
+  font-weight: 600;
+}
+.bench-bw-hint {
+  font-size: 0.72rem;
+  color: var(--ui-text-dimmed, #9aa0a6);
+}
+
+/* Stacked verdict cell: round-trip headline (heatmap-tinted) over dim encode/decode
+   and a payload byte line that carries its own lower-better "fewest = green" cue. */
+.bench-val-col {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  line-height: 1.18;
+}
+.bench-val-rt {
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.bench-val-io {
+  font-size: 0.62rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-dimmed, #9aa0a6);
+}
+.bench-val-pl {
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-muted, #b3b8bd);
+}
+/* lower-better "fewest bytes" cue — text (not a cell background), so it never reads
+   as a second heatmap signal next to the round-trip tint. */
+.bench-val-pl--min {
+  color: #86b94a;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+:root.light .bench-val-pl--min {
+  color: #4e7d1e;
+}
+.bench-legend-pl {
+  color: #86b94a;
 }
 </style>
