@@ -107,6 +107,51 @@ func findConst(closure []enrichment.NamedConst, typeName string) (int, enrichmen
 	return -1, enrichment.NamedConst{}
 }
 
+// TestEmitClosure_TypeIDAndChildIDs: each NamedConst carries its type's
+// structural id (TypeID) and a dotted-path → child-id map (ChildIDs) for the
+// reconcile markers. A named-type field's id is recorded but the walk does NOT
+// descend into it (it owns its own const); an inline object's children ARE
+// recorded at dotted paths.
+func TestEmitClosure_TypeIDAndChildIDs(t *testing.T) {
+	closure := emitClosure(t, "user.ts", "User", map[string]string{
+		"user.ts": "export interface Address { street: string }\n" +
+			"export interface User { name: string; address: Address; profile: { email: string } }\n",
+	})
+	_, user := findConst(closure, "User")
+	if user.TypeID == "" {
+		t.Fatalf("User TypeID not populated")
+	}
+	if user.ChildIDs == nil {
+		t.Fatalf("User ChildIDs not populated")
+	}
+	// Direct fields recorded.
+	if user.ChildIDs["name"] == "" {
+		t.Errorf("ChildIDs missing 'name'; got %v", user.ChildIDs)
+	}
+	if user.ChildIDs["address"] == "" {
+		t.Errorf("ChildIDs missing 'address' (named-type ref id still recorded); got %v", user.ChildIDs)
+	}
+	// The inline `profile` object's child is recorded at a dotted path.
+	if user.ChildIDs["profile"] == "" || user.ChildIDs["profile.email"] == "" {
+		t.Errorf("ChildIDs missing inline 'profile'/'profile.email'; got %v", user.ChildIDs)
+	}
+	// The walk does NOT descend into the named Address (it owns its own const):
+	// no `address.street` entry.
+	if _, ok := user.ChildIDs["address.street"]; ok {
+		t.Errorf("ChildIDs should not descend into named-type Address; got %v", user.ChildIDs)
+	}
+
+	// Address const records its own field.
+	_, addr := findConst(closure, "Address")
+	if addr.TypeID == "" || addr.ChildIDs["street"] == "" {
+		t.Errorf("Address TypeID/ChildIDs not populated: id=%q ids=%v", addr.TypeID, addr.ChildIDs)
+	}
+	// The named-type field's recorded id equals the Address const's TypeID.
+	if user.ChildIDs["address"] != addr.TypeID {
+		t.Errorf("User.ChildIDs[address] = %q, want Address.TypeID %q", user.ChildIDs["address"], addr.TypeID)
+	}
+}
+
 // TestEmitClosure_Acyclic: a field whose type is another NAMED type is a const
 // reference, NOT an inlined body; the closure yields two consts in topological
 // order (Address before User).
