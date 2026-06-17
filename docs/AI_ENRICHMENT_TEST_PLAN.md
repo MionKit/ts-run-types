@@ -127,22 +127,35 @@ unit tests (`validate_test.go`, deliberately-broken maps).
 
 ## Tasks
 
-- [ ] **B1** — `gen --files … --type … --stdout --json` multi-file batch mode (one
-  Program over all files; returns object-literal text per file) + a Go test (hermetic,
-  assert JSON for 1–2 files).
-- [ ] **T1** — `test/util/enrichmentCases.ts`: invoke `extract-fn-bodies` once per
-  category file, **split each case body by the `// ##### … #####` markers** into
-  `{src, friendly, mock}`. `test/util/enrichmentGen.ts`: write each `src` to a temp
-  module file, spawn `gen --files`, **Prettier-normalize** both sides, return a
-  `{caseKey → {friendly, mock}}` lookup of generated + expected.
-- [ ] **T2** — `cases/types.ts` (`EnrichmentCase`, the `case()` contract).
-- [ ] **T3** — the category files, re-declaring the validation suite's type ranges.
-- [ ] **T4** — `cases/index.ts` (`as const satisfies`) + `enrichmentGen.test.ts`.
-- [ ] **T5** — `enrichmentCheck.test.ts`: synth a `.rt.ts` per case from `src` +
-  `friendly`/`mock`, run `check`, assert **zero** findings.
-- [ ] **T6** — reconcile: keep `createFriendly.test.ts` (runtime render, separate);
-  reduce Go `emit_describe_test.go` to a couple rendered-text smoke cases (this suite
-  owns shape coverage).
+- [x] **B1** — `gen --files … --type Target` multi-file batch (one Program; JSON
+  object-literal skeletons per file) + program `Conditions:["source"]` so formats
+  project their `FormatAnnotation`; hermetic Go test. (commit `c2e9686`)
+- [x] **T1** — `enrichmentCases.ts` (extract-fn-bodies → split by markers →
+  `{src, friendly, mock}`, strip a trailing `as` cast) + `enrichmentGen.ts`
+  (per-case temp module → `gen --files` → `prettierNormalize` both sides).
+- [x] **T2** — `cases/types.ts` (`EnrichmentCase`).
+- [x] **T3** — 11 category files, 84 cases, re-declaring the validation type ranges.
+- [x] **T4** — `cases/index.ts` (`as const satisfies`) + `enrichmentGen.test.ts` (177).
+- [x] **T5** — `enrichmentCheck.test.ts` (94) — zero findings on the valid maps.
+- [ ] **T6** — (optional) trim Go `emit_describe_test.go` rendered-text cases.
+- **Result:** 271 new tests; full suite **6183 passed / 2 skipped**. (commit `33dae5e`)
+
+## Finding — emitter ↔ DSL-type divergence (follow-up)
+
+The comprehensive coverage surfaced a real gap: the `emit.go` walker emits an
+**opaque leaf** (`{$label:''}` / `{pool:[]}`) for kinds the `FriendlyType<T>` /
+`MockData<T>` mapped types model **structurally**, so the generated skeleton is
+**not assignable** to the map type for: **tuples** (`MockData` → `{$items,$length}`),
+**Map/Set** (homomorphic object map), **Promise**, **object-member unions**
+(`{a}|{b}`), and **bare index-signature roots** (friendly side — `$label:string`
+collides with the index). Emitter and `check` are internally consistent (check
+reports zero on the leaf), so the mismatch is **emitter ↔ type definitions**, both
+shipped in P1/P5. Those cases currently pin the leaf behaviour with a stripped
+`as MockData<T>` cast. **Fix options:** (a) make `emit.go` emit structurally for
+those kinds (tuples → `$items`+`$length`, Map/Set/index-sig → appropriate), or
+(b) route those kinds to a leaf-pool branch in the DSL types (an `IsTuple`/`IsMap`
+discrimination) so the simple emitter is correct. (b) is likely simpler + coherent
+(pool-of-whole-values). Either is verified by this suite.
 
 ## Normalization
 
