@@ -1,13 +1,20 @@
 # AI enrichment — `FriendlyType<T>` and `MockData<T>`
 
-> **Status: partially implemented** (branch `feat/ai-enrichment`; see
+> **Status: implemented** (branch `feat/ai-enrichment`; see
 > [AI_ENRICHMENT_PLAN.md](./AI_ENRICHMENT_PLAN.md) for the phase tracker).
-> **Shipped:** the `FriendlyType<T>` / `MockData<T>` DSL types (type-checked against
-> `T`), the pure-data `createFriendly<T>(map)` renderer, and the
-> `createMockType<T>({ data })` integration — all exported from `ts-runtypes` and
-> tested. **Still design-stage:** the build-time `FT0xx` / `MD0xx` diagnostics + the
-> `ShapeCheckedArgs<T>` axis (P3), the `describe` / `check` / `gen` CLI (P4), and the
-> `rtUtils` registry accessors (P6). Those sections below describe the intended shape.
+> **Shipped + tested:**
+> - the `FriendlyType<T>` / `MockData<T>` DSL types (type-checked against `T`), the
+>   pure-data `createFriendly<T>(map)` renderer, and the `createMockType<T>({ data })`
+>   integration — all exported from `ts-runtypes`;
+> - the Go CLI trio `describe` / `check` / `gen` (`internal/enrichment`, a separate
+>   package), incl. the `check` diagnostics **FT002 / FT003 / FT005 / MD001**.
+>
+> **Deferred refinements (design-stage below):** **MD003** (pool values validate —
+> needs the runtime validator), the always-on *Vite-build* surfacing of the
+> `FT0xx`/`MD0xx` diagnostics (today they run via the `check` CLI, not the build),
+> `FT004`/`MD002` (the precise types already make TS catch these), `FT010`/`MD010`
+> drift + `MD004`, the `$[val]` enrichment, `declFile` (only needed for demand-driven
+> `gen`), and the `rtUtils` registry accessors (P6). Sections describing those note it.
 
 ## Why this is a new artifact class
 
@@ -319,7 +326,7 @@ export type MockData<T> = MockNode<T>;
 
 ---
 
-## Compile-time validation — part of the normal parse
+## Validation — the `check` command (build surfacing deferred)
 
 > **Most drift is already caught by TypeScript itself.** Because `FriendlyType<T>`
 > / `MockData<T>` are *precise* mapped types, the user's own type-checker rejects
@@ -332,41 +339,43 @@ export type MockData<T> = MockNode<T>;
 > validation (MD003), and the semantic-drift hash (FT010/MD010). The feature is
 > already useful with just the types + the editor; the pass sharpens the diagnostics.
 
-The **marker is the type annotation**. The scanner already parses every file for
-markers and already resolves a type's `RunType` graph; recognizing a declaration
-typed `FriendlyType<T>` / `MockData<T>` is one more marker arm. It walks the
-object-literal AST (reusing the
-[`comptimeargs`](../internal/comptimeargs/comptimeargs.go) literal walker) against
-the resolved `RunType`, and emits diagnostics on the existing `Diagnostic[]`
-channel — so they surface in Vite/HMR exactly like today's `VL0xx` warnings. No
-separate watcher, no separate pass.
+**Implemented today as the `check` CLI command** (not yet the Vite build). It finds
+`FriendlyType<T>` / `MockData<T>` const declarations, resolves `T`'s `RunType`, and
+runs a **kind-switch paired walk** of the authored object-literal against the
+`RunType` — the emitter convention, in
+[`internal/enrichment/validate.go`](../internal/enrichment/validate.go) over a tiny
+`LiteralView` adapter (so the checks are unit-testable without a Program). Wired
+diagnostics: **FT002, FT003, FT005, MD001** (the others below are deferred).
 
-This is a **new shape-aware comptime axis** (`ShapeCheckedArgs<T>`): `CompTimeArgs`
-today only checks *literalness*; this also cross-references the literal's keys
-against `T`'s children and formats. At the call site the scanner already has T's
-full `RunType` (it computes the type id from it), so the cross-reference is local.
+The **always-on build version is the deferred integration**: recognize the
+annotation as one more marker arm during the normal scan and emit on the existing
+`Diagnostic[]` channel so findings surface in Vite/HMR like today's `VL0xx` warnings
+— a **new shape-aware comptime axis** (`ShapeCheckedArgs<T>`) where `CompTimeArgs`
+today only checks *literalness* but this also cross-references the literal's keys
+against `T`'s children and formats. The walk logic is identical to `check`; only the
+trigger differs (CLI vs build scan).
 
 ### `FriendlyType` diagnostics
 
-| Code      | Severity | Meaning                                                                       |
-| --------- | -------- | ---------------------------------------------------------------------------- |
-| **FT001** | Info     | field of `T` has no label (renders the raw name)                             |
-| **FT002** | Error    | key is not a field of `T` — stale (field renamed/removed)                    |
-| **FT003** | Warning  | `$errors` key isn't a constraint this field's format declares (Go has `FormatAnnotation.Params`, so the exact set is known) |
-| **FT004** | Error    | structural mismatch (object node where `T` is scalar, or vice-versa)         |
-| **FT005** | Warning  | unknown `$[…]` placeholder for this constraint/context                       |
-| **FT010** | Info     | `T`'s structural id changed since authored — review for semantic drift       |
+| Code      | Severity | Status | Meaning                                                                       |
+| --------- | -------- | ------ | ---------------------------------------------------------------------------- |
+| **FT002** | Error    | ✅ `check` | key is not a field of `T` — stale (field renamed/removed)              |
+| **FT003** | Warning  | ✅ `check` | `$errors` key isn't a constraint this field's format declares (Go has `FormatAnnotation.Params`, so the exact set is known) |
+| **FT005** | Warning  | ✅ `check` | unknown `$[…]` placeholder for this constraint/context                 |
+| **FT001** | Info     | deferred | field of `T` has no label (renders the raw name)                       |
+| **FT004** | Error    | deferred (TS catches) | structural mismatch (object node where `T` is scalar)     |
+| **FT010** | Info     | deferred | `T`'s structural id changed since authored — review for semantic drift |
 
 ### `MockData` diagnostics
 
-| Code      | Severity | Meaning                                                            |
-| --------- | -------- | ----------------------------------------------------------------- |
-| **MD001** | Error    | key is not a field of `T`                                         |
-| **MD002** | Error    | structural mismatch                                               |
-| **MD003** | Error    | a pool/range value **fails validation** against the field's type/format |
-| **MD004** | Warning  | `min > max`, or `$length` inverted                               |
-| **MD005** | Info     | pool below a configured floor (e.g. `< 50`) — off by default      |
-| **MD010** | Info     | structural drift since authored                                  |
+| Code      | Severity | Status | Meaning                                                            |
+| --------- | -------- | ------ | ----------------------------------------------------------------- |
+| **MD001** | Error    | ✅ `check` | key is not a field of `T`                                      |
+| **MD002** | Error    | deferred (TS catches) | structural mismatch                               |
+| **MD003** | Error    | deferred (needs validator) | a pool/range value **fails validation** against the field's type/format |
+| **MD004** | Warning  | deferred | `min > max`, or `$length` inverted                              |
+| **MD005** | Info     | deferred | pool below a configured floor (e.g. `< 50`) — off by default     |
+| **MD010** | Info     | deferred | structural drift since authored                                 |
 
 ### Drift detection (FT010 / MD010)
 
@@ -387,8 +396,9 @@ CLI (below) rather than scraping editor output.
 | `ts-runtypes describe <file>#<Type> --format prompt\|json` | Emit the type's shape (names, kinds, optionality, formats, literals — all already in the `RunType` struct) as LLM prompt context. |
 | `ts-runtypes gen <file> [--mock] [--friendly] [--check]` | Generate / refresh the `.rt.ts` sibling (see below).                             |
 
-**Validation is always-on during the build** (the scan emits FT/MD diagnostics);
-the CLI verbs are for CI and for agents driving generation out-of-band.
+All three are **implemented** as out-of-band CLI modes of the Go binary. Validation
+runs via the `check` verb (CI / agents); surfacing the same FT/MD diagnostics
+*always-on during a Vite build* is the deferred integration (see Validation below).
 
 ### The agent loop — the compiler as a tool for the LLM
 
