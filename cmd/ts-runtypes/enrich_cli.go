@@ -481,12 +481,32 @@ func referencedVars(body string) []string {
 // constBlock wraps a rendered object-literal body in the
 // `export const <var>: <Wrapper><<TypeName>> = <body>;` declaration, prefixed
 // with the reconcile marker JSDoc (`@rtType` + `@rtIds`) when the const carries
-// a structural id. The marker lives on the const WRAPPER, never inside the
-// skeleton body — the batch stdout path (runGenBatch) compares the body alone,
-// so it stays byte-identical.
+// a structural id, then a plain `@todo` line on its OWN line. The marker + the
+// `@todo` ride the const WRAPPER, never the skeleton body — the batch stdout path
+// (runGenBatch) compares the body alone, so it stays byte-identical. constBlock is
+// only ever called for a NEWLY-generated const (create-only first-gen, a new const
+// appended during --update), so a fresh `@todo` is always correct here; the
+// reconcile NEVER re-stamps it on an already-existing const.
 func constBlock(varName, wrapper string, named enrich.NamedConst, body string) string {
 	marker := markerComment(named.TypeName, named.TypeID, named.ChildIDs)
-	return marker + "export const " + varName + ": " + wrapper + "<" + named.TypeName + "> = " + body + ";\n"
+	return marker + todoComment() + "export const " + varName + ": " + wrapper + "<" + named.TypeName + "> = " + body + ";\n"
+}
+
+// todoComment renders the PLAIN `@todo` line that flags a freshly-generated const
+// as "needs real data". It is DELIBERATELY OUTSIDE the `@rt` namespace: `@rt`-
+// prefixed tags (`@rtType`, `@rtIds`, `@rtOrphan`, `@rtOrphanChild`) are
+// compiler-owned machinery the compiler reads/writes/acts on, whereas `@todo` is
+// purely emitted — filling the data and deleting the line is the user's/LLM's job,
+// so it lives outside that namespace (and earns free IDE TODO-panel recognition).
+//
+// It is stamped ONCE on each NEW const (right after the `@rtType`/`@rtIds` marker,
+// on its OWN separate line). The compiler NEVER acts on it, auto-removes it, or
+// re-adds it: an existing const on --update keeps its `@todo` (if present)
+// untouched, a const the user already cleared never regrows one, and --prune
+// IGNORES it (it strips only @rtOrphan/@rtOrphanChild). It is a SEPARATE line from
+// the marker so the marker index never confuses the two concerns.
+func todoComment() string {
+	return "// @todo: generated skeleton — fill in real data, then delete this line\n"
 }
 
 // markerComment renders the reconcile JSDoc for a const: a single leading line
