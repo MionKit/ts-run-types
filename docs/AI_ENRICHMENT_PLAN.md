@@ -193,11 +193,30 @@ Independent enabling changes. Each is small, well-scoped, Go-test-verifiable.
 
 ## P5 — `MockData` → `createMockType` integration (TS)
 
-- [ ] Extend `createMockType<T>({ data })` to consume `MockData<T>` pools/ranges/
-  `$items`/`$length`/`$optional` ([packages/ts-runtypes/src/mocking/](../packages/ts-runtypes/src/mocking/)).
-- **Tests:** vitest — pool selection, range bounds, array length, optional
-  probability, nested; **MD003 covered separately in P3.3.**
-- **Acceptance:** mocking suite green.
+> **Investigated (not yet implemented).** The walker
+> ([mocking/mockType.ts](../packages/ts-runtypes/src/mocking/mockType.ts)) threads a
+> `stack: RunType[]` for **cycle detection by reference identity — NOT a field-name
+> path** (`mockRunType(runType, options, stack)`), and `MockOptions`
+> ([mocking/mockTypes.ts](../packages/ts-runtypes/src/mocking/mockTypes.ts)) are
+> **global knobs** (pools for `any`/`object`/`regexp`, number/string bounds,
+> per-property *optional* probability) — there is no per-field value pool keyed by
+> field name. So consuming `MockData<T>` needs a NEW per-field MockData node
+> threaded alongside `stack` and descended by field name / `$items`.
+
+- [ ] Add a `data?: MockData<T>` arg to `createMockType` (or `options.mock.dataNode`)
+  and thread the **current MockData node** through `mockRunType` →
+  `buildObjectLiteral` / array / tuple / map / set. **Make it strictly additive
+  (optional, default undefined ⇒ byte-identical behaviour)** so the existing
+  ~228-test Array suite + all mock cases stay green — the contained-risk approach.
+- [ ] At leaf kinds: `dataNode.pool` → `randomItem(pool)`; number/Date `min`/`max` →
+  bounds; at array: `dataNode.$items` for elements, `dataNode.$length` for length;
+  at object property: descend `dataNode[name]`.
+- **Caveats found:** Map/Set/tuple MockData are v1-limited — `MockNode` projects
+  Map/Set through the object branch (a child map over methods), so no `$keys`/
+  `$values`; tuples share one `$items` element node. Note in the DSL if refined.
+- **Tests:** vitest — pool selection, range bounds, array `$length`, nested,
+  additive no-op when `data` absent; **MD003 (pool values validate) is P3.3.**
+- **Acceptance:** full mock suite stays green + new `data` cases pass.
 
 ---
 
@@ -248,3 +267,14 @@ file's checkboxes in the same commit that lands the work.
 - **P2 done** — `createFriendly<T>(map)` pure-data renderer (label + errors,
   data-form + function escape hatch, `$[…]` interpolation, accumulation) + 10
   vitest cases, all green; exported. lint+prettier clean.
+- **Full `ts-runtypes` suite green after P1+P2** — 90 files / 5898 passed / 2
+  skipped, 0 fail. Additions are type-only + a side-effect-free runtime module.
+- **Session boundary (autonomous).** The two clean, fully-verifiable TS phases
+  (P1, P2) are landed. Remaining work is deliberately left for a focused session
+  because it is either invasive or deep-Go (higher risk to do unattended):
+  - **P5** — needs an additive per-field-path param threaded through the
+    cycle-detection walker (findings recorded above).
+  - **P0 / P3 / P4** — Go: `$[val]` enrichment touches the format-error wire shape
+    (audit assertions first); marker recognition + `ShapeCheckedArgs` validation +
+    CLI/`gen` are deep, interdependent, and need the binary rebuilt + plugin tests.
+  Each should land as its own green, committed increment per the cadence above.
