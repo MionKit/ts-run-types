@@ -96,3 +96,35 @@ func TestResolveType_UnknownTypeErrors(t *testing.T) {
 		t.Fatal("ResolveType(Missing): expected error, got nil")
 	}
 }
+
+// TestSkeletons_ObjectLiteralOnly pins the batch (`gen --files`) skeleton path:
+// FriendlySkeleton / MockSkeleton return ONLY the object literal (no
+// `export const … =` wrapper, no type annotation) so the test harness compares
+// against a case's authored initializer.
+func TestSkeletons_ObjectLiteralOnly(t *testing.T) {
+	resolved := resolveFixture(t, "user.ts", "User", map[string]string{
+		"user.ts": "export interface User { name: string; tags: string[] }\n",
+	})
+	friendly := enrichment.FriendlySkeleton(resolved.Node, resolved.Resolve)
+	mock := enrichment.MockSkeleton(resolved.Node, resolved.Resolve)
+
+	if strings.Contains(friendly, "export const") || strings.Contains(friendly, "FriendlyType<") {
+		t.Errorf("FriendlySkeleton should be a bare object literal; got:\n%s", friendly)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(friendly), "{") {
+		t.Errorf("FriendlySkeleton should start with '{'; got:\n%s", friendly)
+	}
+	for _, want := range []string{"$label: ''", "name:", "tags:", "$items"} {
+		if !strings.Contains(friendly, want) {
+			t.Errorf("FriendlySkeleton missing %q; got:\n%s", want, friendly)
+		}
+	}
+	if strings.Contains(mock, "export const") {
+		t.Errorf("MockSkeleton should be a bare object literal; got:\n%s", mock)
+	}
+	for _, want := range []string{"name: {pool: []}", "$length: [1, 3]"} {
+		if !strings.Contains(mock, want) {
+			t.Errorf("MockSkeleton missing %q; got:\n%s", want, mock)
+		}
+	}
+}

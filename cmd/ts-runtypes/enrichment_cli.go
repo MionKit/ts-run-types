@@ -46,7 +46,27 @@ func dispatchEnrichmentCommand() bool {
 // check command, which walks the file's AST against the still-open checker.
 func buildProgram(absPath string) (*program.Program, *resolver.Resolver, error) {
 	cwd := filepath.Dir(absPath)
-	prog, err := program.NewInferred(program.Options{Cwd: cwd}, []string{absPath})
+	prog, err := program.NewInferred(program.Options{Cwd: cwd, Conditions: []string{"source"}}, []string{absPath})
+	if err != nil {
+		return nil, nil, fmt.Errorf("build program: %w", err)
+	}
+	res, err := resolver.New(prog, resolver.Options{Cwd: cwd})
+	if err != nil {
+		return nil, nil, fmt.Errorf("build resolver: %w", err)
+	}
+	return prog, res, nil
+}
+
+// buildProgramMulti constructs ONE inferred Program + resolver over several
+// files — the batch `gen --files` path. Cwd is the first file's directory.
+// Caller owns res and MUST Close() it. One Program means the heavy parse/bind
+// is paid once for the whole batch; each file's `Target` resolves against it.
+func buildProgramMulti(absPaths []string) (*program.Program, *resolver.Resolver, error) {
+	if len(absPaths) == 0 {
+		return nil, nil, fmt.Errorf("no files given")
+	}
+	cwd := filepath.Dir(absPaths[0])
+	prog, err := program.NewInferred(program.Options{Cwd: cwd, Conditions: []string{"source"}}, absPaths)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build program: %w", err)
 	}
@@ -116,12 +136,22 @@ func runGen(args []string) {
 	mock := fs.Bool("mock", false, "emit a MockData<T> skeleton")
 	friendly := fs.Bool("friendly", false, "emit a FriendlyType<T> skeleton")
 	out := fs.String("out", "", "target .rt.ts path (default: <dir>/<basename>.rt.ts)")
+	files := fs.String("files", "", "batch mode: comma-separated files; resolve --type in each, print JSON skeletons to stdout (no writes)")
+	typeFlag := fs.String("type", "", "batch mode: the type name to resolve in every --files entry")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--out <path>]")
+		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --files a.ts,b.ts --type Target   (batch, JSON to stdout)")
 	}
 	positional, flags := splitArgs(args)
 	if err := fs.Parse(flags); err != nil {
 		fatal("gen: %v", err)
+	}
+	if *files != "" {
+		if *typeFlag == "" {
+			fatal("gen --files: --type is required")
+		}
+		runGenBatch(strings.Split(*files, ","), *typeFlag)
+		return
 	}
 	if len(positional) < 2 {
 		fs.Usage()
@@ -223,12 +253,57 @@ func runGen(args []string) {
 	os.Exit(0)
 }
 
+// runGenBatch is the `gen --files a.ts,b.ts --type Target` path: ONE Program over
+// all files, resolve typeName per file, and print a JSON map
+// { <basename-without-ext> → {friendly, mock} } of object-literal skeletons. No
+// files are written. Used by the enrichment generation test harness.
+func runGenBatch(files []string, typeName string) {
+	absPaths := make([]string, 0, len(files))
+	for _, file := range files {
+		trimmed := strings.TrimSpace(file)
+		if trimmed == "" {
+			continue
+		}
+		absPaths = append(absPaths, tspath.NormalizePath(mustAbs(trimmed)))
+	}
+	prog, res, err := buildProgramMulti(absPaths)
+	if err != nil {
+		fatal("gen --files: %v", err)
+	}
+	defer res.Close()
+
+	type skeletons struct {
+		Friendly string `json:"friendly"`
+		Mock     string `json:"mock"`
+	}
+	out := make(map[string]skeletons, len(absPaths))
+	for _, absPath := range absPaths {
+		resolved, err := enrichment.ResolveType(prog, res, absPath, typeName)
+		if err != nil {
+			fatal("gen --files: %s: %v", absPath, err)
+		}
+		key := strings.TrimSuffix(filepath.Base(absPath), filepath.Ext(absPath))
+		out[key] = skeletons{
+			Friendly: enrichment.FriendlySkeleton(resolved.Node, resolved.Resolve),
+			Mock:     enrichment.MockSkeleton(resolved.Node, resolved.Resolve),
+		}
+	}
+	encoded, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		fatal("gen --files: encode json: %v", err)
+	}
+	fmt.Println(string(encoded))
+	os.Exit(0)
+}
+
 // valueFlags are the enrichment flags that consume the following token as
 // their value when written space-separated (e.g. `--format json`). Boolean
 // flags (--mock, --friendly) are absent here.
 var valueFlags = map[string]bool{
 	"--format": true, "-format": true,
 	"--out": true, "-out": true,
+	"--files": true, "-files": true,
+	"--type": true, "-type": true,
 }
 
 // splitArgs separates positional arguments from flag tokens so flags may appear
