@@ -24,6 +24,20 @@ export {getRunType} from './getRunType.ts';
 export {type DataOnly} from './runtypes/dataOnly.ts';
 export {type Static} from './schema/static.ts';
 
+// AI enrichment — type-keyed, committed maps validated against `T` at scan time
+// (see docs/AI_ENRICHMENT.md). `FriendlyType<T>` combines labels + error
+// templates; `MockData<T>` carries sample pools/ranges feeding `createMockType`.
+export {
+  type FriendlyType,
+  type FriendlyNode,
+  type FriendlyMeta,
+  type ErrorTemplates,
+  type FriendlyTemplate,
+  type FailedConstraint,
+  type FailedConstraints,
+} from './enrichment/friendlyType.ts';
+export {type MockData, type MockNode} from './enrichment/mockData.ts';
+
 // Run-type registration is per-entry now: each marker call site imports its
 // type's virtual entry module and registers it (plus transitive children) on
 // first use — there is no monolithic cache module to populate up front.

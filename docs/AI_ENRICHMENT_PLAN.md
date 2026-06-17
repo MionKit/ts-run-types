@@ -73,29 +73,36 @@ Independent enabling changes. Each is small, well-scoped, Go-test-verifiable.
 ## P1 — DSL types (TS, pure type-level) — AUTONOMOUS
 
 ### P1.1 — `FriendlyType<T>` + `MockData<T>`
-- [ ] New module `packages/ts-runtypes/src/enrichment/friendlyType.ts` with a
+- [x] New module `packages/ts-runtypes/src/enrichment/friendlyType.ts` with a
   `// #region friendlytype-extract … #endregion` block (self-contained — lib types
-  + own decls only), holding `Meta`, `ErrorTemplates`, `Template`,
-  `FailedConstraints`, `FriendlyLeaf`, `_Depth`, `FriendlyNode`, `FriendlyType`.
-- [ ] New module `packages/ts-runtypes/src/enrichment/mockData.ts` with a
+  + own decls only), holding `FriendlyMeta`, `ErrorTemplates`, `FriendlyTemplate`,
+  `FailedConstraint`, `FailedConstraints`, `FriendlyLeaf`, `_FriendlyDepth`,
+  `FriendlyNode`, `FriendlyType`.
+- [x] New module `packages/ts-runtypes/src/enrichment/mockData.ts` with a
   `// #region mockdata-extract … #endregion` block holding `_MockDepth`,
   `MockNode`, `MockData`.
-- [ ] Construction follows `DataOnly<T>`: depth-bounded tuple decrement, **no
+- [x] Construction follows `DataOnly<T>`: depth-bounded tuple decrement, **no
   `infer` on the hot path** (`T[number]`/`T[K]`), scalar-before-object gates,
-  homomorphic `{ [K in keyof T]?: … }`.
-- [ ] Export both from [index.ts](../packages/ts-runtypes/src/index.ts).
-- **Acceptance:** `pnpm --filter ts-runtypes run typecheck` (tsgo) clean.
+  homomorphic `{ [K in keyof T]?: … }`. Note: explicit `boolean`/`bigint` MockNode
+  arms (fixed element type, not `T[]`) so a boolean field doesn't splinter into
+  `{pool?: true[]} | {pool?: false[]}` under union distribution.
+- [x] Export both from [index.ts](../packages/ts-runtypes/src/index.ts).
+- **Acceptance:** the compile-budget tests (P1.2) type-check both modules through
+  the real TS compiler — green. (There is no separate `typecheck` script; vitest
+  is the package's only check.)
 
 ### P1.2 — instantiation-budget compile tests
-- [ ] `test/types/enrichmentHarness.ts` — slice both regions verbatim (mirror
-  `dataonlyHarness.ts`), bind to `makeMeasurer`, add `Equal/Expect` preamble.
-- [ ] `test/types/friendlyType.compile.test.ts` + `mockData.compile.test.ts` —
-  per-branch `it`s: scalar leaf, array `$items`, nested object, optional prop,
-  tuple, union field, deep-nesting (depth budget), circular type (bounded).
-- [ ] Each asserts (1) clean type-check via `Expect<Equal<…>>`, (2) net
-  instantiations ≤ budget (set budget to the first measured net, ratchet-down only).
-- **Acceptance:** `pnpm exec vitest run enrichment` (or the two compile tests)
-  green; budgets recorded.
+- [x] `test/types/enrichmentHarness.ts` — slices both regions verbatim (mirrors
+  `dataonlyHarness.ts`), binds to `makeMeasurer`, `Equal/Expect/Assignable` preamble.
+- [x] `test/types/friendlyType.compile.test.ts` (8 branches) +
+  `mockData.compile.test.ts` (6 branches) — scalar leaf, object nest + unknown-field
+  rejection, nested object, array `$items`, function-form `$errors`, optional/union,
+  deep-nesting (depth budget), circular type (bounded).
+- [x] Each asserts (1) clean type-check + invalid maps rejected (`@ts-expect-error`
+  → TS2578 if too loose), (2) net instantiations ≤ exact budget (ratchet-down only).
+  Budgets: friendly `44/36/74/82/27/40/121/60`, mock `71/94/78/77/154/86`.
+- **Acceptance:** `pnpm exec vitest run friendlyType.compile mockData.compile` —
+  14/14 green. ✅
 
 ---
 
@@ -229,3 +236,6 @@ file's checkboxes in the same commit that lands the work.
 
 - `feat/ai-enrichment` branched off `main`.
 - Spec ([AI_ENRICHMENT.md](./AI_ENRICHMENT.md)) + this plan committed.
+- **P1 done** — `FriendlyType<T>` + `MockData<T>` DSL types (DataOnly-style,
+  depth-bounded, `infer`-free) + 14 instantiation-budget compile tests, all green;
+  exported from the package entry. lint+prettier clean.

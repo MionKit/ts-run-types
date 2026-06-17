@@ -1,0 +1,77 @@
+// `FriendlyType<T>` — the human-readable enrichment map for a type: a combined
+// per-field LABEL + ERROR-MESSAGE mapping, authored once and committed (see
+// docs/AI_ENRICHMENT.md). Pure type-level here; `createFriendly` (./createFriendly.ts)
+// renders validation errors against it at runtime.
+//
+// The recursive `FriendlyNode` follows the `DataOnly<T>` construction
+// (src/runtypes/dataOnly.ts): depth-bounded via a tuple-decrement budget, NO
+// `infer` on the hot path (element/property types reached with `T[number]` /
+// `T[K]`), scalar-before-object `extends` gates, and a homomorphic
+// `{ [K in keyof T]?: … }` child map that preserves structure for free. The
+// `#region friendlytype-extract` block is sliced VERBATIM by
+// test/types/enrichmentHarness.ts into the instantiation-budget compile test, so
+// it must reference only `lib` types + its own declarations.
+
+// #region friendlytype-extract — FriendlyType machinery; sliced verbatim between
+// these markers by test/types/enrichmentHarness.ts. Self-contained: `lib` + own decls only.
+
+/** A friendly message template — a plain string with `$[…]` placeholders the
+ *  renderer substitutes: `$[label]` (the field's label, or its raw name),
+ *  `$[val]` (the failed constraint's bound), `$[path]` (dotted path),
+ *  `$[index]` (array element index). */
+export type FriendlyTemplate = string;
+
+/** One failed sub-constraint, as handed to a function-form `$errors` handler.
+ *  `val` is the violated bound (e.g. `3` for a `minLength: 3` failure). */
+export interface FailedConstraint {
+  val?: string | number | boolean | bigint;
+}
+
+/** The aggregated failed-constraint bag passed to a function-form `$errors`
+ *  handler — one entry per failure at the field, keyed by the
+ *  `(format.name, formatPath-tail)` discriminator: `type` for the base
+ *  type-shape failure, `minLength` / `max` / `pattern` / … for format failures.
+ *  Absent keys mean that constraint passed (or the type never declared it). */
+export type FailedConstraints = Record<string, FailedConstraint | undefined>;
+
+/** Per-field error rendering. EITHER the pure-data form — a record of templates
+ *  keyed by the failed-constraint name (`type` = base failure, `$default` =
+ *  fallback, plus any format sub-constraint) — OR an inline function for logic
+ *  the data form can't express (joining constraints, pluralization, i18n). The
+ *  data form gets compile-time placeholder/constraint validation; a function
+ *  body is opaque to the compiler. */
+export type ErrorTemplates =
+  | ({type?: FriendlyTemplate; $default?: FriendlyTemplate} & {[constraint: string]: FriendlyTemplate | undefined})
+  | ((failed: FailedConstraints) => string);
+
+/** Meta keys present on every node: a human label + the field's error templates. */
+export interface FriendlyMeta {
+  $label?: string;
+  $errors?: ErrorTemplates;
+}
+
+/** Scalar / native kinds that carry only meta (no child fields). */
+type FriendlyLeaf = string | number | boolean | bigint | null | undefined | Date | RegExp;
+
+/** Recursion-budget decrement: `_FriendlyDepth[N]` is `N - 1` (`[0]` is `never`,
+ *  never reached — the `Depth extends 0` guard stops first). Bounds circular /
+ *  mutually-recursive types to a finite instantiation (no TS2589). */
+type _FriendlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
+
+/** Recursive friendly node. Scalars/natives → meta only; arrays/tuples → meta +
+ *  `$items` (element node, via `T[number]`); objects → meta + a homomorphic
+ *  optional child map. */
+export type FriendlyNode<T, Depth extends number = 8> = Depth extends 0
+  ? FriendlyMeta // budget spent — keep as a leaf
+  : T extends FriendlyLeaf
+    ? FriendlyMeta // scalar / native — no children
+    : T extends readonly unknown[]
+      ? FriendlyMeta & {$items?: FriendlyNode<T[number], _FriendlyDepth[Depth]>}
+      : T extends object
+        ? FriendlyMeta & {[K in keyof T]?: FriendlyNode<T[K], _FriendlyDepth[Depth]>}
+        : FriendlyMeta;
+
+/** The friendly map for `T` — combined labels + per-field error templates,
+ *  validated against `T` at scan time (the `ShapeCheckedArgs<T>` axis). */
+export type FriendlyType<T> = FriendlyNode<T>;
+// #endregion friendlytype-extract
