@@ -22,10 +22,15 @@ type mirrorIndex struct {
 	// sourceFile is the parsed AST (the scanner needs it for trivia-trimmed
 	// statement starts).
 	sourceFile *ast.SourceFile
-	// consts maps a const's @rtType id (fallback: var name) → its index entry.
-	consts map[string]*constEntry
-	// constOrder lists the const keys (id-or-name) in declaration order.
-	constOrder []string
+	// consts lists every indexed friendly*/mock* const in declaration order.
+	consts []*constEntry
+	// byTypeForm maps `<form>:<typeID>` (form = "f"/"m") → entry, so the friendly
+	// and mock const of one type — which SHARE a structural id — never collide.
+	// Only consts that carry an @rtType marker appear here.
+	byTypeForm map[string]*constEntry
+	// byVar maps a const's var name → entry (the fallback match when no marker,
+	// or after a structural-id change renders the @rtType stale).
+	byVar map[string]*constEntry
 	// breadcrumb is the `import type { … } from '<src>'` source breadcrumb, or
 	// nil when the file has none.
 	breadcrumb *importEntry
@@ -35,6 +40,16 @@ type mirrorIndex struct {
 	// valueImports are the cross-file `import { friendly*/mock* } from '<rel>'`
 	// value-import lines, in declaration order.
 	valueImports []*importEntry
+}
+
+// typeFormKey builds the byTypeForm composite key for a (typeID, isFriendly)
+// pair so a type's friendly and mock consts index distinctly despite sharing the
+// structural id.
+func typeFormKey(typeID string, isFriendly bool) string {
+	if isFriendly {
+		return "f:" + typeID
+	}
+	return "m:" + typeID
 }
 
 // constEntry is one indexed `export const friendly*/mock* : Wrapper<T> = {…};`
@@ -51,6 +66,11 @@ type constEntry struct {
 	tokenStart int               // trivia-trimmed start (the `export` keyword)
 	end        int               // node.End()
 	body       *ast.Node         // the object-literal initializer (nil when not an object literal)
+	// markerStart / markerEnd bound the existing `@rtType`-bearing JSDoc block
+	// (absolute byte offsets), so a stale marker can be replaced surgically. Both
+	// zero when the const has no marker block (insert before tokenStart instead).
+	markerStart int
+	markerEnd   int
 }
 
 // importEntry is one indexed import statement: its declared names + the byte
@@ -104,7 +124,8 @@ func parseMirror(mirrorPath string, mirrorBytes []byte) *mirrorIndex {
 	index := &mirrorIndex{
 		raw:        mirrorBytes,
 		sourceFile: sourceFile,
-		consts:     map[string]*constEntry{},
+		byTypeForm: map[string]*constEntry{},
+		byVar:      map[string]*constEntry{},
 	}
 
 	root := sourceFile.AsNode()
@@ -154,28 +175,30 @@ func (index *mirrorIndex) indexVariableStatement(text string, statement *ast.Nod
 			continue
 		}
 		typeID, childIDs := parseConstMarkers(leadingComment)
-		key := typeID
-		if key == "" {
-			key = varName
-		}
 
 		var body *ast.Node
 		if initializer := declaration.AsVariableDeclaration().Initializer; initializer != nil && ast.IsObjectLiteralExpression(initializer) {
 			body = initializer
 		}
 
+		markerStart, markerEnd := markerBlockRange(text, statement.Pos(), tokenStart)
 		entry := &constEntry{
-			varName:    varName,
-			isFriendly: isFriendly,
-			typeID:     typeID,
-			childIDs:   childIDs,
-			fullStart:  statement.Pos(),
-			tokenStart: tokenStart,
-			end:        statement.End(),
-			body:       body,
+			varName:     varName,
+			isFriendly:  isFriendly,
+			typeID:      typeID,
+			childIDs:    childIDs,
+			fullStart:   statement.Pos(),
+			tokenStart:  tokenStart,
+			end:         statement.End(),
+			body:        body,
+			markerStart: markerStart,
+			markerEnd:   markerEnd,
 		}
-		index.consts[key] = entry
-		index.constOrder = append(index.constOrder, key)
+		index.consts = append(index.consts, entry)
+		index.byVar[varName] = entry
+		if typeID != "" {
+			index.byTypeForm[typeFormKey(typeID, isFriendly)] = entry
+		}
 	}
 }
 
@@ -271,6 +294,38 @@ func trimRange(text string, start, end int) (int, int) {
 
 func isSpaceByte(b byte) bool {
 	return b == ' ' || b == '\t' || b == '\r' || b == '\n'
+}
+
+// markerBlockRange locates the `@rtType`-bearing `/* … */` block in the
+// const's leading-trivia span [fullStart, tokenStart) and returns its absolute
+// byte range, EXTENDED to include a single trailing newline so a replace swaps
+// the whole marker line cleanly. Returns (0,0) when no such block exists.
+func markerBlockRange(text string, fullStart, tokenStart int) (int, int) {
+	region := text[fullStart:tokenStart]
+	open := strings.Index(region, "/*")
+	for open >= 0 {
+		close := strings.Index(region[open:], "*/")
+		if close < 0 {
+			break
+		}
+		blockEnd := open + close + 2 // past the closing `*/`
+		block := region[open:blockEnd]
+		if strings.Contains(block, "@rtType") {
+			start := fullStart + open
+			end := fullStart + blockEnd
+			// Swallow a single trailing newline so the marker line is fully replaced.
+			if end < len(text) && text[end] == '\n' {
+				end++
+			}
+			return start, end
+		}
+		next := strings.Index(region[blockEnd:], "/*")
+		if next < 0 {
+			break
+		}
+		open = blockEnd + next
+	}
+	return 0, 0
 }
 
 // parseConstMarkers extracts the @rtType id and the @rtIds child-id map from a

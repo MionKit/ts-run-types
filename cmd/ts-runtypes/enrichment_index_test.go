@@ -25,10 +25,10 @@ func TestParseMirror_IndexConsts(t *testing.T) {
 
 	index := parseMirror("/rt/gen/models/user.ts", []byte(src))
 
-	// friendlyUser is keyed by its @rtType id.
-	friendly, ok := index.consts["abc1234"]
+	// friendlyUser is indexed by its (@rtType id, friendly form).
+	friendly, ok := index.byTypeForm[typeFormKey("abc1234", true)]
 	if !ok {
-		t.Fatalf("friendlyUser not indexed by @rtType id; keys=%v", index.constOrder)
+		t.Fatalf("friendlyUser not indexed by (@rtType id, friendly); consts=%d", len(index.consts))
 	}
 	if friendly.varName != "friendlyUser" || !friendly.isFriendly {
 		t.Errorf("friendly entry = %+v", friendly)
@@ -44,10 +44,10 @@ func TestParseMirror_IndexConsts(t *testing.T) {
 		t.Errorf("friendly body should be an object literal")
 	}
 
-	// mockUser has no marker → keyed by its var name.
-	mock, ok := index.consts["mockUser"]
+	// mockUser has no marker → indexed by its var name only.
+	mock, ok := index.byVar["mockUser"]
 	if !ok {
-		t.Fatalf("mockUser not indexed by var name; keys=%v", index.constOrder)
+		t.Fatalf("mockUser not indexed by var name; consts=%d", len(index.consts))
 	}
 	if mock.isFriendly {
 		t.Errorf("mockUser should be a mock entry")
