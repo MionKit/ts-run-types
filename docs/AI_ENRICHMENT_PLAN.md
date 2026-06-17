@@ -141,6 +141,23 @@ Independent enabling changes. Each is small, well-scoped, Go-test-verifiable.
 
 ## P3 — Compile-time validation (Go) — gated on green build
 
+> **Emitter convention (direction).** The validation/describe walker is structured
+> like every other build-time consumer of a type in this repo: a **giant `switch`
+> over `RunType.kind`**, where the per-node behavior depends on the current node —
+> the same shape as `validate.go`'s emit, `serialize.go`'s projection, the typefns
+> families, and the runtime `mockSwitch`. It is a **paired walk**: switch on the
+> `RunType.kind` and, at each node, inspect the corresponding slot of the authored
+> `FriendlyType`/`MockData` literal (object → recurse per property; array → `$items`;
+> a format-carrying node → check `$errors` constraint keys + placeholders; a leaf
+> with a `MockData` pool → validate each pool value). Output is diagnostics (FT/MD),
+> not emitted JS — but the dispatch shape is identical. New kinds land in the one
+> switch, never in scattered helpers. Same for the `describe` dump walker (P4.1).
+>
+> (The *runtime* renderer `createFriendly` and the mock-data consumption stay
+> interpreters — `mockSwitch` is the precedent that not every family compiles
+> per-type. A compiled per-type friendly/mock emitter would be a `typefns` family
+> via the 5-touchpoint path, but it buys nothing for these — deferred.)
+
 ### P3.1 — recognize the annotations as markers
 - [ ] Marker scanner ([internal/marker/marker.go](../internal/marker/marker.go)):
   detect a declaration/expression typed `FriendlyType<T>` / `MockData<T>` (alias
