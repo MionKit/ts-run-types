@@ -77,20 +77,17 @@ func runGenPrune(positional []string, enrichDirFlag string) {
 	os.Exit(0)
 }
 
-// collectPruneTargets resolves the --prune argument the same way --check does:
-// a single mirror .ts file, a directory to walk, or (with no argument) the
-// enrich dir resolved from the current directory's tsconfig. A source file
-// passed directly (outside the enrich dir) resolves to ITS mirror.
+// collectPruneTargets resolves the --prune argument: an explicit mirror .ts file
+// or a directory to walk, used AS-IS (you point --prune directly at the committed
+// file/dir to sweep), or — with no argument — the enrich dir resolved from the
+// current directory's tsconfig. Unlike --check, --prune never redirects a path
+// through mirrorPath: a file argument is always the thing to prune, so it must not
+// depend on enrich-dir resolution recognizing it (which broke a mirror in a
+// non-default enrich dir pruned without --enrich-dir).
 func collectPruneTargets(positional []string, enrichDirFlag string) []string {
 	var target string
 	if len(positional) > 0 {
-		candidate := tspath.NormalizePath(mustAbs(positional[0]))
-		config := resolveEnrichConfig(candidate, enrichDirFlag)
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() && !isUnder(config.EnrichDir, candidate) {
-			target = config.mirrorPath(candidate)
-		} else {
-			target = candidate
-		}
+		target = tspath.NormalizePath(mustAbs(positional[0]))
 	} else {
 		cwd, err := os.Getwd()
 		if err != nil {
