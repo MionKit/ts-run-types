@@ -94,7 +94,7 @@ export type UnknownKeysToUndefinedFn = (value: unknown) => unknown;
  *  transform operates on: TypeFormat brands collapse to their base
  *  (string formats → `string`), nested objects / arrays recurse. The
  *  brand exists only at the type level (erased at runtime), so callers
- *  pass and receive plain data — `createFormatTransform<FormatLowercase>()` is
+ *  pass and receive plain data — `createFormatTransform<Lowercase>()` is
  *  `(value: string) => string`, not a branded-in/branded-out fn. **/
 export type FormatTransformValue<T> = T extends string
   ? string

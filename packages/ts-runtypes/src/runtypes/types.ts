@@ -65,7 +65,7 @@ export interface CompiledPureFunction extends PureFunctionData {
  *
  *  `T` is the source TS type this node represents. It is a PHANTOM type
  *  parameter (carried on the never-set `__rtType` property, erased at
- *  runtime) so a value-first builder can return `RunType<FormatString<P>>`
+ *  runtime) so a value-first builder can return `RunType<String<P>>`
  *  and `Static<…>` can recover the original type. Defaults to `unknown`
  *  so every existing `RunType` reference (the cache, the mock walker, the
  *  self-referential ref slots) is unaffected — `RunType` ≡ `RunType<unknown>`. */

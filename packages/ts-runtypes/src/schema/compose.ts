@@ -33,7 +33,7 @@
 // fixed-arity overloads take explicit member tuples (`[RunType<A>, RunType<B>]`),
 // and its variable-arity fallback keeps the `[...T]` spread for `UnionOf<T>`.
 
-import {builderResult} from './atomic.ts';
+import {builderResult} from '../runtypes/builderCore.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 import type {

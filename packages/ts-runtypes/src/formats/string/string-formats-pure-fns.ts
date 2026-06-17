@@ -14,10 +14,10 @@
 import {registerPureFnFactory} from '../../runtypes/pureFn.ts';
 import type {RTUtils} from '../../runtypes/rtUtils.ts';
 
-// FormatParams_UUID — the wire-shape params object the Go emitter
-// passes to pf_isUUID at runtime. Mirrors the FormatParams_UUID
+// UUIDParams — the wire-shape params object the Go emitter
+// passes to pf_isUUID at runtime. Mirrors the UUIDParams
 // keeping only what the validator needs.
-interface FormatParams_UUID {
+interface UUIDParams {
   version: string;
 }
 
@@ -26,7 +26,7 @@ interface FormatParams_UUID {
 // every other slot. Matches the runtime behaviour of the canonical
 // UUIDv4 / UUIDv7 patterns without pulling in a regex engine.
 registerPureFnFactory('rtFormats::isUUID', function () {
-  return function _isUUID(value: string, params: FormatParams_UUID): boolean {
+  return function _isUUID(value: string, params: UUIDParams): boolean {
     if (typeof value !== 'string' || value.length !== 36) return false;
     for (let i = 0; i < 36; i++) {
       if (i === 8 || i === 13 || i === 18 || i === 23) {
@@ -51,17 +51,17 @@ registerPureFnFactory('rtFormats::isUUID', function () {
 // localhost check), allowLocalHost, and allowPort flags. Both delegate
 // the loopback test to isLocalHost.
 
-interface FormatParams_IP {
+interface IPParams {
   version: 4 | 6 | 'any';
   allowLocalHost?: boolean;
   allowPort?: boolean;
 }
 
-type IsIpFn = (ip: string, params: FormatParams_IP) => boolean;
+type IsIpFn = (ip: string, params: IPParams) => boolean;
 
 registerPureFnFactory('rtFormats::isLocalHost', function () {
   const lhr = /^localhost$/i;
-  return function _is_local_host(ip: string, params: FormatParams_IP): boolean {
+  return function _is_local_host(ip: string, params: IPParams): boolean {
     if (params.version === 4) return lhr.test(ip) || ip === '127:0:0:1';
     if (params.version === 6) return ip === '::1' || ip === '0:0:0:0:0:0:0:1';
     return lhr.test(ip) || ip === '127:0:0:1' || ip === '::1' || ip === '0:0:0:0:0:0:0:1';
@@ -70,7 +70,7 @@ registerPureFnFactory('rtFormats::isLocalHost', function () {
 
 registerPureFnFactory('rtFormats::isIPV4', function (utl: RTUtils) {
   const isLocalHost = utl.getPureFn('rtFormats::isLocalHost') as IsIpFn;
-  function getAddress(ip: string, params: FormatParams_IP): false | string {
+  function getAddress(ip: string, params: IPParams): false | string {
     if (!params.allowPort) return ip;
     const parts = ip.split(':');
     if (parts.length > 2) return false;
@@ -80,7 +80,7 @@ registerPureFnFactory('rtFormats::isIPV4', function (utl: RTUtils) {
     if (isNaN(port) || port < 0 || port > 65535) return false;
     return address;
   }
-  return function _is_ip_v4(ip: string, params: FormatParams_IP): boolean {
+  return function _is_ip_v4(ip: string, params: IPParams): boolean {
     const address = getAddress(ip, params);
     if (address === false) return false;
     const isLocal = isLocalHost(address, params);
@@ -99,7 +99,7 @@ registerPureFnFactory('rtFormats::isIPV4', function (utl: RTUtils) {
 registerPureFnFactory('rtFormats::isIPV6', function (utl: RTUtils) {
   const isLocalHost = utl.getPureFn('rtFormats::isLocalHost') as IsIpFn;
   const ipv6PortRegexp = /^\[([^\]]+)\](?::(\d+))?$/;
-  function getAddress(ip: string, params: FormatParams_IP): false | string {
+  function getAddress(ip: string, params: IPParams): false | string {
     if (!params.allowPort) return ip;
     const match = ip.match(ipv6PortRegexp);
     if (!match) return false;
@@ -110,7 +110,7 @@ registerPureFnFactory('rtFormats::isIPV6', function (utl: RTUtils) {
     if (isNaN(num) || num < 0 || num > 65535) return false;
     return address;
   }
-  return function _is_ip_v6(ip: string, params: FormatParams_IP): boolean {
+  return function _is_ip_v6(ip: string, params: IPParams): boolean {
     const address = getAddress(ip, params);
     if (address === false) return false;
     const isLocal = isLocalHost(address, params);

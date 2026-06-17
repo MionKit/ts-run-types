@@ -29,37 +29,41 @@
 // units only; PlainDate/PlainYearMonth → date units; PlainDateTime/
 // ZonedDateTime → both) and emits `Temporal.X.compare(value, bound) >= 0/<= 0`.
 
+import {builderResult} from '../../runtypes/builderCore.ts';
 import type {MinMax} from './dateTimeParams.ts';
+import type {RunType} from '../../runtypes/types.ts';
+import type {InjectRunTypeId} from '../../markers.ts';
+import type {TemporalFormatByTag, TemporalBaseByTag, TemporalBuilderFn} from '../../runtypes/builderTypes.ts';
 
 // PlainMonthDay (no static compare) and Duration (a length, not an instant)
 // are intentionally absent — they have no min/max ordering semantics.
 
-export type FormatTemporalInstant<P extends MinMax = MinMax> = Temporal.Instant & {
+export type Instant<P extends MinMax = MinMax> = Temporal.Instant & {
   readonly __rtFormatName?: 'temporalInstant';
   readonly __rtFormatParams?: P;
 };
 
-export type FormatTemporalZonedDateTime<P extends MinMax = MinMax> = Temporal.ZonedDateTime & {
+export type ZonedDateTime<P extends MinMax = MinMax> = Temporal.ZonedDateTime & {
   readonly __rtFormatName?: 'temporalZonedDateTime';
   readonly __rtFormatParams?: P;
 };
 
-export type FormatTemporalPlainDate<P extends MinMax = MinMax> = Temporal.PlainDate & {
+export type PlainDate<P extends MinMax = MinMax> = Temporal.PlainDate & {
   readonly __rtFormatName?: 'temporalPlainDate';
   readonly __rtFormatParams?: P;
 };
 
-export type FormatTemporalPlainTime<P extends MinMax = MinMax> = Temporal.PlainTime & {
+export type PlainTime<P extends MinMax = MinMax> = Temporal.PlainTime & {
   readonly __rtFormatName?: 'temporalPlainTime';
   readonly __rtFormatParams?: P;
 };
 
-export type FormatTemporalPlainDateTime<P extends MinMax = MinMax> = Temporal.PlainDateTime & {
+export type PlainDateTime<P extends MinMax = MinMax> = Temporal.PlainDateTime & {
   readonly __rtFormatName?: 'temporalPlainDateTime';
   readonly __rtFormatParams?: P;
 };
 
-export type FormatTemporalPlainYearMonth<P extends MinMax = MinMax> = Temporal.PlainYearMonth & {
+export type PlainYearMonth<P extends MinMax = MinMax> = Temporal.PlainYearMonth & {
   readonly __rtFormatName?: 'temporalPlainYearMonth';
   readonly __rtFormatParams?: P;
 };
@@ -106,3 +110,56 @@ declare module '../../runtypes/dataOnly.ts' {
     temporalDuration: Temporal.Duration;
   }
 }
+
+// ─────────────────────────── Temporal builders ──────────────────────
+//
+// Value-first builders for the `ts-runtypes/formats/temporal` subpath — flat
+// (`import * as TFT from 'ts-runtypes/formats/temporal'` → `TFT.instant()`), so a
+// format's TYPE (`TFT.Instant`) and its BUILDER (`TFT.instant()`) live together.
+// Co-located here (not under the root `formats` surface) so the Temporal-lib
+// coupling stays in this one module. Each builder still returns the generic
+// `RunType<…>` node and converges on the same structural id as the type-first
+// `createValidate<Temporal.X>()` surface.
+
+// `temporalBuilder` — shared factory for the 6 orderable temporal builders. Each
+// fixes its tag and returns the matching branded `Instant`/`PlainDate`/… via the
+// builderTypes tag→format lookup. Same no-params/plain ↔ params/branded overload
+// split as the scalar leaves.
+function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag): TemporalBuilderFn<Tag> {
+  const build = (
+    formatParamsOrId?: MinMax | InjectRunTypeId<TemporalBaseByTag[Tag]>,
+    id?: InjectRunTypeId<TemporalBaseByTag[Tag]>
+  ): RunType<TemporalBaseByTag[Tag]> => {
+    const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+    const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
+    return builderResult(injectedId, {type: tag, formatParams});
+  };
+  return build as TemporalBuilderFn<Tag>;
+}
+
+/** A no-ordering temporal builder (`plainMonthDay` / `duration`). These have no
+ *  min/max semantics, so — unlike `temporalBuilder` — there is only the no-params
+ *  overload: it returns the raw instance type and converges with the type-first
+ *  `createValidate<Temporal.PlainMonthDay>()` / `<Temporal.Duration>()` form. **/
+function temporalInstanceBuilder<Tag extends 'temporal.plainMonthDay' | 'temporal.duration'>(
+  tag: Tag
+): (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>) => RunType<TemporalBaseByTag[Tag]> {
+  return (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>) => builderResult(id, {type: tag, formatParams: {}});
+}
+
+/** Temporal field builder — `TFT.instant()` / `TFT.instant({min: '…'})`. **/
+export const instant = temporalBuilder('temporal.instant');
+/** Temporal field builder — `TFT.zonedDateTime()`. **/
+export const zonedDateTime = temporalBuilder('temporal.zonedDateTime');
+/** Temporal field builder — `TFT.plainDate()`. **/
+export const plainDate = temporalBuilder('temporal.plainDate');
+/** Temporal field builder — `TFT.plainTime()`. **/
+export const plainTime = temporalBuilder('temporal.plainTime');
+/** Temporal field builder — `TFT.plainDateTime()`. **/
+export const plainDateTime = temporalBuilder('temporal.plainDateTime');
+/** Temporal field builder — `TFT.plainYearMonth()`. **/
+export const plainYearMonth = temporalBuilder('temporal.plainYearMonth');
+/** Temporal field builder — `TFT.plainMonthDay()` (no ordering). **/
+export const plainMonthDay = temporalInstanceBuilder('temporal.plainMonthDay');
+/** Temporal field builder — `TFT.duration()` (no ordering). **/
+export const duration = temporalInstanceBuilder('temporal.duration');

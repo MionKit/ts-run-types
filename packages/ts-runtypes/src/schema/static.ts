@@ -1,105 +1,28 @@
-// The value-first surface's type channel — EVERY type-level helper the schema
-// builders depend on lives here, so the sibling files (atomic.ts / compose.ts /
-// utility.ts) carry only runtime builders. No `infer` anywhere (per CLAUDE.md):
-// every helper is an `extends`-guard + indexed-access read.
-//
-// The headline export is `Static<RT>` — the single "recover the source TS type a
-// `RunType<T>` represents" extractor (TypeBox's `Static<T>` by another lineage):
-//
-//   const Name = string({maxLength: 50});   // RunType<FormatString<{maxLength: 50}>>
-//   type Name = Static<typeof Name>;         // FormatString<{maxLength: 50}>
-//
-// `TypeFormat` is imported as a VALUE (not `import type`): the value-level import
-// keeps the brand alias's reflection metadata reachable for tsgo, the same
-// constraint the `formats/` modules document.
+// The value-first surface's COMPOSER type channel — the type-level helpers the
+// structural builders (compose.ts / utility.ts) carry. The format-builder type
+// helpers (`Static`, `LeafType`, `BrandArg`, the temporal lookups) moved to
+// runtypes/builderTypes.ts so the format builders under `formats/` and the
+// composers here can share them without a cross-surface dependency; they're
+// re-exported below so existing `./static.ts` importers keep resolving. No `infer`
+// except where unavoidable (per CLAUDE.md): every helper is an `extends`-guard +
+// indexed-access read.
 
-import {TypeFormat} from '../runtypes/typeFormat.ts';
 import type {RunType} from '../runtypes/types.ts';
-import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
-import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
-import type {
-  FormatTemporalInstant,
-  FormatTemporalZonedDateTime,
-  FormatTemporalPlainDate,
-  FormatTemporalPlainTime,
-  FormatTemporalPlainDateTime,
-  FormatTemporalPlainYearMonth,
-  TemporalBaseByFormatName,
-} from '../formats/datetime/temporalFormats.ts';
+import type {Static} from '../runtypes/builderTypes.ts';
 
-// ─────────────────────────────── Static ─────────────────────────────
-
-/** The TS type a `RunType<T>` carries; identity for anything that isn't a
- *  `RunType`. The carrier is `{t: T}`, so `NonNullable` strips the `| undefined`
- *  the optional `?` adds to the WRAPPER and `['t']` reads `T` back — preserving an
- *  intentional `null`/`undefined` `T` (which a bare-`T` carrier + `NonNullable`
- *  would collapse to `never`). No `infer`. **/
-export type Static<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] : RT;
-
-// ─────────────────────────────── Leaves ─────────────────────────────
-//
-// Leaf descriptor → TS type — the single source of truth mapping a leaf
-// RunType's FORMAT identity back to the branded TS type it represents. The
-// value-first leaf builders route their carried `RunType<T>` through this map, so
-// adding a leaf format is ONE edit here. Keyed by the format brand NAME
-// (`__rtFormatName`) because the name is the precise leaf discriminator — it
-// encodes both the reflection kind and subKind:
-//   stringFormat     → kind string (5)        nativeDate       → class (20) + date (2001)
-//   numberFormat     → kind number (6)        temporalInstant… → class (20) + temporal* (2101–2106)
-//   bigintFormat     → kind bigint (9)
-// The lone bare leaf with no format (boolean, kind 7) needs no row — `boolean()`
-// returns `RunType<boolean>` directly.
-
-/** Format brand name → branded leaf type, parameterized by that leaf's params
- *  `P`. The non-temporal rows use `TypeFormat<Base, Name, P>` directly (only a
- *  `P extends object` bound) so a single `P` flows to every row without each
- *  family's own param constraint — each builder validates its own params at the
- *  call site. The temporal rows self-guard `P extends MinMax ? … : never`: the
- *  guard NARROWS, it does not intersect, so `P` flows through unchanged and no
- *  spurious `min?/max?: string | undefined` is injected into the reflected
- *  params. **/
-export interface LeafTypeByFormatName<P extends object, BrandName extends string = never> {
-  stringFormat: TypeFormat<string, 'stringFormat', P, BrandName>;
-  numberFormat: TypeFormat<number, 'numberFormat', P, BrandName>;
-  bigintFormat: TypeFormat<bigint, 'bigintFormat', P, BrandName>;
-  nativeDate: TypeFormat<Date, 'nativeDate', P, BrandName>;
-  // Temporal leaves don't thread `BrandName` yet — value-first temporal branding
-  // is a follow-up (the hand-rolled `FormatTemporal*` aliases + the generic
-  // `temporalBuilder` need the same brand slot). Unbranded today.
-  temporalInstant: P extends MinMax ? FormatTemporalInstant<P> : never;
-  temporalZonedDateTime: P extends MinMax ? FormatTemporalZonedDateTime<P> : never;
-  temporalPlainDate: P extends MinMax ? FormatTemporalPlainDate<P> : never;
-  temporalPlainTime: P extends MinMax ? FormatTemporalPlainTime<P> : never;
-  temporalPlainDateTime: P extends MinMax ? FormatTemporalPlainDateTime<P> : never;
-  temporalPlainYearMonth: P extends MinMax ? FormatTemporalPlainYearMonth<P> : never;
-}
-
-/** Every leaf format brand name (the keys of `LeafTypeByFormatName`). **/
-export type LeafFormatName = keyof LeafTypeByFormatName<Record<string, never>>;
-
-/** The branded leaf type for a format `Name` with params `P` and optional nominal
- *  `BrandName` — the builders' carried `RunType<…>` type and the type the scanner
- *  reflects off the brand. `BrandName` defaults to `never` (no brand): an unbranded
- *  leaf is a transparent annotation (mutually assignable with its base), while
- *  passing a brand (via the value-first `brand(name)` tag) opts INTO the nominal
- *  `Format*<P, BrandName>`. **/
-export type LeafType<Name extends LeafFormatName, P extends object, BrandName extends string = never> = LeafTypeByFormatName<
-  P,
-  BrandName
->[Name];
-
-/** The tag `brand(name)` produces — a distinct carrier for a value-first format
- *  brand name. Its OBJECT shape (not a bare string) is what lets the builder's
- *  brand slot sit BEFORE the trailing injected id without the two colliding: a
- *  plain string is assignable to `InjectRunTypeId`, a `BrandArg` is not, so
- *  overload resolution can't confuse the user's brand with the plugin's id. The
- *  carried `B` flows into the leaf's `LeafType<…, B>` → `TypeFormat<…, B>`
- *  BrandName, so a branded value-first leaf reflects the SAME nominal
- *  `Format*<P, B>` the type-first surface does and converges on its structural
- *  id. **/
-export interface BrandArg<B extends string> {
-  readonly __rtBrandName: B;
-}
+// Format-builder type helpers — moved to runtypes/builderTypes.ts; re-exported so
+// the schema barrel and the sibling builder files keep their `./static.ts` import
+// paths through the formats split.
+export type {
+  Static,
+  LeafType,
+  LeafTypeByFormatName,
+  LeafFormatName,
+  BrandArg,
+  TemporalFormatByTag,
+  TemporalBaseByTag,
+  TemporalBuilderFn,
+} from '../runtypes/builderTypes.ts';
 
 // ───────────────────────── Property modifiers ───────────────────────
 
@@ -180,49 +103,6 @@ export type ObjectType<C> =
     : AnyReadonly<C> extends false
       ? ObjectOptionalOnly<C>
       : ObjectMixed<C>;
-
-// ─────────────────────────── Temporal lookups ───────────────────────
-//
-// Authoring tag (`temporal.instant`, …) → branded / base temporal type, via the
-// leaf reverse map (so the format→type mapping + the Temporal-lib coupling stay
-// out of the builder file). Each branded row is `LeafType<'temporal<Name>', P>` =
-// `FormatTemporal*<P>` for `P extends MinMax`.
-
-/** Authoring tag → branded temporal format type (params-present overload). **/
-export interface TemporalFormatByTag<P extends MinMax> {
-  'temporal.instant': LeafType<'temporalInstant', P>;
-  'temporal.zonedDateTime': LeafType<'temporalZonedDateTime', P>;
-  'temporal.plainDate': LeafType<'temporalPlainDate', P>;
-  'temporal.plainTime': LeafType<'temporalPlainTime', P>;
-  'temporal.plainDateTime': LeafType<'temporalPlainDateTime', P>;
-  'temporal.plainYearMonth': LeafType<'temporalPlainYearMonth', P>;
-}
-
-/** Authoring tag → UNBRANDED base instance type — the no-params overload's return.
- *  Routed through `TemporalBaseByFormatName` so `Temporal.*` stays named only in
- *  temporalFormats.ts, mirroring the `TemporalFormatByTag` rows. **/
-export interface TemporalBaseByTag {
-  'temporal.instant': TemporalBaseByFormatName['temporalInstant'];
-  'temporal.zonedDateTime': TemporalBaseByFormatName['temporalZonedDateTime'];
-  'temporal.plainDate': TemporalBaseByFormatName['temporalPlainDate'];
-  'temporal.plainTime': TemporalBaseByFormatName['temporalPlainTime'];
-  'temporal.plainDateTime': TemporalBaseByFormatName['temporalPlainDateTime'];
-  'temporal.plainYearMonth': TemporalBaseByFormatName['temporalPlainYearMonth'];
-  // No-ordering tags — present here (base instance type only) but absent from
-  // `TemporalFormatByTag`, so their builders are no-param-only (no min/max brand).
-  'temporal.plainMonthDay': TemporalBaseByFormatName['temporalPlainMonthDay'];
-  'temporal.duration': TemporalBaseByFormatName['temporalDuration'];
-}
-
-/** Overloaded shape of each `temporal.<name>` builder — the no-params/plain ↔
- *  params/branded split shared by the scalar leaves. **/
-export interface TemporalBuilderFn<Tag extends keyof TemporalFormatByTag<MinMax>> {
-  (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>): RunType<TemporalBaseByTag[Tag]>;
-  <const P extends MinMax>(
-    formatParams: CompTimeArgs<P>,
-    id?: InjectRunTypeId<TemporalFormatByTag<P>[Tag]>
-  ): RunType<TemporalFormatByTag<P>[Tag]>;
-}
 
 // ─────────────────────────── Composer types ─────────────────────────
 
@@ -334,7 +214,7 @@ export type Self = {readonly [SelfBrand]: true};
 /** Traverse any node type, replacing every `Self` with the recursion fixpoint
  *  `P[0]`. `P` is a 1-tuple holding the recursion; threading it (not a bare type)
  *  lets `Recursive` defer the self-reference. Leaves (primitives — incl. branded
- *  primitives like `FormatString` = `string & brand` — `Date`, `RegExp`) pass
+ *  primitives like `String` = `string & brand` — `Date`, `RegExp`) pass
  *  through; containers recurse. `T extends Self` distributes, so union members
  *  substitute individually. Arrays use `infer E → E[]` (defers the recursive
  *  element); tuples use the homomorphic mapped type (preserves slots/optional). **/
