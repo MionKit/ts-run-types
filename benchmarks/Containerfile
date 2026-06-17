@@ -14,20 +14,32 @@
 # Consequence: the image changes ONLY when a dependency manifest changes; source
 # edits never invalidate it.
 # -----------------------------------------------------------------------------
-FROM mcr.microsoft.com/devcontainers/javascript-node:22
+# Node 26 unflags the global `Temporal` API, so the benchmark suites use native
+# Temporal — no temporal-polyfill shim — and timings run on the same runtime the
+# published library targets. Pinned to the official Node 26 image; override
+# BASE_IMAGE to build from a mirror / air-gapped registry.
+ARG BASE_IMAGE=node:26-bookworm-slim
+FROM ${BASE_IMAGE}
 
 LABEL org.opencontainers.image.source=https://github.com/MionKit/ts-runtypes
 LABEL org.opencontainers.image.description="ts-runtypes validation benchmarks - deps-only image (source bind-mounted at run time)"
 
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    DO_NOT_TRACK=1
-RUN corepack enable
+ENV DO_NOT_TRACK=1
 WORKDIR /app
 
-# -- Optional: trust extra CA certs (corporate / MITM egress proxy) -----------
+# -- Trust extra CA certs (corporate / MITM egress proxy) ---------------------
+# MUST precede every network step (npm/pnpm). The .cacerts/ dir is always present
+# in the build context (scripts/benchmarks.sh creates it) but empty unless a proxy
+# CA was supplied, so this is a no-op on a normal build.
 COPY .cacerts/ /usr/local/share/ca-certificates/
 RUN update-ca-certificates >/dev/null 2>&1 || true
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
+# Node 26 dropped the bundled corepack shim (it ships only npm), so install the
+# repo-pinned pnpm globally — deterministic and baked into the image, so a pulled
+# image needs no first-run package-manager download.
+ARG PNPM_VERSION=11.1.1
+RUN npm install -g pnpm@${PNPM_VERSION}
 
 # -- Per-competitor installs --------------------------------------------------
 # Each competitor gets a COPY of the supply-chain policy (pnpm-workspace.yaml +

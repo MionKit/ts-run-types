@@ -13,28 +13,45 @@
 # node_modules ever executes on the host, and no first-party file lives in the
 # image. Consequence: the image changes only when a dependency manifest changes.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/devcontainers/javascript-node:22
+# Node 26 unflags the global `Temporal` API, so the docs build (and the in-repo
+# benchmark suites it renders) run against the same runtime the published library
+# targets — no temporal-polyfill shim. Pinned to the official Node 26 image;
+# override BASE_IMAGE to build from a mirror / air-gapped registry.
+ARG BASE_IMAGE=node:26-bookworm
+FROM ${BASE_IMAGE}
 
 LABEL org.opencontainers.image.source=https://github.com/MionKit/ts-runtypes
 LABEL org.opencontainers.image.description="mion docs website - deps-only image (source + config bind-mounted at run time)"
 
-# pnpm version is pinned by package.json#packageManager; let corepack honor it.
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    PNPM_HOME=/usr/local/share/pnpm \
-    NUXT_TELEMETRY_DISABLED=1 \
+ENV NUXT_TELEMETRY_DISABLED=1 \
     DO_NOT_TRACK=1
-RUN corepack enable
 
 WORKDIR /app
 
 # ── Optional: trust extra CA certs (corporate / MITM egress proxy) ───────────
-# The .cacerts/ dir is ALWAYS present in the build context (scripts/website.sh
-# creates it) but is empty unless $WEBSITE_CA_CERT is set, in which case the
-# script copies the proxy CA(s) in. Empty dir => update-ca-certificates is a
-# no-op, so this layer costs nothing for normal (non-proxied) builds.
+# MUST come before any network step (npm/apt/pnpm). The .cacerts/ dir is ALWAYS
+# present in the build context (scripts/website.sh creates it) but is empty unless
+# $WEBSITE_CA_CERT is set (or the host's standard custom-CA dir holds certs), in
+# which case the script copies the proxy CA(s) in. Empty dir => update-ca-certificates
+# is a no-op, so this layer costs nothing for normal (non-proxied) builds.
 COPY .cacerts/ /usr/local/share/ca-certificates/
 RUN update-ca-certificates >/dev/null 2>&1 || true
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
+# Node 26 dropped the bundled corepack shim (it ships only npm), so install the
+# repo-pinned pnpm globally. Pinning keeps it deterministic and bakes pnpm into
+# the image, so a pulled image needs no first-run package-manager download.
+ARG PNPM_VERSION=11.1.1
+RUN npm install -g pnpm@${PNPM_VERSION}
+
+# better-sqlite3 (pulled by @nuxt/content) has no prebuilt binary for the new
+# Node 26 ABI yet, so node-gyp compiles it from source at install time — which
+# needs python3 + a C/C++ toolchain. The slim base lacks them; install only when
+# missing so a fuller base that already bundles them stays a no-op.
+RUN if ! command -v g++ >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1 || ! command -v make >/dev/null 2>&1; then \
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 make g++ \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # ── Manifests only (from _deps/) — the install layer ────────────────────────
 # Copying just the package-manager manifests keeps the dependency graph +

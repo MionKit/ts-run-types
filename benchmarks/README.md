@@ -123,10 +123,12 @@ invalidated only when a dependency manifest changes.
 From the repo root:
 
 ```bash
-pnpm run bench:prep            # build the Go binary + first-party JS packages on the host (one-time)
+pnpm run bench:prep            # build the Go binaries (host + Linux cross) + first-party JS packages on the host (one-time)
 pnpm run bench                 # build + validate + throughput for EVERY competitor + aggregate
 pnpm run bench:one zod         # the same for a SINGLE competitor (fastest verification loop)
 pnpm run bench:typecost        # compile-time: per-competitor TS type-instantiation cost
+pnpm run bench:serialization   # ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER
+pnpm run bench:website         # ONE command: ALL website benchmark data (validation + typecost + serialization)
 pnpm run bench:smoke           # quick: build every competitor's dist (no run)
 # --- image publishing (maintainer) ---
 pnpm run bench:build-image     # build the podman image locally (per-competitor installs)
@@ -134,6 +136,26 @@ pnpm run bench:login           # log in to GHCR (needs a PAT; see SETUP.md)
 pnpm run bench:push            # build + push the multi-arch image to GHCR
 pnpm run bench:pull            # pull the published image and tag it locally
 ```
+
+The image is **Node 26** (`benchmarks/Containerfile`, `FROM node:26-bookworm-slim`),
+which unflags the global `Temporal` API — so every timing runs on native Temporal,
+the same runtime the published library targets, with **no `temporal-polyfill`**.
+Override the base with `BENCH_BASE_IMAGE` (mirror / air-gapped / offline-built base).
+
+**`bench:serialization`** runs the ts-runtypes-only round-trip bench
+([`scripts/gen-serialization-bench.mjs`](../scripts/gen-serialization-bench.mjs))
+**inside** the Node 26 container — previously it ran on the host (wrong Node /
+polyfilled Temporal). It reuses the ts-runtypes competitor context (baked vite +
+the bind-mounted marker package, plugin and Go binary) plus a bind-mounted Linux
+build of the source-body extractor (`bin/extract-fn-bodies-linux-<arch>`, so no Go
+toolchain is needed in-container), and writes `serialization` +
+`serialization-formats` straight into `website/public/bench-data`.
+
+**`bench:website`** is the single command that regenerates **all** benchmark data
+the docs site renders — runtime validation + typecost + `capture-env` +
+serialization (+ formats), every measurement taken inside the Node 26 container,
+then the `gen-bench-docs` host transform. (Suite-doc panels — schema / generated
+code — are a separate `pnpm run gen:suite-docs`.)
 
 The run commands **pull the latest published `ghcr.io/mionkit/tsrt-bench:latest`
 by default** (cheap no-op when current), falling back to a local build when the

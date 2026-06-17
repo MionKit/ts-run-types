@@ -37,19 +37,58 @@ import path from 'node:path';
 import url from 'node:url';
 import {performance} from 'node:perf_hooks';
 import {createServer} from 'vite';
-// Node 22 has no native Temporal (unflagged in Node 26). The suites' Temporal
-// cases reference globalThis.Temporal at getTestData / emitted-code time, and we
-// load them OUTSIDE vitest — so install the polyfill ourselves, same as
-// export-serialization-suite.mjs.
-import {Temporal} from 'temporal-polyfill';
+
+// The benchmark runs on Node >= 26, which ships Temporal natively — so the timed
+// encoders/decoders run on the same runtime the published library targets, with
+// no temporal-polyfill shim. The suites reference globalThis.Temporal at
+// getTestData / emitted-code time; when invoked on an older host (vitest's
+// test/setup.ts does this too) fall back to the polyfill if it's installed.
 if (typeof globalThis.Temporal === 'undefined') {
-  globalThis.Temporal = Temporal;
+  try {
+    ({Temporal: globalThis.Temporal} = await import('temporal-polyfill'));
+  } catch {
+    process.stderr.write('Temporal is unavailable: run on Node >= 26, or install temporal-polyfill on an older host.\n');
+    process.exit(1);
+  }
 }
 
-import runtypesPlugin from '../packages/vite-plugin-runtypes/dist/index.js';
-
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(HERE, '..');
+// All inputs are env-overridable so the SAME script runs on the host (defaults:
+// the repo checkout) and INSIDE the Node 26 benchmark container, where the
+// marker package, the vite plugin and the Go binary are bind-mounted into the
+// ts-runtypes competitor context (see scripts/benchmarks.sh cmd_serialization).
+const REPO_ROOT = process.env.RT_BENCH_REPO_ROOT ?? path.resolve(HERE, '..');
+const PACKAGE_ROOT = process.env.RT_BENCH_PACKAGE_ROOT ?? path.join(REPO_ROOT, 'packages/ts-runtypes');
+const VITE_ROOT = process.env.RT_BENCH_VITE_ROOT ?? REPO_ROOT;
+const OUT_BASE = process.env.RT_BENCH_OUT_DIR ?? path.join(REPO_ROOT, 'website/public/bench-data');
+// Source extractor: a prebuilt linux binary in-container (no Go toolchain there),
+// else `go run ./cmd/extract-fn-bodies` from the repo on the host.
+const EXTRACT_BIN = process.env.RT_EXTRACT_BIN ?? '';
+// SSR transform boundary: in-container the marker package is a bind-mounted dir,
+// not a pnpm workspace symlink, so vite would externalize it; force it (+ the
+// plugin) through the transform pipeline. On the host (workspace symlink) leave
+// it unset so behaviour is unchanged.
+const SSR_NOEXTERNAL = (process.env.RT_BENCH_SSR_NOEXTERNAL ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+// Resolver disk cache: defaults to <cwd>/node_modules/.cache. In-container cwd is
+// the read-only marker mount, so RT_BENCH_CACHE_DIR=false disables it (a single
+// suite load needs no persistence); a path overrides the location.
+const CACHE_DIR_OPT =
+  process.env.RT_BENCH_CACHE_DIR === 'false'
+    ? {cacheDir: false}
+    : process.env.RT_BENCH_CACHE_DIR
+      ? {cacheDir: process.env.RT_BENCH_CACHE_DIR}
+      : {};
+
+// The vite plugin entry — dynamic import so it can resolve from the bind-mounted
+// node_modules in-container (bare specifier) or the dist path on the host.
+const PLUGIN_ENTRY = process.env.RT_BENCH_PLUGIN_ENTRY ?? path.join(REPO_ROOT, 'packages/vite-plugin-runtypes/dist/index.js');
+const pluginSpec =
+  PLUGIN_ENTRY.startsWith('.') || path.isAbsolute(PLUGIN_ENTRY) ? url.pathToFileURL(path.resolve(PLUGIN_ENTRY)).href : PLUGIN_ENTRY;
+const runtypesPlugin = (await import(pluginSpec)).default;
 
 // Suite selection — `--suite serialization` (default) or `--suite format-serialization`.
 // Both use the SerializationCase shape; each maps to its own bench slug + label.
@@ -70,11 +109,10 @@ if (!SUITE_CFG) {
   process.exit(1);
 }
 
-const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-runtypes/test/suites', SUITE_CFG.dir);
+const SUITE_DIR = path.join(PACKAGE_ROOT, 'test/suites', SUITE_CFG.dir);
 const SUITE_PATH = path.join(SUITE_DIR, 'index.ts');
-const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-runtypes');
-const BIN = path.join(REPO_ROOT, 'bin/ts-runtypes');
-const OUT_DIR = path.join(REPO_ROOT, 'website/public/bench-data', SUITE_CFG.bench);
+const BIN = process.env.RT_BENCH_BIN ?? path.join(REPO_ROOT, 'bin/ts-runtypes');
+const OUT_DIR = path.join(OUT_BASE, SUITE_CFG.bench);
 
 // The round-trips shown as columns. `enc`/`dec` name the SerializationCase thunk
 // fields; `native` synthesises JSON.stringify/parse (no thunk). Order = column order.
@@ -114,15 +152,15 @@ function ensureBinary() {
 // populate before we exercise any factory. Mirrors export-serialization-suite.mjs.
 async function loadSuiteWithPlugin() {
   const server = await createServer({
-    root: REPO_ROOT,
+    root: VITE_ROOT,
     configFile: false,
     server: {middlewareMode: true, watch: null},
     appType: 'custom',
     resolve: {conditions: ['source']},
-    ssr: {resolve: {conditions: ['source']}},
+    ssr: {resolve: {conditions: ['source']}, ...(SSR_NOEXTERNAL.length ? {noExternal: SSR_NOEXTERNAL.map((p) => new RegExp(p))} : {})},
     optimizeDeps: {noDiscovery: true},
     logLevel: 'error',
-    plugins: [runtypesPlugin({binary: BIN, cwd: PACKAGE_ROOT, tsconfig: 'tsconfig.test.json'})],
+    plugins: [runtypesPlugin({binary: BIN, cwd: PACKAGE_ROOT, tsconfig: 'tsconfig.test.json', ...CACHE_DIR_OPT})],
   });
   try {
     const mod = await server.ssrLoadModule(SUITE_PATH);
@@ -144,19 +182,22 @@ function groupToFile(group) {
   return actual ? actual.slice(0, -3) : pascal;
 }
 
-// Extract the thunk source bodies per group via the Go object-literal walker.
-// Returns { GROUP: { caseKey: { field: body } } }.
+// Extract the thunk source bodies per group via the Go object-literal walker —
+// a prebuilt binary (RT_EXTRACT_BIN, in-container) or `go run` from the repo
+// (host). Returns { GROUP: { caseKey: { field: body } } }.
 function runGoExtractor(groups) {
   const bodies = {};
+  const cmd = EXTRACT_BIN || 'go';
+  const baseArgs = EXTRACT_BIN ? [] : ['run', './cmd/extract-fn-bodies'];
   for (const group of groups) {
     const groupFile = path.join(SUITE_DIR, `${groupToFile(group)}.ts`);
-    const res = spawnSync('go', ['run', './cmd/extract-fn-bodies', '--file', groupFile, '--identifier', group], {
+    const res = spawnSync(cmd, [...baseArgs, '--file', groupFile, '--identifier', group], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     });
     if (res.error) {
-      process.stderr.write(`go run failed to launch: ${res.error.message}\n`);
+      process.stderr.write(`extract-fn-bodies failed to launch (${cmd}): ${res.error.message}\n`);
       process.exit(1);
     }
     if (res.status !== 0) {
