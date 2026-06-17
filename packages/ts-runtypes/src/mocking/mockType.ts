@@ -8,7 +8,7 @@
 // `optionalProbability` and `maxRandomItemsLength` by the re-entry count, and
 // `mockRunType` bails out with `undefined` past `maxMockRecursion` (default 10).
 
-import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
+import type {MockDataNode, MockOptions, RunTypeMockOptions} from './mockTypes.ts';
 import type {RunType} from '../runtypes/types.ts';
 import {RunTypeKind, RunTypeSubKind} from '../runTypeKind.ts';
 import type {RunTypeKindValue} from '../runTypeKind.ts';
@@ -110,11 +110,58 @@ function decayOptionsForNesting(options: RunTypeMockOptions, nestLevel: number):
   return {...options, mock: next};
 }
 
+// ─────────────────────── MockData node threading ───────────────────────
+// The walker carries the "current MockData node" inside the options bag
+// (`options.dataNode`), descended by property name (objects) / `$items`
+// (arrays) at each recursion. Everything below is a strict no-op when no
+// data node is present, so behaviour is byte-identical without `data`.
+
+/** Return a copy of `options` with `dataNode` swapped to `next`. Shares the
+ *  `mock` slot (read-only on the walk). Returns `options` untouched when the
+ *  node is unchanged so the no-data path allocates nothing extra. **/
+function withDataNode(options: RunTypeMockOptions, next: MockDataNode | undefined): RunTypeMockOptions {
+  if (options.dataNode === next) return options;
+  return {...options, dataNode: next};
+}
+
+/** Treat a `MockDataNode` value as a child node only when it's a plain object
+ *  (pools / ranges are arrays / scalars and never descend). **/
+function asDataNode(value: unknown): MockDataNode | undefined {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as MockDataNode;
+  return undefined;
+}
+
+/** Descend the current data node by object-property name. **/
+function childDataNodeByName(node: MockDataNode | undefined, name: string | number | undefined): MockDataNode | undefined {
+  if (!node || name === undefined) return undefined;
+  return asDataNode(node[name as string]);
+}
+
+/** Non-empty value pool from the current data node, or undefined. **/
+function dataPool(node: MockDataNode | undefined): unknown[] | undefined {
+  if (node && Array.isArray(node.pool) && node.pool.length > 0) return node.pool;
+  return undefined;
+}
+
+/** Resolve the element count for an array node from `$length` (a fixed `n` or
+ *  a `[min, max]` range), or undefined to fall through to the global option. **/
+function dataArrayLength(node: MockDataNode | undefined): number | undefined {
+  const len = node?.$length;
+  if (typeof len === 'number') return len;
+  if (Array.isArray(len) && len.length === 2) return random(len[0], len[1]);
+  return undefined;
+}
+
 /** Per-kind dispatch. New kinds land here, NOT in helper files — the whole
  *  switch lives in one place. **/
 function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunType[]): unknown {
   const mOps = options.mock as MockOptions;
   const kind = runType.kind as number;
+  // Current MockData node for this runtype (undefined ⇒ no enrichment, the
+  // walker behaves exactly as before). A pool short-circuits the kind default.
+  const dataNode = options.dataNode;
+  const pool = dataPool(dataNode);
+  if (pool) return randomItem(pool);
 
   // TypeFormat brand: the kind's registered mock fn produces a value
   // satisfying the format (drawing from mockSamples for pattern formats —
@@ -136,8 +183,12 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       return mockAny(mOps.anyValuesList);
     case RunTypeKind.string:
       return mockString(mOps.stringLength ?? random(1, mOps.maxRandomStringLength), mOps.stringCharSet || stringCharSet);
-    case RunTypeKind.number:
-      return mockNumber(mOps.minNumber, mOps.maxNumber);
+    case RunTypeKind.number: {
+      // Data-node min/max (numbers only) override the global bounds.
+      const min = typeof dataNode?.min === 'number' ? dataNode.min : mOps.minNumber;
+      const max = typeof dataNode?.max === 'number' ? dataNode.max : mOps.maxNumber;
+      return mockNumber(min, max);
+    }
     case RunTypeKind.boolean:
       return mockBoolean();
     case RunTypeKind.bigint:
@@ -189,10 +240,18 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
             lt: dateParams.lt as string | undefined,
           });
         }
-        return mockDate(mOps.minDate, mOps.maxDate);
+        // Data-node Date min/max override the global range for an unbranded
+        // Date. Skipped above for format-bounded dates so the format's own
+        // bounds (which validate enforces) are never widened out of range.
+        const minDate = dataNode?.min instanceof Date ? dataNode.min : mOps.minDate;
+        const maxDate = dataNode?.max instanceof Date ? dataNode.max : mOps.maxDate;
+        return mockDate(minDate, maxDate);
       }
-      if (subKind === RunTypeSubKind.map) return mockMap(runType, options, stack);
-      if (subKind === RunTypeSubKind.set) return mockSet(runType, options, stack);
+      // Map/Set MockData is v1-limited (no `$keys`/`$values` in the DSL — the
+      // node projects through the object branch). Clear the data node so a
+      // stray parent node never leaks into key/value/element generation.
+      if (subKind === RunTypeSubKind.map) return mockMap(runType, withDataNode(options, undefined), stack);
+      if (subKind === RunTypeSubKind.set) return mockSet(runType, withDataNode(options, undefined), stack);
       if (isTemporalSubKind(subKind)) {
         // FormatTemporalX<{min,max,gt,lt}> brands an orderable Temporal type
         // with bounds; honor them so the mock re-passes validate.
@@ -207,17 +266,24 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     case RunTypeKind.array: {
       const child = runType.child as RunType | undefined;
       if (!child) throw new Error('Cannot mock array: child runtype missing.');
-      const length = mOps.arrayLength ?? random(0, mOps.maxRandomItemsLength);
+      // Data-node `$length` (fixed or [min,max]) overrides the global length;
+      // `$items` is the element node threaded into each child mock.
+      const length = dataArrayLength(dataNode) ?? mOps.arrayLength ?? random(0, mOps.maxRandomItemsLength);
       if (length === 0) return [];
+      const childOpts = withDataNode(options, asDataNode(dataNode?.$items));
       const items: unknown[] = [];
-      for (let i = 0; i < length; i++) items.push(mockRunType(child, options, stack));
+      for (let i = 0; i < length; i++) items.push(mockRunType(child, childOpts, stack));
       return items;
     }
     case RunTypeKind.tuple: {
       const children = (runType.children ?? []) as RunType[];
       const perElemOptions = mOps.tupleOptions;
+      // Tuples share one `$items` element node (v1 limitation — the DSL has no
+      // per-slot tuple nodes). Threaded into every member's options.
+      const itemsNode = asDataNode(dataNode?.$items);
+      const baseOpts = withDataNode(options, itemsNode);
       const params = children.map((member, index) => {
-        const childOpts = perElemOptions?.[index] ? mergeChildOptions(options, perElemOptions[index]) : options;
+        const childOpts = perElemOptions?.[index] ? mergeChildOptions(baseOpts, perElemOptions[index]) : baseOpts;
         return mockRunType(member, childOpts, stack);
       });
       // Flatten a trailing rest member into the tuple.
@@ -345,6 +411,7 @@ function buildObjectLiteral(
 ): Record<string | number, unknown> {
   const children = (runType.children ?? []) as RunType[];
   const parent: Record<string | number, unknown> = mOps.parentObj ?? {};
+  const dataNode = options.dataNode;
   for (const member of children) {
     const memberKind = member.kind as number;
     if (memberKind === RunTypeKind.method || memberKind === RunTypeKind.methodSignature) continue;
@@ -355,7 +422,10 @@ function buildObjectLiteral(
     }
     const name = member.name as string | number | undefined;
     if (name === undefined) continue;
-    const value = mockRunType(member, options, stack);
+    // Descend the data node by property name; the property/propertySignature
+    // arm threads these options through to the member's child value.
+    const memberOpts = withDataNode(options, childDataNodeByName(dataNode, name));
+    const value = mockRunType(member, memberOpts, stack);
     parent[name] = value;
   }
   return parent;
