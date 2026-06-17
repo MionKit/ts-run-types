@@ -20,6 +20,12 @@ type Resolved struct {
 	// Resolve looks up a KindRef's canonical node by id — pass this as the
 	// walkers' EmitOptions.Resolve / DescribeOptions.Resolve.
 	Resolve func(id string) *protocol.RunType
+	// DeclFiles maps a named type's RunType.ID to the absolute path of its
+	// declaration source file (followed through re-exports/aliases to the
+	// original). Populated by ResolveTypeRaw (the closure path needs it to split
+	// the mirror tree cross-file); ResolveType leaves it nil. A type whose decl
+	// file could not be determined is simply absent.
+	DeclFiles map[string]string
 }
 
 // ResolveType is the out-of-band resolution bridge: given an already-built
@@ -112,7 +118,94 @@ func ResolveTypeRaw(prog *program.Program, res *resolver.Resolver, absPath, type
 	if node == nil {
 		return nil, fmt.Errorf("enrichment.ResolveTypeRaw: projection produced no node for %q", typeName)
 	}
-	return &Resolved{Node: node, Resolve: cache.NodeByID}, nil
+	declFiles := collectDeclFiles(typeChecker, cache, tsType)
+	return &Resolved{Node: node, Resolve: cache.NodeByID, DeclFiles: declFiles}, nil
+}
+
+// collectDeclFiles walks the checker type graph rooted at tsType and records, for
+// every NAMED type it reaches, a map entry id → absolute declaration source file.
+// The id is the cache's structural id (cache.AssignID) so the result keys line up
+// with the RunType.ID the closure emitter sees. A type whose declaration file
+// cannot be determined is simply omitted (the emitter falls back to the root file).
+//
+// The walk mirrors the projection's reach — properties, array/promise element,
+// type arguments, tuple/Map/Set slots — but is intentionally tolerant: it never
+// errors, and a node it cannot descend just stops there.
+func collectDeclFiles(typeChecker *checker.Checker, cache *runtype.Cache, tsType *checker.Type) map[string]string {
+	out := map[string]string{}
+	visited := map[*checker.Type]bool{}
+	walkDeclFiles(typeChecker, cache, tsType, out, visited, 0)
+	return out
+}
+
+// declFileWalkDepth bounds the type-graph walk so a pathological / mutually
+// recursive type cannot spin (the per-type visited guard handles ordinary cycles;
+// this is the backstop, matching enrichment.maxWalkDepth).
+const declFileWalkDepth = 64
+
+func walkDeclFiles(typeChecker *checker.Checker, cache *runtype.Cache, tsType *checker.Type, out map[string]string, visited map[*checker.Type]bool, depth int) {
+	if tsType == nil || depth > declFileWalkDepth || visited[tsType] {
+		return
+	}
+	visited[tsType] = true
+
+	// Record this type's decl file when it is a NAMED type (alias or interface/
+	// class symbol with a declaration). AssignID projects it into the cache and
+	// returns the same structural id the closure emitter keys on.
+	if file := declFileForType(typeChecker, tsType); file != "" {
+		id := cache.AssignID(tsType)
+		if id != "" {
+			out[id] = file
+		}
+	}
+
+	// Descend into the type's reachable children. GetPropertiesOfType covers
+	// objects/interfaces/classes; GetTypeArguments covers generic instantiations,
+	// arrays, Promise, Map, Set (their element/args are type arguments).
+	for _, property := range typeChecker.GetPropertiesOfType(tsType) {
+		propertyType := typeChecker.GetTypeOfSymbol(property)
+		walkDeclFiles(typeChecker, cache, propertyType, out, visited, depth+1)
+	}
+	// GetTypeArguments only works on TypeReference targets — calling it on a plain
+	// interface (e.g. the lib.d.ts Date interface) panics. Guard with the
+	// ObjectFlagsReference flag, the same gate serialize.go uses.
+	if tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
+		for _, typeArgument := range typeChecker.GetTypeArguments(tsType) {
+			walkDeclFiles(typeChecker, cache, typeArgument, out, visited, depth+1)
+		}
+	}
+}
+
+// declFileForType returns the absolute source file a NAMED type is declared in,
+// or "" when the type is anonymous/inline or its declaration file is unknown.
+// Prefers the alias symbol (`type User = …`) then the type's own symbol
+// (interface / class). Re-exports resolve naturally because the symbol's
+// declaration points at the original declaration node.
+func declFileForType(typeChecker *checker.Checker, tsType *checker.Type) string {
+	if alias := checker.Type_alias(tsType); alias != nil {
+		if file := declFileForSymbol(alias.Symbol()); file != "" {
+			return file
+		}
+	}
+	return declFileForSymbol(tsType.Symbol())
+}
+
+// declFileForSymbol returns the file name of a symbol's first declaration whose
+// source file is resolvable, or "" when none is.
+func declFileForSymbol(symbol *ast.Symbol) string {
+	if symbol == nil {
+		return ""
+	}
+	for _, declaration := range symbol.Declarations {
+		sourceFile := ast.GetSourceFileOfNode(declaration)
+		if sourceFile == nil {
+			continue
+		}
+		if name := sourceFile.FileName(); name != "" {
+			return name
+		}
+	}
+	return ""
 }
 
 // ProjectType projects an already-resolved checker type through cache to a

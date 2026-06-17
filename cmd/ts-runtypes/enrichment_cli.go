@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
@@ -135,11 +136,14 @@ func runGen(args []string) {
 	fs := flag.NewFlagSet("gen", flag.ExitOnError)
 	mock := fs.Bool("mock", false, "emit a MockData<T> skeleton")
 	friendly := fs.Bool("friendly", false, "emit a FriendlyType<T> skeleton")
-	out := fs.String("out", "", "target .rt.ts path (default: <dir>/<basename>.rt.ts)")
+	out := fs.String("out", "", "explicit single mirror file path (overrides the computed mirror path; forces a single file)")
+	enrichDirFlag := fs.String("enrich-dir", "", "mirror root override (precedence: this flag > tsconfig plugins entry > default runtypes/generated)")
+	check := fs.Bool("check", false, "drift check: validate mirror-file breadcrumbs instead of generating")
 	files := fs.String("files", "", "batch mode: comma-separated files; resolve --type in each, print JSON skeletons to stdout (no writes)")
 	typeFlag := fs.String("type", "", "batch mode: the type name to resolve in every --files entry")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--out <path>]")
+		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--enrich-dir <dir>] [--out <path>]")
+		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --check [<mirror-file-or-dir>]   (breadcrumb drift)")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --files a.ts,b.ts --type Target   (batch, JSON to stdout)")
 	}
 	positional, flags := splitArgs(args)
@@ -151,6 +155,10 @@ func runGen(args []string) {
 			fatal("gen --files: --type is required")
 		}
 		runGenBatch(strings.Split(*files, ","), *typeFlag)
+		return
+	}
+	if *check {
+		runGenCheck(positional, *enrichDirFlag)
 		return
 	}
 	if len(positional) < 2 {
@@ -166,12 +174,7 @@ func runGen(args []string) {
 		wantFriendly, wantMock = true, true
 	}
 
-	outPath := *out
-	if outPath == "" {
-		dir := filepath.Dir(absPath)
-		base := strings.TrimSuffix(filepath.Base(absPath), filepath.Ext(absPath))
-		outPath = filepath.Join(dir, base+".rt.ts")
-	}
+	config := resolveEnrichConfig(absPath, *enrichDirFlag)
 
 	// Named-type-driven emission: resolve the RAW (non-inlined) graph so the
 	// closure walk can tell a named-type reference from an anonymous inline shape,
@@ -188,49 +191,135 @@ func runGen(args []string) {
 	}
 
 	closure := enrichment.EmitClosure(resolved.Node, enrichment.ClosureOptions{
-		TypeName: typeName,
-		Resolve:  resolved.Resolve,
+		TypeName:  typeName,
+		Resolve:   resolved.Resolve,
+		DeclFiles: resolved.DeclFiles,
 	})
 
-	existing := ""
-	if bytes, err := os.ReadFile(outPath); err == nil {
-		existing = string(bytes)
-	} else if !os.IsNotExist(err) {
-		fatal("gen: read %s: %v", outPath, err)
+	// Group the closure by declaration source file → one mirror file per group.
+	// A const with no resolved DeclFile falls back to the gen target (absPath).
+	// When --out is given, force every const into that one file (legacy single-file
+	// override): all consts share one synthetic group keyed by absPath.
+	groups := groupByDeclFile(closure, absPath, *out != "")
+
+	// varDeclFile maps each emitted const var → the source file its type is
+	// declared in, so a referrer in mirror file A can emit a cross-file value
+	// import for a var whose home is mirror file B.
+	varDeclFile := map[string]string{}
+	for _, named := range closure {
+		declFile := named.DeclFile
+		if declFile == "" {
+			declFile = absPath
+		}
+		varDeclFile[named.FriendlyVar] = declFile
+		varDeclFile[named.MockVar] = declFile
 	}
 
-	// One block per (named type × wanted artifact), create-only: skip an export the
-	// file already declares. `closure` is already topologically ordered, so a
-	// referenced const is declared before its referrer.
+	var written, skipped int
+	for _, group := range groups {
+		mirror := config.mirrorPath(group.declFile)
+		if *out != "" {
+			mirror = tspath.NormalizePath(mustAbs(*out))
+		}
+		wrote := writeMirrorFile(mirrorWrite{
+			mirrorPath:   mirror,
+			sourceFile:   group.declFile,
+			consts:       group.consts,
+			varDeclFile:  varDeclFile,
+			config:       config,
+			out:          *out,
+			wantFriendly: wantFriendly,
+			wantMock:     wantMock,
+		})
+		if wrote {
+			written++
+		} else {
+			skipped++
+		}
+	}
+	if written == 0 {
+		fmt.Printf("gen: nothing to write — mirror file(s) already have the requested export(s)\n")
+	}
+	os.Exit(0)
+}
+
+// declFileGroup is one mirror file's worth of consts: every NamedConst whose
+// type is declared in declFile, in topological (declared-before-use) order.
+type declFileGroup struct {
+	declFile string
+	consts   []enrichment.NamedConst
+}
+
+// groupByDeclFile buckets a topologically-ordered closure by each const's
+// declaration file (falling back to fallbackFile when DeclFile is empty),
+// preserving the closure's order within each bucket. forceSingle collapses every
+// const into one group keyed by fallbackFile (the --out single-file override).
+// Group order follows first appearance, so dependency order is preserved when a
+// referenced type's file is emitted before its referrer's.
+func groupByDeclFile(closure []enrichment.NamedConst, fallbackFile string, forceSingle bool) []declFileGroup {
+	indexByFile := map[string]int{}
+	var groups []declFileGroup
+	for _, named := range closure {
+		declFile := fallbackFile
+		if !forceSingle && named.DeclFile != "" {
+			declFile = named.DeclFile
+		}
+		index, ok := indexByFile[declFile]
+		if !ok {
+			index = len(groups)
+			indexByFile[declFile] = index
+			groups = append(groups, declFileGroup{declFile: declFile})
+		}
+		groups[index].consts = append(groups[index].consts, named)
+	}
+	return groups
+}
+
+// mirrorWrite is the arg bundle for writeMirrorFile.
+type mirrorWrite struct {
+	mirrorPath   string
+	sourceFile   string
+	consts       []enrichment.NamedConst
+	varDeclFile  map[string]string
+	config       enrichConfig
+	out          string
+	wantFriendly bool
+	wantMock     bool
+}
+
+// writeMirrorFile emits (or appends to) one mirror file for a single source
+// file's consts. It returns true when it wrote anything, false when every
+// requested export was already present (create-only skip). Parent dirs are
+// created as needed.
+func writeMirrorFile(spec mirrorWrite) bool {
+	existing := ""
+	if bytes, err := os.ReadFile(spec.mirrorPath); err == nil {
+		existing = string(bytes)
+	} else if !os.IsNotExist(err) {
+		fatal("gen: read %s: %v", spec.mirrorPath, err)
+	}
+
+	// Create-only: skip an export the file already declares. The closure is
+	// topologically ordered so a referenced const precedes its referrer.
 	var added []string
 	var blocks []string
-	for _, named := range closure {
-		if wantFriendly && !hasExport(existing, named.FriendlyVar) {
+	for _, named := range spec.consts {
+		if spec.wantFriendly && !hasExport(existing, named.FriendlyVar) {
 			blocks = append(blocks, constBlock(named.FriendlyVar, "FriendlyType", named.TypeName, named.Friendly))
 			added = append(added, named.FriendlyVar)
 		}
-		if wantMock && !hasExport(existing, named.MockVar) {
+		if spec.wantMock && !hasExport(existing, named.MockVar) {
 			blocks = append(blocks, constBlock(named.MockVar, "MockData", named.TypeName, named.Mock))
 			added = append(added, named.MockVar)
 		}
 	}
-
 	if len(blocks) == 0 {
-		fmt.Printf("gen: nothing to write — %s already has the requested export(s)\n", outPath)
-		os.Exit(0)
+		return false
 	}
 
 	var builder strings.Builder
 	if existing == "" {
-		// New file: lead with the import type lines — every named type in the
-		// closure (the root + all referenced types defined in this file).
-		importSpec := filepath.Base(absPath)
-		builder.WriteString("import type { ")
-		builder.WriteString(strings.Join(closureTypeNames(closure), ", "))
-		builder.WriteString(" } from './")
-		builder.WriteString(strings.TrimSuffix(importSpec, filepath.Ext(importSpec)))
-		builder.WriteString("';\n")
-		builder.WriteString("import type { FriendlyType, MockData } from 'ts-runtypes';\n\n")
+		writeMirrorHeader(&builder, spec, blocks)
 	} else {
 		builder.WriteString(existing)
 		if !strings.HasSuffix(existing, "\n") {
@@ -240,15 +329,117 @@ func runGen(args []string) {
 	}
 	builder.WriteString(strings.Join(blocks, "\n"))
 
-	if err := os.WriteFile(outPath, []byte(builder.String()), 0o644); err != nil {
-		fatal("gen: write %s: %v", outPath, err)
+	if err := os.MkdirAll(filepath.Dir(spec.mirrorPath), 0o755); err != nil {
+		fatal("gen: mkdir %s: %v", filepath.Dir(spec.mirrorPath), err)
+	}
+	if err := os.WriteFile(spec.mirrorPath, []byte(builder.String()), 0o644); err != nil {
+		fatal("gen: write %s: %v", spec.mirrorPath, err)
 	}
 	verb := "wrote"
 	if existing != "" {
 		verb = "appended to"
 	}
-	fmt.Printf("gen: %s %s (%s)\n", verb, outPath, strings.Join(added, ", "))
-	os.Exit(0)
+	fmt.Printf("gen: %s %s (%s)\n", verb, spec.mirrorPath, strings.Join(added, ", "))
+	return true
+}
+
+// writeMirrorHeader emits the import block for a fresh mirror file: the
+// `import type { … } from '<rel to source>'` breadcrumb (only the types declared
+// in THIS source file), the `ts-runtypes` DSL types, and one deduped cross-file
+// value-import line per other mirror file whose consts this file references.
+func writeMirrorHeader(builder *strings.Builder, spec mirrorWrite, blocks []string) {
+	// The source breadcrumb: relative path from the mirror file back to the source
+	// file, strictly `import type` (no value-level source→mirror cycle).
+	sourceSpec := importSpecifier(spec.mirrorPath, spec.sourceFile)
+	builder.WriteString("import type { ")
+	builder.WriteString(strings.Join(constTypeNames(spec.consts), ", "))
+	builder.WriteString(" } from '")
+	builder.WriteString(sourceSpec)
+	builder.WriteString("';\n")
+	builder.WriteString("import type { FriendlyType, MockData } from 'ts-runtypes';\n")
+
+	// Cross-file value imports: collect the friendly*/mock* vars referenced in the
+	// rendered blocks whose declaration file differs from this group's source file,
+	// grouped by their home mirror file.
+	thisFile := tspath.NormalizePath(spec.sourceFile)
+	importsByMirror := map[string]map[string]bool{}
+	body := strings.Join(blocks, "\n")
+	for _, varName := range referencedVars(body) {
+		declFile, ok := spec.varDeclFile[varName]
+		if !ok {
+			continue
+		}
+		if tspath.NormalizePath(declFile) == thisFile {
+			continue // intra-file reference — no import
+		}
+		if spec.out != "" {
+			continue // single-file --out: every const lives in one file, no imports
+		}
+		targetMirror := spec.config.mirrorPath(declFile)
+		if importsByMirror[targetMirror] == nil {
+			importsByMirror[targetMirror] = map[string]bool{}
+		}
+		importsByMirror[targetMirror][varName] = true
+	}
+	for _, line := range crossFileImportLines(spec.mirrorPath, importsByMirror) {
+		builder.WriteString(line)
+	}
+	builder.WriteString("\n")
+}
+
+// crossFileImportLines renders deterministic `import { … } from '<rel>'` lines —
+// one per target mirror file, vars sorted — for the cross-file references found
+// in a mirror file. Mirror targets are sorted by their import specifier so output
+// is stable.
+func crossFileImportLines(fromMirror string, importsByMirror map[string]map[string]bool) []string {
+	type entry struct {
+		spec string
+		vars []string
+	}
+	entries := make([]entry, 0, len(importsByMirror))
+	for targetMirror, varSet := range importsByMirror {
+		vars := make([]string, 0, len(varSet))
+		for varName := range varSet {
+			vars = append(vars, varName)
+		}
+		sort.Strings(vars)
+		entries = append(entries, entry{spec: importSpecifier(fromMirror, targetMirror), vars: vars})
+	}
+	sort.Slice(entries, func(left, right int) bool { return entries[left].spec < entries[right].spec })
+
+	lines := make([]string, 0, len(entries))
+	for _, item := range entries {
+		lines = append(lines, "import { "+strings.Join(item.vars, ", ")+" } from '"+item.spec+"';\n")
+	}
+	return lines
+}
+
+// referencedVars returns the distinct friendly*/mock* identifiers appearing in a
+// rendered body — the const-var references the closure emitter inlined. It is a
+// token scan (the bodies are object literals with bare identifier values), the
+// same convention the closure test's TDZ check uses.
+func referencedVars(body string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, token := range strings.FieldsFunc(body, func(r rune) bool {
+		return !(r == '$' || r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9'))
+	}) {
+		if token == "friendly" || token == "mock" {
+			continue
+		}
+		if !strings.HasPrefix(token, "friendly") && !strings.HasPrefix(token, "mock") {
+			continue
+		}
+		suffix := strings.TrimPrefix(strings.TrimPrefix(token, "friendly"), "mock")
+		if suffix == "" || suffix[0] < 'A' || suffix[0] > 'Z' {
+			continue // not a const-var (e.g. a field literally named "mockX" in lowercase)
+		}
+		if !seen[token] {
+			seen[token] = true
+			out = append(out, token)
+		}
+	}
+	return out
 }
 
 // constBlock wraps a rendered object-literal body in the
@@ -257,12 +448,12 @@ func constBlock(varName, wrapper, typeName, body string) string {
 	return "export const " + varName + ": " + wrapper + "<" + typeName + "> = " + body + ";\n"
 }
 
-// closureTypeNames returns the distinct source type names in a closure, in
-// emission order, for the generated `import type { … }` line.
-func closureTypeNames(closure []enrichment.NamedConst) []string {
-	seen := make(map[string]bool, len(closure))
-	names := make([]string, 0, len(closure))
-	for _, named := range closure {
+// constTypeNames returns the distinct source type names in a slice of
+// NamedConsts, in emission order, for a mirror file's `import type { … }` line.
+func constTypeNames(consts []enrichment.NamedConst) []string {
+	seen := make(map[string]bool, len(consts))
+	names := make([]string, 0, len(consts))
+	for _, named := range consts {
 		if named.TypeName == "" || seen[named.TypeName] {
 			continue
 		}
