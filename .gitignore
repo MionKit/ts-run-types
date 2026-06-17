@@ -22,6 +22,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# AI-enrichment generation suite — synthesized temp module files
+# (recreated + cleaned per run by test/util/enrichmentGen.ts).
+packages/ts-runtypes/test/suites/enrichment/.tmp/
+
 # Build / pack artefacts
 /runtypes-cache.json
 /tarballs/
