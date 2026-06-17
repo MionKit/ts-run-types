@@ -250,6 +250,15 @@ func insertFieldsOp(existing, desired *objectView, addKeys []string) spliceOp {
 	anchor := insertionAnchor(existing)
 
 	var b strings.Builder
+	// Separator guard: each added field carries a TRAILING comma, so it relies on
+	// the previous property already ending in one. A Prettier-collapsed single-line
+	// object (`{$label: '', name: {…}}`) drops the trailing comma on its last
+	// property, so scan back over whitespace to the previous non-space byte — if it
+	// is neither `,` (already separated) nor `{` (the object is empty, no separator
+	// needed), prepend a leading comma so the inserted block stays valid.
+	if needsLeadingSeparator(existing.text, anchor) {
+		b.WriteString(",")
+	}
 	for _, key := range addKeys {
 		desiredProp := desired.props[key]
 		if desiredProp == nil {
@@ -324,6 +333,25 @@ func insertionAnchor(existing *objectView) int {
 		break
 	}
 	return anchor
+}
+
+// needsLeadingSeparator reports whether an insertion at anchor must be prefixed
+// with a separator comma: it scans backwards over whitespace from anchor to the
+// previous non-space byte. A `,` means the last property is already comma-
+// terminated (no separator needed); a `{` means the object is empty (no separator
+// needed); anything else (e.g. a `}` ending the last property's value, or a
+// string-literal quote) means the last property has NO trailing comma, so the
+// inserted block must lead with one to stay valid.
+func needsLeadingSeparator(text string, anchor int) bool {
+	cursor := anchor - 1
+	for cursor >= 0 && isSpaceByte(text[cursor]) {
+		cursor--
+	}
+	if cursor < 0 {
+		return false // nothing before the anchor — degenerate, no separator
+	}
+	prev := text[cursor]
+	return prev != ',' && prev != '{'
 }
 
 // renderKey renders a property key: a bare identifier when safe, else quoted.
