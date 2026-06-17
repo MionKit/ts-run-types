@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -252,9 +254,28 @@ func (index *mirrorIndex) indexVariableStatement(text string, statement *ast.Nod
 		index.consts = append(index.consts, entry)
 		index.byVar[varName] = entry
 		if typeID != "" {
-			index.byTypeForm[typeFormKey(typeID, isFriendly)] = entry
+			key := typeFormKey(typeID, isFriendly)
+			// Duplicate `@rtType #id` for the same form across two consts is
+			// hand-edit corruption: keep the FIRST (matched by id) and warn, rather
+			// than silently last-write-wins (which would mis-pair the reconcile).
+			// The duplicate stays reachable via byVar for the var-name fallback.
+			if first, dup := index.byTypeForm[key]; dup {
+				fmt.Fprintf(os.Stderr,
+					"gen --update: duplicate @rtType id %q (form %s) on both %q and %q — keeping the first; fix the marker on the second\n",
+					typeID, formLabel(isFriendly), first.varName, varName)
+			} else {
+				index.byTypeForm[key] = entry
+			}
 		}
 	}
+}
+
+// formLabel renders the friendly/mock form for a diagnostic message.
+func formLabel(isFriendly bool) string {
+	if isFriendly {
+		return "friendly"
+	}
+	return "mock"
 }
 
 // annotationTypeName reads the source type name from a const's

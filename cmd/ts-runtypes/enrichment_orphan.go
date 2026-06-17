@@ -29,6 +29,12 @@ func findCarcass(index *mirrorIndex, named enrichment.NamedConst, friendly bool)
 // (another type in the same mirror file) — the latter is left untouched.
 func orphanConsts(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite) []*constEntry {
 	var orphaned []*constEntry
+	if spec.out != "" {
+		// Single-file --out: every const across MANY source files lands here, but the
+		// breadcrumb resolves only ONE source — judging declaration against it would
+		// wrongly orphan a still-existing cross-file type. Skip the orphan judgement.
+		return orphaned
+	}
 	if index.breadcrumb == nil {
 		return orphaned // no source link → can't safely judge declaration
 	}
