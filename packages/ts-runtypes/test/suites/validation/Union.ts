@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -13,6 +13,7 @@ export const UNION = {
       'Each arm runs its full atomic check: numbers reject NaN / Infinity, Dates reject Invalid Date, etc.',
     ],
     validate: () => createValidate<Date | number | string | null | bigint>(),
+    standardSchema: () => createStandardSchema<Date | number | string | null | bigint>(),
     validateDataOnly: () => createValidate<DataOnly<Date | number | string | null | bigint>>(),
     validateSchema: () => createValidate(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
     deserializeValidate: () => deserializeValidate<Date | number | string | null | bigint>(),
@@ -64,6 +65,7 @@ export const UNION = {
       'union.spec.ts "validate union discriminator string" where only the exact, case-sensitive declared strings pass.',
     validateNotes: 'Literal string unions are case-sensitive. Only the exact strings declared in the union pass.',
     validate: () => createValidate<'UNO' | 'DOS' | 'TRES'>(),
+    standardSchema: () => createStandardSchema<'UNO' | 'DOS' | 'TRES'>(),
     validateDataOnly: () => createValidate<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
     validateSchema: () => createValidate(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
     deserializeValidate: () => deserializeValidate<'UNO' | 'DOS' | 'TRES'>(),
@@ -117,6 +119,8 @@ export const UNION = {
     validateNotes:
       'The `{a}`/`{a; b}` subset pair both stay reachable: a value matching the smaller `{a: string}` arm passes (e.g. `{a: "x"}` is valid), so the superset arm never swallows it. A failing value reports a single `expected: "union"` at the root, not per-arm errors.',
     validate: () => createValidate<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    standardSchema: () =>
+      createStandardSchema<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     validateDataOnly: () =>
       createValidate<DataOnly<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>>(),
     validateSchema: () =>
@@ -198,6 +202,7 @@ export const UNION = {
     validateNotes:
       'The number arm uses `Number.isFinite`, so `NaN` and `Infinity` are rejected even though they pass `typeof === "number"`; `BigInt` is rejected (it satisfies neither arm).',
     validate: () => createValidate<string | number>(),
+    standardSchema: () => createStandardSchema<string | number>(),
     validateDataOnly: () => createValidate<DataOnly<string | number>>(),
     validateSchema: () => createValidate(RT.union([TF.string(), TF.number()])),
     deserializeValidate: () => deserializeValidate<string | number>(),
@@ -249,6 +254,7 @@ export const UNION = {
     validateNotes:
       'Mixed-element arrays (e.g., `["a", 1]`) FAIL — no single arm matches the whole array. The union is over array types, not element types.',
     validate: () => createValidate<string[] | number[] | boolean[]>(),
+    standardSchema: () => createStandardSchema<string[] | number[] | boolean[]>(),
     validateDataOnly: () => createValidate<DataOnly<string[] | number[] | boolean[]>>(),
     validateSchema: () => createValidate(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean())])),
     deserializeValidate: () => deserializeValidate<string[] | number[] | boolean[]>(),
@@ -300,6 +306,7 @@ export const UNION = {
     validateNotes:
       'Each element runs the full union OR-chain independently. Mixed-type arrays pass as long as every element matches some arm.',
     validate: () => createValidate<(string | bigint | boolean | Date)[]>(),
+    standardSchema: () => createStandardSchema<(string | bigint | boolean | Date)[]>(),
     validateDataOnly: () => createValidate<DataOnly<(string | bigint | boolean | Date)[]>>(),
     validateSchema: () => createValidate(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
     deserializeValidate: () => deserializeValidate<(string | bigint | boolean | Date)[]>(),
@@ -360,6 +367,7 @@ export const UNION = {
     validateNotes:
       'An input passes if it satisfies AT LEAST one arm\'s required props; extra props are ignored (structural), so `{a: "x", aa: true, b: 1}` passes via the `{b: number}` arm. A failing value reports a single `expected: "union"` at the root, not per-arm errors.',
     validate: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+    standardSchema: () => createStandardSchema<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
     validateSchema: () =>
       createValidate(
@@ -422,6 +430,7 @@ export const UNION = {
     validateNotes:
       'Each arm is validated in full; the discriminator literal narrows which arm matches. A value passes if it fully satisfies AT LEAST ONE arm.',
     validate: () => createValidate<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+    standardSchema: () => createStandardSchema<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{kind: 'a'; n: number} | {kind: 'b'; s: string}>>(),
     validateSchema: () =>
       createValidate(
@@ -507,6 +516,10 @@ export const UNION = {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       return createValidate<UnionC>();
     },
+    standardSchema: () => {
+      type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+      return createStandardSchema<UnionC>();
+    },
     validateDataOnly: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       return createValidate<DataOnly<UnionC>>();
@@ -591,6 +604,7 @@ export const UNION = {
     validateNotes:
       'TS DIVERGENCE: method members (`getName`/`getAge`) are non-serializable and dropped, so each arm checks only its data prop — `{name: "x"}` with no method at all PASSES, and a wrong-typed method would not be caught.',
     validate: () => createValidate<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+    standardSchema: () => createStandardSchema<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     validateDataOnly: () => createValidate<DataOnly<{name: string; getName(): string} | {age: number; getAge(): number}>>(),
     validateSchema: () =>
       createValidate(
@@ -672,6 +686,7 @@ export const UNION = {
     validateNotes:
       'Because the intersection collapses to one merged object, getValidationErrors reports PER-PROPERTY paths (e.g. `expected: "number"` at `["b"]`), not a single root `expected: "union"`. Both props are required and `b: NaN` is rejected despite passing `typeof === "number"`.',
     validate: () => createValidate<{a: string} & {b: number}>(),
+    standardSchema: () => createStandardSchema<{a: string} & {b: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string} & {b: number}>>(),
     validateSchema: () => createValidate(RT.intersection(RT.object({a: TF.string()}), RT.object({b: TF.number()}))),
     deserializeValidate: () => deserializeValidate<{a: string} & {b: number}>(),
@@ -734,6 +749,7 @@ export const UNION = {
     validateNotes:
       'The index arm is NOT a catch-all: every extra key must match the index value type, so `{c: 1n, d: 2n}` passes but `{c: 1n, d: "hello"}` fails (string under a `bigint` index). A failing value reports a single `expected: "union"` at the root.',
     validate: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+    standardSchema: () => createStandardSchema<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     validateDataOnly: () =>
       createValidate<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
     validateSchema: () =>
@@ -812,6 +828,8 @@ export const UNION = {
     validateNotes:
       'The `type` literal pins which arm applies, so `prop` must match THAT arm\'s type — `{type: "a", prop: 123}` fails even though `123` would satisfy the `type: "b"` arm. A failing value reports a single `expected: "union"` at the root.',
     validate: () => createValidate<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+    standardSchema: () =>
+      createStandardSchema<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
     validateDataOnly: () =>
       createValidate<DataOnly<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>>(),
     validateSchema: () =>
@@ -911,6 +929,10 @@ export const UNION = {
       'Array arms match the WHOLE array, so a mixed array like `[1, "b"]` fails (no single array arm covers it); object arms accept extra props (`{b: 123, c: 123n}` passes via the `{b: number}` arm). A failing value reports a single `expected: "union"` at the root.',
     validate: () =>
       createValidate<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+    standardSchema: () =>
+      createStandardSchema<
+        string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+      >(),
     validateDataOnly: () =>
       createValidate<
         DataOnly<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>
@@ -1029,6 +1051,7 @@ export const UNION = {
     validateNotes:
       'Effectively `{a: boolean | number}`, but the number arm still runs `Number.isFinite`, so `{a: NaN}` is rejected. A failing value reports a single `expected: "union"` at the root.',
     validate: () => createValidate<{a: boolean} | {a: number}>(),
+    standardSchema: () => createStandardSchema<{a: boolean} | {a: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: boolean} | {a: number}>>(),
     validateSchema: () => createValidate(RT.union([RT.object({a: RT.boolean()}), RT.object({a: TF.number()})])),
     deserializeValidate: () => deserializeValidate<{a: boolean} | {a: number}>(),
@@ -1081,6 +1104,14 @@ export const UNION = {
       'Each index arm constrains ALL extra keys to its value type, so `{a: "hello", b: 123n}` fails every arm (the string-index arm rejects the `bigint` `b`, the bigint-index arm rejects the string `a`). A failing value reports a single `expected: "union"` at the root.',
     validate: () =>
       createValidate<
+        | string[]
+        | {a: string; aa: boolean}
+        | {b: number}
+        | {a: string; [key: string]: string}
+        | {[key: string]: bigint; b: bigint}
+      >(),
+    standardSchema: () =>
+      createStandardSchema<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
@@ -1231,6 +1262,7 @@ export const UNION = {
     validateNotes:
       '`T | any` collapses to `any` at the type-checker layer — the validator becomes a no-op that always returns true. `T | unknown` behaves the same way. If you want a real fallback that still narrows, use a concrete sibling type.',
     validate: () => createValidate<string | any>(),
+    standardSchema: () => createStandardSchema<string | any>(),
     validateDataOnly: () => createValidate<DataOnly<string | any>>(),
     validateSchema: () => createValidate(RT.any()),
     deserializeValidate: () => deserializeValidate<string | any>(),
@@ -1274,6 +1306,7 @@ export const UNION = {
     validateNotes:
       'The `unknown` arm is fully absorbing: `T | unknown` collapses to `unknown` at the type-checker layer, so the validator is a no-op that returns true for EVERY input (no sample can be invalid).',
     validate: () => createValidate<string | unknown>(),
+    standardSchema: () => createStandardSchema<string | unknown>(),
     validateDataOnly: () => createValidate<DataOnly<string | unknown>>(),
     validateSchema: () => createValidate(RT.unknown()),
     deserializeValidate: () => deserializeValidate<string | unknown>(),
@@ -1324,6 +1357,16 @@ export const UNION = {
         b: number;
       }
       return createValidate<SmallObj | LargeObj>();
+    },
+    standardSchema: () => {
+      interface SmallObj {
+        a: string;
+      }
+      interface LargeObj {
+        a: string;
+        b: number;
+      }
+      return createStandardSchema<SmallObj | LargeObj>();
     },
     validateDataOnly: () => {
       interface SmallObj {
@@ -1479,6 +1522,21 @@ export const UNION = {
         z: boolean;
       }
       return createValidate<Tiny | Medium | Large>();
+    },
+    standardSchema: () => {
+      interface Tiny {
+        x: string;
+      }
+      interface Medium {
+        x: string;
+        y: number;
+      }
+      interface Large {
+        x: string;
+        y: number;
+        z: boolean;
+      }
+      return createStandardSchema<Tiny | Medium | Large>();
     },
     validateDataOnly: () => {
       interface Tiny {
@@ -1701,6 +1759,19 @@ export const UNION = {
         value: number;
       }
       return createValidate<Base | Extended | Unrelated>();
+    },
+    standardSchema: () => {
+      interface Base {
+        id: string;
+      }
+      interface Extended {
+        id: string;
+        name: string;
+      }
+      interface Unrelated {
+        value: number;
+      }
+      return createStandardSchema<Base | Extended | Unrelated>();
     },
     validateDataOnly: () => {
       interface Base {

@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -18,6 +18,14 @@ export const UTILITY = {
         createdAt: Date;
       }
       return createValidate<Partial<Person>>();
+    },
+    standardSchema: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createStandardSchema<Partial<Person>>();
     },
     validateDataOnly: () => {
       interface Person {
@@ -161,6 +169,14 @@ export const UTILITY = {
         createdAt?: Date;
       }
       return createValidate<Required<MaybePerson>>();
+    },
+    standardSchema: () => {
+      interface MaybePerson {
+        name?: string;
+        age?: number;
+        createdAt?: Date;
+      }
+      return createStandardSchema<Required<MaybePerson>>();
     },
     validateDataOnly: () => {
       interface MaybePerson {
@@ -309,6 +325,14 @@ export const UTILITY = {
       }
       return createValidate<Pick<Person, 'name' | 'createdAt'>>();
     },
+    standardSchema: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createStandardSchema<Pick<Person, 'name' | 'createdAt'>>();
+    },
     validateDataOnly: () => {
       interface Person {
         name: string;
@@ -446,6 +470,14 @@ export const UTILITY = {
       }
       return createValidate<Omit<Person, 'age'>>();
     },
+    standardSchema: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createStandardSchema<Omit<Person, 'age'>>();
+    },
     validateDataOnly: () => {
       interface Person {
         name: string;
@@ -565,6 +597,7 @@ export const UTILITY = {
       'utility/exclude.spec.ts (atomic case) excludes members of a string-literal union, resolving to "name" | "createdAt".',
     validateNotes: 'Resolves the union down to the two surviving members, so the excluded "age" now FAILS the union check.',
     validate: () => createValidate<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+    standardSchema: () => createStandardSchema<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
     validateDataOnly: () => createValidate<DataOnly<Exclude<'name' | 'age' | 'createdAt', 'age'>>>(),
     validateSchema: () =>
       createValidate(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]), RT.literal('age'))),
@@ -619,6 +652,7 @@ export const UTILITY = {
       'utility/extract.spec.ts (atomic case) extracts the matching members of a string-literal union, resolving to "name" | "createdAt".',
     validateNotes: 'Keeps only the members assignable to the filter, so the dropped "age" now FAILS the union check.',
     validate: () => createValidate<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+    standardSchema: () => createStandardSchema<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     validateDataOnly: () => createValidate<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
     validateSchema: () =>
       createValidate(
@@ -688,6 +722,13 @@ export const UTILITY = {
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
       return createValidate<Exclude<Shape, {kind: 'circle'}>>();
+    },
+    standardSchema: () => {
+      type Shape =
+        | {kind: 'circle'; radius: number}
+        | {kind: 'square'; x: number}
+        | {kind: 'triangle'; base: number; height: number};
+      return createStandardSchema<Exclude<Shape, {kind: 'circle'}>>();
     },
     validateDataOnly: () => {
       type Shape =
@@ -825,6 +866,7 @@ export const UTILITY = {
     validateNotes:
       'Drops `null` and `undefined` from the union, so both now FAIL the union check; only `string` and `number` members pass.',
     validate: () => createValidate<NonNullable<string | number | null | undefined>>(),
+    standardSchema: () => createStandardSchema<NonNullable<string | number | null | undefined>>(),
     validateDataOnly: () => createValidate<DataOnly<NonNullable<string | number | null | undefined>>>(),
     validateSchema: () =>
       createValidate(RT.nonNullable(RT.union([TF.string(), TF.number(), RT.literal(null), RT.literal(undefined)]))),
@@ -878,6 +920,10 @@ export const UTILITY = {
     validate: () => {
       type Fn = (a: number, b: boolean) => Date;
       return createValidate<ReturnType<Fn>>();
+    },
+    standardSchema: () => {
+      type Fn = (a: number, b: boolean) => Date;
+      return createStandardSchema<ReturnType<Fn>>();
     },
     validateDataOnly: () => {
       type Fn = (a: number, b: boolean) => Date;
@@ -956,6 +1002,13 @@ export const UTILITY = {
         age: number;
       }
       return createValidate<Readonly<Person>>();
+    },
+    standardSchema: () => {
+      interface Person {
+        name: string;
+        age: number;
+      }
+      return createStandardSchema<Readonly<Person>>();
     },
     validateDataOnly: () => {
       interface Person {
@@ -1082,6 +1135,14 @@ export const UTILITY = {
         createdAt: Date;
       }
       return createValidate<Partial<Person> & Required<Pick<Person, 'name'>>>();
+    },
+    standardSchema: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createStandardSchema<Partial<Person> & Required<Pick<Person, 'name'>>>();
     },
     validateDataOnly: () => {
       interface Person {
@@ -1226,6 +1287,7 @@ export const UTILITY = {
     validateNotes:
       '`c` stays required and `b` stays optional after the omit, so a value missing `c` FAILS while a value missing `b` passes.',
     validate: () => createValidate<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+    standardSchema: () => createStandardSchema<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     validateDataOnly: () => createValidate<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
     validateSchema: () =>
       createValidate(RT.omit(RT.object({a: TF.string(), b: RT.optional(TF.number()), c: RT.boolean()}), ['a'])),
@@ -1288,6 +1350,14 @@ export const UTILITY = {
         createdAt: Date;
       }
       return createValidate<keyof Person>();
+    },
+    standardSchema: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createStandardSchema<keyof Person>();
     },
     validateDataOnly: () => {
       interface Person {
@@ -1410,6 +1480,10 @@ export const UTILITY = {
       const config = {url: 'http://example.com', port: 8080};
       return createValidate<typeof config>();
     },
+    standardSchema: () => {
+      const config = {url: 'http://example.com', port: 8080};
+      return createStandardSchema<typeof config>();
+    },
     validateDataOnly: () => {
       const config = {url: 'http://example.com', port: 8080};
       return createValidate<DataOnly<typeof config>>();
@@ -1488,6 +1562,13 @@ export const UTILITY = {
         age: number;
       }
       return createValidate<Person['name']>();
+    },
+    standardSchema: () => {
+      interface Person {
+        name: string;
+        age: number;
+      }
+      return createStandardSchema<Person['name']>();
     },
     validateDataOnly: () => {
       interface Person {
@@ -1593,6 +1674,10 @@ export const UTILITY = {
       type IsString<T> = T extends string ? boolean : number;
       return createValidate<IsString<'hello'>>();
     },
+    standardSchema: () => {
+      type IsString<T> = T extends string ? boolean : number;
+      return createStandardSchema<IsString<'hello'>>();
+    },
     validateDataOnly: () => {
       type IsString<T> = T extends string ? boolean : number;
       return createValidate<DataOnly<IsString<'hello'>>>();
@@ -1671,6 +1756,14 @@ export const UTILITY = {
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
       return createValidate<Nullable<Source>>();
+    },
+    standardSchema: () => {
+      interface Source {
+        a: string;
+        b: number;
+      }
+      type Nullable<T> = {[K in keyof T]: T[K] | null};
+      return createStandardSchema<Nullable<Source>>();
     },
     validateDataOnly: () => {
       interface Source {
@@ -1818,6 +1911,22 @@ export const UTILITY = {
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
       return createValidate<UserForm>();
+    },
+    standardSchema: () => {
+      type FieldFor<T> = T extends string
+        ? {kind: 'text'; value: string}
+        : T extends number
+          ? {kind: 'number'; value: number; min?: number}
+          : T extends boolean
+            ? {kind: 'checkbox'; value: boolean}
+            : never;
+      interface User {
+        name: string;
+        age: number;
+        admin: boolean;
+      }
+      type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+      return createStandardSchema<UserForm>();
     },
     validateDataOnly: () => {
       type FieldFor<T> = T extends string
@@ -2093,6 +2202,10 @@ export const UTILITY = {
       type Wrap<T> = T extends any ? {w: T} : never;
       return createValidate<Wrap<string | number>>();
     },
+    standardSchema: () => {
+      type Wrap<T> = T extends any ? {w: T} : never;
+      return createStandardSchema<Wrap<string | number>>();
+    },
     validateDataOnly: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       return createValidate<DataOnly<Wrap<string | number>>>();
@@ -2172,6 +2285,14 @@ export const UTILITY = {
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
       return createValidate<DeepPartial<Settings>>();
+    },
+    standardSchema: () => {
+      interface Settings {
+        display: {theme: 'light' | 'dark'; brightness: number};
+        audio: {volume: number; muted: boolean};
+      }
+      type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+      return createStandardSchema<DeepPartial<Settings>>();
     },
     validateDataOnly: () => {
       interface Settings {

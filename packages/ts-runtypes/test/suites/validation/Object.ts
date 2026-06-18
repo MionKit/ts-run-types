@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -13,6 +13,7 @@ export const OBJECT = {
       'Each declared property runs the atomic check for its type (number props reject NaN / Infinity).',
     ],
     validate: () => createValidate<{a: string; b: number}>(),
+    standardSchema: () => createStandardSchema<{a: string; b: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string; b: number}>>(),
     validateSchema: () => createValidate(RT.object({a: TF.string(), b: TF.number()})),
     deserializeValidate: () => deserializeValidate<{a: string; b: number}>(),
@@ -81,6 +82,7 @@ export const OBJECT = {
     validateNotes:
       '`readonly` is erased at runtime. Every property must strictly === its literal value (name === "john", age === 30) — no looser matches.',
     validate: () => createValidate<{readonly name: 'john'; readonly age: 30}>(),
+    standardSchema: () => createStandardSchema<{readonly name: 'john'; readonly age: 30}>(),
     validateDataOnly: () => createValidate<DataOnly<{readonly name: 'john'; readonly age: 30}>>(),
     // `readonly` is part of the structural id, so the value-first model mirrors it
     // with `RT.propMod({readonly: true}, …)` on each prop.
@@ -158,6 +160,12 @@ export const OBJECT = {
       }
       return createValidate<ReturnType<typeof makeUser>>();
     },
+    standardSchema: () => {
+      function makeUser(): {id: number; name: string} {
+        return {id: 1, name: 'john'};
+      }
+      return createStandardSchema<ReturnType<typeof makeUser>>();
+    },
     validateDataOnly: () => {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
@@ -228,6 +236,7 @@ export const OBJECT = {
     description:
       "Reflect form with a property-access argument (`createValidate(outer.user)`), where T comes from the property's declared type and produces the same hash as the static form.",
     validate: () => createValidate<{id: number; name: string}>(),
+    standardSchema: () => createStandardSchema<{id: number; name: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{id: number; name: string}>>(),
     validateSchema: () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
     deserializeValidate: () => deserializeValidate<{id: number; name: string}>(),
@@ -275,6 +284,7 @@ export const OBJECT = {
     description:
       "Reflect form with an array-element-access argument (`createValidate(items[0])`), where T comes from the array's element type and produces the same hash as the static form.",
     validate: () => createValidate<{id: number; name: string}>(),
+    standardSchema: () => createStandardSchema<{id: number; name: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{id: number; name: string}>>(),
     validateSchema: () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
     deserializeValidate: () => deserializeValidate<{id: number; name: string}>(),
@@ -323,6 +333,7 @@ export const OBJECT = {
     validateNotes:
       'Optional (`?`) properties may be missing OR explicitly `undefined`. If present, the value must satisfy the declared type — `b: NaN` still fails.',
     validate: () => createValidate<{a: string; b?: number}>(),
+    standardSchema: () => createStandardSchema<{a: string; b?: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string; b?: number}>>(),
     validateSchema: () => createValidate(RT.object({a: TF.string(), b: RT.optional(TF.number())})),
     deserializeValidate: () => deserializeValidate<{a: string; b?: number}>(),
@@ -373,6 +384,7 @@ export const OBJECT = {
     description: 'Interface whose Date child validates via instanceof inside the AND chain.',
     validateNotes: 'Date-typed properties run the atomic `Date` check — Invalid Date instances inside the property fail too.',
     validate: () => createValidate<{date: Date; name: string}>(),
+    standardSchema: () => createStandardSchema<{date: Date; name: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{date: Date; name: string}>>(),
     validateSchema: () => createValidate(RT.object({date: TF.date(), name: TF.string()})),
     deserializeValidate: () => deserializeValidate<{date: Date; name: string}>(),
@@ -435,6 +447,7 @@ export const OBJECT = {
       'If you need to verify a function is actually callable, do it outside validate.',
     ],
     validate: () => createValidate<{name: string; cb: () => any}>(),
+    standardSchema: () => createStandardSchema<{name: string; cb: () => any}>(),
     validateDataOnly: () => createValidate<DataOnly<{name: string; cb: () => any}>>(),
     validateSchema: () => createValidate(RT.object({name: TF.string(), cb: RT.func([], RT.any())})),
     deserializeValidate: () => deserializeValidate<{name: string; cb: () => any}>(),
@@ -480,6 +493,7 @@ export const OBJECT = {
     validateNotes:
       'Nested objects are validated recursively. Atomic-level rejections (NaN, Invalid Date) bubble up from the inner shape.',
     validate: () => createValidate<{a: string; deep: {b: string; c: number}}>(),
+    standardSchema: () => createStandardSchema<{a: string; deep: {b: string; c: number}}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string; deep: {b: string; c: number}}>>(),
     validateSchema: () => createValidate(RT.object({a: TF.string(), deep: RT.object({b: TF.string(), c: TF.number()})})),
     deserializeValidate: () => deserializeValidate<{a: string; deep: {b: string; c: number}}>(),
@@ -542,6 +556,7 @@ export const OBJECT = {
       "Element failures carry the array index in the path (e.g. `['tags', 1]`); `null` / `undefined` elements fail the element check.",
     ],
     validate: () => createValidate<{tags: string[]}>(),
+    standardSchema: () => createStandardSchema<{tags: string[]}>(),
     validateDataOnly: () => createValidate<DataOnly<{tags: string[]}>>(),
     validateSchema: () => createValidate(RT.object({tags: RT.array(TF.string())})),
     deserializeValidate: () => deserializeValidate<{tags: string[]}>(),
@@ -594,6 +609,10 @@ export const OBJECT = {
     validate: () => {
       type ICircular = {name: string; child?: ICircular};
       return createValidate<ICircular>();
+    },
+    standardSchema: () => {
+      type ICircular = {name: string; child?: ICircular};
+      return createStandardSchema<ICircular>();
     },
     validateDataOnly: () => {
       type ICircular = {name: string; child?: ICircular};
@@ -684,6 +703,10 @@ export const OBJECT = {
       type ICircularArray = {name: string; children?: ICircularArray[]};
       return createValidate<ICircularArray>();
     },
+    standardSchema: () => {
+      type ICircularArray = {name: string; children?: ICircularArray[]};
+      return createStandardSchema<ICircularArray>();
+    },
     validateDataOnly: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
       return createValidate<DataOnly<ICircularArray>>();
@@ -760,6 +783,10 @@ export const OBJECT = {
     validate: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
       return createValidate<ICircularDeep>();
+    },
+    standardSchema: () => {
+      type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+      return createStandardSchema<ICircularDeep>();
     },
     validateDataOnly: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
@@ -850,6 +877,7 @@ export const OBJECT = {
       "Every key's value must satisfy the value type — `{ a: 1 }` fails on `{[key: string]: string}`.",
     ],
     validate: () => createValidate<{[key: string]: string}>(),
+    standardSchema: () => createStandardSchema<{[key: string]: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: string}>>(),
     validateSchema: () => createValidate(RT.record(TF.string())),
     deserializeValidate: () => deserializeValidate<{[key: string]: string}>(),
@@ -900,6 +928,7 @@ export const OBJECT = {
     validateNotes:
       "Named-prop checks and the index-signature for-in loop both run; an extra key whose value misses the index value type is reported as `expected: 'union'` at that key's path.",
     validate: () => createValidate<{a: string; b: number; [key: string]: string | number}>(),
+    standardSchema: () => createStandardSchema<{a: string; b: number; [key: string]: string | number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
     validateSchema: () =>
       createValidate(
@@ -971,6 +1000,7 @@ export const OBJECT = {
       'Leaf values run the atomic `number` check, so `NaN` at a leaf is rejected despite passing `typeof === "number"`.',
     ],
     validate: () => createValidate<{[key: string]: {[key: string]: number}}>(),
+    standardSchema: () => createStandardSchema<{[key: string]: {[key: string]: number}}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: {[key: string]: number}}>>(),
     validateSchema: () => createValidate(RT.record(RT.record(TF.number()))),
     deserializeValidate: () => deserializeValidate<{[key: string]: {[key: string]: number}}>(),
@@ -1019,6 +1049,7 @@ export const OBJECT = {
     validateNotes:
       "Each leaf value runs the atomic `Date` check — an Invalid Date (`new Date('invalid')`) at a leaf is rejected as `expected: 'date'` despite being a `Date` instance.",
     validate: () => createValidate<{[key: string]: {[key: string]: Date}}>(),
+    standardSchema: () => createStandardSchema<{[key: string]: {[key: string]: Date}}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
     validateSchema: () => createValidate(RT.record(RT.record(TF.date()))),
     deserializeValidate: () => deserializeValidate<{[key: string]: {[key: string]: Date}}>(),
@@ -1075,6 +1106,17 @@ export const OBJECT = {
         c: Obj1;
       }
       return createValidate<Obj2>();
+    },
+    standardSchema: () => {
+      interface Obj1 {
+        a: string;
+        [key: string]: string;
+      }
+      interface Obj2 {
+        b: string;
+        c: Obj1;
+      }
+      return createStandardSchema<Obj2>();
     },
     validateDataOnly: () => {
       interface Obj1 {
@@ -1237,6 +1279,7 @@ export const OBJECT = {
     // emits a `typeof === 'function'` validator, so the ids cannot converge.
     dataOnlyDivergent: true,
     validate: () => createValidate<() => void>(),
+    standardSchema: () => createStandardSchema<() => void>(),
     // DataOnly<() => void> = never → an always-throw factory; the assert skips it
     // (dataOnlyDivergent above), but the thunk is declared so the contract holds.
     validateDataOnly: () => createValidate<DataOnly<() => void>>(),
@@ -1299,6 +1342,7 @@ export const OBJECT = {
     // validates it as a function-with-data-props. Ids cannot converge.
     dataOnlyDivergent: true,
     validate: () => createValidate<{(a: number, b: boolean): string; extra: string}>(),
+    standardSchema: () => createStandardSchema<{(a: number, b: boolean): string; extra: string}>(),
     // DataOnly collapses the call signature away → never; assert skips it
     // (dataOnlyDivergent), the thunk is declared to satisfy the contract.
     validateDataOnly: () => createValidate<DataOnly<{(a: number, b: boolean): string; extra: string}>>(),
@@ -1404,6 +1448,7 @@ export const OBJECT = {
       'This is the ONLY shape kind where the validator enforces "plain object" semantics — see the bare `object` case for the contrast.',
     ],
     validate: () => createValidate<{a?: string; b?: number}>(),
+    standardSchema: () => createStandardSchema<{a?: string; b?: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a?: string; b?: number}>>(),
     validateSchema: () => createValidate(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.number())})),
     deserializeValidate: () => deserializeValidate<{a?: string; b?: number}>(),
@@ -1479,6 +1524,20 @@ export const OBJECT = {
         }
       }
       return createValidate<MySerializableClass>();
+    },
+    standardSchema: () => {
+      class MySerializableClass {
+        date: Date;
+        name: string;
+        constructor(date: Date, name: string) {
+          this.date = date;
+          this.name = name;
+        }
+        someMethod() {
+          return 'unused';
+        }
+      }
+      return createStandardSchema<MySerializableClass>();
     },
     validateDataOnly: () => {
       class MySerializableClass {
@@ -1733,6 +1792,20 @@ export const OBJECT = {
         }
       }
       return createValidate<RpcError<'test-error'>>();
+    },
+    standardSchema: () => {
+      class RpcError<ErrType extends string> {
+        public readonly 'mion@isΣrrθr': true = true;
+        public readonly type: ErrType;
+        public readonly publicMessage: string;
+        public readonly id?: string;
+        constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+          this.type = args.type;
+          this.publicMessage = args.publicMessage;
+          this.id = args.id;
+        }
+      }
+      return createStandardSchema<RpcError<'test-error'>>();
     },
     validateDataOnly: () => {
       class RpcError<ErrType extends string> {
@@ -2003,6 +2076,10 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean) => string;
       return createValidate<Parameters<CallSig>>();
     },
+    standardSchema: () => {
+      type CallSig = (a: number, b: boolean) => string;
+      return createStandardSchema<Parameters<CallSig>>();
+    },
     validateDataOnly: () => {
       type CallSig = (a: number, b: boolean) => string;
       return createValidate<DataOnly<Parameters<CallSig>>>();
@@ -2101,6 +2178,10 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return createValidate<Parameters<CallSig>>();
     },
+    standardSchema: () => {
+      type CallSig = (a: number, b: boolean, c?: string) => Date;
+      return createStandardSchema<Parameters<CallSig>>();
+    },
     validateDataOnly: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return createValidate<DataOnly<Parameters<CallSig>>>();
@@ -2195,6 +2276,10 @@ export const OBJECT = {
     validate: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return createValidate<Parameters<CallSig>>();
+    },
+    standardSchema: () => {
+      type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+      return createStandardSchema<Parameters<CallSig>>();
     },
     validateDataOnly: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
@@ -2298,6 +2383,7 @@ export const OBJECT = {
       '`Record<UnionKey, V>` is NOT closed: extra keys (e.g. `{a: 1, b: 2, c: 3}`) PASS, since validation is structural.',
     ],
     validate: () => createValidate<Record<'a' | 'b', number>>(),
+    standardSchema: () => createStandardSchema<Record<'a' | 'b', number>>(),
     validateDataOnly: () => createValidate<DataOnly<Record<'a' | 'b', number>>>(),
     validateSchema: () => createValidate(RT.object({a: TF.number(), b: TF.number()})),
     deserializeValidate: () => deserializeValidate<Record<'a' | 'b', number>>(),
@@ -2367,6 +2453,7 @@ export const OBJECT = {
     validateNotes:
       "Every own key's value must satisfy the `string | number` union, reported as `expected: 'union'` on failure. The number arm uses `Number.isFinite`, so a `NaN` value fails the union; `bigint` matches neither arm and also fails.",
     validate: () => createValidate<{[key: string]: string | number}>(),
+    standardSchema: () => createStandardSchema<{[key: string]: string | number}>(),
     validateDataOnly: () => createValidate<DataOnly<{[key: string]: string | number}>>(),
     validateSchema: () => createValidate(RT.record(RT.union([TF.string(), TF.number()]))),
     deserializeValidate: () => deserializeValidate<{[key: string]: string | number}>(),
@@ -2417,6 +2504,7 @@ export const OBJECT = {
     validateNotes:
       "Both a wrong literal value (`kind: 'c'`) and a missing `kind` (undefined matches no arm) report `expected: 'union'` at `['kind']`, rather than a root-level object error.",
     validate: () => createValidate<{kind: 'a' | 'b'; n: number}>(),
+    standardSchema: () => createStandardSchema<{kind: 'a' | 'b'; n: number}>(),
     validateDataOnly: () => createValidate<DataOnly<{kind: 'a' | 'b'; n: number}>>(),
     validateSchema: () => createValidate(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: TF.number()})),
     deserializeValidate: () => deserializeValidate<{kind: 'a' | 'b'; n: number}>(),
@@ -2478,6 +2566,15 @@ export const OBJECT = {
         b: number;
       }
       return createValidate<Child>();
+    },
+    standardSchema: () => {
+      interface Base {
+        a: string;
+      }
+      interface Child extends Base {
+        b: number;
+      }
+      return createStandardSchema<Child>();
     },
     validateDataOnly: () => {
       interface Base {
@@ -2624,6 +2721,15 @@ export const OBJECT = {
         b: number = 0;
       }
       return createValidate<Sub>();
+    },
+    standardSchema: () => {
+      class Base {
+        a: string = '';
+      }
+      class Sub extends Base {
+        b: number = 0;
+      }
+      return createStandardSchema<Sub>();
     },
     validateDataOnly: () => {
       class Base {
@@ -2776,6 +2882,7 @@ export const OBJECT = {
     validateNotes:
       'TS DIVERGENCE: At runtime, all object keys are strings; the number key type constraint is enforced only by the TS compiler. The validator accepts any own enumerable key whose value satisfies T.',
     validate: () => createValidate<{[k: number]: string}>(),
+    standardSchema: () => createStandardSchema<{[k: number]: string}>(),
     validateDataOnly: () => createValidate<DataOnly<{[k: number]: string}>>(),
     // JS object keys are strings at runtime, so a number-key index sig validates
     // identically to a string-key one — but the key TYPE is part of the structural

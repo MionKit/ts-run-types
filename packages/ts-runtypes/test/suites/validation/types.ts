@@ -1,4 +1,4 @@
-import type {GetValidationErrorsFn, RunTypeError, MockTypeFn} from 'ts-runtypes';
+import type {GetValidationErrorsFn, RunTypeError, MockTypeFn, StandardSchemaV1, StandardSchemaIssue} from 'ts-runtypes';
 
 /** Thunk that returns the variant's function, OR the `'not-supported'`
  *  sentinel marking the variant as deliberately unsupported on this case
@@ -25,6 +25,16 @@ export type Thunk<T> = (() => T) | 'not-supported';
  *  boolean result. **/
 type AnyValidateFn = (value: unknown) => boolean;
 type ValidateThunk = Thunk<AnyValidateFn>;
+
+/** Standard Schema factory-field thunk. Widened to `StandardSchemaV1<unknown>`
+ *  for the same invariance reason as `AnyValidateFn`: `DataOnly<symbol>` is
+ *  `never`, and `StandardSchemaV1<never>` is not assignable to a
+ *  `StandardSchemaV1<any>` field. The asserts only read
+ *  `schema['~standard'].validate` (param `unknown`), so the output type never
+ *  matters to them; the real per-`T` typing is still checked at the thunk's
+ *  `createStandardSchema<T>()` call site. **/
+type AnyStandardSchema = StandardSchemaV1<unknown>;
+type StandardSchemaThunk = Thunk<AnyStandardSchema>;
 
 /** One atomic-type case in the shared suite.
  *
@@ -116,6 +126,27 @@ export interface ValidationCase {
    *  should produce for `invalid[i]`. Valid samples always expect `[]`.
    *  Omit on cases that don't declare `getValidationErrors`. */
   getExpectedErrors?: () => RunTypeError[][];
+
+  /** STANDARD SCHEMA form: `() => createStandardSchema<T>()` — the SAME `T` as
+   *  `validate`. Adapts the validator pair to the Standard Schema v1 contract;
+   *  the assert checks the `{value}` / `{issues}` discrimination and the issue
+   *  shape. A SINGLE method (static form only): the static / reflect / schema
+   *  call-shape mechanics are already covered by the validate +
+   *  getValidationErrors families and the dedicated
+   *  `test/standard/createStandardSchema.test.ts`, so this suite exercises just
+   *  the static form across every type. Required (`'not-supported'` sentinel
+   *  allowed, e.g. for `factoryThrows` cases handled by the assert). **/
+  standardSchema: StandardSchemaThunk;
+  /** Expected Standard Schema ISSUES for invalid samples — index-parallel to
+   *  `getSamples().invalid`, ONE `StandardSchemaIssue[]` per negative value (a
+   *  value may yield several issues). Valid samples are never listed (they
+   *  always yield `{value}`). The consumer-facing sibling of
+   *  `getExpectedErrors`. When OMITTED, the assert DERIVES it from
+   *  `getExpectedErrors` via `runTypeErrorsToIssues` (the exact mapping the
+   *  factory uses), so cases that already pinned raw errors need not re-author
+   *  the Standard form; author it explicitly to pin a consumer-facing shape
+   *  independently (e.g. a format case with no `getExpectedErrors`). */
+  getExpectedStandardErrors?: () => StandardSchemaIssue[][];
 
   /** Plugin-rewritten thunk returning the mock generator — STATIC
    *  form. Caller supplies `T` explicitly. The adapter generates N

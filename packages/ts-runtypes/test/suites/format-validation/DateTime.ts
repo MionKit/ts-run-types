@@ -32,7 +32,7 @@ import * as TF from 'ts-runtypes/formats';
 import * as TFT from 'ts-runtypes/formats/temporal';
 import type {FormatValidationCase} from './types.ts';
 import 'ts-runtypes/formats';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
@@ -48,6 +48,7 @@ export const DATETIME = {
       'One step outside fails: 2019-12-31T23:59:59 trips `min`, 2021-01-01T00:00:00 trips `max`; a non-Date value (`not-a-date`) is also rejected.',
     ],
     validate: () => createValidate<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    standardSchema: () => createStandardSchema<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     validateReflect: () => {
       const v: TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> = new Date();
       return createValidate(v);
@@ -93,6 +94,7 @@ export const DATETIME = {
       'A non-Date value (`not-a-date`) is also rejected.',
     ],
     validate: () => createValidate<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    standardSchema: () => createStandardSchema<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     validateReflect: () => {
       const v: TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> = new Date();
       return createValidate(v);
@@ -138,6 +140,7 @@ export const DATETIME = {
       'Below-range 2019-12-31T23:59:59 trips `min`; an interior date (2020-06-15) passes.',
     ],
     validate: () => createValidate<TF.Date<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    standardSchema: () => createStandardSchema<TF.Date<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     validateReflect: () => {
       const v: TF.Date<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> = new Date();
       return createValidate(v);
@@ -182,6 +185,7 @@ export const DATETIME = {
       'Lower bound is unconstrained; a non-Date value (`not-a-date`) is also rejected.',
     ],
     validate: () => createValidate<TF.Date<{max: 'now'}>>(),
+    standardSchema: () => createStandardSchema<TF.Date<{max: 'now'}>>(),
     validateReflect: () => {
       const v: TF.Date<{max: 'now'}> = new Date();
       return createValidate(v);
@@ -225,6 +229,7 @@ export const DATETIME = {
       'Far outside the wide window fails: year 1000 trips `min`, year 3500 trips `max`. The margin is deliberately huge so the boolean result holds regardless of the wall clock.',
     ],
     validate: () => createValidate<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    standardSchema: () => createStandardSchema<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     validateReflect: () => {
       const v: TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = new Date();
       return createValidate(v);
@@ -270,6 +275,7 @@ export const DATETIME = {
       'A present-day date (2020-06-15) passes; far-past year 1000 trips `min`. Date accepts both date (Y) and time (T) duration components.',
     ],
     validate: () => createValidate<TF.Date<{min: 'now-P1000YT12H'}>>(),
+    standardSchema: () => createStandardSchema<TF.Date<{min: 'now-P1000YT12H'}>>(),
     validateReflect: () => {
       const v: TF.Date<{min: 'now-P1000YT12H'}> = new Date();
       return createValidate(v);
@@ -315,6 +321,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
+    standardSchema: () => createStandardSchema<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     validateReflect: () => {
       const v: TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}> = T.Instant.from('2020-06-15T12:00:00Z');
       return createValidate(v);
@@ -370,6 +377,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
+    standardSchema: () => createStandardSchema<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
     validateReflect: () => {
       const v: TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}> = T.Instant.from('2020-06-15T12:00:00Z');
       return createValidate(v);
@@ -424,6 +432,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
+    standardSchema: () => createStandardSchema<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
     validateReflect: () => {
       const v: TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}> = T.Instant.from('2020-06-15T12:00:00Z');
       return createValidate(v);
@@ -477,6 +486,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -529,6 +539,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -579,6 +590,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -629,6 +641,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -677,6 +690,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{min: '2020-01-01'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{min: '2020-01-01'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{min: '2020-01-01'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -718,6 +732,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{max: '2020-12-31'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{max: '2020-12-31'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{max: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -759,6 +774,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{gt: '2020-01-01'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{gt: '2020-01-01'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{gt: '2020-01-01'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -803,6 +819,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{lt: '2020-12-31'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{lt: '2020-12-31'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{lt: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -849,6 +866,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -898,6 +916,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{min: 'now-P100Y6M15D'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{min: 'now-P100Y6M15D'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{min: 'now-P100Y6M15D'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -940,6 +959,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDate<{min: 'now-P52200W'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDate<{min: 'now-P52200W'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDate<{min: 'now-P52200W'}> = T.PlainDate.from('2020-06-15');
       return createValidate(v);
@@ -986,6 +1006,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     validateReflect: () => {
       const v: TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}> = T.PlainTime.from('12:00:00');
       return createValidate(v);
@@ -1037,6 +1058,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
     validateReflect: () => {
       const v: TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}> = T.PlainTime.from('12:00:00');
       return createValidate(v);
@@ -1090,6 +1112,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> =
         T.PlainDateTime.from('2020-06-15T12:00:00');
@@ -1151,6 +1174,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> =
         T.PlainDateTime.from('2020-06-15T12:00:00');
@@ -1210,6 +1234,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainDateTime.from('2020-06-15T12:00:00');
       return createValidate(v);
@@ -1260,6 +1285,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainDateTime<{min: 'now-P500YT12H'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainDateTime<{min: 'now-P500YT12H'}>>(),
     validateReflect: () => {
       const v: TFT.PlainDateTime<{min: 'now-P500YT12H'}> = T.PlainDateTime.from('2020-06-15T12:00:00');
       return createValidate(v);
@@ -1306,6 +1332,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     validateReflect: () => {
       const v: TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}> = T.PlainYearMonth.from('2020-06');
       return createValidate(v);
@@ -1358,6 +1385,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
     validateReflect: () => {
       const v: TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}> = T.PlainYearMonth.from('2020-06');
       return createValidate(v);
@@ -1409,6 +1437,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    standardSchema: () => createStandardSchema<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     validateReflect: () => {
       const v: TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainYearMonth.from('2020-06');
       return createValidate(v);
@@ -1463,6 +1492,8 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+    standardSchema: () =>
+      createStandardSchema<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     validateReflect: () => {
       const v: TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}> =
         T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
@@ -1527,6 +1558,8 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
+    standardSchema: () =>
+      createStandardSchema<TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
     validateReflect: () => {
       const v: TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}> =
         T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
@@ -1589,6 +1622,7 @@ export const DATETIME = {
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
     validate: () => createValidate<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    standardSchema: () => createStandardSchema<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     validateReflect: () => {
       const v: TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
       return createValidate(v);
