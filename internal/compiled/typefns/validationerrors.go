@@ -153,6 +153,7 @@ func (e ValidationErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, ex
 		if emitter, ok := formats.LookupForRunType(rt); ok {
 			check := emitter.EmitValidationErrorsCheck(rt.FormatAnnotation, ctx.Vλl, "pth", "er", ctx)
 			if check != "" {
+				check = wrapFormatCheckPath(ctx, check)
 				guard := baseKindGuard(rt, ctx.Vλl)
 				if guard == "" {
 					base.Code = base.Code + ";" + check
@@ -163,6 +164,25 @@ func (e ValidationErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, ex
 		}
 	}
 	return base
+}
+
+// wrapFormatCheckPath wraps a format-error check so the runtime `pth` carries
+// this node's static access-path segments while the check runs. Format errors
+// snapshot the path as `[...pth]` (see formats.FormatErrCall), so without this
+// a format failure at a property / array element / map-or-set entry would
+// report `path: []` — the field is lost. Mirrors the push/splice envelope in
+// EmitDependencyCall: push the segments before the check, splice them off
+// after. An empty access-path (a root-position format, e.g. createValidate
+// <TF.Email>()) leaves the check unchanged, so root format errors stay `[]`.
+func wrapFormatCheckPath(ctx *EmitContext, check string) string {
+	pathLen := ctx.AccessPathLength("")
+	if pathLen == 0 {
+		return check
+	}
+	pathLit := ctx.AccessPathLiteral("")
+	pthArg := ctx.ArgName("pλth")
+	pushArgs := pathLit[1 : len(pathLit)-1] // strip the surrounding `[` … `]`
+	return pthArg + ".push(" + pushArgs + ");" + check + ";" + pthArg + ".splice(-" + strconv.Itoa(pathLen) + ")"
 }
 
 // baseKindGuard returns a JS expression that's true when vλl matches
