@@ -159,16 +159,16 @@ Stop gluing five libraries together. RunTypes shares a single type graph across 
 ::::
 :::
 
-:::div{class="rt-feature-row"}
+:::card{class="rt-standard-card"}
+::::div{class="rt-standard-split"}
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-standard" commentEnd="// end-standard" />
 
-::::card{class="rt-feature-card"}
+:::::div{class="rt-feature-card rt-standard-prose"}
 ### Speaks Standard Schema
 The same type becomes a [Standard Schema](https://github.com/standard-schema/standard-schema), the shared `~standard` contract that tRPC, TanStack Form and Router, Hono and many more accept directly. One call, no adapter to write.
 
-<br>
-
 [One spec, every framework.]{.text-highlighted}
+:::::
 ::::
 :::
 ::
