@@ -448,6 +448,43 @@ h2[data-slot="title"] {
   }
 }
 
+/* Home "One object, Every function" — the Standard Schema card. One card (the
+   ::card chrome) wrapping a code | pitch split. margin-top:0 keeps it flush
+   under the four-snippet grid above, with no extra gap. */
+.rt-standard-card {
+  margin-top: 0;
+}
+
+.rt-standard-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+.rt-standard-split > * {
+  min-width: 0;
+  margin-block: 0;
+}
+
+.rt-standard-split :is(pre, code) {
+  margin: 0;
+}
+
+/* pitch column: reuse the gradient heading + text, but top-align it (override
+   rt-feature-card's vertical centering) so the heading lines up with the code
+   on the left and the blurb stays compact. The outer card provides the chrome. */
+.rt-standard-prose {
+  margin: 0;
+  justify-content: flex-start;
+}
+
+@media (max-width: 760px) {
+  .rt-standard-split {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Home "Tree-shaken to the bone" — one row, three columns: the pitch (card),
    the call-site before/after (2-tab code-group), and the generated module.
    Equal height; code panels flex-fill like the other home grids. */
