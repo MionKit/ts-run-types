@@ -1,11 +1,11 @@
 import {defineConfig} from 'vite';
 import runtypes from 'vite-plugin-runtypes';
 
-// vite.config.ts — add the plugin and point it at the Go binary.
+// vite.config.ts. Add the plugin. The resolver binary for your platform is
+// installed automatically (an optional dependency) and resolved for you.
 export default defineConfig({
   plugins: [
     runtypes({
-      binary: './bin/ts-runtypes', // the native side-channel
       tsconfig: 'tsconfig.json',
     }),
   ],

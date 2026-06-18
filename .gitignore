@@ -29,6 +29,9 @@ packages/ts-runtypes/test/suites/enrichment/.tmp/
 # Build / pack artefacts
 /runtypes-cache.json
 /tarballs/
+# Cross-compiled per-platform binary packages, staged for publish by
+# scripts/build-binary-packages.mjs (assembled, never committed).
+/dist-binaries/
 /logs/
 /gendocs/
 

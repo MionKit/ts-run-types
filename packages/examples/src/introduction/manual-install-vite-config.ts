@@ -1,15 +1,16 @@
 import {defineConfig} from 'vite';
 import runtypes from 'vite-plugin-runtypes';
 
-// The plugin has one required option (`binary`); everything else has a sane default.
+// Every option has a sane default. The plugin works with no config at all.
 export default defineConfig({
   plugins: [
     runtypes({
-      // Required: path to the compiled Go binary that reads your types.
-      binary: './bin/ts-runtypes',
       // Optional: where your tsconfig lives. Defaults to 'tsconfig.json'.
       tsconfig: 'tsconfig.json',
-      // Optional knobs — see the plugin & CLI reference for the full list.
+      // Optional: override the auto-resolved platform binary with a custom or
+      // local build (otherwise resolved from the ts-runtypes-binary-* package).
+      // binary: './bin/ts-runtypes',
+      // Optional knobs. See the plugin & CLI reference for the full list.
       // emitMode: 'code',
       // moduleMode: 'default',
     }),

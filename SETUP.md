@@ -260,19 +260,24 @@ Commit the new `.patch` file under `third_party/tsgolint/patches/` so other cont
 
 ## Publishing
 
-Both JS packages move in lockstep (`forcePublish: true`, `exact: true` in [lerna.json](lerna.json)). Dual module output (CJS + ESM); per-package `tsc -p tsconfig.json` via `lerna run build`.
+All three published packages (`ts-runtypes`, `vite-plugin-runtypes`, `ts-runtypes-bin`) move in lockstep (`forcePublish: true`, `exact: true` in [lerna.json](lerna.json)). The two FE packages emit dual module output (CJS + ESM) via per-package `tsc -p tsconfig.json`; `ts-runtypes-bin` ships hand-written JS + types (no build step).
+
+The native resolver binary is distributed esbuild-style: it is cross-compiled per platform into `ts-runtypes-binary-<os>-<arch>` packages (each `os`/`cpu`-gated), declared as `optionalDependencies` of `ts-runtypes-bin`. A consumer installs only the one matching their machine, and `vite-plugin-runtypes` locates it via `getExePath()`. The publishing host needs the Go toolchain — pure Go (`CGO_ENABLED=0`), so one host cross-compiles every target with no per-platform C toolchain.
+
+> **Versioning:** standard semver on our own release cadence. The pinned tsgo / tsgolint revision is metadata only (the binary's `--version` output + the launcher's `package.json` `tsgo` field), never encoded into the package version.
 
 ```bash
 pnpm run pre-publish-test   # green-light: fresh install, all tests, lint, build
-pnpm run npm-publish        # interactive: lerna version -> lerna publish
+pnpm run npm-publish        # interactive: version -> build binaries -> publish
 ```
 
 [`scripts/publish.sh`](scripts/publish.sh):
 
 1. `npm whoami` check.
 2. Working-tree clean check.
-3. `pnpm exec lerna version` (interactive bump).
-4. Prompts for npm OTP and runs `pnpm exec lerna publish from-package --no-private --ignore-scripts`.
+3. `pnpm exec lerna version` (interactive lockstep bump).
+4. [`scripts/build-binary-packages.mjs`](scripts/build-binary-packages.mjs) — cross-compiles the 7-platform matrix and stages `ts-runtypes-binary-*` + the launcher (its `optionalDependencies` filled, pinned exact-equal) under `dist-binaries/`.
+5. Prompts for npm OTP, then publishes the platform packages **first** and the launcher **last** (so the launcher never references a not-yet-published optional dep), then `lerna publish from-package` for the two FE packages (`ts-runtypes-bin` is already live by then, so lerna skips it).
 
 Unpublish a bad release:
 

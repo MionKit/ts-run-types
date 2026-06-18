@@ -34,19 +34,42 @@ echo -e "${GREEN}Working tree is clean${NC}"
 
 # ── Version bump (interactive) ──
 echo ""
-echo -e "${GREEN}[3/4] Version bump${NC}"
+echo -e "${GREEN}[3/5] Version bump${NC}"
 echo "──────────────────────────────────────────"
 echo -e "${YELLOW}Select version bump (lerna version):${NC}"
 pnpm exec lerna version
 
+# ── Cross-compile + stage the per-platform binary packages ──
+echo ""
+echo -e "${GREEN}[4/5] Building per-platform binary packages...${NC}"
+echo "──────────────────────────────────────────"
+# Stamps the freshly bumped lerna version into every ts-runtypes-binary-<os>-<arch>
+# package and into ts-runtypes-bin's optionalDependencies. Output: dist-binaries/.
+node scripts/build-binary-packages.mjs
+
 # ── Publish to npm ──
 echo ""
-echo -e "${GREEN}[4/4] Publishing to npm...${NC}"
+echo -e "${GREEN}[5/5] Publishing to npm...${NC}"
 echo "──────────────────────────────────────────"
-read -rp "Enter npm OTP code: " OTP
-# lerna publish (configured with npmClient=pnpm in lerna.json) rewrites
-# `workspace:*` deps to concrete versions before publishing each tarball.
-pnpm exec lerna publish from-package --no-private --ignore-scripts --otp="${OTP}"
+# OTP is time-based and may expire across the sequential publishes below. A
+# granular npm automation token (an _authToken in ~/.npmrc) skips the prompt
+# entirely; leave the answer blank to use it. On an OTP timeout, re-run.
+read -rp "Enter npm OTP code (blank if using an automation token): " OTP
+OTP_FLAG=()
+[ -n "${OTP}" ] && OTP_FLAG=(--otp="${OTP}")
+
+# Platform binary packages FIRST, launcher LAST (dist-binaries/publish-order.json),
+# so the launcher never lands referencing optional deps not yet on the registry.
+# These carry no workspace deps, so they publish directly with npm.
+while read -r PKG; do
+  echo -e "${YELLOW}publishing ${PKG}...${NC}"
+  npm publish "dist-binaries/${PKG}" --access public "${OTP_FLAG[@]}"
+done < <(node -e "JSON.parse(require('fs').readFileSync('dist-binaries/publish-order.json','utf8')).forEach(p=>console.log(p))")
+
+# FE packages via lerna (rewrites workspace:* → concrete versions). ts-runtypes-bin
+# was just published above, so `from-package` sees its version on the registry and
+# skips it — only ts-runtypes + vite-plugin-runtypes publish here.
+pnpm exec lerna publish from-package --no-private --ignore-scripts "${OTP_FLAG[@]}"
 
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════${NC}"

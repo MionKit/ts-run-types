@@ -1,4 +1,5 @@
 import path from 'node:path';
+import {getExePath} from 'ts-runtypes-bin';
 import {renderHeadline} from './diagnosticCatalog.ts';
 import {ResolverClient} from './resolver-client.ts';
 import {createScanBatcher, type SiteScanner} from './scan-batcher.ts';
@@ -17,8 +18,12 @@ import {
 } from './runtypes-constants.generated.ts';
 
 export interface PluginOptions {
-  // Absolute path to the compiled ts-runtypes binary.
-  binary: string;
+  // Absolute path to the compiled ts-runtypes binary. Optional: when omitted,
+  // the plugin resolves the prebuilt binary for the host platform via the
+  // `ts-runtypes-bin` launcher (its `ts-runtypes-binary-<os>-<arch>` optional
+  // dependency). Set this only to point at a custom or local build — e.g.
+  // in-repo development passes `bin/ts-runtypes`.
+  binary?: string;
   // Project root (where tsconfig.json lives). Defaults to Vite's root.
   cwd?: string;
   // Path to tsconfig.json, relative to cwd. Defaults to "tsconfig.json".
@@ -159,7 +164,10 @@ export default function runtypes(options: PluginOptions) {
           `[vite-plugin-runtypes] unknown moduleMode ${JSON.stringify(moduleMode)} — expected '${MODULE_MODE_DEFAULT}' | '${MODULE_MODE_ALL_SINGLE}' | '${MODULE_MODE_ALL_MODULES}'`
         );
       }
-      resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
+      // Explicit path wins; otherwise resolve the host-platform binary from the
+      // ts-runtypes-bin launcher (throws with a clear message if none is installed).
+      const binaryPath = options.binary ?? getExePath();
+      resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         cacheDir,
         emitMode: options.emitMode ?? 'code',
         ...(options.inlineMode ? {inlineMode: options.inlineMode} : {}),
