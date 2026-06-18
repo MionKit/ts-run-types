@@ -2,7 +2,8 @@
 // `getValidationErrors` output into human messages. Errors are hand-built
 // `RTValidationError[]` so the suite needs no Go pipeline (createFriendly does no
 // type-id injection). Covers: base type failure, format-constraint failure +
-// `$[val]`, nested paths, array `$items` + `$[index]`, label fallback,
+// `$[val]`, nested paths, array `$items` + `$[index]`, Map/Set `$keys`/`$values`
+// routing (by the entry's `failed` role) + the entry index, label fallback,
 // accumulation (one message per constraint), the function escape hatch (one
 // aggregated message), `$default`, and missing-entry fallback.
 
@@ -113,6 +114,51 @@ describe('createFriendly — error rendering', () => {
     const out = createFriendly(m).errors([{path: ['b'], expected: 'string'}]);
     expect(out[0].label).toBe('b');
     expect(out[0].message).toBe('b is invalid');
+  });
+});
+
+describe('createFriendly — Map / Set entries', () => {
+  it('Map value failure resolves to $values + carries the entry index', () => {
+    const m: FriendlyType<Map<string, number>> = {
+      $label: 'Settings',
+      $keys: {$label: 'Setting key', $errors: {type: 'key must be text'}},
+      $values: {$label: 'Setting value', $errors: {type: 'value must be a number'}},
+    };
+    const out = createFriendly(m).errors([{path: [{key: 0, failed: 'mapValue'}], expected: 'number'}]);
+    expect(out).toEqual([{path: '0', label: 'Setting value', message: 'value must be a number'}]);
+  });
+
+  it('Map key failure resolves to $keys', () => {
+    const m: FriendlyType<Map<string, number>> = {
+      $keys: {$label: 'Setting key', $errors: {type: 'key must be text'}},
+      $values: {$label: 'Setting value'},
+    };
+    const out = createFriendly(m).errors([{path: [{key: 0, failed: 'mapKey'}], expected: 'string'}]);
+    expect(out[0]).toEqual({path: '0', label: 'Setting key', message: 'key must be text'});
+  });
+
+  it('key + value failures at the same entry do not collide ($keys vs $values)', () => {
+    const m: FriendlyType<Map<string, number>> = {
+      $keys: {$label: 'K', $errors: {type: 'bad key'}},
+      $values: {$label: 'V', $errors: {type: 'bad value'}},
+    };
+    const out = createFriendly(m).errors([
+      {path: [{key: 0, failed: 'mapKey'}], expected: 'string'},
+      {path: [{key: 0, failed: 'mapValue'}], expected: 'number'},
+    ]);
+    expect(out.map((message) => message.message)).toEqual(['bad key', 'bad value']);
+  });
+
+  it('Set item uses $values + $[index]', () => {
+    interface Form {
+      tags: Set<string>;
+    }
+    const m: FriendlyType<Form> = {
+      tags: {$label: 'Tags', $values: {$errors: {type: 'tag #$[index] must be text'}}},
+    };
+    const out = createFriendly(m).errors([{path: ['tags', {key: 2, failed: 'setKey'}], expected: 'string'}]);
+    expect(out[0].path).toBe('tags.2');
+    expect(out[0].message).toBe('tag #2 must be text');
   });
 });
 
