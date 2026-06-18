@@ -25,7 +25,7 @@ import (
 // ChildPathLiteral is the same idea but for validationErrors path tracking:
 // the JS expression (string literal or variable reference) the NEXT
 // pushed frame contributes to the static access-path array used when
-// building a RunTypeError. Symmetric with ChildAccessor — set by the
+// building a RTValidationError. Symmetric with ChildAccessor — set by the
 // parent emit before CompileChild, consumed at pushStack and stored
 // on the child frame as PathLiteral. Empty for kinds that don't
 // contribute to the path (atomic, tuple wrapper, …).

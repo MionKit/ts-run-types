@@ -44,16 +44,17 @@ export interface ValidateOptions {
  *  typedefs that don't carry a source type. **/
 export type ValidateFn<T = unknown> = (value: unknown) => value is DataOnly<T>;
 
-/** Object path segment for a Map / Set entry. `key` is the entry key
- *  (sanitised to a `PropertyKey` by `pf_safeIterableKey`), `index` the entry's
- *  iteration position, `failed` which half of a Map entry failed (absent for a
- *  Set item). It is a valid Standard Schema `PathSegment` (it has `key:
- *  PropertyKey`); the extra `index` / `failed` ride along losslessly and are
- *  ignored by spec consumers (e.g. `getDotPath` reads only `key`). **/
+/** Object path segment for a Map / Set entry. `key` is the entry's iteration
+ *  index — a Map/Set entry has no serialisable address of its own (keys/items
+ *  can be objects, symbols or null), so the position is the only universal
+ *  pointer, and a number is what Standard Schema's `getDotPath` can read.
+ *  `failed` marks which side of the entry tripped: a Map key, a Map value, or
+ *  a Set item. It is a valid Standard Schema `PathSegment` (it has `key:
+ *  PropertyKey`); the extra `failed` rides along losslessly and is ignored by
+ *  spec consumers (e.g. `getDotPath` reads only `key`). **/
 export interface RTPathSegment {
-  key: PropertyKey;
-  index: number;
-  failed?: 'mapKey' | 'mapValue';
+  key: number;
+  failed?: 'mapKey' | 'mapValue' | 'setKey';
 }
 
 /** One segment of a RTValidationError path: an object key (`string`), an array

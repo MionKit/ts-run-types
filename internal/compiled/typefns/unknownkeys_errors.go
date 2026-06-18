@@ -8,7 +8,7 @@ import (
 )
 
 // UnknownKeyErrorsEmitter implements the `unknownKeyErrors` rt
-// function — accumulator that records one RunTypeError of expected
+// function — accumulator that records one RTValidationError of expected
 // `'never'` per unknown key. Ported from the reference emitUnknownKeyErrors.
 //
 // Arg shape mirrors validationErrors: (v, pth=[], er=[]). Returns `er`.
@@ -183,9 +183,8 @@ func emitIndexSignatureUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) 
 
 // emitMapUnknownKeyErrors mirrors
 // IterableRunType.emitUnknownKeyErrors (nodes/native/Iterable.ts:105-120).
-// For each entry, sets the key/value accessor and a `{key, index,
-// failed: 'mapKey' | 'mapValue'}` path segment (matching
-// MapKeyRunType.getStaticPathLiteral / MapValueRunType.getStaticPathLiteral)
+// For each entry, sets the key/value accessor and a `{key, failed: 'mapKey'
+// | 'mapValue'}` path segment (where `key` is the entry's iteration index)
 // before recursing into the wrapped child's unknownKeyErrors emit. The
 // child's emit (object/property/etc) emits its own per-error
 // `pf_newRunTypeErr(pth, er, 'never', [...static path..., extra])`.
@@ -196,7 +195,6 @@ func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 	keyType, valueType := mapKeyValueTypes(rt, ctx)
 	entryVar := ctx.NextLocalVar("entry")
 	idxVar := ctx.NextLocalVar("i")
-	safeKey := mapSafeKeyContextItem(ctx)
 	var inner strings.Builder
 	inner.WriteString("let ")
 	inner.WriteString(idxVar)
@@ -208,7 +206,7 @@ func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 	bodyHasContent := false
 	if keyType != nil {
 		ctx.SetChildAccessor(entryVar + "[0]")
-		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + entryVar + "[0]),index:" + idxVar + ",failed:'mapKey'}")
+		ctx.SetChildPathLiteral("{key:" + idxVar + ",failed:'mapKey'}")
 		keyRT := ctx.CompileChild(keyType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
@@ -225,7 +223,7 @@ func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 	}
 	if valueType != nil {
 		ctx.SetChildAccessor(entryVar + "[1]")
-		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + entryVar + "[0]),index:" + idxVar + ",failed:'mapValue'}")
+		ctx.SetChildPathLiteral("{key:" + idxVar + ",failed:'mapValue'}")
 		valRT := ctx.CompileChild(valueType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
@@ -250,9 +248,9 @@ func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 }
 
 // emitSetUnknownKeyErrors mirrors the same Iterable.ts emit on the Set
-// side. Path segment is {key: safe(item), index} — set.ts DOES
-// override getStaticPathLiteral (it returns the safe item value + the
-// loop index), so the failing item is locatable for an unordered Set.
+// side. Path segment is {key:i0, failed:'setKey'} — `key` is the loop
+// index (the item value is data, not a serialisable address), so the
+// failing item is still locatable for an unordered Set.
 func emitSetUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	itemType := setItemType(rt, ctx)
 	if itemType == nil {
@@ -260,9 +258,8 @@ func emitSetUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 	}
 	itemVar := ctx.NextLocalVar("item")
 	idxVar := ctx.NextLocalVar("i")
-	safeKey := mapSafeKeyContextItem(ctx)
 	ctx.SetChildAccessor(itemVar)
-	ctx.SetChildPathLiteral("{key:" + safeKey + "(" + itemVar + "),index:" + idxVar + "}")
+	ctx.SetChildPathLiteral("{key:" + idxVar + ",failed:'setKey'}")
 	itemRT := ctx.CompileChild(itemType, CodeS)
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")

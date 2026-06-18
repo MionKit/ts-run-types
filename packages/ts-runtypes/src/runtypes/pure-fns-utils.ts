@@ -105,25 +105,6 @@ export const pf_formatErr = registerPureFnFactory('rt::formatErr', function () {
   };
 });
 
-export const pf_safeIterableKey = registerPureFnFactory('rt::safeIterableKey', function () {
-  // A Map/Set entry key sanitised to a PropertyKey (string | number | symbol),
-  // so an error-path segment `{key: …}` is always a valid Standard Schema
-  // PathSegment. string / number / symbol pass through unchanged; everything
-  // else collapses to a representative string (never throws on exotic keys).
-  return function _safeKey(value: any): PropertyKey {
-    const type = typeof value;
-    if (type === 'string' || type === 'number' || type === 'symbol') return value;
-    if (type === 'boolean' || type === 'bigint') return String(value);
-    if (value === null) return 'null';
-    if (value === undefined) return 'undefined';
-    try {
-      return String(value);
-    } catch {
-      return 'object';
-    }
-  };
-});
-
 /** @reflection never */
 export const pf_sanitizeCompiledFn = registerPureFnFactory('rt::sanitizeCompiledFn', function () {
   const anonymousRegex = /^\s*function\s+anonymous\s*\(/;
