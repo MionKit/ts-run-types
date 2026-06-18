@@ -1,0 +1,139 @@
+name: release · build & test
+
+# Reusable: builds every package + the 7-platform binary matrix, runs the full
+# source suite (Go + JS) on Linux, then installs the PUBLISHED packages from a
+# local verdaccio and runs the consumer e2e on each platform — Docker images for
+# the three Linux arches, native runners for macOS/Windows (Docker can't execute
+# Mach-O/PE binaries). Called by pre-publish.yml (PR) and publish.yml (push).
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build + full source suite + pack
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/bootstrap
+      - id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./lerna.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Go test suite
+        run: go test ./internal/...
+      - name: Full JS suite (builds the resolver + dists via pretest)
+        run: pnpm test
+      - name: Build FE dists (canonical, for packing)
+        run: pnpm run build
+      - name: Cross-compile the 7-platform binary packages
+        run: node scripts/build-binary-packages.mjs
+      - name: Pack every package into tarballs/
+        run: node scripts/pack-artifacts.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarballs
+          path: tarballs/
+          retention-days: 3
+
+  e2e-linux:
+    name: e2e linux/${{ matrix.pkg }} (docker)
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: linux/amd64, pkg: x64}
+          - {platform: linux/arm64, pkg: arm64}
+          - {platform: linux/arm/v6, pkg: arm}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: tarballs
+      # QEMU lets the amd64 runner run the arm64 / arm containers.
+      - uses: docker/setup-qemu-action@v3
+      - uses: ./.github/actions/verdaccio-publish
+      - name: e2e inside a linux/${{ matrix.pkg }} container
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            --add-host=host.docker.internal:host-gateway \
+            -v "$PWD/e2e:/e2e" -w /e2e \
+            -e VERSION="${{ needs.build.outputs.version }}" \
+            node:24-bookworm bash -lc '
+              set -euo pipefail
+              rm -rf node_modules package-lock.json
+              npm config set registry http://host.docker.internal:4873
+              npm install \
+                "ts-runtypes@$VERSION" \
+                "vite-plugin-runtypes@$VERSION" \
+                vite@5.4.10 vitest@2.1.9
+              npm test
+            '
+
+  e2e-macos:
+    name: e2e ${{ matrix.pkg }} (native)
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: macos-13, pkg: darwin-x64}
+          - {runner: macos-14, pkg: darwin-arm64}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: tarballs
+      - uses: ./.github/actions/verdaccio-publish
+      - name: e2e (install published packages + run suite)
+        working-directory: e2e
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          npm install \
+            "ts-runtypes@$VERSION" \
+            "vite-plugin-runtypes@$VERSION" \
+            vite@5.4.10 vitest@2.1.9 \
+            --registry http://127.0.0.1:4873
+          npm test
+
+  e2e-windows:
+    name: e2e win32-x64 (native)
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: tarballs
+      - uses: ./.github/actions/verdaccio-publish
+      - name: e2e (install published packages + run suite)
+        working-directory: e2e
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          npm install \
+            "ts-runtypes@$VERSION" \
+            "vite-plugin-runtypes@$VERSION" \
+            vite@5.4.10 vitest@2.1.9 \
+            --registry http://127.0.0.1:4873
+          npm test

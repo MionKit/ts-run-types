@@ -1,0 +1,49 @@
+name: release · publish
+
+# Fires when a release PR lands on a release line. Runs the IDENTICAL build +
+# 7-platform e2e, then — only if all of it passes — publishes to npm and tags.
+# The actual npm push runs in the protected `release` environment, so the
+# automated tag/publish still sits behind a required-reviewer gate.
+on:
+  push:
+    branches:
+      - 'release/**'
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    uses: ./.github/workflows/release-build-test.yml
+
+  publish:
+    name: publish to npm + tag
+    needs: build-test
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write # push the release tag
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: tarballs
+      - id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./lerna.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Publish to npm (platform packages first, launcher, then FE)
+        run: node scripts/publish-tarballs.mjs --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Tag the release
+        shell: bash
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          git tag "v${version}"
+          git push origin "v${version}"
