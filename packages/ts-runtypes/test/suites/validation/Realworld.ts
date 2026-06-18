@@ -112,12 +112,12 @@ export const REALWORLD = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Expected union', path: ['roles', 0]}],
-      [{message: 'Expected number', path: ['id']}],
-      [{message: 'Expected number', path: ['id']}],
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected union', path: ['roles', 0], expected: 'union'}],
+      [{message: 'Expected number', path: ['id'], expected: 'number'}],
+      [{message: 'Expected number', path: ['id'], expected: 'number'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
     ],
     validateDataOnly: () => createValidate<DataOnly<User>>(),
     validateSchema: () =>

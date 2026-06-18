@@ -1,13 +1,13 @@
 // Runtime behaviour of `createFriendly<T>(map)` — pure-data rendering of
 // `getValidationErrors` output into human messages. Errors are hand-built
-// `RunTypeError[]` so the suite needs no Go pipeline (createFriendly does no
+// `RTValidationError[]` so the suite needs no Go pipeline (createFriendly does no
 // type-id injection). Covers: base type failure, format-constraint failure +
 // `$[val]`, nested paths, array `$items` + `$[index]`, label fallback,
 // accumulation (one message per constraint), the function escape hatch (one
 // aggregated message), `$default`, and missing-entry fallback.
 
 import {describe, it, expect} from 'vitest';
-import {createFriendly, type FriendlyType, type RunTypeError} from 'ts-runtypes';
+import {createFriendly, type FriendlyType, type RTValidationError} from 'ts-runtypes';
 
 interface User {
   name: string;
@@ -50,26 +50,26 @@ const friendly = createFriendly<User>(map);
 
 describe('createFriendly — error rendering', () => {
   it('base type failure → `type` template with $[label]', () => {
-    const errs: RunTypeError[] = [{path: ['name'], expected: 'string'}];
+    const errs: RTValidationError[] = [{path: ['name'], expected: 'string'}];
     expect(friendly.errors(errs)).toEqual([{path: 'name', label: 'Full name', message: 'Full name must be text'}]);
   });
 
   it('format failure → constraint template with $[val] = bound', () => {
-    const errs: RunTypeError[] = [
+    const errs: RTValidationError[] = [
       {path: ['name'], expected: 'string', format: {name: 'stringFormat', val: 2, formatPath: ['minLength']}},
     ];
     expect(friendly.errors(errs)[0].message).toBe('Full name needs at least 2 characters');
   });
 
   it('nested path resolves to the nested node', () => {
-    const errs: RunTypeError[] = [
+    const errs: RTValidationError[] = [
       {path: ['profile', 'email'], expected: 'string', format: {name: 'stringFormat', val: 'msg', formatPath: ['pattern']}},
     ];
     expect(friendly.errors(errs)).toEqual([{path: 'profile.email', label: 'Email', message: 'Enter a valid email'}]);
   });
 
   it('array element uses $items + $[index]', () => {
-    const errs: RunTypeError[] = [{path: ['tags', 1], expected: 'string'}];
+    const errs: RTValidationError[] = [{path: ['tags', 1], expected: 'string'}];
     const out = friendly.errors(errs);
     expect(out[0].path).toBe('tags.1');
     expect(out[0].message).toBe('tag #1 must be text');
@@ -83,7 +83,7 @@ describe('createFriendly — error rendering', () => {
   });
 
   it('accumulates: multiple constraint failures → one message each (data form)', () => {
-    const errs: RunTypeError[] = [
+    const errs: RTValidationError[] = [
       {path: ['age'], expected: 'number', format: {name: 'numberFormat', val: 0, formatPath: ['min']}},
       {path: ['age'], expected: 'number', format: {name: 'numberFormat', val: 120, formatPath: ['max']}},
     ];
@@ -91,7 +91,7 @@ describe('createFriendly — error rendering', () => {
   });
 
   it('function-form $errors → one aggregated message per field', () => {
-    const errs: RunTypeError[] = [
+    const errs: RTValidationError[] = [
       {path: ['profile', 'score'], expected: 'number', format: {name: 'numberFormat', val: 0, formatPath: ['min']}},
       {path: ['profile', 'score'], expected: 'number', format: {name: 'numberFormat', val: 100, formatPath: ['max']}},
     ];

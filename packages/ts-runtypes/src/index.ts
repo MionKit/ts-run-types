@@ -85,9 +85,10 @@ export {
   type ValidateOptions,
   createGetValidationErrors,
   type GetValidationErrorsFn,
-  type RunTypeError,
+  type RTValidationError,
   type TypeFormatError,
-  type RunTypeErrorPathSegment,
+  type RTValidationErrorPathSegment,
+  type RTPathSegment,
   createHasUnknownKeys,
   type HasUnknownKeysFn,
   type HasUnknownKeysOptions,
@@ -129,8 +130,13 @@ export type {MockOptions, MockTypeFn, RunTypeMockOptions} from './mocking/mockTy
 // drop the adapter subtree when consumers never call createStandardSchema. The
 // StandardSchemaV1 interface is copied in (./standard/spec.ts) to preserve the
 // package's zero-runtime-dependency posture.
-export {createStandardSchema} from './standard/createStandardSchema.ts';
-export {runTypeErrorsToIssues, type IssueMappingOptions} from './standard/issueMapping.ts';
+export {
+  createStandardSchema,
+  type RTStandardSchemaV1,
+  type RTValidationResult,
+  type RTValidationFailureResult,
+} from './standard/createStandardSchema.ts';
+export {runTypeErrorsToIssues, type IssueMappingOptions, type RTValidationIssue} from './standard/issueMapping.ts';
 export {
   type StandardSchemaV1,
   type StandardSchemaProps,

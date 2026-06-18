@@ -36,9 +36,9 @@ export const DATETIME = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Expected date', path: []}],
-      [{message: 'Expected date', path: []}],
-      [{message: 'Expected date', path: []}],
+      [{message: 'Expected date', path: [], expected: 'date'}],
+      [{message: 'Expected date', path: [], expected: 'date'}],
+      [{message: 'Expected date', path: [], expected: 'date'}],
     ],
     validateDataOnly: () => createValidate<DataOnly<Date>>(),
     validateSchema: () => createValidate(TF.date()),

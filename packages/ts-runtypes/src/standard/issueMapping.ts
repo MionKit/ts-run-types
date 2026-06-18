@@ -1,28 +1,37 @@
-// Pure mapping from RunTypes validation errors to Standard Schema issues. No
-// plugin, no rtUtils — a plain function over an in-memory RunTypeError[], so it
-// is independently unit-testable. Used by `createStandardSchema`'s validate to
+// Maps RunTypes validation errors to Standard Schema issues. No plugin, no
+// rtUtils — a plain function over an in-memory RTValidationError[], so it is
+// independently unit-testable. Used by `createStandardSchema`'s validate to
 // build the `{issues}` branch from `createGetValidationErrors` output.
+//
+// The mapping is LOSSLESS and adds NO path recreation: a RTValidationError path
+// is already a valid Standard Schema path (every segment is a `PropertyKey` or
+// an `RTPathSegment`, which is a `{key: PropertyKey}` carrying extra index/
+// failed metadata), so we pass `err.path` straight through. The only thing we
+// build is the `message`; `expected` and `format` ride along as structured
+// fields a spec consumer ignores but a RunTypes-aware one can read.
 
-import type {RunTypeError, RunTypeErrorPathSegment, TypeFormatError} from '../createRTFunctions.ts';
-import type {StandardSchemaIssue, StandardSchemaPathSegment} from './spec.ts';
+import type {RTValidationError, RTPathSegment, TypeFormatError} from '../createRTFunctions.ts';
+import type {StandardSchemaIssue} from './spec.ts';
+
+/** A Standard Schema Issue that ALSO carries the full RTValidationError
+ *  structure, with no duplication: `path` is the single, spec-shaped path (its
+ *  segments may be the richer `RTPathSegment`), and `expected` + `format` are
+ *  the structured fields the spec `message` otherwise only encodes as text.
+ *  RTValidationIssue extends StandardSchemaIssue, so an array of these is
+ *  assignable to `ReadonlyArray<StandardSchemaIssue>` — generic consumers keep
+ *  working; RunTypes-aware consumers read the extras. **/
+export interface RTValidationIssue extends StandardSchemaIssue {
+  readonly message: string;
+  readonly path: ReadonlyArray<PropertyKey | RTPathSegment>;
+  readonly expected: string;
+  readonly format?: TypeFormatError;
+}
 
 /** Options for `runTypeErrorsToIssues`. The `message` hook replaces the default
  *  mechanical message derivation — the seam a future `createFriendly`-backed
  *  renderer plugs into. **/
 export interface IssueMappingOptions {
-  message?: (err: RunTypeError) => string;
-}
-
-// A RunTypeError path segment is `string | number` (object key / array index)
-// or an object `{key, index, failed?}` for Map/Set entries. Standard Schema's
-// path accepts a bare PropertyKey or a `{key}` PathSegment, so we pass plain
-// keys through and surface the collection KEY for the object form (preserving
-// it — unlike createFriendly's dotted path, which drops object segments). The
-// `index` / `failed` discriminators have no Standard Schema representation.
-function pathSegmentToStandard(seg: RunTypeErrorPathSegment): PropertyKey | StandardSchemaPathSegment {
-  if (typeof seg === 'string' || typeof seg === 'number') return seg;
-  const key = (seg as {key?: PropertyKey}).key;
-  return {key: key ?? ''};
+  message?: (err: RTValidationError) => string;
 }
 
 // constraintName mirrors createFriendly's `constraintKey`: the failed-constraint
@@ -46,7 +55,7 @@ function primitiveBound(val: TypeFormatError['val']): string | number | bigint |
 // defaultMessage derives a mechanical, dependency-free message from the
 // structured error. Human-readable phrasing is the friendly-map's job (wire it
 // via IssueMappingOptions.message when that lands).
-function defaultMessage(err: RunTypeError): string {
+function defaultMessage(err: RTValidationError): string {
   if (err.expected === 'circular') return 'Circular reference';
   if (!err.format) return `Expected ${err.expected}`;
   const constraint = constraintName(err.format);
@@ -54,13 +63,16 @@ function defaultMessage(err: RunTypeError): string {
   return bound === undefined ? `Failed ${constraint} constraint` : `Failed ${constraint} constraint (${String(bound)})`;
 }
 
-/** Maps a flat `RunTypeError[]` to a flat Standard Schema `Issue[]` (one issue
- *  per error). Paths and messages translate per the rules above; pass
- *  `options.message` to override the default message derivation. **/
-export function runTypeErrorsToIssues(errs: RunTypeError[], options?: IssueMappingOptions): StandardSchemaIssue[] {
+/** Maps a flat `RTValidationError[]` to a flat `RTValidationIssue[]` (one issue
+ *  per error). The path passes through unchanged (already spec-shaped); the
+ *  structured `expected` / `format` are preserved; only `message` is derived
+ *  (override it via `options.message`). **/
+export function runTypeErrorsToIssues(errs: RTValidationError[], options?: IssueMappingOptions): RTValidationIssue[] {
   const render = options?.message ?? defaultMessage;
   return errs.map((err) => ({
     message: render(err),
-    path: err.path.map(pathSegmentToStandard),
+    path: err.path,
+    expected: err.expected,
+    ...(err.format ? {format: err.format} : {}),
   }));
 }

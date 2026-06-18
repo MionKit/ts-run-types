@@ -36,16 +36,16 @@ export const CIRCULAR = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Expected string', path: ['c', 's']}],
-      [{message: 'Expected string', path: ['c', 's']}],
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected number', path: ['n']}],
-      [{message: 'Expected date', path: ['d']}],
-      [{message: 'Expected date', path: ['d']}],
+      [{message: 'Expected string', path: ['c', 's'], expected: 'string'}],
+      [{message: 'Expected string', path: ['c', 's'], expected: 'string'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected number', path: ['n'], expected: 'number'}],
+      [{message: 'Expected date', path: ['d'], expected: 'date'}],
+      [{message: 'Expected date', path: ['d'], expected: 'date'}],
       [
-        {message: 'Expected number', path: ['n']},
-        {message: 'Expected string', path: ['s']},
+        {message: 'Expected number', path: ['n'], expected: 'number'},
+        {message: 'Expected string', path: ['s'], expected: 'string'},
       ],
     ],
     validateDataOnly: () => {

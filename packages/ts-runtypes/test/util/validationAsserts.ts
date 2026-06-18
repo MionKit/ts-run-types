@@ -417,7 +417,7 @@ export function assertMockTypeReflect(c: AssertableCase): void {
  *  the SAME format payload — proving a bounded/branded format survives every
  *  resolution path and still reports the same `format` error (name, optional `val`,
  *  optional `formatPath` tail) via the case's index-parallel `expectedFormatErrors`.
- *  Matches on the format payload, not a full RunTypeError deep-equal — robust
+ *  Matches on the format payload, not a full RTValidationError deep-equal — robust
  *  against incidental fields in the envelope. **/
 function assertFormatGetValidationErrorsVia(
   c: FormatValidationCase,

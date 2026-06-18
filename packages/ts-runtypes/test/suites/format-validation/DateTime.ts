@@ -56,9 +56,23 @@ export const DATETIME = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Failed min constraint (2020-01-01T00:00:00)', path: []}],
-      [{message: 'Failed max constraint (2020-12-31T23:59:59)', path: []}],
-      [{message: 'Expected date', path: []}],
+      [
+        {
+          message: 'Failed min constraint (2020-01-01T00:00:00)',
+          path: [],
+          expected: 'Date',
+          format: {name: 'nativeDate', formatPath: ['min'], val: '2020-01-01T00:00:00'},
+        },
+      ],
+      [
+        {
+          message: 'Failed max constraint (2020-12-31T23:59:59)',
+          path: [],
+          expected: 'Date',
+          format: {name: 'nativeDate', formatPath: ['max'], val: '2020-12-31T23:59:59'},
+        },
+      ],
+      [{message: 'Expected date', path: [], expected: 'date'}],
     ],
     validateReflect: () => {
       const v: TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> = new Date();
