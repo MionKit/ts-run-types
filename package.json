@@ -19,6 +19,11 @@
     "node": ">= 24.0.0",
     "pnpm": ">= 10.0.0"
   },
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
+  },
   "scripts": {
     "pretest": "pnpm run check:builds",
     "test": "vitest run",
@@ -89,6 +94,9 @@
     "clean": "nx reset && lerna run clean",
     "fresh-start": "lerna run fresh-start && rimraf node_modules && pnpm install --frozen-lockfile",
     "prepare": "husky",
+    "commit": "cz",
+    "changelog": "git-cliff -o CHANGELOG.md",
+    "changelog:unreleased": "git-cliff --unreleased --prepend CHANGELOG.md",
     "pre-publish-test": "bash scripts/pre-publish-test.sh",
     "npm-publish": "bash scripts/publish.sh",
     "npm-unpublish": "bash scripts/unpublish.sh"
@@ -103,9 +111,13 @@
     ]
   },
   "devDependencies": {
+    "@commitlint/cli": "21.0.1",
+    "@commitlint/config-conventional": "21.0.1",
     "@eslint/js": "9.39.4",
     "@playwright/cli": "0.1.13",
     "@types/node": "24.12.2",
+    "commitizen": "4.3.1",
+    "cz-conventional-changelog": "3.3.0",
     "eslint": "9.39.4",
     "husky": "9.1.7",
     "lerna": "9.0.7",
