@@ -1,4 +1,4 @@
-import type {GetValidationErrorsFn, RunTypeError, MockTypeFn, StandardSchemaV1, StandardSchemaIssue} from 'ts-runtypes';
+import type {GetValidationErrorsFn, RTValidationError, MockTypeFn, StandardSchemaV1, RTValidationIssue} from 'ts-runtypes';
 
 /** Thunk that returns the variant's function, OR the `'not-supported'`
  *  sentinel marking the variant as deliberately unsupported on this case
@@ -97,7 +97,7 @@ export interface ValidationCase {
   validateSchema: ValidateThunk;
   /** Plugin-rewritten thunk returning the getValidationErrors validator —
    *  STATIC form. Caller supplies `T` explicitly. Same dispatch and
-   *  caching as `validate` but the validator returns `RunTypeError[]`
+   *  caching as `validate` but the validator returns `RTValidationError[]`
    *  instead of a boolean (matches the `RTFunctions.validationErrors`). */
   getValidationErrors: Thunk<GetValidationErrorsFn>;
   /** Plugin-rewritten thunk returning the getValidationErrors validator —
@@ -122,10 +122,10 @@ export interface ValidationCase {
   getValidationErrorsSchema: Thunk<GetValidationErrorsFn>;
   /** Expected error arrays for invalid samples — index-parallel to
    *  `getSamples().invalid`. Outer array length must match
-   *  `invalid.length`; entry i is the `RunTypeError[]` the validator
+   *  `invalid.length`; entry i is the `RTValidationError[]` the validator
    *  should produce for `invalid[i]`. Valid samples always expect `[]`.
    *  Omit on cases that don't declare `getValidationErrors`. */
-  getExpectedErrors?: () => RunTypeError[][];
+  getExpectedErrors?: () => RTValidationError[][];
 
   /** STANDARD SCHEMA form: `() => createStandardSchema<T>()` — the SAME `T` as
    *  `validate`. Adapts the validator pair to the Standard Schema v1 contract;
@@ -146,7 +146,7 @@ export interface ValidationCase {
    *  factory uses), so cases that already pinned raw errors need not re-author
    *  the Standard form; author it explicitly to pin a consumer-facing shape
    *  independently (e.g. a format case with no `getExpectedErrors`). */
-  getExpectedStandardErrors?: () => StandardSchemaIssue[][];
+  getExpectedStandardErrors?: () => RTValidationIssue[][];
 
   /** Plugin-rewritten thunk returning the mock generator — STATIC
    *  form. Caller supplies `T` explicitly. The adapter generates N

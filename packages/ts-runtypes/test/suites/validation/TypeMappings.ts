@@ -35,13 +35,13 @@ export const TYPE_MAPPINGS = {
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
       [
-        {message: 'Expected number', path: ['user_id']},
-        {message: 'Expected string', path: ['user_name']},
+        {message: 'Expected number', path: ['user_id'], expected: 'number'},
+        {message: 'Expected string', path: ['user_name'], expected: 'string'},
       ],
-      [{message: 'Expected number', path: ['user_id']}],
-      [{message: 'Expected string', path: ['user_name']}],
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected number', path: ['user_id'], expected: 'number'}],
+      [{message: 'Expected string', path: ['user_name'], expected: 'string'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
     ],
     validateDataOnly: () => {
       interface Source {

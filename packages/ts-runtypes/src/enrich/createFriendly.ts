@@ -12,7 +12,7 @@
 // constraint (a list); a function-form `$errors` yields ONE message per field,
 // handed all of that field's failures aggregated.
 
-import type {RunTypeError, RunTypeErrorPathSegment, TypeFormatError} from '../createRTFunctions.ts';
+import type {RTValidationError, RTValidationErrorPathSegment, TypeFormatError} from '../createRTFunctions.ts';
 import type {ErrorTemplates, FailedConstraints, FriendlyType} from './friendlyType.ts';
 
 /** A rendered, human-readable validation message for one failure. */
@@ -28,9 +28,9 @@ export interface FriendlyMessage {
 /** What `createFriendly` returns. */
 export interface FriendlyRenderer {
   /** The friendly label for a path (dotted string or a raw segment array). */
-  label(path: string | RunTypeErrorPathSegment[]): string;
+  label(path: string | RTValidationErrorPathSegment[]): string;
   /** Render a `getValidationErrors` result into friendly messages. */
-  errors(errs: RunTypeError[]): FriendlyMessage[];
+  errors(errs: RTValidationError[]): FriendlyMessage[];
 }
 
 // Runtime view of a node — the authored map is a plain object with `$label` /
@@ -46,19 +46,19 @@ const PLACEHOLDER = /\$\[(\w+)\]/g;
 
 /** A path segment usable as an object/dotted key — string or number; Map/Set
  *  object segments have no friendly key in v1. */
-function segmentKey(seg: RunTypeErrorPathSegment): string | number | undefined {
+function segmentKey(seg: RTValidationErrorPathSegment): string | number | undefined {
   return typeof seg === 'string' || typeof seg === 'number' ? seg : undefined;
 }
 
 /** Descend one segment: string → child field; number → `$items`; object
  *  (Map/Set segment) → `$items` (best effort). */
-function descend(node: FriendlyNodeRuntime | undefined, seg: RunTypeErrorPathSegment): FriendlyNodeRuntime | undefined {
+function descend(node: FriendlyNodeRuntime | undefined, seg: RTValidationErrorPathSegment): FriendlyNodeRuntime | undefined {
   if (!node) return undefined;
   if (typeof seg === 'string') return node[seg] as FriendlyNodeRuntime | undefined;
   return node.$items;
 }
 
-function nodeAt(root: FriendlyNodeRuntime, path: RunTypeErrorPathSegment[]): FriendlyNodeRuntime | undefined {
+function nodeAt(root: FriendlyNodeRuntime, path: RTValidationErrorPathSegment[]): FriendlyNodeRuntime | undefined {
   let node: FriendlyNodeRuntime | undefined = root;
   for (const seg of path) node = descend(node, seg);
   return node;
@@ -66,7 +66,7 @@ function nodeAt(root: FriendlyNodeRuntime, path: RunTypeErrorPathSegment[]): Fri
 
 /** Fallback label when a node has no `$label`: the last STRING segment (the
  *  field name) if any, else the last segment stringified. */
-function rawLabel(path: RunTypeErrorPathSegment[]): string {
+function rawLabel(path: RTValidationErrorPathSegment[]): string {
   for (let i = path.length - 1; i >= 0; i--) {
     if (typeof path[i] === 'string') return path[i] as string;
   }
@@ -74,7 +74,7 @@ function rawLabel(path: RunTypeErrorPathSegment[]): string {
   return tail === undefined ? '' : String(tail);
 }
 
-function pathToString(path: RunTypeErrorPathSegment[]): string {
+function pathToString(path: RTValidationErrorPathSegment[]): string {
   const parts: string[] = [];
   for (const seg of path) {
     const key = segmentKey(seg);
@@ -101,7 +101,7 @@ function primitiveVal(val: TypeFormatError['val'] | undefined): string | number 
 }
 
 /** The last numeric path segment (array index), for `$[index]`. */
-function numericIndex(path: RunTypeErrorPathSegment[]): number | undefined {
+function numericIndex(path: RTValidationErrorPathSegment[]): number | undefined {
   for (let i = path.length - 1; i >= 0; i--) {
     if (typeof path[i] === 'number') return path[i] as number;
   }
@@ -122,13 +122,13 @@ function interpolate(
 }
 
 interface PathGroup {
-  path: RunTypeErrorPathSegment[];
+  path: RTValidationErrorPathSegment[];
   pathStr: string;
-  errors: RunTypeError[];
+  errors: RTValidationError[];
 }
 
 /** Group errors by stringified path, preserving first-seen order. */
-function groupByPath(errs: RunTypeError[]): PathGroup[] {
+function groupByPath(errs: RTValidationError[]): PathGroup[] {
   const groups: PathGroup[] = [];
   const byPath = new Map<string, PathGroup>();
   for (const err of errs) {
@@ -147,7 +147,7 @@ function groupByPath(errs: RunTypeError[]): PathGroup[] {
 export function createFriendly<T>(map: FriendlyType<T>): FriendlyRenderer {
   const root = map as FriendlyNodeRuntime;
 
-  const labelFor = (node: FriendlyNodeRuntime | undefined, path: RunTypeErrorPathSegment[]): string =>
+  const labelFor = (node: FriendlyNodeRuntime | undefined, path: RTValidationErrorPathSegment[]): string =>
     node?.$label ?? rawLabel(path);
 
   return {

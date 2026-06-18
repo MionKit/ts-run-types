@@ -50,8 +50,15 @@ export const STRING_FORMAT = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Failed maxLength constraint (5)', path: []}],
-      [{message: 'Expected string', path: []}],
+      [
+        {
+          message: 'Failed maxLength constraint (5)',
+          path: [],
+          expected: 'string',
+          format: {name: 'stringFormat', formatPath: ['maxLength'], val: 5},
+        },
+      ],
+      [{message: 'Expected string', path: [], expected: 'string'}],
     ],
     validateReflect: () => {
       const v: TF.String<{maxLength: 5}> = 'hello';

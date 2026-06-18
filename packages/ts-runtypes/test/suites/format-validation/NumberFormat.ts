@@ -26,8 +26,15 @@ export const NUMBER_FORMAT = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Failed max constraint (100)', path: []}],
-      [{message: 'Expected number', path: []}],
+      [
+        {
+          message: 'Failed max constraint (100)',
+          path: [],
+          expected: 'number',
+          format: {name: 'numberFormat', formatPath: ['max'], val: 100},
+        },
+      ],
+      [{message: 'Expected number', path: [], expected: 'number'}],
     ],
     validateReflect: () => {
       const v: TF.Number<{max: 100}> = 100;

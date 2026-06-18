@@ -5,6 +5,13 @@
 // of two entry tuples (the cheap boolean validator + getValidationErrors) for
 // the same `T`. The produced `validate` is two-tier and synchronous: run the
 // boolean validator first, and only on failure compute + map issues.
+//
+// The returned object is a Standard Schema (structurally assignable to
+// StandardSchemaV1), but its `validate` advertises the richer RTValidationResult
+// — the failure issues are RTValidationIssue, which carry the structured
+// `expected` / `format` and the full path segments alongside the spec
+// `message`/`path`. So generic consumers see a plain Standard Schema while
+// RunTypes-aware consumers get the structured data with no extra call.
 
 import {isRunTypeSchema} from '../runtypes/rtUtils.ts';
 import {resolveEntryTupleFn} from '../runtypes/entryTuple.ts';
@@ -14,7 +21,30 @@ import type {DataOnly} from '../runtypes/dataOnly.ts';
 import type {ValidateFn, GetValidationErrorsFn, ValidateOptions} from '../createRTFunctions.ts';
 import type {CompTimeFnArgs, InjectTypeFnArgs} from '../markers.ts';
 import {runTypeErrorsToIssues} from './issueMapping.ts';
-import type {StandardSchemaV1, StandardSchemaProps, StandardSchemaResult} from './spec.ts';
+import type {RTValidationIssue} from './issueMapping.ts';
+import type {StandardSchemaSuccessResult, StandardSchemaProps} from './spec.ts';
+
+/** Failure result whose issues are the richer RTValidationIssue. Assignable to
+ *  the spec FailureResult since RTValidationIssue extends StandardSchemaIssue. **/
+export interface RTValidationFailureResult {
+  readonly issues: ReadonlyArray<RTValidationIssue>;
+}
+
+/** createStandardSchema's `validate` result: `{value}` on success, the richer
+ *  `{issues: RTValidationIssue[]}` on failure. Structurally a Standard Schema
+ *  Result<Output>. **/
+export type RTValidationResult<Output> = StandardSchemaSuccessResult<Output> | RTValidationFailureResult;
+
+/** The createStandardSchema return type: a Standard Schema whose `validate`
+ *  returns the richer RTValidationResult. Structurally assignable to
+ *  StandardSchemaV1<Input, Output> (the validate return is assignable to the
+ *  spec's), so it interops with any spec consumer while exposing the structured
+ *  issue data at the type level. **/
+export interface RTStandardSchemaV1<Input = unknown, Output = Input> {
+  readonly '~standard': Omit<StandardSchemaProps<Input, Output>, 'validate'> & {
+    readonly validate: (value: unknown) => RTValidationResult<Output> | Promise<RTValidationResult<Output>>;
+  };
+}
 
 // Identity fallbacks for the no-plugin case (mirror createValidate /
 // createGetValidationErrors): a boolean validator that accepts everything and an
@@ -26,26 +56,26 @@ function readRejectCircularRefs(options: unknown): boolean | undefined {
   return (options as {rejectCircularRefs?: boolean} | undefined)?.rejectCircularRefs;
 }
 
-/** Returns a Standard Schema v1 object for `T`. The `validate` function returns
- *  `{value}` on success (the input, narrowed to `DataOnly<T>` — RunTypes
- *  validates the serialisable projection) or `{issues}` on failure. Synchronous,
+/** Returns a Standard Schema v1 object for `T`. `validate` returns `{value}` on
+ *  success (the input, narrowed to `DataOnly<T>` — RunTypes validates the
+ *  serialisable projection) or the richer `{issues}` on failure. Synchronous,
  *  `vendor: 'ts-runtypes'`. Accepts either a value-first `RunType` schema or the
  *  type/value reflection form, mirroring `createValidate`. **/
 export function createStandardSchema<T>(
   schema: RunType<T>,
   options?: CompTimeFnArgs<ValidateOptions>,
   ids?: InjectTypeFnArgs<T, 'val', 'verr'>
-): StandardSchemaV1<DataOnly<T>>;
+): RTStandardSchemaV1<DataOnly<T>>;
 export function createStandardSchema<T>(
   val?: T,
   options?: CompTimeFnArgs<ValidateOptions>,
   ids?: InjectTypeFnArgs<T, 'val', 'verr'>
-): StandardSchemaV1<DataOnly<T>>;
+): RTStandardSchemaV1<DataOnly<T>>;
 export function createStandardSchema<T>(
   valOrSchema?: T | RunType<T>,
   options?: CompTimeFnArgs<ValidateOptions>,
   ids?: InjectTypeFnArgs<T, 'val', 'verr'>
-): StandardSchemaV1<DataOnly<T>> {
+): RTStandardSchemaV1<DataOnly<T>> {
   const reject = readRejectCircularRefs(options);
   // A value-first schema's runtime `.id` overrides the injected type id for both
   // lookups (correct even for recursive schemas).
@@ -71,18 +101,17 @@ export function createStandardSchema<T>(
     verrInjected,
     reject
   );
-  const props: StandardSchemaProps<DataOnly<T>, DataOnly<T>> = {
+  const props: RTStandardSchemaV1<DataOnly<T>>['~standard'] = {
     version: 1,
     vendor: 'ts-runtypes',
     // Two-tier: cheap boolean first (zero allocation on the valid path), and
     // only on failure compute + map the issues.
-    validate(value: unknown): StandardSchemaResult<DataOnly<T>> {
+    validate(value: unknown): RTValidationResult<DataOnly<T>> {
       if (validate(value)) return {value: value as DataOnly<T>};
       return {issues: runTypeErrorsToIssues(getErrors(value))};
     },
     // `types` is PHANTOM — intentionally never assigned at runtime; the declared
-    // return type carries the input/output types for StandardSchemaInferInput /
-    // StandardSchemaInferOutput.
+    // return type carries the input/output types for inference.
   };
   return {'~standard': props};
 }

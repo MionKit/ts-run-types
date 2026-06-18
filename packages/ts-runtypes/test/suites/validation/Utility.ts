@@ -34,16 +34,16 @@ export const UTILITY = {
     // generation or the issue mapping changes. One case per file covers this
     // file's shapes without the ~265x maintenance of authoring every case.
     getExpectedStandardErrors: () => [
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected string', path: ['name']}],
-      [{message: 'Expected date', path: ['createdAt']}],
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected date', path: ['createdAt']}],
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected objectLiteral', path: []}],
-      [{message: 'Expected number', path: ['age']}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected string', path: ['name'], expected: 'string'}],
+      [{message: 'Expected date', path: ['createdAt'], expected: 'date'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected date', path: ['createdAt'], expected: 'date'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
+      [{message: 'Expected number', path: ['age'], expected: 'number'}],
     ],
     validateDataOnly: () => {
       interface Person {
