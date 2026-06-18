@@ -162,6 +162,51 @@ describe('createFriendly — Map / Set entries', () => {
   });
 });
 
+describe('createFriendly — tuples', () => {
+  it('fixed-tuple slot failure resolves to $slots[i] (not $items)', () => {
+    const m: FriendlyType<[string, number]> = {
+      $label: 'Coordinate',
+      $slots: [
+        {$label: 'X', $errors: {type: 'X must be text'}},
+        {$label: 'Y', $errors: {type: 'Y must be a number'}},
+      ],
+    };
+    const out = createFriendly(m).errors([{path: [1], expected: 'number'}]);
+    expect(out).toEqual([{path: '1', label: 'Y', message: 'Y must be a number'}]);
+  });
+
+  it('rest-tuple element falls back to $items + $[index] (broad length)', () => {
+    const m: FriendlyType<[string, ...number[]]> = {
+      $label: 'Args',
+      $items: {$errors: {type: 'arg #$[index] must match'}},
+    };
+    const out = createFriendly(m).errors([{path: [2], expected: 'number'}]);
+    expect(out[0].path).toBe('2');
+    expect(out[0].message).toBe('arg #2 must match');
+  });
+
+  it('array of tuples: outer $items then inner $slots', () => {
+    const m: FriendlyType<[string, number][]> = {
+      $items: {$slots: [{$label: 'Name'}, {$label: 'Count', $errors: {type: 'count must be a number'}}]},
+    };
+    const out = createFriendly(m).errors([{path: [0, 1], expected: 'number'}]);
+    expect(out[0].path).toBe('0.1');
+    expect(out[0].message).toBe('count must be a number');
+  });
+
+  it('tuple inside an object field routes through the field then $slots', () => {
+    interface Form {
+      coord: [number, number];
+    }
+    const m: FriendlyType<Form> = {
+      coord: {$label: 'Coord', $slots: [{$errors: {type: 'lat bad'}}, {$errors: {type: 'lng bad'}}]},
+    };
+    const out = createFriendly(m).errors([{path: ['coord', 0], expected: 'number'}]);
+    expect(out[0].path).toBe('coord.0');
+    expect(out[0].message).toBe('lat bad');
+  });
+});
+
 describe('createFriendly — label()', () => {
   it('resolves dotted + nested paths, root, and unknown', () => {
     expect(friendly.label('name')).toBe('Full name');
