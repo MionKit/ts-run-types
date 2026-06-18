@@ -54,6 +54,21 @@ export const ATOMIC = {
       'Strict `typeof === "bigint"`. Plain `number` values (including `Infinity` / `-Infinity`) are rejected — `42` is not `42n`.',
     validate: () => createValidate<bigint>(),
     standardSchema: () => createStandardSchema<bigint>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Expected bigint', path: []}],
+      [{message: 'Expected bigint', path: []}],
+      [{message: 'Expected bigint', path: []}],
+      [{message: 'Expected bigint', path: []}],
+      [{message: 'Expected bigint', path: []}],
+      [{message: 'Expected bigint', path: []}],
+      [{message: 'Expected bigint', path: []}],
+    ],
     validateDataOnly: () => createValidate<DataOnly<bigint>>(),
     validateSchema: () => createValidate(TF.bigInt()),
     deserializeValidate: () => deserializeValidate<bigint>(),

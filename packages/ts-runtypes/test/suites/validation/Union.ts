@@ -14,6 +14,22 @@ export const UNION = {
     ],
     validate: () => createValidate<Date | number | string | null | bigint>(),
     standardSchema: () => createStandardSchema<Date | number | string | null | bigint>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Expected union', path: []}],
+      [{message: 'Expected union', path: []}],
+      [{message: 'Expected union', path: []}],
+      [{message: 'Expected union', path: []}],
+      [{message: 'Expected union', path: []}],
+      [{message: 'Expected union', path: []}],
+      [{message: 'Expected union', path: []}],
+      [{message: 'Expected union', path: []}],
+    ],
     validateDataOnly: () => createValidate<DataOnly<Date | number | string | null | bigint>>(),
     validateSchema: () => createValidate(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
     deserializeValidate: () => deserializeValidate<Date | number | string | null | bigint>(),

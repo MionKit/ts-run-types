@@ -15,6 +15,24 @@ export const TEMPLATE_LITERAL = {
     ],
     validate: () => createValidate<`api/user/${number}`>(),
     standardSchema: () => createStandardSchema<`api/user/${number}`>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Expected templateLiteral', path: []}],
+      [{message: 'Expected templateLiteral', path: []}],
+      [{message: 'Expected templateLiteral', path: []}],
+      [{message: 'Expected templateLiteral', path: []}],
+      [{message: 'Expected templateLiteral', path: []}],
+      [{message: 'Expected templateLiteral', path: []}],
+      [{message: 'Expected templateLiteral', path: []}],
+      [{message: 'Expected templateLiteral', path: []}],
+      [{message: 'Expected templateLiteral', path: []}],
+      [{message: 'Expected templateLiteral', path: []}],
+    ],
     validateDataOnly: () => createValidate<DataOnly<`api/user/${number}`>>(),
     validateSchema: () => createValidate(RT.templateLiteral(['api/user/', TF.number()])),
     deserializeValidate: () => deserializeValidate<`api/user/${number}`>(),

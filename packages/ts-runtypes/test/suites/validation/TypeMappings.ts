@@ -27,6 +27,22 @@ export const TYPE_MAPPINGS = {
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
       return createStandardSchema<Prefixed<Source>>();
     },
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [
+        {message: 'Expected number', path: ['user_id']},
+        {message: 'Expected string', path: ['user_name']},
+      ],
+      [{message: 'Expected number', path: ['user_id']}],
+      [{message: 'Expected string', path: ['user_name']}],
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected objectLiteral', path: []}],
+    ],
     validateDataOnly: () => {
       interface Source {
         id: number;

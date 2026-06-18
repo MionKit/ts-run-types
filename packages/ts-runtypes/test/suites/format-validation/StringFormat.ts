@@ -43,6 +43,16 @@ export const STRING_FORMAT = {
       'Length 5 passes (`hello`); 6 chars (`hello!`) fails with `val` 5 (`maxLength`). A non-string (42) fails the string typeof gate before any format check. Empty string passes.',
     validate: () => createValidate<TF.String<{maxLength: 5}>>(),
     standardSchema: () => createStandardSchema<TF.String<{maxLength: 5}>>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Failed maxLength constraint (5)', path: []}],
+      [{message: 'Expected string', path: []}],
+    ],
     validateReflect: () => {
       const v: TF.String<{maxLength: 5}> = 'hello';
       return createValidate(v);
