@@ -1,0 +1,32 @@
+name: Bootstrap ts-runtypes toolchain
+description: Apply tsgolint patches, set up Go + Node + pnpm, and install workspace deps.
+
+# Requires the caller to have already run actions/checkout with
+# `submodules: recursive` (a local composite action can only run once the repo
+# — including this file — is on disk, and the patches need the submodule).
+runs:
+  using: composite
+  steps:
+    # tsgolint vendors its typescript-go fork as a submodule + patch set; the Go
+    # resolver only builds once the patches are applied to the working tree.
+    # `git apply` (not `git am`) so no committer identity is needed on CI.
+    - name: Apply tsgolint patches to typescript-go
+      shell: bash
+      run: |
+        cd third_party/tsgolint/typescript-go
+        git apply --3way ../patches/*.patch
+
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.26'
+
+    - uses: pnpm/action-setup@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: pnpm
+
+    - name: Install workspace deps
+      shell: bash
+      run: pnpm install --frozen-lockfile

@@ -32,6 +32,9 @@ packages/ts-runtypes/test/suites/enrichment/.tmp/
 # Cross-compiled per-platform binary packages, staged for publish by
 # scripts/build-binary-packages.mjs (assembled, never committed).
 /dist-binaries/
+
+# Consumer e2e fixture install artifacts (the fixture source IS tracked).
+/e2e/package-lock.json
 /logs/
 /gendocs/
 

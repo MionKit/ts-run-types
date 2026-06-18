@@ -1,0 +1,9 @@
+{
+  "name": "ts-runtypes-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Consumer end-to-end fixture. Installs the PUBLISHED ts-runtypes packages from a local registry and verifies the host-platform binary resolves, spawns, and transforms. Run per-platform in CI; its deps are added by scripts/e2e-test.mjs at the release version.",
+  "scripts": {
+    "test": "vitest run"
+  }
+}
