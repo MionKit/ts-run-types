@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -18,6 +18,14 @@ export const TYPE_MAPPINGS = {
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
       return createValidate<Prefixed<Source>>();
+    },
+    standardSchema: () => {
+      interface Source {
+        id: number;
+        name: string;
+      }
+      type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
+      return createStandardSchema<Prefixed<Source>>();
     },
     validateDataOnly: () => {
       interface Source {
@@ -153,6 +161,15 @@ export const TYPE_MAPPINGS = {
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
       return createValidate<MongoForm<Source>>();
+    },
+    standardSchema: () => {
+      interface Source {
+        id: number;
+        name: string;
+        createdAt: Date;
+      }
+      type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
+      return createStandardSchema<MongoForm<Source>>();
     },
     validateDataOnly: () => {
       interface Source {
@@ -297,6 +314,15 @@ export const TYPE_MAPPINGS = {
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
       return createValidate<Public<Source>>();
+    },
+    standardSchema: () => {
+      interface Source {
+        id: number;
+        name: string;
+        secret: string;
+      }
+      type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
+      return createStandardSchema<Public<Source>>();
     },
     validateDataOnly: () => {
       interface Source {

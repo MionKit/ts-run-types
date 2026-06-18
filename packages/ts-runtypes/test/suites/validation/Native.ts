@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -14,6 +14,7 @@ export const NATIVE = {
       'The value side reuses the atomic `number` check, so a `NaN` value is rejected (path `{key, index, failed: "mapValue"}`).',
     ],
     validate: () => createValidate<Map<string, number>>(),
+    standardSchema: () => createStandardSchema<Map<string, number>>(),
     validateDataOnly: () => createValidate<DataOnly<Map<string, number>>>(),
     validateSchema: () => createValidate(RT.map(TF.string(), TF.number())),
     deserializeValidate: () => deserializeValidate<Map<string, number>>(),
@@ -80,6 +81,7 @@ export const NATIVE = {
     validateNotes:
       'Must be an actual `Set` instance — a plain object, array, or `Map` is rejected; each element is checked against the element type (set path is `{key: safe(item), index}`).',
     validate: () => createValidate<Set<string>>(),
+    standardSchema: () => createStandardSchema<Set<string>>(),
     validateDataOnly: () => createValidate<DataOnly<Set<string>>>(),
     validateSchema: () => createValidate(RT.set(TF.string())),
     deserializeValidate: () => deserializeValidate<Set<string>>(),
@@ -151,6 +153,7 @@ export const NATIVE = {
       'The wrapped type T is NOT validated — the promise has not resolved yet. Use `Awaited<P>` if you have the resolved value and want to validate it.',
     ],
     validate: () => createValidate<Promise<string>>(),
+    standardSchema: () => createStandardSchema<Promise<string>>(),
     validateDataOnly: () => createValidate<DataOnly<Promise<string>>>(),
     validateSchema: () => createValidate(RT.promise(TF.string())),
     deserializeValidate: () => deserializeValidate<Promise<string>>(),
@@ -208,6 +211,7 @@ export const NATIVE = {
     validateNotes:
       '`Awaited<P>` is resolved at the type-checker layer to the resolved value type — `Awaited<Promise<string>>` becomes plain `string`. The validator is identical to the atomic-string emit; a real Promise does NOT satisfy it.',
     validate: () => createValidate<Awaited<Promise<string>>>(),
+    standardSchema: () => createStandardSchema<Awaited<Promise<string>>>(),
     validateDataOnly: () => createValidate<DataOnly<Awaited<Promise<string>>>>(),
     validateSchema: () => createValidate(TF.string()),
     deserializeValidate: () => deserializeValidate<Awaited<Promise<string>>>(),

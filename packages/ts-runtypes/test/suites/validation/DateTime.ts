@@ -12,7 +12,7 @@
 import * as TF from 'ts-runtypes/formats';
 import * as TFT from 'ts-runtypes/formats/temporal';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
@@ -28,6 +28,7 @@ export const DATETIME = {
       'Invalid Date instances are rejected — e.g., `new Date("not-a-date")` or `new Date(NaN)`, whose `.getTime()` returns NaN.',
     ],
     validate: () => createValidate<Date>(),
+    standardSchema: () => createStandardSchema<Date>(),
     validateDataOnly: () => createValidate<DataOnly<Date>>(),
     validateSchema: () => createValidate(TF.date()),
     deserializeValidate: () => deserializeValidate<Date>(),
@@ -71,6 +72,7 @@ export const DATETIME = {
     dataOnlyDivergent: true,
     validateNotes: 'Must be a Temporal.Instant instance (instanceof).',
     validate: () => createValidate<Temporal.Instant>(),
+    standardSchema: () => createStandardSchema<Temporal.Instant>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.Instant>>(),
     validateSchema: () => createValidate(TFT.instant()),
     deserializeValidate: () => deserializeValidate<Temporal.Instant>(),
@@ -114,6 +116,7 @@ export const DATETIME = {
     dataOnlyDivergent: true,
     validateNotes: 'Must be a Temporal.ZonedDateTime instance (instanceof).',
     validate: () => createValidate<Temporal.ZonedDateTime>(),
+    standardSchema: () => createStandardSchema<Temporal.ZonedDateTime>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.ZonedDateTime>>(),
     validateSchema: () => createValidate(TFT.zonedDateTime()),
     deserializeValidate: () => deserializeValidate<Temporal.ZonedDateTime>(),
@@ -157,6 +160,7 @@ export const DATETIME = {
     dataOnlyDivergent: true,
     validateNotes: 'Must be a Temporal.PlainDate instance (instanceof).',
     validate: () => createValidate<Temporal.PlainDate>(),
+    standardSchema: () => createStandardSchema<Temporal.PlainDate>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.PlainDate>>(),
     validateSchema: () => createValidate(TFT.plainDate()),
     deserializeValidate: () => deserializeValidate<Temporal.PlainDate>(),
@@ -200,6 +204,7 @@ export const DATETIME = {
     dataOnlyDivergent: true,
     validateNotes: 'Must be a Temporal.PlainTime instance (instanceof).',
     validate: () => createValidate<Temporal.PlainTime>(),
+    standardSchema: () => createStandardSchema<Temporal.PlainTime>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.PlainTime>>(),
     validateSchema: () => createValidate(TFT.plainTime()),
     deserializeValidate: () => deserializeValidate<Temporal.PlainTime>(),
@@ -243,6 +248,7 @@ export const DATETIME = {
     dataOnlyDivergent: true,
     validateNotes: 'Must be a Temporal.PlainDateTime instance (instanceof).',
     validate: () => createValidate<Temporal.PlainDateTime>(),
+    standardSchema: () => createStandardSchema<Temporal.PlainDateTime>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.PlainDateTime>>(),
     validateSchema: () => createValidate(TFT.plainDateTime()),
     deserializeValidate: () => deserializeValidate<Temporal.PlainDateTime>(),
@@ -286,6 +292,7 @@ export const DATETIME = {
     dataOnlyDivergent: true,
     validateNotes: 'Must be a Temporal.PlainYearMonth instance (instanceof).',
     validate: () => createValidate<Temporal.PlainYearMonth>(),
+    standardSchema: () => createStandardSchema<Temporal.PlainYearMonth>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.PlainYearMonth>>(),
     validateSchema: () => createValidate(TFT.plainYearMonth()),
     deserializeValidate: () => deserializeValidate<Temporal.PlainYearMonth>(),
@@ -332,6 +339,7 @@ export const DATETIME = {
     dataOnlyDivergent: true,
     validateNotes: 'Must be a Temporal.PlainMonthDay instance (instanceof).',
     validate: () => createValidate<Temporal.PlainMonthDay>(),
+    standardSchema: () => createStandardSchema<Temporal.PlainMonthDay>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.PlainMonthDay>>(),
     validateSchema: () => createValidate(TFT.plainMonthDay()),
     deserializeValidate: () => deserializeValidate<Temporal.PlainMonthDay>(),
@@ -375,6 +383,7 @@ export const DATETIME = {
     dataOnlyDivergent: true,
     validateNotes: 'Must be a Temporal.Duration instance (instanceof).',
     validate: () => createValidate<Temporal.Duration>(),
+    standardSchema: () => createStandardSchema<Temporal.Duration>(),
     validateDataOnly: () => createValidate<DataOnly<Temporal.Duration>>(),
     validateSchema: () => createValidate(TFT.duration()),
     deserializeValidate: () => deserializeValidate<Temporal.Duration>(),

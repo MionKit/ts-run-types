@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -13,6 +13,7 @@ export const ARRAY = {
       'Every element must satisfy the element type — the empty array `[]` is valid.',
     ],
     validate: () => createValidate<string[]>(),
+    standardSchema: () => createStandardSchema<string[]>(),
     validateDataOnly: () => createValidate<DataOnly<string[]>>(),
     validateSchema: () => createValidate(RT.array(TF.string())),
     deserializeValidate: () => deserializeValidate<string[]>(),
@@ -67,6 +68,7 @@ export const ARRAY = {
     validateNotes:
       'Each element goes through the atomic `number` check (`Number.isFinite`) — `NaN`, `Infinity`, and `-Infinity` are rejected per-element even though they pass `typeof === "number"`.',
     validate: () => createValidate<number[]>(),
+    standardSchema: () => createStandardSchema<number[]>(),
     validateDataOnly: () => createValidate<DataOnly<number[]>>(),
     validateSchema: () => createValidate(RT.array(TF.number())),
     deserializeValidate: () => deserializeValidate<number[]>(),
@@ -118,6 +120,7 @@ export const ARRAY = {
     validateNotes:
       'Numeric `0` / `1` are rejected per-element — the element check is strict `typeof === "boolean"`, not truthiness.',
     validate: () => createValidate<boolean[]>(),
+    standardSchema: () => createStandardSchema<boolean[]>(),
     validateDataOnly: () => createValidate<DataOnly<boolean[]>>(),
     validateSchema: () => createValidate(RT.array(RT.boolean())),
     deserializeValidate: () => deserializeValidate<boolean[]>(),
@@ -167,6 +170,7 @@ export const ARRAY = {
     validateNotes:
       'Plain `number` elements (e.g. `2`, `Infinity`) are rejected — `typeof 2n === "bigint"` but `typeof 2 === "number"`.',
     validate: () => createValidate<bigint[]>(),
+    standardSchema: () => createStandardSchema<bigint[]>(),
     validateDataOnly: () => createValidate<DataOnly<bigint[]>>(),
     validateSchema: () => createValidate(RT.array(TF.bigInt())),
     deserializeValidate: () => deserializeValidate<bigint[]>(),
@@ -214,6 +218,7 @@ export const ARRAY = {
     description: 'Each element goes through the atomic `Date` check, so Invalid Date instances fail per element.',
     validateNotes: 'Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.',
     validate: () => createValidate<Date[]>(),
+    standardSchema: () => createStandardSchema<Date[]>(),
     validateDataOnly: () => createValidate<DataOnly<Date[]>>(),
     validateSchema: () => createValidate(RT.array(TF.date())),
     deserializeValidate: () => deserializeValidate<Date[]>(),
@@ -261,6 +266,7 @@ export const ARRAY = {
     validateNotes:
       'A regex *source string* like `"/abc/"` is rejected — the element check is the nominal `instanceof RegExp`, not a string.',
     validate: () => createValidate<RegExp[]>(),
+    standardSchema: () => createStandardSchema<RegExp[]>(),
     validateDataOnly: () => createValidate<DataOnly<RegExp[]>>(),
     validateSchema: () => createValidate(RT.array(RT.regexp())),
     deserializeValidate: () => deserializeValidate<RegExp[]>(),
@@ -308,6 +314,7 @@ export const ARRAY = {
     description: 'Every element must strictly `=== undefined`; `null` and other falsy values are rejected per element.',
     validateNotes: 'Every element must strictly === undefined. `null` and other falsy values are rejected per-element.',
     validate: () => createValidate<undefined[]>(),
+    standardSchema: () => createStandardSchema<undefined[]>(),
     validateDataOnly: () => createValidate<DataOnly<undefined[]>>(),
     validateSchema: () => createValidate(RT.array(RT.literal(undefined))),
     deserializeValidate: () => deserializeValidate<undefined[]>(),
@@ -356,6 +363,7 @@ export const ARRAY = {
     description: 'Every element validated as strictly `=== null`; `[]` is valid.',
     validateNotes: 'Every element must strictly === null. `undefined` and other falsy values are rejected per-element.',
     validate: () => createValidate<null[]>(),
+    standardSchema: () => createStandardSchema<null[]>(),
     validateDataOnly: () => createValidate<DataOnly<null[]>>(),
     validateSchema: () => createValidate(RT.array(RT.literal(null))),
     deserializeValidate: () => deserializeValidate<null[]>(),
@@ -406,6 +414,7 @@ export const ARRAY = {
     validateNotes:
       '`Array<string>` and `string[]` are the same type — they collapse to one canonical id and produce an identical validator.',
     validate: () => createValidate<Array<string>>(),
+    standardSchema: () => createStandardSchema<Array<string>>(),
     validateDataOnly: () => createValidate<DataOnly<Array<string>>>(),
     validateSchema: () => createValidate(RT.array(TF.string())),
     deserializeValidate: () => deserializeValidate<Array<string>>(),
@@ -453,6 +462,7 @@ export const ARRAY = {
     validateNotes:
       'getValidationErrors does NOT early-exit: every failing element accumulates its own error (e.g. a two-element outer array of non-arrays yields two `expected: "array"` entries).',
     validate: () => createValidate<string[][]>(),
+    standardSchema: () => createStandardSchema<string[][]>(),
     validateDataOnly: () => createValidate<DataOnly<string[][]>>(),
     validateSchema: () => createValidate(RT.array(RT.array(TF.string()))),
     deserializeValidate: () => deserializeValidate<string[][]>(),
@@ -519,6 +529,7 @@ export const ARRAY = {
     title: 'String array 3D',
     description: 'Depth stress for the dependency-call layer.',
     validate: () => createValidate<string[][][]>(),
+    standardSchema: () => createStandardSchema<string[][][]>(),
     validateDataOnly: () => createValidate<DataOnly<string[][][]>>(),
     validateSchema: () => createValidate(RT.array(RT.array(RT.array(TF.string())))),
     deserializeValidate: () => deserializeValidate<string[][][]>(),
@@ -574,6 +585,7 @@ export const ARRAY = {
       'Use only when the caller has already verified the value is an array; the validator trusts the shape and only walks elements.',
     ],
     validate: () => createValidate<string[]>(undefined, {noIsArrayCheck: true}),
+    standardSchema: () => createStandardSchema<string[]>(undefined, {noIsArrayCheck: true}),
     validateDataOnly: () => createValidate<DataOnly<string[]>>(undefined, {noIsArrayCheck: true}),
     deserializeValidate: () => deserializeValidate<string[]>(undefined, {noIsArrayCheck: true}),
     validateReflect: () => {
@@ -622,6 +634,7 @@ export const ARRAY = {
     validateNotes:
       'Extra keys on the object elements (e.g. `{a: "hello", extraA: "x"}`) still PASS — validate is structural and ignores undeclared keys.',
     validate: () => createValidate<{a: string}[]>(),
+    standardSchema: () => createStandardSchema<{a: string}[]>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string}[]>>(),
     validateSchema: () => createValidate(RT.array(RT.object({a: TF.string()}))),
     deserializeValidate: () => deserializeValidate<{a: string}[]>(),
@@ -672,6 +685,7 @@ export const ARRAY = {
     validateNotes:
       'Elements may mix `string` and `number` freely. The number arm uses `Number.isFinite`, so `Infinity` / `NaN` fail it; `bigint` matches neither arm — both produce `expected: "union"`.',
     validate: () => createValidate<(string | number)[]>(),
+    standardSchema: () => createStandardSchema<(string | number)[]>(),
     validateDataOnly: () => createValidate<DataOnly<(string | number)[]>>(),
     validateSchema: () => createValidate(RT.array(RT.union([TF.string(), TF.number()]))),
     deserializeValidate: () => deserializeValidate<(string | number)[]>(),
@@ -729,6 +743,7 @@ export const ARRAY = {
     validateNotes:
       'Each element is a fixed-length `[string, number]` tuple: an over-length element (e.g. `["a", 1, "extra"]`) fails the tuple-length check (`expected: "tuple"`), not just an element check.',
     validate: () => createValidate<[string, number][]>(),
+    standardSchema: () => createStandardSchema<[string, number][]>(),
     validateDataOnly: () => createValidate<DataOnly<[string, number][]>>(),
     validateSchema: () => createValidate(RT.array(RT.tuple([TF.string(), TF.number()]))),
     deserializeValidate: () => deserializeValidate<[string, number][]>(),
@@ -794,6 +809,10 @@ export const ARRAY = {
     validate: () => {
       type CircularArray = CircularArray[];
       return createValidate<CircularArray>();
+    },
+    standardSchema: () => {
+      type CircularArray = CircularArray[];
+      return createStandardSchema<CircularArray>();
     },
     validateDataOnly: () => {
       type CircularArray = CircularArray[];
@@ -886,6 +905,10 @@ export const ARRAY = {
     validate: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
       return createValidate<ObjectType>();
+    },
+    standardSchema: () => {
+      type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+      return createStandardSchema<ObjectType>();
     },
     validateDataOnly: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
@@ -993,6 +1016,7 @@ export const ARRAY = {
     validateNotes:
       'Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, …) cannot be validated: the factory is rendered as alwaysThrow and the first createXxx<symbol[]>() call throws. Use a different shape to carry symbol-like data.',
     validate: () => createValidate<symbol[]>(),
+    standardSchema: () => createStandardSchema<symbol[]>(),
     validateDataOnly: () => createValidate<DataOnly<symbol[]>>(),
     // Non-serializable array element (symbol) propagates to the root → alwaysThrow.
     // `RT.array(RT.symbol())` resolves the same factory, so the schema thunk throws.
@@ -1038,6 +1062,7 @@ export const ARRAY = {
     validateNotes:
       'Readonly modifier has NO runtime impact — the validator is identical to `T[]`. The compiler enforces readonly at write sites; the validator only checks the value shape.',
     validate: () => createValidate<ReadonlyArray<string>>(),
+    standardSchema: () => createStandardSchema<ReadonlyArray<string>>(),
     validateDataOnly: () => createValidate<DataOnly<ReadonlyArray<string>>>(),
     validateSchema: () => createValidate(RT.array(TF.string())),
     deserializeValidate: () => deserializeValidate<ReadonlyArray<string>>(),

@@ -8,7 +8,7 @@
 import * as TF from 'ts-runtypes/formats';
 import type {FormatValidationCase} from './types.ts';
 import 'ts-runtypes/formats';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const NUMBER_FORMAT = {
@@ -18,6 +18,7 @@ export const NUMBER_FORMAT = {
     validateNotes:
       'Boundary value 100 passes (inclusive); 101 fails on `max`. A non-number ("5") fails the number typeof gate before any format check.',
     validate: () => createValidate<TF.Number<{max: 100}>>(),
+    standardSchema: () => createStandardSchema<TF.Number<{max: 100}>>(),
     validateReflect: () => {
       const v: TF.Number<{max: 100}> = 100;
       return createValidate(v);
@@ -54,6 +55,7 @@ export const NUMBER_FORMAT = {
     description: 'numberFormat with an inclusive lower bound that rejects numbers below min, equivalent to FormatPositive.',
     validateNotes: 'Boundary value 0 passes (inclusive); -1 fails on `min`.',
     validate: () => createValidate<TF.Number<{min: 0}>>(),
+    standardSchema: () => createStandardSchema<TF.Number<{min: 0}>>(),
     validateReflect: () => {
       const v: TF.Number<{min: 0}> = 0;
       return createValidate(v);
@@ -91,6 +93,7 @@ export const NUMBER_FORMAT = {
     validateNotes:
       'Exclusive `lt`: 9 passes but the boundary 10 fails (and 11 above it). Lower bound is unconstrained, so -100 passes.',
     validate: () => createValidate<TF.Number<{lt: 10}>>(),
+    standardSchema: () => createStandardSchema<TF.Number<{lt: 10}>>(),
     validateReflect: () => {
       const v: TF.Number<{lt: 10}> = 9;
       return createValidate(v);
@@ -130,6 +133,7 @@ export const NUMBER_FORMAT = {
     description: 'numberFormat with an exclusive lower bound where the bound itself is rejected.',
     validateNotes: 'Exclusive `gt`: 1 passes but the boundary 0 fails (and -1 below it).',
     validate: () => createValidate<TF.Number<{gt: 0}>>(),
+    standardSchema: () => createStandardSchema<TF.Number<{gt: 0}>>(),
     validateReflect: () => {
       const v: TF.Number<{gt: 0}> = 1;
       return createValidate(v);
@@ -170,6 +174,7 @@ export const NUMBER_FORMAT = {
     validateNotes:
       'Whole numbers (incl. 0 and negatives like -1) pass; fractional values (1.5, 3.14) fail on `integer`. No min/max bound, so any integer magnitude is accepted.',
     validate: () => createValidate<TF.Integer>(),
+    standardSchema: () => createStandardSchema<TF.Integer>(),
     validateReflect: () => {
       const v: TF.Integer = 0;
       return createValidate(v);
@@ -210,6 +215,7 @@ export const NUMBER_FORMAT = {
     validateNotes:
       'Fractional values (1.5, -0.5, 3.14) pass; whole numbers (1, 0, -2) fail on `float`. `float` and `integer` are mutually exclusive.',
     validate: () => createValidate<TF.Float>(),
+    standardSchema: () => createStandardSchema<TF.Float>(),
     validateReflect: () => {
       const v: TF.Float = 1.5;
       return createValidate(v);
@@ -251,6 +257,7 @@ export const NUMBER_FORMAT = {
     validateNotes:
       '0 counts as a multiple and passes; non-multiples (3, 7) fail on `multipleOf`. Negative multiples like -15 pass.',
     validate: () => createValidate<TF.Number<{multipleOf: 5}>>(),
+    standardSchema: () => createStandardSchema<TF.Number<{multipleOf: 5}>>(),
     validateReflect: () => {
       const v: TF.Number<{multipleOf: 5}> = 0;
       return createValidate(v);
@@ -292,6 +299,7 @@ export const NUMBER_FORMAT = {
     validateNotes:
       'All four constraints enforced together: -5 fails `min`, 105 fails `max`, 7 fails `multipleOf`, 2.5 fails `integer`. Boundary values 0 and 100 pass (both inclusive, integers, and multiples of 5).',
     validate: () => createValidate<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+    standardSchema: () => createStandardSchema<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
     validateReflect: () => {
       const v: TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}> = 0;
       return createValidate(v);
@@ -336,6 +344,7 @@ export const NUMBER_FORMAT = {
     validateNotes:
       'Inclusive bounds min -128 / max 127, integer required: 128 fails `max`, -129 fails `min`, 1.5 fails `integer`. The fixed min/max drive the 1-byte binary packing optimization.',
     validate: () => createValidate<TF.Int8>(),
+    standardSchema: () => createStandardSchema<TF.Int8>(),
     validateReflect: () => {
       const v: TF.Int8 = -128;
       return createValidate(v);
@@ -377,6 +386,7 @@ export const NUMBER_FORMAT = {
     validateNotes:
       'Inclusive bounds min 0 / max 255, integer required: 256 fails `max`, -1 fails `min`. The fixed min/max drive the 1-byte binary packing optimization.',
     validate: () => createValidate<TF.UInt8>(),
+    standardSchema: () => createStandardSchema<TF.UInt8>(),
     validateReflect: () => {
       const v: TF.UInt8 = 0;
       return createValidate(v);

@@ -8,7 +8,7 @@
 import * as TF from 'ts-runtypes/formats';
 import type {FormatValidationCase} from './types.ts';
 import 'ts-runtypes/formats';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const BIGINT_FORMAT = {
@@ -18,6 +18,7 @@ export const BIGINT_FORMAT = {
     validateNotes:
       'Boundary value 100n passes (inclusive); 101n fails on `max`. A non-bigint (5) fails the bigint typeof gate before any format check.',
     validate: () => createValidate<TF.BigInt<{max: 100n}>>(),
+    standardSchema: () => createStandardSchema<TF.BigInt<{max: 100n}>>(),
     validateReflect: () => {
       const v: TF.BigInt<{max: 100n}> = 100n;
       return createValidate(v);
@@ -54,6 +55,7 @@ export const BIGINT_FORMAT = {
     description: 'bigintFormat with an inclusive lower bound that rejects bigints below min.',
     validateNotes: 'Boundary value 0n passes (inclusive); -1n fails on `min`.',
     validate: () => createValidate<TF.BigInt<{min: 0n}>>(),
+    standardSchema: () => createStandardSchema<TF.BigInt<{min: 0n}>>(),
     validateReflect: () => {
       const v: TF.BigInt<{min: 0n}> = 0n;
       return createValidate(v);
@@ -91,6 +93,7 @@ export const BIGINT_FORMAT = {
     validateNotes:
       'Exclusive `lt`: 9n passes but the boundary 10n fails (and 11n above it). Lower bound is unconstrained, so -5n passes.',
     validate: () => createValidate<TF.BigInt<{lt: 10n}>>(),
+    standardSchema: () => createStandardSchema<TF.BigInt<{lt: 10n}>>(),
     validateReflect: () => {
       const v: TF.BigInt<{lt: 10n}> = 9n;
       return createValidate(v);
@@ -130,6 +133,7 @@ export const BIGINT_FORMAT = {
     description: 'bigintFormat with an exclusive lower bound where the bound itself is rejected.',
     validateNotes: 'Exclusive `gt`: 1n passes but the boundary 0n fails (and -1n below it).',
     validate: () => createValidate<TF.BigInt<{gt: 0n}>>(),
+    standardSchema: () => createStandardSchema<TF.BigInt<{gt: 0n}>>(),
     validateReflect: () => {
       const v: TF.BigInt<{gt: 0n}> = 1n;
       return createValidate(v);
@@ -170,6 +174,7 @@ export const BIGINT_FORMAT = {
     validateNotes:
       '0n counts as a multiple and passes; non-multiples (3n, 7n) fail on `multipleOf`. Negative multiples like -15n pass.',
     validate: () => createValidate<TF.BigInt<{multipleOf: 5n}>>(),
+    standardSchema: () => createStandardSchema<TF.BigInt<{multipleOf: 5n}>>(),
     validateReflect: () => {
       const v: TF.BigInt<{multipleOf: 5n}> = 0n;
       return createValidate(v);
@@ -210,6 +215,7 @@ export const BIGINT_FORMAT = {
     validateNotes:
       'All three bounds enforced together: -10n fails `min`, 1010n fails `max`, 7n fails `multipleOf`. Boundary values 0n and 1000n pass (both inclusive and multiples of 10n).',
     validate: () => createValidate<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
+    standardSchema: () => createStandardSchema<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     validateReflect: () => {
       const v: TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}> = 0n;
       return createValidate(v);
@@ -251,6 +257,7 @@ export const BIGINT_FORMAT = {
     validateNotes:
       'Inclusive bounds min -9223372036854775808n / max 9223372036854775807n; one past either end (2^63 / -(2^63)-1) fails on `max` / `min` respectively.',
     validate: () => createValidate<TF.BigInt64>(),
+    standardSchema: () => createStandardSchema<TF.BigInt64>(),
     validateReflect: () => {
       const v: TF.BigInt64 = -9223372036854775808n;
       return createValidate(v);
@@ -293,6 +300,7 @@ export const BIGINT_FORMAT = {
     description: 'bigintFormat preset for the unsigned 64-bit range [0, 2^64-1] that selects 8-byte binary packing.',
     validateNotes: 'Inclusive bounds min 0n / max 18446744073709551615n; 2^64 fails `max` and -1n fails `min`.',
     validate: () => createValidate<TF.BigUInt64>(),
+    standardSchema: () => createStandardSchema<TF.BigUInt64>(),
     validateReflect: () => {
       const v: TF.BigUInt64 = 0n;
       return createValidate(v);

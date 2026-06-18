@@ -1,6 +1,6 @@
 import * as TF from 'ts-runtypes/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
 import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -104,6 +104,7 @@ export const REALWORLD = {
       }
       return createValidate<User>();
     },
+    standardSchema: () => createStandardSchema<User>(),
     validateDataOnly: () => createValidate<DataOnly<User>>(),
     validateSchema: () =>
       createValidate(
@@ -204,6 +205,7 @@ export const REALWORLD = {
       }
       return createValidate<Order>();
     },
+    standardSchema: () => createStandardSchema<Order>(),
     validateDataOnly: () => createValidate<DataOnly<Order>>(),
     validateSchema: () =>
       createValidate(
@@ -322,6 +324,7 @@ export const REALWORLD = {
       }
       return createValidate<BlogPost>();
     },
+    standardSchema: () => createStandardSchema<BlogPost>(),
     validateDataOnly: () => createValidate<DataOnly<BlogPost>>(),
     validateSchema: () =>
       createValidate(
@@ -413,6 +416,7 @@ export const REALWORLD = {
       }
       return createValidate<Product>();
     },
+    standardSchema: () => createStandardSchema<Product>(),
     validateDataOnly: () => createValidate<DataOnly<Product>>(),
     validateSchema: () =>
       createValidate(
@@ -512,6 +516,7 @@ export const REALWORLD = {
       }
       return createValidate<ProductPage>();
     },
+    standardSchema: () => createStandardSchema<ProductPage>(),
     validateDataOnly: () => createValidate<DataOnly<ProductPage>>(),
     validateSchema: () =>
       createValidate(
@@ -618,6 +623,7 @@ export const REALWORLD = {
       }
       return createValidate<RegistrationForm>();
     },
+    standardSchema: () => createStandardSchema<RegistrationForm>(),
     validateDataOnly: () => createValidate<DataOnly<RegistrationForm>>(),
     validateSchema: () =>
       createValidate(

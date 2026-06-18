@@ -13,6 +13,7 @@
 //   - 'not-supported'    → " (not supported)";   assert silently early-returns
 
 import {expect} from 'vitest';
+import {runTypeErrorsToIssues} from 'ts-runtypes';
 import type {Thunk, ValidationCase} from '../suites/validation/types.ts';
 import type {FormatValidationCase} from '../suites/format-validation/types.ts';
 
@@ -53,7 +54,8 @@ function resolveThunk<T>(thunk: Thunk<T> | undefined): (() => T) | undefined {
 export type VariantKey =
   | `validate/${'static' | 'reflect' | 'deserialize-static' | 'deserialize-reflect' | 'schema'}`
   | `getValidationErrors/${'static' | 'reflect' | 'deserialize-static' | 'deserialize-reflect' | 'schema' | 'format'}`
-  | `mockType/${'static' | 'reflect'}`;
+  | `mockType/${'static' | 'reflect'}`
+  | 'standardSchema';
 
 /** Resolves a variant key to the case's matching thunk field (function,
  *  `'not-supported'`, or `undefined`). 'getValidationErrors/format' points at the
@@ -87,6 +89,8 @@ function thunkFor(c: AssertableCase, key: VariantKey): Thunk<unknown> | undefine
       return c.mockType;
     case 'mockType/reflect':
       return c.mockTypeReflect;
+    case 'standardSchema':
+      return c.standardSchema;
   }
 }
 
@@ -494,5 +498,74 @@ export function assertGetValidationErrorsContract(c: AssertableCase): void {
   });
   invalid.forEach((v, i) => {
     expect(getErr(v).length, `${c.title} [getValidationErrors]: invalid[${i}] → ≥1 error`).toBeGreaterThan(0);
+  });
+}
+
+// =========================================================================
+// Standard Schema adapter — createStandardSchema<T>()
+// =========================================================================
+
+/** Exercises `createStandardSchema<T>()` against the case samples (single
+ *  static form). Valid samples must come back as `{value}` with the input
+ *  passed through BY REFERENCE (the adapter never strips/coerces); each invalid
+ *  sample must come back as `{issues}` whose entries equal the expected
+ *  consumer-facing issue list.
+ *
+ *  Expected issues per invalid value come from `getExpectedStandardErrors`
+ *  (authored), else are DERIVED from `getExpectedErrors` via the same
+ *  `runTypeErrorsToIssues` mapping the factory uses. Independently, when the
+ *  case's static `getValidationErrors` resolves, a CONSISTENCY check asserts the
+ *  adapter faithfully maps that validator's raw output — so every type is
+ *  cross-checked even without an authored Standard expectation. **/
+export function assertStandardSchema(c: AssertableCase): void {
+  const factory = resolveThunk(c.standardSchema);
+  if (!factory) return;
+  if (c.factoryThrows) {
+    expect(() => factory(), `${c.title} [standardSchema]: factory must throw`).toThrow();
+    return;
+  }
+  const {valid, invalid} = c.getSamples();
+  const validate = factory()['~standard'].validate;
+
+  valid.forEach((v, i) => {
+    const result = validate(v);
+    if (result instanceof Promise) throw new Error(`${c.title} [standardSchema]: validate must be synchronous`);
+    expect(result.issues, `${c.title} [standardSchema]: valid[${i}] → no issues`).toBeUndefined();
+    // value is the input by reference (DataOnly is type-level only; nothing stripped).
+    if (!result.issues) expect(result.value, `${c.title} [standardSchema]: valid[${i}] → value by reference`).toBe(v);
+  });
+
+  // Expected issues, one entry per invalid value: authored wins, else derive
+  // from the raw expected errors.
+  const expected = c.getExpectedStandardErrors
+    ? c.getExpectedStandardErrors()
+    : c.getExpectedErrors
+      ? c.getExpectedErrors().map((errs) => runTypeErrorsToIssues(errs))
+      : undefined;
+  if (expected && expected.length !== invalid.length) {
+    throw new Error(
+      `case ${c.title}: getExpectedStandardErrors length (${expected.length}) must match invalid samples (${invalid.length})`
+    );
+  }
+
+  // Consistency source — the case's own static getValidationErrors, mapped the
+  // same way the factory maps it.
+  const getErrFactory = resolveThunk(c.getValidationErrors);
+  const getErr = getErrFactory ? getErrFactory() : undefined;
+
+  invalid.forEach((v, i) => {
+    const result = validate(v);
+    if (result instanceof Promise) throw new Error(`${c.title} [standardSchema]: validate must be synchronous`);
+    expect(result.issues, `${c.title} [standardSchema]: invalid[${i}] → issues present`).toBeDefined();
+    if (!result.issues) return;
+    expect(result.issues.length, `${c.title} [standardSchema]: invalid[${i}] → ≥1 issue`).toBeGreaterThan(0);
+    if (getErr) {
+      expect(result.issues, `${c.title} [standardSchema]: invalid[${i}] consistency vs getValidationErrors`).toEqual(
+        runTypeErrorsToIssues(getErr(v))
+      );
+    }
+    if (expected) {
+      expect(result.issues, `${c.title} [standardSchema]: invalid[${i}] expected issues`).toEqual(expected[i]);
+    }
   });
 }
