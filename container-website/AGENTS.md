@@ -6,11 +6,11 @@
 - Styling: Tailwind CSS classes
 
 ## Directory Structure
-- `website/content/` - Documentation pages as markdown files with MDC syntax
+- `container-website/content/` - Documentation pages as markdown files with MDC syntax
   - Files numbered for ordering: `1.introduction/`, `2.server/`
   - `index.md` is the homepage, `0.overview.md` is section index
   - Use lowercase with hyphens: `1.about-mion.md`
-- `website/app/` - Nuxt application code
+- `container-website/app/` - Nuxt application code
   - `app.config.ts` - Docus theme config (colors, SEO, header, footer)
   - `components/content/` - Custom MDC components (`:component-name` syntax)
   - `components/global/` - Global Vue components

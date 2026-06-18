@@ -6,12 +6,12 @@
     "third_party": true
   },
   // Markdown in this repo is MDC (Markdown Components) used by the Docus website
-  // under website/content/. A markdown formatter (e.g. Prettier) rewrites the
+  // under container-website/content/. A markdown formatter (e.g. Prettier) rewrites the
   // component syntax -- notably turning `::component` followed by `---` props
   // into a setext H2 heading -- which breaks the page. Disable format-on-save
   // for markdown so MDC blocks survive. VS Code can't path-scope format-on-save
   // to a single subfolder from the workspace root, so this applies to all
-  // markdown in the repo; website/.vscode/settings.json mirrors it for when the
+  // markdown in the repo; container-website/.vscode/settings.json mirrors it for when the
   // website folder is opened on its own.
   "[markdown]": {
     "editor.formatOnSave": false

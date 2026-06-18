@@ -2,9 +2,9 @@
 /**
  * Script to find example files that are not referenced by any code-import in website docs.
  * Scans packages/examples/src for all TypeScript files and checks if they are used
- * in any <code-import> tag in website/content.
+ * in any <code-import> tag in container-website/content.
  *
- * Usage: npx tsx website/scripts/check-unused-examples.ts
+ * Usage: npx tsx container-website/scripts/check-unused-examples.ts
  */
 
 import {readdirSync, readFileSync, statSync} from 'fs';
@@ -83,7 +83,7 @@ if (unusedExamples.length === 0) {
     console.log(`  📄 ${file}`);
   }
 
-  console.log('\nThese files are not referenced by any <code-import> tag in website/content/');
+  console.log('\nThese files are not referenced by any <code-import> tag in container-website/content/');
   process.exit(0); // Exit 0 since unused files are not necessarily errors
 }
 

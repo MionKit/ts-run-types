@@ -5,7 +5,7 @@ import * as RT from 'ts-runtypes/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 // Real-world DTO scenarios — the SAME relational / CMS / API / form shapes the
-// realworld benchmark runs (benchmarks/shared/cases/realworld), so the suite table
+// realworld benchmark runs (container-benchmarks/shared/cases/realworld), so the suite table
 // and the benchmark table line up case-for-case. The module interfaces below are the
 // single source of truth; the `validate` thunk of each case redeclares its type INLINE
 // (best-practice TS, and what the doc-gen extracts + renders in the hover), while the

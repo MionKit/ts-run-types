@@ -1,14 +1,16 @@
 # Builds the docs website in the SAME isolated podman image used locally, so CI
-# and local development never drift ("works on my machine" can't happen — the
+# and local development never drift ("works on my machine" can't happen: the
 # node_modules tree is identical because it comes from the same Containerfile +
-# frozen lockfile). Runs only when website inputs change.
+# frozen lockfile). That image is the single shared website+benchmark image
+# (website deps at /app, benchmark deps at /bench), so one build serves both.
+# Runs only when website inputs change.
 name: website
 
 # DISABLED for now — manual-only so it doesn't run on every push/PR.
 # Re-enable automatic runs by restoring the push/pull_request triggers below:
 #   on:
-#     push: { branches: [main], paths: ['website/**', 'scripts/website.sh', '.github/workflows/website.yml'] }
-#     pull_request: { paths: ['website/**', 'scripts/website.sh', '.github/workflows/website.yml'] }
+#     push: { branches: [main], paths: ['container-website/**', 'scripts/website.sh', '.github/workflows/website.yml'] }
+#     pull_request: { paths: ['container-website/**', 'scripts/website.sh', '.github/workflows/website.yml'] }
 on:
   workflow_dispatch:
 
@@ -22,11 +24,12 @@ jobs:
       - name: podman version
         run: podman --version
 
-      # Identical to `pnpm run website:build-image` locally.
-      - name: Build the isolated website image
-        run: bash scripts/website.sh build-image
+      # Identical to `pnpm run podman-website:build-image` locally. Builds the single
+      # shared image (website deps at /app, benchmark deps at /bench).
+      - name: Build the shared website+benchmark image
+        run: bash scripts/podman-website.sh build-image
 
-      # Identical to `pnpm run website:build` locally — produces website/.output.
+      # Identical to `pnpm run website:build` locally — produces container-website/.output.
       - name: Production build inside the container
         run: bash scripts/website.sh build
 
@@ -34,5 +37,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: website-output
-          path: website/.output
+          path: container-website/.output
           if-no-files-found: error

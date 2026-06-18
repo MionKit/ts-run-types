@@ -130,17 +130,22 @@ pnpm run bench:typecost        # compile-time: per-competitor TS type-instantiat
 pnpm run bench:serialization   # ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER
 pnpm run bench:website         # ONE command: ALL website benchmark data (validation + typecost + serialization)
 pnpm run bench:smoke           # quick: build every competitor's dist (no run)
-# --- image publishing (maintainer) ---
-pnpm run bench:build-image     # build the podman image locally (per-competitor installs)
-pnpm run bench:login           # log in to GHCR (needs a PAT; see SETUP.md)
-pnpm run bench:push            # build + push the multi-arch image to GHCR
-pnpm run bench:pull            # pull the published image and tag it locally
+# --- image publishing (maintainer); all delegate to scripts/podman-website.sh ---
+pnpm run podman-website:build-image     # build the shared website+benchmark image locally
+pnpm run podman-website:login           # log in to GHCR (needs a PAT; see SETUP.md)
+pnpm run podman-website:push            # build + push the multi-arch image to GHCR
+pnpm run podman-website:pull            # pull the published image and tag it locally
 ```
 
-The image is **Node 26** (`benchmarks/Containerfile`, `FROM node:26-bookworm-slim`),
-which unflags the global `Temporal` API — so every timing runs on native Temporal,
-the same runtime the published library targets, with **no `temporal-polyfill`**.
-Override the base with `BENCH_BASE_IMAGE` (mirror / air-gapped / offline-built base).
+The benchmarks run in the **single shared image** built from
+[`container-website/Containerfile`](../container-website/Containerfile) (`FROM node:26-bookworm`): the
+website deps live at `/app`, the benchmark deps at `/bench` (`/bench/competitors/<name>`
++ `/bench/typecost`), each its own isolated pnpm project. `scripts/podman-website.sh` owns
+the image (build/push/pull) and `scripts/benchmarks.sh` delegates to it, then runs
+the bench half under `/bench`. Node 26 unflags the global `Temporal` API, so every
+timing runs on native Temporal, the same runtime the published library targets, with
+**no `temporal-polyfill`**. Override the base with `WEBSITE_BASE_IMAGE` (or
+`BENCH_BASE_IMAGE`, forwarded to the build).
 
 **`bench:serialization`** runs the ts-runtypes-only round-trip bench
 ([`scripts/gen-serialization-bench.mjs`](../scripts/gen-serialization-bench.mjs))
@@ -149,7 +154,7 @@ polyfilled Temporal). It reuses the ts-runtypes competitor context (baked vite +
 the bind-mounted marker package, plugin and Go binary) plus a bind-mounted Linux
 build of the source-body extractor (`bin/extract-fn-bodies-linux-<arch>`, so no Go
 toolchain is needed in-container), and writes `serialization` +
-`serialization-formats` straight into `website/public/bench-data`.
+`serialization-formats` straight into `container-website/public/bench-data`.
 
 **`bench:website`** is the single command that regenerates **all** benchmark data
 the docs site renders — runtime validation + typecost + `capture-env` +
@@ -157,9 +162,9 @@ serialization (+ formats), every measurement taken inside the Node 26 container,
 then the `gen-bench-docs` host transform. (Suite-doc panels — schema / generated
 code — are a separate `pnpm run gen:suite-docs`.)
 
-The run commands **pull the latest published `ghcr.io/mionkit/tsrt-bench:latest`
-by default** (cheap no-op when current), falling back to a local build when the
-registry is unreachable. Set `BENCH_USE_LOCAL=1` to build/use a local image
+The run commands **pull the latest published `ghcr.io/mionkit/tsrt-website:latest`
+(the shared image) by default** (cheap no-op when current), falling back to a local
+build when the registry is unreachable. Set `BENCH_USE_LOCAL=1` to build/use a local image
 (offline, or to test a dep bump before pushing). typia's native plugin is no
 longer pre-warmed at build time — the first `BENCH_TYPIA=1` run compiles it
 (~200s) into a persisted named volume that later runs reuse (`bench:clean` drops it).
@@ -168,7 +173,7 @@ longer pre-warmed at build time — the first `BENCH_TYPIA=1` run compiles it
 isolation), then `aggregate.mjs` prints the table + coverage. It exits non-zero if
 any competitor has a `fail`/`errored` case, so the run doubles as a cross-library
 conformance test. Each run also **publishes** the per-competitor JSON into the
-canonical `<repo>/.docdata/benchmarks/` dir, which the docs website mounts
+canonical `<repo>/.docdata/container-benchmarks/` dir, which the docs website mounts
 read-only (`RT_DOCDATA`) to build benchmark docs from. Env knobs: `BENCH_NO_TIMING=1` (correctness only, fast),
 `BENCH_TIME_MS=100` (per-cell window). typia runs **by default** now that each
 competitor installs in isolation; a failed typia build degrades gracefully (its
@@ -290,7 +295,7 @@ explicitly (file or dir) to override, and point the build at the proxy network:
 ```bash
 BENCH_CA_CERT=/usr/local/share/ca-certificates \
 BENCH_BUILD_NETWORK=host \
-  pnpm run bench:build-image
+  pnpm run podman-website:build-image
 ```
 
 The Go binary + first-party packages are built on the host by `bench:prep` and

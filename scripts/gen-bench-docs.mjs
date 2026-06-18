@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Transforms the benchmark harness output into website-consumable JSON under
-// website/public/bench-data/<bench>/:
+// container-website/public/bench-data/<bench>/:
 //
 //   index.json              — { bench, label, unit, metricLabel, competitors[],
 //                              sections: [{ key, label, cases: [{ key, title,
@@ -8,12 +8,12 @@
 //   <case>.json             — { competitors: [{ name, source }] }   (lazy hover)
 //
 // Two benches:
-//   validation — runtime throughput from benchmarks/results/<competitor>.json
+//   validation — runtime throughput from container-benchmarks/results/<competitor>.json
 //                (the validationErrors·accept path: the metric EVERY competitor
 //                implements, so it's the apples-to-apples column; zod has no cheap
 //                boolean validate). unit = ops/sec, higher is better.
 //   typecost   — TypeScript type-instantiation count per form from
-//                benchmarks/results/<form>.typecost.json. unit = count, LOWER is
+//                container-benchmarks/results/<form>.typecost.json. unit = count, LOWER is
 //                better.
 //
 // Per-case competitor source is lifted straight from each competitors/<lib>/cases.ts
@@ -30,13 +30,13 @@ const REPO_ROOT = path.resolve(HERE, '..');
 const BENCH_DIR = path.join(REPO_ROOT, 'benchmarks');
 const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? path.join(BENCH_DIR, 'results');
 const COMPETITORS_DIR = path.join(BENCH_DIR, 'competitors');
-const OUT_ROOT = path.join(REPO_ROOT, 'website/public/bench-data');
+const OUT_ROOT = path.join(REPO_ROOT, 'container-website/public/bench-data');
 
 // Stable competitor column order (mirrors aggregate.mjs PREFERRED).
 const PREFERRED = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
 const order = (a, b) => ((PREFERRED.indexOf(a) + 1 || 99) - (PREFERRED.indexOf(b) + 1 || 99)) || a.localeCompare(b);
 
-// Run environment (os / cpu / library versions) captured by benchmarks/capture-env.mjs.
+// Run environment (os / cpu / library versions) captured by container-benchmarks/capture-env.mjs.
 // Optional — absent until a benchmark run (or `bench:capture-env`) writes results/env.json.
 const ENV = (() => {
   try {
@@ -324,7 +324,7 @@ function buildTypecostBench() {
 
 if (process.argv[1] && process.argv[1].endsWith('gen-bench-docs.mjs')) {
   const v = buildValidationBench();
-  process.stdout.write(`validation bench: ${v} cases → website/public/bench-data/validation/\n`);
+  process.stdout.write(`validation bench: ${v} cases → container-website/public/bench-data/validation/\n`);
   const t = buildTypecostBench();
-  process.stdout.write(`typecost bench: ${t} cases → website/public/bench-data/typecost/\n`);
+  process.stdout.write(`typecost bench: ${t} cases → container-website/public/bench-data/typecost/\n`);
 }

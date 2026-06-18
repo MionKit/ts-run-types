@@ -1,5 +1,5 @@
 # lib-ghcr.sh - shared GitHub Container Registry (GHCR) helpers, sourced by
-# scripts/website.sh and scripts/benchmarks.sh. Publishes the deps-only images so
+# scripts/podman-website.sh and scripts/benchmarks.sh. Publishes the deps-only images so
 # they can be PULLED ready-to-run instead of rebuilt from scratch on every host.
 #
 # ASCII-only by deliberate policy (macOS bash 3.2 mis-parses UTF-8 in variable

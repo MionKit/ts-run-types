@@ -1,6 +1,6 @@
 // ts-runtypes validators keyed by suite case key ("GROUP.case"), SCHEMA form
 // (value-first). Each entry is the case's own `validateSchema` thunk copied
-// VERBATIM from the shared suites (benchmarks/src/suites/**) — a
+// VERBATIM from the shared suites (container-benchmarks/src/suites/**) — a
 // `() => createValidate(RT.…)` arrow built from the `ts-runtypes/schema`
 // builders instead of a literal type argument. Consumed by typecost ONLY (it is
 // NOT imported by main.ts). Cases whose value-first form can't be authored

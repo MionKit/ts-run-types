@@ -1,14 +1,17 @@
 # Runs the validation benchmarks in the SAME isolated podman image used locally.
-# Mirrors `pnpm run bench:prep` + `bench:build-image` + `bench`, so CI and local
-# never drift. Requires the ts-runtypes toolchain (Go + the tsgolint
-# submodule bootstrap) to build the resolver binary the benchmark mounts.
+# Mirrors `pnpm run bench:prep` + the image build + `pnpm run bench`, so CI and
+# local never drift. The image is the single shared website+benchmark image:
+# benchmarks live at /bench (the website at /app), built once by scripts/podman-website.sh,
+# so `benchmarks.sh build-image` here just delegates to that build. Requires the ts-runtypes
+# toolchain (Go + the tsgolint submodule bootstrap) to build the resolver binary
+# the benchmark mounts.
 name: benchmarks
 
 # DISABLED for now — manual-only so it doesn't run on every push/PR.
 # Re-enable automatic runs by restoring the push/pull_request triggers below:
 #   on:
-#     push: { branches: [main], paths: ['benchmarks/**', 'scripts/benchmarks.sh', '.github/workflows/benchmarks.yml'] }
-#     pull_request: { paths: ['benchmarks/**', 'scripts/benchmarks.sh', '.github/workflows/benchmarks.yml'] }
+#     push: { branches: [main], paths: ['container-benchmarks/**', 'scripts/benchmarks.sh', '.github/workflows/benchmarks.yml'] }
+#     pull_request: { paths: ['container-benchmarks/**', 'scripts/benchmarks.sh', '.github/workflows/benchmarks.yml'] }
 on:
   workflow_dispatch:
 
@@ -45,8 +48,9 @@ jobs:
       - name: Prep ts-runtypes toolchain
         run: bash scripts/benchmarks.sh prep
 
-      # podman ships preinstalled on ubuntu-latest runners.
-      - name: Build the isolated benchmark image
+      # podman ships preinstalled on ubuntu-latest runners. Builds the single
+      # shared image (delegates to scripts/podman-website.sh build-image).
+      - name: Build the shared website+benchmark image
         run: bash scripts/benchmarks.sh build-image
 
       - name: Run the benchmark (build + run, in the container)

@@ -4,7 +4,7 @@ import * as RT from 'ts-runtypes/schema';
 import type {SerializationCase} from './types.ts';
 
 // Real-world DTO scenarios — the SAME relational / CMS / API / form shapes the
-// realworld benchmark runs (benchmarks/shared/cases/realworld), so the serialization
+// realworld benchmark runs (container-benchmarks/shared/cases/realworld), so the serialization
 // suite table lines up case-for-case with the benchmark. The module interfaces are the
 // single source of truth; each case's `cloneEncoder` (the strategy the docs render)
 // redeclares its type INLINE so the doc-gen extracts a real, self-contained snippet,

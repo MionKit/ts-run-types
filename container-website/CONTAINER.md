@@ -18,7 +18,7 @@ website source *and* its Nuxt/TS/ESLint config — is bind-mounted at run time.
 | `_deps/pnpm-workspace.yaml`, `_deps/.npmrc`                  | `nuxt.config.ts`, `tsconfig.json`, `eslint.config.mjs`           |
 | **`node_modules/`** (installed in the image only)            | (config + source are the source-of-truth on the host)            |
 
-- The package-manager files live in **`website/_deps/`**, not at the website
+- The package-manager files live in **`container-website/_deps/`**, not at the website
   root — so there is no `package.json` to accidentally `pnpm install` against on
   the host. The Containerfile `COPY`s them from `_deps/` into the image.
 - `node_modules` is materialized by `pnpm install` **inside** the image
@@ -36,23 +36,25 @@ website source *and* its Nuxt/TS/ESLint config — is bind-mounted at run time.
 
 ## Usage
 
-All commands run from the **repo root** (they shell out to
-[`scripts/website.sh`](../scripts/website.sh)):
+All commands run from the **repo root**. Running the site is
+[`scripts/website.sh`](../scripts/website.sh); the image lifecycle is
+[`scripts/podman-website.sh`](../scripts/podman-website.sh):
 
 ```bash
+# --- run the site (website.sh) ---
 pnpm run website:dev           # dev server with hot reload  -> http://localhost:3000
-pnpm run website:build         # production build            -> website/.output
-pnpm run website:generate      # static prerender            -> website/.output/public
-pnpm run website:shell         # debug shell inside the container
-pnpm run website:clean         # remove the image + cache volumes
+pnpm run website:build         # production build            -> container-website/.output
+pnpm run website:generate      # static prerender            -> container-website/.output/public
 pnpm run website:prep          # verify the mion repo context (packages/) is built
 pnpm run website:verify-docs   # check code-import + twoslash render (curl/grep)
-# --- dependency / publishing flow ---
-pnpm run website:lock          # regenerate _deps/pnpm-lock.yaml in-container (after a dep bump)
-pnpm run website:build-image   # build the podman image locally (maintainer)
-pnpm run website:login         # log in to GHCR (needs a PAT; see SETUP.md)
-pnpm run website:push          # build + push the multi-arch image to GHCR
-pnpm run website:pull          # pull the published image and tag it locally
+pnpm run website:shell         # debug shell inside the container
+# --- image lifecycle (podman-website.sh) ---
+pnpm run podman-website:build-image   # build the image locally (maintainer)
+pnpm run podman-website:lock          # regenerate _deps/pnpm-lock.yaml in-container (after a dep bump)
+pnpm run podman-website:login         # log in to GHCR (needs a PAT; see SETUP.md)
+pnpm run podman-website:push          # build + push the multi-arch image to GHCR
+pnpm run podman-website:pull          # pull the published image and tag it locally
+pnpm run podman-website:clean         # remove the image + cache volumes
 ```
 
 The images are published to GHCR, so **`website:dev` (and the other run commands)
@@ -104,12 +106,12 @@ use host networking:
 # WEBSITE_CA_CERT may be a single .crt file or a directory of .crt files.
 WEBSITE_CA_CERT=/usr/local/share/ca-certificates \
 WEBSITE_BUILD_NETWORK=host \
-  pnpm run website:build-image
+  pnpm run podman-website:build-image
 
 WEBSITE_RUN_NETWORK=host pnpm run website:dev
 ```
 
-The certs are copied into `website/.cacerts/` (git-ignored) and trusted via
+The certs are copied into `container-website/.cacerts/` (git-ignored) and trusted via
 `update-ca-certificates` inside the image; `NODE_EXTRA_CA_CERTS` is set so Node
 honors them too. With no proxy these vars are unset and everything uses the
 default network and CA bundle.
@@ -123,9 +125,15 @@ extra framework to install.
 
 ## Notes
 
-- The image's Node base is `mcr.microsoft.com/devcontainers/javascript-node:22`
-  (Node 22 + pnpm via corepack). pnpm's exact version is pinned by
-  `package.json#packageManager`.
+- The image's Node base is `node:26-bookworm`, which unflags the global
+  `Temporal` API (the runtime the published library targets). Node 26 dropped the
+  bundled corepack shim, so the image installs the repo-pinned pnpm globally (the
+  `PNPM_VERSION` build-arg). Override the base with `WEBSITE_BASE_IMAGE`.
+- This is the **single shared image**: it also bakes the benchmark dependencies
+  under `/bench` (`/bench/competitors/<name>` + `/bench/typecost`), which
+  `scripts/benchmarks.sh` runs against. So one image builds the whole site,
+  benchmark data included. See [SETUP.md](../SETUP.md) and
+  [container-benchmarks/README.md](../container-benchmarks/README.md).
 - Nuxt's generated caches (`.nuxt`, `.data`, `node_modules/.cache`) live in
   named podman volumes, so the host source tree is never written to and restarts
   stay fast.

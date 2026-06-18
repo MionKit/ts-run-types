@@ -12,7 +12,7 @@
 // that: any value is assignable to `unknown`.)
 //
 // Run (after `pnpm install`, so `typescript` resolves from the root devDep):
-//   node benchmarks/typecost/isolated-experiment.mjs
+//   node container-benchmarks/typecost/isolated-experiment.mjs
 //
 // Findings this reproduces (see docs/value-first-typecheck-cost.md):
 //   1. Removing the InjectRunTypeId<…> marker param changes the count by 0
