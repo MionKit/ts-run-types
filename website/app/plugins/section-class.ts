@@ -7,7 +7,7 @@ export default defineNuxtPlugin(() => {
   const route = useRoute();
   const sectionClass = computed(() => {
     const path = route.path;
-    if (/^\/(introduction|guide)(\/|$)/.test(path)) return 'rt-wide-page';
+    if (/^\/(introduction|guide|ai-integration)(\/|$)/.test(path)) return 'rt-wide-page';
     if (/^\/(suites|benchmarks)(\/|$)/.test(path)) return 'rt-flush-page';
     return '';
   });
