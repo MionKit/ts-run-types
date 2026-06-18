@@ -1,0 +1,33 @@
+{
+  "name": "ts-runtypes-bin",
+  "version": "0.1.0",
+  "description": "Platform launcher for the ts-runtypes resolver binary. Resolves and execs the prebuilt native binary for the host platform; the binary itself rides as a per-platform optional dependency. Ships zero runtime dependencies.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "bin": {
+    "ts-runtypes-bin": "./bin/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib",
+    "bin",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mionkit/ts-runtypes.git",
+    "directory": "packages/ts-runtypes-bin"
+  },
+  "comment:tsgo": "Pinned tsgolint / typescript-go revision the published binaries are built against. Pure metadata (not part of semver); refreshed at publish time by scripts/build-binary-packages.mjs.",
+  "tsgo": "5a40e56",
+  "comment:optionalDependencies": "Intentionally EMPTY in source — the dev tree resolves the locally built bin/ts-runtypes. The full per-platform set (ts-runtypes-binary-<os>-<arch>, pinned exact-equal to this package's version) is injected into the PUBLISHED tarball only, by scripts/build-binary-packages.mjs.",
+  "optionalDependencies": {}
+}

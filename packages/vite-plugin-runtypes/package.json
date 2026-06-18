@@ -35,6 +35,9 @@
     "clean": "rimraf dist .coverage tsconfig.tsbuildinfo",
     "fresh-start": "pnpm run clean && rimraf node_modules"
   },
+  "dependencies": {
+    "ts-runtypes-bin": "workspace:*"
+  },
   "peerDependencies": {
     "vite": ">=5.0.0"
   },
