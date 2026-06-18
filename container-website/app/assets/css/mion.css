@@ -448,13 +448,10 @@ h2[data-slot="title"] {
   }
 }
 
-/* Home "One object, Every function" — the Standard Schema card. One card (the
-   ::card chrome) wrapping a code | pitch split. margin-top:0 keeps it flush
-   under the four-snippet grid above, with no extra gap. */
-.rt-standard-card {
-  margin-top: 0;
-}
-
+/* Home "One object, Every function" — the split cards (the toolbelt card and
+   the Standard Schema card). Each is one ::card wrapping a code | pitch split.
+   The cards keep their natural vertical margin so the gap is consistent between
+   every block in the section (card -> four-snippet grid -> card). */
 .rt-standard-split {
   display: grid;
   grid-template-columns: 1fr 1fr;
