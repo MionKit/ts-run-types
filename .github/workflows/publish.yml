@@ -26,6 +26,8 @@ jobs:
       id-token: write # npm provenance
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags so git-cliff can build the release notes
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -47,3 +49,18 @@ jobs:
           version="${{ steps.version.outputs.version }}"
           git tag "v${version}"
           git push origin "v${version}"
+      - name: Generate release notes for the new tag (git-cliff)
+        id: release_notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: RELEASE_NOTES.md
+      - name: Create the GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          gh release create "v${version}" --title "v${version}" --notes-file RELEASE_NOTES.md
