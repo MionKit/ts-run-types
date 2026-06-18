@@ -19,6 +19,16 @@ export const NUMBER_FORMAT = {
       'Boundary value 100 passes (inclusive); 101 fails on `max`. A non-number ("5") fails the number typeof gate before any format check.',
     validate: () => createValidate<TF.Number<{max: 100}>>(),
     standardSchema: () => createStandardSchema<TF.Number<{max: 100}>>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Failed max constraint (100)', path: []}],
+      [{message: 'Expected number', path: []}],
+    ],
     validateReflect: () => {
       const v: TF.Number<{max: 100}> = 100;
       return createValidate(v);

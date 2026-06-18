@@ -27,6 +27,24 @@ export const UTILITY = {
       }
       return createStandardSchema<Partial<Person>>();
     },
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected string', path: ['name']}],
+      [{message: 'Expected date', path: ['createdAt']}],
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected date', path: ['createdAt']}],
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected number', path: ['age']}],
+    ],
     validateDataOnly: () => {
       interface Person {
         name: string;

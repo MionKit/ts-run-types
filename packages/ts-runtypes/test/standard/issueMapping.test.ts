@@ -1,6 +1,13 @@
 // Unit test for the pure RunTypeError -> Standard Schema Issue mapping. No
 // marker calls, so the plugin never transforms this file — it exercises
 // `runTypeErrorsToIssues` directly over hand-built error arrays.
+//
+// This is the INDEPENDENT check on the mapping itself (message + path
+// derivation). It is not the only guard: each validation / format-validation
+// suite file also hand-authors getExpectedStandardErrors on one case, so any
+// change to how we GENERATE errors (the Go validator/validationErrors emitters)
+// OR how we MAP them to issues here will also fail those individual suite cases.
+// So a change to the error format must update BOTH this file and those pins.
 
 import {describe, test, expect} from 'vitest';
 import {runTypeErrorsToIssues} from 'ts-runtypes';

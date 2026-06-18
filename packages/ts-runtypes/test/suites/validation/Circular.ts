@@ -29,6 +29,25 @@ export const CIRCULAR = {
       }
       return createStandardSchema<Circular>();
     },
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Expected string', path: ['c', 's']}],
+      [{message: 'Expected string', path: ['c', 's']}],
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected number', path: ['n']}],
+      [{message: 'Expected date', path: ['d']}],
+      [{message: 'Expected date', path: ['d']}],
+      [
+        {message: 'Expected number', path: ['n']},
+        {message: 'Expected string', path: ['s']},
+      ],
+    ],
     validateDataOnly: () => {
       interface Circular {
         n: number;

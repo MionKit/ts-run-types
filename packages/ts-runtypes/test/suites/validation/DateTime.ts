@@ -29,6 +29,17 @@ export const DATETIME = {
     ],
     validate: () => createValidate<Date>(),
     standardSchema: () => createStandardSchema<Date>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Expected date', path: []}],
+      [{message: 'Expected date', path: []}],
+      [{message: 'Expected date', path: []}],
+    ],
     validateDataOnly: () => createValidate<DataOnly<Date>>(),
     validateSchema: () => createValidate(TF.date()),
     deserializeValidate: () => deserializeValidate<Date>(),

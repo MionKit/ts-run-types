@@ -14,6 +14,24 @@ export const OBJECT = {
     ],
     validate: () => createValidate<{a: string; b: number}>(),
     standardSchema: () => createStandardSchema<{a: string; b: number}>(),
+    // One hand-authored Standard Schema expectation per file. Every other case
+    // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
+    // (the same mapping the factory uses), so this single case pins the real
+    // consumer-facing {message, path} output independently: it trips if error
+    // generation or the issue mapping changes. One case per file covers this
+    // file's shapes without the ~265x maintenance of authoring every case.
+    getExpectedStandardErrors: () => [
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected objectLiteral', path: []}],
+      [{message: 'Expected number', path: ['b']}],
+      [{message: 'Expected string', path: ['a']}],
+      [{message: 'Expected number', path: ['b']}],
+      [{message: 'Expected number', path: ['b']}],
+      [{message: 'Expected number', path: ['b']}],
+      [{message: 'Expected string', path: ['a']}],
+      [{message: 'Expected objectLiteral', path: []}],
+    ],
     validateDataOnly: () => createValidate<DataOnly<{a: string; b: number}>>(),
     validateSchema: () => createValidate(RT.object({a: TF.string(), b: TF.number()})),
     deserializeValidate: () => deserializeValidate<{a: string; b: number}>(),
