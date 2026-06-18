@@ -63,6 +63,36 @@ getRunTypeId(u);
   );
 
   runTest(
+    'multi-fn marker: createStandardSchema injects an ARRAY of two entry tuples',
+    {
+      'std.ts': `import {createStandardSchema} from 'ts-runtypes';
+createStandardSchema<string>();
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const {code: out, sites} = await rewrite('std.ts', sources['std.ts'], client);
+
+        expect(sites.length).toBe(1);
+        // The multi-function marker (<T,'val','verr'>) emits two fnIds; the
+        // scalar fnId mirrors fnIds[0].
+        expect(sites[0].fnIds).toBeDefined();
+        expect(sites[0].fnIds).toHaveLength(2);
+        const [valFn, verrFn] = sites[0].fnIds!;
+        const id = sites[0].id;
+        const valBinding = `__rt_${valFn}_${id}`;
+        const verrBinding = `__rt_${verrFn}_${id}`;
+        // BOTH entry modules are imported, one binding each.
+        expect(out).toContain(`import {__rt_${valFn}_${id}} from 'virtual:rt/${valFn}_${id}.js';`);
+        expect(out).toContain(`import {__rt_${verrFn}_${id}} from 'virtual:rt/${verrFn}_${id}.js';`);
+        // The single trailing slot (ids @ paramIndex 2) carries an array of the
+        // two bindings; the val/options slots (0,1) are `undefined`-padded.
+        expect(out).toContain(`createStandardSchema<string>(undefined, undefined, [${valBinding}, ${verrBinding}]);`);
+      });
+    }
+  );
+
+  runTest(
     'trailing comma: value-first marker call rewrites to syntactically valid JS',
     {
       // Formatter-wrapped value-first call with a trailing comma in its OWN

@@ -525,6 +525,14 @@ type Site struct {
 	// migration). Empty for reflection-only InjectRunTypeId sites (getRunTypeId /
 	// builders), which inject the bare id string.
 	FnId string `json:"fnId,omitempty"`
+	// FnIds carries every fnId a MULTI-FUNCTION createX site injects when its
+	// trailing InjectTypeFnArgs<T, F1, F2, …> marker names more than one
+	// function family (e.g. createStandardSchema's <T,'val','verr'>). The
+	// rewrite injects an ARRAY of entry-tuple bindings at the single ParamIndex
+	// in this order. Present only when len > 1; single-fn / reflection sites
+	// leave it nil and carry the lone value in FnId (the byte-stable 1-fn wire).
+	// FnId mirrors FnIds[0] when both are set.
+	FnIds []string `json:"fnIds,omitempty"`
 	// Demand is the structured set of cache entries this createX site requires,
 	// computed by the scanner from the operation registry. The emitter renders
 	// from this directly rather than reverse-parsing FnId — a hash isn't
