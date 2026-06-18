@@ -18,11 +18,12 @@ const runtypesDTS = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
-  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
+  export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean; rejectCircularRefs?: boolean}
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
   export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
+  export function createStandardSchema<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, ids?: InjectTypeFnArgs<T, 'val', 'verr'>): {'~standard': {version: 1; vendor: string; validate: (v: unknown) => unknown}};
   export function createHasUnknownKeys<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>): (v: unknown) => unknown;
   export function createStripUnknownKeys<T>(val?: T, id?: InjectTypeFnArgs<T, 'suk'>): (v: unknown) => unknown;
   export function createUnknownKeyErrors<T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>): (v: unknown) => unknown;

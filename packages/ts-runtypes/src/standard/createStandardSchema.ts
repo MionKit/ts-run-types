@@ -1,0 +1,88 @@
+// `createStandardSchema<T>()` — adapts RunTypes validation to the Standard
+// Schema v1 interop contract (https://github.com/standard-schema/standard-schema).
+// A thin layer over the existing validators: it carries ONE trailing
+// `InjectTypeFnArgs<T, 'val', 'verr'>` marker, so the plugin injects an array
+// of two entry tuples (the cheap boolean validator + getValidationErrors) for
+// the same `T`. The produced `validate` is two-tier and synchronous: run the
+// boolean validator first, and only on failure compute + map issues.
+
+import {isRunTypeSchema} from '../runtypes/rtUtils.ts';
+import {resolveEntryTupleFn} from '../runtypes/entryTuple.ts';
+import type {EntryTuple} from '../runtypes/entryTuple.ts';
+import type {RunType} from '../runtypes/types.ts';
+import type {DataOnly} from '../runtypes/dataOnly.ts';
+import type {ValidateFn, GetValidationErrorsFn, ValidateOptions} from '../createRTFunctions.ts';
+import type {CompTimeFnArgs, InjectTypeFnArgs} from '../markers.ts';
+import {runTypeErrorsToIssues} from './issueMapping.ts';
+import type {StandardSchemaV1, StandardSchemaProps, StandardSchemaResult} from './spec.ts';
+
+// Identity fallbacks for the no-plugin case (mirror createValidate /
+// createGetValidationErrors): a boolean validator that accepts everything and an
+// error collector that finds nothing.
+const validateFallback = (() => true) as unknown as ValidateFn;
+const errorsFallback: GetValidationErrorsFn = () => [];
+
+function readRejectCircularRefs(options: unknown): boolean | undefined {
+  return (options as {rejectCircularRefs?: boolean} | undefined)?.rejectCircularRefs;
+}
+
+/** Returns a Standard Schema v1 object for `T`. The `validate` function returns
+ *  `{value}` on success (the input, narrowed to `DataOnly<T>` — RunTypes
+ *  validates the serialisable projection) or `{issues}` on failure. Synchronous,
+ *  `vendor: 'ts-runtypes'`. Accepts either a value-first `RunType` schema or the
+ *  type/value reflection form, mirroring `createValidate`. **/
+export function createStandardSchema<T>(
+  schema: RunType<T>,
+  options?: CompTimeFnArgs<ValidateOptions>,
+  ids?: InjectTypeFnArgs<T, 'val', 'verr'>
+): StandardSchemaV1<DataOnly<T>>;
+export function createStandardSchema<T>(
+  val?: T,
+  options?: CompTimeFnArgs<ValidateOptions>,
+  ids?: InjectTypeFnArgs<T, 'val', 'verr'>
+): StandardSchemaV1<DataOnly<T>>;
+export function createStandardSchema<T>(
+  valOrSchema?: T | RunType<T>,
+  options?: CompTimeFnArgs<ValidateOptions>,
+  ids?: InjectTypeFnArgs<T, 'val', 'verr'>
+): StandardSchemaV1<DataOnly<T>> {
+  const reject = readRejectCircularRefs(options);
+  // A value-first schema's runtime `.id` overrides the injected type id for both
+  // lookups (correct even for recursive schemas).
+  const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
+  // The marker injects `[valTuple, verrTuple]` in the Fn-arg order 'val','verr'.
+  const injected = ids as unknown as readonly EntryTuple[] | undefined;
+  const valInjected = injected ? injected[0] : undefined;
+  const verrInjected = injected ? injected[1] : undefined;
+  // Resolve each under its own family fnName so the per-family circular-reference
+  // guards + identity fallbacks engage correctly (validate -> false on a cycle;
+  // getValidationErrors -> a `{expected:'circular'}` issue).
+  const validate = resolveEntryTupleFn<ValidateFn<T>>(
+    'createValidate',
+    validateFallback as ValidateFn<T>,
+    schemaId,
+    valInjected,
+    reject
+  );
+  const getErrors = resolveEntryTupleFn<GetValidationErrorsFn>(
+    'createGetValidationErrors',
+    errorsFallback,
+    schemaId,
+    verrInjected,
+    reject
+  );
+  const props: StandardSchemaProps<DataOnly<T>, DataOnly<T>> = {
+    version: 1,
+    vendor: 'ts-runtypes',
+    // Two-tier: cheap boolean first (zero allocation on the valid path), and
+    // only on failure compute + map the issues.
+    validate(value: unknown): StandardSchemaResult<DataOnly<T>> {
+      if (validate(value)) return {value: value as DataOnly<T>};
+      return {issues: runTypeErrorsToIssues(getErrors(value))};
+    },
+    // `types` is PHANTOM — intentionally never assigned at runtime; the declared
+    // return type carries the input/output types for StandardSchemaInferInput /
+    // StandardSchemaInferOutput.
+  };
+  return {'~standard': props};
+}

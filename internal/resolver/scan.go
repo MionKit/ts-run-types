@@ -221,7 +221,12 @@ type pendingCall struct {
 	paramIndex int
 	argsCount  int
 	fnId       string
-	demand     []protocol.SiteDemand
+	// fnIds is the full ordered fnId list for a MULTI-function marker site
+	// (InjectTypeFnArgs<T, F1, F2, …>); nil for single-fn / reflection sites,
+	// where fnId carries the lone value. The rewrite injects an array of entry
+	// tuples at paramIndex when this is set.
+	fnIds  []string
+	demand []protocol.SiteDemand
 	// trailingComma is true when the call's own argument list already ends
 	// with a comma (e.g. a formatter-wrapped `createValidate(\n  schema,\n)`).
 	// The TS-side injector reads it to splice the binding WITHOUT a leading
@@ -249,6 +254,7 @@ func (resolver *Resolver) commitPending(pending pendingCall) protocol.Site {
 		ParamIndex:    pending.paramIndex,
 		ArgsCount:     pending.argsCount,
 		FnId:          pending.fnId,
+		FnIds:         pending.fnIds,
 		Demand:        pending.demand,
 		TrailingComma: pending.trailingComma,
 	}
@@ -298,7 +304,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	var diagnostics []diag.Diagnostic
 	var injectionTypeArgument *checker.Type
 	var injectionMatched bool
-	var injectionFnKey string
+	var injectionFnKeys []string
 	for paramIndex := 0; paramIndex <= lastIndex; paramIndex++ {
 		paramSymbol := parameters[paramIndex]
 		if paramSymbol == nil {
@@ -332,8 +338,11 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 			if paramIndex == lastIndex {
 				injectionTypeArgument = typeArg
 				injectionMatched = true
-				if fnKey, fnOK := marker.FnKeyForInjectTypeFnArgs(state.scanChecker, paramType, state.resolver.marker); fnOK {
-					injectionFnKey = fnKey
+				// A multi-function marker (InjectTypeFnArgs<T,'val','verr'>) names
+				// several families; the scanner computes one fnId + demand per key
+				// below and the rewrite injects an array of entry tuples at this slot.
+				if fnKeys, fnOK := marker.FnKeysForInjectTypeFnArgs(state.scanChecker, paramType, state.resolver.marker); fnOK {
+					injectionFnKeys = fnKeys
 				}
 			}
 		case marker.KindCompTimeArgs, marker.KindCompTimeFnArgs:
@@ -489,8 +498,28 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	// suffix for it/te, the strategy token for the JSON families) — plus the
 	// structured emit-demand (the forward replacement for reverse-parsing fnId,
 	// which an opaque hash can't support). Reflection sites (InjectRunTypeId)
-	// leave injectionFnKey empty → no FnId, no function demand.
-	fnId, demand := computeSiteFn(injectionFnKey, options, call, lastIndex, argsCount)
+	// leave injectionFnKeys empty → no FnId, no function demand.
+	// One fnId + demand per named family (one for a plain createX; two for a
+	// multi-function marker like createStandardSchema's <T,'val','verr'>). The
+	// comptime options/strategy are SHARED across every family. Reflection sites
+	// (InjectRunTypeId, empty injectionFnKeys) yield no fnId and no demand.
+	var fnIds []string
+	var demand []protocol.SiteDemand
+	for _, fnKey := range injectionFnKeys {
+		fnId, fnDemand := computeSiteFn(fnKey, options, call, lastIndex, argsCount)
+		fnIds = append(fnIds, fnId)
+		demand = append(demand, fnDemand...)
+	}
+	// FnId stays the scalar single-fn wire (mirrors fnIds[0]); FnIds is set only
+	// for multi-function sites so single-fn / reflection sites stay byte-stable.
+	fnId := ""
+	if len(fnIds) > 0 {
+		fnId = fnIds[0]
+	}
+	var multiFnIds []string
+	if len(fnIds) > 1 {
+		multiFnIds = fnIds
+	}
 	return pendingCall{
 		file: file,
 		// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
@@ -499,6 +528,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		paramIndex:    lastIndex,
 		argsCount:     argsCount,
 		fnId:          fnId,
+		fnIds:         multiFnIds,
 		demand:        demand,
 		trailingComma: trailingComma,
 		typeArgument:  typeArgument,

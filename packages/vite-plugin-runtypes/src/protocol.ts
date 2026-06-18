@@ -209,6 +209,13 @@ export interface Site {
   // patcher injects a `[id, fnId]` tuple instead of the bare `"id"` string.
   // Absent for reflection-only InjectRunTypeId sites.
   fnId?: string;
+  // fnIds carries every fnId a MULTI-FUNCTION createX site injects when its
+  // trailing InjectTypeFnArgs<T, F1, F2, …> marker names more than one function
+  // family (e.g. createStandardSchema's <T,'val','verr'>). The rewrite injects
+  // an ARRAY of entry-tuple bindings at the single paramIndex, in this order.
+  // Present only when length > 1; single-fn / reflection sites omit it and the
+  // patcher reads the lone fnId. fnId mirrors fnIds[0] when both are set.
+  fnIds?: string[];
   // demand is Go-internal emit metadata (which cache entries this site requires)
   // serialized onto the Site; the plugin does not read it. Mirrored for accuracy.
   demand?: SiteDemand[];

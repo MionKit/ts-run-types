@@ -100,19 +100,26 @@ function makeByteToChar(code: string, byteOffsets: number[]): (byteOffset: numbe
   return (byteOffset) => byChar.get(byteOffset) ?? byteOffset;
 }
 
-// siteBasename derives the entry-module basename a site imports: the
-// `<fnHash>_<typeId>` cache key for createX sites (InjectTypeFnArgs), the
-// bare typeId for reflection sites (InjectRunTypeId). Both are short
-// alphanumeric hashes, so the basename doubles as an identifier-safe
+// entryBasename derives one entry-module basename a site imports: the
+// `<fnHash>_<typeId>` cache key for a createX entry (InjectTypeFnArgs), the
+// bare typeId for a reflection entry (InjectRunTypeId, fnId undefined). Both
+// are short alphanumeric hashes, so the basename doubles as an identifier-safe
 // binding suffix.
-function siteBasename(site: Site): string {
-  return site.fnId ? `${site.fnId}_${site.id}` : site.id;
+function entryBasename(id: string, fnId?: string): string {
+  return fnId ? `${fnId}_${id}` : id;
 }
 
-// siteBinding is the import-binding identifier a site's insertion references —
-// also the entry module's export name (one name binds the entry everywhere).
-function siteBinding(site: Site): string {
-  return ENTRY_BINDING_PREFIX + siteBasename(site);
+// entryBinding is the import-binding identifier an injection references — also
+// the entry module's export name (one name binds the entry everywhere).
+function entryBinding(id: string, fnId?: string): string {
+  return ENTRY_BINDING_PREFIX + entryBasename(id, fnId);
+}
+
+// siteFnIds is the ordered fnId list a site injects: the multi-function list
+// when the marker named several families (InjectTypeFnArgs<T, F1, F2, …>),
+// else the lone fnId (undefined for a reflection site → bare-id binding).
+function siteFnIds(site: Site): (string | undefined)[] {
+  return site.fnIds && site.fnIds.length ? site.fnIds : [site.fnId];
 }
 
 // buildImportBlock collects every entry-module import the rewritten file
@@ -135,8 +142,13 @@ function buildImportBlock(sites: Site[], replacements: Replacement[]): string {
   };
   for (const site of sites) {
     if (!site.id) continue;
-    const specifier = VIRTUAL_MODULE_PREFIX + (site.module || siteBasename(site)) + ENTRY_MODULE_SUFFIX;
-    addClause(specifier, siteBinding(site));
+    // A multi-function site imports one binding per named family; single-fn and
+    // reflection sites yield exactly one (today's behaviour). In bundle mode the
+    // `site.module` specifier hosts every binding the same way.
+    for (const fnId of siteFnIds(site)) {
+      const specifier = VIRTUAL_MODULE_PREFIX + (site.module || entryBasename(site.id, fnId)) + ENTRY_MODULE_SUFFIX;
+      addClause(specifier, entryBinding(site.id, fnId));
+    }
   }
   for (const replacement of replacements) {
     if (!replacement.importFrom) continue;
@@ -168,7 +180,15 @@ function buildInsertion(s: Site): string {
   // Every site — createX (InjectTypeFnArgs) and reflection (InjectRunTypeId)
   // alike — receives its entry-module tuple binding. The tuple is
   // self-describing (slot 3 is the cache key), so no id strings ride along.
-  parts.push(siteBinding(s));
+  // A MULTI-function marker (InjectTypeFnArgs<T, F1, F2, …>) injects an ARRAY
+  // of those bindings at the single slot, one per named family in order; the
+  // factory destructures it positionally.
+  const fnIds = s.fnIds;
+  if (fnIds && fnIds.length > 1) {
+    parts.push(`[${fnIds.map((fnId) => entryBinding(s.id, fnId)).join(', ')}]`);
+  } else {
+    parts.push(entryBinding(s.id, s.fnId));
+  }
   const body = parts.join(', ');
   // Emit the bare body (no leading comma) when there are no prior arguments OR
   // the argument list already ends with a trailing comma — in both cases the

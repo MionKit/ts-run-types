@@ -245,57 +245,69 @@ func matchAliasSpec(tsType *checker.Type, spec Spec) (*checker.Type, bool) {
 	return typeArguments[0], true
 }
 
-// FnKeyForInjectTypeFnArgs returns the Fn type-argument (the 2nd) of an
-// InjectTypeFnArgs<T, Fn> alias as its string-literal value (e.g. "val",
-// "jsonEncoder"). ok is false when paramType is not that alias, the spec is
-// absent, or the Fn arg isn't a string literal. Used by the scanner to compute
-// the precise fnId injected at a createX call site.
-func FnKeyForInjectTypeFnArgs(typeChecker *checker.Checker, paramType *checker.Type, opts Options) (string, bool) {
+// FnKeysForInjectTypeFnArgs returns the Fn type-arguments (every argument after
+// `T`) of an InjectTypeFnArgs<T, F1, F2, …> alias as their string-literal values
+// (e.g. ["val"], or ["val", "verr"] for a multi-function marker). ok is false
+// when paramType is not that alias, the spec is absent, or no Fn argument is a
+// string literal. Used by the scanner to compute the precise fnId(s) injected at
+// a createX call site — one per named family, in declaration order.
+func FnKeysForInjectTypeFnArgs(typeChecker *checker.Checker, paramType *checker.Type, opts Options) ([]string, bool) {
 	if paramType == nil {
-		return "", false
+		return nil, false
 	}
 	opts = WithDefaults(opts)
 	spec, found := specForKind(opts.Specs, KindInjectTypeFnArgs)
 	if !found {
-		return "", false
+		return nil, false
 	}
-	if key, ok := fnKeyFromAlias(paramType, spec); ok {
-		return key, true
+	if keys, ok := fnKeysFromAlias(paramType, spec); ok {
+		return keys, true
 	}
 	// An optional `id?:` parameter resolves to `InjectTypeFnArgs<…> | undefined`,
 	// so the alias rides on the non-undefined union member — mirror DetectAny's
 	// union-member walk to find it.
 	if checker.Type_flags(paramType)&checker.TypeFlagsUnion != 0 {
 		for _, member := range paramType.Types() {
-			if key, ok := fnKeyFromAlias(member, spec); ok {
-				return key, true
+			if keys, ok := fnKeysFromAlias(member, spec); ok {
+				return keys, true
 			}
 		}
 	}
-	return "", false
+	return nil, false
 }
 
-// fnKeyFromAlias reads the Fn type-argument (the 2nd) of an InjectTypeFnArgs
-// alias as its string-literal value. Returns ok=false unless tsType carries the
-// matching alias with a string-literal 2nd type argument.
-func fnKeyFromAlias(tsType *checker.Type, spec Spec) (string, bool) {
+// fnKeysFromAlias reads the Fn type-arguments (every argument after `T`) of an
+// InjectTypeFnArgs alias as string-literal values. A single-function marker
+// (`InjectTypeFnArgs<T, 'val'>`) yields one key; a multi-function marker
+// (`InjectTypeFnArgs<T, 'val', 'verr'>`) yields several, in declaration order.
+// Non-literal slots — e.g. the `never`-defaulted F2/F3 of the alias when the
+// caller supplied fewer keys — are skipped, so the same reader handles every
+// arity. Returns ok=false unless tsType carries the matching alias with at
+// least one string-literal Fn argument.
+func fnKeysFromAlias(tsType *checker.Type, spec Spec) ([]string, bool) {
 	alias, ok := aliasForSpec(tsType, spec)
 	if !ok {
-		return "", false
+		return nil, false
 	}
 	typeArguments := alias.TypeArguments()
 	if len(typeArguments) < 2 {
-		return "", false
+		return nil, false
 	}
-	fnType := typeArguments[1]
-	if fnType == nil || checker.Type_flags(fnType)&checker.TypeFlagsStringLiteral == 0 {
-		return "", false
+	var keys []string
+	for _, fnType := range typeArguments[1:] {
+		if fnType == nil || checker.Type_flags(fnType)&checker.TypeFlagsStringLiteral == 0 {
+			continue
+		}
+		value, ok := fnType.AsLiteralType().Value().(string)
+		if !ok {
+			continue
+		}
+		keys = append(keys, value)
 	}
-	value, ok := fnType.AsLiteralType().Value().(string)
-	if !ok {
-		return "", false
+	if len(keys) == 0 {
+		return nil, false
 	}
-	return value, true
+	return keys, true
 }
 
 // IsFreeTypeParameter reports whether tsType is a still-unresolved type
