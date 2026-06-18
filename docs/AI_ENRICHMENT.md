@@ -149,26 +149,26 @@ const userFriendly: FriendlyType<User> = {
 
 Container meta keys: arrays/tuples use `$items` (element node); maps/sets use
 `$keys` / `$values` (their error paths carry the object path-segment
-`{key, index, failed}` — the renderer handles those). Unions get node-level
+`{key, failed}` — the renderer handles those). Unions get node-level
 `$label` / `$errors` only in v1; per-member addressing (`$members`) is deferred.
 
 ### Error keys = the verified `(format.name, formatPath-tail)` discriminator
 
 Each `$errors` key names the failed sub-constraint. This is **not** an invented
 key set — it maps 1:1 onto what `createGetValidationErrors<T>()` actually emits.
-A validation failure is a `RunTypeError` (see
+A validation failure is a `RTValidationError` (see
 [`createRTFunctions.ts`](../packages/ts-runtypes/src/createRTFunctions.ts)):
 
 ```ts
-interface RunTypeError {
-  path: (string | number | object)[];      // ['profile','email'] · [1] · [{key,index,failed}]
+interface RTValidationError {
+  path: (string | number | object)[];      // ['profile','email'] · [1] · [{key,failed}]
   expected: string;                          // 'string' | 'number' | 'objectLiteral' | …
   format?: { name: string; val: …; formatPath: (string | number)[] };
 }
 ```
 
 The `$errors` key is **`error.format.formatPath.at(-1)`**, and `type` is the base
-type-shape failure (a `RunTypeError` with no `.format`). The Go format emitters
+type-shape failure (a `RTValidationError` with no `.format`). The Go format emitters
 ([`internal/compiled/typefns/formats/`](../internal/compiled/typefns/formats/))
 write one independent `if (fail) push(...)` per constraint, with the constraint
 name and value known at emit time:
@@ -199,7 +199,7 @@ function of how richly the type is annotated.
 ### Aggregation: errors accumulate
 
 `createGetValidationErrors` **accumulates** — a value that violates `minLength`
-*and* `pattern` produces two `RunTypeError`s, not one. (The boolean `createValidate`
+*and* `pattern` produces two `RTValidationError`s, not one. (The boolean `createValidate`
 path short-circuits; irrelevant here.) The only short-circuits are structurally
 necessary: no separator ⇒ datetime skips `date`/`time`; no `@` ⇒ email skips
 `localPart`/`domain`. So the data DSL yields **one message per violated
@@ -216,7 +216,7 @@ Templates are plain strings with `$[…]` tokens, validated by the compiler:
 - `$[index]` — array element index, for `$items` failures.
 
 `$[value]` (the *actual received value*) is out of scope for v1: the error carries
-no value (`RunTypeError` is `{path, expected, format?}`), so it would require
+no value (`RTValidationError` is `{path, expected, format?}`), so it would require
 threading the input into the renderer. Revisit with the `$[val]` enrichment.
 
 ### Function escape hatch
@@ -224,7 +224,7 @@ threading the input into the renderer. Revisit with the `$[val]` enrichment.
 Any `$errors` entry may be an **inline arrow** instead of a template record, for
 logic the data form can't express (joining constraints, pluralization, i18n
 lookups). It receives a synthesized `failed` object (grouped from the
-`RunTypeError`s at that path), mirroring mion ergonomics:
+`RTValidationError`s at that path), mirroring mion ergonomics:
 
 ```ts
 name: {
@@ -880,7 +880,7 @@ overall architecture) and documented here:
   added later without a breaking change; the same marker-detection that finds
   enrichment can emit a translation-file scaffold per locale.
 - **`$[value]`** (the actual received value) in templates — needs the input threaded
-  into the renderer or added to `RunTypeError`. Revisit with the `$[val]` enrichment.
+  into the renderer or added to `RTValidationError`. Revisit with the `$[val]` enrichment.
 - **Union per-member addressing** (`$members`) — node-level `$label`/`$errors` only
   for v1.
 - **Auto-wire vs explicit** — **explicit committed imports, permanently** (per the

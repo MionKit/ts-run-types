@@ -11,7 +11,7 @@ import (
 )
 
 // ValidationErrorsEmitter implements the `validationErrors` rt function — produces
-// a validator that accumulates RunTypeError entries into the third arg
+// a validator that accumulates RTValidationError entries into the third arg
 // `er` instead of returning a boolean. The factory shape it emits:
 //
 //	export function g_verr_<hash>(utl){
@@ -510,7 +510,7 @@ func (ValidationErrorsEmitter) Finalize(rawCode string) (string, bool) {
 }
 
 // callRTErr builds the JS call to pf_newRunTypeErr that appends one
-// RunTypeError entry to the `er` array. Mirrors
+// RTValidationError entry to the `er` array. Mirrors
 // RTErrorsFnCompiler.callRTErr / callRTErrWithPath
 // (rtFnCompiler.ts:610-629).
 //
@@ -841,7 +841,7 @@ func emitIndexSignatureValidationErrors(rt *protocol.RunType, ctx *EmitContext, 
 }
 
 // rtTypeNameForKind returns the kindname used for the
-// `expected` field on a RunTypeError record. Mirrors module.go's
+// `expected` field on a RTValidationError record. Mirrors module.go's
 // rtTypeName function but for the no-RunType callers — function-
 // flavoured kinds map to their concrete name (function / method /
 // methodSignature / callSignature).
@@ -909,23 +909,6 @@ func emitTupleValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string)
 	}
 }
 
-// pf_safeIterableKey is registered via the JS-side run-types-pure-fns
-// alongside pf_newRunTypeErr. emitMapValidationErrors references it to wrap
-// runtime keys into safe-for-JSON values (mirroring the
-// _safeKey helper at run-types-pure-fns.ts:97 — primitives pass
-// through, objects/symbols/etc become null so the path is still
-// JSON-serializable).
-func mapSafeKeyContextItem(ctx *EmitContext) string {
-	key := pureFnAlias("safeIterableKey")
-	if !ctx.HasContextItem(key) {
-		ctx.AddPureFnDependency("rt", "safeIterableKey", validationErrorsPureFnFilePath)
-		// Literal duplicated in body + closure — see callRTErr for the
-		// reason `k_<alias>` hoist is restricted to pureFnDependencies.
-		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('rt::safeIterableKey')")
-	}
-	return key
-}
-
 // emitMapValidationErrors mirrors nodes/native/map emitTypeErrors.
 // Body shape (CodeS):
 //
@@ -934,20 +917,19 @@ func mapSafeKeyContextItem(ctx *EmitContext) string {
 //	} else {
 //	  for (const entry0 of v.entries()) {
 //	    const k0 = entry0[0]; const val0 = entry0[1];
-//	    <keyCode using k0 as v, path += {key:safe(k0), index:i0, failed:'mapKey'}>
-//	    <valCode using val0 as v, path += {key:safe(k0), index:i0, failed:'mapValue'}>
+//	    <keyCode using k0 as v, path += {key:i0, failed:'mapKey'}>
+//	    <valCode using val0 as v, path += {key:i0, failed:'mapValue'}>
 //	  }
 //	}
 //
-// Path segments are JS object literals carrying the runtime key (after
-// `pf_safeIterableKey` sanitisation), the entry index, and a `failed`
-// marker indicating which side of the entry the error came from.
-// Matches the getStaticPathLiteral output.
+// Path segments are JS object literals whose `key` is the entry's
+// iteration index — the only pointer that survives non-PropertyKey Map
+// keys (object/symbol/null), and the value Standard Schema's getDotPath
+// can read — plus a `failed` marker for which side of the entry failed.
 func emitMapValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	keyType, valueType := mapKeyValueTypes(rt, ctx)
 	entryVar := ctx.NextLocalVar("entry")
 	idxVar := ctx.NextLocalVar("i")
-	safeKey := mapSafeKeyContextItem(ctx)
 	var inner strings.Builder
 	inner.WriteString("let ")
 	inner.WriteString(idxVar)
@@ -964,7 +946,7 @@ func emitMapValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 		inner.WriteString(entryVar)
 		inner.WriteString("[0];")
 		ctx.SetChildAccessor(keyVar)
-		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + keyVar + "),index:" + idxVar + ",failed:'mapKey'}")
+		ctx.SetChildPathLiteral("{key:" + idxVar + ",failed:'mapKey'}")
 		keyRT := ctx.CompileChild(keyType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
@@ -993,7 +975,7 @@ func emitMapValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 		inner.WriteString(entryVar)
 		inner.WriteString("[1];")
 		ctx.SetChildAccessor(valVar)
-		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + entryVar + "[0]),index:" + idxVar + ",failed:'mapValue'}")
+		ctx.SetChildPathLiteral("{key:" + idxVar + ",failed:'mapValue'}")
 		valRT := ctx.CompileChild(valueType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
@@ -1060,9 +1042,9 @@ func emitUnionValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string)
 
 // emitSetValidationErrors mirrors nodes/native/set emitTypeErrors.
 // Same pattern as Map but with a single item type and `.values()`
-// iteration. Path segment for an item error: {key: safe(item), index}
-// — set.ts getStaticPathLiteral parity (no `failed` marker, unlike
-// Map's key/value split).
+// iteration. Path segment for an item error: {key:i0, failed:'setKey'}
+// — `key` is the iteration index (a Set item value is data, not an
+// address); `failed:'setKey'` parallels Map's key/value markers.
 func emitSetValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	itemType := setItemType(rt, ctx)
 	itemVar := ctx.NextLocalVar("item")
@@ -1076,12 +1058,11 @@ func emitSetValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 	inner.WriteString(v)
 	inner.WriteString(".values()) {")
 	if itemType != nil {
-		safeKey := mapSafeKeyContextItem(ctx)
 		ctx.SetChildAccessor(itemVar)
-		// {key: safe(item), index} — mirrors set.ts so the failing
-		// item is locatable (the index alone is iteration-order noise for
-		// an unordered Set). Reuses the iterable safe-key pure-fn.
-		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + itemVar + "),index:" + idxVar + "}")
+		// {key:i0, failed:'setKey'} — the iteration index locates the
+		// failing item; the value itself is data, not a serialisable
+		// address (object/null items have no PropertyKey form).
+		ctx.SetChildPathLiteral("{key:" + idxVar + ",failed:'setKey'}")
 		itemRT := ctx.CompileChild(itemType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")

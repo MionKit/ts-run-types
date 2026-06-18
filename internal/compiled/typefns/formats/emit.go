@@ -3,11 +3,11 @@ package formats
 import "strconv"
 
 // FormatErrCall emits a statement that pushes the canonical nested
-// RunTypeError — `{expected, path, format: {name, formatPath, val}}` —
+// RTValidationError — `{expected, path, format: {name, formatPath, val}}` —
 // onto the errors array. This is the shape the base validationErrors path
 // (pf_newRunTypeErr) and consumers expect (mirrors the pf_formatErr
 // output); a bare `{name, formatPath, val}` push would not conform to
-// RunTypeError and is invisible to consumers reading `.path`/`.format`.
+// RTValidationError and is invisible to consumers reading `.path`/`.format`.
 //
 // Emitted INLINE rather than via a pure fn: the pf_formatErr pure fn
 // lives in the marker package's run-types-pure-fns.ts, which isn't part
