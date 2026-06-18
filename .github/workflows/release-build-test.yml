@@ -1,10 +1,18 @@
 name: release · build & test
 
-# Reusable: builds every package + the 7-platform binary matrix, runs the full
+# Reusable. Builds every package + the 7-platform binary matrix, runs the full
 # source suite (Go + JS) on Linux, then installs the PUBLISHED packages from a
-# local verdaccio and runs the consumer e2e on each platform — Docker images for
-# the three Linux arches, native runners for macOS/Windows (Docker can't execute
-# Mach-O/PE binaries). Called by pre-publish.yml (PR) and publish.yml (push).
+# local verdaccio and runs the consumer e2e — one full run per OS, plus a cheap
+# exec-smoke for the Linux side-arches.
+#
+# Coverage rationale: the Go resolver is pure (CGO_ENABLED=0, deterministic, no
+# platform-specific code), so cross-compilation is trusted for the ARCH axis;
+# the real per-platform risk is OS plumbing (launcher .exe/long-path resolution,
+# path handling, process spawn, CRLF) — which is per-OS, not per-arch. So:
+#   - full e2e on one runner per OS: linux-x64, darwin-arm64, win32-x64
+#   - exec-smoke (QEMU) on linux-arm64 + linux-arm
+#   - darwin-x64 + win32-arm64 are built + published but not exercised here
+#     (no common runner; Go cross-compile is trusted for the binary itself).
 on:
   workflow_call:
 
@@ -41,52 +49,16 @@ jobs:
           path: tarballs/
           retention-days: 3
 
-  e2e-linux:
-    name: e2e linux/${{ matrix.pkg }} (docker)
-    needs: build
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {platform: linux/amd64, pkg: x64}
-          - {platform: linux/arm64, pkg: arm64}
-          - {platform: linux/arm/v6, pkg: arm}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: tarballs
-          path: tarballs
-      # QEMU lets the amd64 runner run the arm64 / arm containers.
-      - uses: docker/setup-qemu-action@v3
-      - uses: ./.github/actions/verdaccio-publish
-      - name: e2e inside a linux/${{ matrix.pkg }} container
-        run: |
-          docker run --rm --platform ${{ matrix.platform }} \
-            --add-host=host.docker.internal:host-gateway \
-            -v "$PWD/e2e:/e2e" -w /e2e \
-            -e VERSION="${{ needs.build.outputs.version }}" \
-            node:24-bookworm bash -lc '
-              set -euo pipefail
-              rm -rf node_modules package-lock.json
-              npm config set registry http://host.docker.internal:4873
-              npm install \
-                "ts-runtypes@$VERSION" \
-                "vite-plugin-runtypes@$VERSION" \
-                vite@5.4.10 vitest@2.1.9
-              npm test
-            '
-
-  e2e-macos:
-    name: e2e ${{ matrix.pkg }} (native)
+  e2e:
+    name: e2e ${{ matrix.pkg }}
     needs: build
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {runner: macos-13, pkg: darwin-x64}
+          - {runner: ubuntu-latest, pkg: linux-x64}
           - {runner: macos-14, pkg: darwin-arm64}
+          - {runner: windows-latest, pkg: win32-x64}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -98,7 +70,7 @@ jobs:
           name: tarballs
           path: tarballs
       - uses: ./.github/actions/verdaccio-publish
-      - name: e2e (install published packages + run suite)
+      - name: e2e (install published packages + run the suite)
         working-directory: e2e
         shell: bash
         env:
@@ -111,29 +83,28 @@ jobs:
             --registry http://127.0.0.1:4873
           npm test
 
-  e2e-windows:
-    name: e2e win32-x64 (native)
+  smoke:
+    name: exec-smoke linux/${{ matrix.pkg }}
     needs: build
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: linux/arm64, pkg: linux-arm64}
+          - {platform: linux/arm/v6, pkg: linux-arm}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
       - uses: actions/download-artifact@v4
         with:
           name: tarballs
           path: tarballs
-      - uses: ./.github/actions/verdaccio-publish
-      - name: e2e (install published packages + run suite)
-        working-directory: e2e
-        shell: bash
-        env:
-          VERSION: ${{ needs.build.outputs.version }}
+      - uses: docker/setup-qemu-action@v3
+      - name: Exec the ${{ matrix.pkg }} binary under QEMU
         run: |
-          npm install \
-            "ts-runtypes@$VERSION" \
-            "vite-plugin-runtypes@$VERSION" \
-            vite@5.4.10 vitest@2.1.9 \
-            --registry http://127.0.0.1:4873
-          npm test
+          # Extract just the binary (package/lib/ts-runtypes) from its tarball.
+          mkdir -p bin-rt
+          tar -xzf tarballs/ts-runtypes-binary-${{ matrix.pkg }}-*.tgz -C bin-rt --strip-components=2 package/lib/ts-runtypes
+          # Static CGO-free binary runs on a minimal image; --version proves it
+          # executes on this arch and prints the embedded version + tsgo revision.
+          docker run --rm --platform ${{ matrix.platform }} \
+            -v "$PWD/bin-rt:/rt" debian:bookworm-slim /rt/ts-runtypes --version
