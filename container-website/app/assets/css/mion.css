@@ -462,9 +462,18 @@ h2[data-slot="title"] {
   align-items: stretch;
 }
 
+/* both columns flex so the code panel can fill the full card height */
 .rt-standard-split > * {
   min-width: 0;
   margin-block: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* the code block fills its column top-to-bottom (full card height) */
+.rt-standard-split > * > pre {
+  flex: 1;
+  margin: 0;
 }
 
 .rt-standard-split :is(pre, code) {
