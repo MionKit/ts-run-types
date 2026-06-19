@@ -404,6 +404,10 @@ export interface Response {
   // Manifest of live module basenames written under <outDir>/types by the
   // `generate` op (the current build's filesystem output).
   generated?: string[];
+  // The output root `generate` actually wrote to. When the request left
+  // outDir empty the resolver infers <srcDir>/runtypes from the tsconfig and
+  // echoes the absolute path here so the plugin can adopt it.
+  outDir?: string;
   // One TransformResult per file for the `transform` op: rewritten source +
   // source map (+ the cache modules the file imports), keyed by file path.
   transformed?: Record<string, TransformResult>;

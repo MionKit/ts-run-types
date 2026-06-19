@@ -58,12 +58,33 @@ getRunTypeId<{a: number; b: string}>();
 	}
 }
 
-// TestGenerate_RequiresOutDir fails fast when no output root is supplied.
-func TestGenerate_RequiresOutDir(t *testing.T) {
-	r := setupInline(t, map[string]string{"a.ts": "export const x = 1;\n"})
+// TestGenerate_InfersOutDir verifies that an empty OutDir is not an error:
+// the resolver infers <srcDir>/runtypes from the program and echoes the
+// resolved absolute path so the dependency-free plugin can adopt it. The
+// inline program's files all sit under the temp cwd, so the inferred srcDir
+// is that cwd and modules land under <cwd>/runtypes/types.
+func TestGenerate_InfersOutDir(t *testing.T) {
+	const src = `import {getRunTypeId} from 'ts-runtypes';
+getRunTypeId<{a: number}>();
+`
+	r := setupInline(t, map[string]string{"a.ts": src})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpGenerate})
-	if resp.Error == "" {
-		t.Fatal("OpGenerate with empty OutDir should return an error")
+	if resp.Error != "" {
+		t.Fatalf("OpGenerate with empty OutDir should infer a dir, got error: %s", resp.Error)
+	}
+	if resp.OutDir == "" {
+		t.Fatal("OpGenerate did not echo the inferred OutDir")
+	}
+	if filepath.Base(resp.OutDir) != "runtypes" {
+		t.Fatalf("inferred OutDir %q does not end in /runtypes", resp.OutDir)
+	}
+	// The inferred dir must actually hold the generated modules.
+	if len(resp.Generated) == 0 {
+		t.Fatal("inferred-dir generate produced no modules")
+	}
+	first := filepath.Join(resp.OutDir, "types", filepath.FromSlash(resp.Generated[0])+".js")
+	if _, err := os.Stat(first); err != nil {
+		t.Fatalf("module %q not written under inferred dir: %v", resp.Generated[0], err)
 	}
 }
 
