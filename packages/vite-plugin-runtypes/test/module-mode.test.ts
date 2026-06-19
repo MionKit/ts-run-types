@@ -8,8 +8,7 @@ import {describe, expect, it} from 'vitest';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {ResolverClient} from '../src/resolver-client.ts';
-import {rewrite} from '../src/rewrite.ts';
-import {BIN, hasBinary, RUNTYPES_DTS} from './helpers/inline.ts';
+import {BIN, hasBinary, RUNTYPES_DTS, rewrite} from './helpers/inline.ts';
 import {
   ENTRY_BINDING_PREFIX,
   FNS_BUNDLE_DIR,

@@ -2,9 +2,8 @@ import {describe, expect} from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
-import {rewrite} from '../src/rewrite.ts';
 import {ReflectionKind, type RunType} from '../src/protocol.ts';
-import {BIN, runTest, withInlineSources, RUNTYPES_DTS, evalEntryModules, instantiateRunTypes} from './helpers/inline.ts';
+import {BIN, runTest, withInlineSources, RUNTYPES_DTS, evalEntryModules, instantiateRunTypes, rewrite} from './helpers/inline.ts';
 import {decodeMappings} from './helpers/sourcemap.ts';
 
 function findMember(types: RunType[], root: RunType, name: string): RunType | undefined {

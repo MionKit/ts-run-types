@@ -2,7 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import {createConnection, type Socket} from 'node:net';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
-import type {Metrics, Replacement, Request, Response, RunType, Site} from './protocol.ts';
+import type {Diagnostic, Metrics, Replacement, Request, Response, RunType, Site, TransformResult} from './protocol.ts';
 
 export interface ResolverClientOptions {
   // When set, the resolver is spawned with --inline-sources-stdin and the
@@ -149,11 +149,27 @@ export interface ScanFilesResult {
   metrics?: Metrics;
 }
 
+// TransformFilesResult is the shape returned by transform(): one
+// TransformResult (rewritten code + source map) per requested file, keyed by
+// file path, plus the flat file-tagged sites/replacements and the HMR added*
+// signals. The compiler-driven path — Go applies the rewrite + generates the
+// map and hands back finished code, so the plugin just plumbs {code, map} to
+// Vite. Sites/replacements ride along for the no-op short-circuit + tests.
+export interface TransformFilesResult {
+  transformed: Record<string, TransformResult>;
+  sites: Site[];
+  replacements?: Replacement[];
+  diagnostics?: Diagnostic[];
+  addedRunTypes?: boolean;
+  addedPureFns?: boolean;
+}
+
 // Common operation surface. Spawn-based and socket-based clients both
 // implement this interface so consumers can be typed against the connection
 // without caring which transport is in use.
 export interface ResolverConnection {
   scanFiles(files: string[], opts?: ScanFilesOptions): Promise<ScanFilesResult>;
+  transform(files: string[]): Promise<TransformFilesResult>;
   dump(): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
@@ -198,6 +214,24 @@ abstract class ResolverClientBase implements ResolverConnection {
       addedFormatTransform: resp.addedFormatTransform,
       addedPureFns: resp.addedPureFns,
       metrics: resp.metrics,
+    };
+  }
+
+  // transform runs the compiler-driven per-file transform (OpTransform): the
+  // Go binary scans, rewrites, injects the dedup import block + bindings, and
+  // generates the source map, returning finished code + map per file. The
+  // plugin's transform() hook plumbs the result straight to Vite.
+  async transform(files: string[]): Promise<TransformFilesResult> {
+    if (files.length === 0) throw new Error('transform: files must be non-empty');
+    const resp = await this.transport.request({op: 'transform', files});
+    if (resp.error) throw new Error(`transform [${files.join(', ')}]: ${resp.error}`);
+    return {
+      transformed: resp.transformed ?? {},
+      sites: resp.sites ?? [],
+      replacements: resp.replacements,
+      diagnostics: resp.diagnostics,
+      addedRunTypes: resp.addedRunTypes,
+      addedPureFns: resp.addedPureFns,
     };
   }
 

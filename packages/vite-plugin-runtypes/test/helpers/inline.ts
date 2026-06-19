@@ -17,8 +17,7 @@ import fs from 'node:fs';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {it, type TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.ts';
-import {rewrite} from '../../src/rewrite.ts';
-import {type Site, type RunType} from '../../src/protocol.ts';
+import {type Replacement, type Site, type RunType, type SourceMap} from '../../src/protocol.ts';
 
 const ROOT = path.resolve(__dirname, '../../../..');
 export const BIN = path.resolve(ROOT, 'bin/ts-runtypes');
@@ -172,6 +171,25 @@ export async function withInlineSources<T>(
   const augmented: InlineSources = {'runtypes.d.ts': RUNTYPES_DTS, ...sources};
   await client.setSources(augmented);
   return fn({client, sources: augmented});
+}
+
+// rewrite drives the compiler-driven transform (OpTransform) for a single
+// inline source and returns the patched code + recorded sites/replacements +
+// source map — the same shape the old JS rewrite() returned, so the call-site
+// tests stay unchanged. The Go binary now owns the rewrite + map generation.
+export async function rewrite(
+  file: string,
+  code: string,
+  client: ResolverClient
+): Promise<{code: string; map?: SourceMap | null; sites: Site[]; replacements: Replacement[]}> {
+  const result = await client.transform([file]);
+  const fileResult = result.transformed[file];
+  return {
+    code: fileResult?.code ?? code,
+    map: fileResult?.map ?? undefined,
+    sites: result.sites,
+    replacements: result.replacements ?? [],
+  };
 }
 
 // Convenience: rewrite a single inline source and return both the patched
