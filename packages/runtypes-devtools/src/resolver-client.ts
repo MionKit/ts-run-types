@@ -169,7 +169,8 @@ export interface TransformFilesResult {
 // without caring which transport is in use.
 export interface ResolverConnection {
   scanFiles(files: string[], opts?: ScanFilesOptions): Promise<ScanFilesResult>;
-  transform(files: string[]): Promise<TransformFilesResult>;
+  transform(files: string[], outDir?: string): Promise<TransformFilesResult>;
+  generate(outDir: string): Promise<string[]>;
   dump(): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
@@ -221,9 +222,11 @@ abstract class ResolverClientBase implements ResolverConnection {
   // Go binary scans, rewrites, injects the dedup import block + bindings, and
   // generates the source map, returning finished code + map per file. The
   // plugin's transform() hook plumbs the result straight to Vite.
-  async transform(files: string[]): Promise<TransformFilesResult> {
+  async transform(files: string[], outDir?: string): Promise<TransformFilesResult> {
     if (files.length === 0) throw new Error('transform: files must be non-empty');
-    const resp = await this.transport.request({op: 'transform', files});
+    const req: Request = {op: 'transform', files};
+    if (outDir) req.outDir = outDir;
+    const resp = await this.transport.request(req);
     if (resp.error) throw new Error(`transform [${files.join(', ')}]: ${resp.error}`);
     return {
       transformed: resp.transformed ?? {},
@@ -233,6 +236,18 @@ abstract class ResolverClientBase implements ResolverConnection {
       addedRunTypes: resp.addedRunTypes,
       addedPureFns: resp.addedPureFns,
     };
+  }
+
+  // generate runs OpGenerate: the resolver renders the full entry-module set
+  // and WRITES it under <outDir>/types/ (write-only-on-change, relativized
+  // inter-module imports, stale-file GC), returning the live manifest of
+  // module basenames. The files-mode replacement for the virtual-module
+  // load path.
+  async generate(outDir: string): Promise<string[]> {
+    if (!outDir) throw new Error('generate: outDir must be non-empty');
+    const resp = await this.transport.request({op: 'generate', outDir});
+    if (resp.error) throw new Error(`generate: ${resp.error}`);
+    return resp.generated ?? [];
   }
 
   async dump(): Promise<Response> {

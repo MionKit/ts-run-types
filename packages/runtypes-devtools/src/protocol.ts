@@ -287,7 +287,7 @@ export interface FormatAnnotation {
 }
 
 export interface Request {
-  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId' | 'tsCompile' | 'transform';
+  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId' | 'tsCompile' | 'transform' | 'generate';
   // scanFiles only — the files to scan in this request. The response's
   // sites cover every listed file (each tagged with .file); when the
   // include* flags are set, runTypes / runTypeCacheSource are projected
@@ -309,6 +309,10 @@ export interface Request {
   // counters, per-phase wall times, and Go memory deltas. Mirrors the
   // Go-side Request.IncludeMetrics; zero measurement cost when unset.
   includeMetrics?: boolean;
+  // generate / transform — the resolved RunTypes output root (e.g.
+  // <srcDir>/runtypes). `generate` writes modules under <outDir>/types/;
+  // `transform` injects imports relative to it. Empty keeps virtual specifiers.
+  outDir?: string;
 }
 
 // Metrics mirrors the Go-side protocol.Metrics — populated on a response
@@ -397,6 +401,9 @@ export interface Response {
   // load hook. Always populated by `dump`; populated by `scanFiles` when
   // the request sets includeEntryModules (scoped to the request's files).
   entryModules?: Record<string, string>;
+  // Manifest of live module basenames written under <outDir>/types by the
+  // `generate` op (the current build's filesystem output).
+  generated?: string[];
   // One TransformResult per file for the `transform` op: rewritten source +
   // source map (+ the cache modules the file imports), keyed by file path.
   transformed?: Record<string, TransformResult>;
