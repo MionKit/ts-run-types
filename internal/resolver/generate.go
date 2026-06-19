@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -25,7 +27,7 @@ const moduleFileExt = ".js"
 func generateToDisk(outDir string, modules map[string]string) ([]string, error) {
 	typesDir := filepath.Join(outDir, typesSubdir)
 	if err := os.MkdirAll(typesDir, 0o755); err != nil {
-		return nil, err
+		return nil, unwritableOutDirError(typesDir, err)
 	}
 	// Rewrite the inter-module virtual:rt imports baked into each module to
 	// paths relative to that module, so the on-disk files resolve natively in
@@ -35,10 +37,10 @@ func generateToDisk(outDir string, modules map[string]string) ([]string, error) 
 		onDisk[basename] = relativizeModuleImports(basename, source)
 	}
 	if _, err := materializeModules(typesDir, onDisk); err != nil {
-		return nil, err
+		return nil, unwritableOutDirError(typesDir, err)
 	}
 	if err := pruneStaleModules(typesDir, onDisk); err != nil {
-		return nil, err
+		return nil, unwritableOutDirError(typesDir, err)
 	}
 	manifest := make([]string, 0, len(onDisk))
 	for basename := range onDisk {
@@ -46,6 +48,19 @@ func generateToDisk(outDir string, modules map[string]string) ([]string, error) 
 	}
 	sort.Strings(manifest)
 	return manifest, nil
+}
+
+// unwritableOutDirError wraps a write failure in the output tree with an
+// actionable message. Files-mode has NO virtual-module fallback — a writable
+// project dir is required at build time — so a permission / read-only-FS
+// failure here is fatal and the user needs to know exactly why and how to fix
+// it (point `outDir` at a writable path, or build where the tree is writable).
+func unwritableOutDirError(typesDir string, err error) error {
+	lower := strings.ToLower(err.Error())
+	if errors.Is(err, fs.ErrPermission) || strings.Contains(lower, "read-only") || strings.Contains(lower, "permission denied") {
+		return fmt.Errorf("cannot write generated RunTypes modules under %s: %w — files-mode needs a writable output dir; set the plugin's `outDir` to a writable path or build where the project tree is writable", typesDir, err)
+	}
+	return fmt.Errorf("writing generated RunTypes modules under %s: %w", typesDir, err)
 }
 
 // workingDir is the resolver's configured cwd — the base every relative file
