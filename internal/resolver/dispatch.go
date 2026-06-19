@@ -747,6 +747,38 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		response.EntryModules = modules
 		response.Diagnostics = append(response.Diagnostics, rtDiagnostics...)
 		return response
+	case protocol.OpGenerate:
+		// Filesystem-output sibling of OpDump: the same full-program entry
+		// collection, but the modules are WRITTEN under <OutDir>/types/ (real
+		// files the bundler resolves natively) instead of returned on the wire.
+		if request.OutDir == "" {
+			return protocol.Response{Error: "generate: OutDir is required"}
+		}
+		if resolver.Program != nil {
+			resolver.scanAllProgramFiles()
+		}
+		genDump := protocol.Dump{
+			RunTypes: resolver.cache.Dump(),
+			Sites:    resolver.stampSiteModules(resolver.Sites()),
+		}
+		var genDiagnostics []diag.Diagnostic
+		genOpts := resolver.rtRenderOpts(&genDiagnostics, resolver.buildProvenanceSites())
+		genPureFnGraph, genPureFnsDiagnostics, genPureFnsErr := resolver.collectProgramPureFns(metrics)
+		if genPureFnsErr != nil {
+			return protocol.Response{Error: genPureFnsErr.Error()}
+		}
+		genModules, genModulesErr := resolver.collectEntryModules(genDump, genOpts, genPureFnGraph, metrics)
+		if genModulesErr != nil {
+			return protocol.Response{Error: genModulesErr.Error()}
+		}
+		manifest, genErr := generateToDisk(request.OutDir, genModules)
+		if genErr != nil {
+			return protocol.Response{Error: genErr.Error()}
+		}
+		genResponse := protocol.Response{Generated: manifest}
+		genResponse.Diagnostics = append(genResponse.Diagnostics, genPureFnsDiagnostics...)
+		genResponse.Diagnostics = append(genResponse.Diagnostics, genDiagnostics...)
+		return genResponse
 	case protocol.OpSetSources:
 		setStart := time.Now()
 		if err := resolver.dispatchSetSources(request.Sources); err != nil {

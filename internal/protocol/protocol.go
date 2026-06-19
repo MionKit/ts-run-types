@@ -352,6 +352,14 @@ const (
 	// the byte-offsets index), keyed by file — seed it via OpSetSources exactly
 	// as OpScanFiles requires.
 	OpTransform = "transform"
+	// OpGenerate runs the full-program entry-module collection (the same
+	// machinery as OpDump) then WRITES each module to
+	// <Request.OutDir>/types/<basename>.js on disk — write-only-on-change,
+	// pruning stale generated files — instead of returning the sources on the
+	// wire. Response.Generated is the manifest of live module basenames. This
+	// is the filesystem-output path that replaces virtual modules; the
+	// transform op injects relative imports to these real files.
+	OpGenerate = "generate"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
@@ -377,6 +385,10 @@ type Request struct {
 	// and Go memory deltas. Zero measurement cost when unset — the
 	// dispatcher skips every ReadMemStats / stopwatch entirely.
 	IncludeMetrics bool `json:"includeMetrics,omitempty"`
+	// OutDir is the resolved RunTypes output root (e.g. <srcDir>/runtypes) for
+	// OpGenerate. Modules are written under <OutDir>/types/. Required by
+	// OpGenerate; ignored by other ops.
+	OutDir string `json:"outDir,omitempty"`
 }
 
 // Metrics is the per-op performance block, populated only when
@@ -497,6 +509,9 @@ type Response struct {
 	// OpScanFiles when Request.IncludeEntryModules is set (scoped to the
 	// request's Files).
 	EntryModules map[string]string `json:"entryModules,omitempty"`
+	// Generated is the manifest of live module basenames written under
+	// <OutDir>/types by OpGenerate (the current build's filesystem output).
+	Generated []string `json:"generated,omitempty"`
 	// Transformed carries one TransformResult per file for OpTransform: the
 	// fully rewritten source + its source map (+ the cache modules the file now
 	// imports). Keyed by file path, scoped to the request's Files.
@@ -691,6 +706,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if len(response.EntryModules) > 0 {
 		out["entryModules"] = response.EntryModules
+	}
+	if len(response.Generated) > 0 {
+		out["generated"] = response.Generated
 	}
 	if len(response.Transformed) > 0 {
 		out["transformed"] = response.Transformed
