@@ -27,14 +27,21 @@ func generateToDisk(outDir string, modules map[string]string) ([]string, error) 
 	if err := os.MkdirAll(typesDir, 0o755); err != nil {
 		return nil, err
 	}
-	if _, err := materializeModules(typesDir, modules); err != nil {
+	// Rewrite the inter-module virtual:rt imports baked into each module to
+	// paths relative to that module, so the on-disk files resolve natively in
+	// any bundler (the wire sources still use virtual specifiers).
+	onDisk := make(map[string]string, len(modules))
+	for basename, source := range modules {
+		onDisk[basename] = relativizeModuleImports(basename, source)
+	}
+	if _, err := materializeModules(typesDir, onDisk); err != nil {
 		return nil, err
 	}
-	if err := pruneStaleModules(typesDir, modules); err != nil {
+	if err := pruneStaleModules(typesDir, onDisk); err != nil {
 		return nil, err
 	}
-	manifest := make([]string, 0, len(modules))
-	for basename := range modules {
+	manifest := make([]string, 0, len(onDisk))
+	for basename := range onDisk {
 		manifest = append(manifest, basename)
 	}
 	sort.Strings(manifest)
