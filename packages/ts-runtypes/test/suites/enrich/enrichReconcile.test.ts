@@ -25,7 +25,7 @@ describe('enrichment reconcile — gen --update', () => {
     // Author values into friendlyUser + mockUser.
     editMirror(fixture, (text) =>
       text
-        .replace("name: {$label: ''}", "name: {$label: 'Full name'}")
+        .replace("name: {$label: '',", "name: {$label: 'Full name',")
         .replace('name: {pool: []}', "name: {pool: ['Alice', 'Bob']}")
     );
     // Change age's type (string), add a field; the structural id changes.
@@ -33,16 +33,16 @@ describe('enrichment reconcile — gen --update', () => {
     runGen(fixture, 'User', ['--update']);
 
     const out = readMirror(fixture);
-    expect(out, 'authored friendly value preserved').toContain("name: {$label: 'Full name'}");
+    expect(out, 'authored friendly value preserved').toContain("name: {$label: 'Full name',");
     expect(out, 'authored mock pool preserved').toContain("name: {pool: ['Alice', 'Bob']}");
-    expect(out, 'new field added in friendly').toContain("isActive: {$label: ''}");
+    expect(out, 'new field added in friendly').toContain("isActive: {$label: '', $errors: {type: ''}}");
     expect(out, 'new field added in mock').toContain('isActive: {pool: []}');
   });
 
   it('is a byte-identical no-op on an unchanged re-run', () => {
     const fixture = makeFixture('idempotent', 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, (text) => text.replace("name: {$label: ''}", "name: {$label: 'Full name'}"));
+    editMirror(fixture, (text) => text.replace("name: {$label: '',", "name: {$label: 'Full name',"));
     runGen(fixture, 'User', ['--update']);
     const first = readMirror(fixture);
     runGen(fixture, 'User', ['--update']);
@@ -53,12 +53,12 @@ describe('enrichment reconcile — gen --update', () => {
   it('carries an authored value under a renamed field (Tier-2 primitive)', () => {
     const fixture = makeFixture('rename-primitive', 'export interface User { fullName: string }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, (text) => text.replace("fullName: {$label: ''}", "fullName: {$label: 'Full name'}"));
+    editMirror(fixture, (text) => text.replace("fullName: {$label: '',", "fullName: {$label: 'Full name',"));
     setSource(fixture, 'export interface User { name: string }\n');
     runGen(fixture, 'User', ['--update']);
 
     const out = readMirror(fixture);
-    expect(out, 'value carried under new key').toContain("name: {$label: 'Full name'}");
+    expect(out, 'value carried under new key').toContain("name: {$label: 'Full name',");
     expect(out, 'old key gone').not.toContain('fullName');
     expect(out, 'rename must not orphan').not.toContain('@rtOrphanChild');
   });
@@ -81,13 +81,13 @@ describe('enrichment reconcile — gen --update', () => {
   it('comments out a removed field as @rtOrphanChild, preserving its value', () => {
     const fixture = makeFixture('orphan-child', 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, (text) => text.replace("age: {$label: ''}", "age: {$label: 'Age in years'}"));
+    editMirror(fixture, (text) => text.replace("age: {$label: '',", "age: {$label: 'Age in years',"));
     setSource(fixture, 'export interface User { name: string }\n');
     runGen(fixture, 'User', ['--update']);
 
     const out = readMirror(fixture);
     expect(out, 'dropped field carcass present').toContain('@rtOrphanChild');
-    expect(out, 'dropped value preserved').toContain("age: {$label: 'Age in years'}");
+    expect(out, 'dropped value preserved').toContain("age: {$label: 'Age in years',");
   });
 });
 

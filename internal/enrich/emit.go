@@ -70,7 +70,7 @@ func MockSkeleton(rt *protocol.RunType, resolve func(id string) *protocol.RunTyp
 func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth int) {
 	rt = ctx.deref(rt)
 	if rt == nil || depth > maxWalkDepth || ctx.seen[rt] {
-		b.WriteString("{$label: ''}")
+		b.WriteString("{$label: '', $errors: {type: ''}}")
 		return
 	}
 	// Named-type-closure interception (EmitClosure only): a child that is another
@@ -83,7 +83,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 			b.WriteString(action.varName)
 			return
 		case namedRefBroken:
-			b.WriteString("{$label: ''}")
+			b.WriteString("{$label: '', $errors: {type: ''}}")
 			return
 		}
 	}
@@ -96,9 +96,9 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		// A variadic tuple (`[A, ...B[]]`) has a broad `length`, so the Phase-A
 		// type treats it as an ARRAY (`$items`); a fixed tuple gets `$slots`.
 		if isVariadicTuple(ctx, rt) {
-			b.WriteString("{$label: '', $items: {$label: ''}}")
+			b.WriteString("{$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}}")
 		} else {
-			b.WriteString("{$label: '', $slots: [")
+			b.WriteString("{$label: '', $errors: {type: ''}, $slots: [")
 			for i, slot := range tupleSlots(ctx, rt) {
 				if i > 0 {
 					b.WriteString(", ")
@@ -113,7 +113,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 	if isMap(rt) {
 		ctx.seen[rt] = true
 		keyType, valueType := mapKeyValue(ctx, rt)
-		b.WriteString("{$label: '', $keys: ")
+		b.WriteString("{$label: '', $errors: {type: ''}, $keys: ")
 		emitFriendlyNode(b, ctx, keyType, depth+1)
 		b.WriteString(", $values: ")
 		emitFriendlyNode(b, ctx, valueType, depth+1)
@@ -123,7 +123,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 	}
 	if isSet(rt) {
 		ctx.seen[rt] = true
-		b.WriteString("{$label: '', $values: ")
+		b.WriteString("{$label: '', $errors: {type: ''}, $values: ")
 		emitFriendlyNode(b, ctx, setElement(ctx, rt), depth+1)
 		b.WriteString("}")
 		delete(ctx.seen, rt)
@@ -136,7 +136,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		return
 	}
 	if element := arrayElement(rt); element != nil {
-		b.WriteString("{$label: '', $items: ")
+		b.WriteString("{$label: '', $errors: {type: ''}, $items: ")
 		emitFriendlyNode(b, ctx, element, depth+1)
 		b.WriteString("}")
 		return
@@ -151,19 +151,21 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		b.WriteString("}}")
 		return
 	}
-	b.WriteString("{$label: ''}")
+	b.WriteString("{$label: '', $errors: {type: ''}}")
 }
 
 func emitFriendlyObject(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth int) {
 	props := propertyChildren(ctx, rt)
 	if len(props) == 0 {
-		b.WriteString("{$label: ''}")
+		b.WriteString("{$label: '', $errors: {type: ''}}")
 		return
 	}
 	inner := strings.Repeat("  ", depth+1)
 	b.WriteString("{\n")
 	b.WriteString(inner)
 	b.WriteString("$label: '',\n")
+	b.WriteString(inner)
+	b.WriteString("$errors: {type: ''},\n")
 	for _, prop := range props {
 		b.WriteString(inner)
 		b.WriteString(propKey(prop))
@@ -190,7 +192,7 @@ func emitMockNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth 
 			b.WriteString(action.varName)
 			return
 		case namedRefBroken:
-			b.WriteString("{}")
+			b.WriteString("{pool: []}")
 			return
 		}
 	}

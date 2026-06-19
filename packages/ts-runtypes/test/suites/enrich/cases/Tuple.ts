@@ -16,7 +16,14 @@ export const TUPLE = {
       // ##### src #####
       type Target = [string, number];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $slots: [{$label: ''}, {$label: ''}]};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        $slots: [
+          {$label: '', $errors: {type: ''}},
+          {$label: '', $errors: {type: ''}},
+        ],
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {$slots: [{pool: []}, {pool: []}]};
       // ##### result #####
@@ -30,7 +37,7 @@ export const TUPLE = {
       // ##### src #####
       type Target = [string];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $slots: [{$label: ''}]};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $slots: [{$label: '', $errors: {type: ''}}]};
       // ##### mock #####
       const mockTarget: MockData<Target> = {$slots: [{pool: []}]};
       // ##### result #####
@@ -44,7 +51,14 @@ export const TUPLE = {
       // ##### src #####
       type Target = [name: string, age: number];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $slots: [{$label: ''}, {$label: ''}]};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        $slots: [
+          {$label: '', $errors: {type: ''}},
+          {$label: '', $errors: {type: ''}},
+        ],
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {$slots: [{pool: []}, {pool: []}]};
       // ##### result #####
@@ -60,7 +74,13 @@ export const TUPLE = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
-        $slots: [{$label: ''}, {$label: ''}, {$label: ''}, {$label: ''}],
+        $errors: {type: ''},
+        $slots: [
+          {$label: '', $errors: {type: ''}},
+          {$label: '', $errors: {type: ''}},
+          {$label: '', $errors: {type: ''}},
+          {$label: '', $errors: {type: ''}},
+        ],
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {$slots: [{pool: []}, {pool: []}, {pool: []}, {pool: []}]};
@@ -77,7 +97,7 @@ export const TUPLE = {
       // ##### friendly #####
       // A variadic tuple has `length: number`, so the type (and emitter) treat
       // it as an array — `$items`, not `$slots`.
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $items: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {$items: {pool: []}, $length: [1, 3]};
       // ##### result #####
@@ -91,7 +111,14 @@ export const TUPLE = {
       // ##### src #####
       type Target = readonly [string, number];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $slots: [{$label: ''}, {$label: ''}]};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        $slots: [
+          {$label: '', $errors: {type: ''}},
+          {$label: '', $errors: {type: ''}},
+        ],
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {$slots: [{pool: []}, {pool: []}]};
       // ##### result #####
@@ -107,7 +134,14 @@ export const TUPLE = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
-        $slots: [{$label: ''}, {$label: ''}, {$label: ''}, {$label: ''}, {$label: ''}],
+        $errors: {type: ''},
+        $slots: [
+          {$label: '', $errors: {type: ''}},
+          {$label: '', $errors: {type: ''}},
+          {$label: '', $errors: {type: ''}},
+          {$label: '', $errors: {type: ''}},
+          {$label: '', $errors: {type: ''}},
+        ],
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {$slots: [{pool: []}, {pool: []}, {pool: []}, {pool: []}, {pool: []}]};
@@ -122,7 +156,7 @@ export const TUPLE = {
       // ##### src #####
       type Target = [];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $slots: []};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $slots: []};
       // ##### mock #####
       const mockTarget: MockData<Target> = {$slots: []};
       // ##### result #####

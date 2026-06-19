@@ -21,11 +21,17 @@ export const REALWORLD = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
-        id: {$label: ''},
-        name: {$label: ''},
-        email: {$label: ''},
-        tags: {$label: '', $items: {$label: ''}},
-        profile: {$label: '', bio: {$label: ''}, age: {$label: ''}},
+        $errors: {type: ''},
+        id: {$label: '', $errors: {type: ''}},
+        name: {$label: '', $errors: {type: ''}},
+        email: {$label: '', $errors: {type: ''}},
+        tags: {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}},
+        profile: {
+          $label: '',
+          $errors: {type: ''},
+          bio: {$label: '', $errors: {type: ''}},
+          age: {$label: '', $errors: {type: ''}},
+        },
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -33,7 +39,10 @@ export const REALWORLD = {
         name: {pool: []},
         email: {pool: []},
         tags: {$items: {pool: []}, $length: [1, 3]},
-        profile: {bio: {pool: []}, age: {pool: []}},
+        profile: {
+          bio: {pool: []},
+          age: {pool: []},
+        },
       };
       // ##### result #####
       return {friendlyTarget, mockTarget};
@@ -54,6 +63,7 @@ export const REALWORLD = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
+        $errors: {type: ''},
         username: {$label: '', $errors: {type: '', maxLength: '', minLength: ''}},
         email: {$label: '', $errors: {type: '', maxLength: '', minLength: '', pattern: ''}},
         age: {$label: '', $errors: {type: '', max: '', min: ''}},
@@ -85,17 +95,45 @@ export const REALWORLD = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
-        orderId: {$label: ''},
-        total: {$label: ''},
-        items: {$label: '', $items: {$label: '', sku: {$label: ''}, qty: {$label: ''}, price: {$label: ''}}},
-        shipping: {$label: '', address: {$label: ''}, city: {$label: ''}, zip: {$label: ''}},
+        $errors: {type: ''},
+        orderId: {$label: '', $errors: {type: ''}},
+        total: {$label: '', $errors: {type: ''}},
+        items: {
+          $label: '',
+          $errors: {type: ''},
+          $items: {
+            $label: '',
+            $errors: {type: ''},
+            sku: {$label: '', $errors: {type: ''}},
+            qty: {$label: '', $errors: {type: ''}},
+            price: {$label: '', $errors: {type: ''}},
+          },
+        },
+        shipping: {
+          $label: '',
+          $errors: {type: ''},
+          address: {$label: '', $errors: {type: ''}},
+          city: {$label: '', $errors: {type: ''}},
+          zip: {$label: '', $errors: {type: ''}},
+        },
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
         orderId: {pool: []},
         total: {pool: []},
-        items: {$items: {sku: {pool: []}, qty: {pool: []}, price: {pool: []}}, $length: [1, 3]},
-        shipping: {address: {pool: []}, city: {pool: []}, zip: {pool: []}},
+        items: {
+          $items: {
+            sku: {pool: []},
+            qty: {pool: []},
+            price: {pool: []},
+          },
+          $length: [1, 3],
+        },
+        shipping: {
+          address: {pool: []},
+          city: {pool: []},
+          zip: {pool: []},
+        },
       };
       // ##### result #####
       return {friendlyTarget, mockTarget};
@@ -117,11 +155,17 @@ export const REALWORLD = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
-        title: {$label: ''},
-        body: {$label: ''},
-        publishedAt: {$label: ''},
-        tags: {$label: '', $items: {$label: ''}},
-        author: {$label: '', name: {$label: ''}, email: {$label: ''}},
+        $errors: {type: ''},
+        title: {$label: '', $errors: {type: ''}},
+        body: {$label: '', $errors: {type: ''}},
+        publishedAt: {$label: '', $errors: {type: ''}},
+        tags: {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}},
+        author: {
+          $label: '',
+          $errors: {type: ''},
+          name: {$label: '', $errors: {type: ''}},
+          email: {$label: '', $errors: {type: ''}},
+        },
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -129,7 +173,10 @@ export const REALWORLD = {
         body: {pool: []},
         publishedAt: {pool: []},
         tags: {$items: {pool: []}, $length: [1, 3]},
-        author: {name: {pool: []}, email: {pool: []}},
+        author: {
+          name: {pool: []},
+          email: {pool: []},
+        },
       };
       // ##### result #####
       return {friendlyTarget, mockTarget};
