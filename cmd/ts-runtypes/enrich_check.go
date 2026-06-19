@@ -11,6 +11,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
 	"github.com/mionkit/ts-runtypes/internal/marker"
 	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
@@ -100,7 +101,7 @@ func checkFile(sourceFile *ast.SourceFile, typeChecker *checker.Checker, res *re
 			if resolved == nil {
 				continue
 			}
-			view := newASTLiteralView(literal)
+			view := mirror.NewASTLiteralView(literal)
 			var findings []enrich.Finding
 			switch kind {
 			case mapKindFriendly:

@@ -70,10 +70,19 @@ pre-pass and build-time enrichment.
 - The `enriched/` dir + `.gitkeep` are scaffolded at build, but **no enrich
   generation/reconcile runs at build** — enrichment is still **CLI-driven**
   (`ts-runtypes gen`).
-- Unstarted: extracting the reconcile I/O to `internal/enrich/mirror`,
-  `OpEnrichSync`, the type→enriched additive sync, and the enriched→HMR
-  direction. Deferred per the locked "ship straightforward, harden later"
-  decision (the reconcile cluster is ~15 tightly-coupled `package main` files).
+- ✅ **Reconcile core extracted to `internal/enrich/mirror`** — Phase 5's
+  prerequisite is done. The cluster (reconcile/merge/orphan/splice/index/
+  literalview, formerly ~15 tightly-coupled `package main` files) is now a pure,
+  error-returning package: `Reconcile` / `Scaffold` / `PruneOrphanBlocks` /
+  `ParseMirror` + the exported emission/path helpers. Every `fatal()` in the
+  moved code became a returned error; the CLI keeps all disk I/O, stderr/stdout
+  print, and `os.Exit`, feeding `mirror` via a `MirrorPathFor` closure (replacing
+  the `enrichConfig` coupling) + an injected `readSource` callback (replacing the
+  one mid-algorithm `os.ReadFile` in orphan judgement). The moved test suites
+  pass unchanged.
+- Still unstarted: `OpEnrichSync`, the type→enriched additive sync, and the
+  enriched→HMR direction. Deferred per the locked "ship straightforward, harden
+  later" decision.
 
 ### Phase 6 — incremental HMR + GC — ⚠️ PARTIAL
 - ✅ Incremental **materialization** — write-only-on-change + content-addressed

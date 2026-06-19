@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
 )
 
 // TestParseBreadcrumb verifies the source breadcrumb is extracted (skipping the
@@ -75,18 +77,18 @@ func TestSourceDeclaresType(t *testing.T) {
 		"declare type Ambient = number;\n"
 	declared := []string{"User", "Alias", "Base", "Color", "Ambient"}
 	for _, name := range declared {
-		if !sourceDeclaresType(src, name) {
-			t.Errorf("sourceDeclaresType should find %q", name)
+		if !mirror.SourceDeclaresType(src, name) {
+			t.Errorf("SourceDeclaresType should find %q", name)
 		}
 	}
 	for _, name := range []string{"Missing", "Use", "Use"} {
-		if sourceDeclaresType(src, name) {
-			t.Errorf("sourceDeclaresType should NOT find %q", name)
+		if mirror.SourceDeclaresType(src, name) {
+			t.Errorf("SourceDeclaresType should NOT find %q", name)
 		}
 	}
 	// A substring of a declared name must not match (word boundary).
-	if sourceDeclaresType(src, "Use") {
-		t.Errorf("sourceDeclaresType matched a substring of 'User'")
+	if mirror.SourceDeclaresType(src, "Use") {
+		t.Errorf("SourceDeclaresType matched a substring of 'User'")
 	}
 }
 
@@ -115,8 +117,8 @@ func TestSourceDeclaresType_ReExports(t *testing.T) {
 	}
 	for _, test := range keepCases {
 		t.Run(test.name, func(t *testing.T) {
-			if !sourceDeclaresType(test.src, test.typeNm) {
-				t.Errorf("sourceDeclaresType(%q, %q) = false, want true (would destructively orphan a live type)", test.src, test.typeNm)
+			if !mirror.SourceDeclaresType(test.src, test.typeNm) {
+				t.Errorf("SourceDeclaresType(%q, %q) = false, want true (would destructively orphan a live type)", test.src, test.typeNm)
 			}
 		})
 	}
@@ -134,8 +136,8 @@ func TestSourceDeclaresType_ReExports(t *testing.T) {
 	}
 	for _, test := range dropCases {
 		t.Run(test.name, func(t *testing.T) {
-			if sourceDeclaresType(test.src, test.typeNm) {
-				t.Errorf("sourceDeclaresType(%q, %q) = true, want false", test.src, test.typeNm)
+			if mirror.SourceDeclaresType(test.src, test.typeNm) {
+				t.Errorf("SourceDeclaresType(%q, %q) = true, want false", test.src, test.typeNm)
 			}
 		})
 	}
@@ -145,16 +147,16 @@ func TestSourceDeclaresType_ReExports(t *testing.T) {
 // file's directory, probing .ts then .d.ts.
 func TestResolveBreadcrumb(t *testing.T) {
 	dir := t.TempDir()
-	mirror := filepath.Join(dir, "rt", "gen", "models", "user.ts")
-	mustMkdirAll(t, filepath.Dir(mirror))
+	mirrorFile := filepath.Join(dir, "rt", "gen", "models", "user.ts")
+	mustMkdirAll(t, filepath.Dir(mirrorFile))
 	source := filepath.Join(dir, "src", "models", "user.ts")
 	writeTestFile(t, source, "export interface User {}")
 
 	// The breadcrumb (relative, ext-stripped) from the mirror back to the source.
-	spec := importSpecifier(mirror, source)
-	got := resolveBreadcrumb(mirror, spec)
+	spec := mirror.ImportSpecifier(mirrorFile, source)
+	got := mirror.ResolveBreadcrumb(mirrorFile, spec)
 	if filepath.Clean(got) != filepath.Clean(source) {
-		t.Errorf("resolveBreadcrumb(%q, %q) = %q, want %q", mirror, spec, got, source)
+		t.Errorf("ResolveBreadcrumb(%q, %q) = %q, want %q", mirrorFile, spec, got, source)
 	}
 }
 

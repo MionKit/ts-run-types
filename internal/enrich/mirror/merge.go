@@ -1,4 +1,4 @@
-package main
+package mirror
 
 import (
 	"sort"
@@ -11,6 +11,20 @@ import (
 	"github.com/microsoft/typescript-go/shim/scanner"
 	"github.com/microsoft/typescript-go/shim/tspath"
 )
+
+// variableDeclarations returns the VariableDeclaration nodes of a
+// VariableStatement.
+func variableDeclarations(statement *ast.Node) []*ast.Node {
+	declaration := statement.AsVariableStatement().DeclarationList
+	if declaration == nil {
+		return nil
+	}
+	list := declaration.AsVariableDeclarationList()
+	if list == nil || list.Declarations == nil {
+		return nil
+	}
+	return list.Declarations.Nodes
+}
 
 // objectView is a parsed object-literal over some source text, giving the merge
 // per-property access by key. text is the FULL source the node was parsed from

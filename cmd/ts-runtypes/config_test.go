@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
 )
 
 // TestStripJSONC verifies comment + trailing-comma stripping is string-aware.
@@ -164,8 +166,8 @@ func TestImportSpecifier(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := importSpecifier(test.from, test.target); got != test.want {
-				t.Errorf("importSpecifier(%q, %q) = %q, want %q", test.from, test.target, got, test.want)
+			if got := mirror.ImportSpecifier(test.from, test.target); got != test.want {
+				t.Errorf("ImportSpecifier(%q, %q) = %q, want %q", test.from, test.target, got, test.want)
 			}
 		})
 	}

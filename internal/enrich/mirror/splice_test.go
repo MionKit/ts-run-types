@@ -1,11 +1,22 @@
-package main
+package mirror
 
 import "testing"
+
+// mustSplice applies ops and fails the test on error — the unit-test convenience
+// wrapper now that applySplices returns an error.
+func mustSplice(t *testing.T, raw []byte, ops []spliceOp) string {
+	t.Helper()
+	out, err := applySplices(raw, ops)
+	if err != nil {
+		t.Fatalf("applySplices error: %v", err)
+	}
+	return string(out)
+}
 
 // TestApplySplices_Replace swaps a middle range, leaving the rest byte-identical.
 func TestApplySplices_Replace(t *testing.T) {
 	raw := []byte("hello world")
-	got := string(applySplices(raw, []spliceOp{{start: 6, end: 11, text: "there"}}))
+	got := mustSplice(t, raw, []spliceOp{{start: 6, end: 11, text: "there"}})
 	if got != "hello there" {
 		t.Errorf("replace = %q", got)
 	}
@@ -14,7 +25,7 @@ func TestApplySplices_Replace(t *testing.T) {
 // TestApplySplices_Delete drops a range (empty text).
 func TestApplySplices_Delete(t *testing.T) {
 	raw := []byte("hello world")
-	got := string(applySplices(raw, []spliceOp{{start: 5, end: 11, text: ""}}))
+	got := mustSplice(t, raw, []spliceOp{{start: 5, end: 11, text: ""}})
 	if got != "hello" {
 		t.Errorf("delete = %q", got)
 	}
@@ -23,7 +34,7 @@ func TestApplySplices_Delete(t *testing.T) {
 // TestApplySplices_Insert inserts at an offset (start == end).
 func TestApplySplices_Insert(t *testing.T) {
 	raw := []byte("hello world")
-	got := string(applySplices(raw, []spliceOp{{start: 5, end: 5, text: ","}}))
+	got := mustSplice(t, raw, []spliceOp{{start: 5, end: 5, text: ","}})
 	if got != "hello, world" {
 		t.Errorf("insert = %q", got)
 	}
@@ -39,7 +50,7 @@ func TestApplySplices_DescendingOrder(t *testing.T) {
 		{start: 4, end: 4, text: "-"},   // insert '-' before '4'
 		{start: 8, end: 10, text: "XY"}, // replace '89' → 'XY'
 	}
-	got := string(applySplices(raw, ops))
+	got := mustSplice(t, raw, ops)
 	want := "A123-4567XY"
 	if got != want {
 		t.Errorf("multi-op = %q, want %q", got, want)
@@ -54,7 +65,7 @@ func TestApplySplices_Adjacency(t *testing.T) {
 		{start: 0, end: 3, text: "X"}, // replace 'abc' → 'X'
 		{start: 3, end: 6, text: "Y"}, // replace 'def' → 'Y' (touches the first at 3)
 	}
-	got := string(applySplices(raw, ops))
+	got := mustSplice(t, raw, ops)
 	if got != "XY" {
 		t.Errorf("adjacent = %q, want XY", got)
 	}
@@ -64,7 +75,7 @@ func TestApplySplices_Adjacency(t *testing.T) {
 		{start: 3, end: 3, text: "|"}, // insert at 3
 		{start: 3, end: 6, text: "Y"}, // replace 'def' → 'Y'
 	}
-	got2 := string(applySplices(raw, ops2))
+	got2 := mustSplice(t, raw, ops2)
 	if got2 != "abc|Y" {
 		t.Errorf("adjacent insert = %q, want abc|Y", got2)
 	}
@@ -73,7 +84,10 @@ func TestApplySplices_Adjacency(t *testing.T) {
 // TestApplySplices_EmptyNoOp returns the original bytes unchanged.
 func TestApplySplices_EmptyNoOp(t *testing.T) {
 	raw := []byte("unchanged")
-	got := applySplices(raw, nil)
+	got, err := applySplices(raw, nil)
+	if err != nil {
+		t.Fatalf("applySplices error: %v", err)
+	}
 	if string(got) != "unchanged" {
 		t.Errorf("empty op list changed bytes: %q", got)
 	}
