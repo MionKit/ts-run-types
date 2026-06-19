@@ -42,8 +42,8 @@ if (typeof globalThis.Temporal === 'undefined') {
   globalThis.Temporal = Temporal;
 }
 
-import runtypesPlugin from '../packages/vite-plugin-runtypes/dist/index.js';
-import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-client.js';
+import runtypesPlugin from '../packages/runtypes-devtools/dist/index.js';
+import {ResolverClient} from '../packages/runtypes-devtools/dist/resolver-client.js';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');

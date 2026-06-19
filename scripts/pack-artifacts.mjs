@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Packs every publishable package into tarballs/ for the verdaccio-backed e2e
 // (and as the exact artifacts the publish job ships):
-//   - FE packages (ts-runtypes, vite-plugin-runtypes) via `pnpm pack`, so the
+//   - FE packages (ts-runtypes, runtypes-devtools) via `pnpm pack`, so the
 //     workspace:* dep on ts-runtypes-bin is rewritten to a concrete version.
 //   - launcher + the 7 platform packages from dist-binaries/ (already assembled
 //     by build-binary-packages.mjs, optionalDependencies filled) via `npm pack`.
@@ -16,7 +16,7 @@ import {fileURLToPath} from 'node:url';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TARBALLS = path.join(REPO_ROOT, 'tarballs');
 const DIST_BINARIES = path.join(REPO_ROOT, 'dist-binaries');
-const FE_PACKAGES = ['ts-runtypes', 'vite-plugin-runtypes'];
+const FE_PACKAGES = ['ts-runtypes', 'runtypes-devtools'];
 
 function pack(cmd, dir) {
   // pnpm/npm pack both accept --pack-destination and emit <name>-<version>.tgz.

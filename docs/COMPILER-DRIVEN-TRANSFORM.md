@@ -25,8 +25,8 @@ _Status: Core migration IMPLEMENTED (2026-06-19). Go owns the full per-file tran
 
 Today the transform pipeline is **Vite-plugin-centric**. The Go binary resolves types and renders cache-module content, but a meaningful amount of build logic lives in the JS plugin:
 
-- [`rewrite.ts`](../packages/vite-plugin-runtypes/src/rewrite.ts) — applies byte-offset rewrites and the dedup import block; converts every resolver offset via `makeByteToChar` before indexing the JS string.
-- [`edit-buffer.ts`](../packages/vite-plugin-runtypes/src/edit-buffer.ts) — the in-house `EditBuffer` that produces the real source map (ported from magic-string, `hires: 'boundary'`).
+- [`rewrite.ts`](../packages/runtypes-devtools/src/rewrite.ts) — applies byte-offset rewrites and the dedup import block; converts every resolver offset via `makeByteToChar` before indexing the JS string.
+- [`edit-buffer.ts`](../packages/runtypes-devtools/src/edit-buffer.ts) — the in-house `EditBuffer` that produces the real source map (ported from magic-string, `hires: 'boundary'`).
 - Virtual-module emission — `virtual:rt/<key>.js` entries, the `virtual:rt/runtypes.js` data bundle, per-root facades.
 - HMR — `handleHotUpdate` invalidates the data bundle when a scan reports `addedRunTypes`.
 
@@ -99,7 +99,7 @@ These are non-negotiable and constrain every phase:
 Add a `Transform` request to [`internal/protocol`](../internal/protocol/): input is `{ filePath, sourceBytes, options }`; output is `{ transformedCode, sourceMap, emittedModules[] }` (the list of cache specifiers this file now imports / that were (re)written). The transform:
 
 - applies call-site rewrites (`createValidate<T>()` → `createValidate(__rt_<fnHash>_<id>)`) and the single deduped import block at offset 0, all in **UTF-8 bytes** (the byte→char conversion is deleted);
-- generates a standard source map by porting the `EditBuffer` boundary algorithm from [`edit-buffer.ts`](../packages/vite-plugin-runtypes/src/edit-buffer.ts) into Go (mechanical — the algorithm was already ported once from magic-string; credit/license header carries over).
+- generates a standard source map by porting the `EditBuffer` boundary algorithm from [`edit-buffer.ts`](../packages/runtypes-devtools/src/edit-buffer.ts) into Go (mechanical — the algorithm was already ported once from magic-string; credit/license header carries over).
 
 Net effect: the offset protocol seam between Go and JS is removed; rewrite + map are tested by the Go suite alongside the resolver that produced the offsets.
 
@@ -120,7 +120,7 @@ Go emits transformed **TypeScript**, not JS. The user's existing toolchain perfo
 
 ### 5. Thin Vite wrapper
 
-`vite-plugin-runtypes` reduces to: (a) in `transform()`, send the `Transform` request and return `{ code, map }`; (b) `handleHotUpdate` invalidation for the data bundle on `addedRunTypes` (dev only). `rewrite.ts` and `edit-buffer.ts` are deleted from the package. Its only runtime dep remains `ts-runtypes-bin` (the launcher; `getExePath()`).
+`runtypes-devtools` reduces to: (a) in `transform()`, send the `Transform` request and return `{ code, map }`; (b) `handleHotUpdate` invalidation for the data bundle on `addedRunTypes` (dev only). `rewrite.ts` and `edit-buffer.ts` are deleted from the package. Its only runtime dep remains `ts-runtypes-bin` (the launcher; `getExePath()`).
 
 ## File & cache layout
 
@@ -137,7 +137,7 @@ Go emits transformed **TypeScript**, not JS. The user's existing toolchain perfo
 | **1. Rewrite + map → Go** | Port `rewrite.ts` (offset application, dedup import block, call-site bindings) and `edit-buffer.ts` (boundary source map) into a Go transform package. Delete `makeByteToChar`. Golden tests for output + map. |
 | **2. Cache emission → disk** | Emit data bundle / facades / function entries as real files into `cacheDir`; write-only-on-content-change; inject computed-relative specifiers. |
 | **3. Standalone transform / CLI** | A `ts-runtypes` subcommand (and/or programmatic API) under [`cmd/ts-runtypes/`](../cmd/ts-runtypes/) that runs the TS → TS transform over a file set for the plugin-free path. |
-| **4. Thin Vite wrapper** | Rewrite `vite-plugin-runtypes` to call the `Transform` request + dev HMR only; remove `rewrite.ts` / `edit-buffer.ts`. |
+| **4. Thin Vite wrapper** | Rewrite `runtypes-devtools` to call the `Transform` request + dev HMR only; remove `rewrite.ts` / `edit-buffer.ts`. |
 | **5. Config** | `cacheDir`, `importStyle: relative \| subpath`; preserve existing `emitMode`, `moduleMode`, `inlineMode`. Regenerate the TS constants mirror via `gen:ts-constants` if constants change. |
 | **6. Cleanup** | Remove dead JS, update tests + docs ([ARCHITECTURE.md](./ARCHITECTURE.md), [SETUP.md](../SETUP.md)), preserve the marker test-coverage rule (both `getRunTypeId` call shapes). |
 

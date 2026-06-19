@@ -17,7 +17,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 ## How it works
 
 ```
-  app.ts ──▶ vite-plugin-runtypes ──[scanFiles]──▶  ts-runtypes (Go)
+  app.ts ──▶ runtypes-devtools ──[scanFiles]──▶  ts-runtypes (Go)
                        │                                 │
                        │                                 │ tsgo Checker
                        │                                 │
@@ -41,7 +41,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 
 - **Types are deduplicated twice.** [internal/compiled/runtype/](internal/compiled/runtype/) holds a cache keyed by both _pointer identity_ (the same `*checker.Type` visited via two paths) **and** _structural id_ (two distinct `Type` objects with the same shape). Both collapse to a single cache entry, so the emitted metadata is stable across runs.
 - **Structural ids are deterministic.** [internal/compiled/runtype/typeid/](internal/compiled/runtype/typeid/) mirrors the reference `_createTypeId` to compose `${kind}{child1,child2,…}` recursively, with a back-reference token for cycles. The structural id is then run through the quickHash rolling hash (prime-37, letter-first alphanumeric alphabet) in [internal/hashid](internal/hashid/), yielding a 7-character hash.
-- **Rewrites are positioned by byte offsets, not string indices.** tsgo positions are UTF-8 byte offsets. The Vite plugin's [rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts) therefore converts every resolver offset to a UTF-16 index before editing (otherwise multibyte source characters would misalign the inserted hash) and applies the edits through an in-house `EditBuffer` ([edit-buffer.ts](packages/vite-plugin-runtypes/src/edit-buffer.ts)), so the transform returns a real source map — breakpoints and stack traces land on the user's original lines. The plugin ships **no runtime dependencies**: `EditBuffer` is a small from-scratch string-editor + source-map generator covering just the slice of `magic-string` the rewrite needs.
+- **Rewrites are positioned by byte offsets, not string indices.** tsgo positions are UTF-8 byte offsets. The Vite plugin's [rewrite.ts](packages/runtypes-devtools/src/rewrite.ts) therefore converts every resolver offset to a UTF-16 index before editing (otherwise multibyte source characters would misalign the inserted hash) and applies the edits through an in-house `EditBuffer` ([edit-buffer.ts](packages/runtypes-devtools/src/edit-buffer.ts)), so the transform returns a real source map — breakpoints and stack traces land on the user's original lines. The plugin ships **no runtime dependencies**: `EditBuffer` is a small from-scratch string-editor + source-map generator covering just the slice of `magic-string` the rewrite needs.
 - **Entry modules defer all wiring to runtime registration.** [internal/compiled/entrymod](internal/compiled/entrymod/) assembles one ES module per function entry: imports of the entry's DIRECT dependencies (leaves-first, alphabetical within a dependency level; recursive types collapse via SCC so cycles import each other safely — the transitive closure loads through the dep modules' own imports) and a lazy `deps()` thunk the runtime walks recursively. Runtype nodes are denser: they ride as rows of the single data bundle `virtual:rt/runtypes.js` (one combined `ini(rtu)` patches reference slots through the registry), aliased by a tiny facade module per reflection root so each node exists exactly once app-wide. Tuples never reference imported bindings eagerly, so circular type graphs evaluate without TDZ hazards. Module naming/export constants come from [internal/constants/constants.go](internal/constants/constants.go) — the JS side reads the same values from a generated mirror (`pnpm run gen:ts-constants`), so the two halves can't drift. The Vite plugin serves module bodies verbatim from the resolver's `dump` response (`entryModules`) — there's no JS-side renderer to keep in sync.
 - **The marker is detected by name _and_ declaring module.** [internal/marker](internal/marker/) checks both `InjectRunTypeId` and that the alias is declared in `ts-runtypes`, so a user's own `type InjectRunTypeId<T> = ...` declared elsewhere does not trigger rewrites.
 
@@ -68,9 +68,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 | Path                                                                                                         | Purpose                                                                                           |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | [packages/ts-runtypes](packages/ts-runtypes/)                                                       | `ts-runtypes` — `InjectRunTypeId<T>` marker type, `getRunTypeId` (static + value-first forms). |
-| [packages/vite-plugin-runtypes](packages/vite-plugin-runtypes/)                                              | Vite plugin: spawns the Go binary, applies byte-offset rewrites, serves `virtual:rt/*` entry modules. |
-| [packages/vite-plugin-runtypes/src/resolver-client.ts](packages/vite-plugin-runtypes/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                             |
-| [packages/vite-plugin-runtypes/src/rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts)                 | Applies returned `Site[]` as byte-offset insertions into source.                                  |
+| [packages/runtypes-devtools](packages/runtypes-devtools/)                                              | Vite plugin: spawns the Go binary, applies byte-offset rewrites, serves `virtual:rt/*` entry modules. |
+| [packages/runtypes-devtools/src/resolver-client.ts](packages/runtypes-devtools/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                             |
+| [packages/runtypes-devtools/src/rewrite.ts](packages/runtypes-devtools/src/rewrite.ts)                 | Applies returned `Site[]` as byte-offset insertions into source.                                  |
 
 ## Use
 
@@ -158,7 +158,7 @@ internal/                        Go pipeline (program, resolver, marker,
                                   compiled/runtype, compiled/typefns, compiled/purefns,
                                   protocol, constants, diag, cache, entrymod, hashid, testfixtures)
 packages/ts-runtypes/        ts-runtypes — marker type + helpers
-packages/vite-plugin-runtypes/   Vite plugin, drives the binary
+packages/runtypes-devtools/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
 docs/ARCHITECTURE.md             detailed design + factory reference
 docs/ROADMAP.md                  scope + known lossy mappings

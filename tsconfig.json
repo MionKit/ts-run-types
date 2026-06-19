@@ -20,7 +20,7 @@
   },
   "references": [
     {"path": "./packages/ts-runtypes"},
-    {"path": "./packages/vite-plugin-runtypes"}
+    {"path": "./packages/runtypes-devtools"}
   ],
   "files": [],
   "exclude": ["node_modules", "dist", ".dist", "third_party", "bin"]

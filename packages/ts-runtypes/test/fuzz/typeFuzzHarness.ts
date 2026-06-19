@@ -27,15 +27,15 @@ import {
   createBinaryEncoder,
   createBinaryDecoder,
 } from 'ts-runtypes';
-import {ResolverClient} from '../../../vite-plugin-runtypes/src/resolver-client.ts';
+import {ResolverClient} from '../../../runtypes-devtools/src/resolver-client.ts';
 import {
   RUNTYPES_DTS,
   evalEntryModules,
   instantiateRunTypes,
   BIN,
   hasBinary,
-} from '../../../vite-plugin-runtypes/test/helpers/inline.ts';
-import {Severity, type Diagnostic, type Site} from '../../../vite-plugin-runtypes/src/protocol.ts';
+} from '../../../runtypes-devtools/test/helpers/inline.ts';
+import {Severity, type Diagnostic, type Site} from '../../../runtypes-devtools/src/protocol.ts';
 import {renderGenerated, describeType, type GeneratedType} from './typeGen.ts';
 
 export {hasBinary, BIN};

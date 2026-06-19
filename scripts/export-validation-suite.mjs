@@ -35,9 +35,9 @@ if (typeof globalThis.Temporal === 'undefined') {
   globalThis.Temporal = Temporal;
 }
 
-import runtypesPlugin from '../packages/vite-plugin-runtypes/dist/index.js';
-import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-client.js';
-import {CACHE_MODULES} from '../packages/vite-plugin-runtypes/dist/runtypes-constants.generated.js';
+import runtypesPlugin from '../packages/runtypes-devtools/dist/index.js';
+import {ResolverClient} from '../packages/runtypes-devtools/dist/resolver-client.js';
+import {CACHE_MODULES} from '../packages/runtypes-devtools/dist/runtypes-constants.generated.js';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -78,7 +78,7 @@ const COMPILE_CYCLES = 3;
 
 // Ambient overlay so the synthetic compile-pass files can `import` the marker
 // package without a real package.json lookup. Mirrors RUNTYPES_DTS in
-// packages/vite-plugin-runtypes/test/helpers/inline.ts — createX signatures
+// packages/runtypes-devtools/test/helpers/inline.ts — createX signatures
 // MUST carry the InjectTypeFnArgs marker or the scanner records no demand and
 // the compile probes render zero fn entries.
 const RUNTYPES_DTS = `declare module 'ts-runtypes' {

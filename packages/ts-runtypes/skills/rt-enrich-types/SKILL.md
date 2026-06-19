@@ -25,7 +25,7 @@ marked `@todo`; your job is to fill those gaps with believable, valid content.
    `@todo` line as you finish it.
 4. **`check`** — the compiler validates every authored value against the live type.
    Fix anything it flags, repeat until clean.
-5. **`gen --update`** — when the type later changes, re-sync the file *value-preservingly*
+5. **`gen --update`** — when the type later changes, re-sync the file _value-preservingly_
    (property merge + field rename + orphaning); fill any new `@todo`s it adds.
 6. **`gen --prune`** — the only destructive op: removes the `@rtOrphan`/`@rtOrphanChild`
    carcasses left by deleted types/fields.
@@ -46,20 +46,20 @@ and committed consts you import by name:
 
 ```ts
 // runtypes/generated/models/user.ts — GENERATED, COMMITTED, hand-editable
-import type { User } from '../../../models/user';
-import type { FriendlyType, MockData } from 'ts-runtypes';
+import type {User} from '../../../models/user';
+import type {FriendlyType, MockData} from 'ts-runtypes';
 
 /** @rtType User#9f3a @rtIds {name: a1, age: b2} */
 // @todo: generated skeleton — fill in real data, then delete this line
-export const userMock: MockData<User> = { name: { pool: [] }, age: { pool: [] } };
+export const userMock: MockData<User> = {name: {pool: []}, age: {pool: []}};
 ```
 
 Consumers use a **real, committed import** (never plugin-injected — enrichment is
 committed, so its link is committed too):
 
 ```ts
-import { userMock } from 'runtypes/generated/models/user';
-createMockType<User>({ data: userMock });
+import {userMock} from 'runtypes/generated/models/user';
+createMockType<User>({data: userMock});
 ```
 
 ## The JSDoc tags
@@ -67,13 +67,13 @@ createMockType<User>({ data: userMock });
 `@rt`-prefixed tags are **compiler-owned** — the compiler reads/writes them; do not edit
 them by hand. A plain `@todo` is **yours** — the compiler only emits it.
 
-| Tag | Owner | Meaning |
-| --- | --- | --- |
-| `@rtType <Name>#<id>` | compiler | the const's stable structural identity; reconcile matches by this, not the var name |
+| Tag                     | Owner    | Meaning                                                                                            |
+| ----------------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `@rtType <Name>#<id>`   | compiler | the const's stable structural identity; reconcile matches by this, not the var name                |
 | `@rtIds {field: id, …}` | compiler | each field's child type id — lets `--update` detect a field **rename** and carry your value across |
-| `@rtOrphan …` | compiler | a whole const whose source type is gone — commented out (value preserved), removed by `--prune` |
-| `@rtOrphanChild …` | compiler | a single field removed from the type — commented out (value preserved), removed by `--prune` |
-| `@todo …` | **you** | a blank the compiler scaffolded — fill it in, then **delete the line** |
+| `@rtOrphan …`           | compiler | a whole const whose source type is gone — commented out (value preserved), removed by `--prune`    |
+| `@rtOrphanChild …`      | compiler | a single field removed from the type — commented out (value preserved), removed by `--prune`       |
+| `@todo …`               | **you**  | a blank the compiler scaffolded — fill it in, then **delete the line**                             |
 
 Hand-authored comments are preserved across `--update` and travel with a renamed field.
 `--update` never edits your values; it only adds blanks, flags stale values, and orphans
@@ -98,10 +98,13 @@ failed constraint). Pure data; rendered at runtime by `createFriendly<T>(map)`.
 ```ts
 export const userFriendly: FriendlyType<User> = {
   $label: 'User account',
-  name: { $label: 'Full name', $errors: {
-    type: '$[label] must be text',
-    minLength: '$[label] needs at least $[val] characters',
-  } },
+  name: {
+    $label: 'Full name',
+    $errors: {
+      type: '$[label] must be text',
+      minLength: '$[label] needs at least $[val] characters',
+    },
+  },
 };
 ```
 
@@ -112,7 +115,7 @@ field's label.
 ## `MockData<T>` — realistic sample data
 
 Per-field value pools and ranges that feed `createMockType<T>({ data })`. The mechanical
-generator handles structure + format-correctness; you supply *believable* values.
+generator handles structure + format-correctness; you supply _believable_ values.
 
 - `pool: [...]` — draw from this list (strings, numbers, booleans, …).
 - `min` / `max` — bound numbers/dates.
@@ -122,8 +125,8 @@ generator handles structure + format-correctness; you supply *believable* values
 
 ```ts
 export const userMock: MockData<User> = {
-  name: { pool: ['Ada Lovelace', 'Linus Torvalds', 'Grace Hopper'] },
-  age: { min: 18, max: 95 },
+  name: {pool: ['Ada Lovelace', 'Linus Torvalds', 'Grace Hopper']},
+  age: {min: 18, max: 95},
 };
 ```
 
