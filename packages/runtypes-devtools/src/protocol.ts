@@ -397,9 +397,10 @@ export interface Response {
   // One rendered ES-module source per cache entry, keyed by module
   // BASENAME (the `<basename>` of `virtual:rt/<basename>.js` — the cache
   // key for runtype / type-fn entries, the `pf/<ns>/<fn>` encoding for
-  // pure fns). The plugin serves these verbatim from its virtual-module
-  // load hook. Always populated by `dump`; populated by `scanFiles` when
-  // the request sets includeEntryModules (scoped to the request's files).
+  // pure fns). In files-mode the resolver writes these to disk under
+  // `<outDir>/types/` via the `generate` op; this wire field is the
+  // in-memory variant still returned by `dump` (and by `scanFiles` when the
+  // request sets includeEntryModules, scoped to the request's files).
   entryModules?: Record<string, string>;
   // Manifest of live module basenames written under <outDir>/types by the
   // `generate` op (the current build's filesystem output).
