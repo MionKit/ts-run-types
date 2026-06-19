@@ -1,0 +1,27 @@
+{
+  "file": "a.ts",
+  "code": "const v = createValidate<Pad>();\n",
+  "sites": [
+    {
+      "file": "a.ts",
+      "pos": 30,
+      "id": "Pad7777",
+      "paramIndex": 2,
+      "argsCount": 0,
+      "fnId": "val"
+    }
+  ],
+  "replacements": [],
+  "expectedCode": "import {__rt_val_Pad7777} from 'virtual:rt/val_Pad7777.js';\nconst v = createValidate<Pad>(undefined, undefined, __rt_val_Pad7777);\n",
+  "expectedMap": {
+    "version": 3,
+    "sources": [
+      "a.ts"
+    ],
+    "sourcesContent": [
+      "const v = createValidate<Pad>();\n"
+    ],
+    "names": [],
+    "mappings": ";AAAA,KAAK,CAAC,CAAC,CAAC,CAAC,CAAC,cAAc,CAAC,GAAG,CAAC,uCAAC,CAAC;"
+  }
+}

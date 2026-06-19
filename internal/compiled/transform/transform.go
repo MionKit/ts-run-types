@@ -1,0 +1,272 @@
+// Package transform is the Go port of the Vite plugin's per-file rewrite +
+// source-map generation, moved compiler-side per docs/COMPILER-DRIVEN-TRANSFORM.md
+// (Phase 1). It reproduces, BYTE-FOR-BYTE, the output of the JS pipeline in
+// packages/vite-plugin-runtypes/src/rewrite.ts (buildInsertion, buildImportBlock,
+// makeByteToChar, the apply loop) and edit-buffer.ts (EditBuffer + Mappings +
+// VLQ encoder), so a later phase can return {code, map} from the daemon and the
+// existing Vite composite-map chain is unchanged.
+//
+// ───────────────────────── UTF-16 vs UTF-8 (CRITICAL) ─────────────────────────
+//
+// The JS EditBuffer indexes UTF-16 code units, and source-map COLUMNS are
+// UTF-16 code units (what JS tooling / browsers expect). Resolver offsets
+// (protocol.Site.Pos, protocol.Replacement.Start/End) are UTF-8 BYTE offsets
+// (tsgo positions count bytes). To produce a byte-identical map this package
+// works in UTF-16 internally:
+//
+//   - `source` is converted to []uint16 via utf16.Encode([]rune(source));
+//   - byteToChar (the port of makeByteToChar) converts a byte offset to a
+//     UTF-16 index, with an identity fast-path when the source is pure ASCII
+//     (len(source) == UTF-16 length);
+//   - all editing / slicing / column math runs in UTF-16 units (EditBuffer);
+//   - the rendered code is decoded back to UTF-8 via string(utf16.Decode(units)).
+//
+// The injected text (call-site bindings, the import block) is always ASCII, so
+// its UTF-16 length == byte length == len. isWordChar is ASCII /\w/ only
+// ([A-Za-z0-9_]); lines split on 0x0A. The VLQ alphabet and delta-encoding
+// match edit-buffer.ts exactly. The magic-string credit/license for the
+// source-map segment math carries over (see editbuffer.go).
+package transform
+
+import (
+	"sort"
+	"strings"
+	"unicode/utf16"
+
+	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+)
+
+// Apply rewrites `source` per the resolver's sites + replacements: call-site
+// bindings (buildInsertion), pure-fn replacements, and the single deduped import
+// block at offset 0 (buildImportBlock) — then generates a v3 source map.
+// Returns (rewrittenCode, map). When there are no sites AND no replacements it
+// returns (source, nil) — matching rewrite.ts. `file` is recorded as sources[0].
+func Apply(file, source string, sites []protocol.Site, replacements []protocol.Replacement) (string, *protocol.SourceMap) {
+	if len(sites) == 0 && len(replacements) == 0 {
+		return source, nil
+	}
+
+	// Source is edited in UTF-16 units (matching the JS string the EditBuffer
+	// indexed). byteToChar maps every resolver byte offset to its UTF-16 index.
+	units := utf16.Encode([]rune(source))
+	byteOffsets := make([]int, 0, len(sites)+2*len(replacements))
+	for _, site := range sites {
+		byteOffsets = append(byteOffsets, site.Pos)
+	}
+	for _, rep := range replacements {
+		byteOffsets = append(byteOffsets, rep.Start, rep.End)
+	}
+	toChar := makeByteToChar(source, units, byteOffsets)
+
+	editBuffer := newEditBuffer(units)
+	// Sites are zero-width insertions keyed on Pos; replacements are span edits
+	// keyed on Start/End. The EditBuffer resolves every edit against ORIGINAL
+	// coordinates, so application order is irrelevant.
+	for _, site := range sites {
+		editBuffer.appendLeft(toChar(site.Pos), buildInsertion(site))
+	}
+	for _, rep := range replacements {
+		if rep.Start == rep.End {
+			editBuffer.appendLeft(toChar(rep.Start), rep.Text)
+		} else {
+			editBuffer.update(toChar(rep.Start), toChar(rep.End), rep.Text)
+		}
+	}
+	importBlock := buildImportBlock(sites, replacements)
+	if importBlock != "" {
+		editBuffer.prepend(importBlock)
+	}
+
+	sourceMap := editBuffer.generateMap(file, source)
+	return editBuffer.string(), sourceMap
+}
+
+// makeByteToChar converts resolver UTF-8 byte offsets to UTF-16 code-unit
+// indices (port of rewrite.ts makeByteToChar). Pure-ASCII sources (the common
+// case) short-circuit to identity; otherwise one code-point walk maps exactly
+// the offsets the edits need. Resolver offsets always land on code-point
+// boundaries, so the mapping is exact.
+func makeByteToChar(source string, units []uint16, byteOffsets []int) func(int) int {
+	if len(source) == len(units) {
+		return func(byteOffset int) int { return byteOffset }
+	}
+	// Dedupe + sort the requested byte offsets, mirroring the JS Set+sort.
+	seen := make(map[int]bool, len(byteOffsets))
+	sorted := make([]int, 0, len(byteOffsets))
+	for _, off := range byteOffsets {
+		if !seen[off] {
+			seen[off] = true
+			sorted = append(sorted, off)
+		}
+	}
+	sort.Ints(sorted)
+
+	byChar := make(map[int]int, len(sorted))
+	pending := 0
+	byteCursor := 0
+	unit := 0
+	// Iterate code points (runes), matching JS `for (const char of code)`.
+	for _, r := range source {
+		for pending < len(sorted) && sorted[pending] <= byteCursor {
+			byChar[sorted[pending]] = unit
+			pending++
+		}
+		if pending == len(sorted) {
+			break
+		}
+		byteCursor += utf8Len(r)
+		unit += utf16Len(r)
+	}
+	for ; pending < len(sorted); pending++ {
+		byChar[sorted[pending]] = unit
+	}
+	return func(byteOffset int) int {
+		if v, ok := byChar[byteOffset]; ok {
+			return v
+		}
+		return byteOffset
+	}
+}
+
+// utf8Len mirrors the JS byte-length branch on a code point's value.
+func utf8Len(r rune) int {
+	switch {
+	case r <= 0x7f:
+		return 1
+	case r <= 0x7ff:
+		return 2
+	case r <= 0xffff:
+		return 3
+	default:
+		return 4
+	}
+}
+
+// utf16Len is the number of UTF-16 code units a rune occupies (char.length in
+// JS): 1 in the BMP, 2 for astral code points (surrogate pair).
+func utf16Len(r rune) int {
+	if r > 0xffff {
+		return 2
+	}
+	return 1
+}
+
+// entryBasename derives one entry-module basename a site imports: the
+// `<fnHash>_<typeId>` cache key for a createX entry (fnId set), the bare typeId
+// for a reflection entry (fnId empty).
+func entryBasename(id, fnId string) string {
+	if fnId != "" {
+		return fnId + "_" + id
+	}
+	return id
+}
+
+// entryBinding is the import-binding identifier an injection references — also
+// the entry module's export name.
+func entryBinding(id, fnId string) string {
+	return constants.EntryBindingPrefix + entryBasename(id, fnId)
+}
+
+// siteFnIds is the ordered fnId list a site injects: the multi-function list
+// when the marker named several families, else the lone fnId (empty string for
+// a reflection site → bare-id binding).
+func siteFnIds(site protocol.Site) []string {
+	if len(site.FnIds) > 0 {
+		return site.FnIds
+	}
+	return []string{site.FnId}
+}
+
+// buildImportBlock collects every entry-module import the rewritten file needs
+// and renders the deduped import statements as a SINGLE physical line. One
+// clause shape everywhere: every module exports each entry under its binding
+// name, so clauses import it directly (`{__rt_X}`, never renamed); only the
+// specifier differs (the bundle when site.Module is stamped, the entry's own
+// module otherwise). Deterministic order (sorted by specifier, clauses sorted
+// within) keeps rewrites byte-stable.
+func buildImportBlock(sites []protocol.Site, replacements []protocol.Replacement) string {
+	bySpecifier := make(map[string]map[string]bool)
+	addClause := func(specifier, clause string) {
+		clauses := bySpecifier[specifier]
+		if clauses == nil {
+			clauses = make(map[string]bool)
+			bySpecifier[specifier] = clauses
+		}
+		clauses[clause] = true
+	}
+	for _, site := range sites {
+		if site.ID == "" {
+			continue
+		}
+		for _, fnId := range siteFnIds(site) {
+			basename := site.Module
+			if basename == "" {
+				basename = entryBasename(site.ID, fnId)
+			}
+			specifier := constants.VirtualModulePrefix + basename + constants.EntryModuleSuffix
+			addClause(specifier, entryBinding(site.ID, fnId))
+		}
+	}
+	for _, rep := range replacements {
+		if rep.ImportFrom == "" {
+			continue
+		}
+		addClause(rep.ImportFrom, rep.Text)
+	}
+	if len(bySpecifier) == 0 {
+		return ""
+	}
+	specifiers := make([]string, 0, len(bySpecifier))
+	for specifier := range bySpecifier {
+		specifiers = append(specifiers, specifier)
+	}
+	sort.Strings(specifiers)
+	statements := make([]string, 0, len(specifiers))
+	for _, specifier := range specifiers {
+		clauses := make([]string, 0, len(bySpecifier[specifier]))
+		for clause := range bySpecifier[specifier] {
+			clauses = append(clauses, clause)
+		}
+		sort.Strings(clauses)
+		statements = append(statements, "import {"+strings.Join(clauses, ", ")+"} from '"+specifier+"';")
+	}
+	return strings.Join(statements, " ") + "\n"
+}
+
+// buildInsertion produces the text to splice in just before the call's closing
+// `)`. Mirrors rewrite.ts buildInsertion: leading-comma decision (argsCount /
+// trailingComma), `undefined` padding for earlier optional slots, and the
+// single binding vs the multi-function binding array.
+func buildInsertion(site protocol.Site) string {
+	argsCount := site.ArgsCount
+	paramIndex := site.ParamIndex
+	// JS: paramIndex = s.paramIndex ?? argsCount. Protocol's int zero value is 0
+	// (ParamIndex has omitempty); a real reflection site always sets ParamIndex.
+	// We keep the explicit value as-is (0 means slot 0), matching the wire.
+	padding := paramIndex - argsCount
+	if padding < 0 {
+		padding = 0
+	}
+	parts := make([]string, 0, padding+1)
+	for i := 0; i < padding; i++ {
+		parts = append(parts, "undefined")
+	}
+	if len(site.FnIds) > 1 {
+		bindings := make([]string, 0, len(site.FnIds))
+		for _, fnId := range site.FnIds {
+			bindings = append(bindings, entryBinding(site.ID, fnId))
+		}
+		parts = append(parts, "["+strings.Join(bindings, ", ")+"]")
+	} else {
+		parts = append(parts, entryBinding(site.ID, site.FnId))
+	}
+	body := strings.Join(parts, ", ")
+	// Bare body (no leading comma) when there are no prior args OR the arg list
+	// already ends with a trailing comma — both put the position right after a
+	// separator (`(` or `,`).
+	if argsCount == 0 || site.TrailingComma {
+		return body
+	}
+	return ", " + body
+}
