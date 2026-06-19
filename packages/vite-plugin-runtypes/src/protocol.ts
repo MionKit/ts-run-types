@@ -258,6 +258,24 @@ export interface Replacement {
   importFrom?: string;
 }
 
+// TransformResult mirrors Go protocol.TransformResult — the per-file output of
+// the `transform` op: rewritten source, its source map, and the cache-module
+// basenames the file now imports.
+export interface TransformResult {
+  code: string;
+  map?: SourceMap;
+  emittedModules?: string[];
+}
+
+// SourceMap is a standard source-map v3 object (the shape Vite/Rollup accept).
+export interface SourceMap {
+  version: number;
+  sources: (string | null)[];
+  sourcesContent: (string | null)[];
+  names: string[];
+  mappings: string;
+}
+
 // FormatAnnotation carries the (name, params) pair extracted from a
 // TypeFormat<Base, Name, Params, ...> brand. Wire-mirror of the Go-side
 // protocol.FormatAnnotation. Params is the JSON-serialisable literal
@@ -269,7 +287,7 @@ export interface FormatAnnotation {
 }
 
 export interface Request {
-  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId' | 'tsCompile';
+  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId' | 'tsCompile' | 'transform';
   // scanFiles only — the files to scan in this request. The response's
   // sites cover every listed file (each tagged with .file); when the
   // include* flags are set, runTypes / runTypeCacheSource are projected
@@ -379,6 +397,9 @@ export interface Response {
   // load hook. Always populated by `dump`; populated by `scanFiles` when
   // the request sets includeEntryModules (scoped to the request's files).
   entryModules?: Record<string, string>;
+  // One TransformResult per file for the `transform` op: rewritten source +
+  // source map (+ the cache modules the file imports), keyed by file path.
+  transformed?: Record<string, TransformResult>;
   // Diagnostics carries every non-fatal diagnostic the Go binary emits —
   // pure-fn extractor (PFE9xxx), marker scanner (MKRxxx), RT compiler
   // (IT/TE/PJ/…/FB). The Family discriminator on each entry tells the
