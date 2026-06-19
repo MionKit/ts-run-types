@@ -1,6 +1,25 @@
 # Compiler-Driven Transform — Migration Spec
 
-_Status: Draft spec (2026-06-19). Captures the target architecture agreed in design discussion. Not yet implemented; no investigation pending. Resume from here._
+_Status: Core migration IMPLEMENTED (2026-06-19). Go owns the full per-file transform and the Vite plugin is a thin wrapper; both the Go and JS suites are green. Real-file cache emission + the plugin-free CLI (the portability extension) are the remaining roadmap — see Implementation status below._
+
+## Implementation status
+
+**Shipped (Phases 0, 1, 4 — the headline migration):**
+
+- **Phase 0 — `Transform` protocol.** `OpTransform` + `TransformResult`/`SourceMap` wire types in [`internal/protocol`](../internal/protocol/) and the TS mirror.
+- **Phase 1 — rewrite + source map in Go.** New package [`internal/compiled/transform`](../internal/compiled/transform/) is a byte-for-byte port of `rewrite.ts` + `edit-buffer.ts`. It works in UTF-16 internally because source-map **columns are UTF-16 code units** (the documented reason the "rewrite purely in bytes" idea is too glib — the offset _seam_ between Go and JS is removed, but the map still needs UTF-16 columns). Parity is pinned by golden tests generated from the real JS `rewrite()`. `dispatchTransform` (resolver) reuses the scan machinery, reads each file's authoritative source from the Program, and applies the transform.
+- **Phase 4 — thin Vite wrapper.** The plugin's `transform()` delegates to `OpTransform` and returns `{code, map}`; `rewrite.ts` + `edit-buffer.ts` are deleted (~520 LOC). `ResolverClient` gains `transform()`.
+
+**Architectural decisions (made because the spec author was away):**
+
+1. **Cache modules are still served as `virtual:rt/*` virtual modules** by the plugin's `load()` this phase. The spec's "real files as the Vite default / drop virtual modules" depends on the spec's own deferred open questions (real-file dev-watcher loop, HMR parity, generated `.d.ts`, cross-runtime resolution). Keeping virtual modules kept the import specifiers unchanged, so the entire suite stays green with only the 3 `rewrite.ts`-importing tests repointed to `client.transform()`. Making real files the Vite default is left to Phase 2/4-followup.
+2. **`OpTransform` partitions edits per file with a path-tolerant match** (`sameTransformPath`, mirroring the JS scan-batcher's `samePath`): scan Sites echo the requested **relative** path, but pure-fn Replacements carry the program's **absolute** path. An exact match silently dropped the pure-fn replacements (factory args weren't rewritten ⇒ lost `pureFnDependencies`); the tolerant match is required.
+
+**Remaining roadmap (the plugin-free portability extension):**
+
+- **Phase 2 — cache modules → real files** (`cacheDir`, write-only-on-content-change, computed-relative / `#rt/*` specifiers). The recommended low-risk route is to keep `virtual:rt/` as the universal internal scheme and rewrite specifiers to real-file paths **when materializing to disk** (a thin post-process), so the golden-tested `transform`/`entrymod` packages stay untouched.
+- **Phase 3 — standalone TS→TS CLI** under [`cmd/ts-runtypes/`](../cmd/ts-runtypes/), consuming Phase 2.
+- **Phase 5 — config** (`cacheDir`, `importStyle`, `moduleOutput`).
 
 ## Context
 
