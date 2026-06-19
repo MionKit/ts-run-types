@@ -342,6 +342,16 @@ const (
 	// existing scanFiles latency. Caller seeds sources via OpSetSources
 	// first (same precondition as OpScanFiles).
 	OpTsCompile = "tsCompile"
+	// OpTransform runs the FULL per-file transform in Go: it scans each
+	// requested file (same machinery as OpScanFiles), then applies the
+	// call-site rewrites, pure-fn replacements, and the deduped import block,
+	// and generates a source map — returning one TransformResult per file in
+	// Response.Transformed. This is the compiler-driven path that lets the Vite
+	// plugin (and a plugin-free CLI) skip the JS-side rewrite entirely. Source
+	// text is read from the resolver's Program/overlay (the authoritative bytes
+	// the byte-offsets index), keyed by file — seed it via OpSetSources exactly
+	// as OpScanFiles requires.
+	OpTransform = "transform"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
@@ -487,6 +497,10 @@ type Response struct {
 	// OpScanFiles when Request.IncludeEntryModules is set (scoped to the
 	// request's Files).
 	EntryModules map[string]string `json:"entryModules,omitempty"`
+	// Transformed carries one TransformResult per file for OpTransform: the
+	// fully rewritten source + its source map (+ the cache modules the file now
+	// imports). Keyed by file path, scoped to the request's Files.
+	Transformed map[string]TransformResult `json:"transformed,omitempty"`
 	// Diagnostics carries every non-fatal diagnostic the Go binary
 	// emits — pure-fn extractor (PFE9xxx), marker scanner (MKRxxx),
 	// RT compiler (IT/TE/PJ/…/FB) — through one wire channel. The
@@ -585,6 +599,26 @@ type Replacement struct {
 	ImportFrom string `json:"importFrom,omitempty"`
 }
 
+// TransformResult is the per-file output of OpTransform: the rewritten source,
+// its source map, and the cache-module basenames the rewritten file now imports
+// (so a consumer emitting modules to disk knows which were referenced).
+type TransformResult struct {
+	Code           string     `json:"code"`
+	Map            *SourceMap `json:"map,omitempty"`
+	EmittedModules []string   `json:"emittedModules,omitempty"`
+}
+
+// SourceMap is a standard source-map v3 object — the plain shape Vite/Rollup
+// accept back from a transform. Mirrors the EditBuffer's output so the
+// Go-generated map is byte-for-byte interchangeable with the old JS one.
+type SourceMap struct {
+	Version        int       `json:"version"`
+	Sources        []string  `json:"sources"`
+	SourcesContent []*string `json:"sourcesContent"`
+	Names          []string  `json:"names"`
+	Mappings       string    `json:"mappings"`
+}
+
 // Dump is the build-end manifest written to runtypes-cache.json.
 type Dump struct {
 	RunTypes []*RunType `json:"runTypes"`
@@ -657,6 +691,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if len(response.EntryModules) > 0 {
 		out["entryModules"] = response.EntryModules
+	}
+	if len(response.Transformed) > 0 {
+		out["transformed"] = response.Transformed
 	}
 	if len(response.Diagnostics) > 0 {
 		out["diagnostics"] = response.Diagnostics
