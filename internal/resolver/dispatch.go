@@ -854,6 +854,13 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				}
 			}
 			code, sourceMap := transform.Apply(file, sourceFile.Text(), fileSites, fileReplacements)
+			if request.OutDir != "" {
+				// Files-mode: rewrite the injected import block's virtual:rt
+				// specifiers to paths relative to this file (the generated
+				// modules live on disk under OutDir/types). The block is one
+				// physical line, so this leaves the source map valid.
+				code = relativizeUserImports(file, request.OutDir, code)
+			}
 			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap}
 		}
 		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
