@@ -16,7 +16,7 @@ export const UNION = {
       // ##### src #####
       type Target = string | number;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -30,7 +30,7 @@ export const UNION = {
       // ##### src #####
       type Target = string | null;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -44,7 +44,7 @@ export const UNION = {
       // ##### src #####
       type Target = 'UNO' | 'DOS' | 'TRES';
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -58,7 +58,7 @@ export const UNION = {
       // ##### src #####
       type Target = Date | number | string | null | bigint;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -72,7 +72,7 @@ export const UNION = {
       // ##### src #####
       type Target = number | boolean;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -86,7 +86,7 @@ export const UNION = {
       // ##### src #####
       type Target = string | undefined;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####

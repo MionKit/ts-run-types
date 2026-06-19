@@ -15,9 +15,17 @@ export const OBJECT = {
       // ##### src #####
       type Target = {a: string; b: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', a: {$label: ''}, b: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        a: {$label: '', $errors: {type: ''}},
+        b: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {a: {pool: []}, b: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        a: {pool: []},
+        b: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -29,9 +37,17 @@ export const OBJECT = {
       // ##### src #####
       type Target = {a: string; b?: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', a: {$label: ''}, b: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        a: {$label: '', $errors: {type: ''}},
+        b: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {a: {pool: []}, b: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        a: {pool: []},
+        b: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -45,11 +61,23 @@ export const OBJECT = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
-        a: {$label: ''},
-        deep: {$label: '', b: {$label: ''}, c: {$label: ''}},
+        $errors: {type: ''},
+        a: {$label: '', $errors: {type: ''}},
+        deep: {
+          $label: '',
+          $errors: {type: ''},
+          b: {$label: '', $errors: {type: ''}},
+          c: {$label: '', $errors: {type: ''}},
+        },
       };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {a: {pool: []}, deep: {b: {pool: []}, c: {pool: []}}};
+      const mockTarget: MockData<Target> = {
+        a: {pool: []},
+        deep: {
+          b: {pool: []},
+          c: {pool: []},
+        },
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -61,9 +89,17 @@ export const OBJECT = {
       // ##### src #####
       type Target = {readonly name: string; readonly age: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', name: {$label: ''}, age: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        name: {$label: '', $errors: {type: ''}},
+        age: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {name: {pool: []}, age: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        name: {pool: []},
+        age: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -75,9 +111,17 @@ export const OBJECT = {
       // ##### src #####
       type Target = {a: string} & {b: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', a: {$label: ''}, b: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        a: {$label: '', $errors: {type: ''}},
+        b: {$label: '', $errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {a: {pool: []}, b: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        a: {pool: []},
+        b: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -91,10 +135,25 @@ export const OBJECT = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
-        a: {$label: '', b: {$label: '', c: {$label: ''}}},
+        $errors: {type: ''},
+        a: {
+          $label: '',
+          $errors: {type: ''},
+          b: {
+            $label: '',
+            $errors: {type: ''},
+            c: {$label: '', $errors: {type: ''}},
+          },
+        },
       };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {a: {b: {c: {pool: []}}}};
+      const mockTarget: MockData<Target> = {
+        a: {
+          b: {
+            c: {pool: []},
+          },
+        },
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -108,11 +167,12 @@ export const OBJECT = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
-        s: {$label: ''},
-        n: {$label: ''},
-        b: {$label: ''},
-        d: {$label: ''},
-        big: {$label: ''},
+        $errors: {type: ''},
+        s: {$label: '', $errors: {type: ''}},
+        n: {$label: '', $errors: {type: ''}},
+        b: {$label: '', $errors: {type: ''}},
+        d: {$label: '', $errors: {type: ''}},
+        big: {$label: '', $errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -133,9 +193,15 @@ export const OBJECT = {
       // ##### src #####
       type Target = {tags: string[]};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', tags: {$label: '', $items: {$label: ''}}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        tags: {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {tags: {$items: {pool: []}, $length: [1, 3]}};
+      const mockTarget: MockData<Target> = {
+        tags: {$items: {pool: []}, $length: [1, 3]},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },

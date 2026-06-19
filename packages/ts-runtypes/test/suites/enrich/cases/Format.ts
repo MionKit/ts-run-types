@@ -43,10 +43,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Email;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: '', maxLength: '', minLength: '', pattern: ''},
-      };
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', maxLength: '', minLength: '', pattern: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -188,12 +185,17 @@ export const FORMAT = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
+        $errors: {type: ''},
         name: {$label: '', $errors: {type: '', maxLength: '', minLength: ''}},
         age: {$label: '', $errors: {type: '', max: '', min: ''}},
         email: {$label: '', $errors: {type: '', maxLength: '', minLength: '', pattern: ''}},
       };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {name: {pool: []}, age: {pool: []}, email: {pool: []}};
+      const mockTarget: MockData<Target> = {
+        name: {pool: []},
+        age: {pool: []},
+        email: {pool: []},
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },

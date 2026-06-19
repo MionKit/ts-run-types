@@ -12,7 +12,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = string[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $items: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {$items: {pool: []}, $length: [1, 3]};
       // ##### result #####
@@ -26,7 +26,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = number[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $items: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {$items: {pool: []}, $length: [1, 3]};
       // ##### result #####
@@ -40,7 +40,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = boolean[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $items: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {$items: {pool: []}, $length: [1, 3]};
       // ##### result #####
@@ -54,7 +54,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = Date[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $items: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {$items: {pool: []}, $length: [1, 3]};
       // ##### result #####
@@ -68,7 +68,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = Array<string>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $items: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {$items: {pool: []}, $length: [1, 3]};
       // ##### result #####
@@ -82,7 +82,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = ReadonlyArray<string>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $items: {$label: ''}};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {$items: {pool: []}, $length: [1, 3]};
       // ##### result #####
@@ -96,7 +96,11 @@ export const ARRAY = {
       // ##### src #####
       type Target = string[][];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $items: {$label: '', $items: {$label: ''}}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        $items: {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}},
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {$items: {$items: {pool: []}, $length: [1, 3]}, $length: [1, 3]};
       // ##### result #####
@@ -110,9 +114,22 @@ export const ARRAY = {
       // ##### src #####
       type Target = {a: string}[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $items: {$label: '', a: {$label: ''}}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: ''},
+        $items: {
+          $label: '',
+          $errors: {type: ''},
+          a: {$label: '', $errors: {type: ''}},
+        },
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {$items: {a: {pool: []}}, $length: [1, 3]};
+      const mockTarget: MockData<Target> = {
+        $items: {
+          a: {pool: []},
+        },
+        $length: [1, 3],
+      };
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -126,6 +143,7 @@ export const ARRAY = {
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
+        $errors: {type: ''},
         $items: {$label: '', $errors: {type: '', maxLength: '', minLength: '', pattern: ''}},
       };
       // ##### mock #####

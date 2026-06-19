@@ -226,9 +226,9 @@ func TestEmitClosure_Circular(t *testing.T) {
 		}
 	}
 	for _, named := range []enrich.NamedConst{a, b} {
-		// The cross-type field (a or b) is a leaf when it has `{$label: ''}` and is
-		// NOT a const reference.
-		if strings.Contains(named.Friendly, "a: {$label: ''}") || strings.Contains(named.Friendly, "b: {$label: ''}") {
+		// The cross-type field (a or b) is a leaf when it has `{$label: '', $errors: {type: ''}}`
+		// and is NOT a const reference.
+		if strings.Contains(named.Friendly, "a: {$label: '', $errors: {type: ''}}") || strings.Contains(named.Friendly, "b: {$label: '', $errors: {type: ''}}") {
 			leafEdges++
 		}
 	}

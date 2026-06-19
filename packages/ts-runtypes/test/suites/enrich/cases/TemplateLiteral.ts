@@ -12,7 +12,7 @@ export const TEMPLATE_LITERAL = {
       // ##### src #####
       type Target = `${string}/${number}`;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -26,7 +26,7 @@ export const TEMPLATE_LITERAL = {
       // ##### src #####
       type Target = `api/user/${number}`;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -40,7 +40,7 @@ export const TEMPLATE_LITERAL = {
       // ##### src #####
       type Target = `${'a' | 'b'}-${number}`;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -54,7 +54,7 @@ export const TEMPLATE_LITERAL = {
       // ##### src #####
       type Target = `(${number})`;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -68,7 +68,7 @@ export const TEMPLATE_LITERAL = {
       // ##### src #####
       type Target = `/api/v${number}/user/${string}/posts/${number}`;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: ''};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
