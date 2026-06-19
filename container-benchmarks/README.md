@@ -32,7 +32,7 @@ This isolation is the whole point:
 - **RunTypes is just another competitor.** Its `cases.ts` is a
   `CompetitorCases` map like everyone else's; the runner has no ts-go branch. The
   only thing special about it is *build* mechanics — its validators are generated
-  at build time by `vite-plugin-runtypes` spawning the **Go binary**, so that
+  at build time by `runtypes-devtools` spawning the **Go binary**, so that
   binary + the first-party packages are bind-mounted into its `node_modules` at run
   time (see [`scripts/benchmarks.sh`](../scripts/benchmarks.sh) `mount_args`).
 

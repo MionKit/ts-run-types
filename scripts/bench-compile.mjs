@@ -36,7 +36,7 @@ import path from 'node:path';
 import url from 'node:url';
 import {performance} from 'node:perf_hooks';
 import {createInterface} from 'node:readline';
-import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-client.js';
+import {ResolverClient} from '../packages/runtypes-devtools/dist/resolver-client.js';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');

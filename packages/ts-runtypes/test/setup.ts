@@ -10,7 +10,7 @@
 // to subsequent tests because the rewrite IDs are deterministic
 // hashes of type structure).
 //
-// File kept so the wiring matches `packages/vite-plugin-runtypes/test/
+// File kept so the wiring matches `packages/runtypes-devtools/test/
 // setup.ts` and so future expansions (multiple test files needing
 // state isolation) drop in cleanly.
 

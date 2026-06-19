@@ -68,7 +68,7 @@ done < <(node -e "JSON.parse(require('fs').readFileSync('dist-binaries/publish-o
 
 # FE packages via lerna (rewrites workspace:* → concrete versions). ts-runtypes-bin
 # was just published above, so `from-package` sees its version on the registry and
-# skips it — only ts-runtypes + vite-plugin-runtypes publish here.
+# skips it — only ts-runtypes + runtypes-devtools publish here.
 pnpm exec lerna publish from-package --no-private --ignore-scripts "${OTP_FLAG[@]}"
 
 echo ""

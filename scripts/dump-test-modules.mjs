@@ -32,13 +32,13 @@ import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-client.js';
-import {rewrite} from '../packages/vite-plugin-runtypes/dist/rewrite.js';
+import {ResolverClient} from '../packages/runtypes-devtools/dist/resolver-client.js';
+import {rewrite} from '../packages/runtypes-devtools/dist/rewrite.js';
 import {
   MODULE_MODE_ALL_MODULES,
   MODULE_MODE_ALL_SINGLE,
   MODULE_MODE_DEFAULT,
-} from '../packages/vite-plugin-runtypes/dist/runtypes-constants.generated.js';
+} from '../packages/runtypes-devtools/dist/runtypes-constants.generated.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');

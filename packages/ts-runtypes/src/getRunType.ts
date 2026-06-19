@@ -33,7 +33,7 @@ export function getRunType<T>(_value?: T, id?: InjectRunTypeId<T>): RunType<T> {
     injectedId = entryTupleKey(id);
   }
   if (injectedId === undefined) {
-    throw new Error('getRunType(): no id injected. vite-plugin-runtypes must be active.');
+    throw new Error('getRunType(): no id injected. runtypes-devtools must be active.');
   }
   const runType = getRTUtils().getRunType(injectedId);
   if (!runType) {

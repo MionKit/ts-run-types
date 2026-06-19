@@ -15,7 +15,7 @@
 # competitor builds with vite into its own dist/, and runs as its own process
 # writing results/<name>.json. aggregate.mjs joins those into one table. The
 # ts-runtypes competitor additionally gets the host Go binary + the first-party
-# packages (ts-runtypes, vite-plugin-runtypes) bind-mounted into ITS node_modules
+# packages (ts-runtypes, runtypes-devtools) bind-mounted into ITS node_modules
 # so the plugin can rewrite createValidate<T>() at build time.
 #
 # Usage:
@@ -69,7 +69,7 @@ DOCDATA_DIR="${BENCH_DOCDATA:-$ROOT_DIR/.docdata}"
 VOL_TTSC="${BENCH_CONTAINER:-tsrt-bench}-typia-ttsc"
 
 MARKER_PKG="$ROOT_DIR/packages/ts-runtypes"
-PLUGIN_PKG="$ROOT_DIR/packages/vite-plugin-runtypes"
+PLUGIN_PKG="$ROOT_DIR/packages/runtypes-devtools"
 
 # GHCR remote ref of the shared image (the same one podman-website.sh publishes). Run
 # commands pull it by default; BENCH_USE_LOCAL=1 builds/uses a local image instead.
@@ -189,7 +189,7 @@ mount_args() {
   local tsgo=/bench/competitors/ts-runtypes
   printf -- '-v\n%s:%s/bin/ts-runtypes:ro%s\n' "$LINUX_BIN" "$tsgo" "$MOUNT_OPTS"
   printf -- '-v\n%s:%s/node_modules/ts-runtypes:ro%s\n' "$MARKER_PKG" "$tsgo" "$MOUNT_OPTS"
-  printf -- '-v\n%s:%s/node_modules/vite-plugin-runtypes:ro%s\n' "$PLUGIN_PKG" "$tsgo" "$MOUNT_OPTS"
+  printf -- '-v\n%s:%s/node_modules/runtypes-devtools:ro%s\n' "$PLUGIN_PKG" "$tsgo" "$MOUNT_OPTS"
 
   # typia's one-time native-plugin compile persists in a named volume (subpath of
   # the baked node_modules); first typia run fills it, later runs reuse it.
@@ -322,17 +322,17 @@ cmd_serialization() {
     -v "$LINUX_BIN:$tsgo/bin/ts-runtypes:ro$MOUNT_OPTS" \
     -v "$LINUX_EXTRACT_BIN:$tsgo/bin/extract-fn-bodies:ro$MOUNT_OPTS" \
     -v "$MARKER_PKG:$tsgo/node_modules/ts-runtypes:ro$MOUNT_OPTS" \
-    -v "$PLUGIN_PKG:$tsgo/node_modules/vite-plugin-runtypes:ro$MOUNT_OPTS" \
+    -v "$PLUGIN_PKG:$tsgo/node_modules/runtypes-devtools:ro$MOUNT_OPTS" \
     -v "$SCRIPT_DIR/gen-serialization-bench.mjs:$tsgo/gen-serialization-bench.mjs:ro$MOUNT_OPTS" \
     -v "$out:/bench/bench-out$MOUNT_OPTS" \
     -e RT_BENCH_REPO_ROOT="$tsgo" \
     -e RT_BENCH_VITE_ROOT="$tsgo" \
     -e RT_BENCH_PACKAGE_ROOT="$tsgo/node_modules/ts-runtypes" \
     -e RT_BENCH_BIN="$tsgo/bin/ts-runtypes" \
-    -e RT_BENCH_PLUGIN_ENTRY=vite-plugin-runtypes \
+    -e RT_BENCH_PLUGIN_ENTRY=runtypes-devtools \
     -e RT_EXTRACT_BIN="$tsgo/bin/extract-fn-bodies" \
     -e RT_BENCH_OUT_DIR=/bench/bench-out \
-    -e RT_BENCH_SSR_NOEXTERNAL=ts-runtypes,vite-plugin-runtypes \
+    -e RT_BENCH_SSR_NOEXTERNAL=ts-runtypes,runtypes-devtools \
     -e RT_BENCH_CACHE_DIR=false \
     -w "$tsgo" "$IMAGE" \
     sh -c 'node gen-serialization-bench.mjs --suite serialization && node gen-serialization-bench.mjs --suite format-serialization' </dev/null

@@ -1,5 +1,5 @@
 import {defineConfig} from 'vitest/config';
-import runtypes from 'vite-plugin-runtypes';
+import runtypes from 'runtypes-devtools/vite';
 
 // No `binary` option on purpose: the plugin must auto-resolve the host-platform
 // binary from the installed ts-runtypes-binary-<os>-<arch> optional dependency

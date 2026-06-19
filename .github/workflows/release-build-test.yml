@@ -78,7 +78,7 @@ jobs:
         run: |
           npm install \
             "ts-runtypes@$VERSION" \
-            "vite-plugin-runtypes@$VERSION" \
+            "runtypes-devtools@$VERSION" \
             vite@5.4.10 vitest@2.1.9 \
             --registry http://127.0.0.1:4873
           npm test

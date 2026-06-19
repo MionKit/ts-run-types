@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fast end-to-end smoke for the Go binary + vite-plugin-runtypes wiring.
+// Fast end-to-end smoke for the Go binary + runtypes-devtools wiring.
 //
 // What it exercises (~1s when everything is healthy):
 //   - bin/ts-runtypes spawns and accepts an --inline-server session
@@ -19,13 +19,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-client.js';
-import {rewrite} from '../packages/vite-plugin-runtypes/dist/rewrite.js';
+import {ResolverClient} from '../packages/runtypes-devtools/dist/resolver-client.js';
+import {rewrite} from '../packages/runtypes-devtools/dist/rewrite.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
 const BIN = path.join(REPO_ROOT, 'bin/ts-runtypes');
-const PLUGIN_DIST = path.join(REPO_ROOT, 'packages/vite-plugin-runtypes/dist');
+const PLUGIN_DIST = path.join(REPO_ROOT, 'packages/runtypes-devtools/dist');
 
 function fail(msg) {
   console.error(`==> smoke: FAIL  ${msg}`);
@@ -36,7 +36,7 @@ if (!fs.existsSync(BIN)) {
   fail(`missing ${path.relative(REPO_ROOT, BIN)} - run 'pnpm run check:go-binary'`);
 }
 if (!fs.existsSync(path.join(PLUGIN_DIST, 'resolver-client.js'))) {
-  fail(`missing ${path.relative(REPO_ROOT, PLUGIN_DIST)} - run 'pnpm --filter vite-plugin-runtypes run build'`);
+  fail(`missing ${path.relative(REPO_ROOT, PLUGIN_DIST)} - run 'pnpm --filter runtypes-devtools run build'`);
 }
 
 // Minimal ambient declaration so the resolver's marker scanner recognises

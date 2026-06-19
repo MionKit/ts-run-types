@@ -85,7 +85,7 @@ const CACHE_DIR_OPT =
 
 // The vite plugin entry — dynamic import so it can resolve from the bind-mounted
 // node_modules in-container (bare specifier) or the dist path on the host.
-const PLUGIN_ENTRY = process.env.RT_BENCH_PLUGIN_ENTRY ?? path.join(REPO_ROOT, 'packages/vite-plugin-runtypes/dist/index.js');
+const PLUGIN_ENTRY = process.env.RT_BENCH_PLUGIN_ENTRY ?? path.join(REPO_ROOT, 'packages/runtypes-devtools/dist/index.js');
 const pluginSpec =
   PLUGIN_ENTRY.startsWith('.') || path.isAbsolute(PLUGIN_ENTRY) ? url.pathToFileURL(path.resolve(PLUGIN_ENTRY)).href : PLUGIN_ENTRY;
 const runtypesPlugin = (await import(pluginSpec)).default;
