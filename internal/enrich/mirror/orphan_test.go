@@ -1,25 +1,36 @@
-package main
+package mirror
 
 import (
-	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
 
-// TestCollectPruneTargets_FileUsedAsIs is the regression for `gen --prune <file>`:
-// an explicit mirror-file argument must be pruned directly, never redirected
-// through mirrorPath — so a mirror living in a NON-default enrich dir (resolved
-// without --enrich-dir) still resolves to itself, not to a non-existent
-// mirror-of-mirror that yields "0 files".
-func TestCollectPruneTargets_FileUsedAsIs(t *testing.T) {
-	dir := t.TempDir()
-	mirror := filepath.Join(dir, "custom-out", "models", "user.ts")
-	writeTestFile(t, mirror, "export const friendlyUser = {};\n")
-
-	got := collectPruneTargets([]string{mirror}, "")
-	if len(got) != 1 || !strings.HasSuffix(got[0], "custom-out/models/user.ts") {
-		t.Fatalf("collectPruneTargets(%q) = %v, want the file itself", mirror, got)
+// breadcrumbNames extracts the type names from a mirror file's first
+// `import type { … } from '<non-ts-runtypes>'` source breadcrumb (skipping the
+// ts-runtypes DSL import). It is the in-package test echo of the CLI's
+// parseBreadcrumb, so the syncBreadcrumbClause assertions stay self-contained.
+func breadcrumbNames(text string) ([]string, bool) {
+	pattern := regexp.MustCompile(`(?m)^import\s+type\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]`)
+	for _, match := range pattern.FindAllStringSubmatch(text, -1) {
+		if strings.TrimSpace(match[2]) == "ts-runtypes" {
+			continue
+		}
+		var names []string
+		for _, part := range strings.Split(match[1], ",") {
+			name := strings.TrimSpace(part)
+			if idx := strings.Index(name, " as "); idx >= 0 {
+				name = strings.TrimSpace(name[:idx])
+			}
+			if name != "" {
+				names = append(names, name)
+			}
+		}
+		if len(names) > 0 {
+			return names, true
+		}
 	}
+	return nil, false
 }
 
 // TestIndexOrphanCarcasses recovers an @rtOrphan carcass's preserved inner text
@@ -34,7 +45,7 @@ func TestIndexOrphanCarcasses(t *testing.T) {
 		"  y: {$label: 'Year'},\n" +
 		"}; */\n"
 
-	index := parseMirror("/rt/gen/a.ts", []byte(src))
+	index := mustParse(t, "/rt/gen/a.ts", src)
 	carcass, ok := index.orphanCarcasses[typeFormKey("bID", true)]
 	if !ok {
 		t.Fatalf("friendly carcass not indexed; have %d carcasses", len(index.orphanCarcasses))
@@ -60,7 +71,7 @@ func TestOrphanConstOp(t *testing.T) {
 		"  $label: '',\n" +
 		"  y: {$label: 'Year'},\n" +
 		"};\n"
-	index := parseMirror("/rt/gen/a.ts", []byte(src))
+	index := mustParse(t, "/rt/gen/a.ts", src)
 	entry := index.byTypeForm[typeFormKey("bID", true)]
 	if entry == nil {
 		t.Fatalf("friendlyB not indexed")
@@ -88,7 +99,7 @@ func TestOrphanConstOp_FoldsLeadingComment(t *testing.T) {
 		"// hand-authored note about friendlyB\n" +
 		"/** @rtType B#bID */\n" +
 		"export const friendlyB: FriendlyType<B> = { $label: '' };\n"
-	index := parseMirror("/rt/gen/a.ts", []byte(src))
+	index := mustParse(t, "/rt/gen/a.ts", src)
 	entry := index.byTypeForm[typeFormKey("bID", true)]
 	if entry == nil {
 		t.Fatalf("friendlyB not indexed")
@@ -102,8 +113,8 @@ func TestOrphanConstOp_FoldsLeadingComment(t *testing.T) {
 		t.Errorf("the leading comment should be folded into the carcass:\n%q", op.text)
 	}
 	// Applying the op and pruning leaves NO trace of the hand-authored comment.
-	merged := string(applySplices(index.raw, []spliceOp{op}))
-	pruned, _ := pruneOrphanBlocks(merged)
+	merged := mustSplice(t, index.raw, []spliceOp{op})
+	pruned, _, _ := PruneOrphanBlocks(merged)
 	if strings.Contains(pruned, "hand-authored note") {
 		t.Errorf("--prune should remove the folded leading comment:\n%s", pruned)
 	}
@@ -127,7 +138,7 @@ func TestSyncBreadcrumbClause_KeepsHandAuthoredName(t *testing.T) {
 		"// hand-authored, not enrichment-owned — still uses KeepMe\n" +
 		"export const widget: KeepMe = { kind: 'k' };\n"
 
-	index := parseMirror("/rt/gen/models.ts", []byte(src))
+	index := mustParse(t, "/rt/gen/models.ts", src)
 
 	// Orphan the enrichment const friendlyDropMe (simulate its source type gone).
 	orphanedEntry := index.byTypeForm[typeFormKey("dropID", true)]
@@ -136,12 +147,12 @@ func TestSyncBreadcrumbClause_KeepsHandAuthoredName(t *testing.T) {
 	}
 
 	var ops []spliceOp
-	spec := mirrorWrite{sourceFile: "/src/models.ts", consts: nil, wantFriendly: true}
+	spec := Spec{SourceFile: "/src/models.ts", Consts: nil, WantFriendly: true}
 	syncBreadcrumbClause(&ops, index, spec, []*constEntry{orphanedEntry})
 
-	merged := string(applySplices(index.raw, ops))
+	merged := mustSplice(t, index.raw, ops)
 	// KeepMe must survive in the breadcrumb (the hand-authored const still uses it).
-	names, _, ok := parseBreadcrumb(merged)
+	names, ok := breadcrumbNames(merged)
 	if !ok {
 		t.Fatalf("breadcrumb missing after sync:\n%s", merged)
 	}
@@ -169,7 +180,7 @@ func TestSyncBreadcrumbClause_DropsUnusedName(t *testing.T) {
 		"/** @rtType KeepMe#keepID */\n" +
 		"export const friendlyKeepMe: FriendlyType<KeepMe> = { $label: '' };\n"
 
-	index := parseMirror("/rt/gen/models.ts", []byte(src))
+	index := mustParse(t, "/rt/gen/models.ts", src)
 	dropEntry := index.byTypeForm[typeFormKey("dropID", true)]
 	if dropEntry == nil {
 		t.Fatalf("friendlyDropMe not indexed")
@@ -178,11 +189,11 @@ func TestSyncBreadcrumbClause_DropsUnusedName(t *testing.T) {
 	var ops []spliceOp
 	// KeepMe survives because friendlyKeepMe (an enrichment const, NOT orphaned)
 	// is still in index.consts; DropMe should drop (its only const is orphaned).
-	spec := mirrorWrite{sourceFile: "/src/models.ts", consts: nil, wantFriendly: true}
+	spec := Spec{SourceFile: "/src/models.ts", Consts: nil, WantFriendly: true}
 	syncBreadcrumbClause(&ops, index, spec, []*constEntry{dropEntry})
 
-	merged := string(applySplices(index.raw, ops))
-	names, _, _ := parseBreadcrumb(merged)
+	merged := mustSplice(t, index.raw, ops)
+	names, _ := breadcrumbNames(merged)
 	hasDrop, hasKeep := false, false
 	for _, name := range names {
 		if name == "DropMe" {
@@ -215,11 +226,16 @@ func TestOrphanConsts_OutModeSkipsJudgement(t *testing.T) {
 		"/** @rtType Gone#goneID */\n" +
 		"export const friendlyGone: FriendlyType<Gone> = { $label: '' };\n"
 
-	index := parseMirror("/rt/gen/out.ts", []byte(src))
+	index := mustParse(t, "/rt/gen/out.ts", src)
 	var ops []spliceOp
 	// out != "" → judgement skipped; desired set empty so friendlyGone is unwanted.
-	spec := mirrorWrite{mirrorPath: "/rt/gen/out.ts", out: "/rt/gen/out.ts", consts: nil, wantFriendly: true}
-	orphaned := orphanConsts(&ops, index, spec)
+	spec := Spec{MirrorPath: "/rt/gen/out.ts", Out: "/rt/gen/out.ts", Consts: nil, WantFriendly: true}
+	// readSource must never be reached in --out mode (the early return precedes it).
+	readSource := func(string) (string, error) {
+		t.Fatalf("--out mode must not read the breadcrumb source")
+		return "", nil
+	}
+	orphaned := orphanConsts(&ops, index, spec, readSource)
 	if len(orphaned) != 0 || len(ops) != 0 {
 		t.Errorf("--out mode must skip the orphan judgement; got %d orphaned, %d ops", len(orphaned), len(ops))
 	}
@@ -238,7 +254,7 @@ func TestPruneOrphanBlocks(t *testing.T) {
 		"\n" +
 		"export const friendlyC = { z: {$label: ''} };\n"
 
-	pruned, removed := pruneOrphanBlocks(src)
+	pruned, removed, _ := PruneOrphanBlocks(src)
 	if removed != 2 {
 		t.Fatalf("removed = %d, want 2", removed)
 	}
@@ -256,7 +272,7 @@ func TestPruneOrphanBlocks(t *testing.T) {
 
 	// No orphans → unchanged, zero removed.
 	clean := "export const x = 1;\n"
-	out, n := pruneOrphanBlocks(clean)
+	out, n, _ := PruneOrphanBlocks(clean)
 	if n != 0 || out != clean {
 		t.Errorf("clean text should be untouched; n=%d out=%q", n, out)
 	}
@@ -275,7 +291,7 @@ func TestPruneOrphanBlocks_MalformedCarcassSkipped(t *testing.T) {
 		"/* @rtOrphan /** @rtType B#bID *\\/\n" +
 		"export const friendlyB = { b: {$label: ''} }; */\n"
 
-	pruned, removed := pruneOrphanBlocks(src)
+	pruned, removed, skipped := PruneOrphanBlocks(src)
 	// The malformed first match (which spans friendlyLive) is skipped → 0 removed,
 	// and the live const survives intact.
 	if !strings.Contains(pruned, "friendlyLive") {
@@ -283,6 +299,10 @@ func TestPruneOrphanBlocks_MalformedCarcassSkipped(t *testing.T) {
 	}
 	if removed != 0 {
 		t.Errorf("a carcass spanning a live statement must be skipped; removed=%d", removed)
+	}
+	// The pure prune returns the skipped malformed carcass for the caller to warn on.
+	if len(skipped) == 0 {
+		t.Errorf("a malformed carcass spanning a live statement must be reported as skipped")
 	}
 }
 

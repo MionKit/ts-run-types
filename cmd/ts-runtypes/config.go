@@ -148,34 +148,6 @@ func resolveUnder(base, path string) string {
 	return filepath.Clean(filepath.Join(base, path))
 }
 
-// importSpecifier computes the ES-module specifier to reach absTarget from the
-// file at absFrom: a relative path with a leading "./" (or "../"), forward
-// slashes, and the source extension stripped (".d.ts" and ".ts" both drop to a
-// bare path). This is the string that goes in `from '<spec>'`.
-func importSpecifier(absFrom, absTarget string) string {
-	fromDir := filepath.Dir(absFrom)
-	rel, err := filepath.Rel(fromDir, absTarget)
-	if err != nil {
-		rel = absTarget
-	}
-	rel = stripModuleExt(rel)
-	slashed := filepath.ToSlash(rel)
-	if !strings.HasPrefix(slashed, ".") {
-		slashed = "./" + slashed
-	}
-	return slashed
-}
-
-// stripModuleExt drops a ".d.ts" or single extension (".ts", ".tsx", …) from a
-// path so it reads as a bare module specifier.
-func stripModuleExt(path string) string {
-	trimmed := strings.TrimSuffix(path, ".d.ts")
-	if trimmed != path {
-		return trimmed
-	}
-	return strings.TrimSuffix(path, filepath.Ext(path))
-}
-
 // findNearestTsconfig walks up from startDir looking for a tsconfig.json,
 // returning its absolute path or "" if none is found before the filesystem root.
 func findNearestTsconfig(startDir string) string {

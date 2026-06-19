@@ -1,4 +1,4 @@
-package main
+package mirror
 
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
@@ -12,6 +12,12 @@ type astLiteralView struct {
 	literal *ast.Node
 	byKey   map[string]*ast.Node // property-assignment INITIALIZER expression by key
 	keys    []string
+}
+
+// NewASTLiteralView builds an enrich.LiteralView over an
+// ObjectLiteralExpression node, for the paired FriendlyType / MockData checkers.
+func NewASTLiteralView(literal *ast.Node) enrich.LiteralView {
+	return newASTLiteralView(literal)
 }
 
 // newASTLiteralView builds a view over an ObjectLiteralExpression node.

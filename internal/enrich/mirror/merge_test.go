@@ -1,4 +1,4 @@
-package main
+package mirror
 
 import (
 	"strings"
@@ -22,7 +22,7 @@ func mergeFriendly(t *testing.T, existingBody, desiredBody string) string {
 	}
 	var ops []spliceOp
 	mergeObject(&ops, existing, desired, mergeCtx{metaKeys: friendlyReservedKeys})
-	return string(applySplices([]byte(existing.text), ops))
+	return mustSplice(t, []byte(existing.text), ops)
 }
 
 // TestMerge_KeepLeafValues: a field present in both as a leaf keeps its authored
@@ -146,7 +146,7 @@ func mergeWithCtx(t *testing.T, existingBody, desiredBody string, ctx mergeCtx) 
 	}
 	var ops []spliceOp
 	mergeObject(&ops, existing, desired, ctx)
-	return string(applySplices([]byte(existing.text), ops))
+	return mustSplice(t, []byte(existing.text), ops)
 }
 
 // TestSanitizeForComment_RoundTrip: a value containing every tricky byte
@@ -488,7 +488,7 @@ func TestComment_KeptTypeChange_SurvivesAbove(t *testing.T) {
 		t.Errorf("leading comment should stay ABOVE the replaced field:\n%s", got)
 	}
 	// It survives prune (the field is live, so the comment is not in the carcass).
-	pruned, _ := pruneOrphanBlocks(got)
+	pruned, _, _ := PruneOrphanBlocks(got)
 	if !strings.Contains(pruned, "// age in years") {
 		t.Errorf("a live field's leading comment must survive --prune:\n%s", pruned)
 	}
@@ -576,7 +576,7 @@ func TestComment_DroppedField_FoldsIntoCarcass(t *testing.T) {
 				t.Errorf("the leading comment must fold INTO the carcass (after the tag), not dangle above it:\n%s", got)
 			}
 			// After prune, the comment is gone with the carcass — nothing dangling.
-			pruned, removed := pruneOrphanBlocks(got)
+			pruned, removed, _ := PruneOrphanBlocks(got)
 			if removed == 0 {
 				t.Errorf("prune should remove the field carcass:\n%s", got)
 			}

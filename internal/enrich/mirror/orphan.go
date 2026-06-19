@@ -1,7 +1,6 @@
-package main
+package mirror
 
 import (
-	"os"
 	"sort"
 	"strings"
 
@@ -12,7 +11,7 @@ import (
 // findCarcass returns the @rtOrphan carcass for a reappearing desired const
 // (matched by id + friendly/mock form), or nil. A restore un-comments it,
 // recovering the author's preserved value.
-func findCarcass(index *mirrorIndex, named enrich.NamedConst, friendly bool) *carcassEntry {
+func findCarcass(index *Index, named enrich.NamedConst, friendly bool) *carcassEntry {
 	if named.TypeID == "" {
 		return nil
 	}
@@ -27,9 +26,9 @@ func findCarcass(index *mirrorIndex, named enrich.NamedConst, friendly bool) *ca
 // by the resolved breadcrumb source. Condition (b) is what distinguishes a
 // genuinely-deleted type from one simply not in this gen invocation's closure
 // (another type in the same mirror file) — the latter is left untouched.
-func orphanConsts(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite) []*constEntry {
+func orphanConsts(ops *[]spliceOp, index *Index, spec Spec, readSource func(string) (string, error)) []*constEntry {
 	var orphaned []*constEntry
-	if spec.out != "" {
+	if spec.Out != "" {
 		// Single-file --out: every const across MANY source files lands here, but the
 		// breadcrumb resolves only ONE source — judging declaration against it would
 		// wrongly orphan a still-existing cross-file type. Skip the orphan judgement.
@@ -38,8 +37,8 @@ func orphanConsts(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite) []*cons
 	if index.breadcrumb == nil {
 		return orphaned // no source link → can't safely judge declaration
 	}
-	resolvedSource := resolveBreadcrumb(spec.mirrorPath, index.breadcrumb.specifier)
-	sourceText, err := readFileString(resolvedSource)
+	resolvedSource := ResolveBreadcrumb(spec.MirrorPath, index.breadcrumb.specifier)
+	sourceText, err := readSource(resolvedSource)
 	if err != nil {
 		return orphaned // source unreadable → be conservative, orphan nothing
 	}
@@ -53,7 +52,7 @@ func orphanConsts(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite) []*cons
 		if typeName == "" {
 			continue // can't judge without a type name
 		}
-		if sourceDeclaresType(sourceText, typeName) {
+		if SourceDeclaresType(sourceText, typeName) {
 			continue // the type still exists — not an orphan (just not in this closure)
 		}
 		// Orphan it: wrap the whole const (from its marker/keyword start to End) in
@@ -108,7 +107,7 @@ func orphanConstOp(raw []byte, entry *constEntry) spliceOp {
 // orphaned ranges (covers a name a HAND-AUTHORED const still uses — never drop
 // it, or that const's type breaks). No-op when the recomputed clause equals the
 // current one (idempotent).
-func syncBreadcrumbClause(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite, orphanedEntries []*constEntry) {
+func syncBreadcrumbClause(ops *[]spliceOp, index *Index, spec Spec, orphanedEntries []*constEntry) {
 	if index.breadcrumb == nil || index.breadcrumb.clauseStart == 0 {
 		return
 	}
@@ -130,11 +129,11 @@ func syncBreadcrumbClause(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite,
 	}
 	// Every desired const whose type is declared in THIS source file — added,
 	// restored, or property-merged in place.
-	thisSource := tspath.NormalizePath(spec.sourceFile)
-	for _, named := range spec.consts {
+	thisSource := tspath.NormalizePath(spec.SourceFile)
+	for _, named := range spec.Consts {
 		declFile := named.DeclFile
 		if declFile == "" {
-			declFile = spec.sourceFile
+			declFile = spec.SourceFile
 		}
 		if tspath.NormalizePath(declFile) == thisSource && named.TypeName != "" {
 			names[named.TypeName] = true
@@ -178,8 +177,8 @@ func syncBreadcrumbClause(ops *[]spliceOp, index *mirrorIndex, spec mirrorWrite,
 // differs from this one AND which is not already imported. The new lines are
 // inserted right after the existing import block (after the DSL import, or the
 // breadcrumb). Returns merged unchanged when nothing is needed.
-func ensureCrossFileImports(merged []byte, spec mirrorWrite, index *mirrorIndex, body string) []byte {
-	if spec.out != "" {
+func ensureCrossFileImports(merged []byte, spec Spec, index *Index, body string) []byte {
+	if spec.Out != "" {
 		return merged // single-file --out: every const lives in one file, no imports
 	}
 	alreadyImported := map[string]bool{}
@@ -189,17 +188,17 @@ func ensureCrossFileImports(merged []byte, spec mirrorWrite, index *mirrorIndex,
 		}
 	}
 
-	thisSource := tspath.NormalizePath(spec.sourceFile)
+	thisSource := tspath.NormalizePath(spec.SourceFile)
 	importsByMirror := map[string]map[string]bool{}
-	for _, varName := range referencedVars(body) {
+	for _, varName := range ReferencedVars(body) {
 		if alreadyImported[varName] {
 			continue
 		}
-		declFile, ok := spec.varDeclFile[varName]
+		declFile, ok := spec.VarDeclFile[varName]
 		if !ok || tspath.NormalizePath(declFile) == thisSource {
 			continue // intra-file or unknown — no import
 		}
-		targetMirror := spec.config.mirrorPath(declFile)
+		targetMirror := spec.MirrorPathFor(declFile)
 		if importsByMirror[targetMirror] == nil {
 			importsByMirror[targetMirror] = map[string]bool{}
 		}
@@ -210,7 +209,7 @@ func ensureCrossFileImports(merged []byte, spec mirrorWrite, index *mirrorIndex,
 	}
 
 	var newLines strings.Builder
-	for _, line := range crossFileImportLines(spec.mirrorPath, importsByMirror) {
+	for _, line := range CrossFileImportLines(spec.MirrorPath, importsByMirror) {
 		newLines.WriteString(line)
 	}
 
@@ -221,7 +220,7 @@ func ensureCrossFileImports(merged []byte, spec mirrorWrite, index *mirrorIndex,
 // importBlockEnd returns the byte offset just after the last import statement
 // (DSL import, breadcrumb, or value imports — whichever ends latest), where new
 // cross-file imports are inserted. Falls back to 0 when there are no imports.
-func importBlockEnd(index *mirrorIndex) int {
+func importBlockEnd(index *Index) int {
 	end := 0
 	for _, entry := range []*importEntry{index.breadcrumb, index.dslImport} {
 		if entry != nil && entry.end > end {
@@ -241,27 +240,18 @@ func importBlockEnd(index *mirrorIndex) int {
 }
 
 // desiredVarSet collects the friendly + mock var names of the desired const set,
-// honoring the wantFriendly / wantMock flags.
-func desiredVarSet(spec mirrorWrite) map[string]bool {
+// honoring the WantFriendly / WantMock flags.
+func desiredVarSet(spec Spec) map[string]bool {
 	out := map[string]bool{}
-	for _, named := range spec.consts {
-		if spec.wantFriendly {
+	for _, named := range spec.Consts {
+		if spec.WantFriendly {
 			out[named.FriendlyVar] = true
 		}
-		if spec.wantMock {
+		if spec.WantMock {
 			out[named.MockVar] = true
 		}
 	}
 	return out
-}
-
-// readFileString reads a file into a string, returning the error from os.
-func readFileString(path string) (string, error) {
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(bytes), nil
 }
 
 // orphanRanges returns each orphaned const's orphan-op byte range — [markerStart

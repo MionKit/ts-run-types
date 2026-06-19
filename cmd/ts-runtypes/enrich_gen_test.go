@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
 )
 
 // TestGroupByDeclFile buckets a topologically-ordered closure by declaration
@@ -40,10 +41,10 @@ func TestGroupByDeclFile(t *testing.T) {
 // (camelCase suffix), ignoring meta keys and lowercase field names.
 func TestReferencedVars(t *testing.T) {
 	body := "{\n  $label: '',\n  address: friendlyAddress,\n  billing: mockBilling,\n  note: {$label: ''},\n  mockish: 'x',\n}"
-	got := referencedVars(body)
+	got := mirror.ReferencedVars(body)
 	want := []string{"friendlyAddress", "mockBilling"}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("referencedVars = %v, want %v", got, want)
+		t.Errorf("ReferencedVars = %v, want %v", got, want)
 	}
 }
 
@@ -55,13 +56,13 @@ func TestCrossFileImportLines(t *testing.T) {
 		"/rt/gen/models/address.ts": {"mockAddress": true, "friendlyAddress": true},
 		"/rt/gen/billing/card.ts":   {"friendlyCard": true},
 	}
-	lines := crossFileImportLines(fromMirror, importsByMirror)
+	lines := mirror.CrossFileImportLines(fromMirror, importsByMirror)
 	want := []string{
 		"import { friendlyCard } from '../billing/card';\n",
 		"import { friendlyAddress, mockAddress } from './address';\n",
 	}
 	if !reflect.DeepEqual(lines, want) {
-		t.Errorf("crossFileImportLines =\n%v\nwant\n%v", lines, want)
+		t.Errorf("CrossFileImportLines =\n%v\nwant\n%v", lines, want)
 	}
 }
 
@@ -73,9 +74,9 @@ func TestConstTypeNames(t *testing.T) {
 		{TypeName: "User"}, // duplicate (e.g. friendly + mock split) — deduped
 		{TypeName: ""},     // anonymous — skipped
 	}
-	got := constTypeNames(consts)
+	got := mirror.ConstTypeNames(consts)
 	want := []string{"User", "Address"}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("constTypeNames = %v, want %v", got, want)
+		t.Errorf("ConstTypeNames = %v, want %v", got, want)
 	}
 }

@@ -1,4 +1,4 @@
-package main
+package mirror
 
 import (
 	"fmt"
@@ -23,15 +23,15 @@ type spliceOp struct {
 // sorted strictly DESCENDING by start (tie-break: descending end) and applied
 // back-to-front so each op's offsets stay valid against the still-untouched
 // prefix — every op indexes the ORIGINAL bytes. Touching ranges (one op's end ==
-// the next's start) are NEVER merged; they apply independently. It is FATAL on
-// any pair of OVERLAPPING ranges (a later op's start strictly inside an earlier
-// op's [start,end)) — that signals an emit bug, not a recoverable case.
+// the next's start) are NEVER merged; they apply independently. It errors on any
+// pair of OVERLAPPING ranges (a later op's start strictly inside an earlier op's
+// [start,end)) — that signals an emit bug, not a recoverable case.
 //
 // An empty op list returns raw unchanged (the caller detects the no-op by
-// comparing bytes / via the ok return of spliceMirror).
-func applySplices(raw []byte, ops []spliceOp) []byte {
+// comparing bytes).
+func applySplices(raw []byte, ops []spliceOp) ([]byte, error) {
 	if len(ops) == 0 {
-		return raw
+		return raw, nil
 	}
 	sorted := make([]spliceOp, len(ops))
 	copy(sorted, ops)
@@ -42,15 +42,15 @@ func applySplices(raw []byte, ops []spliceOp) []byte {
 		return sorted[left].end > sorted[right].end
 	})
 
-	// Overlap guard: FATAL on any overlapping pair (touching ranges are fine).
+	// Overlap guard: error on any overlapping pair (touching ranges are fine).
 	if lower, upper, overlap := findSpliceOverlap(sorted); overlap {
-		fatal("gen --update: overlapping splice ops [%d,%d) and [%d,%d) — internal error (all ops: %s)",
+		return nil, fmt.Errorf("gen --update: overlapping splice ops [%d,%d) and [%d,%d) — internal error (all ops: %s)",
 			lower.start, lower.end, upper.start, upper.end, describeSpliceOps(ops))
 	}
 	// Bounds sanity.
 	for _, op := range sorted {
 		if op.start < 0 || op.end > len(raw) || op.start > op.end {
-			fatal("gen --update: splice op out of bounds [%d,%d) over %d bytes — internal error", op.start, op.end, len(raw))
+			return nil, fmt.Errorf("gen --update: splice op out of bounds [%d,%d) over %d bytes — internal error", op.start, op.end, len(raw))
 		}
 	}
 
@@ -66,7 +66,7 @@ func applySplices(raw []byte, ops []spliceOp) []byte {
 		prev = op.end
 	}
 	out = append(out, raw[prev:]...)
-	return out
+	return out, nil
 }
 
 // findSpliceOverlap scans a DESCENDING-sorted op list for the first overlapping
