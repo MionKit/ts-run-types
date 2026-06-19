@@ -20,25 +20,53 @@ const typesSubdir = "types"
 // becomes <typesDir>/<basename>.js — slashed basenames nest into subdirs.
 const moduleFileExt = ".js"
 
-// outputDirAllowedMembers are the only top-level entries a RunTypes files-mode
-// output root may already contain for us to treat it as ours: the generated
-// `types/` half, the committed `enriched/` half, and the VCS-hygiene markers.
-// Anything else (a hand-authored `.ts` source file, an unrelated subfolder)
-// means the dir is in use by something that is NOT RunTypes output.
+// outputDirAllowedMembers are the RunTypes-owned top-level entries an output root
+// may contain for us to treat it as ours: the generated `types/` half, the
+// committed `enriched/` half, and the VCS-hygiene markers. Their CONTENTS are
+// never inspected — only the output root's own top level is checked.
 var outputDirAllowedMembers = map[string]bool{
 	typesSubdir:  true, // "types"
 	"enriched":   true,
 	".gitignore": true,
 	".gitkeep":   true,
-	".DS_Store":  true, // macOS finder noise — harmless, never our concern
 }
 
-// ensureOutDirAvailable refuses to scatter generated modules across a directory
-// that already holds non-RunTypes content. A missing, empty, or
-// recognized-RunTypes output root is fine; a foreign entry means the configured
-// (or inferred) outDir collides with a real directory, so we abort with an
-// actionable error rather than clobbering the user's files. Files-mode has no
-// virtual fallback, so this is a hard stop — the caller surfaces it and crashes.
+// systemNoiseEntries are OS / desktop-environment cruft (macOS Finder, Windows
+// Explorer, KDE) that any "is this directory clean?" check must ignore — a stray
+// one must never crash the build. These mirror the entries shared .gitignore
+// files carry; the macOS AppleDouble `._<name>` siblings are matched by prefix.
+var systemNoiseEntries = map[string]bool{
+	".DS_Store":               true,
+	".AppleDouble":            true,
+	".LSOverride":             true,
+	".Spotlight-V100":         true,
+	".Trashes":                true,
+	".fseventsd":              true,
+	".DocumentRevisions-V100": true,
+	".TemporaryItems":         true,
+	"Thumbs.db":               true,
+	"ehthumbs.db":             true,
+	"desktop.ini":             true,
+	".directory":              true,
+}
+
+// isIgnorableOutputEntry reports whether a top-level output-dir entry is a
+// RunTypes-owned member or harmless OS noise, so it never trips the guard.
+func isIgnorableOutputEntry(name string) bool {
+	if outputDirAllowedMembers[name] || systemNoiseEntries[name] {
+		return true
+	}
+	return strings.HasPrefix(name, "._") // macOS AppleDouble resource-fork sibling
+}
+
+// ensureOutDirAvailable refuses to generate into a directory that holds anything
+// beyond the RunTypes output shape. The rule is a strict top-level check: a
+// missing or empty dir, or one whose entries are only types/ / enriched/ (+ the
+// VCS markers), is ours — adopt it (a previous run produces exactly that shape,
+// so no per-run marker is needed). ANY extraneous file or folder means the
+// configured (or inferred) outDir collides with a pre-existing directory we must
+// not touch, so we abort. Files-mode has no virtual fallback, so this is a hard
+// stop the caller surfaces and crashes on.
 func ensureOutDirAvailable(outDir string) error {
 	entries, err := os.ReadDir(outDir)
 	if err != nil {
@@ -48,10 +76,14 @@ func ensureOutDirAvailable(outDir string) error {
 		return fmt.Errorf("checking RunTypes output dir %s: %w", outDir, err)
 	}
 	for _, entry := range entries {
-		if outputDirAllowedMembers[entry.Name()] {
+		if isIgnorableOutputEntry(entry.Name()) {
 			continue
 		}
-		return fmt.Errorf("refusing to generate RunTypes output into %s: it already contains %q, which is not RunTypes-generated output — point the plugin's `outDir` (or the CLI) at a dedicated, empty folder; the default is <srcDir>/%s", outDir, entry.Name(), outputDirName)
+		return fmt.Errorf("refusing to generate RunTypes output into %s: it contains %q, which RunTypes did not generate. "+
+			"This is a special RunTypes-managed output directory — it is owned by the build and is meant to hold ONLY RunTypes output: the regenerated `types/` cache modules (rebuilt every build, gitignored) and the committed `enriched/` mirror, plus VCS markers (.gitignore / .gitkeep) and harmless OS noise. "+
+			"A foreign entry means `outDir` is pointed at a real, pre-existing directory that generating here would pollute (and prune files from). "+
+			"Point the plugin's `outDir` (or the CLI) at a dedicated folder used only for RunTypes output; the default <srcDir>/%s keeps clear of a hand-authored `runtypes/` source dir via its `__` prefix.",
+			outDir, entry.Name(), outputDirName)
 	}
 	return nil
 }
