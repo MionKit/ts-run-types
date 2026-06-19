@@ -1,0 +1,26 @@
+{
+  "file": "a.ts",
+  "code": "const id = getRunTypeId<string>();\n",
+  "sites": [
+    {
+      "file": "a.ts",
+      "pos": 32,
+      "id": "Abc1234",
+      "paramIndex": 1,
+      "argsCount": 0
+    }
+  ],
+  "replacements": [],
+  "expectedCode": "import {__rt_Abc1234} from 'virtual:rt/Abc1234.js';\nconst id = getRunTypeId<string>(undefined, __rt_Abc1234);\n",
+  "expectedMap": {
+    "version": 3,
+    "sources": [
+      "a.ts"
+    ],
+    "sourcesContent": [
+      "const id = getRunTypeId<string>();\n"
+    ],
+    "names": [],
+    "mappings": ";AAAA,KAAK,CAAC,EAAE,CAAC,CAAC,CAAC,YAAY,CAAC,MAAM,CAAC,wBAAC,CAAC;"
+  }
+}
