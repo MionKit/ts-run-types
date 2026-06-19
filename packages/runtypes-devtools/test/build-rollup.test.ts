@@ -39,7 +39,6 @@ describe('rollup build / runtypes-devtools/rollup entry', () => {
   register(
     'produces a Rollup plugin whose hooks rewrite markers + serve the validator',
     async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const plugin = runtypesRollup({binary: BIN, cwd: PACKAGE_ROOT, tsconfig: 'tsconfig.test.json', cacheDir: false}) as any;
       expect(plugin.name).toBe('runtypes-devtools');
 

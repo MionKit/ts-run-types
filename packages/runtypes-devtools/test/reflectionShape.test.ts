@@ -6,7 +6,7 @@
 // rehydration cases use the single form that actually captures the literal
 // (generic inference widens literals in the other form — see atomic-types.md).
 import {describe, expect} from 'vitest';
-import {ReflectionKind, type RunType} from '../src/protocol.ts';
+import {ReflectionKind} from '../src/protocol.ts';
 import {evalCacheFor, getTypeFor, runTest} from './helpers/inline.ts';
 
 type Cache = Parameters<typeof getTypeFor>[0];

@@ -5,7 +5,7 @@
 // codegen / docs.
 
 import {describe, expect} from 'vitest';
-import {ReflectionKind, type RunType} from '../src/protocol.ts';
+import {ReflectionKind} from '../src/protocol.ts';
 import {evalCacheFor, getTypeFor, runTest} from './helpers/inline.ts';
 
 describe('runtypes-devtools / implements round-trip', () => {

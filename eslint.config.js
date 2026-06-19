@@ -41,7 +41,19 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.spec.ts', '**/*.test.ts'],
+    // Test files + test-support helpers under any test/ dir are not part of a
+    // build tsconfig (each package's build config is src-only), so the
+    // type-aware projectService can't place them. The rules configured here
+    // are non-type-checked anyway, so opt these files out of the project
+    // service — otherwise linting one (e.g. when lint-staged stages a renamed
+    // test helper) fails with "not found by the project service". Also relax
+    // unused-vars for test scaffolding.
+    files: ['**/*.spec.ts', '**/*.test.ts', '**/test/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+      },
+    },
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', {args: 'none'}],
       'no-unused-vars': ['warn', {args: 'none'}],
