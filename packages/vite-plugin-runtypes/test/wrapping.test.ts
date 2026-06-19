@@ -13,8 +13,7 @@
 //                NOT emit a site (no override of caller-supplied ids)
 
 import {describe, expect} from 'vitest';
-import {rewrite} from '../src/rewrite.ts';
-import {runTest, withInlineSources} from './helpers/inline.ts';
+import {rewrite, runTest, withInlineSources} from './helpers/inline.ts';
 
 describe('vite-plugin-runtypes / wrapping', () => {
   // ---- 17a: direct call -------------------------------------------------
