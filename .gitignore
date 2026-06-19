@@ -66,5 +66,11 @@ packages/ts-runtypes/test/suites/enrichment/.tmp/
 # vite config timestamp artifacts
 *.timestamp-*.mjs
 
+# RunTypes files-mode output. In a CONSUMER project `runtypes/types/` is
+# gitignored (auto-written .gitignore) and `runtypes/enriched/` is committed.
+# In THIS repo the marker package's own test suite writes a runtypes/ tree as
+# a build artifact — ignore it wholesale so test runs never dirty the tree.
+/packages/ts-runtypes/runtypes/
+
 # playwright-cli session artifacts (snapshots, traces, screenshots)
 .playwright-cli/

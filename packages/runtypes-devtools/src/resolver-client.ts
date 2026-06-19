@@ -164,13 +164,21 @@ export interface TransformFilesResult {
   addedPureFns?: boolean;
 }
 
+// GenerateResult is the shape returned by generate(): the live manifest of
+// module basenames written under <outDir>/types, plus any diagnostics the
+// full-program render produced (pure-fn extraction errors are halt-worthy).
+export interface GenerateResult {
+  modules: string[];
+  diagnostics?: Diagnostic[];
+}
+
 // Common operation surface. Spawn-based and socket-based clients both
 // implement this interface so consumers can be typed against the connection
 // without caring which transport is in use.
 export interface ResolverConnection {
   scanFiles(files: string[], opts?: ScanFilesOptions): Promise<ScanFilesResult>;
   transform(files: string[], outDir?: string): Promise<TransformFilesResult>;
-  generate(outDir: string): Promise<string[]>;
+  generate(outDir: string): Promise<GenerateResult>;
   dump(): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
@@ -243,11 +251,11 @@ abstract class ResolverClientBase implements ResolverConnection {
   // inter-module imports, stale-file GC), returning the live manifest of
   // module basenames. The files-mode replacement for the virtual-module
   // load path.
-  async generate(outDir: string): Promise<string[]> {
+  async generate(outDir: string): Promise<GenerateResult> {
     if (!outDir) throw new Error('generate: outDir must be non-empty');
     const resp = await this.transport.request({op: 'generate', outDir});
     if (resp.error) throw new Error(`generate: ${resp.error}`);
-    return resp.generated ?? [];
+    return {modules: resp.generated ?? [], diagnostics: resp.diagnostics};
   }
 
   async dump(): Promise<Response> {

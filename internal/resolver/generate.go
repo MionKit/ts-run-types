@@ -48,6 +48,29 @@ func generateToDisk(outDir string, modules map[string]string) ([]string, error) 
 	return manifest, nil
 }
 
+// workingDir is the resolver's configured cwd — the base every relative file
+// path and outDir resolves against — falling back to the Program's current
+// directory.
+func (resolver *Resolver) workingDir() string {
+	if resolver.opts.Cwd != "" {
+		return resolver.opts.Cwd
+	}
+	if resolver.Program != nil && resolver.Program.TS != nil {
+		return resolver.Program.TS.GetCurrentDirectory()
+	}
+	return ""
+}
+
+// absPath resolves p against the resolver's working dir when relative, so the
+// generate/transform relative-path math (filepath.Rel) sees consistent bases
+// regardless of whether the caller passed absolute or cwd-relative paths.
+func (resolver *Resolver) absPath(p string) string {
+	if p == "" || filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(resolver.workingDir(), p)
+}
+
 // materializeModules writes each entry-module source to
 // typesDir/<basename>.js, creating parent dirs for slashed basenames. It is
 // write-only-on-change: a file whose on-disk bytes already equal the new

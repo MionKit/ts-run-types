@@ -3,6 +3,7 @@ package resolver_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -63,6 +64,40 @@ func TestGenerate_RequiresOutDir(t *testing.T) {
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpGenerate})
 	if resp.Error == "" {
 		t.Fatal("OpGenerate with empty OutDir should return an error")
+	}
+}
+
+// TestGenerateTransformConsistency_Reflection pins the files-mode invariant:
+// every relative import the transform injects must resolve to a module that
+// generate actually wrote to disk. Reflection (getRunTypeId) exercises the
+// per-root facade path; a mismatch here is exactly the "Could not resolve" the
+// bundler hits.
+func TestGenerateTransformConsistency_Reflection(t *testing.T) {
+	const src = `import {getRunTypeId} from 'ts-runtypes';
+interface MapThing { mapProp: string }
+export const id = getRunTypeId<MapThing>();
+`
+	r := setupInline(t, map[string]string{"a.ts": src})
+	outDir := t.TempDir()
+	if gen := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: outDir}); gen.Error != "" {
+		t.Fatalf("generate: %s", gen.Error)
+	}
+	tr := r.Dispatch(protocol.Request{Op: protocol.OpTransform, Files: []string{"a.ts"}, OutDir: outDir})
+	if tr.Error != "" {
+		t.Fatalf("transform: %s", tr.Error)
+	}
+	code := tr.Transformed["a.ts"].Code
+	cwd := r.Program.TS.GetCurrentDirectory() // a.ts lives at <cwd>/a.ts
+	relImport := regexp.MustCompile(`from '(\.\.?/[^']+)'`)
+	matches := relImport.FindAllStringSubmatch(code, -1)
+	if len(matches) == 0 {
+		t.Fatalf("transform injected no relative imports:\n%s", code)
+	}
+	for _, m := range matches {
+		target := filepath.Join(cwd, filepath.FromSlash(m[1]))
+		if _, err := os.Stat(target); err != nil {
+			t.Fatalf("transform injected %q -> %q which generate did NOT write: %v", m[1], target, err)
+		}
 	}
 }
 
