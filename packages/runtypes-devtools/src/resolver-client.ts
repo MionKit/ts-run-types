@@ -165,10 +165,13 @@ export interface TransformFilesResult {
 }
 
 // GenerateResult is the shape returned by generate(): the live manifest of
-// module basenames written under <outDir>/types, plus any diagnostics the
-// full-program render produced (pure-fn extraction errors are halt-worthy).
+// module basenames written under <outDir>/types, the output root actually
+// written to (the resolver-inferred <srcDir>/runtypes when none was passed),
+// plus any diagnostics the full-program render produced (pure-fn extraction
+// errors are halt-worthy).
 export interface GenerateResult {
   modules: string[];
+  outDir: string;
   diagnostics?: Diagnostic[];
 }
 
@@ -178,7 +181,7 @@ export interface GenerateResult {
 export interface ResolverConnection {
   scanFiles(files: string[], opts?: ScanFilesOptions): Promise<ScanFilesResult>;
   transform(files: string[], outDir?: string): Promise<TransformFilesResult>;
-  generate(outDir: string): Promise<GenerateResult>;
+  generate(outDir?: string): Promise<GenerateResult>;
   dump(): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
@@ -249,13 +252,16 @@ abstract class ResolverClientBase implements ResolverConnection {
   // generate runs OpGenerate: the resolver renders the full entry-module set
   // and WRITES it under <outDir>/types/ (write-only-on-change, relativized
   // inter-module imports, stale-file GC), returning the live manifest of
-  // module basenames. The files-mode replacement for the virtual-module
-  // load path.
-  async generate(outDir: string): Promise<GenerateResult> {
-    if (!outDir) throw new Error('generate: outDir must be non-empty');
-    const resp = await this.transport.request({op: 'generate', outDir});
+  // module basenames plus the output root it wrote to. The files-mode
+  // replacement for the virtual-module load path. Pass an empty outDir to let
+  // the resolver infer <srcDir>/runtypes from the tsconfig; the resolved path
+  // comes back in `outDir`.
+  async generate(outDir?: string): Promise<GenerateResult> {
+    const req: Request = {op: 'generate'};
+    if (outDir) req.outDir = outDir;
+    const resp = await this.transport.request(req);
     if (resp.error) throw new Error(`generate: ${resp.error}`);
-    return {modules: resp.generated ?? [], diagnostics: resp.diagnostics};
+    return {modules: resp.generated ?? [], outDir: resp.outDir ?? outDir ?? '', diagnostics: resp.diagnostics};
   }
 
   async dump(): Promise<Response> {

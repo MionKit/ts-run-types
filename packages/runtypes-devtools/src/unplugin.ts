@@ -26,9 +26,10 @@ export interface PluginOptions {
   tsconfig?: string;
   // RunTypes output root, resolved relative to cwd. The build writes the
   // generated cache modules under `<outDir>/types/` (gitignored) and the
-  // committed enrichment under `<outDir>/enriched/`. Defaults to
-  // `<cwd>/runtypes`. The folder lives in the project (not node_modules) so a
-  // dev watcher sees regenerated modules.
+  // committed enrichment under `<outDir>/enriched/`. When omitted, the
+  // resolver infers `<srcDir>/runtypes` from the tsconfig (rootDir →
+  // common-ancestor of the program's files → baseUrl → cwd). The folder lives
+  // in the project (not node_modules) so a dev watcher sees regenerated modules.
   outDir?: string;
   // What the Go binary ships in each RT cache entry's code/factory slots:
   //   - 'code' (default): only the body `code` string; the JS-side
@@ -118,7 +119,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   function ensureResolver() {
     if (resolver) return;
     cwdAbs = path.resolve(options.cwd ?? (viteRoot || process.cwd()));
-    outDirAbs = options.outDir ? path.resolve(cwdAbs, options.outDir) : path.join(cwdAbs, 'runtypes');
+    // Explicit outDir is resolved up front; otherwise leave it empty and let
+    // the resolver infer <srcDir>/runtypes from the tsconfig at buildStart —
+    // the plugin can't parse tsconfig without a dep, so the Go side owns the
+    // default and echoes the resolved path back from generate().
+    outDirAbs = options.outDir ? path.resolve(cwdAbs, options.outDir) : '';
     // node_modules/.cache is the canonical location for tooling
     // artifacts that a project's standard `clean` workflow already
     // knows to wipe (npm / pnpm both nuke it under common cleanup
@@ -181,8 +186,13 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // ensureResolver call here is then a no-op.
     async buildStart(this: any) {
       ensureResolver();
+      // generate writes the modules and, when outDirAbs is empty, returns the
+      // resolver-inferred <srcDir>/runtypes. Adopt that resolved path before
+      // ensuring the VCS-hygiene files so .gitignore/.gitkeep land in the
+      // right tree and every later transform/HMR call reuses it.
+      const gen = await resolver!.generate(outDirAbs || undefined);
+      if (gen.outDir) outDirAbs = gen.outDir;
       ensureOutputDirs();
-      const gen = await resolver!.generate(outDirAbs);
       // Pure-fn extraction errors halt the build (same contract the old
       // virtual-module load enforced); RT-render diagnostics flow through the
       // per-file transform path.
