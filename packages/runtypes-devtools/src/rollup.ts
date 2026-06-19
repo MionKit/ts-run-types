@@ -1,6 +1,6 @@
-// runtypes-devtools/rollup — the Rollup plugin (`unplugin.rollup`). The
-// virtual-module scheme (\0-prefixed ids) is native to Rollup, so the
-// transform + per-entry cache modules behave the same as under Vite.
+// runtypes-devtools/rollup — the Rollup plugin (`unplugin.rollup`). Rollup
+// resolves the real on-disk modules under `<outDir>/types/` natively, so the
+// transform + generated cache modules behave the same as under Vite.
 import {unplugin} from './unplugin.ts';
 
 export * from './unplugin.ts';
