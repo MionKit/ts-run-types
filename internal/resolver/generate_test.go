@@ -59,10 +59,10 @@ getRunTypeId<{a: number; b: string}>();
 }
 
 // TestGenerate_InfersOutDir verifies that an empty OutDir is not an error:
-// the resolver infers <srcDir>/runtypes from the program and echoes the
+// the resolver infers <srcDir>/__runtypes from the program and echoes the
 // resolved absolute path so the dependency-free plugin can adopt it. The
 // inline program's files all sit under the temp cwd, so the inferred srcDir
-// is that cwd and modules land under <cwd>/runtypes/types.
+// is that cwd and modules land under <cwd>/__runtypes/types.
 func TestGenerate_InfersOutDir(t *testing.T) {
 	const src = `import {getRunTypeId} from 'ts-runtypes';
 getRunTypeId<{a: number}>();
@@ -75,8 +75,8 @@ getRunTypeId<{a: number}>();
 	if resp.OutDir == "" {
 		t.Fatal("OpGenerate did not echo the inferred OutDir")
 	}
-	if filepath.Base(resp.OutDir) != "runtypes" {
-		t.Fatalf("inferred OutDir %q does not end in /runtypes", resp.OutDir)
+	if filepath.Base(resp.OutDir) != "__runtypes" {
+		t.Fatalf("inferred OutDir %q does not end in /__runtypes", resp.OutDir)
 	}
 	// The inferred dir must actually hold the generated modules.
 	if len(resp.Generated) == 0 {
@@ -85,6 +85,41 @@ getRunTypeId<{a: number}>();
 	first := filepath.Join(resp.OutDir, "types", filepath.FromSlash(resp.Generated[0])+".js")
 	if _, err := os.Stat(first); err != nil {
 		t.Fatalf("module %q not written under inferred dir: %v", resp.Generated[0], err)
+	}
+}
+
+// TestGenerate_RefusesOutDirInUse pins the collision guard: pointing the output
+// dir at a directory that already holds non-RunTypes content (a hand-authored
+// source folder) must abort with an actionable error naming the foreign entry,
+// instead of scattering generated modules over the user's files. A dir holding
+// only the recognized RunTypes members (types/, enriched/, VCS markers) is
+// still accepted.
+func TestGenerate_RefusesOutDirInUse(t *testing.T) {
+	const src = `import {getRunTypeId} from 'ts-runtypes';
+getRunTypeId<{a: number}>();
+`
+	r := setupInline(t, map[string]string{"a.ts": src})
+
+	// Collision case: a pre-existing dir with a hand-authored source file.
+	inUse := t.TempDir()
+	if err := os.WriteFile(filepath.Join(inUse, "entryTuple.ts"), []byte("export const x = 1;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: inUse})
+	if resp.Error == "" {
+		t.Fatal("expected OpGenerate to refuse an output dir already in use, got no error")
+	}
+	if !strings.Contains(resp.Error, "entryTuple.ts") || !strings.Contains(resp.Error, "refusing") {
+		t.Fatalf("error should name the foreign entry and explain the refusal, got: %s", resp.Error)
+	}
+
+	// Accepted: a dir containing only recognized RunTypes members.
+	okDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(okDir, "enriched"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if resp := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: okDir}); resp.Error != "" {
+		t.Fatalf("a RunTypes-only output dir (enriched/ present) must be accepted, got: %s", resp.Error)
 	}
 }
 
@@ -131,7 +166,7 @@ interface Thing { id: string }
 export const isThing = createValidate<Thing>();
 `
 	r := setupInline(t, map[string]string{"a.ts": src})
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpTransform, Files: []string{"a.ts"}, OutDir: "runtypes"})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpTransform, Files: []string{"a.ts"}, OutDir: "__runtypes"})
 	if resp.Error != "" {
 		t.Fatalf("transform: %s", resp.Error)
 	}
@@ -142,7 +177,7 @@ export const isThing = createValidate<Thing>();
 	if strings.Contains(out, "virtual:rt/") {
 		t.Fatalf("files-mode transform still injects virtual:rt imports:\n%s", out)
 	}
-	if !strings.Contains(out, "from './runtypes/types/") {
-		t.Fatalf("expected a relative ./runtypes/types/ import:\n%s", out)
+	if !strings.Contains(out, "from './__runtypes/types/") {
+		t.Fatalf("expected a relative ./__runtypes/types/ import:\n%s", out)
 	}
 }

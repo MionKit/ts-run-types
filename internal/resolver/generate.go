@@ -20,11 +20,50 @@ const typesSubdir = "types"
 // becomes <typesDir>/<basename>.js — slashed basenames nest into subdirs.
 const moduleFileExt = ".js"
 
+// outputDirAllowedMembers are the only top-level entries a RunTypes files-mode
+// output root may already contain for us to treat it as ours: the generated
+// `types/` half, the committed `enriched/` half, and the VCS-hygiene markers.
+// Anything else (a hand-authored `.ts` source file, an unrelated subfolder)
+// means the dir is in use by something that is NOT RunTypes output.
+var outputDirAllowedMembers = map[string]bool{
+	typesSubdir:  true, // "types"
+	"enriched":   true,
+	".gitignore": true,
+	".gitkeep":   true,
+	".DS_Store":  true, // macOS finder noise — harmless, never our concern
+}
+
+// ensureOutDirAvailable refuses to scatter generated modules across a directory
+// that already holds non-RunTypes content. A missing, empty, or
+// recognized-RunTypes output root is fine; a foreign entry means the configured
+// (or inferred) outDir collides with a real directory, so we abort with an
+// actionable error rather than clobbering the user's files. Files-mode has no
+// virtual fallback, so this is a hard stop — the caller surfaces it and crashes.
+func ensureOutDirAvailable(outDir string) error {
+	entries, err := os.ReadDir(outDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // fresh dir — nothing to collide with
+		}
+		return fmt.Errorf("checking RunTypes output dir %s: %w", outDir, err)
+	}
+	for _, entry := range entries {
+		if outputDirAllowedMembers[entry.Name()] {
+			continue
+		}
+		return fmt.Errorf("refusing to generate RunTypes output into %s: it already contains %q, which is not RunTypes-generated output — point the plugin's `outDir` (or the CLI) at a dedicated, empty folder; the default is <srcDir>/%s", outDir, entry.Name(), outputDirName)
+	}
+	return nil
+}
+
 // generateToDisk materializes every entry-module source under
 // <outDir>/types/, prunes generated files no longer in the set, and returns
 // the sorted manifest of live basenames. It is the filesystem analogue of
 // shipping Response.EntryModules over the wire.
 func generateToDisk(outDir string, modules map[string]string) ([]string, error) {
+	if err := ensureOutDirAvailable(outDir); err != nil {
+		return nil, err
+	}
 	typesDir := filepath.Join(outDir, typesSubdir)
 	if err := os.MkdirAll(typesDir, 0o755); err != nil {
 		return nil, unwritableOutDirError(typesDir, err)
@@ -87,12 +126,15 @@ func (resolver *Resolver) absPath(p string) string {
 }
 
 // outputDirName is the project-folder name the files-mode output lands under
-// when no explicit outDir is configured: <srcDir>/runtypes/{types,enriched}.
-const outputDirName = "runtypes"
+// when no explicit outDir is configured: <srcDir>/__runtypes/{types,enriched}.
+// The `__` prefix keeps the generated tree from colliding with a hand-authored
+// `runtypes/` source dir (the marker package itself ships one) and reads as
+// "generated — safe to gitignore wholesale".
+const outputDirName = "__runtypes"
 
 // resolveOutDir turns the request's (possibly empty) OutDir into the absolute
 // output root. An explicit value is absolutized as-is; an empty value infers
-// <srcDir>/runtypes from the tsconfig so a consumer that can't parse tsconfig
+// <srcDir>/__runtypes from the tsconfig so a consumer that can't parse tsconfig
 // (the dependency-free plugin) gets a sensible default it can adopt.
 func (resolver *Resolver) resolveOutDir(requested string) string {
 	if requested != "" {

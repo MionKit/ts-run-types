@@ -68,9 +68,9 @@ describe('vite build / per-entry code splitting', () => {
               tsconfig: 'tsconfig.test.json',
               cacheDir: false,
               // Isolated output root: the marker package's own vitest writes to
-              // <PACKAGE_ROOT>/runtypes with a different program, so a shared dir
+              // <PACKAGE_ROOT>/__runtypes with a different program, so a shared dir
               // would race-prune these fixtures' modules. Cleaned with FIXTURE_DIR.
-              outDir: path.join(FIXTURE_DIR, 'runtypes'),
+              outDir: path.join(FIXTURE_DIR, '__runtypes'),
             }) as never,
           ],
           build: {
