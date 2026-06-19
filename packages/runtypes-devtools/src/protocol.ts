@@ -310,7 +310,7 @@ export interface Request {
   // Go-side Request.IncludeMetrics; zero measurement cost when unset.
   includeMetrics?: boolean;
   // generate / transform — the resolved RunTypes output root (e.g.
-  // <srcDir>/runtypes). `generate` writes modules under <outDir>/types/;
+  // <srcDir>/__runtypes). `generate` writes modules under <outDir>/types/;
   // `transform` injects imports relative to it. Empty keeps virtual specifiers.
   outDir?: string;
 }
@@ -405,7 +405,7 @@ export interface Response {
   // `generate` op (the current build's filesystem output).
   generated?: string[];
   // The output root `generate` actually wrote to. When the request left
-  // outDir empty the resolver infers <srcDir>/runtypes from the tsconfig and
+  // outDir empty the resolver infers <srcDir>/__runtypes from the tsconfig and
   // echoes the absolute path here so the plugin can adopt it.
   outDir?: string;
   // One TransformResult per file for the `transform` op: rewritten source +

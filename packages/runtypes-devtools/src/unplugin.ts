@@ -27,7 +27,7 @@ export interface PluginOptions {
   // RunTypes output root, resolved relative to cwd. The build writes the
   // generated cache modules under `<outDir>/types/` (gitignored) and the
   // committed enrichment under `<outDir>/enriched/`. When omitted, the
-  // resolver infers `<srcDir>/runtypes` from the tsconfig (rootDir →
+  // resolver infers `<srcDir>/__runtypes` from the tsconfig (rootDir →
   // common-ancestor of the program's files → baseUrl → cwd). The folder lives
   // in the project (not node_modules) so a dev watcher sees regenerated modules.
   outDir?: string;
@@ -103,7 +103,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   const options = rawOptions ?? {};
   let resolver: ResolverClient | null = null;
   let cwdAbs = '';
-  // The resolved RunTypes output root (<cwd>/runtypes by default). Set by
+  // The resolved RunTypes output root (<cwd>/__runtypes by default). Set by
   // ensureResolver once cwdAbs is known; modules land under <outDirAbs>/types.
   let outDirAbs = '';
   // Vite's resolved root, captured in configResolved. Stays empty under every
@@ -120,7 +120,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     if (resolver) return;
     cwdAbs = path.resolve(options.cwd ?? (viteRoot || process.cwd()));
     // Explicit outDir is resolved up front; otherwise leave it empty and let
-    // the resolver infer <srcDir>/runtypes from the tsconfig at buildStart —
+    // the resolver infer <srcDir>/__runtypes from the tsconfig at buildStart —
     // the plugin can't parse tsconfig without a dep, so the Go side owns the
     // default and echoes the resolved path back from generate().
     outDirAbs = options.outDir ? path.resolve(cwdAbs, options.outDir) : '';
@@ -187,7 +187,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     async buildStart(this: any) {
       ensureResolver();
       // generate writes the modules and, when outDirAbs is empty, returns the
-      // resolver-inferred <srcDir>/runtypes. Adopt that resolved path before
+      // resolver-inferred <srcDir>/__runtypes. Adopt that resolved path before
       // ensuring the VCS-hygiene files so .gitignore/.gitkeep land in the
       // right tree and every later transform/HMR call reuses it.
       const gen = await resolver!.generate(outDirAbs || undefined);
