@@ -226,4 +226,29 @@ getRunTypeId<X>();
       expect(a!.readonly).toBe(true);
     }
   );
+
+  // ---- cross-form hash equivalence (marker coverage rule) ----------------
+
+  // The same Required<T> reached via the static form in one file and the
+  // reflect form in another collapses to a single cache entry — the
+  // hash-equivalence assertion the marker coverage rule requires.
+  runTest(
+    'Required<T> static and reflect forms share one cache id',
+    {
+      'req_static.ts': `import {getRunTypeId} from 'ts-runtypes';
+type T = Required<{a?: string}>;
+getRunTypeId<T>();
+`,
+      'req_reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
+type T = Required<{a?: string}>;
+declare const value: T;
+getRunTypeId(value);
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      const objects = Object.values(cache.byHash).filter((t) => (t.children ?? []).some((m) => m.name === 'a'));
+      expect(objects.length).toBe(1);
+    }
+  );
 });
