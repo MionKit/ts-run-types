@@ -1,6 +1,10 @@
 package typefns
 
-import "github.com/mionkit/ts-runtypes/internal/protocol"
+import (
+	"strings"
+
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+)
 
 // union_strip.go projects a union's member list to its DataOnly view for the
 // emit layer. Members whose kind DataOnly strips to `never` (symbol /
@@ -38,6 +42,33 @@ func isStrippedUnionMember(resolved *protocol.RunType) bool {
 	return false
 }
 
+// strippedMemberLabel returns a short, user-facing label for a dropped union
+// member — the value the build-time Warning substitutes for {0}. Uses the
+// user's own type vocabulary (the class name for a built-in, the lowercase
+// kind otherwise), never compiler-internal jargon.
+func strippedMemberLabel(resolved *protocol.RunType) string {
+	if resolved == nil {
+		return "value"
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		return "function"
+	}
+	switch resolved.Kind {
+	case protocol.KindSymbol:
+		return "symbol"
+	case protocol.KindNever:
+		return "never"
+	case protocol.KindPromise:
+		return "Promise"
+	case protocol.KindClass:
+		if resolved.Name != "" {
+			return resolved.Name
+		}
+		return "non-serializable value"
+	}
+	return "value"
+}
+
 // dataOnlyUnionMembers returns the union's member refs with DataOnly-stripped
 // members removed. Refs are kept as-is (the caller resolves them lazily, as
 // before), so the surviving slice keeps a gap-free order that doubles as the
@@ -46,6 +77,12 @@ func isStrippedUnionMember(resolved *protocol.RunType) bool {
 // When the filter would remove every member the projection is `never`, so the
 // ORIGINAL list is returned unchanged to preserve the alwaysThrow path (see the
 // file header).
+//
+// A genuine drop (some, not all, stripped) raises a build-time Warning via the
+// active emitter's SlotUnionMemberDropped code — mirroring the property-drop
+// warnings (VL010 etc.) so the silent projection is visible. Dedup-by-code in
+// the walker collapses it to one diagnostic per family per walk; unknown-keys
+// emitters register no code, so the slot is a no-op there.
 func dataOnlyUnionMembers(rt *protocol.RunType, ctx *EmitContext) []*protocol.RunType {
 	children := rt.SafeUnionChildren
 	if len(children) == 0 {
@@ -66,11 +103,15 @@ func dataOnlyUnionMembers(rt *protocol.RunType, ctx *EmitContext) []*protocol.Ru
 		return children
 	}
 	survivors := make([]*protocol.RunType, 0, len(children)-strippedCount)
+	droppedLabels := make([]string, 0, strippedCount)
 	for _, ref := range children {
-		if isStrippedUnionMember(ctx.ResolveRef(ref)) {
+		resolved := ctx.ResolveRef(ref)
+		if isStrippedUnionMember(resolved) {
+			droppedLabels = append(droppedLabels, strippedMemberLabel(resolved))
 			continue
 		}
 		survivors = append(survivors, ref)
 	}
+	ctx.EmitDiagnosticSlot(SlotUnionMemberDropped, strings.Join(droppedLabels, ", "))
 	return survivors
 }

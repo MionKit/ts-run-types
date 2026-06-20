@@ -68,6 +68,7 @@ var prepareForJsonCodes = map[DiagSlot]string{
 	SlotMethodDropped:       diag.CodePJMethodDropped,
 	SlotStaticDropped:       diag.CodePJStaticDropped,
 	SlotSymbolKeyedDropped:  diag.CodePJSymbolKeyedDropped,
+	SlotUnionMemberDropped:  diag.CodePJUnionMemberDropped,
 }
 
 func (PrepareForJsonEmitter) DiagCodeFor(slot DiagSlot) string { return prepareForJsonCodes[slot] }
@@ -92,6 +93,7 @@ var prepareForJsonSafeCodes = map[DiagSlot]string{
 	SlotMethodDropped:       diag.CodePJSMethodDropped,
 	SlotStaticDropped:       diag.CodePJSStaticDropped,
 	SlotSymbolKeyedDropped:  diag.CodePJSSymbolKeyedDropped,
+	SlotUnionMemberDropped:  diag.CodePJSUnionMemberDropped,
 }
 
 func (PrepareForJsonSafeEmitter) DiagCodeFor(slot DiagSlot) string {
@@ -118,6 +120,7 @@ var restoreFromJsonCodes = map[DiagSlot]string{
 	SlotMethodDropped:       diag.CodeRJMethodDropped,
 	SlotStaticDropped:       diag.CodeRJStaticDropped,
 	SlotSymbolKeyedDropped:  diag.CodeRJSymbolKeyedDropped,
+	SlotUnionMemberDropped:  diag.CodeRJUnionMemberDropped,
 }
 
 func (RestoreFromJsonEmitter) DiagCodeFor(slot DiagSlot) string { return restoreFromJsonCodes[slot] }
@@ -142,6 +145,7 @@ var stringifyJsonCodes = map[DiagSlot]string{
 	SlotMethodDropped:       diag.CodeSJMethodDropped,
 	SlotStaticDropped:       diag.CodeSJStaticDropped,
 	SlotSymbolKeyedDropped:  diag.CodeSJSymbolKeyedDropped,
+	SlotUnionMemberDropped:  diag.CodeSJUnionMemberDropped,
 }
 
 func (StringifyJsonEmitter) DiagCodeFor(slot DiagSlot) string { return stringifyJsonCodes[slot] }
@@ -167,6 +171,7 @@ var toBinaryCodes = map[DiagSlot]string{
 	SlotMethodDropped:       diag.CodeTBMethodDropped,
 	SlotStaticDropped:       diag.CodeTBStaticDropped,
 	SlotSymbolKeyedDropped:  diag.CodeTBSymbolKeyedDropped,
+	SlotUnionMemberDropped:  diag.CodeTBUnionMemberDropped,
 }
 
 func (ToBinaryEmitter) DiagCodeFor(slot DiagSlot) string { return toBinaryCodes[slot] }
@@ -192,6 +197,7 @@ var fromBinaryCodes = map[DiagSlot]string{
 	SlotMethodDropped:       diag.CodeFBMethodDropped,
 	SlotStaticDropped:       diag.CodeFBStaticDropped,
 	SlotSymbolKeyedDropped:  diag.CodeFBSymbolKeyedDropped,
+	SlotUnionMemberDropped:  diag.CodeFBUnionMemberDropped,
 }
 
 func (FromBinaryEmitter) DiagCodeFor(slot DiagSlot) string { return fromBinaryCodes[slot] }
@@ -213,6 +219,7 @@ var validateCodes = map[DiagSlot]string{
 	SlotMethodDropped:       diag.CodeVLMethodDropped,
 	SlotStaticDropped:       diag.CodeVLStaticDropped,
 	SlotSymbolKeyedDropped:  diag.CodeVLSymbolKeyedDropped,
+	SlotUnionMemberDropped:  diag.CodeVLUnionMemberDropped,
 	SlotRootAnyUnknown:      diag.CodeVLRootAnyUnknown,
 }
 
