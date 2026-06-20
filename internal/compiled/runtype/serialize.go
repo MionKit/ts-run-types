@@ -101,6 +101,15 @@ type Cache struct {
 	// reserved placeholder created in assignID is overwritten, so IsCircular
 	// must be set on the final node, not the placeholder).
 	circularIDs map[string]bool
+
+	// overrides is the `overrideX<T>(pureFn)` table built by the resolver's
+	// early override-collection pass, keyed by a node's BASE structural key →
+	// family op key → cfn body hash. Threaded into every id computer (bound +
+	// foreign) so structural ids fold the override suffix, and read in assignID
+	// to stamp RunType.Overrides onto the projected node. Nil until SetOverrides
+	// runs (which MUST precede any AssignID — the id caches must not hold
+	// pre-fold ids).
+	overrides map[string]map[string]string
 }
 
 // NewCache constructs an empty Cache bound to the supplied checker.
@@ -155,6 +164,24 @@ func (cache *Cache) Clear() {
 	cache.foreignComputers = nil
 	cache.inProgress = make(map[string]bool)
 	cache.circularIDs = make(map[string]bool)
+	cache.overrides = nil
+	if cache.typeChecker != nil {
+		cache.idComputer = typeid.New(cache.typeChecker)
+	}
+}
+
+// SetOverrides installs the `overrideX<T>(pureFn)` table (built by the
+// resolver's early override-collection pass) so every subsequent structural-id
+// computation folds the `|cfn:…` suffix and every projected node is stamped
+// with RunType.Overrides. MUST be called before any AssignID for the session:
+// it recreates the id computers (whose caches must not already hold pre-fold
+// ids). A nil/empty table is a no-op fold (the plain id path).
+func (cache *Cache) SetOverrides(overrides map[string]map[string]string) {
+	cache.overrides = overrides
+	if cache.typeChecker != nil {
+		cache.idComputer = typeid.NewWithOverrides(cache.typeChecker, overrides)
+	}
+	cache.foreignComputers = nil
 }
 
 // Rebind points the cache at a new checker. Called after a Program swap so
@@ -169,7 +196,7 @@ func (cache *Cache) Clear() {
 func (cache *Cache) Rebind(typeChecker *checker.Checker) {
 	cache.typeChecker = typeChecker
 	if typeChecker != nil {
-		cache.idComputer = typeid.New(typeChecker)
+		cache.idComputer = typeid.NewWithOverrides(typeChecker, cache.overrides)
 	} else {
 		cache.idComputer = nil
 	}
@@ -264,7 +291,7 @@ func (cache *Cache) computerFor(typeChecker *checker.Checker) *typeid.Computer {
 	}
 	computer, ok := cache.foreignComputers[typeChecker]
 	if !ok {
-		computer = typeid.New(typeChecker)
+		computer = typeid.NewWithOverrides(typeChecker, cache.overrides)
 		cache.foreignComputers[typeChecker] = computer
 	}
 	return computer
@@ -458,11 +485,34 @@ func (cache *Cache) assignID(tsType *checker.Type) string {
 	if cache.circularIDs[id] && node != nil {
 		node.IsCircular = true
 	}
+	if node != nil {
+		cache.stampOverrides(node, tsType)
+	}
 	// Replace the placeholder in place (insertOrder already holds id) and
 	// stamp the final node's Family/NotSupported fields.
 	protocol.PopulateFamily(node)
 	cache.nodes[id] = node
 	return id
+}
+
+// stampOverrides copies the `overrideX<T>(pureFn)` families targeting tsType
+// onto the projected node so the type-fn emitter can substitute a cfn redirect.
+// Looked up by the node's BASE structural key (the override map's key); a copy
+// is taken so the node never shares the override table's map. No-op when the
+// type is not overridden or no override table is installed.
+func (cache *Cache) stampOverrides(node *protocol.RunType, tsType *checker.Type) {
+	if cache.idComputer == nil || len(cache.overrides) == 0 {
+		return
+	}
+	families := cache.idComputer.OverridesForBaseKey(cache.idComputer.BaseStructuralKey(tsType))
+	if len(families) == 0 {
+		return
+	}
+	out := make(map[string]string, len(families))
+	for family, hash := range families {
+		out[family] = hash
+	}
+	node.Overrides = out
 }
 
 // internEmpty creates a placeholder entry for nil/unknown types so consumers
