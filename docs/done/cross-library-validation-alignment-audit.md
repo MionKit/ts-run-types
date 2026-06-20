@@ -5,12 +5,12 @@ write-up is [`docs/cross-library-validation-alignment-report.md`](../cross-libra
 
 ## What shipped
 
-- Collector in the shared harness: [`container-benchmarks/shared/harness/audit.ts`](../../container-benchmarks/shared/harness/audit.ts)
+- Collector in the shared harness: [`container/benchmarks/shared/harness/audit.ts`](../../container/benchmarks/shared/harness/audit.ts)
   (`auditCompetitor` / `writeAudit` / `maybeAudit`) plus a safe value serializer
-  [`repr.ts`](../../container-benchmarks/shared/harness/repr.ts) (open question 2).
+  [`repr.ts`](../../container/benchmarks/shared/harness/repr.ts) (open question 2).
   Each competitor `main.ts` calls `maybeAudit`, gated on `AUDIT_ALIGNMENT=1`.
 - Driver + aggregator + classifier under
-  [`container-benchmarks/_audit/`](../../container-benchmarks/_audit/):
+  [`container/benchmarks/_audit/`](../../container/benchmarks/_audit/):
   `run-audit.mjs` (step 0, joins per-competitor records into
   `results/alignment-misalignments.json`), `classify.mjs` (step 1, buckets each
   finding and harvests the declared NOT_SUPPORTED + override catalog), and
@@ -20,7 +20,7 @@ write-up is [`docs/cross-library-validation-alignment-report.md`](../cross-libra
 - The report (steps 2 + 3) committed at
   [`docs/cross-library-validation-alignment-report.md`](../cross-library-validation-alignment-report.md),
   cross-linked from [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) and the benchmark README.
-- A public **Correctness** website page (`container-website/content/7.benchmarks/0.correctness.md`)
+- A public **Correctness** website page (`container/website/content/7.benchmarks/0.correctness.md`)
   that reuses the existing competitor `::bench-table` to show divergences-from-ts-runtypes
   per case (0 = aligned), fed by a new `alignment` bench in
   [`scripts/gen-bench-docs.mjs`](../../scripts/gen-bench-docs.mjs) that reads the audit's

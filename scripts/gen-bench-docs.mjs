@@ -362,7 +362,7 @@ function buildTypecostBench() {
 // ── alignment (correctness) bench ────────────────────────────────────────────
 // Cross-library correctness: for every case, how many shared samples each competitor
 // disagrees with ts-runtypes on (0 = fully aligned). Reads the alignment audit's
-// joined output (container-benchmarks/results/alignment-misalignments.json, produced by
+// joined output (container/benchmarks/results/alignment-misalignments.json, produced by
 // `pnpm run audit:alignment`). Reuses the SAME competitor table as the speed pages:
 // unit = count so 0 is the best (green) value and divergences ramp toward red; n-a =
 // the competitor doesn't support the case. The per-case hover shows each library's

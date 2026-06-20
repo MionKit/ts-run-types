@@ -9,7 +9,7 @@
 // happens in-process (so the ts-runtypes / typia transforms run); this only reads
 // the JSON those runs produced. Idempotent; re-running overwrites the joined file.
 //
-// Usage (from container-benchmarks/, after the per-competitor audit runs):
+// Usage (from container/benchmarks/, after the per-competitor audit runs):
 //   node _audit/run-audit.mjs
 // The full container flow is `pnpm run audit:alignment` (see package.json), which
 // builds + audit-runs every competitor first, then calls this.

@@ -6,7 +6,7 @@ each disagreement happens, and answers the question the audit exists to answer:
 is ts-runtypes ever the surprising one?
 
 It is produced by the alignment audit under
-[`container-benchmarks/_audit/`](../container-benchmarks/_audit/). The audit is an
+[`container/benchmarks/_audit/`](../container/benchmarks/_audit/). The audit is an
 analysis pass, not a code change. Nothing in the library, the rewrite pipeline, or
 any competitor case file is modified by it. Everything it recommends is captured
 at the end of this document as follow-up candidates.
@@ -65,9 +65,9 @@ To reproduce:
 
 ```bash
 # zod / TypeBox / ajv / typia, on the host (no container needed)
-node container-benchmarks/_audit/host-collect.mjs
-node container-benchmarks/_audit/run-audit.mjs
-node container-benchmarks/_audit/classify.mjs
+node container/benchmarks/_audit/host-collect.mjs
+node container/benchmarks/_audit/run-audit.mjs
+node container/benchmarks/_audit/classify.mjs
 
 # all five competitors, inside the shared image (the canonical full run, runs
 # ts-runtypes for real too)
