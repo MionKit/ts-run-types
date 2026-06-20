@@ -104,6 +104,22 @@ validate<User>(payload, 'mNr4Vw');
 
 A free type parameter (a call inside a generic body where the marker's `T` is the wrapper's own type variable) is _skipped_ — the wrapper must propagate by declaring `id?: InjectRunTypeId<T>` itself and the injection happens at the wrapper's own call sites.
 
+### Custom per-type overrides — `overrideX<T>(pureFn)`
+
+Escape hatch for a hand-tuned hot path, a wire format the structural emitter can't produce, or a one-off compiler bug. Register a custom **pure function** for one `T`; every `createX<T>()` then returns it instead of the generated body — and because the override folds into `T`'s type id, it propagates to every type that contains `T`:
+
+```ts
+import {overrideJsonEncoder, createJsonEncoder} from 'ts-runtypes';
+
+// Declared once, near the type. The fn MUST be pure (same rules as PureFunction).
+overrideJsonEncoder<User>((u) => `{"id":${(u as User).id}}`);
+
+// Anywhere else — picks up the custom encoder, no other change:
+const encode = createJsonEncoder<User>();
+```
+
+One override per `(family, type)` (a conflicting second one is a build error). A twin exists for every public factory (`overrideValidate`, `overrideJsonEncoder`, `overrideBinaryEncoder`, …). The override fn must match the family's compiled signature — the same one the emitter uses internally.
+
 ## CLI
 
 ### One-shot (stdio JSON)
