@@ -83,7 +83,29 @@ async function importExport(packageRoot, subpath) {
   return import(pathToFileURL(path.join(packageRoot, rel)).href);
 }
 
-const tsMod = await importFrom('typescript');
+// The extractor only needs `typescript` to parse source (AST) — any copy works.
+// typia's dir has @typescript/native-preview, not `typescript`, so fall back to a
+// sibling competitor (or the typecost dir) that ships the `typescript` package.
+async function resolveTypescript() {
+  const competitors = path.resolve(COMPETITOR_DIR, '..');
+  const candidates = [
+    COMPETITOR_DIR,
+    path.join(competitors, 'ts-runtypes'),
+    path.join(competitors, 'zod'),
+    path.join(competitors, 'typebox'),
+    path.resolve(competitors, '..', 'typecost'),
+  ];
+  for (const dir of candidates) {
+    try {
+      const r = createRequire(path.join(dir, '__rt_resolve.cjs'));
+      return await import(pathToFileURL(r.resolve('typescript')).href);
+    } catch {
+      /* try next */
+    }
+  }
+  throw new Error('typescript not resolvable from any competitor dir');
+}
+const tsMod = await resolveTypescript();
 const ts = tsMod.default ?? tsMod;
 const {sf, extractTypeForm, extractSchemaCompetitor} = makeExtractors(ts);
 
@@ -184,7 +206,14 @@ let runBuild; // async (probePath) => void — set per competitor below
 async function setupPipeline() {
   if (COMPETITOR === 'typia') {
     const {buildProbe} = await import(pathToFileURL(path.join(COMPETITOR_DIR, 'esbuild.config.mjs')).href);
-    runBuild = (probePath) => buildProbe(probePath);
+    // A probe-scoped tsconfig so ttsc's program includes the probe (typia's own
+    // tsconfig only `include`s cases.ts/main.ts); extends it to keep the typia
+    // transform plugin in compilerOptions.
+    fs.writeFileSync(
+      PROBE_TSCONFIG,
+      JSON.stringify({extends: './tsconfig.json', include: ['__compiletime_probe.ts', '../../shared']}, null, 2)
+    );
+    runBuild = (probePath) => buildProbe(probePath, PROBE_TSCONFIG);
     return;
   }
   // every other competitor builds through vite (ts-runtypes adds the RT plugin).
