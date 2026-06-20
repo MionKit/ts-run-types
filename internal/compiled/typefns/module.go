@@ -169,6 +169,16 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 		if existing, exists := graph[entryID]; exists {
 			return existing.Deps, true
 		}
+		// Override: a custom function registered for this (family, type) replaces
+		// the structural body with a cfn redirect. Only the PLAIN variant is
+		// overridden — option variants (valNL, …) change behaviour the single
+		// override fn can't express, so they fall through to structural emit.
+		if suffix == "" {
+			if cfnHash := overrideHashForTag(runType, settings.Tag); cfnHash != "" {
+				graph.Add(buildRedirectEntry(entryID, settings.Tag, runType, cfnHash, opts))
+				return nil, true // a redirect has no same-family child deps
+			}
+		}
 		rendered := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, suffix, options)
 		if rendered.argsText == "" {
 			return nil, false
@@ -381,6 +391,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// set this to the plain hash so child deps resolve to the plain
 	// entries — the variant only changes the ROOT body, not its children.
 	walker.InnerPrefix = innerPrefix
+	walker.OverrideOpKey = overrideOpKeyForTag(settings.Tag)
 	if len(variantOptions) > 0 {
 		walker.VariantOptions = make(map[string]bool, len(variantOptions))
 		for _, name := range variantOptions {

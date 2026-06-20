@@ -1,6 +1,7 @@
 package resolver_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -13,6 +14,7 @@ const overrideDTS = `declare module 'ts-runtypes' {
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export function createValidate<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
   export function overrideValidate<T>(fn: PureFunction<(v: unknown) => boolean>, id?: InjectTypeFnArgs<T, 'val'>): void;
 }
 `
@@ -68,6 +70,33 @@ getRunTypeId<{a: number; b: string}>();
 	overriddenStruct, _ := idByKind(t, with, protocol.KindObjectLiteral)
 	if plainStruct == overriddenStruct {
 		t.Fatalf("override did not propagate to the containing struct: both %q", overriddenStruct)
+	}
+}
+
+// TestOverride_EmitsRedirectAndCfnModule proves the override is functional: a
+// createValidate over a struct whose `string` field is overridden emits a
+// validate redirect that calls the cfn (utl.usePureFn('cfn::…')) for that field,
+// and the cfn module carries the user's body — propagation through the emitter.
+func TestOverride_EmitsRedirectAndCfnModule(t *testing.T) {
+	files := map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": `import {createValidate, overrideValidate} from 'ts-runtypes';
+overrideValidate<string>((v) => typeof v === 'string');
+export const isObj = createValidate<{a: number; b: string}>();
+`,
+	}
+	r := setupInline(t, files)
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}, IncludeEntryModules: true})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	validateSources := familyEntrySources(resp, "validate")
+	if !strings.Contains(validateSources, "usePureFn(") || !strings.Contains(validateSources, "cfn::") {
+		t.Fatalf("validate family missing cfn redirect:\n%s", validateSources)
+	}
+	all := allEntrySources(resp)
+	if !strings.Contains(all, "typeof v === 'string'") {
+		t.Fatalf("cfn module missing the override body:\n%s", all)
 	}
 }
 

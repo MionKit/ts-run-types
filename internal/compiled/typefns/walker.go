@@ -112,6 +112,14 @@ type Walker struct {
 	// NewWalker so dispatch can compose namespaced childIDs and the
 	// renderer's dep tracking is consistent with the factory keys.
 	InnerPrefix string
+	// OverrideOpKey is this walker's family op key ("val", "tb", …), used to
+	// detect a child node that carries an `overrideX<T>(pureFn)` for THIS
+	// family (rt.Overrides[OverrideOpKey] != ""). Such a child must be
+	// dependency-called — never inlined — so the parent references the child's
+	// cfn-redirect entry instead of inlining the structural body. Empty for
+	// walkers whose family is not publicly overridable (internal primitives) or
+	// hand-constructed unit-test walkers.
+	OverrideOpKey string
 	// RefTable resolves KindRef sentinels to their real RunType.
 	// Per `internal/protocol/protocol.go`, all Child / Children /
 	// Parameters slots in the JSON wire form carry refs
@@ -651,7 +659,15 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 	// walks through the flagged node into its members without dispatching
 	// it. Under default mode every compound is external so revisits became
 	// self-calls; allInternal needs the explicit guard.
-	shouldDepend := (!w.Emitter.IsRTInlined(&w.inlineCtx) || w.inlineWouldCycle(rt.ID)) && len(w.Stack) > 1
+	// An overridden child (a node carrying an overrideX<T>(pureFn) for THIS
+	// family) MUST go external so the parent references its cfn-redirect entry
+	// — inlining would splice the structural body and the override would never
+	// run. Forces the dep path AND skips the noop/identity short-circuits below
+	// (the override is by definition not the family identity). Root frames
+	// (Stack == 1) are never redirected here — an overridden root's entry is
+	// substituted upstream in renderEntry.
+	overrideChild := len(w.Stack) > 1 && w.OverrideOpKey != "" && rt.Overrides[w.OverrideOpKey] != ""
+	shouldDepend := overrideChild || ((!w.Emitter.IsRTInlined(&w.inlineCtx) || w.inlineWouldCycle(rt.ID)) && len(w.Stack) > 1)
 	if shouldDepend {
 		// If the child kind isn't supported by this emitter, the
 		// renderer's outer loop won't emit a factory for it. Emitting
@@ -676,7 +692,9 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 		// circular identity bodies: the cycle re-entry dispatches here, the
 		// predicate proves the cycle noop, and the surrounding loop/property
 		// code folds away (Finalize then flags the whole entry).
-		if !w.disableNoopElision {
+		// Override children skip the noop gate: the override body is the user's
+		// contract, not the structural identity the predicate proves.
+		if !overrideChild && !w.disableNoopElision {
 			if predicate, ok := w.Emitter.(NoopTypePredicate); ok {
 				emitCtx := w.getEmitContext(w.Vλl)
 				childIsNoop := predicate.IsNoopType(rt, emitCtx)
