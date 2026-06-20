@@ -110,12 +110,11 @@ export const typiaTsgo = (tsconfig) => {
   };
 };
 
-// Build ONE probe entry through the same typia transform, in-memory (write: false)
-// for timing — the compile-time benchmark (compiletime/compiletime.mjs) imports this.
-// `tsconfig` overrides the tsconfig ttsc resolves the program from (the default,
-// nearest tsconfig.json, only `include`s cases.ts/main.ts, so a probe file isn't in
-// the program and the transform returns nothing).
-export async function buildProbe(entry, tsconfig) {
+// Build ONE probe entry, in-memory (write: false) for timing — the compile-time
+// benchmark imports this. `transform: false` builds WITHOUT the typia transform (plain
+// esbuild bundle, the no-transform baseline); `project` points ttsc at a tsconfig whose
+// program includes the probe (else the transform returns nothing for it).
+export async function buildProbe(entry, project, {transform = true} = {}) {
   await build({
     entryPoints: [entry],
     bundle: true,
@@ -125,8 +124,8 @@ export async function buildProbe(entry, tsconfig) {
     target: 'node22',
     minify: false,
     logLevel: 'silent',
-    ...(tsconfig ? {tsconfig} : {}),
-    plugins: [typiaTsgo(tsconfig)],
+    ...(project ? {tsconfig: project} : {}),
+    plugins: transform ? [typiaTsgo(project)] : [],
   });
 }
 

@@ -1,34 +1,31 @@
-// Compile-time benchmark — the THIRD axis next to runtime throughput (`bench`) and
-// type-instantiation cost (`bench:typecost`). It measures the wall-clock cost every
-// user pays at BUILD time: for one competitor (`--competitor <name>`) it builds a
-// per-case probe through that competitor's REAL build pipeline and times it.
+// Compile-time benchmark — the build-time OVERHEAD each transform-based library adds
+// over a plain compile that produces no validators. Two libraries only (ts-runtypes,
+// typia), measured PER SUITE SECTION (not per case): all of a section's call sites are
+// compiled in ONE file, twice — with the transform OFF (the baseline) and ON.
 //
-//   ts-runtypes      vite + the runtypes-devtools plugin (the Go resolver runs and
-//                    walks the case's type graph, emits the virtual modules)
-//   typia            esbuild + @ttsc/unplugin typia transform (native-Go transform)
-//   zod/typebox/ajv  plain vite, no transform — the baseline (no-transform) columns
+//   ts-runtypes   vite, the runtypes-devtools plugin OFF (baseline) vs ON (the Go
+//                 resolver runs, generates the validators, the bundler emits them)
+//   typia         esbuild, the @ttsc/unplugin typia transform OFF vs ON (its native
+//                 transform inlines validator bodies the compiler then type-checks)
 //
-// Two numbers per case, the disk-cache story the project's compile-time pitch turns on:
-//   cold — RT disk cache wiped first, so the resolver recomputes from scratch (the
-//          honest "first CI build" cost).
-//   warm — immediate rebuild with the cache populated (the marginal no-op rebuild).
-// Both are baseline-subtracted by a trivial probe built the same way, so the number
-// is the MARGINAL per-case transform cost, not the bundler/import/startup scaffold
-// (mirrors how typecost.mjs subtracts a baseline instantiation count). Each cell is
-// the median of N repeats (drop top + bottom) to tame wall-clock wobble.
+// Why per section + on/off — the two fixes for the per-function distortion:
+//  - Per-CASE wall-clock is dominated by fixed bundler/compiler init (lib load, parse,
+//    checker setup), not the function. Batching a whole section amortizes that fixed
+//    cost across many functions, so the transform work is a real fraction of the total.
+//  - The SAME file is built twice (transform off, then on). The init/parse cost is
+//    byte-for-byte identical in both runs, so it CANCELS in the gap; what's left is
+//    purely the transform + generated-function compilation. The overhead is
+//    transform_ms - baseline_ms. Each number is the median of N repeats.
 //
-// Why wall-clock is the headline (not CPU): the RT plugin and typia run their
-// transform in a SUBPROCESS, whose CPU is invisible to process.cpuUsage(); only the
-// wall captures it. CPU is still recorded for the record (meaningful for the
-// no-transform baseline columns, an undercount for the transforming ones).
+// The transform column wipes the RT disk cache first, so it is the honest from-scratch
+// cost (not a cache hit). typia's one-time plugin compile (~200s) persists in the
+// .ttsc volume and is excluded from per-section numbers by a warm-up build before timing.
 //
 // Module resolution: this driver lives at /bench/compiletime but is RUN with cwd =
-// competitors/<name> (the bash dispatch does `cd competitors/<name> && node
-// ../../compiletime/compiletime.mjs`). vite / esbuild / typescript / the bind-mounted
-// plugin all live in THAT competitor's node_modules, so the driver resolves every
-// tool through a require anchored at the competitor dir — exactly how `vite build`
-// there would. The probe is written INTO the competitor dir so its bare imports
-// (`ts-runtypes`, `zod`, …) and the verbatim realworld relative imports resolve.
+// competitors/<name>. vite / esbuild / the bind-mounted plugin all live in THAT
+// competitor's node_modules, so it resolves every tool through a require anchored at
+// the competitor dir. The section probe is written INTO the competitor dir so its
+// bare imports and the verbatim realworld relative imports resolve.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -48,16 +45,14 @@ const intEnv = (name, dflt) => {
 };
 
 const COMPETITOR = argOf('--competitor');
-if (!COMPETITOR) {
-  console.error('compiletime: --competitor <name> is required');
+if (COMPETITOR !== 'ts-runtypes' && COMPETITOR !== 'typia') {
+  console.error('compiletime: --competitor must be ts-runtypes or typia (the transform-based libraries)');
   process.exit(1);
 }
 const COMPETITOR_DIR = process.cwd(); // bash runs us with cwd = competitors/<name>
 const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? '/bench/results';
-const CASE_FILTER = (process.env.BENCH_CASE ?? '').toLowerCase();
-const N_COLD = intEnv('COMPILETIME_N_COLD', 3);
-const N_WARM = intEnv('COMPILETIME_N_WARM', 5);
-const MAX_CASES = intEnv('COMPILETIME_MAX_CASES', 0); // 0 = all
+const SECTION_FILTER = (process.env.BENCH_CASE ?? '').toLowerCase(); // matches section keys
+const N = intEnv('COMPILETIME_N', 5);
 
 const PROBE = path.join(COMPETITOR_DIR, '__compiletime_probe.ts');
 const PROBE_TSCONFIG = path.join(COMPETITOR_DIR, '__compiletime_tsconfig.json');
@@ -68,13 +63,10 @@ const RT_BINARY = process.env.RT_BINARY ?? path.join(COMPETITOR_DIR, 'bin', 'ts-
 // ── tool resolution (anchored at the competitor dir) ─────────────────────────
 
 const req = createRequire(path.join(COMPETITOR_DIR, '__compiletime_resolve.cjs'));
-// Tools with a `require`/CJS entry (vite, esbuild, typescript) resolve through the
-// competitor's node_modules via createRequire.
 const importFrom = async (spec) => import(pathToFileURL(req.resolve(spec)).href);
 
-// runtypes-devtools is import-ONLY (its exports map has no `require` condition), so
-// createRequire can't resolve it. It is bind-mounted at a known path, so read its
-// exports map directly and import the subpath target (honoring the `import` condition).
+// runtypes-devtools is import-ONLY (no `require` condition), so createRequire can't
+// resolve it. It is bind-mounted at a known path, so read its exports map directly.
 async function importExport(packageRoot, subpath) {
   const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
   const entry = pkg.exports?.[subpath] ?? pkg.exports?.['.'];
@@ -83,18 +75,11 @@ async function importExport(packageRoot, subpath) {
   return import(pathToFileURL(path.join(packageRoot, rel)).href);
 }
 
-// The extractor only needs `typescript` to parse source (AST) — any copy works.
-// typia's dir has @typescript/native-preview, not `typescript`, so fall back to a
-// sibling competitor (or the typecost dir) that ships the `typescript` package.
+// The extractor only needs `typescript` to parse source (AST). typia's dir ships
+// @typescript/native-preview, not `typescript`, so fall back to a sibling dir.
 async function resolveTypescript() {
   const competitors = path.resolve(COMPETITOR_DIR, '..');
-  const candidates = [
-    COMPETITOR_DIR,
-    path.join(competitors, 'ts-runtypes'),
-    path.join(competitors, 'zod'),
-    path.join(competitors, 'typebox'),
-    path.resolve(competitors, '..', 'typecost'),
-  ];
+  const candidates = [COMPETITOR_DIR, path.join(competitors, 'ts-runtypes'), path.join(competitors, 'zod'), path.join(competitors, 'typebox')];
   for (const dir of candidates) {
     try {
       const r = createRequire(path.join(dir, '__rt_resolve.cjs'));
@@ -107,144 +92,60 @@ async function resolveTypescript() {
 }
 const tsMod = await resolveTypescript();
 const ts = tsMod.default ?? tsMod;
-const {sf, extractTypeForm, extractSchemaCompetitor} = makeExtractors(ts);
+const {extractTypeForm} = makeExtractors(ts);
 
-// ── probe assembly ───────────────────────────────────────────────────────────
-
-const decls = (locals) => (locals.length ? locals.join('\n') + '\n' : '');
-const wipe = (dir) => {
+const wipe = (p) => {
   try {
-    fs.rmSync(dir, {recursive: true, force: true});
+    fs.rmSync(p, {recursive: true, force: true});
   } catch {
     /* best effort */
   }
 };
+const decls = (locals) => (locals.length ? locals.join('\n') + '\n' : '');
 
-// A tiny ajv extractor: ajv cases inline the schema inside `ajv.compile(ARG)` (no
-// `const schema = …`), so reuse of extractSchemaCompetitor doesn't apply. Pull each
-// case's build-thunk `*.compile(ARG)` first-argument text + any statements declared
-// before it (a shared sub-schema the schema references). Best-effort; a miss falls
-// back to an import-only baseline probe so the column still gets a number.
-function extractAjv(file) {
-  const source = sf(file);
-  const entries = {};
-  source.forEachChild((node) => {
-    if (!ts.isVariableStatement(node)) return;
-    for (const d of node.declarationList.declarations) {
-      if (d.name.getText(source) !== 'cases' || !d.initializer || !ts.isObjectLiteralExpression(d.initializer)) continue;
-      for (const prop of d.initializer.properties) {
-        if (!ts.isPropertyAssignment(prop)) continue;
-        const key = prop.name.getText(source).replace(/['"]/g, '');
-        const obj = prop.initializer;
-        if (!ts.isObjectLiteralExpression(obj)) continue; // NOT_SUPPORTED
-        const build = obj.properties.find((p) => ts.isPropertyAssignment(p) && p.name.getText(source) === 'build');
-        if (!build || !ts.isArrowFunction(build.initializer) || !ts.isBlock(build.initializer.body)) continue;
-        const locals = [];
-        let arg = null;
-        for (const stmt of build.initializer.body.statements) {
-          let compileArg = null;
-          const visit = (n) => {
-            if (compileArg || !n) return;
-            if (ts.isCallExpression(n) && /\.compile$/.test(n.expression.getText(source)) && n.arguments.length) {
-              compileArg = n.arguments[0].getText(source);
-              return;
-            }
-            n.forEachChild(visit);
-          };
-          visit(stmt);
-          if (compileArg) {
-            arg = compileArg;
-            break;
-          }
-          const text = stmt.getText(source);
-          // keep shared sub-schema decls; drop the ajv plumbing we reconstruct ourselves
-          if (!/new Ajv\b|addFormats\b/.test(text)) locals.push(text);
-        }
-        if (arg) entries[key] = {locals, schemaArg: arg};
-      }
-    }
+// ── per-section probe assembly ───────────────────────────────────────────────
+// One file per section: the file preamble once, then every case in the section as a
+// block (locals scoped so a case-local `type Foo` can't collide with a sibling's).
+function sectionProbe(model, keys) {
+  const callOf = (typeText) =>
+    COMPETITOR === 'typia' ? `typia.createIs<${typeText}>()` : `createValidate<${typeText}>()`;
+  const blocks = keys.map((key, i) => {
+    const e = model.entries[key];
+    return `{\n${decls(e.locals)}const __v${i} = ${callOf(e.typeText)};\nvoid __v${i};\n}`;
   });
-  return entries;
+  return `${model.preamble.join('\n')}\n${blocks.join('\n')}\n`;
 }
 
-// Build the probe `.ts` source for one case. Returns null when the case has no
-// extractable form for this competitor (NOT_SUPPORTED).
-function probeFor(model, key) {
-  const e = model.entries[key];
-  if (!e) return null;
-  const pre = model.preamble.join('\n');
-  if (model.kind === 'type') {
-    const call = COMPETITOR === 'typia' ? `typia.createIs<${e.typeText}>()` : `createValidate<${e.typeText}>()`;
-    return `${pre}\n{\n${decls(e.locals)}const __v = ${call};\nvoid __v;\n}\n`;
-  }
-  if (model.kind === 'schema') {
-    return `${pre}\n${decls(e.locals)}const __s = ${e.exprText};\nvoid __s;\n`;
-  }
-  // ajv
-  return `${pre}\n${decls(e.locals)}const __ajv = new Ajv({strict: false, allowUnionTypes: true});\naddFormats(__ajv, {mode: 'full'});\nconst __v = __ajv.compile(${e.schemaArg});\nvoid __v;\n`;
-}
+// ── build pipelines: buildWith(probePath, transform) ─────────────────────────
 
-// The trivial baseline probe per competitor: the same import scaffold with the
-// cheapest possible form, so subtracting its build time leaves the marginal cost.
-function baselineProbe(model) {
-  const pre = model.preamble.join('\n');
-  if (model.kind === 'type') {
-    const call = COMPETITOR === 'typia' ? `typia.createIs<string>()` : `createValidate<string>()`;
-    return `${pre}\nconst __v = ${call};\nvoid __v;\n`;
-  }
-  if (model.kind === 'schema') {
-    const expr = COMPETITOR === 'typebox' ? 'Type.String()' : 'z.string()';
-    return `${pre}\nconst __s = ${expr};\nvoid __s;\n`;
-  }
-  return `${pre}\nconst __ajv = new Ajv({strict: false});\naddFormats(__ajv, {mode: 'full'});\nconst __v = __ajv.compile({type: 'string'});\nvoid __v;\n`;
-}
-
-// ── per-competitor build pipeline ────────────────────────────────────────────
-
-let runBuild; // async (probePath) => void — set per competitor below
+let buildWith; // async (probePath, transform:boolean) => void
 
 async function setupPipeline() {
+  fs.writeFileSync(
+    PROBE_TSCONFIG,
+    JSON.stringify({extends: './tsconfig.json', include: ['__compiletime_probe.ts', '../../shared']}, null, 2)
+  );
+
   if (COMPETITOR === 'typia') {
     const {buildProbe} = await import(pathToFileURL(path.join(COMPETITOR_DIR, 'esbuild.config.mjs')).href);
-    // A probe-scoped tsconfig so ttsc's program includes the probe (typia's own
-    // tsconfig only `include`s cases.ts/main.ts); extends it to keep the typia
-    // transform plugin in compilerOptions.
-    fs.writeFileSync(
-      PROBE_TSCONFIG,
-      JSON.stringify({extends: './tsconfig.json', include: ['__compiletime_probe.ts', '../../shared']}, null, 2)
-    );
-    runBuild = (probePath) => buildProbe(probePath, PROBE_TSCONFIG);
+    buildWith = (probePath, transform) => buildProbe(probePath, PROBE_TSCONFIG, {transform});
     return;
   }
-  // every other competitor builds through vite (ts-runtypes adds the RT plugin).
-  // vite's CJS entry exposes `build` on the default export under dynamic import.
+
   const viteMod = await importFrom('vite');
   const viteBuild = viteMod.build ?? viteMod.default?.build;
   if (typeof viteBuild !== 'function') throw new Error('vite build() not found');
-  let rtPlugin = null;
-  if (COMPETITOR === 'ts-runtypes') {
-    rtPlugin = (await importExport(path.join(COMPETITOR_DIR, 'node_modules', 'runtypes-devtools'), './vite')).default;
-    // A probe-scoped tsconfig so tsgo loads the probe (the competitor's own tsconfig
-    // only `include`s cases.ts/main.ts); compilerOptions come from the base via extends.
-    fs.writeFileSync(
-      PROBE_TSCONFIG,
-      JSON.stringify({extends: './tsconfig.json', include: ['__compiletime_probe.ts', '../../shared']}, null, 2)
-    );
-  }
-  // A FRESH plugin instance per build → a fresh resolver subprocess, so the Go
-  // resolver carries no in-memory state across cases. Combined with wiping the disk
-  // cache for cold builds, this makes "cold" an honest from-scratch resolve (the
-  // resolver's per-type compute), and "warm" an honest disk-cache load.
-  runBuild = (probePath) =>
+  const rtPlugin = (await importExport(path.join(COMPETITOR_DIR, 'node_modules', 'runtypes-devtools'), './vite')).default;
+  // A fresh plugin instance per build → a fresh resolver; combined with wiping the
+  // disk cache before each transform build, the transform column is from-scratch.
+  buildWith = (probePath, transform) =>
     viteBuild({
       configFile: false,
       root: COMPETITOR_DIR,
       logLevel: 'silent',
       clearScreen: false,
       cacheDir: VITE_CACHE,
-      plugins: rtPlugin
-        ? [rtPlugin({binary: RT_BINARY, cwd: COMPETITOR_DIR, tsconfig: '__compiletime_tsconfig.json', cacheDir: RT_CACHE})]
-        : [],
+      plugins: transform ? [rtPlugin({binary: RT_BINARY, cwd: COMPETITOR_DIR, tsconfig: '__compiletime_tsconfig.json', cacheDir: RT_CACHE})] : [],
       build: {
         ssr: probePath,
         write: false,
@@ -257,20 +158,14 @@ async function setupPipeline() {
     });
 }
 
-// One timed build. cold=true wipes the RT + vite caches first so the resolver
-// recomputes; cold=false rebuilds against the populated cache.
-async function timedBuild(probeSource, cold) {
-  fs.writeFileSync(PROBE, probeSource);
-  if (cold) {
-    wipe(RT_CACHE);
+async function timedBuild(transform) {
+  if (transform) {
+    wipe(RT_CACHE); // from-scratch transform (no cache hit)
     wipe(VITE_CACHE);
   }
-  const cpu0 = process.cpuUsage();
   const t0 = process.hrtime.bigint();
-  await runBuild(PROBE);
-  const wallMs = Number(process.hrtime.bigint() - t0) / 1e6;
-  const cpu = process.cpuUsage(cpu0);
-  return {wallMs, cpuMs: (cpu.user + cpu.system) / 1000};
+  await buildWith(PROBE, transform);
+  return Number(process.hrtime.bigint() - t0) / 1e6;
 }
 
 function median(xs) {
@@ -279,149 +174,128 @@ function median(xs) {
     s.shift();
     s.pop();
   }
-  return s.reduce((a, b) => a + b, 0) / s.length;
+  return s.reduce((a, b) => a + b, 0) / s.length || 0;
 }
 
-// Measure cold (N_COLD reps) + warm (N_WARM reps) for one probe source. The first
-// build of a fresh probe is always cold; warm reps reuse the just-populated cache.
-async function measure(probeSource) {
-  const cold = [];
-  const coldCpu = [];
-  for (let i = 0; i < N_COLD; i++) {
-    const m = await timedBuild(probeSource, true);
-    cold.push(m.wallMs);
-    coldCpu.push(m.cpuMs);
+// Median of N baseline (transform off) + N transform (transform on) builds of the
+// current PROBE. Interleaved so a slow moment hits both columns, not just one.
+async function measureSection() {
+  const baseline = [];
+  const transform = [];
+  for (let i = 0; i < N; i++) {
+    baseline.push(await timedBuild(false));
+    transform.push(await timedBuild(true));
   }
-  const warm = [];
-  const warmCpu = [];
-  for (let i = 0; i < N_WARM; i++) {
-    const m = await timedBuild(probeSource, false);
-    warm.push(m.wallMs);
-    warmCpu.push(m.cpuMs);
-  }
-  return {cold: median(cold), warm: median(warm), coldCpu: median(coldCpu), warmCpu: median(warmCpu)};
+  return {baseline: median(baseline), transform: median(transform)};
 }
 
 // ── run ──────────────────────────────────────────────────────────────────────
 
-function loadModel() {
-  const casesFile = path.join(COMPETITOR_DIR, 'cases.ts');
-  if (COMPETITOR === 'ts-runtypes') return {kind: 'type', ...extractTypeForm(casesFile, 'cases', 'createValidate')};
-  if (COMPETITOR === 'typia') return {kind: 'type', ...extractTypeForm(casesFile, 'cases', 'typia.createIs')};
-  if (COMPETITOR === 'zod' || COMPETITOR === 'typebox') return {kind: 'schema', ...extractSchemaCompetitor(casesFile, 'cases')};
-  if (COMPETITOR === 'ajv') {
-    const ext = extractSchemaCompetitor(casesFile, 'cases'); // for the preamble (imports)
-    return {kind: 'ajv', preamble: ext.preamble, entries: extractAjv(casesFile)};
-  }
-  throw new Error(`unknown competitor ${COMPETITOR}`);
-}
+const round = (n) => Math.round(n * 100) / 100;
 
 function cleanup() {
-  for (const f of [PROBE, PROBE_TSCONFIG]) wipe(f);
-  wipe(RT_CACHE);
-  wipe(VITE_CACHE);
+  for (const p of [PROBE, PROBE_TSCONFIG, RT_CACHE, VITE_CACHE]) wipe(p);
 }
 
 async function main() {
-  const model = loadModel();
-  // Row order + keys come from the type-form `keys` (total over the suite) when
-  // present; schema/ajv models only expose supported keys, which is all we measure.
-  const allKeys = model.keys ?? Object.keys(model.entries);
-  let keys = allKeys.filter((k) => model.entries[k] && (!CASE_FILTER || k.toLowerCase().includes(CASE_FILTER)));
-  if (MAX_CASES) keys = keys.slice(0, MAX_CASES);
-  if (!keys.length) {
-    console.error(`compiletime[${COMPETITOR}]: no cases matched (filter='${CASE_FILTER}')`);
+  const callName = COMPETITOR === 'typia' ? 'typia.createIs' : 'createValidate';
+  const model = extractTypeForm(path.join(COMPETITOR_DIR, 'cases.ts'), 'cases', callName);
+
+  // Group supported case keys by section (the dotted prefix), preserving file order.
+  const bySection = new Map();
+  for (const key of model.keys) {
+    if (!model.entries[key]) continue; // NOT_SUPPORTED
+    const section = key.includes('.') ? key.slice(0, key.indexOf('.')) : key;
+    if (SECTION_FILTER && !section.toLowerCase().includes(SECTION_FILTER)) continue;
+    if (!bySection.has(section)) bySection.set(section, []);
+    bySection.get(section).push(key);
+  }
+  if (!bySection.size) {
+    console.error(`compiletime[${COMPETITOR}]: no sections matched (filter='${SECTION_FILTER}')`);
     cleanup();
-    process.exit(CASE_FILTER ? 1 : 0);
+    process.exit(SECTION_FILTER ? 1 : 0);
   }
 
   await setupPipeline();
 
-  // Informational "build floor": one cold+warm build of a trivial probe — the fixed
-  // per-build cost (bundler init + a resolver spawn over the cheapest type). It is
-  // NOT subtracted: per-case marginal cost sits below the wall-clock noise floor, so
-  // subtraction only yields noisy zeros. Cells carry the ABSOLUTE build wall-clock, the
-  // honest "what a build of this case costs"; the no-transform zod/typebox/ajv columns
-  // ARE the baseline (read the transform overhead off the row), and the cold→warm gap
-  // is the disk cache paying for itself.
-  let base = {cold: 0, warm: 0, coldCpu: 0, warmCpu: 0};
-  try {
-    base = await measure(baselineProbe(model));
-  } catch (err) {
-    console.error(`compiletime[${COMPETITOR}]: baseline build failed (${err?.message ?? err}); continuing.`);
+  // Warm up the pipeline before any timing: the FIRST build in the process pays Node
+  // JIT + bundler module init (~1s) and, for ts-runtypes/typia, the first resolver /
+  // ttsc-plugin spawn (typia's is ~200s, compiled once into the .ttsc volume). A
+  // throwaway off+on build of the first section absorbs all of that, so it never lands
+  // on whichever section/column happens to run first (which otherwise biases the
+  // baseline column, since it always runs before the transform column).
+  {
+    const [firstKeys] = bySection.values();
+    fs.writeFileSync(PROBE, sectionProbe(model, firstKeys));
+    try {
+      if (COMPETITOR === 'typia') console.error('compiletime[typia]: warming up the ttsc plugin (one-time, excluded)...');
+      else console.error(`compiletime[${COMPETITOR}]: warming up the pipeline...`);
+      await timedBuild(false);
+      await timedBuild(true);
+    } catch (err) {
+      console.error(`compiletime[${COMPETITOR}]: warm-up failed (${err?.message ?? err})`);
+    }
   }
 
   const rows = [];
   let done = 0;
-  for (const key of keys) {
-    const dot = key.indexOf('.');
-    const group = dot >= 0 ? key.slice(0, dot) : key;
-    const name = dot >= 0 ? key.slice(dot + 1) : key;
-    const src = probeFor(model, key);
-    if (!src) continue;
+  for (const [section, keys] of bySection) {
+    fs.writeFileSync(PROBE, sectionProbe(model, keys));
     try {
-      const m = await measure(src);
+      const m = await measureSection();
       rows.push({
-        key,
-        group,
-        name,
+        section,
+        count: keys.length,
         status: 'ok',
-        cold_ms: round(m.cold),
-        warm_ms: round(m.warm),
-        cold_cpu_ms: round(m.coldCpu),
-        warm_cpu_ms: round(m.warmCpu),
+        baseline_ms: round(m.baseline),
+        transform_ms: round(m.transform),
+        overhead_ms: round(Math.max(0, m.transform - m.baseline)),
       });
     } catch (err) {
-      rows.push({key, group, name, status: 'err', detail: String(err?.message ?? err).slice(0, 200)});
+      rows.push({section, count: keys.length, status: 'err', detail: String(err?.message ?? err).slice(0, 200)});
     }
     done++;
-    if (done % 10 === 0 || done === keys.length) console.error(`compiletime[${COMPETITOR}]: ${done}/${keys.length}`);
+    console.error(`compiletime[${COMPETITOR}]: ${done}/${bySection.size} sections (${section})`);
   }
 
   cleanup();
-  report(model, rows, base);
-  if (!CASE_FILTER) writeResults(rows, base);
+  report(rows);
+  if (!SECTION_FILTER) writeResults(rows);
 }
 
-const round = (n) => Math.round(n * 100) / 100;
-
-function report(model, rows, base) {
+function report(rows) {
   const ok = rows.filter((r) => r.status === 'ok');
-  const errs = rows.filter((r) => r.status === 'err');
-  const avg = (f) => (ok.length ? round(ok.reduce((a, r) => a + r[f], 0) / ok.length) : 0);
-  console.log(`\nCompile-time build cost — ${COMPETITOR} (${ok.length} cases, absolute wall-clock, median of N)`);
-  console.log(`  build floor (trivial probe): cold ${round(base.cold)}ms · warm ${round(base.warm)}ms`);
-  if (ok.length) console.log(`  per-case avg: cold ${avg('cold_ms')}ms · warm ${avg('warm_ms')}ms`);
-  if (errs.length) {
-    console.log(`  ${errs.length} build error(s):`);
-    for (const e of errs.slice(0, 8)) console.log(`    ${e.key}: ${e.detail}`);
+  console.log(`\nCompile-time overhead — ${COMPETITOR} (per section, transform off vs on, median of ${N})`);
+  console.log('  section'.padEnd(22) + 'fns'.padStart(5) + 'baseline'.padStart(12) + '+transform'.padStart(12) + 'overhead'.padStart(12));
+  for (const r of ok) {
+    console.log(
+      ('  ' + r.section).padEnd(22) +
+        String(r.count).padStart(5) +
+        `${r.baseline_ms}ms`.padStart(12) +
+        `${r.transform_ms}ms`.padStart(12) +
+        `${r.overhead_ms}ms`.padStart(12)
+    );
   }
+  for (const r of rows.filter((r) => r.status === 'err')) console.log(`  ${r.section}: ERR ${r.detail}`);
 }
 
-function writeResults(rows, base) {
+function writeResults(rows) {
   fs.mkdirSync(RESULTS_DIR, {recursive: true});
-  const cases = rows.filter((r) => r.status === 'ok').map((r) => ({
-    key: r.key,
-    group: r.group,
-    name: r.name,
-    cold_ms: r.cold_ms,
-    warm_ms: r.warm_ms,
-    cold_cpu_ms: r.cold_cpu_ms,
-    warm_cpu_ms: r.warm_cpu_ms,
+  const sections = rows.filter((r) => r.status === 'ok').map((r) => ({
+    section: r.section,
+    count: r.count,
+    baseline_ms: r.baseline_ms,
+    transform_ms: r.transform_ms,
+    overhead_ms: r.overhead_ms,
   }));
   const out = {
     competitor: COMPETITOR,
-    transform: COMPETITOR === 'ts-runtypes' || COMPETITOR === 'typia',
-    // The fixed per-build floor (trivial probe): bundler init + a from-scratch resolve
-    // of the cheapest type. Cells are ABSOLUTE, so this is the reference floor.
-    floor_cold_ms: round(base.cold),
-    floor_warm_ms: round(base.warm),
-    cases,
-    avg_cold_ms: round(cases.reduce((a, c) => a + c.cold_ms, 0) / (cases.length || 1)),
-    avg_warm_ms: round(cases.reduce((a, c) => a + c.warm_ms, 0) / (cases.length || 1)),
+    sections,
+    total_baseline_ms: round(sections.reduce((a, s) => a + s.baseline_ms, 0)),
+    total_transform_ms: round(sections.reduce((a, s) => a + s.transform_ms, 0)),
   };
   fs.writeFileSync(path.join(RESULTS_DIR, `${COMPETITOR}.compiletime.json`), JSON.stringify(out, null, 2) + '\n');
-  console.log(`\nwrote ${path.join(RESULTS_DIR, `${COMPETITOR}.compiletime.json`)} (${cases.length} cases)`);
+  console.log(`\nwrote ${path.join(RESULTS_DIR, `${COMPETITOR}.compiletime.json`)} (${sections.length} sections)`);
 }
 
 main().catch((err) => {
