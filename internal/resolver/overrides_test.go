@@ -168,6 +168,52 @@ overrideValidate<string>((v) => typeof v === 'string');
 	}
 }
 
+// TestOverride_ValidateEmitsOVR010 — overriding validate warns about its
+// cross-family reach (decoders); overriding a non-shared family does not, and
+// the happy path never trips the OVR002 missing-cfn assert.
+func TestOverride_ValidateEmitsOVR010(t *testing.T) {
+	codes := func(files map[string]string) map[string]int {
+		r := setupInline(t, files)
+		resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}, IncludeEntryModules: true})
+		if resp.Error != "" {
+			t.Fatalf("scanFiles: %s", resp.Error)
+		}
+		out := map[string]int{}
+		for _, d := range resp.Diagnostics {
+			out[d.Code]++
+		}
+		return out
+	}
+
+	valCodes := codes(map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": `import {createValidate, overrideValidate} from 'ts-runtypes';
+overrideValidate<string>((v) => typeof v === 'string');
+export const isString = createValidate<string>();
+`,
+	})
+	if valCodes[diag.CodeOverrideValidateCrossFamily] == 0 {
+		t.Fatalf("expected OVR010 for a validate override, got %+v", valCodes)
+	}
+	if valCodes[diag.CodeOverrideMissingCfn] != 0 {
+		t.Fatalf("happy path tripped OVR002: %+v", valCodes)
+	}
+
+	jsonCodes := codes(map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": `import {createJsonEncoder, overrideJsonEncoder} from 'ts-runtypes';
+overrideJsonEncoder<{id: number}>((v) => '{"id":' + (v as {id: number}).id + '}');
+export const enc = createJsonEncoder<{id: number}>();
+`,
+	})
+	if jsonCodes[diag.CodeOverrideValidateCrossFamily] != 0 {
+		t.Fatalf("OVR010 should fire only for validate overrides, got %+v", jsonCodes)
+	}
+	if jsonCodes[diag.CodeOverrideMissingCfn] != 0 {
+		t.Fatalf("json happy path tripped OVR002: %+v", jsonCodes)
+	}
+}
+
 // TestOverride_AbsentLeavesIDsUnchanged guards the no-override path: a file with
 // no overrideX call produces exactly the same ids it did before the feature
 // (the fold is inert when the override map is empty).

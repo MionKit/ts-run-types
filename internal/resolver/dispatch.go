@@ -166,6 +166,10 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns
 	// rendered (post-fixpoint) so an invariant breach fails the build
 	// instead of crashing at runtime.
 	typefns.AssertCompositeSoftDeps(graph, rtOpts.DiagSink)
+	// Same invariant for cfn redirects: every `utl.usePureFn('cfn::…')` must
+	// have its module in the graph or the build fails (OVR002) instead of
+	// throwing at runtime.
+	typefns.AssertOverrideCfn(graph, rtOpts.DiagSink)
 
 	// Dropping an entry whose same-family dep never rendered mirrors the
 	// pre-migration dangling cascade; the demanded roots that fall out (or
