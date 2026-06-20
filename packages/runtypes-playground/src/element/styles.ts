@@ -40,7 +40,13 @@ export const STYLES = `
 .rt-playground .rtpg-status { font-family: var(--rtpg-mono); font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--rtpg-border); background: var(--rtpg-panel-2); color: var(--rtpg-muted); }
 .rt-playground .rtpg-status[data-state="ready"] { color: var(--rtpg-ok); border-color: var(--rtpg-accent-dim); }
 .rt-playground .rtpg-status[data-state="error"] { color: var(--rtpg-err); border-color: var(--rtpg-err); }
-.rt-playground .rtpg-codeview { flex: 1; overflow: auto; padding: 13px; min-height: 0; }
+.rt-playground .rtpg-codeview { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* The code block fills the whole column so its background reaches the bottom no
+   matter how short the code is; it scrolls internally when the code is taller. */
+.rt-playground .rtpg-codeview > .rtpg-code { flex: 1; margin: 0; border: 0; border-radius: 0; }
+.rt-playground .rtpg-codeview > .rtpg-loading,
+.rt-playground .rtpg-codeview > .rtpg-card-note,
+.rt-playground .rtpg-codeview > .rtpg-placeholder { padding: 13px; }
 .rt-playground .rtpg-result-label { display: flex; align-items: baseline; justify-content: space-between; font-size: 11px; color: var(--rtpg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .rt-playground .rtpg-result { max-height: 160px; overflow: auto; padding: 10px; border: 1px solid var(--rtpg-border); border-radius: 8px; background: var(--rtpg-bg); }
 .rt-playground .rtpg-badge { display: inline-block; font-family: var(--rtpg-mono); font-weight: 700; padding: 6px 12px; border-radius: 8px; margin-bottom: 12px; }
@@ -56,8 +62,11 @@ export const STYLES = `
 .rt-playground .rtpg-diag-item.warning { color: var(--rtpg-warn); border-color: var(--rtpg-warn); }
 .rt-playground .rtpg-placeholder { color: var(--rtpg-muted); font-size: 13px; }
 
-/* Toolbar: preset picker + TS/Schema mode switch. */
-.rt-playground .rtpg-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 13px; border-bottom: 1px solid var(--rtpg-border); background: var(--rtpg-panel); }
+/* Toolbar: the TS/Schema switch + presets sit together in one enclosed group —
+   both choose what fills the Type editor, so grouping shows they are related. */
+.rt-playground .rtpg-toolbar { display: flex; align-items: center; justify-content: flex-start; gap: 12px; flex-wrap: wrap; padding: 10px 13px; border-bottom: 1px solid var(--rtpg-border); background: var(--rtpg-panel); }
+.rt-playground .rtpg-typegroup { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 5px 7px; border: 1px solid var(--rtpg-border); border-radius: 10px; background: var(--rtpg-bg); }
+.rt-playground .rtpg-typegroup-sep { width: 1px; align-self: stretch; background: var(--rtpg-border); margin: 1px 2px; }
 .rt-playground .rtpg-presets { display: flex; gap: 6px; flex-wrap: wrap; }
 .rt-playground .rtpg-preset { background: var(--rtpg-panel-2); color: var(--rtpg-text); border: 1px solid var(--rtpg-border); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; }
 .rt-playground .rtpg-preset:hover { border-color: var(--rtpg-accent-dim); color: var(--rtpg-accent); }
