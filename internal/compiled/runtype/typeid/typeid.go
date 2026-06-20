@@ -35,11 +35,26 @@ type Computer struct {
 	bareCycles bool
 	// sigCache memoises structuralSignature per recursive type.
 	sigCache map[*checker.Type]string
+	// overrides folds `overrideX<T>(pureFn)` registrations into the structural
+	// id. Keyed by a node's BASE structural key (children's overrides already
+	// folded, this node's own NOT yet) → family op key → cfn body hash. When a
+	// node's base key matches, OverrideStructuralKey's `|cfn:…` suffix is
+	// appended, so an overridden type hashes differently from its twin and the
+	// override propagates to every containing type. Nil = no folding (the plain
+	// id path; unit tests / the early override-collection pass).
+	overrides map[string]map[string]string
 }
 
 // New returns a fresh Computer bound to the supplied checker.
 func New(typeChecker *checker.Checker) *Computer {
 	return &Computer{typeChecker: typeChecker, cache: make(map[*checker.Type]string)}
+}
+
+// NewWithOverrides returns a Computer that folds the supplied override map (see
+// the `overrides` field) into every structural id. Used by the main resolver
+// pass once the early override-collection pass has built the map.
+func NewWithOverrides(typeChecker *checker.Checker, overrides map[string]map[string]string) *Computer {
+	return &Computer{typeChecker: typeChecker, cache: make(map[*checker.Type]string), overrides: overrides}
 }
 
 // Compute returns the structural id of tsType. Safe to call repeatedly with
@@ -56,8 +71,13 @@ func (computer *Computer) Compute(tsType *checker.Type) string {
 		return computer.cycleRef(tsType, index)
 	}
 	computer.stack = append(computer.stack, tsType)
-	id := computer.dispatch(tsType)
+	base := computer.dispatch(tsType)
 	computer.stack = computer.stack[:len(computer.stack)-1]
+	// Fold this node's own override suffix AFTER dispatch: `base` already has
+	// children's suffixes (composed via their Compute calls), and the override
+	// map is keyed by exactly this base key. The cache stores the FINAL (folded)
+	// key so parents compose it.
+	id := base + computer.overrideSuffix(base)
 	computer.cache[tsType] = id
 	return id
 }
@@ -111,7 +131,7 @@ func (computer *Computer) structuralSignature(tsType *checker.Type) string {
 	if sig, ok := computer.sigCache[tsType]; ok {
 		return sig
 	}
-	sub := &Computer{typeChecker: computer.typeChecker, cache: make(map[*checker.Type]string), bareCycles: true}
+	sub := &Computer{typeChecker: computer.typeChecker, cache: make(map[*checker.Type]string), bareCycles: true, overrides: computer.overrides}
 	sig := sub.Compute(tsType)
 	computer.sigCache[tsType] = sig
 	return sig
