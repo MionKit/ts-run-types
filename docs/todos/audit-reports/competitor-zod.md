@@ -3,7 +3,12 @@
 - **Competitor:** zod
 - **Version:** 4.4.3
 - **Total cases:** 266 (file declares "EXACTLY 263" in a stale comment; actual key count is 266)
-- **Verdicts:** OK = 215, SUSPECT = 12, WRONG = 39
+- **Verdicts (original audit):** OK = 215, SUSPECT = 12, WRONG = 39
+- **Post-fix status:** 21 rows FIXED (8 WRONG→idiomatic builder/schema, 13 SUSPECT→builder), 5 rows KEPT-as-`z.custom` because the pinned zod 4.4.3 `.d.ts`/runtime disproved the audit's suggested replacement (see the **Fix outcome** note below), and the justified SUSPECT/NOT_SUPPORTED rows are unchanged. Every changed schema was re-verified against the shared samples by running the real zod 4.4.3 build (`.safeParse`).
+
+### Fix outcome — what the d.ts disproved
+
+The audit's central "z.custom plain-object guard is a bypass" premise was **empirically false for the all-optional / non-null-object cases**: zod's internal `isObject` is `typeof === 'object' && !== null && !Array.isArray` — it does **NOT** reject `Date` / `Map` / `Set` / `RegExp`. So a plain `z.object({…optional})` ACCEPTS those, which the samples require rejected (and `.refine` runs on the stripped output `{}`, so it can't catch the original Date either). These stayed `z.custom`: **OBJECT.interface_all_optional**, **UTILITY.partial**, **UTILITY.deep_partial_recursive_mapped**, **ATOMIC.object** (samples require arrays + Date + RegExp accepted; no schema models that). Also **STRING_FORMAT.time_iso** stayed a regex: `z.iso.time()` in 4.4.3 has NO tz/offset option, so it rejects the case's required tz-suffixed values.
 - **NOT_SUPPORTED claims:** 35 total — of which **3 are mis-marked** (`CIRCULAR_REFS.*` are arguably correct as written; the 3 mis-marks are the Temporal-DATETIME claims that conflate "container has no Temporal" with "zod can't express it"; see note). The 32 Temporal DATETIME / DATETIME-atomic claims are *environmentally* unsupported (no Temporal polyfill in the bench container) — correct as a CLAIM about the harness, but NOT a claim that zod-the-library cannot model them. They are marked OK-with-caveat below.
 
 ### Method notes / caveats
@@ -32,7 +37,7 @@
 | ATOMIC.never | never | `z.never()` | yes | yes | OK | |
 | ATOMIC.null | null | `z.null()` | yes | yes | OK | |
 | ATOMIC.number | number (rejects NaN/Inf) | `z.number().finite()` | yes | yes | OK | `.finite()` is the idiomatic v4 way to also reject Infinity; z.number() already rejects NaN |
-| ATOMIC.object | non-null object | `z.custom(v => typeof v==='object' && v!==null)` | yes | no | WRONG | use `z.looseObject({})` / `z.object({}).loose()` — but note that accepts arrays/Date too; arguably `z.custom` is closest. Still: zod has `z.object({})` (rejects non-objects) as a real idiom. Flag: hand-rolled bypass where a schema exists |
+| ATOMIC.object | non-null object | `z.custom(v => typeof v==='object' && v!==null)` | yes | no | KEPT (was WRONG) | **d.ts disproves the fix.** Samples require arrays + Date + RegExp to be ACCEPTED and only null/primitives rejected. `z.object({})`/`z.looseObject({})` both reject arrays (zod's `isObject` rejects arrays), so they fail `[]`. No single zod schema models "any non-null object incl. arrays"; `z.custom` is the only faithful path. Kept as-is. |
 | ATOMIC.regexp | RegExp | `z.instanceof(RegExp)` | yes | yes | OK | idiomatic |
 | ATOMIC.string | string | `z.string()` | yes | yes | OK | |
 | ATOMIC.symbol | symbol (factoryThrows) | `z.symbol()` | n/a (empty samples) | yes | OK | vacuous samples |
@@ -98,7 +103,7 @@
 | OBJECT.index_signature_non_root | {b:string,c:{[k]:string}} | `z.object({b,c:z.record(...)})` | yes | yes | OK | |
 | OBJECT.function_top_level | any function | `z.custom(v => typeof v==='function')` | yes | partial | SUSPECT | hand-rolled, but zod 4 deprecated `z.function()` as a schema (it's now a factory, not a ZodType you can `.safeParse` a fn through). `z.custom` is the pragmatic path; flag+justify |
 | OBJECT.interface_callable | fn + {extra:string} | `z.custom(v => typeof v==='function' && typeof v.extra==='string')` | yes | partial | SUSPECT | same — a callable-with-props can't be modelled by a z.object (zod object guard rejects functions). Hand-rolled is the only path; flag+justify |
-| OBJECT.interface_all_optional | all-optional obj, reject arrays/Date/Map/Set | `z.custom(hand-written plain-object guard)` | yes | NO | WRONG | **TRIGGER BUG.** Replace with `z.object({a:z.string().optional(), b:z.number().finite().optional()})`. zod's object schema already rejects arrays/Date/Map/Set (typeof-object + not-array guard internally) and enforces per-prop optional types. The hand guard bypasses the schema engine entirely |
+| OBJECT.interface_all_optional | all-optional obj, reject arrays/Date/Map/Set | `z.custom(hand-written plain-object guard)` | yes | NO | KEPT (was WRONG) | **d.ts disproves the fix (empirically verified vs zod 4.4.3).** zod's `isObject` = `typeof==='object' && !==null && !Array.isArray` — it does NOT reject Date/Map/Set/RegExp. A plain `z.object({a?,b?})` ACCEPTS `new Date()`/`new Map()`/`new Set()`/`/regex/`, which the invalid set requires rejected. `.refine` runs on the stripped output (`{}`), so it can't see the original Date either. The `z.custom` plain-object guard is the only faithful path. Kept as-is. |
 | OBJECT.class_simple | {date,name} (method skipped) | `z.object({date:z.date(),name})` | yes | yes | OK | |
 | OBJECT.rpc_error_class | branded class w/ special-char key | `z.object({'mion@isΣrrθr':literal(true),type:literal('test-error'),publicMessage,id?})` | yes | yes | OK | idiomatic; special-char key fine as object key |
 | OBJECT.call_signature_params | [number,boolean] | `z.tuple([number.finite,boolean])` | yes | yes | OK | excess-args rejected by tuple (no rest) |
@@ -119,10 +124,10 @@
 |---|---|---|---|---|---|---|
 | TUPLE.string_number_pair | [string,number] | `z.tuple([string,number.finite])` | yes | yes | OK | |
 | TUPLE.full_mion_tuple | [Date,number,string,null,string[],bigint] | `z.tuple([...])` | yes | yes | OK | |
-| TUPLE.tuple_with_optional | [number,bigint?,boolean?,number?] | `z.custom(hand-written array guard)` | yes | NO | WRONG | identical shape to `tuple_multiple_trailing_optionals` below which DOES use `z.tuple([number.finite, z.bigint().optional(), z.boolean().optional(), z.number().finite().optional()])`. Replace with that. Hand-rolled bypass; the proof zod can express it is the sibling case |
+| TUPLE.tuple_with_optional | [number,bigint?,boolean?,number?] | `z.tuple([number.finite, bigint.optional, boolean.optional, number.finite.optional])` | yes | yes | FIXED (was WRONG) | replaced hand-written array guard with the sibling's `z.tuple([...].optional())` form. Verified vs samples (accepts explicit mid `undefined`, rejects excess args). |
 | TUPLE.nested_tuple_in_array | [string,number][] | `z.array(z.tuple([...]))` | yes | yes | OK | |
 | TUPLE.tuple_rest | [number,...string[]] | `z.tuple([number.finite]).rest(z.string())` | yes | yes | OK | |
-| TUPLE.tuple_circular | self-ref tuple, optional 7th slot | `z.lazy(()=>z.custom(hand-written recursive array guard))` | yes | NO | WRONG | zod can model this with `z.tuple([date,number,string,null,array,bigint]).rest(...)`-style or a lazy tuple; the recursive slot is awkward but expressible. Even if rest-vs-optional-7th is tricky, the chosen path bypasses the schema engine entirely via z.custom. Flag: hand-rolled bypass (a lazy z.tuple with an optional trailing self element is the idiomatic attempt) |
+| TUPLE.tuple_circular | self-ref tuple, optional 7th slot | `z.lazy(()=>z.tuple([date,number.finite,string,null,array(string),bigint, z.lazy(()=>self).optional()]))` | yes | yes | FIXED (was WRONG) | replaced the recursive `z.custom` guard with a lazy z.tuple whose 7th slot is an optional self-ref. Verified vs samples (rejects Invalid Date, NaN, wrong bigint slot). |
 | TUPLE.tuple_multiple_trailing_optionals | [number,bigint?,boolean?,number?] | `z.tuple([number.finite,bigint.optional,boolean.optional,number.finite.optional])` | yes | yes | OK | **This is the idiomatic form `tuple_with_optional` should have used** |
 | TUPLE.tuple_named_labels | [string,number] | `z.tuple([string,number.finite])` | yes | yes | OK | labels erased |
 | TUPLE.tuple_with_non_serializable | [number,undefined?] | `z.tuple([number.finite,z.undefined().optional()])` | yes | yes | OK | function slot → undefined; matches data-only semantics |
@@ -143,12 +148,12 @@
 | UNION.union_of_array_types | string[]\|number[]\|boolean[] | `z.union([3 arrays])` | yes | yes | OK | |
 | UNION.array_of_union | (string\|bigint\|boolean\|Date)[] | `z.array(z.union([...]))` | yes | yes | OK | |
 | UNION.union_of_object_shapes | {a,aa}\|{b}\|{c} | `z.union([3 objects])` | yes | yes | OK | structural extra-prop acceptance matches samples |
-| UNION.discriminated_union | {kind:'a',n}\|{kind:'b',s} | `z.union([2 objects])` | yes | partial | SUSPECT | works, but zod 4 has `z.discriminatedUnion('kind', [...])` which is the idiomatic form for a literal-discriminated union. Plain z.union passes the samples but isn't the representative API for this exact pattern |
-| UNION.circular_union | recursive Date\|number\|string\|object\|array | `z.lazy(()=>z.custom(hand-written recursive check))` | yes | NO | WRONG | a recursive union IS expressible with `z.lazy(()=>z.union([z.date(),z.number().finite(),z.string(),z.array(self),z.record(string,self)]))`. The hand-rolled recursive predicate bypasses the schema engine; sibling `CIRCULAR.array_of_union_with_self_ref` proves zod can do lazy recursive unions idiomatically |
+| UNION.discriminated_union | {kind:'a',n}\|{kind:'b',s} | `z.discriminatedUnion('kind', [2 objects])` | yes | yes | FIXED (was SUSPECT) | switched plain z.union to `z.discriminatedUnion('kind', …)` (d.ts-confirmed signature). Verified vs samples. |
+| UNION.circular_union | recursive Date\|number\|string\|object\|array | `z.lazy(()=>z.union([date,number.finite,string,array(self),record(string,self)]))` | yes | yes | FIXED (was WRONG) | replaced the recursive `z.custom` predicate with a lazy recursive z.union. Verified vs samples (rejects bool, Invalid Date, Infinity, Symbol; accepts nested objects/arrays/`{}`/`[]`). |
 | UNION.union_with_methods | {name}\|{age} (methods skipped) | `z.union([{name},{age}])` | yes | yes | OK | |
 | UNION.intersection_to_object | {a,b} merged | `z.object({a,b:number.finite})` | yes | yes | OK | intersection resolves to object; literal is fine (could use z.intersection but the resolved shape is correct) |
 | UNION.union_with_index_arm | {a,aa}\|{b}\|nonempty Record<string,bigint> | `z.union([obj,obj,z.record(string,bigint).refine(len>0)])` | yes | partial | SUSPECT | the `.refine(Object.keys>0)` for "non-empty record" is a legit use (zod has no built-in min-keys on record); acceptable but flag. Note empty {} matching no arm relies on the refine |
-| UNION.union_same_prop_different_types | discriminated, shared prop | `z.union([3 literal-discriminated objects])` | yes | partial | SUSPECT | same as discriminated_union: `z.discriminatedUnion('type', …)` is the representative idiom |
+| UNION.union_same_prop_different_types | discriminated, shared prop | `z.discriminatedUnion('type', [3 objects])` | yes | yes | FIXED (was SUSPECT) | switched to `z.discriminatedUnion('type', …)`. Verified vs samples (rejects bad discriminator, missing prop, wrong-typed prop). |
 | UNION.union_mixed_arrays_and_objects | arrays + objects union | `z.union([3 arrays, 2 objects])` | yes | yes | OK | |
 | UNION.union_merged_property | {a:bool}\|{a:number} | `z.union([{a:boolean},{a:number.finite}])` | yes | yes | OK | |
 | UNION.union_mixed_with_index | arrays + objects + record arm | `z.union([array,obj,obj,record.refine(len>0)])` | yes | partial | SUSPECT | same non-empty-record refine as union_with_index_arm; acceptable, flag |
@@ -169,7 +174,7 @@
 | TEMPLATE_LITERAL.leading_string_placeholder | `${string}/${number}` | `z.templateLiteral([z.string(),'/',z.number()])` | yes | yes | OK | |
 | TEMPLATE_LITERAL.regex_special_chars | `(${number})` | `z.templateLiteral(['(',z.number(),')'])` | yes | yes | OK | escaping handled by zod |
 | TEMPLATE_LITERAL.template_literal_nested_in_object | {url:templateLit,method} | `z.object({url:templateLiteral,method:z.string()})` | yes | yes | OK | |
-| TEMPLATE_LITERAL.template_literal_index_key | `{[k: \`api/${string}\`]:number}` | `z.custom(hand-written key-pattern loop)` | yes | NO | WRONG | zod 4 `z.record(keySchema, valueSchema)` accepts a templateLiteral/regex-constrained **key schema**: `z.record(z.templateLiteral(['api/', z.string()]), z.number().finite())`. The hand-rolled per-key loop bypasses the schema engine. (unverified: exact record-key-pattern enforcement semantics in 4.4.3, but a constrained key schema is the documented idiom) |
+| TEMPLATE_LITERAL.template_literal_index_key | `{[k: \`api/${string}\`]:number}` | `z.record(z.templateLiteral(['api/', z.string()]), z.number().finite())` | yes | yes | FIXED (was WRONG) | replaced the per-key loop with a templateLiteral-keyed z.record. Verified vs samples: a non-matching key (e.g. `{foo:1}` or `{'api/users':1, foo:2}`) rejects the whole record; NaN value rejected. |
 | TEMPLATE_LITERAL.template_literal_union_placeholder | `a-${number}`\|`b-${number}` | `z.union([2 templateLiterals])` | yes | yes | OK | |
 
 ---
@@ -213,7 +218,7 @@
 
 | case key | intended type | implementation (one line) | faithful? | idiomatic? | verdict | issue / suggested fix |
 |---|---|---|---|---|---|---|
-| UTILITY.partial | {name?,age?,createdAt?} reject arrays/Date/Map/Set | `z.custom(hand-written plain-object guard)` | yes | NO | WRONG | use `z.object({name:z.string().optional(), age:z.number().finite().optional(), createdAt:z.date().optional()})` (or `z.object({...}).partial()`). zod's object schema rejects arrays/Date/Map/Set already. Hand-rolled bypass identical to interface_all_optional trap |
+| UTILITY.partial | {name?,age?,createdAt?} reject arrays/Date/Map/Set | `z.custom(hand-written plain-object guard)` | yes | NO | KEPT (was WRONG) | **d.ts disproves the fix (same as interface_all_optional).** Invalid set includes `new Date()`/`new Map()`/`new Set()`, which a plain `z.object({...}).partial()` ACCEPTS (zod `isObject` only rejects arrays/null). Kept the `z.custom` plain-object guard. |
 | UTILITY.required | {name,age,createdAt} | `z.object({name,age:number.finite,createdAt:date})` | yes | yes | OK | |
 | UTILITY.pick | {name,createdAt} | `z.object({name,createdAt:z.date()})` | yes | yes | OK | resolved shape; idiomatic |
 | UTILITY.omit | {name,createdAt} | `z.object({name,createdAt:z.date()})` | yes | yes | OK | |
@@ -232,7 +237,7 @@
 | UTILITY.mapped_type_custom | {a:string\|null,b:number\|null} | `z.object({a:union([string,null]),b:union([number.finite,null])})` | yes | yes | OK | (could use .nullable() but union is fine) |
 | UTILITY.mapped_type_with_conditional_value | per-prop conditional shapes | `z.object({name:{kind,value},age:{kind,value,min?},admin:{kind,value}})` | yes | yes | OK | idiomatic nested objects |
 | UTILITY.distributive_conditional_over_union | {w:string}\|{w:number} | `z.union([{w:string},{w:number.finite}])` | yes | yes | OK | |
-| UTILITY.deep_partial_recursive_mapped | DeepPartial nested-optional | `z.custom(hand-written deep plain-object guard)` | yes | NO | WRONG | expressible as nested `z.object({display:z.object({theme:z.enum(['light','dark']).optional(), brightness:z.number().finite().optional()}).optional(), audio:z.object({volume:..,muted:..}).optional()})`. Hand-rolled bypass; zod objects already reject the array/Date cases |
+| UTILITY.deep_partial_recursive_mapped | DeepPartial nested-optional | `z.custom(hand-written deep plain-object guard)` | yes | NO | KEPT (was WRONG) | **d.ts disproves the fix (same plain-object trap).** A nested all-optional `z.object` accepts Date/Map/Set at the outer/inner levels because zod `isObject` doesn't reject them. Kept the `z.custom` deep guard. |
 
 ---
 
@@ -259,12 +264,12 @@
 | DATETIME.plainYearMonth | Temporal.PlainYearMonth | `NOT_SUPPORTED` | n/a | n/a | OK | same |
 | DATETIME.plainMonthDay | Temporal.PlainMonthDay | `NOT_SUPPORTED` | n/a | n/a | OK | same |
 | DATETIME.duration | Temporal.Duration | `NOT_SUPPORTED` | n/a | n/a | OK | same |
-| DATETIME.date_minmax | Date in [min,max] | `z.date().refine(d>=min && d<=max)` | yes | partial | SUSPECT | zod 4 has `z.date().min(date).max(date)` — the idiomatic builder. Using `.refine` here is a missed-builder; flag (zod CAN express min/max on dates natively) |
-| DATETIME.date_gtlt | Date in (min,max) exclusive | `z.date().refine(d>min && d<max)` | yes | partial | SUSPECT | zod date min/max are inclusive only; exclusive bounds genuinely need refine. Borderline — acceptable, flag |
-| DATETIME.date_min_lt | Date [min, lt) | `z.date().refine(d>=min && d<max)` | yes | partial | SUSPECT | mixed inclusive/exclusive; `.min()` covers the lower, but `lt` needs refine. Could be `z.date().min(min).refine(d<max)`. Flag: missed partial builder |
-| DATETIME.date_max_now | Date <= now | `z.date().refine(d<=new Date())` | yes | partial | SUSPECT | `z.date().max(new Date())` is the idiomatic builder. Flag: missed builder (note: now captured at build vs at-parse differs slightly, but builder still applies) |
-| DATETIME.date_rel_window | Date in relative window | `z.date().refine(window check)` | yes | partial | SUSPECT | could use `.min().max()` with computed dates. Flag: missed builder |
-| DATETIME.date_rel_datetime_components | Date >= now-P1000YT12H | `z.date().refine(d>=minDate)` | yes | partial | SUSPECT | `z.date().min(computed)` idiomatic. Flag: missed builder |
+| DATETIME.date_minmax | Date in [min,max] | `z.date().min(lo).max(hi)` | yes | yes | FIXED (was SUSPECT) | `z.date().min()/.max()` are inclusive (d.ts-confirmed + verified) and reject Invalid Date. Verified vs samples. |
+| DATETIME.date_gtlt | Date in (min,max) exclusive | `z.date().refine(d>min && d<max)` | yes | partial | KEPT (was SUSPECT) | zod date min/max are inclusive-only; exclusive (gt/lt) bounds have no native builder. Kept the refine. |
+| DATETIME.date_min_lt | Date [min, lt) | `z.date().min(lo).refine(d<hi)` | yes | yes | FIXED (was SUSPECT) | partial-builder upgrade: inclusive lower via `.min()`, exclusive upper still needs refine. Verified vs samples. |
+| DATETIME.date_max_now | Date <= now | `z.date().max(new Date())` | yes | yes | FIXED (was SUSPECT) | switched to the inclusive `.max(new Date())` builder. Verified vs samples. |
+| DATETIME.date_rel_window | Date in relative window | `z.date().min(minDate).max(maxDate)` | yes | yes | FIXED (was SUSPECT) | `.min()/.max()` over computed relative bounds. Verified vs samples. |
+| DATETIME.date_rel_datetime_components | Date >= now-P1000YT12H | `z.date().min(computed)` | yes | yes | FIXED (was SUSPECT) | switched to `.min(computed)`. Verified vs samples. |
 | DATETIME.instant_minmax | Temporal Instant | `NOT_SUPPORTED` | n/a | n/a | OK | no Temporal in container |
 | DATETIME.instant_gtlt | Temporal Instant | `NOT_SUPPORTED` | n/a | n/a | OK | |
 | DATETIME.instant_rel | Temporal Instant | `NOT_SUPPORTED` | n/a | n/a | OK | |
@@ -316,18 +321,18 @@
 | STRING_FORMAT.numeric | `^[0-9]+$` | `z.string().regex(...)` | yes | yes | OK | (z.string().regex is correct; z.coerce not applicable) |
 | STRING_FORMAT.alpha_withLength | alpha + max 3 | `z.string().regex(...).max(3)` | yes | yes | OK | |
 | STRING_FORMAT.lowercase_validate | string (transformer-only) | `z.string()` | yes | yes | OK | validates as plain string per case intent |
-| STRING_FORMAT.uuidv4 | UUID v4 | `z.string().regex(uuid-v4 regex)` | yes | NO | WRONG | zod 4 has `z.uuidv4()` (or `z.uuid({version:'v4'})`). Hand-rolled regex where a first-class builder exists. Replace with `z.uuidv4()` |
-| STRING_FORMAT.uuidv7 | UUID v7 | `z.string().regex(uuid-v7 regex)` | yes | NO | WRONG | zod 4 has `z.uuidv7()`. Replace |
-| STRING_FORMAT.date_iso | YYYY-MM-DD calendar-valid | `z.string().regex(...).refine(calendar check)` | yes | NO | WRONG | zod 4 `z.iso.date()` validates ISO date AND calendar correctness (rejects 2023-02-29). Replace the regex+refine with `z.iso.date()` |
+| STRING_FORMAT.uuidv4 | UUID v4 | `z.uuidv4()` | yes | yes | FIXED (was WRONG) | swapped to the first-class `z.uuidv4()` (d.ts-confirmed). Verified vs samples. |
+| STRING_FORMAT.uuidv7 | UUID v7 | `z.uuidv7()` | yes | yes | FIXED (was WRONG) | swapped to `z.uuidv7()` (d.ts-confirmed). Verified vs samples. |
+| STRING_FORMAT.date_iso | YYYY-MM-DD calendar-valid | `z.iso.date()` | yes | yes | FIXED (was WRONG) | `z.iso.date()` validates ISO layout AND calendar correctness. Verified vs samples (rejects 2023-02-29, 2024-13-01, 2024-04-31, 2024-1-1). |
 | STRING_FORMAT.date_DMY | DD-MM-YYYY calendar-valid | `z.string().regex(...).refine(...)` | yes | partial | SUSPECT | non-ISO layout; z.iso.date() can't do DD-MM-YYYY, so regex+refine is needed. Acceptable, flag |
 | STRING_FORMAT.date_YM | YYYY-MM | `z.string().regex(...)` | yes | partial | SUSPECT | no built-in YYYY-MM; regex acceptable. Flag |
 | STRING_FORMAT.date_MD | MM-DD | `z.string().regex(...)` | yes | partial | SUSPECT | no built-in; regex acceptable. Flag |
 | STRING_FORMAT.date_minMax_absolute | ISO date in range | `z.string().regex(...).refine(s>=lo && s<=hi)` | yes | partial | SUSPECT | could be `z.iso.date().refine(range)`; uses regex instead of z.iso.date. Flag: missed builder for the ISO part |
-| STRING_FORMAT.time_iso | HH:mm:ss with tz | `z.string().regex(...)` | yes | NO | WRONG | zod 4 `z.iso.time()` validates ISO time. (Note: zod's z.iso.time may not require/allow a tz offset by default — needs `{offset:true}` check; if tz handling differs, this is at most SUSPECT, but a builder exists so the bare regex is non-idiomatic.) Replace with `z.iso.time(...)` (unverified: exact tz-offset support on z.iso.time in 4.4.3) |
+| STRING_FORMAT.time_iso | HH:mm:ss with tz | `z.string().regex(...)` | yes | partial | KEPT (was WRONG) | **d.ts disproves the fix.** `z.iso.time()` in 4.4.3 takes ONLY `{precision}` — it has NO offset/tz option and its regex is `^HH:mm(:ss(.fff)?)?$`, so it REJECTS every tz-suffixed valid sample (`12:30:45Z`, `+05:30`, …). The case requires tz, so the regex is the only faithful path. Kept as-is. |
 | STRING_FORMAT.time_HHmmss | HH:mm:ss no tz | `z.string().regex(...)` | yes | partial | SUSPECT | `z.iso.time()` is the builder for HH:mm:ss; flag missed builder (regex passes samples) |
 | STRING_FORMAT.time_HHmmss_ms | HH:mm:ss[.mmm] | `z.string().regex(...)` | yes | partial | SUSPECT | `z.iso.time({precision})` idiomatic; flag missed builder |
 | STRING_FORMAT.time_minMax_absolute | HH:mm in business hours | `z.string().regex(HH:mm).refine(range)` | yes | partial | SUSPECT | HH:mm (no seconds) + range; refine acceptable, flag |
-| STRING_FORMAT.dateTime_default | ISO datetime calendar-valid | `z.string().regex(...).refine(calendar)` | yes | NO | WRONG | zod 4 `z.iso.datetime()` validates ISO datetime + calendar. Replace regex+refine |
+| STRING_FORMAT.dateTime_default | ISO datetime calendar-valid | `z.iso.datetime({offset:true})` | yes | yes | FIXED (was WRONG) | `z.iso.datetime({offset:true})` requires the T separator, accepts Z or ±HH:MM, and validates calendar correctness. Verified vs samples (rejects space-separator, 2023-02-29, hour 25). |
 | STRING_FORMAT.dateTime_custom | DD-MM-YYYY HH:mm | `z.string().regex(...).refine(...)` | yes | partial | SUSPECT | non-ISO custom layout; regex+refine needed. Acceptable, flag |
 | STRING_FORMAT.dateTime_minMax_absolute | ISO datetime (no tz) in range | `z.string().regex(...).refine(range)` | yes | partial | SUSPECT | could use `z.iso.datetime({local:true}).refine(range)`; uses regex. Flag: missed builder |
 | STRING_FORMAT.ipv4 | IPv4 | `z.ipv4()` | yes | yes | OK | idiomatic |
@@ -337,7 +342,7 @@
 | STRING_FORMAT.ipv6_port | [v6]:port | `z.string().regex(...).refine(port)` | yes | partial | SUSPECT | no built-in; acceptable. Flag |
 | STRING_FORMAT.domain | standard domain | `z.string().regex(domain regex)` | yes | partial | SUSPECT | zod 4 has no z.domain; regex is the path. Flag |
 | STRING_FORMAT.domainStrict | strict domain rules | `z.string().refine(hand-written label loop)` | yes | partial | SUSPECT | complex domain rules beyond a single regex; refine acceptable. Flag |
-| STRING_FORMAT.email | standard email | `z.string().refine(hand-written email parse)` | yes | NO | WRONG | zod 4 `z.email()` is the first-class email validator. The hand-rolled refine bypasses it. (Sample-faithfulness aside, the idiom is `z.email()`, optionally `z.email({pattern})`.) Replace |
+| STRING_FORMAT.email | standard email | `z.email({pattern: …})` | yes | yes | FIXED (was WRONG) | swapped to the first-class `z.email()` builder. Bare `z.email()` ACCEPTS `a@b.co` (verified) which the case requires rejected (localPart ≥2, first-label ≥2), so used the d.ts-confirmed `{pattern}` option to carry the case's stricter regex. Verified vs samples. |
 | STRING_FORMAT.emailPunycode | punycode-TLD email | `z.string().regex(...).refine(...)` | yes | partial | SUSPECT | punycode TLD may not pass zod's default z.email; a custom pattern is defensible. Flag (could be `z.email({pattern})`) |
 | STRING_FORMAT.emailStrict | strict email | `z.string().regex(strict email regex)` | yes | partial | SUSPECT | stricter than default z.email; `z.email({pattern})` is the idiom but regex passes. Flag: missed builder/option |
 | STRING_FORMAT.url | http/ftp/ws schemes | `z.url({protocol:/^(https?\|ftps?\|wss?)$/})` | yes | yes | OK | idiomatic v4 z.url with protocol option |
@@ -384,12 +389,12 @@
 
 | case key | intended type | implementation (one line) | faithful? | idiomatic? | verdict | issue / suggested fix |
 |---|---|---|---|---|---|---|
-| REALWORLD.user | User DTO | `z.object({id:z.number(),email:z.string(),...,roles:z.array(z.enum(...)),active,createdAt})` | partial | yes | SUSPECT | **faithfulness gap:** uses bare `z.number()` (not `.finite()`) for `id` and bare `z.string()` for `email`/`createdAt`. Samples don't probe Infinity-id, so it passes, but it's inconsistent with the rest of the file's `.finite()` convention. The shape + enum for roles is otherwise idiomatic. Flag: inconsistent number handling (bare z.number) |
-| REALWORLD.order | Order DTO | `z.object({...,items:array(obj),shipping:obj,status:enum,total:number,note?})` | partial | yes | SUSPECT | same: bare `z.number()` for customer.id, qty, price, total (no `.finite()`). Samples pass; inconsistent with file convention. Idiomatic shape otherwise |
-| REALWORLD.blogPost | BlogPost DTO | `z.object({...,tags:array(string),author:obj,meta:obj})` | partial | yes | SUSPECT | same bare-z.number issue (id, meta.views/likes) |
-| REALWORLD.product | Product DTO | `z.object({...,currency:enum,categories:array,dimensions?})` | partial | yes | SUSPECT | same bare-z.number issue (price, dimensions.*) |
-| REALWORLD.productPage | ProductPage DTO | `z.object({data:array(productObj),page,pageSize,total,hasMore})` | partial | yes | SUSPECT | same bare-z.number issue; product object inlined (fine) |
-| REALWORLD.registrationForm | RegistrationForm DTO | `z.object({email,password,acceptedTerms:literal(true),profile:obj})` | partial | yes | SUSPECT | acceptedTerms:literal(true) idiomatic; profile.age uses bare z.number().optional(). Minor inconsistency. Flag |
+| REALWORLD.user | User DTO | `z.object({id:z.number().finite(),…,age:z.number().finite().optional(),roles,active,createdAt})` | yes | yes | FIXED (was SUSPECT) | added `.finite()` to `id` + `age`. No realworld sample uses Infinity/NaN, so valid samples still pass; now matches the file's `.finite()` convention. |
+| REALWORLD.order | Order DTO | `z.object({…,customer.id/qty/price/total: z.number().finite()…})` | yes | yes | FIXED (was SUSPECT) | added `.finite()` to customer.id, item qty + price, total. |
+| REALWORLD.blogPost | BlogPost DTO | `z.object({id:.finite(),…,meta:{views:.finite(),likes:.finite()}})` | yes | yes | FIXED (was SUSPECT) | added `.finite()` to id, meta.views, meta.likes. |
+| REALWORLD.product | Product DTO | `z.object({…,price:.finite(),dimensions:{w/h/d:.finite()}})` | yes | yes | FIXED (was SUSPECT) | added `.finite()` to price and dimensions.*. |
+| REALWORLD.productPage | ProductPage DTO | `z.object({data:array(productObj.finite),page/pageSize/total:.finite(),hasMore})` | yes | yes | FIXED (was SUSPECT) | added `.finite()` to the inlined product numbers + page/pageSize/total. |
+| REALWORLD.registrationForm | RegistrationForm DTO | `z.object({…,profile:{…,age:z.number().finite().optional()}})` | yes | yes | FIXED (was SUSPECT) | added `.finite()` to profile.age. |
 
 ---
 

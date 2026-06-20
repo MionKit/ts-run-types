@@ -57,6 +57,29 @@ export function normalizeForComparison(actual: any, expected: any): {actual: any
       expected: isTemporalInstance(expected) ? {__temporal: expected.toString()} : expected,
     };
   }
+  // Map / Set instances have zero enumerable own keys (contents live in
+  // internal slots), so the object branch below would collapse both sides to
+  // `{}` and pass trivially — masking whether the decoder actually restored
+  // the right entries / elements. Normalize each to a tagged, deterministic
+  // representation: Map → a sorted array of normalized `[key, value]` entries;
+  // Set → a sorted array of normalized elements. The container-kind tag
+  // (`__map` / `__set`) keeps a Map from ever comparing equal to a Set or to a
+  // plain object, and every key/value/element recurses through
+  // `normalizeForComparison` so nested Dates, bigints, Temporals, symbols and
+  // class instances are normalized too. The sort makes comparison
+  // insertion-order-independent (Map/Set equality is by membership, not order).
+  if (actual instanceof Map || expected instanceof Map) {
+    return {
+      actual: actual instanceof Map ? {__map: normalizeMapEntries(actual)} : actual,
+      expected: expected instanceof Map ? {__map: normalizeMapEntries(expected)} : expected,
+    };
+  }
+  if (actual instanceof Set || expected instanceof Set) {
+    return {
+      actual: actual instanceof Set ? {__set: normalizeSetElements(actual)} : actual,
+      expected: expected instanceof Set ? {__set: normalizeSetElements(expected)} : expected,
+    };
+  }
   // Handle arrays — normalize length to match the longer side.
   if (Array.isArray(actual) && Array.isArray(expected)) {
     const maxLength = Math.max(actual.length, expected.length);
@@ -97,6 +120,48 @@ export function normalizeForComparison(actual: any, expected: any): {actual: any
 function normalizeArrayForComparison(arr: any[], targetLength: number): any[] {
   if (arr.length >= targetLength) return arr;
   return [...arr, ...Array(targetLength - arr.length).fill(undefined)];
+}
+
+/** Normalize a Map's entries to a sorted array of normalized
+ *  `[key, value]` pairs. Each key/value is run through
+ *  `normalizeForComparison` (against itself) so nested non-plain values
+ *  (Date, bigint, Temporal, symbol, class instance, nested Map/Set) are
+ *  reduced to their comparable form; the result is sorted by a stable JSON
+ *  key so membership equality survives insertion-order differences. **/
+function normalizeMapEntries(map: Map<any, any>): Array<[any, any]> {
+  const entries: Array<[any, any]> = [];
+  for (const [key, value] of map.entries()) {
+    const normKey = normalizeForComparison(key, key).actual;
+    const normValue = normalizeForComparison(value, value).actual;
+    entries.push([normKey, normValue]);
+  }
+  return entries.sort((left, right) => stableKey(left).localeCompare(stableKey(right)));
+}
+
+/** Normalize a Set's elements to a sorted array of normalized elements,
+ *  applying the same per-element normalization + stable sort as
+ *  `normalizeMapEntries`. **/
+function normalizeSetElements(set: Set<any>): any[] {
+  const elements: any[] = [];
+  for (const element of set.values()) elements.push(normalizeForComparison(element, element).actual);
+  return elements.sort((left, right) => stableKey(left).localeCompare(stableKey(right)));
+}
+
+/** Deterministic string key for sorting normalized Map/Set members. Uses
+ *  `JSON.stringify` with sorted object keys so structurally-equal members
+ *  produce the same key regardless of property insertion order; bigint and
+ *  undefined are made stringify-safe. **/
+function stableKey(value: any): string {
+  return JSON.stringify(value, (_k, v) => {
+    if (typeof v === 'bigint') return `__bigint:${v.toString()}`;
+    if (v === undefined) return '__undefined';
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const sorted: any = {};
+      for (const key of Object.keys(v).sort()) sorted[key] = v[key];
+      return sorted;
+    }
+    return v;
+  });
 }
 
 /** Deep clone for round-trip test inputs. The serializer mutates `v`

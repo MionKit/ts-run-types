@@ -54,6 +54,9 @@ export const ATOMIC = {
         Number.MAX_VALUE,
       ],
     }),
+    // Locks the "fixed 8 bytes regardless of magnitude" claim: every number
+    // encodes as float64, so all 12 samples must be exactly 8 bytes.
+    getBinaryByteSizes: () => [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8],
   },
   number_not_supported: {
     title: 'number edge cases',
@@ -130,7 +133,9 @@ export const ATOMIC = {
     schemaDecoder: () => createJsonDecoder(TF.bigInt()),
     schemaBinaryEncoder: () => createBinaryEncoder(TF.bigInt()),
     schemaBinaryDecoder: () => createBinaryDecoder(TF.bigInt()),
-    getTestData: () => ({values: [1n]}),
+    // Span zero, negative, and a value beyond 64 bits / Number.MAX_SAFE_INTEGER
+    // to exercise the decimal-string transform across magnitudes and signs.
+    getTestData: () => ({values: [1n, 0n, -1n, -123456789012345678901234567890n, 18446744073709551616n]}),
   },
   boolean: {
     title: 'boolean',
@@ -146,7 +151,7 @@ export const ATOMIC = {
     schemaDecoder: () => createJsonDecoder(RT.boolean()),
     schemaBinaryEncoder: () => createBinaryEncoder(RT.boolean()),
     schemaBinaryDecoder: () => createBinaryDecoder(RT.boolean()),
-    getTestData: () => ({values: [true]}),
+    getTestData: () => ({values: [true, false]}),
   },
   any: {
     title: 'any',
@@ -238,7 +243,19 @@ export const ATOMIC = {
     schemaDecoder: () => createJsonDecoder(TF.date()),
     schemaBinaryEncoder: () => createBinaryEncoder(TF.date()),
     schemaBinaryDecoder: () => createBinaryDecoder(TF.date()),
-    getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
+    // Span whole-second, sub-second ms precision, the Unix epoch (getTime 0),
+    // and a pre-1970 (negative epoch) date — all must survive the ISO/float64
+    // round-trip without precision loss.
+    getTestData: () => ({
+      values: [
+        new Date('2000-08-06T02:13:00.000Z'),
+        new Date('2000-08-06T02:13:00.123Z'),
+        new Date(0),
+        new Date('1969-12-31T23:59:59.500Z'),
+      ],
+    }),
+    // Binary stores every Date as a fixed 8-byte float64 of getTime().
+    getBinaryByteSizes: () => [8, 8, 8, 8],
   },
   enum_color: {
     title: 'enum',

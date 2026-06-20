@@ -738,7 +738,7 @@ export const OBJECTS = {
   non_serializable_class: {
     title: 'Non-serializable class',
     description:
-      'Class instance that can be reconstructed only when a deserialize fn is registered; without that registration JSON yields a plain object, dropping the method and losing the prototype.',
+      'Class instance round-trips to a plain object: the method is dropped and the instance prototype is not restored, while the data fields (including the startDate Date) survive.',
     serializeNotes: [
       'Class instance decodes to a plain object (asymmetric deserializedValues): the getFullName method is non-serializable and dropped, the instance prototype is not restored.',
       'The startDate Date field round-trips via ISO string.',
@@ -1249,7 +1249,9 @@ export const OBJECTS = {
       const ic = RT.circular((self) => RT.object({name: TF.string(), child: RT.optional(self)}));
       return createBinaryDecoder(ic);
     },
-    getTestData: () => ({values: [{name: 'hello', child: {name: 'world'}}]}),
+    getTestData: () => ({
+      values: [{name: 'leaf'}, {name: 'hello', child: {name: 'world'}}, {name: 'a', child: {name: 'b', child: {name: 'c'}}}],
+    }),
   },
   interface_circular_array: {
     title: 'Circular array',
@@ -1789,6 +1791,16 @@ export const OBJECTS = {
         deep?: ICircularDeep;
       }
       const ciDate: ICircularDate = {date: new Date('2000-08-06T02:13:00.000Z'), month: 1, year: 2021};
+      // Exercise the so-far-unpopulated edges: the root self-reference
+      // (`ciRoort`) and the ICircularDate recursion (`embedded`) plus its
+      // cross-type `deep` ICircularDeep branch.
+      const ciDateNested: ICircularDate = {
+        date: new Date('2001-09-07T03:14:00.000Z'),
+        month: 9,
+        year: 2001,
+        embedded: {date: new Date('2002-10-08T04:15:00.000Z'), month: 10, year: 2002},
+        deep: {name: 'deepName', big: 7n, embedded: {hello: 'deepHello'}},
+      };
       return {
         values: [
           {isRoot: true, ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}}, ciDate},
@@ -1800,6 +1812,12 @@ export const OBJECTS = {
               embedded: {hello: 'world', child: {name: 'world1', big: 1n, embedded: {hello: 'world2'}}},
             },
             ciDate,
+          },
+          {
+            isRoot: true,
+            ciChild: {name: 'outer', big: 3n, embedded: {hello: 'outerEmbedded'}},
+            ciRoort: {isRoot: true, ciChild: {name: 'inner', big: 5n, embedded: {hello: 'innerEmbedded'}}, ciDate},
+            ciDate: ciDateNested,
           },
         ],
       };

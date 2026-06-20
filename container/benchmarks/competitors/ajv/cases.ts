@@ -1592,7 +1592,29 @@ export const cases: CompetitorCases = {
       return (value: unknown) => validate(value) === true;
     },
   },
-  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED, // patternProperties key is a regex but samples need key-pattern validation per entry; no exact JSON Schema equivalent for template-literal index key semantics
+  'TEMPLATE_LITERAL.template_literal_index_key': {
+    build: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        patternProperties: {'^api\\/[\\s\\S]*$': {type: 'number'}},
+        additionalProperties: false,
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+    buildErrors: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true, allErrors: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        patternProperties: {'^api\\/[\\s\\S]*$': {type: 'number'}},
+        additionalProperties: false,
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+    samples: {invalid: [{foo: 1}, {'api/users': 'not number'}, {'api/users': 1, foo: 2}, null, undefined]},
+  }, // key type `api/${string}` → patternProperties regex `^api\/[\s\S]*$` ({string}→[\s\S]*); additionalProperties:false rejects non-matching keys. override: ajv {type:number} accepts NaN; drop {'api/users':NaN} from invalid
   'TEMPLATE_LITERAL.template_literal_union_placeholder': {
     build: () => {
       const ajv = new Ajv({strict: false, allowUnionTypes: true});
@@ -2033,12 +2055,54 @@ export const cases: CompetitorCases = {
     },
     samples: {invalid: [{w: true}, {w: null}, {}, null, undefined]},
   }, // override: ajv {type:'number'} accepts NaN; drop {w:NaN} from invalid
-  'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED, // value literals ('light'/'dark') — need enum; deep nested optional structure hard to express without knowing exact shape; also number (NaN issue)
+  'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED, // all-optional plain-object guard rejects `new Date()` (an invalid sample), but ajv {type:'object'} accepts it; no JSON Schema knob for the plain-object-only constraint
 
   // ── TYPE_MAPPINGS ──
-  'TYPE_MAPPINGS.key_prefix_rename': NOT_SUPPORTED, // key-renaming mapped type; no JSON Schema analogue
-  'TYPE_MAPPINGS.key_conditional_rename': NOT_SUPPORTED, // conditional key-renaming mapped type; no JSON Schema analogue
-  'TYPE_MAPPINGS.key_filter_via_never': NOT_SUPPORTED, // key-filtering mapped type; no JSON Schema analogue
+  'TYPE_MAPPINGS.key_prefix_rename': {
+    build: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {user_id: {type: 'number'}, user_name: {type: 'string'}},
+        required: ['user_id', 'user_name'],
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+    buildErrors: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true, allErrors: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {user_id: {type: 'number'}, user_name: {type: 'string'}},
+        required: ['user_id', 'user_name'],
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+  }, // mapped type resolves to concrete {user_id:number;user_name:string} — plain properties+required
+  'TYPE_MAPPINGS.key_conditional_rename': NOT_SUPPORTED, // resolved shape carries a `createdAt: Date` prop; no Date instance type in JSON Schema
+  'TYPE_MAPPINGS.key_filter_via_never': {
+    build: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {id: {type: 'number'}, name: {type: 'string'}},
+        required: ['id', 'name'],
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+    buildErrors: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true, allErrors: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {id: {type: 'number'}, name: {type: 'string'}},
+        required: ['id', 'name'],
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+  }, // `secret`→never drops it; resolves to concrete {id:number;name:string}. extra `secret` prop passes structurally (additionalProperties default allows it)
 
   // ── DATETIME ──
   'DATETIME.date': NOT_SUPPORTED, // no Date instance type in JSON Schema
@@ -2332,7 +2396,7 @@ export const cases: CompetitorCases = {
       return (value: unknown) => validate(value) === true;
     },
   }, // ajv-formats full mode: calendar-aware ISO date
-  'STRING_FORMAT.date_DMY': NOT_SUPPORTED, // pattern cannot enforce calendar validity (month-day bounds)
+  'STRING_FORMAT.date_DMY': NOT_SUPPORTED, // invalid sample '31-04-2024' is layout-valid (DD=31,MM=04) but April has 30 days; rejecting it needs per-month day-count validation a pattern cannot express
   'STRING_FORMAT.date_YM': {
     build: () => {
       const ajv = new Ajv({strict: false, allowUnionTypes: true});
