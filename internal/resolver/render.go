@@ -95,6 +95,9 @@ func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (entr
 	if resolver.Program == nil {
 		return entrymod.Graph{}, nil, nil
 	}
+	// The override pass extracts the cfn pure-fn entries the type-fn redirects
+	// forward to; idempotent, so this is a cheap guard when scanning already ran.
+	resolver.ensureOverrides()
 	pureFnsStart := time.Now()
 	sourceFiles := resolver.Program.TS.SourceFiles()
 	walkFiles := make([]string, 0, len(sourceFiles))
@@ -105,6 +108,12 @@ func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (entr
 		walkFiles = append(walkFiles, sf.FileName())
 	}
 	entries, diagnostics := purefns.ExtractFromProgramCached(resolver.checker, resolver.marker, resolver.Program, walkFiles, resolver.pureFnFileCache)
+	// Override cfn entries (whole-program) join the program pure-fn graph so the
+	// type-fn redirects resolve their `cfn::` dep modules on the OpDump /
+	// OpGenerate paths too — not just OpScanFiles. Without this the plugin's
+	// generate() emits the redirect but not the cfn module it imports, and the
+	// runtime throws "Pure function not found" at the first createX call.
+	entries = append(entries, resolver.overrideEntries...)
 	if metrics != nil {
 		metrics.PureFnsMs = elapsedMs(pureFnsStart)
 	}
