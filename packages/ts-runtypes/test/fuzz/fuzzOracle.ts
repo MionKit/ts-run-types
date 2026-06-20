@@ -50,7 +50,11 @@ export interface FuzzTarget {
 //   TR3 emit-valid       every demanded entry module evaluates (the emitted
 //                        factory code is valid JS) with no dangling refs
 //   TR4 wire-ok          the real createX factories materialise from the tuples
-export type OracleId = 'O1' | 'O2' | 'O3' | 'O4' | 'O5' | 'O6' | 'O7' | 'TR1' | 'TR2' | 'TR3' | 'TR4';
+//   O12 cross-wire      jsonEncode(binaryDecode(binaryEncode v)) === jsonEncode(v)
+//                       — the JSON and binary wires must agree on the same
+//                       DataOnly value (model-free: no projection oracle needed)
+//   O14 family-agree    every serialization family agrees serialize-vs-fail
+export type OracleId = 'O1' | 'O2' | 'O3' | 'O4' | 'O5' | 'O6' | 'O7' | 'O10' | 'O12' | 'O14' | 'TR1' | 'TR2' | 'TR3' | 'TR4';
 
 /** A detected expectation violation — everything needed to reproduce + triage. **/
 export interface Violation {
@@ -195,6 +199,35 @@ export function checkBinaryStable(target: FuzzTarget, value: unknown, ctx: Check
     }
   } catch (err) {
     return violation('O6', target, ctx, `binary decode/re-encode threw on valid data: ${errMsg(err)}`, value);
+  }
+  return null;
+}
+
+/** O12 — the JSON and binary wires must agree on the same DataOnly value. We
+ *  normalise BOTH through `jsonEncode` (so optional-`undefined` vs dropped-key
+ *  representation differences between the wires don't register as a mismatch):
+ *  `jsonEncode(binaryDecode(binaryEncode v))` must equal `jsonEncode(v)`. Needs
+ *  no projection oracle — a divergence means one wire lost or reshaped data the
+ *  other kept. Throws are left to O5/O6/O7. **/
+export function checkCrossWire(target: FuzzTarget, value: unknown, ctx: CheckCtx): Violation | null {
+  if (!target.jsonEncode || !target.binaryEncode || !target.binaryDecode) return null;
+  let jsonWire: string | undefined;
+  let viaBinaryWire: string | undefined;
+  try {
+    jsonWire = target.jsonEncode(value);
+    if (jsonWire === undefined) return null; // undefined root — nothing to compare
+    viaBinaryWire = target.jsonEncode(target.binaryDecode(target.binaryEncode(value)));
+  } catch {
+    return null; // encode/decode throws are O5/O6/O7's job, not double-counted here
+  }
+  if (jsonWire !== viaBinaryWire) {
+    return violation(
+      'O12',
+      target,
+      ctx,
+      `JSON and binary wires disagree on the decoded value:\n  json       =${cut(jsonWire)}\n  via-binary =${cut(String(viaBinaryWire))}`,
+      value
+    );
   }
   return null;
 }

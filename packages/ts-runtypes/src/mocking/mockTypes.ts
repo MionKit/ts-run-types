@@ -54,6 +54,13 @@ export interface MockOptions {
   /** Cap on stack re-entry count before mocking bails to `undefined`.
    *  Combined with the probability decay this guarantees termination. **/
   maxMockRecursion: number;
+  /** Generate values for the DataOnly-stripped kinds — functions / methods /
+   *  call signatures and the non-serialisable natives (`ArrayBuffer` /
+   *  `SharedArrayBuffer` / typed arrays / `DataView`) — instead of skipping or
+   *  throwing on them. Off by default (a mock is a DataOnly-shaped value); on,
+   *  the mock also carries the non-data members, which is what exercises the
+   *  serializers' drop / fail behaviour. **/
+  nonDataTypes?: boolean;
 }
 
 /** Loose runtime view of a `MockNode` (../enrich/mockData.ts) — the walker
