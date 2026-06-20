@@ -83,9 +83,15 @@ const CACHE_DIR_OPT =
       ? {cacheDir: process.env.RT_BENCH_CACHE_DIR}
       : {};
 
+// Files-mode writes the generated cache modules under <outDir>/types. The default
+// (<srcDir>/__runtypes, inferred from the tsconfig) lands under the read-only marker
+// mount in-container, so RT_BENCH_RT_OUTDIR points it at a writable path under the
+// vite root instead. Omitted on the host, where the inferred dir is writable.
+const OUTDIR_OPT = process.env.RT_BENCH_RT_OUTDIR ? {outDir: process.env.RT_BENCH_RT_OUTDIR} : {};
+
 // The vite plugin entry — dynamic import so it can resolve from the bind-mounted
 // node_modules in-container (bare specifier) or the dist path on the host.
-const PLUGIN_ENTRY = process.env.RT_BENCH_PLUGIN_ENTRY ?? path.join(REPO_ROOT, 'packages/runtypes-devtools/dist/index.js');
+const PLUGIN_ENTRY = process.env.RT_BENCH_PLUGIN_ENTRY ?? path.join(REPO_ROOT, 'packages/runtypes-devtools/dist/vite.js');
 const pluginSpec =
   PLUGIN_ENTRY.startsWith('.') || path.isAbsolute(PLUGIN_ENTRY) ? url.pathToFileURL(path.resolve(PLUGIN_ENTRY)).href : PLUGIN_ENTRY;
 const runtypesPlugin = (await import(pluginSpec)).default;
@@ -160,7 +166,7 @@ async function loadSuiteWithPlugin() {
     ssr: {resolve: {conditions: ['source']}, ...(SSR_NOEXTERNAL.length ? {noExternal: SSR_NOEXTERNAL.map((p) => new RegExp(p))} : {})},
     optimizeDeps: {noDiscovery: true},
     logLevel: 'error',
-    plugins: [runtypesPlugin({binary: BIN, cwd: PACKAGE_ROOT, tsconfig: 'tsconfig.test.json', ...CACHE_DIR_OPT})],
+    plugins: [runtypesPlugin({binary: BIN, cwd: PACKAGE_ROOT, tsconfig: 'tsconfig.test.json', ...CACHE_DIR_OPT, ...OUTDIR_OPT})],
   });
   try {
     const mod = await server.ssrLoadModule(SUITE_PATH);

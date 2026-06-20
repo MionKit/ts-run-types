@@ -359,8 +359,9 @@ cmd_serialization() {
     -e RT_BENCH_REPO_ROOT="$tsgo" \
     -e RT_BENCH_VITE_ROOT="$tsgo" \
     -e RT_BENCH_PACKAGE_ROOT="$tsgo/node_modules/ts-runtypes" \
+    -e RT_BENCH_RT_OUTDIR="$tsgo/.rt-bench-runtypes" \
     -e RT_BENCH_BIN="$tsgo/bin/ts-runtypes" \
-    -e RT_BENCH_PLUGIN_ENTRY=runtypes-devtools \
+    -e RT_BENCH_PLUGIN_ENTRY=runtypes-devtools/vite \
     -e RT_EXTRACT_BIN="$tsgo/bin/extract-fn-bodies" \
     -e RT_BENCH_OUT_DIR=/bench/bench-out \
     -e RT_BENCH_SSR_NOEXTERNAL=ts-runtypes,runtypes-devtools \
