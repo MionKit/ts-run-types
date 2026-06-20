@@ -113,11 +113,11 @@ export {
 export {
   createBinaryEncoder,
   type BinaryEncoderFn,
+  type BinaryEncoderSizeFn,
+  type BinaryEncoderIntoFn,
   type BinaryEncoderOptions,
   createBinarySizer,
   type BinarySizerFn,
-  setDefaultBinarySizing,
-  getDefaultBinarySizing,
   createBinaryDecoder,
   type BinaryDecoderFn,
   type BinaryDecoderOptions,

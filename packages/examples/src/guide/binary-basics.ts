@@ -18,10 +18,11 @@ const sample: Telemetry = {
 const encode = createBinaryEncoder<Telemetry>();
 const decode = createBinaryDecoder<Telemetry>();
 
-const bytes = encode(sample); // an ArrayBuffer — compact, no field names on the wire
-const back = decode(bytes); // typed as DataOnly<Telemetry>
+const out = encode(sample); // a DataViewSerializer holding the encoded bytes
+const bytes = out.getBufferView(); // a Uint8Array view — compact, no field names on the wire
+const back = decode(out); // decode reads the serializer directly; typed as DataOnly<Telemetry>
 
 back.recordedAt instanceof Date; // true — Date round-trips, like JSON
 // end-roundtrip
 
-export {encode, decode, back};
+export {encode, decode, bytes, back};

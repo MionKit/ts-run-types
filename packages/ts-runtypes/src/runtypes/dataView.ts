@@ -273,16 +273,24 @@ export interface DataViewDeserializer {
 
 /** Optional args for `createDataViewSerializer`. `size` is an explicit
  *  override; `relatedKeys` predicts via sum-of-averages; `grow` (default `true`)
- *  arms in-place growth — pass `false` for the fixed-size modes ('precalculate' /
- *  'initial') so the serializer never reserves or reallocates. **/
+ *  arms in-place growth — pass `false` for the fixed-size strategies
+ *  ('precalculate' / 'initialSize' / 'into') so the serializer never reserves or
+ *  reallocates. `buffer` wraps a caller-supplied `ArrayBuffer` (the `into` strategy)
+ *  instead of allocating one; growth is always off for it (we cannot resize a
+ *  caller's buffer without breaking their reference). **/
 export interface CreateSerializerOptions {
   size?: number;
   relatedKeys?: string[];
   grow?: boolean;
+  buffer?: ArrayBuffer;
 }
 
 /** Creates a DataView-based serializer. **/
 export function createDataViewSerializer(cacheKey: string, options?: CreateSerializerOptions | number): DataViewSerializer {
+  // Caller-supplied buffer (the `into` strategy): wrap it, never grow it.
+  if (typeof options === 'object' && options.buffer !== undefined) {
+    return new DataViewSerializerImpl(cacheKey, options.buffer.byteLength, false, options.buffer);
+  }
   // Number overload kept for back-compat with standard callers.
   const explicitSize = typeof options === 'number' ? options : options?.size;
   const relatedKeys = typeof options === 'object' ? options.relatedKeys : undefined;
@@ -376,9 +384,11 @@ class DataViewSerializerImpl implements DataViewSerializer {
   // `this.ensureCapacity?.(n)` / `Ser.ensureCapacity?.(n)` reserve short-circuits
   // (the call is not made and `n` is not evaluated).
   ensureCapacity?: (this: DataViewSerializer, extraBytes: number) => void;
-  constructor(cacheKey: string, size: number, grow: boolean = true) {
+  constructor(cacheKey: string, size: number, grow: boolean = true, existingBuffer?: ArrayBuffer) {
     this.cacheKey = cacheKey;
-    this.buffer = new ArrayBuffer(size);
+    // `existingBuffer` is a caller-supplied buffer (the `into` strategy) we wrap
+    // instead of allocating; otherwise allocate `size` bytes.
+    this.buffer = existingBuffer ?? new ArrayBuffer(size);
     this.view = new DataView(this.buffer);
     this.uint8View = new Uint8Array(this.buffer);
     if (grow) this.ensureCapacity = growEnsureCapacity;
