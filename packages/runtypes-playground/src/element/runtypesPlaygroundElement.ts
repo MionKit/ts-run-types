@@ -467,7 +467,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       case 'binaryRoundtrip':
         return `${label(`Binary (${result.byteLength} bytes)`)}<pre class="rtpg-code">${escapeHtml(result.hex)}</pre>${label('Decoded')}${await json(result.decoded)}${diag}`;
       case 'graph':
-        return `<div class="rtpg-badge ok">RunType id: ${escapeHtml(result.rootId ?? '—')}</div>${label(`${result.runTypes.length} node(s) — graph on the right`)}${diag}`;
+        return `<div class="rtpg-badge ok">RunType resolved</div>${label(`${result.runTypes.length} node(s) — full graph on the right`)}${diag}`;
     }
   }
 
