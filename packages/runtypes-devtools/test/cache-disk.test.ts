@@ -78,12 +78,12 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 9
-    // for the noop-elision generation: entries persist an IsNoop bit and the
-    // walker/composites compose around identity entries — stale v8 payloads
-    // bake the old dep-call bodies and lack the bit, so they must miss
-    // (emitted bytes must not depend on cache temperature).
-    expect(parsed.version).toBe(9);
+    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 10
+    // when diagnostic wording moved into the Go binary: alwaysThrow entries now
+    // persist the fully rendered runtime throw message in a single tuple slot
+    // (was a bare diag code + site hint), so v9 alwaysThrow payloads carry the
+    // wrong slot shape and must miss.
+    expect(parsed.version).toBe(10);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.argsText).toBe('string');

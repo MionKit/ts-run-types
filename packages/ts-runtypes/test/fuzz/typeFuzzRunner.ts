@@ -224,7 +224,7 @@ function checkResolverTier(compiled: CompiledType, seed: number, out: Violation[
   }
 }
 
-// alwaysThrow diagnostics format their message as `[CODE] …` (diagnosticCatalog).
+// alwaysThrow messages are rendered by the Go binary as `[CODE] …` (internal/diag).
 function isControlledThrow(message: string): boolean {
   return /^\[[A-Z][A-Z0-9]*\]/.test(message);
 }

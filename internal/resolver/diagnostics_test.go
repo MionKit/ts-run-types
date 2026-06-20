@@ -231,10 +231,12 @@ export const _b = createBinaryEncoder<symbol>();
 	}
 }
 
-// TestDiag_AlwaysThrowEntry_HasCodeOnWire pins the v2 wire format —
-// when a root throws, the rendered init() carries the diag code as
-// the 8th arg, not an inline throwing factory body.
-func TestDiag_AlwaysThrowEntry_HasCodeOnWire(t *testing.T) {
+// TestDiag_AlwaysThrowEntry_EmbedsRenderedMessage pins the entry-module shape —
+// when a root throws, the rendered init() carries the COMPLETE runtime throw
+// message (rendered by the Go emitter and embedded in the tuple), not a bare
+// code resolved JS-side and not an inline throwing factory body. The Go↔plugin
+// wire still carries only the diagnostic code.
+func TestDiag_AlwaysThrowEntry_EmbedsRenderedMessage(t *testing.T) {
 	// pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
 	const code = `import {createJsonEncoder} from 'ts-runtypes';
 export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
@@ -248,11 +250,14 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	if !strings.Contains(familyEntrySources(resp, "prepareForJson"), "'PJ001'") {
-		t.Errorf("expected rendered alwaysThrow init() to carry the 'PJ001' code as 8th arg, got:\n%s", familyEntrySources(resp, "prepareForJson"))
+	src := familyEntrySources(resp, "prepareForJson")
+	// never under prepareForJson → PJ001; leaf kind label "Never".
+	wantMessage := "[" + diag.CodePJNeverRoot + "] Cannot encode `Never` to JSON."
+	if !strings.Contains(src, wantMessage) {
+		t.Errorf("expected rendered alwaysThrow message %q embedded in init(), got:\n%s", wantMessage, src)
 	}
-	if strings.Contains(familyEntrySources(resp, "prepareForJson"), "throw new Error(") {
-		t.Errorf("v2 wire format should not embed inline throw bodies, got:\n%s", familyEntrySources(resp, "prepareForJson"))
+	if strings.Contains(src, "throw new Error(") {
+		t.Errorf("wire format should not embed inline throw bodies, got:\n%s", src)
 	}
 }
 

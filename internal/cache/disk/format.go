@@ -78,7 +78,12 @@ package disk
 // instead of `return rjFn(JSON.parse(s))`). v8 payloads bake the old
 // dep-call bodies AND lack the IsNoop bit composites key elision on —
 // must miss.
-const FormatVersion = 9
+//
+// v10 moves diagnostic wording into the Go binary: alwaysThrow entries now
+// persist the fully rendered runtime throw message in a single tuple slot
+// (was a bare diag code + optional site hint resolved JS-side), so v9
+// alwaysThrow payloads carry the wrong slot shape — must miss.
+const FormatVersion = 10
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can

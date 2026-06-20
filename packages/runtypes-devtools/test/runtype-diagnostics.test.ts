@@ -207,10 +207,12 @@ export const _r = createJsonDecoder<[number, () => void]>();
       expect(codes).toContain('SJ003');
       // Entry modules must wire the tuple's prepareForJson entry as
       // alwaysThrow so calling `createJsonEncoder<[number, () => void]>()`
-      // throws at the first lookup. The alwaysThrowCode rides the tuple's
-      // positional args — verify it's present for the tuple-typed entry.
+      // throws at the first lookup. The fully rendered throw message rides
+      // the tuple's final positional slot — verify it for the tuple entry.
       const allModules = Object.values(response.entryModules ?? {}).join('\n');
-      expect(allModules).toMatch(/'[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'PJ003'/);
+      expect(allModules).toMatch(
+        /'[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'\[PJ003\] Cannot encode `Function` to JSON\./
+      );
     });
   });
 
@@ -231,7 +233,9 @@ export const _d = createBinaryDecoder<[string, () => number]>();
       expect(codes).toContain('FB003');
       // Entry key is the opaque `<fnHash>_<id>`, matched generically.
       const allModules = Object.values(response.entryModules ?? {}).join('\n');
-      expect(allModules).toMatch(/'[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'TB003'/);
+      expect(allModules).toMatch(
+        /'[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'\[TB003\] Cannot serialise `Function` to binary\./
+      );
     });
   });
 
