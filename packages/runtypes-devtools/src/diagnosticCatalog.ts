@@ -525,6 +525,19 @@ The same registration is used by the JSON and binary families. \`validate\`
   TB013: dropSymbolKeyed('toBinary', 'serialised'),
   FB013: dropSymbolKeyed('fromBinary', 'deserialised'),
 
+  // Union member dropped — a non-serialisable arm of a union (symbol /
+  // function / Promise / non-serialisable built-in) is removed so the union
+  // projects to its data members, matching `DataOnly<Date | symbol>` = `Date`.
+  // validationErrors has no entry: its union arm delegates to validate, so the
+  // user sees VL014. (Warning)
+  VL014: dropUnionMember('validate', 'validated'),
+  PJ014: dropUnionMember('prepareForJson', 'encoded'),
+  PJS014: dropUnionMember('prepareForJsonSafe', 'encoded'),
+  RJ014: dropUnionMember('restoreFromJson', 'decoded'),
+  SJ014: dropUnionMember('stringifyJson', 'stringified'),
+  TB014: dropUnionMember('toBinary', 'serialised'),
+  FB014: dropUnionMember('fromBinary', 'deserialised'),
+
   // Root any/unknown — noop validator (Warning)
   VL021: {
     headline: '`validate` on `any` / `unknown` always returns true — the validator accepts every value.',
@@ -589,6 +602,20 @@ from the serialised form. \`${family}\` follows the same rule.
 Fix — use a string key:
   -  [Symbol.for('id')]: string;
 +  id: string;`,
+  };
+}
+
+function dropUnionMember(family: string, verb: string): DiagnosticEntry {
+  return {
+    headline: `Union member(s) of type \`{0}\` can't be represented as data — \`${family}\` drops them, so the union is ${verb} as its remaining members.`,
+    detail: `A union projects to its serialisable members only: \`DataOnly<Date | symbol>\`
+is \`Date\`. The dropped member(s) ({0}) carry no JSON-shaped value (symbol,
+function, Promise, or a non-serialisable built-in like \`Map\` / \`Set\` /
+typed arrays), so \`${family}\` ${verb} only the members that remain.
+
+This is by design — see the "validate contract — serializable data only"
+section in CLAUDE.md. If EVERY member of the union is non-serialisable the
+projection is \`never\`, and \`${family}\` throws at build time instead.`,
   };
 }
 

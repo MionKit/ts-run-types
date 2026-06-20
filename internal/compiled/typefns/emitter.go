@@ -323,6 +323,12 @@ const (
 	SlotMethodDropped       DiagSlot = "method-dropped"
 	SlotStaticDropped       DiagSlot = "static-dropped"
 	SlotSymbolKeyedDropped  DiagSlot = "symbol-keyed-dropped"
+	// SlotUnionMemberDropped — a union member DataOnly strips to `never`
+	// (symbol / function / Promise / non-serializable built-in) was dropped
+	// so the union projects to its data members (DataOnly<Date | symbol> =
+	// Date). Emitted from dataOnlyUnionMembers, shared by validate and the
+	// six flat-union serialization families.
+	SlotUnionMemberDropped DiagSlot = "union-member-dropped"
 
 	// Advisory slots.
 	SlotRootAnyUnknown DiagSlot = "root-any-unknown"

@@ -18,6 +18,7 @@ const (
 	CodeVLMethodDropped       = "VL011"
 	CodeVLStaticDropped       = "VL012"
 	CodeVLSymbolKeyedDropped  = "VL013"
+	CodeVLUnionMemberDropped  = "VL014"
 	CodeVLRootAnyUnknown      = "VL021"
 )
 
@@ -48,6 +49,7 @@ const (
 	CodePJMethodDropped       = "PJ011"
 	CodePJStaticDropped       = "PJ012"
 	CodePJSymbolKeyedDropped  = "PJ013"
+	CodePJUnionMemberDropped  = "PJ014"
 )
 
 // prepareForJsonSafe family.
@@ -61,6 +63,7 @@ const (
 	CodePJSMethodDropped       = "PJS011"
 	CodePJSStaticDropped       = "PJS012"
 	CodePJSSymbolKeyedDropped  = "PJS013"
+	CodePJSUnionMemberDropped  = "PJS014"
 )
 
 // restoreFromJson family.
@@ -74,6 +77,7 @@ const (
 	CodeRJMethodDropped       = "RJ011"
 	CodeRJStaticDropped       = "RJ012"
 	CodeRJSymbolKeyedDropped  = "RJ013"
+	CodeRJUnionMemberDropped  = "RJ014"
 )
 
 // stringifyJson family.
@@ -87,6 +91,7 @@ const (
 	CodeSJMethodDropped       = "SJ011"
 	CodeSJStaticDropped       = "SJ012"
 	CodeSJSymbolKeyedDropped  = "SJ013"
+	CodeSJUnionMemberDropped  = "SJ014"
 )
 
 // toBinary family.
@@ -101,6 +106,7 @@ const (
 	CodeTBMethodDropped       = "TB011"
 	CodeTBStaticDropped       = "TB012"
 	CodeTBSymbolKeyedDropped  = "TB013"
+	CodeTBUnionMemberDropped  = "TB014"
 )
 
 // fromBinary family.
@@ -115,6 +121,7 @@ const (
 	CodeFBMethodDropped       = "FB011"
 	CodeFBStaticDropped       = "FB012"
 	CodeFBSymbolKeyedDropped  = "FB013"
+	CodeFBUnionMemberDropped  = "FB014"
 )
 
 // Format family — TypeFormat (pattern / mockSample) build-time checks.
@@ -180,15 +187,18 @@ func init() {
 	register(Definition{Code: CodeCompositeMissingPrimitive, Family: FamilyRunType, Severity: SeverityError, Title: "JSON composite references an unrendered primitive entry"})
 
 	// Child-position warnings — the factory still emits, just drops the member.
+	// The *UnionMemberDropped codes (…014) are the DataOnly union-member drop:
+	// `Date | symbol` serializes/validates as `Date`. validationErrors (VE) has
+	// none — its union arm delegates to validate, so the user sees VL014.
 	for _, code := range []string{
-		CodeVLFunctionPropDropped, CodeVLMethodDropped, CodeVLStaticDropped, CodeVLSymbolKeyedDropped,
+		CodeVLFunctionPropDropped, CodeVLMethodDropped, CodeVLStaticDropped, CodeVLSymbolKeyedDropped, CodeVLUnionMemberDropped,
 		CodeVEFunctionPropDropped, CodeVEMethodDropped, CodeVEStaticDropped, CodeVESymbolKeyedDropped,
-		CodePJFunctionPropDropped, CodePJMethodDropped, CodePJStaticDropped, CodePJSymbolKeyedDropped,
-		CodePJSFunctionPropDropped, CodePJSMethodDropped, CodePJSStaticDropped, CodePJSSymbolKeyedDropped,
-		CodeRJFunctionPropDropped, CodeRJMethodDropped, CodeRJStaticDropped, CodeRJSymbolKeyedDropped,
-		CodeSJFunctionPropDropped, CodeSJMethodDropped, CodeSJStaticDropped, CodeSJSymbolKeyedDropped,
-		CodeTBFunctionPropDropped, CodeTBMethodDropped, CodeTBStaticDropped, CodeTBSymbolKeyedDropped,
-		CodeFBFunctionPropDropped, CodeFBMethodDropped, CodeFBStaticDropped, CodeFBSymbolKeyedDropped,
+		CodePJFunctionPropDropped, CodePJMethodDropped, CodePJStaticDropped, CodePJSymbolKeyedDropped, CodePJUnionMemberDropped,
+		CodePJSFunctionPropDropped, CodePJSMethodDropped, CodePJSStaticDropped, CodePJSSymbolKeyedDropped, CodePJSUnionMemberDropped,
+		CodeRJFunctionPropDropped, CodeRJMethodDropped, CodeRJStaticDropped, CodeRJSymbolKeyedDropped, CodeRJUnionMemberDropped,
+		CodeSJFunctionPropDropped, CodeSJMethodDropped, CodeSJStaticDropped, CodeSJSymbolKeyedDropped, CodeSJUnionMemberDropped,
+		CodeTBFunctionPropDropped, CodeTBMethodDropped, CodeTBStaticDropped, CodeTBSymbolKeyedDropped, CodeTBUnionMemberDropped,
+		CodeFBFunctionPropDropped, CodeFBMethodDropped, CodeFBStaticDropped, CodeFBSymbolKeyedDropped, CodeFBUnionMemberDropped,
 		CodeHUKFunctionPropDropped, CodeSUKFunctionPropDropped, CodeUKEFunctionPropDropped, CodeUKUFunctionPropDropped, CodeUKWFunctionPropDropped,
 	} {
 		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityWarning, Title: "RunType child-position member dropped"})
