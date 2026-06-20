@@ -1,60 +1,65 @@
-# Worksheet C — Lifting an example test into a fuzz test
+# Grow an existing test into a fuzz test
 
-> The on-ramp: **extend** an example/unit test you already have into a fuzz test, and
-> **keep both**. An example test has already paid the three hardest costs — a valid
-> input, a working SUT boundary, a true assertion. A fuzz test is what you get by
-> letting each of those vary. Full prose: [framework-fuzzy-testing.md → Methodology C](../../../docs/talks/directive-driven-testing/framework-fuzzy-testing.md).
+> The shortcut: take an example/unit test you already have and grow it into a fuzz
+> test, and **keep both**. An example test has already paid the three hardest costs — a
+> valid input, a working way to call the code, and a true check. A fuzz test is what
+> you get by letting each of those vary. Full prose: [framework-fuzzy-testing.md → grow an existing test](../../../docs/talks/directive-driven-testing/framework-fuzzy-testing.md#already-have-a-normal-test-grow-it).
 
-## C1 · Map Arrange-Act-Assert → fuzz parts
+## Map the example's three parts onto the fuzz parts
 
-| Example test (AAA)                     | → fuzz part       | the edit                                    |
-| -------------------------------------- | ----------------- | ------------------------------------------- |
-| **Arrange** a literal input / fixture  | generator (A2)    | vary the axis the author froze arbitrarily  |
-| **Act**: call the SUT                  | SUT boundary (A1) | **keep verbatim** — it already works        |
-| **Assert** `expect(out).toBe(literal)` | oracle (B)        | generalise the constant to an **invariant** |
+A normal test is set-up, call, check (Arrange, Act, Assert). Each part maps straight
+across:
 
-Two of three are free; only the Assert needs real thought (C3).
+| Example test                          | → fuzz part         | the edit                                                |
+| ------------------------------------- | ------------------- | ------------------------------------------------------- |
+| **Set up** a literal input / fixture  | input maker         | vary the thing the author froze arbitrarily             |
+| **Call** the code                     | the code under test | **keep it as is** — it already works                    |
+| **Check** `expect(out).toBe(literal)` | a rule              | turn the constant into a rule that holds for all inputs |
 
-## C2 · Read the inputs you need off the Arrange
+Two of the three are free. Only the check needs real thought (see below).
 
-- [ ] Don't invent an input space — **widen** the one the example uses. Find the frozen
-      axis (value, length, field set, order) and let it vary.
-- [ ] A hardcoded **`valid[]` + `invalid[]`** split literally names the **two
-      generators**: `createMockType<T>()` for the valid side, `mutateToInvalid(schema,
-    mock)` for the invalid side.
-- [ ] A **table-driven** test: each row is a hand-found seed; the row dimension is your
-      generator.
+## Read your inputs off the set-up
 
-## C3 · Lift the assertion — constant → invariant (the only hard part)
+- [ ] Don't invent an input space — **widen** the one the example already uses. Find the
+      thing the author froze (a value, a length, a field set, an order) and let it vary.
+- [ ] A hardcoded **`valid[]` + `invalid[]`** split literally names your **two input
+      makers**: `createMockType<T>()` for the valid side, `mutateToInvalid(schema,
+  mock)` for the invalid side.
+- [ ] A **table-driven** test: each row is a hand-found example; the row dimension is
+      your input maker.
 
-| The example asserts…                            | Lift it to…                                                                                 |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| a **relation** already (round-trip/idempotence) | the same relation over a generator — _trivial_ (swap the literal for `createMockType<T>()`) |
-| **true/false** on a hand-picked good/bad value  | two generators + the **consistency invariant** that ties the SUT's outputs together         |
-| a **constant you can recompute** (`toBe(5)`)    | a **reference oracle** (differential) or the metamorphic relation it instances              |
-| a **hardcoded regression** ("this once broke")  | **fuzz the neighbourhood** of that hazard                                                   |
+## Turn the check from a constant into a rule (the only hard part)
 
-- [ ] Run the lifted oracle through **B4 soundness** — a constant lazily generalised
-      will false-positive.
+| The example checks…                                       | Grow it into…                                                                                  |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| a **relation** already (do-it-then-undo-it / do-it-twice) | the same relation over an input maker — _trivial_ (swap the literal for `createMockType<T>()`) |
+| **true/false** on a hand-picked good/bad value            | two input makers + the rule that ties the code's outputs together                              |
+| a **constant you can recompute** (`toBe(5)`)              | compare against a trusted source, or the predicted-change relation it's an instance of         |
+| a **hardcoded "this once broke"** case                    | make random inputs **around** that hazard                                                      |
 
-## C4 · Share the oracle layer
+- [ ] Run the grown rule through the **iron rule** (break the output on purpose and
+      watch it go red). A constant generalised lazily will throw false alarms.
 
-- [ ] Factor the example's assertion into a helper **both lanes call** — don't copy it
-      into the fuzz runner (copies drift). See worksheet-B §B6.
+## Share the rule-checks
 
-## C5 · Keep the example — regression pin + shrink floor
+- [ ] Pull the example's check into a helper that **both the example and the fuzz test
+      call** — don't copy it into the fuzz runner (copies drift apart). See [the rules
+      worksheet (worksheet-B.md)](worksheet-B.md).
 
-- [ ] The example stays: fastest reproducer, executable intent, 1 ms smoke beside a
-      soak. If a fuzz failure shrinks to something **simpler** than your example,
-      promote that minimal case to a **new example test** — the lanes feed each other.
+## Keep the example — it's your fast reproducer and your floor
 
-## C6 · Know when NOT to lift
+- [ ] The example stays: fastest reproducer, executable intent, a 1 ms smoke test
+      beside a long run. If a fuzz failure shrinks to something **simpler** than your
+      example, promote that smallest case to a **new example test** — the two feed each
+      other.
 
-- [ ] **Pure, total transforms** (deterministic `transform(input) === expected`, no
-      error path): nothing to sweep — the examples suffice.
-- [ ] **Inputs the generator can't reach** (e.g. a cyclic value the default generator
-      never produces): fix the generator first, or the fuzz space never contains the
-      case (B5 coverage trap).
+## Know when NOT to bother
 
-The test: _is there an axis worth sweeping, and a relation that stays true across it?_
-Yes → lift (C1–C5). No → the example already is the right tool.
+- [ ] **Pure one-answer transforms** (deterministic `transform(input) === expected`, no
+      error path): there's nothing to sweep — the examples are enough.
+- [ ] **Inputs your maker can't reach yet** (a cyclic value the default maker never
+      produces): fix the input maker first, or the fuzz never contains the case and the
+      rule passes for the wrong reason.
+
+The test: _is there a thing worth varying, and a rule that stays true as it varies?_
+Yes → grow it. No → the example already is the right tool.
