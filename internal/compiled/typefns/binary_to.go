@@ -140,6 +140,42 @@ func binaryToOverride(rt *protocol.RunType, v, ser string, ctx *EmitContext) str
 	return encoder.EmitToBinary(rt.FormatAnnotation, v, ser, ctx)
 }
 
+// reserveExpr fuses a capacity reserve into an inline write as a comma-sequence
+// expression: `(Ser.ensureCapacity?.(n), <write>)`. In 'dynamic' mode the member
+// is the grow function so the buffer grows; in 'precalculate' / 'initial' it is
+// undefined so the `?.` short-circuits — neither the call nor `n` runs. This is
+// what lets the same emitted body serve all three sizing modes (one cache entry).
+func reserveExpr(ser, nBytes, write string) string {
+	return "(" + ser + ".ensureCapacity?.(" + nBytes + ")," + write + ")"
+}
+
+// reserveInline is reserveExpr for a scalar arm, skipped when the parent already
+// reserved the block (a fixed-width array — see emitArrayToBinary), so the loop
+// body stays a tight raw write (container-boundary reservation).
+func reserveInline(ser, nBytes, write string, ctx *EmitContext) string {
+	if ctx.SuppressInlineReserve() {
+		return write
+	}
+	return reserveExpr(ser, nBytes, write)
+}
+
+// fixedWidthForKind returns the worst-case inline byte width for a scalar kind
+// whose toBinary arm writes a fixed number of bytes — so a homogeneous array can
+// reserve `length * width` once instead of per element. Number covers float64 and
+// any narrower numeric-format packing (≤ 8), so 8 is a safe upper bound.
+func fixedWidthForKind(rt *protocol.RunType) (int, bool) {
+	if rt == nil {
+		return 0, false
+	}
+	switch rt.Kind {
+	case protocol.KindNumber:
+		return 8, true
+	case protocol.KindBoolean, protocol.KindNull, protocol.KindUndefined, protocol.KindVoid:
+		return 1, true
+	}
+	return 0, false
+}
+
 // Emit dispatches the per-kind switch. Each arm mirrors the
 // emitToBinary switch (binary/toBinary.ts:35-405).
 //
@@ -163,11 +199,11 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 
 	case protocol.KindNull:
 		// ref:binary/toBinary.ts:52 — `view.setUint8(index++, 0)`.
-		return RTCode{Code: ser + ".view.setUint8(" + ser + ".index++, 0)", Type: CodeS}
+		return RTCode{Code: reserveInline(ser, "1", ser+".view.setUint8("+ser+".index++, 0)", ctx), Type: CodeS}
 
 	case protocol.KindBoolean:
 		// ref:binary/toBinary.ts:54 — `view.setUint8(index++, !!v)`.
-		return RTCode{Code: ser + ".view.setUint8(" + ser + ".index++, !!" + v + ")", Type: CodeS}
+		return RTCode{Code: reserveInline(ser, "1", ser+".view.setUint8("+ser+".index++, !!"+v+")", ctx), Type: CodeS}
 
 	case protocol.KindNumber:
 		// ref:binary/toBinary.ts:56 —
@@ -178,7 +214,8 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		if override := binaryToOverride(rt, v, ser, ctx); override != "" {
 			code = override
 		}
-		return RTCode{Code: code, Type: CodeS}
+		// 8 is the worst-case width (float64; any packed format is ≤ 8).
+		return RTCode{Code: reserveInline(ser, "8", code, ctx), Type: CodeS}
 
 	case protocol.KindString, protocol.KindTemplateLiteral:
 		// ref:binary/toBinary.ts:59,85 — `serString(v)`.
@@ -192,13 +229,15 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		// formats/numeric. Empty override = keep the string base arm.
 		code := ser + ".serString(" + v + ".toString(), true)"
 		if override := binaryToOverride(rt, v, ser, ctx); override != "" {
-			code = override
+			// The pack writes 8 bytes inline; the base arm is serString, which
+			// reserves itself. Only the inline pack needs a reserve.
+			code = reserveInline(ser, "8", override, ctx)
 		}
 		return RTCode{Code: code, Type: CodeS}
 
 	case protocol.KindUndefined, protocol.KindVoid:
 		// ref:binary/toBinary.ts:66 — `view.setUint8(index++, 1)`.
-		return RTCode{Code: ser + ".view.setUint8(" + ser + ".index++, 1)", Type: CodeS}
+		return RTCode{Code: reserveInline(ser, "1", ser+".view.setUint8("+ser+".index++, 1)", ctx), Type: CodeS}
 
 	case protocol.KindSymbol:
 		// Unsupported — symbol identity does not round-trip through
@@ -274,7 +313,7 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		case protocol.SubKindDate:
 			// ref:binary/toBinary.ts:265 —
 			// `view.setFloat64(index, v.getTime(), 1, (index += 8))`.
-			return RTCode{Code: ser + ".view.setFloat64(" + ser + ".index, " + v + ".getTime(), 1, (" + ser + ".index += 8))", Type: CodeS}
+			return RTCode{Code: reserveInline(ser, "8", ser+".view.setFloat64("+ser+".index, "+v+".getTime(), 1, ("+ser+".index += 8))", ctx), Type: CodeS}
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableToBinary(rt, ctx, v, ser)
 		case protocol.SubKindNonSerializable:
@@ -341,8 +380,18 @@ func emitArrayToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 		return RTCode{Code: "", Type: CodeS}
 	}
 	iVar := ctx.NextLocalVar("i")
+	// Container-boundary reservation: for a homogeneous fixed-width element type
+	// (number, boolean, …) reserve the whole element block ONCE before the loop and
+	// emit the body as a raw write (SuppressInlineReserve), instead of a reserve
+	// per element. Other element types reserve themselves (serString, nested scalars).
+	width, fixedWidth := fixedWidthForKind(ctx.ResolveRef(rt.Child))
+	prevSuppress := ctx.SuppressInlineReserve()
 	ctx.SetChildAccessor(v + "[" + iVar + "]")
+	if fixedWidth {
+		ctx.SetSuppressInlineReserve(true)
+	}
 	childRT := ctx.CompileChild(rt.Child, CodeS)
+	ctx.SetSuppressInlineReserve(prevSuppress)
 	ctx.SetChildAccessor("")
 	if childRT.Type == CodeNS {
 		return RTCode{Code: "", Type: CodeNS}
@@ -353,7 +402,13 @@ func emitArrayToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 		body := ser + ".serLength(" + v + ".length)"
 		return RTCode{Code: body, Type: CodeS}
 	}
-	body := ser + ".serLength(" + v + ".length);" +
+	// serLength reserves its own varint prefix; reserve the element block here so
+	// the raw loop body never overflows.
+	elemReserve := ""
+	if fixedWidth {
+		elemReserve = ser + ".ensureCapacity?.(" + v + ".length * " + strconv.Itoa(width) + ");"
+	}
+	body := ser + ".serLength(" + v + ".length);" + elemReserve +
 		"for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
 	return RTCode{Code: body, Type: CodeS}
 }
@@ -394,16 +449,18 @@ func emitIndexSignatureToBinary(rt *protocol.RunType, ctx *EmitContext, v string
 	}
 	var keyCode string
 	if numericKey {
-		keyCode = ser + ".view.setUint32(" + ser + ".index, Number(" + keyVar + "), 1);" + ser + ".index += 4"
+		keyCode = ser + ".ensureCapacity?.(4);" + ser + ".view.setUint32(" + ser + ".index, Number(" + keyVar + "), 1);" + ser + ".index += 4"
 	} else {
 		keyCode = ser + ".serString(" + keyVar + ")"
 	}
 	// Skip keys that name a declared property — those are encoded positionally by
 	// emitObjectToBinary; the index signature covers only the remaining dynamic
 	// keys. `siblingNamedSkipCode` is "" when the object has no named props (a
-	// bare Record), so this is a no-op there.
+	// bare Record), so this is a no-op there. The count is a 4-byte slot reserved
+	// up front and back-patched after the loop (the back-patch writes within the
+	// reserved slot, so it needs no reserve of its own).
 	skip := siblingNamedSkipCode(rt, ctx, keyVar)
-	body := "let " + lenVar + " = 0; const " + idxVar + " = " + ser + ".index; " + ser + ".index += 4;" +
+	body := "let " + lenVar + " = 0; const " + idxVar + " = " + ser + ".index; " + ser + ".ensureCapacity?.(4);" + ser + ".index += 4;" +
 		"for (const " + keyVar + " in " + v + ") {" + skip + keyCode + ";" + childRT.Code + ";" + lenVar + "++;}" +
 		ser + ".view.setUint32(" + idxVar + ", " + lenVar + ", 1)"
 	return RTCode{Code: body, Type: CodeS}
@@ -621,7 +678,9 @@ func emitOptionalBitmapInit(ctx *EmitContext, ser string, optionalLength int, is
 	if bitmapLength > 1 {
 		decl = "let"
 	}
-	init := decl + " " + bitmapVar + " = " + ser + ".index;" + zeroLoop
+	// Reserve the whole bitmap before the zero-loop writes it; later setBitMask
+	// calls flip bits within this already-reserved region (no further reserve).
+	init := decl + " " + bitmapVar + " = " + ser + ".index;" + ser + ".ensureCapacity?.(" + strconv.Itoa(bitmapLength) + ");" + zeroLoop
 	return init, bitmapVar
 }
 

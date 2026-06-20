@@ -163,6 +163,13 @@ type Walker struct {
 	// ContextItems VALUE is emitted verbatim as a prologue line, so a
 	// flag stored there leaks stray `;`/`1;` statements into factories).
 	sjSkipCommas bool
+	// suppressInlineReserve tells the binary toBinary scalar arms to emit the
+	// RAW inline write WITHOUT its own `Ser.ensureCapacity?.(n)` reserve. A
+	// fixed-width array sets it before compiling its element so the loop body
+	// stays a tight raw write and the array reserves the whole element block once
+	// (container-boundary reservation), then clears it. Plain per-walk walker
+	// state for the same reason as sjSkipCommas (never a ContextItems value).
+	suppressInlineReserve bool
 	// Code is the assembled function body. The Walker stores the
 	// most recent root-level emitted code here; Finalize normalises
 	// it on exit.
