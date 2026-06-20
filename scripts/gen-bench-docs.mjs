@@ -323,40 +323,38 @@ function buildTypecostBench() {
 }
 
 // ── compile-time bench ───────────────────────────────────────────────────────
-// Build-time OVERHEAD of the two transform-based libraries, from
-// container-benchmarks/results/{ts-runtypes,typia}.compiletime.json (per suite SECTION,
-// transform OFF = baseline vs ON). Four columns: each library's baseline and its
-// +transform; the gap is the overhead the transform + generated-function compile adds
-// over a plain compile. unit = 'count' so the ms values render bare and rank
-// lower-is-better. Rows are the suite sections (each a batched multi-function compile).
+// Build-time cost of the two transform-based libraries, from
+// container-benchmarks/results/{ts-runtypes,typia}.compiletime.json. The whole suite is
+// compiled as ONE file, on tsgo, in three tiers: strip (transpile only), typecheck
+// (--noEmit), full (type-check + transform + emit the validators). Six columns (each
+// library's three tiers); one row (the suite). unit = 'count' so the ms render bare and
+// rank lower-is-better. typecheck − strip = the type-check cost; full − typecheck = the
+// transform + emit cost.
 const COMPILETIME_LIBS = ['ts-runtypes', 'typia'];
+const COMPILETIME_TIERS = [
+  ['strip', 'strip_ms'],
+  ['typecheck', 'typecheck_ms'],
+  ['full', 'full_ms'],
+];
 
 function buildCompiletimeBench() {
-  const bySection = new Map(); // section → {col → ms}
-  const order = [];
-  const competitors = []; // column order: <lib> baseline, <lib> +transform, …
+  const competitors = []; // column order: <lib> strip, <lib> typecheck, <lib> full, …
   const versions = {};
+  const cells = {}; // col → ms
+  let types = 0;
   for (const lib of COMPILETIME_LIBS) {
     const file = path.join(RESULTS_DIR, `${lib}.compiletime.json`);
     if (!fs.existsSync(file)) continue;
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const baseCol = `${lib} baseline`;
-    const txCol = `${lib} +transform`;
-    competitors.push(baseCol, txCol);
-    if (ENV?.versions?.[lib]) {
-      versions[baseCol] = ENV.versions[lib];
-      versions[txCol] = ENV.versions[lib];
-    }
-    for (const s of d.sections) {
-      if (!bySection.has(s.section)) {
-        bySection.set(s.section, {});
-        order.push(s.section);
-      }
-      bySection.get(s.section)[baseCol] = s.baseline_ms;
-      bySection.get(s.section)[txCol] = s.transform_ms;
+    types = Math.max(types, d.types ?? 0);
+    for (const [tier, field] of COMPILETIME_TIERS) {
+      const col = `${lib} ${tier}`;
+      competitors.push(col);
+      cells[col] = d[field];
+      if (ENV?.versions?.[lib]) versions[col] = ENV.versions[lib];
     }
   }
-  if (order.length === 0) {
+  if (competitors.length === 0) {
     process.stderr.write(`skip compiletime bench: no results/{ts-runtypes,typia}.compiletime.json in ${RESULTS_DIR} (run \`pnpm run bench:compiletime\`)\n`);
     return 0;
   }
@@ -365,16 +363,10 @@ function buildCompiletimeBench() {
   fs.rmSync(outDir, {recursive: true, force: true});
   fs.mkdirSync(outDir, {recursive: true});
 
-  const cases = [];
-  for (const section of order) {
-    const cells = bySection.get(section);
-    const results = {};
-    for (const col of competitors) {
-      if (cells[col] != null) results[col] = {compiletime: {valid: cells[col], status: 'ok'}};
-    }
-    cases.push({key: safeKey(section), title: sectionLabel(section), results});
-    fs.writeFileSync(path.join(outDir, `${safeKey(section)}.json`), JSON.stringify({competitors: []}));
-  }
+  const results = {};
+  for (const col of competitors) if (cells[col] != null) results[col] = {compiletime: {valid: cells[col], status: 'ok'}};
+  const rowKey = 'suite';
+  fs.writeFileSync(path.join(outDir, `${rowKey}.json`), JSON.stringify({competitors: []}));
 
   const index = {
     bench: 'compiletime',
@@ -384,18 +376,18 @@ function buildCompiletimeBench() {
     metrics: [
       {
         key: 'compiletime',
-        label: 'Build overhead',
-        metricLabel: 'Wall-clock build ms per section, transform off (baseline) vs on — lower is better',
+        label: 'Build cost',
+        metricLabel: 'Whole-suite build ms on tsgo: strip (transpile) · typecheck · full (transform + emit) — lower is better',
         lowerBetter: true,
       },
     ],
     competitors,
     versions,
     meta: metaBlock(),
-    sections: [{key: 'sections', label: 'Suite sections', cases}],
+    sections: [{key: 'suite', label: 'Validation suite', cases: [{key: rowKey, title: `${types} types`, results}]}],
   };
   fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(index));
-  return order.length;
+  return 1;
 }
 
 if (process.argv[1] && process.argv[1].endsWith('gen-bench-docs.mjs')) {

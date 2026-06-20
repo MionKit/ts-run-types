@@ -26,7 +26,7 @@
 #   scripts/benchmarks.sh serialization     # ts-runtypes round-trip bench (+ formats), in-container
 #   scripts/benchmarks.sh website-bench     # ALL website bench data in one shot (Node 26)
 #   scripts/benchmarks.sh typecost          # per-competitor type-instantiation cost
-#   scripts/benchmarks.sh compiletime       # per-competitor wall-clock build cost (cold/warm)
+#   scripts/benchmarks.sh compiletime       # tsgo build cost: strip / typecheck / full (ts-runtypes, typia)
 #   scripts/benchmarks.sh capture-env       # write results/env.json (os / cpu / lib versions)
 #   scripts/benchmarks.sh build [<name>]    # vite build only (all, or one competitor)
 #   scripts/benchmarks.sh smoke             # quick verify: build every competitor's dist
@@ -402,28 +402,26 @@ cmd_typecost() {
   run_in_container node typecost/typecost.mjs
 }
 
-# Compile-time OVERHEAD for the two transform-based libraries (ts-runtypes, typia):
-# build each suite SECTION as one file twice — transform OFF (baseline) and ON — so
-# the fixed compiler/bundler init cancels in the gap, leaving the transform +
-# generated-function compile cost. Each runs in its own --rm container with cwd = its
-# dir so vite/esbuild resolve from that competitor's node_modules. Override the pair
-# via COMPILETIME_COMPETITORS, the per-section repeat count via COMPILETIME_N, filter
-# sections via BENCH_CASE.
+# Compile-time cost for the two transform-based libraries (ts-runtypes, typia): the
+# whole suite as ONE file, measured on tsgo in three tiers — strip (transpile only),
+# typecheck (--noEmit), and full (type-check + transform + emit the validators). Each
+# runs in its own --rm container with cwd = its dir so tsgo/ttsc/vite resolve from that
+# competitor's node_modules. Override the pair via COMPILETIME_COMPETITORS, the repeat
+# count via COMPILETIME_N.
 cmd_compiletime() {
   ensure_prereqs
   mkdir -p "$RESULTS_DIR"
-  echo "==> measuring compile-time overhead (transform off vs on, per section) in the container"
+  echo "==> measuring compile-time cost (strip / typecheck / full, whole suite, tsgo) in the container"
   local competitor list
   list="${COMPILETIME_COMPETITORS:-ts-runtypes typia}"
   for competitor in $list; do
     # Scoped refresh: only the competitors being run are cleared, so a single-
     # competitor run never drops the other's results.
-    [ -z "${BENCH_CASE:-}" ] && rm -f "$RESULTS_DIR/$competitor.compiletime.json" 2>/dev/null || true
+    rm -f "$RESULTS_DIR/$competitor.compiletime.json" 2>/dev/null || true
     echo "-------- compiletime: $competitor --------"
     run_in_container sh -c "cd competitors/$competitor && node ../../compiletime/compiletime.mjs --competitor $competitor" \
       || echo "==> compiletime '$competitor' FAILED - see output above"
   done
-  [ -n "${BENCH_CASE:-}" ] && { echo "==> BENCH_CASE='$BENCH_CASE': section console output above; results JSON + docdata left untouched."; return 0; }
   publish_docdata
 }
 
