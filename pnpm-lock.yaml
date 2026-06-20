@@ -81,6 +81,9 @@ importers:
       monaco-editor:
         specifier: 0.52.2
         version: 0.52.2
+      prettier:
+        specifier: 3.8.2
+        version: 3.8.2
       ts-runtypes:
         specifier: workspace:*
         version: link:../ts-runtypes

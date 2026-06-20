@@ -40,6 +40,6 @@ useSeoMeta({
   min-height: 0;
 }
 .rt-playground-page .rt-playground .rtpg-layout {
-  height: calc(100vh - 160px);
+  height: calc(75vh - 120px);
 }
 </style>
