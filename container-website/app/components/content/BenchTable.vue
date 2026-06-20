@@ -749,7 +749,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   class="bench-row bench-row--agg"
                   :class="{'bench-row--overall': row.key === '__overall__'}"
                 >
-                  <td class="bench-cell bench-cell--case">{{ row.label }}</td>
+                  <td class="bench-cell bench-cell--case" :title="row.label">{{ row.label }}</td>
                   <template v-if="isVerdict">
                     <td v-for="(vc, ci) in verdictAggCells(row)" :key="ci" class="bench-cell bench-val" :class="[vc.cls, {'bench-val--ranked': vc.rank != null}]" :style="vc.rank != null ? {'--rank': vc.rank} : undefined">
                       <span class="bench-val-col">
@@ -806,7 +806,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   @keydown.enter.prevent="pin(rowItem(kase.key, kase.title))"
                   @keydown.space.prevent="pin(rowItem(kase.key, kase.title))"
                 >
-                  <td class="bench-cell bench-cell--case">{{ kase.title }}</td>
+                  <td class="bench-cell bench-cell--case" :title="kase.title">{{ kase.title }}</td>
                   <template v-if="isVerdict">
                     <td v-for="(vc, ci) in verdictCells(kase)" :key="ci" class="bench-cell bench-val" :class="[vc.cls, {'bench-val--ranked': vc.rank != null}]" :style="vc.rank != null ? {'--rank': vc.rank} : undefined">
                       <span class="bench-val-col">
@@ -1339,5 +1339,78 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
 }
 .bench-legend-pl {
   color: #86b94a;
+}
+
+/* ── Narrow viewports ────────────────────────────────────────────────────────
+   The stacked verdict cell (round-trip headline + enc/dec + bytes) is ~3 lines
+   tall and case names can be long, so both blow out the row on phones. On small
+   screens the case column collapses to one ellipsised line (the full name stays
+   on hover via the title attribute), the verdict stack tightens, the value tiers
+   shrink, and the sticky link-speed bar stays thumb-reachable. Styling only. */
+@media (max-width: 640px) {
+  .bench-col--case {
+    width: 30%;
+    min-width: 5.5rem;
+  }
+  /* one clamped line instead of wrapping to two or three */
+  .bench-cell--case {
+    max-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bench-cell {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.72rem;
+  }
+  .bench-th {
+    padding: 0.3rem 0.5rem;
+  }
+  .bench-val-col {
+    gap: 0;
+    line-height: 1.12;
+  }
+  .bench-val-rt {
+    font-size: 0.76rem;
+  }
+  .bench-val-io,
+  .bench-val-pl {
+    font-size: 0.58rem;
+  }
+  /* bigger touch target for the bandwidth segmented control */
+  .bench-bw-btn {
+    padding: 0.45rem 0.7rem;
+    min-height: 2.25rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .bench-col--case {
+    width: 26%;
+    min-width: 4.25rem;
+  }
+  .bench-cell {
+    padding: 0.35rem 0.35rem;
+    font-size: 0.68rem;
+  }
+  .bench-th {
+    padding: 0.3rem 0.35rem;
+    font-size: 0.6rem;
+  }
+  .bench-val-rt {
+    font-size: 0.72rem;
+  }
+  .bench-val-io,
+  .bench-val-pl {
+    font-size: 0.54rem;
+  }
+  /* the bandwidth note is the least essential token — drop it to save a row */
+  .bench-bw-hint {
+    display: none;
+  }
+  .bench-bw-bar {
+    gap: 0.4rem 0.5rem;
+    padding: 0.4rem 0.5rem;
+  }
 }
 </style>
