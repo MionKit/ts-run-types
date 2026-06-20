@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -123,6 +124,47 @@ export const enc = createJsonEncoder<{id: number}>();
 	}
 	if !strings.Contains(all, `'{"id":'`) {
 		t.Fatalf("cfn module missing the override body:\n%s", all)
+	}
+}
+
+// TestOverride_DuplicateConflictEmitsOVR001 — two overrideValidate<string> with
+// DIFFERENT bodies is a hard error; the same body dedups silently.
+func TestOverride_DuplicateConflictEmitsOVR001(t *testing.T) {
+	conflicting := map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": `import {overrideValidate} from 'ts-runtypes';
+overrideValidate<string>((v) => typeof v === 'string');
+overrideValidate<string>((v) => v !== null);
+`,
+	}
+	r := setupInline(t, conflicting)
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	found := false
+	for _, d := range resp.Diagnostics {
+		if d.Code == diag.CodeDuplicateOverride {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected OVR001 for conflicting overrides, got %+v", resp.Diagnostics)
+	}
+
+	sameBody := map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": `import {overrideValidate} from 'ts-runtypes';
+overrideValidate<string>((v) => typeof v === 'string');
+overrideValidate<string>((v) => typeof v === 'string');
+`,
+	}
+	r2 := setupInline(t, sameBody)
+	resp2 := r2.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	for _, d := range resp2.Diagnostics {
+		if d.Code == diag.CodeDuplicateOverride {
+			t.Fatalf("same-body re-override should dedup silently, got OVR001")
+		}
 	}
 }
 

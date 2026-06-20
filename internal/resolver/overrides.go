@@ -7,8 +7,17 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
+	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
+
+// overrideRecord remembers the first override registered for a (type, family)
+// pair so a later, conflicting registration can be flagged (OVR001).
+type overrideRecord struct {
+	hash string
+	site diag.Site
+}
 
 // overrideCalleePrefix is the cheap pre-filter for the override-collection pass:
 // every public `overrideX<T>(pureFn, id)` factory is named `override…`, so a
@@ -48,7 +57,9 @@ func (resolver *Resolver) ensureOverrides() {
 	}
 	overrides := map[string]map[string]string{}
 	var entries []purefns.Entry
+	var diagnostics []diag.Diagnostic
 	seen := map[string]struct{}{}
+	firstByKey := map[string]overrideRecord{} // "<baseKey>|<fnKey>" → first registration
 	state := resolver.scanStateFor(resolver.checker)
 	// Base keys for the map are computed WITHOUT folding (a fresh plain
 	// computer): a leaf/independent override target's base key is override-free,
@@ -69,14 +80,29 @@ func (resolver *Resolver) ensureOverrides() {
 				return true
 			}
 			baseKey := baseComputer.Compute(site.typeArgument)
+			callSite := textpos.NodeSite(sourceFile.FileName(), sourceFile, call)
+			dedupKey := baseKey + "|" + site.fnKey
+			// Conflict: a different body already overrides this (type, family).
+			// Keep the first (deterministic source order) and flag the later one
+			// — anything else makes the cache entry order-dependent. Same body
+			// (same CodeHash) dedups silently.
+			if first, exists := firstByKey[dedupKey]; exists {
+				if first.hash != cfn.FunctionName {
+					diagnostics = append(diagnostics, diag.NewWithRelated(
+						diag.CodeDuplicateOverride, callSite, []string{site.fnKey},
+						diag.Related{Site: first.site, Message: "First overridden here"},
+					))
+				}
+				return true
+			}
+			firstByKey[dedupKey] = overrideRecord{hash: cfn.FunctionName, site: callSite}
 			families := overrides[baseKey]
 			if families == nil {
 				families = map[string]string{}
 				overrides[baseKey] = families
 			}
 			// The suffix folds the cfn's body-hash name; the family op key
-			// ("val", "jsonEncoder", …) groups it. Last-write-wins here; the
-			// emitter's duplicate-override diagnostic (OVR001) flags conflicts.
+			// ("val", "jsonEncoder", …) groups it.
 			families[site.fnKey] = cfn.FunctionName
 			if _, dup := seen[cfn.Key()]; !dup {
 				seen[cfn.Key()] = struct{}{}
@@ -86,6 +112,7 @@ func (resolver *Resolver) ensureOverrides() {
 		})
 	}
 	resolver.overrideEntries = entries
+	resolver.overrideDiagnostics = diagnostics
 	// Skip installation when nothing was overridden so the no-override path is
 	// byte-identical (no computer recreation, no fold lookups).
 	if len(overrides) > 0 {

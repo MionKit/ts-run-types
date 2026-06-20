@@ -645,7 +645,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// Per-cache "did this scan change anything?" signals consumed by
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
-		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
+		combinedDiagnostics := append(append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
 		response := protocol.Response{
 			Sites:         resolver.stampSiteModules(sites),
 			Replacements:  pureFnReplacements,
@@ -873,7 +873,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			}
 			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap}
 		}
-		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
+		combinedDiagnostics := append(append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
 		response := protocol.Response{
 			Transformed:   transformed,
 			Sites:         sites,
