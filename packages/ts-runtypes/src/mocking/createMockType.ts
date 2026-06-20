@@ -8,6 +8,7 @@ import {entryTupleKey, initFromTuple, isEntryTuple} from '../runtypes/entryTuple
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId} from '../index.ts';
 import {mockRunType} from './mockType.ts';
+import {mockRunTypeInvalid} from './mockInvalid.ts';
 import {defaultMockOptions} from './constants.mock.ts';
 import type {MockDataNode, MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './mockTypes.ts';
 
@@ -45,6 +46,8 @@ export function createMockType<T>(
   const factoryOpts = mergeMockOptions(undefined, options as DeepPartial<RunTypeMockOptions<unknown>> | undefined);
   return ((callOpts) => {
     const merged = mergeMockOptions(factoryOpts, callOpts as DeepPartial<RunTypeMockOptions<unknown>> | undefined);
+    const mockOpts = merged.mock as MockOptions;
+    if (mockOpts.invalid) return mockRunTypeInvalid(runType, merged, []) as T;
     return mockRunType(runType, merged, []) as T;
   }) as MockTypeFn<T>;
 }

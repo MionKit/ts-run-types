@@ -21,6 +21,15 @@ export default defineConfig({
   // Relative base so built assets resolve under any mount path: the docs site
   // serves them from /playground-app/, and the example also works inside an iframe.
   base: './',
+  resolve: {
+    // Bundle ts-runtypes from SOURCE (its only bundled import is the bare
+    // specifier — the `ts-runtypes/schema` + `/formats` ones are user-snippet
+    // strings, not bundled). This keeps the prebuilt bundle in sync with in-tree
+    // code, so it never ships a stale `dist/` and needs no prior package build.
+    // Mirrors vitest.config's `source` condition; an exact-match regex leaves
+    // every other dependency's resolution (Monaco, prettier) untouched.
+    alias: [{find: /^ts-runtypes$/, replacement: fileURLToPath(new URL('../ts-runtypes/src/index.ts', import.meta.url))}],
+  },
   server: {fs: {allow: ['..', '../..', '../../..']}},
   optimizeDeps: {exclude: ['monaco-editor']},
   build: {

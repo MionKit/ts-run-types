@@ -11,7 +11,6 @@ import * as RT from 'ts-runtypes';
 import {loadResolver, type Resolver, type ResolverOptions, type ResolverVersions} from './wasmLoader.ts';
 import {MARKER_DTS, ROOT_TYPE} from './markerDts.ts';
 import {operationByKey, type Operation} from './operations.ts';
-import {injectNegative} from './negativeMock.ts';
 
 export type {Operation, OperationKind} from './operations.ts';
 export type {Resolver, ResolverOptions, ResolverVersions} from './wasmLoader.ts';
@@ -233,35 +232,25 @@ export async function mock(
   return {value: fn(), diagnostics};
 }
 
-// rootRunTypeNode resolves the RunType graph for the user's type (the same
-// reflection path the 'graph' op uses) and returns the root node, so the
-// negative generator can read each position's declared type.
-function rootRunTypeNode(dispatch: Resolver['dispatch'], userCode: string, mode: Mode): RunTypeNode | undefined {
-  const reflectFactory = mode === 'schema' ? 'createMockType' : 'getRunTypeId';
-  const {site, runTypes} = scan(dispatch, reflectFactory, userCode, mode);
-  const rootId = site?.id ?? null;
-  return runTypes.find((n) => n.id === rootId) ?? runTypes[0] ?? undefined;
-}
-
-// mockInvalid generates a value that FAILS validation: a fresh valid mock with
-// one position turned into a type-aware inverse (see injectNegative /
-// leafProbability), verified against the real validator and retried if the
-// corruption happened to stay valid (e.g. a multi-type union arm accepted it).
-// Falls back to the last attempt if none is found invalid in the budget (e.g. an
-// `any` / `unknown` type accepts everything).
+// mockInvalid generates a value that FAILS validation via the core createMockType
+// `invalid` option (a valid mock with one type-aware position corrupted; see
+// invalidLeafProbability). It additionally verifies against the live validator and
+// retries, so the rare position the core can't make invalid on its own (a
+// multi-type union arm, `any`) is caught here. Falls back to the last attempt when
+// nothing in the budget is found invalid (e.g. an `any` / `unknown` type).
 export async function mockInvalid(
   userCode: string,
   options?: ResolverOptions,
   mode: Mode = 'type',
-  leafProbability = 0.85
+  invalidLeafProbability = 0.85
 ): Promise<{value: unknown; diagnostics: Diagnostic[]}> {
   const {dispatch} = await getResolver(options);
   const validate = materialize(dispatch, 'createValidate', userCode, mode).fn as (v: unknown) => boolean;
   const {fn: generate, diagnostics} = materialize(dispatch, 'createMockType', userCode, mode);
-  const node = rootRunTypeNode(dispatch, userCode, mode);
+  const callOpts = {mock: {invalid: true, invalidLeafProbability}};
   let last: unknown;
   for (let attempt = 0; attempt < 12; attempt++) {
-    last = injectNegative(generate(), node, leafProbability);
+    last = generate(callOpts);
     if (!validate(last)) return {value: last, diagnostics};
   }
   return {value: last, diagnostics};
