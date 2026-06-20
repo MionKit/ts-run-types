@@ -407,12 +407,14 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.ensureCapacity(MAX_VARINT);
     this.writeVarint(value);
   }
-  /** Encode `str` into the buffer after a max-width varint gap, write the actual
-   *  (now-known) varint length prefix at the cursor, then shift the UTF-8 bytes
-   *  back to sit immediately after the prefix. Returns the UTF-8 byte count.
-   *  Callers MUST have reserved `MAX_VARINT + str.length * 3` first. **/
+  /** Encode `str` into the buffer immediately after an OPTIMISTIC 1-byte varint
+   *  slot, then write the actual length prefix. A string whose UTF-8 length is
+   *  < 128 (the common case) needs only that 1 byte, so the bytes already sit in
+   *  the right place and no shift happens. Only a longer string (varint > 1 byte)
+   *  shifts its bytes right to open room for the wider prefix. Returns the UTF-8
+   *  byte count. Callers MUST have reserved `MAX_VARINT + str.length * 3` first. **/
   private encodeStringAtCursor(str: string): number {
-    const dataStart = this.index + MAX_VARINT;
+    const dataStart = this.index + 1;
     const result = textEncoder.encodeInto(str, this.uint8View.subarray(dataStart));
     const read = result.read ?? 0;
     // `encodeInto` silently truncates on small destinations; the reservation
@@ -421,9 +423,10 @@ class DataViewSerializerImpl implements DataViewSerializer {
       throw new RangeError(`DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars).`);
     const written = result.written ?? 0;
     const vlen = varintLen(written);
+    // Wider prefix than the 1-byte slot: shift the bytes right to make room
+    // (copyWithin is memmove-safe for the overlapping right shift).
+    if (vlen > 1) this.uint8View.copyWithin(this.index + vlen, dataStart, dataStart + written);
     this.writeVarint(written);
-    // Close the gap when the real prefix is narrower than the reserved max.
-    if (vlen < MAX_VARINT) this.uint8View.copyWithin(this.index, dataStart, dataStart + written);
     this.index += written;
     return written;
   }
@@ -633,10 +636,16 @@ class DataViewDeserializerImpl implements DataViewDeserializer {
   getLength(): number {
     return this.index;
   }
-  /** Read an unsigned LEB128 varint length / count / size prefix. `* 2 ** shift`
-   *  (not `<<`) keeps the accumulation exact past the 32-bit boundary the top
-   *  group can hit. **/
+  /** Read an unsigned LEB128 varint length / count / size prefix. Fast path for
+   *  the common single-byte case (length < 128) — a plain read+compare, matching
+   *  the old fixed `getUint32` cost. The `* 2 ** shift` accumulation (not `<<`)
+   *  keeps the multi-byte case exact past the 32-bit boundary the top group can hit. **/
   desLength(): number {
+    const first = this.uint8View[this.index];
+    if (first < 0x80) {
+      this.index++;
+      return first;
+    }
     let value = 0;
     let shift = 0;
     let byte: number;
