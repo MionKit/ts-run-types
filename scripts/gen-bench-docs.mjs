@@ -27,7 +27,7 @@ import ts from 'typescript';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
-const BENCH_DIR = path.join(REPO_ROOT, 'benchmarks');
+const BENCH_DIR = path.join(REPO_ROOT, 'container-benchmarks');
 const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? path.join(BENCH_DIR, 'results');
 const COMPETITORS_DIR = path.join(BENCH_DIR, 'competitors');
 const OUT_ROOT = path.join(REPO_ROOT, 'container-website/public/bench-data');
@@ -322,9 +322,99 @@ function buildTypecostBench() {
   return orderedKeys.length;
 }
 
+// ── compile-time bench ───────────────────────────────────────────────────────
+// Per-competitor wall-clock BUILD cost (cold = cache wiped, warm = cache hit), from
+// container-benchmarks/results/<competitor>.compiletime.json. unit = 'count' so the
+// numbers render bare (they are milliseconds, not ops/sec) and rank lower-is-better
+// everywhere, matching typecost. cold is the headline value; warm rides along in the
+// corner (it's the disk-cache payoff — usually ~0). ts-runtypes / typia transform at
+// build time; zod / typebox / ajv are the no-transform baseline columns.
+const COMPILETIME_COMPETITORS = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
+
+function buildCompiletimeBench() {
+  const byComp = new Map(); // competitor → Map(key → {cold, warm})
+  const meta = new Map(); // key → {group, name}
+  const orderedKeys = [];
+  for (const competitor of COMPILETIME_COMPETITORS) {
+    const file = path.join(RESULTS_DIR, `${competitor}.compiletime.json`);
+    if (!fs.existsSync(file)) {
+      byComp.set(competitor, new Map());
+      continue;
+    }
+    const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const m = new Map();
+    for (const c of d.cases) {
+      m.set(c.key, {cold: c.cold_ms, warm: c.warm_ms});
+      if (!meta.has(c.key)) {
+        meta.set(c.key, {group: c.group, name: c.name});
+        orderedKeys.push(c.key);
+      }
+    }
+    byComp.set(competitor, m);
+  }
+  if (orderedKeys.length === 0) {
+    process.stderr.write(`skip compiletime bench: no results/*.compiletime.json in ${RESULTS_DIR} (run \`pnpm run bench:compiletime\`)\n`);
+    return 0;
+  }
+
+  const competitors = COMPILETIME_COMPETITORS.filter((c) => byComp.get(c)?.size);
+  const sources = new Map(competitors.map((c) => [c, extractCaseSources(path.join(COMPETITORS_DIR, c, 'cases.ts'), 'cases')]));
+
+  const outDir = path.join(OUT_ROOT, 'compiletime');
+  fs.rmSync(outDir, {recursive: true, force: true});
+  fs.mkdirSync(outDir, {recursive: true});
+
+  const sectionMap = new Map();
+  for (const key of orderedKeys) {
+    const {group, name} = meta.get(key);
+    if (!sectionMap.has(group)) sectionMap.set(group, {key: group, label: sectionLabel(group), cases: []});
+    const results = {};
+    const detailComps = [];
+    for (const competitor of competitors) {
+      const cell = byComp.get(competitor).get(key);
+      // valid = cold (headline), invalid = warm (rides in the corner; hidden when 0).
+      if (cell) results[competitor] = {compiletime: {valid: cell.cold, invalid: cell.warm, status: 'ok'}};
+      const caseSources = sources.get(competitor)?.get(key);
+      const source = caseSources?.validate ?? caseSources?.validationErrors;
+      if (source) detailComps.push({name: competitor, source});
+    }
+    sectionMap.get(group).cases.push({key: safeKey(key), title: name, results});
+    fs.writeFileSync(path.join(outDir, `${safeKey(key)}.json`), JSON.stringify({competitors: detailComps}));
+  }
+
+  const versions = {};
+  for (const competitor of competitors) {
+    const version = ENV?.versions?.[competitor];
+    if (version) versions[competitor] = version;
+  }
+
+  const index = {
+    bench: 'compiletime',
+    label: 'Compile Time',
+    unit: 'count',
+    showInvalid: true,
+    metrics: [
+      {
+        key: 'compiletime',
+        label: 'Build time',
+        metricLabel: 'Wall-clock build cost per case in ms (cold; warm in corner) — lower is better',
+        lowerBetter: true,
+      },
+    ],
+    competitors,
+    versions,
+    meta: metaBlock(),
+    sections: [...sectionMap.values()],
+  };
+  fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(index));
+  return orderedKeys.length;
+}
+
 if (process.argv[1] && process.argv[1].endsWith('gen-bench-docs.mjs')) {
   const v = buildValidationBench();
   process.stdout.write(`validation bench: ${v} cases → container-website/public/bench-data/validation/\n`);
   const t = buildTypecostBench();
   process.stdout.write(`typecost bench: ${t} cases → container-website/public/bench-data/typecost/\n`);
+  const c = buildCompiletimeBench();
+  process.stdout.write(`compiletime bench: ${c} cases → container-website/public/bench-data/compiletime/\n`);
 }
