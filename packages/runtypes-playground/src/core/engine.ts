@@ -8,6 +8,10 @@
 // time, here driven live from a single resolver dispatch.
 
 import * as RT from 'ts-runtypes';
+// Side effect: register the format pure fns (rtFormats::isUUID, …), regex
+// patterns and format mock fns the generated validators / mock walker call at
+// runtime. Without it a format like UUID / IP throws `pf_isUUID is not a function`.
+import 'ts-runtypes/formats';
 import {loadResolver, type Resolver, type ResolverOptions, type ResolverVersions} from './wasmLoader.ts';
 import {MARKER_DTS, ROOT_TYPE} from './markerDts.ts';
 import {operationByKey, type Operation} from './operations.ts';
