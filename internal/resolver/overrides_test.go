@@ -284,6 +284,79 @@ export const enc = createJsonEncoder<{id: number}>();
 	}
 }
 
+// TestOverride_RecursiveFieldOverride — overriding a type used INSIDE a recursive
+// type propagates through the cycle: `Node`'s id folds the `string` override (so
+// it differs from the un-overridden Node and is stable across scans), the walk
+// terminates, and the recursive validator references the `string` cfn redirect at
+// the `tag` field while keeping normal cycle handling on `next: Node`.
+func TestOverride_RecursiveFieldOverride(t *testing.T) {
+	const recursiveSrc = `type Node = {tag: string; next: Node | null};
+`
+	without := map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": recursiveSrc + `import {createValidate} from 'ts-runtypes';
+export const isNode = createValidate<Node>();
+`,
+	}
+	with := map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": recursiveSrc + `import {createValidate, overrideValidate} from 'ts-runtypes';
+overrideValidate<string>((v) => typeof v === 'string');
+export const isNode = createValidate<Node>();
+`,
+	}
+
+	plainNode, _ := idByKind(t, without, protocol.KindObjectLiteral)
+	overriddenNode, _ := idByKind(t, with, protocol.KindObjectLiteral)
+	if plainNode == overriddenNode {
+		t.Fatalf("override did not propagate through the recursive Node: both ids %q", overriddenNode)
+	}
+
+	// Idempotency: a second scan of the same source yields the same Node id.
+	again, _ := idByKind(t, with, protocol.KindObjectLiteral)
+	if again != overriddenNode {
+		t.Fatalf("recursive override id not stable across scans: %q vs %q", overriddenNode, again)
+	}
+
+	// The recursive validator references the string cfn redirect at `tag`.
+	r := setupInline(t, with)
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}, IncludeEntryModules: true})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	if !strings.Contains(familyEntrySources(resp, "validate"), "usePureFn(") {
+		t.Fatalf("recursive Node validator missing the string cfn redirect:\n%s", familyEntrySources(resp, "validate"))
+	}
+}
+
+// TestOverride_RecursiveTypeItselfOverride — overriding the recursive type itself
+// makes its whole entry a cfn redirect; BaseStructuralKey must resolve through the
+// cycle without looping and fold a deterministic id, with no spurious OVR002.
+func TestOverride_RecursiveTypeItselfOverride(t *testing.T) {
+	files := map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": `type Node = {tag: string; next: Node | null};
+import {createValidate, overrideValidate} from 'ts-runtypes';
+overrideValidate<Node>((v) => typeof v === 'object' && v !== null);
+export const isNode = createValidate<Node>();
+`,
+	}
+	r := setupInline(t, files)
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}, IncludeEntryModules: true})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	validateSources := familyEntrySources(resp, "validate")
+	if !strings.Contains(validateSources, "usePureFn(") || !strings.Contains(validateSources, "cfn::") {
+		t.Fatalf("recursive-type override is not a redirect:\n%s", validateSources)
+	}
+	for _, d := range resp.Diagnostics {
+		if d.Code == diag.CodeOverrideMissingCfn {
+			t.Fatalf("recursive override tripped OVR002 (missing cfn): %+v", resp.Diagnostics)
+		}
+	}
+}
+
 // TestOverride_AbsentLeavesIDsUnchanged guards the no-override path: a file with
 // no overrideX call produces exactly the same ids it did before the feature
 // (the fold is inert when the override map is empty).
