@@ -24,8 +24,15 @@ import 'runtypes-playground'; // registers <runtypes-playground>
 ```
 
 Attributes: `type` (initial snippet defining `MyType`), `input` (initial JSON),
-`operation` (initial build function), `wasm-url` / `wasm-exec-url` (override
-asset locations, e.g. a CDN).
+`operation` (initial build function), `mode` (`type` | `schema`), `wasm-url` /
+`wasm-exec-url` (override asset locations, e.g. a CDN).
+
+The UI offers: real-world **presets** and a **TS type / Schema** switch (the same
+shape as a plain TS type or a value-first `ts-runtypes/schema` builder); a
+**Generate random** button that fills the input from `createMockType`; a
+syntax-highlighted output; and a **Generated functions** section showing the code
+RunTypes generates per family. Highlighting reuses Monaco's colorizer, so there's
+no extra dependency.
 
 It uses **light DOM** on purpose — Monaco measures layout and injects styles
 into `document.head`, both of which shadow DOM breaks. For full TS language

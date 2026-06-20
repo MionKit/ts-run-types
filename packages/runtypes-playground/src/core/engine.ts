@@ -49,7 +49,9 @@ export type RunResult =
     };
 
 interface ScanResult {
-  site: {id: string; fnId: string; [key: string]: unknown} | null;
+  // fnId is absent for reflection call sites (getRunTypeId / createMockType),
+  // which inject the facade tuple under `__rt_<id>` rather than `__rt_<fnId>_<id>`.
+  site: {id: string; fnId?: string; [key: string]: unknown} | null;
   entryModules: Record<string, string>;
   runTypes: RunTypeNode[];
   diagnostics: Diagnostic[];
@@ -87,8 +89,22 @@ function linkRootTuple(entryModules: Record<string, string>, binding: string): u
   return new Function(parts.join('\n'))();
 }
 
-function scan(dispatch: Resolver['dispatch'], factory: string, userCode: string): ScanResult {
-  const source = [`import { ${factory} } from 'ts-runtypes';`, userCode, `${factory}<${ROOT_TYPE}>();`, ''].join('\n');
+// How the editor's snippet defines the type: a TS type `MyType` (the call site
+// is `<factory><MyType>()`), or a value-first `const MyType = ...` schema built
+// from ts-runtypes/schema + ts-runtypes/formats (the call site is `<factory>(MyType)`).
+export type Mode = 'type' | 'schema';
+
+function scan(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode = 'type'): ScanResult {
+  const imports =
+    mode === 'schema'
+      ? [
+          `import { ${factory} } from 'ts-runtypes';`,
+          `import * as RT from 'ts-runtypes/schema';`,
+          `import * as TF from 'ts-runtypes/formats';`,
+        ]
+      : [`import { ${factory} } from 'ts-runtypes';`];
+  const call = mode === 'schema' ? `${factory}(${ROOT_TYPE});` : `${factory}<${ROOT_TYPE}>();`;
+  const source = [...imports, userCode, call, ''].join('\n');
   dispatch({op: 'setSources', sources: {'ts-runtypes.d.ts': MARKER_DTS, [FILE]: source}});
   const result = dispatch({op: 'scanFiles', files: [FILE], includeRunTypes: true, includeEntryModules: true});
   const sites = (result.sites as ScanResult['site'][]) ?? [];
@@ -108,25 +124,97 @@ function formatDiagnostics(diagnostics: Diagnostic[]): string {
     .join('\n');
 }
 
-interface Materialized {
-  fn: (...args: unknown[]) => unknown;
+interface LinkedEntry {
+  tuple: unknown[];
   diagnostics: Diagnostic[];
 }
 
-// materialize a live function for a type-fn family (validate / encoders / …).
-function materialize(dispatch: Resolver['dispatch'], factory: string, userCode: string): Materialized {
-  const {site, entryModules, diagnostics} = scan(dispatch, factory, userCode);
+// linkEntry scans <factory><MyType>(), links the emitted entry modules, and
+// returns the root tuple. The binding is `__rt_<fnId>_<id>` for type-fn families
+// (validate / encoders / …) and `__rt_<id>` for reflection ones (createMockType /
+// getRunTypeId), which inject a facade tuple with no fnId.
+function linkEntry(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode = 'type'): LinkedEntry {
+  const {site, entryModules, diagnostics} = scan(dispatch, factory, userCode, mode);
   if (!site) {
     throw new Error(
       `${factory}<…>() produced no call site. Check that the snippet compiles and defines ${ROOT_TYPE}.` +
         (diagnostics.length ? `\n${formatDiagnostics(diagnostics)}` : '')
     );
   }
-  const binding = `__rt_${site.fnId}_${site.id}`;
-  const tuple = linkRootTuple(entryModules, binding);
-  // validate/encoders take an options slot, so the injected tuple is trailing.
+  const binding = site.fnId ? `__rt_${site.fnId}_${site.id}` : `__rt_${site.id}`;
+  const tuple = linkRootTuple(entryModules, binding) as unknown[];
+  return {tuple, diagnostics};
+}
+
+interface Materialized {
+  fn: (...args: unknown[]) => unknown;
+  diagnostics: Diagnostic[];
+}
+
+// materialize a live function by handing the linked root tuple to the public
+// ts-runtypes factory. validate/encoders/mock all take the injected tuple in the
+// trailing (3rd) arg slot — the runtime signature is (value, options, id).
+function materialize(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode = 'type'): Materialized {
+  const {tuple, diagnostics} = linkEntry(dispatch, factory, userCode, mode);
   const fn = factories[factory](undefined, undefined, tuple) as Materialized['fn'];
   return {fn, diagnostics};
+}
+
+// Slot index of the generated function body inside a type-fn entry tuple
+// (FN_TYPE_REQUIRED_KEYS = [familyTag, deps, ini, rtFnHash, typeName, code] in
+// packages/ts-runtypes/src/runtypes/entryTuple.ts). Noop / alwaysThrow entries
+// ship without a code string.
+const CODE_SLOT = 5;
+
+export interface GeneratedModule {
+  factory: string;
+  // The generated function source, or null when the family is a no-op (identity)
+  // for this type or could not be generated (see `note`).
+  code: string | null;
+  note?: string;
+}
+
+// The type-fn families whose generated code the playground shows, in display
+// order. Reflection (getRunTypeId / createMockType) has no per-type function code.
+const CODE_FAMILIES: ReadonlyArray<string> = [
+  'createValidate',
+  'createGetValidationErrors',
+  'createJsonEncoder',
+  'createJsonDecoder',
+  'createBinaryEncoder',
+  'createBinaryDecoder',
+];
+
+// generatedModules returns the generated function source for each family for the
+// given type, by linking each entry tuple and reading its code slot.
+export async function generatedModules(
+  userCode: string,
+  options?: ResolverOptions,
+  mode: Mode = 'type'
+): Promise<GeneratedModule[]> {
+  const {dispatch} = await getResolver(options);
+  return CODE_FAMILIES.map((factory) => {
+    try {
+      const {tuple} = linkEntry(dispatch, factory, userCode, mode);
+      const code = tuple[CODE_SLOT];
+      if (typeof code === 'string' && code.length > 0) return {factory, code};
+      return {factory, code: null, note: 'no-op for this type (the generated function is the identity)'};
+    } catch (err) {
+      return {factory, code: null, note: (err as Error).message ?? String(err)};
+    }
+  });
+}
+
+// mock generates a random value for the type via createMockType (the same
+// generator MockData feeds). Returns the value plus any diagnostics.
+export async function mock(
+  userCode: string,
+  options?: ResolverOptions,
+  mode: Mode = 'type'
+): Promise<{value: unknown; diagnostics: Diagnostic[]}> {
+  const {dispatch} = await getResolver(options);
+  const {fn, diagnostics} = materialize(dispatch, 'createMockType', userCode, mode);
+  return {value: fn(), diagnostics};
 }
 
 function toHex(bytes: Uint8Array): string {
@@ -138,45 +226,54 @@ function asBytes(value: unknown): Uint8Array {
 }
 
 // run executes the chosen operation. `input` is the parsed JS value (may be
-// undefined for ops that take no input).
-export async function run(opKey: string, userCode: string, input?: unknown, options?: ResolverOptions): Promise<RunResult> {
+// undefined for ops that take no input). `mode` selects the TS-type vs schema form.
+export async function run(
+  opKey: string,
+  userCode: string,
+  input?: unknown,
+  options?: ResolverOptions,
+  mode: Mode = 'type'
+): Promise<RunResult> {
   const {dispatch} = await getResolver(options);
   const op = operationByKey(opKey);
 
   switch (op.kind) {
     case 'graph': {
-      const {site, runTypes, diagnostics} = scan(dispatch, 'getRunTypeId', userCode);
+      // Type mode reflects via getRunTypeId<MyType>(); schema mode resolves the
+      // same graph through a value-first reflection call on the schema.
+      const reflectFactory = mode === 'schema' ? 'createMockType' : 'getRunTypeId';
+      const {site, runTypes, diagnostics} = scan(dispatch, reflectFactory, userCode, mode);
       const rootId = site?.id ?? null;
       const root = runTypes.find((n) => n.id === rootId) ?? runTypes[0] ?? null;
       return {op, kind: 'graph', rootId, root, runTypes, diagnostics};
     }
     case 'predicate': {
-      const {fn, diagnostics} = materialize(dispatch, op.factory, userCode);
+      const {fn, diagnostics} = materialize(dispatch, op.factory, userCode, mode);
       return {op, kind: 'predicate', value: Boolean(fn(input)), diagnostics};
     }
     case 'errors': {
-      const {fn, diagnostics} = materialize(dispatch, op.factory, userCode);
+      const {fn, diagnostics} = materialize(dispatch, op.factory, userCode, mode);
       return {op, kind: 'errors', value: fn(input) as unknown[], diagnostics};
     }
     case 'encode': {
-      const {fn, diagnostics} = materialize(dispatch, op.factory, userCode);
+      const {fn, diagnostics} = materialize(dispatch, op.factory, userCode, mode);
       return {op, kind: 'encode', value: fn(input), diagnostics};
     }
     case 'jsonRoundtrip': {
-      const enc = materialize(dispatch, 'createJsonEncoder', userCode);
-      const dec = materialize(dispatch, 'createJsonDecoder', userCode);
+      const enc = materialize(dispatch, 'createJsonEncoder', userCode, mode);
+      const dec = materialize(dispatch, 'createJsonDecoder', userCode, mode);
       const encoded = enc.fn(input);
       const decoded = dec.fn(encoded);
       return {op, kind: 'jsonRoundtrip', encoded, decoded, diagnostics: dec.diagnostics};
     }
     case 'binaryEncode': {
-      const {fn, diagnostics} = materialize(dispatch, op.factory, userCode);
+      const {fn, diagnostics} = materialize(dispatch, op.factory, userCode, mode);
       const bytes = asBytes(fn(input));
       return {op, kind: 'binaryEncode', byteLength: bytes.length, hex: toHex(bytes), diagnostics};
     }
     case 'binaryRoundtrip': {
-      const enc = materialize(dispatch, 'createBinaryEncoder', userCode);
-      const dec = materialize(dispatch, 'createBinaryDecoder', userCode);
+      const enc = materialize(dispatch, 'createBinaryEncoder', userCode, mode);
+      const dec = materialize(dispatch, 'createBinaryDecoder', userCode, mode);
       const bytes = asBytes(enc.fn(input));
       const decoded = dec.fn(bytes);
       return {op, kind: 'binaryRoundtrip', byteLength: bytes.length, hex: toHex(bytes), decoded, diagnostics: dec.diagnostics};

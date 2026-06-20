@@ -1,5 +1,5 @@
 import {beforeAll, describe, expect, it} from 'vitest';
-import {run, setResolver, versions} from '../src/core/index.ts';
+import {generatedModules, mock, run, setResolver, versions} from '../src/core/index.ts';
 import {assetsBuilt, loadNodeResolver} from './nodeResolver.ts';
 
 // End-to-end engine tests: each resolves <factory><MyType>() via the real WASM
@@ -70,5 +70,35 @@ describeIf('playground engine (WASM, live execution)', () => {
     if (res.kind !== 'graph') throw new Error('expected graph result');
     expect(res.rootId).toBeTruthy();
     expect(res.runTypes.length).toBeGreaterThan(0);
+  });
+
+  it('createMockType generates a value that validates', async () => {
+    const m = await mock(TYPE);
+    expect(m.value).toBeTypeOf('object');
+    const ok = await run('validate', TYPE, m.value);
+    if (ok.kind !== 'predicate') throw new Error('expected predicate result');
+    expect(ok.value).toBe(true);
+  });
+
+  it('generatedModules returns the generated code per family', async () => {
+    const mods = await generatedModules(TYPE);
+    expect(mods.map((m) => m.factory)).toContain('createValidate');
+    const validate = mods.find((m) => m.factory === 'createValidate');
+    expect(validate?.code).toContain('return');
+  });
+
+  it('runs the value-first schema form (mode: schema)', async () => {
+    const schema = `const MyType = RT.object({
+      id: TF.number(),
+      name: TF.string(),
+      tags: RT.array(TF.string()),
+      active: RT.boolean(),
+    });`;
+    const ok = await run('validate', schema, VALID, undefined, 'schema');
+    if (ok.kind !== 'predicate') throw new Error('expected predicate result');
+    expect(ok.value).toBe(true);
+    const bad = await run('validate', schema, INVALID, undefined, 'schema');
+    if (bad.kind !== 'predicate') throw new Error('expected predicate result');
+    expect(bad.value).toBe(false);
   });
 });
