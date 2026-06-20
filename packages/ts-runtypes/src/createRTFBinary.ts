@@ -82,6 +82,26 @@ export interface BinaryDecoderOptions {
 const noopToBinaryFn: ToBinaryFn = (_v, Ser) => Ser;
 const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
 
+// Process-wide default sizing, mirroring setRejectCircularRefs: a global default
+// that a per-call `{sizing}` / `{bufferSize}` option on createBinaryEncoder
+// overrides. `bufferSize` is only meaningful together with `sizing: 'initial'`.
+let defaultSizingMode: NonNullable<BinaryEncoderOptions['sizing']> = 'dynamic';
+let defaultSizingBufferSize: number | undefined;
+
+/** Sets the process-wide default binary buffer-sizing mode (and, for `'initial'`,
+ *  a default `bufferSize`). A per-call `{sizing}` / `{bufferSize}` option on
+ *  `createBinaryEncoder` overrides it. Resets to `'dynamic'` when called with no
+ *  arguments. **/
+export function setDefaultBinarySizing(sizing: NonNullable<BinaryEncoderOptions['sizing']> = 'dynamic', bufferSize?: number): void {
+  defaultSizingMode = sizing;
+  defaultSizingBufferSize = bufferSize;
+}
+
+/** The current process-wide default binary sizing mode + buffer size. **/
+export function getDefaultBinarySizing(): {sizing: NonNullable<BinaryEncoderOptions['sizing']>; bufferSize: number | undefined} {
+  return {sizing: defaultSizingMode, bufferSize: defaultSizingBufferSize};
+}
+
 // 'initial' overflow message — the caller's fixed buffer was too small.
 function initialTooSmall(bufferSize: number): RangeError {
   return new RangeError(
@@ -123,8 +143,8 @@ export function createBinaryEncoder<T>(
     id,
     options?.rejectCircularRefs
   );
-  const sizing = options?.sizing ?? 'dynamic';
-  const bufferSize = options?.bufferSize;
+  const sizing = options?.sizing ?? defaultSizingMode;
+  const bufferSize = options?.bufferSize ?? defaultSizingBufferSize;
   return (value, serializer) => {
     // Caller-supplied serializer: they own sizing + end-of-payload semantics,
     // so we don't record history on their behalf.

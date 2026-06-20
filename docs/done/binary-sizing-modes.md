@@ -55,9 +55,17 @@ Two consequences fall out and are part of this plan:
 
 ## Why — the measurements that drive this
 
-Full serialization suite (132 binary cases, 16 groups), encode ops/sec, geomean,
-the `precalculate` measure pass vs `dynamic` (one-off measurement, the whole suite
-run under each sizing mode):
+Reproducible via [`scripts/bench-sizing-suite.mjs`](../../scripts/bench-sizing-suite.mjs)
+(runs the whole serialization suite under each mode via the `setDefaultBinarySizing`
+global default). Final three-mode numbers, encode ops/sec, geomean over 132 cases,
+vs `dynamic`:
+
+- **`precalculate` ≈ −22% to −24%** (the measure pass), uniform across groups.
+- **`initial` ≈ +17% to +19%** — the fastest: no measure pass, no grow checks, an
+  exact pre-sized buffer (size it once with `createBinarySizer`).
+- **0 byte mismatches** across all modes.
+
+The original two-mode measurement that drove the design (`precalculate` vs `dynamic`):
 
 - **The measure pass costs ~27% encode throughput, uniformly** (every group −19% to
   −33%; worst cases −42% to −50% for temporal / union-of-array / array-of-date).
