@@ -1,5 +1,6 @@
 import {beforeAll, describe, expect, it} from 'vitest';
 import {generatedFunction, generatedModules, mock, mockInvalid, run, setResolver, versions} from '../src/core/index.ts';
+import {randomTypeDefinition} from '../src/element/randomType.ts';
 import {assetsBuilt, loadNodeResolver} from './nodeResolver.ts';
 
 // End-to-end engine tests: each resolves <factory><MyType>() via the real WASM
@@ -106,7 +107,10 @@ describeIf('playground engine (WASM, live execution)', () => {
   });
 
   it('mockInvalid works in the value-first schema form (mode: schema)', async () => {
-    const schema = `const MyType = RT.object({
+    const schema = `import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
+
+const MyType = RT.object({
       id: TF.number(),
       name: TF.string(),
       tags: RT.array(TF.string()),
@@ -136,8 +140,21 @@ describeIf('playground engine (WASM, live execution)', () => {
     expect(validate?.code).toContain('return');
   });
 
+  it('Random type generator produces resolvable types (library fuzz generator)', async () => {
+    for (let i = 0; i < 12; i++) {
+      const code = randomTypeDefinition();
+      expect(code).toContain(`type MyType =`);
+      const res = await run('graph', code);
+      if (res.kind !== 'graph') throw new Error('expected graph result');
+      expect(res.runTypes.length).toBeGreaterThan(0);
+    }
+  });
+
   it('runs the value-first schema form (mode: schema)', async () => {
-    const schema = `const MyType = RT.object({
+    const schema = `import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
+
+const MyType = RT.object({
       id: TF.number(),
       name: TF.string(),
       tags: RT.array(TF.string()),

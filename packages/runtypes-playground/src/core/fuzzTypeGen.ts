@@ -1,0 +1,775 @@
+// VENDORED from packages/ts-runtypes/test/fuzz/typeGen.ts — RunTypes' own seeded
+// fuzz type generator (the generator its test suite uses to stress the resolver /
+// plugin / runtime pipeline). Copied here because it lives under test/ (not a
+// package export) and the playground is a separate package, so it can't be
+// imported across the project boundary. Keep in sync with the original if it
+// changes. Used by randomType.ts to power the "Random type" button.
+//
+// Phase 2 — the THIRD giant switch: a seeded, recursive generator of random
+// TypeScript types, deliberately spanning the WIDEST shape space we can throw at
+// the pipeline. Where Phase 1 fuzzes VALUES against fixed types, this fuzzes the
+// TYPES themselves: each generated type becomes a real declaration with one
+// createX<T>() / getRunTypeId<T>() call site per family, and the whole Go
+// resolver → plugin → runtime pipeline must handle it without crashing.
+//
+// The space is intentionally adversarial — not just clean DTOs:
+//   - scalars + literals + `Date` / `RegExp` / `bigint`,
+//   - arrays, tuples, objects (optional / readonly / method / non-ident keys),
+//   - index signatures + `Record<…>`, unions, intersections,
+//   - native builtins `Map` / `Set` / `Promise`,
+//   - non-serialisable kinds: `function`, `symbol`, `any` / `unknown` /
+//     `never` / `void` / `undefined`,
+//   - named declarations: `interface` (incl. RECURSIVE / circular), `declare
+//     class` (with methods), `enum`.
+//
+// Whether a generated type is fully serialisable is NOT a generation-time
+// concern — the resolver's own diagnostics classify it at run time
+// (typeFuzzRunner.ts), and the oracle tier is chosen from that. So the generator
+// is free to emit anything that type-checks; robustness (no crash, valid emit)
+// is policed on everything, the strong value oracles only on the serialisable
+// subset.
+//
+// Everything draws from the global `Math.random`, so wrapping a generation in
+// `withSeededRandom(seed, …)` (seededRng.ts) replays the whole type — decls and
+// all — byte-for-byte from one seed.
+
+// --- abstract shape model ---
+
+export type TypeShape =
+  | {kind: 'number'}
+  | {kind: 'string'}
+  | {kind: 'boolean'}
+  | {kind: 'bigint'}
+  | {kind: 'null'}
+  | {kind: 'undefined'}
+  | {kind: 'date'}
+  | {kind: 'regexp'}
+  | {kind: 'literal'; value: string | number | boolean}
+  | {kind: 'any'}
+  | {kind: 'unknown'}
+  | {kind: 'never'}
+  | {kind: 'void'}
+  | {kind: 'symbol'}
+  | {kind: 'array'; elem: TypeShape}
+  | {kind: 'tuple'; elems: TypeShape[]}
+  | {kind: 'object'; props: PropShape[]; index?: TypeShape; indexKey?: IndexKeyKind[]}
+  | {kind: 'record'; value: TypeShape}
+  | {kind: 'union'; members: TypeShape[]}
+  | {kind: 'intersection'; members: TypeShape[]}
+  | {kind: 'map'; key: TypeShape; value: TypeShape}
+  | {kind: 'set'; elem: TypeShape}
+  | {kind: 'promise'; value: TypeShape}
+  | {kind: 'function'; params: TypeShape[]; ret: TypeShape}
+  // Non-serialisable native binary kinds (DataOnly strips them to `never`).
+  | {kind: 'arraybuffer'}
+  | {kind: 'sharedarraybuffer'}
+  | {kind: 'dataview'}
+  | {kind: 'typedarray'; name: TypedArrayName}
+  | {kind: 'ref'; name: string};
+
+/** The typed-array constructors the generator can emit — a representative
+ *  slice (all are non-serialisable `ArrayBufferView`s under DataOnly). **/
+export type TypedArrayName = 'Uint8Array' | 'Int32Array' | 'Float64Array';
+const TYPED_ARRAY_NAMES: TypedArrayName[] = ['Uint8Array', 'Int32Array', 'Float64Array'];
+
+/** The key kinds a generated index signature can use, alone or as a union
+ *  (`[k: number]`, `[k: string | symbol]`, …). All are valid TypeScript; the
+ *  resolver SPLITS a union key into one index signature per kind, so the value
+ *  generators + the product mock handle each kind independently. **/
+export type IndexKeyKind = 'string' | 'number' | 'symbol';
+const INDEX_KEY_KINDS: IndexKeyKind[] = ['string', 'number', 'symbol'];
+
+/** A non-empty random subset of {string, number, symbol} — the index key type. **/
+function randomIndexKey(): IndexKeyKind[] {
+  const chosen = INDEX_KEY_KINDS.filter(() => chance(0.5));
+  return chosen.length ? chosen : [pick(INDEX_KEY_KINDS)];
+}
+
+/** A call signature on a callable interface (`(a0: P): R`). An interface that
+ *  carries one is itself function-like, so DataOnly strips it to `never`. **/
+export interface CallSigShape {
+  params: TypeShape[];
+  ret: TypeShape;
+}
+
+export interface PropShape {
+  /** Raw property key (may be a non-identifier — renderer quotes it). **/
+  name: string;
+  optional: boolean;
+  readonly: boolean;
+  /** Render as a method signature (`m(): R`) rather than `m: (…) => R`. **/
+  method: boolean;
+  shape: TypeShape;
+}
+
+export type Decl =
+  // `calls` (when present) makes this a CALLABLE interface — function-like, so
+  // DataOnly strips a ref to it the same way it strips a bare function.
+  | {kind: 'interface'; name: string; props: PropShape[]; calls?: CallSigShape[]}
+  | {kind: 'type'; name: string; shape: TypeShape}
+  | {kind: 'class'; name: string; props: PropShape[]}
+  | {kind: 'enum'; name: string; members: EnumMember[]};
+
+export interface EnumMember {
+  name: string;
+  value?: string | number;
+}
+
+/** A complete generated type: zero or more named declarations + the root type
+ *  expression that the createX<T>() sites target. **/
+export interface GeneratedType {
+  decls: Decl[];
+  root: TypeShape;
+}
+
+export interface GenOptions {
+  maxDepth: number;
+  maxBreadth: number;
+  /** Master switch: when false, restrict to the serialisable subset (drives the
+   *  strong-oracle sweep); when true, the full adversarial space (adds the broad
+   *  edge kinds `any` / `unknown` / `never` / `void` and primitive-branded
+   *  intersections). **/
+  wild: boolean;
+  /** Emit the DataOnly-STRIPPED kinds — `symbol`, functions, property methods,
+   *  callable interfaces, `Promise`, `declare class`, and the non-serialisable
+   *  natives (`ArrayBuffer` / typed arrays / `DataView`). Orthogonal to `wild`:
+   *  the DataOnly fuzz lane sets this true with `wild` false so the contract is
+   *  exercised without `any`/`unknown` noise. **/
+  nonDataTypes: boolean;
+  /** Emit non-identifier property keys sometimes. **/
+  weirdKeys: boolean;
+  /** Generate named decls (interfaces / classes / enums), including recursive
+   *  interfaces. **/
+  named: boolean;
+}
+
+export const WILD_GEN_OPTIONS: GenOptions = {
+  maxDepth: 4,
+  maxBreadth: 4,
+  wild: true,
+  nonDataTypes: true,
+  weirdKeys: true,
+  named: true,
+};
+
+/** Serialisable-only preset — the strong value oracles (O1/O2/O5/O6) need clean
+ *  round-trippable types. Still includes recursive interfaces, Map/Set/RegExp,
+ *  records, intersections — everything that round-trips. **/
+export const DATA_GEN_OPTIONS: GenOptions = {
+  maxDepth: 4,
+  maxBreadth: 4,
+  wild: false,
+  nonDataTypes: false,
+  weirdKeys: true,
+  named: true,
+};
+
+/** DataOnly-contract preset — clean serialisable base PLUS the stripped kinds
+ *  (symbol / function / method / callable interface / Promise / class / native),
+ *  with `wild` off so the lane isn't drowned in `any`/`unknown`. Drives the
+ *  DataOnly serialize-vs-drop-vs-fail oracle. **/
+export const NONDATA_GEN_OPTIONS: GenOptions = {
+  maxDepth: 4,
+  maxBreadth: 4,
+  wild: false,
+  nonDataTypes: true,
+  weirdKeys: true,
+  named: true,
+};
+
+// keep DEFAULT pointed at the wild space — the headline behaviour.
+export const DEFAULT_GEN_OPTIONS = WILD_GEN_OPTIONS;
+
+// --- seeded helpers (all over the swapped-in Math.random) ---
+
+function rnd(): number {
+  return Math.random();
+}
+function int(maxExclusive: number): number {
+  return Math.floor(rnd() * maxExclusive);
+}
+function pick<T>(items: readonly T[]): T {
+  return items[int(items.length)];
+}
+function chance(p: number): boolean {
+  return rnd() < p;
+}
+
+const WEIRD_KEYS = ['a-b', '1x', 'has space', 'class', '__proto__like', 'k.dot', '9', 'with"quote'];
+
+// Generation context — collects named decls and bounds recursion. `refs` holds
+// the decls that are in scope as `ref` targets (interfaces/classes/enums).
+interface Ctx {
+  opts: GenOptions;
+  decls: Decl[];
+  refs: {name: string; kind: Decl['kind']}[];
+  nameSeq: number;
+}
+
+function freshName(ctx: Ctx, prefix: string): string {
+  return `${prefix}${ctx.nameSeq++}`;
+}
+
+/** Generate a whole type: a handful of named decls (some recursive) + a root. **/
+export function genType(opts: GenOptions = DEFAULT_GEN_OPTIONS): GeneratedType {
+  const ctx: Ctx = {opts, decls: [], refs: [], nameSeq: 0};
+  if (opts.named) {
+    const declCount = int(3); // 0–2 named decls
+    for (let i = 0; i < declCount; i++) genDecl(ctx);
+  }
+  const root = genShape(ctx, 0);
+  return {decls: ctx.decls, root};
+}
+
+function genDecl(ctx: Ctx): void {
+  const choice = ctx.opts.nonDataTypes
+    ? pick(['interface', 'interface', 'class', 'enum'] as const)
+    : pick(['interface', 'interface', 'enum'] as const);
+  if (choice === 'enum') {
+    const name = freshName(ctx, 'E');
+    const count = 1 + int(4);
+    const stringValued = chance(0.5);
+    const members: EnumMember[] = [];
+    // Either all string-valued, or all auto-numbered (member i === i) — keeps
+    // the runtime value of each member trivially computable for value-gen.
+    for (let i = 0; i < count; i++) {
+      members.push(stringValued ? {name: `M${i}`, value: `e${i}`} : {name: `M${i}`});
+    }
+    ctx.decls.push({kind: 'enum', name, members});
+    ctx.refs.push({name, kind: 'enum'});
+    return;
+  }
+  if (choice === 'class') {
+    const name = freshName(ctx, 'C');
+    // Register before generating members so a member can reference the class.
+    ctx.refs.push({name, kind: 'class'});
+    const props = genMembers(ctx, 1, name, true);
+    ctx.decls.push({kind: 'class', name, props});
+    return;
+  }
+  // interface — register the name first so props can self-reference (recursive).
+  const name = freshName(ctx, 'N');
+  ctx.refs.push({name, kind: 'interface'});
+  const props = genMembers(ctx, 1, name, ctx.opts.nonDataTypes);
+  // Callable-interface GENERATION stays disabled. The F2 product inconsistency is
+  // fixed (validate and the serializers now agree: a callable interface is
+  // function-like everywhere — typeof-function at the root, dropped at a
+  // property; pinned by callable_interface_dataonly_test.go). Re-enabling
+  // generation, however, surfaces a SEPARATE emit-pipeline bug: a complex
+  // callable interface (a call signature whose params/returns pull in `any` /
+  // methods / non-serializable intersections) wires its now-alwaysThrow factory
+  // with an UNCONTROLLED error (`reading 'fn'`) and leaves a binary site
+  // unresolved. That dependency-linking bug is tracked as a follow-up; the
+  // `calls` plumbing stays so it can be re-enabled once it lands.
+  ctx.decls.push({kind: 'interface', name, props, calls: undefined});
+}
+
+// Generate object/interface/class members. `selfName`, when set, is in scope as
+// a recursive ref target — but ONLY ever placed in inhabitable positions
+// (optional props or array elements) so values stay finite.
+function genMembers(
+  ctx: Ctx,
+  depth: number,
+  selfName: string | undefined,
+  allowMethods: boolean,
+  forcedShape?: TypeShape
+): PropShape[] {
+  const count = 1 + int(ctx.opts.maxBreadth);
+  const props: PropShape[] = [];
+  const used = new Set<string>();
+  for (let i = 0; i < count; i++) {
+    let name = `p${i}`;
+    if (ctx.opts.weirdKeys && chance(0.12)) {
+      const weird = pick(WEIRD_KEYS);
+      if (!used.has(weird)) name = weird;
+    }
+    if (used.has(name)) continue;
+    used.add(name);
+    const optional = chance(0.35);
+    const method = !forcedShape && allowMethods && ctx.opts.nonDataTypes && chance(0.15);
+    let shape: TypeShape;
+    if (forcedShape) {
+      // The enclosing object has a `string`-keyed index, so every named prop
+      // must be assignable to the index value type — reuse it verbatim so the
+      // object stays valid TypeScript.
+      shape = forcedShape;
+    } else if (method) {
+      shape = {kind: 'function', params: genParams(ctx, depth), ret: genShape(ctx, depth + 1)};
+    } else if (selfName && optional && chance(0.5)) {
+      // recursive self-reference through an optional prop (always inhabitable)
+      shape = chance(0.5) ? {kind: 'ref', name: selfName} : {kind: 'array', elem: {kind: 'ref', name: selfName}};
+    } else {
+      shape = genShape(ctx, depth + 1);
+    }
+    props.push({name, optional, readonly: chance(0.2), method, shape});
+  }
+  // bias toward at least one recursive array prop for declared self-types (only
+  // when props are unconstrained — a string-keyed index would reject it)
+  if (selfName && !forcedShape && chance(0.4)) {
+    props.push({
+      name: `kids${props.length}`,
+      optional: false,
+      readonly: false,
+      method: false,
+      shape: {kind: 'array', elem: {kind: 'ref', name: selfName}},
+    });
+  }
+  return props;
+}
+
+function genParams(ctx: Ctx, depth: number): TypeShape[] {
+  const count = int(3);
+  const params: TypeShape[] = [];
+  for (let i = 0; i < count; i++) params.push(genShape(ctx, depth + 1));
+  return params;
+}
+
+/** Generate a shape at `depth`, branching into compounds until maxDepth. **/
+export function genShape(ctx: Ctx, depth: number): TypeShape {
+  if (depth >= ctx.opts.maxDepth || chance(0.4)) return genLeaf(ctx);
+  const builders: Array<() => TypeShape> = [
+    () => ({kind: 'array', elem: genShape(ctx, depth + 1)}),
+    () => genTuple(ctx, depth),
+    () => genObject(ctx, depth),
+    () => genUnion(ctx, depth),
+    () => ({kind: 'record', value: genShape(ctx, depth + 1)}),
+  ];
+  // Intersections + Map/Set round-trip, so every preset can emit them (the
+  // primitive-brand arm inside genIntersection stays gated on `wild`).
+  builders.push(
+    () => genIntersection(ctx, depth),
+    () => ({kind: 'map', key: pick<TypeShape>([{kind: 'string'}, {kind: 'number'}]), value: genShape(ctx, depth + 1)}),
+    () => ({kind: 'set', elem: genShape(ctx, depth + 1)})
+  );
+  // Promise + function are DataOnly-stripped — gated on nonDataTypes.
+  if (ctx.opts.nonDataTypes) {
+    builders.push(
+      () => ({kind: 'promise', value: genShape(ctx, depth + 1)}),
+      () => ({kind: 'function', params: genParams(ctx, depth), ret: genShape(ctx, depth + 1)})
+    );
+  }
+  // sometimes reference a declared type instead of generating inline (class refs
+  // only exist when nonDataTypes generated a `declare class`).
+  const usableRefs = ctx.refs.filter((r) => (ctx.opts.nonDataTypes ? true : r.kind !== 'class'));
+  if (usableRefs.length && chance(0.3)) {
+    const ref = pick(usableRefs);
+    return {kind: 'ref', name: ref.name};
+  }
+  return pick(builders)();
+}
+
+function genLeaf(ctx: Ctx): TypeShape {
+  const serial: Array<() => TypeShape> = [
+    () => ({kind: 'number'}),
+    () => ({kind: 'string'}),
+    () => ({kind: 'boolean'}),
+    () => ({kind: 'null'}),
+    () => ({kind: 'bigint'}),
+    () => ({kind: 'date'}),
+    () => ({kind: 'regexp'}),
+    () => ({kind: 'undefined'}),
+    () => genLiteral(),
+  ];
+  // Broad / edge kinds — adversarial but not "non-data" per se (any/unknown are
+  // passthrough; never/void have their own arms). Gated on `wild`.
+  const broad: Array<() => TypeShape> = [
+    () => ({kind: 'any'}),
+    () => ({kind: 'unknown'}),
+    () => ({kind: 'never'}),
+    () => ({kind: 'void'}),
+  ];
+  // DataOnly-stripped leaves — symbol + the non-serialisable natives. Gated on
+  // nonDataTypes.
+  const nonData: Array<() => TypeShape> = [
+    () => ({kind: 'symbol'}),
+    () => ({kind: 'arraybuffer'}),
+    () => ({kind: 'sharedarraybuffer'}),
+    () => ({kind: 'dataview'}),
+    () => ({kind: 'typedarray', name: pick(TYPED_ARRAY_NAMES)}),
+  ];
+  // refs to enums/classes are leaf-ish (class refs only when nonDataTypes).
+  const refLeaves = ctx.refs
+    .filter((r) => r.kind === 'enum' || (ctx.opts.nonDataTypes && r.kind === 'class'))
+    .map((r) => () => ({kind: 'ref', name: r.name}) as TypeShape);
+  const pool = [...serial, ...(ctx.opts.wild ? broad : []), ...(ctx.opts.nonDataTypes ? nonData : []), ...refLeaves];
+  return pick(pool)();
+}
+
+function genLiteral(): TypeShape {
+  const flavour = int(3);
+  if (flavour === 0) return {kind: 'literal', value: pick(['on', 'off', 'red', 'green', 'A', 'B'])};
+  if (flavour === 1) return {kind: 'literal', value: pick([0, 1, 7, 42, -3])};
+  return {kind: 'literal', value: chance(0.5)};
+}
+
+function genTuple(ctx: Ctx, depth: number): TypeShape {
+  const length = 1 + int(ctx.opts.maxBreadth);
+  const elems: TypeShape[] = [];
+  for (let i = 0; i < length; i++) elems.push(genShape(ctx, depth + 1));
+  return {kind: 'tuple', elems};
+}
+
+function genObject(ctx: Ctx, depth: number): TypeShape {
+  // Generate the index signature FIRST, with lower probability than a regular
+  // prop. A key set containing `string` constrains EVERY named (string-keyed)
+  // property to the index value type (TS2411); when one is present the named
+  // props reuse the index value shape so the object stays valid, otherwise
+  // string-named props are unconstrained and get free types. Any residual
+  // invalid combo (e.g. a numeric weird-key prop under a number-only key) is
+  // dropped by the runner's TS-validity gate.
+  let index: TypeShape | undefined;
+  let indexKey: IndexKeyKind[] | undefined;
+  if (chance(0.15)) {
+    indexKey = randomIndexKey();
+    index = genShape(ctx, depth + 1);
+  }
+  const forcedPropShape = indexKey?.includes('string') ? index : undefined;
+  const props = genMembers(ctx, depth, undefined, ctx.opts.wild, forcedPropShape);
+  return {kind: 'object', props, index, indexKey};
+}
+
+// Unions are kept value-level DISJOINT so the strong oracles stay sound on the
+// serialisable subset: distinct literals, distinct primitive kinds, or tagged
+// objects with a distinct discriminant literal.
+function genUnion(ctx: Ctx, depth: number): TypeShape {
+  const flavour = pick(['literals', 'primitives', 'tagged'] as const);
+  const count = 2 + int(Math.max(1, ctx.opts.maxBreadth - 1));
+  if (flavour === 'literals') return {kind: 'union', members: genDistinctLiterals(count)};
+  if (flavour === 'primitives') return {kind: 'union', members: genDistinctPrimitives(count)};
+  return {kind: 'union', members: genTaggedObjects(ctx, count, depth)};
+}
+
+function genDistinctLiterals(count: number): TypeShape[] {
+  const pool = ['la', 'lb', 'lc', 'ld', 'le', 'lf'];
+  const members: TypeShape[] = [];
+  for (let i = 0; i < Math.min(count, pool.length); i++) members.push({kind: 'literal', value: pool[i]});
+  return members.length >= 2
+    ? members
+    : [
+        {kind: 'literal', value: 'la'},
+        {kind: 'literal', value: 'lb'},
+      ];
+}
+
+function genDistinctPrimitives(count: number): TypeShape[] {
+  const kinds: TypeShape[] = [{kind: 'string'}, {kind: 'number'}, {kind: 'boolean'}, {kind: 'bigint'}];
+  const shuffled = [...kinds];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = int(i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, Math.max(2, Math.min(count, shuffled.length)));
+}
+
+function genTaggedObjects(ctx: Ctx, count: number, depth: number): TypeShape[] {
+  const members: TypeShape[] = [];
+  const n = Math.min(count, 4);
+  for (let i = 0; i < n; i++) {
+    const props: PropShape[] = [
+      {name: 'kind', optional: false, readonly: false, method: false, shape: {kind: 'literal', value: `t${i}`}},
+    ];
+    const extra = int(ctx.opts.maxBreadth);
+    for (let k = 0; k < extra; k++) {
+      props.push({name: `f${k}`, optional: chance(0.3), readonly: false, method: false, shape: genShape(ctx, depth + 2)});
+    }
+    members.push({kind: 'object', props});
+  }
+  return members;
+}
+
+// Intersections of OBJECTS with DISJOINT property names per member, so the merge
+// is a clean structural union (always inhabitable, and no conflicting-property
+// `never`s — those send the checker into a pathological state). Mixing in a
+// primitive (wild only) is a cheap `string & {…}` brand, not a conflict.
+function genIntersection(ctx: Ctx, depth: number): TypeShape {
+  const count = 2 + int(2);
+  const members: TypeShape[] = [];
+  for (let i = 0; i < count; i++) {
+    const props: PropShape[] = [];
+    const fields = 1 + int(ctx.opts.maxBreadth);
+    for (let k = 0; k < fields; k++) {
+      props.push({
+        name: `m${i}_${k}`,
+        optional: chance(0.3),
+        readonly: chance(0.2),
+        method: false,
+        shape: genShape(ctx, depth + 2),
+      });
+    }
+    members.push({kind: 'object', props});
+  }
+  if (ctx.opts.wild && chance(0.25)) members.push(pick<TypeShape>([{kind: 'string'}, {kind: 'number'}]));
+  return {kind: 'intersection', members};
+}
+
+// =============================================================================
+// Rendering — TypeShape / Decl → TS source.
+// =============================================================================
+
+function isIdent(name: string): boolean {
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name);
+}
+function renderKey(name: string): string {
+  return isIdent(name) ? name : JSON.stringify(name);
+}
+
+export function renderType(shape: TypeShape): string {
+  switch (shape.kind) {
+    case 'number':
+    case 'string':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'any':
+    case 'unknown':
+    case 'never':
+    case 'void':
+      return shape.kind;
+    case 'null':
+      return 'null';
+    case 'undefined':
+      return 'undefined';
+    case 'date':
+      return 'Date';
+    case 'regexp':
+      return 'RegExp';
+    case 'literal':
+      return typeof shape.value === 'string' ? JSON.stringify(shape.value) : String(shape.value);
+    case 'array':
+      return `Array<${renderType(shape.elem)}>`;
+    case 'tuple':
+      return `[${shape.elems.map(renderType).join(', ')}]`;
+    case 'record':
+      return `Record<string, ${renderType(shape.value)}>`;
+    case 'map':
+      return `Map<${renderType(shape.key)}, ${renderType(shape.value)}>`;
+    case 'set':
+      return `Set<${renderType(shape.elem)}>`;
+    case 'promise':
+      return `Promise<${renderType(shape.value)}>`;
+    case 'function':
+      return `((${shape.params.map((p, i) => `a${i}: ${renderType(p)}`).join(', ')}) => ${renderType(shape.ret)})`;
+    case 'arraybuffer':
+      return 'ArrayBuffer';
+    case 'sharedarraybuffer':
+      return 'SharedArrayBuffer';
+    case 'dataview':
+      return 'DataView';
+    case 'typedarray':
+      return shape.name;
+    case 'ref':
+      return shape.name;
+    case 'union':
+      return `(${shape.members.map(renderType).join(' | ')})`;
+    case 'intersection':
+      return `(${shape.members.map(renderType).join(' & ')})`;
+    case 'object': {
+      const parts = shape.props.map(renderProp);
+      if (shape.index) {
+        // The key kind set comes from the generator (string / number / symbol or
+        // any union). genObject keeps it valid: a `string` key forces the named
+        // props to the index value type. The tsValidate gate drops any residual
+        // invalid combo. Legacy fixtures without `indexKey` default to `string`.
+        const kinds = shape.indexKey ?? ['string'];
+        parts.push(`[k: ${kinds.join(' | ')}]: ${renderType(shape.index)}`);
+      }
+      return parts.length ? `{${parts.join('; ')}}` : '{}';
+    }
+  }
+}
+
+function renderProp(prop: PropShape): string {
+  const ro = prop.readonly ? 'readonly ' : '';
+  const opt = prop.optional ? '?' : '';
+  if (prop.method && prop.shape.kind === 'function') {
+    const fn = prop.shape;
+    return `${ro}${renderKey(prop.name)}${opt}(${fn.params.map((p, i) => `a${i}: ${renderType(p)}`).join(', ')}): ${renderType(fn.ret)}`;
+  }
+  return `${ro}${renderKey(prop.name)}${opt}: ${renderType(prop.shape)}`;
+}
+
+export function renderDecl(decl: Decl): string {
+  switch (decl.kind) {
+    case 'interface': {
+      const callSigs = (decl.calls ?? []).map(
+        (sig) => `(${sig.params.map((p, i) => `a${i}: ${renderType(p)}`).join(', ')}): ${renderType(sig.ret)}`
+      );
+      const parts = [...callSigs, ...decl.props.map(renderProp)];
+      return `interface ${decl.name} {${parts.join('; ')}}`;
+    }
+    case 'type':
+      return `type ${decl.name} = ${renderType(decl.shape)};`;
+    case 'class':
+      // `declare class` — type-only, no method bodies needed for the scan.
+      return `declare class ${decl.name} {${decl.props.map(renderProp).join('; ')}}`;
+    case 'enum':
+      return `enum ${decl.name} {${decl.members
+        .map((m) =>
+          m.value === undefined ? m.name : `${m.name} = ${typeof m.value === 'string' ? JSON.stringify(m.value) : m.value}`
+        )
+        .join(', ')}}`;
+  }
+}
+
+/** Render the decls block + the root type expression for a generated type. **/
+export function renderGenerated(gen: GeneratedType): {decls: string; rootExpr: string} {
+  return {decls: gen.decls.map(renderDecl).join('\n'), rootExpr: renderType(gen.root)};
+}
+
+/** Short human-readable summary for titles / logs. **/
+export function describeType(gen: GeneratedType): string {
+  const d = gen.decls.length ? `[${gen.decls.length}d] ` : '';
+  return d + describeShape(gen.root);
+}
+
+export function describeShape(shape: TypeShape, depth = 0): string {
+  if (depth > 2) return '…';
+  switch (shape.kind) {
+    case 'array':
+      return `${describeShape(shape.elem, depth + 1)}[]`;
+    case 'tuple':
+      return `[${shape.elems.map((s) => describeShape(s, depth + 1)).join(',')}]`;
+    case 'object':
+      return `{${shape.props.length}${shape.index ? '+idx' : ''}}`;
+    case 'record':
+      return `Rec<${describeShape(shape.value, depth + 1)}>`;
+    case 'map':
+      return `Map<${describeShape(shape.key, depth + 1)},${describeShape(shape.value, depth + 1)}>`;
+    case 'set':
+      return `Set<${describeShape(shape.elem, depth + 1)}>`;
+    case 'promise':
+      return `Promise<${describeShape(shape.value, depth + 1)}>`;
+    case 'function':
+      return `fn(${shape.params.length})`;
+    case 'union':
+      return `(${shape.members.map((s) => describeShape(s, depth + 1)).join('|')})`;
+    case 'intersection':
+      return `(${shape.members.map((s) => describeShape(s, depth + 1)).join('&')})`;
+    case 'literal':
+      return typeof shape.value === 'string' ? `'${shape.value}'` : String(shape.value);
+    case 'ref':
+      return shape.name;
+    default:
+      return shape.kind;
+  }
+}
+
+// --- ref-graph analysis (recursion detection) ---
+
+function collectRefs(shape: TypeShape, out: Set<string>): void {
+  switch (shape.kind) {
+    case 'ref':
+      out.add(shape.name);
+      return;
+    case 'array':
+    case 'set':
+      return collectRefs(shape.elem, out);
+    case 'record':
+    case 'promise':
+      return collectRefs(shape.value, out);
+    case 'map':
+      collectRefs(shape.key, out);
+      collectRefs(shape.value, out);
+      return;
+    case 'tuple':
+      shape.elems.forEach((s) => collectRefs(s, out));
+      return;
+    case 'union':
+    case 'intersection':
+      shape.members.forEach((s) => collectRefs(s, out));
+      return;
+    case 'function':
+      shape.params.forEach((s) => collectRefs(s, out));
+      collectRefs(shape.ret, out);
+      return;
+    case 'object':
+      shape.props.forEach((p) => collectRefs(p.shape, out));
+      if (shape.index) collectRefs(shape.index, out);
+      return;
+  }
+}
+
+function declRefs(decl: Decl): Set<string> {
+  const out = new Set<string>();
+  if (decl.kind === 'interface' || decl.kind === 'class') {
+    decl.props.forEach((p) => collectRefs(p.shape, out));
+    if (decl.kind === 'interface' && decl.calls) {
+      for (const sig of decl.calls) {
+        sig.params.forEach((p) => collectRefs(p, out));
+        collectRefs(sig.ret, out);
+      }
+    }
+  } else if (decl.kind === 'type') collectRefs(decl.shape, out);
+  return out;
+}
+
+/** True when the type's declarations contain a reference cycle (a recursive /
+ *  circular type). The in-process harness linker can't faithfully execute a
+ *  cyclic function graph (the real pipeline's CircularRefs suite covers that),
+ *  so the runner restricts recursive types to the resolver/emit oracles. **/
+export function isRecursive(gen: GeneratedType): boolean {
+  const byName = new Map(gen.decls.map((d) => [d.name, d] as const));
+  const reachesSelf = (start: string): boolean => {
+    const seen = new Set<string>();
+    const stack = [...declRefs(byName.get(start)!)];
+    while (stack.length) {
+      const name = stack.pop()!;
+      if (name === start) return true;
+      if (seen.has(name) || !byName.has(name)) continue;
+      seen.add(name);
+      for (const ref of declRefs(byName.get(name)!)) stack.push(ref);
+    }
+    return false;
+  };
+  return gen.decls.some((d) => (d.kind === 'interface' || d.kind === 'class' || d.kind === 'type') && reachesSelf(d.name));
+}
+
+/** Total node count across decls + root — used by tests to bound size. **/
+export function countNodes(gen: GeneratedType): number {
+  let total = 0;
+  const walk = (shape: TypeShape): void => {
+    total++;
+    switch (shape.kind) {
+      case 'array':
+      case 'set':
+        walk(shape.kind === 'array' ? shape.elem : shape.elem);
+        break;
+      case 'record':
+      case 'promise':
+        walk(shape.value);
+        break;
+      case 'map':
+        walk(shape.key);
+        walk(shape.value);
+        break;
+      case 'tuple':
+        shape.elems.forEach(walk);
+        break;
+      case 'union':
+      case 'intersection':
+        shape.members.forEach(walk);
+        break;
+      case 'function':
+        shape.params.forEach(walk);
+        walk(shape.ret);
+        break;
+      case 'object':
+        shape.props.forEach((p) => walk(p.shape));
+        if (shape.index) walk(shape.index);
+        break;
+    }
+  };
+  for (const decl of gen.decls) {
+    if (decl.kind === 'interface' || decl.kind === 'class') {
+      decl.props.forEach((p) => walk(p.shape));
+      if (decl.kind === 'interface' && decl.calls)
+        for (const sig of decl.calls) {
+          sig.params.forEach(walk);
+          walk(sig.ret);
+        }
+    } else if (decl.kind === 'type') walk(decl.shape);
+    else total++;
+  }
+  walk(gen.root);
+  return total;
+}

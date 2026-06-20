@@ -99,16 +99,12 @@ function linkRootTuple(entryModules: Record<string, string>, binding: string): u
 export type Mode = 'type' | 'schema';
 
 function scan(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode = 'type'): ScanResult {
-  const imports =
-    mode === 'schema'
-      ? [
-          `import { ${factory} } from 'ts-runtypes';`,
-          `import * as RT from 'ts-runtypes/schema';`,
-          `import * as TF from 'ts-runtypes/formats';`,
-        ]
-      : [`import { ${factory} } from 'ts-runtypes';`];
+  // Only the factory import is injected; the user snippet writes its own
+  // `import * as RT from 'ts-runtypes/schema'` / `import type { … } from
+  // 'ts-runtypes/formats'`, so the imports read like real code (and aren't
+  // duplicated).
   const call = mode === 'schema' ? `${factory}(${ROOT_TYPE});` : `${factory}<${ROOT_TYPE}>();`;
-  const source = [...imports, userCode, call, ''].join('\n');
+  const source = [`import { ${factory} } from 'ts-runtypes';`, userCode, call, ''].join('\n');
   dispatch({op: 'setSources', sources: {'ts-runtypes.d.ts': MARKER_DTS, [FILE]: source}});
   const result = dispatch({op: 'scanFiles', files: [FILE], includeRunTypes: true, includeEntryModules: true});
   const sites = (result.sites as ScanResult['site'][]) ?? [];
@@ -225,7 +221,9 @@ export async function generatedModules(
 }
 
 // mock generates a random value for the type via createMockType (the same
-// generator MockData feeds). Returns the value plus any diagnostics.
+// generator MockData feeds). `nonDataTypes` makes it produce values for the
+// non-data kinds (symbols / functions / native binary) the Random-type generator
+// can emit, instead of throwing; validate / serializers drop them as usual.
 export async function mock(
   userCode: string,
   options?: ResolverOptions,
@@ -233,7 +231,7 @@ export async function mock(
 ): Promise<{value: unknown; diagnostics: Diagnostic[]}> {
   const {dispatch} = await getResolver(options);
   const {fn, diagnostics} = materialize(dispatch, 'createMockType', userCode, mode);
-  return {value: fn(), diagnostics};
+  return {value: fn({mock: {nonDataTypes: true}}), diagnostics};
 }
 
 // mockInvalid generates a value that FAILS validation via the core createMockType
@@ -251,7 +249,7 @@ export async function mockInvalid(
   const {dispatch} = await getResolver(options);
   const validate = materialize(dispatch, 'createValidate', userCode, mode).fn as (v: unknown) => boolean;
   const {fn: generate, diagnostics} = materialize(dispatch, 'createMockType', userCode, mode);
-  const callOpts = {mock: {invalid: true, invalidLeafProbability}};
+  const callOpts = {mock: {invalid: true, invalidLeafProbability, nonDataTypes: true}};
   let last: unknown;
   for (let attempt = 0; attempt < 12; attempt++) {
     last = generate(callOpts);
