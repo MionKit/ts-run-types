@@ -52,6 +52,10 @@ interface BenchIndex {
   /** false hides the comptime/jit/interpreted build-strategy tags (serialization
    *  columns are our own round-trips, not competitor libraries). Defaults true. */
   showStrategy?: boolean;
+  /** true hides the "Aggregated · geometric mean" summary table — for panels whose
+   *  rows aren't comparable (e.g. compile-time tiers: strip/typecheck/full), where a
+   *  geomean across rows is meaningless. */
+  hideAggregate?: boolean;
   /** serialization bench: link-speed options (Mbps) for the derived round-trip
    *  metric's selector, and the initial selection. */
   bandwidthsMbps?: number[];
@@ -721,7 +725,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
         </div>
 
         <!-- Aggregated summary first: geometric mean per competitor + path. -->
-        <section class="bench-section">
+        <section v-if="!index.hideAggregate" class="bench-section">
           <header class="bench-caption">
             <span class="bench-prompt">&Sigma;</span> Aggregated · geometric mean
             <span class="bench-agg-hint">{{ lowerBetterFor(metric.key) ? 'lower is better' : 'higher is better' }}</span>
