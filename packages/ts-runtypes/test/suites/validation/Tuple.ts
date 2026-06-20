@@ -163,6 +163,11 @@ export const TUPLE = {
         [new Date(), 123, 'hello', undefined, ['a'], 1n], // undefined ≠ null literal
       ],
     }),
+    // NB: a too-SHORT (5-element) array for this required 6-slot tuple does NOT
+    // raise a root-level `tuple` arity error — there is no min-length guard. Each
+    // declared slot runs its own check against the (missing-as-`undefined`) value,
+    // so the absent 6th element fails its `bigint` check at path [5]. The root
+    // `tuple` token only appears for non-arrays and too-LONG (excess-element) inputs.
     getExpectedErrors: () => [
       [{path: [5], expected: 'bigint'}],
       [{path: [], expected: 'tuple'}],
@@ -523,6 +528,10 @@ export const TUPLE = {
     }),
     getExpectedErrors: () => [
       [{path: [0], expected: 'number'}],
+      // [3, 'not bigint'] — slot 1 (bigint?) is non-undefined non-bigint.
+      // `bigint` is an atomic kind, so `bigint?` stays atomic at the slot and the
+      // error is the bare `bigint` token (NOT `union`). Contrast with the boolean?
+      // slot below — the asymmetry is intentional, not a token bug.
       [{path: [1], expected: 'bigint'}],
       [{path: [], expected: 'tuple'}],
       [{path: [], expected: 'tuple'}],
@@ -530,9 +539,9 @@ export const TUPLE = {
       [{path: [], expected: 'tuple'}],
       [{path: [0], expected: 'number'}],
       // [3, 1n, 'not boolean'] — slot 2 (boolean?) is non-undefined
-      // non-boolean. The resolver expands `boolean?` to a union
-      // (undefined | true | false), so the error is reported as
-      // 'union' not 'boolean'.
+      // non-boolean. Because `boolean` itself models as `true | false`, the
+      // resolver expands `boolean?` to a 3-arm union (undefined | true | false),
+      // so the error is reported as 'union' not 'boolean'.
       [{path: [2], expected: 'union'}],
     ],
   },
@@ -578,7 +587,21 @@ export const TUPLE = {
         ['Alice', 30],
         ['', 0],
       ],
-      invalid: [[], ['Alice'], ['Alice', '30'], [30, 'Alice'], null, 'not array', undefined, ['Alice', NaN], [null, 30]],
+      // `['Alice', 30, 'extra']` is a too-LONG (over-arity) input for this fixed
+      // 2-tuple — the canonical tuple weak spot. It must raise a root `tuple` error
+      // (excess element), NOT pass because both declared slots happen to be valid.
+      invalid: [
+        [],
+        ['Alice'],
+        ['Alice', '30'],
+        [30, 'Alice'],
+        null,
+        'not array',
+        undefined,
+        ['Alice', NaN],
+        [null, 30],
+        ['Alice', 30, 'extra'],
+      ],
     }),
     getExpectedErrors: () => [
       [
@@ -596,6 +619,7 @@ export const TUPLE = {
       [{path: [], expected: 'tuple'}],
       [{path: [1], expected: 'number'}],
       [{path: [0], expected: 'string'}],
+      [{path: [], expected: 'tuple'}],
     ],
   },
 

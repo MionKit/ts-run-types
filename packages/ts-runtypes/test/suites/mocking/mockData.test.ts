@@ -6,6 +6,14 @@
 // array `$length` (fixed + range) and `$items`, nested object descent, and the
 // strictly-additive no-data sanity case. Each assertion runs many iterations so
 // the random generator can't pass by luck.
+//
+// SCOPE: these tests assert the walker's pool/range RESPECT only; they never run
+// the type's own `createValidate` over a generated value, and they do NOT exercise
+// the marker API (`createMockType<T>()` static vs `createMockType(value)` reflect).
+// The positive mock→validate round-trip and the both-call-shape marker coverage
+// live in the validation suite (`assertMockTypeStatic` / `assertMockTypeReflect`
+// → `runMockPass`, which calls the paired validator). Don't read these unit tests
+// as covering that round-trip.
 
 import {describe, it, expect} from 'vitest';
 import {mockRunType} from '../../../src/mocking/mockType.ts';
