@@ -245,6 +245,13 @@ export class RuntypesPlaygroundElement extends HTMLElement {
           <div class="rtpg-head"><h2>Generated code</h2><span class="rtpg-hint" data-el="codeHint"></span></div>
           <div class="rtpg-codeview" data-el="codeview"><div class="rtpg-placeholder">resolving…</div></div>
         </section>
+      </div>
+      <div class="rtpg-overlay" data-el="overlay">
+        <div class="rtpg-overlay-box">
+          <span class="rtpg-spinner rtpg-spinner-lg"></span>
+          <div class="rtpg-overlay-title">Loading the playground</div>
+          <div class="rtpg-overlay-sub">Fetching the editor and the resolver (a few MB). Everything runs in your browser.</div>
+        </div>
       </div>`;
     for (const node of Array.from(this.querySelectorAll<HTMLElement>('[data-el]'))) {
       this.els[node.dataset.el as string] = node;
@@ -315,11 +322,12 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       this.setStatus(`resolver v${v.version} · tsgo ${v.tsgo}`, 'ready');
       (this.els.run as HTMLButtonElement).disabled = false;
       this.ready = true;
+      (this.els.overlay as HTMLElement).hidden = true;
       void this.doRun();
       void this.updateSelectedCode();
     } catch (err) {
       this.setStatus(`resolver failed: ${(err as Error).message}`, 'error');
-      this.els.codeview.innerHTML = `<pre class="rtpg-code error">${escapeHtml((err as Error).message)}</pre>`;
+      this.els.overlay.innerHTML = `<div class="rtpg-overlay-box"><div class="rtpg-overlay-title">Could not load the playground</div><div class="rtpg-overlay-sub rtpg-overlay-err">${escapeHtml((err as Error).message)}</div></div>`;
     }
   }
 
