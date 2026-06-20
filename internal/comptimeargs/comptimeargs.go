@@ -13,9 +13,15 @@
 //
 // Accepted containers (each member must recurse to a leaf or another
 // container):
-//   - Object literals (`{key: value, ...}`) — spread, computed keys, and
-//     non-literal shorthand bindings are rejected.
-//   - Array literals (`[…]`) — spread elements are rejected.
+//   - Object literals (`{key: value, ...}`) — computed keys and non-literal
+//     shorthand bindings are rejected.
+//   - Array literals (`[…]`).
+//   - Spread of a statically-resolvable container fragment: `{...base, k: v}`
+//     when `base` resolves (inline or a same-/cross-module `const`) to an
+//     OBJECT literal, and `[...members, x]` when `members` resolves to an
+//     ARRAY literal — each merged member is validated recursively. A spread
+//     whose operand resolves to the wrong container kind (object spread of an
+//     array, or vice-versa) or to a dynamic / non-`const` value is rejected.
 //
 // Accepted indirections (with const-chain trace, depth-capped at 16
 // — same as the regex literal trace in resolver):
@@ -25,7 +31,8 @@
 //
 // Rejected constructs (any of these inside the literal produces a
 // CTA003 diagnostic with the construct name in arg[0]):
-//   - Spread (`...x`)
+//   - Spread of a dynamic / shape-mismatched operand (`...fn()`,
+//     `...(cond ? a : b)`, object spread of an array fragment)
 //   - Computed property names (`{[key]: 1}`)
 //   - Function calls (`fn()`)
 //   - Property / element access (`a.b`, `a[b]`)
@@ -310,7 +317,10 @@ func checkObjectLiteral(typeChecker *checker.Checker, node *ast.Node, depth int,
 				return result
 			}
 		case ast.KindSpreadAssignment:
-			return Result{Ok: false, Kind: FailForbiddenConstruct, Reason: "spread", FailingNode: property}
+			result := checkObjectSpread(typeChecker, property, depth, builderCall)
+			if !result.Ok {
+				return result
+			}
 		default:
 			return Result{Ok: false, Kind: FailForbiddenConstruct, Reason: forbiddenConstructName(property.Kind), FailingNode: property}
 		}
@@ -328,7 +338,10 @@ func checkArrayLiteral(typeChecker *checker.Checker, node *ast.Node, depth int, 
 			continue
 		}
 		if element.Kind == ast.KindSpreadElement {
-			return Result{Ok: false, Kind: FailForbiddenConstruct, Reason: "spread", FailingNode: element}
+			if result := checkArraySpread(typeChecker, element, depth, builderCall); !result.Ok {
+				return result
+			}
+			continue
 		}
 		result := CheckLiteral(typeChecker, element, depth+1, builderCall)
 		if !result.Ok {
@@ -336,6 +349,45 @@ func checkArrayLiteral(typeChecker *checker.Checker, node *ast.Node, depth int, 
 		}
 	}
 	return Result{Ok: true}
+}
+
+// checkObjectSpread validates an object-spread element (`{...operand}`). The
+// operand must statically resolve to an OBJECT literal — inline, or a `const`
+// fragment (possibly imported) — whose own members are all literal. TypeScript
+// itself performs the type-level merge, so once the operand validates the
+// builder reflects the merged type for free. Anything else (an array fragment,
+// a scalar `const`, a dynamic call / ternary, a non-`const` binding) is
+// rejected with a single CTA003 reason: a spread that can't be statically
+// merged into an object has no compile-time value to read. Rejecting on the
+// resolved KIND (rather than re-validating the operand as a bare literal) is
+// the load-bearing soundness choice — a scalar `const` IS a valid literal leaf
+// but is NOT a valid object-spread operand.
+func checkObjectSpread(typeChecker *checker.Checker, property *ast.Node, depth int, builderCall isBuilderCall) Result {
+	spread := property.AsSpreadAssignment()
+	if spread == nil || spread.Expression == nil {
+		return Result{Ok: false, Kind: FailNonLiteral, Reason: "nil spread operand", FailingNode: property}
+	}
+	container, ok := ResolveSpreadContainer(typeChecker, spread.Expression)
+	if !ok || container.Kind != ast.KindObjectLiteralExpression {
+		return Result{Ok: false, Kind: FailForbiddenConstruct, Reason: "object spread of a non-object operand", FailingNode: property}
+	}
+	return CheckLiteral(typeChecker, container, depth+1, builderCall)
+}
+
+// checkArraySpread is the array-element analogue of checkObjectSpread: the
+// operand must resolve to an ARRAY literal (inline or a `const` fragment).
+// An object fragment, a scalar `const`, or a dynamic / non-`const` operand is
+// rejected with one CTA003 reason — same soundness choice as the object form.
+func checkArraySpread(typeChecker *checker.Checker, element *ast.Node, depth int, builderCall isBuilderCall) Result {
+	spread := element.AsSpreadElement()
+	if spread == nil || spread.Expression == nil {
+		return Result{Ok: false, Kind: FailNonLiteral, Reason: "nil spread operand", FailingNode: element}
+	}
+	container, ok := ResolveSpreadContainer(typeChecker, spread.Expression)
+	if !ok || container.Kind != ast.KindArrayLiteralExpression {
+		return Result{Ok: false, Kind: FailForbiddenConstruct, Reason: "array spread of a non-array operand", FailingNode: element}
+	}
+	return CheckLiteral(typeChecker, container, depth+1, builderCall)
 }
 
 func checkPrefixUnary(typeChecker *checker.Checker, node *ast.Node, depth int) Result {

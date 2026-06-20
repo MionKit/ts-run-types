@@ -186,16 +186,23 @@ you want at compile time — split it across multiple smaller
 
   CTA003: {
     headline: '`CompTimeArgs<T>` literal contains a forbidden construct ({0}). Only literals and nested literals are allowed.',
-    detail: `The Go scanner cannot statically evaluate spread elements, computed
-property names, function calls, ternary expressions, or template-string
-substitutions. Inside a \`CompTimeArgs<T>\` literal every node must be a
-direct literal (string / number / bigint / boolean / null / undefined /
-regex / arrow / object literal / array literal) or a const-traced
-identifier that resolves to one.
+    detail: `The Go scanner cannot statically evaluate computed property names,
+function calls, ternary expressions, or template-string substitutions.
+Inside a \`CompTimeArgs<T>\` literal every node must be a direct literal
+(string / number / bigint / boolean / null / undefined / regex / arrow /
+object literal / array literal) or a const-traced identifier that
+resolves to one.
 
-Fix — replace the forbidden construct with its literal value:
-  -  const a = {...defaults, mode: 'unsafe'};   // spread
-  +  const a = {strict: true, mode: 'unsafe'};   // literal-only`,
+Spread IS allowed when its operand resolves to a literal container of the
+matching kind — a \`const\`-bound (or imported) object literal for an
+object spread, an array literal for an array spread:
+  const base = {strict: true};
+  const a = {...base, mode: 'unsafe'};        // ok — merges a const fragment
+
+A spread is still rejected when the operand can't be statically merged —
+a dynamic value, or a shape mismatch:
+  -  const a = {...getDefaults(), mode: 'unsafe'};   // dynamic operand
+  -  const a = {...[1, 2], mode: 'unsafe'};          // object spread of an array`,
   },
 
   PFN001: {
