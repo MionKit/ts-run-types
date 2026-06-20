@@ -1,7 +1,75 @@
 # Expose Go-compiler tunables through the tsconfig plugin entry
 
-**Status:** idea, not started. Captured as a scoping note for a future session;
-no design committed, no code touched.
+**Status: partially shipped.** The consolidation's core goal landed (tsconfig
+is the canonical project-config surface, read on the build path with tsc-style
+precedence); some maximal extras were resolved as decisions/docs rather than
+code. See **What shipped** below; the original scoping note follows it verbatim.
+
+## What shipped
+
+The build path now reads `compilerOptions.plugins[name=ts-runtypes]` and merges
+it under the CLI flags with **tsc-style precedence** (an explicitly-set flag,
+via `flag.Visit`, beats the tsconfig entry, which beats the built-in default):
+
+- `cmd/ts-runtypes/config.go` — `tsRuntypesPlugin` extended with `hashLength`,
+  `cacheDir`, `singleThreaded`, `parallelScan`, `parallelRender` (pointer-typed
+  so an absent key differs from an explicit `false`/`0`); `resolveBuildPlugin`
+  reads the entry from the build path's tsconfig.
+- `cmd/ts-runtypes/buildconfig.go` — testable `mergeBuildOptions` layers
+  tsconfig under explicitly-set flags; the binary now derives the
+  `<cwd>/node_modules/.cache/ts-runtypes` cache default in tsconfig mode (the
+  host plugin no longer injects it).
+- `cmd/ts-runtypes/main.go` — wires the merge into the build path; warns on
+  stderr for unknown plugin keys (`unknownPluginKeys`, known set derived from
+  the struct's json tags by reflection so it can't drift).
+- `packages/runtypes-devtools` — the host plugin forwards a flag ONLY when the
+  user set the option explicitly, so an unset option falls through to tsconfig;
+  `cacheDir:false` forwards an explicit disable.
+- Docs: a new [Configuration guide](../../container/website/content/2.guide/9.configuration.md),
+  a README **Configuration** section, an ARCHITECTURE "Configuration surface"
+  note, and the marker note in `unplugin.ts` corrected.
+- Tests: Go unit tests for the merge/precedence + unknown-key detection, and a
+  default-mode integration test (`packages/runtypes-devtools/test/tsconfig-config.test.ts`)
+  that drives `moduleMode` purely through tsconfig and proves flag-over-tsconfig
+  precedence (both `getRunTypeId` shapes, with hash equivalence).
+
+### Open-question resolutions
+
+1. **Marker customisation (B / Q1):** NOT a new config surface. The scanner
+   already recognises marker types by a structural brand (`matchedByBrand`),
+   so a package that re-exports or vendors the markers (keeping the brand) is
+   recognised automatically. A `markerModules` key would only help the fragile
+   name-compatible-but-brand-incompatible case, so it was prototyped and
+   reverted as redundant. Documented the brand behaviour + the embed-the-resolver
+   escape hatch instead; corrected the stale note in `unplugin.ts`.
+2. **Runtime serialization defaults (D / Q2):** resolved as the **documented
+   recipe**, not a new emission path. The init-module path would invent a new
+   global-side-effect injection mechanism for marginal benefit; the guide shows
+   the one-line `setSerializationOptions({...})` startup call instead. The
+   init-module emission stays a deferred option (see
+   [binary-buffer-sizing.md](../todos/binary-buffer-sizing.md)).
+3. **`conditions` (B):** NOT a plugin key. tsgo already honours
+   `compilerOptions.customConditions` natively on the build path (program.New
+   parses the full tsconfig), so a plugin-entry `conditions` would just
+   duplicate it. Documented the native key.
+4. **`PluginOptions` migration (Q4):** kept the project knobs on `PluginOptions`
+   as per-build **overrides** (tsc-style: a forwarded flag wins) rather than
+   removing/deprecating them; the host now forwards them only when set. The
+   interface JSDoc points at tsconfig as the canonical surface.
+5. **Unknown keys (Q5):** a lightweight **stderr warning** at build start, not
+   a new `CFG0xx` diagnostic family. A structured family can graduate later.
+
+### Not done (deliberately deferred)
+
+- The runtime serialization init-module emission path (recipe shipped instead).
+- A `markerModules` / `markerSpecs` public surface (redundant with the brand
+  fallback; escape hatch documented).
+- A `CFG0xx` diagnostic family for config errors (stderr warning shipped).
+- No disk-fingerprint bump was needed: every newly-exposed option changes site
+  detection, module grouping, or the cache location rather than a cached
+  entry's body (`hashLength` / `emitMode` / `inlineMode` were already folded in).
+
+---
 
 The idea: make `compilerOptions.plugins[name=ts-runtypes]` in **tsconfig.json**
 the single canonical config surface for every Go-compiler tunable, and shrink
@@ -192,7 +260,7 @@ init module that calls `patchSerializationOptions` once on first import:
 
 - `defaultBufferSize` (default `2 ** 24` = 16 MiB cold-start). Already
   parked in
-  [binary-buffer-sizing.md](binary-buffer-sizing.md#5-lower-the-16-mib-cold-start);
+  [binary-buffer-sizing.md](../todos/binary-buffer-sizing.md#5-lower-the-16-mib-cold-start);
   surfacing it on the tsconfig entry makes that change actionable without
   a runtime patch call.
 - `sizeMultiplier` (default 2, "k sigma of headroom"). Same story.
