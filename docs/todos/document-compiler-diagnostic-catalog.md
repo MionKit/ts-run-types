@@ -22,7 +22,7 @@ We emit ~95 distinct diagnostic codes today
 
 The catalog file has a short `headline` per code, but **none of these codes
 are documented anywhere the user can read**. The website
-([container-website/content/](../../container-website/content/)) has zero
+([container/website/content/](../../container/website/content/)) has zero
 matches for any of them. The terminal headline tells the user *what* happened;
 nothing tells them *why* the rule exists or *what to change*. For a build-time
 tool whose value proposition is "the compiler catches the bug before runtime,"
@@ -115,7 +115,7 @@ For each code, the docs page should explain:
 ## Where the pages live
 
 A new section under
-[container-website/content/](../../container-website/content/) — proposed
+[container/website/content/](../../container/website/content/) — proposed
 `8.diagnostics/` (or fit into the existing `2.guide/` if the count stays
 small; ~95 codes argues for its own section). One of:
 
@@ -138,7 +138,7 @@ how to fix" prose.
 ## Where the website voice rules apply
 
 These pages are PROSE-heavy, so the
-[CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent)
+[CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container/websitecontent)
 rules really matter. The big four:
 
 - **No dashes chaining clauses or sentences.** No em-dash, en-dash, `--`, or
@@ -184,7 +184,7 @@ is most likely.
    produce a single CSV-like table of `<code>, <family>, <severity>,
    <headline>`. Sanity-check that every TS-side code has a Go-side
    counterpart (or is purely plugin-emitted) and vice versa.
-2. **Section scaffold.** Create `container-website/content/8.diagnostics/`
+2. **Section scaffold.** Create `container/website/content/8.diagnostics/`
    with one page per family. Each page is a header + a list of codes; each
    code is a `### <code>` anchor + the four bullets above (severity, what
    triggers, why, how to fix). Frontmatter `description` is one sentence
@@ -201,7 +201,7 @@ is most likely.
 
 ## Documentation impact (when this lands)
 
-- `container-website/content/8.diagnostics/` (or wherever the section
+- `container/website/content/8.diagnostics/` (or wherever the section
   lands) — the body of this todo.
 - Cross-references from every existing guide page that mentions a behaviour
   the diagnostics describe (validate / pure-fn / type-formats / Temporal /

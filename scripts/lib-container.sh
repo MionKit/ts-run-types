@@ -15,7 +15,7 @@
 if [ -z "${ROOT_DIR:-}" ]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
-WEBSITE_DIR="$ROOT_DIR/container-website"
+WEBSITE_DIR="$ROOT_DIR/container/website"
 
 ENGINE="${WEBSITE_ENGINE:-podman}"
 # The single shared image. Built/published by podman-website.sh; run by website.sh

@@ -62,6 +62,14 @@ export function getResolver(options?: ResolverOptions): Promise<Resolver> {
   return resolverPromise;
 }
 
+// setResolver injects a prebuilt resolver, bypassing the WASM loader. Hosts that
+// build the resolver their own way (a Node/SSR loader, a custom asset flow, the
+// test suite) supply {versions, dispatch} directly; subsequent run()/versions()
+// calls reuse it. Pass null to reset back to lazy WASM loading.
+export function setResolver(resolver: Resolver | null): void {
+  resolverPromise = resolver ? Promise.resolve(resolver) : null;
+}
+
 export async function versions(options?: ResolverOptions): Promise<ResolverVersions> {
   return (await getResolver(options)).versions;
 }

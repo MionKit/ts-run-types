@@ -10,8 +10,8 @@ name: website · publish
 # `pnpm run website:publish` - so CI and local never drift:
 #   1. shared website+benchmark podman image
 #   2. Go resolver binary (+ marker/plugin dist)
-#   3. benchmarks -> container-website/public/bench-data/   (git-ignored: must run)
-#   4. static Nuxt build -> container-website/.output/public
+#   3. benchmarks -> container/website/public/bench-data/   (git-ignored: must run)
+#   4. static Nuxt build -> container/website/.output/public
 # then wrangler uploads .output/public to Cloudflare Pages.
 #
 # Because bench-data is git-ignored, the benchmarks MUST run before every site
@@ -84,7 +84,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: website-output
-          path: container-website/.output/public
+          path: container/website/.output/public
           if-no-files-found: error
 
       # Direct upload to Cloudflare Pages (see the one-time setup block above).
@@ -93,4 +93,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy container-website/.output/public --project-name=${{ env.PAGES_PROJECT }}
+          command: pages deploy container/website/.output/public --project-name=${{ env.PAGES_PROJECT }}

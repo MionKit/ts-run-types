@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Transforms the gendocs/<suite>-suite.json + gendocs/cases/ artifacts (produced
 // by scripts/export-*-suite.mjs) into compact, website-consumable JSON under
-// container-website/public/suite-data/<suite>/:
+// container/website/public/suite-data/<suite>/:
 //
 //   index.json                  — { suite, label, sections: [{ key, label,
 //                                   cases: [{ key, title, description, notes }] }] }
@@ -22,7 +22,7 @@ import url from 'node:url';
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
 const GENDOCS = path.join(REPO_ROOT, 'gendocs');
-const OUT_ROOT = path.join(REPO_ROOT, 'container-website/public/suite-data');
+const OUT_ROOT = path.join(REPO_ROOT, 'container/website/public/suite-data');
 
 // Which suites to emit, and how each maps onto its gendocs JSON + the
 // type-first / schema body fields to read for the hover panel.
@@ -168,5 +168,5 @@ for (const key of keys) {
     continue;
   }
   const res = emitSuite(key, cfg);
-  if (res) process.stdout.write(`${key}: ${res.sections} sections, ${res.cases} cases → container-website/public/suite-data/${key}/\n`);
+  if (res) process.stdout.write(`${key}: ${res.sections} sections, ${res.cases} cases → container/website/public/suite-data/${key}/\n`);
 }

@@ -200,11 +200,11 @@ emitter currently lacks.
 When the override API ships, the docs need a coordinated update so users can
 discover and use it without reading source:
 
-- `container-website/content/2.guide/` — a new page (or a section inside
+- `container/website/content/2.guide/` — a new page (or a section inside
   `7.pure-functions.md`, since the override `fn` MUST be pure) that
   introduces `overrideX<T>(pureFn)` with one example per public family.
   Voice rules apply: plain language, no em-dashes, short frontmatter (see
-  [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent)).
+  [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container/websitecontent)).
 - [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) — extend the "Two injection
   markers" section to describe override as the WRITE side of the same
   `(family, typeId)` axis.

@@ -4,7 +4,7 @@
 no design committed, no code touched.
 
 The idea: add a website docs page (under
-[container-website/content/](../../container-website/content/)) that explains
+[container/website/content/](../../container/website/content/)) that explains
 **how RunTypes uses fuzzy / property testing**, **every place it's applied**
 in the repo, **why it's worth doing in each place**, and **concrete examples
 of bugs the fuzzers caught** (or would have caught) that a hand-written unit
@@ -55,7 +55,7 @@ When picking this up:
 ## Style
 
 Follow the website voice rules in
-[CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent):
+[CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container/websitecontent):
 plain user-focused language, no em-dashes chaining clauses, short
 frontmatter description, fenced code blocks over inline backticks for
 anything more than a name. The reader is a RunTypes user who wants to trust
