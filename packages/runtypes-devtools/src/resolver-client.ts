@@ -119,8 +119,8 @@ export interface ScanFilesOptions {
 // ScanFilesResult is the shape returned by scanFiles. Sites are flat —
 // every site detected across the request's files, each tagged with .file
 // so callers can filter or group. Replacements are byte-range rewrites
-// for the user's source (pure-fn factory-arg-to-binding); the plugin
-// applies them in `rewrite.ts` alongside Site insertions. runTypes /
+// for the user's source (pure-fn factory-arg-to-binding); the Go
+// transform applies them (OpTransform) alongside Site insertions. runTypes /
 // entryModules are populated only when opted into.
 export interface ScanFilesResult {
   sites: Site[];

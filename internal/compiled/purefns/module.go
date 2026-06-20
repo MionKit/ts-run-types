@@ -51,8 +51,8 @@ func CollectEntries(entries []Entry) entrymod.Graph {
 // Replacements builds the wire-shaped byte-range rewrites that swap the
 // factory (second) argument of every successfully-extracted
 // `registerPureFnFactory(pureFnId, factory)` call for the pure fn's
-// entry-module import binding. The Vite plugin applies these in
-// `rewrite.ts` (adding the matching import via ImportFrom) so the user's
+// entry-module import binding. The Go transform applies these during
+// OpTransform (adding the matching import via ImportFrom) so the user's
 // source ends up as
 // `registerPureFnFactory('rt::foo', __rt_pf$2Frt$2Ffoo)` and the runtime
 // registers the tuple at the call site — the body itself lives only in the
