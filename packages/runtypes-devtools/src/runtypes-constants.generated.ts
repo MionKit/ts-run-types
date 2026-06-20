@@ -76,7 +76,8 @@ export const VALIDATIONERRORS_VAR_PREFIX = 'g_verr_';
 export const VALIDATIONERRORS_MODULE_NAME = 'validationErrorsModule';
 export const VALIDATIONERRORS_TAG = 'verr';
 
-// Per-entry virtual-module settings — see internal/compiled/entrymod.
+// Internal render-format names (virtual:rt/<basename>.js) the resolver
+// writes to disk and relativizes to on-disk paths — see internal/compiled/entrymod.
 export const VIRTUAL_MODULE_PREFIX = 'virtual:rt/';
 export const ENTRY_MODULE_SUFFIX = '.js';
 export const ENTRY_BINDING_PREFIX = '__rt_';

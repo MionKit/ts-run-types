@@ -92,10 +92,13 @@ func buildVitePluginConstants() string {
 	return out.String()
 }
 
-// writeEntryModuleConstants emits the per-entry virtual-module settings the
-// plugin's resolveId/load hooks and the rewrite's import injection consume.
+// writeEntryModuleConstants emits the internal render-format names. In
+// files-mode they key the entry modules the resolver writes to disk and the
+// rewrite's import injection consumes; virtual:rt/ survives only as the
+// render specifier, relativized to on-disk paths at the resolver boundary.
 func writeEntryModuleConstants(out *strings.Builder) {
-	out.WriteString("// Per-entry virtual-module settings — see internal/compiled/entrymod.\n")
+	out.WriteString("// Internal render-format names (virtual:rt/<basename>.js) the resolver\n")
+	out.WriteString("// writes to disk and relativizes to on-disk paths — see internal/compiled/entrymod.\n")
 	fmt.Fprintf(out, "export const VIRTUAL_MODULE_PREFIX = %q;\n", constants.VirtualModulePrefix)
 	fmt.Fprintf(out, "export const ENTRY_MODULE_SUFFIX = %q;\n", constants.EntryModuleSuffix)
 	fmt.Fprintf(out, "export const ENTRY_BINDING_PREFIX = %q;\n", constants.EntryBindingPrefix)

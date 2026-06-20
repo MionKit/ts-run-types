@@ -31,6 +31,15 @@ var outputDirAllowedMembers = map[string]bool{
 	".gitkeep":   true,
 }
 
+// outputDirSubdirs are the allowed members that must be real directories. A
+// regular file named `types`/`enriched` is foreign: it would slip past the
+// name-only allow-list and only fail later at MkdirAll with an opaque OS
+// error, so the guard rejects it up front.
+var outputDirSubdirs = map[string]bool{
+	typesSubdir: true, // "types"
+	"enriched":  true,
+}
+
 // systemNoiseEntries are OS / desktop-environment cruft (macOS Finder, Windows
 // Explorer, KDE) that any "is this directory clean?" check must ignore — a stray
 // one must never crash the build. These mirror the entries shared .gitignore
@@ -76,14 +85,23 @@ func ensureOutDirAvailable(outDir string) error {
 		return fmt.Errorf("checking RunTypes output dir %s: %w", outDir, err)
 	}
 	for _, entry := range entries {
-		if isIgnorableOutputEntry(entry.Name()) {
-			continue
+		name := entry.Name()
+		if !isIgnorableOutputEntry(name) {
+			return fmt.Errorf("refusing to generate RunTypes output into %s: it contains %q, which RunTypes did not generate. "+
+				"This is a special RunTypes-managed output directory — it is owned by the build and is meant to hold ONLY RunTypes output: the regenerated `types/` cache modules (rebuilt every build, gitignored) and the committed `enriched/` mirror, plus VCS markers (.gitignore / .gitkeep) and harmless OS noise. "+
+				"A foreign entry means `outDir` is pointed at a real, pre-existing directory that generating here would pollute (and prune files from). "+
+				"Point the plugin's `outDir` (or the CLI) at a dedicated folder used only for RunTypes output; the default <srcDir>/%s keeps clear of a hand-authored `runtypes/` source dir via its `__` prefix.",
+				outDir, name, outputDirName)
 		}
-		return fmt.Errorf("refusing to generate RunTypes output into %s: it contains %q, which RunTypes did not generate. "+
-			"This is a special RunTypes-managed output directory — it is owned by the build and is meant to hold ONLY RunTypes output: the regenerated `types/` cache modules (rebuilt every build, gitignored) and the committed `enriched/` mirror, plus VCS markers (.gitignore / .gitkeep) and harmless OS noise. "+
-			"A foreign entry means `outDir` is pointed at a real, pre-existing directory that generating here would pollute (and prune files from). "+
-			"Point the plugin's `outDir` (or the CLI) at a dedicated folder used only for RunTypes output; the default <srcDir>/%s keeps clear of a hand-authored `runtypes/` source dir via its `__` prefix.",
-			outDir, entry.Name(), outputDirName)
+		// `types`/`enriched` count as ours only as directories; a regular file
+		// by that name is foreign and would otherwise fail later at MkdirAll
+		// with an opaque "not a directory" error.
+		if outputDirSubdirs[name] && !entry.IsDir() {
+			return fmt.Errorf("refusing to generate RunTypes output into %s: %q exists but is not a directory. "+
+				"RunTypes manages `%s/` as a generated output subdirectory, so a plain file by that name means `outDir` points at a pre-existing directory. "+
+				"Remove or rename the file, or point `outDir` at a dedicated folder used only for RunTypes output.",
+				outDir, name, name)
+		}
 	}
 	return nil
 }
