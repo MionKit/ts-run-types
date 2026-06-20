@@ -109,6 +109,10 @@ func (resolver *Resolver) scanAllProgramFiles() {
 // invariant — they assume scanFiles' work scales with marker-reachable
 // type complexity, NOT with the file's total declaration count.
 func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []diag.Diagnostic, error) {
+	// Build the override map BEFORE any id is assigned: every structural id must
+	// fold the `overrideX<T>(pureFn)` suffix, and the map is whole-program (an
+	// override anywhere shifts ids everywhere). One-time per Program.
+	resolver.ensureOverrides()
 	if resolver.parallelScanEnabled() && len(files) > 1 {
 		return resolver.dispatchScanFilesParallel(files)
 	}
