@@ -386,8 +386,8 @@ export interface Response {
   addedFormatTransform?: boolean;
   addedPureFns?: boolean;
   sites?: Site[];
-  // Replacements is the byte-range rewrite list the Vite plugin
-  // applies alongside Sites in `rewrite.ts`. The pure-fn extractor
+  // Replacements is the byte-range rewrite list the Go transform
+  // applies alongside Sites during OpTransform. The pure-fn extractor
   // emits one entry per accepted `registerPureFnFactory(ns, fn,
   // factory)` call: swap the factory argument for the entry-module
   // import binding (importFrom carries the specifier) so the canonical
