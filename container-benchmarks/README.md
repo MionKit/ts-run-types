@@ -282,8 +282,10 @@ COMPILETIME_N=10 pnpm run bench:compiletime             # more repeats
 ```
 
 Results land in `results/{ts-runtypes,typia}.compiletime.json` (`strip_ms`,
-`typecheck_ms`, `full_ms`, `types`) and join the website as six columns (each library's
-three tiers) via `gen-bench-docs.mjs` → `bench-data/compiletime/`.
+`typecheck_ms`, `full_ms`, `types`) and join the website as a per-library breakdown (the
+two libraries as columns; the three tiers plus the two derived costs as rows) via
+`gen-bench-docs.mjs` → `bench-data/compiletime/`, on the **Compile Time** page (shared
+with the `typecost` type-checking table).
 
 > **What the numbers show.** tsgo type-checks the whole suite fast, so **typecheck −
 > strip** is small; the meat is **full − typecheck**, the transform + emit. ts-runtypes'
