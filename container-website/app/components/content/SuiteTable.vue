@@ -29,6 +29,9 @@ interface CaseDetail {
   pureType: string;
   schema: string;
   generated: string;
+  /** pre-highlighted HTML baked in at build time for the static deploy
+   *  (scripts/embed-panel-highlights.mjs); absent in dev -> use /api/highlight */
+  html?: DetailHtml;
 }
 
 interface DetailHtml {
@@ -116,13 +119,19 @@ async function loadDetail(item: {id: string; title: string}) {
     }
     const data = (await res.json()) as CaseDetail;
     details[id] = {state: 'ready', data};
-    const [pureType, schema, generated] = await Promise.all([
-      highlight(data.pureType, 'ts'),
-      data.schema ? highlight(data.schema, 'ts') : Promise.resolve(''),
-      highlight(data.generated, 'js'),
-    ]);
+    let html: DetailHtml;
+    if (data.html) {
+      html = data.html;
+    } else {
+      const [pureType, schema, generated] = await Promise.all([
+        highlight(data.pureType, 'ts'),
+        data.schema ? highlight(data.schema, 'ts') : Promise.resolve(''),
+        highlight(data.generated, 'js'),
+      ]);
+      html = {pureType, schema, generated};
+    }
     const current = details[id];
-    if (current && current.state === 'ready') current.html = {pureType, schema, generated};
+    if (current && current.state === 'ready') current.html = html;
   } catch {
     details[id] = {state: 'error'};
   }
