@@ -48,6 +48,11 @@ export const RUNTYPES_DTS = `declare module 'ts-runtypes' {
   export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
   export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
   export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
+  export function overrideValidate<T>(fn: PureFunction<(v: unknown) => boolean>, id?: InjectTypeFnArgs<T, 'val'>): void;
+  export function overrideGetValidationErrors<T>(fn: PureFunction<(value: unknown, path?: unknown[], errors?: unknown[]) => unknown[]>, id?: InjectTypeFnArgs<T, 'verr'>): void;
+  export function overrideJsonEncoder<T>(fn: PureFunction<(value: unknown) => string | undefined>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): void;
+  export function overrideJsonDecoder<T>(fn: PureFunction<(serialized: string) => unknown>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): void;
+  export function overrideBinaryEncoder<T>(fn: PureFunction<(value: unknown, Ser: any) => any>, id?: InjectTypeFnArgs<T, 'tb'>): void;
   export type StandardSchemaResult = {value: unknown; issues?: undefined} | {issues: ReadonlyArray<{message: string; path?: ReadonlyArray<PropertyKey | {key: PropertyKey}>}>};
   export type StandardSchemaV1 = {'~standard': {version: 1; vendor: string; validate: (value: unknown) => StandardSchemaResult}};
   export function createStandardSchema<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, ids?: InjectTypeFnArgs<T, 'val', 'verr'>): StandardSchemaV1;
