@@ -412,11 +412,14 @@ cmd_typecost() {
 # repeat counts via COMPILETIME_N_COLD/N_WARM, cap cases via COMPILETIME_MAX_CASES.
 cmd_compiletime() {
   ensure_prereqs
-  [ -z "${BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; find "$RESULTS_DIR" -maxdepth 1 -name '*.compiletime.json' -delete 2>/dev/null || true; }
+  mkdir -p "$RESULTS_DIR"
   echo "==> measuring per-competitor compile-time (real build pipeline) in the container"
   local competitor list
   list="${COMPILETIME_COMPETITORS:-$(competitor_list)}"
   for competitor in $list; do
+    # Scoped refresh: only the competitors being run are cleared, so a single-
+    # competitor run (e.g. adding typia) never drops the others' results.
+    [ -z "${BENCH_CASE:-}" ] && rm -f "$RESULTS_DIR/$competitor.compiletime.json" 2>/dev/null || true
     echo "-------- compiletime: $competitor --------"
     run_in_container sh -c "cd competitors/$competitor && node ../../compiletime/compiletime.mjs --competitor $competitor" \
       || echo "==> compiletime '$competitor' FAILED - see output above"
