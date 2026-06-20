@@ -31,11 +31,11 @@ import (
 //   - regexp:                 serString(source); serString(flags)
 //   - enum:                   serEnum(v)  [uint32 type, value]
 //   - symbol:                 serString(v.description || ”)
-//   - array/rest:             [uint32 length, items...]
+//   - array/rest:             [varint length, items...]
 //   - indexSignature:         [uint32 count, (key, value)*]
 //   - objectLiteral:          required props in order, then optional bitmap + values
 //   - class(Date):            float64 of getTime()
-//   - class(Map/Set):         [uint32 size, entries...]
+//   - class(Map/Set):         [varint size, entries...]
 //   - tuple:                  required, optional bitmap, rest
 //   - union:                  flat-prop format — see union_flat_binary.go.
 //
@@ -333,8 +333,9 @@ func emitLiteralToBinary(rt *protocol.RunType, v string, ser string) RTCode {
 
 // emitArrayToBinary mirrors binary/toBinary.ts:110-126.
 //
-// Wire shape: `[uint32 length, items...]`. The length prefix is written
-// before the loop body so the decoder can preallocate.
+// Wire shape: `[varint length, items...]`. The length prefix is written
+// before the loop body so the decoder can preallocate. serLength reserves
+// the worst-case varint width, so the inline length write can't overflow.
 func emitArrayToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeS}
@@ -349,10 +350,10 @@ func emitArrayToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 	if childRT.Code == "" {
 		// All-noop child — still need to emit the length so the decoder
 		// knows the array's size.
-		body := ser + ".view.setUint32(" + ser + ".index, " + v + ".length, 1);" + ser + ".index += 4"
+		body := ser + ".serLength(" + v + ".length)"
 		return RTCode{Code: body, Type: CodeS}
 	}
-	body := ser + ".view.setUint32(" + ser + ".index, " + v + ".length, 1);" + ser + ".index += 4;" +
+	body := ser + ".serLength(" + v + ".length);" +
 		"for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
 	return RTCode{Code: body, Type: CodeS}
 }
@@ -772,13 +773,13 @@ func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, s
 		if childRT.Code == "" {
 			return RTCode{Code: "", Type: CodeS}
 		}
-		// Write the rest count (= v.length - position) as a uint32
+		// Write the rest count (= v.length - position) as a varint
 		// before the items. Decoder reads this and loops
 		// `i = position; i < position + count`. Without the length
-		// prefix the decoder misaligns by 4 bytes and reads garbage.
+		// prefix the decoder misaligns and reads garbage.
 		pos := positionStr(rt)
 		restCount := v + ".length - " + pos
-		body := ser + ".view.setUint32(" + ser + ".index, " + restCount + ", 1); " + ser + ".index += 4;" +
+		body := ser + ".serLength(" + restCount + ");" +
 			"for (let " + iVar + " = " + pos + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
 		return RTCode{Code: body, Type: CodeS}
 	}
@@ -796,7 +797,7 @@ func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, s
 // emitNativeIterableToBinary handles Map / Set — mirrors
 // binary/toBinary.ts:269-285.
 //
-// Wire shape: `[uint32 size, entries...]`. Each entry is the wrapped
+// Wire shape: `[varint size, entries...]`. Each entry is the wrapped
 // child types' bytes (Map: key + value; Set: item).
 func emitNativeIterableToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
 	isMap := rt.SubKind == protocol.SubKindMap
@@ -823,7 +824,7 @@ func emitNativeIterableToBinary(rt *protocol.RunType, ctx *EmitContext, v string
 		}
 	}
 
-	setLen := ser + ".view.setUint32(" + ser + ".index, " + v + ".size, 1);" + ser + ".index += 4"
+	setLen := ser + ".serLength(" + v + ".size)"
 	if len(childCodes) == 0 {
 		// No transforms — write just the size; decoder reconstructs
 		// empty.
