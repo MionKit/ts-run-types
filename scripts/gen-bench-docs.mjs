@@ -155,7 +155,7 @@ export function extractCaseSources(file, varName = 'cases') {
 // lives in BOTH suites, so the split is by the CASE's suite, not by section.
 function buildValidationBench() {
   const files = fs.existsSync(RESULTS_DIR)
-    ? fs.readdirSync(RESULTS_DIR).filter((f) => f.endsWith('.json') && !f.endsWith('.typecost.json') && f !== 'env.json')
+    ? fs.readdirSync(RESULTS_DIR).filter((f) => f.endsWith('.json') && !f.endsWith('.typecost.json') && !f.endsWith('.compiletime.json') && f !== 'env.json')
     : [];
   if (files.length === 0) {
     process.stderr.write(`skip validation bench: no results/*.json in ${RESULTS_DIR} (run \`pnpm run bench\` first)\n`);
