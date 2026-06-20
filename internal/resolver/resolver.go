@@ -154,9 +154,14 @@ type Resolver struct {
 	// module emission so the type-fn redirects resolve their `cfn::` dep.
 	overrideEntries []purefns.Entry
 	// overrideDiagnostics holds OVR0xx diagnostics from the override pass
-	// (today: OVR001 duplicate-override conflicts), surfaced on every scan
-	// response for the current Program.
+	// (OVR001 duplicate-override, OVR010 validate cross-family), surfaced on
+	// every scan response for the current Program.
 	overrideDiagnostics []diag.Diagnostic
+	// overrideArgSpansByFile records, per source file, the byte spans of each
+	// override call's inline pure-fn argument. The transform rewrites these to
+	// `null` (the body lives only in the cfn module) — emitted as per-file
+	// Replacements scoped to the requested files, like pure-fn factory nullings.
+	overrideArgSpansByFile map[string][]overrideArgSpan
 }
 
 // markerVerdict is one memoized marker.DetectAny result. typeArg is the
@@ -283,6 +288,7 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 	resolver.overridesBuilt = false
 	resolver.overrideEntries = nil
 	resolver.overrideDiagnostics = nil
+	resolver.overrideArgSpansByFile = nil
 	return nil
 }
 
@@ -314,6 +320,7 @@ func (resolver *Resolver) Reset() {
 	resolver.overridesBuilt = false
 	resolver.overrideEntries = nil
 	resolver.overrideDiagnostics = nil
+	resolver.overrideArgSpansByFile = nil
 }
 
 func (resolver *Resolver) Close() {

@@ -2,10 +2,10 @@ package diag
 
 // Custom-override codes (OVRxxx). The override pure-fn itself reuses the
 // PureFunction marker layer (PFN001 inline-shape, PFE9006-9011 purity), so the
-// only override-specific build-time error is a CONFLICT: two overrideX<T>
-// declarations targeting the same (family, type) with DIFFERENT bodies, which
-// would make the cache entry order-dependent. Same-body re-declarations dedup
-// silently (content-addressed cfn key).
+// only override-specific build-time error is a DUPLICATE: two overrideX<T>
+// declarations targeting the same (type, function). There can be exactly one
+// override per (type, function) — a second one (regardless of body) is an
+// error, since which wins would otherwise be order-dependent.
 const (
 	CodeDuplicateOverride = "OVR001"
 	// CodeOverrideMissingCfn is a build-time tripwire: a cfn redirect references
@@ -26,7 +26,7 @@ func init() {
 		Code:     CodeDuplicateOverride,
 		Family:   FamilyMarker,
 		Severity: SeverityError,
-		Title:    "Duplicate overrideX<T> for the same (family, type) with a different body",
+		Title:    "Duplicate overrideX<T>: one override per (type, function)",
 	})
 	register(Definition{
 		Code:     CodeOverrideMissingCfn,
