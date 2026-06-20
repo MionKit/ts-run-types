@@ -139,6 +139,30 @@ const MyType = RT.object({
     expect(validate?.code).toContain('return');
   });
 
+  it('handles a circular (recursive) type in both type and schema forms', async () => {
+    const typeForm = `type MyType = { id: number; name: string; children: MyType[] };`;
+    const schemaForm = `import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
+const MyType = RT.circular((self) => RT.object({ id: TF.number(), name: TF.string(), children: RT.array(self) }));`;
+    const tree = {id: 1, name: 'root', children: [{id: 2, name: 'leaf', children: []}]};
+    const badNested = {id: 1, name: 'root', children: [{id: 'nope', name: 'leaf', children: []}]};
+
+    for (const [code, mode] of [
+      [typeForm, 'type'],
+      [schemaForm, 'schema'],
+    ] as const) {
+      const graph = await run('graph', code, undefined, undefined, mode);
+      if (graph.kind !== 'graph') throw new Error('expected graph result');
+      expect(graph.runTypes.length).toBeGreaterThan(0);
+
+      const ok = await run('validate', code, tree, undefined, mode);
+      const ko = await run('validate', code, badNested, undefined, mode);
+      if (ok.kind !== 'predicate' || ko.kind !== 'predicate') throw new Error('expected predicate result');
+      expect(ok.value).toBe(true); // valid tree
+      expect(ko.value).toBe(false); // recursion reaches the bad nested id
+    }
+  });
+
   it('runs the value-first schema form (mode: schema)', async () => {
     const schema = `import * as RT from 'ts-runtypes/schema';
 import * as TF from 'ts-runtypes/formats';

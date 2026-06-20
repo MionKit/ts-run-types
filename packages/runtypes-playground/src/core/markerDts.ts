@@ -128,6 +128,34 @@ declare module 'ts-runtypes/schema' {
   export function union<R extends RunType<unknown>[]>(members: [...R]): RunType<St<R[number]>>;
   export function optional<R extends RunType<unknown>>(element: R): RunType<St<R> | undefined>;
   export function object<C extends Record<string, RunType<unknown>>>(shape: C): RunType<{[K in keyof C]: St<C[K]>}>;
+  // Recursive-schema machinery — mirrors ts-runtypes/schema/static.ts so the
+  // resolver reflects \`circular((self) => …)\` as a real cyclic type (not \`any\`).
+  const SelfBrand: unique symbol;
+  type Self = {readonly [SelfBrand]: true};
+  type SubstituteSelf<T, P extends [unknown]> = T extends Self
+    ? P[0]
+    : T extends string | number | boolean | bigint | symbol | null | undefined
+      ? T
+      : T extends Date | RegExp
+        ? T
+        : T extends Map<any, any>
+          ? T extends Map<infer K, infer V> ? Map<SubstituteSelf<K, P>, SubstituteSelf<V, P>> : never
+          : T extends Set<any>
+            ? T extends Set<infer E> ? Set<SubstituteSelf<E, P>> : never
+            : T extends Promise<infer E>
+              ? Promise<SubstituteSelf<E, P>>
+              : T extends (...args: infer A extends readonly unknown[]) => infer R
+                ? (...args: {-readonly [K in keyof A]: SubstituteSelf<A[K], P>}) => SubstituteSelf<R, P>
+                : T extends readonly unknown[]
+                  ? number extends T['length']
+                    ? T extends readonly (infer E)[] ? SubstituteSelf<E, P>[] : never
+                    : {-readonly [K in keyof T]: SubstituteSelf<T[K], P>}
+                  : T extends object
+                    ? {[K in keyof T]: SubstituteSelf<T[K], P>}
+                    : T;
+  type Recursive<Body> = SubstituteSelf<Body, [Recursive<Body>]>;
+  export function self(): RunType<Self>;
+  export function circular<Body>(callback: (self: RunType<Self>) => RunType<Body>): RunType<Recursive<Body>>;
 }
 `;
 
@@ -166,6 +194,8 @@ export function schemaEditorModule(): string {
     `  export function union(members: any[]): any;`,
     `  export function optional(element: any): any;`,
     `  export function object(shape: Record<string, any>): any;`,
+    `  export function self(): any;`,
+    `  export function circular(callback: (self: any) => any): any;`,
     `}`,
   ].join('\n');
 }
