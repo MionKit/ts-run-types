@@ -38,6 +38,13 @@ import (
 // any non-cycle leaf elsewhere in the graph is non-compatible the
 // outer call returns false on that path anyway.
 func isJsonCompatible(rt *protocol.RunType, ctx *EmitContext) bool {
+	// Resolve a raw KindRef before doing anything else. jsonCompatRecursive has
+	// no KindRef arm, so an unresolved ref would fall through to its default
+	// `return false` AND get memoized under the ref's id (= the target type's
+	// structural id) — poisoning that type's verdict for every later caller in
+	// the same FactsTable. Map/Set inner types (mapKeyValueTypes / setItemType)
+	// reach here as unresolved refs, so this guard is load-bearing.
+	rt = ctx.ResolveRef(rt)
 	if rt != nil && rt.ID != "" {
 		if verdict, known := ctx.walker.factsLookup(factJsonCompat, rt.ID); known {
 			return verdict
