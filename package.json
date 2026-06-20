@@ -4,7 +4,7 @@
   "description": "Compile-time runtime-type resolver on TypeScript 7 / typescript-go (tsgo).",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.1.1",
+  "packageManager": "pnpm@11.8.0",
   "homepage": "https://github.com/mionkit/ts-runtypes#readme",
   "repository": {
     "type": "git",
