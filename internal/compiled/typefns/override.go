@@ -1,8 +1,12 @@
 package typefns
 
 import (
+	"sort"
+	"strings"
+
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
 	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
+	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/operations"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -70,5 +74,37 @@ func buildRedirectEntry(entryKey string, tag string, runType *protocol.RunType, 
 		ArgsText:  joinArgs(args),
 		SoftDeps:  []string{cfnKey},
 		IsNoop:    false,
+	}
+}
+
+// AssertOverrideCfn verifies the invariant every cfn redirect relies on: the
+// `cfn::<hash>` module it forwards to via `utl.usePureFn` actually rendered. A
+// miss is an emitter bug — the unguarded usePureFn would throw at runtime — so
+// it surfaces as an OVR002 Error at collect time. Mirrors AssertCompositeSoftDeps.
+// Deterministic order via sorted keys.
+func AssertOverrideCfn(graph entrymod.Graph, diagSink *[]diag.Diagnostic) {
+	if diagSink == nil {
+		return
+	}
+	cfnPrefix := purefns.OverrideNamespace + "::"
+	keys := make([]string, 0, len(graph))
+	for key := range graph {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		entry := graph[key]
+		if entry == nil || entry.Kind != entrymod.KindTypeFn {
+			continue
+		}
+		for _, dep := range entry.SoftDeps {
+			if !strings.HasPrefix(dep, cfnPrefix) {
+				continue
+			}
+			if target, ok := graph[dep]; ok && target != nil && target.Kind != entrymod.KindMissing {
+				continue
+			}
+			*diagSink = append(*diagSink, diag.New(diag.CodeOverrideMissingCfn, diag.Site{}, entry.Key, dep))
+		}
 	}
 }
