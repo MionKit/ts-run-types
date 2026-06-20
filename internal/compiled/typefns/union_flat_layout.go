@@ -77,10 +77,12 @@ type FlatPropCandidate struct {
 // pipeline simple.
 func buildFlatLayout(rt *protocol.RunType, ctx *EmitContext) FlatLayout {
 	layout := FlatLayout{}
-	children := rt.SafeUnionChildren
-	if len(children) == 0 {
-		children = rt.Children
-	}
+	// DataOnly-strip members (symbol / function-like / Promise /
+	// non-serializable / never) so a union like `Date | symbol` lays out as
+	// `Date`. An all-stripped union keeps its members and falls through to the
+	// alwaysThrow path (see union_strip.go). Surviving refs stay gap-free so
+	// OriginalIndex (the loop index) is the symmetric encode/decode wire index.
+	children := dataOnlyUnionMembers(rt, ctx)
 	for i, ref := range children {
 		resolved := ctx.ResolveRef(ref)
 		if resolved == nil {
