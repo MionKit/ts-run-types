@@ -1,11 +1,12 @@
-// Override coverage for the object-shaped function families the validation /
-// serialization suites don't exercise standalone: the unknown-keys group
-// (hasUnknownKeys / stripUnknownKeys / unknownKeyErrors / unknownKeysToUndefined)
-// and formatTransform. Self-contained, real TypeScript through the plugin: a
-// unique branded type per family declares its override at module scope, and each
-// it() calls the public factory and asserts the override's custom output.
+// Fixture for the object-shaped function families the validation / serialization
+// suites don't exercise standalone: the unknown-keys group (hasUnknownKeys /
+// stripUnknownKeys / unknownKeyErrors / unknownKeysToUndefined) and
+// formatTransform. A unique branded type per family declares its override at
+// module scope; `registerObjectFnsCase` registers the it()s (called from the
+// single suite runner, overrides.test.ts). These families don't fit the
+// OverrideCase shape (distinct signatures), so they live in their own registrar.
 
-import {describe, it, expect} from 'vitest';
+import {it, expect} from 'vitest';
 import {
   createHasUnknownKeys,
   overrideHasUnknownKeys,
@@ -38,31 +39,32 @@ overrideUnknownKeysToUndefined<UkuTarget>(() => ({u: undefined}));
 type FmtTarget = {readonly __brand: 'fmtOverride'; a: number};
 overrideFormatTransform<FmtTarget>(() => ({fmt: true}) as never);
 
-describe('overrides / ObjectFns', () => {
-  it('hasUnknownKeys', () => {
+/** Registers the five object-family it()s (call inside a describe). */
+export function registerObjectFnsCase(): void {
+  it('ObjectFns — hasUnknownKeys', () => {
     const huk = createHasUnknownKeys<HukTarget>();
     expect(huk({x: 1} as never)).toBe(true);
     expect(huk({x: 2} as never)).toBe(false);
   });
 
-  it('stripUnknownKeys', () => {
+  it('ObjectFns — stripUnknownKeys', () => {
     const out = createStripUnknownKeys<SukTarget>()({a: 1} as never) as {stripped?: boolean};
     expect(out.stripped).toBe(true);
   });
 
-  it('unknownKeyErrors', () => {
+  it('ObjectFns — unknownKeyErrors', () => {
     const errors = createUnknownKeyErrors<UkeTarget>()({a: 1} as never);
     expect(errors).toHaveLength(1);
     expect((errors[0] as {expected?: string}).expected).toBe('override');
   });
 
-  it('unknownKeysToUndefined', () => {
+  it('ObjectFns — unknownKeysToUndefined', () => {
     const out = createUnknownKeysToUndefined<UkuTarget>()({a: 1} as never) as object;
     expect('u' in out).toBe(true);
   });
 
-  it('formatTransform', () => {
+  it('ObjectFns — formatTransform', () => {
     const out = createFormatTransform<FmtTarget>()({a: 1} as never) as {fmt?: boolean};
     expect(out.fmt).toBe(true);
   });
-});
+}
