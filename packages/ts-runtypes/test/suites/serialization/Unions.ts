@@ -642,9 +642,9 @@ export const UNIONS = {
   union_with_non_serializable: {
     title: 'Union with non-serializable member',
     description:
-      'A function arm in the union sits at a propagating union-member position, so it is non-serializable as an Error rather than a droppable Warning and we throw at RT-compile time.',
+      'A function arm projects to never under DataOnly, so it is DROPPED from the union: the serializer and validator handle the remaining Date | number | string members, matching DataOnly<Date | number | string | (() => any)> = Date | number | string.',
     serializeNotes:
-      'The function arm sits at a propagating (union-member) position, so it is non-serializable as an Error, not a droppable Warning: the Go pipeline renders an alwaysThrow factory and every encoder/decoder (JSON and binary) throws at the first call. factoryThrows is set; the schema thunks resolve the same throwing factory via the value-first path.',
+      'The function arm is non-serializable, so DataOnly drops it from the union and the emitter serializes/validates the surviving Date | number | string members (Date round-trips to a Date, number and string identically). A bare function value would match no surviving member at runtime. The schema thunks resolve the same dropped-arm factory via the value-first path.',
     mutateEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'direct'}),
@@ -652,14 +652,13 @@ export const UNIONS = {
     preserveDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date | number | string | (() => any)>(),
     binaryDecoder: () => createBinaryDecoder<Date | number | string | (() => any)>(),
-    // The function arm resolves the same alwaysThrow factory via the value-first
-    // path, so each schema thunk throws like the type-first form (factoryThrows).
+    // The function arm is dropped the same way via the value-first path, so each
+    // schema thunk resolves the same Date | number | string serializer.
     schemaEncoder: () => createJsonEncoder(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
     schemaDecoder: () => createJsonDecoder(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
     schemaBinaryEncoder: () => createBinaryEncoder(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
     schemaBinaryDecoder: () => createBinaryDecoder(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
-    factoryThrows: true,
-    getTestData: () => ({values: []}),
+    getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z'), 123, 'hello']}),
   },
 
   // ──────────────────────────────────────────────────────────────
