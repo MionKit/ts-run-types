@@ -17,7 +17,7 @@
 //      byte-level checks.
 
 import {describe, test, expect} from 'vitest';
-import {createJsonEncoder} from 'ts-runtypes';
+import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
 
 describe('createStringifyJson — atomic raw output', () => {
   test('string', () => {
@@ -45,21 +45,24 @@ describe('createStringifyJson — atomic raw output', () => {
     expect(sjs(null)).toBe('null');
   });
 
-  test('undefined — top-level returns the JS value undefined', () => {
-    const sjs = createJsonEncoder<undefined>();
-    expect(sjs(undefined)).toBeUndefined();
-    // Parity: `expect(typeof serialized).toBe('undefined')` —
-    // top-level undefined is not a valid JSON document, so the RT
-    // fn returns the JS undefined sentinel rather than a string.
-    expect(typeof sjs(undefined)).toBe('undefined');
+  test('undefined — top-level wraps into a JSON document and round-trips', () => {
+    const enc = createJsonEncoder<undefined>();
+    const dec = createJsonDecoder<undefined>();
+    // Top-level undefined has no native JSON form. Rather than return the JS
+    // value undefined (which JSON.parse can't read back), the encoder wraps it
+    // in a one-element array document so it round-trips; the decoder restores
+    // undefined. See DataOnly<undefined> = undefined.
+    expect(enc(undefined)).toBe('[null]');
+    expect(dec(enc(undefined) as string)).toBeUndefined();
   });
 
-  test('void — top-level returns the JS value undefined', () => {
-    const sjs = createJsonEncoder<void>();
-    // Same as undefined — stringifyJson emits `undefined` for
-    // both KindUndefined and KindVoid.
-    expect(sjs(undefined)).toBeUndefined();
-    expect(typeof sjs(undefined)).toBe('undefined');
+  test('void — top-level wraps into a JSON document and round-trips', () => {
+    const enc = createJsonEncoder<void>();
+    const dec = createJsonDecoder<void>();
+    // Same wrap as undefined — both KindUndefined and KindVoid are kept by
+    // DataOnly but have no top-level JSON form.
+    expect(enc(undefined)).toBe('[null]');
+    expect(dec(enc(undefined) as string)).toBeUndefined();
   });
 
   test('bigint — quoted decimal string', () => {
