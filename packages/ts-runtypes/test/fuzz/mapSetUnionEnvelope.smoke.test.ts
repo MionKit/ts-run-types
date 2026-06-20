@@ -59,7 +59,7 @@ describe('Map/Set value-type containing a union of object members', () => {
           expect(compiled.evalError, compiled.evalError).toBeUndefined();
           const {jsonEncode, jsonDecode, binaryEncode, binaryDecode} = compiled.wired;
           // JSON wire must round-trip (used to throw "invalid union index").
-          expect(jsonDecode!(jsonEncode!(value()))).toEqual(expected());
+          expect(jsonDecode!(jsonEncode!(value())!)).toEqual(expected());
           // Binary wire must agree (used to drop the value).
           expect(binaryDecode!(binaryEncode!(value()))).toEqual(expected());
           // Cross-wire agreement — the original O12 oracle that flagged it.

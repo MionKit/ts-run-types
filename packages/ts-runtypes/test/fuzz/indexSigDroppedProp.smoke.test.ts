@@ -40,7 +40,7 @@ describe('index signature mixed with a DataOnly-stripped named prop', () => {
         const value = {p0: new ArrayBuffer(8), p1: true, 0: 'red', 5: 'red'};
         const expected = {p1: true, '0': 'red', '5': 'red'};
         // JSON-clone must drop p0 (it used to keep `"p0":{}`).
-        expect(jsonDecode!(jsonEncode!(value))).toEqual(expected);
+        expect(jsonDecode!(jsonEncode!(value)!)).toEqual(expected);
         // Binary already dropped p0 — both wires must now agree.
         expect(binaryDecode!(binaryEncode!(value))).toEqual(expected);
         // Cross-wire agreement — the O12 oracle that flagged it.
