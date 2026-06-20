@@ -75,6 +75,7 @@
     "website:dev:agent": "bash scripts/website.sh dev --isAgent",
     "website:build": "bash scripts/website.sh build",
     "website:generate": "bash scripts/website.sh generate",
+    "website:serve": "node scripts/serve-website.mjs",
     "website:smoke": "bash scripts/website.sh smoke",
     "website:verify-docs": "bash scripts/website.sh verify-docs",
     "website:prep": "bash scripts/website.sh prep",

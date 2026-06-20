@@ -235,13 +235,21 @@ cmd_generate() {
   read_lines MARGS < <(mount_args)
   read_lines NARGS < <(net_args)
   read_lines EARGS < <(env_args)
+  # nitro's generate rmdir's /app/.output while finalizing; bind-mounting .output
+  # directly makes it a mount point, so that rmdir fails with EBUSY. Generate into
+  # the container's own /app/.output (freely removable), then mirror the result
+  # onto the host bind mount (/app/.output-host).
   exec "$ENGINE" run --rm --init \
     --name "${CONTAINER_BASE}-generate" \
     ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
-    -v "$WEBSITE_DIR/.output:/app/.output${MOUNT_OPTS}" \
+    -v "$WEBSITE_DIR/.output:/app/.output-host${MOUNT_OPTS}" \
     -e NODE_ENV=production \
+    -e NODE_OPTIONS="--max-old-space-size=6144" \
     -w /app "$IMAGE" \
-    pnpm exec nuxt generate --extends docus
+    sh -c 'pnpm exec nuxt generate --extends docus \
+      && node scripts/embed-panel-highlights.mjs /app/.output/public \
+      && find /app/.output-host -mindepth 1 -delete \
+      && cp -a /app/.output/. /app/.output-host/'
 }
 
 cmd_smoke() {

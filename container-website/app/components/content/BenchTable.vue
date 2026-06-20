@@ -75,6 +75,10 @@ interface BenchCompetitorSource {
   sources?: {validate?: string; validationErrors?: string};
   /** single source (typecost bench, no metric split) */
   source?: string;
+  /** pre-highlighted HTML baked in at build time for the static deploy
+   *  (scripts/embed-panel-highlights.mjs); absent in dev -> use /api/highlight */
+  sourcesHtml?: {validate?: string; validationErrors?: string};
+  sourceHtml?: string;
 }
 
 interface BenchCaseDetail {
@@ -189,6 +193,14 @@ const panelState = computed<'loading' | 'ready' | 'error'>(() => activeDetail.va
 function metricSource(competitor: BenchCompetitorSource): string | undefined {
   if (props.metric) return competitor.sources?.[props.metric as 'validate' | 'validationErrors'];
   return competitor.source;
+}
+
+/** Build-time-baked HTML for metricSource(competitor), used on the static deploy
+ *  where /api/highlight has no server. Absent in dev -> fall back to the runtime
+ *  highlighter. */
+function metricSourceHtml(competitor: BenchCompetitorSource): string | undefined {
+  if (props.metric) return competitor.sourcesHtml?.[props.metric as 'validate' | 'validationErrors'];
+  return competitor.sourceHtml;
 }
 
 /** The active row's case data (per-competitor results) — looked up from the index so
@@ -342,6 +354,8 @@ async function loadDetail(item: {key: string; title: string}) {
     // this competitor has no source for the page's metric).
     const html = await Promise.all(
       data.competitors.map((competitor) => {
+        const baked = metricSourceHtml(competitor);
+        if (baked !== undefined) return Promise.resolve(baked);
         const code = metricSource(competitor);
         return code ? highlight(code, 'ts') : Promise.resolve('');
       }),
