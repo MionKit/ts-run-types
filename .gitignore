@@ -45,6 +45,13 @@ packages/ts-runtypes/test/suites/enrich/.tmp/
 # Generated benchmark/test result JSON the docs website reads (read-only mount)
 /.docdata/
 
+# Stale leftovers from the container-website/ -> container/website/ rename:
+# generated build output (.output) and bench artifacts. Nothing tracked or any
+# current script writes here (the live paths live under container/), so these
+# are disposable; ignore them rather than churn the working tree.
+/container-website/
+/container-benchmarks/
+
 # IDE / editor
 # Track shared workspace settings/extensions, ignore user-specific files.
 .vscode/*
