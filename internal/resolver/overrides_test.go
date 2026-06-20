@@ -15,7 +15,9 @@ const overrideDTS = `declare module 'ts-runtypes' {
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function createValidate<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+  export function createJsonEncoder<T>(val?: T, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
   export function overrideValidate<T>(fn: PureFunction<(v: unknown) => boolean>, id?: InjectTypeFnArgs<T, 'val'>): void;
+  export function overrideJsonEncoder<T>(fn: PureFunction<(v: unknown) => string>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): void;
 }
 `
 
@@ -96,6 +98,30 @@ export const isObj = createValidate<{a: number; b: string}>();
 	}
 	all := allEntrySources(resp)
 	if !strings.Contains(all, "typeof v === 'string'") {
+		t.Fatalf("cfn module missing the override body:\n%s", all)
+	}
+}
+
+// TestOverride_JsonEncoderComposite proves the headline use case: a hand-tuned
+// JSON encoder replaces the composite entry with a cfn redirect.
+func TestOverride_JsonEncoderComposite(t *testing.T) {
+	files := map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": `import {createJsonEncoder, overrideJsonEncoder} from 'ts-runtypes';
+overrideJsonEncoder<{id: number}>((v) => '{"id":' + (v as {id: number}).id + '}');
+export const enc = createJsonEncoder<{id: number}>();
+`,
+	}
+	r := setupInline(t, files)
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}, IncludeEntryModules: true})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	all := allEntrySources(resp)
+	if !strings.Contains(all, "usePureFn(") || !strings.Contains(all, "cfn::") {
+		t.Fatalf("json encoder composite missing cfn redirect:\n%s", all)
+	}
+	if !strings.Contains(all, `'{"id":'`) {
 		t.Fatalf("cfn module missing the override body:\n%s", all)
 	}
 }
