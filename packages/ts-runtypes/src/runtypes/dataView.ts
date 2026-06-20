@@ -45,6 +45,24 @@ function varintLen(n: number): number {
   return 5;
 }
 
+/** UTF-8 byte length of `str` WITHOUT encoding it — matches `TextEncoder` output
+ *  exactly (a surrogate pair counts as one 4-byte code point). Used by the sizing
+ *  serializer so a measure pass needs no allocation. **/
+function utf8ByteLength(str: string): number {
+  let bytes = 0;
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      // High surrogate: pair with the next unit into one 4-byte code point.
+      bytes += 4;
+      i++;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
 // Ambient declarations — the package's tsconfig sets `types: []` so DOM
 // globals aren't visible. TextEncoder/Decoder are universally available.
 declare const TextEncoder: {
@@ -351,7 +369,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
    *  prediction under-allocated. Grows geometrically but at least to the exact
    *  deficit, so a one-off large payload settles in a single copy. Throws only
    *  at the hard `2 ** 32` ceiling (a payload that genuinely cannot be encoded). **/
-  private ensureCapacity(extraBytes: number): void {
+  protected ensureCapacity(extraBytes: number): void {
     const required = this.index + extraBytes;
     if (required <= this.buffer.byteLength) return;
     if (required >= POW_2_32)
@@ -531,6 +549,57 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.view.setUint16(this.index, value.nanosecond, LE);
     this.index += 2;
   }
+}
+
+// A DataView-shaped sink whose writes are no-ops and whose only read (`getUint8`,
+// used by setBitMask) returns 0. The sizing serializer points its `view` here so
+// the Go-emitted raw writes (`Ser.view.setFloat64(Ser.index, v, 1, (Ser.index +=
+// 8))`, `setUint8(Ser.index++, …)`, …) still advance `index` via their fused
+// argument expressions but touch no buffer.
+const sizingView = {
+  setUint8() {},
+  setUint16() {},
+  setUint32() {},
+  setInt8() {},
+  setInt16() {},
+  setInt32() {},
+  setFloat64() {},
+  setBigInt64() {},
+  setBigUint64() {},
+  getUint8() {
+    return 0;
+  },
+} as unknown as DataView;
+
+/** Measure-pass serializer: runs the SAME Go-emitted `toBinary` body as the real
+ *  encoder, but every write is a no-op and only `index` advances — so after a run
+ *  `getLength()` is EXACTLY the byte count the real encoder would produce (same
+ *  code path, same branches, formats, temporal packing, union arms, deps). Used
+ *  by `createBinaryEncoder(value, {sizing: 'exact'})` to size the buffer up front
+ *  so no inline write can overflow. Only `serString`/`serLength` need overriding
+ *  (they would otherwise touch the buffer); every other framing method is
+ *  inherited unchanged, so the size rules can never drift from the encoder. **/
+class SizingSerializerImpl extends DataViewSerializerImpl {
+  constructor(cacheKey: string) {
+    super(cacheKey, 0);
+    this.view = sizingView;
+  }
+  // No buffer to grow — the measure pass never allocates.
+  protected ensureCapacity(): void {}
+  resize(): void {}
+  serString(str: string): void {
+    // skipCache is irrelevant to size; the measure pass never touches the cache.
+    const bytes = utf8ByteLength(str);
+    this.index += varintLen(bytes) + bytes;
+  }
+  serLength(value: number): void {
+    this.index += varintLen(value);
+  }
+}
+
+/** Creates a measure-pass serializer (see SizingSerializerImpl). **/
+export function createSizingSerializer(cacheKey: string): DataViewSerializer {
+  return new SizingSerializerImpl(cacheKey);
 }
 
 class DataViewDeserializerImpl implements DataViewDeserializer {

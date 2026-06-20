@@ -20,7 +20,7 @@ serializer writers reserve first, the streamlined backstop retry loop, and the
 - **Streaming-quantile (p99) prediction** (P²/t-digest) — not present.
 - **Lower the 16 MiB cold-start default** — `defaultBufferSize` is still
   `2 ** 24` (blocked on container reservation covering all write paths).
-- **Two-pass measure-then-allocate opt-in** — not present.
+- **Two-pass measure-then-allocate opt-in** — ✅ SHIPPED. `createBinaryEncoder(value, {sizing: 'exact'})` runs a no-op measure pass (`createSizingSerializer`) over the SAME emitted encode body, then allocates the precise byte count, so no inline write can overflow. Opt-in; the default stays adaptive + backstop. The caller-supplied-size variant (passing a buffer size, exposing `createBinarySizer`) is tracked in [docs/todos/binary-caller-supplied-buffer-size.md](../todos/binary-caller-supplied-buffer-size.md).
 - **Encoder instrumentation** (backstop hit-rate, bytes wasted) to drive the
   data-led decisions on #3/#4/#6 — not present.
 - **Docs not updated:** no "buffer sizing" paragraph in
