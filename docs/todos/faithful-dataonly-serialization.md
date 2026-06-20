@@ -1,29 +1,40 @@
-# Serialize every DataOnly-valid type at the root (wrap undefined / void roots)
+# Make JSON serialization faithful to DataOnly
 
-**Status:** idea, not started. Scoping + design note. The runtime-only shape the
-idea was first sketched in does not stand alone (see Feasibility); the
-recommended path moves the decision to build time and keeps a thin runtime
-wrapper in `ts-runtypes`.
+**Status:** idea, not started. Scoping + design note. Two faithfulness gaps,
+both verified against the source (one also rendered empirically):
+
+- **Case A — undefined/void roots:** the encoder returns the JS value
+  `undefined` instead of a JSON document, so the round-trip fails. The fix is a
+  root wrapper. This is the primary subject below. The runtime-only shape the
+  idea was first sketched in does not stand alone (see Feasibility); the
+  recommended path moves the decision to build time and keeps a thin runtime
+  wrapper in `ts-runtypes`.
+- **Case B — non-serializable union sibling:** a `symbol` / function / `Promise`
+  member makes the WHOLE union throw, even though `DataOnly` drops that member
+  (`DataOnly<Date | symbol>` = `Date`). The fix is to drop stripped union
+  members. Detailed under "Second gap" below.
 
 ## The idea
 
 `createJsonEncoder<T>()` / `createJsonDecoder<T>()` should produce a working,
 round-tripping function for **every** type that is valid `DataOnly<T>` (i.e.
-`DataOnly<T>` is not `never`). Today a small set of DataOnly-valid types do not
-truly serialize at the root because JSON has no top-level representation for
-them. We want to be faithful to `DataOnly`: if the projection keeps the type,
-the serializer must round-trip it, wrapping the value in a JSON envelope when
-the bare value is not a standalone JSON document.
+`DataOnly<T>` is not `never`). Today a small set of DataOnly-valid types fail:
+the undefined-only roots do not serialize (no top-level JSON form), and a union
+with a stripped sibling throws instead of dropping that sibling. We want to be
+faithful to `DataOnly`: if the projection keeps the type, the serializer must
+round-trip it (wrapping the value in a JSON envelope when the bare value is not a
+standalone JSON document, and dropping union members that `DataOnly` drops).
 
-The constraint: do **not** add an `isRoot` axis to the type id or fnHash.
-Root-ness is a property of the *call* (`createJsonEncoder<T>()` is always the
-root frame), not of the type. The same `T` used at a property position must keep
-its existing cache entry and hash.
+The constraint (Case A): do **not** add an `isRoot` axis to the type id or
+fnHash. Root-ness is a property of the *call* (`createJsonEncoder<T>()` is always
+the root frame), not of the type. The same `T` used at a property position must
+keep its existing cache entry and hash.
 
-## What actually breaks today (the precise set)
+## Case A — what breaks at the root (the precise set)
 
 The only gap between "valid `DataOnly`" and "round-trips through the default JSON
-encoder/decoder at root" is **the undefined-only roots**:
+encoder/decoder at root" is **the undefined-only roots** (Case B, the union
+sibling, is a propagating-position gap, not a root gap; see "Second gap" below):
 
 - `undefined` — `DataOnly<undefined>` = `undefined` (kept, `dataOnly.ts:153`).
 - `void` — `DataOnly<void>` = `void` (kept; falls through to the final `: T`
@@ -78,21 +89,68 @@ the `DataOnlyStripped` set (`dataOnly.ts:77-92`), each of which projects to
 `never`. So none of them are DataOnly-valid; the alwaysThrow behavior is correct
 and needs no change.
 
-### Adjacent gap (related, probably separate work): non-serializable union members
+### Second gap (verified): a non-serializable union SIBLING poisons the whole union
 
-`DataOnly` distributes over unions and **drops** stripped members:
+To be clear up front: **`Date` serializes fine**, on its own and as a union
+member. The bug is that a *non-serializable sibling* (a `symbol`, a function, a
+`Promise`) in the same union makes the **entire** union throw, instead of that
+sibling being dropped the way `DataOnly` drops it.
+
+`DataOnly` distributes over unions and drops the stripped members:
 `DataOnly<Date | symbol>` = `Date`, `DataOnly<string | (() => void)>` = `string`.
-The serialization emitter does the opposite: a non-serializable union member
-returns `CodeNS`, which the union propagates (`union_flat.go:85-86`, `:114`,
-`:354-355`, …), yielding an `alwaysThrow` factory. So
-`createJsonEncoder<Date | symbol>()` throws even though `DataOnly` says the type
-is a valid `Date`.
+The serializer + emitter do the opposite today, confirmed empirically:
 
-This is a real faithfulness gap, but it needs a **different** mechanism (drop
-the stripped member from the union the way the validate family drops
-non-serializable object properties), not root wrapping. Tracked here as an open
-question; not part of the primary root-wrapping change unless we decide to fold
-it in.
+- The serializer keeps every union member, including the symbol:
+  `serialize.go:610-617` appends `cache.Serialize(member)` for every
+  `tsType.Distributed()` member with no non-serializable filtering, and
+  `finalizeUnion` only reorders (it keeps `len(SafeUnionChildren) == len(Children)`).
+- Given that union, the emitter renders the **union entry** as `alwaysThrow`.
+  A probe that built `Date | symbol` (both children present) and rendered each
+  family produced:
+
+  ```
+  prepareForJson : init('…_dat','date',undefined,true)              // Date: clean noop
+                   init('…_uni','union',…,'PJ005')                   // union: alwaysThrow
+  stringifyJson  : init('…_uni','union',…,'SJ005')                   // alwaysThrow
+  restoreFromJson: init('…_uni','union',…,'RJ005')                   // alwaysThrow
+  validate       : init('…_uni','union',…,'VL002')                   // alwaysThrow
+  ```
+
+  The `Date` member is a healthy noop entry; the union is poisoned by the symbol
+  sibling (the `CodeNS` propagation at `union_flat.go:85-86`, `:114`,
+  `:354-355`, …). So `createJsonEncoder<Date | symbol>()` throws at the first
+  lookup, even though `DataOnly<Date | symbol>` = `Date`.
+
+(Caveat on the verification: this was confirmed at the serializer + emitter
+layers, the serializer code is unambiguous and the emitter behavior was rendered
+directly. A full tsgo→runtime end-to-end run was not possible here because the
+`third_party/tsgolint` submodules are not checked out, so the binary cannot
+build. Re-confirm e2e once the submodules are present.)
+
+This is currently the **documented** contract (CLAUDE.md: a non-serializable
+type at a "propagating position" such as a union member emits `alwaysThrow` with
+an Error). It is intended-as-built, but it is exactly the faithfulness gap this
+todo is about: per `DataOnly`, that type IS serializable (as `Date`).
+
+**Fix (different mechanism from root wrapping): drop stripped union members to
+match `DataOnly`'s distribution.** In the union layout / emit
+(`union_flat_layout.go` `buildFlatLayout`, mirrored in the validate /
+validationErrors union paths), skip a member whose own emit is `CodeNS` because
+its kind is in the stripped set (symbol / function / method / call-signature /
+Promise / `SubKindNonSerializable`), rather than propagating `CodeNS`. Keep the
+remaining members. Only when **no** member survives (e.g. `symbol | (() => void)`,
+whose `DataOnly` is `never`) does the union stay `alwaysThrow` — which then
+matches `DataOnly` exactly. Dropping is sound: a symbol value handed to
+`createJsonEncoder<Date | symbol>()` is not data, so failing the surviving `Date`
+member's guard (a "does not belong to the union" error) is the correct outcome.
+
+Note the interaction with the tuple-wrap rule: a *non-compatible but
+serializable* member (`bigint`, `Date`, `undefined`) must still be kept and
+forces the `[memberIndex, value]` envelope (unchanged). Only the truly *stripped*
+kinds are dropped. This change touches every family that walks unions (validate,
+validationErrors, the JSON families, binary), so it is larger than the root
+wrap; it can ship as its own slice but belongs to the same "faithful to DataOnly"
+goal.
 
 ## Design constraint recap
 
@@ -282,9 +340,10 @@ recommended path; recorded for completeness.
 2. **Envelope shape:** one-element array `[inner]` (recommended) vs object
    `{"v":inner}` vs a bare parseable document. Array is the lightest
    self-describing option.
-3. **Fold in the union-member faithfulness gap** (`Date | symbol` →
-   `alwaysThrow` while `DataOnly` = `Date`), or track it as separate work? It
-   needs member-dropping in the union emit, a different change.
+3. **Sequence Case A and Case B together, or ship separately?** Case B (drop
+   stripped union members) is verified real and belongs to the same goal, but it
+   touches every family that walks unions, so it is a larger change than the
+   root wrap. Recommend separate slices under one tracking doc.
 4. **`createJsonEncoder<undefined>` return value:** keep status quo
    (`undefined`, faithful to `JSON.stringify`) or the wrapped string (faithful to
    `DataOnly`)? Choosing `DataOnly` faithfulness is the whole point of this todo,
@@ -298,7 +357,9 @@ recommended path; recorded for completeness.
 
 - Binary serialization (already round-trips `undefined` / `void` at root).
 - Any change to the type id, fnHash, or disk cache format / fingerprint.
-- The non-serializable union-member dropping gap, unless explicitly folded in
-  (see open question 3).
 - Refining `createValidate` / `DataOnly` return types or renaming factories
   (separate roadmap item; see `docs/ROADMAP.md`).
+
+Case B (dropping stripped union members) IS in scope for the "faithful to
+DataOnly" goal but is expected to ship as its own slice (it touches every
+union-walking family); see "Second gap" and open question 3.
