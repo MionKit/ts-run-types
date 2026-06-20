@@ -192,6 +192,29 @@ export function createBinaryEncoder<T>(
   };
 }
 
+/** Sizer returned by `createBinarySizer<T>()`. Returns the exact on-wire byte
+ *  count without allocating an output buffer. **/
+export type BinarySizerFn = (value: unknown) => number;
+
+/** Returns the exact on-wire byte count `createBinaryEncoder<T>()` would produce
+ *  for `value`, WITHOUT allocating an output buffer. Runs the SAME emitted `'tb'`
+ *  body as the encoder against a no-op measure serializer, so the count is exact:
+ *  `createBinarySizer(v) === createBinaryEncoder(v).byteLength`. Use it to size a
+ *  `{sizing: 'initial', bufferSize}` encoder, or a pooled caller-supplied
+ *  serializer, up front. Reuses the encoder's `'tb'` cache entry — no new family. **/
+export function createBinarySizer<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'tb'>): BinarySizerFn;
+export function createBinarySizer<T>(val?: T, id?: InjectTypeFnArgs<T, 'tb'>): BinarySizerFn;
+export function createBinarySizer<T>(valOrSchema?: T | RunType<T>, id?: InjectTypeFnArgs<T, 'tb'>): BinarySizerFn {
+  const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
+  const cacheKey = binarySizingKey(schemaId, id);
+  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinarySizer', noopToBinaryFn, schemaId, id);
+  return (value) => {
+    const sizer = createSizingSerializer(cacheKey);
+    encodeFn(value, sizer);
+    return sizer.getLength();
+  };
+}
+
 /** Returns a binary decoder for `T`. Accepts either a value-first schema
  *  (`createBinaryDecoder(rt)`) or the value/static form. **/
 export function createBinaryDecoder<T>(
