@@ -152,14 +152,7 @@ export interface RunTypeFacadeRecord {
  *  register path resolves the family identity / throwing factory instead). **/
 export interface FnTypeRecord extends Pick<
   CompiledTypeFn,
-  | 'rtFnHash'
-  | 'typeName'
-  | 'isNoop'
-  | 'rtDependencies'
-  | 'pureFnDependencies'
-  | 'createRTFn'
-  | 'alwaysThrowCode'
-  | 'alwaysThrowSite'
+  'rtFnHash' | 'typeName' | 'isNoop' | 'rtDependencies' | 'pureFnDependencies' | 'createRTFn' | 'alwaysThrowMessage'
 > {
   familyTag: string;
   deps: EntryDepsThunk | undefined;
@@ -216,14 +209,7 @@ export const RUN_TYPE_BUNDLE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key', 'rows'] as
 export const RUN_TYPE_FACADE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key'] as const;
 
 const FN_TYPE_REQUIRED_KEYS = ['familyTag', 'deps', 'ini', 'rtFnHash', 'typeName', 'code'] as const;
-const FN_TYPE_TRIMMED_KEYS = [
-  'isNoop',
-  'rtDependencies',
-  'pureFnDependencies',
-  'createRTFn',
-  'alwaysThrowCode',
-  'alwaysThrowSite',
-] as const;
+const FN_TYPE_TRIMMED_KEYS = ['isNoop', 'rtDependencies', 'pureFnDependencies', 'createRTFn', 'alwaysThrowMessage'] as const;
 export const FN_TYPE_TUPLE_KEYS = [...FN_TYPE_REQUIRED_KEYS, ...FN_TYPE_TRIMMED_KEYS] as const;
 
 export const PURE_FN_TUPLE_KEYS = [
@@ -558,12 +544,11 @@ function registerTypeFnTuple(utils: RTUtils, tuple: FnTypeTuple): boolean {
     rtDependencies: record.rtDependencies,
     pureFnDependencies: record.pureFnDependencies,
     createRTFn:
-      record.alwaysThrowCode !== undefined
-        ? (utils.alwaysThrowFactory(record.alwaysThrowCode, record.alwaysThrowSite) as CompiledTypeFn['createRTFn'])
+      record.alwaysThrowMessage !== undefined
+        ? (utils.alwaysThrowFactory(record.alwaysThrowMessage) as CompiledTypeFn['createRTFn'])
         : record.createRTFn,
     fn: isNoop ? (meta.noop as CompiledTypeFn['fn']) : undefined,
-    alwaysThrowCode: record.alwaysThrowCode,
-    alwaysThrowSite: record.alwaysThrowSite,
+    alwaysThrowMessage: record.alwaysThrowMessage,
   };
   utils.addToRTCache(entry);
   return true;

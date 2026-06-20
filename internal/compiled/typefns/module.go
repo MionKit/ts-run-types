@@ -409,8 +409,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		// identity fallback, via the KindMissing stub module).
 		if leafProvider, ok := emitter.(LeafDiagCodeProvider); ok && walker.UnsupportedLeaf != nil {
 			if diagCode := leafProvider.DiagCodeForLeaf(walker.UnsupportedLeaf); diagCode != "" {
-				walker.EmitDiagnostic(diagCode, leafKindLabel(walker.UnsupportedLeaf))
-				argsText := renderAlwaysThrowEntry(runType, innerName, diagCode, walker.rootProvenance)
+				kindLabel := leafKindLabel(walker.UnsupportedLeaf)
+				walker.EmitDiagnostic(diagCode, kindLabel)
+				argsText := renderAlwaysThrowEntry(runType, innerName, diagCode, kindLabel, walker.rootProvenance)
 				if variantSuffix == "" {
 					// alwaysThrow entries emit no dep calls — no same-family
 					// or cross-family edges to persist.
@@ -668,18 +669,11 @@ func leafKindLabel(leaf *protocol.RunType) string {
 	return "Unsupported"
 }
 
-// renderAlwaysThrowEntry emits the structured alwaysThrow tuple tail —
-// the 8th positional argument is the per-family diag code; the JS-side
-// tuple consumer resolves it to a human-readable message via
-// messageForCode() and constructs the throwing factory at materialise
-// time.
-//
-// The 9th argument is an optional `file:line:col` hint pointing at the FIRST
-// known marker call site for the type. Appended to the runtime error
-// message so a user who somehow ships an alwaysThrow factory to runtime
-// sees `[CODE] msg (at src/foo.ts:7:18)` instead of an anonymous throw.
-// When provenance is empty (orphaned entry), the slot is trimmed off the
-// tail entirely — the JS-side record zips the absent slot to undefined.
+// renderAlwaysThrowEntry emits the structured alwaysThrow tuple tail. The
+// final positional argument is the COMPLETE runtime throw message, rendered
+// here at build time from the diag catalog (buildAlwaysThrowMessage) — the
+// shipped marker package throws it verbatim, with no catalog to resolve at
+// runtime.
 //
 // Shape (relative to the normal 7-arg tail):
 //
@@ -688,13 +682,12 @@ func leafKindLabel(leaf *protocol.RunType) string {
 //	false,      // isNoop
 //	undefined,  // rtDependencies
 //	undefined,  // pureFnDependencies
-//	undefined,  // createRTFn — JS-side derives from diagCode
-//	'<diagCode>',
-//	'<siteHint>'
+//	undefined,  // createRTFn — JS-side derives the throwing factory
+//	'<message>' // alwaysThrowMessage
 //
-// See docs/UNSUPPORTED-KINDS.md "Wire format".
-func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCode string, provenance []diag.Site) string {
-	args := trimArgsTail([]string{
+// See docs/ARCHITECTURE.md (disk cache format v10).
+func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCode string, kindLabel string, provenance []diag.Site) string {
+	args := []string{
 		quoteJS(innerName),
 		quoteJS(rtTypeName(runType)),
 		"undefined", // code
@@ -702,22 +695,24 @@ func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCod
 		"undefined", // rtDependencies
 		"undefined", // pureFnDependencies
 		"undefined", // createRTFn
-		quoteJS(diagCode),
-		formatCallSiteHint(provenance),
-	}, alwaysThrowArgDefaults)
+		quoteJS(buildAlwaysThrowMessage(diagCode, kindLabel, provenance)),
+	}
 	return joinArgs(args)
 }
 
-// formatCallSiteHint renders the first call-site as `file:line:col` for
-// the alwaysThrow 9th arg. Returns the literal `undefined` when no
-// provenance is known so the JS-side tuple consumer treats the slot
-// as absent.
-func formatCallSiteHint(provenance []diag.Site) string {
-	if len(provenance) == 0 {
-		return "undefined"
+// buildAlwaysThrowMessage renders the complete runtime throw text for an
+// alwaysThrow entry: `[<code>] <headline> (at <file:line:col>)`. The headline
+// is rendered here by the emitter (rootThrowHeadline) with its kind label, so
+// the runtime throws this string as-is — no diagnostic catalog ships in the
+// marker package. The site suffix is omitted for orphaned entries (no known
+// call site).
+func buildAlwaysThrowMessage(diagCode, kindLabel string, provenance []diag.Site) string {
+	message := "[" + diagCode + "] " + rootThrowHeadline(diagCode, kindLabel)
+	if len(provenance) > 0 {
+		site := provenance[0]
+		message += fmt.Sprintf(" (at %s:%d:%d)", site.FilePath, site.StartLine, site.StartCol)
 	}
-	site := provenance[0]
-	return quoteJS(fmt.Sprintf("%s:%d:%d", site.FilePath, site.StartLine, site.StartCol))
+	return message
 }
 
 // rtTypeName resolves the `typeName` field for a RTCompiledFn entry.
@@ -823,10 +818,6 @@ func boolJS(b bool) string {
 // (EmitFunctions/EmitBoth) the last slot carries the factory text, so the
 // trim run never starts.
 var fnEntryArgDefaults = []string{"", "", "", "false", "[]", "[]", "u"}
-
-// alwaysThrowArgDefaults trims only the optional trailing site hint —
-// the interior `undefined` slots stay explicit (diagCode follows them).
-var alwaysThrowArgDefaults = []string{"", "", "", "", "", "", "", "", "undefined"}
 
 // trimArgsTail returns args without its trailing run of default-valued
 // slots; defaults[i] == "" pins slot i (never trimmed).
