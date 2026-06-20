@@ -124,32 +124,43 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // the plugin can't parse tsconfig without a dep, so the Go side owns the
     // default and echoes the resolved path back from generate().
     outDirAbs = options.outDir ? path.resolve(cwdAbs, options.outDir) : '';
-    // node_modules/.cache is the canonical location for tooling
-    // artifacts that a project's standard `clean` workflow already
-    // knows to wipe (npm / pnpm both nuke it under common cleanup
-    // recipes). Per-fingerprint subdirs live underneath so distinct
-    // build configurations stay isolated. `cacheDir: false` disables
-    // the cache so the resolver runs without touching disk.
+    // tsconfig is the canonical config surface for the Go compiler's project
+    // knobs (emitMode, moduleMode, inlineMode, cacheDir, hashLength, …). The
+    // plugin forwards a flag ONLY for an option set explicitly here, so an
+    // unset option falls through to the tsconfig ts-runtypes plugin entry and
+    // the binary's defaults — tsc-style precedence: a forwarded flag overrides
+    // tsconfig overrides the default.
+    //
+    // cacheDir is the one host-resolved knob: `false` forwards an explicit
+    // disable (empty --cache-dir), a string forwards that path, and undefined
+    // forwards nothing so the binary derives <cwd>/node_modules/.cache/ts-runtypes
+    // (the canonical tooling-artifact location, wiped by standard `clean`
+    // recipes) or honours a tsconfig cacheDir.
     let cacheDir: string | undefined;
-    if (options.cacheDir === false) cacheDir = undefined;
+    if (options.cacheDir === false) cacheDir = '';
     else if (typeof options.cacheDir === 'string') cacheDir = options.cacheDir;
-    else cacheDir = path.join(cwdAbs, 'node_modules', '.cache', 'ts-runtypes');
-    const moduleMode = options.moduleMode ?? MODULE_MODE_DEFAULT;
-    if (moduleMode !== MODULE_MODE_DEFAULT && moduleMode !== MODULE_MODE_ALL_SINGLE && moduleMode !== MODULE_MODE_ALL_MODULES) {
+    // Surface a config typo at the host boundary (the binary validates the
+    // merged value too) — only when the user actually set moduleMode.
+    if (
+      options.moduleMode !== undefined &&
+      options.moduleMode !== MODULE_MODE_DEFAULT &&
+      options.moduleMode !== MODULE_MODE_ALL_SINGLE &&
+      options.moduleMode !== MODULE_MODE_ALL_MODULES
+    ) {
       throw new Error(
-        `[runtypes-devtools] unknown moduleMode ${JSON.stringify(moduleMode)} — expected '${MODULE_MODE_DEFAULT}' | '${MODULE_MODE_ALL_SINGLE}' | '${MODULE_MODE_ALL_MODULES}'`
+        `[runtypes-devtools] unknown moduleMode ${JSON.stringify(options.moduleMode)} — expected '${MODULE_MODE_DEFAULT}' | '${MODULE_MODE_ALL_SINGLE}' | '${MODULE_MODE_ALL_MODULES}'`
       );
     }
     // Explicit path wins; otherwise resolve the host-platform binary from the
     // ts-runtypes-bin launcher (throws with a clear message if none is installed).
     const binaryPath = options.binary ?? getExePath();
     resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
-      cacheDir,
-      emitMode: options.emitMode ?? 'code',
+      ...(cacheDir !== undefined ? {cacheDir} : {}),
+      ...(options.emitMode ? {emitMode: options.emitMode} : {}),
       ...(options.inlineMode ? {inlineMode: options.inlineMode} : {}),
-      parallelScan: options.parallelScan,
-      parallelRender: options.parallelRender,
-      moduleMode,
+      ...(options.parallelScan !== undefined ? {parallelScan: options.parallelScan} : {}),
+      ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),
+      ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
     });
   }
 
