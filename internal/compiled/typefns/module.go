@@ -169,6 +169,15 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 		if existing, exists := graph[entryID]; exists {
 			return existing.Deps, true
 		}
+		// Prune a JSON primitive (pj/sj/rj/ukuw) for a type whose composite is
+		// overridden: the composite redirect references no primitives, so the
+		// structural primitive is dead weight — and for a type the structural
+		// emitter cannot handle (the escape-valve case) it would alwaysThrow on
+		// the very type the user overrode. Safe because the primitives are
+		// internal-only, demanded solely by composite sites.
+		if compositeOverriddenForPrimitive(runType, settings.Tag) {
+			return nil, false
+		}
 		// Override: a custom function registered for this (family, type) replaces
 		// the structural body with a cfn redirect. Only the PLAIN variant is
 		// overridden — option variants (valNL, …) change behaviour the single

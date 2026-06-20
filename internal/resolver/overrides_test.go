@@ -125,6 +125,11 @@ export const enc = createJsonEncoder<{id: number}>();
 	if !strings.Contains(all, `'{"id":'`) {
 		t.Fatalf("cfn module missing the override body:\n%s", all)
 	}
+	// The composite redirect references no primitives, so the structural
+	// prepareForJsonSafe (clone's primitive) is pruned for the overridden type.
+	if hasFamilyEntry(resp, "prepareForJsonSafe") {
+		t.Fatalf("overridden json encoder must prune its primitives, but pjs entries were emitted:\n%s", familyEntrySources(resp, "prepareForJsonSafe"))
+	}
 }
 
 // TestOverride_DuplicateConflictEmitsOVR001 — two overrideValidate<string> with
