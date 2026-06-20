@@ -710,10 +710,12 @@ func emitTupleMemberValidate(rt *protocol.RunType, ctx *EmitContext, v string) R
 // (no required props to fail on), which is incorrect per TS's
 // weak-type rules.
 func emitUnionValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
-	children := rt.SafeUnionChildren
-	if len(children) == 0 {
-		children = rt.Children
-	}
+	// DataOnly-strip members (symbol / function-like / Promise /
+	// non-serializable / never) so `Date | symbol` validates as `Date`,
+	// matching DataOnly<T>. An all-stripped union keeps its members and falls
+	// through to the CodeNS branch below (projection is `never`), rendering the
+	// alwaysThrow factory. See union_strip.go.
+	children := dataOnlyUnionMembers(rt, ctx)
 	var simpleChecks []string
 	var objectChecks []string
 	for _, child := range children {
@@ -723,9 +725,9 @@ func emitUnionValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode 
 		}
 		childRT := ctx.CompileChild(child, CodeE)
 		if childRT.Type == CodeNS {
-			// Any unvalidatable union member fails the whole union —
-			// there's no "drop union member" path that preserves the
-			// union's exhaustiveness contract.
+			// Only reachable when EVERY member is stripped (the union's
+			// DataOnly projection is `never`): collapse the whole union to the
+			// alwaysThrow factory.
 			return RTCode{Code: "", Type: CodeNS}
 		}
 		if childRT.Code == "" {
