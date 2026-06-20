@@ -32,6 +32,12 @@ func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[s
 		EmitMode:        resolver.opts.EmitMode,
 		InlineMode:      resolver.opts.InlineMode,
 		RefTable:        resolver.fullRefTable(),
+		SizeEstimate: typefns.SizeEstimateConfig{
+			Bias:        resolver.opts.SizeBias,
+			Items:       resolver.opts.SizeItems,
+			StringBytes: resolver.opts.SizeStringBytes,
+			MaxBytes:    resolver.opts.SizeMaxBytes,
+		},
 		// One predicate memo per dispatch, shared by every family collect
 		// (the predicates are emitter-independent).
 		Facts: typefns.NewFactsTable(),

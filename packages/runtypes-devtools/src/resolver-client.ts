@@ -33,6 +33,13 @@ export interface ResolverClientOptions {
   // via `new Function`), 'functions' (live factory only, code derived lazily),
   // or 'both' (code string + live factory). Defaults to 'code' when omitted.
   emitMode?: 'code' | 'functions' | 'both';
+  // Forwarded as --size-bias / --size-items / --size-string-bytes /
+  // --size-max-bytes. Tune the binary `dynamic` cold-start buffer estimate;
+  // omitted values fall through to the binary defaults (0.8 / 100 / 32 / 65536).
+  sizeBias?: number;
+  sizeItems?: number;
+  sizeStringBytes?: number;
+  sizeMaxBytes?: number;
   // Parallelism opt-outs. The Go binary runs its parallel marker scan
   // and parallel cache renders by default; an explicit `false` forwards
   // --no-parallel-scan / --no-parallel-render to force the serial paths
@@ -329,6 +336,10 @@ export class ResolverClient extends ResolverClientBase {
     // that must override tsconfig); only undefined skips the flag entirely.
     if (opts.cacheDir !== undefined) args.push('--cache-dir', opts.cacheDir);
     if (opts.emitMode) args.push('--emit-mode', opts.emitMode);
+    if (opts.sizeBias !== undefined) args.push('--size-bias', String(opts.sizeBias));
+    if (opts.sizeItems !== undefined) args.push('--size-items', String(opts.sizeItems));
+    if (opts.sizeStringBytes !== undefined) args.push('--size-string-bytes', String(opts.sizeStringBytes));
+    if (opts.sizeMaxBytes !== undefined) args.push('--size-max-bytes', String(opts.sizeMaxBytes));
     if (opts.parallelScan === false) args.push('--no-parallel-scan');
     if (opts.parallelRender === false) args.push('--no-parallel-render');
     if (opts.moduleMode) args.push('--module-mode', opts.moduleMode);

@@ -187,6 +187,33 @@ func (numberFormatEmitter) EmitFromBinary(annotation *protocol.FormatAnnotation,
 	}
 }
 
+// BinarySize implements formats.BinarySizer: the exact wire width the
+// packed integer occupies, from the SAME integerType ladder EmitToBinary
+// uses. Floats, non-integers, unconstrained integers and ranges wider than
+// int32 all ride the base float64 arm — 8 bytes.
+func (numberFormatEmitter) BinarySize(annotation *protocol.FormatAnnotation) formats.BinarySizeHint {
+	if annotation == nil {
+		return formats.BinarySizeHint{Fixed: 8}
+	}
+	params := annotation.Params
+	if isFloat, ok := formats.ReadBoolParam(params, "float"); ok && isFloat {
+		return formats.BinarySizeHint{Fixed: 8}
+	}
+	if isInt, ok := formats.ReadBoolParam(params, "integer"); !ok || !isInt {
+		return formats.BinarySizeHint{Fixed: 8}
+	}
+	switch integerType(params) {
+	case intUint8, intInt8:
+		return formats.BinarySizeHint{Fixed: 1}
+	case intUint16, intInt16:
+		return formats.BinarySizeHint{Fixed: 2}
+	case intUint32, intInt32:
+		return formats.BinarySizeHint{Fixed: 4}
+	default:
+		return formats.BinarySizeHint{Fixed: 8}
+	}
+}
+
 // integerKind enumerates the packed integer encodings, in the
 // switch(true) precedence (unsigned first, narrowest first).
 type integerKind int

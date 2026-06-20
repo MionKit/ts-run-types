@@ -158,6 +158,11 @@ export interface FnTypeRecord extends Pick<
   deps: EntryDepsThunk | undefined;
   ini: undefined;
   code: CompiledFnData['code'] | undefined;
+  // `tb` (binary-encoder) entries only: the compile-time cold-start buffer-size
+  // estimate (bytes). Trailing slot; absent on every other family. Read by
+  // createBinaryEncoder's `dynamic` strategy to seed the buffer (see
+  // binarySizeEstimateFromTuple).
+  binarySizeEstimate?: number;
 }
 
 /** Named view of a pure-fn entry tuple: the shared head plus the
@@ -209,8 +214,19 @@ export const RUN_TYPE_BUNDLE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key', 'rows'] as
 export const RUN_TYPE_FACADE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key'] as const;
 
 const FN_TYPE_REQUIRED_KEYS = ['familyTag', 'deps', 'ini', 'rtFnHash', 'typeName', 'code'] as const;
-const FN_TYPE_TRIMMED_KEYS = ['isNoop', 'rtDependencies', 'pureFnDependencies', 'createRTFn', 'alwaysThrowMessage'] as const;
+const FN_TYPE_TRIMMED_KEYS = [
+  'isNoop',
+  'rtDependencies',
+  'pureFnDependencies',
+  'createRTFn',
+  'alwaysThrowMessage',
+  'binarySizeEstimate',
+] as const;
 export const FN_TYPE_TUPLE_KEYS = [...FN_TYPE_REQUIRED_KEYS, ...FN_TYPE_TRIMMED_KEYS] as const;
+
+/** Slot index of the `tb` cold-start estimate within an fn-type tuple (11).
+ *  Derived from the keys array so it tracks any layout edit. **/
+const FN_TYPE_ESTIMATE_SLOT = FN_TYPE_TUPLE_KEYS.indexOf('binarySizeEstimate');
 
 export const PURE_FN_TUPLE_KEYS = [
   ...ENTRY_HEAD_KEYS,
@@ -330,6 +346,17 @@ export function isEntryTuple(value: unknown): value is EntryTuple {
  *  tuples, `rtFnHash` for fn tuples, `key` for pure-fn / missing tuples). **/
 export function entryTupleKey(tuple: EntryTuple): string {
   return tuple[SLOT_KEY] as string;
+}
+
+/** The compile-time cold-start size estimate (bytes) a `tb` (binary-encoder)
+ *  entry tuple carries at its trailing slot, or undefined when absent — every
+ *  non-`tb` family, or a build without the estimate. createBinaryEncoder's
+ *  `dynamic` strategy uses it to seed the buffer so a cold encode is sized to
+ *  the type instead of the flat `defaultBufferSize` fallback. **/
+export function binarySizeEstimateFromTuple(injected: unknown): number | undefined {
+  if (!isEntryTuple(injected)) return undefined;
+  const slot = (injected as readonly unknown[])[FN_TYPE_ESTIMATE_SLOT];
+  return typeof slot === 'number' ? slot : undefined;
 }
 
 /** True for the KindMissing stub the Go side emits for demanded entries that

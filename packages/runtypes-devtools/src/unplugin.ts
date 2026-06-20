@@ -51,6 +51,20 @@ export interface PluginOptions {
   //     that disallow `new Function` yet read `.code`. Test setups use this so
   //     suites cover both materialisation paths on every case.
   emitMode?: 'code' | 'functions' | 'both';
+  // Binary `dynamic` cold-start buffer-size estimate knobs. The compiler walks
+  // each binary-encoder type at build time and bakes a buffer-size estimate
+  // into the entry; `createBinaryEncoder({sizeStrategy: 'dynamic'})` uses it as
+  // the initial buffer size (instead of a 16 MiB default) until per-key history
+  // warms up. All are optional and fold into the disk cache fingerprint.
+  //   - sizeBias (0..1, default 0.8): 0 = tightest (more grows), 1 = most generous.
+  //   - sizeItems (default 100): assumed element count for an unbounded collection.
+  //   - sizeStringBytes (default 32): assumed byte length of an unbounded string.
+  //   - sizeMaxBytes (default 65536): per-type cap so a huge declared bound
+  //     never seeds a multi-MB cold buffer.
+  sizeBias?: number;
+  sizeItems?: number;
+  sizeStringBytes?: number;
+  sizeMaxBytes?: number;
   // On-disk RT artifact cache location. Default (undefined) wires the
   // cache to `<cwd>/node_modules/.cache/ts-runtypes`. Pass an
   // explicit string to redirect to a custom directory. Pass `false`
@@ -165,6 +179,10 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
       ...(cacheDir !== undefined ? {cacheDir} : {}),
       ...(options.emitMode ? {emitMode: options.emitMode} : {}),
+      ...(options.sizeBias !== undefined ? {sizeBias: options.sizeBias} : {}),
+      ...(options.sizeItems !== undefined ? {sizeItems: options.sizeItems} : {}),
+      ...(options.sizeStringBytes !== undefined ? {sizeStringBytes: options.sizeStringBytes} : {}),
+      ...(options.sizeMaxBytes !== undefined ? {sizeMaxBytes: options.sizeMaxBytes} : {}),
       ...(options.inlineMode ? {inlineMode: options.inlineMode} : {}),
       ...(options.parallelScan !== undefined ? {parallelScan: options.parallelScan} : {}),
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),

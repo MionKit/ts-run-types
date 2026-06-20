@@ -109,6 +109,10 @@ func main() {
 		emitMode           string
 		inlineMode         string
 		moduleMode         string
+		sizeBias           float64
+		sizeItems          int
+		sizeStringBytes    int
+		sizeMaxBytes       int
 		pprofCPU           string
 		pprofHeap          string
 		help               bool
@@ -144,6 +148,14 @@ func main() {
 		"virtual-module grouping: default (runtype bundle + per-entry fn modules), "+
 			"allSingle (per-family bundle modules — fewest modules), or "+
 			"allModules (per-node runtype modules too — the pre-bundle layout)")
+	flag.Float64Var(&sizeBias, "size-bias", constants.DefaultSizeBias,
+		"binary `dynamic` cold-start size bias in [0,1]: 0 = tightest (more grows), 1 = most generous (default 0.8)")
+	flag.IntVar(&sizeItems, "size-items", constants.DefaultSizeItems,
+		"assumed element count for an unbounded collection (array/Map/Set) in the binary cold-start estimate (default 100)")
+	flag.IntVar(&sizeStringBytes, "size-string-bytes", constants.DefaultSizeStringBytes,
+		"assumed UTF-8 byte length of an unbounded string in the binary cold-start estimate (default 32)")
+	flag.IntVar(&sizeMaxBytes, "size-max-bytes", constants.DefaultSizeMaxBytes,
+		"per-type cap on the binary cold-start estimate so a huge declared bound never seeds a multi-MB buffer (default 65536)")
 	flag.StringVar(&pprofCPU, "pprof-cpu", "",
 		"write a CPU profile to PATH, covering the whole serve loop (started at boot, stopped at exit)")
 	flag.StringVar(&pprofHeap, "pprof-heap", "",
@@ -235,6 +247,10 @@ func main() {
 		emitMode:         emitMode,
 		inlineMode:       inlineMode,
 		moduleMode:       moduleMode,
+		sizeBias:         sizeBias,
+		sizeItems:        sizeItems,
+		sizeStringBytes:  sizeStringBytes,
+		sizeMaxBytes:     sizeMaxBytes,
 	}, plugin, hasTsconfig, absCwd)
 
 	// Stdio decoder/encoder is built up front because in inline-sources mode
@@ -276,6 +292,10 @@ func main() {
 		EmitMode:              constants.EmitMode(merged.emitMode),
 		InlineMode:            constants.InlineMode(merged.inlineMode),
 		ModuleMode:            merged.moduleMode,
+		SizeBias:              merged.sizeBias,
+		SizeItems:             merged.sizeItems,
+		SizeStringBytes:       merged.sizeStringBytes,
+		SizeMaxBytes:          merged.sizeMaxBytes,
 	}
 
 	var r *resolver.Resolver

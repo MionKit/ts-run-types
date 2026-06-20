@@ -14,7 +14,7 @@ import {createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
 import {setSerializationOptions} from '../../src/runtypes/dataView.ts';
 
 beforeAll(() => setSerializationOptions({defaultBufferSize: 1, sizeHistory: new Map()}));
-afterAll(() => setSerializationOptions({defaultBufferSize: 2 ** 24, sizeHistory: new Map()}));
+afterAll(() => setSerializationOptions({defaultBufferSize: 2 ** 14, sizeHistory: new Map()}));
 
 describe('dynamic sizing grows in place from a 1-byte buffer (no backstop)', () => {
   it('number scalar + fixed-width number array (container reserve)', () => {
