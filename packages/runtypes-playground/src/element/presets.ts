@@ -1,8 +1,8 @@
 // Predefined example types for the playground, each available in TWO forms:
 //   - `ts`: a plain TypeScript type (resolved via `createX<MyType>()`). Where it
-//     helps, fields use type formats imported from `ts-runtypes/formats`
-//     (Email, UUIDv4, Positive, …) — the import is written out so it reads like
-//     real code and drives format-aware validate / mock / generated code.
+//     helps, fields use type formats via a namespace import from
+//     `ts-runtypes/formats` (TF.Email, TF.UUIDv4, TF.Positive, …) so typing `TF.`
+//     autocompletes every format; it drives format-aware validate / mock / codegen.
 //   - `schema`: the value-first ts-runtypes/schema + ts-runtypes/formats builder
 //     form (resolved via `createX(MyType)`), with its RT / TF imports written out
 //     just like the type form, so both read like real code.
@@ -45,13 +45,13 @@ const MyType = RT.object({
   },
   {
     name: 'User',
-    ts: `import type { Email, UUIDv4, PositiveInt } from 'ts-runtypes/formats';
+    ts: `import * as TF from 'ts-runtypes/formats';
 
 type MyType = {
-  id: UUIDv4;
-  email: Email;
+  id: TF.UUIDv4;
+  email: TF.Email;
   name: string;
-  age?: PositiveInt;
+  age?: TF.PositiveInt;
   roles: ('admin' | 'editor' | 'user')[];
   active: boolean;
   createdAt: string;
@@ -80,14 +80,14 @@ const MyType = RT.object({
   },
   {
     name: 'Order',
-    ts: `import type { Email, Positive } from 'ts-runtypes/formats';
+    ts: `import * as TF from 'ts-runtypes/formats';
 
 type MyType = {
   id: string;
-  customer: { id: number; email: Email };
-  items: { sku: string; name: string; qty: number; price: Positive }[];
+  customer: { id: number; email: TF.Email };
+  items: { sku: string; name: string; qty: number; price: TF.Positive }[];
   status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
-  total: Positive;
+  total: TF.Positive;
   note?: string;
 };`,
     schema: `import * as RT from 'ts-runtypes/schema';
@@ -119,16 +119,16 @@ const MyType = RT.object({
   },
   {
     name: 'BlogPost',
-    ts: `import type { Email, Integer } from 'ts-runtypes/formats';
+    ts: `import * as TF from 'ts-runtypes/formats';
 
 type MyType = {
   id: number;
   title: string;
   slug: string;
   tags: string[];
-  author: { name: string; email: Email };
+  author: { name: string; email: TF.Email };
   published: boolean;
-  meta: { views: Integer; likes: Integer };
+  meta: { views: TF.Integer; likes: TF.Integer };
 };`,
     schema: `import * as RT from 'ts-runtypes/schema';
 import * as TF from 'ts-runtypes/formats';
@@ -154,13 +154,13 @@ const MyType = RT.object({
   },
   {
     name: 'Product',
-    ts: `import type { Positive, Url } from 'ts-runtypes/formats';
+    ts: `import * as TF from 'ts-runtypes/formats';
 
 type MyType = {
   id: string;
   name: string;
-  price: Positive;
-  url: Url;
+  price: TF.Positive;
+  url: TF.Url;
   currency: 'USD' | 'EUR' | 'GBP';
   inStock: boolean;
   categories: string[];

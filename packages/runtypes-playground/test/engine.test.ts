@@ -121,15 +121,24 @@ const MyType = RT.object({
     expect(res.value).toBe(false);
   });
 
-  it('generated code is a single self-contained cache (nested types inlined)', async () => {
-    const nested = `type MyType = { outer: { innerField: string; innerNum: number } };`;
-    const m = await generatedFunction('createValidate', nested);
-    // allInternal + allSingle inline the nested object into the one shown
-    // function, so its inner fields appear in the single code slot rather than a
-    // sibling module the view would miss.
+  it('generated code inlines a NAMED nested type into one self-contained function', async () => {
+    // Regression guard for the playground resolver's single-cache config
+    // (cmd/ts-runtypes-wasm/main.go: InlineMode allInternal + ModuleMode allSingle).
+    // A NAMED nested type is the discriminating case: under the resolver's DEFAULT
+    // inline mode a named alias becomes a SEPARATE cache entry and the root validator
+    // delegates to it (`...fn(v.outer)`), so the named member's leaf checks land in a
+    // sibling module the generated-code column never reads. allInternal inlines it into
+    // the one shown function. DO NOT relax this to an unnamed `{ ... }` object — those
+    // inline under BOTH modes, so the test would silently stop catching the regression.
+    const named = `type Inner = { innerField: string; innerNum: number };
+type MyType = { outer: Inner };`;
+    const m = await generatedFunction('createValidate', named);
     expect(m.code).toBeTruthy();
+    // The named member's leaf checks appear INLINE in the single root function...
     expect(m.code).toContain('innerField');
     expect(m.code).toContain('innerNum');
+    // ...and it is self-contained — no delegation to an external sibling entry.
+    expect(m.code).not.toMatch(/\.fn\(/);
   });
 
   it('generatedModules returns the generated code per family', async () => {

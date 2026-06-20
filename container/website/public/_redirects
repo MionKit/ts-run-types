@@ -1,0 +1,5 @@
+# Cloudflare Pages redirects. Old guide URLs renamed 2026-06-22:
+#   markers-and-reflection -> compiler-markers (markers-only page)
+#   runtype-graph          -> reflection       (all reflection APIs)
+/guide/markers-and-reflection  /guide/compiler-markers  301
+/guide/runtype-graph           /guide/reflection        301

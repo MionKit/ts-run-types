@@ -45,7 +45,7 @@ function loadBundleOnce(): Promise<void> {
     const res = await fetch(`${PLAYGROUND_BASE}/manifest.json`, { cache: 'no-cache' });
     if (!res.ok) {
       throw new Error(
-        `Playground bundle not staged (${res.status}). Run container/website/scripts/build-playground.sh on the host.`,
+        `Playground bundle not staged (${res.status}). It auto-builds on \`scripts/website.sh dev\` (needs the Go toolchain + bootstrapped submodule); or build it directly with container/website/scripts/build-playground.sh.`,
       );
     }
     const manifest = (await res.json()) as Record<string, { file: string; isEntry?: boolean }>;

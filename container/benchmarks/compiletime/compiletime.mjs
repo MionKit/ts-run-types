@@ -2,9 +2,10 @@
 // three tiers, all measured on tsgo (the Go TypeScript both libraries transform on),
 // over the WHOLE suite as a single file (one build, not per case):
 //
-//   strip      tsgo transpile only — types stripped, NO type-checking (the floor).
-//   typecheck  tsgo --noEmit — a full type-check, no transform (a "normal" compile
-//              that produces no validators).
+//   strip      tsgo transpile + EMIT, types stripped, NO type-checking (the floor).
+//   typecheck  tsgo full type-check + EMIT (a "normal" compile, no validators). It
+//              emits the SAME as strip so the two are apples-to-apples: the only
+//              difference is the type-checking, so typecheck - strip is its pure cost.
 //   full       type-check + transform + emit the generated validators:
 //                typia        `ttsc` (tsgo + the typia transform, emit)
 //                ts-runtypes  `vite` + the runtypes-devtools plugin (the Go resolver,
@@ -110,7 +111,10 @@ function spawnMs(bin, args) {
 }
 
 const stripMs = () => spawnMs(TSGO, ['-p', PROBE_TSCONFIG, '--noCheck', '--noEmit', 'false', '--outDir', OUT_DIR]);
-const typecheckMs = () => spawnMs(TSGO, ['-p', PROBE_TSCONFIG, '--noEmit']);
+// type-check AND emit (NOT --noEmit), so it is apples-to-apples with strip (which also
+// emits): the ONLY difference is the type-checking, making typecheck - strip the pure
+// cost of type-checking rather than (check - emit).
+const typecheckMs = () => spawnMs(TSGO, ['-p', PROBE_TSCONFIG, '--noEmit', 'false', '--outDir', OUT_DIR]);
 
 let fullMs; // set per competitor
 
@@ -147,11 +151,6 @@ function median(xs) {
   }
   return s.reduce((a, b) => a + b, 0) / s.length || 0;
 }
-async function medianOf(fn) {
-  const xs = [];
-  for (let i = 0; i < N; i++) xs.push(await fn());
-  return median(xs);
-}
 const round = (n) => Math.round(n * 100) / 100;
 
 function cleanup() {
@@ -185,10 +184,22 @@ async function main() {
     console.error(`compiletime[${COMPETITOR}]: warm-up note: ${err?.message ?? err}`);
   }
 
-  console.error(`compiletime[${COMPETITOR}]: timing strip / typecheck / full (median of ${N})...`);
-  const strip = await medianOf(stripMs);
-  const typecheck = await medianOf(typecheckMs);
-  const full = await medianOf(fullMs);
+  console.error(`compiletime[${COMPETITOR}]: timing strip / typecheck / full (median of ${N}, interleaved)...`);
+  // Interleave the tiers per round (strip, typecheck, full, then repeat) instead of
+  // timing them in separate blocks. Sequential blocks biased the FIRST tier (strip)
+  // slow — it ran on the coldest system (fresh outDir + disk cache) while later tiers
+  // warmed up — which wrongly made strip look slower than typecheck. Interleaving gives
+  // every tier the same distribution of warm/cold rounds, so strip <= typecheck <= full
+  // reflects the real work each does.
+  const samples = {strip: [], typecheck: [], full: []};
+  for (let i = 0; i < N; i++) {
+    samples.strip.push(stripMs());
+    samples.typecheck.push(typecheckMs());
+    samples.full.push(await fullMs());
+  }
+  const strip = median(samples.strip);
+  const typecheck = median(samples.typecheck);
+  const full = median(samples.full);
 
   cleanup();
   const out = {
@@ -200,9 +211,9 @@ async function main() {
   };
   console.log(
     `\nCompile-time — ${COMPETITOR} (${keys.length} types, whole suite, tsgo, median of ${N})\n` +
-      `  strip (transpile)   ${out.strip_ms}ms\n` +
-      `  typecheck (--noEmit) ${out.typecheck_ms}ms\n` +
-      `  full (+transform+emit) ${out.full_ms}ms\n` +
+      `  strip (transpile+emit)  ${out.strip_ms}ms\n` +
+      `  typecheck (+emit)       ${out.typecheck_ms}ms\n` +
+      `  full (+transform+emit)  ${out.full_ms}ms\n` +
       `  → type-check cost ${round(typecheck - strip)}ms · transform+emit cost ${round(full - typecheck)}ms`
   );
   fs.mkdirSync(RESULTS_DIR, {recursive: true});

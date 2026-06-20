@@ -106,13 +106,15 @@ The website only needs **podman**; the benchmarks additionally need **Node + pnp
 
 The docs site has an interactive **playground** page (`/playground`) that resolves a TypeScript type **and runs the functions RunTypes generates for it** (validate, JSON/binary encode + decode, RunType graph) entirely in the browser, with no server round-trip. It is the [`runtypes-playground`](packages/runtypes-playground/) package's Monaco-based `<runtypes-playground>` web component, embedded by [`container/website/app/components/content/RuntypesPlayground.vue`](container/website/app/components/content/RuntypesPlayground.vue).
 
-Build the bundle **on the host** (the container is Node-only) before running the site:
+The bundle is built **on the host** (the container is Node-only). `scripts/website.sh` does this automatically: `dev`, `build`, `generate`, and `smoke` build and stage it when it is missing or its sources changed, so `/playground` just works after a normal `scripts/website.sh dev`. It needs the Go toolchain + bootstrapped submodule on the host (see [Bootstrap](#bootstrap)); when those are absent or the build fails the site still runs and only `/playground` shows a "bundle not staged" hint. Skip the auto-build with `WEBSITE_SKIP_PLAYGROUND=1`.
+
+You can also build it directly:
 
 ```
 bash container/website/scripts/build-playground.sh
 ```
 
-It runs the package's `build:all` (cross-compiles `cmd/ts-runtypes-wasm` with `GOOS=js GOARCH=wasm`, then bundles the web component + Monaco + the `.wasm` with Vite) and stages the result into `container/website/public/playground-app/` (git-ignored, reproducible). The page loads the content-hashed entry from there via the build manifest. Because `public/` is bind-mounted into the container, the staged files ride into both the dev server and the production build. Rerun the script whenever the resolver or the package changes. To work on the playground in isolation, `pnpm --filter runtypes-playground run demo` serves the standalone example with hot reload; `pnpm --filter runtypes-playground test` runs the engine tests (they need `build:wasm` first).
+It runs the package's `build:all` (cross-compiles `cmd/ts-runtypes-wasm` with `GOOS=js GOARCH=wasm`, then bundles the web component + Monaco + the `.wasm` with Vite) and stages the result into `container/website/public/playground-app/` (git-ignored, reproducible). The page loads the content-hashed entry from there via the build manifest. Because `public/` is bind-mounted into the container, the staged files ride into both the dev server and the production build. To work on the playground in isolation, `pnpm --filter runtypes-playground run demo` serves the standalone example with hot reload; `pnpm --filter runtypes-playground test` runs the engine tests (they need `build:wasm` first).
 
 ### Website needs the packages it documents (repo context)
 

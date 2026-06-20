@@ -89,7 +89,7 @@ function caseFiles(root) {
 let benchCount = 0;
 let suiteCount = 0;
 
-// Benchmark cases: { competitors: [{ name, sources?: {validate, validationErrors}, source? }] }
+// Benchmark cases: { competitors: [{ name, sources?: {validate, validationErrors}, source? }], samplesCode? }
 for (const file of caseFiles(path.join(PUBLIC_DIR, 'bench-data'))) {
   const data = JSON.parse(readFileSync(file, 'utf8'));
   if (!Array.isArray(data.competitors)) continue;
@@ -102,6 +102,8 @@ for (const file of caseFiles(path.join(PUBLIC_DIR, 'bench-data'))) {
     }
     if (competitor.source) competitor.sourceHtml = await toHtml(competitor.source, 'ts');
   }
+  // The shared tested-data block (validation + correctness) rides the same pipeline.
+  if (data.samplesCode) data.samplesCodeHtml = await toHtml(data.samplesCode, 'ts');
   writeFileSync(file, JSON.stringify(data));
   benchCount++;
 }

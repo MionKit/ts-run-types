@@ -263,13 +263,25 @@ defineEmits<{close: []; panelenter: []; panelleave: []}>();
 }
 
 /* Shiki dual-theme output injected via v-html: dark colors ride the inline style;
-   the light theme lives in CSS vars, swapped in under :root.light. Each block flows
-   at content height, so the shiki background already covers it edge-to-edge. */
+   the light theme lives in CSS vars, swapped in under :root.light. */
 .detail-panel-code :deep(pre.shiki) {
   box-sizing: border-box;
   margin: 0;
   padding: 0.55rem 0.7rem;
   overflow: visible;
+}
+
+/* The shiki <pre> only paints its background to the container width, so a long line
+   scrolled sideways would otherwise reveal the panel behind it. Give the scroll
+   container itself the same background as the shiki theme (github-dark / -light) so
+   the colour stays seamless across the whole scroll range. Scoped off the plain
+   fallback, which paints its own background directly on the scroll element. */
+.detail-panel-code:not(.detail-panel-code--plain) {
+  background: #24292e;
+}
+
+:root.light .detail-panel-code:not(.detail-panel-code--plain) {
+  background: #fff;
 }
 
 :root.light .detail-panel-code :deep(pre.shiki) {

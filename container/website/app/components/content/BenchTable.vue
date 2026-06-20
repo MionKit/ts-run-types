@@ -49,6 +49,9 @@ interface BenchIndex {
   unit?: 'ops' | 'count';
   /** when true, each competitor splits into valid (accept) + invalid (reject) columns */
   showInvalid?: boolean;
+  /** true when per-case detail JSON carries a shared `samples` block (validation +
+   *  correctness) — drives the hover hint wording and the "Tested data" panel column. */
+  hasSamples?: boolean;
   /** false hides the comptime/jit/interpreted build-strategy tags (serialization
    *  columns are our own round-trips, not competitor libraries). Defaults true. */
   showStrategy?: boolean;
@@ -83,6 +86,15 @@ interface BenchCompetitorSource {
 
 interface BenchCaseDetail {
   competitors: BenchCompetitorSource[];
+  /** the case's shared tested-data block (identical for every competitor): comment-
+   *  labelled valid/invalid sample arrays as one TS snippet, shown syntax-highlighted
+   *  in the "Tested data" panel column. `Html` is baked for the static deploy. */
+  samplesCode?: string;
+  samplesCodeHtml?: string;
+  /** correctness bench: the exact sample values each competitor diverged on (deduped
+   *  reprs). `accepts` = values the library accepts but ts-runtypes rejects (the usual
+   *  case); `rejects` = the reverse. Present only on rows that actually disagree. */
+  disagreements?: {competitor: string; accepts: string[]; rejects: string[]}[];
 }
 
 interface DetailEntry {
@@ -90,6 +102,8 @@ interface DetailEntry {
   data?: BenchCaseDetail;
   /** highlighted source HTML aligned to data.competitors ('' = render plain) */
   html?: string[];
+  /** highlighted tested-data block (undefined = render plain samplesCode) */
+  samplesHtml?: string;
 }
 
 interface AggRow {
@@ -104,7 +118,26 @@ const props = defineProps<{
   bench: string;
   /** when set, render only this metric's block (one benchmark per page) */
   metric?: string;
+  /** disable the hover/click "show source" detail panel — for tables with no code to
+   *  show (e.g. the correctness page). Pass the string `"false"` from MDC. Typed as a
+   *  string (not boolean) so an absent prop stays `undefined` rather than being cast to
+   *  `false` by Vue's Boolean-prop coercion (which would disable it on EVERY table). */
+  showCode?: string;
+  /** disable the per-row heatmap colouring + its legend — for tables where ranking a
+   *  row is meaningless (correctness, the pivoted build-cost table). Same `"false"`
+   *  string convention as showCode. */
+  colorize?: string;
+  /** flag-cell mode (pass `"true"`): tint any cell whose value is > 0 red and hide the
+   *  "lower/higher is better" direction hint. For the correctness table, where a number
+   *  means a divergence (0 = aligned), not a rank. Pairs with `colorize="false"`. */
+  tintMisalign?: string;
 }>();
+
+/** Enabled unless explicitly passed `"false"` (string from MDC) or boolean `false`. */
+const codeEnabled = computed(() => props.showCode !== 'false' && (props.showCode as unknown) !== false);
+const colorEnabled = computed(() => props.colorize !== 'false' && (props.colorize as unknown) !== false);
+/** On only when explicitly passed `"true"` (string from MDC) or boolean `true`. */
+const misalignEnabled = computed(() => props.tintMisalign === 'true' || (props.tintMisalign as unknown) === true);
 
 const {highlight} = useCodeHighlighter();
 
@@ -192,7 +225,8 @@ const panelState = computed<'loading' | 'ready' | 'error'>(() => activeDetail.va
  *  competitor doesn't support this metric (e.g. zod has no boolean validate). */
 function metricSource(competitor: BenchCompetitorSource): string | undefined {
   if (props.metric) return competitor.sources?.[props.metric as 'validate' | 'validationErrors'];
-  return competitor.source;
+  // No metric prop: the single typecost source, else (correctness) the is-valid builder.
+  return competitor.source ?? competitor.sources?.validate ?? competitor.sources?.validationErrors;
 }
 
 /** Build-time-baked HTML for metricSource(competitor), used on the static deploy
@@ -200,7 +234,7 @@ function metricSource(competitor: BenchCompetitorSource): string | undefined {
  *  highlighter. */
 function metricSourceHtml(competitor: BenchCompetitorSource): string | undefined {
   if (props.metric) return competitor.sourcesHtml?.[props.metric as 'validate' | 'validationErrors'];
-  return competitor.sourceHtml;
+  return competitor.sourceHtml ?? competitor.sourcesHtml?.validate ?? competitor.sourcesHtml?.validationErrors;
 }
 
 /** The active row's case data (per-competitor results) — looked up from the index so
@@ -221,19 +255,30 @@ const panelColumns = computed(() => {
   if (!entry || entry.state !== 'ready' || !entry.data) return [];
   const kase = activeCase.value;
   const metricKey = props.metric ?? index.value?.metrics[0]?.key;
-  return entry.data.competitors
-    .map((competitor, i) => ({competitor, html: entry.html?.[i], plain: metricSource(competitor)}))
-    .filter((col) => col.plain)
-    .map((col) => {
-      const cell = kase && metricKey ? combinedCell(kase, metricKey, col.competitor.name) : null;
-      const status = cell ? (cell.cls.includes('--fail') ? 'fail' : cell.cls.includes('--ok') ? 'ok' : 'na') : 'na';
-      return {
-        label: col.competitor.name,
-        html: col.html,
-        plain: col.plain,
-        metric: cell ? {valid: cell.valid, invalid: cell.invalid, status} : undefined,
-      };
-    });
+  const cols: Array<{label: string; html?: string; plain?: string; notes?: string[]; metric?: {valid: string; invalid: string; status: 'ok' | 'fail' | 'na'}}> = [];
+  // Disagreements on top (correctness bench, divergent rows only): the exact values
+  // that produced the divergence, one note per library — what the reader is after.
+  const disagreements = entry.data.disagreements;
+  if (disagreements?.length) {
+    const notes: string[] = [];
+    for (const diff of disagreements) {
+      if (diff.accepts.length) notes.push(`${diff.competitor} accepts: ${diff.accepts.join(', ')}`);
+      if (diff.rejects.length) notes.push(`${diff.competitor} rejects: ${diff.rejects.join(', ')}`);
+    }
+    if (notes.length) cols.push({label: 'Disagreements vs ts-runtypes', notes});
+  }
+  // Shared "Tested data" column next: the exact valid/invalid samples this case runs
+  // (identical for every competitor), syntax-highlighted like the source columns.
+  const samplesCode = entry.data.samplesCode;
+  if (samplesCode) cols.push({label: 'Tested data', html: entry.samplesHtml, plain: samplesCode});
+  entry.data.competitors.forEach((competitor, i) => {
+    const plain = metricSource(competitor);
+    if (!plain) return;
+    const cell = kase && metricKey ? combinedCell(kase, metricKey, competitor.name) : null;
+    const status: 'ok' | 'fail' | 'na' = cell ? (cell.cls.includes('--fail') ? 'fail' : cell.cls.includes('--ok') ? 'ok' : 'na') : 'na';
+    cols.push({label: competitor.name, html: entry.html?.[i], plain, metric: cell ? {valid: cell.valid, invalid: cell.invalid, status} : undefined});
+  });
+  return cols;
 });
 
 /** How each library produces its validator — shown as a per-column tag, explained in
@@ -360,8 +405,13 @@ async function loadDetail(item: {key: string; title: string}) {
         return code ? highlight(code, 'ts') : Promise.resolve('');
       }),
     );
+    // Tested-data block: baked HTML on the static deploy, runtime highlight in dev.
+    const samplesHtml = data.samplesCodeHtml ?? (data.samplesCode ? await highlight(data.samplesCode, 'ts') : '');
     const current = details[key];
-    if (current && current.state === 'ready') current.html = html;
+    if (current && current.state === 'ready') {
+      current.html = html;
+      current.samplesHtml = samplesHtml || undefined;
+    }
   } catch {
     details[key] = {state: 'error'};
   }
@@ -392,6 +442,8 @@ interface CombinedCell {
   invalid: string;
   /** 0 (worst in its row) → 1 (best); null for non-ok cells. Drives the row heatmap. */
   rank?: number | null;
+  /** value > 0 — drives the correctness "misaligned" red tint (tintMisalign mode). */
+  misaligned?: boolean;
 }
 
 function combinedCell(kase: BenchCase, metricKey: string, comp: string): CombinedCell {
@@ -406,7 +458,9 @@ function combinedCell(kase: BenchCase, metricKey: string, comp: string): Combine
   const valid = typeof result.valid === 'number' && result.valid >= 0 ? formatValue(result.valid, unit) : '';
   const invalid = typeof result.invalid === 'number' && result.invalid > 0 ? formatValue(result.invalid, unit, true) : '';
   if (!valid && !invalid) return {cls: 'bench-val--none', valid: '—', invalid: ''};
-  return {cls: 'bench-val--ok', valid: valid || '—', invalid};
+  // misaligned = the DISPLAYED count is > 0 (Math.round mirrors formatValue for the
+  // small counts here), so a geomean that rounds to "0" is not flagged.
+  return {cls: 'bench-val--ok', valid: valid || '—', invalid, misaligned: typeof result.valid === 'number' && Math.round(result.valid) > 0};
 }
 
 function combinedAggCell(values: {valid: number | null; invalid: number | null}, metricKey: string): CombinedCell {
@@ -416,7 +470,7 @@ function combinedAggCell(values: {valid: number | null; invalid: number | null},
   // null geomean = the competitor doesn't participate in this row (geomeanOver
   // collapses an all-zero category to 0), so it's n-a — same as a cell.
   if (!valid && !invalid) return {cls: 'bench-val--na', valid: 'n-a', invalid: ''};
-  return {cls: 'bench-val--ok', valid: valid || '—', invalid};
+  return {cls: 'bench-val--ok', valid: valid || '—', invalid, misaligned: values.valid != null && Math.round(values.valid) > 0};
 }
 
 /** Per-row heatmap ranks: 0 = worst in the row, 1 = best, over the positive values
@@ -452,7 +506,7 @@ function sectionCells(kase: BenchCase, metricKey: string): CombinedCell[] {
     if (!result || result.status !== 'ok' || typeof result.valid !== 'number') return null;
     return lowerBetter || result.valid > 0 ? result.valid : null;
   });
-  const ranks = ranksFor(vals, lowerBetterFor(metricKey));
+  const ranks = colorEnabled.value ? ranksFor(vals, lowerBetterFor(metricKey)) : vals.map(() => null);
   return comps.map((comp, i) => ({...combinedCell(kase, metricKey, comp), rank: ranks[i]}));
 }
 
@@ -465,7 +519,7 @@ function aggCells(row: AggRow, metricKey: string): CombinedCell[] {
     if (typeof value !== 'number') return null;
     return lowerBetter || value > 0 ? value : null;
   });
-  const ranks = ranksFor(vals, lowerBetterFor(metricKey));
+  const ranks = colorEnabled.value ? ranksFor(vals, lowerBetterFor(metricKey)) : vals.map(() => null);
   return comps.map((comp, i) => ({...combinedAggCell(row.values[comp], metricKey), rank: ranks[i]}));
 }
 
@@ -667,7 +721,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
           <span v-if="isVerdict" class="bench-metric-sub">@ {{ bandwidthMbps >= 1000 ? `${bandwidthMbps / 1000} Gbps` : `${bandwidthMbps} Mbps` }}</span>
           <span v-else-if="metric.metricLabel" class="bench-metric-sub">{{ metric.metricLabel }}</span>
         </div>
-        <p class="bench-metric-hint">hover any row for each competitor's source</p>
+        <p v-if="codeEnabled" class="bench-metric-hint">hover any row for {{ index.hasSamples ? 'the tested data and ' : '' }}each competitor's source</p>
 
         <!-- Serialization verdict: page-level sticky link-speed bar — re-derives every
              round-trip headline + the heatmap live; enc/dec + bytes stay frozen below. -->
@@ -728,7 +782,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
             <span class="bench-legend-srow"><span class="bench-tag bench-tag--jit">jit</span> <span class="bench-legend-note">compiled at runtime<br /><span class="bench-strat-perf">(perf hit when creating fn)</span></span></span>
             <span class="bench-legend-srow"><span class="bench-tag bench-tag--interpreted">interpreted</span> <span class="bench-legend-note">walked per call<br /><span class="bench-strat-perf">(perf hit when running fn)</span></span></span>
           </div>
-          <div class="bench-legend-row bench-legend-footer">
+          <div v-if="colorEnabled" class="bench-legend-row bench-legend-footer">
             <span class="bench-legend-note">row colour</span>
             <button type="button" class="bench-color-btn" :class="{'bench-color-btn--on': colorMode === 'tint'}" @click="colorMode = 'tint'">tint</button>
             <button type="button" class="bench-color-btn" :class="{'bench-color-btn--on': colorMode === 'text'}" @click="colorMode = 'text'">text</button>
@@ -742,7 +796,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
         <section v-if="!index.hideAggregate" class="bench-section">
           <header class="bench-caption">
             <span class="bench-prompt">&Sigma;</span> Aggregated · geometric mean
-            <span class="bench-agg-hint">{{ lowerBetterFor(metric.key) ? 'lower is better' : 'higher is better' }}</span>
+            <span v-if="!misalignEnabled" class="bench-agg-hint">{{ lowerBetterFor(metric.key) ? 'lower is better' : 'higher is better' }}</span>
           </header>
           <div class="bench-scroll">
             <table class="bench-grid">
@@ -778,7 +832,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                     </td>
                   </template>
                   <template v-else>
-                    <td v-for="(cc, ci) in aggCells(row, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
+                    <td v-for="(cc, ci) in aggCells(row, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null, 'bench-val--misaligned': misalignEnabled && cc.misaligned}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
                       <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
                     </td>
                   </template>
@@ -814,15 +868,15 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                   v-for="kase in section.cases"
                   :key="kase.key"
                   class="bench-row"
-                  :class="{'bench-row--active': active?.key === kase.key}"
-                  tabindex="0"
-                  @mouseenter="preview(rowItem(kase.key, kase.title))"
-                  @mouseleave="leave()"
-                  @focus="preview(rowItem(kase.key, kase.title))"
-                  @blur="leave()"
-                  @click="pin(rowItem(kase.key, kase.title))"
-                  @keydown.enter.prevent="pin(rowItem(kase.key, kase.title))"
-                  @keydown.space.prevent="pin(rowItem(kase.key, kase.title))"
+                  :class="{'bench-row--active': codeEnabled && active?.key === kase.key, 'bench-row--static': !codeEnabled}"
+                  :tabindex="codeEnabled ? 0 : undefined"
+                  @mouseenter="codeEnabled && preview(rowItem(kase.key, kase.title))"
+                  @mouseleave="codeEnabled && leave()"
+                  @focus="codeEnabled && preview(rowItem(kase.key, kase.title))"
+                  @blur="codeEnabled && leave()"
+                  @click="codeEnabled && pin(rowItem(kase.key, kase.title))"
+                  @keydown.enter.prevent="codeEnabled && pin(rowItem(kase.key, kase.title))"
+                  @keydown.space.prevent="codeEnabled && pin(rowItem(kase.key, kase.title))"
                 >
                   <td class="bench-cell bench-cell--case" :title="kase.title">{{ kase.title }}</td>
                   <template v-if="isVerdict">
@@ -835,7 +889,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
                     </td>
                   </template>
                   <template v-else>
-                    <td v-for="(cc, ci) in sectionCells(kase, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
+                    <td v-for="(cc, ci) in sectionCells(kase, metric.key)" :key="ci" class="bench-cell bench-val" :class="[cc.cls, {'bench-val--ranked': cc.rank != null, 'bench-val--misaligned': misalignEnabled && cc.misaligned}]" :style="cc.rank != null ? {'--rank': cc.rank} : undefined">
                       <span class="bench-val-wrap"><span class="bench-val-primary">{{ cc.valid }}</span><span v-if="cc.invalid" class="bench-val-secondary">{{ cc.invalid }}</span></span>
                     </td>
                   </template>
@@ -1181,6 +1235,17 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   border-left-color: var(--ui-primary, #79af43);
 }
 
+/* Non-interactive rows (showCode disabled): no pointer, no hover highlight. */
+.bench-row--static {
+  cursor: default;
+}
+
+.bench-row--static:hover,
+.bench-row--static:focus-visible {
+  background: transparent;
+  border-left-color: transparent;
+}
+
 .bench-cell {
   padding: 0.5rem 0.7rem;
   font-size: 0.76rem;
@@ -1222,6 +1287,21 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
    are ranked; two modes chosen from the legend. */
 .bench-color-tint .bench-val--ranked {
   background: hsl(calc(var(--rank) * 130deg) 55% 48% / 0.2);
+}
+
+/* Correctness "misaligned" flag (tintMisalign mode): any cell whose value is > 0 —
+   a divergence from ts-runtypes — gets a flat red tint + reddened number. Not a rank
+   ramp; a binary "this library disagreed here". */
+.bench-val--misaligned {
+  background: hsl(0deg 60% 50% / 0.18);
+}
+
+.bench-val--misaligned .bench-val-primary {
+  color: hsl(0deg 75% 72%);
+}
+
+:root.light .bench-val--misaligned .bench-val-primary {
+  color: hsl(0deg 70% 45%);
 }
 
 .bench-color-tint .bench-val--ranked .bench-val-primary {

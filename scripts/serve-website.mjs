@@ -8,6 +8,7 @@
 // Run after `pnpm run website:generate` (or website:publish) produces the output.
 //   pnpm run website:serve          # http://localhost:8080
 //   pnpm run website:serve 5000     # custom port (or PORT=5000)
+//   pnpm run website:preview        # one-shot: website:generate THEN serve (no benchmarks)
 
 import {createServer} from 'node:http';
 import {createReadStream, existsSync, readFileSync, statSync} from 'node:fs';
