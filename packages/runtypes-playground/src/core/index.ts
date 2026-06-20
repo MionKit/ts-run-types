@@ -5,6 +5,7 @@ export {
   versions,
   mock,
   generatedModules,
+  generatedFunction,
   getResolver,
   setResolver,
   OPERATIONS,
