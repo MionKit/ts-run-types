@@ -1,14 +1,14 @@
 // Explicit FE coverage for the DataOnly union-member drop contract: a union
 // member that DataOnly strips (symbol / function / Promise / non-serializable /
 // never) is DROPPED, so the union validates and serializes as its data members
-// (was: whole-union alwaysThrow). An all-stripped union (DataOnly = never) still
-// throws. Drives the full vite-plugin pipeline, complementing the Go emitter
-// tests in internal/compiled/typefns/union_dataonly_test.go.
+// (was: whole-union alwaysThrow). An all-stripped union (DataOnly = never) and
+// other collapse-to-never/empty positions still throw. Drives the full
+// vite-plugin pipeline, complementing the Go emitter tests in
+// internal/compiled/typefns/union_dataonly_test.go.
 //
-// NOTE: collapse cases that emit alwaysThrow (symbol[], Map<string,symbol>, …)
-// are covered by the Go emitter tests + existing suites (Arrays.ts, Functions.ts);
-// they are intentionally NOT re-asserted here (see docs/todos — they trip a
-// pre-existing cross-file resolver state leak unrelated to this change).
+// The collapse cases below also guard against a fixed facts-cache poisoning bug
+// (isJsonCompatible on an unresolved Map/Set inner ref) that corrupted unrelated
+// merged-prop unions in the same scan — see json_compat.go's isJsonCompatible.
 
 import {describe, test, expect} from 'vitest';
 import {createValidate, createGetValidationErrors, createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
@@ -50,9 +50,18 @@ describe('DataOnly union-member drop', () => {
     const dec = createJsonDecoder<(Date | symbol)[]>();
     expect(dec(enc(arr) as string)).toEqual(arr);
   });
+});
 
-  test('symbol | (() => void) — all members stripped (DataOnly = never) still throws', () => {
+describe('DataOnly collapse-to-never / empty still throws', () => {
+  test('all members of a union stripped (DataOnly = never)', () => {
     expect(() => createValidate<symbol | (() => void)>()).toThrow();
     expect(() => createJsonEncoder<symbol | (() => void)>()).toThrow();
+  });
+
+  test('array / tuple / Map / Set whose element collapses to never', () => {
+    expect(() => createJsonEncoder<symbol[]>()).toThrow();
+    expect(() => createJsonEncoder<[string, symbol]>()).toThrow();
+    expect(() => createJsonEncoder<Map<string, symbol>>()).toThrow();
+    expect(() => createJsonEncoder<Set<symbol>>()).toThrow();
   });
 });
