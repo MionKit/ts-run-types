@@ -132,43 +132,108 @@ export const enc = createJsonEncoder<{id: number}>();
 	}
 }
 
-// TestOverride_DuplicateConflictEmitsOVR001 — two overrideValidate<string> with
-// DIFFERENT bodies is a hard error; the same body dedups silently.
+// TestOverride_DuplicateConflictEmitsOVR001 — there can be only one override per
+// (type, function): a second one is a hard error, REGARDLESS of body (different
+// OR identical). A single override does not trip it.
 func TestOverride_DuplicateConflictEmitsOVR001(t *testing.T) {
-	conflicting := map[string]string{
-		"runtypes.d.ts": overrideDTS,
-		"call.ts": `import {overrideValidate} from 'ts-runtypes';
+	hasOVR001 := func(src string) bool {
+		r := setupInline(t, map[string]string{"runtypes.d.ts": overrideDTS, "call.ts": src})
+		resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+		if resp.Error != "" {
+			t.Fatalf("scanFiles: %s", resp.Error)
+		}
+		for _, d := range resp.Diagnostics {
+			if d.Code == diag.CodeDuplicateOverride {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Different bodies → error.
+	if !hasOVR001(`import {overrideValidate} from 'ts-runtypes';
 overrideValidate<string>((v) => typeof v === 'string');
 overrideValidate<string>((v) => v !== null);
+`) {
+		t.Fatalf("expected OVR001 for two different-body overrides")
+	}
+	// Identical bodies → STILL an error (strict: one override per type+function).
+	if !hasOVR001(`import {overrideValidate} from 'ts-runtypes';
+overrideValidate<string>((v) => typeof v === 'string');
+overrideValidate<string>((v) => typeof v === 'string');
+`) {
+		t.Fatalf("expected OVR001 for two same-body overrides (strict one-per-type rule)")
+	}
+	// A single override → no error.
+	if hasOVR001(`import {overrideValidate} from 'ts-runtypes';
+overrideValidate<string>((v) => typeof v === 'string');
+`) {
+		t.Fatalf("a single override must not emit OVR001")
+	}
+}
+
+// TestOverride_NestedFixpoint — an override on a type that structurally CONTAINS
+// another overridden type must still apply. `{x: string}` is validate-overridden
+// while `string` is independently jsonEncoder-overridden; the struct's id folds
+// string's override (global fold), so its validate-override base key only matches
+// the main-pass folded key after the fixpoint. Single-pass base keys would miss it.
+func TestOverride_NestedFixpoint(t *testing.T) {
+	files := map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": `import {createValidate, overrideValidate, overrideJsonEncoder} from 'ts-runtypes';
+overrideJsonEncoder<string>((v) => '"x"');
+overrideValidate<{x: string}>((v) => true);
+export const isObj = createValidate<{x: string}>();
 `,
 	}
-	r := setupInline(t, conflicting)
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	r := setupInline(t, files)
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}, IncludeEntryModules: true})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	found := false
-	for _, d := range resp.Diagnostics {
-		if d.Code == diag.CodeDuplicateOverride {
-			found = true
-		}
+	// The struct's validate entry must be a cfn redirect (the override resolved
+	// despite `string` being independently overridden inside it).
+	if !strings.Contains(familyEntrySources(resp, "validate"), "usePureFn(") {
+		t.Fatalf("nested override did not apply: struct validate is not a redirect:\n%s", familyEntrySources(resp, "validate"))
 	}
-	if !found {
-		t.Fatalf("expected OVR001 for conflicting overrides, got %+v", resp.Diagnostics)
-	}
+}
 
-	sameBody := map[string]string{
+// TestOverride_NullsArgOnTransform — OpTransform nulls the override's inline
+// pure-fn arg (its body lives only in the cfn module) and injects the redirect
+// tuple at the id slot. A `null` arg is then a quiet no-op on re-scan.
+func TestOverride_NullsArgOnTransform(t *testing.T) {
+	files := map[string]string{
 		"runtypes.d.ts": overrideDTS,
-		"call.ts": `import {overrideValidate} from 'ts-runtypes';
+		"call.ts": `import {createValidate, overrideValidate} from 'ts-runtypes';
 overrideValidate<string>((v) => typeof v === 'string');
-overrideValidate<string>((v) => typeof v === 'string');
+export const isString = createValidate<string>();
 `,
 	}
-	r2 := setupInline(t, sameBody)
+	r := setupInline(t, files)
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpTransform, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("transform: %s", resp.Error)
+	}
+	out := resp.Transformed["call.ts"].Code
+	if strings.Contains(out, "typeof v === 'string'") {
+		t.Fatalf("override arg not nulled, body still inline in rewritten source:\n%s", out)
+	}
+	if !strings.Contains(out, "overrideValidate") || !strings.Contains(out, "(null,") {
+		t.Fatalf("expected overrideValidate(null, <tuple>):\n%s", out)
+	}
+
+	// A pre-nulled call (simulating a re-scan of rewritten source) registers no
+	// override — CheckLiteralFunction returns Ok=false on a null arg.
+	r2 := setupInline(t, map[string]string{
+		"runtypes.d.ts": overrideDTS,
+		"call.ts": `import {overrideValidate} from 'ts-runtypes';
+overrideValidate<string>(null);
+`,
+	})
 	resp2 := r2.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
 	for _, d := range resp2.Diagnostics {
-		if d.Code == diag.CodeDuplicateOverride {
-			t.Fatalf("same-body re-override should dedup silently, got OVR001")
+		if d.Code == diag.CodeOverrideValidateCrossFamily {
+			t.Fatalf("a null override arg must register no override (got OVR010)")
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/ast"
@@ -9,15 +10,9 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
-
-// overrideRecord remembers the first override registered for a (type, family)
-// pair so a later, conflicting registration can be flagged (OVR001).
-type overrideRecord struct {
-	hash string
-	site diag.Site
-}
 
 // overrideCalleePrefix is the cheap pre-filter for the override-collection pass:
 // every public `overrideX<T>(pureFn, id)` factory is named `override…`, so a
@@ -26,6 +21,13 @@ type overrideRecord struct {
 // only short-circuits the common non-override call.
 const overrideCalleePrefix = "override"
 
+// maxOverrideFoldIterations bounds the base-key fixpoint (item 3). Override
+// nesting (a target that structurally contains another overridden type) is
+// shallow in practice; the cap matches the cross-family edge fixpoint. If a
+// build ever nests deeper, the deepest override simply may not apply (the
+// structural body is emitted) — never incorrect.
+const maxOverrideFoldIterations = 8
+
 // overrideSite is the resolved shape of one overrideX<T>(pureFn, id) call: the
 // overridden type, the family op key the trailing InjectTypeFnArgs<T, fnKey>
 // names, and the inline pure-fn argument node.
@@ -33,6 +35,23 @@ type overrideSite struct {
 	typeArgument *checker.Type
 	fnKey        string
 	fnArg        *ast.Node
+}
+
+// rawOverride is one discovered override declaration, captured before base keys
+// are folded to a fixpoint. cfnHash is the cfn's body-hash name (CodeHash), the
+// value that rides the `|cfn:<family>:<hash>` suffix.
+type rawOverride struct {
+	typeArg *checker.Type
+	fnKey   string
+	cfnHash string
+	site    diag.Site
+}
+
+// overrideArgSpan is the byte range of an override call's inline pure-fn
+// argument, used to rewrite it to `null` (its body lives only in the cfn module).
+type overrideArgSpan struct {
+	start int
+	end   int
 }
 
 // ensureOverrides runs the one-time, whole-program override-collection pass for
@@ -55,17 +74,16 @@ func (resolver *Resolver) ensureOverrides() {
 	if resolver.Program == nil || resolver.Program.TS == nil || resolver.checker == nil {
 		return
 	}
-	overrides := map[string]map[string]string{}
-	var entries []purefns.Entry
-	var diagnostics []diag.Diagnostic
-	seen := map[string]struct{}{}
-	firstByKey := map[string]overrideRecord{} // "<baseKey>|<fnKey>" → first registration
 	state := resolver.scanStateFor(resolver.checker)
-	// Base keys for the map are computed WITHOUT folding (a fresh plain
-	// computer): a leaf/independent override target's base key is override-free,
-	// which is the common case. The MAIN cache computer folds children's
-	// suffixes when composing containing types, so propagation still holds.
-	baseComputer := typeid.New(resolver.checker)
+
+	// Phase 1 — collect every override declaration once. cfn extraction is
+	// independent of the override map, so it runs here (not per fixpoint
+	// iteration). Deterministic file + source order keeps OVR001's "first wins"
+	// stable and the cfn entry list reproducible.
+	var raws []rawOverride
+	var entries []purefns.Entry
+	seen := map[string]struct{}{}
+	argSpans := map[string][]overrideArgSpan{}
 	for _, sourceFile := range resolver.Program.TS.SourceFiles() {
 		if sourceFile == nil || sourceFile.IsDeclarationFile {
 			continue
@@ -79,37 +97,14 @@ func (resolver *Resolver) ensureOverrides() {
 			if !cfnOK {
 				return true
 			}
-			baseKey := baseComputer.Compute(site.typeArgument)
-			callSite := textpos.NodeSite(sourceFile.FileName(), sourceFile, call)
-			dedupKey := baseKey + "|" + site.fnKey
-			// Conflict: a different body already overrides this (type, family).
-			// Keep the first (deterministic source order) and flag the later one
-			// — anything else makes the cache entry order-dependent. Same body
-			// (same CodeHash) dedups silently.
-			if first, exists := firstByKey[dedupKey]; exists {
-				if first.hash != cfn.FunctionName {
-					diagnostics = append(diagnostics, diag.NewWithRelated(
-						diag.CodeDuplicateOverride, callSite, []string{site.fnKey},
-						diag.Related{Site: first.site, Message: "First overridden here"},
-					))
-				}
-				return true
-			}
-			firstByKey[dedupKey] = overrideRecord{hash: cfn.FunctionName, site: callSite}
-			// validate is a shared cross-family dependency: JSON / binary union
-			// decoders call val_<member> to narrow. Overriding it reaches past
-			// createValidate<T>(), so flag the site (Warning — the build proceeds).
-			if site.fnKey == "val" {
-				diagnostics = append(diagnostics, diag.New(diag.CodeOverrideValidateCrossFamily, callSite))
-			}
-			families := overrides[baseKey]
-			if families == nil {
-				families = map[string]string{}
-				overrides[baseKey] = families
-			}
-			// The suffix folds the cfn's body-hash name; the family op key
-			// ("val", "jsonEncoder", …) groups it.
-			families[site.fnKey] = cfn.FunctionName
+			raws = append(raws, rawOverride{
+				typeArg: site.typeArgument,
+				fnKey:   site.fnKey,
+				cfnHash: cfn.FunctionName,
+				site:    textpos.NodeSite(sourceFile.FileName(), sourceFile, call),
+			})
+			argSpans[sourceFile.FileName()] = append(argSpans[sourceFile.FileName()],
+				overrideArgSpan{start: site.fnArg.Pos(), end: site.fnArg.End()})
 			if _, dup := seen[cfn.Key()]; !dup {
 				seen[cfn.Key()] = struct{}{}
 				entries = append(entries, cfn)
@@ -118,12 +113,138 @@ func (resolver *Resolver) ensureOverrides() {
 		})
 	}
 	resolver.overrideEntries = entries
-	resolver.overrideDiagnostics = diagnostics
-	// Skip installation when nothing was overridden so the no-override path is
-	// byte-identical (no computer recreation, no fold lookups).
-	if len(overrides) > 0 {
-		resolver.cache.SetOverrides(overrides)
+	resolver.overrideArgSpansByFile = argSpans
+	if len(raws) == 0 {
+		return
 	}
+
+	// Phase 2 — fold the override map to a fixpoint. A target whose base key
+	// contains another overridden type needs the inner fold applied first; each
+	// iteration recomputes base keys against the previous map until the keys
+	// stabilize (bounded — see maxOverrideFoldIterations).
+	overrides, baseKeys := resolver.foldOverrideMap(raws)
+
+	// Phase 3 — diagnostics on the FINAL, stable base keys: strict OVR001 (any
+	// second override of a (type, family) pair) + OVR010 (validate cross-family).
+	resolver.overrideDiagnostics = overrideDiagnostics(raws, baseKeys)
+
+	resolver.cache.SetOverrides(overrides)
+}
+
+// foldOverrideMap iterates the base-key computation to a fixpoint and returns the
+// final override map plus the final base key of each raw (parallel to raws). The
+// first raw (source order) wins a (baseKey, fnKey) pair; conflicts are reported
+// separately by overrideDiagnostics.
+func (resolver *Resolver) foldOverrideMap(raws []rawOverride) (map[string]map[string]string, []string) {
+	prev := map[string]map[string]string{}
+	baseKeys := make([]string, len(raws))
+	for iteration := 0; iteration < maxOverrideFoldIterations; iteration++ {
+		computer := typeid.NewWithOverrides(resolver.checker, prev)
+		next := map[string]map[string]string{}
+		for i, raw := range raws {
+			baseKey := computer.BaseStructuralKey(raw.typeArg)
+			baseKeys[i] = baseKey
+			families := next[baseKey]
+			if families == nil {
+				families = map[string]string{}
+				next[baseKey] = families
+			}
+			if _, exists := families[raw.fnKey]; !exists {
+				families[raw.fnKey] = raw.cfnHash
+			}
+		}
+		if overrideMapsEqual(prev, next) {
+			return next, baseKeys
+		}
+		prev = next
+	}
+	return prev, baseKeys
+}
+
+// overrideMapsEqual reports whether two override maps carry identical
+// (baseKey → fnKey → hash) content — the fixpoint convergence test.
+func overrideMapsEqual(a, b map[string]map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for baseKey, famsA := range a {
+		famsB, ok := b[baseKey]
+		if !ok || len(famsA) != len(famsB) {
+			return false
+		}
+		for fnKey, hash := range famsA {
+			if famsB[fnKey] != hash {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// overrideDiagnostics derives OVR001 / OVR010 from the raws + their final base
+// keys. OVR001 is STRICT: any second override of the same (type, family) is an
+// error regardless of body (you can't have two overrides for one function and
+// type). OVR010 warns once per distinct validate override (its cross-family reach).
+func overrideDiagnostics(raws []rawOverride, baseKeys []string) []diag.Diagnostic {
+	var diagnostics []diag.Diagnostic
+	firstIndex := map[string]int{} // "<baseKey>|<fnKey>" → index of the winning raw
+	for i, raw := range raws {
+		key := baseKeys[i] + "|" + raw.fnKey
+		if winner, exists := firstIndex[key]; exists {
+			diagnostics = append(diagnostics, diag.NewWithRelated(
+				diag.CodeDuplicateOverride, raw.site, []string{raw.fnKey},
+				diag.Related{Site: raws[winner].site, Message: "First overridden here"},
+			))
+			continue
+		}
+		firstIndex[key] = i
+		// validate is a shared cross-family dependency: JSON / binary union
+		// decoders call val_<member> to narrow. Overriding it reaches past
+		// createValidate<T>(), so flag the site (Warning — the build proceeds).
+		if raw.fnKey == "val" {
+			diagnostics = append(diagnostics, diag.New(diag.CodeOverrideValidateCrossFamily, raw.site))
+		}
+	}
+	return diagnostics
+}
+
+// collectOverrideReplacements returns the `null` replacements for every override
+// call's inline pure-fn argument in the requested files (the body now lives only
+// in the cfn module). Scoped per file like the pure-fn factory nullings — the
+// span map is whole-program, but only spans whose file is in this request are
+// emitted. Sorted (file, start) for deterministic output.
+func (resolver *Resolver) collectOverrideReplacements(files []string) []protocol.Replacement {
+	if len(resolver.overrideArgSpansByFile) == 0 {
+		return nil
+	}
+	filePaths := make([]string, 0, len(resolver.overrideArgSpansByFile))
+	for filePath := range resolver.overrideArgSpansByFile {
+		inRequest := false
+		for _, file := range files {
+			if sameTransformPath(filePath, file) {
+				inRequest = true
+				break
+			}
+		}
+		if inRequest {
+			filePaths = append(filePaths, filePath)
+		}
+	}
+	sort.Strings(filePaths)
+	var replacements []protocol.Replacement
+	for _, filePath := range filePaths {
+		spans := resolver.overrideArgSpansByFile[filePath]
+		sort.Slice(spans, func(i, j int) bool { return spans[i].start < spans[j].start })
+		for _, span := range spans {
+			replacements = append(replacements, protocol.Replacement{
+				File:  filePath,
+				Start: span.start,
+				End:   span.end,
+				Text:  "null",
+			})
+		}
+	}
+	return replacements
 }
 
 // detectOverrideSite reports whether call is an `overrideX<T>(pureFn, id)` site
