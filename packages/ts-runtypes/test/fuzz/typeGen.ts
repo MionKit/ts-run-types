@@ -53,7 +53,24 @@ export type TypeShape =
   | {kind: 'set'; elem: TypeShape}
   | {kind: 'promise'; value: TypeShape}
   | {kind: 'function'; params: TypeShape[]; ret: TypeShape}
+  // Non-serialisable native binary kinds (DataOnly strips them to `never`).
+  | {kind: 'arraybuffer'}
+  | {kind: 'sharedarraybuffer'}
+  | {kind: 'dataview'}
+  | {kind: 'typedarray'; name: TypedArrayName}
   | {kind: 'ref'; name: string};
+
+/** The typed-array constructors the generator can emit — a representative
+ *  slice (all are non-serialisable `ArrayBufferView`s under DataOnly). **/
+export type TypedArrayName = 'Uint8Array' | 'Int32Array' | 'Float64Array';
+const TYPED_ARRAY_NAMES: TypedArrayName[] = ['Uint8Array', 'Int32Array', 'Float64Array'];
+
+/** A call signature on a callable interface (`(a0: P): R`). An interface that
+ *  carries one is itself function-like, so DataOnly strips it to `never`. **/
+export interface CallSigShape {
+  params: TypeShape[];
+  ret: TypeShape;
+}
 
 export interface PropShape {
   /** Raw property key (may be a non-identifier — renderer quotes it). **/
@@ -66,7 +83,9 @@ export interface PropShape {
 }
 
 export type Decl =
-  | {kind: 'interface'; name: string; props: PropShape[]}
+  // `calls` (when present) makes this a CALLABLE interface — function-like, so
+  // DataOnly strips a ref to it the same way it strips a bare function.
+  | {kind: 'interface'; name: string; props: PropShape[]; calls?: CallSigShape[]}
   | {kind: 'type'; name: string; shape: TypeShape}
   | {kind: 'class'; name: string; props: PropShape[]}
   | {kind: 'enum'; name: string; members: EnumMember[]};
@@ -87,8 +106,16 @@ export interface GenOptions {
   maxDepth: number;
   maxBreadth: number;
   /** Master switch: when false, restrict to the serialisable subset (drives the
-   *  strong-oracle sweep); when true, the full adversarial space. **/
+   *  strong-oracle sweep); when true, the full adversarial space (adds the broad
+   *  edge kinds `any` / `unknown` / `never` / `void` and primitive-branded
+   *  intersections). **/
   wild: boolean;
+  /** Emit the DataOnly-STRIPPED kinds — `symbol`, functions, property methods,
+   *  callable interfaces, `Promise`, `declare class`, and the non-serialisable
+   *  natives (`ArrayBuffer` / typed arrays / `DataView`). Orthogonal to `wild`:
+   *  the DataOnly fuzz lane sets this true with `wild` false so the contract is
+   *  exercised without `any`/`unknown` noise. **/
+  nonDataTypes: boolean;
   /** Emit non-identifier property keys sometimes. **/
   weirdKeys: boolean;
   /** Generate named decls (interfaces / classes / enums), including recursive
@@ -96,12 +123,39 @@ export interface GenOptions {
   named: boolean;
 }
 
-export const WILD_GEN_OPTIONS: GenOptions = {maxDepth: 4, maxBreadth: 4, wild: true, weirdKeys: true, named: true};
+export const WILD_GEN_OPTIONS: GenOptions = {
+  maxDepth: 4,
+  maxBreadth: 4,
+  wild: true,
+  nonDataTypes: true,
+  weirdKeys: true,
+  named: true,
+};
 
 /** Serialisable-only preset — the strong value oracles (O1/O2/O5/O6) need clean
  *  round-trippable types. Still includes recursive interfaces, Map/Set/RegExp,
  *  records, intersections — everything that round-trips. **/
-export const DATA_GEN_OPTIONS: GenOptions = {maxDepth: 4, maxBreadth: 4, wild: false, weirdKeys: true, named: true};
+export const DATA_GEN_OPTIONS: GenOptions = {
+  maxDepth: 4,
+  maxBreadth: 4,
+  wild: false,
+  nonDataTypes: false,
+  weirdKeys: true,
+  named: true,
+};
+
+/** DataOnly-contract preset — clean serialisable base PLUS the stripped kinds
+ *  (symbol / function / method / callable interface / Promise / class / native),
+ *  with `wild` off so the lane isn't drowned in `any`/`unknown`. Drives the
+ *  DataOnly serialize-vs-drop-vs-fail oracle. **/
+export const NONDATA_GEN_OPTIONS: GenOptions = {
+  maxDepth: 4,
+  maxBreadth: 4,
+  wild: false,
+  nonDataTypes: true,
+  weirdKeys: true,
+  named: true,
+};
 
 // keep DEFAULT pointed at the wild space — the headline behaviour.
 export const DEFAULT_GEN_OPTIONS = WILD_GEN_OPTIONS;
@@ -148,7 +202,7 @@ export function genType(opts: GenOptions = DEFAULT_GEN_OPTIONS): GeneratedType {
 }
 
 function genDecl(ctx: Ctx): void {
-  const choice = ctx.opts.wild
+  const choice = ctx.opts.nonDataTypes
     ? pick(['interface', 'interface', 'class', 'enum'] as const)
     : pick(['interface', 'interface', 'enum'] as const);
   if (choice === 'enum') {
@@ -176,8 +230,14 @@ function genDecl(ctx: Ctx): void {
   // interface — register the name first so props can self-reference (recursive).
   const name = freshName(ctx, 'N');
   ctx.refs.push({name, kind: 'interface'});
-  const props = genMembers(ctx, 1, name, ctx.opts.wild);
-  ctx.decls.push({kind: 'interface', name, props});
+  const props = genMembers(ctx, 1, name, ctx.opts.nonDataTypes);
+  // Callable-interface generation is DISABLED: a call signature makes the
+  // interface function-like, and the product is inconsistent there — `validate`
+  // treats a callable interface as a function (accepts `() => {}`, rejects `{}`)
+  // while the serializers treat it as an object (serialize `{}`), so no single
+  // mock value can satisfy both. The `calls` plumbing (TypeShape / render /
+  // ref-walk) stays so it can be re-enabled once that contract is settled.
+  ctx.decls.push({kind: 'interface', name, props, calls: undefined});
 }
 
 // Generate object/interface/class members. `selfName`, when set, is in scope as
@@ -196,7 +256,7 @@ function genMembers(ctx: Ctx, depth: number, selfName: string | undefined, allow
     if (used.has(name)) continue;
     used.add(name);
     const optional = chance(0.35);
-    const method = allowMethods && ctx.opts.wild && chance(0.15);
+    const method = allowMethods && ctx.opts.nonDataTypes && chance(0.15);
     let shape: TypeShape;
     if (method) {
       shape = {kind: 'function', params: genParams(ctx, depth), ret: genShape(ctx, depth + 1)};
@@ -238,24 +298,23 @@ export function genShape(ctx: Ctx, depth: number): TypeShape {
     () => genUnion(ctx, depth),
     () => ({kind: 'record', value: genShape(ctx, depth + 1)}),
   ];
-  if (ctx.opts.wild) {
+  // Intersections + Map/Set round-trip, so every preset can emit them (the
+  // primitive-brand arm inside genIntersection stays gated on `wild`).
+  builders.push(
+    () => genIntersection(ctx, depth),
+    () => ({kind: 'map', key: pick<TypeShape>([{kind: 'string'}, {kind: 'number'}]), value: genShape(ctx, depth + 1)}),
+    () => ({kind: 'set', elem: genShape(ctx, depth + 1)})
+  );
+  // Promise + function are DataOnly-stripped — gated on nonDataTypes.
+  if (ctx.opts.nonDataTypes) {
     builders.push(
-      () => genIntersection(ctx, depth),
-      () => ({kind: 'map', key: pick<TypeShape>([{kind: 'string'}, {kind: 'number'}]), value: genShape(ctx, depth + 1)}),
-      () => ({kind: 'set', elem: genShape(ctx, depth + 1)}),
       () => ({kind: 'promise', value: genShape(ctx, depth + 1)}),
       () => ({kind: 'function', params: genParams(ctx, depth), ret: genShape(ctx, depth + 1)})
     );
-  } else {
-    // serialisable-only Map/Set still round-trip — keep them in the data preset.
-    builders.push(
-      () => genIntersection(ctx, depth),
-      () => ({kind: 'map', key: pick<TypeShape>([{kind: 'string'}, {kind: 'number'}]), value: genShape(ctx, depth + 1)}),
-      () => ({kind: 'set', elem: genShape(ctx, depth + 1)})
-    );
   }
-  // sometimes reference a declared type instead of generating inline
-  const usableRefs = ctx.refs.filter((r) => (ctx.opts.wild ? true : r.kind !== 'class'));
+  // sometimes reference a declared type instead of generating inline (class refs
+  // only exist when nonDataTypes generated a `declare class`).
+  const usableRefs = ctx.refs.filter((r) => (ctx.opts.nonDataTypes ? true : r.kind !== 'class'));
   if (usableRefs.length && chance(0.3)) {
     const ref = pick(usableRefs);
     return {kind: 'ref', name: ref.name};
@@ -275,18 +334,28 @@ function genLeaf(ctx: Ctx): TypeShape {
     () => ({kind: 'undefined'}),
     () => genLiteral(),
   ];
-  const wild: Array<() => TypeShape> = [
-    () => ({kind: 'symbol'}),
+  // Broad / edge kinds — adversarial but not "non-data" per se (any/unknown are
+  // passthrough; never/void have their own arms). Gated on `wild`.
+  const broad: Array<() => TypeShape> = [
     () => ({kind: 'any'}),
     () => ({kind: 'unknown'}),
     () => ({kind: 'never'}),
     () => ({kind: 'void'}),
   ];
-  // refs to enums/classes are leaf-ish
+  // DataOnly-stripped leaves — symbol + the non-serialisable natives. Gated on
+  // nonDataTypes.
+  const nonData: Array<() => TypeShape> = [
+    () => ({kind: 'symbol'}),
+    () => ({kind: 'arraybuffer'}),
+    () => ({kind: 'sharedarraybuffer'}),
+    () => ({kind: 'dataview'}),
+    () => ({kind: 'typedarray', name: pick(TYPED_ARRAY_NAMES)}),
+  ];
+  // refs to enums/classes are leaf-ish (class refs only when nonDataTypes).
   const refLeaves = ctx.refs
-    .filter((r) => r.kind === 'enum' || (ctx.opts.wild && r.kind === 'class'))
+    .filter((r) => r.kind === 'enum' || (ctx.opts.nonDataTypes && r.kind === 'class'))
     .map((r) => () => ({kind: 'ref', name: r.name}) as TypeShape);
-  const pool = ctx.opts.wild ? [...serial, ...wild, ...refLeaves] : [...serial, ...refLeaves];
+  const pool = [...serial, ...(ctx.opts.wild ? broad : []), ...(ctx.opts.nonDataTypes ? nonData : []), ...refLeaves];
   return pick(pool)();
 }
 
@@ -431,6 +500,14 @@ export function renderType(shape: TypeShape): string {
       return `Promise<${renderType(shape.value)}>`;
     case 'function':
       return `((${shape.params.map((p, i) => `a${i}: ${renderType(p)}`).join(', ')}) => ${renderType(shape.ret)})`;
+    case 'arraybuffer':
+      return 'ArrayBuffer';
+    case 'sharedarraybuffer':
+      return 'SharedArrayBuffer';
+    case 'dataview':
+      return 'DataView';
+    case 'typedarray':
+      return shape.name;
     case 'ref':
       return shape.name;
     case 'union':
@@ -457,8 +534,13 @@ function renderProp(prop: PropShape): string {
 
 export function renderDecl(decl: Decl): string {
   switch (decl.kind) {
-    case 'interface':
-      return `interface ${decl.name} {${decl.props.map(renderProp).join('; ')}}`;
+    case 'interface': {
+      const callSigs = (decl.calls ?? []).map(
+        (sig) => `(${sig.params.map((p, i) => `a${i}: ${renderType(p)}`).join(', ')}): ${renderType(sig.ret)}`
+      );
+      const parts = [...callSigs, ...decl.props.map(renderProp)];
+      return `interface ${decl.name} {${parts.join('; ')}}`;
+    }
     case 'type':
       return `type ${decl.name} = ${renderType(decl.shape)};`;
     case 'class':
@@ -553,8 +635,15 @@ function collectRefs(shape: TypeShape, out: Set<string>): void {
 
 function declRefs(decl: Decl): Set<string> {
   const out = new Set<string>();
-  if (decl.kind === 'interface' || decl.kind === 'class') decl.props.forEach((p) => collectRefs(p.shape, out));
-  else if (decl.kind === 'type') collectRefs(decl.shape, out);
+  if (decl.kind === 'interface' || decl.kind === 'class') {
+    decl.props.forEach((p) => collectRefs(p.shape, out));
+    if (decl.kind === 'interface' && decl.calls) {
+      for (const sig of decl.calls) {
+        sig.params.forEach((p) => collectRefs(p, out));
+        collectRefs(sig.ret, out);
+      }
+    }
+  } else if (decl.kind === 'type') collectRefs(decl.shape, out);
   return out;
 }
 
@@ -615,8 +704,14 @@ export function countNodes(gen: GeneratedType): number {
     }
   };
   for (const decl of gen.decls) {
-    if (decl.kind === 'interface' || decl.kind === 'class') decl.props.forEach((p) => walk(p.shape));
-    else if (decl.kind === 'type') walk(decl.shape);
+    if (decl.kind === 'interface' || decl.kind === 'class') {
+      decl.props.forEach((p) => walk(p.shape));
+      if (decl.kind === 'interface' && decl.calls)
+        for (const sig of decl.calls) {
+          sig.params.forEach(walk);
+          walk(sig.ret);
+        }
+    } else if (decl.kind === 'type') walk(decl.shape);
     else total++;
   }
   walk(gen.root);

@@ -26,6 +26,7 @@ import {
   createJsonDecoder,
   createBinaryEncoder,
   createBinaryDecoder,
+  createMockType,
 } from 'ts-runtypes';
 import {ResolverClient} from '../../../runtypes-devtools/src/resolver-client.ts';
 import {
@@ -53,6 +54,10 @@ export type WiredFns = {
   jsonDecode?: (s: string) => unknown;
   binaryEncode?: (v: unknown) => ArrayBuffer;
   binaryDecode?: (b: ArrayBuffer) => unknown;
+  /** The REAL product mock for this type, with nonDataTypes on so a value
+   *  carries the stripped members. Not part of FN_KEYS — it's the value source
+   *  for the behaviour tier, not a serialization factory the oracles police. **/
+  mock?: () => unknown;
 };
 
 export interface CompiledType {
@@ -198,6 +203,23 @@ export async function compileType(client: ResolverClient, gen: GeneratedType): P
     'binaryDecode',
     () => createBinaryDecoder(undefined, undefined, byFamily.fb as never) as WiredFns['binaryDecode']
   );
+
+  // Mock value source — the REAL createMockType driven off the reflection ENTRY
+  // TUPLE (the per-root facade, basename === the reflection site id). Passing
+  // the tuple mirrors what the plugin injects in production: createMockType runs
+  // initFromTuple itself, linking the reflection runtype graph into the live
+  // rtUtils, then resolves the root by id. (The six function factories register
+  // their own demand-driven caches, not the reflection bundle, so the id alone
+  // isn't enough.) nonDataTypes:true makes the value carry the stripped members
+  // so the encoders exercise their drop / fail paths.
+  const reflectionId = reflectionSites[0]?.id;
+  const reflectionTuple = reflectionId !== undefined ? tuples[reflectionId] : undefined;
+  if (reflectionTuple !== undefined) {
+    wire(wired, wireErrors, 'mock', () => {
+      const mockFn = createMockType(undefined, {mock: {nonDataTypes: true}}, reflectionTuple as never);
+      return (() => mockFn()) as WiredFns['mock'];
+    });
+  }
 
   return {...partial, wired, wireErrors};
 }
