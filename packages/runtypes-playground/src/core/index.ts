@@ -4,6 +4,7 @@ export {
   run,
   versions,
   mock,
+  mockInvalid,
   generatedModules,
   generatedFunction,
   getResolver,

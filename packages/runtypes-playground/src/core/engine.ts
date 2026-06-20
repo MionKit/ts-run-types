@@ -11,6 +11,7 @@ import * as RT from 'ts-runtypes';
 import {loadResolver, type Resolver, type ResolverOptions, type ResolverVersions} from './wasmLoader.ts';
 import {MARKER_DTS, ROOT_TYPE} from './markerDts.ts';
 import {operationByKey, type Operation} from './operations.ts';
+import {injectNegative} from './negativeMock.ts';
 
 export type {Operation, OperationKind} from './operations.ts';
 export type {Resolver, ResolverOptions, ResolverVersions} from './wasmLoader.ts';
@@ -230,6 +231,40 @@ export async function mock(
   const {dispatch} = await getResolver(options);
   const {fn, diagnostics} = materialize(dispatch, 'createMockType', userCode, mode);
   return {value: fn(), diagnostics};
+}
+
+// rootRunTypeNode resolves the RunType graph for the user's type (the same
+// reflection path the 'graph' op uses) and returns the root node, so the
+// negative generator can read each position's declared type.
+function rootRunTypeNode(dispatch: Resolver['dispatch'], userCode: string, mode: Mode): RunTypeNode | undefined {
+  const reflectFactory = mode === 'schema' ? 'createMockType' : 'getRunTypeId';
+  const {site, runTypes} = scan(dispatch, reflectFactory, userCode, mode);
+  const rootId = site?.id ?? null;
+  return runTypes.find((n) => n.id === rootId) ?? runTypes[0] ?? undefined;
+}
+
+// mockInvalid generates a value that FAILS validation: a fresh valid mock with
+// one position turned into a type-aware inverse (see injectNegative /
+// leafProbability), verified against the real validator and retried if the
+// corruption happened to stay valid (e.g. a multi-type union arm accepted it).
+// Falls back to the last attempt if none is found invalid in the budget (e.g. an
+// `any` / `unknown` type accepts everything).
+export async function mockInvalid(
+  userCode: string,
+  options?: ResolverOptions,
+  mode: Mode = 'type',
+  leafProbability = 0.85
+): Promise<{value: unknown; diagnostics: Diagnostic[]}> {
+  const {dispatch} = await getResolver(options);
+  const validate = materialize(dispatch, 'createValidate', userCode, mode).fn as (v: unknown) => boolean;
+  const {fn: generate, diagnostics} = materialize(dispatch, 'createMockType', userCode, mode);
+  const node = rootRunTypeNode(dispatch, userCode, mode);
+  let last: unknown;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    last = injectNegative(generate(), node, leafProbability);
+    if (!validate(last)) return {value: last, diagnostics};
+  }
+  return {value: last, diagnostics};
 }
 
 function toHex(bytes: Uint8Array): string {
