@@ -252,55 +252,53 @@ bench:typecost` (no `BENCH_CASE`) once to refresh the canonical results JSON.
 
 ## Compile-time cost (`bench:compiletime`)
 
-A third axis: the **wall-clock seconds** the build pipeline pays, end to end, when
-each library is wired in. Where `typecost` counts TypeScript *instantiations*,
-`compiletime` times an actual **build** of a per-case probe through every
-competitor's REAL pipeline:
+A third axis: the build-time **overhead** the transform adds. Where `typecost`
+counts TypeScript *instantiations*, `compiletime` times an actual **build**, and
+measures only the two transform-based libraries — **ts-runtypes** (vite + the
+`runtypes-devtools` plugin) and **typia** (esbuild + `@ttsc/unplugin`). For each it
+records two numbers: the build with the transform **OFF** (a plain compile that
+produces no validators) and **ON** (the transform runs, generates the validator
+functions, the build compiles them). The **overhead** is the gap.
 
-- **ts-runtypes** — `vite build` with the `runtypes-devtools` plugin, so the Go
-  resolver is spawned per case (walks the type graph, emits the virtual modules).
-- **typia** — `esbuild` + `@ttsc/unplugin` (its native-Go transform).
-- **zod / typebox / ajv** — plain `vite build`, no transform: the **baseline**
-  columns. JSON Schema / a schema object is ordinary user JS, so their per-case
-  build cost is essentially flat — the no-transform floor every transform pays over.
+Measured **per suite SECTION** (not per case): all of a section's `createValidate<T>()`
+/ `typia.createIs<T>()` call sites go into ONE file, built twice. Two reasons — both
+fixes for the per-function distortion:
 
-[`compiletime/compiletime.mjs`](compiletime/compiletime.mjs) reuses the same AST
-extractors as typecost ([`_lib/extract-cases.mjs`](_lib/extract-cases.mjs) — one
-source of truth) to lift each case's type/schema, writes a probe into the
-competitor dir, and builds it through that competitor's tools (resolved from the
-competitor's own `node_modules`, so vite/esbuild/the plugin load exactly as a real
-build there). Each competitor runs in its own `--rm` container.
+- **Batching** amortizes the fixed bundler/compiler init across many functions, so the
+  transform work is a real fraction of the total instead of being lost under a per-file
+  init that dwarfs it.
+- **Same-file off vs on** — the identical file is built with the transform off then on.
+  The init / parse / lib-load cost is identical in both, so it **cancels** in the gap;
+  what's left is purely the transform + generated-function compile. Robust no matter how
+  large the fixed cost is, because it is in both terms.
 
-Two numbers per case, the disk-cache story the compile-time pitch turns on:
-
-- **cold** — the RT disk cache is wiped first, so the resolver recomputes from
-  scratch. The honest "first CI build" cost, and the upper bound.
-- **warm** — an immediate rebuild against the populated cache. The marginal cost
-  of a no-op rebuild, usually ~0. This is where the cache earns its keep.
-
-Both are **baseline-subtracted** (a trivial probe built the same way) so the cell
-is the marginal cost of THAT case's type, not the bundler/import/startup scaffold,
-and each is the **median of N** repeats (drop top + bottom) to tame wall-clock
-wobble. The headline metric is wall-clock — the RT plugin and typia run their
-transform in a SUBPROCESS, invisible to `process.cpuUsage()`, so only the wall
-captures it (CPU is still recorded, meaningful for the no-transform columns).
+[`compiletime/compiletime.mjs`](compiletime/compiletime.mjs) reuses the typecost AST
+extractors ([`_lib/extract-cases.mjs`](_lib/extract-cases.mjs) — one source of truth),
+assembles the section file (preamble once, each case in its own block), and builds it
+through the library's real tools (resolved from the competitor's own `node_modules`).
+A warm-up build runs first so the cold process-start never lands on a cell; each number
+is the **median of N** (default 5).
 
 ```bash
-pnpm run bench:compiletime                              # every competitor, cold + warm
-COMPILETIME_COMPETITORS="ts-runtypes zod" pnpm run bench:compiletime   # a subset
-BENCH_CASE=atomic pnpm run bench:compiletime            # one group, inspection (no JSON write)
+pnpm run bench:compiletime                              # ts-runtypes + typia, off vs on
+COMPILETIME_COMPETITORS="ts-runtypes" pnpm run bench:compiletime   # one library
+BENCH_CASE=object pnpm run bench:compiletime            # one section, inspection (no JSON write)
+COMPILETIME_N=10 pnpm run bench:compiletime             # more repeats
 ```
 
-Env knobs: `COMPILETIME_N_COLD` (default 3) / `COMPILETIME_N_WARM` (default 5) repeat
-counts; `COMPILETIME_MAX_CASES` caps the case count; `COMPILETIME_COMPETITORS`
-selects a subset; `BENCH_CASE` filters by case substring (inspection mode, no JSON
-write). Results land in `results/<competitor>.compiletime.json` and join the website
-the same way typecost does (`gen-bench-docs.mjs` → `bench-data/compiletime/`).
+Results land in `results/{ts-runtypes,typia}.compiletime.json` (per section:
+`baseline_ms`, `transform_ms`, `overhead_ms`) and join the website as four columns
+(each library's baseline + `+transform`) via `gen-bench-docs.mjs` →
+`bench-data/compiletime/`.
 
-> **typia plugin warm-up.** typia's first build compiles its native plugin once
-> (~200s, into the persisted `.ttsc` volume). That is a one-time tool cost, NOT a
-> per-case number; after the first run later runs reuse the cache. Skip typia with
-> `COMPILETIME_COMPETITORS` omitting it (or `BENCH_NO_TYPIA=1`) when iterating.
+> **What the numbers show.** For both libraries the overhead is largely a fixed
+> per-build transform cost (the Go resolver spawn for ts-runtypes, the ttsc transform
+> for typia) — more functions in a section barely move it, because the per-function
+> resolve/transform work is small. typia's transform runs per file, so it pays this in
+> every compile; ts-runtypes spawns its resolver once for a whole multi-file build, so
+> a real project amortizes the ts-runtypes number across all its files (the per-section
+> figure is the isolated-build cost). typia's first build also compiles its native
+> plugin once (~200s into the `.ttsc` volume) — excluded from the cells by the warm-up.
 
 ## Format-serialization (`serialization-formats`)
 
@@ -332,7 +330,7 @@ _deps/                     (package-manager files only — kept out of the sourc
   competitors/<name>/package.json   ONLY that competitor's deps (isolation)
   typecost/package.json
 typecost/typecost.mjs   per-competitor type-instantiation cost
-compiletime/compiletime.mjs  per-competitor wall-clock build cost (cold / warm)
+compiletime/compiletime.mjs  build-time overhead: transform off vs on, per section (ts-runtypes, typia)
 _lib/extract-cases.mjs  shared AST extractors (typecost + compiletime consume it)
 aggregate.mjs           results/*.json → comparison table + coverage; sets the exit code
 ```
