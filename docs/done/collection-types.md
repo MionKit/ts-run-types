@@ -1,5 +1,7 @@
 # Collection types
 
+> _Resurfaced historical doc, kept as a record of implemented work. `reflectRunTypeId(value)` is now `getRunTypeId(value)`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
+
 This document covers the **collection** `ReflectionKind`s — types that contain multiple children, or wrap a heterogeneous structure. Atomic kinds live in [atomic-types.md](atomic-types.md); single-child member kinds (`Array`, `Promise`, `Property`, `Method`) live in [member-types.md](member-types.md).
 
 Each section shows:

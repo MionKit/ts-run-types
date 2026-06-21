@@ -1,5 +1,7 @@
 # Removing the RegExp-literal type from the schema / type system
 
+> _Resurfaced historical doc, kept as a record of implemented work. Project names have changed since: `ts-go-run-types` / `@mionjs/ts-go-run-types` is now `ts-runtypes`, the `vite-plugin-runtypes` plugin is now `runtypes-devtools`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
+
 > **Status: implemented.** The "RegExp-literal" feature (matching a value against a
 > _specific_ regex source+flags) has been removed from the type-definition system.
 > `RegExp` is now a single `KindRegexp` leaf and `typeof /abc/i` ≡ `typeof /xyz/` ≡

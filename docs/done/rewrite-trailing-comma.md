@@ -1,5 +1,7 @@
 # Call-site rewrite breaks on a trailing comma in the marker call's arguments
 
+> _Resurfaced historical doc. This bug has since been FIXED (the fix survived the port of the rewrite step to the Go `transform` package); the "not fixed" status below is historical. The `vite-plugin-runtypes` plugin referenced below is now `runtypes-devtools`._
+
 **Status:** known bug, not fixed (documentation only). Found while authoring the
 benchmark's real-world `validateSchema` thunks (PR #100).
 
