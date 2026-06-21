@@ -1,30 +1,32 @@
 // <runtypes-playground> — a light-DOM custom element wrapping the headless
-// engine. Lazy-loads Monaco on connect and renders:
-//   - a preset picker + a TS-type / Schema mode switch above the type editor,
-//   - the type editor, a build-function picker, and a JSON input pane whose
-//     "Generate random" button fills it from createMockType (a RunTypes feature),
-//   - a syntax-highlighted output pane,
-//   - an on-demand "Generated functions" section: the code RunTypes generates per
-//     family (plus the RunType graph), one card each, prettier-beautified and
-//     syntax-highlighted.
+// engine. Lazy-loads Monaco on connect and renders a three-column editor:
+//   1. Type      — the TypeScript type (or value-first schema) editor.
+//   2. Function  — a build-function picker, a JSON input pane whose "Generate
+//                  random" button fills it from createMockType, a Run button, and
+//                  the result right beneath it.
+//   3. Generated — the code RunTypes generates for the SELECTED function + type,
+//                  prettier-beautified and syntax-highlighted. It refreshes (with
+//                  a typing spinner + debounce) whenever the function or type
+//                  changes.
+//
+// Above the columns: real-world presets and a TS-type / Schema mode switch.
 //
 // Light DOM (no shadow root) is intentional so Monaco's layout measurement and
 // head-injected styles work. Highlighting reuses Monaco's own colorizer (no extra
-// dependency, same theme as the editors); prettier is lazy-loaded only when the
-// generated code is viewed. Configurable via attributes: `type`, `input`,
-// `operation`, `mode`, `wasm-url`, `wasm-exec-url`.
+// dependency, same theme as the editors); prettier is lazy-loaded for beautifying.
+// Configurable via attributes: `type`, `input`, `operation`, `mode`, `wasm-url`,
+// `wasm-exec-url`.
 
 import {
   run,
   mock,
   versions,
-  generatedModules,
+  generatedFunction,
   OPERATIONS,
   operationByKey,
   ROOT_TYPE,
   type RunResult,
   type Diagnostic,
-  type GeneratedModule,
   type Mode,
   type ResolverOptions,
 } from '../core/index.ts';
@@ -35,6 +37,11 @@ import {TS_ICON, JS_ICON} from './icons.ts';
 type Monaco = typeof import('monaco-editor');
 type Editor = import('monaco-editor').editor.IStandaloneCodeEditor;
 type PrettierApi = {format: (src: string, opts: Record<string, unknown>) => Promise<string>; plugins: unknown[]};
+
+// Debounce before regenerating the code column: long while typing in the type
+// editor, short for a discrete change (function picker / preset / mode).
+const TYPE_DEBOUNCE_MS = 2000;
+const PICK_DEBOUNCE_MS = 150;
 
 // Ambient declarations so the editor type-checks both forms without imports: the
 // createX factories, plus `RT` / `TF` globals for the schema form (loose `any` —
@@ -103,6 +110,8 @@ function renderDiagnostics(diagnostics: Diagnostic[]): string {
   return `<div class="rtpg-diag"><div class="rtpg-block-label">Diagnostics</div>${items}</div>`;
 }
 
+const SPINNER = '<div class="rtpg-loading"><span class="rtpg-spinner"></span>generating…</div>';
+
 export class RuntypesPlaygroundElement extends HTMLElement {
   private monaco: Monaco | null = null;
   private prettier: PrettierApi | null = null;
@@ -113,8 +122,8 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   private ready = false;
   private mode: Mode = 'type';
   private presetIndex = 0;
-  private codegenShown = false;
-  private codegenSource = '';
+  private codeTimer: ReturnType<typeof setTimeout> | null = null;
+  private codeSeq = 0;
 
   connectedCallback(): void {
     if (this.booted) return;
@@ -131,7 +140,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   }
   setOperation(key: string): void {
     (this.els.operation as HTMLSelectElement).value = key;
-    this.syncInputVisibility();
+    this.onOperationChanged();
   }
   runNow(): Promise<void> {
     return this.doRun();
@@ -139,9 +148,16 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   get outputText(): string {
     return this.els.output?.textContent ?? '';
   }
+  get generatedText(): string {
+    return this.els.codeview?.textContent ?? '';
+  }
 
   private resolverOptions(): ResolverOptions {
     return {wasmUrl: this.getAttribute('wasm-url') ?? undefined, wasmExecUrl: this.getAttribute('wasm-exec-url') ?? undefined};
+  }
+
+  private currentOp(): RunResult['op'] {
+    return operationByKey((this.els.operation as HTMLSelectElement).value);
   }
 
   // colorize reuses Monaco's tokenizer/theme to syntax-highlight a snippet to HTML.
@@ -206,9 +222,9 @@ export class RuntypesPlaygroundElement extends HTMLElement {
           <div class="rtpg-editor" data-el="editor"></div>
         </section>
         <section class="rtpg-pane">
-          <div class="rtpg-head"><span class="rtpg-status" data-el="status" data-state="loading">loading…</span></div>
+          <div class="rtpg-head"><h2>Function</h2><span class="rtpg-status" data-el="status" data-state="loading">loading…</span></div>
           <div class="rtpg-controls">
-            <label class="rtpg-field"><span class="rtpg-field-label">Function</span>
+            <label class="rtpg-field">
               <select class="rtpg-select" data-el="operation"></select></label>
             <p class="rtpg-blurb" data-el="blurb"></p>
             <div class="rtpg-field rtpg-input-field" data-el="inputField">
@@ -218,20 +234,15 @@ export class RuntypesPlaygroundElement extends HTMLElement {
               <div class="rtpg-mock-badge" data-el="mockBadge">Sample data generated by RunTypes <code>createMockType&lt;${ROOT_TYPE}&gt;()</code></div>
             </div>
             <button type="button" class="rtpg-run-btn" data-el="run" disabled>Run</button>
+            <div class="rtpg-result-label">Result <span class="rtpg-hint" data-el="timing"></span></div>
+            <div class="rtpg-result" data-el="output"><div class="rtpg-placeholder">Run to see the result</div></div>
           </div>
         </section>
         <section class="rtpg-pane">
-          <div class="rtpg-head"><h2>Output</h2><span class="rtpg-hint" data-el="timing"></span></div>
-          <div class="rtpg-output" data-el="output"></div>
+          <div class="rtpg-head"><h2>Generated code</h2><span class="rtpg-hint" data-el="codeHint"></span></div>
+          <div class="rtpg-codeview" data-el="codeview"><div class="rtpg-placeholder">resolving…</div></div>
         </section>
-      </div>
-      <div class="rtpg-codegen-bar">
-        <button type="button" class="rtpg-ghost-btn" data-el="viewCode" disabled>View generated code</button>
-        <span class="rtpg-hint">the code RunTypes generates for this type</span>
-      </div>
-      <section class="rtpg-codegen" data-el="codegen" hidden>
-        <div class="rtpg-cards" data-el="cards"></div>
-      </section>`;
+      </div>`;
     for (const node of Array.from(this.querySelectorAll<HTMLElement>('[data-el]'))) {
       this.els[node.dataset.el as string] = node;
     }
@@ -275,19 +286,15 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     const runKey = monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter;
     this.typeEditor.addCommand(runKey, () => void this.doRun());
     this.inputEditor.addCommand(runKey, () => void this.doRun());
-    // The generated code is on demand and goes stale when the type changes.
-    // Guard on the actual source so a spurious editor event (Monaco normalizes
-    // the model just after creation) can't reset a freshly-opened panel.
-    this.typeEditor.onDidChangeModelContent(() => {
-      if (this.codegenShown && this.typeSource() !== this.codegenSource) this.resetCodegen();
-    });
+    // Typing in the type editor refreshes the generated-code column (debounced,
+    // with the spinner showing from the first keystroke).
+    this.typeEditor.onDidChangeModelContent(() => this.scheduleCodegen(TYPE_DEBOUNCE_MS));
 
     this.buildPresets();
     this.buildModeSwitch();
 
     const select = this.els.operation as HTMLSelectElement;
-    // The RunType graph is shown in the generated-code section, not as a build fn.
-    for (const op of OPERATIONS.filter((o) => o.kind !== 'graph')) {
+    for (const op of OPERATIONS) {
       const option = document.createElement('option');
       option.value = op.key;
       option.textContent = shortLabel(op.label);
@@ -296,19 +303,20 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     select.value = this.getAttribute('operation') ?? select.options[0]?.value ?? '';
     this.syncInputVisibility();
 
-    select.addEventListener('change', () => this.syncInputVisibility());
+    select.addEventListener('change', () => this.onOperationChanged());
     this.els.genRandom.addEventListener('click', () => void this.generateMock());
     this.els.run.addEventListener('click', () => void this.doRun());
-    this.els.viewCode.addEventListener('click', () => void this.toggleCodegen());
 
     try {
       const v = await versions(this.resolverOptions());
       this.setStatus(`resolver v${v.version} · tsgo ${v.tsgo}`, 'ready');
       (this.els.run as HTMLButtonElement).disabled = false;
-      (this.els.viewCode as HTMLButtonElement).disabled = false;
       this.ready = true;
+      void this.doRun();
+      void this.updateSelectedCode();
     } catch (err) {
       this.setStatus(`resolver failed: ${(err as Error).message}`, 'error');
+      this.els.codeview.innerHTML = `<pre class="rtpg-code error">${escapeHtml((err as Error).message)}</pre>`;
     }
   }
 
@@ -358,7 +366,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     const preset = this.currentPreset();
     this.typeEditor?.setValue(this.mode === 'schema' ? preset.schema : preset.ts);
     this.inputEditor?.setValue(preset.input);
-    this.resetCodegen();
+    this.scheduleCodegen(PICK_DEBOUNCE_MS);
     if (this.ready) void this.doRun();
   }
 
@@ -370,8 +378,13 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     // valid snippet (custom edits in the other form are replaced).
     const preset = this.currentPreset();
     this.typeEditor?.setValue(mode === 'schema' ? preset.schema : preset.ts);
-    this.resetCodegen();
+    this.scheduleCodegen(PICK_DEBOUNCE_MS);
     if (this.ready) void this.doRun();
+  }
+
+  private onOperationChanged(): void {
+    this.syncInputVisibility();
+    this.scheduleCodegen(PICK_DEBOUNCE_MS);
   }
 
   private setStatus(text: string, state: string): void {
@@ -380,7 +393,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   }
 
   private syncInputVisibility(): void {
-    const op = operationByKey((this.els.operation as HTMLSelectElement).value);
+    const op = this.currentOp();
     (this.els.inputField as HTMLElement).hidden = !op.needsInput;
     this.els.blurb.textContent = op.blurb;
   }
@@ -408,7 +421,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
 
   private async doRun(): Promise<void> {
     if (!this.ready) return;
-    const op = operationByKey((this.els.operation as HTMLSelectElement).value);
+    const op = this.currentOp();
     const userCode = this.typeSource();
     let input: unknown;
     if (op.needsInput) {
@@ -431,6 +444,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     }
   }
 
+  // renderResult shows the run result (kept compact — it sits under the Run button).
   private async renderResult(result: RunResult): Promise<string> {
     const diag = renderDiagnostics(result.diagnostics);
     const json = async (value: unknown): Promise<string> =>
@@ -453,72 +467,50 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       case 'binaryRoundtrip':
         return `${label(`Binary (${result.byteLength} bytes)`)}<pre class="rtpg-code">${escapeHtml(result.hex)}</pre>${label('Decoded')}${await json(result.decoded)}${diag}`;
       case 'graph':
-        return `${label(`Root id: ${escapeHtml(result.rootId ?? '—')} (${result.runTypes.length} node(s))`)}${await json(result.runTypes)}${diag}`;
+        return `<div class="rtpg-badge ok">RunType id: ${escapeHtml(result.rootId ?? '—')}</div>${label(`${result.runTypes.length} node(s) — graph on the right`)}${diag}`;
     }
   }
 
-  // resetCodegen hides the on-demand generated-code section (it goes stale on edit).
-  private resetCodegen(): void {
-    this.codegenShown = false;
-    (this.els.codegen as HTMLElement).hidden = true;
-    this.els.cards.innerHTML = '';
-    this.els.viewCode.textContent = 'View generated code';
+  // scheduleCodegen shows the spinner immediately and (re)generates the code column
+  // after `delay` ms — long for typing, short for a discrete change.
+  private scheduleCodegen(delay: number): void {
+    if (this.codeTimer) clearTimeout(this.codeTimer);
+    this.els.codeview.innerHTML = SPINNER;
+    this.codeTimer = setTimeout(() => void this.updateSelectedCode(), delay);
   }
 
-  private async toggleCodegen(): Promise<void> {
-    if (this.codegenShown) {
-      this.resetCodegen();
-      return;
-    }
+  // updateSelectedCode renders the generated code for the SELECTED function + type.
+  // For a build function it shows the beautified function body; for getRunTypeId it
+  // shows the resolved RunType graph (its generated reflection data).
+  private async updateSelectedCode(): Promise<void> {
     if (!this.ready) return;
-    const btn = this.els.viewCode as HTMLButtonElement;
-    btn.disabled = true;
-    btn.textContent = 'generating…';
-    // Record the source this view reflects, so a same-content editor event won't
-    // reset it; only a real edit (different source) clears it.
-    this.codegenSource = this.typeSource();
-    try {
-      await this.renderGeneratedCode();
-      this.codegenShown = true;
-      (this.els.codegen as HTMLElement).hidden = false;
-      btn.textContent = 'Hide generated code';
-    } catch (err) {
-      this.els.cards.innerHTML = `<pre class="rtpg-code error">${escapeHtml((err as Error).message ?? String(err))}</pre>`;
-      (this.els.codegen as HTMLElement).hidden = false;
-      this.codegenShown = true;
-      btn.textContent = 'Hide generated code';
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  // renderGeneratedCode builds one card per family with the beautified, highlighted
-  // generated function, plus a card for the RunType graph.
-  private async renderGeneratedCode(): Promise<void> {
+    const seq = ++this.codeSeq;
+    const op = this.currentOp();
     const userCode = this.typeSource();
     const opts = this.resolverOptions();
-    const modules: GeneratedModule[] = await generatedModules(userCode, opts, this.mode);
-
-    const fnCards = await Promise.all(
-      modules.map(async (m) => {
-        const body = m.code
+    this.els.codeview.innerHTML = SPINNER;
+    try {
+      let html: string;
+      let hint: string;
+      if (op.kind === 'graph') {
+        const result = await run('graph', userCode, undefined, opts, this.mode);
+        const nodes = result.kind === 'graph' ? result.runTypes : [];
+        html = `<pre class="rtpg-code">${await this.highlight(stringify(nodes), 'json')}</pre>`;
+        hint = `RunType graph (${nodes.length} nodes)`;
+      } else {
+        const m = await generatedFunction(op.factory, userCode, opts, this.mode);
+        html = m.code
           ? `<pre class="rtpg-code">${await this.highlight(await this.beautify(m.code), 'javascript')}</pre>`
           : `<div class="rtpg-card-note">${escapeHtml(m.note ?? 'no code')}</div>`;
-        return `<div class="rtpg-card"><div class="rtpg-card-head">${escapeHtml(m.factory)}</div>${body}</div>`;
-      })
-    );
-
-    let graphCard = '';
-    try {
-      const graph = await run('graph', userCode, undefined, opts, this.mode);
-      if (graph.kind === 'graph') {
-        const body = `<pre class="rtpg-code">${await this.highlight(stringify(graph.runTypes), 'json')}</pre>`;
-        graphCard = `<div class="rtpg-card rtpg-card-wide"><div class="rtpg-card-head">getRunTypeId — RunType graph (${graph.runTypes.length} nodes)</div>${body}</div>`;
+        hint = op.factory;
       }
-    } catch {
-      graphCard = '';
+      // Drop the result if a newer regeneration started while we awaited.
+      if (seq !== this.codeSeq) return;
+      this.els.codeHint.textContent = hint;
+      this.els.codeview.innerHTML = html;
+    } catch (err) {
+      if (seq !== this.codeSeq) return;
+      this.els.codeview.innerHTML = `<pre class="rtpg-code error">${escapeHtml((err as Error).message ?? String(err))}</pre>`;
     }
-
-    this.els.cards.innerHTML = fnCards.join('') + graphCard;
   }
 }

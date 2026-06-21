@@ -185,24 +185,39 @@ const CODE_FAMILIES: ReadonlyArray<string> = [
   'createBinaryDecoder',
 ];
 
-// generatedModules returns the generated function source for each family for the
-// given type, by linking each entry tuple and reading its code slot.
+// linkOne reads the generated function source for one family by linking its entry
+// tuple and reading the code slot.
+function linkOne(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode): GeneratedModule {
+  try {
+    const {tuple} = linkEntry(dispatch, factory, userCode, mode);
+    const code = tuple[CODE_SLOT];
+    if (typeof code === 'string' && code.length > 0) return {factory, code};
+    return {factory, code: null, note: 'no-op for this type (the generated function is the identity)'};
+  } catch (err) {
+    return {factory, code: null, note: (err as Error).message ?? String(err)};
+  }
+}
+
+// generatedFunction returns the generated source for ONE family (the playground's
+// selected build function).
+export async function generatedFunction(
+  factory: string,
+  userCode: string,
+  options?: ResolverOptions,
+  mode: Mode = 'type'
+): Promise<GeneratedModule> {
+  const {dispatch} = await getResolver(options);
+  return linkOne(dispatch, factory, userCode, mode);
+}
+
+// generatedModules returns the generated function source for each family.
 export async function generatedModules(
   userCode: string,
   options?: ResolverOptions,
   mode: Mode = 'type'
 ): Promise<GeneratedModule[]> {
   const {dispatch} = await getResolver(options);
-  return CODE_FAMILIES.map((factory) => {
-    try {
-      const {tuple} = linkEntry(dispatch, factory, userCode, mode);
-      const code = tuple[CODE_SLOT];
-      if (typeof code === 'string' && code.length > 0) return {factory, code};
-      return {factory, code: null, note: 'no-op for this type (the generated function is the identity)'};
-    } catch (err) {
-      return {factory, code: null, note: (err as Error).message ?? String(err)};
-    }
-  });
+  return CODE_FAMILIES.map((factory) => linkOne(dispatch, factory, userCode, mode));
 }
 
 // mock generates a random value for the type via createMockType (the same
