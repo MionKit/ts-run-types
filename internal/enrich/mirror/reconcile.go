@@ -118,11 +118,17 @@ func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrich.NamedConst, index 
 	existing := findExistingConst(index, varName)
 	if existing == nil {
 		// Restore-on-reappear: if an @rtOrphan carcass exists for this (id, form),
-		// un-comment it (restoring its preserved value) instead of regenerating.
-		// The inner text was comment-sanitized when orphaned (`*/`→`* /`); reverse
-		// it so the restored const is byte-identical to the pre-orphan original.
+		// un-comment it (restoring its preserved value) instead of regenerating. The
+		// inner text was comment-sanitized when orphaned (`*/`→`* /`); reverse it, then
+		// REFRESH its @rtType/@rtIds marker to the desired id — a type orphaned while
+		// its shape (or a child's) churned reappears with a NEW structural id, so the
+		// marker the carcass carried is stale; refreshing it on restore keeps the
+		// reconcile a single-pass fixed point (an unrefreshed marker would otherwise be
+		// corrected by a SECOND --update — an R6 non-convergence). A same-id reappear
+		// leaves the marker unchanged, so the restore stays byte-identical.
 		if carcass := findCarcass(index, named, friendly); carcass != nil {
-			*ops = append(*ops, spliceOp{start: carcass.start, end: carcass.end, text: unsanitizeFromComment(carcass.inner) + "\n"})
+			restored := refreshRestoredMarker(unsanitizeFromComment(carcass.inner), named)
+			*ops = append(*ops, spliceOp{start: carcass.start, end: carcass.end, text: restored + "\n"})
 			return
 		}
 		queueNewConst(addedConsts, named)
@@ -173,6 +179,31 @@ func refreshMarker(ops *[]spliceOp, raw []byte, existing *constEntry, named enri
 	}
 	// No existing marker — insert one just before the `export`/`const` keyword.
 	*ops = append(*ops, spliceOp{start: existing.tokenStart, end: existing.tokenStart, text: desired})
+}
+
+// refreshRestoredMarker rewrites the leading @rtType/@rtIds marker of a carcass's
+// restored const text to the desired (id, child-id map) — the in-string analogue
+// of refreshMarker, used on restore where the const is spliced whole (not yet
+// indexed) so refreshMarker's offset-based path cannot run. The marker block is
+// located by markerBlockRange over the leading trivia (bounded to before the
+// `export`/`const` keyword so a body token can't match). A marker-free const, or a
+// desired with no structural id, is returned unchanged.
+func refreshRestoredMarker(inner string, named enrich.NamedConst) string {
+	desired := MarkerComment(named.TypeName, named.TypeID, named.ChildIDs)
+	if desired == "" {
+		return inner
+	}
+	tokenStart := len(inner)
+	if at := strings.Index(inner, "export const"); at >= 0 {
+		tokenStart = at
+	} else if at := strings.Index(inner, "const "); at >= 0 {
+		tokenStart = at
+	}
+	start, end := markerBlockRange(inner, 0, tokenStart)
+	if start == end {
+		return inner // no @rtType marker to refresh (hand-authored, marker-free)
+	}
+	return inner[:start] + desired + inner[end:]
 }
 
 // findExistingConst returns the existing const with the given var name, or nil.
@@ -229,6 +260,7 @@ const constMatchThreshold = 0.5
 // that could mis-attribute an authored value to the wrong renamed type. Consts
 // with no id never pair (no graph to score).
 func computeConstRenames(index *Index, spec Spec) []constRename {
+	refLinks := buildReferentialLinks(index, spec)
 	var renames []constRename
 	for _, friendly := range []bool{true, false} {
 		if friendly && !spec.WantFriendly {
@@ -261,16 +293,56 @@ func computeConstRenames(index *Index, spec Spec) []constRename {
 			}
 			adds = append(adds, named)
 		}
-		renames = append(renames, pairRenames(drops, adds, friendly)...)
+		renames = append(renames, pairRenames(drops, adds, friendly, refLinks)...)
 	}
 	return renames
+}
+
+// buildReferentialLinks maps an old child-type id to the set of new child-type ids
+// a parent field REPOINTED to: for every field path present in both an existing
+// const and its desired counterpart (keyed by the form-independent parent TYPE
+// NAME so a non-renamed parent matches across the pass), when the recorded child id
+// CHANGED, record old→new. That repointing is concrete evidence the old child type
+// became the new one — the only signal that survives a NOMINAL rename (an enum,
+// whose id is name-dependent and whose const carries no field graph to score). A
+// parent that is ITSELF renamed has a different type name on each side, so its key
+// never matches and the link is not recorded (safe: no stable anchor → fall
+// through). Same-id fields (a structural rename keeps its id) are skipped — those
+// already pair via the whole-graph-id fast path.
+func buildReferentialLinks(index *Index, spec Spec) map[string]map[string]bool {
+	existingFieldChild := map[string]string{}
+	for _, entry := range index.consts {
+		if entry.typeName == "" {
+			continue
+		}
+		for path, childID := range entry.childIDs {
+			existingFieldChild[entry.typeName+"|"+path] = childID
+		}
+	}
+	links := map[string]map[string]bool{}
+	for _, named := range spec.Consts {
+		if named.TypeName == "" {
+			continue
+		}
+		for path, newID := range named.ChildIDs {
+			oldID, ok := existingFieldChild[named.TypeName+"|"+path]
+			if !ok || oldID == "" || newID == "" || oldID == newID {
+				continue
+			}
+			if links[oldID] == nil {
+				links[oldID] = map[string]bool{}
+			}
+			links[oldID][newID] = true
+		}
+	}
+	return links
 }
 
 // pairRenames selects the strict mutual-best (drop, add) pairs above the match
 // threshold. A pair is a rename iff `add` is the unique highest-scoring add for
 // `drop` AND `drop` is the unique highest-scoring drop for `add` — any tie at
 // either maximum leaves the pair unselected (ambiguous → safe fall-through).
-func pairRenames(drops []*constEntry, adds []enrich.NamedConst, friendly bool) []constRename {
+func pairRenames(drops []*constEntry, adds []enrich.NamedConst, friendly bool, refLinks map[string]map[string]bool) []constRename {
 	if len(drops) == 0 || len(adds) == 0 {
 		return nil
 	}
@@ -278,7 +350,7 @@ func pairRenames(drops []*constEntry, adds []enrich.NamedConst, friendly bool) [
 	for i, drop := range drops {
 		score[i] = make([]float64, len(adds))
 		for k, add := range adds {
-			score[i][k] = constSimilarity(drop, add)
+			score[i][k] = constSimilarity(drop, add, refLinks)
 		}
 	}
 	var renames []constRename
@@ -322,15 +394,26 @@ func strictArgmax(values []float64) (int, bool) {
 // constSimilarity scores how likely a dropped existing const was RENAMED into an
 // added desired const, by GRAPH PARITY rather than whole-graph id alone. A shared
 // whole-graph TypeID (the graph is identical, only the name moved) is a perfect
-// 1.0 fast path. Otherwise the score blends two overlaps of the consts' top-level
-// fields: their NAMES (the human-stable skeleton that survives a reshape) and
-// their name+child-id pairs (precision: a field counts as "the same" only when
-// its child type also matches). The blend keeps a renamed-and-grown type (fields
-// kept, some added) well above the threshold while a coincidental field-name
-// collision between unrelated types (no id agreement) stays below it.
-func constSimilarity(existing *constEntry, desired enrich.NamedConst) float64 {
+// 1.0 fast path. A REFERENTIAL link — a parent field that repointed from this
+// drop's id to this add's id (refLinks) — is also a 1.0: it is the only signal
+// that survives a NOMINAL rename (an enum, whose id changes with its name and
+// whose const has no field graph to score). Otherwise the score blends two
+// overlaps of the consts' top-level fields: their NAMES (the human-stable skeleton
+// that survives a reshape) and their name+child-id pairs (precision: a field
+// counts as "the same" only when its child type also matches). The blend keeps a
+// renamed-and-grown type (fields kept, some added) well above the threshold while
+// a coincidental field-name collision between unrelated types (no id agreement)
+// stays below it. Every 1.0 still passes through pairRenames' strict mutual-best,
+// so an ambiguous repoint (the same drop linked to two adds) ties and falls
+// through rather than guessing.
+func constSimilarity(existing *constEntry, desired enrich.NamedConst, refLinks map[string]map[string]bool) float64 {
 	if existing.typeID != "" && existing.typeID == desired.TypeID {
 		return 1.0
+	}
+	if existing.typeID != "" && desired.TypeID != "" {
+		if news := refLinks[existing.typeID]; news[desired.TypeID] {
+			return 1.0
+		}
 	}
 	names := diceOverlap(topLevelNames(existing.childIDs), topLevelNames(desired.ChildIDs))
 	pairs := diceOverlap(topLevelPairs(existing.childIDs), topLevelPairs(desired.ChildIDs))

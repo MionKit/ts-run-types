@@ -248,9 +248,10 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
         // demote a label (a same-shape sibling makes the match ambiguous → safe
         // fall-through; renaming a field inside a RECURSIVE type changes that type's id,
         // so a self-referencing field's element type "changes" and correctly
-        // re-scaffolds; a nominal enum rename has no field graph to score). Those are
-        // covered by NL (nothing lost, carcass preserves it), not asserted as a live
-        // carry — see docs/todos/reconcile-nominal-rename-carry.md.
+        // re-scaffolds; a nominal enum rename carries via the referential signal but
+        // is asserted by Go tests, not here). Those are covered by NL (nothing lost,
+        // carcass preserves it), not asserted as a live carry — see
+        // docs/done/reconcile-nominal-rename-carry.md.
         if (result.op.startsWith('renameRoot')) {
           const liveBefore = liveSentinels(before, sentinels);
           const liveAfter = liveSentinels(after, sentinels);
