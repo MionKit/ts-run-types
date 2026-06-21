@@ -354,6 +354,10 @@ func emitIndexSignatureRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v
 		return RTCode{Code: "", Type: CodeS}
 	}
 	body := "for (const " + keyVar + " in " + v + ") {"
+	// Skip declared sibling keys — they own their own decode (G1). Without this
+	// a `number` prop decoded under a `[k: number]: bigint` index becomes a
+	// bigint on the wire round-trip.
+	body += siblingNamedSkipCode(rt, ctx, keyVar)
 	if keyRegexVar != "" {
 		body += "if (!" + keyRegexVar + ".test(" + keyVar + ")) continue;"
 	}
