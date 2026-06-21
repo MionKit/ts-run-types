@@ -1,5 +1,38 @@
 # Binary encoder buffer sizing — strategy, current fix, and next steps
 
+## ⏳ Pending (as of 2026-06-21)
+
+The "fix shipped now" portion is fully landed (Welford mean + kσ prediction,
+in-place geometric grow with prefix preservation, `reserveForString`, all
+serializer writers reserve first, the streamlined backstop retry loop, and the
+`binaryEncoderResize.test.ts` regression test). The following deferred items are
+**not yet implemented**:
+
+- **Container-boundary capacity reservation in the Go emitter (the headline next
+  step).** `ensureCapacity` is still `private` in `dataView.ts` with no Go
+  callers; `binary_to.go` / `union_flat_binary.go` still emit inline
+  scalar/framing writes (length prefixes, optional-bitmap zero-loop, union tags)
+  with no per-container reserve. The backstop retry loop has NOT been retired.
+- **Buffer pooling per `cacheKey`** — a fresh `ArrayBuffer` is still allocated on
+  every encode.
+- **Forgetting/decaying statistics for regime shifts** — `recordObservedSize`
+  still keeps an unbiased all-observations Welford accumulator only.
+- **Streaming-quantile (p99) prediction** (P²/t-digest) — not present.
+- **Lower the 16 MiB cold-start default** — `defaultBufferSize` is still
+  `2 ** 24` (blocked on container reservation covering all write paths).
+- **Two-pass measure-then-allocate opt-in** — not present.
+- **Encoder instrumentation** (backstop hit-rate, bytes wasted) to drive the
+  data-led decisions on #3/#4/#6 — not present.
+- **Docs not updated:** no "buffer sizing" paragraph in
+  `container-website/content/2.guide/3.serialization.md`; no rewrite-mechanics
+  note in `docs/ARCHITECTURE.md`; no cross-links to the plugin-config / benchmark
+  pages once those land.
+
+Detail on each is in the **Deferred improvements** and **Documentation impact**
+sections below.
+
+---
+
 **Status:** partially improved (this PR). Welford prediction + in-place grow for
 the serializer's own writers landed; container-boundary reservation in the Go
 emitter is the remaining work, tracked below.
