@@ -102,6 +102,18 @@ The website only needs **podman**; the benchmarks additionally need **Node + pnp
 
 > **Agents:** start the website with `scripts/website.sh dev --isAgent` (not plain `dev`). It runs in a separate container (`tsrt-website-agent`) on the reserved port **`:3100`** and self-stops after ~5 min idle, so an agent-driven server never collides with a human's `:3000` and never lingers. Hot-reload polling auto-enables on macOS; force it anywhere with `WEBSITE_POLL=1`.
 
+### Playground (in-browser WASM, POC)
+
+The docs site has an interactive **playground** page (`/playground`) that resolves a TypeScript type to its RunType graph entirely in the browser, with no server round-trip. The resolver is cross-compiled to WebAssembly and served as a static asset.
+
+Build the WASM **on the host** (the container is Node-only) before running the site:
+
+```
+bash container-website/scripts/build-playground.sh
+```
+
+It compiles `cmd/ts-runtypes-wasm` with `GOOS=js GOARCH=wasm` and stages `ts-runtypes.wasm` + Go's `wasm_exec.js` into `container-website/public/playground/` (git-ignored, reproducible). Because `public/` is bind-mounted into the container, the staged files ride into both the dev server and the production build. The editor uses CodeMirror 6 (added to `container-website/_deps/`); rerun the build script whenever the resolver changes.
+
 ### Website needs the packages it documents (repo context)
 
 The docs site documents the runtime packages: its `<code-import>` and `::twoslash-code` mechanisms read first-party source + built `.d.ts` from `packages/` at build/dev time. Those packages may live in a separate checkout. `scripts/website.sh` mounts that checkout **read-only** into the container and points the resolvers at it via `RT_REPO_ROOT` — so the website is **merge-agnostic** (works whether the packages sit in a sibling checkout today or get merged into this repo; only the env value changes).

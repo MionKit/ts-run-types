@@ -45,6 +45,10 @@ logs
 # Regenerated on every build; container-benchmarks/_deps/ stays the source of truth.
 .bench-deps/
 
+# Playground WASM POC — built on the host by scripts/build-playground.sh and
+# served from public/. Large + reproducible; never committed.
+/public/playground/
+
 # Generated docs data — suite/benchmark result JSON the tables fetch at runtime.
 # Produced locally by `pnpm run gen:suite-docs` / `pnpm run gen:bench-docs`
 # (Go binary + benchmark harness); a run output, not something we version.
