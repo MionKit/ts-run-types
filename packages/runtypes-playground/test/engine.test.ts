@@ -1,5 +1,5 @@
 import {beforeAll, describe, expect, it} from 'vitest';
-import {generatedModules, mock, run, setResolver, versions} from '../src/core/index.ts';
+import {generatedModules, mock, mockInvalid, run, setResolver, versions} from '../src/core/index.ts';
 import {assetsBuilt, loadNodeResolver} from './nodeResolver.ts';
 
 // End-to-end engine tests: each resolves <factory><MyType>() via the real WASM
@@ -78,6 +78,44 @@ describeIf('playground engine (WASM, live execution)', () => {
     const ok = await run('validate', TYPE, m.value);
     if (ok.kind !== 'predicate') throw new Error('expected predicate result');
     expect(ok.value).toBe(true);
+  });
+
+  it('mockInvalid (negative generator) produces values that fail validation', async () => {
+    for (let i = 0; i < 8; i++) {
+      const m = await mockInvalid(TYPE);
+      const res = await run('validate', TYPE, m.value);
+      if (res.kind !== 'predicate') throw new Error('expected predicate result');
+      expect(res.value).toBe(false);
+    }
+  });
+
+  it('mockInvalid leafProbability biases leaf (1) vs root (0) corruption', async () => {
+    // leafProbability=1 corrupts a deep leaf, so the root object survives.
+    const leaf = await mockInvalid(TYPE, undefined, 'type', 1);
+    expect(leaf.value).toBeTypeOf('object');
+    const leafRes = await run('validate', TYPE, leaf.value);
+    if (leafRes.kind !== 'predicate') throw new Error('expected predicate result');
+    expect(leafRes.value).toBe(false);
+
+    // leafProbability=0 replaces the whole root with a wrong-typed value.
+    const root = await mockInvalid(TYPE, undefined, 'type', 0);
+    expect(root.value).not.toBeTypeOf('object');
+    const rootRes = await run('validate', TYPE, root.value);
+    if (rootRes.kind !== 'predicate') throw new Error('expected predicate result');
+    expect(rootRes.value).toBe(false);
+  });
+
+  it('mockInvalid works in the value-first schema form (mode: schema)', async () => {
+    const schema = `const MyType = RT.object({
+      id: TF.number(),
+      name: TF.string(),
+      tags: RT.array(TF.string()),
+      active: RT.boolean(),
+    });`;
+    const m = await mockInvalid(schema, undefined, 'schema');
+    const res = await run('validate', schema, m.value, undefined, 'schema');
+    if (res.kind !== 'predicate') throw new Error('expected predicate result');
+    expect(res.value).toBe(false);
   });
 
   it('generatedModules returns the generated code per family', async () => {
