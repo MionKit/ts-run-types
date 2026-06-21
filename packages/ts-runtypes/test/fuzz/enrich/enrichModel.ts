@@ -39,6 +39,7 @@ interface Authored {
 }
 
 export interface Model {
+  typeName: string; // the source interface's name — the "user" can rename it
   fields: Map<string, FieldType>;
   authored: Map<string, Authored>; // live fields' authored tokens
   removed: Map<string, {type: FieldType; authored: Authored}>; // carcassed fields
@@ -48,10 +49,16 @@ export interface Model {
 export const TYPE_NAME = 'User';
 const MAX_FIELDS = 6;
 const NAME_POOL = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'];
+// PascalCase type names the renameType command swaps between. Deliberately none is
+// a substring of another (so a `friendly<Name>` includes-check is unambiguous) and
+// none overlaps a field name (NAME_POOL is lowercase) — the rename oracle keys on
+// the distinctive `friendly<Name>` / `mock<Name>` const tokens.
+const TYPE_NAME_POOL = [TYPE_NAME, 'Account', 'Person', 'Customer', 'Member', 'Profile'];
 const TYPES: FieldType[] = ['string', 'number', 'boolean'];
 
 export function initialModel(): Model {
   return {
+    typeName: TYPE_NAME,
     fields: new Map<string, FieldType>([
       ['alpha', 'string'],
       ['bravo', 'number'],
@@ -64,7 +71,7 @@ export function initialModel(): Model {
 
 export function renderSource(model: Model): string {
   const body = [...model.fields].map(([name, type]) => `${name}: ${type}`).join('; ');
-  return `export interface ${TYPE_NAME} { ${body} }\n`;
+  return `export interface ${model.typeName} { ${body} }\n`;
 }
 
 // --- small helpers -------------------------------------------------------------
@@ -124,8 +131,15 @@ function preservationOr(model: Model, mirror: string, except: string, command: s
 }
 
 /** R1/R6 — a second `--update` must be byte-identical to the first result. **/
-function convergenceOr(fixture: ReconcileFixture, firstMirror: string, command: string, ctx: Ctx, out: EnrichViolation[]): void {
-  const again = update(fixture, TYPE_NAME);
+function convergenceOr(
+  fixture: ReconcileFixture,
+  typeName: string,
+  firstMirror: string,
+  command: string,
+  ctx: Ctx,
+  out: EnrichViolation[]
+): void {
+  const again = update(fixture, typeName);
   if (!controlledOr(again, command, ctx, out)) return;
   const second = readMirror(fixture);
   if (second !== firstMirror)
@@ -156,7 +170,7 @@ const addField: Command = {
     const type = pick(TYPES, rng);
     model.fields.set(name, type);
     setSource(ctx.fixture, renderSource(model));
-    const result = update(ctx.fixture, TYPE_NAME);
+    const result = update(ctx.fixture, model.typeName);
     if (!controlledOr(result, this.name, ctx, out)) return out;
     const mirror = readMirror(ctx.fixture);
     // R2 (add): the new field gets a fresh scaffold node in BOTH consts.
@@ -166,7 +180,7 @@ const addField: Command = {
       out.push(v('R2', this.name, ctx, `added field \`${name}\` has no mock scaffold node`));
     // R3 (others untouched) + R6 (fixed point).
     preservationOr(model, mirror, name, this.name, ctx, out);
-    convergenceOr(ctx.fixture, mirror, this.name, ctx, out);
+    convergenceOr(ctx.fixture, model.typeName, mirror, this.name, ctx, out);
     return out;
   },
 };
@@ -233,7 +247,7 @@ const removeField: Command = {
     model.authored.delete(name);
     model.removed.set(name, {type, authored});
     setSource(ctx.fixture, renderSource(model));
-    const result = update(ctx.fixture, TYPE_NAME);
+    const result = update(ctx.fixture, model.typeName);
     if (!controlledOr(result, this.name, ctx, out)) return out;
     const mirror = readMirror(ctx.fixture);
     // R7a: a removed field with an authored value becomes an @rtOrphanChild
@@ -254,7 +268,7 @@ const removeField: Command = {
         out.push(v('R7a', this.name, ctx, `removed field \`${name}\` lost its authored pool (${authored.poolToken})`));
     }
     preservationOr(model, mirror, name, this.name, ctx, out);
-    convergenceOr(ctx.fixture, mirror, this.name, ctx, out);
+    convergenceOr(ctx.fixture, model.typeName, mirror, this.name, ctx, out);
     return out;
   },
 };
@@ -275,7 +289,7 @@ const renameField: Command = {
     model.authored.delete(oldName);
     if (authored) model.authored.set(newName, authored);
     setSource(ctx.fixture, renderSource(model));
-    const result = update(ctx.fixture, TYPE_NAME);
+    const result = update(ctx.fixture, model.typeName);
     if (!controlledOr(result, this.name, ctx, out)) return out;
     const mirror = readMirror(ctx.fixture);
     // Rename carries the authored value under the new key (proven: rename tests).
@@ -284,7 +298,46 @@ const renameField: Command = {
     if (authored?.poolToken && !mirror.includes(authored.poolToken))
       out.push(v('R2', this.name, ctx, `rename ${oldName}→${newName} LOST the authored pool (${authored.poolToken})`));
     preservationOr(model, mirror, newName, this.name, ctx, out);
-    convergenceOr(ctx.fixture, mirror, this.name, ctx, out);
+    convergenceOr(ctx.fixture, model.typeName, mirror, this.name, ctx, out);
+    return out;
+  },
+};
+
+// renameType is the "user renames the whole interface" event — the edit that
+// uncovered the overlapping-splice crash by hand. A big interface keeps its full
+// authored tree (every label + pool); the reconcile must carry that tree to the
+// new `friendly<New>` / `mock<New>` consts and leave NO `friendly<Old>` carcass.
+// Pre-fix this either crashed ("overlapping splice ops — internal error", caught
+// by R10 via the tightened isControlled) or left a stale old-name tree (caught by
+// the R2 stale-const check below).
+const renameType: Command = {
+  name: 'renameType',
+  canApply: (m) => TYPE_NAME_POOL.some((n) => n !== m.typeName),
+  apply(model, ctx, rng) {
+    const out: EnrichViolation[] = [];
+    const oldName = model.typeName;
+    const newName = pick(
+      TYPE_NAME_POOL.filter((n) => n !== oldName),
+      rng
+    );
+    model.typeName = newName;
+    setSource(ctx.fixture, renderSource(model));
+    const result = update(ctx.fixture, newName);
+    if (!controlledOr(result, this.name, ctx, out)) return out;
+    const mirror = readMirror(ctx.fixture);
+    // R2 (rename type): the consts move to the new name, with NO stale old-name
+    // tree left behind (a stale tree is the orphan-carcass / overlapping-splice bug).
+    if (!mirror.includes(`friendly${newName}`))
+      out.push(v('R2', this.name, ctx, `rename type ${oldName}→${newName}: no friendly${newName} const emitted`));
+    if (!mirror.includes(`mock${newName}`))
+      out.push(v('R2', this.name, ctx, `rename type ${oldName}→${newName}: no mock${newName} const emitted`));
+    if (mirror.includes(`friendly${oldName}`))
+      out.push(v('R2', this.name, ctx, `rename type ${oldName}→${newName} left a stale friendly${oldName} tree behind`));
+    if (mirror.includes(`mock${oldName}`))
+      out.push(v('R2', this.name, ctx, `rename type ${oldName}→${newName} left a stale mock${oldName} tree behind`));
+    // R3: renaming the TYPE keeps every field's authored leaf — nothing is excepted.
+    preservationOr(model, mirror, '', this.name, ctx, out);
+    convergenceOr(ctx.fixture, newName, mirror, this.name, ctx, out);
     return out;
   },
 };
@@ -292,12 +345,12 @@ const renameField: Command = {
 const idempotenceProbe: Command = {
   name: 'idempotence',
   canApply: () => true,
-  apply(_model, ctx, _rng) {
+  apply(model, ctx, _rng) {
     const out: EnrichViolation[] = [];
-    const r1 = update(ctx.fixture, TYPE_NAME);
+    const r1 = update(ctx.fixture, model.typeName);
     if (!controlledOr(r1, this.name, ctx, out)) return out;
     const first = readMirror(ctx.fixture);
-    const r2 = update(ctx.fixture, TYPE_NAME);
+    const r2 = update(ctx.fixture, model.typeName);
     if (!controlledOr(r2, this.name, ctx, out)) return out;
     const second = readMirror(ctx.fixture);
     if (first !== second) out.push(v('R1', this.name, ctx, 'two consecutive --update runs were NOT byte-identical'));
@@ -393,6 +446,7 @@ export const COMMANDS: Command[] = [
   authorMock,
   removeField,
   renameField,
+  renameType,
   idempotenceProbe,
   pruneProbe,
   unknownMockField,
@@ -406,7 +460,7 @@ export function bootstrap(fixture: ReconcileFixture, seed: number): {model: Mode
   const model = initialModel();
   setSource(fixture, renderSource(model));
   const out: EnrichViolation[] = [];
-  const result = scaffold(fixture, TYPE_NAME);
+  const result = scaffold(fixture, model.typeName);
   controlledOr(result, 'scaffold', {fixture, seed, step: -1}, out);
   return {model, violations: out};
 }
