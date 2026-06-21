@@ -159,20 +159,21 @@ Fix — pass an existing value of the desired type:
 
   CTA001: {
     headline:
-      '`CompTimeArgs<T>` argument must be a literal at the call site, or a module-scope `const` whose initializer is itself entirely literal.',
+      '`CompTimeArgs<T>` argument must be a literal at the call site, or a `const` whose initializer is itself entirely literal (a same-module or imported `const` both work).',
     detail: `The build resolves the argument before running, so it needs to read its
-value from the source. Identifiers from other modules, function-call
-results, property accesses, and \`let\`/\`var\` bindings can't be
-evaluated at build time. Only inline literals and module-scope \`const\`
-bindings whose initializer is itself fully literal are accepted.
+value from the source. Function-call results, property accesses, ternary
+expressions, and \`let\`/\`var\` bindings can't be evaluated at build time.
+Accepted: an inline literal, or a \`const\` whose initializer is itself
+fully literal — including a \`const\` imported from another module. (An
+object \`const\` must be \`as const\` so its members stay literal; see CTA004.)
 
 Fix — inline at the call site:
 -  const opts = getOpts();
 -  const isUser = createValidate<User>(undefined, opts);
 +  const isUser = createValidate<User>(undefined, {mode: 'unsafe'});
 
-Fix — use a module-scope const of literals:
-  const opts = {mode: 'unsafe'};            // literal initializer ✓
+Fix — use a const of literals (here or in another module):
+  const opts = {mode: 'unsafe'} as const;   // literal initializer ✓
   const isUser = createValidate<User>(undefined, opts);`,
   },
 
@@ -205,22 +206,55 @@ a dynamic value, or a shape mismatch:
   -  const a = {...[1, 2], mode: 'unsafe'};          // object spread of an array`,
   },
 
+  CTA004: {
+    headline:
+      '`CompTimeArgs<T>` value comes from a `const` with a widened (non-literal) member ({0}) — declare the const `as const`.',
+    detail: `A \`const\` used as a CompTimeArgs / CompTimeFnArgs argument (a whole option
+bag, or a builder child) must carry LITERAL value types, so the value the
+build reads matches the type TypeScript resolves the call against. Without
+\`as const\`, an object literal's members widen — \`{strategy: 'mutate'}\`
+becomes \`{strategy: string}\` — which can let the type system select one
+function variant while the build injects another.
+
+Whole imported consts now resolve cross-module (like a spread fragment), so
+this rule keeps that path sound.
+
+Fix — add \`as const\`:
+-  const preset = {strategy: 'mutate'};
++  const preset = {strategy: 'mutate'} as const;
+   createJsonEncoder(undefined, preset);`,
+  },
+
   PFN001: {
     headline:
       '`PureFunction<F>` argument must be an inline arrow or function expression (or a module-scope `const` initialized to one).',
     detail: `The build inlines / AOT-compiles the function body, so it needs to see
-the literal definition at the call site. Imported functions, function
-calls that return a function, and \`let\` / \`var\` bindings can't be
-followed.
+the literal definition at the call site. Function calls that return a
+function, and \`let\` / \`var\` bindings can't be followed. (An imported or
+exported literal is rejected separately as PFN002.)
 
 Fix — inline the function at the call site:
--  import {validate} from './validators';
--  registerValidator(validate);
 +  registerValidator((v) => typeof v === 'string');
 
 Fix — use a module-scope const initialized to a function literal:
   const validate = (v: unknown) => typeof v === 'string';
   registerValidator(validate);`,
+  },
+
+  PFN002: {
+    headline: '`PureFunction<F>` literal must not be imported or exported — the compiled copy must be the only one that can run.',
+    detail: `The build extracts and AOT-compiles the function body, and the compiled
+copy is the single source of truth. If the original literal stays reachable
+as a value — imported from another module, or exported so another module can
+import it — a caller could invoke the un-compiled function and diverge from
+the compiled behaviour.
+
+Fix — inline at the call site, or bind it to a module-private \`const\` /
+\`function\` that nothing imports or exports:
+-  import {validate} from './validators';   // imported — rejected
+-  export const validate = (v) => …;        // exported — rejected
++  const validate = (v: unknown) => typeof v === 'string';   // module-private — ok
+   registerValidator(validate);`,
   },
 
   MKR003: {
