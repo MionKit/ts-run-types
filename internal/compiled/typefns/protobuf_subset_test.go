@@ -61,7 +61,6 @@ func TestProtobuf_RootMustBeMessage(t *testing.T) {
 // --- in-subset messages ---------------------------------------------------
 
 func TestProtobuf_InSubset(t *testing.T) {
-	date := &protocol.RunType{Kind: protocol.KindClass, SubKind: protocol.SubKindDate}
 	mapStrNum := &protocol.RunType{Kind: protocol.KindClass, SubKind: protocol.SubKindMap, Children: []*protocol.RunType{
 		{Kind: protocol.KindString, SubKind: protocol.SubKindMapKey},
 		{Kind: protocol.KindNumber, SubKind: protocol.SubKindMapValue},
@@ -80,7 +79,6 @@ func TestProtobuf_InSubset(t *testing.T) {
 		{"nested message", pbMsg(pbProp("inner", false, pbMsg(pbProp("x", false, pbNumber()))))},
 		{"repeated scalar", pbMsg(pbProp("tags", false, &protocol.RunType{Kind: protocol.KindArray, Child: pbString()}))},
 		{"repeated message", pbMsg(pbProp("items", false, &protocol.RunType{Kind: protocol.KindArray, Child: pbMsg(pbProp("x", false, pbNumber()))}))},
-		{"date -> timestamp", pbMsg(pbProp("created", false, date))},
 		{"map<string,number>", pbMsg(pbProp("counts", false, mapStrNum))},
 		{"set<number>", pbMsg(pbProp("ids", false, setNum))},
 		{"record field -> map", pbMsg(pbProp("meta", false, recordField))},
@@ -122,6 +120,8 @@ func TestProtobuf_OutOfSubset(t *testing.T) {
 		{"mixed union", pbMsg(pbProp("v", false, &protocol.RunType{Kind: protocol.KindUnion, Children: []*protocol.RunType{pbString(), pbMsg(pbProp("a", false, pbNumber()))}})), "v"},
 		{"message union (oneof deferred)", pbMsg(pbProp("v", false, &protocol.RunType{Kind: protocol.KindUnion, Children: []*protocol.RunType{pbMsg(pbProp("a", false, pbNumber())), pbMsg(pbProp("b", false, pbString()))}})), "v"},
 		{"heterogeneous scalar union", pbMsg(pbProp("v", false, &protocol.RunType{Kind: protocol.KindUnion, Children: []*protocol.RunType{pbString(), pbNumber()}})), "v"},
+		{"date (wellknown deferred)", pbMsg(pbProp("created", false, &protocol.RunType{Kind: protocol.KindClass, SubKind: protocol.SubKindDate})), "created"},
+		{"enum (deferred)", pbMsg(pbProp("color", false, &protocol.RunType{Kind: protocol.KindEnum})), "color"},
 	}
 	for _, tc := range cases {
 		got := pbExpressible(tc.rt)

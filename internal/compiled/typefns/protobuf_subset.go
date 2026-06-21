@@ -146,7 +146,9 @@ func (c *protobufChecker) field(rt *protocol.RunType, path string) *subsetFault 
 		}
 		return &subsetFault{path, "bigint without a 64-bit (min/max) bound has no protobuf scalar"}
 	case protocol.KindEnum:
-		return nil
+		// protobuf enums are integer-only; numeric/string enum mapping is a
+		// follow-up increment.
+		return &subsetFault{path, "enums are not yet supported"}
 	case protocol.KindObjectLiteral:
 		if c.isPureIndexSignature(rt) {
 			return c.mapType(rt, path)
@@ -177,10 +179,11 @@ func (c *protobufChecker) classField(rt *protocol.RunType, path string) *subsetF
 	switch rt.SubKind {
 	case protocol.SubKindNone:
 		return c.message(rt, path)
-	case protocol.SubKindDate, protocol.SubKindTemporalInstant, protocol.SubKindTemporalZonedDateTime:
-		return nil // → google.protobuf.Timestamp
-	case protocol.SubKindTemporalDuration:
-		return nil // → google.protobuf.Duration
+	case protocol.SubKindDate, protocol.SubKindTemporalInstant, protocol.SubKindTemporalZonedDateTime,
+		protocol.SubKindTemporalDuration:
+		// Well-known types (Date/Temporal → Timestamp/Duration) are sub-messages;
+		// deferred to a follow-up increment alongside enums.
+		return &subsetFault{path, "Date / Temporal (protobuf well-known types) are not yet supported"}
 	case protocol.SubKindMap:
 		return c.mapClass(rt, path)
 	case protocol.SubKindSet:
