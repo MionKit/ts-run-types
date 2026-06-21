@@ -13,7 +13,7 @@
 #
 # Usage:
 #   scripts/podman-website.sh build-image   # build (or rebuild) the image, host-native
-#   scripts/podman-website.sh ensure        # make the image ready (pull-or-build), no run
+#   scripts/podman-website.sh ensure        # make image ready: reuse local if it matches the published digest, else pull-or-build
 #   scripts/podman-website.sh login         # log in to GHCR (uses GHCR_PAT / GHCR_PAT_FILE)
 #   scripts/podman-website.sh push          # build + push the multi-arch image to GHCR
 #   scripts/podman-website.sh pull          # pull the published image and tag it locally
@@ -129,14 +129,44 @@ build_image() {
   ( cd "$WEBSITE_DIR" && "$ENGINE" build --platform "linux/$(host_arch)" ${net[@]+"${net[@]}"} ${BUILD_ARG_FLAGS[@]+"${BUILD_ARG_FLAGS[@]}"} -t "$IMAGE" -f Containerfile . )
 }
 
-# Make the working image ready. DEFAULT: pull the latest published image from GHCR
-# (so a run always uses the current published deps), falling back to an existing
-# local image, then to a local build, when the registry is unreachable.
-# WEBSITE_USE_LOCAL=1 skips the pull and uses a locally-built image (maintainer /
-# offline loop) with the manifest-staleness rebuild.
+# Extract the host-arch image-manifest digest from an OCI index / manifest list on
+# stdin (the JSON `podman manifest inspect` prints). Empty when the host arch can't
+# be determined or is absent from the index. Pure text parsing, no network.
+host_arch_digest_from_index() {
+  local arch
+  arch="$("$ENGINE" info --format '{{.Host.Arch}}' 2>/dev/null)" || arch=""
+  [ -n "$arch" ] || return 0
+  awk -v arch="$arch" '
+    $1 == "\"digest\":"       { d = $2; gsub(/[",]/, "", d) }
+    $1 == "\"architecture\":" { a = $2; gsub(/[",]/, "", a); if (a == arch) { print d; exit } }
+  '
+}
+
+# Make the working image ready. DEFAULT: use the published GHCR image, but SKIP the
+# pull when the local image is ALREADY that image - compare the local image's digest
+# to the remote tag's digest for this arch, read as a manifest/index only (KBs, NO
+# layer download). Pull only when the local image is missing or not the published
+# latest; fall back to an existing local image when the registry is unreachable, then
+# to a local build. WEBSITE_USE_LOCAL=1 skips the registry entirely and uses a
+# locally-built image (maintainer / offline loop) with the manifest-staleness rebuild.
 ensure_image() {
   require_engine
   if [ -n "${WEBSITE_USE_LOCAL:-}" ]; then ensure_image_local; return; fi
+  if "$ENGINE" image exists "$IMAGE" 2>/dev/null; then
+    local index local_digest remote_digest
+    index="$("$ENGINE" manifest inspect "$REMOTE_IMAGE" 2>/dev/null || true)"
+    if [ -z "$index" ]; then
+      echo "==> registry unreachable - using existing local image $IMAGE (no pull)" >&2
+      return
+    fi
+    local_digest="$("$ENGINE" image inspect "$IMAGE" --format '{{.Digest}}' 2>/dev/null || true)"
+    remote_digest="$(printf '%s\n' "$index" | host_arch_digest_from_index)"
+    if [ -n "$local_digest" ] && [ "$local_digest" = "$remote_digest" ]; then
+      echo "==> local image $IMAGE already matches published $REMOTE_IMAGE ($remote_digest) - skipping pull" >&2
+      return
+    fi
+    echo "==> local image is not the published latest - pulling $REMOTE_IMAGE" >&2
+  fi
   if ghcr_try_pull_retag "$REMOTE_IMAGE" "$IMAGE"; then return; fi
   if "$ENGINE" image exists "$IMAGE" 2>/dev/null; then
     echo "==> using existing local image $IMAGE" >&2; return
