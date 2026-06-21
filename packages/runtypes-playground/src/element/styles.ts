@@ -10,9 +10,9 @@ export const STYLES = `
   --rtpg-err: #e3534f; --rtpg-warn: #d9a441;
   --rtpg-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --rtpg-sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  display: block; background: var(--rtpg-bg); color: var(--rtpg-text);
+  display: block; position: relative; background: var(--rtpg-bg); color: var(--rtpg-text);
   font-family: var(--rtpg-sans); font-size: 14px; border: 1px solid var(--rtpg-border);
-  border-radius: 10px; overflow: hidden;
+  border-radius: 10px; overflow: hidden; min-height: 460px;
 }
 .rt-playground * { box-sizing: border-box; }
 .rt-playground .rtpg-layout { display: grid; grid-template-columns: 1.1fr 0.9fr 1.1fr; gap: 1px; background: var(--rtpg-border); min-height: 460px; }
@@ -90,4 +90,14 @@ export const STYLES = `
 .rt-playground .rtpg-spinner { width: 15px; height: 15px; border: 2px solid var(--rtpg-border); border-top-color: var(--rtpg-accent); border-radius: 50%; animation: rtpg-spin 0.7s linear infinite; }
 @keyframes rtpg-spin { to { transform: rotate(360deg); } }
 .rt-playground .rtpg-card-note { color: var(--rtpg-muted); font-size: 12.5px; font-style: italic; }
+
+/* Loading overlay: covers the whole playground until Monaco + the resolver WASM
+   are ready (they are fetched lazily, so this is the visible loading state). */
+.rt-playground .rtpg-overlay { position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: var(--rtpg-bg); }
+.rt-playground .rtpg-overlay[hidden] { display: none; }
+.rt-playground .rtpg-overlay-box { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; max-width: 380px; padding: 24px; }
+.rt-playground .rtpg-spinner-lg { width: 28px; height: 28px; border-width: 3px; }
+.rt-playground .rtpg-overlay-title { font-size: 15px; font-weight: 600; color: var(--rtpg-text); }
+.rt-playground .rtpg-overlay-sub { font-size: 12.5px; color: var(--rtpg-muted); line-height: 1.5; }
+.rt-playground .rtpg-overlay-err { color: var(--rtpg-err); font-family: var(--rtpg-mono); white-space: pre-wrap; text-align: left; }
 `;
