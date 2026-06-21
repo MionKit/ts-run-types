@@ -74,8 +74,8 @@ export const OPERATIONS: readonly Operation[] = [
     factory: 'getRunTypeId',
     fnKey: null,
     kind: 'graph',
-    label: 'getRunTypeId (RunType graph)',
-    blurb: 'Resolves the type and shows its RunType graph + id.',
+    label: 'getRunTypeId',
+    blurb: 'Resolves the type to its RunType id; the RunType graph is shown as the generated output.',
     needsInput: false,
   },
 ];
