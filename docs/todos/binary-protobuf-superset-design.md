@@ -1,5 +1,56 @@
 # Binary format as a Protocol Buffers superset — Design
 
+## Status — PAUSED (foundation complete, wire codec not built)
+
+**Decision (2026-06-24):** after building and proving the foundation (subset
+predicate, scalar selection, `bytes` mapping, field-number layout, field
+classifier, `.proto` generation, and the runtime wire primitives — 10 commits,
+all tested), the wire emitter and the remaining pillars are **paused** pending a
+concrete cross-language interop requirement.
+
+**Why.** Protocol Buffers is both **less efficient** and **more restricted** than
+this library's existing binary format for its actual use case:
+
+- *Less efficient.* Our format is positional and schema-derived — both ends know
+  the field layout from the type, so it writes zero field tags. Protobuf tags
+  every field, varint-encodes, length-frames every sub-message, and forces a
+  tag-dispatch decode loop. When both ends share the schema (the normal case for
+  this library's paired encoder/decoder), the bespoke format is smaller AND
+  faster.
+- *More restricted.* No tuples, no arbitrary unions, `oneof`/`enum`/`Date`
+  deferred, no `Map` with non-scalar keys, number-width caveats. The bespoke
+  format covers the whole TS type system; protobuf covers a subset of a subset.
+- *Narrow audience.* The JS ecosystem rarely reaches for protobuf (JSON
+  dominates; MessagePack for binary). Its value is **cross-language** interop,
+  almost always via gRPC in polyglot backends — an audience that is
+  **schema-first** (the `.proto` is the source of truth; they generate TS from it
+  with protobuf-es / ts-proto). This library is **types-first** (generate
+  `.proto` from TS), the reverse workflow, and a *subset* implementation is
+  exactly what makes a real protobuf user walk away.
+
+**The closed-world tell.** Every other serializer here is a paired round-trip
+(`createBinaryEncoder` / `createBinaryDecoder` only have to agree with each
+other). Under that closed-world assumption a bespoke format always wins; protobuf
+only earns its place talking to *someone else's* decoder.
+
+**Revival criteria.** Build the rest only if "be the bridge that lets a
+TS-primary team emit protobuf to a non-JS consumer WITHOUT adopting schema-first
+tooling" becomes a product pillar — and then do it **fully** (including `oneof` /
+`enum` / well-known `Timestamp` / `Duration`), because a partial protobuf is
+worse than none for that audience. The foundation is intact and revivable; the
+remaining work is the wire emitter (encode + the tag-driven decode loop), the
+`ProtoField<N>` marker, `ProtoBuff<T>` / `ProtoData<T>` types, the build-time
+Warning, the protobuf.js parity harness, and docs.
+
+**Salvageable now.** The `.proto` generator (`GenerateProto`) is complete and
+tested; it could ship as a standalone "export TS types as a `.proto` contract"
+feature (documentation / contract value) without the wire codec — a small,
+well-scoped follow-up if wanted.
+
+The full design below is kept intact for revival.
+
+---
+
 > Companion to [binary-protobuf-superset.md](binary-protobuf-superset.md) (the spec).
 > This doc resolves the spec's "Open questions" and is the contract the
 > implementation is built against. On ship, the protobuf ↔ TS mapping + subset
