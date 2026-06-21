@@ -25,6 +25,7 @@ import {mixSeed, withSeededRandom} from './seededRng.ts';
 import {genType, describeType, isRecursive, DEFAULT_GEN_OPTIONS, type GeneratedType, type GenOptions} from './typeGen.ts';
 import {genValidValue, validValue, corruptValue, valueOracleSafe} from './shapeValue.ts';
 import {compileType, openClient, renderFixture, type CompiledType, type WiredFns} from './typeFuzzHarness.ts';
+import {isValidTypeScript} from './tsValidate.ts';
 import {randomJunk} from './fuzzRunner.ts';
 import type {ResolverClient} from '../../../runtypes-devtools/src/resolver-client.ts';
 import type {RunType} from '../../src/runtypes/types.ts';
@@ -72,6 +73,17 @@ export interface TypeFuzzReport {
   iterations: number;
   seed: number;
   violations: Violation[];
+  /** How many generated types had violations that were DROPPED because the type
+   *  did not actually compile (invalid TypeScript). tsgo is lenient and still
+   *  produces a RunType for non-compilable input, so a violation there is a
+   *  false positive, not a pipeline bug. See the TS-validity gate in fuzzOneType. **/
+  skippedInvalidTypes: number;
+}
+
+/** Mutable counter threaded into fuzzOneType so the report can surface how many
+ *  false positives the TS-validity gate filtered. **/
+interface FuzzStats {
+  skippedInvalidTypes: number;
 }
 
 const DEFAULT_ITERATIONS = 60;
@@ -112,17 +124,18 @@ export async function runTypeFuzz(options: TypeFuzzOptions = {}): Promise<TypeFu
   const gen: GenOptions = {...DEFAULT_GEN_OPTIONS, ...options.gen};
   const valueSource = options.valueSource ?? 'shape';
   const violations: Violation[] = [];
+  const stats: FuzzStats = {skippedInvalidTypes: 0};
   const holder = new ClientHolder();
   let runs = 0;
   try {
     for (let i = 0; i < iterations; i++) {
       runs++;
-      await fuzzOneType(holder, mixSeed(seed, 'type', i), gen, valueSource, violations);
+      await fuzzOneType(holder, mixSeed(seed, 'type', i), gen, valueSource, violations, stats);
     }
   } finally {
     holder.close();
   }
-  return {runs, iterations, seed, violations};
+  return {runs, iterations, seed, violations, skippedInvalidTypes: stats.skippedInvalidTypes};
 }
 
 export async function runTypeFuzzForDuration(
@@ -134,6 +147,7 @@ export async function runTypeFuzzForDuration(
   const gen: GenOptions = {...DEFAULT_GEN_OPTIONS, ...options.gen};
   const valueSource = options.valueSource ?? 'shape';
   const violations: Violation[] = [];
+  const stats: FuzzStats = {skippedInvalidTypes: 0};
   const holder = new ClientHolder();
   let runs = 0;
   let round = 0;
@@ -142,14 +156,14 @@ export async function runTypeFuzzForDuration(
     while (Date.now() < deadline) {
       runs++;
       const before = violations.length;
-      await fuzzOneType(holder, mixSeed(seed, 'type', round), gen, valueSource, violations);
+      await fuzzOneType(holder, mixSeed(seed, 'type', round), gen, valueSource, violations, stats);
       if (onViolation) for (let k = before; k < violations.length; k++) onViolation(violations[k]);
       round++;
     }
   } finally {
     holder.close();
   }
-  return {runs, iterations: round, seed, violations};
+  return {runs, iterations: round, seed, violations, skippedInvalidTypes: stats.skippedInvalidTypes};
 }
 
 async function fuzzOneType(
@@ -157,13 +171,35 @@ async function fuzzOneType(
   seed: number,
   gen: GenOptions,
   valueSource: ValueSource,
-  out: Violation[]
+  out: Violation[],
+  stats: FuzzStats
 ): Promise<void> {
   const generated = withSeededRandom(seed, () => genType(gen));
+  const before = out.length;
   const compiled = await compileWithTimeout(holder, generated, seed, out);
-  if (!compiled) return; // timed out — violation recorded, client restarted
-  checkResolverTier(compiled, seed, out);
-  withSeededRandom(mixSeed(seed, 'value', 0), () => checkBehaviourTier(compiled, seed, out, valueSource));
+  if (compiled) {
+    checkResolverTier(compiled, seed, out);
+    withSeededRandom(mixSeed(seed, 'value', 0), () => checkBehaviourTier(compiled, seed, out, valueSource));
+  }
+  // TS-validity gate. A violation recorded for this type (compile hang, resolver/
+  // emit, or behaviour) is a FALSE POSITIVE when the generated type does not
+  // actually compile: tsgo is lenient and still produces a RunType for invalid
+  // input, but the pipeline's behaviour on a non-compilable type is undefined, so
+  // it must not be reported as a bug. Drop those violations (and count them). The
+  // typecheck runs ONLY when a violation fired, so a clean run pays nothing; if
+  // the check itself throws we KEEP the violation (never hide a real bug).
+  if (out.length > before) {
+    let valid = true;
+    try {
+      valid = isValidTypeScript(generated);
+    } catch {
+      valid = true;
+    }
+    if (!valid) {
+      out.length = before;
+      stats.skippedInvalidTypes++;
+    }
+  }
 }
 
 // Race compileType against a timeout. On timeout, record a TR1 finding and

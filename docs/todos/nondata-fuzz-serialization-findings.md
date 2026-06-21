@@ -1,11 +1,14 @@
 # Serialization bugs surfaced by the non-data fuzz lane
 
 **Status:** F1, K2, F2 (product side), F3, G1, F2b (emit) FIXED — see the
-Resolution section below. Re-enabling callable-interface fuzz GENERATION is
-now unblocked from the callable side, but stays disabled pending two SEPARATE
-pre-existing serialization bugs the broader soak surfaced (G2, G3 below).
-Originally four findings from the DataOnly non-data fuzz lane (the
-`createMockType`-driven, real-pipeline lane in
+Resolution section below. The fuzz lane was also HARDENED (a TS-validity gate +
+valid-type generation — see "Fuzz-lane hardening" below). Re-enabling
+callable-interface fuzz GENERATION is now unblocked from the callable side, but
+stays disabled pending the pre-existing serialization bugs the soak surfaces
+(G2, G3, G4 below — confirmed pre-existing: the seed-20260620 non-data soak
+reports the SAME 8 violations with these changes stashed). Originally four
+findings from the DataOnly non-data fuzz lane (the `createMockType`-driven,
+real-pipeline lane in
 [`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-runtypes/test/fuzz/nonDataTypeFuzz.integration.test.ts)).
 
 ## Resolution
@@ -16,8 +19,9 @@ Originally four findings from the DataOnly non-data fuzz lane (the
 | **K2** | A stripped-valued prop in a UNION member failed the whole union (a standalone object drops it) | **FIXED** — `buildMergedProps` drops the full `isStrippedUnionMember` set + emits the drop warning. Pinned by `TestDataOnlyUnion_ObjectMemberStrippedProp`. |
 | **F2** | Callable interface: function to `validate`, object to the serializers | **FIXED (product)** — `objectHasCallSignature` makes the serializers + validate treat it function-like everywhere (typeof-function at root, dropped at a property). Pinned by `callable_interface_dataonly_test.go`. Re-enabling fuzz GENERATION is deferred (see F2b). |
 | **F2b** | A callable interface at a NON-ROOT propagating position (array element, Map/Record value, tuple slot, intersection) produced an UNCONTROLLED wire error (`reading 'fn'`) + an unresolved binary site (`no id injected`). The serializers latch the callable OBJECTLITERAL as the unsupported leaf, but `DiagCodeForLeaf` had no objectLiteral arm → returned "" → the entry was SILENTLY SKIPPED, leaving a dangling dep that cascaded to a `KindMissing` stub; a JSON composite then bound it with an unguarded `getRT(key).fn`. | **FIXED (emit)** — `callableLeafSubstitute` ([kinds.go](../../internal/compiled/typefns/kinds.go)) maps the callable objectLiteral leaf to its call-signature child at the alwaysThrow site ([module.go](../../internal/compiled/typefns/module.go)), so it renders a controlled alwaysThrow with the family's FUNCTION code (an Error-severity build diagnostic), exactly like a bare function. Pinned by `TestF2b_CallableInArrayElementAlwaysThrows`. Generation re-enable still deferred (G2/G3). |
-| **G2** | NEW (agent soak, generation re-enabled): a non-serialisable native or `bigint` at an INDEX-SIGNATURE VALUE position (`{[k: string]: DataView}`, `{[k: number]: bigint}` as the index value itself, distinct from G1's named-sibling corruption) mis-serializes / crashes. | **DEFERRED** — same `internal/compiled/typefns` index-sig family as F1/G1, value-position rather than sibling. |
-| **G3** | NEW (agent soak): an `invalid union index` error on a generated union shape. | **DEFERRED** — union-layout/index bug, unrelated to callable interfaces. |
+| **G2** | NEW (soak): a non-serialisable native or `bigint` at an INDEX-SIGNATURE VALUE position (`{[k: string]: DataView}`, `{[k: number]: bigint}` as the index value itself, distinct from G1's named-sibling corruption) mis-serializes / crashes; the soak also hits `O5 … Too many unknown keys` on `Rec<{2+idx}>`. | **DEFERRED** (pre-existing) — same `internal/compiled/typefns` index-sig family as F1/G1, value-position rather than sibling. |
+| **G3** | NEW (soak): an `invalid union index` error on a generated union/union-array shape on the binary wire. | **DEFERRED** (pre-existing) — union-layout/index bug, unrelated to callable interfaces. |
+| **G4** | NEW (soak): a union/intersection member with a `Date` field throws an UNCONTROLLED error (`.toISOString` / `.getTime` is not a function) when the value reaches the field through the wrong discriminated arm, plus `O10` (both encoders alwaysThrow with no Error-severity diagnostic). Same uncontrolled-error CLASS as F2b, different shape. | **DEFERRED** (pre-existing) — likely a discriminated-union member-resolution or mock value-conformance issue; the TS-validity gate does NOT catch it (the TYPE is valid; the mismatch is value-level). |
 | **F3** | An Error-severity diagnostic is emitted for a dropped non-serialisable property, though the value serialises fine; the default `clone` encoder FAILED such a property while the others dropped it; and a structurally-unserialisable property (`symbol[]`) was silently dropped instead of failing | **FIXED** — property-position handling now matches `DataOnly<T>` uniformly across all families. A DIRECTLY-stripped value (symbol / Promise / never / non-serialisable native; functions keep …010) drops with a new child-position **Warning** (…015), and the mutate path `delete`s it so `JSON.stringify` can't leak a typed array / Promise. A value that is only STRUCTURALLY unserialisable (`symbol[]`, `Map<string,symbol>`) now fails (root Error), matching DataOnly keeping `never[]`. An unknown future kind still absorbs gracefully. Pinned by `property_dataonly_test.go`, the updated `runtype-diagnostics.test.ts`, and the `Int8Array in interface` serialization fixture. |
 | **G1** | `O5` JSON round-trip corrupted a named property mixed with an index signature of a DIFFERENT value type (`{p0: number; [k: number]: bigint}` round-tripped `p0` from a number into a bigint; with other shapes the corrupted value crashed a downstream numeric op, `Cannot convert a BigInt value to a number`). The JSON for-in index loop transformed EVERY own key, including declared siblings. | **FIXED** — the JSON walks (mutate `prepareForJson`, `restoreFromJson`, direct `stringifyJson`) now skip declared sibling keys via the same `publishSiblingNamedKeysForIndexSig` + `siblingNamedSkipCode` mechanism binary got in F1 (the clone `prepareForJsonSafe` path always skipped). Pinned by `index_sig_sibling_json_test.go` + `g1-index-sig-sibling.test.ts`; the 40s WILD soak (seed 20260620) is clean (974 types, 0 violations). |
 
@@ -33,6 +37,35 @@ the real validators and serializers, then checks metamorphic properties
 it reaches shapes the older shape-value lane never built. The committed lane (seed
 `0xda7a01`, 100 iterations) is deterministically green; these findings come from
 OTHER seeds in the soak.
+
+## Fuzz-lane hardening
+
+Two improvements keep the lanes honest (a violation is only reported on input that
+could actually occur):
+
+- **TS-validity gate.** `tsgo` is lenient: it still produces a RunType for a type
+  that does NOT compile, so a violation on an invalid type is a FALSE POSITIVE,
+  not a pipeline bug. When any oracle fires, the runner now typechecks the
+  generated type's declarations with the repo's own `typescript` package
+  ([`tsValidate.ts`](../../packages/ts-runtypes/test/fuzz/tsValidate.ts)) and DROPS
+  the violation if it does not compile, counting it in
+  `report.skippedInvalidTypes`. The check runs only on a violation, so a clean run
+  pays nothing. This caught that the generator was emitting invalid TypeScript:
+  the object render hardcoded `[k: string]`, which forces every named prop to the
+  index value type (TS2411). It also revealed the committed F1 fixtures were
+  invalid for the same reason. (Pinned by `tsValidateGate.test.ts` +
+  `bugReprosValidTs.test.ts`, which also typechecks every fixed-bug repro.)
+- **Valid-type generation.** The render now emits a NUMBER index (`[k: number]`)
+  whenever an object has named props (a string-named prop is then unconstrained)
+  and a string index for a pure map. To keep the shape-lane value conforming,
+  `shapeValue.ts` mints NUMERIC index keys for those objects (a non-numeric key
+  under a number index is corrupted by the binary number-index codec — the codec's
+  own robustness on type-unsound input is a separate, low-priority concern).
+  `createMockType` already keys on the resolved index kind.
+
+Note the gate only filters TYPE-level false positives. A VALUE-level mismatch (the
+mock building a value that doesn't conform to a valid type, e.g. G4) is not caught
+and remains a real finding to triage.
 
 ## Where the code lives
 
