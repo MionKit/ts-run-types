@@ -376,6 +376,27 @@ func emitObjectJsonChildren(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
 }
 
+// jsonStringifyLeaks reports whether `JSON.stringify` serializes a dropped value
+// AS DATA (a plain object) instead of omitting it — true for Promise and the
+// non-serializable natives (typed arrays / ArrayBuffer / DataView, all
+// SubKindNonSerializable), false for symbol / function / never (which
+// JSON.stringify drops or which carry no runtime value). The mutate
+// prepareForJson path serializes through the live object, so it must `delete`
+// the leaking kinds to match the data-only projection that clone / direct /
+// binary already produce.
+func jsonStringifyLeaks(resolved *protocol.RunType) bool {
+	if resolved == nil {
+		return false
+	}
+	switch resolved.Kind {
+	case protocol.KindPromise:
+		return true
+	case protocol.KindClass:
+		return resolved.SubKind == protocol.SubKindNonSerializable
+	}
+	return false
+}
+
 // emitPropertyPrepareForJson mirrors
 // nodes/member/property.ts:emitPrepareForJson. Sets the child
 // accessor (`v.<name>` / `v["name"]`), recurses, optionally wraps
@@ -388,10 +409,18 @@ func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string
 	if resolved == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
-	if isFunctionLikeKind(resolved.Kind) {
-		// Fast-path: pre-descent skip for known function-shaped children.
-		// Avoids the wasted walker descent + AbsorbUnsupported round-trip.
-		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
+	if strippedPropertyDrop(resolved, rt.Name, ctx) {
+		// Directly DataOnly-stripped value (symbol / function / Promise / never /
+		// non-serializable native) — drop the slot, matching
+		// `DataOnly<{a: symbol}>` = `{}`. The mutate strategy serializes via the
+		// live object with `JSON.stringify`, which DROPS symbol / function /
+		// undefined values natively but SERIALIZES a Promise / typed array /
+		// ArrayBuffer as a plain object — so those must be `delete`d to match the
+		// data-only projection (and the clone / direct / binary output). See
+		// docs/UNSUPPORTED-KINDS.md "How a parent absorbs".
+		if jsonStringifyLeaks(resolved) {
+			return RTCode{Code: "delete " + propertyAccessor(v, rt.Name, rt.IsSafeName), Type: CodeS}
+		}
 		return RTCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
@@ -399,17 +428,13 @@ func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string
 	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	if childRT.Type == CodeNS {
-		// Property absorbs any unsupported child — drops the slot from
-		// the parent's chain, emits a per-family diagnostic naming the
-		// excluded property + leaf kind, and clears the walker latch
-		// so sibling properties can absorb their own. The rest of the
-		// object's body still emits. See docs/UNSUPPORTED-KINDS.md
-		// "How a parent absorbs".
-		leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf)
-		if leafCode != "" {
-			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
+		// The value is NOT directly stripped (caught above). A DataOnly-stripped
+		// leaf reached through a propagating slot (symbol[], Map<string,symbol>)
+		// fails the object; any other unsupported kind is absorbed (F3). See
+		// propertyChildFailed.
+		if propertyChildFailed(ctx) {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		ctx.walker.AbsorbUnsupported()
 		return RTCode{Code: "", Type: CodeS}
 	}
 	if childRT.Code == "" {

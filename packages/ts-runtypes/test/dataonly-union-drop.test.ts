@@ -11,7 +11,14 @@
 // merged-prop unions in the same scan — see json_compat.go's isJsonCompatible.
 
 import {describe, test, expect} from 'vitest';
-import {createValidate, createGetValidationErrors, createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
+import {
+  createValidate,
+  createGetValidationErrors,
+  createJsonEncoder,
+  createJsonDecoder,
+  createBinaryEncoder,
+  createBinaryDecoder,
+} from 'ts-runtypes';
 
 describe('DataOnly union-member drop', () => {
   test('Date | symbol — symbol arm dropped, validates as Date', () => {
