@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
 # podman-website.sh - own the lifecycle of the SINGLE shared podman image
-# (container-website/Containerfile). That one image bakes BOTH dependency trees in
+# (container/website/Containerfile). That one image bakes BOTH dependency trees in
 # separate dirs with separate node_modules:
 #   /app    the Nuxt/Docus website deps   (run by scripts/website.sh)
 #   /bench  the benchmark deps            (run by scripts/benchmarks.sh)
@@ -50,14 +50,14 @@ BUILD_NETWORK="${WEBSITE_BUILD_NETWORK:-}"
 CACERTS_DIR="$WEBSITE_DIR/.cacerts"
 DEPS_DIR="$WEBSITE_DIR/_deps"
 # The merged image also bakes the benchmark deps (under /bench). Their manifests
-# live in container-benchmarks/_deps (the source of truth); we stage a copy into the
+# live in container/benchmarks/_deps (the source of truth); we stage a copy into the
 # website build context (.bench-deps/, git-ignored) so the Containerfile can COPY them.
-BENCH_DEPS_SRC="$ROOT_DIR/container-benchmarks/_deps"
+BENCH_DEPS_SRC="$ROOT_DIR/container/benchmarks/_deps"
 BENCH_DEPS_STAGE="$WEBSITE_DIR/.bench-deps"
 REMOTE_IMAGE="${WEBSITE_REMOTE_IMAGE:-$GHCR_REGISTRY/$GHCR_OWNER/tsrt-website:latest}"
 MANIFEST_NAME="tsrt-website-manifest"
 
-# Populate container-website/.cacerts/ from $WEBSITE_CA_CERT (file or dir). Always
+# Populate container/website/.cacerts/ from $WEBSITE_CA_CERT (file or dir). Always
 # leaves the dir present (possibly empty) so the Containerfile COPY never fails.
 prepare_cacerts() {
   rm -rf "$CACERTS_DIR"; mkdir -p "$CACERTS_DIR"
@@ -84,9 +84,9 @@ prepare_cacerts() {
   touch "$CACERTS_DIR/.gitkeep"
 }
 
-# Stage container-benchmarks/_deps into the website build context as .bench-deps/ so
+# Stage container/benchmarks/_deps into the website build context as .bench-deps/ so
 # the merged Containerfile can COPY the benchmark manifests (installed under /bench).
-# container-benchmarks/_deps stays the source of truth; this is a throwaway build-
+# container/benchmarks/_deps stays the source of truth; this is a throwaway build-
 # context copy (git-ignored), refreshed on every build/push. Mirrors prepare_cacerts.
 prepare_bench_deps() {
   [ -d "$BENCH_DEPS_SRC" ] || die "missing $BENCH_DEPS_SRC (benchmark deps) - cannot build the merged website+benchmark image"
@@ -124,7 +124,7 @@ build_image() {
   prepare_cacerts
   prepare_bench_deps
   build_arg_flags
-  echo "==> building $IMAGE from container-website/Containerfile (merged website + benchmark deps)"
+  echo "==> building $IMAGE from container/website/Containerfile (merged website + benchmark deps)"
   local net=(); [ -n "$BUILD_NETWORK" ] && net=(--network="$BUILD_NETWORK")
   ( cd "$WEBSITE_DIR" && "$ENGINE" build --platform "linux/$(host_arch)" ${net[@]+"${net[@]}"} ${BUILD_ARG_FLAGS[@]+"${BUILD_ARG_FLAGS[@]}"} -t "$IMAGE" -f Containerfile . )
 }

@@ -5,11 +5,6 @@
 *.prof
 coverage.txt
 
-# Playground WASM POC — generated artifacts, reproducible via playground/build.sh
-/playground/ts-runtypes.wasm
-/playground/wasm_exec.js
-/playground/ts-runtypes.d.ts
-
 # Node
 node_modules/
 packages/*/node_modules/
@@ -45,7 +40,7 @@ packages/ts-runtypes/test/suites/enrich/.tmp/
 
 # Benchmark output (raw harness logs; aggregated summaries live in docs/)
 /bench/results/
-/container-benchmarks/results/
+/container/benchmarks/results/
 
 # Generated benchmark/test result JSON the docs website reads (read-only mount)
 /.docdata/

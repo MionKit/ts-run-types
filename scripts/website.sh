@@ -16,8 +16,8 @@
 #   scripts/website.sh dev           # run the dev server with hot reload
 #   scripts/website.sh dev --isAgent # detached agent dev server on WEBSITE_AGENT_PORT
 #                                    #   (3100); self-stops after WEBSITE_AGENT_IDLE_SECONDS idle
-#   scripts/website.sh build         # production build -> container-website/.output
-#   scripts/website.sh generate      # static prerender -> container-website/.output/public
+#   scripts/website.sh build         # production build -> container/website/.output
+#   scripts/website.sh generate      # static prerender -> container/website/.output/public
 #   scripts/website.sh smoke         # quick verify: bg dev server + curl :3000 + stop
 #   scripts/website.sh verify-docs   # verify code-import + twoslash render (curl/grep)
 #   scripts/website.sh prep          # verify the repo context (packages/) is built
@@ -216,7 +216,7 @@ cmd_dev_agent() {
 
 cmd_build() {
   ensure_image
-  echo "==> production build -> container-website/.output"
+  echo "==> production build -> container/website/.output"
   read_lines MARGS < <(mount_args)
   read_lines NARGS < <(net_args)
   read_lines EARGS < <(env_args)
@@ -231,7 +231,7 @@ cmd_build() {
 
 cmd_generate() {
   ensure_image
-  echo "==> static prerender -> container-website/.output/public"
+  echo "==> static prerender -> container/website/.output/public"
   read_lines MARGS < <(mount_args)
   read_lines NARGS < <(net_args)
   read_lines EARGS < <(env_args)

@@ -1,12 +1,12 @@
 ---
 name: website-browser
-description: Start the containerized Nuxt/Docus docs website and drive it in a real browser with playwright-cli — for manual checks, UI review, debugging rendered docs (code-import / twoslash), and end-to-end testing of container-website/.
+description: Start the containerized Nuxt/Docus docs website and drive it in a real browser with playwright-cli — for manual checks, UI review, debugging rendered docs (code-import / twoslash), and end-to-end testing of container/website/.
 allowed-tools: Bash(pnpm:*) Bash(playwright-cli:*) Bash(npx:*) Bash(scripts/website.sh:*)
 ---
 
 # Website browser testing (Nuxt docs site + playwright-cli)
 
-Drive the project's docs website ([container-website/](../../../container-website/)) in a real browser to verify rendered pages, debug console/network, and run end-to-end checks. The site is **containerized** (podman); `playwright-cli` runs on the **host** and reaches it through the published port. Agents start it with `--isAgent` on `http://localhost:3100` (a human's plain `dev` uses `:3000`) — see [Start the dev server](#1-start-the-dev-server-agent-mode-hot-reload).
+Drive the project's docs website ([container/website/](../../../container/website/)) in a real browser to verify rendered pages, debug console/network, and run end-to-end checks. The site is **containerized** (podman); `playwright-cli` runs on the **host** and reaches it through the published port. Agents start it with `--isAgent` on `http://localhost:3100` (a human's plain `dev` uses `:3000`) — see [Start the dev server](#1-start-the-dev-server-agent-mode-hot-reload).
 
 ## Prerequisites
 

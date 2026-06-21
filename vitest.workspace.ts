@@ -5,4 +5,5 @@
 export default [
   'packages/ts-runtypes/vitest.config.ts',
   'packages/runtypes-devtools/vitest.config.ts',
+  'packages/runtypes-playground/vitest.config.ts',
 ];

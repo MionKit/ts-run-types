@@ -241,25 +241,25 @@ config load. The sweep needs to verify each newly-exposed option for this.
 
 ## What the website docs need
 
-The website docs ([container-website/content/](../../container-website/content/))
+The website docs ([container/website/content/](../../container/website/content/))
 do NOT mention `PluginOptions` OR the tsconfig plugin entry today. Both
 gaps need closing as part of the same pass — but with the consolidation
 above, there's only ONE config page to write, not two.
 
 Proposed structure (subject to bikeshedding):
 
-- A new page under `container-website/content/2.guide/` —
+- A new page under `container/website/content/2.guide/` —
   `8.configuration.md` or similar. Voice: plain, user-focused (see the
   docs-style rules in
-  [CLAUDE.md](../../CLAUDE.md#website-docs-style-container-websitecontent)).
+  [CLAUDE.md](../../CLAUDE.md#website-docs-style-container/websitecontent)).
   No deep internals; show ONE `tsconfig.json` example with every option,
   one fenced code block per option with the default and a one-paragraph
   "when to change it" note. NO em-dashes; short frontmatter description.
 - The page should explicitly call out the precedence chain (CLI > tsconfig
   > defaults) and the small host-plugin surface (Vite-only knobs).
-- Cross-link from `container-website/content/2.guide/3.serialization.md`
+- Cross-link from `container/website/content/2.guide/3.serialization.md`
   (where binary / JSON strategies are introduced) and from
-  `container-website/content/2.guide/5.validation.md` (where
+  `container/website/content/2.guide/5.validation.md` (where
   `ValidateOptions` is introduced) to the new page.
 - Mention the "embed the Go binary directly" escape hatch only at the
   bottom, in a note callout — real, but secondary.
@@ -315,11 +315,11 @@ Proposed structure (subject to bikeshedding):
 
 ## Documentation impact (when this lands)
 
-- `container-website/content/2.guide/` — new configuration page covering
+- `container/website/content/2.guide/` — new configuration page covering
   the canonical tsconfig surface, the small Vite host-plugin surface, and
   the precedence chain. Voice rules apply (plain language, no em-dashes,
   short frontmatter — see
-  [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent)).
+  [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container/websitecontent)).
 - `README.md` — quick-start example shows the tsconfig plugin entry, not
   a verbose `runtypes({ … })` block.
 - [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) — if any newly-exposed
