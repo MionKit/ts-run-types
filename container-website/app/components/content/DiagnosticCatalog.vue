@@ -60,6 +60,17 @@ const severityLabel: Record<string, string> = {error: 'Error', warning: 'Warning
 
 <template>
   <div class="diag">
+    <div class="diag-legend">
+      <div class="diag-legend__card">
+        <span class="diag-badge diag-badge--warning">Warning</span>
+        <p>A safe, expected drop, and the build keeps going. Anything with no data form (a method, a function-valued property, a symbol key) is left out of the generated function.</p>
+      </div>
+      <div class="diag-legend__card">
+        <span class="diag-badge diag-badge--error">Error</span>
+        <p>The generated function would throw the moment you call it, so the build stops. A whole value has no data form, like a type that resolves to <code>never</code> or a bare <code>symbol</code>. Change the type.</p>
+      </div>
+    </div>
+
     <div class="diag-search">
       <input
         v-model="query"
@@ -109,6 +120,41 @@ const severityLabel: Record<string, string> = {error: 'Error', warning: 'Warning
 <style scoped>
 .diag {
   margin-top: 1rem;
+}
+
+.diag-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+  margin: 1rem 0 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .diag-legend {
+    grid-template-columns: 1fr;
+  }
+}
+
+.diag-legend__card {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--ui-border, #26262a);
+  border-radius: 0.6rem;
+  background: color-mix(in oklab, var(--ui-bg-elevated, #141416) 60%, transparent);
+}
+
+.diag-legend__card p {
+  margin: 0.55rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--ui-text-muted, #9aa0a6);
+}
+
+.diag-legend__card code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.85em;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.3rem;
+  background: var(--ui-bg, #0b0b0c);
 }
 
 .diag-search {
