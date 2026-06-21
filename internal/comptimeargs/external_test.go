@@ -62,6 +62,16 @@ func assertWidened(t *testing.T, result comptimeargs.Result, context string) {
 	}
 }
 
+func assertNotLiteral(t *testing.T, result comptimeargs.Result, context string) {
+	t.Helper()
+	if result.Ok {
+		t.Fatalf("%s: expected FailNonLiteral, got Ok", context)
+	}
+	if result.Kind != comptimeargs.FailNonLiteral {
+		t.Fatalf("%s: expected FailNonLiteral, got kind=%d reason=%q", context, result.Kind, result.Reason)
+	}
+}
+
 func assertExternalHandle(t *testing.T, result comptimeargs.Result, context string) {
 	t.Helper()
 	if result.Ok {
@@ -113,17 +123,31 @@ func TestWholeConst_WidenedRejected(t *testing.T) {
 
 // --- Part 2: PureFunction<F> "no external handle" rule ---
 
-// TestPureFn_LocalAccepted keeps the accepted forms working: an inline arrow, a
-// module-private `const` arrow, and a module-private `function` declaration.
-func TestPureFn_LocalAccepted(t *testing.T) {
+// TestPureFn_InlineAccepted: under literal-only the accepted forms are an inline
+// arrow and an inline function expression (modulo wrappers) — nothing else.
+func TestPureFn_InlineAccepted(t *testing.T) {
 	cases := map[string]string{
-		"inline-arrow":      `const target = (v: unknown) => typeof v === 'string';`,
+		"inline-arrow":    `const target = (v: unknown) => typeof v === 'string';`,
+		"inline-function": `const target = function (v: unknown) { return typeof v === 'string'; };`,
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			assertResultOk(t, checkConstFunction(t, map[string]string{"entry.ts": body}, "target"), name)
+		})
+	}
+}
+
+// TestPureFn_NamedLocalRejected: even a module-private `const` / `function`
+// reference is rejected (PFN001) — literal-only means the function must be
+// inline so there is no named handle anything else could reach.
+func TestPureFn_NamedLocalRejected(t *testing.T) {
+	cases := map[string]string{
 		"local-const-arrow": `const f = (v: unknown) => typeof v === 'string'; const target = f;`,
 		"local-function":    `function f(v: unknown) { return typeof v === 'string'; } const target = f;`,
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
-			assertResultOk(t, checkConstFunction(t, map[string]string{"entry.ts": body}, "target"), name)
+			assertNotLiteral(t, checkConstFunction(t, map[string]string{"entry.ts": body}, "target"), name)
 		})
 	}
 }

@@ -140,20 +140,21 @@ func CheckLiteral(typeChecker *checker.Checker, node *ast.Node, depth int, build
 	return Result{Ok: false, Kind: FailForbiddenConstruct, Reason: forbiddenConstructName(unwrapped.Kind), FailingNode: unwrapped}
 }
 
-// CheckLiteralFunction is the strict subset of CheckLiteral used by the
-// PureFunction<F> marker: only inline arrow / function expressions are
-// accepted (with const-trace + wrapper unwrap). Returns the resolved
-// function-literal node on success — the caller passes it to
-// purefns.CheckPurity for the purity rules.
+// CheckLiteralFunction validates the PureFunction<F> argument under the
+// LITERAL-ONLY rule: the only accepted form is an INLINE arrow / function
+// expression (modulo `as`/parens/`satisfies` wrappers). A named reference —
+// even a module-private `const f = …` or `function f(){}` — is rejected, so the
+// literal has no handle anything else can reach: the build extracts and
+// AOT-compiles the body, and the compiled copy must be the only one that can
+// run. Returns the resolved function-literal node on success — the caller passes
+// it to purefns.CheckPurity for the purity rules.
+//
+// Rejection codes, for a precise fix message:
+//   - imported / exported reference → FailExternalHandle (PFN002): "inline it,
+//     don't import or export it";
+//   - any other named reference or non-function node → FailNonLiteral (PFN001):
+//     "inline the function literal at the call site".
 func CheckLiteralFunction(typeChecker *checker.Checker, node *ast.Node) (*ast.Node, Result) {
-	fnNode, result := checkLiteralFunctionRecursive(typeChecker, node, 0)
-	return fnNode, result
-}
-
-func checkLiteralFunctionRecursive(typeChecker *checker.Checker, node *ast.Node, depth int) (*ast.Node, Result) {
-	if depth > DepthCap {
-		return nil, Result{Ok: false, Kind: FailDepthExceeded, Reason: "depth cap exceeded", FailingNode: node}
-	}
 	unwrapped := UnwrapWrappers(node)
 	if unwrapped == nil {
 		return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "nil node", FailingNode: node}
@@ -162,32 +163,23 @@ func checkLiteralFunctionRecursive(typeChecker *checker.Checker, node *ast.Node,
 	case ast.KindArrowFunction, ast.KindFunctionExpression:
 		return unwrapped, Result{Ok: true}
 	case ast.KindIdentifier:
-		// Identifier may resolve to a `const f = (…) => {…}` binding OR to a
-		// top-level `function f() {…}` declaration. Both are acceptable as
-		// "literal function definitions" — the body is statically extractable —
-		// BUT only when the literal has NO external handle. The build extracts
-		// and AOT-compiles the body; if the original stays reachable as a value
-		// (imported, or exported so another module can import it) a caller could
-		// invoke the un-compiled copy and diverge from the compiled behaviour.
-		// So reject an imported reference, and an exported same-module binding.
+		// A named reference is never accepted. Distinguish the external-handle
+		// case (imported / exported → PFN002) from a plain local binding
+		// (→ PFN001 "inline it") so the diagnostic points at the right fix.
 		symbol := typeChecker.GetSymbolAtLocation(unwrapped)
 		if symbol != nil && symbol.Flags&ast.SymbolFlagsAlias != 0 {
 			return nil, Result{Ok: false, Kind: FailExternalHandle, Reason: "imported", FailingNode: unwrapped}
 		}
-		if fnDecl, ok := resolveFunctionDeclaration(typeChecker, unwrapped); ok {
-			if externallyReachable(typeChecker, symbol, fnDecl) {
-				return nil, Result{Ok: false, Kind: FailExternalHandle, Reason: "exported", FailingNode: unwrapped}
+		declaration := resolveConstDeclarationNode(typeChecker, unwrapped)
+		if declaration == nil {
+			if fnDecl, ok := resolveFunctionDeclaration(typeChecker, unwrapped); ok {
+				declaration = fnDecl
 			}
-			return fnDecl, Result{Ok: true}
 		}
-		initializer, ok := resolveConstInitializer(typeChecker, unwrapped)
-		if !ok {
-			return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "identifier not a same-module `const` binding or `function` declaration", FailingNode: unwrapped}
-		}
-		if externallyReachable(typeChecker, symbol, resolveConstDeclarationNode(typeChecker, unwrapped)) {
+		if externallyReachable(typeChecker, symbol, declaration) {
 			return nil, Result{Ok: false, Kind: FailExternalHandle, Reason: "exported", FailingNode: unwrapped}
 		}
-		return checkLiteralFunctionRecursive(typeChecker, initializer, depth+1)
+		return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "named reference; inline the function literal at the call site", FailingNode: unwrapped}
 	}
 	return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "not an inline arrow or function expression", FailingNode: unwrapped}
 }
