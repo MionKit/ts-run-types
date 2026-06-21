@@ -47,33 +47,36 @@ with an override (the benchmark cell is green only because the override hid this
 exact sample). A row with `samplesOverridden: false` would be an undeclared
 divergence. There were none.
 
-### What was run, and what was reasoned about
+### What was run
 
-The transform-free competitors (zod, TypeBox, ajv) build their schemas at runtime,
-so they were executed directly and produced live per-sample data. ts-runtypes is
-the reference: the shared samples encode its semantics and it carries no overrides,
-so against the shared truth it has zero divergences by construction (the benchmark
-gates on exactly this). typia needs its native build-time transform to produce
-validators, so its divergences are read from the 50 `SampleOverride` notes it
-already carries in its case file, each of which names the exact semantic. Every
-typia note was cross-checked against the same root causes the live runs proved for
-ajv, and they line up.
+All four competitors were executed for real and produced live per-sample data. zod,
+TypeBox, and ajv build their schemas at runtime. typia needs its build-time
+transform, but that transform (samchon's ttsc plus typia's native plugin, driven
+through the esbuild adapter) ships as plain npm packages with an embedded Go
+toolchain, so it builds on a normal host with no container and no system Go. The
+typia bundle was built and run directly, and its live results line up exactly with
+the 50 `SampleOverride` notes it already carries.
 
-To reproduce the live half:
+ts-runtypes is the reference: the shared samples encode its semantics and it carries
+no overrides, so against the shared truth it has zero divergences by construction
+(the benchmark gates on exactly this).
+
+To reproduce:
 
 ```bash
-# transform-free competitors, on the host (no container needed)
+# zod / TypeBox / ajv / typia, on the host (no container needed)
 node container-benchmarks/_audit/host-collect.mjs
 node container-benchmarks/_audit/run-audit.mjs
 node container-benchmarks/_audit/classify.mjs
 
-# all five competitors, inside the shared image (the canonical full run)
+# all five competitors, inside the shared image (the canonical full run, runs
+# ts-runtypes for real too)
 pnpm run audit:alignment
 ```
 
 ## Summary
 
-Live per-sample divergences against the shared truth (44 distinct findings, every
+Live per-sample divergences against the shared truth (114 distinct findings, every
 one a reject-path acceptance, meaning the competitor accepts a value ts-runtypes
 rejects):
 
@@ -82,11 +85,21 @@ rejects):
 | zod         | 0                | none             | fully aligned               |
 | TypeBox     | 8                | accepts (looser) | LIBRARY_SEMANTIC_DIFFERENCE |
 | ajv         | 36               | accepts (looser) | LIBRARY_SEMANTIC_DIFFERENCE |
-| typia       | (see below)      | accepts (looser) | LIBRARY_SEMANTIC_DIFFERENCE |
+| typia       | 70               | accepts (looser) | LIBRARY_SEMANTIC_DIFFERENCE |
 | ts-runtypes | 0 (reference)    | n/a              | n/a                         |
 
+By root cause:
+
+| root cause                                  | TypeBox | ajv | typia |
+| ------------------------------------------- | ------- | --- | ----- |
+| non-finite number (NaN / Infinity)          | 0       | 36  | 46    |
+| Invalid Date (instanceof only)              | 0       | 0   | 22    |
+| plain-object guard (class instance / array) | 8       | 0   | 0     |
+| collection element validation (Map / Set)   | 0       | 0   | 1     |
+| format regex difference (email)             | 0       | 0   | 1     |
+
 (Counts above are distinct case-and-sample findings. Each is measured on both the
-`validate` and `validationErrors` paths, so the raw record total is double.)
+`validate` and `validationErrors` paths, so the raw record total is double: 228.)
 
 Declared divergences each competitor already carries in its case file:
 
@@ -105,21 +118,23 @@ Three observations set up the rest of the report:
   the shared truth accepts.
 - Every live divergence is already declared (an override exists for it). The audit
   found no undeclared drift in the runnable competitors.
-- No case has two of the runnable competitors diverging together. Where a value is
-  contested, ts-runtypes always shares its answer with at least one other library.
+- Where two libraries diverge on the same case (ajv and typia on non-finite
+  numbers), they are both looser than ts-runtypes in the same direction, and the
+  remaining libraries side with ts-runtypes. ts-runtypes is never alone against a
+  consensus.
 
 ## The divergence clusters
 
-All 44 live findings plus all of typia's declared overrides collapse into three
-root causes.
+All 114 live findings collapse into five root causes: three main ones and two with
+a single finding each.
 
 ### 1. Non-finite numbers (NaN, Infinity, -Infinity)
 
-The largest cluster. ajv accepts `NaN`, `Infinity`, and `-Infinity` wherever a
-number is expected, across atomics, arrays, tuples, object properties, index
-signatures, unions, and utility-type projections. typia behaves the same way (its
-overrides say so explicitly). ts-runtypes gates every number on `Number.isFinite`,
-so non-finite values are rejected. The relevant ajv note states it plainly:
+The largest cluster (36 ajv findings, 46 typia findings). Both accept `NaN`,
+`Infinity`, and `-Infinity` wherever a number is expected, across atomics, arrays,
+tuples, object properties, index signatures, unions, and utility-type projections.
+ts-runtypes gates every number on `Number.isFinite`, so non-finite values are
+rejected. The relevant ajv note states it plainly:
 
 ```text
 override: ajv {type:number} accepts NaN/Infinity; drop them from invalid
@@ -137,11 +152,11 @@ pair.
 
 ### 2. Invalid Date
 
-typia validates `Date` by `instanceof` only, so an Invalid Date (one whose
-`getTime()` is `NaN`, such as `new Date('invalid')`) passes every Date position:
-atomic, array element, tuple slot, property, index value, union arm, rest element.
-ts-runtypes additionally gates on `getTime()` not being `NaN`. typia's notes name
-it directly:
+typia validates `Date` by `instanceof` only (22 findings), so an Invalid Date (one
+whose `getTime()` is `NaN`, such as `new Date('invalid')`) passes every Date
+position: atomic, array element, tuple slot, property, index value, union arm, rest
+element. ts-runtypes additionally gates on `getTime()` not being `NaN`. typia's
+notes name it directly:
 
 ```text
 override: typia Date prop is instanceof (accepts Invalid Date); invalid drops the two Invalid Date entries
@@ -177,6 +192,25 @@ guard through `Type.Object`, which is why it falls back to a `SampleOverride`. T
 reads as a LIBRARY_LIMITATION on the TypeBox side rather than a ts-runtypes
 problem.
 
+### 4. Collection element validation (one finding)
+
+For `Map<string, number>`, typia accepts a `Map` instance whose entries do not match
+the declared key and value types, validating the container kind but not its
+contents. ts-runtypes validates the entries too. zod and TypeBox also validate the
+entries, so ts-runtypes is again on the majority side. One finding
+(`NATIVE.map_string_number`).
+
+### 5. Format regex difference (one finding)
+
+typia accepts the string `"a@b.co"` as a valid email, where ts-runtypes rejects it
+(its built-in email pattern is stricter about the domain). Every library ships its
+own format regexes, and the shared samples were authored against ts-runtypes'
+built-in patterns (see [`packages/ts-runtypes/src/formats/`](../packages/ts-runtypes/src/formats/)),
+so a competitor with a looser or stricter regex shows up here. Only one finding
+surfaced, because the format suite is the one place competitors lean most heavily on
+`SampleOverride` and `NOT_SUPPORTED` already (see the catalog below). It is the
+predicted format cluster, just mostly pre-absorbed by the competitors' own overrides.
+
 ## Documented divergences (the declared catalog)
 
 Beyond the per-sample clusters, each competitor opts out of large families of
@@ -201,7 +235,8 @@ The 27 overrides are all the non-finite-number cluster from above.
 ### typia
 
 typia carries 71 NOT_SUPPORTED cases and 50 overrides. The 50 overrides are the
-non-finite-number and Invalid-Date clusters. The NOT_SUPPORTED reasons are more
+non-finite-number, Invalid-Date, collection-element, and format clusters, and the
+live typia run reproduced every one of them. The NOT_SUPPORTED reasons are more
 interesting because several of them are places where typia is STRICTER or simply
 different from ts-runtypes, the opposite direction from the clusters above:
 
@@ -265,6 +300,13 @@ No. The evidence points the other way in every cluster.
   object types; zod agrees on purpose with a custom guard; TypeBox cannot express
   the guard and accepts them. ts-runtypes has a witness and a documented rationale.
   Keep current behaviour.
+- **Collection element validation.** ts-runtypes validates Map/Set entries; zod and
+  TypeBox do too; only typia stops at the container kind. ts-runtypes is with the
+  majority. Keep current behaviour.
+- **Format regex (email).** ts-runtypes rejects `"a@b.co"`; typia accepts it. This
+  is a regex-strictness difference, not a correctness bug on either side, and only a
+  single sample surfaced it. Keep current behaviour; the format regexes are a
+  separate, deliberately tuned surface.
 
 There is also a set of cases where ts-runtypes is intentionally DIFFERENT from a
 competitor, surfaced by typia's NOT_SUPPORTED notes: it drops non-serialisable
