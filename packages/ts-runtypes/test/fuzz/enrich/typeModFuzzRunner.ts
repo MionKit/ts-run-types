@@ -45,10 +45,12 @@ const MOD_GEN_OPTIONS: GenOptions = {
 // recovered-garbage reconcile without crashing or losing content (the whole-const
 // @rtOrphan carcass handling is now stable).
 const STEP_INVALID_CHANCE = 0.35;
-// `FUZZ_TYPEMOD_RENAMES=1` enables the TYPE-RENAME ops (renameRoot / renameDecl). The
-// const-rename carry is not yet robust when types share a structural id (the
-// rename-disambiguation gap, docs/todos/reconcile-rename-detection.md), so they are
-// OFF by default to keep the standard lane green; turning them on hunts that gap.
+// `FUZZ_TYPEMOD_RENAMES=1` enables the TYPE-RENAME ops (renameRoot / renameDecl). They
+// are OFF by default — conservatively, pending the advanced rename-detection work
+// (docs/todos/reconcile-rename-detection.md): the const-rename carry has a known
+// same-structural-id ambiguity limit. The random rename lane is green today (the
+// carcass-stability fixes cleared the common failures), so this gate is caution, not
+// a red lane.
 const RENAMES = !!process.env.FUZZ_TYPEMOD_RENAMES;
 
 export type ModRuleId = 'R10' | 'P' | 'R6' | 'NL';

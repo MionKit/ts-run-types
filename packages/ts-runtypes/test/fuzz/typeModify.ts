@@ -32,11 +32,10 @@ export interface ModifyOptions {
   // When true the switch may pick a corruption that yields unparseable / non
   // type-checking source. When false every edit stays valid TypeScript.
   allowInvalid: boolean;
-  // When true, allow TYPE-RENAME operations (`renameRoot`, `renameDecl`). The
-  // reconciler's const-rename carry is not yet robust when several types share a
-  // structural id (the rename-disambiguation gap, docs/todos/reconcile-rename-detection.md),
-  // so these stay OFF by default to keep the standard lane green; turning them on
-  // hunts that gap.
+  // When true, allow TYPE-RENAME operations (`renameRoot`, `renameDecl`). OFF by
+  // default — conservatively, pending the advanced rename-detection work: the
+  // const-rename carry has a known same-structural-id ambiguity limit
+  // (docs/todos/reconcile-rename-detection.md). The random rename lane is green today.
   renames?: boolean;
 }
 
