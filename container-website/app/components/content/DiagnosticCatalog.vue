@@ -10,6 +10,7 @@ interface CodeEntry {
   detail: string | null;
   hasMessage: boolean;
   summary: string | null;
+  example: string | null;
   fix: string | null;
 }
 
@@ -83,7 +84,16 @@ const severityLabel: Record<string, string> = {error: 'Error', warning: 'Warning
         <pre class="diag-entry__headline"><code>{{ entry.headline }}</code></pre>
 
         <p v-if="entry.summary" class="diag-entry__summary" v-html="withInlineCode(entry.summary)" />
-        <pre v-if="entry.fix" class="diag-entry__fix"><code>{{ entry.fix }}</code></pre>
+
+        <div v-if="entry.example" class="diag-entry__snippet">
+          <span class="diag-entry__label">A type that triggers it</span>
+          <pre class="diag-entry__example"><code>{{ entry.example }}</code></pre>
+        </div>
+
+        <div v-if="entry.fix" class="diag-entry__snippet">
+          <span class="diag-entry__label">How to fix it</span>
+          <pre class="diag-entry__fix"><code>{{ entry.fix }}</code></pre>
+        </div>
 
         <details v-if="entry.detail" class="diag-entry__more">
           <summary>Full build message</summary>
@@ -205,6 +215,7 @@ const severityLabel: Record<string, string> = {error: 'Error', warning: 'Warning
 
 .diag-entry__headline code,
 .diag-entry__fix code,
+.diag-entry__example code,
 .diag-entry__more code {
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 0.85rem;
@@ -225,12 +236,35 @@ const severityLabel: Record<string, string> = {error: 'Error', warning: 'Warning
   background: var(--ui-bg, #0b0b0c);
 }
 
+.diag-entry__snippet {
+  margin-top: 0.7rem;
+}
+
+.diag-entry__label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ui-text-muted, #9aa0a6);
+}
+
+.diag-entry__example,
 .diag-entry__fix {
-  margin: 0.7rem 0 0;
+  margin: 0;
   padding: 0.6rem 0.8rem;
   border-radius: 0.45rem;
   background: var(--ui-bg, #0b0b0c);
   overflow-x: auto;
+}
+
+.diag-entry__example {
+  border-left: 2px solid var(--color-amber-500, var(--color-yellow-500, #f59e0b));
+}
+
+.diag-entry__fix {
+  border-left: 2px solid var(--color-green-500, #79af43);
 }
 
 .diag-entry__more {

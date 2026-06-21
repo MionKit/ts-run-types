@@ -46,7 +46,8 @@
       "detail": "The build resolves the argument before running, so it needs to read its\nvalue from the source. Identifiers from other modules, function-call\nresults, property accesses, and `let`/`var` bindings can't be\nevaluated at build time. Only inline literals and module-scope `const`\nbindings whose initializer is itself fully literal are accepted.\n\nFix — inline at the call site:\n-  const opts = getOpts();\n-  const isUser = createValidate<User>(undefined, opts);\n+  const isUser = createValidate<User>(undefined, {mode: 'unsafe'});\n\nFix — use a module-scope const of literals:\n  const opts = {mode: 'unsafe'};            // literal initializer ✓\n  const isUser = createValidate<User>(undefined, opts);",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "CTA002",
@@ -56,7 +57,8 @@
       "detail": "Deeply nested literal walks are capped at 16 levels to keep the build\npredictable. If you hit this, the value is almost certainly not what\nyou want at compile time — split it across multiple smaller\n`CompTimeArgs<T>` arguments, or flatten the nesting.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "CTA003",
@@ -66,7 +68,8 @@
       "detail": "The Go scanner cannot statically evaluate spread elements, computed\nproperty names, function calls, ternary expressions, or template-string\nsubstitutions. Inside a `CompTimeArgs<T>` literal every node must be a\ndirect literal (string / number / bigint / boolean / null / undefined /\nregex / arrow / object literal / array literal) or a const-traced\nidentifier that resolves to one.\n\nFix — replace the forbidden construct with its literal value:\n  -  const a = {...defaults, mode: 'unsafe'};   // spread\n  +  const a = {strict: true, mode: 'unsafe'};   // literal-only",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "MKR001",
@@ -76,7 +79,8 @@
       "detail": "Reflect-form markers (`createValidate(value)`, `getRunTypeId(value)`)\ninvoke their argument expression at runtime; the value is then discarded —\nonly its inferred type is used.\n\nFix — use the static form with `ReturnType<>`:\n  -  const isUser = createValidate({0}());\n+  const isUser = createValidate<ReturnType<typeof {0}>>();\n\nFix — pass an existing value of the desired type:\n  const existingUser: User = ...;\n  const isUser = getRunTypeId(existingUser);",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "MKR003",
@@ -86,7 +90,8 @@
       "detail": "The build can only compute an id for a concrete type (`User`,\n`{name: string}`, etc.). A type parameter like `T` is abstract — it\ntakes a different value at each call site of the surrounding function,\nso a single id can't represent it.\n\nFix — inline the marker at each concrete call site:\n  function isUser(value: unknown) {\n    return createValidate<User>()(value);\n  }\n\nFix — accept a pre-computed id from the caller:\n  function makeChecker<T>(id: InjectRunTypeId<T>) {\n    return createValidate<T>(id);\n  }\n  const isUser = makeChecker<User>(getRunTypeId<User>());",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "MKR004",
@@ -96,7 +101,8 @@
       "detail": null,
       "hasMessage": false,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "MKR005",
@@ -106,7 +112,8 @@
       "detail": null,
       "hasMessage": false,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFN001",
@@ -116,7 +123,8 @@
       "detail": "The build inlines / AOT-compiles the function body, so it needs to see\nthe literal definition at the call site. Imported functions, function\ncalls that return a function, and `let` / `var` bindings can't be\nfollowed.\n\nFix — inline the function at the call site:\n-  import {validate} from './validators';\n-  registerValidator(validate);\n+  registerValidator((v) => typeof v === 'string');\n\nFix — use a module-scope const initialized to a function literal:\n  const validate = (v: unknown) => typeof v === 'string';\n  registerValidator(validate);",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TMP001",
@@ -126,7 +134,8 @@
       "detail": "ts-runtypes reads types through TypeScript's lib definitions, so it\ncan only validate `Temporal.*` types when the Temporal namespace is loaded.\nWith the lib missing, `{0}` silently degrades to `any` and the validator\nbecomes a no-op that accepts everything — almost never what you intended.\n\nFix — add \"ESNext.Temporal\" to your tsconfig:\n  {\n    \"compilerOptions\": {\n      \"lib\": [\"ES2023\", \"ESNext.Temporal\"]\n    }\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "VE001",
@@ -136,7 +145,8 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "hasMessage": true,
       "summary": "Same case as `VL001`, from `createGetValidationErrors`. The type is a built-in that carries runtime state and cannot survive a JSON round trip. Report errors against a plain shape, or convert the value first.",
-      "fix": null
+      "fix": null,
+      "example": "import {createGetValidationErrors} from 'ts-runtypes';\nexport const errorsOf = createGetValidationErrors<Uint8Array>();"
     },
     {
       "code": "VE002",
@@ -146,7 +156,8 @@
       "detail": "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
       "hasMessage": true,
       "summary": "Same case as `VL002`, from `createGetValidationErrors`. The type is a bare `symbol`, which cannot round trip. Use a string union instead.",
-      "fix": null
+      "fix": null,
+      "example": "import {createGetValidationErrors} from 'ts-runtypes';\nexport const errorsOf = createGetValidationErrors<symbol>();"
     },
     {
       "code": "VE010",
@@ -156,7 +167,8 @@
       "detail": "`validationErrors` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": "Same case as `VL010`, from `createGetValidationErrors`. A function-valued property carries no data and is left out of the report.",
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "VE011",
@@ -165,8 +177,9 @@
       "headline": "Method `{0}` is silently not checked by `validationErrors` — methods aren't data.",
       "detail": "Class and object methods aren't part of the serialisable shape, so\n`validationErrors` excludes them. The rest of the type still works.\n\nIf you wanted the method's return value validated/serialised, expose it\nas a data property instead.",
       "hasMessage": true,
-      "summary": "Same case as `VL011`, from `createGetValidationErrors`. Methods are behavior, not data, so they are left out.",
-      "fix": null
+      "summary": "Same case as `VL011`, from `createGetValidationErrors`. A method or function-typed property is behavior, not data, so it is left out of the report.",
+      "fix": null,
+      "example": "import {createGetValidationErrors} from 'ts-runtypes';\ninterface User { name: string; greet(): string; }\nexport const errorsOf = createGetValidationErrors<User>();"
     },
     {
       "code": "VE012",
@@ -176,7 +189,8 @@
       "detail": "Class static members live on the class, not on individual instances.\n`validationErrors` operates on instance shape, so statics are excluded.",
       "hasMessage": true,
       "summary": "Same case as `VL012`, from `createGetValidationErrors`. Static members are not part of instance data, so they are left out.",
-      "fix": null
+      "fix": null,
+      "example": "import {createGetValidationErrors} from 'ts-runtypes';\nclass Config { static version = 1; name = ''; }\nexport const errorsOf = createGetValidationErrors<Config>();"
     },
     {
       "code": "VE013",
@@ -186,7 +200,8 @@
       "detail": "JSON only supports string keys; symbol-keyed properties are dropped\nfrom the serialised form. `validationErrors` follows the same rule.\n\nFix — use a string key:\n  -  [Symbol.for('id')]: string;\n+  id: string;",
       "hasMessage": true,
       "summary": "Same case as `VL013`, from `createGetValidationErrors`. Symbol keys are not JSON-representable, so the property is left out.",
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "VE015",
@@ -196,7 +211,8 @@
       "detail": "`validationErrors` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object's behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `validationErrors` throws at build\ntime instead.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
       "hasMessage": true,
       "summary": "Same case as `VL015`, from `createGetValidationErrors`. A property whose value has no data form is left out of the report.",
-      "fix": null
+      "fix": null,
+      "example": "import {createGetValidationErrors} from 'ts-runtypes';\ninterface Box { id: symbol; name: string; }\nexport const errorsOf = createGetValidationErrors<Box>();"
     },
     {
       "code": "VE020",
@@ -206,7 +222,8 @@
       "detail": "Same reason as VL021: `any` and `unknown` describe \"anything\", so the\nchecker has no structure to compare against. The returned error array\nwill always be empty.\n\nFix — narrow the type to the actual shape you expect:\n  -  const errors = createGetValidationErrors<unknown>()(value);\n+  const errors = createGetValidationErrors<User>()(value);",
       "hasMessage": true,
       "summary": "Same idea as `VL021`, from `createGetValidationErrors`. On `any` or `unknown` there is nothing to compare against, so the report is always empty. Narrow the type to the shape you expect.",
-      "fix": null
+      "fix": null,
+      "example": "import {createGetValidationErrors} from 'ts-runtypes';\nexport const errorsOf = createGetValidationErrors<unknown>();"
     },
     {
       "code": "VL001",
@@ -215,8 +232,9 @@
       "headline": "Cannot validate `{0}`.",
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "hasMessage": true,
-      "summary": "The type you validate is a built-in that carries runtime state, like `Map`, `Set`, a typed array, or `Promise`. None of these survive a JSON round trip, so a guard that passed for one would claim a safety it cannot deliver. Validate a plain shape, or convert the value before you validate it.",
-      "fix": "const asObject = Object.fromEntries(myMap);\nconst isData = createValidate<Record<string, number>>();"
+      "summary": "The type you validate is a built-in that carries runtime state, like a `WeakMap`, a `WeakSet`, or a typed array such as `Uint8Array`. None of these survive a JSON round trip, so a guard that passed for one would claim a safety it cannot deliver. Validate a plain shape, or convert the value before you validate it.",
+      "fix": "const bytes = Array.from(myUint8Array);\nconst isData = createValidate<number[]>();",
+      "example": "import {createValidate} from 'ts-runtypes';\nexport const isData = createValidate<Uint8Array>();"
     },
     {
       "code": "VL002",
@@ -226,7 +244,8 @@
       "detail": "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
       "hasMessage": true,
       "summary": "The type is a bare `symbol`. Every symbol has its own runtime identity, so it cannot round trip across a network or a process boundary. Use a stable string union instead.",
-      "fix": "type Status = 'pending' | 'active' | 'done';"
+      "fix": "type Status = 'pending' | 'active' | 'done';",
+      "example": "import {createValidate} from 'ts-runtypes';\nexport const isData = createValidate<symbol>();"
     },
     {
       "code": "VL010",
@@ -235,8 +254,9 @@
       "headline": "Property `{0}` is a function — `validate` does not handle function values, so this property is silently not validated.",
       "detail": "`validate` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
-      "summary": "A property whose type is a function carries no data, so it is left out of the check. Given `interface User { name: string; onClick: () => void }`, the guard checks `name` only, so a value with a wrong `onClick` still passes. Drop the property, or replace it with the data it would produce.",
-      "fix": null
+      "summary": "A function-valued property carries no data, so it is left out of the validated shape. The surrounding data properties are still checked. Drop the property, or replace it with the data it would produce.",
+      "fix": null,
+      "example": null
     },
     {
       "code": "VL011",
@@ -245,8 +265,9 @@
       "headline": "Method `{0}` is silently not validated by `validate` — methods aren't data.",
       "detail": "Class and object methods aren't part of the serialisable shape, so\n`validate` excludes them. The rest of the type still works.\n\nIf you wanted the method's return value validated/serialised, expose it\nas a data property instead.",
       "hasMessage": true,
-      "summary": "Methods are behavior, not data, so they are not part of the validated shape. If you want a method result checked, expose it as a data property.",
-      "fix": null
+      "summary": "A function-valued member, written as a method like `greet(): string` or as a function-typed property like `onClick: () => void`, is behavior, not data, so it is left out of the validated shape. Expose the data you need as a plain property instead.",
+      "fix": null,
+      "example": "import {createValidate} from 'ts-runtypes';\ninterface User { name: string; greet(): string; }\nexport const isUser = createValidate<User>();"
     },
     {
       "code": "VL012",
@@ -256,7 +277,8 @@
       "detail": "Class static members live on the class, not on individual instances.\n`validate` operates on instance shape, so statics are excluded.",
       "hasMessage": true,
       "summary": "Static members live on the class, not on an instance. Validation works on instance shape, so statics are left out.",
-      "fix": null
+      "fix": null,
+      "example": "import {createValidate} from 'ts-runtypes';\nclass Config { static version = 1; name = ''; }\nexport const isConfig = createValidate<Config>();"
     },
     {
       "code": "VL013",
@@ -266,7 +288,8 @@
       "detail": "JSON only supports string keys; symbol-keyed properties are dropped\nfrom the serialised form. `validate` follows the same rule.\n\nFix — use a string key:\n  -  [Symbol.for('id')]: string;\n+  id: string;",
       "hasMessage": true,
       "summary": "JSON has string keys only, so a symbol-keyed property has nowhere to land in the serialized form. Use a string key if the property is real data.",
-      "fix": "interface Item {\n  id: string; // instead of [Symbol.for('id')]: string\n}"
+      "fix": "interface Item {\n  id: string; // instead of [Symbol.for('id')]: string\n}",
+      "example": null
     },
     {
       "code": "VL014",
@@ -275,8 +298,9 @@
       "headline": "Union member(s) of type `{0}` can't be represented as data — `validate` drops them, so the union is validated as its remaining members.",
       "detail": "A union projects to its serialisable members only: `DataOnly<Date | symbol>`\nis `Date`. The dropped member(s) ({0}) carry no JSON-shaped value (symbol,\nfunction, Promise, or a non-serialisable built-in like `Map` / `Set` /\ntyped arrays), so `validate` validated only the members that remain.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If EVERY member of the union is non-serialisable the\nprojection is `never`, and `validate` throws at build time instead.",
       "hasMessage": true,
-      "summary": "A union is validated as the members that have a data form. `Date | symbol` validates as `Date`. If every member has no data form the projection is `never`, and validation throws at build time instead. `createGetValidationErrors` reports this same case as `VL014`.",
-      "fix": null
+      "summary": "A union is validated as the members that have a data form. `Date | symbol` validates as `Date`. If every member has no data form the projection is `never`, and validation throws at build time instead.",
+      "fix": null,
+      "example": "import {createValidate} from 'ts-runtypes';\nexport const isData = createValidate<Date | symbol>();"
     },
     {
       "code": "VL015",
@@ -286,7 +310,8 @@
       "detail": "`validate` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object's behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `validate` throws at build\ntime instead.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
       "hasMessage": true,
       "summary": "A property whose value is a symbol, a Promise, or a non-serializable built-in has no data form, so `{ id: symbol }` validates as `{}`. A value that is only structurally unserializable, like `symbol[]` or `Map<string, symbol>`, cannot be dropped without changing the shape, so that case throws at build time instead.",
-      "fix": null
+      "fix": null,
+      "example": "import {createValidate} from 'ts-runtypes';\ninterface Box { id: symbol; name: string; }\nexport const isBox = createValidate<Box>();"
     },
     {
       "code": "VL021",
@@ -296,7 +321,8 @@
       "detail": "`any` and `unknown` describe \"anything\", so a structural validator has\nnothing to check. The resulting function passes for every input —\nincluding the ones you probably wanted to reject.\n\nFix — narrow the type to the actual shape you expect:\n  -  const isUser = createValidate<unknown>();\n+  const isUser = createValidate<User>();",
       "hasMessage": true,
       "summary": "`any` and `unknown` describe anything, so a structural check has nothing to compare against. The guard is always true. Narrow the type to the shape you expect.",
-      "fix": "const isUser = createValidate<User>(); // instead of <unknown>"
+      "fix": "const isUser = createValidate<User>(); // instead of <unknown>",
+      "example": "import {createValidate} from 'ts-runtypes';\nexport const isAnything = createValidate<unknown>();"
     },
     {
       "code": "CLS001",
@@ -306,7 +332,8 @@
       "detail": "By default a user class is serialized by its declared properties and\ndecoded back to a prototype-less plain object — `instanceof {0}` is\nfalse on the decoded value, and any class methods / getters are gone.\nThis is fine when you only care about the data.\n\nTo round-trip a real `{0}` instance, register a custom (de)serializer:\n  import {registerClassSerializer} from 'ts-runtypes';\n\n  registerClassSerializer('{0}', {\n    serialize: (instance) => ({ /* JSON-ready data */ }),\n    deserialize: (data) => new {0}(/* rebuild from data */),\n  });\n\n`serialize` returns JSON-ready data (the pipeline stringifies / encodes\nit); `deserialize` receives the parsed value and returns the instance.\nThe same registration is used by the JSON and binary families. `validate`\n/ `getValidationErrors` are unaffected — they always validate structurally.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB001",
@@ -316,7 +343,8 @@
       "detail": "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB002",
@@ -326,7 +354,8 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB003",
@@ -336,7 +365,8 @@
       "detail": "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB004",
@@ -346,7 +376,8 @@
       "detail": "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB005",
@@ -356,7 +387,8 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB006",
@@ -366,7 +398,8 @@
       "detail": "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB010",
@@ -376,7 +409,8 @@
       "detail": "`fromBinary` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB011",
@@ -386,7 +420,8 @@
       "detail": "Class and object methods aren't part of the serialisable shape, so\n`fromBinary` excludes them. The rest of the type still works.\n\nIf you wanted the method's return value validated/serialised, expose it\nas a data property instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB012",
@@ -396,7 +431,8 @@
       "detail": "Class static members live on the class, not on individual instances.\n`fromBinary` operates on instance shape, so statics are excluded.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB013",
@@ -406,7 +442,8 @@
       "detail": "JSON only supports string keys; symbol-keyed properties are dropped\nfrom the serialised form. `fromBinary` follows the same rule.\n\nFix — use a string key:\n  -  [Symbol.for('id')]: string;\n+  id: string;",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB014",
@@ -416,7 +453,8 @@
       "detail": "A union projects to its serialisable members only: `DataOnly<Date | symbol>`\nis `Date`. The dropped member(s) ({0}) carry no JSON-shaped value (symbol,\nfunction, Promise, or a non-serialisable built-in like `Map` / `Set` /\ntyped arrays), so `fromBinary` deserialised only the members that remain.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If EVERY member of the union is non-serialisable the\nprojection is `never`, and `fromBinary` throws at build time instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FB015",
@@ -426,7 +464,8 @@
       "detail": "`fromBinary` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object's behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `fromBinary` throws at build\ntime instead.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "JCP001",
@@ -436,7 +475,8 @@
       "detail": null,
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ001",
@@ -446,7 +486,8 @@
       "detail": "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ002",
@@ -456,7 +497,8 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ003",
@@ -466,7 +508,8 @@
       "detail": "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ004",
@@ -476,7 +519,8 @@
       "detail": "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ005",
@@ -486,7 +530,8 @@
       "detail": "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ010",
@@ -496,7 +541,8 @@
       "detail": "`prepareForJson` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ011",
@@ -506,7 +552,8 @@
       "detail": "Class and object methods aren't part of the serialisable shape, so\n`prepareForJson` excludes them. The rest of the type still works.\n\nIf you wanted the method's return value validated/serialised, expose it\nas a data property instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ012",
@@ -516,7 +563,8 @@
       "detail": "Class static members live on the class, not on individual instances.\n`prepareForJson` operates on instance shape, so statics are excluded.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ013",
@@ -526,7 +574,8 @@
       "detail": "JSON only supports string keys; symbol-keyed properties are dropped\nfrom the serialised form. `prepareForJson` follows the same rule.\n\nFix — use a string key:\n  -  [Symbol.for('id')]: string;\n+  id: string;",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ014",
@@ -536,7 +585,8 @@
       "detail": "A union projects to its serialisable members only: `DataOnly<Date | symbol>`\nis `Date`. The dropped member(s) ({0}) carry no JSON-shaped value (symbol,\nfunction, Promise, or a non-serialisable built-in like `Map` / `Set` /\ntyped arrays), so `prepareForJson` encoded only the members that remain.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If EVERY member of the union is non-serialisable the\nprojection is `never`, and `prepareForJson` throws at build time instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJ015",
@@ -546,7 +596,8 @@
       "detail": "`prepareForJson` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object's behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `prepareForJson` throws at build\ntime instead.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS001",
@@ -556,7 +607,8 @@
       "detail": "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS002",
@@ -566,7 +618,8 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS003",
@@ -576,7 +629,8 @@
       "detail": "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS004",
@@ -586,7 +640,8 @@
       "detail": "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS005",
@@ -596,7 +651,8 @@
       "detail": "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS010",
@@ -606,7 +662,8 @@
       "detail": "`prepareForJsonSafe` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS011",
@@ -616,7 +673,8 @@
       "detail": "Class and object methods aren't part of the serialisable shape, so\n`prepareForJsonSafe` excludes them. The rest of the type still works.\n\nIf you wanted the method's return value validated/serialised, expose it\nas a data property instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS012",
@@ -626,7 +684,8 @@
       "detail": "Class static members live on the class, not on individual instances.\n`prepareForJsonSafe` operates on instance shape, so statics are excluded.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS013",
@@ -636,7 +695,8 @@
       "detail": "JSON only supports string keys; symbol-keyed properties are dropped\nfrom the serialised form. `prepareForJsonSafe` follows the same rule.\n\nFix — use a string key:\n  -  [Symbol.for('id')]: string;\n+  id: string;",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS014",
@@ -646,7 +706,8 @@
       "detail": "A union projects to its serialisable members only: `DataOnly<Date | symbol>`\nis `Date`. The dropped member(s) ({0}) carry no JSON-shaped value (symbol,\nfunction, Promise, or a non-serialisable built-in like `Map` / `Set` /\ntyped arrays), so `prepareForJsonSafe` encoded only the members that remain.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If EVERY member of the union is non-serialisable the\nprojection is `never`, and `prepareForJsonSafe` throws at build time instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PJS015",
@@ -656,7 +717,8 @@
       "detail": "`prepareForJsonSafe` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object's behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `prepareForJsonSafe` throws at build\ntime instead.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ001",
@@ -666,7 +728,8 @@
       "detail": "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ002",
@@ -676,7 +739,8 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ003",
@@ -686,7 +750,8 @@
       "detail": "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ004",
@@ -696,7 +761,8 @@
       "detail": "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ005",
@@ -706,7 +772,8 @@
       "detail": "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ010",
@@ -716,7 +783,8 @@
       "detail": "`restoreFromJson` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ011",
@@ -726,7 +794,8 @@
       "detail": "Class and object methods aren't part of the serialisable shape, so\n`restoreFromJson` excludes them. The rest of the type still works.\n\nIf you wanted the method's return value validated/serialised, expose it\nas a data property instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ012",
@@ -736,7 +805,8 @@
       "detail": "Class static members live on the class, not on individual instances.\n`restoreFromJson` operates on instance shape, so statics are excluded.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ013",
@@ -746,7 +816,8 @@
       "detail": "JSON only supports string keys; symbol-keyed properties are dropped\nfrom the serialised form. `restoreFromJson` follows the same rule.\n\nFix — use a string key:\n  -  [Symbol.for('id')]: string;\n+  id: string;",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ014",
@@ -756,7 +827,8 @@
       "detail": "A union projects to its serialisable members only: `DataOnly<Date | symbol>`\nis `Date`. The dropped member(s) ({0}) carry no JSON-shaped value (symbol,\nfunction, Promise, or a non-serialisable built-in like `Map` / `Set` /\ntyped arrays), so `restoreFromJson` decoded only the members that remain.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If EVERY member of the union is non-serialisable the\nprojection is `never`, and `restoreFromJson` throws at build time instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "RJ015",
@@ -766,7 +838,8 @@
       "detail": "`restoreFromJson` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object's behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `restoreFromJson` throws at build\ntime instead.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ001",
@@ -776,7 +849,8 @@
       "detail": "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ002",
@@ -786,7 +860,8 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ003",
@@ -796,7 +871,8 @@
       "detail": "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ004",
@@ -806,7 +882,8 @@
       "detail": "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ005",
@@ -816,7 +893,8 @@
       "detail": "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ010",
@@ -826,7 +904,8 @@
       "detail": "`stringifyJson` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ011",
@@ -836,7 +915,8 @@
       "detail": "Class and object methods aren't part of the serialisable shape, so\n`stringifyJson` excludes them. The rest of the type still works.\n\nIf you wanted the method's return value validated/serialised, expose it\nas a data property instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ012",
@@ -846,7 +926,8 @@
       "detail": "Class static members live on the class, not on individual instances.\n`stringifyJson` operates on instance shape, so statics are excluded.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ013",
@@ -856,7 +937,8 @@
       "detail": "JSON only supports string keys; symbol-keyed properties are dropped\nfrom the serialised form. `stringifyJson` follows the same rule.\n\nFix — use a string key:\n  -  [Symbol.for('id')]: string;\n+  id: string;",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ014",
@@ -866,7 +948,8 @@
       "detail": "A union projects to its serialisable members only: `DataOnly<Date | symbol>`\nis `Date`. The dropped member(s) ({0}) carry no JSON-shaped value (symbol,\nfunction, Promise, or a non-serialisable built-in like `Map` / `Set` /\ntyped arrays), so `stringifyJson` stringified only the members that remain.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If EVERY member of the union is non-serialisable the\nprojection is `never`, and `stringifyJson` throws at build time instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SJ015",
@@ -876,7 +959,8 @@
       "detail": "`stringifyJson` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object's behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `stringifyJson` throws at build\ntime instead.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB001",
@@ -886,7 +970,8 @@
       "detail": "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB002",
@@ -896,7 +981,8 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB003",
@@ -906,7 +992,8 @@
       "detail": "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB004",
@@ -916,7 +1003,8 @@
       "detail": "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB005",
@@ -926,7 +1014,8 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB006",
@@ -936,7 +1025,8 @@
       "detail": "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB010",
@@ -946,7 +1036,8 @@
       "detail": "`toBinary` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB011",
@@ -956,7 +1047,8 @@
       "detail": "Class and object methods aren't part of the serialisable shape, so\n`toBinary` excludes them. The rest of the type still works.\n\nIf you wanted the method's return value validated/serialised, expose it\nas a data property instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB012",
@@ -966,7 +1058,8 @@
       "detail": "Class static members live on the class, not on individual instances.\n`toBinary` operates on instance shape, so statics are excluded.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB013",
@@ -976,7 +1069,8 @@
       "detail": "JSON only supports string keys; symbol-keyed properties are dropped\nfrom the serialised form. `toBinary` follows the same rule.\n\nFix — use a string key:\n  -  [Symbol.for('id')]: string;\n+  id: string;",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB014",
@@ -986,7 +1080,8 @@
       "detail": "A union projects to its serialisable members only: `DataOnly<Date | symbol>`\nis `Date`. The dropped member(s) ({0}) carry no JSON-shaped value (symbol,\nfunction, Promise, or a non-serialisable built-in like `Map` / `Set` /\ntyped arrays), so `toBinary` serialised only the members that remain.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If EVERY member of the union is non-serialisable the\nprojection is `never`, and `toBinary` throws at build time instead.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "TB015",
@@ -996,7 +1091,8 @@
       "detail": "`toBinary` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object's behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `toBinary` throws at build\ntime instead.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "HUK010",
@@ -1006,7 +1102,8 @@
       "detail": "`hasUnknownKeys` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "SUK010",
@@ -1016,7 +1113,8 @@
       "detail": "`stripUnknownKeys` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "UKE010",
@@ -1026,7 +1124,8 @@
       "detail": "`unknownKeyErrors` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "UKU010",
@@ -1036,7 +1135,8 @@
       "detail": "`unknownKeysToUndefined` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "UKW010",
@@ -1046,7 +1146,8 @@
       "detail": "`unknownKeysToUndefinedWire` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FMT001",
@@ -1056,7 +1157,8 @@
       "detail": null,
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "FMT002",
@@ -1066,7 +1168,8 @@
       "detail": null,
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFE9004",
@@ -1076,7 +1179,8 @@
       "detail": "Two calls register the same `namespace::functionId` key but the factory\nbodies differ. The cache can only hold one definition, so one call site\nsilently loses its version at runtime.\n\nFix — make all registrations identical, or pick one canonical site and\ndelete the others. The Related: line above points at the first\nregistration the extractor saw.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFE9005",
@@ -1086,7 +1190,8 @@
       "detail": "The build inlines parameter references by name when it materialises the\nfactory. Destructuring patterns (`({a, b})`, `([x, y])`) don't have a\nsingle name to substitute.\n\nFix — destructure inside the body:\n  -  registerPureFnFactory('ns::fn', (utl) => ({a, b}) => ...);\n+  registerPureFnFactory('ns::fn', (utl) => (params) => {\n+    const {a, b} = params;\n+    return ...;\n+  });",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFE9006",
@@ -1096,7 +1201,8 @@
       "detail": "Pure functions are materialised standalone at build time; there's no\n`this` to bind to.\n\nFix — replace `this` with an explicit parameter, or move the function\nout of the class/object method that owns the `this`:\n  registerPureFnFactory('ns::fn', (utl) => (self, input) => {\n    return self.field + input;\n  });",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFE9007",
@@ -1106,7 +1212,8 @@
       "detail": "Pure functions must run synchronously so the build can call them at\ncompile time. `async` introduces a Promise that won't resolve until\nruntime.\n\nFix — make the factory synchronous; move async work to the caller:\n  registerPureFnFactory('ns::fn', (utl) => {\n-   return async (input) => { const r = await heavy(); return r; };\n+   return (resolvedValue) => transform(resolvedValue);\n  });",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFE9008",
@@ -1116,7 +1223,8 @@
       "detail": "Generators carry resumption state that can't be materialised\nstatically.\n\nFix — return an array or a plain iterable instead:\n  registerPureFnFactory('ns::fn', (utl) => (input) => {\n    return [...computeAll(input)];\n  });",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFE9009",
@@ -1126,7 +1234,8 @@
       "detail": "Dynamic imports load modules at runtime — the build needs every\ndependency available statically.\n\nFix — use a top-level `import` statement, or pass the imported module\nin as a parameter.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFE9010",
@@ -1136,7 +1245,8 @@
       "detail": "Globals like `eval`, `Function`, `fetch`, `XMLHttpRequest`, `require`,\n`process`, `globalThis`, `window`, `document` are blocked from pure-fn\nbodies — they either execute arbitrary code or depend on a runtime\nenvironment the build can't reproduce.\n\nFix — remove the reference, or pass the needed value in as a parameter.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFE9011",
@@ -1146,7 +1256,8 @@
       "detail": "The build inlines factory bodies without their lexical environment, so\nany free variable becomes `undefined` at runtime.\n\nFix — pass `{0}` in as a parameter:\n  registerPureFnFactory('ns::fn', (utl) => ({0}, value) => ...);\n\nFix — inline its value if it's a known constant:\n  registerPureFnFactory('ns::fn', (utl) => (value) => {\n    const {0} = 42;\n    ...\n  });\n\nFix — import `{0}` directly inside the factory if it's a module export.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFE9012",
@@ -1156,7 +1267,8 @@
       "detail": "A RT validator/encoder calls `utl.usePureFn('{0}')` (or similar) but\nno `registerPureFnFactory` call with that namespace+function pair was\nfound in any scanned source file.\n\nFix — register the function in the expected location ({3}, if known).\nMake sure the file is included in the scan set.",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "PFE9013",
@@ -1166,7 +1278,8 @@
       "detail": "`utl.usePureFn` / `utl.getPureFn` need a static key so the build can\nverify the referenced pure-fn is registered.\n\nFix:\n  -  const key = buildKey();\n-  return utl.usePureFn(key)(input);\n+  return utl.usePureFn('rt::myFn')(input);",
       "hasMessage": true,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "OVR001",
@@ -1176,7 +1289,8 @@
       "detail": null,
       "hasMessage": false,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "OVR002",
@@ -1186,7 +1300,8 @@
       "detail": null,
       "hasMessage": false,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     },
     {
       "code": "OVR010",
@@ -1196,7 +1311,8 @@
       "detail": null,
       "hasMessage": false,
       "summary": null,
-      "fix": null
+      "fix": null,
+      "example": null
     }
   ]
 }
