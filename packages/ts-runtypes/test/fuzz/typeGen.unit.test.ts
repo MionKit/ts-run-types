@@ -170,6 +170,47 @@ describe('typeGen — recursion detection', () => {
   });
 });
 
+describe('typeGen — coherence', () => {
+  // Re-derives reachability INDEPENDENTLY of the generator's own prune, so this
+  // cross-checks it: every declared type must be reachable from the root through
+  // the ref graph. A decl the root can't reach is an orphan declaration emitted
+  // beside an unrelated root — pure noise the createX<root>() site never touches.
+  function refsIn(shapes: TypeShape[]): string[] {
+    const out: string[] = [];
+    for (const shape of shapes) eachShape(shape, (s) => s.kind === 'ref' && out.push(s.name));
+    return out;
+  }
+  function declShapes(decl: Decl): TypeShape[] {
+    if (decl.kind === 'interface' || decl.kind === 'class') return decl.props.map((p) => p.shape);
+    if (decl.kind === 'type') return [decl.shape];
+    return [];
+  }
+
+  it('emits no orphan declarations — every decl is reachable from the root', () => {
+    let withDecls = 0;
+    for (let i = 0; i < 300; i++) {
+      const gen = withSeededRandom(mixSeed(0xc0de, 'coherent', i), () => genType());
+      if (gen.decls.length === 0) continue;
+      withDecls++;
+      const byName = new Map(gen.decls.map((d) => [d.name, d] as const));
+      const reached = new Set<string>();
+      const stack = refsIn([gen.root]);
+      while (stack.length) {
+        const name = stack.pop()!;
+        if (reached.has(name) || !byName.has(name)) continue;
+        reached.add(name);
+        stack.push(...refsIn(declShapes(byName.get(name)!)));
+      }
+      for (const decl of gen.decls) {
+        expect(reached.has(decl.name), `seed ${i}: orphan decl ${decl.name} unreachable from root`).toBe(true);
+      }
+    }
+    // Sanity: the seed space actually exercises the named-decl path (otherwise the
+    // assertion above would be vacuous).
+    expect(withDecls).toBeGreaterThan(20);
+  });
+});
+
 // Balanced brackets/quotes — a cheap structural sanity check on rendered source.
 function balanced(text: string): boolean {
   const stack: string[] = [];
