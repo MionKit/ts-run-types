@@ -174,7 +174,17 @@ func buildMergedProps(objectMembers []FlatObject, ctx *EmitContext) []FlatMerged
 				continue
 			}
 			childResolved := ctx.ResolveRef(prop.Child)
-			if childResolved == nil || isFunctionLikeKind(childResolved.Kind) {
+			if childResolved == nil {
+				continue
+			}
+			// Drop a property whose child is DataOnly-stripped (function-like,
+			// symbol, Promise, non-serialisable, never) — the same set a
+			// standalone object absorbs in emitProperty*. Without this the
+			// candidate survives into the merge, emits CodeNS, and alwaysThrows
+			// the WHOLE union, while `{b: symbol}` on its own would serialize as
+			// `{}` (K2). Emit the member-dropped warning so the drop stays visible.
+			if isStrippedUnionMember(childResolved) {
+				ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, prop.Name)
 				continue
 			}
 			candidate := FlatPropCandidate{ChildRef: prop.Child, Resolved: childResolved, Optional: prop.Optional}

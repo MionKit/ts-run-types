@@ -32,6 +32,28 @@ func isFunctionLikeKind(kind protocol.ReflectionKind) bool {
 	return false
 }
 
+// objectHasCallSignature reports whether an object-like RunType carries a
+// KindCallSignature member — i.e. it is a CALLABLE interface
+// (`interface F { (a): R; p: string }`). A call signature makes the whole
+// interface function-like: DataOnly strips it to `never`, and validate guards it
+// with `typeof === 'function'`. The serializers therefore treat it like a bare
+// function (alwaysThrow at the root, dropped at a property position) by returning
+// CodeNS for it, rather than walking it as a plain object and serializing its
+// data props — which would disagree with validate. Mirrors the call-signature
+// detection in emitObjectValidate / emitObjectValidationErrors.
+func objectHasCallSignature(rt *protocol.RunType, ctx *EmitContext) bool {
+	if rt == nil {
+		return false
+	}
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved != nil && resolved.Kind == protocol.KindCallSignature {
+			return true
+		}
+	}
+	return false
+}
+
 // isRestTupleMember reports whether a resolved tuple-member RunType
 // carries the "rest" flag the projection sets on rest elements
 // (`[A, ...B[]]`). Mirrors TupleMember.isRest() on the wire.
