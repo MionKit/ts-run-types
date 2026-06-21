@@ -37,9 +37,6 @@ export const STYLES = `
 .rt-playground .rtpg-run-btn { background: var(--rtpg-accent); color: #0e1116; border: none; border-radius: 8px; padding: 11px 14px; font-weight: 700; font-size: 14px; cursor: pointer; }
 .rt-playground .rtpg-run-btn:hover { background: var(--rtpg-accent-dim); }
 .rt-playground .rtpg-run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.rt-playground .rtpg-status { font-family: var(--rtpg-mono); font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--rtpg-border); background: var(--rtpg-panel-2); color: var(--rtpg-muted); }
-.rt-playground .rtpg-status[data-state="ready"] { color: var(--rtpg-ok); border-color: var(--rtpg-accent-dim); }
-.rt-playground .rtpg-status[data-state="error"] { color: var(--rtpg-err); border-color: var(--rtpg-err); }
 .rt-playground .rtpg-codeview { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 /* The code block fills the whole column so its background reaches the bottom no
    matter how short the code is; it scrolls internally when the code is taller. */

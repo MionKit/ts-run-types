@@ -225,7 +225,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
           <div class="rtpg-editor" data-el="editor"></div>
         </section>
         <section class="rtpg-pane">
-          <div class="rtpg-head"><h2>Function</h2><span class="rtpg-status" data-el="status" data-state="loading">loading…</span></div>
+          <div class="rtpg-head"><h2>Function</h2></div>
           <div class="rtpg-controls">
             <label class="rtpg-field">
               <select class="rtpg-select" data-el="operation"></select></label>
@@ -318,15 +318,14 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     this.els.run.addEventListener('click', () => void this.doRun());
 
     try {
-      const v = await versions(this.resolverOptions());
-      this.setStatus(`resolver v${v.version} · tsgo ${v.tsgo}`, 'ready');
+      // versions() resolves once Monaco + the resolver WASM are loaded.
+      await versions(this.resolverOptions());
       (this.els.run as HTMLButtonElement).disabled = false;
       this.ready = true;
       (this.els.overlay as HTMLElement).hidden = true;
       void this.doRun();
       void this.updateSelectedCode();
     } catch (err) {
-      this.setStatus(`resolver failed: ${(err as Error).message}`, 'error');
       this.els.overlay.innerHTML = `<div class="rtpg-overlay-box"><div class="rtpg-overlay-title">Could not load the playground</div><div class="rtpg-overlay-sub rtpg-overlay-err">${escapeHtml((err as Error).message)}</div></div>`;
     }
   }
@@ -403,11 +402,6 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   private resetResult(): void {
     this.els.output.innerHTML = '<div class="rtpg-placeholder">Run to see the result</div>';
     this.els.timing.textContent = '';
-  }
-
-  private setStatus(text: string, state: string): void {
-    this.els.status.textContent = text;
-    this.els.status.dataset.state = state;
   }
 
   private syncInputVisibility(): void {
