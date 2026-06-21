@@ -1,0 +1,7 @@
+# Built WASM assets (reproducible via scripts/build-wasm.sh) — never committed.
+assets/
+
+# tsc / vite output.
+dist/
+tsconfig.tsbuildinfo
+.vite/
