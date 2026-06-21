@@ -24,6 +24,10 @@
 //                    cascading drop↔add. Sub-decl / field renames can legitimately
 //                    demote (ambiguity, recursive-type id change, nominal enum) and are
 //                    covered by NL, not RC.
+//   CB  content-blind a twin mirror with EMPTY values, driven through the SAME edits,
+//                    reconciles to identical STRUCTURE (and the same control outcome) as
+//                    the FILLED one — filling labels never changes which fields move
+//                    where or whether it converges
 //   R6  convergence  after a valid edit a second `--update` is a byte-identical no-op
 //   R10 totality     every `gen --update` is controlled (no panic / internal error / hang)
 //   P   parse-safety a failed corruption reconcile leaves the mirror byte-identical
@@ -55,7 +59,15 @@ const MOD_GEN_OPTIONS: GenOptions = {
 // @rtOrphan carcass handling is now stable).
 const STEP_INVALID_CHANCE = 0.35;
 
-export type ModRuleId = 'R10' | 'P' | 'R6' | 'NL' | 'RC';
+export type ModRuleId = 'R10' | 'P' | 'R6' | 'NL' | 'RC' | 'CB';
+
+// blankAuthored empties every authored `$label` value so two mirrors that differ ONLY
+// in authored text compare equal — the normalizer for the content-blindness oracle.
+// Labels are the only thing the fuzzer authors (authorLabels); everything else (mock
+// pools, $errors) stays blank in both the filled and empty twins.
+function blankAuthored(mirror: string): string {
+  return mirror.replace(/\$label: '[^']*'/g, () => "$label: ''");
+}
 
 // orphanBlockPattern strips @rtOrphan / @rtOrphanChild block comments to leave only
 // the LIVE mirror text — mirrors the Go orphanBlockPattern (reconcile.go). The
@@ -148,6 +160,16 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
       return;
     }
 
+    // The EMPTY twin for the content-blindness (CB) oracle: same source, scaffolded but
+    // NOT authored (labels stay blank). Driven through the identical edit stream below,
+    // it must reconcile to the same STRUCTURE as the filled fixture. Scaffolded from the
+    // same source the filled one was, so it cannot fail here if the filled one didn't.
+    const emptyFixture = makeFixture(`tm-${seed >>> 0}-empty`, renderRootedSource(rooted));
+    if (!isControlled(scaffold(emptyFixture, rooted.rootName)) || !existsSync(emptyFixture.mirrorPath)) {
+      skipped = true;
+      return;
+    }
+
     const record = (rule: ModRuleId, op: string, step: number, message: string): void => {
       violations.push({rule, op, step, seed, message});
     };
@@ -162,7 +184,9 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
         const before = readMirror(fixture);
         const source = result.rawSource ?? renderRootedSource(rooted);
         setSource(fixture, source);
+        setSource(emptyFixture, source);
         const run = update(fixture, rooted.rootName);
+        const runEmpty = update(emptyFixture, rooted.rootName);
 
         // R10 — never a crash, hang, or internal error, on ANY input.
         if (!isControlled(run)) {
@@ -176,6 +200,28 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
           break;
         }
         const after = readMirror(fixture);
+
+        // CB — content-blindness: the empty twin (same edits, no authored values) must
+        // reconcile to the same CONTROL outcome and the same STRUCTURE. The filled run
+        // is controlled + present here (checked just above), so the empty twin must be
+        // too, and the two mirrors must match once authored text is blanked. Holds for
+        // both valid edits and recovered/failed corruptions (the source is identical for
+        // both twins, so only a value-dependent reconcile branch could diverge them).
+        if (!isControlled(runEmpty) || !existsSync(emptyFixture.mirrorPath)) {
+          record('CB', result.op, step, `empty twin diverged in control: filled ok, empty ${why(runEmpty)}`);
+          break;
+        }
+        const afterEmpty = readMirror(emptyFixture);
+        if (blankAuthored(after) !== blankAuthored(afterEmpty)) {
+          if (process.env.FUZZ_TYPEMOD_DEBUG) {
+            console.error(
+              `\n===== CB DEBUG (${result.op}) =====\n--- source ---\n${source}\n` +
+                `--- FILLED (blanked) ---\n${blankAuthored(after)}\n--- EMPTY (blanked) ---\n${blankAuthored(afterEmpty)}\n=====`
+            );
+          }
+          record('CB', result.op, step, 'empty and filled mirrors differ in structure (reconcile not content-blind)');
+          break;
+        }
 
         if (result.editClass !== 'valid') {
           // A deliberate source corruption. tsgo's parser ERROR-RECOVERS from many
@@ -211,10 +257,14 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
             );
             break;
           }
-          // Restore a known-valid state so the sequence continues from solid ground.
-          setSource(fixture, renderRootedSource(rooted));
+          // Restore a known-valid state so the sequence continues from solid ground —
+          // for BOTH twins, keeping the empty fixture in lockstep for the next step's CB.
+          const validSource = renderRootedSource(rooted);
+          setSource(fixture, validSource);
+          setSource(emptyFixture, validSource);
           const restore = update(fixture, rooted.rootName);
-          if (!isControlled(restore)) {
+          const restoreEmpty = update(emptyFixture, rooted.rootName);
+          if (!isControlled(restore) || !isControlled(restoreEmpty)) {
             record('R10', `${result.op}:restore`, step, `\`${restore.argv.join(' ')}\` ${why(restore)}`);
             break;
           }
