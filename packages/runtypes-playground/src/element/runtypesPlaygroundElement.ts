@@ -210,10 +210,13 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     this.classList.add('rt-playground');
     this.innerHTML = `
       <div class="rtpg-toolbar">
-        <div class="rtpg-presets" data-el="presets"></div>
-        <div class="rtpg-modeswitch" role="group" aria-label="type form">
-          <button type="button" class="rtpg-mode" data-mode="type" title="TypeScript type">${TS_ICON}<span>TS type</span></button>
-          <button type="button" class="rtpg-mode" data-mode="schema" title="ts-runtypes schema (value-first)">${JS_ICON}<span>Schema</span></button>
+        <div class="rtpg-typegroup">
+          <div class="rtpg-modeswitch" role="group" aria-label="type form">
+            <button type="button" class="rtpg-mode" data-mode="type" title="TypeScript type">${TS_ICON}<span>TS type</span></button>
+            <button type="button" class="rtpg-mode" data-mode="schema" title="ts-runtypes schema (value-first)">${JS_ICON}<span>Schema</span></button>
+          </div>
+          <span class="rtpg-typegroup-sep"></span>
+          <div class="rtpg-presets" data-el="presets"></div>
         </div>
       </div>
       <div class="rtpg-layout">
@@ -384,7 +387,14 @@ export class RuntypesPlaygroundElement extends HTMLElement {
 
   private onOperationChanged(): void {
     this.syncInputVisibility();
+    this.resetResult();
     this.scheduleCodegen(PICK_DEBOUNCE_MS);
+  }
+
+  // resetResult clears the (now stale) run output when the selected function changes.
+  private resetResult(): void {
+    this.els.output.innerHTML = '<div class="rtpg-placeholder">Run to see the result</div>';
+    this.els.timing.textContent = '';
   }
 
   private setStatus(text: string, state: string): void {
