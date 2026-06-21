@@ -54,6 +54,44 @@ func objectHasCallSignature(rt *protocol.RunType, ctx *EmitContext) bool {
 	return false
 }
 
+// callableLeafSubstitute maps an unsupported-leaf RunType to the RunType whose
+// kind drives the per-family diag code. For a callable interface — an
+// objectLiteral carrying a KindCallSignature child — it returns that call
+// signature so DiagCodeForLeaf emits the family's FUNCTION code (and an
+// alwaysThrow entry), exactly like a bare function. Every other leaf passes
+// through unchanged.
+//
+// The serializer emitters return CodeNS for a callable interface (via
+// objectHasCallSignature), so the walker latches the OBJECTLITERAL as the
+// unsupported leaf. Without this substitution DiagCodeForLeaf's rootCodeMap has
+// no objectLiteral arm and returns "", silently skipping the entry — which
+// leaves a dangling same-family dependency (the entry cascades to a KindMissing
+// stub). A JSON composite then binds that stub with an unguarded
+// `utl.getRT(key).fn` (runtime `reading 'fn'`), and a binary site can't resolve
+// its tuple ("no id injected"). See F2b in docs/todos.
+//
+// refTable resolves the objectLiteral's KindRef children; a nil table (or an
+// unresolvable ref) falls back to the original leaf — the pre-fix silent-skip,
+// preserving the unknown-future-kind safety net.
+func callableLeafSubstitute(leaf *protocol.RunType, refTable map[string]*protocol.RunType) *protocol.RunType {
+	if leaf == nil || leaf.Kind != protocol.KindObjectLiteral {
+		return leaf
+	}
+	for _, child := range leaf.Children {
+		resolved := child
+		if child != nil && child.Kind == protocol.KindRef {
+			if refTable == nil {
+				continue
+			}
+			resolved = refTable[child.ID]
+		}
+		if resolved != nil && resolved.Kind == protocol.KindCallSignature {
+			return resolved
+		}
+	}
+	return leaf
+}
+
 // isRestTupleMember reports whether a resolved tuple-member RunType
 // carries the "rest" flag the projection sets on rest elements
 // (`[A, ...B[]]`). Mirrors TupleMember.isRest() on the wire.
