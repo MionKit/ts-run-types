@@ -6,7 +6,7 @@
 //   - 'dynamic'      (default) (val) => Uint8Array      grow as needed
 //   - 'precalculate'           (val) => Uint8Array      measure pass → exact, can't overflow
 //   - 'initialSize'            (val, size) => Uint8Array caller size; throws on overflow
-//   - 'into'                   (val, into) => Uint8Array caller buffer; throws on overflow (zero-copy)
+//   - 'intoBuffer'                   (val, into) => Uint8Array caller buffer; throws on overflow (zero-copy)
 
 import * as TF from 'ts-runtypes/formats';
 import {describe, it, expect} from 'vitest';
@@ -48,7 +48,7 @@ function _encoderReturnSignatureChecks(v: {a: number}): void {
   sizedSchema(v, 100);
   // @ts-expect-error initialSize encoder requires a numeric size argument
   sizedSchema(v);
-  const intoSchema = createBinaryEncoder(s, {sizeStrategy: 'into'});
+  const intoSchema = createBinaryEncoder(s, {sizeStrategy: 'intoBuffer'});
   intoSchema(v, new ArrayBuffer(8));
   // @ts-expect-error into encoder requires an ArrayBuffer argument
   intoSchema(v);
@@ -58,7 +58,7 @@ function _encoderReturnSignatureChecks(v: {a: number}): void {
   sizedStatic(v, 100);
   // @ts-expect-error initialSize encoder requires a numeric size argument
   sizedStatic(v);
-  const intoStatic = createBinaryEncoder<{a: number}>(undefined, {sizeStrategy: 'into'});
+  const intoStatic = createBinaryEncoder<{a: number}>(undefined, {sizeStrategy: 'intoBuffer'});
   intoStatic(v, new ArrayBuffer(8));
   // @ts-expect-error into encoder requires an ArrayBuffer argument
   intoStatic(v);
@@ -131,7 +131,7 @@ describe('binary sizing — all four strategies are byte-identical + round-trip'
         dynamic: createBinaryEncoder(s),
         precalculate: createBinaryEncoder(s, {sizeStrategy: 'precalculate'}),
         initialSize: createBinaryEncoder(s, {sizeStrategy: 'initialSize'}),
-        into: createBinaryEncoder(s, {sizeStrategy: 'into'}),
+        into: createBinaryEncoder(s, {sizeStrategy: 'intoBuffer'}),
         sizer: createBinarySizer(s),
         dec: createBinaryDecoder(s),
       },
@@ -151,7 +151,7 @@ describe('binary sizing — all four strategies are byte-identical + round-trip'
       dynamic: createBinaryEncoder(s),
       precalculate: createBinaryEncoder(s, {sizeStrategy: 'precalculate'}),
       initialSize: createBinaryEncoder(s, {sizeStrategy: 'initialSize'}),
-      into: createBinaryEncoder(s, {sizeStrategy: 'into'}),
+      into: createBinaryEncoder(s, {sizeStrategy: 'intoBuffer'}),
       sizer: createBinarySizer(s),
       dec: createBinaryDecoder(s),
     };
@@ -166,7 +166,7 @@ describe('binary sizing — all four strategies are byte-identical + round-trip'
         dynamic: createBinaryEncoder(s),
         precalculate: createBinaryEncoder(s, {sizeStrategy: 'precalculate'}),
         initialSize: createBinaryEncoder(s, {sizeStrategy: 'initialSize'}),
-        into: createBinaryEncoder(s, {sizeStrategy: 'into'}),
+        into: createBinaryEncoder(s, {sizeStrategy: 'intoBuffer'}),
         sizer: createBinarySizer(s),
         dec: createBinaryDecoder(s),
       },
@@ -181,7 +181,7 @@ describe('binary sizing — all four strategies are byte-identical + round-trip'
       dynamic: createBinaryEncoder(s),
       precalculate: createBinaryEncoder(s, {sizeStrategy: 'precalculate'}),
       initialSize: createBinaryEncoder(s, {sizeStrategy: 'initialSize'}),
-      into: createBinaryEncoder(s, {sizeStrategy: 'into'}),
+      into: createBinaryEncoder(s, {sizeStrategy: 'intoBuffer'}),
       sizer: createBinarySizer(s),
       dec: createBinaryDecoder(s),
     };
@@ -203,12 +203,12 @@ describe("binary sizing — 'initialSize' enforces its fixed buffer", () => {
   });
 });
 
-describe("binary sizing — 'into' writes into the caller's buffer", () => {
+describe("binary sizing — 'intoBuffer' writes into the caller's buffer", () => {
   it('zero-copy view into the supplied buffer; throws when it does not fit', () => {
     const s = RT.array(TF.string());
     const value = ['alpha', 'beta', 'gamma'];
     const exact = createBinarySizer(s)(value);
-    const enc = createBinaryEncoder(s, {sizeStrategy: 'into'});
+    const enc = createBinaryEncoder(s, {sizeStrategy: 'intoBuffer'});
 
     const buf = new ArrayBuffer(exact);
     const view = enc(value, buf);
