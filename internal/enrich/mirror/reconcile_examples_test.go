@@ -7,11 +7,46 @@ package mirror
 // random edit sequences; these spell out the headline cases in plain sight.)
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/enrich"
 )
+
+// blankLabels empties every authored $label value so two mirrors that differ ONLY in
+// authored text compare equal — the normalizer for the content-blindness check.
+func blankLabels(mirror string) string {
+	return regexp.MustCompile(`\$label: '[^']*'`).ReplaceAllString(mirror, "$$label: ''")
+}
+
+// Metamorphic: the reconciler is CONTENT-BLIND. The SAME source edit (drop `age`, add
+// `email`, keep `name`), applied to a mirror with EMPTY authored values and to one
+// with FILLED values, produces the same STRUCTURE — same fields kept / added /
+// orphaned, same markers — differing only in the carried text. Pins that no reconcile
+// decision branches on what the author wrote (filling labels can never change which
+// fields move where, or whether it converges).
+func TestExample_ReconcileIsContentBlind(t *testing.T) {
+	header := "import type { User } from '../src';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+		"/** @rtType User#u1 @rtIds {name: strId, age: numId} */\n"
+	emptyExisting := header +
+		"export const friendlyUser: FriendlyType<User> = {$label: '', name: {$label: ''}, age: {$label: ''}};\n"
+	filledExisting := header +
+		"export const friendlyUser: FriendlyType<User> = {$label: 'Account', name: {$label: 'Name'}, age: {$label: 'Age'}};\n"
+
+	spec := friendlySpec(enrich.NamedConst{
+		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
+		Friendly: "{$label: '', name: {$label: ''}, email: {$label: ''}}",
+		TypeID:   "u2", ChildIDs: map[string]string{"name": "strId", "email": "strId"},
+	})
+	outEmpty := mustReconcile(t, spec, emptyExisting, sourceDeclaring("User"))
+	outFilled := mustReconcile(t, spec, filledExisting, sourceDeclaring("User"))
+
+	if blankLabels(outEmpty) != blankLabels(outFilled) {
+		t.Errorf("reconcile is not content-blind:\n--- empty (blanked) ---\n%s\n--- filled (blanked) ---\n%s", blankLabels(outEmpty), blankLabels(outFilled))
+	}
+}
 
 // friendlySpec builds a friendly-only desired set (one const per case keeps the
 // example readable; the mock form behaves identically).
