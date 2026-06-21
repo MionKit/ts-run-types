@@ -113,6 +113,74 @@ func TestExample_RenameInterface_carriesTreeAndRenames(t *testing.T) {
 	requireMissing(t, out, "friendlyUser")                                         // old const fully gone
 }
 
+// Rename a whole interface AND reshape it in one edit (Widget{id,size} ->
+// Gadget{id,size,color}). Both the NAME and the whole-graph structural id change,
+// so neither the name match nor the old id-ONLY rename matcher fired — the authored
+// tree was lost to an @rtOrphan carcass. Graph-parity scoring pairs them by their
+// shared field graph (id + size overlap) and CARRIES the authored values onto the
+// renamed-and-grown const, scaffolding only the genuinely new field.
+func TestExample_RenameAndReshape_carriesByGraphParity(t *testing.T) {
+	existing := "import type { Widget } from '../src';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+		"/** @rtType Widget#widId @rtIds {id: idStr, size: numId} */\n" +
+		"export const friendlyWidget: FriendlyType<Widget> = {\n" +
+		"  $label: 'A widget',\n" +
+		"  id: {$label: 'Identifier'},\n" +
+		"  size: {$label: 'Size in mm'},\n" +
+		"};\n"
+
+	spec := friendlySpec(enrich.NamedConst{
+		TypeName: "Gadget", DeclFile: "/src.ts", FriendlyVar: "friendlyGadget",
+		Friendly: "{$label: '', id: {$label: ''}, size: {$label: ''}, color: {$label: ''}}",
+		TypeID:   "gadId", // different whole-graph id — the reshape changed it
+		ChildIDs: map[string]string{"id": "idStr", "size": "numId", "color": "colId"},
+	})
+	out := mustReconcile(t, spec, existing, sourceDeclaring("Gadget"))
+
+	requireContains(t, out, "export const friendlyGadget: FriendlyType<Gadget>") // var + annotation renamed
+	requireContains(t, out, "@rtType Gadget#gadId")                              // marker updated to new id
+	requireContains(t, out, "$label: 'A widget'")                                // root label carried
+	requireContains(t, out, "id: {$label: 'Identifier'}")                        // kept field carried
+	requireContains(t, out, "size: {$label: 'Size in mm'}")                      // kept field carried
+	requireContains(t, out, "color:")                                            // new field scaffolded
+	requireMissing(t, out, "@rtOrphan")                                          // nothing orphaned
+	requireMissing(t, out, "friendlyWidget")                                     // old const fully gone
+
+	// Fixed point: a second --update is a byte-identical no-op (marker now carries
+	// the new id + child-id map, so nothing re-pairs).
+	out2 := mustReconcile(t, spec, out, sourceDeclaring("Gadget"))
+	if out != out2 {
+		t.Errorf("rename+reshape not a fixed point:\n--- first ---\n%s\n--- second ---\n%s", out, out2)
+	}
+}
+
+// Two same-shape types renamed in ONE pass (A,B -> X,Y, all sharing a structural
+// id) is genuinely ambiguous: every drop ties every add at score 1.0, so there is
+// no unique best match. The matcher must NOT guess — it falls through to the safe
+// orphan + scaffold path, preserving each authored value in its own carcass rather
+// than risking a mis-attribution onto the wrong renamed type.
+func TestExample_TwoSameShapeRenames_ambiguousFallsThrough(t *testing.T) {
+	existing := "import type { A, B } from '../src';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+		"/** @rtType A#sameId @rtIds {x: strId} */\n" +
+		"export const friendlyA: FriendlyType<A> = {$label: 'the A', x: {$label: 'x of A'}};\n\n" +
+		"/** @rtType B#sameId @rtIds {x: strId} */\n" +
+		"export const friendlyB: FriendlyType<B> = {$label: 'the B', x: {$label: 'x of B'}};\n"
+
+	body := "{$label: '', x: {$label: ''}}"
+	spec := friendlySpec(
+		enrich.NamedConst{TypeName: "X", DeclFile: "/src.ts", FriendlyVar: "friendlyX", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
+		enrich.NamedConst{TypeName: "Y", DeclFile: "/src.ts", FriendlyVar: "friendlyY", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
+	)
+	out := mustReconcile(t, spec, existing, sourceDeclaring("X", "Y"))
+
+	requireContains(t, out, "export const friendlyX: FriendlyType<X>") // X scaffolded under its own name
+	requireContains(t, out, "export const friendlyY: FriendlyType<Y>") // Y scaffolded under its own name
+	requireContains(t, out, "@rtOrphan")                               // A and B orphaned, not carried
+	requireContains(t, out, "x of A")                                  // A's value preserved in its carcass
+	requireContains(t, out, "x of B")                                  // B's value preserved in its carcass
+}
+
 // Change a field's TYPE (age: number -> string). The old value can't carry to a
 // different type, so it is preserved verbatim in a prunable @rtOrphanChild carcass
 // and a fresh skeleton replaces it. This is preservation, not garbage — `gen
