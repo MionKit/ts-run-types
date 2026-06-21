@@ -1113,6 +1113,14 @@ func emitObjectValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode
 			break
 		}
 	}
+	// A callable interface at a NON-root position (property / element) is
+	// function-like, exactly like a bare function: dropped at a property,
+	// alwaysThrow at a propagating slot. Return CodeNS so the parent handles it
+	// like any other function-valued child (matching the serializers, F2). At the
+	// ROOT a function value is valid, so keep the typeof-function guard below.
+	if callSigChild != nil && !ctx.IsRoot() {
+		return RTCode{Code: "", Type: CodeNS}
+	}
 	var parts []string
 	if callSigChild != nil {
 		// Callable shape — use the call-sig's emit as the guard.

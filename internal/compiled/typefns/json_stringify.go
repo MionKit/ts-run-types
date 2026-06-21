@@ -341,6 +341,11 @@ func emitArrayStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RT
 // Property declaration order within each "optional" group is
 // preserved (stable sort).
 func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+	// A callable interface is function-like (DataOnly = never); treat it like a
+	// bare function (alwaysThrow at root, dropped at a property), not an object.
+	if objectHasCallSignature(rt, ctx) {
+		return RTCode{Code: "", Type: CodeNS}
+	}
 	type pendingChild struct {
 		ref      *protocol.RunType
 		optional bool

@@ -397,8 +397,13 @@ func emitIndexSignatureToBinary(rt *protocol.RunType, ctx *EmitContext, v string
 	} else {
 		keyCode = ser + ".serString(" + keyVar + ")"
 	}
+	// Skip keys that name a declared property — those are encoded positionally by
+	// emitObjectToBinary; the index signature covers only the remaining dynamic
+	// keys. `siblingNamedSkipCode` is "" when the object has no named props (a
+	// bare Record), so this is a no-op there.
+	skip := siblingNamedSkipCode(rt, ctx, keyVar)
 	body := "let " + lenVar + " = 0; const " + idxVar + " = " + ser + ".index; " + ser + ".index += 4;" +
-		"for (const " + keyVar + " in " + v + ") {" + keyCode + ";" + childRT.Code + ";" + lenVar + "++;}" +
+		"for (const " + keyVar + " in " + v + ") {" + skip + keyCode + ";" + childRT.Code + ";" + lenVar + "++;}" +
 		ser + ".view.setUint32(" + idxVar + ", " + lenVar + ", 1)"
 	return RTCode{Code: body, Type: CodeS}
 }
@@ -459,17 +464,26 @@ func emitPropertyToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser 
 // Skips static / function-typed children. When the object carries an
 // index signature, the index signature's emit handles the whole loop.
 func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
-	// If the object has an index signature, defer to its emit (which
-	// covers every enumerable key).
+	// A callable interface is function-like (DataOnly = never); treat it like a
+	// bare function (alwaysThrow at root, dropped at a property), not an object.
+	if objectHasCallSignature(rt, ctx) {
+		return RTCode{Code: "", Type: CodeNS}
+	}
+	// Collect the index-signature child (if any). It is emitted AFTER the named
+	// properties — an object mixing named props with an index signature encodes
+	// each named prop with its OWN type, then the index sig covers only the
+	// REMAINING dynamic keys (skipped via the sibling-named set published below).
+	// Before, an index signature short-circuited the whole object and mis-applied
+	// the index value encoder to the named props too (F1).
+	var indexSig *protocol.RunType
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
-		if resolved == nil {
-			continue
-		}
-		if resolved.Kind == protocol.KindIndexSignature {
-			return emitIndexSignatureToBinary(resolved, ctx, v, ser)
+		if resolved != nil && resolved.Kind == protocol.KindIndexSignature {
+			indexSig = resolved
+			break
 		}
 	}
+	publishSiblingNamedKeysForIndexSig(rt, ctx)
 
 	// Split children into required vs optional. Static and function-typed
 	// props are skipped entirely.
@@ -552,6 +566,17 @@ func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser st
 		}
 		parts = append(parts, bitmapInit)
 		parts = append(parts, optParts...)
+	}
+
+	// Index signature for the remaining (dynamic) keys, after the named props.
+	if indexSig != nil {
+		idxRT := emitIndexSignatureToBinary(indexSig, ctx, v, ser)
+		if idxRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
+		}
+		if idxRT.Code != "" {
+			parts = append(parts, idxRT.Code)
+		}
 	}
 
 	if len(parts) == 0 {

@@ -187,3 +187,32 @@ func TestDataOnlyUnion_NestedInArray(t *testing.T) {
 		t.Errorf("(Date|symbol)[] should encode (element union drops symbol); got:\n%s", out)
 	}
 }
+
+// K2 regression: a union whose object member carries a DataOnly-stripped
+// property (`Date | {b: symbol}`) must DROP that property and serialize the
+// member as `{}`, NOT alwaysThrow the whole union. A standalone `{b: symbol}`
+// already drops to `{}`; the union merged-prop builder used to filter only
+// function-like props, so the symbol survived, emitted CodeNS, and failed the
+// union. Covers every flat-union family (the merged-prop list is shared).
+func TestDataOnlyUnion_ObjectMemberStrippedProp(t *testing.T) {
+	date := mkDate()
+	sym := mkSym()
+	propB := &protocol.RunType{ID: "pb", Kind: protocol.KindPropertySignature, Name: "b", Child: makeRef("sym")}
+	obj := &protocol.RunType{ID: "obj", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pb")}}
+	union := &protocol.RunType{
+		ID: "uni", Kind: protocol.KindUnion,
+		Children:          []*protocol.RunType{makeRef("dat"), makeRef("obj")},
+		SafeUnionChildren: []*protocol.RunType{makeRef("dat"), makeRef("obj")},
+	}
+	dump := protocol.Dump{RunTypes: []*protocol.RunType{date, sym, propB, obj, union}}
+
+	for _, fam := range []string{"validate", "prepareForJson", "prepareForJsonSafe", "stringifyJson", "restoreFromJson", "toBinary", "fromBinary"} {
+		out := renderModule(t, dump, fam)
+		// A real union factory (`<hash>_uni(…){`) — family-agnostic, since binary
+		// encode/decode bodies take `(v,Ser)` / `(ret,Des)` not just `(v)`. An
+		// alwaysThrow union has no `_uni(` function definition at all.
+		if !strings.Contains(out, "_uni(") {
+			t.Errorf("[%s] `Date | {b: symbol}` should drop the symbol prop and serialize, not alwaysThrow; got:\n%s", fam, out)
+		}
+	}
+}
