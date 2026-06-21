@@ -341,6 +341,21 @@ diverges from RunTypes' semantics. To add a whole new competitor, copy a
 to [`Containerfile`](Containerfile), and add it to `competitor_list()` in
 `scripts/benchmarks.sh`.
 
+## Cross-library validation alignment audit
+
+The benchmark stays green by design: a competitor can hide a value it treats
+differently behind a `SampleOverride`, or opt out with `NOT_SUPPORTED`. The
+alignment audit looks behind both, running each competitor's real validator
+against the SHARED samples (never its override) to surface and explain every
+cross-library divergence. It is analysis only and changes no case file.
+
+```bash
+pnpm run audit:alignment        # build + audit-run every competitor, then aggregate + classify
+```
+
+Tooling lives in [`_audit/`](_audit/); the committed write-up is
+[`docs/cross-library-validation-alignment-report.md`](../docs/cross-library-validation-alignment-report.md).
+
 ## Behind a corporate / MITM proxy
 
 The image build must trust the proxy CA to install deps over TLS. When

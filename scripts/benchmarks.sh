@@ -30,6 +30,7 @@
 #   scripts/benchmarks.sh capture-env       # write results/env.json (os / cpu / lib versions)
 #   scripts/benchmarks.sh build [<name>]    # vite build only (all, or one competitor)
 #   scripts/benchmarks.sh smoke             # quick verify: build every competitor's dist
+#   scripts/benchmarks.sh audit             # cross-library validation alignment audit (analysis only)
 #   scripts/benchmarks.sh shell             # debug shell inside the container
 #   scripts/benchmarks.sh login             # log in to GHCR (delegates to podman-website.sh)
 #   scripts/benchmarks.sh push              # build + push the shared multi-arch image to GHCR
@@ -438,6 +439,25 @@ cmd_smoke() {
   cmd_build
 }
 
+# Cross-library validation alignment audit (analysis only, no timing). Builds +
+# runs every competitor with AUDIT_ALIGNMENT=1 so each emits results/<name>.alignment.json
+# (every place its validator disagrees with the SHARED ts-runtypes samples), then
+# joins + classifies them on the host. Produces results/alignment-misalignments.json,
+# _audit/findings/, and _audit/classification-summary.json. See
+# docs/cross-library-validation-alignment-report.md for the committed write-up.
+cmd_audit() {
+  ensure_prereqs
+  mkdir -p "$RESULTS_DIR"; find "$RESULTS_DIR" -maxdepth 1 -name '*.alignment.json' -delete 2>/dev/null || true
+  local competitor
+  for competitor in $(competitor_list); do
+    echo "-------- audit: $competitor --------"
+    run_in_container sh -c "cd competitors/$competitor && pnpm run build && AUDIT_ALIGNMENT=1 node dist/run.mjs" \
+      || echo "==> audit '$competitor' FAILED (build or run) - see output above"
+  done
+  echo "-------- aggregate + classify (host) --------"
+  ( cd "$BENCH_DIR" && node _audit/run-audit.mjs && node _audit/classify.mjs )
+}
+
 cmd_shell() { ensure_prereqs; run_in_container bash; }
 
 cmd_clean() {
@@ -469,6 +489,7 @@ main() {
     website-bench) require_engine; cmd_website_bench ;;
     build)       require_engine; cmd_build "${2:-}" ;;
     smoke)       require_engine; cmd_smoke ;;
+    audit)       require_engine; cmd_audit ;;
     typecost)    require_engine; cmd_typecost ;;
     compiletime) require_engine; cmd_compiletime ;;
     capture-env) require_engine; ensure_prereqs; run_in_container node capture-env.mjs ;;
@@ -477,7 +498,7 @@ main() {
     push)        cmd_push ;;
     pull)        cmd_pull ;;
     clean)       require_engine; cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | fullbench | serialization | website-bench | build [<name>] | smoke | typecost | compiletime | shell | login | push | pull | clean" ;;
+    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | fullbench | serialization | website-bench | build [<name>] | smoke | audit | typecost | compiletime | shell | login | push | pull | clean" ;;
   esac
 }
 

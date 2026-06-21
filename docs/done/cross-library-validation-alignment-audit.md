@@ -1,6 +1,50 @@
 # Cross-library validation alignment audit
 
-**Status:** scoping note, not started. Captured as a future investigation; no
+**Status: DONE.** The audit tooling and the report shipped. The committed
+write-up is [`docs/cross-library-validation-alignment-report.md`](../cross-library-validation-alignment-report.md).
+
+## What shipped
+
+- Collector in the shared harness: [`container-benchmarks/shared/harness/audit.ts`](../../container-benchmarks/shared/harness/audit.ts)
+  (`auditCompetitor` / `writeAudit` / `maybeAudit`) plus a safe value serializer
+  [`repr.ts`](../../container-benchmarks/shared/harness/repr.ts) (open question 2).
+  Each competitor `main.ts` calls `maybeAudit`, gated on `AUDIT_ALIGNMENT=1`.
+- Driver + aggregator + classifier under
+  [`container-benchmarks/_audit/`](../../container-benchmarks/_audit/):
+  `run-audit.mjs` (step 0, joins per-competitor records into
+  `results/alignment-misalignments.json`), `classify.mjs` (step 1, buckets each
+  finding and harvests the declared NOT_SUPPORTED + override catalog), and
+  `host-collect.mjs` (runs the transform-free competitors without the container).
+- Orchestration: `pnpm run audit:alignment` (`scripts/benchmarks.sh audit`) builds
+  and audit-runs every competitor in the shared image, then aggregates + classifies.
+- The report (steps 2 + 3) committed at
+  [`docs/cross-library-validation-alignment-report.md`](../cross-library-validation-alignment-report.md),
+  cross-linked from [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) and the benchmark README.
+
+### Deviations from the original plan
+
+- **Classification is a deterministic classifier, not one agent per misalignment.**
+  Every divergence collapsed into three clean root causes (non-finite numbers,
+  Invalid Date, plain-object guard), so a pattern-based classifier produces the
+  same buckets the fan-out would have, far more cheaply and reproducibly. The
+  per-finding markdown files in `_audit/findings/` are still emitted, one per
+  divergence, as the spec asked.
+- **typia is audited from its declared overrides, not a host live-run.** Its
+  validators need the in-container build-time transform; the live host run covers
+  zod / TypeBox / ajv, ts-runtypes is the reference (zero by construction), and
+  typia's 50 override notes name the exact same root causes the live runs proved.
+  The full `pnpm run audit:alignment` run executes typia for real in the container.
+
+### Headline finding
+
+ts-runtypes is never the outlier. Every divergence is a competitor being LOOSER
+(ajv and typia accept `NaN`/`Infinity` as numbers; typia accepts Invalid Date;
+TypeBox accepts class instances for all-optional object shapes), and ts-runtypes
+is always backed by at least one other library. No behavioural change recommended.
+
+---
+
+**Original scoping note (preserved):** Captured as a future investigation; no
 design committed, no code touched, **no behavioural fix in scope here** — this
 todo is an ANALYSIS pass that produces a report, not a code-change task.
 
