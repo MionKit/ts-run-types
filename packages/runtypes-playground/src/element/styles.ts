@@ -15,14 +15,14 @@ export const STYLES = `
   border-radius: 10px; overflow: hidden;
 }
 .rt-playground * { box-sizing: border-box; }
-.rt-playground .rtpg-layout { display: grid; grid-template-columns: 1.1fr 0.9fr 1.1fr; gap: 1px; background: var(--rtpg-border); min-height: 345px; }
+.rt-playground .rtpg-layout { display: grid; grid-template-columns: 1.1fr 0.9fr 1.1fr; gap: 1px; background: var(--rtpg-border); min-height: 460px; }
 @media (max-width: 1000px) { .rt-playground .rtpg-layout { grid-template-columns: 1fr; } }
 .rt-playground .rtpg-pane { background: var(--rtpg-bg); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .rt-playground .rtpg-head { display: flex; align-items: baseline; justify-content: space-between; padding: 9px 13px; border-bottom: 1px solid var(--rtpg-border); background: var(--rtpg-panel); }
 .rt-playground .rtpg-head h2 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--rtpg-muted); }
 .rt-playground .rtpg-hint { color: var(--rtpg-muted); font-size: 12px; }
 .rt-playground .rtpg-hint code, .rt-playground .rtpg-head code { font-family: var(--rtpg-mono); color: var(--rtpg-accent); }
-.rt-playground .rtpg-editor { flex: 1; min-height: 210px; }
+.rt-playground .rtpg-editor { flex: 1; min-height: 280px; }
 .rt-playground .rtpg-controls { padding: 12px; display: flex; flex-direction: column; gap: 9px; overflow: auto; }
 .rt-playground .rtpg-field { display: flex; flex-direction: column; gap: 6px; }
 .rt-playground .rtpg-field-label { font-size: 12px; color: var(--rtpg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -31,7 +31,7 @@ export const STYLES = `
 .rt-playground .rtpg-select:focus { outline: none; border-color: var(--rtpg-accent-dim); }
 .rt-playground .rtpg-blurb { margin: 0; color: var(--rtpg-muted); font-size: 12px; line-height: 1.45; }
 .rt-playground .rtpg-input-field[hidden] { display: none; }
-.rt-playground .rtpg-input-editor { height: 92px; border: 1px solid var(--rtpg-border); border-radius: 8px; overflow: hidden; }
+.rt-playground .rtpg-input-editor { height: 150px; border: 1px solid var(--rtpg-border); border-radius: 8px; overflow: hidden; }
 .rt-playground .rtpg-ghost-btn { background: transparent; border: 1px solid var(--rtpg-border); color: var(--rtpg-muted); border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
 .rt-playground .rtpg-ghost-btn:hover { color: var(--rtpg-accent); border-color: var(--rtpg-accent-dim); }
 .rt-playground .rtpg-run-btn { background: var(--rtpg-accent); color: #0e1116; border: none; border-radius: 8px; padding: 11px 14px; font-weight: 700; font-size: 14px; cursor: pointer; }
