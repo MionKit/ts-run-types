@@ -16,6 +16,13 @@ const REPO_ROOT = resolve(HERE, '../../../..');
 const BIN = resolve(REPO_ROOT, 'bin/ts-runtypes');
 const LANE_ROOT = resolve(HERE, '../suites/enrich/.tmp/reconcile');
 
+// Fixtures THIS module instance created. Cleanup removes only these, never the shared
+// LANE_ROOT: test files run in parallel vitest workers that share this on-disk lane, so
+// a blanket `rmSync(LANE_ROOT)` in one file's afterAll would delete a sibling file's
+// in-flight fixtures (e.g. the enrich fuzzer's long-lived `fz-<seed>` dir), surfacing as
+// a flaky ENOENT. Each worker has its own module instance, so its Set is private to it.
+const createdFixtures = new Set<string>();
+
 // A reconcile fixture is a self-contained temp project under a unique subdir of
 // the reconcile lane. `dir` is the project root (holds tsconfig + src/);
 // `sourcePath` is the source .ts; `mirrorPath` is its computed mirror file.
@@ -40,6 +47,7 @@ const TSCONFIG = JSON.stringify(
 // carrying `source`. The mirror path mirrors src/ under runtypes/generated/.
 export function makeFixture(name: string, source: string): ReconcileFixture {
   const dir = resolve(LANE_ROOT, name);
+  createdFixtures.add(dir);
   rmSync(dir, {recursive: true, force: true});
   mkdirSync(resolve(dir, 'src'), {recursive: true});
   writeFileSync(resolve(dir, 'tsconfig.json'), TSCONFIG);
@@ -82,7 +90,11 @@ export function runPrune(fixture: ReconcileFixture): void {
   if (result.status !== 0) throw new Error(`gen --prune exited ${result.status}: ${result.stderr}\n${result.stdout}`);
 }
 
-// cleanupReconcileLane removes the whole reconcile lane temp tree.
+// cleanupReconcileLane removes only the fixtures THIS module instance created (never the
+// shared LANE_ROOT), so a parallel sibling test file's in-flight fixtures survive.
 export function cleanupReconcileLane(): void {
-  if (existsSync(LANE_ROOT)) rmSync(LANE_ROOT, {recursive: true, force: true});
+  for (const dir of createdFixtures) {
+    if (existsSync(dir)) rmSync(dir, {recursive: true, force: true});
+  }
+  createdFixtures.clear();
 }
