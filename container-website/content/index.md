@@ -187,7 +187,7 @@ Get back a traversable RunType node — the same graph the library walks interna
 
 <br>
 
-[Reflection you can actually walk →](/guide/markers-and-reflection)
+[Reflection you can actually walk →](/guide/runtype-graph)
 ::::
 :::
 
