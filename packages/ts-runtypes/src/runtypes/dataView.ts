@@ -438,12 +438,15 @@ class DataViewSerializerImpl implements DataViewSerializer {
     }
     this.uint8View[this.index++] = value;
   }
-  /** Write a length / count / size prefix as an unsigned LEB128 varint, reserving
-   *  the worst-case width first so the Go-emitted container framing (array length,
-   *  Map/Set size, tuple-rest count) can't overflow the buffer. One byte for
-   *  values < 128 — the common small-collection case — versus the old fixed 4. **/
+  /** Write a length / count / size prefix as an unsigned LEB128 varint. Reserves
+   *  exactly `varintLen(value)` — the width `writeVarint` is about to emit, since
+   *  `value` is known here — rather than the worst-case `MAX_VARINT`. The tight
+   *  reserve still can't overflow (it equals the write) and keeps a cold dynamic
+   *  buffer (seeded at the per-type estimate, which budgets the same varint width)
+   *  from growing on the framing of an in-bounds collection. One byte for values
+   *  < 128 — the common small-collection case — versus the old fixed 4. **/
   serLength(value: number): void {
-    this.ensureCapacity?.(MAX_VARINT);
+    this.ensureCapacity?.(varintLen(value));
     this.writeVarint(value);
   }
   /** Encode `str` into the buffer immediately after an OPTIMISTIC 1-byte varint

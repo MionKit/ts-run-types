@@ -9,6 +9,8 @@ import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId} from '../index.ts';
 import {mockRunType} from './mockType.ts';
 import {mockRunTypeInvalid} from './mockInvalid.ts';
+import {mockRunTypeOversized} from './mockOversized.ts';
+import {applyInBoundsSizing} from './binarySize.ts';
 import {defaultMockOptions} from './constants.mock.ts';
 import type {MockDataNode, MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './mockTypes.ts';
 
@@ -47,7 +49,13 @@ export function createMockType<T>(
   return ((callOpts) => {
     const merged = mergeMockOptions(factoryOpts, callOpts as DeepPartial<RunTypeMockOptions<unknown>> | undefined);
     const mockOpts = merged.mock as MockOptions;
+    // Steer generation to FIT the binary cold-start estimate — only when
+    // explicitly requested (`=== true`). `undefined` leaves the random generator
+    // untouched; `false` (oversized) inflates a position past the budget and
+    // reads `binarySizingOptions` directly, so it needs no in-bounds pass.
+    if (mockOpts.respectBinarySize === true) applyInBoundsSizing(mockOpts);
     if (mockOpts.invalid) return mockRunTypeInvalid(runType, merged, []) as T;
+    if (mockOpts.respectBinarySize === false) return mockRunTypeOversized(runType, merged, []) as T;
     return mockRunType(runType, merged, []) as T;
   }) as MockTypeFn<T>;
 }

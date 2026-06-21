@@ -72,6 +72,32 @@ export interface MockOptions {
    *  replaces the whole root, values in between roll per call. Default `0.85`, so
    *  the break is usually a deep field rather than the whole value. **/
   invalidLeafProbability?: number;
+  /** Steer generation against the binary cold-start size estimate (see
+   *  `createBinaryEncoder`'s `dynamic` strategy):
+   *    - `true`  — the value fits the COLD BUFFER, so encoding it never resizes.
+   *      Bounds target the per-write reserve (a string reserves `5 + 3*length`),
+   *      not the wire size: collections capped at `sizeItems`, strings short
+   *      enough that their reserve fits `sizeStringBytes`, bigints small, optionals
+   *      omitted below bias 1, ASCII charset.
+   *    - `false` — the value EXCEEDS the estimate: one unbounded position
+   *      (array / string / bigint) is inflated past its budget, forcing a grow.
+   *    - `undefined` (default) — no size-specific behaviour.
+   *  Bounds are read from `binarySizingOptions`. **/
+  respectBinarySize?: boolean;
+  /** The size-estimate config `respectBinarySize` bounds against — mirrors the
+   *  resolver's `--size-*` options / the Go `SizeEstimateConfig`. Omitted fields
+   *  fall back to the binary defaults (bias 0.8, items 100, stringBytes 32). **/
+  binarySizingOptions?: BinarySizingOptions;
+}
+
+/** Tuning knobs for the binary cold-start size estimate, mirrored from the
+ *  resolver's `sizeBias` / `sizeItems` / `sizeStringBytes` / `sizeMaxBytes`
+ *  options (and the Go `constants.DefaultSize*`). Used by `respectBinarySize`. **/
+export interface BinarySizingOptions {
+  sizeBias?: number;
+  sizeItems?: number;
+  sizeStringBytes?: number;
+  sizeMaxBytes?: number;
 }
 
 /** Loose runtime view of a `MockNode` (../enrich/mockData.ts) — the walker

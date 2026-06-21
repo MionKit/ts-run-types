@@ -26,9 +26,11 @@ import {
   createJsonDecoder,
   createBinaryEncoder,
   createBinaryDecoder,
+  createBinarySizer,
   createMockType,
 } from 'ts-runtypes';
-import {ResolverClient} from '../../../runtypes-devtools/src/resolver-client.ts';
+import {binarySizeEstimateFromTuple} from '../../src/runtypes/entryTuple.ts';
+import {ResolverClient, type ResolverClientOptions} from '../../../runtypes-devtools/src/resolver-client.ts';
 import {
   RUNTYPES_DTS,
   evalEntryModules,
@@ -79,11 +81,24 @@ export interface CompiledType {
   wired: WiredFns;
   /** Per-family controlled wire failures (alwaysThrow factories may throw). **/
   wireErrors: Partial<Record<keyof WiredFns, string>>;
+  // --- binary size-estimate surface (used by the binary/ size lane) ---
+  /** The cold-start buffer estimate baked into the `tb` entry, or undefined when
+   *  the type produced no estimate slot. **/
+  seed?: number;
+  /** The exact-wire-size sizer (`createBinarySizer`), reusing the `tb` entry. **/
+  binarySizer?: (value: unknown) => number;
+  /** The reflection entry tuple — the size lane drives its own `createMockType`
+   *  off it (e.g. with `respectBinarySize`). **/
+  reflectionTuple?: readonly unknown[];
 }
 
-export function openClient(): ResolverClient {
+/** Open a resolver client. `sizeOpts` forwards the `--size-*` estimator config so
+ *  the baked cold-start estimate matches a size-lane run's value bounds. **/
+export function openClient(
+  sizeOpts?: Pick<ResolverClientOptions, 'sizeBias' | 'sizeItems' | 'sizeStringBytes' | 'sizeMaxBytes'>
+): ResolverClient {
   if (!hasBinary()) throw new Error(`ts-runtypes binary not built: ${BIN}`);
-  return new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true, emitMode: 'both'});
+  return new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true, emitMode: 'both', ...sizeOpts});
 }
 
 /** Render the full fixture: import block, named decls, `type T = root`, and one
@@ -221,7 +236,21 @@ export async function compileType(client: ResolverClient, gen: GeneratedType): P
     });
   }
 
-  return {...partial, wired, wireErrors};
+  // Binary size-estimate surface: the cold-start seed baked into the `tb` entry
+  // and the exact-size sizer (which reuses that same entry). Undefined when the
+  // type produced no `tb` entry (non-serialisable root). The reflection tuple is
+  // exposed so a size-lane run can drive its own `respectBinarySize` mocks.
+  const seed = byFamily.tb ? binarySizeEstimateFromTuple(byFamily.tb) : undefined;
+  let binarySizer: CompiledType['binarySizer'];
+  if (byFamily.tb) {
+    try {
+      binarySizer = createBinarySizer(undefined, byFamily.tb as never) as CompiledType['binarySizer'];
+    } catch {
+      binarySizer = undefined;
+    }
+  }
+
+  return {...partial, wired, wireErrors, seed, binarySizer, reflectionTuple};
 }
 
 function wire<K extends keyof WiredFns>(
