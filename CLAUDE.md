@@ -74,6 +74,25 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 - Pre-commit hook ([.husky/pre-commit](.husky/pre-commit)) runs `lint-staged` automatically — activated by `pnpm install` via the root `prepare` script.
 - Containerized website + benchmarks share ONE podman image (website at `/app`, benchmarks at `/bench`). Image lifecycle (build/push/pull/ensure/lock/clean) is owned by [scripts/podman-website.sh](scripts/podman-website.sh) (shared helpers in [scripts/lib-container.sh](scripts/lib-container.sh)); [scripts/website.sh](scripts/website.sh) runs the site and [scripts/benchmarks.sh](scripts/benchmarks.sh) runs the bench half under `/bench`, both delegating image ops to podman-website.sh. See [SETUP.md → Containerized apps](SETUP.md#containerized-apps-docs-website--benchmarks).
 
+## PR readiness
+
+Before opening a PR, confirm the change is **PR ready** — never open one otherwise. For any **new feature, or a significant change to an existing one**, treat all of the following as a hard gate:
+
+- **Front-end tests exist and pass.** Every new or changed behaviour needs Vitest coverage under [packages/](packages/) (`.spec.ts` / `.test.ts`); run the whole JS suite with `pnpm test`. Marker-API work must cover BOTH `getRunTypeId` call shapes (the **Marker test coverage rule** under [Testing](#testing)). Go-side changes also need `go test ./internal/...`.
+- **Docs are updated — especially the website.** Reflect the change in [container-website/content/](container-website/content/) (follow the **Website docs style** section below), and update [README.md](README.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) or [docs/ROADMAP.md](docs/ROADMAP.md) whenever it touches what they describe (CLI flags, execution model, scope, lossy mappings).
+
+### ⚠️ The FE-test gate needs a built environment — set it up FIRST
+
+The Vite-plugin tests **spawn the Go binary** ([packages/runtypes-devtools/test/](packages/runtypes-devtools/test/)), so `pnpm test` fails immediately on a host that isn't bootstrapped. **A fresh clone is NOT ready**: the [third_party/](third_party/) submodules are uninitialised and `bin/ts-runtypes` does not exist yet.
+
+If the FE tests can't run (missing binary, submodule errors, no Go / pnpm), **set the environment up before drawing any conclusion** — never report "tests pass" or "tests skipped" from an unbuilt host. The full host bootstrap is automated by the [ts-runtypes-setup skill](.claude/skills/ts-runtypes-setup/) — **use it**. The pieces the FE suite needs:
+
+1. the [third_party/](third_party/) submodules (tsgolint + its nested typescript-go) initialised, with patches applied,
+2. the Go resolver built into `bin/ts-runtypes`,
+3. `runtypes-devtools` built (consumers and the typecheck read its dist).
+
+Full manual steps are in [SETUP.md](SETUP.md). After touching Go sources, rebuild `bin/ts-runtypes` before `pnpm test` (`pnpm run pretest` runs the staleness check).
+
 ## Git workflow
 
 - **PRs land via Rebase-and-merge — keep every branch LINEAR (no merge commits).**
