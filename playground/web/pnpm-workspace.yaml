@@ -1,0 +1,14 @@
+# Standalone package — intentionally NOT part of the monorepo root workspace
+# (the root globs only `packages/*`). Mirrors the repo's supply-chain posture so
+# the playground's deps follow the same rules as everything else.
+packages: []
+
+# Exact-pin versions (no caret/tilde drift).
+savePrefix: ''
+verifyStoreIntegrity: true
+
+# Supply-chain protection: refuse versions younger than 30 days.
+minimumReleaseAge: 43200
+
+# pnpm 11 blocks dependency build scripts by default. monaco-editor needs none.
+allowBuilds: {}
