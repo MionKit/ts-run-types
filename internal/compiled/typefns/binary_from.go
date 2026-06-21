@@ -270,7 +270,7 @@ func emitArrayFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string
 	if childRT.Type == CodeNS {
 		return RTCode{Code: "", Type: CodeNS}
 	}
-	readLen := "const " + lenVar + " = " + des + ".view.getUint32(" + des + ".index, 1); " + des + ".index += 4"
+	readLen := "const " + lenVar + " = " + des + ".desLength()"
 	body := readLen + ";" + ret + " = new Array(" + lenVar + ")"
 	if childRT.Code != "" {
 		body += ";for (let " + iVar + " = 0; " + iVar + " < " + lenVar + "; " + iVar + "++) {" + childRT.Code + "}"
@@ -550,7 +550,7 @@ func emitTupleMemberFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des 
 	// Function-typed tuple slots fall through to CompileChild — the
 	// function arm returns CodeNS and the renderer emits alwaysThrow.
 	if isRestTupleMember(rt) {
-		// Rest tuple member: read uint32 length, then loop.
+		// Rest tuple member: read varint length, then loop.
 		lenVar := ctx.NextLocalVar("rln")
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(ret + "[" + iVar + "]")
@@ -562,7 +562,7 @@ func emitTupleMemberFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des 
 		if childRT.Code == "" {
 			return RTCode{Code: "", Type: CodeS}
 		}
-		body := "const " + lenVar + " = " + des + ".view.getUint32(" + des + ".index, 1); " + des + ".index += 4;" +
+		body := "const " + lenVar + " = " + des + ".desLength();" +
 			"for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + positionStr(rt) + " + " + lenVar + "; " + iVar + "++) {" + childRT.Code + "}"
 		return RTCode{Code: body, Type: CodeS}
 	}
@@ -612,7 +612,7 @@ func emitNativeIterableFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, d
 			return RTCode{Code: "", Type: CodeNS}
 		}
 
-		body := "const " + lenVar + " = " + des + ".view.getUint32(" + des + ".index, 1); " + des + ".index += 4;" +
+		body := "const " + lenVar + " = " + des + ".desLength();" +
 			"const " + arrVar + " = [];" +
 			"for (let " + iVar + " = 0; " + iVar + " < " + lenVar + "; " + iVar + "++) {" +
 			"let " + keyTmp + ", " + valTmp + ";" + keyRT.Code + ";" + valRT.Code + ";" +
@@ -633,7 +633,7 @@ func emitNativeIterableFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, d
 	if itemRT.Type == CodeNS {
 		return RTCode{Code: "", Type: CodeNS}
 	}
-	body := "const " + lenVar + " = " + des + ".view.getUint32(" + des + ".index, 1); " + des + ".index += 4;" +
+	body := "const " + lenVar + " = " + des + ".desLength();" +
 		"const " + arrVar + " = [];" +
 		"for (let " + iVar + " = 0; " + iVar + " < " + lenVar + "; " + iVar + "++) {" +
 		"let " + itemTmp + ";" + itemRT.Code + ";" + arrVar + ".push(" + itemTmp + ");}" +

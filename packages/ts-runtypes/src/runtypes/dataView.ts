@@ -213,6 +213,7 @@ export interface DataViewSerializer {
   getBufferView(): Uint8Array;
   markAsEnded(): void;
   getLength(): number;
+  serLength(value: number): void;
   serString(str: string, skipCache?: boolean): void;
   serFloat64(n: number): void;
   serEnum(n: number | string): void;
@@ -235,6 +236,7 @@ export interface DataViewDeserializer {
   setBuffer(buffer: StrictArrayBuffer, byteOffset?: number, byteLength?: number): void;
   markAsEnded(): void;
   getLength(): number;
+  desLength(): number;
   desString(): string;
   desSafePropName(): string;
   desFloat64(): number;
@@ -378,6 +380,14 @@ class DataViewSerializerImpl implements DataViewSerializer {
       value = value >>> 7;
     }
     this.uint8View[this.index++] = value;
+  }
+  /** Write a length / count / size prefix as an unsigned LEB128 varint, reserving
+   *  the worst-case width first so the Go-emitted container framing (array length,
+   *  Map/Set size, tuple-rest count) can't overflow the buffer. One byte for
+   *  values < 128 — the common small-collection case — versus the old fixed 4. **/
+  serLength(value: number): void {
+    this.ensureCapacity(MAX_VARINT);
+    this.writeVarint(value);
   }
   /** Encode `str` into the buffer after a max-width varint gap, write the actual
    *  (now-known) varint length prefix at the cursor, then shift the UTF-8 bytes
@@ -554,17 +564,22 @@ class DataViewDeserializerImpl implements DataViewDeserializer {
   getLength(): number {
     return this.index;
   }
-  desString(): string {
-    // Read the unsigned LEB128 varint length prefix. `* 2 ** shift` (not `<<`)
-    // keeps the accumulation exact past the 32-bit boundary the top group can hit.
-    let len = 0;
+  /** Read an unsigned LEB128 varint length / count / size prefix. `* 2 ** shift`
+   *  (not `<<`) keeps the accumulation exact past the 32-bit boundary the top
+   *  group can hit. **/
+  desLength(): number {
+    let value = 0;
     let shift = 0;
     let byte: number;
     do {
       byte = this.uint8View[this.index++];
-      len += (byte & 0x7f) * 2 ** shift;
+      value += (byte & 0x7f) * 2 ** shift;
       shift += 7;
     } while (byte & 0x80);
+    return value;
+  }
+  desString(): string {
+    const len = this.desLength();
     const decoded = textDecoder.decode(this.uint8View.subarray(this.index, this.index + len));
     this.index += len;
     return decoded;
