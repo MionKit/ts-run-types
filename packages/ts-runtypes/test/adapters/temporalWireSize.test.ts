@@ -13,8 +13,13 @@ import {createBinaryEncoder} from 'ts-runtypes';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
 
-// bytes the string (serString) encoding would cost: 4-byte length prefix + UTF-8.
-const stringFormSize = (v: {toJSON(): string}): number => 4 + new TextEncoder().encode(v.toJSON()).length;
+// Byte width of the unsigned LEB128 varint length prefix serString writes.
+const varintLen = (n: number): number => (n < 0x80 ? 1 : n < 0x4000 ? 2 : n < 0x200000 ? 3 : n < 0x10000000 ? 4 : 5);
+// bytes the string (serString) encoding would cost: varint length prefix + UTF-8.
+const stringFormSize = (v: {toJSON(): string}): number => {
+  const utf8 = new TextEncoder().encode(v.toJSON()).length;
+  return varintLen(utf8) + utf8;
+};
 
 describe('Temporal binary wire size — numeric layouts are exact and compact', () => {
   it('Instant — 12 bytes (int64 seconds + int32 sub-second ns), beats the string form', () => {
