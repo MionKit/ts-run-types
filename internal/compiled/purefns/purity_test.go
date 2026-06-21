@@ -149,6 +149,52 @@ func TestPurity_Temporal_Allowed(t *testing.T) {
 	}
 }
 
+func TestPurity_BinaryEncodingGlobals_Allowed(t *testing.T) {
+	// User-requested delta: binary + text-encoding constructors are in
+	// allowedGlobals so hashing / binary-codec / encoding algorithms can be
+	// ported inline into a factory body. References EVERY newly-added global,
+	// so dropping any key from the map re-introduces a PFE9011 closure (or
+	// PFE9010 forbidden) violation right here.
+	diags := withFactoryBody(t, `
+  return function inner(input: string) {
+    const bytes = new TextEncoder().encode(input);
+    const text = new TextDecoder().decode(bytes);
+    const buf = new ArrayBuffer(64);
+    const view = new DataView(buf);
+    view.setInt32(0, 1);
+    const a = new Int8Array(buf);
+    const b = new Uint8Array(buf);
+    const c = new Uint8ClampedArray(buf);
+    const d = new Int16Array(buf);
+    const e = new Uint16Array(buf);
+    const f = new Int32Array(buf);
+    const g = new Uint32Array(buf);
+    const h = new Float32Array(buf);
+    const i = new Float64Array(buf);
+    const j = new BigInt64Array(buf);
+    const k = new BigUint64Array(buf);
+    return [text, view, a, b, c, d, e, f, g, h, i, j, k, btoa(text), atob('AA==')];
+  };`)
+	if got := purityCodes(diags); len(got) != 0 {
+		t.Fatalf("binary/encoding globals must be allowed, got %v\n(all diags: %+v)", got, diags)
+	}
+}
+
+func TestPurity_Crypto_NotAllowed(t *testing.T) {
+	// `crypto` is deliberately ABSENT from allowedGlobals: getRandomValues /
+	// randomUUID are non-deterministic (and subtle.digest is async), so it
+	// would break purity. A pure hash is ported inline over the typed arrays
+	// instead. Referencing it stays a closure violation — this pins the
+	// exclusion so a careless future addition is caught.
+	diags := withFactoryBody(t, `
+  return function inner() {
+    return crypto.randomUUID();
+  };`)
+	if _, ok := firstDiagWithCode(diags, CodePurityClosure); !ok {
+		t.Fatalf("crypto must NOT be allowed (non-deterministic); expected PFE9011, got %+v", diags)
+	}
+}
+
 // ──────────────────────────────────────────────────────────────────────
 // Failing cases — purity violations.
 // ──────────────────────────────────────────────────────────────────────
