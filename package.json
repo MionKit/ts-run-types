@@ -82,6 +82,7 @@
     "website:shell": "bash scripts/website.sh shell",
     "website:publish": "bash scripts/website-publish.sh",
     "website:publish:quick": "bash scripts/website-publish.sh --quick",
+    "website:publish:no-bench": "bash scripts/website-publish.sh --no-bench",
     "bench:prep": "bash scripts/benchmarks.sh prep",
     "bench": "bash scripts/benchmarks.sh bench",
     "bench:one": "bash scripts/benchmarks.sh bench-one",
