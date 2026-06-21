@@ -24,16 +24,16 @@ write-up is [`docs/cross-library-validation-alignment-report.md`](../cross-libra
 ### Deviations from the original plan
 
 - **Classification is a deterministic classifier, not one agent per misalignment.**
-  Every divergence collapsed into three clean root causes (non-finite numbers,
-  Invalid Date, plain-object guard), so a pattern-based classifier produces the
-  same buckets the fan-out would have, far more cheaply and reproducibly. The
-  per-finding markdown files in `_audit/findings/` are still emitted, one per
-  divergence, as the spec asked.
-- **typia is audited from its declared overrides, not a host live-run.** Its
-  validators need the in-container build-time transform; the live host run covers
-  zod / TypeBox / ajv, ts-runtypes is the reference (zero by construction), and
-  typia's 50 override notes name the exact same root causes the live runs proved.
-  The full `pnpm run audit:alignment` run executes typia for real in the container.
+  Every divergence collapsed into five clean root causes (non-finite numbers,
+  Invalid Date, plain-object guard, collection-element validation, format regex), so
+  a pattern-based classifier produces the same buckets the fan-out would have, far
+  more cheaply and reproducibly. The per-finding markdown files in `_audit/findings/`
+  are still emitted, one per divergence, as the spec asked.
+- **All four competitors ran live, including typia.** typia's build-time transform
+  (ttsc + its native plugin via the esbuild adapter) ships as npm packages with an
+  embedded Go toolchain, so `_audit/host-collect.mjs` builds and runs it on the host
+  with no container. ts-runtypes is the reference (zero by construction); the full
+  `pnpm run audit:alignment` run executes it for real in the container.
 
 ### Headline finding
 
@@ -187,7 +187,7 @@ audit needs a richer per-row record:
     "expected": false,
     "got": true,
     "overrideNote": null,
-    "schemaSnippet": "Type.Object({name: Type.String(), age: Type.Number()})"
+    "schemaSnippet": "Type.Object({name: Type.String(), age: Type.Number()})",
   }
   ```
 
@@ -214,7 +214,6 @@ competitor disagreed:
 - The current `SampleOverride` for the case, if any.
 - The library's relevant docs page (the agent can `WebFetch` if needed).
 - A clear bucket list to classify into:
-
   1. **`AUTHORING_DRIFT`** — competitor schema doesn't faithfully translate
      the shared case's TS type. Outcome: a one-line proposal to fix the
      competitor case file. Example: zod schema forgot a `.min(1)` that the TS
@@ -223,7 +222,7 @@ competitor disagreed:
      possible but the library cannot express the shared case's constraint.
      Outcome: `SampleOverride` with a one-line reason naming the limitation.
      Example: ajv has no equivalent for "this Date must not be `new
-     Date('invalid')`".
+Date('invalid')`".
   3. **`LIBRARY_SEMANTIC_DIFFERENCE`** — library deliberately defines "valid"
      differently. Outcome: `SampleOverride` with a one-line reason naming the
      semantic. Example: zod accepts extra keys by default, so the reject
@@ -313,7 +312,7 @@ harden it by reading the shared cases and competitor case files):
   identically; some don't. ts-runtypes treats `{x: undefined}` and `{}` as
   the same for an optional `x`; verify across the suite.
 - **`NaN` as a number.** ajv accepts by default unless `{type: 'number',
-  not: {const: NaN}}` style guarding. ts-runtypes rejects. Likely a large
+not: {const: NaN}}` style guarding. ts-runtypes rejects. Likely a large
   `LIBRARY_SEMANTIC_DIFFERENCE` cluster on the `ATOMIC.number` and
   `FORMAT_NUMBER.*` cases.
 - **`Infinity` / `-Infinity` as a number.** Same as `NaN`. ts-runtypes
@@ -340,7 +339,7 @@ harden it by reading the shared cases and competitor case files):
   predictably.
 - **Numeric format bounds.** `int8` / `uint16` / `min` / `max`. Some
   libraries don't have fixed-width brands; ajv-style `{type:'integer',
-  minimum, maximum}` is the closest analogue. Verify the competitor case
+minimum, maximum}` is the closest analogue. Verify the competitor case
   files translate the brands faithfully.
 - **Recursive / circular types.** ts-runtypes' Tarjan SCC handling vs each
   library's lazy / `z.lazy(...)` approach. Likely `AUTHORING_DRIFT` on any
