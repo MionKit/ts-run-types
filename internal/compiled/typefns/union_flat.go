@@ -62,6 +62,34 @@ func flatUnionDecodeErrorVar(ctx *EmitContext) string {
 	return name
 }
 
+// mergedPropSurvivingGuard returns a JS boolean expression true iff
+// `accessor`'s value matches one of the merged prop's SURVIVING
+// candidates — i.e. the value belongs to a union member where this prop
+// was NOT DataOnly-stripped. Used only when mp.HasStrippedCandidate: a
+// value from a stripped member still carries the key with a foreign type
+// (e.g. `Uint8Array` where a sibling member declares `Date`), so the
+// encode applies the surviving codec ONLY when this guard holds and DROPS
+// the key otherwise (G3 / G4). Mirrors the per-candidate validate the
+// multi-candidate dispatch already uses.
+func mergedPropSurvivingGuard(mp FlatMergedProp, accessor string, ctx *EmitContext) string {
+	var checks []string
+	for _, cand := range mp.Candidates {
+		if cand.Resolved == nil {
+			continue
+		}
+		validateExpr := unionMemberValidateCheck(cand.Resolved, ctx, accessor)
+		guard := validateExpr
+		if isObjectLikeKind(cand.Resolved.Kind) {
+			guard = objectGuard(accessor, validateExpr)
+		}
+		checks = append(checks, "("+guard+")")
+	}
+	if len(checks) == 0 {
+		return "false"
+	}
+	return strings.Join(checks, " || ")
+}
+
 // --- prepareForJson encode ---------------------------------------------------
 
 // emitUnionPrepareForJsonFlat — the encode-side of the flat-union wire
@@ -151,7 +179,24 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 // every candidate emits its transform + `[subIdx, value]` wrap so the
 // decoder can unconditionally unwrap.
 // Returns ("", true) when no transform is required.
+//
+// When mp.HasStrippedCandidate, the transform is wrapped so the surviving
+// codec runs only for values matching a surviving candidate; a value from
+// a stripped member (carrying the key with a foreign type) is `delete`d
+// instead, matching its DataOnly projection (G3 / G4).
 func emitMergedPropPrepare(mp FlatMergedProp, accessor string, ctx *EmitContext) (string, bool) {
+	base, ok := mergedPropPrepareBody(mp, accessor, ctx)
+	if !ok {
+		return "", false
+	}
+	if mp.HasStrippedCandidate {
+		guard := mergedPropSurvivingGuard(mp, accessor, ctx)
+		return "if (" + guard + ") {" + base + "} else { delete " + accessor + " }", true
+	}
+	return base, true
+}
+
+func mergedPropPrepareBody(mp FlatMergedProp, accessor string, ctx *EmitContext) (string, bool) {
 	if len(mp.Candidates) == 1 {
 		ctx.SetChildAccessor(accessor)
 		jc := ctx.CompileChild(mp.Candidates[0].ChildRef, CodeS)
@@ -410,10 +455,14 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 			}
 		}
 		// Collect propJson per merged prop. Skipping empty noop props.
+		// dropCond is the `=== undefined` test extended (for a prop with a
+		// stripped sibling) so a value from the stripped member — present but
+		// of a foreign type — also emits '' (the key is dropped, G3 / G4).
 		type compiledProp struct {
 			mp       FlatMergedProp
 			accessor string
 			propJson string
+			dropCond string
 		}
 		var compiledProps []compiledProp
 		for _, mp := range layout.MergedProps {
@@ -425,7 +474,11 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 			if propJson == "" {
 				continue
 			}
-			compiledProps = append(compiledProps, compiledProp{mp: mp, accessor: accessor, propJson: propJson})
+			dropCond := accessor + " === undefined"
+			if mp.HasStrippedCandidate {
+				dropCond += " || !(" + mergedPropSurvivingGuard(mp, accessor, ctx) + ")"
+			}
+			compiledProps = append(compiledProps, compiledProp{mp: mp, accessor: accessor, propJson: propJson, dropCond: dropCond})
 		}
 		var objExpr string
 		if len(compiledProps) == 0 {
@@ -445,21 +498,13 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 						parts = append(parts, "','+"+prefix+"+"+cp.propJson)
 					}
 				} else {
-					// Optional prop — conditional with leading comma.
-					if !firstRequiredSeen {
-						// Optional appears before any required prop has anchored
-						// the concat — needs the slice(1) trick locally. This is
-						// uncommon (would require a required prop to appear later
-						// in iteration order); fall back to conditional-with-
-						// leading-comma which works because the FIRST emitted
-						// required prop later will not lead with `,`. But to
-						// keep the JS valid we need to emit unconditional `,`
-						// here. Use a wrapper that adds the comma only when the
-						// accessor is defined.
-						parts = append(parts, "("+cp.accessor+" === undefined ? '' : ','+"+prefix+"+"+cp.propJson+")")
-					} else {
-						parts = append(parts, "("+cp.accessor+" === undefined ? '' : ','+"+prefix+"+"+cp.propJson+")")
-					}
+					// Optional prop — conditional with leading comma. The
+					// populated branch always leads with `,`, valid whether or
+					// not a required prop has anchored the concat yet (a leading
+					// `,` from the first fragment is harmless once a required
+					// prop emits without one). dropCond folds in the stripped-
+					// sibling guard so a foreign-typed value also emits ''.
+					parts = append(parts, "("+cp.dropCond+" ? '' : ','+"+prefix+"+"+cp.propJson+")")
 				}
 			}
 			objExpr = "'{'+" + strings.Join(parts, "+") + "+'}'"
@@ -471,7 +516,7 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 			var parts []string
 			for _, cp := range compiledProps {
 				prefix := "'" + jsonPropPrefix(cp.mp.Name, cp.mp.IsSafeName) + "'"
-				parts = append(parts, "("+cp.accessor+" === undefined ? '' : ','+"+prefix+"+"+cp.propJson+")")
+				parts = append(parts, "("+cp.dropCond+" ? '' : ','+"+prefix+"+"+cp.propJson+")")
 			}
 			objExpr = "'{'+(" + strings.Join(parts, "+") + ").slice(1)+'}'"
 		}

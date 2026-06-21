@@ -309,6 +309,32 @@ func siblingNamedKeysCtxKey(idxSig *protocol.RunType) string {
 // own context items, so the same key can be re-published per family
 // without collision.
 func publishSiblingNamedKeysForIndexSig(rt *protocol.RunType, ctx *EmitContext) {
+	siblingNames := collectSiblingNamedKeys(rt, ctx)
+	if len(siblingNames) == 0 {
+		return
+	}
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil || resolved.Kind != protocol.KindIndexSignature {
+			continue
+		}
+		ctxKey := siblingNamedKeysCtxKey(resolved)
+		if ctx.HasContextItem(ctxKey) {
+			continue
+		}
+		ctx.SetContextItem(ctxKey, "const "+ctxKey+" = new Set("+arrayToJSLiteral(siblingNames)+")")
+	}
+}
+
+// collectSiblingNamedKeys returns the deduped, sorted names of every declared
+// property that must be SKIPPED by an index-signature for-in loop: non-static,
+// non-function-like named children. Crucially it keys on the NAME, independent
+// of whether the per-family emit keeps or DROPS the property — a property whose
+// value is DataOnly-stripped (`p0: ArrayBuffer`) is dropped from the projection
+// but its key must still be skipped so the index loop doesn't copy it back in
+// (G6). Shared by publishSiblingNamedKeysForIndexSig (binary + the JSON mutate /
+// stringify walks) and the clone path's buildSafeIndexSignatureObject.
+func collectSiblingNamedKeys(rt *protocol.RunType, ctx *EmitContext) []string {
 	var siblingNames []string
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
@@ -323,20 +349,9 @@ func publishSiblingNamedKeysForIndexSig(rt *protocol.RunType, ctx *EmitContext) 
 		}
 	}
 	if len(siblingNames) == 0 {
-		return
+		return nil
 	}
-	siblingNames = dedupSortStrings(siblingNames)
-	for _, child := range rt.Children {
-		resolved := ctx.ResolveRef(child)
-		if resolved == nil || resolved.Kind != protocol.KindIndexSignature {
-			continue
-		}
-		ctxKey := siblingNamedKeysCtxKey(resolved)
-		if ctx.HasContextItem(ctxKey) {
-			continue
-		}
-		ctx.SetContextItem(ctxKey, "const "+ctxKey+" = new Set("+arrayToJSLiteral(siblingNames)+")")
-	}
+	return dedupSortStrings(siblingNames)
 }
 
 // siblingNamedSkipCode returns the JS prologue to inject at the top

@@ -61,7 +61,18 @@ type FlatMergedProp struct {
 	// is non-JSON-natural. Single-candidate or no-candidate props are
 	// always false.
 	NeedsSubWrap bool
-	Candidates   []FlatPropCandidate
+	// HasStrippedCandidate is true iff at least one object member declared
+	// this property name with a DataOnly-stripped type (symbol / function-
+	// like / Promise / non-serializable native / never) that was dropped
+	// from Candidates. The merge collapses the prop to its surviving
+	// candidate(s), so a value belonging to the STRIPPED member still
+	// carries the key (e.g. `f2: Uint8Array` for a member whose sibling
+	// declares `f2: Date`) — the encode must guard the surviving codec
+	// with a value check and DROP the key when it matches none, instead of
+	// mis-applying the surviving codec to a foreign value. Always implies
+	// !Required (the stripped member never marks the prop present).
+	HasStrippedCandidate bool
+	Candidates           []FlatPropCandidate
 }
 
 type FlatPropCandidate struct {
@@ -160,6 +171,7 @@ func buildMergedProps(objectMembers []FlatObject, ctx *EmitContext) []FlatMerged
 	indexByName := make(map[string]int)
 	presentInMember := make(map[string][]bool)
 	hasOptionalDecl := make(map[string]bool)
+	strippedByName := make(map[string]bool)
 	var merged []FlatMergedProp
 	for memberIdx, m := range objectMembers {
 		for _, propRef := range m.Resolved.Children {
@@ -185,6 +197,10 @@ func buildMergedProps(objectMembers []FlatObject, ctx *EmitContext) []FlatMerged
 			// `{}` (K2). Emit the member-dropped warning so the drop stays visible.
 			if isStrippedUnionMember(childResolved) {
 				ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, prop.Name)
+				// Record so the surviving candidate's codec is guarded — a value
+				// from THIS (stripped) member still carries the key with a foreign
+				// type the surviving codec must not be applied to (G3 / G4).
+				strippedByName[prop.Name] = true
 				continue
 			}
 			candidate := FlatPropCandidate{ChildRef: prop.Child, Resolved: childResolved, Optional: prop.Optional}
@@ -228,7 +244,11 @@ func buildMergedProps(objectMembers []FlatObject, ctx *EmitContext) []FlatMerged
 				}
 			}
 		}
-		merged[i].Required = allPresent && !hasOptionalDecl[merged[i].Name]
+		merged[i].HasStrippedCandidate = strippedByName[merged[i].Name]
+		// A stripped sibling means the prop is absent from at least one member's
+		// projection, so it can never be Required (the guard below would also
+		// mis-drop the `=== undefined` check).
+		merged[i].Required = allPresent && !hasOptionalDecl[merged[i].Name] && !merged[i].HasStrippedCandidate
 	}
 	return merged
 }
