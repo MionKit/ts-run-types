@@ -1,9 +1,22 @@
 # Serialization bugs surfaced by the non-data fuzz lane
 
-**Status:** discovered, not fixed. Scoping note for a SEPARATE PR. Four findings
-from the DataOnly non-data fuzz lane (the `createMockType`-driven, real-pipeline
-lane added in [`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-runtypes/test/fuzz/nonDataTypeFuzz.integration.test.ts)).
-Every finding below replays from the listed seed via the soak:
+**Status:** F1, K2, F2 (product side) FIXED — see the Resolution section below.
+F3 plus two newly-surfaced issues are DEFERRED to a follow-up. Originally four
+findings from the DataOnly non-data fuzz lane (the `createMockType`-driven,
+real-pipeline lane in [`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-runtypes/test/fuzz/nonDataTypeFuzz.integration.test.ts)).
+
+## Resolution
+
+| ID | What | Status |
+|----|------|--------|
+| **F1** | `binaryEncode`/`binaryDecode` mis-applied the index-sig encoder to NAMED properties on objects mixing both | **FIXED** — named props emit first, the index-sig loop skips declared keys via the shared `publishSiblingNamedKeysForIndexSig` + `siblingNamedSkipCode`. Pinned by `binaryIndexSig.smoke.test.ts`. |
+| **K2** | A stripped-valued prop in a UNION member failed the whole union (a standalone object drops it) | **FIXED** — `buildMergedProps` drops the full `isStrippedUnionMember` set + emits the drop warning. Pinned by `TestDataOnlyUnion_ObjectMemberStrippedProp`. |
+| **F2** | Callable interface: function to `validate`, object to the serializers | **FIXED (product)** — `objectHasCallSignature` makes the serializers + validate treat it function-like everywhere (typeof-function at root, dropped at a property). Pinned by `callable_interface_dataonly_test.go`. Re-enabling fuzz GENERATION is deferred (see F2b). |
+| **F2b** | Re-enabling callable-interface fuzz generation surfaces an UNCONTROLLED wire error (`reading 'fn'`) + an unresolved binary site on a complex callable interface (call sig with `any` / methods / non-serialisable intersection params) | **DEFERRED** — a separate emit/dependency-linking bug. Generation stays disabled in `typeGen.ts`. |
+| **F3** | An Error-severity diagnostic is emitted for a non-serialisable position inside a DROPPED property subtree, though the value serialises fine | **DEFERRED** — cosmetic (runtime correct; the fuzz lane tiers on actual encoder behaviour, so it's invisible there). A correct fix reworks the absorb-path severity (`DiagCodeForLeaf` returns ROOT/Error codes) + scoped diagnostic scrubbing across all 8 property emitters — invasive for the diagnostic catalog, better isolated. |
+| **G1** | NEW soak finding: `O5` JSON round-trip throws `Cannot convert a BigInt value to a number` on `{1 prop + index signature}` (a bigint at a numeric-index-sig position). Pre-existing in the WILD lane, unrelated to F1/K2/F2. | **DEFERRED** |
+
+Every original finding replays from the listed seed via the soak:
 
 ```
 FUZZ_NONDATA_SOAK_MS=45000 FUZZ_SEED=20260620 pnpm exec vitest run nonDataTypeFuzz
