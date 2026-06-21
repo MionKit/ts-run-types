@@ -520,7 +520,18 @@ export function renderType(shape: TypeShape): string {
       return `(${shape.members.map(renderType).join(' & ')})`;
     case 'object': {
       const parts = shape.props.map(renderProp);
-      if (shape.index) parts.push(`[k: string]: ${renderType(shape.index)}`);
+      if (shape.index) {
+        // A `[k: string]` index constrains EVERY named property to the index
+        // value type (TS2411); a `[k: number]` index only constrains
+        // numeric-keyed properties, so string-named props stay independent. Use a
+        // number index whenever there are named props so the object is valid TS
+        // while keeping the realistic mixed-type (array-like-with-metadata) shape;
+        // a pure index map uses a string index (Record-like). A residual invalid
+        // shape (a numeric weird-key prop under the number index) is caught by the
+        // tsValidate gate in the runner, so this need not be exhaustive.
+        const key = shape.props.length > 0 ? 'k: number' : 'k: string';
+        parts.push(`[${key}]: ${renderType(shape.index)}`);
+      }
       return parts.length ? `{${parts.join('; ')}}` : '{}';
     }
   }

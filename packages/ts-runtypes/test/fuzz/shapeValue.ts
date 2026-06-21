@@ -155,7 +155,17 @@ function objectValue(props: PropShape[], index: TypeShape | undefined, ctx: Valu
     if (prop.optional && chance(0.4)) continue;
     out[prop.name] = valueOf(prop.shape, ctx);
   }
-  if (index) for (let i = 0, n = int(3); i < n; i++) out[`idx${i}`] = valueOf(index, ctx);
+  if (index) {
+    // renderType (typeGen.ts) emits a NUMBER index for a mixed object (named
+    // props present) and a STRING index for a pure map. The runtime index keys
+    // must match that key type, or they don't conform: a non-numeric string key
+    // under a `[k: number]` index is corrupted by the binary number-index codec
+    // (it encodes numeric keys as numbers, so `idx0` collapses to `0`). Mirror
+    // the key-type choice here. createMockType already keys on the resolved
+    // RunType's index kind; this is the shape-lane equivalent.
+    const numericKeys = props.length > 0;
+    for (let i = 0, n = int(3); i < n; i++) out[numericKeys ? i : `idx${i}`] = valueOf(index, ctx);
+  }
   return out;
 }
 
