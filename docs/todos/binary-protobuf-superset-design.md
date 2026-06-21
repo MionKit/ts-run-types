@@ -19,7 +19,7 @@
 | **Parity tool** | **protobuf.js** (runtime `.proto` parse + reflection). Dev/test dependency ONLY — never reaches the shipped codec, which stays dependency-free. |
 | **64-bit ints** | `int64`/`uint64`/`sint64`/`fixed64`/`sfixed64` ↔ TS `bigint` (with a `bigintFormat` whose min/max fit the 64-bit range). 32-bit and narrower ↔ TS `number`. |
 | **Scalar selection** | Reuse the existing `integerType()` constraint analysis (`formats/numeric/numberformat.go`) — the same min/max/format data `precalculate` reads for sizing — extended to choose the narrowest correct protobuf scalar. Single source of truth for wire + `.proto` + size. |
-| **`bytes` ↔ `Uint8Array`** | **Out-of-subset for now** (→ fallback + Warning). `Uint8Array`/`ArrayBuffer`/typed arrays are `SubKindNonSerializable` and stripped by `DataOnly<T>`; supporting them as `bytes` would require touching the `DataOnly` projection, which is off-limits this round (instantiation-budget). Documented as the highest-value follow-up (it is binary's genuine both-axes win). |
+| **`bytes` ↔ `Uint8Array`** | **In-subset via a parallel projection.** `Uint8Array` / `Uint8ClampedArray` / `ArrayBuffer` → protobuf `bytes` (zero-copy where possible). `DataOnly<T>` is left UNTOUCHED (it still strips these, preserving its instantiation budget); the binary/protobuf DECODER return type instead uses a new `ProtoData<T>` projection that keeps binary buffers as bytes. Other typed arrays (`Int32Array`, …) → packed `repeated` scalar is a follow-up; `DataView` / `SharedArrayBuffer` stay out. |
 | **`enum`** | TS **numeric enum** → protobuf `enum` (integer values; a synthesized `…_UNSPECIFIED = 0` member is added when the TS enum has no 0). TS **string-literal union** → a generated protobuf `enum` with stable, declaration-order integer assignment (the string↔int table lives in the `.proto`; lossy in that the wire carries the integer, reconstructed to the string on decode). |
 | **`oneof`** | Discriminated union of object types → protobuf `oneof`; each variant is a field. The TS discriminant property is redundant with protobuf's set-member tracking and is reconstructed on decode. Scalar unions (`string \| number`) → a `oneof` of scalar fields. Unions mixing incompatible shapes → out-of-subset. |
 | **`map<K,V>`** | TS `Map<K,V>`, `Record<K,V>`, and string/number index signatures → protobuf `map<K,V>` when the key is `string` or an integral `number`. `Set<V>` → `repeated V`. Other key types → out-of-subset. |
@@ -66,9 +66,10 @@ Heterogeneous **tuples**, **intersections** that don't reduce to a single
 message, **template-literal** types (treated as `string` only if they have a
 plain string format, else out), **symbols**/**functions** (already stripped by
 the data-only contract), `unknown`/`any` (would need `google.protobuf.Struct`/
-`Any` — deferred), `bigint` outside 64-bit, **typed arrays / `ArrayBuffer` /
-`bytes`** (deferred, see decisions), `RegExp`, non-ISO `Temporal` calendars,
-and any `Map`/`Record` whose key is not string/integral.
+`Any` — deferred), `bigint` outside 64-bit, **`DataView` / `SharedArrayBuffer` /
+non-`Uint8Array` typed arrays** (note `Uint8Array`/`ArrayBuffer` ARE in-subset as
+`bytes`), `RegExp`, non-ISO `Temporal` calendars, and any `Map`/`Record` whose
+key is not string/integral.
 
 ## `ProtoBuff<T>` constraint type (deliverable 4)
 
@@ -85,6 +86,17 @@ type ProtoBuffError<Msg extends string> = {readonly __protoBuffError: Msg};
 Lives beside `DataOnly` in `packages/ts-runtypes/src/runtypes/`, exported from
 `index.ts`, and is compile-tested under `packages/ts-runtypes/test/types/`
 (the same slice-and-compile harness pattern as `dataonly.compile.test.ts`).
+
+### `ProtoData<T>` decoder projection
+
+`createBinaryDecoder<T>()` (and a protobuf decoder) return `ProtoData<T>` — a
+sibling of `DataOnly<T>` that is identical EXCEPT it KEEPS `Uint8Array` /
+`Uint8ClampedArray` / `ArrayBuffer` (protobuf `bytes`) instead of stripping
+them. `DataOnly<T>` itself is unchanged (its instantiation budget is
+load-bearing and was deliberately tuned last task); `ProtoData<T>` is a
+separate, self-contained projection so the bytes round-trip is reflected in the
+decode return type without perturbing every `DataOnly` consumer. It is sliced +
+compiled by the same per-branch budget harness as `DataOnly`.
 
 ## Field numbering mechanism (the central problem)
 

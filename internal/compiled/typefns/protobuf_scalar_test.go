@@ -75,6 +75,21 @@ func TestProtobufScalar_Literals(t *testing.T) {
 	}
 }
 
+// Binary buffers map to the `bytes` scalar; other non-serializable classes do
+// not.
+func TestProtobufScalar_Bytes(t *testing.T) {
+	for _, name := range []string{"Uint8Array", "Uint8ClampedArray", "ArrayBuffer"} {
+		rt := &protocol.RunType{Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable, ClassRef: &protocol.ClassRef{Builtin: name}}
+		if got, ok := ProtobufScalarFor(rt); !ok || got != ProtoBytes {
+			t.Errorf("%s: got (%q, %v), want (bytes, true)", name, got, ok)
+		}
+	}
+	notBytes := &protocol.RunType{Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable, ClassRef: &protocol.ClassRef{Builtin: "Error"}}
+	if _, ok := ProtobufScalarFor(notBytes); ok {
+		t.Errorf("Error class: expected ok=false")
+	}
+}
+
 // Non-scalar kinds report ok=false (they are handled by the message/repeated/
 // map/oneof paths, not as scalars).
 func TestProtobufScalar_NonScalar(t *testing.T) {
