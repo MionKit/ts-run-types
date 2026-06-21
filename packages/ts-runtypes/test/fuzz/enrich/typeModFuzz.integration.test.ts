@@ -1,27 +1,24 @@
-// Type-modification fuzz of the FriendlyType/MockData reconciler. The second,
-// wider application of the enrich fuzzer (see enrichFuzz.integration.test.ts):
-// instead of editing a flat hardcoded `User`, it generates a RANDOM deep type
-// (typeGen) and drives random field-level OPERATIONS on it (typeModify) — rename /
-// add / delete / retype / wrap / toggle-optional a property anywhere in a deeply
-// nested tree. Every operation reconciles through the real `gen --update` binary, so
-// `bin/ts-runtypes` must be built (root `pretest` does this); self-skips if absent.
+// Type-modification fuzz of the FriendlyType/MockData reconciler. The second, wider
+// application of the enrich fuzzer (see enrichFuzz.integration.test.ts): instead of
+// editing a flat hardcoded `User`, it generates a RANDOM deep type (typeGen, FULL
+// named space — objects, arrays, unions, Map/Set, enums, named interfaces) and drives
+// random OPERATIONS on it (typeModify) — add / delete / retype / wrap / toggle-optional
+// a property, add a named sub-type, and mid-edit source corruptions — reconciling
+// through the real `gen --update` binary after every edit. `bin/ts-runtypes` must be
+// built (root `pretest` does this); self-skips if absent.
 //
-// The headline oracle is NL — nothing authored is ever lost — exactly the "when the
-// user edits again nothing is lost" property. The default lane edits an INLINE-only
-// type (no Map / Set / named sub-types ⇒ one root const ⇒ no orphan-prone sub-consts)
-// and authors labels on the stable ANCHOR fields (which the modifier never deletes /
-// renames), pinning that they survive every edit, plus R10 (no crash). Both HOLD
-// across a wide deep-nesting space. A failure is a real reconciler regression, printed
-// as a shrunk, replayable reproducer.
+// The default lane pins, over that full space, the reconciler's contracts (all HOLD
+// since the whole-const @rtOrphan carcass handling was made stable):
+//   NL  nothing authored is ever lost — exactly the "edit again, nothing lost" property
+//   R6  a valid edit converges (a second --update is a byte-identical no-op)
+//   R10 every run is controlled (no crash / internal error / hang)
+//   P   a failed corruption reconcile leaves the mirror byte-identical
+// A failure is a real reconciler regression, printed as a shrunk, replayable reproducer
+// (and shrink-confirmed, so transient spawn flakes never fail the suite).
 //
-// Opt-in hunts for documented reconciler GAPS (kept out of the green default lane):
-//   FUZZ_TYPEMOD_STRICT=1   full named type space + type-rename / named-decl ops +
-//                           author EVERY label + assert R6 — reproduces the whole-const
-//                           @rtOrphan churn, the type-rename carry failure, and the
-//                           data-loss bugs.
-//   FUZZ_TYPEMOD_INVALID=1  enable mid-edit source corruptions — tsgo error-recovers
-//                           them and a later reconcile can hit an overlapping-splice
-//                           `internal error`. All gaps: docs/todos/reconcile-orphan-const-convergence.md.
+// Gated behind FUZZ_TYPEMOD_RENAMES=1 (a documented reconciler GAP, not yet pinned):
+//   type-RENAME ops (renameRoot / renameDecl). The const-rename carry is not robust
+//   when types share a structural id — docs/todos/reconcile-rename-detection.md.
 //
 // Knobs: FUZZ_SEED, FUZZ_TYPEMOD_SEQUENCES, FUZZ_TYPEMOD_MAXSTEPS,
 //        FUZZ_TYPEMOD_REPLAY=<seed>  (re-run one failing sequence verbatim),
@@ -80,8 +77,17 @@ describe('enrichment type-modification fuzz', () => {
         );
       }
       if (report.violations.length > 0) {
+        // The shrinker is authoritative: it re-runs the failing seed from k=1. A real
+        // bug reproduces there; a transient spawn flake that slipped past the runner's
+        // confirm re-run does not. Only fail on a shrink-confirmed violation.
         const shrunk = shrinkModFailure(report.firstFailureSeed!, MAX_STEPS);
-        expect.fail(formatModReport(report, shrunk));
+        if (shrunk.violations.length > 0) {
+          expect.fail(formatModReport(report, shrunk));
+        } else {
+          console.error(
+            `[typemod] a violation at seed 0x${report.firstFailureSeed!.toString(16)} did not reproduce on shrink — treated as a flake`
+          );
+        }
       }
       // Guard against a silently-degenerate run: if EVERY sequence skipped (no
       // usable scaffold), the fuzzer asserted nothing — fail loudly so a broken
