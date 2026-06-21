@@ -33,6 +33,7 @@ import {
 import {STYLES} from './styles.ts';
 import {PRESETS, type Preset} from './presets.ts';
 import {TS_ICON, JS_ICON} from './icons.ts';
+import {randomTypeDefinition} from './randomType.ts';
 
 type Monaco = typeof import('monaco-editor');
 type Editor = import('monaco-editor').editor.IStandaloneCodeEditor;
@@ -218,6 +219,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
           <span class="rtpg-typegroup-sep"></span>
           <div class="rtpg-presets" data-el="presets"></div>
         </div>
+        <button type="button" class="rtpg-random-btn" data-el="randomType" title="Generate a random TypeScript type">&#x21bb; Random type</button>
       </div>
       <div class="rtpg-layout">
         <section class="rtpg-pane">
@@ -316,6 +318,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     select.addEventListener('change', () => this.onOperationChanged());
     this.els.genRandom.addEventListener('click', () => void this.generateMock());
     this.els.run.addEventListener('click', () => void this.doRun());
+    this.els.randomType.addEventListener('click', () => void this.randomType());
 
     try {
       // versions() resolves once Monaco + the resolver WASM are loaded.
@@ -390,6 +393,21 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     this.typeEditor?.setValue(mode === 'schema' ? preset.schema : preset.ts);
     this.scheduleCodegen(PICK_DEBOUNCE_MS);
     if (this.ready) void this.doRun();
+  }
+
+  // randomType loads a freshly generated TS type. The generator only emits the
+  // TS-type form, so it forces TS-type mode on, deselects the active preset, then
+  // refreshes the input (via createMockType), the result, and the generated code.
+  private async randomType(): Promise<void> {
+    if (!this.ready) return;
+    this.mode = 'type';
+    this.markActiveMode();
+    this.presetIndex = -1;
+    this.markActivePreset();
+    this.typeEditor?.setValue(randomTypeDefinition());
+    this.scheduleCodegen(PICK_DEBOUNCE_MS);
+    await this.generateMock();
+    void this.doRun();
   }
 
   private onOperationChanged(): void {
