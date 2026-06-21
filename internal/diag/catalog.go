@@ -105,6 +105,20 @@ type Diagnostic struct {
 // Template is the message template (Go-style `%s` placeholders) the
 // constructors substitute against. DocsAnchor is reserved for a future
 // reference doc.
+//
+// Summary, Fix, and Example are the human-written docs prose for the
+// website diagnostics page: Summary is a plain-language description of what
+// triggers the code and how to fix it; Fix is an optional corrected
+// snippet; Example is the TypeScript source that actually triggers the
+// code. They are authored in prose.go and folded onto the Definition at
+// init, so the gen-diag-catalog dump exports them alongside severity and
+// the website needs no second prose source. Most codes leave them empty
+// until written.
+//
+// Example is more than docs: the standardized suite in
+// internal/resolver/diag_examples_test.go feeds every non-empty Example
+// through the real scan pipeline and asserts this code fires, so a shipped
+// example can never drift from the diagnostic it claims to demonstrate.
 type Definition struct {
 	Code       string
 	Family     Family
@@ -112,6 +126,9 @@ type Definition struct {
 	Title      string
 	Template   string
 	DocsAnchor string
+	Summary    string
+	Fix        string
+	Example    string
 }
 
 // Definitions holds every registered diagnostic code keyed by Code. The

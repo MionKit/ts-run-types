@@ -2,7 +2,8 @@
 //
 // Two sources, joined here because nothing else sees both:
 //   1. internal/diag (via `go run ./cmd/gen-diag-catalog`) — the authoritative
-//      list of codes and their severities.
+//      list of codes, their severities, and the docs prose (summary, fix, and
+//      the verified triggering example) authored in internal/diag/prose.go.
 //   2. packages/runtypes-devtools/src/diagnosticCatalog.ts (read as source via
 //      Node type-stripping) — the user-facing headline + detail per code. We
 //      read source, not the built dist, so the page never lags the catalog.
@@ -93,9 +94,6 @@ const goRecords = JSON.parse(goDump);
 // 2. Message templates from the devtools catalog source.
 const {DIAGNOSTIC_CATALOG} = await import(pathToFileURL(catalogSourcePath).href);
 
-// Hand-written plain-language prose, keyed by code (summary + optional fix).
-const {DIAG_PROSE} = await import(pathToFileURL(resolve(repoRoot, 'scripts/diag-catalog-prose.mjs')).href);
-
 // 3. Merge. The Go list is the source of truth for which codes exist; the
 // catalog supplies the message. A code with no catalog entry falls back to its
 // Go-side title and is reported as a gap.
@@ -109,7 +107,6 @@ const codes = goRecords.map((record) => {
   if (subsystem === 'other') console.warn(`gen-diag-catalog: no subsystem for ${record.code}`);
   const entry = DIAGNOSTIC_CATALOG[record.code];
   if (!entry) gaps.push(record.code);
-  const prose = DIAG_PROSE[record.code];
   return {
     code: record.code,
     subsystem,
@@ -117,8 +114,9 @@ const codes = goRecords.map((record) => {
     headline: entry ? entry.headline : record.title,
     detail: entry && entry.detail ? entry.detail : null,
     hasMessage: Boolean(entry),
-    summary: prose ? prose.summary : null,
-    fix: prose && prose.fix ? prose.fix : null,
+    summary: record.summary ?? null,
+    fix: record.fix ?? null,
+    example: record.example ?? null,
   };
 });
 
