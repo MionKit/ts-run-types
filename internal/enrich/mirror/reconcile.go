@@ -106,14 +106,7 @@ func Reconcile(spec Spec, existing []byte, readSource func(string) (string, erro
 // it (recording splice ops) or, when there is no match, queues it for append.
 // addedConsts dedups so a friendly+mock pair queues a single NamedConst once.
 func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrich.NamedConst, index *Index, named enrich.NamedConst, friendly bool) {
-	varName := named.MockVar
-	body := named.Mock
-	metaKeys := mockReservedKeys
-	if friendly {
-		varName = named.FriendlyVar
-		body = named.Friendly
-		metaKeys = friendlyReservedKeys
-	}
+	varName, body, metaKeys := formParts(named, friendly)
 
 	existing := findExistingConst(index, varName)
 	if existing == nil {
@@ -145,17 +138,34 @@ func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrich.NamedConst, index 
 	// by id again instead of the var-name fallback.
 	refreshMarker(ops, index.raw, existing, named)
 
+	mergeConstBody(ops, index, existing, body, metaKeys, named.ChildIDs)
+}
+
+// formParts returns the var name, body text, and reserved-key set for one form
+// (friendly or mock) of a desired const — the per-form selection both
+// reconcileOneConst and emitConstRename make before merging.
+func formParts(named enrich.NamedConst, friendly bool) (varName, body string, metaKeys map[string]bool) {
+	if friendly {
+		return named.FriendlyVar, named.Friendly, friendlyReservedKeys
+	}
+	return named.MockVar, named.Mock, mockReservedKeys
+}
+
+// mergeConstBody records the property-merge splices for one const: it builds the
+// existing + desired object views and merges them under the given reserved-key
+// set + child-id maps. No-op when the desired body is not an object literal.
+// Assumes existing.body is non-nil (the caller guards it).
+func mergeConstBody(ops *[]spliceOp, index *Index, existing *constEntry, body string, metaKeys map[string]bool, desiredChild map[string]string) {
 	existingView := newObjectView(string(index.raw), index.sourceFile, existing.body)
 	desiredView := parseDesiredObject(body)
 	if desiredView == nil {
 		return
 	}
-	ctx := mergeCtx{
+	mergeObject(ops, existingView, desiredView, mergeCtx{
 		metaKeys:      metaKeys,
 		existingChild: existing.childIDs,
-		desiredChild:  named.ChildIDs,
-	}
-	mergeObject(ops, existingView, desiredView, ctx)
+		desiredChild:  desiredChild,
+	})
 }
 
 // refreshMarker emits a splice to bring the existing const's @rtType/@rtIds
@@ -494,10 +504,7 @@ func existingVarsForForm(index *Index, friendly bool) map[string]bool {
 func emitConstRename(ops *[]spliceOp, index *Index, rename constRename) {
 	existing := rename.existing
 	named := rename.desired
-	desiredVar, body, metaKeys := named.MockVar, named.Mock, mockReservedKeys
-	if rename.friendly {
-		desiredVar, body, metaKeys = named.FriendlyVar, named.Friendly, friendlyReservedKeys
-	}
+	desiredVar, body, metaKeys := formParts(named, rename.friendly)
 
 	if existing.varNameStart != existing.varNameEnd && existing.varName != desiredVar {
 		*ops = append(*ops, spliceOp{start: existing.varNameStart, end: existing.varNameEnd, text: desiredVar})
@@ -508,14 +515,7 @@ func emitConstRename(ops *[]spliceOp, index *Index, rename constRename) {
 	refreshMarker(ops, index.raw, existing, named)
 
 	if existing.body != nil {
-		existingView := newObjectView(string(index.raw), index.sourceFile, existing.body)
-		if desiredView := parseDesiredObject(body); desiredView != nil {
-			mergeObject(ops, existingView, desiredView, mergeCtx{
-				metaKeys:      metaKeys,
-				existingChild: existing.childIDs,
-				desiredChild:  named.ChildIDs,
-			})
-		}
+		mergeConstBody(ops, index, existing, body, metaKeys, named.ChildIDs)
 	}
 }
 
