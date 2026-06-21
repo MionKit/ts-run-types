@@ -1,5 +1,7 @@
 # Unsupported kinds — how the throw architecture works
 
+> _Resurfaced historical doc, kept as a record of implemented work. Project names have changed since: `ts-go-run-types` / `@mionjs/ts-go-run-types` is now `ts-runtypes`, the `vite-plugin-runtypes` plugin is now `runtypes-devtools`, and `reflectRunTypeId(value)` is now `getRunTypeId(value)`. The runtime `diagnosticCatalog.ts` referenced below was since removed (see [diagnostic-catalog-dedup.md](diagnostic-catalog-dedup.md)). Some other paths and symbols may since have been renamed, removed, or ported to Go._
+
 This document explains how ts-go-run-types handles TypeScript types that the RT compiler cannot faithfully validate, serialise, or deserialise. It's the reference both for library users wondering why their `interface User { sym: symbol }` doesn't validate `sym`, and for contributors adding a new unsupported kind or a new emitter family.
 
 ## Problem
