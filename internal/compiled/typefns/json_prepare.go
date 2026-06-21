@@ -347,6 +347,15 @@ func emitObjectJsonChildren(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if objectHasCallSignature(rt, ctx) {
 		return RTCode{Code: "", Type: CodeNS}
 	}
+	// Publish the named-property set so an index signature's for-in loop skips
+	// declared keys — those are transformed by their OWN per-property emit (or
+	// left as-is), never by the index value's transform. Without this the index
+	// transform corrupts a named prop whose type differs from the index value
+	// (e.g. a `number` prop under a `[k: number]: bigint` index — G1). The
+	// prepareForJsonSafe (clone) path already does this via its declared-key
+	// skip; this brings the mutate (prepareForJson) and restore (restoreFromJson)
+	// walks into line. Shared by both, since they share this object walk.
+	publishSiblingNamedKeysForIndexSig(rt, ctx)
 	var parts []string
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
@@ -497,6 +506,8 @@ func emitIndexSignaturePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v 
 		return RTCode{Code: "", Type: CodeS}
 	}
 	body := "for (const " + keyVar + " in " + v + ") {"
+	// Skip declared sibling keys — they own their own transform (G1).
+	body += siblingNamedSkipCode(rt, ctx, keyVar)
 	if keyRegexVar != "" {
 		body += "if (!" + keyRegexVar + ".test(" + keyVar + ")) continue;"
 	}

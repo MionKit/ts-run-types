@@ -1,9 +1,9 @@
 # Serialization bugs surfaced by the non-data fuzz lane
 
-**Status:** F1, K2, F2 (product side), F3 FIXED — see the Resolution section
-below. Two newly-surfaced issues (F2b, G1) are DEFERRED to a follow-up.
-Originally four findings from the DataOnly non-data fuzz lane (the
-`createMockType`-driven, real-pipeline lane in
+**Status:** F1, K2, F2 (product side), F3, G1 FIXED — see the Resolution
+section below. One issue (F2b) is DEFERRED to a follow-up. Originally four
+findings from the DataOnly non-data fuzz lane (the `createMockType`-driven,
+real-pipeline lane in
 [`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-runtypes/test/fuzz/nonDataTypeFuzz.integration.test.ts)).
 
 ## Resolution
@@ -15,7 +15,7 @@ Originally four findings from the DataOnly non-data fuzz lane (the
 | **F2** | Callable interface: function to `validate`, object to the serializers | **FIXED (product)** — `objectHasCallSignature` makes the serializers + validate treat it function-like everywhere (typeof-function at root, dropped at a property). Pinned by `callable_interface_dataonly_test.go`. Re-enabling fuzz GENERATION is deferred (see F2b). |
 | **F2b** | Re-enabling callable-interface fuzz generation surfaces an UNCONTROLLED wire error (`reading 'fn'`) + an unresolved binary site on a complex callable interface (call sig with `any` / methods / non-serialisable intersection params) | **DEFERRED** — a separate emit/dependency-linking bug. Generation stays disabled in `typeGen.ts`. |
 | **F3** | An Error-severity diagnostic is emitted for a dropped non-serialisable property, though the value serialises fine; the default `clone` encoder FAILED such a property while the others dropped it; and a structurally-unserialisable property (`symbol[]`) was silently dropped instead of failing | **FIXED** — property-position handling now matches `DataOnly<T>` uniformly across all families. A DIRECTLY-stripped value (symbol / Promise / never / non-serialisable native; functions keep …010) drops with a new child-position **Warning** (…015), and the mutate path `delete`s it so `JSON.stringify` can't leak a typed array / Promise. A value that is only STRUCTURALLY unserialisable (`symbol[]`, `Map<string,symbol>`) now fails (root Error), matching DataOnly keeping `never[]`. An unknown future kind still absorbs gracefully. Pinned by `property_dataonly_test.go`, the updated `runtype-diagnostics.test.ts`, and the `Int8Array in interface` serialization fixture. |
-| **G1** | NEW soak finding: `O5` JSON round-trip throws `Cannot convert a BigInt value to a number` on `{1 prop + index signature}` (a bigint at a numeric-index-sig position). Pre-existing in the WILD lane, unrelated to F1/K2/F2. | **DEFERRED** |
+| **G1** | `O5` JSON round-trip corrupted a named property mixed with an index signature of a DIFFERENT value type (`{p0: number; [k: number]: bigint}` round-tripped `p0` from a number into a bigint; with other shapes the corrupted value crashed a downstream numeric op, `Cannot convert a BigInt value to a number`). The JSON for-in index loop transformed EVERY own key, including declared siblings. | **FIXED** — the JSON walks (mutate `prepareForJson`, `restoreFromJson`, direct `stringifyJson`) now skip declared sibling keys via the same `publishSiblingNamedKeysForIndexSig` + `siblingNamedSkipCode` mechanism binary got in F1 (the clone `prepareForJsonSafe` path always skipped). Pinned by `index_sig_sibling_json_test.go` + `g1-index-sig-sibling.test.ts`; the 40s WILD soak (seed 20260620) is clean (974 types, 0 violations). |
 
 Every original finding replays from the listed seed via the soak:
 
