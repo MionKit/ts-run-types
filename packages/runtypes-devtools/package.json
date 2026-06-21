@@ -54,6 +54,7 @@
   },
   "scripts": {
     "build": "tsc --build tsconfig.json",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run",
     "dev:test": "vitest watch",
     "lint": "eslint src",

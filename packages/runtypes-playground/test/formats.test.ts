@@ -29,7 +29,7 @@ describeIf('playground type formats (WASM, live execution)', () => {
 
   it('email: resolves the import, lifts a format annotation, validate + mock are format-aware', async () => {
     const code = `import type { Email } from 'ts-runtypes/formats';\ntype MyType = { email: Email };`;
-    expect(await annotationName(code, 'email')).toBe('email');
+    expect(await annotationName(code)).toBe('email');
 
     const bad = await run('validate', code, {email: 'not-an-email'});
     const good = await run('validate', code, {email: 'john@example.com'});
@@ -57,7 +57,7 @@ describeIf('playground type formats (WASM, live execution)', () => {
 
   it('uuidv4: format annotation + format-aware validate/mock', async () => {
     const code = `import type { UUIDv4 } from 'ts-runtypes/formats';\ntype MyType = { id: UUIDv4 };`;
-    expect(await annotationName(code, 'id')).toBe('uuid');
+    expect(await annotationName(code)).toBe('uuid');
 
     const bad = await run('validate', code, {id: 'not-a-uuid'});
     if (bad.kind !== 'predicate') throw new Error('expected predicate');
@@ -69,7 +69,7 @@ describeIf('playground type formats (WASM, live execution)', () => {
 
   it('positive number format: format annotation + format-aware validate/mock', async () => {
     const code = `import type { Positive } from 'ts-runtypes/formats';\ntype MyType = { amount: Positive };`;
-    expect(await annotationName(code, 'amount')).toBe('numberFormat');
+    expect(await annotationName(code)).toBe('numberFormat');
 
     const bad = await run('validate', code, {amount: -5});
     const good = await run('validate', code, {amount: 5});
