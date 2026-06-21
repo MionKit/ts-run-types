@@ -209,3 +209,71 @@ func TestExample_TwoSameShapeTypes_stayDistinct(t *testing.T) {
 	requireContains(t, out, "x of B")
 	requireMissing(t, out, "@rtOrphan")
 }
+
+// A whole-const @rtOrphan carcass (deleted type C) coexists with TWO new types A
+// and B that share C's shape (same structural id). Restore-by-id made BOTH A and B
+// restore C's one carcass → two splices over the SAME byte range → the
+// "overlapping splice ops — internal error" crash. Restore-by-NAME leaves the
+// carcass inert and scaffolds A and B fresh. (Cluster A: the crash.)
+func TestExample_SameShapeNewTypes_noDoubleRestoreCrash(t *testing.T) {
+	existing := "import type { A, B } from '../src';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+		"/* @rtOrphan /** @rtType C#shape *\\/\n" +
+		"export const friendlyC: FriendlyType<C> = {$label: 'old C label'}; */\n"
+
+	body := "{$label: ''}"
+	spec := friendlySpec(
+		enrich.NamedConst{TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: body, TypeID: "shape"},
+		enrich.NamedConst{TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: body, TypeID: "shape"},
+	)
+	out := mustReconcile(t, spec, existing, sourceDeclaring("A", "B")) // must NOT crash
+
+	requireContains(t, out, "export const friendlyA: FriendlyType<A>") // A scaffolded under its own name
+	requireContains(t, out, "export const friendlyB: FriendlyType<B>") // B scaffolded under its own name
+	requireContains(t, out, "/* @rtOrphan")                            // C's carcass left intact
+	requireContains(t, out, "old C label")                             // C's preserved value untouched
+}
+
+// A NEW type A with the SAME shape as a deleted-type carcass C must scaffold under
+// ITS OWN name and leave C's carcass inert — restore-by-id wrongly revived
+// friendlyC (the old name) for A's reconcile, which then re-orphaned next pass
+// (churn). The reconcile must also be a single-pass FIXED POINT. (Cluster A: churn.)
+func TestExample_NewTypeSameShapeAsCarcass_doesNotReviveOldConst(t *testing.T) {
+	existing := "import type { A } from '../src';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+		"/* @rtOrphan /** @rtType C#shape *\\/\n" +
+		"export const friendlyC: FriendlyType<C> = {$label: 'old C'}; */\n"
+
+	spec := friendlySpec(enrich.NamedConst{
+		TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: "{$label: ''}", TypeID: "shape",
+	})
+	src := sourceDeclaring("A")
+	out := mustReconcile(t, spec, existing, src)
+
+	requireContains(t, out, "export const friendlyA: FriendlyType<A>") // A under its OWN name, not revived as C
+	requireContains(t, out, "/* @rtOrphan")                            // C's carcass stays a carcass
+	requireContains(t, out, "old C")                                   // C's value preserved, inert
+
+	out2 := mustReconcile(t, spec, out, src)
+	if out != out2 {
+		t.Errorf("not a fixed point — the carcass churned across a second --update:\n--- first ---\n%s\n--- second ---\n%s", out, out2)
+	}
+}
+
+// The legitimate case still works: the SAME named type B reappears (deleted, then
+// re-added with the same name) → its @rtOrphan carcass restores VERBATIM, recovering
+// the authored value. (Restore-by-name keeps this; only the cross-name restores go.)
+func TestExample_DeletedTypeReappears_restoresByName(t *testing.T) {
+	existing := "import type { A } from '../src';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+		"/* @rtOrphan /** @rtType B#bId *\\/\n" +
+		"export const friendlyB: FriendlyType<B> = {$label: 'Authored B'}; */\n"
+
+	spec := friendlySpec(enrich.NamedConst{
+		TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: "{$label: ''}", TypeID: "bId",
+	})
+	out := mustReconcile(t, spec, existing, sourceDeclaring("B"))
+
+	requireContains(t, out, "export const friendlyB: FriendlyType<B> = {$label: 'Authored B'}") // restored verbatim
+	requireMissing(t, out, "@rtOrphan")                                                         // carcass un-commented
+}
