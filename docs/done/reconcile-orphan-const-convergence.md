@@ -5,8 +5,8 @@
 fixed in the reconciler. The fuzzer's default lane now asserts convergence (R6),
 nothing-lost (NL), no-crash (R10) and parse-safety (P) over the full named type space
 plus mid-edit corruptions, and is green. The separate rename-disambiguation gap this
-work surfaced is tracked in
-[reconcile-rename-detection.md](../todos/reconcile-rename-detection.md).
+work surfaced is now fixed (graph-parity const matcher) in
+[reconcile-rename-detection.md](./reconcile-rename-detection.md).
 
 ## The bug (root cause)
 

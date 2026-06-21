@@ -12,15 +12,24 @@
 // deterministic so a failing seed prefix-shrinks to the shortest reproducer.
 //
 // Pinned by the default lane over the FULL named type space + mid-edit corruptions
-// (these HOLD — the whole-const @rtOrphan carcass handling is now stable):
+// (these HOLD — the whole-const @rtOrphan carcass handling + graph-parity rename
+// matcher are stable):
 //   NL  nothing-lost every authored sentinel survives a valid edit — live, carried
 //                    across a rename, or preserved verbatim in an @rtOrphanChild carcass
+//   RC  rename-carry a ROOT rename (renameRoot / renameRootReshaped, incl. the rename
+//                    + reshape the graph-parity matcher carries) moves authored labels
+//                    onto the LIVE const, not into a carcass — every label live BEFORE
+//                    the step is still live (carcass-stripped) AFTER. Scoped to root
+//                    renames: only there is the match a single, unambiguous, non-
+//                    cascading drop↔add. Sub-decl / field renames can legitimately
+//                    demote (ambiguity, recursive-type id change, nominal enum) and are
+//                    covered by NL, not RC.
 //   R6  convergence  after a valid edit a second `--update` is a byte-identical no-op
 //   R10 totality     every `gen --update` is controlled (no panic / internal error / hang)
 //   P   parse-safety a failed corruption reconcile leaves the mirror byte-identical
-// Gated behind FUZZ_TYPEMOD_RENAMES (a documented reconciler GAP, not pinned):
-//   type-RENAME carry when several types share a structural id; see
-//   docs/todos/reconcile-rename-detection.md
+// Type-RENAME ops (renameRoot / renameDecl / renameRootReshaped) run in the default
+// lane now that the const-level graph-parity matcher carries rename + reshape; the
+// root-rename carry is asserted by RC (docs/done/reconcile-rename-detection.md).
 
 import {existsSync} from 'node:fs';
 import {makeFixture, setSource, editMirror, readMirror, type ReconcileFixture} from '../../util/enrichReconcile.ts';
@@ -45,15 +54,21 @@ const MOD_GEN_OPTIONS: GenOptions = {
 // recovered-garbage reconcile without crashing or losing content (the whole-const
 // @rtOrphan carcass handling is now stable).
 const STEP_INVALID_CHANCE = 0.35;
-// `FUZZ_TYPEMOD_RENAMES=1` enables the TYPE-RENAME ops (renameRoot / renameDecl). They
-// are OFF by default — conservatively, pending the advanced rename-detection work
-// (docs/todos/reconcile-rename-detection.md): the const-rename carry has a known
-// same-structural-id ambiguity limit. The random rename lane is green today (the
-// carcass-stability fixes cleared the common failures), so this gate is caution, not
-// a red lane.
-const RENAMES = !!process.env.FUZZ_TYPEMOD_RENAMES;
 
-export type ModRuleId = 'R10' | 'P' | 'R6' | 'NL';
+export type ModRuleId = 'R10' | 'P' | 'R6' | 'NL' | 'RC';
+
+// orphanBlockPattern strips @rtOrphan / @rtOrphanChild block comments to leave only
+// the LIVE mirror text — mirrors the Go orphanBlockPattern (reconcile.go). The
+// carcass's own inner `*/` was comment-sanitized to `* /` when written, so the
+// first ` */` is its true terminator.
+const orphanBlockPattern = /\/\* @rtOrphan(?:Child)? [\s\S]*? \*\//g;
+
+// liveSentinels returns the authored sentinels still present once every @rtOrphan
+// carcass is stripped — i.e. carried onto a LIVE const, not parked in a carcass.
+function liveSentinels(mirror: string, sentinels: string[]): Set<string> {
+  const live = mirror.replace(orphanBlockPattern, '');
+  return new Set(sentinels.filter((sentinel) => live.includes(sentinel)));
+}
 
 export interface ModViolation {
   rule: ModRuleId;
@@ -140,7 +155,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
     try {
       for (let step = 0; step < maxSteps; step++) {
         const allowInvalid = Math.random() < STEP_INVALID_CHANCE;
-        const result = modifyType(rooted, Math.random, {allowInvalid, renames: RENAMES});
+        const result = modifyType(rooted, Math.random, {allowInvalid});
         rooted = result.rooted;
         log.push(result.op);
 
@@ -219,6 +234,42 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
           }
           record('NL', result.op, step, `LOST ${lost.length} authored label(s): ${lost.slice(0, 4).join(', ')}`);
           break;
+        }
+        // RC — a ROOT rename (renameRoot / renameRootReshaped, incl. the rename +
+        // reshape the graph-parity matcher carries) must move authored labels onto the
+        // LIVE const, not demote them into an @rtOrphan carcass: every label live BEFORE
+        // the step is still live (carcass-stripped) AFTER. This is the bite the older NL
+        // oracle lacks — NL passes if a label merely survives in a carcass; RC fails
+        // unless it carried.
+        //
+        // Scoped to ROOT renames on purpose — only there is carry-to-live a CLEAN
+        // invariant: the root is a single drop↔add (unambiguous) and nothing references
+        // it, so its rename never cascades. Sub-decl and FIELD renames can legitimately
+        // demote a label (a same-shape sibling makes the match ambiguous → safe
+        // fall-through; renaming a field inside a RECURSIVE type changes that type's id,
+        // so a self-referencing field's element type "changes" and correctly
+        // re-scaffolds; a nominal enum rename has no field graph to score). Those are
+        // covered by NL (nothing lost, carcass preserves it), not asserted as a live
+        // carry — see docs/todos/reconcile-nominal-rename-carry.md.
+        if (result.op.startsWith('renameRoot')) {
+          const liveBefore = liveSentinels(before, sentinels);
+          const liveAfter = liveSentinels(after, sentinels);
+          const demoted = [...liveBefore].filter((sentinel) => !liveAfter.has(sentinel));
+          if (demoted.length > 0) {
+            if (process.env.FUZZ_TYPEMOD_DEBUG) {
+              console.error(
+                `\n===== RC DEBUG (${result.op}) demoted=${demoted.join(',')} =====\n--- source ---\n${source}\n` +
+                  `--- BEFORE ---\n${before}\n--- AFTER ---\n${after}\n=====`
+              );
+            }
+            record(
+              'RC',
+              result.op,
+              step,
+              `rename demoted ${demoted.length} live label(s) into a carcass: ${demoted.slice(0, 4).join(', ')}`
+            );
+            break;
+          }
         }
         // R6 — a valid edit converges: a second --update is a byte-identical no-op.
         const again = update(fixture, rooted.rootName);
