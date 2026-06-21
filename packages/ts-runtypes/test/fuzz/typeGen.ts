@@ -45,7 +45,7 @@ export type TypeShape =
   | {kind: 'symbol'}
   | {kind: 'array'; elem: TypeShape}
   | {kind: 'tuple'; elems: TypeShape[]}
-  | {kind: 'object'; props: PropShape[]; index?: TypeShape}
+  | {kind: 'object'; props: PropShape[]; index?: TypeShape; indexKey?: IndexKeyKind[]}
   | {kind: 'record'; value: TypeShape}
   | {kind: 'union'; members: TypeShape[]}
   | {kind: 'intersection'; members: TypeShape[]}
@@ -64,6 +64,19 @@ export type TypeShape =
  *  slice (all are non-serialisable `ArrayBufferView`s under DataOnly). **/
 export type TypedArrayName = 'Uint8Array' | 'Int32Array' | 'Float64Array';
 const TYPED_ARRAY_NAMES: TypedArrayName[] = ['Uint8Array', 'Int32Array', 'Float64Array'];
+
+/** The key kinds a generated index signature can use, alone or as a union
+ *  (`[k: number]`, `[k: string | symbol]`, …). All are valid TypeScript; the
+ *  resolver SPLITS a union key into one index signature per kind, so the value
+ *  generators + the product mock handle each kind independently. **/
+export type IndexKeyKind = 'string' | 'number' | 'symbol';
+const INDEX_KEY_KINDS: IndexKeyKind[] = ['string', 'number', 'symbol'];
+
+/** A non-empty random subset of {string, number, symbol} — the index key type. **/
+function randomIndexKey(): IndexKeyKind[] {
+  const chosen = INDEX_KEY_KINDS.filter(() => chance(0.5));
+  return chosen.length ? chosen : [pick(INDEX_KEY_KINDS)];
+}
 
 /** A call signature on a callable interface (`(a0: P): R`). An interface that
  *  carries one is itself function-like, so DataOnly strips it to `never`. **/
@@ -247,7 +260,13 @@ function genDecl(ctx: Ctx): void {
 // Generate object/interface/class members. `selfName`, when set, is in scope as
 // a recursive ref target — but ONLY ever placed in inhabitable positions
 // (optional props or array elements) so values stay finite.
-function genMembers(ctx: Ctx, depth: number, selfName: string | undefined, allowMethods: boolean): PropShape[] {
+function genMembers(
+  ctx: Ctx,
+  depth: number,
+  selfName: string | undefined,
+  allowMethods: boolean,
+  forcedShape?: TypeShape
+): PropShape[] {
   const count = 1 + int(ctx.opts.maxBreadth);
   const props: PropShape[] = [];
   const used = new Set<string>();
@@ -260,9 +279,14 @@ function genMembers(ctx: Ctx, depth: number, selfName: string | undefined, allow
     if (used.has(name)) continue;
     used.add(name);
     const optional = chance(0.35);
-    const method = allowMethods && ctx.opts.nonDataTypes && chance(0.15);
+    const method = !forcedShape && allowMethods && ctx.opts.nonDataTypes && chance(0.15);
     let shape: TypeShape;
-    if (method) {
+    if (forcedShape) {
+      // The enclosing object has a `string`-keyed index, so every named prop
+      // must be assignable to the index value type — reuse it verbatim so the
+      // object stays valid TypeScript.
+      shape = forcedShape;
+    } else if (method) {
       shape = {kind: 'function', params: genParams(ctx, depth), ret: genShape(ctx, depth + 1)};
     } else if (selfName && optional && chance(0.5)) {
       // recursive self-reference through an optional prop (always inhabitable)
@@ -272,8 +296,9 @@ function genMembers(ctx: Ctx, depth: number, selfName: string | undefined, allow
     }
     props.push({name, optional, readonly: chance(0.2), method, shape});
   }
-  // bias toward at least one recursive array prop for declared self-types
-  if (selfName && chance(0.4)) {
+  // bias toward at least one recursive array prop for declared self-types (only
+  // when props are unconstrained — a string-keyed index would reject it)
+  if (selfName && !forcedShape && chance(0.4)) {
     props.push({
       name: `kids${props.length}`,
       optional: false,
@@ -378,9 +403,22 @@ function genTuple(ctx: Ctx, depth: number): TypeShape {
 }
 
 function genObject(ctx: Ctx, depth: number): TypeShape {
-  const props = genMembers(ctx, depth, undefined, ctx.opts.wild);
-  const index = chance(0.2) ? genShape(ctx, depth + 1) : undefined;
-  return {kind: 'object', props, index};
+  // Generate the index signature FIRST, with lower probability than a regular
+  // prop. A key set containing `string` constrains EVERY named (string-keyed)
+  // property to the index value type (TS2411); when one is present the named
+  // props reuse the index value shape so the object stays valid, otherwise
+  // string-named props are unconstrained and get free types. Any residual
+  // invalid combo (e.g. a numeric weird-key prop under a number-only key) is
+  // dropped by the runner's TS-validity gate.
+  let index: TypeShape | undefined;
+  let indexKey: IndexKeyKind[] | undefined;
+  if (chance(0.15)) {
+    indexKey = randomIndexKey();
+    index = genShape(ctx, depth + 1);
+  }
+  const forcedPropShape = indexKey?.includes('string') ? index : undefined;
+  const props = genMembers(ctx, depth, undefined, ctx.opts.wild, forcedPropShape);
+  return {kind: 'object', props, index, indexKey};
 }
 
 // Unions are kept value-level DISJOINT so the strong oracles stay sound on the
@@ -521,16 +559,12 @@ export function renderType(shape: TypeShape): string {
     case 'object': {
       const parts = shape.props.map(renderProp);
       if (shape.index) {
-        // A `[k: string]` index constrains EVERY named property to the index
-        // value type (TS2411); a `[k: number]` index only constrains
-        // numeric-keyed properties, so string-named props stay independent. Use a
-        // number index whenever there are named props so the object is valid TS
-        // while keeping the realistic mixed-type (array-like-with-metadata) shape;
-        // a pure index map uses a string index (Record-like). A residual invalid
-        // shape (a numeric weird-key prop under the number index) is caught by the
-        // tsValidate gate in the runner, so this need not be exhaustive.
-        const key = shape.props.length > 0 ? 'k: number' : 'k: string';
-        parts.push(`[${key}]: ${renderType(shape.index)}`);
+        // The key kind set comes from the generator (string / number / symbol or
+        // any union). genObject keeps it valid: a `string` key forces the named
+        // props to the index value type. The tsValidate gate drops any residual
+        // invalid combo. Legacy fixtures without `indexKey` default to `string`.
+        const kinds = shape.indexKey ?? ['string'];
+        parts.push(`[k: ${kinds.join(' | ')}]: ${renderType(shape.index)}`);
       }
       return parts.length ? `{${parts.join('; ')}}` : '{}';
     }
