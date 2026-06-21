@@ -1,9 +1,11 @@
 # Serialization bugs surfaced by the non-data fuzz lane
 
-**Status:** F1, K2, F2 (product side), F3, G1 FIXED — see the Resolution
-section below. One issue (F2b) is DEFERRED to a follow-up. Originally four
-findings from the DataOnly non-data fuzz lane (the `createMockType`-driven,
-real-pipeline lane in
+**Status:** F1, K2, F2 (product side), F3, G1, F2b (emit) FIXED — see the
+Resolution section below. Re-enabling callable-interface fuzz GENERATION is
+now unblocked from the callable side, but stays disabled pending two SEPARATE
+pre-existing serialization bugs the broader soak surfaced (G2, G3 below).
+Originally four findings from the DataOnly non-data fuzz lane (the
+`createMockType`-driven, real-pipeline lane in
 [`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-runtypes/test/fuzz/nonDataTypeFuzz.integration.test.ts)).
 
 ## Resolution
@@ -13,7 +15,9 @@ real-pipeline lane in
 | **F1** | `binaryEncode`/`binaryDecode` mis-applied the index-sig encoder to NAMED properties on objects mixing both | **FIXED** — named props emit first, the index-sig loop skips declared keys via the shared `publishSiblingNamedKeysForIndexSig` + `siblingNamedSkipCode`. Pinned by `binaryIndexSig.smoke.test.ts`. |
 | **K2** | A stripped-valued prop in a UNION member failed the whole union (a standalone object drops it) | **FIXED** — `buildMergedProps` drops the full `isStrippedUnionMember` set + emits the drop warning. Pinned by `TestDataOnlyUnion_ObjectMemberStrippedProp`. |
 | **F2** | Callable interface: function to `validate`, object to the serializers | **FIXED (product)** — `objectHasCallSignature` makes the serializers + validate treat it function-like everywhere (typeof-function at root, dropped at a property). Pinned by `callable_interface_dataonly_test.go`. Re-enabling fuzz GENERATION is deferred (see F2b). |
-| **F2b** | Re-enabling callable-interface fuzz generation surfaces an UNCONTROLLED wire error (`reading 'fn'`) + an unresolved binary site on a complex callable interface (call sig with `any` / methods / non-serialisable intersection params) | **DEFERRED** — a separate emit/dependency-linking bug. Generation stays disabled in `typeGen.ts`. |
+| **F2b** | A callable interface at a NON-ROOT propagating position (array element, Map/Record value, tuple slot, intersection) produced an UNCONTROLLED wire error (`reading 'fn'`) + an unresolved binary site (`no id injected`). The serializers latch the callable OBJECTLITERAL as the unsupported leaf, but `DiagCodeForLeaf` had no objectLiteral arm → returned "" → the entry was SILENTLY SKIPPED, leaving a dangling dep that cascaded to a `KindMissing` stub; a JSON composite then bound it with an unguarded `getRT(key).fn`. | **FIXED (emit)** — `callableLeafSubstitute` ([kinds.go](../../internal/compiled/typefns/kinds.go)) maps the callable objectLiteral leaf to its call-signature child at the alwaysThrow site ([module.go](../../internal/compiled/typefns/module.go)), so it renders a controlled alwaysThrow with the family's FUNCTION code (an Error-severity build diagnostic), exactly like a bare function. Pinned by `TestF2b_CallableInArrayElementAlwaysThrows`. Generation re-enable still deferred (G2/G3). |
+| **G2** | NEW (agent soak, generation re-enabled): a non-serialisable native or `bigint` at an INDEX-SIGNATURE VALUE position (`{[k: string]: DataView}`, `{[k: number]: bigint}` as the index value itself, distinct from G1's named-sibling corruption) mis-serializes / crashes. | **DEFERRED** — same `internal/compiled/typefns` index-sig family as F1/G1, value-position rather than sibling. |
+| **G3** | NEW (agent soak): an `invalid union index` error on a generated union shape. | **DEFERRED** — union-layout/index bug, unrelated to callable interfaces. |
 | **F3** | An Error-severity diagnostic is emitted for a dropped non-serialisable property, though the value serialises fine; the default `clone` encoder FAILED such a property while the others dropped it; and a structurally-unserialisable property (`symbol[]`) was silently dropped instead of failing | **FIXED** — property-position handling now matches `DataOnly<T>` uniformly across all families. A DIRECTLY-stripped value (symbol / Promise / never / non-serialisable native; functions keep …010) drops with a new child-position **Warning** (…015), and the mutate path `delete`s it so `JSON.stringify` can't leak a typed array / Promise. A value that is only STRUCTURALLY unserialisable (`symbol[]`, `Map<string,symbol>`) now fails (root Error), matching DataOnly keeping `never[]`. An unknown future kind still absorbs gracefully. Pinned by `property_dataonly_test.go`, the updated `runtype-diagnostics.test.ts`, and the `Int8Array in interface` serialization fixture. |
 | **G1** | `O5` JSON round-trip corrupted a named property mixed with an index signature of a DIFFERENT value type (`{p0: number; [k: number]: bigint}` round-tripped `p0` from a number into a bigint; with other shapes the corrupted value crashed a downstream numeric op, `Cannot convert a BigInt value to a number`). The JSON for-in index loop transformed EVERY own key, including declared siblings. | **FIXED** — the JSON walks (mutate `prepareForJson`, `restoreFromJson`, direct `stringifyJson`) now skip declared sibling keys via the same `publishSiblingNamedKeysForIndexSig` + `siblingNamedSkipCode` mechanism binary got in F1 (the clone `prepareForJsonSafe` path always skipped). Pinned by `index_sig_sibling_json_test.go` + `g1-index-sig-sibling.test.ts`; the 40s WILD soak (seed 20260620) is clean (974 types, 0 violations). |
 
@@ -131,10 +135,49 @@ Pick one contract for a callable interface and make every family honor it:
 2. Or treat it as its object projection everywhere: `validate` would stop using the
    function guard for a callable interface and validate the (possibly empty) object.
 
-Option 1 is recommended (it matches `DataOnly<CallableInterface> = never`). Until
-this lands, callable-interface GENERATION stays disabled in the fuzz generator
+Option 1 was taken (it matches `DataOnly<CallableInterface> = never`): the product
+side is fixed (F2) and the emit cascade is fixed (F2b, below).
+
+### F2b — the silent-skip emit bug (FIXED)
+
+F2 made the serializers treat a callable interface as function-like by returning
+`CodeNS` for it (`objectHasCallSignature`). That works at the root and at a
+property, but at a NON-ROOT propagating position (array element, Map/Record value,
+tuple slot, intersection) it left the entry SILENTLY SKIPPED, which a downstream
+JSON composite then bound with an unguarded `getRT(key).fn`:
+
+1. The serializer guard returns `CodeNS`, so the walker latches the callable
+   **objectLiteral** as `UnsupportedLeaf` ([walker.go](../../internal/compiled/typefns/walker.go)).
+2. The alwaysThrow site ([module.go](../../internal/compiled/typefns/module.go)) calls
+   `DiagCodeForLeaf(leaf)`, but `rootCodeMap.codeFor`
+   ([diag_codes.go](../../internal/compiled/typefns/diag_codes.go)) maps only
+   `KindFunction`/`KindMethod`/`KindCallSignature` to the family `function` code —
+   no `KindObjectLiteral` arm → returns `""` → the entry is silently skipped (no
+   factory, no alwaysThrow).
+3. A container that hard-depends on the skipped entry (e.g. the array's pjs)
+   cascades to a `KindMissing` stub; the JSON composite
+   ([json_composite.go](../../internal/compiled/typefns/json_composite.go)) binds
+   `const pjsFn = utl.getRT(<key>).fn` on that stub → `reading 'fn'` at runtime.
+   Binary has no composite, so the stub surfaces as `no id injected`.
+
+**Fix:** `callableLeafSubstitute(leaf, refTable)`
+([kinds.go](../../internal/compiled/typefns/kinds.go)) maps a callable-interface
+objectLiteral leaf to its call-signature child; `module.go` substitutes before
+`DiagCodeForLeaf`, so the family's FUNCTION code fires and the entry renders a
+controlled alwaysThrow (Error-severity diagnostic), exactly like a bare function.
+Every non-callable leaf passes through unchanged; a nil/unresolvable RefTable
+falls back to the original leaf (the unknown-future-kind safety net). Pinned by
+`TestF2b_CallableInArrayElementAlwaysThrows`.
+
+### Re-enabling generation — still deferred (G2/G3)
+
+Callable-interface GENERATION stays disabled in the fuzz generator
 ([`typeGen.ts`](../../packages/ts-runtypes/test/fuzz/typeGen.ts), `genDecl`); the
-`calls` plumbing (TypeShape / render / ref-walk) is kept so it can be re-enabled.
+`calls` plumbing is kept so it can be re-enabled. F2b is no longer the blocker —
+the investigation soak (generation re-enabled) drove `reading 'fn'` / `no id
+injected` to zero — but it surfaced two SEPARATE pre-existing serialization bugs
+(G2: a non-serialisable native / bigint at an index-signature VALUE position;
+G3: an `invalid union index` on a generated union). Triage those, then re-enable.
 
 ---
 
