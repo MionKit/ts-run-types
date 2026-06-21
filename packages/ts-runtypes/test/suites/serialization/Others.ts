@@ -49,9 +49,11 @@ export const OTHERS = {
   non_serializable_interface: {
     title: 'Int8Array in interface',
     description:
-      'An interface with a non-serializable `Int8Array` member renders the factory as alwaysThrow, so every encoder / decoder invocation throws for both JSON and binary.',
-    serializeNotes:
-      'No value-first builder can express the enclosing object, so all schema variants are not-supported and test data is empty.',
+      'An interface member of a directly non-serializable type (`Int8Array`) is DROPPED, matching `DataOnly<{a: Int8Array}>` = `{}`: every encoder serializes the remaining shape and the member round-trips away (a build-time …015 Warning flags the drop). This differs from a non-serializable ARRAY / TUPLE slot, which propagates and alwaysThrows.',
+    serializeNotes: [
+      'The `a` member is directly DataOnly-stripped, so it is dropped from the serialized form across every strategy. The mutate path `delete`s it so `JSON.stringify` cannot leak the typed array as a plain object — its output matches clone / direct / binary.',
+      'No value-first builder can express the `Int8Array` member, so the schema variants stay not-supported.',
+    ],
     mutateEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'direct'}),
@@ -64,8 +66,8 @@ export const OTHERS = {
     schemaDecoder: 'not-supported',
     schemaBinaryEncoder: 'not-supported',
     schemaBinaryDecoder: 'not-supported',
-    factoryThrows: true,
-    getTestData: () => ({values: []}),
+    // `a` is dropped, so every value round-trips to `{}` (the data-only projection).
+    getTestData: () => ({values: [{a: new Int8Array([1, 2, 3])}], deserializedValues: [{}]}),
   },
   non_serializable_array: {
     title: 'Int8Array in array',

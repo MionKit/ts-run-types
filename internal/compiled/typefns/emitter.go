@@ -323,6 +323,14 @@ const (
 	SlotMethodDropped       DiagSlot = "method-dropped"
 	SlotStaticDropped       DiagSlot = "static-dropped"
 	SlotSymbolKeyedDropped  DiagSlot = "symbol-keyed-dropped"
+	// SlotNonSerializablePropDropped — a property whose VALUE is directly
+	// DataOnly-stripped to `never` (symbol / Promise / never / non-serializable
+	// built-in; function-valued props use SlotFunctionPropDropped) was dropped
+	// so `{a: symbol}` serializes/validates as `{}`, matching
+	// `DataOnly<{a: symbol}>` = `{}`. Distinct from SlotSymbolKeyedDropped (a
+	// symbol KEY) and the *Root error slots (a propagating position). Emitted by
+	// strippedPropertyDrop, shared by validate and the six serialization families.
+	SlotNonSerializablePropDropped DiagSlot = "non-serializable-prop-dropped"
 	// SlotUnionMemberDropped — a union member DataOnly strips to `never`
 	// (symbol / function / Promise / non-serializable built-in) was dropped
 	// so the union projects to its data members (DataOnly<Date | symbol> =

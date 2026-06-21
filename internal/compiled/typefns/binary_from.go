@@ -334,8 +334,9 @@ func emitPropertyFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des str
 	if resolved == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
-	if isFunctionLikeKind(resolved.Kind) {
-		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
+	if strippedPropertyDrop(resolved, rt.Name, ctx) {
+		// Directly DataOnly-stripped value — drop the property. See
+		// docs/UNSUPPORTED-KINDS.md.
 		return RTCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(ret, rt.Name, rt.IsSafeName)
@@ -343,11 +344,11 @@ func emitPropertyFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des str
 	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	if childRT.Type == CodeNS {
-		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
-		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
-			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
+		// Stripped leaf in a propagating slot (symbol[], …) fails the object;
+		// any other unsupported kind is absorbed (F3). See propertyChildFailed.
+		if propertyChildFailed(ctx) {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		ctx.walker.AbsorbUnsupported()
 		return RTCode{Code: "", Type: CodeS}
 	}
 	if childRT.Code == "" {
@@ -394,8 +395,10 @@ func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des strin
 		if childResolved == nil {
 			continue
 		}
-		if isFunctionLikeKind(childResolved.Kind) {
-			ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, resolved.Name)
+		if strippedPropertyDrop(childResolved, resolved.Name, ctx) {
+			// Directly DataOnly-stripped value — drop the property (mirrors the
+			// encode side so the wire bitmap stays in sync). A
+			// structurally-unserializable value stays and fails via CodeNS (F3).
 			continue
 		}
 		if resolved.Optional {
@@ -437,7 +440,12 @@ func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des strin
 			}
 			ctx.SetChildAccessor("")
 			if innerRT.Type == CodeNS {
-				return RTCode{Code: "", Type: CodeNS}
+				if propertyChildFailed(ctx) {
+					return RTCode{Code: "", Type: CodeNS}
+				}
+				// Absorbed unknown kind — keep the optional bit (mirrors the
+				// encode side) but read no value, dropping the property.
+				innerRT = RTCode{Code: "", Type: CodeS}
 			}
 			bitCheck := bitCheckExpr(des, bitmapVar, i)
 			body := innerRT.Code

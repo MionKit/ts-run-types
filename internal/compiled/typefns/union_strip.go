@@ -42,6 +42,57 @@ func isStrippedUnionMember(resolved *protocol.RunType) bool {
 	return false
 }
 
+// strippedPropertyDrop reports whether a property whose resolved VALUE is
+// directly DataOnly-stripped (symbol / function-like / Promise / never /
+// non-serializable native) must be dropped at a property position, emitting the
+// matching per-family child-position Warning. Function-valued props keep the
+// existing SlotFunctionPropDropped (…010) code; the other directly-stripped
+// kinds use SlotNonSerializablePropDropped (…015). Mirrors the DataOnly object
+// rule: a property whose value projects to `never` is removed and the
+// surrounding object still serializes (`DataOnly<{a: symbol}>` = `{}`).
+//
+// Returns false for a value that is NOT directly stripped — including one that
+// is only STRUCTURALLY unserializable (symbol[], Map<string, symbol>, a tuple
+// with a stripped slot). DataOnly KEEPS those (`{a: symbol[]}` projects to
+// `{a: never[]}`), so the caller must compile the value, observe the CodeNS it
+// returns from the propagating slot, and propagate that failure — the object
+// then alwaysThrows, which is the "can't be safely dropped" contract.
+func strippedPropertyDrop(resolved *protocol.RunType, name string, ctx *EmitContext) bool {
+	if !isStrippedUnionMember(resolved) {
+		return false
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, name)
+	} else {
+		ctx.EmitDiagnosticSlot(SlotNonSerializablePropDropped, name)
+	}
+	return true
+}
+
+// propertyChildFailed resolves what a property does when its compiled VALUE
+// returned CodeNS and the value was NOT directly stripped (the directly-stripped
+// case is handled by strippedPropertyDrop before the compile). The decision keys
+// on the leaf that produced the CodeNS:
+//
+//   - A DataOnly-stripped leaf reached through a propagating slot (symbol[],
+//     Map<string,symbol>, a tuple with a stripped slot) means DataOnly KEEPS the
+//     property as an unrepresentable type (`{a: symbol[]}` projects to
+//     `{a: never[]}`), so the failure PROPAGATES and the object alwaysThrows —
+//     the oracle's "can't be safely dropped" case. Returns true; the caller
+//     returns CodeNS.
+//   - Any OTHER unsupported leaf (a future kind with no emit — never produced by
+//     a real scan today, since tsgo collapses intersections etc.) is ABSORBED:
+//     the walker latch is cleared and the property drops with no diagnostic, the
+//     rest of the object still renders — the pre-DataOnly "property absorbs
+//     unsupported" contract (docs/UNSUPPORTED-KINDS.md). Returns false.
+func propertyChildFailed(ctx *EmitContext) (propagate bool) {
+	if isStrippedUnionMember(ctx.walker.UnsupportedLeaf) {
+		return true
+	}
+	ctx.walker.AbsorbUnsupported()
+	return false
+}
+
 // strippedMemberLabel returns a short, user-facing label for a dropped union
 // member — the value the build-time Warning substitutes for {0}. Uses the
 // user's own type vocabulary (the class name for a built-in, the lowercase

@@ -12,25 +12,27 @@ package diag
 
 // validate family.
 const (
-	CodeVLNonSerializableRoot = "VL001"
-	CodeVLSymbolRoot          = "VL002"
-	CodeVLFunctionPropDropped = "VL010"
-	CodeVLMethodDropped       = "VL011"
-	CodeVLStaticDropped       = "VL012"
-	CodeVLSymbolKeyedDropped  = "VL013"
-	CodeVLUnionMemberDropped  = "VL014"
-	CodeVLRootAnyUnknown      = "VL021"
+	CodeVLNonSerializableRoot     = "VL001"
+	CodeVLSymbolRoot              = "VL002"
+	CodeVLFunctionPropDropped     = "VL010"
+	CodeVLMethodDropped           = "VL011"
+	CodeVLStaticDropped           = "VL012"
+	CodeVLSymbolKeyedDropped      = "VL013"
+	CodeVLUnionMemberDropped      = "VL014"
+	CodeVLNonSerializablePropDrop = "VL015"
+	CodeVLRootAnyUnknown          = "VL021"
 )
 
 // validationErrors family.
 const (
-	CodeVENonSerializableRoot = "VE001"
-	CodeVESymbolRoot          = "VE002"
-	CodeVEFunctionPropDropped = "VE010"
-	CodeVEMethodDropped       = "VE011"
-	CodeVEStaticDropped       = "VE012"
-	CodeVESymbolKeyedDropped  = "VE013"
-	CodeVERootAnyUnknown      = "VE020"
+	CodeVENonSerializableRoot     = "VE001"
+	CodeVESymbolRoot              = "VE002"
+	CodeVEFunctionPropDropped     = "VE010"
+	CodeVEMethodDropped           = "VE011"
+	CodeVEStaticDropped           = "VE012"
+	CodeVESymbolKeyedDropped      = "VE013"
+	CodeVENonSerializablePropDrop = "VE015"
+	CodeVERootAnyUnknown          = "VE020"
 )
 
 // CodeCompositeMissingPrimitive — a JSON composite (jeCL/jeMU/jeDI/jdST/jdPR)
@@ -40,88 +42,94 @@ const CodeCompositeMissingPrimitive = "JCP001"
 
 // prepareForJson family.
 const (
-	CodePJNeverRoot           = "PJ001"
-	CodePJNonSerializableRoot = "PJ002"
-	CodePJFunctionRoot        = "PJ003"
-	CodePJArrayElement        = "PJ004"
-	CodePJSymbolRoot          = "PJ005"
-	CodePJFunctionPropDropped = "PJ010"
-	CodePJMethodDropped       = "PJ011"
-	CodePJStaticDropped       = "PJ012"
-	CodePJSymbolKeyedDropped  = "PJ013"
-	CodePJUnionMemberDropped  = "PJ014"
+	CodePJNeverRoot               = "PJ001"
+	CodePJNonSerializableRoot     = "PJ002"
+	CodePJFunctionRoot            = "PJ003"
+	CodePJArrayElement            = "PJ004"
+	CodePJSymbolRoot              = "PJ005"
+	CodePJFunctionPropDropped     = "PJ010"
+	CodePJMethodDropped           = "PJ011"
+	CodePJStaticDropped           = "PJ012"
+	CodePJSymbolKeyedDropped      = "PJ013"
+	CodePJUnionMemberDropped      = "PJ014"
+	CodePJNonSerializablePropDrop = "PJ015"
 )
 
 // prepareForJsonSafe family.
 const (
-	CodePJSNeverRoot           = "PJS001"
-	CodePJSNonSerializableRoot = "PJS002"
-	CodePJSFunctionRoot        = "PJS003"
-	CodePJSArrayElement        = "PJS004"
-	CodePJSSymbolRoot          = "PJS005"
-	CodePJSFunctionPropDropped = "PJS010"
-	CodePJSMethodDropped       = "PJS011"
-	CodePJSStaticDropped       = "PJS012"
-	CodePJSSymbolKeyedDropped  = "PJS013"
-	CodePJSUnionMemberDropped  = "PJS014"
+	CodePJSNeverRoot               = "PJS001"
+	CodePJSNonSerializableRoot     = "PJS002"
+	CodePJSFunctionRoot            = "PJS003"
+	CodePJSArrayElement            = "PJS004"
+	CodePJSSymbolRoot              = "PJS005"
+	CodePJSFunctionPropDropped     = "PJS010"
+	CodePJSMethodDropped           = "PJS011"
+	CodePJSStaticDropped           = "PJS012"
+	CodePJSSymbolKeyedDropped      = "PJS013"
+	CodePJSUnionMemberDropped      = "PJS014"
+	CodePJSNonSerializablePropDrop = "PJS015"
 )
 
 // restoreFromJson family.
 const (
-	CodeRJNeverRoot           = "RJ001"
-	CodeRJNonSerializableRoot = "RJ002"
-	CodeRJFunctionRoot        = "RJ003"
-	CodeRJArrayElement        = "RJ004"
-	CodeRJSymbolRoot          = "RJ005"
-	CodeRJFunctionPropDropped = "RJ010"
-	CodeRJMethodDropped       = "RJ011"
-	CodeRJStaticDropped       = "RJ012"
-	CodeRJSymbolKeyedDropped  = "RJ013"
-	CodeRJUnionMemberDropped  = "RJ014"
+	CodeRJNeverRoot               = "RJ001"
+	CodeRJNonSerializableRoot     = "RJ002"
+	CodeRJFunctionRoot            = "RJ003"
+	CodeRJArrayElement            = "RJ004"
+	CodeRJSymbolRoot              = "RJ005"
+	CodeRJFunctionPropDropped     = "RJ010"
+	CodeRJMethodDropped           = "RJ011"
+	CodeRJStaticDropped           = "RJ012"
+	CodeRJSymbolKeyedDropped      = "RJ013"
+	CodeRJUnionMemberDropped      = "RJ014"
+	CodeRJNonSerializablePropDrop = "RJ015"
 )
 
 // stringifyJson family.
 const (
-	CodeSJNeverRoot           = "SJ001"
-	CodeSJNonSerializableRoot = "SJ002"
-	CodeSJFunctionRoot        = "SJ003"
-	CodeSJArrayElement        = "SJ004"
-	CodeSJSymbolRoot          = "SJ005"
-	CodeSJFunctionPropDropped = "SJ010"
-	CodeSJMethodDropped       = "SJ011"
-	CodeSJStaticDropped       = "SJ012"
-	CodeSJSymbolKeyedDropped  = "SJ013"
-	CodeSJUnionMemberDropped  = "SJ014"
+	CodeSJNeverRoot               = "SJ001"
+	CodeSJNonSerializableRoot     = "SJ002"
+	CodeSJFunctionRoot            = "SJ003"
+	CodeSJArrayElement            = "SJ004"
+	CodeSJSymbolRoot              = "SJ005"
+	CodeSJFunctionPropDropped     = "SJ010"
+	CodeSJMethodDropped           = "SJ011"
+	CodeSJStaticDropped           = "SJ012"
+	CodeSJSymbolKeyedDropped      = "SJ013"
+	CodeSJUnionMemberDropped      = "SJ014"
+	CodeSJNonSerializablePropDrop = "SJ015"
 )
 
 // toBinary family.
 const (
-	CodeTBNeverRoot           = "TB001"
-	CodeTBNonSerializableRoot = "TB002"
-	CodeTBFunctionRoot        = "TB003"
-	CodeTBNonSerializableElem = "TB005"
-	CodeTBArrayElement        = "TB004"
-	CodeTBSymbolRoot          = "TB006"
-	CodeTBFunctionPropDropped = "TB010"
-	CodeTBMethodDropped       = "TB011"
-	CodeTBStaticDropped       = "TB012"
-	CodeTBSymbolKeyedDropped  = "TB013"
-	CodeTBUnionMemberDropped  = "TB014"
+	CodeTBNeverRoot               = "TB001"
+	CodeTBNonSerializableRoot     = "TB002"
+	CodeTBFunctionRoot            = "TB003"
+	CodeTBNonSerializableElem     = "TB005"
+	CodeTBArrayElement            = "TB004"
+	CodeTBSymbolRoot              = "TB006"
+	CodeTBFunctionPropDropped     = "TB010"
+	CodeTBMethodDropped           = "TB011"
+	CodeTBStaticDropped           = "TB012"
+	CodeTBSymbolKeyedDropped      = "TB013"
+	CodeTBUnionMemberDropped      = "TB014"
+	CodeTBNonSerializablePropDrop = "TB015"
 )
 
 // fromBinary family.
 const (
-	CodeFBNeverRoot           = "FB001"
-	CodeFBNonSerializableRoot = "FB002"
-	CodeFBFunctionRoot        = "FB003"
-	CodeFBNonSerializableElem = "FB005"
-	CodeFBArrayElement        = "FB004"
-	CodeFBSymbolRoot          = "FB006"
-	CodeFBFunctionPropDropped = "FB010"
-	CodeFBMethodDropped       = "FB011"
-	CodeFBStaticDropped       = "FB012"
-	CodeFBSymbolKeyedDropped  = "FB013"
-	CodeFBUnionMemberDropped  = "FB014"
+	CodeFBNeverRoot               = "FB001"
+	CodeFBNonSerializableRoot     = "FB002"
+	CodeFBFunctionRoot            = "FB003"
+	CodeFBNonSerializableElem     = "FB005"
+	CodeFBArrayElement            = "FB004"
+	CodeFBSymbolRoot              = "FB006"
+	CodeFBFunctionPropDropped     = "FB010"
+	CodeFBMethodDropped           = "FB011"
+	CodeFBStaticDropped           = "FB012"
+	CodeFBSymbolKeyedDropped      = "FB013"
+	CodeFBUnionMemberDropped      = "FB014"
+	CodeFBNonSerializablePropDrop = "FB015"
 )
 
 // Format family — TypeFormat (pattern / mockSample) build-time checks.
@@ -190,15 +198,22 @@ func init() {
 	// The *UnionMemberDropped codes (…014) are the DataOnly union-member drop:
 	// `Date | symbol` serializes/validates as `Date`. validationErrors (VE) has
 	// none — its union arm delegates to validate, so the user sees VL014.
+	// The *NonSerializablePropDrop codes (…015) are the DataOnly PROPERTY drop:
+	// a property whose VALUE is directly non-data (symbol / Promise / never /
+	// non-serializable built-in — function-valued props keep using …010) is
+	// dropped so `{a: symbol}` serializes/validates as `{}`, matching
+	// `DataOnly<{a: symbol}>` = `{}`. A property whose value is only
+	// STRUCTURALLY unserializable (symbol[], Map<string, symbol>) is NOT dropped
+	// — DataOnly keeps it (`never[]`), so the family throws at root instead.
 	for _, code := range []string{
-		CodeVLFunctionPropDropped, CodeVLMethodDropped, CodeVLStaticDropped, CodeVLSymbolKeyedDropped, CodeVLUnionMemberDropped,
-		CodeVEFunctionPropDropped, CodeVEMethodDropped, CodeVEStaticDropped, CodeVESymbolKeyedDropped,
-		CodePJFunctionPropDropped, CodePJMethodDropped, CodePJStaticDropped, CodePJSymbolKeyedDropped, CodePJUnionMemberDropped,
-		CodePJSFunctionPropDropped, CodePJSMethodDropped, CodePJSStaticDropped, CodePJSSymbolKeyedDropped, CodePJSUnionMemberDropped,
-		CodeRJFunctionPropDropped, CodeRJMethodDropped, CodeRJStaticDropped, CodeRJSymbolKeyedDropped, CodeRJUnionMemberDropped,
-		CodeSJFunctionPropDropped, CodeSJMethodDropped, CodeSJStaticDropped, CodeSJSymbolKeyedDropped, CodeSJUnionMemberDropped,
-		CodeTBFunctionPropDropped, CodeTBMethodDropped, CodeTBStaticDropped, CodeTBSymbolKeyedDropped, CodeTBUnionMemberDropped,
-		CodeFBFunctionPropDropped, CodeFBMethodDropped, CodeFBStaticDropped, CodeFBSymbolKeyedDropped, CodeFBUnionMemberDropped,
+		CodeVLFunctionPropDropped, CodeVLMethodDropped, CodeVLStaticDropped, CodeVLSymbolKeyedDropped, CodeVLUnionMemberDropped, CodeVLNonSerializablePropDrop,
+		CodeVEFunctionPropDropped, CodeVEMethodDropped, CodeVEStaticDropped, CodeVESymbolKeyedDropped, CodeVENonSerializablePropDrop,
+		CodePJFunctionPropDropped, CodePJMethodDropped, CodePJStaticDropped, CodePJSymbolKeyedDropped, CodePJUnionMemberDropped, CodePJNonSerializablePropDrop,
+		CodePJSFunctionPropDropped, CodePJSMethodDropped, CodePJSStaticDropped, CodePJSSymbolKeyedDropped, CodePJSUnionMemberDropped, CodePJSNonSerializablePropDrop,
+		CodeRJFunctionPropDropped, CodeRJMethodDropped, CodeRJStaticDropped, CodeRJSymbolKeyedDropped, CodeRJUnionMemberDropped, CodeRJNonSerializablePropDrop,
+		CodeSJFunctionPropDropped, CodeSJMethodDropped, CodeSJStaticDropped, CodeSJSymbolKeyedDropped, CodeSJUnionMemberDropped, CodeSJNonSerializablePropDrop,
+		CodeTBFunctionPropDropped, CodeTBMethodDropped, CodeTBStaticDropped, CodeTBSymbolKeyedDropped, CodeTBUnionMemberDropped, CodeTBNonSerializablePropDrop,
+		CodeFBFunctionPropDropped, CodeFBMethodDropped, CodeFBStaticDropped, CodeFBSymbolKeyedDropped, CodeFBUnionMemberDropped, CodeFBNonSerializablePropDrop,
 		CodeHUKFunctionPropDropped, CodeSUKFunctionPropDropped, CodeUKEFunctionPropDropped, CodeUKUFunctionPropDropped, CodeUKWFunctionPropDropped,
 	} {
 		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityWarning, Title: "RunType child-position member dropped"})

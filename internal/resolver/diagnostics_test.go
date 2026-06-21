@@ -181,20 +181,32 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	if all := allEntrySources(resp); strings.Contains(all, "'PJ001'") {
 		t.Errorf("no emitted module may carry the PJ001 alwaysThrow arg — property absorbs the never child. Got:\n%s", all)
 	}
-	// A PJ001 diagnostic should fire for the absorbed never child.
+	// A PJ015 child-position WARNING should fire for the dropped never property
+	// — NOT the PJ001 root error. `never` is directly DataOnly-stripped, so the
+	// property is dropped (the object still serializes); an Error would wrongly
+	// claim the factory throws at runtime when it serializes fine (F3).
 	runtype := runtypeDiagsOf(resp.Diagnostics)
-	var pj001 *diag.Diagnostic
+	var drop *diag.Diagnostic
 	for i := range runtype {
-		if runtype[i].Code == diag.CodePJNeverRoot {
-			pj001 = &runtype[i]
+		if runtype[i].Code == diag.CodePJNonSerializablePropDrop {
+			drop = &runtype[i]
 			break
 		}
 	}
-	if pj001 == nil {
-		t.Fatalf("expected PJ001 diagnostic for the absorbed never property, got %+v", runtype)
+	if drop == nil {
+		t.Fatalf("expected PJ015 drop warning for the dropped never property, got %+v", runtype)
 	}
-	if len(pj001.Args) != 1 || pj001.Args[0] != "bad" {
-		t.Errorf("expected args=[\"bad\"] (the absorbed property name), got %v", pj001.Args)
+	if drop.Severity != diag.SeverityWarning {
+		t.Errorf("PJ015 severity = %v, want Warning (a dropped property serializes fine)", drop.Severity)
+	}
+	if len(drop.Args) != 1 || drop.Args[0] != "bad" {
+		t.Errorf("expected args=[\"bad\"] (the dropped property name), got %v", drop.Args)
+	}
+	// The PJ001 root error must NOT fire — the property is dropped, not failed.
+	for i := range runtype {
+		if runtype[i].Code == diag.CodePJNeverRoot {
+			t.Errorf("PJ001 (root never error) must not fire for a dropped never property, got %+v", runtype[i])
+		}
 	}
 }
 

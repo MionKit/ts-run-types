@@ -471,8 +471,9 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 	if resolved == nil {
 		return RTCode{Code: "", Type: CodeE}
 	}
-	if isFunctionLikeKind(resolved.Kind) {
-		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
+	if strippedPropertyDrop(resolved, rt.Name, ctx) {
+		// Directly DataOnly-stripped value — drop the property. See
+		// docs/UNSUPPORTED-KINDS.md.
 		return RTCode{Code: "", Type: CodeE}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
@@ -487,11 +488,11 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 	childRT := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
 	if childRT.Type == CodeNS {
-		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
-		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
-			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
+		// Stripped leaf in a propagating slot (symbol[], …) fails the object;
+		// any other unsupported kind is absorbed (F3). See propertyChildFailed.
+		if propertyChildFailed(ctx) {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		ctx.walker.AbsorbUnsupported()
 		return RTCode{Code: "", Type: CodeE}
 	}
 	if childRT.Code == "" {

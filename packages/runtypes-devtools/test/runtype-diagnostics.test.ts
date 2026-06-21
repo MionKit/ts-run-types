@@ -327,6 +327,71 @@ export const _b = createBinaryEncoder<[number, symbol]>();
     });
   });
 
+  register('emits a …015 WARNING (not a root error) for a directly-stripped property value (F3)', async () => {
+    // `{a: symbol}` / `{a: Promise<number>}` — the property VALUE is directly
+    // non-data, so the property is DROPPED and the object still serializes:
+    // `DataOnly<{a: symbol; b: number}>` = `{b: number}`. The drop is a …015
+    // child-position Warning, NEVER a root error (the factory does not throw).
+    // Before the fix the default clone encoder (prepareForJsonSafe) FAILED these
+    // outright, and the other families emitted an Error — F3.
+    const sources = {
+      'stripped-prop.ts': `import {createValidate, createJsonEncoder} from 'ts-runtypes';
+interface S { a: symbol; b: number; }
+interface P { a: Promise<number>; b: number; }
+export const _v = createValidate<S>();
+export const _e = createJsonEncoder<S>();
+export const _p = createValidate<P>();
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeEntryModules: true,
+      });
+      const diags = runtypeDiagsOf(response);
+      // The default clone encoder + validate drop the property with a …015 Warning.
+      const drops = diags.filter((d) => d.code.endsWith('015'));
+      const codes = new Set(drops.map((d) => d.code));
+      expect(codes, JSON.stringify(diags, null, 2)).toContain('VL015'); // validate
+      expect(codes).toContain('PJS015'); // default clone encoder
+      for (const d of drops) {
+        expect(d.severity, `${d.code} should be a Warning`).toBe(Severity.Warning);
+        expect(d.args?.[0]).toBe('a');
+      }
+      // NO root error may fire — a dropped property serializes fine. (The …002 /
+      // …005 codes are the symbol / non-serialisable ROOT errors.)
+      const errors = diags.filter((d) => d.severity === Severity.Error);
+      expect(errors, JSON.stringify(errors, null, 2)).toHaveLength(0);
+      // And the object factory must NOT be an alwaysThrow tuple.
+      const allModules = Object.values(response.entryModules ?? {}).join('\n');
+      expect(allModules).not.toMatch(/'objectLiteral',undefined,false,undefined,undefined,undefined,'\[(PJS|VL)/);
+    });
+  });
+
+  register('throws (root error, not a …015 drop) for a structurally-unserialisable property value (F3)', async () => {
+    // `{a: symbol[]}` — the property value is only STRUCTURALLY unserialisable
+    // (a symbol in a propagating array slot). DataOnly KEEPS it as `never[]`, so
+    // it cannot be safely dropped: the family throws at build time with a root
+    // error, and the …015 drop Warning must NOT fire.
+    const sources = {
+      'structural-prop.ts': `import {createJsonEncoder} from 'ts-runtypes';
+interface S { a: symbol[]; b: number; }
+export const _e = createJsonEncoder<S>(undefined, {strategy: 'mutate'});
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeEntryModules: true,
+      });
+      const diags = runtypeDiagsOf(response);
+      const codes = new Set(diags.map((d) => d.code));
+      expect(codes, JSON.stringify(diags, null, 2)).toContain('PJ005'); // symbol root error
+      expect(
+        [...codes].some((c) => c.endsWith('015')),
+        'no …015 drop for a kept property'
+      ).toBe(false);
+    });
+  });
+
   // The default emit mode (no inline createRTFn) keeps the cache
   // module compact by leaving the validator body in arg-3 only and
   // trimming the all-default tail (isNoop false, empty dep lists, the

@@ -538,6 +538,21 @@ The same registration is used by the JSON and binary families. \`validate\`
   TB014: dropUnionMember('toBinary', 'serialised'),
   FB014: dropUnionMember('fromBinary', 'deserialised'),
 
+  // Non-serialisable property VALUE dropped — a property whose value type is
+  // directly non-data (symbol, Promise, never, or a non-serialisable built-in
+  // like a typed array; function-VALUED props use the …010 codes) is removed so
+  // `{a: symbol}` projects to `{}`, matching `DataOnly<{a: symbol}>` = `{}`.
+  // A value that is only STRUCTURALLY unserialisable (symbol[], Map<string,
+  // symbol>) is NOT dropped — the family throws at build time instead. (Warning)
+  VL015: dropNonSerializableProp('validate', 'validated'),
+  VE015: dropNonSerializableProp('validationErrors', 'checked'),
+  PJ015: dropNonSerializableProp('prepareForJson', 'encoded'),
+  PJS015: dropNonSerializableProp('prepareForJsonSafe', 'encoded'),
+  RJ015: dropNonSerializableProp('restoreFromJson', 'decoded'),
+  SJ015: dropNonSerializableProp('stringifyJson', 'stringified'),
+  TB015: dropNonSerializableProp('toBinary', 'serialised'),
+  FB015: dropNonSerializableProp('fromBinary', 'deserialised'),
+
   // Root any/unknown — noop validator (Warning)
   VL021: {
     headline: '`validate` on `any` / `unknown` always returns true — the validator accepts every value.',
@@ -616,6 +631,24 @@ typed arrays), so \`${family}\` ${verb} only the members that remain.
 This is by design — see the "validate contract — serializable data only"
 section in CLAUDE.md. If EVERY member of the union is non-serialisable the
 projection is \`never\`, and \`${family}\` throws at build time instead.`,
+  };
+}
+
+function dropNonSerializableProp(family: string, verb: string): DiagnosticEntry {
+  return {
+    headline: `Property \`{0}\` has a non-serialisable value type (symbol, Promise, or a non-serialisable built-in) — \`${family}\` drops it, so this property is silently not ${verb}.`,
+    detail: `\`${family}\` works on JSON-shaped data. A property whose value is a symbol,
+a Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries
+no JSON-shaped value, so it is dropped: \`DataOnly<{ {0}: symbol }>\` is \`{}\`.
+The rest of the object's behaviour is unaffected.
+
+Note the difference from a property that is only STRUCTURALLY unserialisable —
+\`{0}: symbol[]\` or \`{0}: Map<string, symbol>\` — which CANNOT be safely
+dropped (DataOnly keeps it as \`never[]\`): there \`${family}\` throws at build
+time instead.
+
+This is by design — see the "validate contract — serializable data only"
+section in CLAUDE.md.`,
   };
 }
 
