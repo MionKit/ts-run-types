@@ -20,6 +20,12 @@ write-up is [`docs/cross-library-validation-alignment-report.md`](../cross-libra
 - The report (steps 2 + 3) committed at
   [`docs/cross-library-validation-alignment-report.md`](../cross-library-validation-alignment-report.md),
   cross-linked from [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) and the benchmark README.
+- A public **Correctness** website page (`container-website/content/7.benchmarks/0.correctness.md`)
+  that reuses the existing competitor `::bench-table` to show divergences-from-ts-runtypes
+  per case (0 = aligned), fed by a new `alignment` bench in
+  [`scripts/gen-bench-docs.mjs`](../../scripts/gen-bench-docs.mjs) that reads the audit's
+  coverage output. `scripts/benchmarks.sh website-bench` now runs the audit so the
+  page's data regenerates with the rest of the bench data.
 
 ### Deviations from the original plan
 

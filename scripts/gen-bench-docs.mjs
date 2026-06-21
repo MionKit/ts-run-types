@@ -34,7 +34,7 @@ const OUT_ROOT = path.join(REPO_ROOT, 'container-website/public/bench-data');
 
 // Stable competitor column order (mirrors aggregate.mjs PREFERRED).
 const PREFERRED = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
-const order = (a, b) => ((PREFERRED.indexOf(a) + 1 || 99) - (PREFERRED.indexOf(b) + 1 || 99)) || a.localeCompare(b);
+const order = (a, b) => (PREFERRED.indexOf(a) + 1 || 99) - (PREFERRED.indexOf(b) + 1 || 99) || a.localeCompare(b);
 
 // Run environment (os / cpu / library versions) captured by container-benchmarks/capture-env.mjs.
 // Optional — absent until a benchmark run (or `bench:capture-env`) writes results/env.json.
@@ -90,7 +90,10 @@ function toMetric(m) {
 
 // Dedent a block's inner text to its minimum indentation.
 function dedent(text) {
-  const lines = text.replace(/^\r?\n/, '').replace(/\s+$/, '').split('\n');
+  const lines = text
+    .replace(/^\r?\n/, '')
+    .replace(/\s+$/, '')
+    .split('\n');
   let min = Infinity;
   for (const line of lines) if (line.trim()) min = Math.min(min, line.match(/^\s*/)[0].length);
   if (!Number.isFinite(min)) min = 0;
@@ -120,7 +123,12 @@ export function extractCaseSources(file, varName = 'cases') {
   for (const stmt of sf.statements) {
     if (!ts.isVariableStatement(stmt)) continue;
     for (const decl of stmt.declarationList.declarations) {
-      if (ts.isIdentifier(decl.name) && decl.name.text === varName && decl.initializer && ts.isObjectLiteralExpression(decl.initializer)) {
+      if (
+        ts.isIdentifier(decl.name) &&
+        decl.name.text === varName &&
+        decl.initializer &&
+        ts.isObjectLiteralExpression(decl.initializer)
+      ) {
         obj = decl.initializer;
       }
     }
@@ -136,7 +144,8 @@ export function extractCaseSources(file, varName = 'cases') {
     if (ts.isObjectLiteralExpression(init)) {
       for (const member of init.properties) {
         if (!ts.isPropertyAssignment(member)) continue;
-        const mname = ts.isStringLiteralLike(member.name) || ts.isIdentifier(member.name) ? member.name.text : member.name.getText(sf);
+        const mname =
+          ts.isStringLiteralLike(member.name) || ts.isIdentifier(member.name) ? member.name.text : member.name.getText(sf);
         if (mname === 'build') sources.validate = builderBody(member.initializer, sf);
         else if (mname === 'buildErrors') sources.validationErrors = builderBody(member.initializer, sf);
       }
@@ -155,7 +164,17 @@ export function extractCaseSources(file, varName = 'cases') {
 // lives in BOTH suites, so the split is by the CASE's suite, not by section.
 function buildValidationBench() {
   const files = fs.existsSync(RESULTS_DIR)
-    ? fs.readdirSync(RESULTS_DIR).filter((f) => f.endsWith('.json') && !f.endsWith('.typecost.json') && !f.endsWith('.compiletime.json') && f !== 'env.json')
+    ? fs
+        .readdirSync(RESULTS_DIR)
+        .filter(
+          (f) =>
+            f.endsWith('.json') &&
+            !f.endsWith('.typecost.json') &&
+            !f.endsWith('.compiletime.json') &&
+            !f.endsWith('.alignment.json') &&
+            f !== 'alignment-misalignments.json' &&
+            f !== 'env.json'
+        )
     : [];
   if (files.length === 0) {
     process.stderr.write(`skip validation bench: no results/*.json in ${RESULTS_DIR} (run \`pnpm run bench\` first)\n`);
@@ -172,8 +191,22 @@ function buildValidationBench() {
   for (const comp of competitors) sources.set(comp, extractCaseSources(path.join(COMPETITORS_DIR, comp, 'cases.ts')));
 
   const isFormat = (row) => row.suite === 'format-validation';
-  const core = emitValidationBench('validation', 'Validation', rows.filter((row) => !isFormat(row)), competitors, byComp, sources);
-  const formats = emitValidationBench('validation-formats', 'Validation Formats', rows.filter(isFormat), competitors, byComp, sources);
+  const core = emitValidationBench(
+    'validation',
+    'Validation',
+    rows.filter((row) => !isFormat(row)),
+    competitors,
+    byComp,
+    sources
+  );
+  const formats = emitValidationBench(
+    'validation-formats',
+    'Validation Formats',
+    rows.filter(isFormat),
+    competitors,
+    byComp,
+    sources
+  );
   return core + formats;
 }
 
@@ -217,7 +250,11 @@ function emitValidationBench(outName, label, rows, competitors, byComp, sources)
     showInvalid: true,
     metrics: [
       {key: 'validate', label: 'Is-valid', metricLabel: 'createValidate — boolean is-valid check (ops/sec, higher is better)'},
-      {key: 'validationErrors', label: 'Validation errors', metricLabel: 'getValidationErrors — full error report (ops/sec, higher is better)'},
+      {
+        key: 'validationErrors',
+        label: 'Validation errors',
+        metricLabel: 'getValidationErrors — full error report (ops/sec, higher is better)',
+      },
     ],
     competitors,
     versions: ENV?.versions,
@@ -322,6 +359,93 @@ function buildTypecostBench() {
   return orderedKeys.length;
 }
 
+// ── alignment (correctness) bench ────────────────────────────────────────────
+// Cross-library correctness: for every case, how many shared samples each competitor
+// disagrees with ts-runtypes on (0 = fully aligned). Reads the alignment audit's
+// joined output (container-benchmarks/results/alignment-misalignments.json, produced by
+// `pnpm run audit:alignment`). Reuses the SAME competitor table as the speed pages:
+// unit = count so 0 is the best (green) value and divergences ramp toward red; n-a =
+// the competitor doesn't support the case. The per-case hover shows each library's
+// authored schema, exactly like the validation pages.
+function buildAlignmentBench() {
+  const file = path.join(RESULTS_DIR, 'alignment-misalignments.json');
+  if (!fs.existsSync(file)) {
+    process.stderr.write(`skip alignment bench: no ${file} (run \`pnpm run audit:alignment\`)\n`);
+    return 0;
+  }
+  const audit = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const competitors = [...(audit.competitors ?? [])].sort(order);
+  const coverage = audit.coverage ?? {};
+
+  // Case universe + metadata from the union of every competitor's coverage; the
+  // per-(case,competitor) divergence count comes from the same coverage entries.
+  const caseMeta = new Map(); // caseKey → {suite, group, name}
+  const byCaseComp = new Map(); // caseKey → Map(comp → divergences)
+  for (const comp of competitors) {
+    for (const entry of coverage[comp] ?? []) {
+      if (!caseMeta.has(entry.caseKey)) caseMeta.set(entry.caseKey, {suite: entry.suite, group: entry.group, name: entry.name});
+      if (!byCaseComp.has(entry.caseKey)) byCaseComp.set(entry.caseKey, new Map());
+      byCaseComp.get(entry.caseKey).set(comp, entry.divergences);
+    }
+  }
+  if (caseMeta.size === 0) {
+    process.stderr.write(`skip alignment bench: no coverage in ${file}\n`);
+    return 0;
+  }
+
+  const sources = new Map();
+  for (const comp of competitors) sources.set(comp, extractCaseSources(path.join(COMPETITORS_DIR, comp, 'cases.ts')));
+
+  const outDir = path.join(OUT_ROOT, 'alignment');
+  fs.rmSync(outDir, {recursive: true, force: true});
+  fs.mkdirSync(outDir, {recursive: true});
+
+  const sectionMap = new Map();
+  for (const [caseKey, meta] of caseMeta) {
+    // Mirror the validation pages' DATETIME split so the sections line up.
+    let group = meta.group;
+    if (group === 'DATETIME') {
+      const casePart = caseKey.slice(meta.group.length + 1);
+      group = /^date($|_)/.test(casePart) ? 'DATE' : 'TEMPORAL';
+    }
+    if (!sectionMap.has(group)) sectionMap.set(group, {key: group, label: sectionLabel(group), cases: []});
+    const resultsForCase = {};
+    const detailComps = [];
+    for (const comp of competitors) {
+      const divergences = byCaseComp.get(caseKey)?.get(comp);
+      // A competitor that ran the case gets a count (0 = aligned); one that didn't is
+      // absent → n-a. lowerBetter (count) makes 0 the best, divergences ramp to red.
+      if (divergences !== undefined) resultsForCase[comp] = {divergence: {valid: divergences, status: 'ok'}};
+      const caseSources = sources.get(comp)?.get(caseKey);
+      if (caseSources) detailComps.push({name: comp, sources: caseSources});
+    }
+    sectionMap.get(group).cases.push({key: safeKey(caseKey), title: meta.name, results: resultsForCase});
+    fs.writeFileSync(path.join(outDir, `${safeKey(caseKey)}.json`), JSON.stringify({competitors: detailComps}));
+  }
+
+  const index = {
+    bench: 'alignment',
+    label: 'Correctness',
+    unit: 'count',
+    showInvalid: false,
+    metrics: [
+      {
+        key: 'divergence',
+        label: 'Divergences from ts-runtypes',
+        metricLabel: 'samples each library treats differently than ts-runtypes — lower is better',
+        lowerBetter: true,
+        cellHint: 'samples the library accepts that ts-runtypes rejects (0 = fully aligned)',
+      },
+    ],
+    competitors,
+    versions: ENV?.versions,
+    meta: metaBlock(),
+    sections: [...sectionMap.values()],
+  };
+  fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(index));
+  return caseMeta.size;
+}
+
 // ── compile-time bench ───────────────────────────────────────────────────────
 // Build-time cost of the two transform-based libraries, from
 // container-benchmarks/results/{ts-runtypes,typia}.compiletime.json. The whole suite is
@@ -345,7 +469,9 @@ function buildCompiletimeBench() {
     if (ENV?.versions?.[lib]) versions[lib] = ENV.versions[lib];
   }
   if (competitors.length === 0) {
-    process.stderr.write(`skip compiletime bench: no results/{ts-runtypes,typia}.compiletime.json in ${RESULTS_DIR} (run \`pnpm run bench:compiletime\`)\n`);
+    process.stderr.write(
+      `skip compiletime bench: no results/{ts-runtypes,typia}.compiletime.json in ${RESULTS_DIR} (run \`pnpm run bench:compiletime\`)\n`
+    );
     return 0;
   }
 
@@ -400,4 +526,6 @@ if (process.argv[1] && process.argv[1].endsWith('gen-bench-docs.mjs')) {
   process.stdout.write(`typecost bench: ${t} cases → container-website/public/bench-data/typecost/\n`);
   const c = buildCompiletimeBench();
   process.stdout.write(`compiletime bench: ${c} cases → container-website/public/bench-data/compiletime/\n`);
+  const a = buildAlignmentBench();
+  process.stdout.write(`alignment bench: ${a} cases → container-website/public/bench-data/alignment/\n`);
 }

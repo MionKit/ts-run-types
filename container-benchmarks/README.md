@@ -355,6 +355,9 @@ pnpm run audit:alignment        # build + audit-run every competitor, then aggre
 
 Tooling lives in [`_audit/`](_audit/); the committed write-up is
 [`docs/cross-library-validation-alignment-report.md`](../docs/cross-library-validation-alignment-report.md).
+The audit also feeds the website's **Correctness** benchmark page (an `alignment` bench
+in `scripts/gen-bench-docs.mjs`); `pnpm run bench:website` runs the audit so that page's
+data regenerates with the rest.
 
 ## Behind a corporate / MITM proxy
 
