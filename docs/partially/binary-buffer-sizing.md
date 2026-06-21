@@ -24,7 +24,7 @@ serializer writers reserve first, the streamlined backstop retry loop, and the
 - **Encoder instrumentation** (backstop hit-rate, bytes wasted) to drive the
   data-led decisions on #3/#4/#6 — not present.
 - **Docs not updated:** no "buffer sizing" paragraph in
-  `container-website/content/2.guide/3.serialization.md`; no rewrite-mechanics
+  `container/website/content/2.guide/3.serialization.md`; no rewrite-mechanics
   note in `docs/ARCHITECTURE.md`; no cross-links to the plugin-config / benchmark
   pages once those land.
 
@@ -175,11 +175,11 @@ When the remaining work (container-boundary reservation, pooled buffers,
 lower cold start, etc.) ships, the docs need an update so users can find
 the tunables without reading source:
 
-- `container-website/content/2.guide/3.serialization.md` — extend the
+- `container/website/content/2.guide/3.serialization.md` — extend the
   binary section with a short "buffer sizing" paragraph: cold-start
   default, the Welford prediction model, and the ceiling at `2 ** 32`.
   Voice rules apply: plain language, no em-dashes, short frontmatter
-  (see [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent)).
+  (see [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container/websitecontent)).
 - The serialization-format benchmark in
   [pending-optimizations.md](pending-optimizations.md) is the right
   surface for "what does buffer sizing actually cost"; cross-link the

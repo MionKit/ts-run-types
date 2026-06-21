@@ -59,9 +59,9 @@ invalid sample sets** per case and times their `validate` /
 `getValidationErrors` paths, but it only flags a competitor as `fail` when its
 boolean answer disagrees with the SHARED sample's labelled truth (see
 `measureMetric` / `check` in
-[`container-benchmarks/shared/harness/runner.ts`](../../container-benchmarks/shared/harness/runner.ts)
+[`container/benchmarks/shared/harness/runner.ts`](../../container/benchmarks/shared/harness/runner.ts)
 and `CaseStatus` in
-[`container-benchmarks/shared/harness/result.ts`](../../container-benchmarks/shared/harness/result.ts)).
+[`container/benchmarks/shared/harness/result.ts`](../../container/benchmarks/shared/harness/result.ts)).
 What it does NOT do is **explain** the disagreement — today the suite carries
 opt-in `SampleOverride` so a competitor can declare "for THIS case my accept /
 reject set differs", but those overrides have accreted with one-line reasons at
@@ -125,10 +125,10 @@ For each (case, competitor, metric, path) the runner already knows whether the
 boolean output matched the labelled truth. The audit needs strictly more:
 
 - The competitor's **authored schema or type** for that case
-  (read from `container-benchmarks/competitors/<name>/cases.ts` or
+  (read from `container/benchmarks/competitors/<name>/cases.ts` or
   `schemaCases.ts`).
 - The **shared case spec** (type + samples) from
-  [`container-benchmarks/shared/cases/`](../../container-benchmarks/shared/cases/).
+  [`container/benchmarks/shared/cases/`](../../container/benchmarks/shared/cases/).
 - For each disagreement, the **first sample value** that triggered it
   (`check` already returns the index — the audit needs to surface it instead
   of stopping at "valid[3] rejected").
@@ -197,12 +197,12 @@ audit needs a richer per-row record:
   }
   ```
 
-- Aggregate to `container-benchmarks/results/alignment-misalignments.json`,
+- Aggregate to `container/benchmarks/results/alignment-misalignments.json`,
   one record per disagreement. Same per-case-key column the aggregator already
   joins on.
 
 This is a one-time investigative tool, not a new permanent bench axis — keep
-it as a script under `container-benchmarks/_audit/` or similar, gated behind a
+it as a script under `container/benchmarks/_audit/` or similar, gated behind a
 `pnpm run audit:alignment` script, and DO NOT wire it into the normal
 `bench:website` regenerate cycle. The output is a report, not a docs panel.
 
@@ -245,7 +245,7 @@ Date('invalid')`".
      review, with the agent's findings attached.
 
 Each agent writes one classification per misalignment to
-`container-benchmarks/_audit/findings/<caseKey>__<competitor>__<metric>__<path>__<idx>.md`.
+`container/benchmarks/_audit/findings/<caseKey>__<competitor>__<metric>__<path>__<idx>.md`.
 The file is short — bucket, one-paragraph reasoning, proposed action, and the
 exact `SampleOverride` snippet (if applicable). Same shape every time so step
 2 can mechanically aggregate.
@@ -276,7 +276,7 @@ Walk every per-misalignment file and emit
 
 Voice rules apply (plain language, no em-dashes, fenced code blocks over
 inline ticks — see
-[CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent)).
+[CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container/websitecontent)).
 
 ### Step 3 — are WE the outlier?
 
@@ -356,12 +356,12 @@ minimum, maximum}` is the closest analogue. Verify the competitor case
 
 ## Concrete deliverables
 
-- One script: `container-benchmarks/_audit/run-audit.mjs` (or whatever
+- One script: `container/benchmarks/_audit/run-audit.mjs` (or whatever
   matches the existing competitor-script naming). Produces
   `results/alignment-misalignments.json`. Idempotent, reads the same
   `cases.ts` / `schemaCases.ts` the runtime bench reads.
 - One driver: spawns one classification agent per misalignment, writes per-
-  finding markdown into `container-benchmarks/_audit/findings/`. Concurrency-
+  finding markdown into `container/benchmarks/_audit/findings/`. Concurrency-
   capped, resumable (skips files that already exist).
 - One aggregated report:
   `docs/cross-library-validation-alignment-report.md`. Committed; the audit
@@ -422,7 +422,7 @@ minimum, maximum}` is the closest analogue. Verify the competitor case
   the "validate contract" section so anyone wondering "where do non-
   serialisable drops come from" lands on the documented-divergences part
   of the report.
-- [`container-benchmarks/README.md`](../../container-benchmarks/README.md)
+- [`container/benchmarks/README.md`](../../container/benchmarks/README.md)
   — one short section pointing at the audit script and the report.
 - [`README.md`](../../README.md) — likely NOT; the audit is for maintainers,
   not the project pitch, until a "Should we change anything?" finding ships

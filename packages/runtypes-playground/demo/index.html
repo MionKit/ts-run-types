@@ -3,19 +3,23 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>runtypes-playground demo</title>
+    <title>RunTypes Playground</title>
     <style>
       body { margin: 0; background: #0b0e13; color: #d7dde6; font-family: system-ui, sans-serif; }
       header { padding: 14px 20px; border-bottom: 1px solid #2b3340; }
       header b { color: #79af43; }
+      header span { color: #8b96a5; font-size: 13px; margin-left: 8px; }
       main { padding: 20px; max-width: 1280px; margin: 0 auto; }
     </style>
+    <script type="module" src="./main.ts"></script>
   </head>
   <body>
-    <header><b>runtypes-playground</b> — web component demo</header>
+    <header>
+      <b>RunTypes Playground</b>
+      <span>resolve and run generated functions in your browser - embeddable as a web component or via iframe</span>
+    </header>
     <main>
       <runtypes-playground></runtypes-playground>
     </main>
-    <script type="module" src="./main.ts"></script>
   </body>
 </html>

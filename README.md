@@ -168,7 +168,7 @@ The JS plugin tests spawn `bin/ts-runtypes`, so the Go binary must be built befo
 
 ## Benchmarks
 
-Three axes, isolated per competitor in a podman image (zod / typebox / ajv / typia), over the full 263-case suite — see [container-benchmarks/](container-benchmarks/):
+Three axes, isolated per competitor in a podman image (zod / typebox / ajv / typia), over the full 263-case suite — see [container/benchmarks/](container/benchmarks/):
 
 - **Runtime throughput** (`pnpm run bench`) — validations / sec, per case.
 - **Type-checking cost** (`pnpm run bench:typecost`) — TypeScript type instantiations to resolve each form (writing the type is ~free; a schema→type form is 50–150× more).

@@ -229,11 +229,11 @@ understand the contracts the reconciler now promises:
   pins (rename heuristics, debounce window, "what counts as a
   user-authored extra"). Skills are the authoritative source for
   agent-driven enrichment.
-- `container-website/content/` — if the enrichment workflow gets a
+- `container/website/content/` — if the enrichment workflow gets a
   user-facing guide page (it doesn't today), the rename / orphan /
   debounce policies belong there. Voice rules apply: plain language, no
   em-dashes, short frontmatter (see
-  [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent)).
+  [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container/websitecontent)).
 - The diagnostic catalog page (see
   [document-compiler-diagnostic-catalog.md](document-compiler-diagnostic-catalog.md))
   needs entries for any NEW diagnostics the reconciler starts emitting

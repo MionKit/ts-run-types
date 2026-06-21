@@ -67,7 +67,7 @@ export type IsReadonly<V> = V extends {__propMod: {readonly: true}} ? true : fal
  *  when only one modifier kind is present, the full 4-way only when one field is
  *  optional AND another readonly. Every arm recovers the IDENTICAL type to the
  *  4-way for its profile (proven across modifier profiles in
- *  container-benchmarks/typecost/isolated-experiment.mjs), so the structural id still
+ *  container/benchmarks/typecost/isolated-experiment.mjs), so the structural id still
  *  converges with the type-first object. `FieldOf` unwraps each field's `RunType<…>`
  *  to its format type. Shared by `object`'s return type and its `InjectRunTypeId<…>`
  *  marker param. **/

@@ -364,5 +364,5 @@ declared-name set (kept + dropped) is skipped. Pinned by
 - Re-run the non-data soak; F1/F2/F3 seeds above should stop firing. Once the
   resolver no longer over-reports (F3), the runner MAY switch back to a
   diagnostics-assisted tier, but actual-behavior tiering is the safer default.
-- Update the website page [`container-website/content/6.suites/6.how-we-fuzz.md`](../../container-website/content/6.suites/6.how-we-fuzz.md)
+- Update the website page [`container/website/content/6.suites/6.how-we-fuzz.md`](../../container/website/content/6.suites/6.how-we-fuzz.md)
   so the F1 story reads as found-and-fixed.

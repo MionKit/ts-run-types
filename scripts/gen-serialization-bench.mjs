@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Generates the SERIALIZATION benchmark dataset the docs website renders, under
-// container-website/public/bench-data/serialization/:
+// container/website/public/bench-data/serialization/:
 //
 //   index.json          — { bench, label, competitors (= round-trips), metrics,
 //                           bandwidthsMbps, sections: [{ key, label,
@@ -11,7 +11,7 @@
 // "columns" are ts-runtypes' own round-trips plus a native-JSON baseline, all
 // measured in-process from the SERIALIZATION test suite. So this is built like
 // the suite exporters (load the suite through Vite + the runtypes plugin, time
-// the real generated encoders/decoders), NOT like container-benchmarks/ (no podman, no
+// the real generated encoders/decoders), NOT like container/benchmarks/ (no podman, no
 // per-competitor isolation).
 //
 // Five round-trips per case (the "competitors" the table shows):
@@ -60,7 +60,7 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = process.env.RT_BENCH_REPO_ROOT ?? path.resolve(HERE, '..');
 const PACKAGE_ROOT = process.env.RT_BENCH_PACKAGE_ROOT ?? path.join(REPO_ROOT, 'packages/ts-runtypes');
 const VITE_ROOT = process.env.RT_BENCH_VITE_ROOT ?? REPO_ROOT;
-const OUT_BASE = process.env.RT_BENCH_OUT_DIR ?? path.join(REPO_ROOT, 'container-website/public/bench-data');
+const OUT_BASE = process.env.RT_BENCH_OUT_DIR ?? path.join(REPO_ROOT, 'container/website/public/bench-data');
 // Source extractor: a prebuilt linux binary in-container (no Go toolchain there),
 // else `go run ./cmd/extract-fn-bodies` from the repo on the host.
 const EXTRACT_BIN = process.env.RT_EXTRACT_BIN ?? '';
@@ -555,7 +555,7 @@ async function main() {
 
   process.stdout.write(
     `${SUITE_CFG.bench}: ${benched} cases benched, ${skipped} skipped (factoryThrows / unsupported) → ` +
-      `container-website/public/bench-data/${SUITE_CFG.bench}/ (total ${ms(t0)})\n`
+      `container/website/public/bench-data/${SUITE_CFG.bench}/ (total ${ms(t0)})\n`
   );
 }
 

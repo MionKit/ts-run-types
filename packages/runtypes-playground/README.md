@@ -36,9 +36,9 @@ and the WASM resolver remains the source of truth for validation.
 ## Headless engine
 
 ```ts
-import { run, OPERATIONS, versions } from 'runtypes-playground/core';
+import {run, OPERATIONS, versions} from 'runtypes-playground/core';
 
-const result = await run('validate', 'type MyType = { id: number };', { id: 1 });
+const result = await run('validate', 'type MyType = { id: number };', {id: 1});
 // { kind: 'predicate', value: true, ... }
 ```
 
@@ -58,11 +58,30 @@ function. `OPERATIONS` lists the available build functions.
 No Go or protocol changes are involved — the resolver already returns runnable
 entry modules. The same pipeline the Vite plugin + runtime use, driven live.
 
+## Standalone example + static bundle
+
+`demo/` is a standalone example that doubles as an iframe-embeddable site and as
+the prebuilt bundle other hosts load:
+
+```bash
+pnpm --filter runtypes-playground run demo        # dev server (hot reload)
+pnpm --filter runtypes-playground run build:all   # build:wasm + build:site -> dist-site/
+```
+
+`build:site` (Vite) emits a self-contained, base-relative bundle into `dist-site/`:
+`index.html` (the standalone example), the hashed entry chunk + Monaco workers +
+the resolver `.wasm` under `assets/`, and `.vite/manifest.json`. A host serves
+those statically and either opens `index.html` or loads the web component bundle
+directly. The docs website does the latter: `container/website/scripts/build-playground.sh`
+runs `build:all` and stages the bundle under `/playground-app/`, and its
+`RuntypesPlayground.vue` resolves the entry from the manifest and renders
+`<runtypes-playground>` with full control over the page.
+
 ## Develop
 
 ```bash
 pnpm install
 pnpm --filter runtypes-playground run build:wasm   # stage assets/ (needs Go)
-pnpm --filter runtypes-playground run demo          # Vite demo
 pnpm --filter runtypes-playground run typecheck
+pnpm --filter runtypes-playground test             # engine tests (need build:wasm)
 ```

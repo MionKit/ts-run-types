@@ -10,8 +10,8 @@ name: benchmarks
 # DISABLED for now — manual-only so it doesn't run on every push/PR.
 # Re-enable automatic runs by restoring the push/pull_request triggers below:
 #   on:
-#     push: { branches: [main], paths: ['container-benchmarks/**', 'scripts/benchmarks.sh', '.github/workflows/benchmarks.yml'] }
-#     pull_request: { paths: ['container-benchmarks/**', 'scripts/benchmarks.sh', '.github/workflows/benchmarks.yml'] }
+#     push: { branches: [main], paths: ['container/benchmarks/**', 'scripts/benchmarks.sh', '.github/workflows/benchmarks.yml'] }
+#     pull_request: { paths: ['container/benchmarks/**', 'scripts/benchmarks.sh', '.github/workflows/benchmarks.yml'] }
 on:
   workflow_dispatch:
 

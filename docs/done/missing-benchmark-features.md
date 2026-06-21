@@ -28,12 +28,12 @@ isolated-per-competitor layout the runtime bench already enforces.
 
 Today the benchmark story is split between two axes:
 
-1. **Runtime throughput** ([`container-benchmarks/`](../../container-benchmarks/),
+1. **Runtime throughput** ([`container/benchmarks/`](../../container/benchmarks/),
    `pnpm run bench`) — validations / sec, per case, ts-runtypes vs zod /
    typebox / ajv / typia. The headline metric, but it doesn't cost the user
    anything until production traffic hits.
 2. **Type-instantiation cost**
-   ([`container-benchmarks/typecost/typecost.mjs`](../../container-benchmarks/typecost/typecost.mjs),
+   ([`container/benchmarks/typecost/typecost.mjs`](../../container/benchmarks/typecost/typecost.mjs),
    `pnpm run bench:typecost`) — `program.getInstantiationCount()` per case,
    baseline-subtracted, the marginal cost of resolving each form's static type.
    Captures the editor / `tsc` cost, but in **TS instantiations**, not seconds.
@@ -58,7 +58,7 @@ For typia the equivalent path is:
 - the `ttsc` / `@ttsc/unplugin` esbuild adapter runs typia's **Go-native
   transform** that rewrites each `typia.createIs<T>()` call into a generated
   validator body (the project's `bench:typia` competitor already wires this;
-  see [`container-benchmarks/competitors/typia/esbuild.config.mjs`](../../container-benchmarks/competitors/typia/esbuild.config.mjs)),
+  see [`container/benchmarks/competitors/typia/esbuild.config.mjs`](../../container/benchmarks/competitors/typia/esbuild.config.mjs)),
 - esbuild bundle.
 
 These are the only two libraries in the suite whose **build-time** cost is
@@ -80,10 +80,10 @@ build-time number attached.
 ### What to measure (full suite, per case)
 
 Same suite the runtime bench uses: every case in
-[`container-benchmarks/shared/cases/`](../../container-benchmarks/shared/cases/)
+[`container/benchmarks/shared/cases/`](../../container/benchmarks/shared/cases/)
 (`validation` + `format-validation` + `realworld`, ~263 cases). One row per case,
 columns per competitor — identical shape to the existing
-[`results/<name>.json`](../../container-benchmarks/results/) + the aggregator,
+[`results/<name>.json`](../../container/benchmarks/results/) + the aggregator,
 so the docs site can render it the same way the runtime + typecost panels are
 rendered today.
 
@@ -105,7 +105,7 @@ self-contained probe that:
      way the ts-runtypes competitor configures it, so the Go resolver is
      actually spawned per case;
    - **typia** — esbuild + `@ttsc/unplugin` typia transform, same config as
-     [`competitors/typia/esbuild.config.mjs`](../../container-benchmarks/competitors/typia/esbuild.config.mjs);
+     [`competitors/typia/esbuild.config.mjs`](../../container/benchmarks/competitors/typia/esbuild.config.mjs);
    - **zod / typebox / ajv** — plain Vite (or plain `tsc --noEmit`) over the
      same probe, as the no-transform baseline column.
 
@@ -131,7 +131,7 @@ separately:
 
 For typia the analogous distinction is its `ttsc` plugin compile cache (the
 `.ttsc` named volume already documented in
-[`container-benchmarks/README.md`](../../container-benchmarks/README.md)); the
+[`container/benchmarks/README.md`](../../container/benchmarks/README.md)); the
 first cold run for typia today is ~200s plugin compile, which would dominate
 the cold column. Either subtract that one-time cost (it's a constant, not
 per-case) or carve it into a separate "tool warm-up" cell so the per-case
@@ -144,7 +144,7 @@ ready, suite starts".
 Same shape as `typecost/`:
 
 ```
-container-benchmarks/
+container/benchmarks/
   compiletime/
     compiletime.mjs           # the driver, mirrors typecost.mjs structure
     tsconfig.json
@@ -182,7 +182,7 @@ Driver responsibilities (one `.mjs` per the existing pattern, no new package):
 5. **Write** results to `results/<competitor>.compiletime.json` shaped like
    the other per-competitor results files (`{competitor, cases:[{key, group,
    name, cold_ms, warm_ms, cold_cpu_ms, warm_cpu_ms}], total}`), so
-   [`aggregate.mjs`](../../container-benchmarks/aggregate.mjs) can join by
+   [`aggregate.mjs`](../../container/benchmarks/aggregate.mjs) can join by
    case key the same way it joins the runtime + typecost columns.
 
 #### Reuse, don't reinvent
@@ -200,7 +200,7 @@ unchanged. Concretely:
 - **Suite extraction.** All the AST helpers (`unwrapExpr`, `findMapObject`,
   `unwrapThunk`, `extractTypeForm`, `extractSchemaCompetitor`, the realworld
   preamble handling) are already correct in `typecost.mjs`. Lift them into a
-  shared file under `container-benchmarks/_lib/` if the new driver wants
+  shared file under `container/benchmarks/_lib/` if the new driver wants
   them; do NOT copy-paste.
 - **Container image.** Same shared `ghcr.io/mionkit/tsrt-website:latest`
   image the runtime + typecost bench already use; no new image, no new
@@ -209,12 +209,12 @@ unchanged. Concretely:
 ### Reporting
 
 A new section in the website docs (under
-[`container-website/content/`](../../container-website/content/), wherever the
+[`container/website/content/`](../../container/website/content/), wherever the
 existing runtime + typecost panels live) with one table per group
 (validation / format-validation / realworld), showing per-case cold + warm
 ms per competitor + apples-to-apples totals on the subset every column
 measured. Same voice rules apply (no em-dashes, plain language, etc. —
-[CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent)).
+[CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container/websitecontent)).
 
 Headline line in the top-level "Benchmarks" page (rough shape; numbers fake):
 
@@ -283,11 +283,11 @@ earns its keep.
 ### Sketched approach
 
 1. **Lift extraction helpers.** Move the AST helpers from
-   `container-benchmarks/typecost/typecost.mjs` into a small
-   `container-benchmarks/_lib/extract-cases.mjs` so both `typecost.mjs` and
+   `container/benchmarks/typecost/typecost.mjs` into a small
+   `container/benchmarks/_lib/extract-cases.mjs` so both `typecost.mjs` and
    the new `compiletime/compiletime.mjs` consume the same parser. Behaviour-
    preserving move; the existing typecost tests (if any) keep passing.
-2. **Scaffold the driver.** `container-benchmarks/compiletime/compiletime.mjs`
+2. **Scaffold the driver.** `container/benchmarks/compiletime/compiletime.mjs`
    alongside the existing `typecost/typecost.mjs`. Reuse the bench's existing
    `RESULTS_DIR` + `BENCH_CASE` env conventions.
 3. **Wire per-competitor builds.** Each competitor exposes a small helper
@@ -299,11 +299,11 @@ earns its keep.
    `bench:typecost` + `bench:serialization`. Wire it into `bench:website` so
    the docs site regenerates with every aggregate run.
 5. **Aggregate.** Extend
-   [`aggregate.mjs`](../../container-benchmarks/aggregate.mjs) to join the
+   [`aggregate.mjs`](../../container/benchmarks/aggregate.mjs) to join the
    new `<name>.compiletime.json` results into the comparison table the way
    it already joins runtime + typecost results.
 6. **Website panel.** New panel under whatever
-   `container-website/content/N.benchmarks/` page hosts the runtime +
+   `container/website/content/N.benchmarks/` page hosts the runtime +
    typecost panels; same voice rules.
 
 ### Not in scope (compile-time bench)
@@ -348,9 +348,9 @@ strategy that wins big when constraints are present.
   benchmark loads the serialization suite). Driver: [`scripts/gen-serialization-bench.mjs`](../../scripts/gen-serialization-bench.mjs)
   — likely a `--suite format-serialization` variant, the same way the suite exporters
   take a `--suite` flag (see [`scripts/export-serialization-suite.mjs`](../../scripts/export-serialization-suite.mjs)).
-- A new page `container-website/content/7.benchmarks/<n>.serialization-formats.md` with
+- A new page `container/website/content/7.benchmarks/<n>.serialization-formats.md` with
   `::bench-table{bench="serialization-formats"}` — it reuses the stacked "verdict"
-  layout already built in [`container-website/app/components/content/BenchTable.vue`](../../container-website/app/components/content/BenchTable.vue)
+  layout already built in [`container/website/app/components/content/BenchTable.vue`](../../container/website/app/components/content/BenchTable.vue)
   (round-trip headline + enc/dec + bytes; the bytes tier is exactly where the format win
   shows). No new component work expected.
 - Cases should pair an **unconstrained** number/bigint against its **format-constrained**
@@ -376,7 +376,7 @@ than the old single-value cell, and the case column can get wide — both hurt o
 viewports. The structure is already prepared for this (the case column has its own
 `<col>`; cell text is CSS-driven), so it's a styling pass, no logic change.
 
-In [`container-website/app/components/content/BenchTable.vue`](../../container-website/app/components/content/BenchTable.vue) (CSS):
+In [`container/website/app/components/content/BenchTable.vue`](../../container/website/app/components/content/BenchTable.vue) (CSS):
 
 - **Clamp the first column** (`.bench-cell--case`): `max-width` + `text-overflow:
   ellipsis` + keep the full title on `title=`/hover so long case names don't blow out
@@ -400,7 +400,7 @@ the new pages / table layout / metrics without spelunking.
 
 ### Compile-time benchmark (item 1)
 
-- [`container-benchmarks/README.md`](../../container-benchmarks/README.md) —
+- [`container/benchmarks/README.md`](../../container/benchmarks/README.md) —
   add a "Compile-time cost (`bench:compiletime`)" section next to the
   existing "Type-checking cost (`bench:typecost`)" section. Document cold vs
   warm, the typia plugin warm-up carve-out, the baseline build choice (open
@@ -417,15 +417,15 @@ the new pages / table layout / metrics without spelunking.
 
 ### Format-serialization benchmark (item 2)
 
-- A new page at `container-website/content/7.benchmarks/<n>.serialization-formats.md`
+- A new page at `container/website/content/7.benchmarks/<n>.serialization-formats.md`
   is the bulk of item (2); the file IS the documentation, so the work and
   the docs are inseparable. Voice rules apply: plain language, no em-dashes,
   short frontmatter (see
-  [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container-websitecontent)).
-- `container-website/content/2.guide/2.type-formats.md` — extend with a
+  [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container/websitecontent)).
+- `container/website/content/2.guide/2.type-formats.md` — extend with a
   short "binary size" paragraph linking to the new benchmark; today the
   format guide talks about validation savings but not wire savings.
-- `container-website/content/2.guide/3.serialization.md` — cross-link the
+- `container/website/content/2.guide/3.serialization.md` — cross-link the
   new benchmark; the serialization guide is the right entry point for
   someone wondering "does binary actually win on payload size."
 - [`README.md`](../../README.md) — if the format-binary delta is as
@@ -439,6 +439,6 @@ the new pages / table layout / metrics without spelunking.
 ### Small-screen table layout (item 3)
 
 - Styling pass on
-  [`container-website/app/components/content/BenchTable.vue`](../../container-website/app/components/content/BenchTable.vue);
+  [`container/website/app/components/content/BenchTable.vue`](../../container/website/app/components/content/BenchTable.vue);
   no Markdown doc changes, but a screenshot in the section's README (if any)
   may want refreshing.

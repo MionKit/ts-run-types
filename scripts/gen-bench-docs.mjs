@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Transforms the benchmark harness output into website-consumable JSON under
-// container-website/public/bench-data/<bench>/:
+// container/website/public/bench-data/<bench>/:
 //
 //   index.json              — { bench, label, unit, metricLabel, competitors[],
 //                              sections: [{ key, label, cases: [{ key, title,
@@ -8,12 +8,12 @@
 //   <case>.json             — { competitors: [{ name, source }] }   (lazy hover)
 //
 // Two benches:
-//   validation — runtime throughput from container-benchmarks/results/<competitor>.json
+//   validation — runtime throughput from container/benchmarks/results/<competitor>.json
 //                (the validationErrors·accept path: the metric EVERY competitor
 //                implements, so it's the apples-to-apples column; zod has no cheap
 //                boolean validate). unit = ops/sec, higher is better.
 //   typecost   — TypeScript type-instantiation count per form from
-//                container-benchmarks/results/<form>.typecost.json. unit = count, LOWER is
+//                container/benchmarks/results/<form>.typecost.json. unit = count, LOWER is
 //                better.
 //
 // Per-case competitor source is lifted straight from each competitors/<lib>/cases.ts
@@ -27,16 +27,16 @@ import ts from 'typescript';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
-const BENCH_DIR = path.join(REPO_ROOT, 'container-benchmarks');
+const BENCH_DIR = path.join(REPO_ROOT, 'container/benchmarks');
 const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? path.join(BENCH_DIR, 'results');
 const COMPETITORS_DIR = path.join(BENCH_DIR, 'competitors');
-const OUT_ROOT = path.join(REPO_ROOT, 'container-website/public/bench-data');
+const OUT_ROOT = path.join(REPO_ROOT, 'container/website/public/bench-data');
 
 // Stable competitor column order (mirrors aggregate.mjs PREFERRED).
 const PREFERRED = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
 const order = (a, b) => (PREFERRED.indexOf(a) + 1 || 99) - (PREFERRED.indexOf(b) + 1 || 99) || a.localeCompare(b);
 
-// Run environment (os / cpu / library versions) captured by container-benchmarks/capture-env.mjs.
+// Run environment (os / cpu / library versions) captured by container/benchmarks/capture-env.mjs.
 // Optional — absent until a benchmark run (or `bench:capture-env`) writes results/env.json.
 const ENV = (() => {
   try {
@@ -448,7 +448,7 @@ function buildAlignmentBench() {
 
 // ── compile-time bench ───────────────────────────────────────────────────────
 // Build-time cost of the two transform-based libraries, from
-// container-benchmarks/results/{ts-runtypes,typia}.compiletime.json. The whole suite is
+// container/benchmarks/results/{ts-runtypes,typia}.compiletime.json. The whole suite is
 // compiled as ONE file, on tsgo. The two libraries sit SIDE BY SIDE as columns; the rows
 // break the cost down: the three measured tiers (strip = transpile only, typecheck =
 // --noEmit, full = transform + emit the validators) plus the two derived costs that fall
@@ -521,11 +521,11 @@ function buildCompiletimeBench() {
 
 if (process.argv[1] && process.argv[1].endsWith('gen-bench-docs.mjs')) {
   const v = buildValidationBench();
-  process.stdout.write(`validation bench: ${v} cases → container-website/public/bench-data/validation/\n`);
+  process.stdout.write(`validation bench: ${v} cases → container/website/public/bench-data/validation/\n`);
   const t = buildTypecostBench();
-  process.stdout.write(`typecost bench: ${t} cases → container-website/public/bench-data/typecost/\n`);
+  process.stdout.write(`typecost bench: ${t} cases → container/website/public/bench-data/typecost/\n`);
   const c = buildCompiletimeBench();
-  process.stdout.write(`compiletime bench: ${c} cases → container-website/public/bench-data/compiletime/\n`);
+  process.stdout.write(`compiletime bench: ${c} cases → container/website/public/bench-data/compiletime/\n`);
   const a = buildAlignmentBench();
-  process.stdout.write(`alignment bench: ${a} cases → container-website/public/bench-data/alignment/\n`);
+  process.stdout.write(`alignment bench: ${a} cases → container/website/public/bench-data/alignment/\n`);
 }

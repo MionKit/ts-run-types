@@ -1,0 +1,58 @@
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+
+# Node dependencies
+node_modules
+
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.fleet
+.idea
+.eslintcache
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+# npm pack
+*.tgz
+
+# Temp files
+.tmp
+.profile
+*.0x
+
+#VSC
+.history
+.wrangler
+
+# Extra CA certs injected for proxied builds (never commit certs)
+.cacerts/*
+!.cacerts/.gitkeep
+
+# Build-time copy of container/benchmarks/_deps/ staged into the build context by
+# scripts/website.sh so the merged image installs the benchmark deps under /bench.
+# Regenerated on every build; container/benchmarks/_deps/ stays the source of truth.
+.bench-deps/
+
+# Playground bundle (Monaco web component + resolver WASM) - built on the host by
+# scripts/build-playground.sh and served from public/. Large + reproducible;
+# never committed.
+/public/playground-app/
+
+# Generated docs data — suite/benchmark result JSON the tables fetch at runtime.
+# Produced locally by `pnpm run gen:suite-docs` / `pnpm run gen:bench-docs`
+# (Go binary + benchmark harness); a run output, not something we version.
+# A fresh clone shows the "data not generated yet" fallback until you regenerate.
+/public/suite-data/
+/public/bench-data/

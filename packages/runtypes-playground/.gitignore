@@ -3,5 +3,6 @@ assets/
 
 # tsc / vite output.
 dist/
+dist-site/
 tsconfig.tsbuildinfo
 .vite/

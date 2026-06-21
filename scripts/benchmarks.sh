@@ -55,7 +55,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-BENCH_DIR="$ROOT_DIR/container-benchmarks"
+BENCH_DIR="$ROOT_DIR/container/benchmarks"
 MANAGER_SH="$SCRIPT_DIR/podman-website.sh"
 
 ENGINE="${BENCH_ENGINE:-podman}"
@@ -277,7 +277,7 @@ build_and_run_one() {
 }
 
 # Copy the per-competitor result JSON into the canonical .docdata/benchmarks dir
-# the docs website reads from. Keeps container-benchmarks/results/ as the working dir.
+# the docs website reads from. Keeps container/benchmarks/results/ as the working dir.
 publish_docdata() {
   local dest="$DOCDATA_DIR/benchmarks"
   mkdir -p "$dest"
@@ -330,14 +330,14 @@ cmd_fullbench() {
 # Temporal. Reuses the ts-runtypes competitor context (the baked vite, the
 # bind-mounted marker package, the plugin, the Go resolver binary) plus the Linux
 # source extractor (so no Go toolchain is needed in-container). Writes both the
-# serialization and serialization-formats datasets into container-website/public/bench-data
+# serialization and serialization-formats datasets into container/website/public/bench-data
 # (override with BENCH_SERIALIZATION_OUT).
 cmd_serialization() {
   ensure_prereqs
   [ -x "$LINUX_EXTRACT_BIN" ] || die "missing $LINUX_EXTRACT_BIN - run 'scripts/benchmarks.sh prep' first."
   [ -f "$MARKER_PKG/dist/index.js" ] || die "missing marker dist - run 'scripts/benchmarks.sh prep' first."
   [ -f "$PLUGIN_PKG/dist/index.js" ] || die "missing plugin dist - run 'scripts/benchmarks.sh prep' first."
-  local out="${BENCH_SERIALIZATION_OUT:-$ROOT_DIR/container-website/public/bench-data}"
+  local out="${BENCH_SERIALIZATION_OUT:-$ROOT_DIR/container/website/public/bench-data}"
   mkdir -p "$out"
   local tsgo=/bench/competitors/ts-runtypes
   read_lines NARGS < <(net_args)
@@ -380,15 +380,15 @@ cmd_serialization() {
 # taken inside the Node 26 container (native Temporal, consistent runtime):
 #   1. runtime validation bench (every competitor) + aggregate + typecost + capture-env
 #   2. serialization + serialization-formats round-trips
-#   3. gen-bench-docs (host transform: container-benchmarks/results -> container-website/public/bench-data)
+#   3. gen-bench-docs (host transform: container/benchmarks/results -> container/website/public/bench-data)
 cmd_website_bench() {
   cmd_fullbench
   cmd_serialization
   cmd_compiletime
   cmd_audit   # correctness/alignment data for the benchmarks "Correctness" page
-  echo "==> gen-bench-docs (host transform -> container-website/public/bench-data)"
+  echo "==> gen-bench-docs (host transform -> container/website/public/bench-data)"
   ( cd "$ROOT_DIR" && node scripts/gen-bench-docs.mjs )
-  echo "==> website-bench: done. container-website/public/bench-data/ regenerated (Node 26 / native Temporal)."
+  echo "==> website-bench: done. container/website/public/bench-data/ regenerated (Node 26 / native Temporal)."
 }
 
 cmd_build() {

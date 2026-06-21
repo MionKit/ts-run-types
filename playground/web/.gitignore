@@ -1,8 +1,0 @@
-# Staged, reproducible artifacts (built by build.sh) — never committed.
-public/playground/
-public/runtime/
-public/vs/
-
-# Local browser-test config (env-specific chromium path) + playwright output.
-.pw/
-.playwright-cli/

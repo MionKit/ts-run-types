@@ -4,7 +4,7 @@ import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
 
-(globalThis as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
+(globalThis as unknown as {MonacoEnvironment: unknown}).MonacoEnvironment = {
   getWorker(_workerId: string, label: string): Worker {
     if (label === 'json') return new jsonWorker();
     if (label === 'typescript' || label === 'javascript') return new tsWorker();

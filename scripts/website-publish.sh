@@ -2,7 +2,7 @@
 # -----------------------------------------------------------------------------
 # website-publish.sh - the WHOLE docs-site publish pipeline in one command.
 #
-# Chains the five stages the Cloudflare Pages artifact needs, in dependency
+# Chains the six stages the Cloudflare Pages artifact needs, in dependency
 # order (each delegates to the script that already owns it - this is a thin,
 # faithful composition, not a reimplementation):
 #
@@ -10,13 +10,16 @@
 #   2. Go resolver binary + marker/plugin dist  (benchmarks.sh prep)
 #   3. suite-data -> public/suite-data/         (pnpm run gen:suite-docs, host)
 #   4. all benchmark data -> bench-data/        (benchmarks.sh website-bench)
-#   5. static Nuxt build -> .output/public      (website.sh generate)
+#   5. playground bundle -> public/playground-app/ (build-playground.sh, host)
+#   6. static Nuxt build -> .output/public      (website.sh generate)
 #
 # WHY this order: the Nuxt pages FETCH public/suite-data/ (test/validation pages)
-# and public/bench-data/ (benchmark pages) at runtime - both dirs are git-ignored,
-# so stages 3 + 4 MUST regenerate them before the site build (stage 5) bakes them
-# into the static output. The data gens need the Go binary + dists from stage 2,
-# which need the image from stage 1. Stage 4 ends with gen-bench-docs.
+# and public/bench-data/ (benchmark pages) at runtime, and the /playground page
+# loads public/playground-app/ (the resolver WASM + Monaco web component) - all
+# three dirs are git-ignored, so stages 3-5 MUST regenerate them before the site
+# build (stage 6) bakes them into the static output. The data gens + the
+# playground WASM need the Go binary from stage 2, which needs the image from
+# stage 1. Stage 4 ends with gen-bench-docs.
 #
 # Stage 4 is HEAVY (runtime benchmarks for every competitor + serialization +
 # compile-time tiers) and stage 3 benchmarks every suite case; a full run is many
@@ -29,9 +32,9 @@
 # the orchestrator mirrors that onto the benchmark stage's BENCH_USE_LOCAL knob
 # so every stage uses the SAME image source.
 #
-# OUTPUT: a static site at container-website/.output/public - point Cloudflare
+# OUTPUT: a static site at container/website/.output/public - point Cloudflare
 # Pages' "build output directory" at that path. The generate target also packages
-# that dir into container-website/.output/site.zip (public/ contents at the zip
+# that dir into container/website/.output/site.zip (public/ contents at the zip
 # root) for a manual dashboard "direct upload" or a backup. Deployment itself is
 # Cloudflare's job; this script only produces the artifact. ASCII-only (macOS bash 3.2).
 #
@@ -81,8 +84,8 @@ step() { printf '\n========== website:publish  %s ==========\n' "$1"; }
 require_bench_artifacts() {
   local missing=0 dir
   for dir in \
-    "$SCRIPT_DIR/../container-website/public/suite-data" \
-    "$SCRIPT_DIR/../container-website/public/bench-data"; do
+    "$SCRIPT_DIR/../container/website/public/suite-data" \
+    "$SCRIPT_DIR/../container/website/public/bench-data"; do
     if [ ! -d "$dir" ] || [ -z "$(find "$dir" -type f -name '*.json' -print -quit 2>/dev/null)" ]; then
       echo "website-publish: --no-bench needs '$dir' to already exist with data, but it is missing or empty." >&2
       missing=1
@@ -111,14 +114,20 @@ bash "$SCRIPT_DIR/benchmarks.sh" prep
 if [ -n "$SKIP_BENCH" ]; then
   step "3+4/5  SKIPPED (--no-bench): reusing existing suite-data + bench-data"
 else
-  step "3/5  suite-data -> container-website/public/suite-data/"
+  step "3/5  suite-data -> container/website/public/suite-data/"
   ( cd "$SCRIPT_DIR/.." && pnpm run gen:suite-docs )
 
-  step "4/5  benchmarks -> container-website/public/bench-data/"
+  step "4/5  benchmarks -> container/website/public/bench-data/"
   bash "$SCRIPT_DIR/benchmarks.sh" website-bench
 fi
 
-step "5/5  Nuxt $TARGET -> container-website/.output"
+# The playground bundle is independent of suite-data/bench-data (so it runs even
+# under --no-bench) but needs the stage-2 Go binary for its WASM. Staged into the
+# git-ignored public/playground-app/ that the /playground page loads.
+step "5/6  playground bundle -> container/website/public/playground-app/"
+bash "$SCRIPT_DIR/../container/website/scripts/build-playground.sh"
+
+step "6/6  Nuxt $TARGET -> container/website/.output"
 bash "$SCRIPT_DIR/website.sh" "$TARGET"
 
 # Package the static artifact into a single zip beside it (for a manual Cloudflare
@@ -127,9 +136,9 @@ bash "$SCRIPT_DIR/website.sh" "$TARGET"
 # CONTENTS of public/ at its root (index.html at the top level), which is what
 # static-hosting drop-zones expect. It lands at .output/site.zip, a SIBLING of
 # public/, so it is never swept into the public/ upload or the wrangler deploy.
-OUTPUT_DIR="$SCRIPT_DIR/../container-website/.output"
+OUTPUT_DIR="$SCRIPT_DIR/../container/website/.output"
 if [ "$TARGET" = "generate" ] && [ -d "$OUTPUT_DIR/public" ]; then
-  step "zip  container-website/.output/public -> .output/site.zip"
+  step "zip  container/website/.output/public -> .output/site.zip"
   if command -v zip >/dev/null 2>&1; then
     rm -f "$OUTPUT_DIR/site.zip"
     ( cd "$OUTPUT_DIR/public" && zip -r -q -X ../site.zip . )
@@ -142,9 +151,9 @@ fi
 echo
 echo "==> website:publish DONE (target: $TARGET${BENCH_QUICK:+, quick benchmarks}${SKIP_BENCH:+, no-bench: reused suite+bench data})"
 if [ "$TARGET" = "generate" ]; then
-  echo "    static site:   container-website/.output/public"
-  if [ -f "$OUTPUT_DIR/site.zip" ]; then echo "    static zip:    container-website/.output/site.zip"; fi
+  echo "    static site:   container/website/.output/public"
+  if [ -f "$OUTPUT_DIR/site.zip" ]; then echo "    static zip:    container/website/.output/site.zip"; fi
   echo "    Cloudflare Pages 'build output directory' -> .output/public"
 else
-  echo "    server build:  container-website/.output  (needs a Node/nitro runtime)"
+  echo "    server build:  container/website/.output  (needs a Node/nitro runtime)"
 fi

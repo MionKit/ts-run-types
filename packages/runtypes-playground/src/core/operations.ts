@@ -21,7 +21,7 @@ export const OPERATIONS: readonly Operation[] = [
     fnKey: 'val',
     kind: 'predicate',
     label: 'createValidate',
-    blurb: 'Type guard — returns true when the value matches the type.',
+    blurb: 'Type guard: returns true when the value matches the type.',
     needsInput: true,
   },
   {
