@@ -5,6 +5,11 @@
 *.prof
 coverage.txt
 
+# Playground WASM POC — generated artifacts, reproducible via playground/build.sh
+/playground/ts-runtypes.wasm
+/playground/wasm_exec.js
+/playground/ts-runtypes.d.ts
+
 # Node
 node_modules/
 packages/*/node_modules/
