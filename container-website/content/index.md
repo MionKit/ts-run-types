@@ -53,12 +53,12 @@ Read the Docs
 :::u-button
 ---
 color: neutral
-icon: simple-icons-github
+icon: i-lucide-flask-conical
 size: xl
-to: https://github.com/mionkit/ts-runtypes
+to: /playground
 variant: outline
 ---
-Give us a Star
+Try the Playground
 :::
 ::
 
