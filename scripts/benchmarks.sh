@@ -385,6 +385,7 @@ cmd_website_bench() {
   cmd_fullbench
   cmd_serialization
   cmd_compiletime
+  cmd_audit   # correctness/alignment data for the benchmarks "Correctness" page
   echo "==> gen-bench-docs (host transform -> container-website/public/bench-data)"
   ( cd "$ROOT_DIR" && node scripts/gen-bench-docs.mjs )
   echo "==> website-bench: done. container-website/public/bench-data/ regenerated (Node 26 / native Temporal)."

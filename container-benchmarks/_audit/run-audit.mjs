@@ -47,10 +47,15 @@ function main() {
   const allRecords = [];
   const allBuilderIssues = [];
   const allNotSupported = [];
+  // Per-competitor case coverage (every case it ran + that case's divergence count)
+  // — the correctness website table reads this to tell "ran, aligned (0)" apart from
+  // "did not run (n-a)", which the divergence records alone can't express.
+  const coverage = {};
   for (const audit of audits) {
     for (const r of audit.records) allRecords.push(r);
     for (const b of audit.builderIssues ?? []) allBuilderIssues.push(b);
     for (const n of audit.notSupported ?? []) allNotSupported.push(n);
+    coverage[audit.competitor] = audit.coverage ?? [];
   }
 
   // Per-competitor / metric / path counts.
@@ -106,6 +111,7 @@ function main() {
     },
     summary,
     caseRollup,
+    coverage,
     records: allRecords,
     builderIssues: allBuilderIssues,
     notSupported: allNotSupported,
