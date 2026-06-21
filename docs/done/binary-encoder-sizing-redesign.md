@@ -38,6 +38,15 @@ return, decoder-accepts-serializer, `createBinarySizer` kept,
   (`2**14`) in [dataView.ts](../../packages/ts-runtypes/src/runtypes/dataView.ts).
   The estimate is the normal cold-start path; this flat fallback only applies to
   value-first / plugin-inactive encoders, so 16 MiB was indefensible.
+
+> **Amendment (2026-06-24, post-merge follow-up).** The encoder return changed
+> from `DataViewSerializer` to a **zero-copy `Uint8Array`** view of the written
+> bytes (`.byteLength` is the exact size; `.slice()` for an owned copy; for `into`
+> the view aliases the caller's buffer). The serializer was a stateful instance
+> and a leaky abstraction; a `Uint8Array` covers every consumer use, still
+> round-trips through `createBinaryDecoder` (it already accepts any view), and the
+> decoder's serializer-detection branch was dropped. Mentions of a
+> `DataViewSerializer` return below describe the interim design.
 - Verified: full JS suite (7166), Go suite, fuzz oracle sweep, typecheck (only
   the pre-existing enrich errors), and an integration assertion that a cold
   `dynamic` buffer is the tight per-type estimate, not the flat fallback.

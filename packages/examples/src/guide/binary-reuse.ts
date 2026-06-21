@@ -18,7 +18,7 @@ const ticks: Tick[] = [
 const buffer = new ArrayBuffer(Math.max(...ticks.map(sizeOf)));
 
 for (const tick of ticks) {
-  const view = encode(tick, buffer).getBufferView(); // Uint8Array view into `buffer`
+  const view = encode(tick, buffer); // a Uint8Array view into `buffer`
   decode(view); // consume the view before the next encode reuses the buffer
 }
 // end-reuse

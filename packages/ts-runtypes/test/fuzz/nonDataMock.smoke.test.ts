@@ -71,8 +71,8 @@ describe('nonData mock smoke', () => {
         // Binary: byte-stable round-trip too.
         const benc = compiled.wired.binaryEncode!;
         const bdec = compiled.wired.binaryDecode!;
-        const b1 = benc(value).getBufferView();
-        const b2 = benc(bdec(benc(value))).getBufferView();
+        const b1 = benc(value);
+        const b2 = benc(bdec(benc(value)));
         expect([...b2]).toEqual([...b1]);
       })
       .finally(() => client.close());

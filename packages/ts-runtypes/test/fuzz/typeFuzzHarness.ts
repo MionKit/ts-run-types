@@ -27,7 +27,6 @@ import {
   createBinaryEncoder,
   createBinaryDecoder,
   createMockType,
-  type DataViewSerializer,
 } from 'ts-runtypes';
 import {ResolverClient} from '../../../runtypes-devtools/src/resolver-client.ts';
 import {
@@ -53,8 +52,8 @@ export type WiredFns = {
   getValidationErrors?: (v: unknown) => unknown[];
   jsonEncode?: (v: unknown) => string | undefined;
   jsonDecode?: (s: string) => unknown;
-  binaryEncode?: (v: unknown) => DataViewSerializer;
-  binaryDecode?: (b: DataViewSerializer) => unknown;
+  binaryEncode?: (v: unknown) => Uint8Array;
+  binaryDecode?: (b: Uint8Array) => unknown;
   /** The REAL product mock for this type, with nonDataTypes on so a value
    *  carries the stripped members. Not part of FN_KEYS — it's the value source
    *  for the behaviour tier, not a serialization factory the oracles police. **/

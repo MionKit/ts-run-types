@@ -62,7 +62,7 @@ const back = fromJson(wire); // string -> Date again
 const toBytes = createBinaryEncoder<Order>();
 const fromBytes = createBinaryDecoder<Order>();
 
-const bytes = toBytes(order); // a DataViewSerializer; its bytes are smaller than JSON
+const bytes = toBytes(order); // a Uint8Array; smaller than JSON
 const order2 = fromBytes(bytes); // back to a typed object
 
 // Mock — believable, valid, randomized data for your tests and fixtures.
