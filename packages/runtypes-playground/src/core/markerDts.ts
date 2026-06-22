@@ -151,6 +151,25 @@ export function formatsEditorModule(): string {
   ].join('\n');
 }
 
+// A loose `ts-runtypes/schema` module for the in-editor type checker, so a user's
+// `import * as RT from 'ts-runtypes/schema'` resolves in Monaco. The resolver
+// (MARKER_DTS) carries the precise builders that drive resolution; the editor only
+// needs the names.
+export function schemaEditorModule(): string {
+  return [
+    `declare module 'ts-runtypes/schema' {`,
+    `  export function string(): any;`,
+    `  export function number(): any;`,
+    `  export function boolean(): any;`,
+    `  export function literal(v: any): any;`,
+    `  export function array(element: any): any;`,
+    `  export function union(members: any[]): any;`,
+    `  export function optional(element: any): any;`,
+    `  export function object(shape: Record<string, any>): any;`,
+    `}`,
+  ].join('\n');
+}
+
 // The root type the user's snippet must define: a TS type \`MyType\` in type mode,
 // or a schema \`const MyType = ...\` in schema mode. The engine resolves
 // \`<factory><MyType>()\` (type) or \`<factory>(MyType)\` (schema).
