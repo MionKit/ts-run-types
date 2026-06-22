@@ -120,6 +120,22 @@ const encode = createJsonEncoder<User>();
 
 One override per `(family, type)` (a conflicting second one is a build error). A twin exists for every public factory (`overrideValidate`, `overrideJsonEncoder`, `overrideBinaryEncoder`, …). The override fn must match the family's compiled signature — the same one the emitter uses internally.
 
+## Configuration
+
+Project-level compiler options live in the `ts-runtypes` entry under `compilerOptions.plugins` in **tsconfig.json** — the one canonical surface every host (Vite/Rollup/webpack/Rspack/esbuild) reads. The build path resolves them with **tsc-style precedence**: a forwarded flag / host-plugin option overrides the tsconfig entry, which overrides the built-in default.
+
+```jsonc
+{
+  "compilerOptions": {
+    "plugins": [
+      { "name": "ts-runtypes", "emitMode": "code", "moduleMode": "default", "inlineMode": "default", "hashLength": 7 }
+    ]
+  }
+}
+```
+
+Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `cacheDir`, `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`. An unknown key is ignored with a build-time stderr warning. Host-specific knobs (`binary`, `cwd`, `tsconfig` path, `outDir`) stay on the bundler plugin — they're properties of the host, not the project. Full list, defaults, and the precedence chain: the [Configuration guide](container/website/content/2.guide/9.configuration.md).
+
 ## CLI
 
 ### One-shot (stdio JSON)
