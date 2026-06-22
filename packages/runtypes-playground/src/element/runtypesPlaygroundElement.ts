@@ -142,8 +142,18 @@ function jsValue(value: unknown, pad = ''): string {
 }
 
 // parseJsInput evaluates the input pane as a JS expression, so Map / Set / Date /
-// RegExp / bigint / typed-array literals are accepted (not only JSON). Client-side,
-// over the user's own input — the same `new Function` the engine uses to link modules.
+// RegExp / bigint / typed-array literals are accepted (not only JSON).
+//
+// SECURITY — this uses `new Function`. It is safe ONLY because the evaluated code
+// is the USER'S OWN, typed locally and run on an explicit Run click: self-XSS is
+// not a vulnerability (it is the devtools console). The playground reads NO input
+// from any untrusted source — there is no URL / query / hash / postMessage / window
+// .name reading anywhere, the `input` attribute is set only by hard-coded presets,
+// and nothing auto-runs. The site is static with no cookies or secrets, and the
+// engine itself already evaluates RunTypes' generated validators via `new Function`.
+// HARD INVARIANT: never source the input (or the `input` / `type` / `wasm-url`
+// attributes) from a URL param, postMessage, or any attacker-controllable channel —
+// that is the one change that would turn this into a real XSS vector.
 function parseJsInput(code: string): unknown {
   const trimmed = code.trim();
   if (!trimmed) return undefined;
