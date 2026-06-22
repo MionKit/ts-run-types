@@ -8,7 +8,7 @@
 //      Node type-stripping) — the user-facing headline + detail per code. We
 //      read source, not the built dist, so the page never lags the catalog.
 //
-// Output: container-website/app/components/content/diagnostics-catalog.json,
+// Output: container/website/app/components/content/diagnostics-catalog.json,
 // committed so the website builds without the Go toolchain. The generator is a
 // dev-time sync step: run `pnpm run gen:diag-catalog` after changing either
 // source. The merge also reports any code that is registered Go-side but has no
@@ -21,7 +21,7 @@ import {fileURLToPath, pathToFileURL} from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const catalogSourcePath = resolve(repoRoot, 'packages/runtypes-devtools/src/diagnosticCatalog.ts');
-const outPath = resolve(repoRoot, 'container-website/app/components/content/diagnostics-catalog.json');
+const outPath = resolve(repoRoot, 'container/website/app/components/content/diagnostics-catalog.json');
 
 // Subsystems group the code prefixes into the sections the page renders, in
 // reading order. Descriptions are short, plain-language, and dash-free so they

@@ -19,9 +19,9 @@
 // the competitor libraries (zod / @sinclair/typebox / ajv / ajv-formats, and for
 // typia: typia / ttsc / @ttsc/unplugin / @typescript/native-preview / esbuild),
 // plus a `tsx` runner. Point at tsx with AUDIT_TSX; the deps must be installed
-// somewhere node's upward node_modules walk finds (e.g. container-benchmarks/node_modules).
+// somewhere node's upward node_modules walk finds (e.g. container/benchmarks/node_modules).
 //
-// Usage (from container-benchmarks/):
+// Usage (from container/benchmarks/):
 //   AUDIT_TSX=/path/to/tsx node _audit/host-collect.mjs [zod typebox ajv typia]
 
 import {spawnSync} from 'node:child_process';

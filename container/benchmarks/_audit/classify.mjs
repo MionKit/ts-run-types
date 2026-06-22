@@ -20,7 +20,7 @@
 //   TS_RUNTYPES_DIVERGENT        ts-runtypes is the surprising one
 //   UNKNOWN                      undecided
 //
-// Usage (from container-benchmarks/): node _audit/classify.mjs
+// Usage (from container/benchmarks/): node _audit/classify.mjs
 
 import {readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync} from 'node:fs';
 import path from 'node:path';

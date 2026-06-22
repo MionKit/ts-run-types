@@ -41,7 +41,7 @@ pnpm run audit:alignment
 
 Host-only, the three transform-free competitors (fast iteration). Requires `tsx`
 plus zod / @sinclair/typebox / ajv / ajv-formats resolvable from
-`competitors/<name>/` (for example a `container-benchmarks/node_modules`):
+`competitors/<name>/` (for example a `container/benchmarks/node_modules`):
 
 ```bash
 AUDIT_TSX=/path/to/tsx node _audit/host-collect.mjs
