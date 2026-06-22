@@ -50,8 +50,12 @@ func main() {
 		DisableParallelScan:   true,
 		DisableParallelRender: true,
 		EmitMode:              constants.EmitCode,
-		InlineMode:            constants.InlineModeDefault,
-		ModuleMode:            constants.ModuleModeDefault,
+		// The playground resolver inlines every child and bundles everything into
+		// one cache: the generated-code view reads a single self-contained entry
+		// (no helper entries split into sibling modules it wouldn't show), and the
+		// linked-in-browser run path has one module to materialize.
+		InlineMode: constants.InlineModeAllInternal,
+		ModuleMode: constants.ModuleModeAllSingle,
 	})
 
 	dispatch := js.FuncOf(func(this js.Value, args []js.Value) (result any) {
