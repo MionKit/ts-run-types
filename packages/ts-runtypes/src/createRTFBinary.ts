@@ -9,6 +9,7 @@ import {entryTupleKey, isEntryTuple, resolveEntryTupleFn, FN_HASH_LEN} from './r
 import type {RunType} from './runtypes/types.ts';
 import {
   createDataViewSerializer,
+  createSizingSerializer,
   createDataViewDeserializer,
   type DataViewSerializer,
   type DataViewDeserializer,
@@ -47,6 +48,15 @@ export interface BinaryEncoderOptions {
    *  for THIS encoder (`true` arms, `false` disables). Runtime-only (binary
    *  options are not compile-time args), so it never affects the cache key. **/
   rejectCircularRefs?: boolean;
+  /** Buffer-sizing strategy when the encoder owns the serializer:
+   *  - `'adaptive'` (default): predict from per-key history, grow on a miss via
+   *    the backstop loop. Fast, but the prediction can under-allocate.
+   *  - `'exact'`: run a no-op measure pass first (`createSizingSerializer`) to
+   *    compute the precise byte count, then allocate exactly that. One extra
+   *    traversal, but the buffer can never overflow and is never over-allocated.
+   *  Ignored when the caller supplies their own serializer. Runtime-only, so it
+   *  never affects the cache key. **/
+  sizing?: 'adaptive' | 'exact';
 }
 
 /** Caller-controlled options for `createBinaryDecoder<T>()`. **/
@@ -100,6 +110,7 @@ export function createBinaryEncoder<T>(
     id,
     options?.rejectCircularRefs
   );
+  const exactSizing = options?.sizing === 'exact';
   return (value, serializer) => {
     // Caller-supplied serializer: they own sizing + end-of-payload semantics,
     // so we don't record history on their behalf.
@@ -107,19 +118,28 @@ export function createBinaryEncoder<T>(
       encodeFn(value, serializer);
       return serializer.getBuffer();
     }
-    // We own the serializer. Adaptive sizing predicts from per-key Welford
-    // history. The serializer's own writers (serString, serEnum, the temporal
-    // helpers) GROW IN PLACE on a miss, so the common string-driven overflow —
-    // the case the regression test pins — never throws or re-encodes.
+    // We own the serializer.
     //
-    // The Go-emitted bodies still write scalars + container framing (numbers,
-    // length prefixes, union tags, optional bitmaps) inline to the DataView,
-    // bypassing those writers. If the prediction under-allocates for such a
-    // payload the raw write throws a RangeError; this loop is the backstop —
-    // grow (prefix-preserving resize) and re-encode from a clean index until it
-    // fits or hits the 2**32 ceiling. (Reserving capacity at container
-    // boundaries in the emitter would retire this loop — see docs/binary-buffer-sizing.md.)
-    const ser = createDataViewSerializer(cacheKey);
+    // 'exact' sizing: run a no-op measure pass over the SAME encode body first,
+    // so the buffer is allocated to the precise byte count and no inline write
+    // can overflow (the backstop below then never fires).
+    //
+    // 'adaptive' (default): predict the size from per-key Welford history. The
+    // serializer's own writers (serString, serLength, serEnum, the temporal
+    // helpers) GROW IN PLACE on a miss, but the Go-emitted bodies still write
+    // scalars + container framing (numbers, union tags, optional bitmaps) inline
+    // to the DataView, bypassing those writers. If the prediction under-allocates
+    // for such a payload the raw write throws a RangeError; the loop is the
+    // backstop — grow (prefix-preserving resize) and re-encode from a clean index
+    // until it fits or hits the 2**32 ceiling.
+    let ser: DataViewSerializer;
+    if (exactSizing) {
+      const sizer = createSizingSerializer(cacheKey);
+      encodeFn(value, sizer);
+      ser = createDataViewSerializer(cacheKey, sizer.getLength());
+    } else {
+      ser = createDataViewSerializer(cacheKey);
+    }
     for (;;) {
       try {
         encodeFn(value, ser);
