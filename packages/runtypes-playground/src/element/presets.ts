@@ -1,13 +1,13 @@
 // Predefined example types for the playground, each available in TWO forms:
-//   - `ts`: a plain TypeScript type (resolved via `createX<MyType>()`)
+//   - `ts`: a plain TypeScript type (resolved via `createX<MyType>()`). Where it
+//     helps, fields use type formats imported from `ts-runtypes/formats`
+//     (Email, UUIDv4, Positive, …) — the import is written out so it reads like
+//     real code and drives format-aware validate / mock / generated code.
 //   - `schema`: the value-first ts-runtypes/schema + ts-runtypes/formats builder
-//     form (resolved via `createX(MyType)`)
+//     form (resolved via `createX(MyType)`); the engine injects its RT / TF imports.
 // The TS/Schema switch toggles which form the editor shows. The shapes mirror the
 // real-world DTO scenarios in the validation suite
 // (packages/ts-runtypes/test/suites/validation/Realworld.ts).
-//
-// The schema form omits the imports — the engine injects
-// `import * as RT from 'ts-runtypes/schema'` + `import * as TF from 'ts-runtypes/formats'`.
 
 export interface Preset {
   name: string;
@@ -41,28 +41,31 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     name: 'User',
-    ts: `type MyType = {
-  id: number;
-  email: string;
+    ts: `import type { Email, UUIDv4, PositiveInt } from 'ts-runtypes/formats';
+
+type MyType = {
+  id: UUIDv4;
+  email: Email;
   name: string;
-  age?: number;
+  age?: PositiveInt;
   roles: ('admin' | 'editor' | 'user')[];
   active: boolean;
   createdAt: string;
 };`,
     schema: `const MyType = RT.object({
-  id: TF.number(),
-  email: TF.string(),
+  id: TF.uuidv4(),
+  email: TF.email(),
   name: TF.string(),
-  age: RT.optional(TF.number()),
+  age: RT.optional(TF.positiveInt()),
   roles: RT.array(RT.union([RT.literal('admin'), RT.literal('editor'), RT.literal('user')])),
   active: RT.boolean(),
   createdAt: TF.string(),
 });`,
     input: `{
-  "id": 1,
+  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "email": "ann@example.com",
   "name": "Ann",
+  "age": 30,
   "roles": ["user"],
   "active": true,
   "createdAt": "2024-01-02"
@@ -70,19 +73,21 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     name: 'Order',
-    ts: `type MyType = {
+    ts: `import type { Email, Positive } from 'ts-runtypes/formats';
+
+type MyType = {
   id: string;
-  customer: { id: number; email: string };
-  items: { sku: string; name: string; qty: number; price: number }[];
+  customer: { id: number; email: Email };
+  items: { sku: string; name: string; qty: number; price: Positive }[];
   status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
-  total: number;
+  total: Positive;
   note?: string;
 };`,
     schema: `const MyType = RT.object({
   id: TF.string(),
-  customer: RT.object({ id: TF.number(), email: TF.string() }),
+  customer: RT.object({ id: TF.number(), email: TF.email() }),
   items: RT.array(
-    RT.object({ sku: TF.string(), name: TF.string(), qty: TF.number(), price: TF.number() })
+    RT.object({ sku: TF.string(), name: TF.string(), qty: TF.number(), price: TF.positive() })
   ),
   status: RT.union([
     RT.literal('pending'),
@@ -91,7 +96,7 @@ export const PRESETS: readonly Preset[] = [
     RT.literal('delivered'),
     RT.literal('cancelled'),
   ]),
-  total: TF.number(),
+  total: TF.positive(),
   note: RT.optional(TF.string()),
 });`,
     input: `{
@@ -104,23 +109,25 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     name: 'BlogPost',
-    ts: `type MyType = {
+    ts: `import type { Email, Integer } from 'ts-runtypes/formats';
+
+type MyType = {
   id: number;
   title: string;
   slug: string;
   tags: string[];
-  author: { name: string; email: string };
+  author: { name: string; email: Email };
   published: boolean;
-  meta: { views: number; likes: number };
+  meta: { views: Integer; likes: Integer };
 };`,
     schema: `const MyType = RT.object({
   id: TF.number(),
   title: TF.string(),
   slug: TF.string(),
   tags: RT.array(TF.string()),
-  author: RT.object({ name: TF.string(), email: TF.string() }),
+  author: RT.object({ name: TF.string(), email: TF.email() }),
   published: RT.boolean(),
-  meta: RT.object({ views: TF.number(), likes: TF.number() }),
+  meta: RT.object({ views: TF.integer(), likes: TF.integer() }),
 });`,
     input: `{
   "id": 42,
@@ -134,10 +141,13 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     name: 'Product',
-    ts: `type MyType = {
+    ts: `import type { Positive, Url } from 'ts-runtypes/formats';
+
+type MyType = {
   id: string;
   name: string;
-  price: number;
+  price: Positive;
+  url: Url;
   currency: 'USD' | 'EUR' | 'GBP';
   inStock: boolean;
   categories: string[];
@@ -145,7 +155,8 @@ export const PRESETS: readonly Preset[] = [
     schema: `const MyType = RT.object({
   id: TF.string(),
   name: TF.string(),
-  price: TF.number(),
+  price: TF.positive(),
+  url: TF.url(),
   currency: RT.union([RT.literal('USD'), RT.literal('EUR'), RT.literal('GBP')]),
   inStock: RT.boolean(),
   categories: RT.array(TF.string()),
@@ -154,6 +165,7 @@ export const PRESETS: readonly Preset[] = [
   "id": "prod_55",
   "name": "Mechanical Keyboard",
   "price": 129.95,
+  "url": "https://shop.example.com/keyboard",
   "currency": "USD",
   "inStock": true,
   "categories": ["peripherals", "keyboards"]
