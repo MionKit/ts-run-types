@@ -26,6 +26,7 @@ import {
   OPERATIONS,
   operationByKey,
   ROOT_TYPE,
+  formatsEditorModule,
   type RunResult,
   type Diagnostic,
   type Mode,
@@ -58,7 +59,7 @@ const EDITOR_DTS = `declare module 'ts-runtypes' {
   export function createMockType<T>(val?: T): () => T;
   export function getRunTypeId<T>(value?: T): string;
 }
-declare const TF: {string(): any; number(): any; boolean(): any};
+declare const TF: Record<string, (...args: any[]) => any>;
 declare const RT: {
   string(): any; number(): any; boolean(): any;
   literal(v: any): any; array(e: any): any; union(u: any[]): any;
@@ -278,6 +279,11 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       noEmit: true,
     });
     monaco.languages.typescript.typescriptDefaults.addExtraLib(EDITOR_DTS, 'file:///node_modules/ts-runtypes/index.d.ts');
+    // The type-format catalog so a user's `import { Email } from 'ts-runtypes/formats'` resolves.
+    monaco.languages.typescript.typescriptDefaults.addExtraLib(
+      formatsEditorModule(),
+      'file:///node_modules/ts-runtypes/formats/index.d.ts'
+    );
 
     const common = {
       theme: 'vs-dark',

@@ -28,7 +28,13 @@ export default defineConfig({
     // code, so it never ships a stale `dist/` and needs no prior package build.
     // Mirrors vitest.config's `source` condition; an exact-match regex leaves
     // every other dependency's resolution (Monaco, prettier) untouched.
-    alias: [{find: /^ts-runtypes$/, replacement: fileURLToPath(new URL('../ts-runtypes/src/index.ts', import.meta.url))}],
+    alias: [
+      {
+        find: /^ts-runtypes\/formats$/,
+        replacement: fileURLToPath(new URL('../ts-runtypes/src/formats/index.ts', import.meta.url)),
+      },
+      {find: /^ts-runtypes$/, replacement: fileURLToPath(new URL('../ts-runtypes/src/index.ts', import.meta.url))},
+    ],
   },
   server: {fs: {allow: ['..', '../..', '../../..']}},
   optimizeDeps: {exclude: ['monaco-editor']},
