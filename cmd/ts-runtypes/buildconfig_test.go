@@ -199,3 +199,37 @@ func TestResolveBuildPlugin(t *testing.T) {
 		t.Error("resolveBuildPlugin on an empty dir should return ok=false")
 	}
 }
+
+// TestUnknownPluginKeys: recognised keys are silent; a typo'd key is reported
+// sorted; a project with no plugin entry or no tsconfig never warns.
+func TestUnknownPluginKeys(t *testing.T) {
+	withConfig := func(t *testing.T, body string) string {
+		dir := t.TempDir()
+		writeTestFile(t, filepath.Join(dir, "tsconfig.json"), body)
+		return dir
+	}
+
+	allKnown := withConfig(t, `{ "compilerOptions": { "plugins": [
+    { "name": "ts-runtypes", "emitMode": "both", "hashLength": 7, "cacheDir": ".c" }
+  ] } }`)
+	if got := unknownPluginKeys(allKnown, ""); len(got) != 0 {
+		t.Errorf("recognised keys should not warn, got %v", got)
+	}
+
+	typos := withConfig(t, `{ "compilerOptions": { "plugins": [
+    { "name": "ts-runtypes", "emitMdoe": "both", "zzz": 1, "moduleMode": "allSingle" }
+  ] } }`)
+	got := unknownPluginKeys(typos, "")
+	if want := []string{"emitMdoe", "zzz"}; len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("unknownPluginKeys = %v, want %v (sorted)", got, want)
+	}
+
+	noEntry := withConfig(t, `{ "compilerOptions": { "plugins": [ { "name": "other", "x": 1 } ] } }`)
+	if got := unknownPluginKeys(noEntry, ""); len(got) != 0 {
+		t.Errorf("no ts-runtypes entry should not warn, got %v", got)
+	}
+
+	if got := unknownPluginKeys(t.TempDir(), ""); len(got) != 0 {
+		t.Errorf("no tsconfig should not warn, got %v", got)
+	}
+}

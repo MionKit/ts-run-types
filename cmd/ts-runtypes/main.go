@@ -218,6 +218,12 @@ func main() {
 	var plugin tsRuntypesPlugin
 	if hasTsconfig {
 		plugin, _ = resolveBuildPlugin(absCwd, tsconfigPath)
+		// A misspelt key is otherwise silently ignored, so the option appears
+		// to have no effect. Warn on stderr (the host inherits it into the
+		// build log) listing the unrecognised keys.
+		if unknown := unknownPluginKeys(absCwd, tsconfigPath); len(unknown) > 0 {
+			fmt.Fprintf(os.Stderr, "ts-runtypes: ignoring unknown ts-runtypes plugin key(s) in tsconfig: %v\n", unknown)
+		}
 	}
 	merged := mergeBuildOptions(buildFlags{
 		set:              setFlags,
