@@ -14,7 +14,7 @@ export {
   ROOT_TYPE,
 } from './engine.ts';
 export {loadResolver} from './wasmLoader.ts';
-export {MARKER_DTS, formatsEditorModule} from './markerDts.ts';
+export {MARKER_DTS, formatsEditorModule, schemaEditorModule} from './markerDts.ts';
 export type {
   RunResult,
   RunTypeNode,

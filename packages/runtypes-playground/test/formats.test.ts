@@ -68,7 +68,7 @@ describeIf('playground type formats (WASM, live execution)', () => {
   });
 
   it('runs a format in the value-first schema form (TF.email)', async () => {
-    const schema = `const MyType = RT.object({ email: TF.email() });`;
+    const schema = `import * as RT from 'ts-runtypes/schema';\nimport * as TF from 'ts-runtypes/formats';\nconst MyType = RT.object({ email: TF.email() });`;
     expect(await annotationName(schema, 'schema')).toBe('email');
     const bad = await run('validate', schema, {email: 'nope'}, undefined, 'schema');
     if (bad.kind !== 'predicate') throw new Error('expected predicate');

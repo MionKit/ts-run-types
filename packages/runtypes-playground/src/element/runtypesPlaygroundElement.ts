@@ -27,6 +27,7 @@ import {
   operationByKey,
   ROOT_TYPE,
   formatsEditorModule,
+  schemaEditorModule,
   type RunResult,
   type Diagnostic,
   type Mode,
@@ -46,9 +47,10 @@ type PrettierApi = {format: (src: string, opts: Record<string, unknown>) => Prom
 const TYPE_DEBOUNCE_MS = 2000;
 const PICK_DEBOUNCE_MS = 150;
 
-// Ambient declarations so the editor type-checks both forms without imports: the
-// createX factories, plus `RT` / `TF` globals for the schema form (loose `any` —
-// the WASM resolver, not Monaco, is the source of truth for resolution).
+// Ambient declarations so the editor type-checks the snippet: the createX
+// factories (the engine appends the call). The schema / formats modules the user
+// imports are registered separately (schemaEditorModule / formatsEditorModule);
+// the WASM resolver, not Monaco, is the source of truth for resolution.
 const EDITOR_DTS = `declare module 'ts-runtypes' {
   export function createValidate<T>(val?: T): (v: unknown) => v is T;
   export function createGetValidationErrors<T>(val?: T): (v: unknown) => unknown[];
@@ -58,13 +60,7 @@ const EDITOR_DTS = `declare module 'ts-runtypes' {
   export function createBinaryDecoder<T>(val?: T): (v: Uint8Array) => T;
   export function createMockType<T>(val?: T): () => T;
   export function getRunTypeId<T>(value?: T): string;
-}
-declare const TF: Record<string, (...args: any[]) => any>;
-declare const RT: {
-  string(): any; number(): any; boolean(): any;
-  literal(v: any): any; array(e: any): any; union(u: any[]): any;
-  optional(e: any): any; object(c: Record<string, any>): any;
-};`;
+}`;
 
 let stylesInjected = false;
 function injectStyles(): void {
@@ -221,7 +217,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
           <span class="rtpg-typegroup-sep"></span>
           <div class="rtpg-presets" data-el="presets"></div>
         </div>
-        <button type="button" class="rtpg-random-btn" data-el="randomType" title="Generate a random TypeScript type">&#x21bb; Random type</button>
+        <button type="button" class="rtpg-random-btn" data-el="randomType" title="Generate a random type with RunTypes' own type generator — the fuzz generator its test suite uses to stress-test the pipeline">&#x21bb; Random type</button>
       </div>
       <div class="rtpg-layout">
         <section class="rtpg-pane">
@@ -284,6 +280,11 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       formatsEditorModule(),
       'file:///node_modules/ts-runtypes/formats/index.d.ts'
     );
+    // The schema builders so a user's `import * as RT from 'ts-runtypes/schema'` resolves.
+    monaco.languages.typescript.typescriptDefaults.addExtraLib(
+      schemaEditorModule(),
+      'file:///node_modules/ts-runtypes/schema/index.d.ts'
+    );
 
     const common = {
       theme: 'vs-dark',
@@ -337,7 +338,6 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       (this.els.run as HTMLButtonElement).disabled = false;
       this.ready = true;
       (this.els.overlay as HTMLElement).hidden = true;
-      void this.doRun();
       void this.updateSelectedCode();
     } catch (err) {
       this.els.overlay.innerHTML = `<div class="rtpg-overlay-box"><div class="rtpg-overlay-title">Could not load the playground</div><div class="rtpg-overlay-sub rtpg-overlay-err">${escapeHtml((err as Error).message)}</div></div>`;
@@ -391,7 +391,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     this.typeEditor?.setValue(this.mode === 'schema' ? preset.schema : preset.ts);
     this.inputEditor?.setValue(preset.input);
     this.scheduleCodegen(PICK_DEBOUNCE_MS);
-    if (this.ready) void this.doRun();
+    this.resetResult();
   }
 
   private setMode(mode: Mode): void {
@@ -403,7 +403,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     const preset = this.currentPreset();
     this.typeEditor?.setValue(mode === 'schema' ? preset.schema : preset.ts);
     this.scheduleCodegen(PICK_DEBOUNCE_MS);
-    if (this.ready) void this.doRun();
+    this.resetResult();
   }
 
   // randomType loads a freshly generated TS type. The generator only emits the
@@ -443,8 +443,8 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   }
 
   // generateInto fills the input pane from a generator (valid mock or negative
-  // mock), shows a transient button state, then runs the current function so the
-  // result (valid / invalid) is visible immediately.
+  // mock) and shows a transient button state. It does NOT run — the result clears
+  // to its placeholder so the user runs explicitly with the Run button.
   private async generateInto(generator: () => Promise<{value: unknown}>, btn: HTMLButtonElement, label: string): Promise<void> {
     if (!this.ready) return;
     btn.disabled = true;
@@ -452,13 +452,13 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     try {
       const {value} = await generator();
       this.inputEditor?.setValue(stringify(value));
+      this.resetResult();
     } catch (err) {
       this.els.output.innerHTML = `<pre class="rtpg-code error">${escapeHtml((err as Error).message ?? String(err))}</pre>`;
     } finally {
       btn.disabled = false;
       btn.textContent = label;
     }
-    void this.doRun();
   }
 
   // generateMock fills the input pane with a fresh valid value from createMockType.

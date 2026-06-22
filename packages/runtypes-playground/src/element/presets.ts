@@ -4,7 +4,8 @@
 //     (Email, UUIDv4, Positive, …) — the import is written out so it reads like
 //     real code and drives format-aware validate / mock / generated code.
 //   - `schema`: the value-first ts-runtypes/schema + ts-runtypes/formats builder
-//     form (resolved via `createX(MyType)`); the engine injects its RT / TF imports.
+//     form (resolved via `createX(MyType)`), with its RT / TF imports written out
+//     just like the type form, so both read like real code.
 // The TS/Schema switch toggles which form the editor shows. The shapes mirror the
 // real-world DTO scenarios in the validation suite
 // (packages/ts-runtypes/test/suites/validation/Realworld.ts).
@@ -26,7 +27,10 @@ export const PRESETS: readonly Preset[] = [
   tags: string[];
   active?: boolean;
 };`,
-    schema: `const MyType = RT.object({
+    schema: `import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
+
+const MyType = RT.object({
   id: TF.number(),
   name: TF.string(),
   tags: RT.array(TF.string()),
@@ -52,7 +56,10 @@ type MyType = {
   active: boolean;
   createdAt: string;
 };`,
-    schema: `const MyType = RT.object({
+    schema: `import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
+
+const MyType = RT.object({
   id: TF.uuidv4(),
   email: TF.email(),
   name: TF.string(),
@@ -83,7 +90,10 @@ type MyType = {
   total: Positive;
   note?: string;
 };`,
-    schema: `const MyType = RT.object({
+    schema: `import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
+
+const MyType = RT.object({
   id: TF.string(),
   customer: RT.object({ id: TF.number(), email: TF.email() }),
   items: RT.array(
@@ -120,7 +130,10 @@ type MyType = {
   published: boolean;
   meta: { views: Integer; likes: Integer };
 };`,
-    schema: `const MyType = RT.object({
+    schema: `import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
+
+const MyType = RT.object({
   id: TF.number(),
   title: TF.string(),
   slug: TF.string(),
@@ -152,7 +165,10 @@ type MyType = {
   inStock: boolean;
   categories: string[];
 };`,
-    schema: `const MyType = RT.object({
+    schema: `import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
+
+const MyType = RT.object({
   id: TF.string(),
   name: TF.string(),
   price: TF.positive(),
