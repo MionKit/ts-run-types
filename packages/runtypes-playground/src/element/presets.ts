@@ -187,4 +187,36 @@ const MyType = RT.object({
   "categories": ["peripherals", "keyboards"]
 }`,
   },
+  {
+    name: 'Tree',
+    ts: `type MyType = {
+  id: number;
+  name: string;
+  children: MyType[];
+};`,
+    // Value-first recursion: \`circular((self) => …)\` with \`self\` marking the
+    // back-edge (a const can't reference itself in its own initializer).
+    schema: `import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
+
+const MyType = RT.circular((self) =>
+  RT.object({
+    id: TF.number(),
+    name: TF.string(),
+    children: RT.array(self),
+  })
+);`,
+    input: `{
+  id: 1,
+  name: "root",
+  children: [
+    { id: 2, name: "docs", children: [] },
+    {
+      id: 3,
+      name: "src",
+      children: [{ id: 4, name: "index.ts", children: [] }],
+    },
+  ],
+}`,
+  },
 ];
