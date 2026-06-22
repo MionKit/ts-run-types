@@ -1,5 +1,5 @@
 import {beforeAll, describe, expect, it} from 'vitest';
-import {generatedModules, mock, mockInvalid, run, setResolver, versions} from '../src/core/index.ts';
+import {generatedFunction, generatedModules, mock, mockInvalid, run, setResolver, versions} from '../src/core/index.ts';
 import {assetsBuilt, loadNodeResolver} from './nodeResolver.ts';
 
 // End-to-end engine tests: each resolves <factory><MyType>() via the real WASM
@@ -116,6 +116,17 @@ describeIf('playground engine (WASM, live execution)', () => {
     const res = await run('validate', schema, m.value, undefined, 'schema');
     if (res.kind !== 'predicate') throw new Error('expected predicate result');
     expect(res.value).toBe(false);
+  });
+
+  it('generated code is a single self-contained cache (nested types inlined)', async () => {
+    const nested = `type MyType = { outer: { innerField: string; innerNum: number } };`;
+    const m = await generatedFunction('createValidate', nested);
+    // allInternal + allSingle inline the nested object into the one shown
+    // function, so its inner fields appear in the single code slot rather than a
+    // sibling module the view would miss.
+    expect(m.code).toBeTruthy();
+    expect(m.code).toContain('innerField');
+    expect(m.code).toContain('innerNum');
   });
 
   it('generatedModules returns the generated code per family', async () => {
