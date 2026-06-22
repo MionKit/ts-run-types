@@ -221,9 +221,7 @@ export async function generatedModules(
 }
 
 // mock generates a random value for the type via createMockType (the same
-// generator MockData feeds). `nonDataTypes` makes it produce values for the
-// non-data kinds (symbols / functions / native binary) the Random-type generator
-// can emit, instead of throwing; validate / serializers drop them as usual.
+// generator MockData feeds). Returns the value plus any diagnostics.
 export async function mock(
   userCode: string,
   options?: ResolverOptions,
@@ -231,7 +229,7 @@ export async function mock(
 ): Promise<{value: unknown; diagnostics: Diagnostic[]}> {
   const {dispatch} = await getResolver(options);
   const {fn, diagnostics} = materialize(dispatch, 'createMockType', userCode, mode);
-  return {value: fn({mock: {nonDataTypes: true}}), diagnostics};
+  return {value: fn(), diagnostics};
 }
 
 // mockInvalid generates a value that FAILS validation via the core createMockType
@@ -249,7 +247,7 @@ export async function mockInvalid(
   const {dispatch} = await getResolver(options);
   const validate = materialize(dispatch, 'createValidate', userCode, mode).fn as (v: unknown) => boolean;
   const {fn: generate, diagnostics} = materialize(dispatch, 'createMockType', userCode, mode);
-  const callOpts = {mock: {invalid: true, invalidLeafProbability, nonDataTypes: true}};
+  const callOpts = {mock: {invalid: true, invalidLeafProbability}};
   let last: unknown;
   for (let attempt = 0; attempt < 12; attempt++) {
     last = generate(callOpts);

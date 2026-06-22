@@ -32,6 +32,8 @@ export const STYLES = `
 .rt-playground .rtpg-blurb { margin: 0; color: var(--rtpg-muted); font-size: 12px; line-height: 1.45; }
 .rt-playground .rtpg-input-field[hidden] { display: none; }
 .rt-playground .rtpg-input-editor { height: 150px; border: 1px solid var(--rtpg-border); border-radius: 8px; overflow: hidden; }
+.rt-playground .rtpg-encoded-field[hidden] { display: none; }
+.rt-playground .rtpg-encoded { height: 150px; overflow: auto; margin: 0; font-family: var(--rtpg-mono); font-size: 12.5px; line-height: 1.5; background: var(--rtpg-panel); border: 1px solid var(--rtpg-border); border-radius: 8px; padding: 12px; white-space: pre-wrap; word-break: break-word; }
 .rt-playground .rtpg-btn-row { display: flex; gap: 6px; }
 .rt-playground .rtpg-ghost-btn { background: transparent; border: 1px solid var(--rtpg-border); color: var(--rtpg-muted); border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer; white-space: nowrap; }
 .rt-playground .rtpg-ghost-btn:hover { color: var(--rtpg-accent); border-color: var(--rtpg-accent-dim); }
@@ -67,8 +69,6 @@ export const STYLES = `
 .rt-playground .rtpg-typegroup { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 5px 7px; border: 1px solid var(--rtpg-border); border-radius: 10px; background: var(--rtpg-bg); }
 .rt-playground .rtpg-typegroup-sep { width: 1px; align-self: stretch; background: var(--rtpg-border); margin: 1px 2px; }
 .rt-playground .rtpg-presets { display: flex; gap: 6px; flex-wrap: wrap; }
-.rt-playground .rtpg-random-btn { background: var(--rtpg-panel-2); color: var(--rtpg-text); border: 1px solid var(--rtpg-border); border-radius: 8px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
-.rt-playground .rtpg-random-btn:hover { border-color: var(--rtpg-accent-dim); color: var(--rtpg-accent); }
 .rt-playground .rtpg-preset { background: var(--rtpg-panel-2); color: var(--rtpg-text); border: 1px solid var(--rtpg-border); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; }
 .rt-playground .rtpg-preset:hover { border-color: var(--rtpg-accent-dim); color: var(--rtpg-accent); }
 .rt-playground .rtpg-preset.is-active { background: var(--rtpg-accent); color: #0e1116; border-color: var(--rtpg-accent); font-weight: 600; }

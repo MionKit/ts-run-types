@@ -1,6 +1,5 @@
 import {beforeAll, describe, expect, it} from 'vitest';
 import {generatedFunction, generatedModules, mock, mockInvalid, run, setResolver, versions} from '../src/core/index.ts';
-import {randomTypeDefinition} from '../src/element/randomType.ts';
 import {assetsBuilt, loadNodeResolver} from './nodeResolver.ts';
 
 // End-to-end engine tests: each resolves <factory><MyType>() via the real WASM
@@ -138,16 +137,6 @@ const MyType = RT.object({
     expect(mods.map((m) => m.factory)).toContain('createValidate');
     const validate = mods.find((m) => m.factory === 'createValidate');
     expect(validate?.code).toContain('return');
-  });
-
-  it('Random type generator produces resolvable types (library fuzz generator)', async () => {
-    for (let i = 0; i < 12; i++) {
-      const code = randomTypeDefinition();
-      expect(code).toContain(`type MyType =`);
-      const res = await run('graph', code);
-      if (res.kind !== 'graph') throw new Error('expected graph result');
-      expect(res.runTypes.length).toBeGreaterThan(0);
-    }
   });
 
   it('runs the value-first schema form (mode: schema)', async () => {
