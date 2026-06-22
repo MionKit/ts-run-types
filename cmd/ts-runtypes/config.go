@@ -40,14 +40,30 @@ type enrichConfig struct {
 }
 
 // tsRuntypesPlugin is the shape of the `ts-runtypes` entry under
-// compilerOptions.plugins[]. Only the fields enrichment cares about are decoded;
-// unknown keys are ignored.
+// compilerOptions.plugins[]. It is the single canonical config surface for the
+// Go compiler's project tunables; the host plugins (runtypes-devtools) forward
+// only host-specific knobs (binary path, cwd) plus any explicit per-build
+// override. Unknown keys are ignored.
+//
+// The string knobs (enrichDir / moduleMode / emitMode / inlineMode) decode to
+// their zero value when absent; the build-path knobs below use POINTERS so an
+// absent key (nil) is distinguishable from an explicit false / 0 — the merge in
+// buildconfig.go only overrides a binary default when the key is actually
+// present.
 type tsRuntypesPlugin struct {
 	Name       string `json:"name"`
 	EnrichDir  string `json:"enrichDir"`
 	ModuleMode string `json:"moduleMode"`
 	EmitMode   string `json:"emitMode"`
 	InlineMode string `json:"inlineMode"`
+
+	// Build-path project knobs, read by resolveBuildPlugin and merged in
+	// buildconfig.go. The enrichment path ignores them.
+	HashLength     *int    `json:"hashLength"`
+	CacheDir       *string `json:"cacheDir"`
+	SingleThreaded *bool   `json:"singleThreaded"`
+	ParallelScan   *bool   `json:"parallelScan"`
+	ParallelRender *bool   `json:"parallelRender"`
 }
 
 // tsconfigShape decodes only the compilerOptions fields enrichment reads.
@@ -194,6 +210,31 @@ func findTsRuntypesPlugin(parsed tsconfigShape) (tsRuntypesPlugin, bool) {
 		}
 	}
 	return tsRuntypesPlugin{}, false
+}
+
+// resolveBuildPlugin reads the compilerOptions.plugins[name=ts-runtypes] entry
+// from the build path's tsconfig — the same file program.New loads in the
+// default (on-disk tsconfig) mode. Returns ok=false when no tsconfig resolves
+// or it carries no ts-runtypes entry; the build path then runs on CLI flags +
+// binary defaults alone (the inline / server modes have no tsconfig, and a
+// project may simply never add the plugin entry).
+//
+// tsconfigFlag is the --tsconfig CLI value (empty → <absCwd>/tsconfig.json),
+// matching program.New's own resolution so the binary reads the very tsconfig
+// it compiles against. A missing or malformed tsconfig returns ok=false rather
+// than erroring — same tolerant contract as resolveEnrichConfig.
+func resolveBuildPlugin(absCwd, tsconfigFlag string) (tsRuntypesPlugin, bool) {
+	tsconfigPath := strings.TrimSpace(tsconfigFlag)
+	if tsconfigPath == "" {
+		tsconfigPath = filepath.Join(absCwd, "tsconfig.json")
+	} else if !filepath.IsAbs(tsconfigPath) {
+		tsconfigPath = filepath.Join(absCwd, tsconfigPath)
+	}
+	parsed, ok := parseTsconfig(tsconfigPath)
+	if !ok {
+		return tsRuntypesPlugin{}, false
+	}
+	return findTsRuntypesPlugin(parsed)
 }
 
 // stripJSONC removes // line comments, /* block */ comments, and trailing

@@ -153,6 +153,12 @@ func main() {
 	flag.BoolVar(&version, "version", false, "print version (binary + pinned tsgo revision) and exit")
 	flag.Parse()
 
+	// Which flags the user actually passed. The build-config merge layers the
+	// tsconfig plugin entry UNDER any explicitly-set flag (tsc precedence), so
+	// it must tell an explicit value from an absent flag.
+	setFlags := map[string]bool{}
+	flag.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
+
 	if help {
 		flag.Usage()
 		return
@@ -204,6 +210,27 @@ func main() {
 		fatal("abs(cwd): %v", err)
 	}
 
+	// Layer the build config: an on-disk tsconfig (the default mode) supplies
+	// the project knobs as a base, explicitly-set flags override them. The
+	// inline / server modes carry no tsconfig, so they run on flags + defaults
+	// alone (hasTsconfig=false also withholds the node_modules cache default).
+	hasTsconfig := !inlineServer && !inlineSourcesStdin
+	var plugin tsRuntypesPlugin
+	if hasTsconfig {
+		plugin, _ = resolveBuildPlugin(absCwd, tsconfigPath)
+	}
+	merged := mergeBuildOptions(buildFlags{
+		set:              setFlags,
+		hashLength:       hashLength,
+		singleThreaded:   singleThreaded,
+		noParallelScan:   noParallelScan,
+		noParallelRender: noParallelRender,
+		cacheDir:         cacheDir,
+		emitMode:         emitMode,
+		inlineMode:       inlineMode,
+		moduleMode:       moduleMode,
+	}, plugin, hasTsconfig, absCwd)
+
 	// Stdio decoder/encoder is built up front because in inline-sources mode
 	// we consume one handshake line from stdin BEFORE constructing the
 	// Program, then keep the same decoder for the request loop so any bytes
@@ -214,33 +241,35 @@ func main() {
 	stdoutBuf := bufio.NewWriter(os.Stdout)
 	stdoutEnc := json.NewEncoder(stdoutBuf)
 
-	switch moduleMode {
+	// Validate the MERGED values: a bad mode can arrive from tsconfig as
+	// readily as from a flag, so the check sits after the merge.
+	switch merged.moduleMode {
 	case constants.ModuleModeDefault, constants.ModuleModeAllSingle, constants.ModuleModeAllModules:
 	default:
-		fatal("--module-mode: unknown value %q (expected %s | %s | %s)",
-			moduleMode, constants.ModuleModeDefault, constants.ModuleModeAllSingle, constants.ModuleModeAllModules)
+		fatal("module-mode: unknown value %q (expected %s | %s | %s)",
+			merged.moduleMode, constants.ModuleModeDefault, constants.ModuleModeAllSingle, constants.ModuleModeAllModules)
 	}
 
-	if !constants.EmitMode(emitMode).Valid() {
-		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid --emit-mode %q (want code | functions | both)\n", emitMode)
+	if !constants.EmitMode(merged.emitMode).Valid() {
+		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid emit-mode %q (want code | functions | both)\n", merged.emitMode)
 		os.Exit(2)
 	}
-	if !constants.InlineMode(inlineMode).Valid() {
-		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid --inline-mode %q (want default | allInternal)\n", inlineMode)
+	if !constants.InlineMode(merged.inlineMode).Valid() {
+		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid inline-mode %q (want default | allInternal)\n", merged.inlineMode)
 		os.Exit(2)
 	}
 
 	resolverOpts := resolver.Options{
-		HashLength:            hashLength,
+		HashLength:            merged.hashLength,
 		Marker:                marker.Options{},
 		Cwd:                   absCwd,
-		SingleThreaded:        singleThreaded,
-		DisableParallelScan:   noParallelScan,
-		DisableParallelRender: noParallelRender,
-		CacheDir:              cacheDir,
-		EmitMode:              constants.EmitMode(emitMode),
-		InlineMode:            constants.InlineMode(inlineMode),
-		ModuleMode:            moduleMode,
+		SingleThreaded:        merged.singleThreaded,
+		DisableParallelScan:   merged.disableParallelScan,
+		DisableParallelRender: merged.disableParallelRender,
+		CacheDir:              merged.cacheDir,
+		EmitMode:              constants.EmitMode(merged.emitMode),
+		InlineMode:            constants.InlineMode(merged.inlineMode),
+		ModuleMode:            merged.moduleMode,
 	}
 
 	var r *resolver.Resolver
@@ -266,7 +295,7 @@ func main() {
 		}
 		p, err := program.NewInferred(program.Options{
 			Cwd:            absCwd,
-			SingleThreaded: singleThreaded,
+			SingleThreaded: merged.singleThreaded,
 			Overlay:        overlay,
 		}, fileNames)
 		if err != nil {
@@ -280,7 +309,7 @@ func main() {
 		p, err := program.New(program.Options{
 			Cwd:            absCwd,
 			TsconfigPath:   tsconfigPath,
-			SingleThreaded: singleThreaded,
+			SingleThreaded: merged.singleThreaded,
 		})
 		if err != nil {
 			fatal("program: %v", err)
