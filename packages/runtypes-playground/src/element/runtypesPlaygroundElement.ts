@@ -1,8 +1,9 @@
 // <runtypes-playground> — a light-DOM custom element wrapping the headless
 // engine. Lazy-loads Monaco on connect and renders a three-column editor:
 //   1. Type      — the TypeScript type (or value-first schema) editor.
-//   2. Function  — a build-function picker, a JSON input pane with "Random valid"
-//                  / "Random invalid" buttons (createMockType + a type-aware
+//   2. Function  — a build-function picker, a JS-expression input pane (accepts
+//                  Map / Set / Date / bigint / …, not just JSON) with "Random
+//                  valid" / "Random invalid" buttons (createMockType + a type-aware
 //                  negative generator), a Run button, and the result beneath it.
 //   3. Generated — the code RunTypes generates for the SELECTED function + type,
 //                  prettier-beautified and syntax-highlighted. It refreshes (with
@@ -87,6 +88,66 @@ function escapeHtml(text: unknown): string {
 
 function stringify(value: unknown): string {
   return JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? `${v}n` : v instanceof Uint8Array ? Array.from(v) : v), 2);
+}
+
+// jsKey renders an object key as a bare identifier when valid, else a quoted string.
+function jsKey(key: string): string {
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key);
+}
+
+// jsValue serializes a value to a JS-source EXPRESSION (not JSON), so the input
+// pane round-trips the full value space createMockType produces — Map / Set / Date
+// / RegExp / bigint / typed arrays — which JSON can't represent. Indented for
+// readability; functions / symbols become `undefined` (the validators ignore them).
+function jsValue(value: unknown, pad = ''): string {
+  const inner = `${pad}  `;
+  if (value === null) return 'null';
+  switch (typeof value) {
+    case 'undefined':
+      return 'undefined';
+    case 'string':
+      return JSON.stringify(value);
+    case 'number':
+    case 'boolean':
+      return String(value);
+    case 'bigint':
+      return `${value}n`;
+    case 'function':
+    case 'symbol':
+      return 'undefined';
+  }
+  if (value instanceof Date) return `new Date(${JSON.stringify(value.toISOString())})`;
+  if (value instanceof RegExp) return value.toString();
+  if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
+    return `new ${value.constructor.name}([${Array.from(value as unknown as ArrayLike<number>).join(', ')}])`;
+  }
+  if (value instanceof Map) {
+    if (value.size === 0) return 'new Map()';
+    const entries = Array.from(value, ([k, v]) => `${inner}[${jsValue(k, inner)}, ${jsValue(v, inner)}]`).join(',\n');
+    return `new Map([\n${entries},\n${pad}])`;
+  }
+  if (value instanceof Set) {
+    if (value.size === 0) return 'new Set()';
+    const items = Array.from(value, (v) => `${inner}${jsValue(v, inner)}`).join(',\n');
+    return `new Set([\n${items},\n${pad}])`;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[]';
+    return `[\n${value.map((v) => `${inner}${jsValue(v, inner)}`).join(',\n')},\n${pad}]`;
+  }
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj);
+  if (keys.length === 0) return '{}';
+  return `{\n${keys.map((k) => `${inner}${jsKey(k)}: ${jsValue(obj[k], inner)}`).join(',\n')},\n${pad}}`;
+}
+
+// parseJsInput evaluates the input pane as a JS expression, so Map / Set / Date /
+// RegExp / bigint / typed-array literals are accepted (not only JSON). Client-side,
+// over the user's own input — the same `new Function` the engine uses to link modules.
+function parseJsInput(code: string): unknown {
+  const trimmed = code.trim();
+  if (!trimmed) return undefined;
+  return new Function(`return (${trimmed});`)();
 }
 
 // Drops the `create` prefix from a factory name for the picker: createValidate -> validate.
@@ -234,7 +295,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
               <select class="rtpg-select" data-el="operation"></select></label>
             <p class="rtpg-blurb" data-el="blurb"></p>
             <div class="rtpg-field rtpg-input-field" data-el="inputField">
-              <div class="rtpg-field-label-row"><span class="rtpg-field-label">Input (JSON)</span>
+              <div class="rtpg-field-label-row"><span class="rtpg-field-label">Input (JS)</span>
                 <span class="rtpg-btn-row">
                   <button type="button" class="rtpg-ghost-btn" data-el="genRandom" title="Generate a valid random value with createMockType">Random valid</button>
                   <button type="button" class="rtpg-ghost-btn" data-el="genInvalid" title="Generate a random value that fails validation">Random invalid</button>
@@ -292,6 +353,13 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       schemaEditorModule(),
       'file:///node_modules/ts-runtypes/schema/index.d.ts'
     );
+    // The input pane is a JS value EXPRESSION (objects, Map, Set, Date, bigint, …),
+    // evaluated at Run, not type-checked — turn off JS diagnostics so it never shows
+    // squiggles (a malformed value surfaces as a Run error instead).
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: true,
+    });
 
     const common = {
       theme: 'vs-dark',
@@ -309,7 +377,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     this.inputEditor = monaco.editor.create(this.els.inputEditor, {
       ...common,
       value: this.getAttribute('input') ?? PRESETS[0].input,
-      language: 'json',
+      language: 'javascript',
       lineNumbers: 'off',
     });
 
@@ -452,7 +520,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     btn.textContent = 'generating…';
     try {
       const {value} = await generator();
-      this.inputEditor?.setValue(stringify(value));
+      this.inputEditor?.setValue(jsValue(value));
       this.resetResult();
     } catch (err) {
       this.els.output.innerHTML = `<pre class="rtpg-code error">${escapeHtml((err as Error).message ?? String(err))}</pre>`;
@@ -489,9 +557,9 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     let input: unknown;
     if (op.needsInput) {
       try {
-        input = JSON.parse(this.inputEditor?.getValue() ?? 'null');
+        input = parseJsInput(this.inputEditor?.getValue() ?? '');
       } catch (err) {
-        this.els.output.innerHTML = `<pre class="rtpg-code error">${escapeHtml(`Invalid JSON input:\n${(err as Error).message}`)}</pre>`;
+        this.els.output.innerHTML = `<pre class="rtpg-code error">${escapeHtml(`Invalid input:\n${(err as Error).message}`)}</pre>`;
         return;
       }
     }
@@ -511,8 +579,8 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   // renderResult shows the run result (kept compact — it sits under the Run button).
   private async renderResult(result: RunResult): Promise<string> {
     const diag = renderDiagnostics(result.diagnostics);
-    const json = async (value: unknown): Promise<string> =>
-      `<div class="rtpg-code">${await this.highlight(stringify(value), 'json')}</div>`;
+    const block = async (value: unknown): Promise<string> =>
+      `<div class="rtpg-code">${await this.highlight(jsValue(value), 'javascript')}</div>`;
     const label = (text: string): string => `<div class="rtpg-block-label">${text}</div>`;
     switch (result.kind) {
       case 'predicate':
@@ -520,17 +588,17 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       case 'errors': {
         const ok = result.value.length === 0;
         const badge = `<div class="rtpg-badge ${ok ? 'ok' : 'bad'}">${ok ? 'valid — no errors' : `${result.value.length} error(s)`}</div>`;
-        return `${badge}${ok ? '' : await json(result.value)}${diag}`;
+        return `${badge}${ok ? '' : await block(result.value)}${diag}`;
       }
       case 'encode':
-        return `${label('Encoded (JSON-safe)')}${await json(result.value)}${diag}`;
+        return `${label('Encoded (JSON-safe)')}${await block(result.value)}${diag}`;
       case 'jsonRoundtrip':
         // The encoded intermediate is shown in the Encoded block under the input.
-        return `${label('Decoded')}${await json(result.decoded)}${diag}`;
+        return `${label('Decoded')}${await block(result.decoded)}${diag}`;
       case 'binaryEncode':
         return `${label(`Binary (${result.byteLength} bytes)`)}<pre class="rtpg-code">${escapeHtml(result.hex)}</pre>${diag}`;
       case 'binaryRoundtrip':
-        return `${label('Decoded')}${await json(result.decoded)}${diag}`;
+        return `${label('Decoded')}${await block(result.decoded)}${diag}`;
       case 'graph':
         return `<div class="rtpg-badge ok">RunType resolved</div>${label(`${result.runTypes.length} node(s) — full graph on the right`)}${diag}`;
     }
