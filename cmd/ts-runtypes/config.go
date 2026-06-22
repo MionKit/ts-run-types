@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -224,17 +226,75 @@ func findTsRuntypesPlugin(parsed tsconfigShape) (tsRuntypesPlugin, bool) {
 // it compiles against. A missing or malformed tsconfig returns ok=false rather
 // than erroring — same tolerant contract as resolveEnrichConfig.
 func resolveBuildPlugin(absCwd, tsconfigFlag string) (tsRuntypesPlugin, bool) {
-	tsconfigPath := strings.TrimSpace(tsconfigFlag)
-	if tsconfigPath == "" {
-		tsconfigPath = filepath.Join(absCwd, "tsconfig.json")
-	} else if !filepath.IsAbs(tsconfigPath) {
-		tsconfigPath = filepath.Join(absCwd, tsconfigPath)
-	}
-	parsed, ok := parseTsconfig(tsconfigPath)
+	parsed, ok := parseTsconfig(buildTsconfigPath(absCwd, tsconfigFlag))
 	if !ok {
 		return tsRuntypesPlugin{}, false
 	}
 	return findTsRuntypesPlugin(parsed)
+}
+
+// buildTsconfigPath resolves the build path's tsconfig location the same way
+// program.New does: the --tsconfig value (anchored under absCwd when relative),
+// or <absCwd>/tsconfig.json when unset.
+func buildTsconfigPath(absCwd, tsconfigFlag string) string {
+	tsconfigPath := strings.TrimSpace(tsconfigFlag)
+	if tsconfigPath == "" {
+		return filepath.Join(absCwd, "tsconfig.json")
+	}
+	if !filepath.IsAbs(tsconfigPath) {
+		return filepath.Join(absCwd, tsconfigPath)
+	}
+	return tsconfigPath
+}
+
+// knownPluginKeys is the set of JSON keys the ts-runtypes plugin entry
+// recognises, derived by reflection from tsRuntypesPlugin's json tags so it can
+// never drift from the struct. Used to warn on a likely-typo'd key.
+var knownPluginKeys = func() map[string]bool {
+	keys := map[string]bool{}
+	pluginType := reflect.TypeOf(tsRuntypesPlugin{})
+	for i := 0; i < pluginType.NumField(); i++ {
+		tag := pluginType.Field(i).Tag.Get("json")
+		if name, _, _ := strings.Cut(tag, ","); name != "" && name != "-" {
+			keys[name] = true
+		}
+	}
+	return keys
+}()
+
+// unknownPluginKeys returns the keys in the ts-runtypes plugin entry that the
+// build path does not recognise (sorted) — almost always a typo. Empty when no
+// tsconfig resolves, it is malformed, or it has no ts-runtypes entry, so a
+// project without the plugin never warns. The build path surfaces these on
+// stderr; an unknown key is otherwise silently ignored.
+func unknownPluginKeys(absCwd, tsconfigFlag string) []string {
+	raw, err := os.ReadFile(buildTsconfigPath(absCwd, tsconfigFlag))
+	if err != nil {
+		return nil
+	}
+	var parsed struct {
+		CompilerOptions struct {
+			Plugins []map[string]json.RawMessage `json:"plugins"`
+		} `json:"compilerOptions"`
+	}
+	if json.Unmarshal([]byte(stripJSONC(string(raw))), &parsed) != nil {
+		return nil
+	}
+	for _, entry := range parsed.CompilerOptions.Plugins {
+		var name string
+		if json.Unmarshal(entry["name"], &name) != nil || name != "ts-runtypes" {
+			continue
+		}
+		var unknown []string
+		for key := range entry {
+			if !knownPluginKeys[key] {
+				unknown = append(unknown, key)
+			}
+		}
+		sort.Strings(unknown)
+		return unknown
+	}
+	return nil
 }
 
 // stripJSONC removes // line comments, /* block */ comments, and trailing
