@@ -88,4 +88,6 @@ export const defaultMockOptions: MockOptions = {
   maxStackDepth: 50,
   maxMockRecursion: 10,
   nonDataTypes: false,
+  invalid: false,
+  invalidLeafProbability: 0.85,
 };

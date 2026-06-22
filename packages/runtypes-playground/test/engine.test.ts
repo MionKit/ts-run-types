@@ -89,15 +89,15 @@ describeIf('playground engine (WASM, live execution)', () => {
     }
   });
 
-  it('mockInvalid leafProbability biases leaf (1) vs root (0) corruption', async () => {
-    // leafProbability=1 corrupts a deep leaf, so the root object survives.
+  it('mockInvalid invalidLeafProbability biases leaf (1) vs root (0) corruption', async () => {
+    // invalidLeafProbability=1 corrupts a deep leaf, so the root object survives.
     const leaf = await mockInvalid(TYPE, undefined, 'type', 1);
     expect(leaf.value).toBeTypeOf('object');
     const leafRes = await run('validate', TYPE, leaf.value);
     if (leafRes.kind !== 'predicate') throw new Error('expected predicate result');
     expect(leafRes.value).toBe(false);
 
-    // leafProbability=0 replaces the whole root with a wrong-typed value.
+    // invalidLeafProbability=0 replaces the whole root with a wrong-typed value.
     const root = await mockInvalid(TYPE, undefined, 'type', 0);
     expect(root.value).not.toBeTypeOf('object');
     const rootRes = await run('validate', TYPE, root.value);

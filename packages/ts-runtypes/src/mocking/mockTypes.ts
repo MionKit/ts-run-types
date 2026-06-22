@@ -61,6 +61,17 @@ export interface MockOptions {
    *  the mock also carries the non-data members, which is what exercises the
    *  serializers' drop / fail behaviour. **/
   nonDataTypes?: boolean;
+  /** Generate a value that FAILS `validate<T>` instead of a valid one: a normal
+   *  mock with ONE position replaced by a value of the wrong type (the inverse of
+   *  what the type expects there — a number where a string is required, a value
+   *  outside a union, a non-string for a regexp / formatted string, …). Handy for
+   *  exercising validators, decoders and error paths in tests. Off by default. **/
+  invalid?: boolean;
+  /** When `invalid` is on, biases WHERE the wrong value lands (0..1): `1` always
+   *  corrupts a deep leaf (a single primitive somewhere in the value), `0` always
+   *  replaces the whole root, values in between roll per call. Default `0.85`, so
+   *  the break is usually a deep field rather than the whole value. **/
+  invalidLeafProbability?: number;
 }
 
 /** Loose runtime view of a `MockNode` (../enrich/mockData.ts) — the walker
