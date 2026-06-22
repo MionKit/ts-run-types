@@ -12,6 +12,14 @@ import {
   type ModuleMode,
 } from './runtypes-constants.generated.ts';
 
+// PluginOptions is the host-plugin surface. The CANONICAL place to configure
+// the compiler's PROJECT knobs (emitMode, moduleMode, inlineMode, cacheDir,
+// hashLength, parallelScan/Render, singleThreaded) is the `ts-runtypes` entry
+// under compilerOptions.plugins in tsconfig.json — see the Configuration guide.
+// Those keys are accepted here too as a per-build OVERRIDE (forwarded as a flag,
+// so they win over tsconfig, tsc-style); reach for them only when one build
+// must differ. `binary` / `cwd` / `tsconfig` / `outDir` are genuinely
+// host-specific and have no tsconfig equivalent.
 export interface PluginOptions {
   // Absolute path to the compiled ts-runtypes binary. Optional: when omitted,
   // the plugin resolves the prebuilt binary for the host platform via the
@@ -84,12 +92,12 @@ export interface PluginOptions {
   inlineMode?: 'default' | 'allInternal';
 }
 
-// MARKER_MODULE is the fixed package every marker brand is declared in.
-// Files that don't import this module are short-circuited as a cheap
-// pre-filter. The marker module is no longer user-configurable — the
-// --marker-name / --marker-module CLI flags went away with the marker
-// migration. To use a custom marker, embed the Go resolver directly
-// and pass marker.Options{Specs: [...]}.
+// MARKER_MODULE is the package whose import marks a file as worth scanning;
+// files that don't import it are short-circuited as a cheap pre-filter. The
+// scanner itself recognises the marker types by a structural brand, so a
+// package that re-exports or vendors them (keeping the brand) is recognised
+// automatically with no config. Only a fully custom marker brand needs the
+// escape hatch: embed the Go resolver directly and pass marker.Options{Specs}.
 const MARKER_MODULE = 'ts-runtypes';
 
 // runtypes-devtools is built on unplugin: ONE factory, many bundler entry

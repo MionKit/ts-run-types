@@ -80,6 +80,10 @@ The Go binary is a long-lived child process during a build session: spawned once
 
 The user's tsconfig drives both worlds: the binary parses it to bootstrap the same `Program` view tsgo would use, so what we resolve as type `T` is exactly what tsgo resolves.
 
+### Configuration surface
+
+The same tsconfig is also the canonical config surface for the compiler's project options. On the build path (`cmd/ts-runtypes/main.go`) the binary reads the `compilerOptions.plugins[name=ts-runtypes]` entry (`resolveBuildPlugin` in `config.go`) and merges it under the CLI flags with **tsc-style precedence** — an explicitly-set flag (tracked via `flag.Visit`) wins over the tsconfig entry, which wins over the built-in default (`mergeBuildOptions` in `buildconfig.go`). The host plugins therefore forward a `--flag` only for an option the user set explicitly, so an unset host option falls through to tsconfig. The inline / server test modes carry no tsconfig, so they run on flags + defaults alone. Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `cacheDir`, `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`; an unknown key is ignored with a stderr warning (the known set is derived from the struct's json tags by reflection, so it can't drift). Newly-exposed options need no disk-fingerprint bump: they change site detection, module grouping, or the cache location rather than a cached entry's body (the body-affecting `hashLength` / `emitMode` / `inlineMode` were already folded in).
+
 ## The sentinel marker
 
 Detection is anchored on a single TypeScript type alias exported from the `ts-runtypes` package:
