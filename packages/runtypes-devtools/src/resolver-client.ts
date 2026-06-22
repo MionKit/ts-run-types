@@ -17,13 +17,16 @@ export interface ResolverClientOptions {
   // setSources / reset cycles, so a single child process can serve every
   // test in a vitest file.
   serverMode?: boolean;
-  // Base directory for the on-disk RT artifact cache (forwarded as
-  // --cache-dir). Typically `<projectRoot>/node_modules/.cache/ts-runtypes`.
-  // The Go binary fingerprints non-version build options into a subdir
-  // and folds binary version into every typeID hash, so cache files
-  // never cross-contaminate between configurations or releases. Empty
-  // / undefined disables caching (test paths and inline-source one-shots
-  // skip this).
+  // Base directory for the on-disk RT artifact cache. The Go binary
+  // fingerprints non-version build options into a subdir and folds binary
+  // version into every typeID hash, so cache files never cross-contaminate
+  // between configurations or releases. Three states:
+  //   - a path string → forwarded as `--cache-dir <path>`.
+  //   - an empty string → forwarded as an explicit disable (`--cache-dir ""`),
+  //     which overrides a tsconfig cacheDir and the binary's node_modules default.
+  //   - undefined → NOT forwarded, so the binary derives its own default
+  //     (<cwd>/node_modules/.cache/ts-runtypes in tsconfig mode, off in the
+  //     inline / server test modes) or reads the tsconfig cacheDir.
   cacheDir?: string;
   // Forwarded as --emit-mode. Selects what each RT entry ships in its
   // code/factory slots: 'code' (default — body string only, factory rebuilt
@@ -322,7 +325,9 @@ export class ResolverClient extends ResolverClientBase {
     }
     if (opts.inlineSources) args.push('--inline-sources-stdin');
     if (opts.serverMode) args.push('--inline-server');
-    if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir);
+    // Forward an explicit empty string too (a deliberate "disable caching"
+    // that must override tsconfig); only undefined skips the flag entirely.
+    if (opts.cacheDir !== undefined) args.push('--cache-dir', opts.cacheDir);
     if (opts.emitMode) args.push('--emit-mode', opts.emitMode);
     if (opts.parallelScan === false) args.push('--no-parallel-scan');
     if (opts.parallelRender === false) args.push('--no-parallel-render');
