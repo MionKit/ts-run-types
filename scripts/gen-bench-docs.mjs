@@ -158,6 +158,125 @@ export function extractCaseSources(file, varName = 'cases') {
   return out;
 }
 
+// ── shared sample extraction ──────────────────────────────────────────────────
+// The valid/invalid sample arrays are SHARED across every competitor (one
+// getSamples thunk per case, authored in shared/cases/**). Parse each group file's
+// exported object literal and map caseKey (GROUP.name) → {valid, invalid} array
+// text, so the correctness + validation hovers can show the exact data each
+// validator ran against — the data-side companion to the per-competitor source.
+const SHARED_CASES_DIR = path.join(BENCH_DIR, 'shared/cases');
+
+// Tidy a sample array literal for display: keep the authored line breaks (so inline
+// `//` comments stay on their own line and `//` inside a URL string is never mangled)
+// but strip the source's deep indentation, re-indenting continuation lines by two.
+// A one-line array in the source stays one line.
+function tidyArrayText(text) {
+  const lines = text.split('\n');
+  if (lines.length <= 1) return text.trim();
+  const rest = lines.slice(1);
+  let min = Infinity;
+  for (const line of rest) if (line.trim()) min = Math.min(min, line.match(/^\s*/)[0].length);
+  if (!Number.isFinite(min)) min = 0;
+  return [lines[0].trimEnd(), ...rest.map((line) => (line.trim() ? '  ' + line.slice(min).trimEnd() : ''))].join('\n');
+}
+
+// The object literal a getSamples thunk returns: `() => ({…})`, the same with
+// parens, or a block body whose `return {…}` we follow. null when the body isn't a
+// plain object literal (defensive — every shared case returns one).
+function returnedObjectLiteral(fn) {
+  if (!fn) return null;
+  const isFnLike = ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) || ts.isMethodDeclaration(fn);
+  if (!isFnLike || !fn.body) return null;
+  let expr = null;
+  if (ts.isBlock(fn.body)) {
+    for (const stmt of fn.body.statements) if (ts.isReturnStatement(stmt) && stmt.expression) expr = stmt.expression;
+  } else {
+    expr = fn.body;
+  }
+  while (expr && ts.isParenthesizedExpression(expr)) expr = expr.expression;
+  return expr && ts.isObjectLiteralExpression(expr) ? expr : null;
+}
+
+// The `valid` / `invalid` array text off a returned samples object literal.
+function sampleArrayText(obj, name, sf) {
+  for (const prop of obj.properties) {
+    if (!ts.isPropertyAssignment(prop)) continue;
+    const key = ts.isStringLiteralLike(prop.name) || ts.isIdentifier(prop.name) ? prop.name.text : null;
+    if (key === name) return tidyArrayText(prop.initializer.getText(sf));
+  }
+  return null;
+}
+
+// Walk shared/cases/** and map every case (GROUP.name) → {valid, invalid} text.
+// The group const name (ATOMIC, OBJECT, STRING_FORMAT, REALWORLD, …) matches the
+// caseKey prefix the audit + results use, so the keys line up 1:1.
+function buildSampleMap() {
+  const map = new Map();
+  const visit = (dir) => {
+    for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        visit(full);
+        continue;
+      }
+      if (!entry.name.endsWith('.ts') || entry.name === 'types.ts') continue;
+      const src = fs.readFileSync(full, 'utf8');
+      const sf = ts.createSourceFile(full, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      for (const stmt of sf.statements) {
+        if (!ts.isVariableStatement(stmt)) continue;
+        for (const decl of stmt.declarationList.declarations) {
+          if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
+          // `export const GROUP = {…} as const satisfies …` — unwrap as/satisfies. The
+          // re-export index files (`{ATOMIC, ARRAY, …}`) carry only identifiers → skip.
+          let init = decl.initializer;
+          while (init && (ts.isAsExpression(init) || ts.isSatisfiesExpression(init))) init = init.expression;
+          if (!init || !ts.isObjectLiteralExpression(init)) continue;
+          const group = decl.name.text;
+          for (const prop of init.properties) {
+            if (!ts.isPropertyAssignment(prop) || !ts.isObjectLiteralExpression(prop.initializer)) continue;
+            const name = ts.isStringLiteralLike(prop.name) || ts.isIdentifier(prop.name) ? prop.name.text : null;
+            if (!name) continue;
+            let getSamples = null;
+            for (const member of prop.initializer.properties) {
+              const mname =
+                (ts.isPropertyAssignment(member) || ts.isMethodDeclaration(member)) &&
+                (ts.isIdentifier(member.name) || ts.isStringLiteralLike(member.name))
+                  ? member.name.text
+                  : null;
+              if (mname !== 'getSamples') continue;
+              getSamples = ts.isPropertyAssignment(member) ? member.initializer : member;
+            }
+            const obj = returnedObjectLiteral(getSamples);
+            if (!obj) continue;
+            const valid = sampleArrayText(obj, 'valid', sf);
+            const invalid = sampleArrayText(obj, 'invalid', sf);
+            if (valid != null && invalid != null) map.set(`${group}.${name}`, {valid, invalid});
+          }
+        }
+      }
+    }
+  };
+  if (fs.existsSync(SHARED_CASES_DIR)) visit(SHARED_CASES_DIR);
+  return map;
+}
+
+// Memoized — parsed once, read by the validation + alignment builders.
+let _sampleMap = null;
+function sampleMap() {
+  return (_sampleMap ??= buildSampleMap());
+}
+
+// The tested-data block as one highlightable TS snippet: comment-labelled valid /
+// invalid sample arrays. Routed through the same Shiki pipeline as the source columns
+// (runtime /api/highlight in dev, baked by embed-panel-highlights for the static deploy).
+function samplesCodeFor(key) {
+  const samp = sampleMap().get(key);
+  if (!samp) return undefined;
+  // Trailing `;` on each array so the prettier pre-format reads them as two separate
+  // statements — without it `[a]\n[b]` parses as array indexing (`[a][b]`).
+  return `// valid\n${samp.valid};\n\n// invalid\n${samp.invalid};`;
+}
+
 // ── runtime (validation) bench ───────────────────────────────────────────────
 // Split into TWO benches that mirror the suite pages: `validation` (the data types
 // + realworld DTOs) and `validation-formats` (the format-validation suite). DATETIME
@@ -240,7 +359,8 @@ function emitValidationBench(outName, label, rows, competitors, byComp, sources)
       if (caseSources) detailComps.push({name: comp, sources: caseSources});
     }
     sectionMap.get(group).cases.push({key: safeKey(row.key), title: row.name, results: resultsForCase});
-    fs.writeFileSync(path.join(outDir, `${safeKey(row.key)}.json`), JSON.stringify({competitors: detailComps}));
+    // samples are shared across competitors → one block per case (absent key omitted).
+    fs.writeFileSync(path.join(outDir, `${safeKey(row.key)}.json`), JSON.stringify({competitors: detailComps, samplesCode: samplesCodeFor(row.key)}));
   }
 
   const index = {
@@ -248,6 +368,7 @@ function emitValidationBench(outName, label, rows, competitors, byComp, sources)
     label,
     unit: 'ops',
     showInvalid: true,
+    hasSamples: true,
     metrics: [
       {key: 'validate', label: 'Is-valid', metricLabel: 'createValidate — boolean is-valid check (ops/sec, higher is better)'},
       {
@@ -377,6 +498,20 @@ function buildAlignmentBench() {
   const competitors = [...(audit.competitors ?? [])].sort(order);
   const coverage = audit.coverage ?? {};
 
+  // Per-case disagreement DATA (not just counts): the exact sample value each
+  // competitor diverged on, from the audit records. Deduped per value repr — the
+  // audit logs each value once per run pass, so reprs repeat — which lines the count
+  // up with the table cell. Every divergence today is "competitor accepts a value
+  // ts-runtypes rejects", but we bucket by the competitor's verdict so the display
+  // stays correct if a future audit ever records the reverse.
+  const divByCase = new Map(); // caseKey → Map(comp → {accepts:Set, rejects:Set})
+  for (const rec of audit.records ?? []) {
+    if (!divByCase.has(rec.caseKey)) divByCase.set(rec.caseKey, new Map());
+    const perComp = divByCase.get(rec.caseKey);
+    if (!perComp.has(rec.competitor)) perComp.set(rec.competitor, {accepts: new Set(), rejects: new Set()});
+    (rec.got ? perComp.get(rec.competitor).accepts : perComp.get(rec.competitor).rejects).add(rec.sampleValueRepr);
+  }
+
   // Case universe + metadata from the union of every competitor's coverage; the
   // per-(case,competitor) divergence count comes from the same coverage entries.
   const caseMeta = new Map(); // caseKey → {suite, group, name}
@@ -420,7 +555,24 @@ function buildAlignmentBench() {
       if (caseSources) detailComps.push({name: comp, sources: caseSources});
     }
     sectionMap.get(group).cases.push({key: safeKey(caseKey), title: meta.name, results: resultsForCase});
-    fs.writeFileSync(path.join(outDir, `${safeKey(caseKey)}.json`), JSON.stringify({competitors: detailComps}));
+    // Disagreements: per competitor, the exact deduped values it diverged on. Present
+    // only on rows that actually disagree (so the hover shows it just for those).
+    const perComp = divByCase.get(caseKey);
+    const disagreements = [];
+    if (perComp) {
+      for (const comp of competitors) {
+        const buckets = perComp.get(comp);
+        if (!buckets) continue;
+        const accepts = [...buckets.accepts];
+        const rejects = [...buckets.rejects];
+        if (accepts.length || rejects.length) disagreements.push({competitor: comp, accepts, rejects});
+      }
+    }
+    // samples are shared across competitors → one block per case (absent key omitted).
+    fs.writeFileSync(
+      path.join(outDir, `${safeKey(caseKey)}.json`),
+      JSON.stringify({competitors: detailComps, samplesCode: samplesCodeFor(caseKey), disagreements: disagreements.length ? disagreements : undefined})
+    );
   }
 
   const index = {
@@ -428,11 +580,12 @@ function buildAlignmentBench() {
     label: 'Correctness',
     unit: 'count',
     showInvalid: false,
+    hasSamples: true,
     metrics: [
       {
         key: 'divergence',
         label: 'Divergences from ts-runtypes',
-        metricLabel: 'samples each library treats differently than ts-runtypes — lower is better',
+        metricLabel: 'samples each library treats differently than ts-runtypes',
         lowerBetter: true,
         cellHint: 'samples the library accepts that ts-runtypes rejects (0 = fully aligned)',
       },
@@ -479,20 +632,31 @@ function buildCompiletimeBench() {
   fs.rmSync(outDir, {recursive: true, force: true});
   fs.mkdirSync(outDir, {recursive: true});
 
-  // Rows: the three tiers + the two derived costs. Each picks its ms out of a result.
+  // Transposed layout: the columns are build stages and the rows are the libraries, so
+  // ts-runtypes and typia sit one per row. "tsgo compile" is the reference: a normal tsgo
+  // type-check that emits, no validators. "full runtypes" is the build that transforms +
+  // emits the validators. "typecheck+full runtypes" is each toolchain's REAL total to
+  // type-check AND emit validators: ts-runtypes runs tsgo (compile) + the vite RT plugin
+  // (build) as two passes, so tsgo-compile + full; typia's ttsc type-checks AS it
+  // transforms, so its full already includes the compile (no second compile added).
+  // "transform cost" = full - tsgo-compile, clamped at 0. (A strip / no-check floor was
+  // dropped: type-checking this suite is within the ~100ms tsgo startup/parse noise, so a
+  // strip-vs-compile delta was not meaningful.) unit = 'count' renders the ms bare;
+  // aggregate + heatmap + strategy tags are off (columns are stages, not competitors).
   const rounded = (n) => Math.round(n * 100) / 100;
-  const ROWS = [
-    ['strip', 'strip — transpile only', (d) => d.strip_ms],
-    ['typecheck', 'type-check (tsgo --noEmit)', (d) => d.typecheck_ms],
-    ['full', 'full — transform + emit', (d) => d.full_ms],
-    ['cost-typecheck', 'cost of type-checking', (d) => rounded(d.typecheck_ms - d.strip_ms)],
-    ['cost-transform', 'cost of transform + emit', (d) => rounded(d.full_ms - d.typecheck_ms)],
+  const clamp0 = (n) => Math.max(0, rounded(n));
+  const TIERS = [
+    ['tsgo compile', (d) => d.typecheck_ms],
+    ['full runtypes', (d) => d.full_ms],
+    ['typecheck+full runtypes', (d, lib) => (lib === 'typia' ? d.full_ms : d.typecheck_ms + d.full_ms)],
+    ['transform cost', (d) => clamp0(d.full_ms - d.typecheck_ms)],
   ];
-  const cases = ROWS.map(([key, title, pick]) => {
+  const tierLabels = TIERS.map(([label]) => label);
+  const cases = competitors.map((lib) => {
     const results = {};
-    for (const lib of competitors) results[lib] = {compiletime: {valid: pick(data[lib]), status: 'ok'}};
-    fs.writeFileSync(path.join(outDir, `${key}.json`), JSON.stringify({competitors: []}));
-    return {key, title, results};
+    for (const [label, pick] of TIERS) results[label] = {compiletime: {valid: rounded(pick(data[lib], lib)), status: 'ok'}};
+    fs.writeFileSync(path.join(outDir, `${lib}.json`), JSON.stringify({competitors: []}));
+    return {key: lib, title: lib, results};
   });
 
   const typeNote = competitors.map((lib) => `${lib} ${data[lib].types} types`).join(' · ');
@@ -502,18 +666,20 @@ function buildCompiletimeBench() {
     unit: 'count',
     showInvalid: false,
     hideAggregate: true,
+    showStrategy: false,
     metrics: [
       {
         key: 'compiletime',
         label: 'Build cost',
-        metricLabel: `Whole-suite build ms on tsgo (${typeNote}) — lower is better`,
+        metricLabel: `Whole-suite build ms on tsgo (${typeNote}), lower is better`,
+        cellHint: 'whole-suite build time in milliseconds (lower is better)',
         lowerBetter: true,
       },
     ],
-    competitors,
-    versions,
+    competitors: tierLabels,
+    versions: {},
     meta: metaBlock(),
-    sections: [{key: 'tiers', label: 'Whole suite, on tsgo', cases}],
+    sections: [{key: 'libs', label: 'Whole suite, on tsgo', cases}],
   };
   fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(index));
   return cases.length;

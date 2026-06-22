@@ -77,6 +77,7 @@
     "website:build": "bash scripts/website.sh build",
     "website:generate": "bash scripts/website.sh generate",
     "website:serve": "node scripts/serve-website.mjs",
+    "website:preview": "pnpm run website:generate && pnpm run website:serve",
     "website:smoke": "bash scripts/website.sh smoke",
     "website:verify-docs": "bash scripts/website.sh verify-docs",
     "website:prep": "bash scripts/website.sh prep",

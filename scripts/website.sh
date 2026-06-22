@@ -41,6 +41,9 @@
 #                        read, mounted read-only at /app/.docdata (default: .docdata).
 #   WEBSITE_POLL     filesystem polling for watchers (macOS / VM bind mounts).
 #                    Default: 1 on macOS, 0 on Linux. Set WEBSITE_POLL=0 to force off.
+#   WEBSITE_SKIP_PLAYGROUND=1  skip auto-building the /playground bundle on run. By
+#                    default dev/build/generate/smoke build + stage it (when missing or
+#                    stale) so /playground works; needs Go + bootstrapped submodule.
 #   WEBSITE_MOUNT_OPTS   extra bind-mount opts, e.g. ":z" on SELinux hosts
 #   WEBSITE_RUN_NETWORK  podman run network (e.g. "host" behind a proxy)
 # -----------------------------------------------------------------------------
@@ -89,6 +92,50 @@ DOCDATA_DIR="${WEBSITE_DOCDATA:-$ROOT_DIR/.docdata}"
 # Make the shared image ready before a run by delegating to its owner. Honors
 # WEBSITE_USE_LOCAL / WEBSITE_IMAGE / WEBSITE_REMOTE_IMAGE via the inherited env.
 ensure_image() { bash "$PODMAN_WEBSITE_SH" ensure; }
+
+# Staged playground bundle (Monaco web component + resolver WASM) the /playground
+# page fetches from /playground-app/. Built on the HOST (it needs the Go toolchain +
+# bootstrapped submodule) and bind-mounted in via public/.
+PLAYGROUND_MANIFEST="$WEBSITE_DIR/public/playground-app/manifest.json"
+
+# Stale when any playground input (web-component src, its build scripts, the WASM
+# resolver Go sources, or the marker source the bundle inlines) is newer than the
+# staged manifest. Coarse but never a false negative for the common edits.
+playground_stale() {
+  local p newer paths=()
+  for p in \
+    "$ROOT_DIR/packages/runtypes-playground/src" \
+    "$ROOT_DIR/packages/runtypes-playground/scripts" \
+    "$ROOT_DIR/cmd/ts-runtypes-wasm" \
+    "$ROOT_DIR/internal" \
+    "$ROOT_DIR/packages/ts-runtypes/src"; do
+    [ -e "$p" ] && paths+=("$p")
+  done
+  [ ${#paths[@]} -eq 0 ] && return 1
+  newer="$(find "${paths[@]}" -type f -newer "$PLAYGROUND_MANIFEST" -print 2>/dev/null | head -n1 || true)"
+  [ -n "$newer" ]
+}
+
+# Build + stage the playground bundle when it's missing or stale, so the /playground
+# page works without a manual build-playground.sh step. The build needs the Go
+# toolchain + bootstrapped submodule on the HOST; when those are absent or the build
+# fails we WARN and continue (the rest of the site runs; the /playground page shows
+# its own "bundle not staged" hint). Skip entirely with WEBSITE_SKIP_PLAYGROUND=1.
+ensure_playground() {
+  [ "${WEBSITE_SKIP_PLAYGROUND:-0}" = "1" ] && { echo "==> WEBSITE_SKIP_PLAYGROUND=1 - skipping playground bundle"; return 0; }
+  if [ -f "$PLAYGROUND_MANIFEST" ] && ! playground_stale; then
+    echo "==> playground bundle up to date (public/playground-app/)"
+    return 0
+  fi
+  if ! command -v go >/dev/null 2>&1; then
+    echo "==> WARN: Go toolchain not found - skipping playground build (the /playground page will 404). Install Go + bootstrap submodules (SETUP.md), or set WEBSITE_SKIP_PLAYGROUND=1 to silence." >&2
+    return 0
+  fi
+  [ -f "$PLAYGROUND_MANIFEST" ] && echo "==> playground sources changed - rebuilding bundle" || echo "==> playground bundle missing - building it"
+  if ! bash "$WEBSITE_DIR/scripts/build-playground.sh"; then
+    echo "==> WARN: playground build failed - the site will run but /playground will 404 (see output above; needs Go + bootstrapped submodule, SETUP.md)." >&2
+  fi
+}
 
 # Echo the bind-mount + named-volume args for `run`.
 mount_args() {
@@ -415,6 +462,10 @@ cmd_verify_docs() {
 main() {
   require_engine
   mkdir -p "$WEBSITE_DIR/.output"
+  # Ensure the playground bundle is staged for every command that serves the site.
+  case "${1:-}" in
+    dev|build|generate|smoke|verify-docs) ensure_playground ;;
+  esac
   case "${1:-}" in
     dev)         cmd_dev "${@:2}" ;;
     build)       cmd_build ;;

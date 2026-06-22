@@ -41,11 +41,11 @@ TypeScript decided it is **"Just a Linter"** and erase your types.
 #links
 :::u-button
 ---
-color: primary
+color: neutral
 size: xl
 to: /introduction/about-ts-runtypes
 icon: icon-park-outline:book-one
-class: btn-docs
+variant: outline
 ---
 Read the Docs
 :::
@@ -58,7 +58,18 @@ size: xl
 to: /playground
 variant: outline
 ---
-Try the Playground
+Playground
+:::
+
+:::u-button
+---
+color: neutral
+icon: i-lucide-zap
+size: xl
+to: /benchmarks/validation
+variant: outline
+---
+Benchmarks
 :::
 ::
 
@@ -191,7 +202,7 @@ Get back a traversable RunType node — the same graph the library walks interna
 
 <br>
 
-[Reflection you can actually walk →](/guide/runtype-graph)
+[Reflection you can actually walk →](/guide/reflection)
 ::::
 :::
 

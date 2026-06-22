@@ -34,17 +34,15 @@ export const ATOMIC = {
   enum_mixed: {
     title: 'Enum with mixed numeric and string members',
     description: 'enum Color {Red, Green="green", Blue=2} — numeric reverse-mapping + string values',
-    getSamples: () => {
-      enum Color {
-        Red,
-        Green = 'green',
-        Blue = 2,
-      }
-      return {
-        valid: [Color.Red, Color.Green, Color.Blue, 0, 'green', 2],
-        invalid: ['Red', 'Green', 'Blue', 4, 1, 3, true, null, {}],
-      };
-    },
+    // Values inlined (Color.Red=0, Green='green', Blue=2) so the shared corpus
+    // stays type-strippable on Node >= 25 (which dropped
+    // --experimental-transform-types): a runtime enum here makes the whole sample
+    // import throw ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX, and typecost then loses
+    // value-forcing for every case. The type side keeps a real enum per competitor.
+    getSamples: () => ({
+      valid: [0, 'green', 2, 0, 'green', 2],
+      invalid: ['Red', 'Green', 'Blue', 4, 1, 3, true, null, {}],
+    }),
   },
   literal_2: {
     title: 'Numeric literal type (strict equality)',

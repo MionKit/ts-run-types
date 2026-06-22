@@ -41,6 +41,20 @@ describeIf('playground type formats (WASM, live execution)', () => {
     expect(String((m.value as {email: string}).email)).toMatch(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
   });
 
+  it('namespace import (TF.Email type) resolves the same as a named import — the preset form', async () => {
+    const code = `import * as TF from 'ts-runtypes/formats';\ntype MyType = { email: TF.Email };`;
+    expect(await annotationName(code)).toBe('email');
+
+    const bad = await run('validate', code, {email: 'not-an-email'});
+    const good = await run('validate', code, {email: 'john@example.com'});
+    if (bad.kind !== 'predicate' || good.kind !== 'predicate') throw new Error('expected predicate');
+    expect(bad.value).toBe(false);
+    expect(good.value).toBe(true);
+
+    const m = await mock(code);
+    expect(String((m.value as {email: string}).email)).toMatch(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
+  });
+
   it('uuidv4: format annotation + format-aware validate/mock', async () => {
     const code = `import type { UUIDv4 } from 'ts-runtypes/formats';\ntype MyType = { id: UUIDv4 };`;
     expect(await annotationName(code, 'id')).toBe('uuid');

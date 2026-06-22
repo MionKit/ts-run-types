@@ -38,10 +38,29 @@ function globals(): ResolverGlobals {
   return globalThis as unknown as ResolverGlobals;
 }
 
-const DEFAULT_WASM_URL = new URL('../../assets/ts-runtypes.wasm', import.meta.url);
+// The resolver ships gzip-compressed: Go wasm is ~37 MiB raw but ~8 MiB gzipped,
+// which keeps the deployed file under static-host per-file caps (e.g. Cloudflare
+// Pages' 25 MiB limit) and cuts the download ~4.5x. The browser inflates it (see
+// fetchWasmBytes). build-wasm.sh produces both the raw .wasm (used by the Node
+// test resolver) and this .gz (used here / in the deploy).
+const DEFAULT_WASM_URL = new URL('../../assets/ts-runtypes.wasm.gz', import.meta.url);
 const DEFAULT_WASM_EXEC_URL = new URL('../../assets/wasm_exec.js', import.meta.url);
 
 let loaderPromise: Promise<Resolver> | null = null;
+
+// Fetch the wasm and inflate it when it is gzip-compressed. Detect by the gzip
+// magic (0x1f 0x8b) rather than the URL, so it is robust to a host that
+// transparently decodes a .gz response via Content-Encoding (the browser then
+// hands us the already-inflated bytes) AND to a plain .wasm URL override — both
+// pass through untouched.
+async function fetchWasmBytes(url: string): Promise<BufferSource> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`failed to fetch ${url}: ${response.status}`);
+  const raw = new Uint8Array(await response.arrayBuffer());
+  if (raw.length < 2 || raw[0] !== 0x1f || raw[1] !== 0x8b || typeof DecompressionStream === 'undefined') return raw;
+  const inflated = new Response(raw).body!.pipeThrough(new DecompressionStream('gzip'));
+  return new Response(inflated).arrayBuffer();
+}
 
 function loadScriptOnce(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -80,9 +99,7 @@ export function loadResolver(options: ResolverOptions = {}): Promise<Resolver> {
       globals().__tsRunTypesOnReady = (version, tsgo) => resolve({version, tsgo});
     });
 
-    const response = await fetch(wasmUrl);
-    if (!response.ok) throw new Error(`failed to fetch ${wasmUrl}: ${response.status}`);
-    const bytes = await response.arrayBuffer();
+    const bytes = await fetchWasmBytes(wasmUrl);
     const {instance} = await WebAssembly.instantiate(bytes, go.importObject);
 
     // Do not await — go.run resolves only when the Go side exits, and ours

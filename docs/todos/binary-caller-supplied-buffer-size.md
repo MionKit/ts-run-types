@@ -1,5 +1,17 @@
 # Binary encoding — caller-supplied buffer size (strategy 1)
 
+> **Status: pending (verified against the source 2026-06-22).** Items 1
+> (`createBinarySizer<T>()`) and 2 (a `bufferSize` encoder option) are **not yet
+> implemented** — confirmed absent in `createRTFBinary.ts` (`BinaryEncoderOptions`
+> has only `cacheKey` / `rejectCircularRefs` / `sizing`) and nowhere in the
+> marker scanner. Item 3 (caller-supplied serializer) **already works** today:
+> `createBinaryEncoder(value, serializer)` accepts a second argument, so only
+> documenting the pattern is outstanding. The shipped buffer-sizing baseline
+> (including the `{sizing: 'exact'}` two-pass referenced below) is in
+> [docs/done/binary-buffer-sizing.md](../done/binary-buffer-sizing.md); the
+> broader deferred-improvements list is in
+> [docs/todos/binary-buffer-sizing.md](binary-buffer-sizing.md).
+
 ## Why
 
 The Go-emitted `toBinary` bodies write scalars and container framing **inline** to
@@ -15,7 +27,7 @@ Today there are two ways the encoder copes:
 - **exact** (shipped, opt-in): `createBinaryEncoder(value, {sizing: 'exact'})`
   runs a no-op measure pass over the same encode body to compute the precise byte
   count, then allocates exactly that. See
-  [docs/partially/binary-buffer-sizing.md](../partially/binary-buffer-sizing.md).
+  [docs/done/binary-buffer-sizing.md](../done/binary-buffer-sizing.md).
 
 This todo covers the **third** option: let the caller pass the buffer size (or a
 pre-built serializer they sized themselves), so a hot path can skip both the
@@ -40,9 +52,10 @@ prediction and the measure pass.
    path) or it throws (caller-supplied serializer path). Document that
    `createBinarySizer` is the way to get a guaranteed-safe size.
 
-3. **(Already possible) caller-supplied serializer.** `createBinaryEncoder` already
-   accepts a second `serializer` argument; document the pattern of building one at
-   a known size and reusing it across encodes to pool the buffer.
+3. **(Already possible — verified.) Caller-supplied serializer.** `createBinaryEncoder`
+   already accepts a second `serializer` argument (see `createRTFBinary.ts`); the
+   only outstanding work is to document the pattern of building one at a known
+   size and reusing it across encodes to pool the buffer.
 
 ## Notes / gotchas
 

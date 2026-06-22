@@ -23,5 +23,13 @@ for candidate in "$goroot/lib/wasm/wasm_exec.js" "$goroot/misc/wasm/wasm_exec.js
 done
 [ -f "$assets/wasm_exec.js" ] || { echo "error: wasm_exec.js not found under $goroot" >&2; exit 1; }
 
+# Ship a gzip-compressed copy too: the raw Go wasm is ~37 MiB but ~8 MiB gzipped,
+# which keeps the DEPLOYED asset under static-host per-file caps (e.g. Cloudflare
+# Pages' 25 MiB limit) and cuts the visitor download ~4.5x. The browser loader
+# (src/core/wasmLoader.ts) fetches the .gz and inflates it with DecompressionStream;
+# the raw .wasm stays for the Node test resolver and local debugging.
+echo "==> gzip-compressing the wasm (browser loader inflates it) ..."
+gzip -9 -c "$assets/ts-runtypes.wasm" > "$assets/ts-runtypes.wasm.gz"
+
 echo "==> done:"
-ls -la "$assets/ts-runtypes.wasm" "$assets/wasm_exec.js"
+ls -la "$assets/ts-runtypes.wasm" "$assets/ts-runtypes.wasm.gz" "$assets/wasm_exec.js"
