@@ -16,7 +16,7 @@
 import * as TF from 'ts-runtypes/formats';
 import {describe, it, expect} from 'vitest';
 import * as RT from 'ts-runtypes/schema';
-import {createBinaryEncoder, createBinaryDecoder, RunTypeKind} from 'ts-runtypes';
+import {createBinaryEncoder, createBinaryDecoder, createBinarySizer, RunTypeKind} from 'ts-runtypes';
 import {createSizingSerializer, createDataViewSerializer} from '../../src/runtypes/dataView.ts';
 
 describe('binary sizing — measure pass matches the encoder', () => {
@@ -137,5 +137,38 @@ describe("binary sizing — 'initial' enforces its fixed buffer", () => {
     // bufferSize is optional at the type level; the requirement is a runtime guard.
     const enc = createBinaryEncoder(s, {sizing: 'initial'});
     expect(() => enc('x')).toThrow(/requires a numeric `bufferSize`/);
+  });
+});
+
+describe('createBinarySizer — exact byte count without allocating', () => {
+  // The sizer runs the SAME 'tb' body as the encoder against a measure serializer,
+  // so it must equal the encoder's byteLength for every value. Both call forms are
+  // covered (value-first + static), which also pins that the plugin injects the
+  // InjectTypeFnArgs slot at the right position for this two-arg factory.
+  it('value-first form: sizer === encoder byteLength', () => {
+    const s = RT.object({id: TF.number(), name: TF.string(), tags: RT.array(TF.string())});
+    const size = createBinarySizer(s);
+    const enc = createBinaryEncoder(s);
+    for (const v of [
+      {id: 1, name: 'a', tags: []},
+      {id: 2, name: 'hello', tags: ['x', 'yy', 'zzz']},
+    ]) {
+      expect(size(v)).toBe(enc(v).byteLength);
+    }
+  });
+
+  it('static form: sizer === encoder byteLength', () => {
+    const size = createBinarySizer<{a: number; b: string}>();
+    const enc = createBinaryEncoder<{a: number; b: string}>();
+    const v = {a: 42, b: 'hello world'};
+    expect(size(v)).toBe(enc(v).byteLength);
+  });
+
+  it("feeds sizing:'initial' bufferSize exactly", () => {
+    const s = RT.array(TF.string());
+    const size = createBinarySizer(s);
+    const v = ['alpha', 'beta', 'gamma'];
+    const enc = createBinaryEncoder(s, {sizing: 'initial', bufferSize: size(v)});
+    expect(createBinaryDecoder(s)(enc(v))).toEqual(v);
   });
 });

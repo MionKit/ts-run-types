@@ -114,6 +114,8 @@ export {
   createBinaryEncoder,
   type BinaryEncoderFn,
   type BinaryEncoderOptions,
+  createBinarySizer,
+  type BinarySizerFn,
   createBinaryDecoder,
   type BinaryDecoderFn,
   type BinaryDecoderOptions,
