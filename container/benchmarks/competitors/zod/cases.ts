@@ -440,17 +440,13 @@ export const cases: CompetitorCases = {
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
-  // interface_all_optional: all-optional object but arrays/Date/Map/Set rejected — use custom to enforce plain-object guard
+  // interface_all_optional: {a?:string, b?:number} — declared as the same interface as ts-runtypes.
+  // NB zod's z.object accepts Date/Map/Set instances (its isObject only excludes arrays/null), so this
+  // accepts those where ts-runtypes rejects them; that pass/reject discrepancy is the correctness
+  // benchmark's job to surface (see docs/todos/correctness-zod-object-guard-cases.md), not a hand guard's.
   'OBJECT.interface_all_optional': {
     buildErrors: () => {
-      const schema = z.custom((v) => {
-        if (typeof v !== 'object' || v === null) return false;
-        if (Object.prototype.toString.call(v) !== '[object Object]') return false;
-        const obj = v as Record<string, unknown>;
-        if ('a' in obj && obj.a !== undefined && typeof obj.a !== 'string') return false;
-        if ('b' in obj && obj.b !== undefined && (typeof obj.b !== 'number' || !Number.isFinite(obj.b))) return false;
-        return true;
-      });
+      const schema = z.object({a: z.string().optional(), b: z.number().finite().optional()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1034,18 +1030,15 @@ export const cases: CompetitorCases = {
 
   // ── UTILITY ──
   // partial: {name?:string, age?:number, createdAt?:Date} with plain-object guard (rejects arrays/Date/Map/Set)
+  // partial: {name?:string, age?:number, createdAt?:Date} — the Partial<> of UTILITY.required, declared
+  // as the same interface as ts-runtypes (idiomatic z.object). See the interface_all_optional note + the
+  // correctness todo: zod accepts Date/Map/Set instances where ts-runtypes rejects them.
   'UTILITY.partial': {
     buildErrors: () => {
-      const schema = z.custom((v) => {
-        if (typeof v !== 'object' || v === null) return false;
-        if (Object.prototype.toString.call(v) !== '[object Object]') return false;
-        const obj = v as Record<string, unknown>;
-        if ('name' in obj && obj.name !== undefined && typeof obj.name !== 'string') return false;
-        if ('age' in obj && obj.age !== undefined && (typeof obj.age !== 'number' || !Number.isFinite(obj.age))) return false;
-        if ('createdAt' in obj && obj.createdAt !== undefined) {
-          if (!(obj.createdAt instanceof Date) || isNaN((obj.createdAt as Date).getTime())) return false;
-        }
-        return true;
+      const schema = z.object({
+        name: z.string().optional(),
+        age: z.number().finite().optional(),
+        createdAt: z.date().optional(),
       });
       return (value: unknown) => schema.safeParse(value).success;
     },
@@ -1184,37 +1177,16 @@ export const cases: CompetitorCases = {
     },
   },
   // deep_partial_recursive_mapped: {display?:{theme?:'light'|'dark', brightness?:number}, audio?:{volume?:number, muted?:boolean}}
-  // with plain-object guard at outer level and check nested display is not a primitive
+  // declared as the same nested interface as ts-runtypes (idiomatic nested z.object). See the
+  // interface_all_optional note + the correctness todo: zod accepts Date/Map/Set instances where
+  // ts-runtypes rejects them (the outer/nested plain-object discrepancy).
   'UTILITY.deep_partial_recursive_mapped': {
     buildErrors: () => {
-      const schema = z.custom((v) => {
-        if (typeof v !== 'object' || v === null) return false;
-        if (Object.prototype.toString.call(v) !== '[object Object]') return false;
-        const obj = v as Record<string, unknown>;
-        if ('display' in obj && obj.display !== undefined) {
-          if (typeof obj.display !== 'object' || obj.display === null || typeof (obj.display as Date).getTime === 'function')
-            return false;
-          const disp = obj.display as Record<string, unknown>;
-          if ('theme' in disp && disp.theme !== undefined && disp.theme !== 'light' && disp.theme !== 'dark') return false;
-          if (
-            'brightness' in disp &&
-            disp.brightness !== undefined &&
-            (typeof disp.brightness !== 'number' || !Number.isFinite(disp.brightness))
-          )
-            return false;
-        }
-        if ('audio' in obj && obj.audio !== undefined) {
-          if (typeof obj.audio !== 'object' || obj.audio === null) return false;
-          const audio = obj.audio as Record<string, unknown>;
-          if (
-            'volume' in audio &&
-            audio.volume !== undefined &&
-            (typeof audio.volume !== 'number' || !Number.isFinite(audio.volume))
-          )
-            return false;
-          if ('muted' in audio && audio.muted !== undefined && typeof audio.muted !== 'boolean') return false;
-        }
-        return true;
+      const schema = z.object({
+        display: z
+          .object({theme: z.enum(['light', 'dark']).optional(), brightness: z.number().finite().optional()})
+          .optional(),
+        audio: z.object({volume: z.number().finite().optional(), muted: z.boolean().optional()}).optional(),
       });
       return (value: unknown) => schema.safeParse(value).success;
     },
