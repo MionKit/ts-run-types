@@ -346,6 +346,11 @@ export const TEMPLATE_LITERAL = {
       valid: [{}, {'api/users': 1}, {'api/users': 1, 'api/admin': 2}],
       invalid: [{foo: 1}, {'api/users': 'not number'}, {'api/users': 1, foo: 2}, null, undefined, {'api/users': NaN}],
     }),
+    // A key that fails the template-literal KEY pattern is reported as `never`
+    // (the key is excess/disallowed), NOT `templateLiteral`. The `templateLiteral`
+    // token only fires for a template-literal VALUE position. See the index-sig
+    // key-regex emit in internal/compiled/typefns/validationerrors.go (keyRegexVar
+    // branch records `callRTErr('never', keyVar)`).
     getExpectedErrors: () => [
       // {foo: 1} — key 'foo' fails the template-literal pattern.
       [{path: ['foo'], expected: 'never'}],

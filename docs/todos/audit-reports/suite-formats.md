@@ -10,10 +10,13 @@ Review-only audit of the three format test-suite groups under
 | format-transform | 3 (NumberFormat, BigintFormat, StringFormat) | 18 |
 | **total** | **15 case files** | **146** |
 
-Verdict counts (whole audit): **OK 138 · SUSPECT 8 · WRONG 0.**
+Verdict counts (whole audit): **OK 138 · SUSPECT 8 → all 8 now FIXED · WRONG 0.**
 
-All SUSPECT entries are *representativeness* gaps (a format under-sampled vs its
-richer siblings), never a correctness defect. No wrong asserted byte width, no
+All 8 SUSPECT entries were *representativeness* gaps (a format under-sampled vs
+its richer siblings), never a correctness defect. All 8 have since been
+strengthened with the missing boundary / malformed / empty samples and stay
+green (1479 tests pass; no new boundary sample surfaced a validator/encoder
+bug). No wrong asserted byte width, no
 stale copy-paste bounds, no inverted valid/invalid samples, no transform with a
 wrong expected output were found. The two highest-risk drift spots are
 explicitly correct: serialization `number_int16` asserts 2 bytes (not a stale 1
@@ -81,11 +84,11 @@ means "expect ≥1 error, payload unchecked".
 | alpha_withLength | `Alpha<{maxLength:3}>` | abc passes; abcd→val 3, a1→Invalid pattern | yes | yes | OK | two constraints distinguished |
 | lowercase_validate | `Lowercase` (transform only) | any string passes; only 42 fails (typeof) | yes | yes | OK | transform not validated (intentional) |
 | uuidv4 | `UUIDv4` | V4 passes; V7→val'4', not-a-uuid/''/hyphen-stripped/123 fail | yes | yes | OK | strong v4/v7 distinction |
-| uuidv7 | `UUIDv7` | V7 passes; V4→val'7' | yes | no | SUSPECT | only ONE invalid (a v4); no malformed/empty/wrong-type. Add for symmetry with uuidv4 |
+| uuidv7 | `UUIDv7` | V7 passes; V4→val'7' + wrong-length/non-hex/wrong-version-nibble/''/123 reject | yes | yes | FIXED (was SUSPECT) | added 5 malformed invalids (length, non-hex `g`, version-nibble flip, empty, non-string) for symmetry with uuidv4 |
 | date_iso | `StringDate` ISO | leap/normal/0001 pass; reject non-leap/month13/Apr31/single-digit/not-a-date | yes | yes | OK | strong calendar validity |
 | date_DMY | `StringDate<DD-MM-YYYY>` | 29-02-2024 passes; ISO-order & 31-04-2024 fail (val DD-MM-YYYY) | yes | yes | OK | |
 | date_YM | `StringDate<YYYY-MM>` | 2024-02 passes; 2024-13 & with-day fail | yes | yes | OK | |
-| date_MD | `StringDate<MM-DD>` | 02-29 passes; 13-01 fails | yes | no | SUSPECT | single invalid (month 13); no day-overflow (02-30) or width sample |
+| date_MD | `StringDate<MM-DD>` | 02-29 passes; 13-01 & 02-30 (day-overflow) fail | yes | yes | FIXED (was SUSPECT) | added day-overflow invalid `02-30` (Feb has no 30th) |
 | date_minMax_absolute | `StringDate` min/max | endpoints+interior pass; 2019-12-31→min, 2021-01-01→max | yes | yes | OK | inclusive boundary |
 | time_iso | `StringTime` ISO tz | Z/ms/offset pass; tz-less/hour24/min60→val ISO | yes | yes | OK | |
 | time_HHmmss | `StringTime<HH:mm:ss>` | 23:59:59 passes; 99:99:99→val, 23:59 & 24:00:00 fail | yes | yes | OK | |
@@ -102,7 +105,7 @@ means "expect ≥1 error, payload unchecked".
 | domain | `Domain` | multi-label pass; bare/.com/1-char-TLD/-bad/space/'' fail | yes | yes | OK | rich invalid set |
 | domainStrict | `DomainStrict` | ≤6 labels pass; -bad/7-labels/numeric-TLD/underscore/localhost fail | yes | yes | OK | strict-only rules |
 | email | `Email` | standard incl +tag pass; no-@/too-short/missing-parts/space/'' fail | yes | yes | OK | minLength 7 boundary |
-| emailPunycode | `EmailPunycode` | xn-- TLD passes; not-an-email fails | yes | no | SUSPECT | only invalid is a generic non-email; never contrasts punycode-specific accept/reject |
+| emailPunycode | `EmailPunycode` | 2 punycode-TLD valids (incl all-`xn--` domain plain Email rejects); not-an-email / empty-label / 1-char-TLD reject | yes | yes | FIXED (was SUSPECT) | added punycode-positive `user@xn--e1afmkfd.xn--p1ai` + 2 near-miss rejects (`john@.xn--fiqs8s`, `john@example.x`) |
 | emailStrict | `EmailStrict` | plain pass; a+b@→strict-local-part val, space/@@/underscore-domain/no-@ fail | yes | yes | OK | |
 | url | `Url` | http/https/ftp/wss pass; no-scheme/bare-host/mailto/scheme-no-host fail | yes | yes | OK | |
 | urlHttp | `UrlHttp` | http/https pass; ftp fails | yes | yes | OK | |
@@ -202,18 +205,18 @@ assertion expected).
 | case key | format/type | asserts | faithful? | representative? | verdict | issue / fix |
 |---|---|---|---|---|---|---|
 | string_maxLength | `String<{maxLength:5}>` | var-length string; ['','hello','abc'] round-trip | yes | yes | OK | empty + at-cap + short |
-| uuidv4 | `UUIDv4` | 36-char string round-trips; single V4 | yes | no | SUSPECT | only one canonical UUID value |
+| uuidv4 | `UUIDv4` | 36-char string round-trips; 2 distinct V4 values | yes | yes | FIXED (was SUSPECT) | added 2nd distinct UUID `00112233-4455-4677-8899-aabbccddeeff` |
 | date | `StringDate` (ISO string) | string-on-wire; leap/normal/0001 | yes | yes | OK | correctly distinct from native Date |
 | email | `Email` | base string; two valid emails | yes | yes | OK | |
 | alpha | `Alpha` | base string; ['Hello','abcXYZ'] | yes | yes | OK | |
-| object_with_formats | `{id:UUIDv4; name:String<maxLength:20>}` | format brands compose; single value | yes | no | SUSPECT | single value; no empty/boundary-length name |
-| email_array | `Email[]` | brand propagates through element; one 2-elem array | yes | no | SUSPECT | no empty-array `[]` (length-prefix boundary) |
+| object_with_formats | `{id:UUIDv4; name:String<maxLength:20>}` | format brands compose; 3 values incl empty + at-cap name | yes | yes | FIXED (was SUSPECT) | added empty-name `''` and 20-char at-cap-boundary name values |
+| email_array | `Email[]` | brand propagates through element; 2-elem, empty `[]`, 1-elem arrays | yes | yes | FIXED (was SUSPECT) | added empty-array `[]` (length-prefix boundary) + single-element array |
 
 ### DateTime.ts
 
 | case key | format/type | asserts | faithful? | representative? | verdict | issue / fix |
 |---|---|---|---|---|---|---|
-| date | `Date<{min,max}>` | toJSON ISO + Date-ctor restore; binary numeric; 1 in-range Date | yes | no | SUSPECT | single value; could add ms-precision / range-edge |
+| date | `Date<{min,max}>` | toJSON ISO + Date-ctor restore; binary numeric; 3 Dates incl ms-precision + range-edge | yes | yes | FIXED (was SUSPECT) | added ms-precision Date (`…12:30:45.123`) + range lower-edge Date (`2020-01-01`) |
 | instant | `Instant<{min,max}>` | canonical string + .from(); 1 value | yes | yes | OK | |
 | plainDate | `PlainDate<{min,max}>` | YYYY-MM-DD + .from(); 1 value | yes | yes | OK | |
 | plainTime | `PlainTime<{min,max}>` | HH:mm:ss + .from(); 1 value | yes | yes | OK | no sub-second sample (minor) |
@@ -284,18 +287,20 @@ No WRONG cases in any of the three groups. No wrong asserted byte width, no
 stale copy-paste bounds, no inverted samples, no wrong transform output.
 
 **SUSPECT — under-sampled relative to siblings (representativeness gap only; the
-assertions present are all correct):**
+assertions present were all correct). All 8 now FIXED — samples added, suites
+stay green:**
 
 - *Single invalid sample / missing malformed+empty+wrong-type set* —
-  `format-validation/StringFormat.ts`: `uuidv7` (only invalid is a v4 UUID, vs
-  the rich uuidv4 set), `date_MD` (only invalid is month-13; no day-overflow
-  like 02-30), `emailPunycode` (only invalid is a generic non-email; never
-  contrasts a punycode-specific accept vs reject).
+  `format-validation/StringFormat.ts`: `uuidv7` (added wrong-length / non-hex /
+  wrong-version-nibble / empty / non-string invalids), `date_MD` (added the
+  day-overflow `02-30`), `emailPunycode` (added an all-`xn--` punycode-positive
+  valid plus two near-miss rejects `john@.xn--fiqs8s` / `john@example.x`).
 - *Single happy round-trip value, no boundary / empty-collection* —
-  `format-serialization`: `StringFormat.uuidv4` (one UUID value),
-  `StringFormat.object_with_formats` (one value, no empty/boundary-length name),
-  `StringFormat.email_array` (no empty-array `[]`, the length-prefix boundary),
-  `DateTime.date` (one Date, no ms-precision / range-edge).
+  `format-serialization`: `StringFormat.uuidv4` (added a 2nd distinct UUID),
+  `StringFormat.object_with_formats` (added empty-name + 20-char at-cap name),
+  `StringFormat.email_array` (added the empty-array `[]` length-prefix boundary
+  + a single-element array), `DateTime.date` (added a ms-precision Date + a
+  range lower-edge Date).
 
 **Anti-drift spots verified correct (highest risk, no defect):**
 

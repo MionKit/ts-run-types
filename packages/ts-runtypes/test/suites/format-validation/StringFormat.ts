@@ -843,7 +843,10 @@ export const STRING_FORMAT = {
   uuidv7: {
     title: 'UUID v7',
     description: 'TF.UUIDv7 (format `uuid`, version `7`) accepting only version-7 UUIDs and rejecting v4.',
-    validateNotes: 'The version nibble must be `7`; a valid v4 UUID fails with `val` `7`.',
+    validateNotes: [
+      'The version nibble must be `7`; a valid v4 UUID fails with `val` `7`.',
+      'Malformed input is also rejected: a wrong-length UUID, a non-hex character (`g`), a wrong-version-nibble form, the empty string, and a non-string (123) all fail.',
+    ],
     validate: () => createValidate<TF.UUIDv7>(),
     standardSchema: () => createStandardSchema<TF.UUIDv7>(),
     validateReflect: () => {
@@ -874,8 +877,11 @@ export const STRING_FORMAT = {
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.UUIDv7>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.uuidv7()),
     mockType: () => createMockType<TF.UUIDv7>(),
-    getSamples: () => ({valid: [V7], invalid: [V4]}),
-    expectedFormatErrors: () => [{name: 'uuid', val: '7'}],
+    getSamples: () => ({
+      valid: [V7],
+      invalid: [V4, V7.slice(0, -1), V7.replace('1', 'g'), V7.replace('7b5c', 'cb5c'), '', 123],
+    }),
+    expectedFormatErrors: () => [{name: 'uuid', val: '7'}, null, null, null, null, null],
   },
 
   // ─────────────────────────────── Date ───────────────────────────
@@ -1008,7 +1014,8 @@ export const STRING_FORMAT = {
   date_MD: {
     title: 'String date MD',
     description: 'TF.StringDate with the `MM-DD` layout (month-day, no year component).',
-    validateNotes: 'Layout is `MM-DD` (format error `val` `MM-DD`); `02-29` passes. Month 13 (`13-01`) fails.',
+    validateNotes:
+      'Layout is `MM-DD` (format error `val` `MM-DD`); `02-29` passes. Month 13 (`13-01`) fails, as does a day-overflow (`02-30`, February has no 30th).',
     validate: () => createValidate<TF.StringDate<{format: 'MM-DD'}>>(),
     standardSchema: () => createStandardSchema<TF.StringDate<{format: 'MM-DD'}>>(),
     validateReflect: () => {
@@ -1039,8 +1046,8 @@ export const STRING_FORMAT = {
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.StringDate<{format: 'MM-DD'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringDate({format: 'MM-DD'})),
     mockType: () => createMockType<TF.StringDate<{format: 'MM-DD'}>>(),
-    getSamples: () => ({valid: ['02-29'], invalid: ['13-01']}),
-    expectedFormatErrors: () => [{name: 'date', val: 'MM-DD'}],
+    getSamples: () => ({valid: ['02-29'], invalid: ['13-01', '02-30']}),
+    expectedFormatErrors: () => [{name: 'date', val: 'MM-DD'}, {name: 'date', val: 'MM-DD'}],
   },
   date_minMax_absolute: {
     title: 'String date min/max',
@@ -1880,8 +1887,10 @@ export const STRING_FORMAT = {
   emailPunycode: {
     title: 'Email punycode',
     description: 'TF.EmailPunycode (format `email`) whose email pattern additionally accepts punycode (`xn--`) domain labels.',
-    validateNotes:
-      'A punycode-TLD address (`john@example.xn--fiqs8s`) passes. A non-email string (`not-an-email`) fails with `{name: email}` (no `val`).',
+    validateNotes: [
+      'A punycode-TLD address (`john@example.xn--fiqs8s`) passes, as does an all-punycode domain (`user@xn--e1afmkfd.xn--p1ai`) — the digit/hyphen TLD that plain `Email` rejects.',
+      'A non-email string (`not-an-email`), an empty label before the TLD (`john@.xn--fiqs8s`), and a single-char TLD (`john@example.x`) all fail with `{name: email}` (no `val`).',
+    ],
     validate: () => createValidate<TF.EmailPunycode>(),
     standardSchema: () => createStandardSchema<TF.EmailPunycode>(),
     validateReflect: () => {
@@ -1912,8 +1921,11 @@ export const STRING_FORMAT = {
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.EmailPunycode>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.emailPunycode()),
     mockType: () => createMockType<TF.EmailPunycode>(),
-    getSamples: () => ({valid: ['john@example.xn--fiqs8s'], invalid: ['not-an-email']}),
-    expectedFormatErrors: () => [{name: 'email'}],
+    getSamples: () => ({
+      valid: ['john@example.xn--fiqs8s', 'user@xn--e1afmkfd.xn--p1ai'],
+      invalid: ['not-an-email', 'john@.xn--fiqs8s', 'john@example.x'],
+    }),
+    expectedFormatErrors: () => [{name: 'email'}, {name: 'email'}, {name: 'email'}],
   },
   emailStrict: {
     title: 'Email strict',

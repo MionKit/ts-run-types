@@ -3,7 +3,8 @@
 **Suite group:** `packages/ts-runtypes/test/suites/validation/`
 **Case-def files audited:** 13 (Array, Atomic, Circular, CircularGuard, DateTime, Native, Object, Realworld, TemplateLiteral, Tuple, TypeMappings, Union, Utility)
 **Total cases:** 168
-**Verdict counts:** OK 162 · SUSPECT 6 · WRONG 0
+**Verdict counts (original audit):** OK 162 · SUSPECT 6 · WRONG 0
+**Post-fix status:** all 6 SUSPECT resolved — 4 CONFIRMED (emitter tokens verified against the Go emitter, pass as-authored) + 3 FIXED (sample strengthening / consistency: `date_array`, `tuple_named_labels`, `object_via_array_access`, `literal_symbol_noLiterals`). Full validation suite green: **2036/2036**. No real implementation bug surfaced.
 
 Each `<Name>.ts` holds the case DEFINITIONS (intended `<T>`, samples, `getExpectedErrors`/`getExpectedStandardErrors`); the `<Name>.test.ts` drivers push each case through the per-variant asserts in `test/util/validationAsserts.ts`. The asserts hard-throw when `getExpectedErrors.length !== invalid.length`, so any length drift would fail at load — none present in any file. Every case was checked against the data-only projection contract (non-serializable members silently dropped) and the marker rule (paired static `createValidate<T>()` + reflect `createValidate(value)`, plus deserialize / dataOnly / schema / standardSchema / mockType companions). All cases satisfy the marker rule; no case is missing a call shape and none diverge unintentionally.
 
@@ -19,7 +20,7 @@ No WRONG case (no wrong expected error/path) was found in the reference. The 6 S
 | number_array | `number[]` | NaN/±Inf/null/bigint elem rejected at `[i] number` | Y | Y | OK | strong NaN/Inf edge |
 | boolean_array | `boolean[]` | strict bool; 0/1/null at `[i]` rejected | Y | Y | OK | — |
 | bigint_array | `bigint[]` | strict bigint; `2`/Inf rejected | Y | Y | OK | — |
-| date_array | `Date[]` | per-elem Date; Invalid Date at `[0]` | Y | partial | SUSPECT | no bare non-array (string/object) invalid sample; non-arrayness only via null/undefined. Add `'2024'` → `[] array` |
+| date_array | `Date[]` | per-elem Date; Invalid Date at `[0]` | Y | Y | FIXED | added bare non-array `'2024'` → `[] array` (root isArray guard); all variants green |
 | regexp_array | `RegExp[]` | instanceof; source-string rejected | Y | Y | OK | — |
 | undefined_array | `undefined[]` | strict `===undefined` | Y | Y | OK | — |
 | null_array | `null[]` | strict `===null` | Y | Y | OK | — |
@@ -52,7 +53,7 @@ No WRONG case (no wrong expected error/path) was found in the reference. The 6 S
 | never | `never` | rejects all 10; mockType throws | Y | Y | OK | — |
 | null | `null` | `===null`; all nullish/falsy traps | Y | Y | OK | — |
 | number | `number` | isFinite; NaN/±Inf rejected | Y | Y | OK | — |
-| object | bare `object` primitive | non-null non-primitive passes ([], Date, regex); errors token `objectLiteral` | Y | Y | SUSPECT | samples faithful; the `expected:'objectLiteral'` token for the bare `object` primitive is the open question — confirm the Go kindname for the `object` keyword isn't a distinct token |
+| object | bare `object` primitive | non-null non-primitive passes ([], Date, regex); errors token `objectLiteral` | Y | Y | CONFIRMED (was SUSPECT) | Go `KindObject` reuses the `objectLiteral` token (validationerrors.go:306) — no distinct `object`/`nonNullObject` token; passes as-authored, comment added |
 | regexp | `RegExp` | instanceof | Y | Y | OK | reflect getErr/mock `'not-supported'` documented |
 | string | `string` | typeof string; `''` valid | Y | Y | OK | — |
 | symbol | bare `symbol` | factoryThrows; empty samples | Y | Y | OK | — |
@@ -63,7 +64,7 @@ No WRONG case (no wrong expected error/path) was found in the reference. The 6 S
 | literal_regexp_noLiterals | `typeof /abc/i`→`RegExp` | degrades to instanceof | Y | Y | OK | — |
 | literal_true_noLiterals | `true`→`boolean` | degrades; 0/1 rejected | Y | Y | OK | — |
 | literal_1n_noLiterals | `1n`→`bigint` | degrades; 0n/3n valid | Y | Y | OK | — |
-| literal_symbol_noLiterals | `typeof sym`→`symbol` | degrades to bare symbol → factoryThrows | Y | Y | SUSPECT | schema thunks call `RT.symbol()` WITHOUT `{noLiterals:true}` unlike every sibling noLiterals case (which thread the option). Benign (both resolve same alwaysThrow + factoryThrows masks it) but inconsistent — align with sibling pattern |
+| literal_symbol_noLiterals | `typeof sym`→`symbol` | degrades to bare symbol → factoryThrows | Y | Y | FIXED | threaded `{noLiterals:true}` into both schema thunks (`validateSchema`/`getValidationErrorsSchema`) to match sibling noLiterals pattern; green |
 | unknown | `unknown` | no-op, same as any | Y | Y | OK | — |
 
 ## Circular.ts (7 cases)
@@ -124,7 +125,7 @@ No WRONG case (no wrong expected error/path) was found in the reference. The 6 S
 | object_as_const_literals | `{name:'john';age:30}` | literal-equality; `{}`→both errors | Y | Y | OK | — |
 | object_via_return_type_utility | `ReturnType<makeUser>` | static ReturnType idiom; reflect opted-out | Y | Y | OK | reflect `'not-supported'` documented |
 | object_via_property_access | `{id;name}` | reflect-via-property-access infers T | Y | Y | OK | — |
-| object_via_array_access | `{id;name}` | reflect-via-array-index infers T | Y | partial | SUSPECT | samples + expected are verbatim clone of object_via_property_access; thin 3-invalid set. Vary one sample so a path-specific regression surfaces |
+| object_via_array_access | `{id;name}` | reflect-via-array-index infers T | Y | Y | FIXED | varied invalid samples (`{id:1,name:42}`, `{id:'bad',name:'ok'}`, `undefined`) so they no longer clone the property-access sibling; sensitivity-checked (corrupting a token fails 4 variants); green |
 | interface_with_optional | `{a:string;b?:number}` | optional absent/undefined ok; NaN fails | Y | Y | OK | — |
 | interface_with_date | `{date:Date;name:string}` | Date prop; Invalid Date rejected | Y | Y | OK | — |
 | interface_with_method | `{name;cb:()=>any}` | method dropped; bad cb NOT rejected | Y | Y | OK | data-only contract honored |
@@ -173,7 +174,7 @@ No WRONG case (no wrong expected error/path) was found in the reference. The 6 S
 | leading_string_placeholder | `` `${string}/${number}` `` | leading empty-string-allowed span + number | Y | Y | OK | good almost-matches |
 | regex_special_chars | `` `(${number})` `` | literal parens escaped | Y | Y | OK | strong almost-match set |
 | template_literal_nested_in_object | `{url:TL; method:string}` | TL prop + string prop; deep paths | Y | Y | OK | — |
-| template_literal_index_key | `{[k:`` `api/${string}` ``]:number}` | index-key pattern + number value | Y | Y | SUSPECT | key-pattern miss expects `expected:'never'` (only `never` token in file). Plausible (constrained-key record) but confirm the record/index emitter reports `never` not `templateLiteral` for a non-matching key |
+| template_literal_index_key | `{[k:`` `api/${string}` ``]:number}` | index-key pattern + number value | Y | Y | CONFIRMED (was SUSPECT) | Go index-sig key-regex emit records `callRTErr('never', keyVar)` for a non-matching KEY (validationerrors.go keyRegexVar branch); `templateLiteral` token only fires for a VALUE position. Passes as-authored, comment added |
 | template_literal_union_placeholder | `` `${'a'\|'b'}-${number}` `` | union placeholder distributes → top-level `union` | Y | Y | OK | — |
 
 ## Tuple.ts (12 cases)
@@ -181,13 +182,13 @@ No WRONG case (no wrong expected error/path) was found in the reference. The 6 S
 | case key | intended type | what it asserts | faithful? | repr.? | verdict | issue / fix |
 |---|---|---|---|---|---|---|
 | string_number_pair | `[string,number]` | exact arity; too-short per-slot, too-long → `tuple` | Y | Y | OK | strong arity coverage |
-| full_mion_tuple | `[Date,number,string,null,string[],bigint]` | 6-slot heterogeneous | Y | partial | SUSPECT | 5-elem (too-short) expects `[5] bigint` (missing-tail-as-undefined), not root `tuple`. Matches the else-branch model but confirm no min-length guard makes it a root `tuple` error |
+| full_mion_tuple | `[Date,number,string,null,string[],bigint]` | 6-slot heterogeneous | Y | Y | CONFIRMED (was SUSPECT) | confirmed no min-length guard — a too-short 5-elem array fails the missing slot's own `bigint` check at `[5]`, NOT a root `tuple` arity error (root `tuple` only for non-arrays + too-LONG). Passes as-authored, comment added |
 | tuple_with_optional | `[number,bigint?,boolean?,number?]` | trailing optionals; `[3,'not bigint']`→`[1] bigint` | Y | Y | OK | see Findings: optional-slot token differs from boolean? sibling |
 | nested_tuple_in_array | `[string,number][]` | array of tuples; `[i,slot]` paths | Y | partial | OK | no too-LONG inner-tuple sample |
 | tuple_rest | `[number,...string[]]` | rest absorbs trailing, each string-checked | Y | Y | OK | dataOnlyDivergent |
 | tuple_circular | `[Date,number,string,null,string[],bigint,Self?]` | self-ref via trailing optional | Y | partial | OK | no >7-length / bad-nested-recursion sample |
-| tuple_multiple_trailing_optionals | `[number,bigint?,boolean?,number?]` | same type; `[3,1n,'not boolean']`→`[2] union` | Y | Y | SUSPECT | IDENTICAL type/schema as `tuple_with_optional`; within this case `bigint?` miss → `bigint` but `boolean?` miss → `union`. Plausible (boolean expands to `undefined\|true\|false`, bigint stays atomic) but the most fragile token pair in the suite — confirm against optional-slot emit; consider collapsing the two near-duplicate cases |
-| tuple_named_labels | `[name:string,age:number]` | labels erase; same as `[string,number]` | Y | partial | SUSPECT | NO too-long sample for a fixed 2-tuple (the exact weak spot). Add `['Alice',30,'extra']` → `[] tuple` |
+| tuple_multiple_trailing_optionals | `[number,bigint?,boolean?,number?]` | same type; `[3,1n,'not boolean']`→`[2] union` | Y | Y | CONFIRMED (was SUSPECT) | optional-slot asymmetry confirmed correct: `bigint?` stays atomic → `bigint`; `boolean?` expands to a 3-arm union (undefined\|true\|false) → `union`. Passes as-authored; contrast comment added on the bigint slot |
+| tuple_named_labels | `[name:string,age:number]` | labels erase; same as `[string,number]` | Y | Y | FIXED | added too-long-arity `['Alice',30,'extra']` → root `[] tuple` (closes the fixed-2-tuple over-arity gap); green |
 | tuple_with_non_serializable | `[number,()=>any]` | function slot must be undefined/absent → `[1] undefined` | Y | partial | OK | dataOnlyDivergent; no too-long sample |
 | empty_tuple | `[]` | only `[]` valid; any elem/object/non-array → root `tuple` | Y | Y | OK | clean over-length + non-array coverage |
 | single_element_tuple | `[string]` | exactly len 1; both `[]` and over-length tested | Y | Y | OK | both arity edges present |

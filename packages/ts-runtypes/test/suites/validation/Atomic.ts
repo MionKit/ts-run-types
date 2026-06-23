@@ -832,6 +832,11 @@ export const ATOMIC = {
       valid: [{}, {a: 42, b: 'hello'}, [], new Date(), /abc/],
       invalid: [null, undefined, 42, 'hello', true, Symbol()],
     }),
+    // The bare `object` primitive (protocol.KindObject) reuses the `objectLiteral`
+    // emit token — there is NO distinct `object`/`nonNullObject` token. The gate
+    // `typeof v === 'object' && v !== null` lives at nodes/atomic/object.ts and the
+    // failure surfaces as `objectLiteral` (see internal/compiled/typefns/validationerrors.go
+    // KindObject case). Do not "fix" this to `object`.
     getExpectedErrors: () => [
       [{path: [], expected: 'objectLiteral'}],
       [{path: [], expected: 'objectLiteral'}],
@@ -1354,7 +1359,7 @@ export const ATOMIC = {
     },
     // Degrades to bare symbol (unsupported at root) — `RT.symbol()` resolves the
     // same alwaysThrow factory, so the schema thunk throws like the type-first form.
-    validateSchema: () => createValidate(RT.symbol()),
+    validateSchema: () => createValidate(RT.symbol(), {noLiterals: true}),
     deserializeValidate: () => {
       const sym = Symbol('hello');
       return deserializeValidate<typeof sym>(undefined, {noLiterals: true});
@@ -1377,7 +1382,7 @@ export const ATOMIC = {
       const sym = Symbol('hello');
       return createGetValidationErrors<DataOnly<typeof sym>>(undefined, {noLiterals: true});
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.symbol()),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.symbol(), {noLiterals: true}),
     deserializeGetValidationErrors: () => {
       const sym = Symbol('hello');
       return deserializeGetValidationErrors<typeof sym>(undefined, {noLiterals: true});
