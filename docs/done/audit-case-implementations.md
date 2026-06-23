@@ -1,13 +1,52 @@
 # Audit every benchmark + test-suite case implementation, case by case
 
-> **Status: AUDIT COMPLETE (review done; fixes are a separate follow-up).** The ten
-> classification tables + the master fix-list live in
-> [`audit-reports/`](audit-reports/) — start with
-> [`audit-reports/00-SYNTHESIS.md`](audit-reports/00-SYNTHESIS.md). Headline: the
-> trigger class (hand-rolled `z.custom` bypasses) is real and concentrated in **zod**
-> (39 WRONG); **typia** and the reference **ts-runtypes** are clean; the ts-runtypes
-> **serialization** suite has one high-value defect (a comparison helper that silently
-> neuters all 9 Map/Set cases). No production code was changed by the audit.
+> **Status: DONE — audited AND fixed (PR #138).** The original task was the audit
+> (review only); the fixes were applied in the same PR at the maintainer's request. The
+> ten per-case classification tables + master fix-list were kept under
+> `docs/todos/audit-reports/` while driving the fixes, then removed once applied — the
+> summary below is the durable record. Follow-up tracked in
+> [`docs/todos/correctness-zod-object-guard-cases.md`](../todos/correctness-zod-object-guard-cases.md).
+>
+> **Audit result (per case — faithful / idiomatic / NOT_SUPPORTED claim):**
+>
+> | target | OK | SUSPECT | WRONG |
+> | --- | --- | --- | --- |
+> | zod 4.4.3 | 215 | ~40 | 39 |
+> | ajv 8.20.0 | 248 | 7 | 4 |
+> | typebox 0.34.49 | 257 | 5 | 4 |
+> | typia 13-dev | 266 | 0 | 0 |
+> | ts-runtypes 0.1.0 | 263 | 0 | 0 |
+> | validation suite | 162 | 6 | 0 |
+> | serialization suite | 114 | 36 | 2 |
+> | formats suite | 138 | 8 | 0 |
+> | overrides+value-first+id | 18 | 1 | 0 |
+> | enrich+mocking | ~100 | 4 | 0 |
+>
+> The cross-library alignment audit reports 0 divergences for every competitor yet
+> caught NONE of these — every bypass / stale-regex / vacuous test is tuned to pass its
+> samples. The manual axis surfaces them. The spec's sanity target
+> (`zod OBJECT.interface_all_optional`) was correctly flagged WRONG.
+>
+> **Fixes shipped (PR #138):**
+> - **zod**: 8 WRONG bypasses/stale-regexes → real builders; 13 SUSPECT → idiomatic; the
+>   3 plain-object-guard cases now declare the same interface as ts-runtypes via
+>   `z.object` (maintainer call — the Date/Map/Set accept discrepancy is a declared
+>   library difference for the correctness benchmark). `ATOMIC.object`/`time_iso` kept.
+> - **ajv**: 3 mis-marked `NOT_SUPPORTED` → real JSON Schema (118→114 opt-outs).
+> - **typebox**: `string_disallowedValues` recovered (77→76); int64/uint64 confirmed
+>   genuinely unsupported by reading `TypeCompiler` source (the audit's WRONG verdict was
+>   self-corrected — bigint bounds interpolate as Number literals → float-rounding).
+> - **suites (Vitest-verified, 7143 passed)**: `equalsHelpers` Map/Set fix un-blinds 9
+>   vacuous serialization tests; 2 WRONG serialization cases fixed; weak samples
+>   strengthened across validation/formats; new `id-integrity/distinctness.test.ts`.
+> - **typia / ts-runtypes**: clean — nothing to fix.
+>
+> Grounding note: every competitor fix was made against the **pinned-version** package
+> `.d.ts`/source (registry tarball + GitHub repo), not general knowledge — which
+> repeatedly corrected the audit itself (the typebox bigint + zod object-guard calls).
+>
+> ---
+> *Original task description below (unchanged).*
 >
 > **Status (original): pending (review only, no fixes yet).** Triggered by a clearly wrong
 > competitor implementation (zod `OBJECT.interface_all_optional`, below). The goal
