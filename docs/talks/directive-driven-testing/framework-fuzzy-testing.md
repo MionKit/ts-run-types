@@ -1,12 +1,15 @@
 # A Framework for Fuzzy Testing
 
-> A **practical, code-first methodology** for adding fuzz testing to a system. Two
-> methodologies, run in order:
+> A **practical, code-first methodology** for adding fuzz testing to a system.
+> Three methodologies:
 >
-> - **Methodology A — Tool Discovery:** how to find/identify the _tools_ a system
->   needs to be fuzzable at all.
-> - **Methodology B — Oracle Discovery:** how to find the _rules (oracles)_ that
->   decide when the system misbehaved.
+> - **Methodology A — Tool Discovery:** find the _tools_ a system needs to be
+>   fuzzable at all (generator, seed, observation, shrink).
+> - **Methodology B — Oracle Discovery:** find the _rules (oracles)_ that decide
+>   when the system misbehaved.
+> - **Methodology C — Lifting an existing test:** the common on-ramp — _extend_ an
+>   example/unit test into a fuzz test. It usually already exists, and hands you
+>   most of A and B for free.
 >
 > Every step has runnable code, grounded in this repo's real fuzz harness
 > (`packages/ts-runtypes/test/fuzz/`). It is written to become a reusable
@@ -40,7 +43,9 @@ breaks the rule.
 Five moving parts: **generator, the SUT, observation, oracle, shrink** — plus a
 **seed** so any finding replays. Methodology A finds the parts that _produce
 inputs and make them replayable_ (generator, seed, observation, shrink).
-Methodology B finds the _oracle_. Get both and you have a fuzz test.
+Methodology B finds the _oracle_. Get both and you have a fuzz test. Already have
+an example test? **Methodology C** is the shortcut — it hands you a first cut of
+both from the test you already wrote.
 
 > The two hard parts are never "how do I randomise bytes." They are
 > **(1) generating inputs the system actually accepts** and **(2) knowing when an
@@ -422,6 +427,119 @@ export interface FuzzTarget {
 
 ---
 
+## Methodology C — Lifting an existing test into a fuzz test (the on-ramp)
+
+> Goal: turn an **example/unit test you already have** into a fuzz test — and keep
+> both. A and B build from a blank page; C is the shortcut you reach for most of
+> the time, because a passing example test has already paid the three hardest
+> costs of a fuzz test.
+
+An example test and a fuzz test are not rivals; they are the **same test at two
+zoom levels**. The example pins one point — fast to debug, documents intent, runs
+in 1 ms. The fuzz test sweeps the neighbourhood around it. You write the example
+**first**, on purpose: it is the predecessor that tells you _exactly what to test
+and what inputs you need_. Then you lift it.
+
+### C1 · Every example test already contains a fuzz test's skeleton
+
+Arrange-Act-Assert maps one-to-one onto the fuzz parts. The lift is three local
+edits, nothing structural:
+
+| Example test (Arrange-Act-Assert)      | → fuzz part       | the edit                                                       |
+| -------------------------------------- | ----------------- | -------------------------------------------------------------- |
+| **Arrange** a literal input / fixture  | generator (A2)    | _"which axis did the author freeze arbitrarily?"_ → vary it    |
+| **Act**: call the SUT                  | SUT boundary (A1) | **keep verbatim** — it already works                           |
+| **Assert** `expect(out).toBe(literal)` | oracle (B)        | generalise the constant to a **relation true for every input** |
+
+Two of the three are free: the **Act** is the boundary A1 tells you to hunt for,
+already wrapped; the **Arrange** is a hand-built _valid input_ — the thing A2
+calls the hardest part. Only the **Assert** needs real thought (C3).
+
+### C2 · Read the inputs you need off the Arrange
+
+Don't invent an input space — **widen the one the example already uses**. The
+fixture names the shape and the validity bar; find the frozen axis and let it
+vary. The loudest tell is a test that hardcodes **a `valid` list and an `invalid`
+list** — that split literally names the **two generators** you need:
+
+```ts
+// test/suites/validation/Atomic.test.ts → assertValidateStatic (validationAsserts.ts:119)
+// the example PINS both sides by hand:
+valid.forEach((v) => expect(validate(v)).toBe(true)); //   ← createMockType<T>()           generates this side
+invalid.forEach((v) => expect(validate(v)).toBe(false)); // ← mutateToInvalid(schema, mock)  generates this side
+```
+
+The fuzz harness reads exactly that off the example: `createMockType(schema)`
+replaces the hand-written `valid` array (valid by construction), and
+`mutateToInvalid` (`test/fuzz/invalidValue.ts`, consumed by `fuzzRunner.ts:14`)
+replaces the `invalid` array (corrupt one provably-invalid spot). A **table-driven**
+example is the same story: each row is a hand-found seed, and the row dimension is
+your generator.
+
+### C3 · Lift the assertion — constant → invariant (the only hard part)
+
+A `toBe(constant)` is true for _this_ input only; a fuzz oracle must hold for
+_all_. Pick the tactic by the **shape of the assertion you already have**:
+
+| The example asserts…                             | Lift it to…                                                          | Real pair in this repo                                                                                  |
+| ------------------------------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| a **relation** already (round-trip, idempotence) | the same relation over a generator — _trivial_                       | `assertBinaryRoundTrip` (serializationAsserts.ts:205) → `checkBinaryStable` (fuzzOracle.ts:187)         |
+| **true/false** on a hand-picked good/bad value   | two generators + the **consistency invariant**                       | `assertGetValidationErrorsContract` (validationAsserts.ts:492) → `checkErrorsAgree` (fuzzOracle.ts:131) |
+| a **constant you can recompute** (`toBe(5)`)     | a **reference oracle** (differential) or a metamorphic relation (B2) | —                                                                                                       |
+| a **hardcoded regression** ("this once broke")   | **fuzz the neighbourhood** of that hazard                            | `binaryEncoderResize.test.ts` (50 small encodes + 1 big) → varied-length mocks                          |
+
+The round-trip case is the gift: `expect(decode(encode(x))).toEqual(x)` is
+_already_ the invariant — swap the literal `x` for `createMockType<T>()` and you
+are done. The good/bad case is the workhorse: the example's two values become two
+generators, and the assertion becomes the relation that ties the SUT's two outputs
+together — `validate(x) ⇔ getValidationErrors(x).length === 0`, true for **every**
+`x` (`checkValidAccepted` / `checkInvalidRejected` / `checkErrorsAgree`,
+fuzzOracle.ts:94/106/131).
+
+> **Soundness still applies (B4).** A constant lazily generalised to a sloppy
+> invariant will false-positive under fuzzing. Run the lifted oracle through B4's
+> one-directional gate: _predicate false ⇒ a real bug_, no exceptions.
+
+### C4 · The shared oracle layer is the bridge
+
+The lift is cheap because the oracle wants to live in **one place, called from
+both lanes**. The repo's `test/util/*Asserts.ts` files **are** Methodology B6's
+oracle layer seen from the example side: `assertValidateStatic`,
+`assertBinaryRoundTrip`, … each encode one rule, and a shared normaliser
+(`normalizeForComparison` / `deepCloneForRoundTrip`, equalsHelpers.ts:39) is
+imported by **both** `serializationAsserts.ts:11` and `idIntegrityAsserts.ts:28`.
+
+Today the fuzz oracles **mirror** those asserts (`checkErrorsAgree` re-expresses
+`assertGetValidationErrorsContract`) rather than importing them. The discipline the
+lift teaches: **write the oracle once, pin it with examples, sweep it with fuzz** —
+factor the example's assertion into a helper the fuzz runner can call, so the two
+lanes can never drift.
+
+### C5 · Keep the example — it is now your regression pin and shrink floor
+
+Lifting **adds** a test, it doesn't replace one. The original example earns its
+keep three ways: the **fastest reproducer** (a known-minimal seed), **executable
+documentation** of intent, and a **1 ms smoke** beside a multi-second soak. It also
+sets the shrink floor — if a fuzz failure shrinks to something _simpler_ than your
+example, that minimal case becomes a **new example test**. The two lanes feed each
+other.
+
+### C6 · Know when NOT to lift
+
+Lifting pays where inputs vary _and_ an invariant exists. It doesn't always:
+
+- **Pure, total transforms** — `transformAsserts.ts` (`transform(input) === expected`):
+  deterministic, no error path, nothing to sweep. The examples are sufficient.
+- **Inputs the generator can't reach** — `circularGuardAsserts.ts` needs a _cyclic_
+  value, which the default `createMockType` rng won't produce; a naive lift would
+  fuzz a space that never contains the case (B5's coverage trap). Lift only once you
+  have a generator that reaches it.
+
+The test to apply: _is there an axis worth sweeping, and a relation that stays true
+across it?_ Yes → lift (C1–C5). No → the example already is the right tool.
+
+---
+
 ## §5. Putting both together — a complete, runnable example
 
 A 30-line fuzz test for a codec, built by running A then B:
@@ -759,7 +877,10 @@ and a guarantee that any finding replays from one seed. **Methodology B (Oracle
 Discovery)** is a six-step elicitation that sweeps eight rule-archetypes
 (totality, round-trip, idempotence, invariant, differential, metamorphic,
 preservation, negative-space) against the SUT, tags each rule's provenance, and
-keeps it one-directionally sound. Applied to the **FriendlyType/MockData sync
-pipeline**, the two methodologies turn "keep the files consistent" into a concrete
-event-stream model-based fuzzer with six named rules (R1–R6) — and that whole
-sequence is what we package as a reusable skill.
+keeps it one-directionally sound. **Methodology C (Lifting)** is the on-ramp when
+an example test already exists: keep its SUT call, turn its fixture into a
+generator and its assertion into an invariant, and share one oracle layer between
+the example and fuzz lanes. Applied to the **FriendlyType/MockData sync
+pipeline**, these methodologies turn "keep the files consistent" into a concrete
+event-stream model-based fuzzer with consistency oracles R1–R10 — implemented,
+green across thousands of runs, and packaged as a reusable skill.
