@@ -192,12 +192,29 @@ withValidator<string>(isString);
 	}
 }
 
-// TestExternalModule_PureFnLocalAccepted is the negative control: a
-// module-private inline / const / function pure-fn still passes (no PFN002),
-// proving the rule rejects only externally-reachable handles.
-func TestExternalModule_PureFnLocalAccepted(t *testing.T) {
+// TestExternalModule_PureFnInlineAccepted is the negative control: an inline
+// pure-fn literal still passes (no PFN gate).
+func TestExternalModule_PureFnInlineAccepted(t *testing.T) {
 	cases := map[string]string{
-		"inline":         `withValidator<string>((v) => typeof v === 'string');`,
+		"inline-arrow":    `withValidator<string>((v) => typeof v === 'string');`,
+		"inline-function": `withValidator<string>(function (v) { return typeof v === 'string'; });`,
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			code := "import {withValidator} from 'ts-runtypes';\n" + body + "\n"
+			resp := scanExternal(t, pureFunctionDts, map[string]string{"call.ts": code})
+			if codes := gateCodes(resp); len(codes) != 0 {
+				t.Fatalf("expected no PFN/CTA gate for an inline pure-fn, got %v", codes)
+			}
+		})
+	}
+}
+
+// TestExternalModule_PureFnNamedLocalRejected: under literal-only even a
+// module-private named const / function reference is rejected (PFN001) — the
+// function must be inlined so it has no handle anything else could reach.
+func TestExternalModule_PureFnNamedLocalRejected(t *testing.T) {
+	cases := map[string]string{
 		"local-const":    "const isString = (v: unknown) => typeof v === 'string';\nwithValidator<string>(isString);",
 		"local-function": "function isString(v: unknown) { return typeof v === 'string'; }\nwithValidator<string>(isString);",
 	}
@@ -205,8 +222,9 @@ func TestExternalModule_PureFnLocalAccepted(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			code := "import {withValidator} from 'ts-runtypes';\n" + body + "\n"
 			resp := scanExternal(t, pureFunctionDts, map[string]string{"call.ts": code})
-			if codes := gateCodes(resp); len(codes) != 0 {
-				t.Fatalf("expected no PFN/CTA gate for a module-private pure-fn, got %v", codes)
+			codes := gateCodes(resp)
+			if len(codes) != 1 || codes[0] != diag.CodePureFunctionNotLiteral {
+				t.Fatalf("expected exactly one PFN001, got %v", codes)
 			}
 		})
 	}

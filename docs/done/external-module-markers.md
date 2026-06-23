@@ -27,13 +27,20 @@
 >   resolves the overload against (a widened option bag could otherwise select a
 >   different fn variant at the type level than the build injects). Shallow,
 >   object-only: value-first builder results (`number()`) are left alone.
-> - **Part 2 — PFN002.** A `PureFunction<F>` literal that is imported (alias
->   symbol) or exported (inline `export`, `export {f}`, `export default`,
->   re-export) is rejected. Covers both `PureFunction<F>` and
->   `registerPureFnFactory` (one code path: `CheckLiteralFunction`). PFN001 stays
->   for the "not an inline literal" shape failures.
-> - **Decisions 2 & 3:** rule applies to both markers; distinct PFN002 code (the
->   fix differs from PFN001: "un-export / inline it" vs "make it a literal").
+> - **Part 2 — literal-only PureFunction rule (chosen: strictest).** A
+>   `PureFunction<F>` literal must be an INLINE arrow / function expression.
+>   Every named reference is rejected, even a module-private `const f = …` /
+>   `function f(){}` — a name is a handle something else could reach, and the
+>   build's AOT-compiled copy must be the only callable one. Diagnostics:
+>   imported (alias) or exported (inline `export`, `export {f}`, `export
+>   default`, re-export) → **PFN002** (the external-handle case, specific fix);
+>   any other named/non-function reference → **PFN001** "inline it". Covers both
+>   `PureFunction<F>` and `registerPureFnFactory` (one path:
+>   `CheckLiteralFunction`). Composition stays available via `utl.usePureFn('ns::id')`
+>   (tracked dep), so reuse never needs a value handle. The built-in format
+>   pure-fns already use inline factories, so the library's own code is unaffected.
+> - **Decisions 2 & 3:** rule applies to both markers; distinct PFN001 vs PFN002
+>   (both say "inline it", but PFN002 names the import/export cause).
 >
 > Code: `internal/comptimeargs/comptimeargs.go` (cross-module trace, widened-const
 > guard, import/export rejection), `internal/resolver/scan.go` (option-bag
@@ -119,11 +126,15 @@ it:
 
 - **Reject an imported pure-fn** (already rejected by the same-module trace —
   keep it, and make the diagnostic explicit about *why*).
-- **Reject an EXPORTED pure-fn** — new check. The function passed to
-  `PureFunction<F>` / `registerPureFnFactory` must be **inline** or a
-  **non-exported** same-module `const` / `function`. Cover every export form:
+- **Reject an EXPORTED pure-fn** — new check. Cover every export form:
   `export const f = …`, `export function f(){}`, a later `export {f}`,
   `export default`, and re-exports.
+
+> **Shipped stricter than this spec — literal-only.** During implementation the
+> rule was tightened to: the only accepted form is an **inline** arrow / function
+> expression. A non-exported same-module `const` / `function` reference is ALSO
+> rejected (a name is still a handle). See the "What shipped" header. Imported /
+> exported → PFN002; any other named reference → PFN001.
 
 Implementation sketch: in `CheckLiteralFunction`
 ([comptimeargs.go](../../internal/comptimeargs/comptimeargs.go)), once the
@@ -145,8 +156,9 @@ text: "inline the function at the call site, or bind it to a module-private
    test matrix so the behavior is pinned either way. Note the cost: cross-module
    const tracing pulls another module's AST during scan.
 2. **Pure-fn rule scope.** Apply to BOTH `PureFunction<F>` and
-   `registerPureFnFactory`. Confirm a non-exported `function` declaration AND a
-   non-exported `const` arrow both stay allowed; only export/import is rejected.
+   `registerPureFnFactory`. **Settled: literal-only** — even a non-exported
+   `const` / `function` reference is rejected; only an inline arrow / function
+   expression is accepted (the strictest option).
 3. **Diagnostic code(s).** One new `PFN002` for "exported / externally
    reachable", or reuse PFN001 with a distinct reason. Recommended: a distinct
    code, since the fix differs ("un-export it" vs "make it inline/literal").
