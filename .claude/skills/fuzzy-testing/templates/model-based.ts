@@ -1,23 +1,25 @@
 /**
- * Model-based / event-sequence skeleton for STATEFUL SUTs (worksheet-A §A2 rows D/E).
- * Adapt from packages/ts-runtypes/test/fuzz/enrich/{enrichModel,enrichFuzzRunner}.ts.
+ * A sequence-of-actions skeleton for code that has MEMORY (use this when a valid input
+ * is a list of operations, not one value). Adapt from
+ * packages/ts-runtypes/test/fuzz/enrich/{enrichModel,enrichFuzzRunner}.ts.
  *
- * Each Command mutates a small MODEL of the SUT's state, drives the real SUT, and
- * asserts an oracle (returning Violations). The generator picks an applicable command
- * each step; the runner replays the whole sequence from one seed and prefix-shrinks a
- * failure to its minimal event count. If fast-check is available, `fc.commands([...]) +
- * fc.modelRun` replaces the runner — the Command/oracle design carries over unchanged.
+ * Each Command changes a small MODEL of the code's state, drives the real code, and
+ * checks a rule (returning Violations). The input maker picks an applicable command
+ * each step; the runner replays the whole sequence from one seed, and on a failure cuts
+ * it down to the fewest leading actions that still fail. If fast-check is available,
+ * `fc.commands([...]) + fc.modelRun` replaces the runner — the Command and rule design
+ * carries over unchanged.
  */
 import type {Violation, CheckCtx} from './oracle-layer.ts';
 import {withSeededRandom, mixSeed, prefixShrink} from './seeded-runner.ts';
 
-/** Just enough of the SUT's state to STATE the oracles (not a re-implementation). */
+/** Just enough of the code's state to STATE the rules (not a re-implementation of it). */
 export interface Model {
   // TODO: e.g. fields?: Map<string, string>; authored?: Map<string, string>;
   steps?: number;
 }
 
-/** A handle to the real bounded SUT (A1) — the side-effecting boundary you wrapped. */
+/** A handle to the real code under test — the outside-world boundary you wrapped. */
 export interface Sut {
   // TODO: e.g. run?: (args: string[]) => {ok: boolean; output: string};
   reset?: () => void;
@@ -30,18 +32,18 @@ export interface World {
 
 export interface Command {
   readonly name: string;
-  canApply(model: Model): boolean; // precondition — keeps generated sequences valid
-  apply(world: World, ctx: CheckCtx, rng: () => number): Violation[]; // mutate model + drive SUT + assert
+  canApply(model: Model): boolean; // when this action is allowed — keeps generated sequences valid
+  apply(world: World, ctx: CheckCtx, rng: () => number): Violation[]; // change model + drive the code + check
 }
 
-// --- the event alphabet: fill in your commands --------------------------------
+// --- the set of possible actions: fill in your commands -----------------------
 export const COMMANDS: Command[] = [
   // {
   //   name: 'addField',
   //   canApply: (model) => true,
   //   apply(world, ctx, rng) {
-  //     // 1. mutate world.model;  2. drive world.sut;  3. observe (A4);
-  //     // 4. return [] if the oracle holds, else [violation].
+  //     // 1. change world.model;  2. drive world.sut;  3. look at what came out;
+  //     // 4. return [] if the rule holds, else [violation].
   //     return [];
   //   },
   // },
@@ -53,9 +55,9 @@ export interface SequenceResult {
   violations: Violation[];
 }
 
-/** Run ONE deterministic sequence of up to maxSteps events on a fresh world. */
+/** Run ONE repeatable sequence of up to maxSteps actions on a fresh world. */
 export function runOneSequence(makeWorld: () => World, seed: number, maxSteps: number): SequenceResult {
-  const world = makeWorld(); // fresh SUT + model per sequence
+  const world = makeWorld(); // a fresh copy of the code + model for each sequence
   const log: string[] = [];
   const violations: Violation[] = [];
   withSeededRandom(seed, () => {
@@ -67,7 +69,7 @@ export function runOneSequence(makeWorld: () => World, seed: number, maxSteps: n
       const found = command.apply(world, {seed, step}, Math.random);
       if (found.length) {
         violations.push(...found);
-        break; // stop at the first failing step so the log IS the path to the failure
+        break; // stop at the first failing step, so the log IS the path to the failure
       }
     }
   });
@@ -81,7 +83,7 @@ export interface ModelFuzzReport {
   violations: Violation[];
 }
 
-/** Run many sequences; on the first failure, prefix-shrink to the minimal reproducer. */
+/** Run many sequences; on the first failure, cut it down to the fewest leading actions. */
 export function runModelFuzz(makeWorld: () => World, baseSeed: number, sequences: number, maxSteps: number): ModelFuzzReport {
   for (let i = 0; i < sequences; i++) {
     const seed = mixSeed(baseSeed, 'seq', i);

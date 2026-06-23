@@ -1,12 +1,12 @@
 /**
- * Seeded runner + soak + prefix-shrinker (worksheet-A §A3/§A5). Dependency-free;
- * adapt from packages/ts-runtypes/test/fuzz/seededRng.ts + fuzzRunner.ts. If
- * fast-check is available, `fc.assert(fc.property(gen, oracle))` replaces this whole
- * file (and shrinks for free) — the oracle layer stays the same.
+ * The replayable loop, a run-it-a-lot mode, and a shrinker (from the tools worksheet).
+ * Needs no extra libraries; adapt from packages/ts-runtypes/test/fuzz/seededRng.ts +
+ * fuzzRunner.ts. If fast-check is available, `fc.assert(fc.property(gen, oracle))`
+ * replaces this whole file (and shrinks for free) — your rule-checks stay the same.
  */
 import type {Violation, CheckCtx} from './oracle-layer.ts';
 
-// --- determinism (A3): one integer seed reproduces any run --------------------
+// --- replay: one integer (a seed) reproduces any run --------------------------
 
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -19,7 +19,7 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-/** Swap Math.random for a seeded PRNG for the duration of fn, then restore it. */
+/** Swap Math.random for a seeded random generator while fn runs, then restore it. */
 export function withSeededRandom<T>(seed: number, fn: () => T): T {
   const original = Math.random;
   Math.random = mulberry32(seed);
@@ -37,12 +37,12 @@ export function mixSeed(base: number, label: string, index: number): number {
   return Math.imul(hash ^ index, 0x01000193) >>> 0;
 }
 
-// --- the loop: generate a value, run every oracle, stop at the first failure ---
+// --- the loop: make a value, run every rule-check, stop at the first failure ---
 
 export interface FuzzConfig<Value> {
   seed: number;
   runs: number;
-  generate: () => Value; // your generator (A2); calls Math.random, which is seeded here
+  generate: () => Value; // your input maker; calls Math.random, which is seeded here
   oracles: Array<(value: Value, ctx: CheckCtx) => Violation | null>;
 }
 
@@ -66,13 +66,13 @@ export function runFuzz<Value>(config: FuzzConfig<Value>): FuzzReport {
     if (found.length) {
       firstFailSeed = seed;
       violations.push(...found);
-      break; // soak mode: remove this break to keep going past the first failure
+      break; // run-it-a-lot mode: remove this break to keep going past the first failure
     }
   }
   return {runs: i + 1, violations, firstFailSeed};
 }
 
-/** Soak: run iterations until a wall-clock budget elapses (A5). */
+/** Run it a lot: keep going until a wall-clock time budget runs out. */
 export function runForDuration<Value>(config: Omit<FuzzConfig<Value>, 'runs'>, ms: number): FuzzReport {
   const deadline = Date.now() + ms;
   let i = 0;
@@ -84,10 +84,11 @@ export function runForDuration<Value>(config: Omit<FuzzConfig<Value>, 'runs'>, m
 }
 
 /**
- * Shrink to the minimal reproducer (A5). For a single VALUE generator, re-run the
- * failing seed and apply value-shrink (simplify the input while it still fails). For a
- * SEQUENCE generator (model-based.ts), prefix-shrink: the smallest event count that
- * still fails. `stillFails(k)` must be deterministic from the same seed.
+ * Cut the failure down to its smallest form. For an input maker that makes one VALUE,
+ * re-run the failing seed and simplify the input while it still fails. For an input
+ * maker that makes a SEQUENCE of actions (model-based.ts), find the smallest number of
+ * leading actions that still fails. `stillFails(k)` must give the same result every
+ * time from the same seed.
  */
 export function prefixShrink(stillFails: (maxSteps: number) => boolean, maxSteps: number): number {
   for (let k = 1; k <= maxSteps; k++) if (stillFails(k)) return k;
