@@ -842,9 +842,10 @@ so it maps onto a `.claude/skills/fuzzy-testing/` skill:
 
 ```
 .claude/skills/fuzzy-testing/
-  SKILL.md         # when-to-use + the 2 methodologies as a runnable checklist
+  SKILL.md         # when-to-use + the 3 methodologies as a runnable checklist
   worksheet-A.md   # Tool Discovery: the A1–A6 steps + the inventory/gap table
   worksheet-B.md   # Oracle Discovery: the B2 archetype sweep + provenance + soundness
+  worksheet-C.md   # Lifting: the C1–C6 recipe to extend an example test into a fuzz test
   templates/
     oracle-layer.ts   # FuzzTarget-style skeleton (adapted from fuzzOracle.ts)
     seeded-runner.ts  # runFuzz/runForDuration skeleton (adapted from fuzzRunner.ts)
@@ -856,7 +857,9 @@ so it maps onto a `.claude/skills/fuzzy-testing/` skill:
 1. **Bound the SUT** (A1) — find the smallest callable boundary; wrap side effects.
 2. **Run Tool Discovery** (A2–A6) — fill the inventory/gap table; build only the gaps.
 3. **Run Oracle Discovery** (B1–B6) — sweep all eight archetypes; harvest rules;
-   tag provenance; pass the soundness gate; encode the oracle layer.
+   tag provenance; pass the soundness gate; encode the oracle layer. _(If an
+   example test already exists, run **Lifting** (C1–C6) instead — it yields the
+   generator and the oracle straight from the test you already wrote.)_
 4. **Wire the runner** — seed every iteration; collect replayable `Violation`s.
 5. **Soak + pin** — run autonomously; for each finding, shrink, then commit the
    minimal reproducer as a regression test.
