@@ -66,11 +66,11 @@ describe('flat-union merged prop with a DataOnly-stripped sibling', () => {
         const {jsonEncode, jsonDecode, binaryEncode, binaryDecode} = compiled.wired;
         // A t2 value carries f2 as a Uint8Array (the stripped member's type).
         const t2 = {kind: 't2', f2: new Uint8Array([1, 2, 3])};
-        expect(jsonDecode!(jsonEncode!(t2))).toEqual({kind: 't2'});
+        expect(jsonDecode!(jsonEncode!(t2)!)).toEqual({kind: 't2'});
         expect(binaryDecode!(binaryEncode!(t2))).toEqual({kind: 't2'});
         // A t1 value's real Date still round-trips.
         const t1 = {kind: 't1', f2: new Date(1000)};
-        expect(jsonDecode!(jsonEncode!(t1))).toEqual(t1);
+        expect(jsonDecode!(jsonEncode!(t1)!)).toEqual(t1);
         expect(binaryDecode!(binaryEncode!(t1))).toEqual(t1);
       })
       .finally(() => client.close());
@@ -86,11 +86,11 @@ describe('flat-union merged prop with a DataOnly-stripped sibling', () => {
         const {jsonEncode, jsonDecode, binaryEncode, binaryDecode} = compiled.wired;
         // A t1 value carries f0 as a Promise (the stripped member's type).
         const t1 = {kind: 't1', f0: Promise.resolve('x')};
-        expect(jsonDecode!(jsonEncode!(t1))).toEqual({kind: 't1'});
+        expect(jsonDecode!(jsonEncode!(t1)!)).toEqual({kind: 't1'});
         expect(binaryDecode!(binaryEncode!(t1))).toEqual({kind: 't1'});
         // A t2 value's real Set still round-trips on both wires (restored as a Set).
         const t2 = {kind: 't2', f0: new Set([1, 2, 3])};
-        expect(jsonDecode!(jsonEncode!(t2))).toEqual({kind: 't2', f0: new Set([1, 2, 3])});
+        expect(jsonDecode!(jsonEncode!(t2)!)).toEqual({kind: 't2', f0: new Set([1, 2, 3])});
         expect(binaryDecode!(binaryEncode!(t2))).toEqual({kind: 't2', f0: new Set([1, 2, 3])});
       })
       .finally(() => client.close());

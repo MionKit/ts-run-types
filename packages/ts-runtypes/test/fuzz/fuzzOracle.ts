@@ -32,7 +32,7 @@ export interface FuzzTarget {
   title: string;
   /** Runtype tree, used to generate mocks and to find corruption sites. **/
   schema: RunType;
-  mock: (options?: unknown) => unknown;
+  mock: () => unknown;
   validate: (value: unknown) => boolean;
   getValidationErrors: (value: unknown) => unknown[];
   jsonEncode?: (value: unknown) => string | undefined;
