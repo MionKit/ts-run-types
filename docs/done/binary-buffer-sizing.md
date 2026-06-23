@@ -1,16 +1,20 @@
 # Binary encoder buffer sizing — shipped baseline
 
-> **Status: implemented (verified against the source 2026-06-22).** Welford
+> **SUPERSEDED (2026-06-23) by the three-mode design in
+> [docs/done/binary-sizing-modes.md](binary-sizing-modes.md).** This doc describes
+> the earlier baseline. Since then: the opt-in `{sizing: 'exact'}` became
+> `{sizing: 'precalculate'}`; the default `'adaptive'` became `'dynamic'`; a third
+> `'initial'` (caller `bufferSize`) mode and `createBinarySizer<T>()` shipped; the
+> Go emitter now reserves at container boundaries for the inline writes; and the
+> **backstop retry loop was retired** (every write reserves via
+> `Ser.ensureCapacity?.(n)`, which is now a per-instance member — the grow function
+> in `dynamic`, `undefined` in the fixed-size modes). Read the new doc for the
+> current behaviour; the history below is kept for context.
+>
+> **Original status: implemented (verified against the source 2026-06-22).** Welford
 > (mean + k·σ) prediction, in-place prefix-preserving buffer growth, per-writer
 > capacity reservation, the streamlined backstop retry loop, and the opt-in
-> two-pass `'exact'` sizing all landed and are pinned by tests. The remaining
-> ideas (container-boundary reservation in the Go emitter, buffer pooling,
-> decaying statistics, p99 prediction, a lower cold start, instrumentation, and
-> the user-facing doc updates) are tracked in
-> [docs/todos/binary-buffer-sizing.md](../todos/binary-buffer-sizing.md). The
-> caller-supplied size API (`createBinarySizer`, a `bufferSize` encoder option)
-> is a separate pending spec:
-> [docs/todos/binary-caller-supplied-buffer-size.md](../todos/binary-caller-supplied-buffer-size.md).
+> two-pass `'exact'` sizing all landed and are pinned by tests.
 
 This documents how `createBinaryEncoder<T>()` decides how big a buffer to
 allocate, the failure mode the fuzzer surfaced, and the change that fixed it.

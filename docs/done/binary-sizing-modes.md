@@ -1,7 +1,12 @@
 # Binary encoder buffer sizing — three explicit modes
 
-> **Status: PLAN, pending agreement (2026-06-23).** This doc **merges and
-> supersedes** the two previous specs:
+> **Status: SHIPPED (2026-06-23).** Implemented as commits on the `binary-sizing-modes`
+> branch. The three modes, `createBinarySizer<T>()`, the `bufferSize` option, the Go
+> emitter container-boundary reserves, and the retired backstop all landed and are
+> pinned by tests (`binarySizingModes.test.ts`, `binaryDynamicGrow.test.ts`, the
+> serialization suite, the type-generation oracle sweep). The only deferred item is
+> the optional Phase 4 (`reserveForString` micro-optimization — see Implementation
+> phases). This doc **merges and superseded** the two previous specs:
 > - `docs/todos/binary-buffer-sizing.md` (deferred improvements — container-boundary
 >   reservation, backstop retirement, lower cold start, pooling, decaying stats)
 > - `docs/todos/binary-caller-supplied-buffer-size.md` (`createBinarySizer<T>()`,
@@ -190,23 +195,30 @@ bufferSize?: number;                                // required for 'initial'
 
 ## Implementation phases
 
-1. **Runtime grow flag.** `ensureCapacity` public + `grow` gate; thread `grow`
-   through `createDataViewSerializer`. Wire the three modes in `createRTFBinary.ts`
-   (keep the backstop for now). Tests: modes produce byte-identical output;
-   `precalculate` never grows (spy asserts `resize` is not called); `initial`
-   throws on an undersized `bufferSize`.
-2. **`createBinarySizer<T>()` + `bufferSize`.** Public factory + option. Fuzz oracle
-   `sizer(v) === encode(v).byteLength` over generated types. Verify marker scanner.
-3. **Go emitter reserves.** Container-boundary `ensureCapacity` for every inline
-   write, fused via comma-sequence. Rebuild `bin/ts-runtypes`. The existing
-   serialization + binary suites must stay byte-identical.
-4. **Smarter `reserveForString`** (optional, fixes the churn for `dynamic`): reserve
-   a tighter estimate than worst-case `chars*3`, or grow less aggressively.
-5. **Retire the backstop.** Only after a fuzz pass proves `dynamic` never overflows
-   across the whole suite + random payloads (every inline write provably reserves).
-   Remove `MAX_BUFFER_BYTES` + the retry loop. Until proven, keep it as a
-   `dynamic`-only safety net.
-6. **Docs.** See below.
+1. **DONE — Runtime grow member.** `ensureCapacity` is now a per-instance member
+   (shared grow fn in `dynamic`, `undefined` otherwise), called via `?.`; `grow`
+   threads through `createDataViewSerializer`. The three modes are wired in
+   `createRTFBinary.ts`. Tests: byte-identical across modes; the fixed modes leave
+   `ensureCapacity` undefined; `initial` throws on an undersized `bufferSize`.
+2. **DONE — `createBinarySizer<T>()` + `bufferSize`.** Public factory + option. The
+   `sizer(v) === encode(v).byteLength` oracle is pinned; the marker scanner injects
+   it from its `InjectTypeFnArgs<T,'tb'>` param with no Go change.
+3. **DONE — Go emitter reserves.** Container-boundary `ensureCapacity?.(n)` for every
+   inline write (scalar arms, union tags, optional-bitmap zero-loop, index-sig count
+   + numeric key), fused via comma-sequence; homogeneous fixed-width arrays reserve
+   the whole block once (`SuppressInlineReserve`). Byte-identical (1298 suite tests).
+4. **DEFERRED (optional) — Smarter `reserveForString`.** The resize churn is ALREADY
+   gone for `precalculate`/`initial` (their `ensureCapacity` is `undefined`, so the
+   worst-case `chars*3` reserve short-circuits). It remains only for `dynamic`
+   long-ASCII strings. The obvious fix (pre-scan the exact UTF-8 length to reserve
+   exactly) trades the resize for an O(n) JS scan that can REGRESS very large strings
+   versus a native memcpy resize, so it needs its own benchmark before shipping.
+   Left deferred rather than risk a regression.
+5. **DONE — Retire the backstop.** `MAX_BUFFER_BYTES` + the grow-and-retry loop are
+   removed; `dynamic` grows in place via the reserves. Proven by `binaryDynamicGrow.test.ts`
+   (1-byte cold start forces every write to grow) and the type-generation oracle sweep.
+6. **DONE — Docs.** Website serialization guide (sizing section), ARCHITECTURE factory
+   surface + table, this doc moved to `docs/done/`.
 
 ## Testing (hard gate — both `getRunTypeId` call shapes where the marker is touched)
 
