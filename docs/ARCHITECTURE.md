@@ -298,7 +298,7 @@ The full set of AOT factories. The JIT compiler is replaced by AOT Go emit, so e
 | `createValidate<T>()`                                                                                                                                                                    |
 | `createGetValidationErrors<T>()`                                                                                                                                                         |
 | internal `pj`/`pjs`/`rj`/`sj` primitives behind `createJsonEncoder` (strategies `clone`/`mutate`/`direct`) and `createJsonDecoder` (`strip`/`preserve`)                                  |
-| `createBinaryEncoder` / `createBinaryDecoder` / `createBinarySizer` (wire spec: typed-int packing, `[index, value]` union encoding; buffer reuse + `sizing: 'precalculate' \| 'dynamic' \| 'initial'`) |
+| `createBinaryEncoder` / `createBinaryDecoder` / `createBinarySizer` (wire spec: typed-int packing, `[index, value]` union encoding; buffer reuse + `sizing: 'precalculate' \| 'dynamic' \| 'initial'`, global default via `setDefaultBinarySizing`) |
 | first-class factories: `createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors` / `createUnknownKeysToUndefined`                                                     |
 | `createFormatTransform<T>()` (trim / case / replace transforms)                                                                                                                          |
 | `createMockType<T>()` — full MockOptions surface, format-aware via the per-kind mock registry                                                                                            |
