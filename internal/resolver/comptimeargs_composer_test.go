@@ -34,6 +34,8 @@ const composerCTADTS = `declare module 'ts-runtypes' {
   export function tuple<const T extends readonly RunType[]>(items: CompTimeArgs<T>, id?: InjectRunTypeId<MapTuple<T>>): RunType<MapTuple<T>>;
   export function union<T extends readonly RunType[]>(members: CompTimeArgs<readonly [...T]>, id?: InjectRunTypeId<MapTuple<T>[number]>): RunType<MapTuple<T>[number]>;
   export function func<const P extends readonly RunType[] = []>(params?: CompTimeArgs<P>, id?: InjectRunTypeId<(...args: MapTuple<P>) => void>): RunType<(...args: MapTuple<P>) => void>;
+  export type ObjectType<C> = {[K in keyof C]: C[K] extends RunType<infer T> ? T : C[K]};
+  export function object<const C extends Record<string, unknown>>(config: CompTimeArgs<C>, id?: InjectRunTypeId<ObjectType<C>>): RunType<ObjectType<C>>;
 }
 `
 
@@ -94,10 +96,83 @@ void _bad;
 	}
 }
 
-// TestComposerCTA_TupleSpreadRejected proves the const-tuple brand
-// (`CompTimeArgs<T>`) is detected by tsgo: a spread element inside the items
-// array is a forbidden construct.
-func TestComposerCTA_TupleSpreadRejected(t *testing.T) {
+// TestComposerCTA_TupleSpreadAccepted proves the spread relaxation for the
+// const-tuple brand (`CompTimeArgs<T>`): a spread of a module-scope `const`
+// bound to an ARRAY literal of builder calls merges cleanly — the items array
+// is statically resolvable, so no CTA diagnostic fires. (The pre-relaxation
+// behavior rejected every spread; now a `const`-fragment spread is the
+// supported split-and-merge pattern.)
+func TestComposerCTA_TupleSpreadAccepted(t *testing.T) {
+	const code = `import {tuple, string, number, boolean} from 'ts-runtypes';
+const base = [string(), number()];
+const _ok = tuple([...base, boolean()]);
+void _ok;
+`
+	if cta := scanComposerCTA(t, code); len(cta) != 0 {
+		t.Fatalf("expected no CTA diagnostics for tuple spread of a const array fragment, got %d: %+v", len(cta), cta)
+	}
+}
+
+// TestComposerCTA_UnionSpreadAccepted is the union analogue: a spread of a
+// `const` array fragment into the awkward `CompTimeArgs<readonly [...T]>` param
+// is accepted (statically resolvable), proving the relaxation reaches that
+// brand shape too.
+func TestComposerCTA_UnionSpreadAccepted(t *testing.T) {
+	const code = `import {union, string, number} from 'ts-runtypes';
+const base = [string()];
+const _ok = union([...base, number()]);
+void _ok;
+`
+	if cta := scanComposerCTA(t, code); len(cta) != 0 {
+		t.Fatalf("expected no CTA diagnostics for union spread of a const array fragment, got %d: %+v", len(cta), cta)
+	}
+}
+
+// TestComposerCTA_ObjectSpreadAccepted is the headline split-and-merge pattern:
+// `object({...base, extra: …})` where `base` is a module-scope `const` bound to
+// an object literal of field builders. TypeScript merges the spread at the type
+// level, so once the spread validates the builder reflects the merged object.
+func TestComposerCTA_ObjectSpreadAccepted(t *testing.T) {
+	const code = `import {object, string, number} from 'ts-runtypes';
+const base = {id: number(), name: string()};
+const _ok = object({...base, extra: string()});
+void _ok;
+`
+	if cta := scanComposerCTA(t, code); len(cta) != 0 {
+		t.Fatalf("expected no CTA diagnostics for object spread of a const fragment, got %d: %+v", len(cta), cta)
+	}
+}
+
+// TestComposerCTA_SpreadCrossModuleAccepted pins Decision 2: the spread operand
+// trace follows import aliases, so a shared fragment imported from another
+// module merges just like a same-module one. The strongest form of the
+// split-and-merge use case (shared schema fragments live in their own module).
+func TestComposerCTA_SpreadCrossModuleAccepted(t *testing.T) {
+	const fragment = `import {string, number} from 'ts-runtypes';
+export const base = {id: number(), name: string()};
+`
+	const code = `import {object, string} from 'ts-runtypes';
+import {base} from './fragment';
+const _ok = object({...base, extra: string()});
+void _ok;
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": composerCTADTS, "fragment.ts": fragment, "test.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	for _, d := range filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker) {
+		if strings.HasPrefix(d.Code, "CTA") {
+			t.Fatalf("expected no CTA diagnostics for cross-module spread, got %s: %+v", d.Code, d)
+		}
+	}
+}
+
+// TestComposerCTA_SpreadDynamicRejected keeps the reject path: a spread whose
+// operand can't be statically resolved to a container literal — here a
+// `declare const` carrying only a TYPE (no initializer) — still raises a CTA
+// forbidden-construct. The relaxation is for resolvable `const` fragments only.
+func TestComposerCTA_SpreadDynamicRejected(t *testing.T) {
 	const code = `import {tuple, string} from 'ts-runtypes';
 declare const parts: [import('ts-runtypes').RunType<string>];
 const _bad = tuple([...parts]);
@@ -105,31 +180,18 @@ void _bad;
 `
 	cta := scanComposerCTA(t, code)
 	if len(cta) != 1 {
-		t.Fatalf("expected 1 CTA diagnostic for tuple spread, got %d: %+v", len(cta), cta)
+		t.Fatalf("expected 1 CTA diagnostic for spread of an unresolvable operand, got %d: %+v", len(cta), cta)
 	}
 	if cta[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
 		t.Fatalf("expected %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, cta[0].Code)
 	}
 }
 
-// TestComposerCTA_UnionSpreadRejected is the load-bearing detection proof for
-// the awkward `CompTimeArgs<readonly [...T]>` param: if tsgo failed to recognise
-// the brand on that intersection-of-spread-tuple, the spread child below would
-// scan silently. It must raise a CTA forbidden-construct instead.
-func TestComposerCTA_UnionSpreadRejected(t *testing.T) {
-	const code = `import {union, string} from 'ts-runtypes';
-declare const members: [import('ts-runtypes').RunType<string>];
-const _bad = union([...members]);
-void _bad;
-`
-	cta := scanComposerCTA(t, code)
-	if len(cta) != 1 {
-		t.Fatalf("expected 1 CTA diagnostic for union spread, got %d: %+v", len(cta), cta)
-	}
-	if cta[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
-		t.Fatalf("expected %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, cta[0].Code)
-	}
-}
+// Shape-mismatch / scalar / dynamic / non-`const` spread rejects are pinned by
+// the reflection-free unit tests in internal/comptimeargs (CheckLiteral
+// directly), since a deliberately malformed reject fixture (e.g. an object
+// spread of an array) would otherwise reach typeid reflection here. See
+// internal/comptimeargs/spread_test.go.
 
 // TestComposerCTA_FuncDynamicParamsRejected proves the variadic func params
 // brand (`CompTimeArgs<P>`, const P) is detected: a const bound to a ternary
