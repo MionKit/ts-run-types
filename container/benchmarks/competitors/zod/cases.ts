@@ -90,7 +90,7 @@ export const cases: CompetitorCases = {
   },
   'ATOMIC.number': {
     buildErrors: () => {
-      const schema = z.number().finite();
+      const schema = z.number();
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -134,7 +134,7 @@ export const cases: CompetitorCases = {
   // noLiterals cases: literal degrades to its base type
   'ATOMIC.literal_2_noLiterals': {
     buildErrors: () => {
-      const schema = z.number().finite();
+      const schema = z.number();
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -185,7 +185,7 @@ export const cases: CompetitorCases = {
   },
   'ARRAY.number_array': {
     buildErrors: () => {
-      const schema = z.array(z.number().finite());
+      const schema = z.array(z.number());
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -258,13 +258,13 @@ export const cases: CompetitorCases = {
   },
   'ARRAY.union_array': {
     buildErrors: () => {
-      const schema = z.array(z.union([z.string(), z.number().finite()]));
+      const schema = z.array(z.union([z.string(), z.number()]));
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'ARRAY.tuple_array': {
     buildErrors: () => {
-      const schema = z.array(z.tuple([z.string(), z.number().finite()]));
+      const schema = z.array(z.tuple([z.string(), z.number()]));
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -282,7 +282,7 @@ export const cases: CompetitorCases = {
       const schema = z.lazy(() => {
         const schema: z.ZodType = z.object({
           a: z.string(),
-          deep: z.object({b: z.string(), c: z.number().finite()}).optional(),
+          deep: z.object({b: z.string(), c: z.number()}).optional(),
           d: z.array(z.lazy(() => schema)).optional(),
         });
         return schema;
@@ -306,7 +306,7 @@ export const cases: CompetitorCases = {
   // ── OBJECT ──
   'OBJECT.simple_interface': {
     buildErrors: () => {
-      const schema = z.object({a: z.string(), b: z.number().finite()});
+      const schema = z.object({a: z.string(), b: z.number()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -318,25 +318,25 @@ export const cases: CompetitorCases = {
   },
   'OBJECT.object_via_return_type_utility': {
     buildErrors: () => {
-      const schema = z.object({id: z.number().finite(), name: z.string()});
+      const schema = z.object({id: z.number(), name: z.string()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'OBJECT.object_via_property_access': {
     buildErrors: () => {
-      const schema = z.object({id: z.number().finite(), name: z.string()});
+      const schema = z.object({id: z.number(), name: z.string()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'OBJECT.object_via_array_access': {
     buildErrors: () => {
-      const schema = z.object({id: z.number().finite(), name: z.string()});
+      const schema = z.object({id: z.number(), name: z.string()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'OBJECT.interface_with_optional': {
     buildErrors: () => {
-      const schema = z.object({a: z.string(), b: z.number().finite().optional()});
+      const schema = z.object({a: z.string(), b: z.number().optional()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -354,7 +354,7 @@ export const cases: CompetitorCases = {
   },
   'OBJECT.nested_object': {
     buildErrors: () => {
-      const schema = z.object({a: z.string(), deep: z.object({b: z.string(), c: z.number().finite()})});
+      const schema = z.object({a: z.string(), deep: z.object({b: z.string(), c: z.number()})});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -403,13 +403,13 @@ export const cases: CompetitorCases = {
   // index_signature_named_props: {a:string, b:number} + catchall of string|number for extra keys
   'OBJECT.index_signature_named_props': {
     buildErrors: () => {
-      const schema = z.object({a: z.string(), b: z.number().finite()}).catchall(z.union([z.string(), z.number().finite()]));
+      const schema = z.object({a: z.string(), b: z.number()}).catchall(z.union([z.string(), z.number()]));
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'OBJECT.index_signature_nested': {
     buildErrors: () => {
-      const schema = z.record(z.string(), z.record(z.string(), z.number().finite()));
+      const schema = z.record(z.string(), z.record(z.string(), z.number()));
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -446,7 +446,7 @@ export const cases: CompetitorCases = {
   // benchmark's job to surface (see docs/todos/correctness-zod-object-guard-cases.md), not a hand guard's.
   'OBJECT.interface_all_optional': {
     buildErrors: () => {
-      const schema = z.object({a: z.string().optional(), b: z.number().finite().optional()});
+      const schema = z.object({a: z.string().optional(), b: z.number().optional()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -472,53 +472,53 @@ export const cases: CompetitorCases = {
   // call_signature_params: [number, boolean] tuple, excess args rejected
   'OBJECT.call_signature_params': {
     buildErrors: () => {
-      const schema = z.tuple([z.number().finite(), z.boolean()]);
+      const schema = z.tuple([z.number(), z.boolean()]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   // call_signature_params_with_optional: [number, boolean, string?]
   'OBJECT.call_signature_params_with_optional': {
     buildErrors: () => {
-      const schema = z.tuple([z.number().finite(), z.boolean(), z.string().optional()]);
+      const schema = z.tuple([z.number(), z.boolean(), z.string().optional()]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   // call_signature_params_with_rest: [number, boolean, ...Date[]]
   'OBJECT.call_signature_params_with_rest': {
     buildErrors: () => {
-      const schema = z.tuple([z.number().finite(), z.boolean()]).rest(z.date());
+      const schema = z.tuple([z.number(), z.boolean()]).rest(z.date());
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'OBJECT.record_union_keys': {
     buildErrors: () => {
-      const schema = z.object({a: z.number().finite(), b: z.number().finite()});
+      const schema = z.object({a: z.number(), b: z.number()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'OBJECT.union_value_index': {
     buildErrors: () => {
-      const schema = z.record(z.string(), z.union([z.string(), z.number().finite()]));
+      const schema = z.record(z.string(), z.union([z.string(), z.number()]));
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'OBJECT.object_with_union_prop': {
     buildErrors: () => {
-      const schema = z.object({kind: z.union([z.literal('a'), z.literal('b')]), n: z.number().finite()});
+      const schema = z.object({kind: z.union([z.literal('a'), z.literal('b')]), n: z.number()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   // interface_inheritance: merged props {a: string, b: number}
   'OBJECT.interface_inheritance': {
     buildErrors: () => {
-      const schema = z.object({a: z.string(), b: z.number().finite()});
+      const schema = z.object({a: z.string(), b: z.number()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   // class_inheritance: merged props {a: string, b: number}
   'OBJECT.class_inheritance': {
     buildErrors: () => {
-      const schema = z.object({a: z.string(), b: z.number().finite()});
+      const schema = z.object({a: z.string(), b: z.number()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -533,13 +533,13 @@ export const cases: CompetitorCases = {
   // ── TUPLE ──
   'TUPLE.string_number_pair': {
     buildErrors: () => {
-      const schema = z.tuple([z.string(), z.number().finite()]);
+      const schema = z.tuple([z.string(), z.number()]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'TUPLE.full_mion_tuple': {
     buildErrors: () => {
-      const schema = z.tuple([z.date(), z.number().finite(), z.string(), z.null(), z.array(z.string()), z.bigint()]);
+      const schema = z.tuple([z.date(), z.number(), z.string(), z.null(), z.array(z.string()), z.bigint()]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -549,23 +549,23 @@ export const cases: CompetitorCases = {
   'TUPLE.tuple_with_optional': {
     buildErrors: () => {
       const schema = z.tuple([
-        z.number().finite(),
+        z.number(),
         z.bigint().optional(),
         z.boolean().optional(),
-        z.number().finite().optional(),
+        z.number().optional(),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'TUPLE.nested_tuple_in_array': {
     buildErrors: () => {
-      const schema = z.array(z.tuple([z.string(), z.number().finite()]));
+      const schema = z.array(z.tuple([z.string(), z.number()]));
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'TUPLE.tuple_rest': {
     buildErrors: () => {
-      const schema = z.tuple([z.number().finite()]).rest(z.string());
+      const schema = z.tuple([z.number()]).rest(z.string());
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -576,7 +576,7 @@ export const cases: CompetitorCases = {
       const schema = z.lazy(() => {
         const schema: z.ZodType = z.tuple([
           z.date(),
-          z.number().finite(),
+          z.number(),
           z.string(),
           z.null(),
           z.array(z.string()),
@@ -592,24 +592,24 @@ export const cases: CompetitorCases = {
   'TUPLE.tuple_multiple_trailing_optionals': {
     buildErrors: () => {
       const schema = z.tuple([
-        z.number().finite(),
+        z.number(),
         z.bigint().optional(),
         z.boolean().optional(),
-        z.number().finite().optional(),
+        z.number().optional(),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'TUPLE.tuple_named_labels': {
     buildErrors: () => {
-      const schema = z.tuple([z.string(), z.number().finite()]);
+      const schema = z.tuple([z.string(), z.number()]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   // tuple_with_non_serializable: function slot must be undefined — z.tuple with undefined at slot 1
   'TUPLE.tuple_with_non_serializable': {
     buildErrors: () => {
-      const schema = z.tuple([z.number().finite(), z.undefined().optional()]);
+      const schema = z.tuple([z.number(), z.undefined().optional()]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -627,7 +627,7 @@ export const cases: CompetitorCases = {
   },
   'TUPLE.readonly_tuple': {
     buildErrors: () => {
-      const schema = z.tuple([z.string(), z.number().finite()]);
+      const schema = z.tuple([z.string(), z.number()]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -635,7 +635,7 @@ export const cases: CompetitorCases = {
   // ── UNION ──
   'UNION.atomic_union': {
     buildErrors: () => {
-      const schema = z.union([z.date(), z.number().finite(), z.string(), z.null(), z.bigint()]);
+      const schema = z.union([z.date(), z.number(), z.string(), z.null(), z.bigint()]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -651,11 +651,11 @@ export const cases: CompetitorCases = {
       const schema = z.union([
         z.literal('a'),
         z.literal('b'),
-        z.number().finite(),
+        z.number(),
         z.boolean(),
         z.null(),
         z.object({a: z.string()}),
-        z.object({a: z.string(), b: z.number().finite()}),
+        z.object({a: z.string(), b: z.number()}),
         z.object({c: z.bigint()}),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
@@ -663,13 +663,13 @@ export const cases: CompetitorCases = {
   },
   'UNION.string_or_number': {
     buildErrors: () => {
-      const schema = z.union([z.string(), z.number().finite()]);
+      const schema = z.union([z.string(), z.number()]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'UNION.union_of_array_types': {
     buildErrors: () => {
-      const schema = z.union([z.array(z.string()), z.array(z.number().finite()), z.array(z.boolean())]);
+      const schema = z.union([z.array(z.string()), z.array(z.number()), z.array(z.boolean())]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -683,7 +683,7 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.union([
         z.object({a: z.string(), aa: z.boolean()}),
-        z.object({b: z.number().finite()}),
+        z.object({b: z.number()}),
         z.object({c: z.bigint()}),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
@@ -693,7 +693,7 @@ export const cases: CompetitorCases = {
   'UNION.discriminated_union': {
     buildErrors: () => {
       const schema = z.discriminatedUnion('kind', [
-        z.object({kind: z.literal('a'), n: z.number().finite()}),
+        z.object({kind: z.literal('a'), n: z.number()}),
         z.object({kind: z.literal('b'), s: z.string()}),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
@@ -706,7 +706,7 @@ export const cases: CompetitorCases = {
       const schema = z.lazy(() => {
         const schema: z.ZodType = z.union([
           z.date(),
-          z.number().finite(),
+          z.number(),
           z.string(),
           z.array(z.lazy(() => schema)),
           z.record(
@@ -722,13 +722,13 @@ export const cases: CompetitorCases = {
   // union_with_methods: method props skipped — validate only data props
   'UNION.union_with_methods': {
     buildErrors: () => {
-      const schema = z.union([z.object({name: z.string()}), z.object({age: z.number().finite()})]);
+      const schema = z.union([z.object({name: z.string()}), z.object({age: z.number()})]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'UNION.intersection_to_object': {
     buildErrors: () => {
-      const schema = z.object({a: z.string(), b: z.number().finite()});
+      const schema = z.object({a: z.string(), b: z.number()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -737,7 +737,7 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.union([
         z.object({a: z.string(), aa: z.boolean()}),
-        z.object({b: z.number().finite()}),
+        z.object({b: z.number()}),
         z.record(z.string(), z.bigint()).refine((o) => Object.keys(o).length > 0),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
@@ -748,7 +748,7 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.discriminatedUnion('type', [
         z.object({type: z.literal('a'), prop: z.boolean()}),
-        z.object({type: z.literal('b'), prop: z.number().finite()}),
+        z.object({type: z.literal('b'), prop: z.number()}),
         z.object({type: z.literal('c'), prop: z.string()}),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
@@ -759,17 +759,17 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.union([
         z.array(z.string()),
-        z.array(z.number().finite()),
+        z.array(z.number()),
         z.array(z.boolean()),
         z.object({a: z.string(), aa: z.boolean()}),
-        z.object({b: z.number().finite()}),
+        z.object({b: z.number()}),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'UNION.union_merged_property': {
     buildErrors: () => {
-      const schema = z.union([z.object({a: z.boolean()}), z.object({a: z.number().finite()})]);
+      const schema = z.union([z.object({a: z.boolean()}), z.object({a: z.number()})]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -779,7 +779,7 @@ export const cases: CompetitorCases = {
       const schema = z.union([
         z.array(z.string()),
         z.object({a: z.string(), aa: z.boolean()}),
-        z.object({b: z.number().finite()}),
+        z.object({b: z.number()}),
         z.record(z.string(), z.bigint()).refine((o) => Object.keys(o).length > 0),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
@@ -800,7 +800,7 @@ export const cases: CompetitorCases = {
   // union_subset_small_first: {a} before {a,b} — structurally, {a} arm matches both; both valid
   'UNION.union_subset_small_first': {
     buildErrors: () => {
-      const schema = z.union([z.object({a: z.string()}), z.object({a: z.string(), b: z.number().finite()})]);
+      const schema = z.union([z.object({a: z.string()}), z.object({a: z.string(), b: z.number()})]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -809,8 +809,8 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.union([
         z.object({x: z.string()}),
-        z.object({x: z.string(), y: z.number().finite()}),
-        z.object({x: z.string(), y: z.number().finite(), z: z.boolean()}),
+        z.object({x: z.string(), y: z.number()}),
+        z.object({x: z.string(), y: z.number(), z: z.boolean()}),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
     },
@@ -821,7 +821,7 @@ export const cases: CompetitorCases = {
       const schema = z.union([
         z.object({id: z.string()}),
         z.object({id: z.string(), name: z.string()}),
-        z.object({value: z.number().finite()}),
+        z.object({value: z.number()}),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
     },
@@ -869,7 +869,7 @@ export const cases: CompetitorCases = {
   // zod 4's z.record accepts a templateLiteral key schema that constrains every key.
   'TEMPLATE_LITERAL.template_literal_index_key': {
     buildErrors: () => {
-      const schema = z.record(z.templateLiteral(['api/', z.string()]), z.number().finite());
+      const schema = z.record(z.templateLiteral(['api/', z.string()]), z.number());
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -884,7 +884,7 @@ export const cases: CompetitorCases = {
   // ── NATIVE ──
   'NATIVE.map_string_number': {
     buildErrors: () => {
-      const schema = z.map(z.string(), z.number().finite());
+      const schema = z.map(z.string(), z.number());
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -913,7 +913,7 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.lazy(() => {
         const schema: z.ZodType = z.object({
-          n: z.number().finite(),
+          n: z.number(),
           s: z.string(),
           c: z.lazy(() => schema).optional(),
           d: z.date().optional(),
@@ -926,7 +926,7 @@ export const cases: CompetitorCases = {
   'CIRCULAR.array_of_union_with_self_ref': {
     buildErrors: () => {
       const schema = z.lazy(() => {
-        const schema: z.ZodType = z.array(z.union([z.date(), z.number().finite(), z.string(), z.lazy(() => schema)]));
+        const schema: z.ZodType = z.array(z.union([z.date(), z.number(), z.string(), z.lazy(() => schema)]));
         return schema;
       });
       return (value: unknown) => schema.safeParse(value).success;
@@ -1007,8 +1007,8 @@ export const cases: CompetitorCases = {
         });
         const ciDate: z.ZodType = z.object({
           date: z.date(),
-          month: z.number().finite(),
-          year: z.number().finite(),
+          month: z.number(),
+          year: z.number(),
           embedded: z.lazy(() => ciDate).optional(),
         });
         const root: z.ZodType = z.object({
@@ -1037,7 +1037,7 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.object({
         name: z.string().optional(),
-        age: z.number().finite().optional(),
+        age: z.number().optional(),
         createdAt: z.date().optional(),
       });
       return (value: unknown) => schema.safeParse(value).success;
@@ -1046,7 +1046,7 @@ export const cases: CompetitorCases = {
   // required: {name:string, age:number, createdAt:Date}
   'UTILITY.required': {
     buildErrors: () => {
-      const schema = z.object({name: z.string(), age: z.number().finite(), createdAt: z.date()});
+      const schema = z.object({name: z.string(), age: z.number(), createdAt: z.date()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1082,8 +1082,8 @@ export const cases: CompetitorCases = {
   'UTILITY.exclude_from_object_union': {
     buildErrors: () => {
       const schema = z.union([
-        z.object({kind: z.literal('square'), x: z.number().finite()}),
-        z.object({kind: z.literal('triangle'), base: z.number().finite(), height: z.number().finite()}),
+        z.object({kind: z.literal('square'), x: z.number()}),
+        z.object({kind: z.literal('triangle'), base: z.number(), height: z.number()}),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
     },
@@ -1091,7 +1091,7 @@ export const cases: CompetitorCases = {
   // non_nullable: string | number (no null, no undefined) — valid: string/number; invalid: null/undefined/bool/{}/[]/NaN/Infinity
   'UTILITY.non_nullable': {
     buildErrors: () => {
-      const schema = z.union([z.string(), z.number().finite()]);
+      const schema = z.union([z.string(), z.number()]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1105,21 +1105,21 @@ export const cases: CompetitorCases = {
   // readonly: {name:string, age:number}
   'UTILITY.readonly': {
     buildErrors: () => {
-      const schema = z.object({name: z.string(), age: z.number().finite()});
+      const schema = z.object({name: z.string(), age: z.number()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   // intersection_with_required_override: {name:string, age?:number, createdAt?:Date}
   'UTILITY.intersection_with_required_override': {
     buildErrors: () => {
-      const schema = z.object({name: z.string(), age: z.number().finite().optional(), createdAt: z.date().optional()});
+      const schema = z.object({name: z.string(), age: z.number().optional(), createdAt: z.date().optional()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   // omit_keeping_optional: {b?:number, c:boolean}
   'UTILITY.omit_keeping_optional': {
     buildErrors: () => {
-      const schema = z.object({b: z.number().finite().optional(), c: z.boolean()});
+      const schema = z.object({b: z.number().optional(), c: z.boolean()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1133,7 +1133,7 @@ export const cases: CompetitorCases = {
   // typeof_variable_query: {url:string, port:number}
   'UTILITY.typeof_variable_query': {
     buildErrors: () => {
-      const schema = z.object({url: z.string(), port: z.number().finite()});
+      const schema = z.object({url: z.string(), port: z.number()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1154,7 +1154,7 @@ export const cases: CompetitorCases = {
   // mapped_type_custom: {a:string|null, b:number|null}
   'UTILITY.mapped_type_custom': {
     buildErrors: () => {
-      const schema = z.object({a: z.union([z.string(), z.null()]), b: z.union([z.number().finite(), z.null()])});
+      const schema = z.object({a: z.union([z.string(), z.null()]), b: z.union([z.number(), z.null()])});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1163,7 +1163,7 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.object({
         name: z.object({kind: z.literal('text'), value: z.string()}),
-        age: z.object({kind: z.literal('number'), value: z.number().finite(), min: z.number().finite().optional()}),
+        age: z.object({kind: z.literal('number'), value: z.number(), min: z.number().optional()}),
         admin: z.object({kind: z.literal('checkbox'), value: z.boolean()}),
       });
       return (value: unknown) => schema.safeParse(value).success;
@@ -1172,7 +1172,7 @@ export const cases: CompetitorCases = {
   // distributive_conditional_over_union: {w:string} | {w:number}
   'UTILITY.distributive_conditional_over_union': {
     buildErrors: () => {
-      const schema = z.union([z.object({w: z.string()}), z.object({w: z.number().finite()})]);
+      const schema = z.union([z.object({w: z.string()}), z.object({w: z.number()})]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1184,9 +1184,9 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.object({
         display: z
-          .object({theme: z.enum(['light', 'dark']).optional(), brightness: z.number().finite().optional()})
+          .object({theme: z.enum(['light', 'dark']).optional(), brightness: z.number().optional()})
           .optional(),
-        audio: z.object({volume: z.number().finite().optional(), muted: z.boolean().optional()}).optional(),
+        audio: z.object({volume: z.number().optional(), muted: z.boolean().optional()}).optional(),
       });
       return (value: unknown) => schema.safeParse(value).success;
     },
@@ -1196,21 +1196,21 @@ export const cases: CompetitorCases = {
   // key_prefix_rename: resolves to {user_id:number, user_name:string}
   'TYPE_MAPPINGS.key_prefix_rename': {
     buildErrors: () => {
-      const schema = z.object({user_id: z.number().finite(), user_name: z.string()});
+      const schema = z.object({user_id: z.number(), user_name: z.string()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   // key_conditional_rename: {_id:number, name:string, createdAt:Date}
   'TYPE_MAPPINGS.key_conditional_rename': {
     buildErrors: () => {
-      const schema = z.object({_id: z.number().finite(), name: z.string(), createdAt: z.date()});
+      const schema = z.object({_id: z.number(), name: z.string(), createdAt: z.date()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   // key_filter_via_never: {id:number, name:string} (secret dropped)
   'TYPE_MAPPINGS.key_filter_via_never': {
     buildErrors: () => {
-      const schema = z.object({id: z.number().finite(), name: z.string()});
+      const schema = z.object({id: z.number(), name: z.string()});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1608,25 +1608,25 @@ export const cases: CompetitorCases = {
   // ── NUMBER_FORMAT ──
   'NUMBER_FORMAT.number_max': {
     buildErrors: () => {
-      const schema = z.number().finite().max(100);
+      const schema = z.number().max(100);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'NUMBER_FORMAT.number_min': {
     buildErrors: () => {
-      const schema = z.number().finite().min(0);
+      const schema = z.number().min(0);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'NUMBER_FORMAT.number_lt': {
     buildErrors: () => {
-      const schema = z.number().finite().lt(10);
+      const schema = z.number().lt(10);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'NUMBER_FORMAT.number_gt': {
     buildErrors: () => {
-      const schema = z.number().finite().gt(0);
+      const schema = z.number().gt(0);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1640,14 +1640,14 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z
         .number()
-        .finite()
+        
         .refine((n) => !Number.isInteger(n));
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
   'NUMBER_FORMAT.number_multipleOf': {
     buildErrors: () => {
-      const schema = z.number().finite().multipleOf(5);
+      const schema = z.number().multipleOf(5);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1806,10 +1806,10 @@ export const cases: CompetitorCases = {
   'REALWORLD.user': {
     buildErrors: () => {
       const schema = z.object({
-        id: z.number().finite(),
+        id: z.number(),
         email: z.string(),
         name: z.string(),
-        age: z.number().finite().optional(),
+        age: z.number().optional(),
         roles: z.array(z.enum(['admin', 'editor', 'user'])),
         active: z.boolean(),
         createdAt: z.string(),
@@ -1821,9 +1821,9 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.object({
         id: z.string(),
-        customer: z.object({id: z.number().finite(), email: z.string()}),
+        customer: z.object({id: z.number(), email: z.string()}),
         items: z.array(
-          z.object({sku: z.string(), name: z.string(), qty: z.number().finite(), price: z.number().finite()})
+          z.object({sku: z.string(), name: z.string(), qty: z.number(), price: z.number()})
         ),
         shipping: z.object({
           street: z.string(),
@@ -1833,7 +1833,7 @@ export const cases: CompetitorCases = {
           country: z.string(),
         }),
         status: z.enum(['pending', 'paid', 'shipped', 'delivered', 'cancelled']),
-        total: z.number().finite(),
+        total: z.number(),
         note: z.string().optional(),
       });
       return (value: unknown) => schema.safeParse(value).success;
@@ -1842,7 +1842,7 @@ export const cases: CompetitorCases = {
   'REALWORLD.blogPost': {
     buildErrors: () => {
       const schema = z.object({
-        id: z.number().finite(),
+        id: z.number(),
         title: z.string(),
         slug: z.string(),
         body: z.string(),
@@ -1850,7 +1850,7 @@ export const cases: CompetitorCases = {
         author: z.object({name: z.string(), email: z.string()}),
         published: z.boolean(),
         publishedAt: z.string().optional(),
-        meta: z.object({views: z.number().finite(), likes: z.number().finite()}),
+        meta: z.object({views: z.number(), likes: z.number()}),
       });
       return (value: unknown) => schema.safeParse(value).success;
     },
@@ -1861,12 +1861,12 @@ export const cases: CompetitorCases = {
         id: z.string(),
         name: z.string(),
         description: z.string(),
-        price: z.number().finite(),
+        price: z.number(),
         currency: z.enum(['USD', 'EUR', 'GBP']),
         inStock: z.boolean(),
         categories: z.array(z.string()),
         dimensions: z
-          .object({width: z.number().finite(), height: z.number().finite(), depth: z.number().finite()})
+          .object({width: z.number(), height: z.number(), depth: z.number()})
           .optional(),
       });
       return (value: unknown) => schema.safeParse(value).success;
@@ -1880,18 +1880,18 @@ export const cases: CompetitorCases = {
             id: z.string(),
             name: z.string(),
             description: z.string(),
-            price: z.number().finite(),
+            price: z.number(),
             currency: z.enum(['USD', 'EUR', 'GBP']),
             inStock: z.boolean(),
             categories: z.array(z.string()),
             dimensions: z
-              .object({width: z.number().finite(), height: z.number().finite(), depth: z.number().finite()})
+              .object({width: z.number(), height: z.number(), depth: z.number()})
               .optional(),
           })
         ),
-        page: z.number().finite(),
-        pageSize: z.number().finite(),
-        total: z.number().finite(),
+        page: z.number(),
+        pageSize: z.number(),
+        total: z.number(),
         hasMore: z.boolean(),
       });
       return (value: unknown) => schema.safeParse(value).success;
@@ -1903,7 +1903,7 @@ export const cases: CompetitorCases = {
         email: z.string(),
         password: z.string(),
         acceptedTerms: z.literal(true),
-        profile: z.object({firstName: z.string(), lastName: z.string(), age: z.number().finite().optional()}),
+        profile: z.object({firstName: z.string(), lastName: z.string(), age: z.number().optional()}),
       });
       return (value: unknown) => schema.safeParse(value).success;
     },
