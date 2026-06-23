@@ -9,7 +9,7 @@
 import * as TF from 'ts-runtypes/formats';
 import {describe, it, expect} from 'vitest';
 import * as RT from 'ts-runtypes/schema';
-import {createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
+import {createBinaryEncoder, createBinaryDecoder, RunTypeKind} from 'ts-runtypes';
 import {createSizingSerializer, createDataViewSerializer} from '../../src/runtypes/dataView.ts';
 
 describe('exact binary sizing — measure pass matches the encoder', () => {
@@ -85,7 +85,13 @@ describe('exact binary sizing — byte-identical + round-trips', () => {
   });
 
   it('union of object members', () => {
-    const s = RT.union(RT.object({kind: RT.literal('a'), x: TF.number()}), RT.object({kind: RT.literal('b'), y: TF.string()}));
+    // `union` takes a SINGLE array of members. The two-positional `union(a, b)`
+    // is a type error that silently reflects `RunType<unknown>`, whose generic
+    // codec round-trips and would pass the RELATIVE checks below without ever
+    // exercising a union (it JSON-stringifies the value). Pin that `s` really is
+    // a union node so that degradation fails loudly instead of silently.
+    const s = RT.union([RT.object({kind: RT.literal('a'), x: TF.number()}), RT.object({kind: RT.literal('b'), y: TF.string()})]);
+    expect(s.kind).toBe(RunTypeKind.union);
     const enc = createBinaryEncoder(s);
     const encEx = createBinaryEncoder(s, {sizing: 'exact'});
     const dec = createBinaryDecoder(s);
