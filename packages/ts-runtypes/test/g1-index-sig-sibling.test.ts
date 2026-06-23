@@ -19,7 +19,7 @@ describe('G1 — index signature does not corrupt a named sibling property', () 
       ['direct', 'strip'],
     ] as const;
     for (const [enc, dec] of pairs) {
-      const out = createJsonDecoder<A>(undefined, {strategy: dec})(createJsonEncoder<A>(undefined, {strategy: enc})(make()));
+      const out = createJsonDecoder<A>(undefined, {strategy: dec})(createJsonEncoder<A>(undefined, {strategy: enc})(make())!);
       expect(typeof out.p0, `[json/${enc}] p0 must stay a number`).toBe('number');
       expect(out.p0, `[json/${enc}] p0 value`).toBe(1);
       expect(out[5], `[json/${enc}] index value 5`).toBe(7n);
@@ -33,7 +33,7 @@ describe('G1 — index signature does not corrupt a named sibling property', () 
     expect(bout[5]).toBe(7n);
 
     // Cross-wire agreement: the JSON and binary decodes match.
-    const viaJson = createJsonDecoder<A>()(createJsonEncoder<A>()(make()));
+    const viaJson = createJsonDecoder<A>()(createJsonEncoder<A>()(make())!);
     const viaBinary = createBinaryDecoder<A>()(createBinaryEncoder<A>()(make()));
     expect(viaBinary).toEqual(viaJson);
   });
@@ -41,7 +41,7 @@ describe('G1 — index signature does not corrupt a named sibling property', () 
   it('{name: string; [id: number]: Date} keeps the string prop and revives Dates', () => {
     type B = {name: string; [id: number]: Date};
     const make = (): B => ({name: 'hi', 1: new Date('2020-01-01T00:00:00.000Z')});
-    const out = createJsonDecoder<B>()(createJsonEncoder<B>()(make()));
+    const out = createJsonDecoder<B>()(createJsonEncoder<B>()(make())!);
     expect(out.name).toBe('hi');
     expect(out[1]).toBeInstanceOf(Date);
     expect((out[1] as Date).toISOString()).toBe('2020-01-01T00:00:00.000Z');
