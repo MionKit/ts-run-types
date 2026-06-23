@@ -331,16 +331,20 @@ export const OBJECT = {
       const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
       return createMockType(items[0]);
     },
+    // Samples deliberately DIFFER from the property-access sibling so a regression
+    // unique to the array-element-access inference path can surface (rather than
+    // being a verbatim clone that both paths pass identically). The expected errors
+    // still describe the SAME `{id; name}` shape — only the chosen invalid values vary.
     getSamples: () => ({
       valid: [
-        {id: 1, name: 'john'},
+        {id: 2, name: 'jane'},
         {id: 0, name: ''},
       ],
-      invalid: [{id: 'not number', name: 'x'}, {id: 1}, null],
+      invalid: [{id: 1, name: 42}, {id: 'bad', name: 'ok'}, undefined],
     }),
     getExpectedErrors: () => [
-      [{path: ['id'], expected: 'number'}],
       [{path: ['name'], expected: 'string'}],
+      [{path: ['id'], expected: 'number'}],
       [{path: [], expected: 'objectLiteral'}],
     ],
   },

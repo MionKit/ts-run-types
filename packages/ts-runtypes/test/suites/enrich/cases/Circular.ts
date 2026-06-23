@@ -70,6 +70,11 @@ export const CIRCULAR = {
   },
 
   circularArray: {
+    // NOTE: the mock below uses `items: {$items: {}, …}` (empty `$items`), NOT
+    // `{$items: {pool: []}, …}` like every other array case. The element type is
+    // the self-referential `CircularArray`, so the array back-edge is the
+    // recursion-leaf where the cycle breaks — gen emits a bare node there, not a
+    // fillable leaf pool. The lone divergence is the cycle-break leaf, not drift.
     title: 'Object with self-referential array',
     case: () => {
       // ##### src #####

@@ -42,7 +42,13 @@ export const DATETIME = {
     schemaDecoder: () => createJsonDecoder(TF.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     schemaBinaryEncoder: () => createBinaryEncoder(TF.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     schemaBinaryDecoder: () => createBinaryDecoder(TF.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
-    getTestData: () => ({values: [new Date(Date.UTC(2020, 5, 15))]}),
+    getTestData: () => ({
+      values: [
+        new Date(Date.UTC(2020, 5, 15)),
+        new Date(Date.UTC(2020, 5, 15, 12, 30, 45, 123)), // ms precision survives the round-trip
+        new Date(Date.UTC(2020, 0, 1)), // range lower-edge
+      ],
+    }),
   },
 
   instant: {

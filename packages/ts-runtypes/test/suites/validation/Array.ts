@@ -264,9 +264,13 @@ export const ARRAY = {
     },
     getSamples: () => ({
       valid: [[], [new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')]],
-      invalid: [['2024'], [42], [new Date('invalid')], null, undefined],
+      // `'2024'` is a bare non-array (a primitive string at root) — exercises the
+      // root `isArray` guard, distinct from `['2024']` which is an array whose
+      // element fails the per-element Date check at [0].
+      invalid: ['2024', ['2024'], [42], [new Date('invalid')], null, undefined],
     }),
     getExpectedErrors: () => [
+      [{path: [], expected: 'array'}],
       [{path: [0], expected: 'date'}],
       [{path: [0], expected: 'date'}],
       [{path: [0], expected: 'date'}],

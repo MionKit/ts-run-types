@@ -131,7 +131,16 @@ export function assertDataOnlyEquivalence(c: ValidationCase): void {
  *  identical to the type-first encoder (same default strategy) — json strings
  *  byte-for-byte, binary buffers byte-for-byte. Identical wire output ⇒ the two
  *  forms resolved the same runtype. Skips broad/best-effort types and
- *  factory-throwing / `'not-supported'` cases. **/
+ *  factory-throwing / `'not-supported'` cases.
+ *
+ *  NOTE on the id signal strength: the encoder is a fresh closure each call, so —
+ *  unlike the validator driver — we cannot compare resolved structural ids by
+ *  `.toBe` identity, and the runtime exposes no id on the encoder fn. Byte-equal
+ *  output is therefore a slightly weaker signal (two output-equivalent but
+ *  structurally-distinct runtypes would both pass here). That gap is closed from
+ *  the other side by `id-integrity/distinctness.test.ts`, which pins that
+ *  meaningfully-distinct types do NOT collapse to one cached factory — so a
+ *  degenerate id scheme can't slip past both drivers. **/
 export function assertSerializerIdIntegrity(c: SerializationCase): void {
   // Broad types (any/unknown/object) encode via identity and may throw on
   // non-serialisable members — not a reliable id signal.

@@ -5,6 +5,7 @@ import 'ts-runtypes/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
 
 const V4 = '9f1b8c2e-3d4a-4b5c-8d6e-1f2a3b4c5d6e';
+const V4_B = '00112233-4455-4677-8899-aabbccddeeff';
 
 export const STRING_FORMAT = {
   string_maxLength: {
@@ -43,7 +44,7 @@ export const STRING_FORMAT = {
     schemaDecoder: () => createJsonDecoder(TF.uuidv4()),
     schemaBinaryEncoder: () => createBinaryEncoder(TF.uuidv4()),
     schemaBinaryDecoder: () => createBinaryDecoder(TF.uuidv4()),
-    getTestData: () => ({values: [V4]}),
+    getTestData: () => ({values: [V4, V4_B]}),
   },
   date: {
     title: 'String date',
@@ -120,7 +121,9 @@ export const STRING_FORMAT = {
     schemaDecoder: () => createJsonDecoder(RT.object({id: TF.uuidv4(), name: TF.string({maxLength: 20})})),
     schemaBinaryEncoder: () => createBinaryEncoder(RT.object({id: TF.uuidv4(), name: TF.string({maxLength: 20})})),
     schemaBinaryDecoder: () => createBinaryDecoder(RT.object({id: TF.uuidv4(), name: TF.string({maxLength: 20})})),
-    getTestData: () => ({values: [{id: V4, name: 'alice'}]}),
+    getTestData: () => ({
+      values: [{id: V4, name: 'alice'}, {id: V4_B, name: ''}, {id: V4, name: 'a'.repeat(20)}],
+    }),
   },
   email_array: {
     title: 'Email array',
@@ -139,6 +142,8 @@ export const STRING_FORMAT = {
     schemaDecoder: () => createJsonDecoder(RT.array(TF.email())),
     schemaBinaryEncoder: () => createBinaryEncoder(RT.array(TF.email())),
     schemaBinaryDecoder: () => createBinaryDecoder(RT.array(TF.email())),
-    getTestData: () => ({values: [['john@example.com', 'jane.doe@mion.io']]}),
+    getTestData: () => ({
+      values: [['john@example.com', 'jane.doe@mion.io'], [], ['solo@example.org']],
+    }),
   },
 } as const satisfies Record<string, SerializationCase>;

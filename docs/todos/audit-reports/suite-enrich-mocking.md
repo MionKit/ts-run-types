@@ -154,7 +154,7 @@ mocking: 13 cases (mockData 11, mockInvalid 7 — counting `it`s).
 |---|---|---|---|---|---|---|
 | selfReference | `{value;next:Self\|null}` | back-edge degrades to leaf node | yes | yes | OK | |
 | deepCircular | nested self-ref | deep cycle bottoms out as leaf | yes | yes | OK | |
-| circularArray | `{items:Self[];id}` | array back-edge → mock `$items:{}` (empty, not `{pool:[]}`) | yes | yes | SUSPECT | asymmetry vs every other array case (which use `$items:{pool:[]}`); the empty `$items:{}` is the recursion-leaf emit and IS what gen produces here, so the assert is faithful — flag only as a coverage oddity worth a one-line comment so it doesn't read as drift |
+| circularArray | `{items:Self[];id}` | array back-edge → mock `$items:{}` (empty, not `{pool:[]}`) | yes | yes | ADDED | asymmetry vs every other array case (which use `$items:{pool:[]}`); the empty `$items:{}` is the recursion-leaf emit and IS what gen produces here, so the assert is faithful. ADDED a clarifying NOTE on the case (placed BEFORE `case: () => {`, outside all four `##### #####` spans — an inline comment inside the mock literal breaks `prettierNormalize`'s single-lining) explaining the empty `$items` is the cycle-break leaf, not drift. |
 
 ## cases/Realworld.ts
 | case key | intended type/behavior | what it asserts | faithful? | repr? | verdict | issue / fix |
@@ -270,7 +270,9 @@ incorrect assertions.
   (`assertMockTypeStatic`/`assertMockTypeReflect` → `runMockPass`). Verdict: OK as
   scoped, but a one-line header note pointing at the validation suite would stop a
   future reader assuming these unit tests cover the round-trip. SUSPECT-adjacent,
-  not a defect.
+  not a defect. [ADDED] Header SCOPE note added to `mockData.test.ts` pointing at
+  the validation suite for the mock→validate round-trip + both-call-shape marker
+  coverage, and stating these unit tests assert pool/range respect only.
 
 - **Format mock ignores bounds — by design at the SKELETON layer (enrich
   Format.* + Realworld.registrationForm):** the enrich-gen mock for a
@@ -287,9 +289,10 @@ incorrect assertions.
   Circular.circularArray):** its mock emits `$items: {}` (empty object) where
   every other array case emits `$items: {pool: []}`. This is the genuine
   recursion-leaf emit (the back-edge degrades to a bare node), so the assertion is
-  faithful — but the lone divergence reads like drift. Suggest a one-line comment
-  in the case explaining the empty `$items` is the cycle-break leaf. SUSPECT
-  (readability only).
+  faithful — but the lone divergence reads like drift. [ADDED] One-line clarifying
+  comment added on `cases/Circular.ts::circularArray` (placed before `case:`, not
+  inside the mock literal — an inline comment there breaks `prettierNormalize`)
+  explaining the empty `$items` is the cycle-break leaf. SUSPECT (readability only).
 
 - **Marker-API both-call-shape rule (mocking):** not violated, because no case in
   the `mocking/` suite is a marker-API call site — they call the walker directly.
