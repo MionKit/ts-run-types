@@ -1,17 +1,16 @@
-# Talk: *Your Types Already Know How to Test Themselves*
+# Talk: *Meet Botty, the Tireless Bug-Hunting Robot*
 
-A conference talk (JS/TS and general tech) plus two companion design-doc
-frameworks, on **fuzzing as hypothesis/directive-driven testing**, how
-RunTypes uses type reflection to get it nearly for free, and how the same loop
-becomes the safe reward signal for self-improving software.
+A friendly, no-jargon conference talk about how computers can find — and even
+fix — their own mistakes, plus two deeper companion docs for engineers who want
+the how.
 
-> **The one idea:** a property-based test is a fuzzer with an oracle. If you can
-> **reflect your types**, you get the **generator *and* the oracle for free**.
-> Name that recipe — **directives** — and it's a repeatable method, and exactly
-> the verification loop an LLM agent needs to improve software *without fooling
-> itself*.
+> **The one idea (in plain words):** you can't think of every way something
+> breaks, so don't. Teach the computer the **shape** of your stuff, give it **one
+> always-true rule** (start with *"do it, then undo it, and you should be back
+> where you started"*), and let a **tireless robot** try a million weird cases
+> you'd never dream up. It works — as long as the robot can't cheat on the rule.
 >
-> oracle ≡ hypothesis ≡ directive · generators + reflection + **oracles**
+> socks 🧦 · cookie cutters 🍪 · a backpack that rips 🎒 · a robot named Botty 🤖
 
 Status: **first draft, meant to be iterated on.** Format is Marp Markdown so it
 stays diffable and editable.
@@ -22,7 +21,7 @@ stays diffable and editable.
 
 | File | What it is |
 |---|---|
-| [`slides.md`](slides.md) | The **Marp deck** — lightning length (~12–13 min, 18 slides). |
+| [`slides.md`](slides.md) | The **Marp deck** — the talk itself: casual, no-jargon, ~10–12 min (21 short slides). |
 | [`speaker-notes.md`](speaker-notes.md) | Slide-by-slide rehearsal script with timing + cut list + Q&A. |
 | [`framework-directive-driven-testing.md`](framework-directive-driven-testing.md) | **Framework 1:** assess a project, identify the tooling it needs, and **author the directives (oracles)**. Five-question readiness model + the oracle decision tree + soundness contract. |
 | [`framework-self-improving-agents.md`](framework-self-improving-agents.md) | **Framework 2:** close the loop with an LLM agent — the architecture, pseudo-code, the **trust anchor**, and the risk accounting. |
@@ -32,23 +31,30 @@ stays diffable and editable.
 
 ---
 
-## The arc (lightning cut)
+## The arc (no-jargon cut)
 
 ```
-1  Hook: 3,000 green tests; a fuzzer found the bug on the first run
-2  Examples test what you thought of; generators test what you didn't
-3  What fuzzing is (Miller → OSS-Fuzz) and what it solved (inputs)
-4  The real bottleneck: the ORACLE (the oracle problem)
-5  PBT = fuzzing + an explicit oracle (the same machine)
-6  The four oracles you can always reach for
-7  But you hand-build the generator AND the oracle — that's the cost
-8  Reflection hands you BOTH for free (RunTypes: 3 tools, 2 phases, derived oracles)
-9  …which is how we found the real bug
-10 Not new (PropEr/Schemathesis/typia) — TS is under-fuzzed by this recipe
-11 Name it: Directive-Driven Testing (5-question framework, generalizes)
-12 The payoff: a loop an agent can run (fuzzing = reward signal)
-13 The catch: garbage oracle = confident wrongness → the trust anchor
-14 Takeaways + one call to action: reflect a type, write ONE directive
+1  Meet Botty 🤖 — a dumb, fast, tireless little robot
+2  Every app is just a recipe… that sometimes goes wrong
+3  We only test the things we thought of
+4  The bugs hide in the stuff we DIDN'T think of
+5  True story: a thunderstorm types random junk and crashes everything
+6  What if we crash things on purpose? (the first bug-hunting robot)
+7  Botty tries a million silly things while you drink one coffee
+8  The hard part: how does Botty know when something went wrong?
+9  A wrong answer that doesn't crash (2 + 2 = 5, straight face)
+10 The trick: you don't need the answer key — just a rule that's ALWAYS true
+11 🧦 The sock rule: inside-out twice = the same sock
+12 Computers are full of sock rules (save→open, zip→unzip)
+13 The magic: what if the computer knew the SHAPE of your stuff?
+14 🍪 One cookie cutter, two jobs: make a million + spot the bad one
+15 We pointed Botty at our own software (3,000 green tests…)
+16 🎒 …and it found a real bug: the backpack that rips
+17 Where it's going: software that fixes ITSELF
+18 A robot doing its own homework (the loop)
+19 ⚠️ The catch: it only works if the robot can't cheat
+20 The whole idea, tiny
+21 Try it tonight: "save it, open it — is it still the same?"
 ```
 
 ---
@@ -76,17 +82,19 @@ gives the same preview inline.
 
 ## How the pieces relate
 
-- **The deck** sells the one idea and tells the RunTypes story.
-- **Framework 1** is the deck's slide 11 expanded into a method you can apply to
-  any project (and is the honest answer to "okay, how do I actually do this?").
-- **Framework 2** is the deck's slides 12–13 expanded — and it stands *on*
-  Framework 1's soundness contract: an agent may only optimize against a directive
-  whose failures are sound and whose pass genuinely implies correctness.
-- **prior-art.md / sources.md / research/** keep the talk honest and citeable.
+- **The deck (`slides.md`)** is the talk: the friendly, socks-and-cookies version.
+  It's deliberately non-technical — anyone can follow it.
+- **The two frameworks** are the grown-up deep-dive for engineers who watch the
+  talk and ask "okay, how do I actually do this?" They translate the sock rule and
+  the cookie cutter into a real method (Framework 1) and into the self-improving
+  agent loop, with the "can't cheat" rule made rigorous (Framework 2). Heads-up:
+  they still use the technical vocabulary on purpose.
+- **prior-art.md / sources.md / research/** keep the talk honest and citeable —
+  the real names and numbers behind the friendly stories.
 
 ## Iterating
 
-It's a draft. Likely next passes: tighten the deck to your true time slot, pick a
-final name (Directive-Driven Testing / Oracle-Driven Development /
-Hypothesis-Directed Testing — see Framework 1 §0), swap in your speaker theme,
-and re-verify the few flagged figures in `sources.md` before stage.
+It's a draft. Likely next passes: trim to your exact time slot, drop in your
+speaker theme/colors, add your name to the title slide, and — if you show it to a
+technical crowd — decide whether to add the optional "grown-up wink" at the end
+(see `speaker-notes.md`). The deeper frameworks keep their own technical naming.

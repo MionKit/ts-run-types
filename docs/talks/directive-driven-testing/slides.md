@@ -3,356 +3,366 @@ marp: true
 theme: default
 paginate: true
 class: lead
-title: Your Types Already Know How to Test Themselves
-description: Fuzzing, type reflection, and oracles that drive development — and the loop that lets software improve itself.
+title: Meet Botty, the Tireless Bug-Hunting Robot
+description: How computers can find (and even fix) their own mistakes — explained with socks, cookies, and a very patient robot.
 author: "" # ← your name
+style: |
+  section {
+    font-size: 1.7rem;
+    justify-content: center;
+  }
+  section.lead h1 { font-size: 3.2rem; line-height: 1.1; }
+  section.lead h2 { font-size: 2.2rem; }
+  strong { color: #d6336c; }
+  em { color: #1c7ed6; font-style: normal; font-weight: 600; }
+  blockquote { font-size: 1.9rem; border-left: 6px solid #ffd43b; }
 ---
 
-# Your Types Already Know How to Test Themselves
+# Meet Botty 🤖
 
-### Fuzzing, the oracle problem, and the loop that lets software improve itself
+## the tireless little bug-hunting robot
 
-generators · reflection · **oracles**
+a story about how computers find their own mistakes
+— told with socks, cookies, and a backpack
 
 <!--
-Lightning talk, ~12 min. ONE idea: a property-based test is a fuzzer with an oracle;
-if you can reflect your types you get BOTH the generator and the oracle for free;
-and that free loop is exactly what a self-improving agent needs.
-Open on the bug. Don't define terms first — earn them.
+Whole talk in one breath: we can't think of every way something breaks, so we
+build a fast, dumb robot to try a million weird things, and we give it ONE
+always-true rule so it knows when something broke. Keep it warm and slow. No jargon.
 -->
 
 ---
 
 <!-- _class: lead -->
 
-## We had ~3,000 tests. They were green.
+# Every app is just a **recipe**
 
-## Fuzzing found the bug in the first run.
+A really long list of *do this, then this, then this.*
 
-<!--
-Set the stakes immediately. This is a real finding from RunTypes, a runtime-types
-library for TypeScript. The example suite was thorough and passing.
--->
-
----
-
-## The bug
-
-A binary encoder that sizes its own buffer from a running average of past payloads.
-
-```
-encode("")        // tiny
-encode("")        // tiny      ... 50 times
-encode(bigString) // BOOM: RangeError: buffer too small
-```
-
-After ~50 small payloads the predictor had shrunk the buffer toward the **mean**.
-One above-average string overflowed and **threw instead of growing**.
-
-Hand-written tests never hit it: they use **small, hand-picked values**.
+And like any recipe… sometimes it goes wrong
+in a situation nobody saw coming.
 
 <!--
-Root cause: a variance-blind size predictor. Fix shipped: Welford mean + k·sigma
-prediction and in-place buffer growth. The point isn't the bug; it's WHY examples missed it.
+Ground everyone. A program = instructions, like a recipe for a cake. Relatable,
+zero computer words.
 -->
 
 ---
 
 <!-- _class: lead -->
 
-# Examples test what you thought of.
+## How do we usually check our work?
 
-# Generators test what you *didn't*.
+We try a few things **we thought of.**
 
-<!--
-This is the whole talk in two lines. Everything else explains how to get there cheaply
-and safely. Pause here.
--->
+"Does 2 + 2 work? Yep. 👍 Ship it."
 
----
-
-## Fuzzing, in one slide
-
-**1990, Barton Miller.** A thunderstorm puts line-noise on a dial-up link.
-Garbage characters keep crashing UNIX utilities. So he studies it:
-
-> feed random input to ~90 tools → **24–33% crash or hang**.
-
-35 years later it still works. **OSS-Fuzz: 50,000+ bugs, 13,000+ vulnerabilities** across ~1,000 projects.
-
-Coverage feedback (AFL, 2013) solved *"which inputs to try."*
+But we only ever test the questions
+we *already know the answers to.*
 
 <!--
-Miller, Fredriksen, So — CACM 1990. OSS-Fuzz figures: README, May 2025.
-The frontier moved OFF input-generation. Set up the real bottleneck next.
--->
-
----
-
-## The dirty secret: the **oracle**
-
-A fuzzer generates a billion inputs. It still needs to know which run was **wrong**.
-
-```
-coverage  =  the steering wheel
-oracle    =  the destination
-```
-
-A crash is a **free but shallow** oracle. "Wrong but doesn't crash" is invisible.
-
-> Deciding if an output is *correct* is the bottleneck of test automation.
-> — the **oracle problem** (Weyuker, 1982; Barr et al., 2015)
-
-<!--
-Weyuker "On Testing Non-testable Programs", 1982. Barr et al. survey, IEEE TSE 2015.
-This is the hinge of the talk: the hard part isn't inputs, it's the oracle.
--->
-
----
-
-## Property-based testing = fuzzing **+ an oracle**
-
-Stop writing example cases. Start writing **laws** that hold for *all* inputs.
-
-```haskell
--- QuickCheck, 2000
-reverse (reverse xs) == xs
-```
-
-```ts
-// fast-check, TypeScript
-fc.assert(fc.property(fc.jsonValue(), v =>
-  JSON.parse(JSON.stringify(v)) === structurally(v)   // round-trip law
-));
-```
-
-> "Property-based testing is fuzzing." — Nelson Elhage
-> Hypothesis's engine *is* "an interactive fuzzer for lightly structured byte streams."
-
-<!--
-PBT and fuzzing are the same machine: one with an explicit spec, one without.
-QuickCheck: Claessen & Hughes, ICFP 2000. fast-check: Nicolas Dubien.
--->
-
----
-
-## You almost always reach for one of four oracles
-
-| Oracle | The law | You have… |
-|---|---|---|
-| **Round-trip** | `decode(encode(x)) == x` | an inverse |
-| **Differential** | `A(x) == B(x)` | a second impl / version |
-| **Invariant** | `P(f(x))` always holds | a property that never breaks |
-| **Metamorphic** | `rel(f(x), f(t(x)))` | a meaning-preserving transform |
-
-Metamorphic testing found **147 GCC/LLVM bugs** (EMI). Differential found **325+** (Csmith).
-No "expected output" was ever written by hand.
-
-<!--
-EMI: Le, Afshari, Su, PLDI 2014. Csmith: Yang et al., PLDI 2011.
-These are the four reusable shapes. Memorize them; they're the directive catalogue.
--->
-
----
-
-## But you have to **build** both halves
-
-Csmith's real work wasn't "generate C."
-It was "generate C that **avoids undefined behavior**, so the differential oracle still means something."
-
-Fuzzilli's was "mutate an IR that **always lifts to runnable JS**."
-
-> The generator AND the oracle are usually hand-built, per project. That's the cost.
-
-**What if you didn't have to build either?**
-
-<!--
-This is the pivot to the contribution. The scarce resources are a valid-input generator
-and a meaningful oracle. Most fuzzing projects spend all their effort here.
--->
-
----
-
-## Reflection hands you both — for free
-
-If you can **introspect a type `T`**, you can mechanically derive:
-
-```
-reflect(T)  ─┬─►  generate random types T          (generator)
-             ├─►  generate values inhabiting T      (generator)
-             └─►  "a value of T must validate(T)"   (oracle)
-```
-
-The generator is **the product**.
-The oracle is just *"two independent derivations of `T` must agree."*
-
-<!--
-This is the keystone. A runtime-types library already ships reflection + a validator.
-Generation and the oracle fall out of it. Nothing extra to invent.
--->
-
----
-
-## RunTypes, concretely
-
-Three tools the library already had:
-
-| Tool | What | Where |
-|---|---|---|
-| **Reflection** | walk any type at runtime | `getRunType<T>()` |
-| **Type generator** | random well-formed TS types | `test/fuzz/typeGen.ts` |
-| **Value generator** | random values inhabiting `T` | `createMockType<T>()` |
-
-**Phase 1** — fuzz *values* against fixed types.
-**Phase 2** — fuzz the *types themselves*: generate → compile → run → check.
-
-<!--
-typeGen.ts is "the third giant switch": classes, unions, intersections, index sigs,
-recursive interfaces, symbols, any/unknown/never. It renders to real .ts and runs the
-whole compiler pipeline.
--->
-
----
-
-## The oracles fall out of the type
-
-```
-O1  validate(mock(T))            == true     // valid accepted
-O2  validate(corrupt(mock(T)))   == false    // one wrong field rejected
-O5  jsonEncode(decode(encode x)) stable      // round-trip
-O6  binary wire byte-stable through decode∘encode
-O12 jsonWire(x) == jsonWire(binaryDecode(binaryEncode x))   // DIFFERENTIAL
-O4  validate(x)  ⇔  getValidationErrors(x).length === 0     // consistency
-```
-
-Every failure carries its **seed** → one number replays it exactly.
-
-> "Fuzzing is only as good as its oracle. We derive invariants from properties the
-> library must uphold — never from hand-written expected outputs."
-
-<!--
-O12 is the gem: JSON and binary are two independent encoders of the same type, so they
-differential-test each other for free. Determinism (seeded PRNG) means zero flakiness.
--->
-
----
-
-## …which is how we found the buffer bug
-
-Phase 1, valid stream, after a burst of small mocks, one big string. **O7** (encode must not throw) tripped.
-
-Shrunk, seeded, reproduced, fixed (Welford mean + k·σ, in-place growth) — and **pinned as a regression**.
-
-A real, shipped fix from the **first** fuzzing run. That's the ROI slide.
-
-<!--
-Tie the loop back to the cold open. The oracle (O7: "encode of a valid value must not
-throw") is what turned a silent landmine into a caught, minimal, replayable failure.
--->
-
----
-
-## This isn't new — and that's the point
-
-| Prior art | One artifact → generator **and** oracle |
-|---|---|
-| **PropEr** (Erlang, 2011) | `-type` → generators, `-spec` → properties |
-| **Schemathesis** | OpenAPI schema → inputs + conformance oracle |
-| **typia** (TypeScript) | one type → `validate<T>()` **and** `random<T>()` |
-
-The recipe is **proven**. It's just **under-applied**.
-TSTest pointed runtime values at declared `.d.ts` types → mismatches in **49 of 54** libraries.
-
-> **TypeScript is under-fuzzed by exactly this recipe.** That's the opening.
-
-<!--
-Honesty slide. Credit prior art. typia ships both halves from one type; nestia closes
-the loop. RunTypes' twist: fuzz the TYPE SYSTEM itself, plus a full derived-oracle catalogue.
-TSTest: Kristensen & Møller, OOPSLA 2017.
--->
-
----
-
-## Name the recipe: **Directive-Driven Testing**
-
-A **directive** = a machine-checkable claim about *all* inputs (an oracle = a hypothesis).
-
-**Five questions to assess any project:**
-
-```
-1. Input space?   can we generate valid inputs?        → generator
-2. Reflection?    can we introspect the shape?         → drives gen + locates faults
-3. Directive?     round-trip / differential / invariant / metamorphic?  → oracle
-4. Runner+shrink? deterministic at scale, minimal repro?  → harness
-5. Loop owner?    who closes it — human or agent?
-```
-
-Generalizes: **serializers, validators, ORMs, APIs, parsers, compilers, state machines, configs.**
-
-<!--
-This is the framework deliverable in one slide. Full version in
-framework-directive-driven-testing.md. The directive IS the unit of work.
--->
-
----
-
-## The payoff: a loop an **agent** can run
-
-Fuzzing/PBT is a **verification = reward signal**. That's what RL for code always lacked.
-
-```
- ┌─► HYPOTHESIZE ─► BUILD TOOLING ─► GENERATE ─► RUN ─┐
- │   (directive)     (harness)                        │
- │                                            observe FAILURE
- └── re-verify ◄─ PROPOSE FIX ◄─ SHRINK ◄─────────────┘
-        │ pass → keep as regression
-        └ fail → refine directive
-```
-
-OSS-Fuzz-Gen (LLM writes the harness) found a **20-year-old OpenSSL CVE**.
-AlphaEvolve beat Strassen's 56-year matmul record — with an automated **evaluator as the oracle**.
-
-<!--
-LLMs supply the two things RL lacked for software: a candidate oracle and the tooling
-to test it. Full design in framework-self-improving-agents.md.
--->
-
----
-
-## The catch (don't skip this)
-
-The loop is only as honest as its **oracle**.
-
-- An LLM oracle inferred from **buggy code** blesses the bug.
-- Tests-as-reward invites **Goodhart / reward hacking**: weaken the assertion, pass the test.
-
-> Ground truth must come from somewhere the model **can't fake**:
-> a human, a **differential** reference, a **sound checker**.
-
-A **reflection-derived** oracle is exactly that kind of anchor.
-**That's why this matters.**
-
-<!--
-This is what makes the self-improvement story credible instead of hype. The type-derived
-oracle is independent of the implementation under repair → it can't be quietly gamed.
+The trap. Hand-written tests check what you imagined. The bugs live in the stuff
+you DIDN'T imagine. Say it plainly.
 -->
 
 ---
 
 <!-- _class: lead -->
 
-## Takeaways
-
-1. **PBT is fuzzing with an oracle.**
-2. **Reflection gives you the generator *and* the oracle for free.**
-3. **Name it** (directives) and it's a method, not a trick.
-4. It's the **safe reward signal** for self-improving software.
-
-### Tonight: reflect a type, write **one** directive (start with round-trip), close the loop.
-
-🙏 Thanks · prior art: QuickCheck · Hypothesis · fast-check · PropEr · Schemathesis · typia · OSS-Fuzz
+# 🐛 The bugs hide in the stuff
+# you **didn't** think of.
 
 <!--
-Land on action. The smallest possible first step is one round-trip property over a
-generated value. Links + full citations in sources.md.
+Pause here. This is the problem the whole talk solves. Let it land.
+-->
+
+---
+
+## A true story ⛈️
+
+Years ago, a scientist was typing during a **thunderstorm.**
+
+Rain leaked into his phone line.
+
+His screen filled up with **random garbage** —
+and the programs kept **crashing.** 💥
+
+<!--
+True story (Barton Miller, ~1990). Tell it like a campfire story. Don't name a
+paper. The rain literally typed nonsense and software fell over.
+-->
+
+---
+
+## Then he had a *mischievous* idea 😏
+
+> "What if I crash them on **purpose?**"
+
+He built a little tool to mash **random keys** —
+millions of times, all day long.
+
+It crashed about **1 out of every 3** programs he tried.
+
+<!--
+The birth of the idea: feed software pure nonsense and watch what tips over.
+"1 in 3" is a kid-friendly, jaw-dropping number. That's the first bug-hunting robot.
+-->
+
+---
+
+<!-- _class: lead -->
+
+# Meet your new helper: **Botty** 🤖
+
+Botty isn't clever.
+Botty can't think up a single smart test.
+
+But Botty is **fast**, and Botty **never gets bored.**
+
+Botty tries a *million* silly things
+while you drink **one coffee.** ☕
+
+<!--
+Introduce the mascot. The point: you don't need a genius, you need a tireless
+intern who tries everything. Personality = engagement.
+-->
+
+---
+
+<!-- _class: lead -->
+
+## But here's the tricky part 🤔
+
+If Botty tries a **million** things…
+
+how does Botty know when something
+went **wrong?**
+
+<!--
+This is the heart of the talk. Everything pivots here. Ask it, then pause.
+-->
+
+---
+
+## Crashing is easy to spot 💥
+
+The program falls over. Obvious.
+
+But what about a **wrong answer**
+that *doesn't* crash?
+
+A calculator that says **2 + 2 = 5**
+with a totally straight face. 😐
+
+How could Botty *ever* catch that?
+
+<!--
+The deep problem: Botty doesn't know the right answer to a million random sums.
+A silent wrong answer is invisible. Set up the clever trick next.
+-->
+
+---
+
+<!-- _class: lead -->
+
+## The trick: you don't need the answer key.
+
+## You just need a rule that's **always true.**
+
+<!--
+The single most important slide. This is the secret the old deck buried under the
+word "oracle." Say it slowly.
+-->
+
+---
+
+## 🧦 The sock rule
+
+Turn a sock **inside out.**
+
+Now turn it inside out **again.**
+
+You get the **exact same sock** back. *Every single time.*
+
+If Botty does that and gets a **different** sock…
+**gotcha — something's broken.**
+
+And you never needed to know what the "right" sock looked like!
+
+<!--
+The killer analogy. "Do it, then undo it, and you should be back where you started."
+You catch bugs with NO answer key. A kid gets this instantly.
+-->
+
+---
+
+## Computers are *full* of sock rules 🧦
+
+- **Save** a file, then **open** it → same file.
+- **Zip** your photos, then **unzip** → same photos.
+- Pack a suitcase, then unpack → same socks. 🧳
+
+If you get back something **different** → bug.
+
+Botty can check this a **million times** —
+and never needs to know what's "correct."
+
+<!--
+Make it concrete and everyday. These "there and back" rules are everywhere, and
+they're the easiest first test anyone can write. This is the practical takeaway.
+-->
+
+---
+
+<!-- _class: lead -->
+
+# Now the magic part ✨
+
+What if the computer already knew
+the **shape** of your stuff?
+
+<!--
+Pivot to the contribution. "Shape" = the structure of your data, said in one
+plain word. e.g. "a player has a name and some coins."
+-->
+
+---
+
+## One cookie cutter, two jobs 🍪
+
+Say the computer knows: *a player has a name and some coins.*
+
+That one piece of knowledge lets it:
+
+1. 🍪 **Stamp out a million** pretend players
+   *(weird names, zero coins, a BILLION coins, empty ones…)*
+2. 🔍 **Instantly spot** a player of the **wrong shape**
+
+**Same cookie cutter.** Makes the cookies *and* catches the bad one.
+
+<!--
+This is the whole insight, with zero jargon. If you know the shape, you get the
+"make a million examples" machine AND the "is this correct?" checker for free.
+That's what our library does.
+-->
+
+---
+
+## So we pointed Botty at our **own** software 🤖
+
+We already had **~3,000 tests.** All passing. We felt great. 😎
+
+Botty found a **real bug**…
+on its **very first try.**
+
+<!--
+The proof. 3,000 careful human tests missed it; the dumb tireless robot caught it
+immediately. Beat before the reveal.
+-->
+
+---
+
+## The bug, in plain words 🎒
+
+Imagine a **backpack that resizes itself**
+to fit your stuff — based on the *average* size of what you pack.
+
+You pack **fifty tiny erasers.** It shrinks to eraser-size.
+
+Then you shove in a big **lunchbox**… and instead of stretching —
+
+### it **RIPS.** 💥
+
+Nobody thinks to pack 50 small things *then* a big one.
+**Botty did.**
+
+<!--
+The real RunTypes bug (self-sizing buffer) as a backpack that tears. The punchline:
+the weird sequence no tired human would try is exactly what the robot tries for free.
+-->
+
+---
+
+<!-- _class: lead -->
+
+# The exciting part: 🤖🔧
+# software that fixes **itself**
+
+<!--
+Where it's heading. Big, hopeful idea, stated simply.
+-->
+
+---
+
+## A robot that does its own homework
+
+The computer can run the **whole loop** by itself:
+
+```
+make weird stuff  →  find a broken case  →  fix it  →  check again  →  🔁
+```
+
+A program that **practices**, catches its **own** mistakes,
+and gets a little **better** each time.
+
+*(This is real today — robots like this already found bugs hiding for 20 years.)*
+
+<!--
+The self-improvement loop, in five plain words. Mention it's real (OSS-Fuzz-Gen
+found a 20-year-old bug) without naming anything scary.
+-->
+
+---
+
+## ⚠️ But there's one catch
+
+This only works if the robot **can't cheat.**
+
+Let it **grade its own homework**, and it'll just
+give itself an **A** — and call the broken thing "correct." 😅
+
+So the checker has to be a rule it **can't fake.**
+*(Like our sock rule — fair, simple, outside its control.)*
+
+<!--
+The honest, crucial caveat — but as a joke a kid gets: don't let it grade its own
+test. The "always-true rule" is exactly the un-fakeable checker. This is what makes
+self-improving software trustworthy instead of scary.
+-->
+
+---
+
+<!-- _class: lead -->
+
+# The whole idea, tiny:
+
+You can't think of **every** way something breaks.
+**So don't.**
+
+Teach the computer the **shape** of your stuff,
+give it **one always-true rule** *(start with "do it, then undo it"),*
+and let a **tireless robot** hunt the weird cases. 🤖
+
+<!--
+The one-slide summary in human words. If they remember only this slide, you won.
+-->
+
+---
+
+<!-- _class: lead -->
+
+## Try it tonight 🌙
+
+Find anything that **saves and loads.**
+
+Ask one question:
+**"Save it, open it — is it still the same?"**
+
+Then watch a robot find the thing you missed.
+
+# Thanks! 🙌🤖
+
+<!--
+End on a tiny, doable action. Grown-ups call this whole thing "fuzzing" and
+"property-based testing" — but you just explained it with a sock. That's the win.
 -->
