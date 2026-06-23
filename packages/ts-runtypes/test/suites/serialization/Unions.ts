@@ -138,7 +138,7 @@ export const UNIONS = {
           RT.object({d: RT.optional(TF.string())}),
         ])
       ),
-    getTestData: () => ({values: [{a: 'world', aa: true}, {c: 1n}, {d: 'hello'}, {}]}),
+    getTestData: () => ({values: [{a: 'world', aa: true}, {b: 7}, {c: 1n}, {d: 'hello'}, {}]}),
   },
   union_with_discriminator_property: {
     title: 'Discriminated union',
@@ -318,7 +318,16 @@ export const UNIONS = {
           RT.object({c: TF.bigInt(), aa: RT.literal('string')}),
         ])
       ),
-    getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}]}),
+    getTestData: () => ({
+      values: [
+        ['a', 'b', 'c'],
+        [1, 2, 3],
+        [true, false, true],
+        {a: 'hello', aa: true},
+        {b: 42},
+        {c: 9007199254740993n, aa: 'string'},
+      ],
+    }),
   },
   union_index_property_with_discriminator: {
     title: 'Union with index signatures',
@@ -422,7 +431,9 @@ export const UNIONS = {
           RT.intersection(RT.record(TF.bigInt()), RT.object({b: TF.bigInt()})),
         ])
       ),
-    getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}, {b: 1n, c: 2n}]}),
+    getTestData: () => ({
+      values: [['a', 'b', 'c'], {a: 'hello', aa: true}, {b: 7}, {a: 'rec', extra: 'val'}, {b: 1n, c: 2n}],
+    }),
   },
   circular_union_with_discriminator: {
     title: 'Circular union',
@@ -644,7 +655,7 @@ export const UNIONS = {
     description:
       'A function arm projects to never under DataOnly, so it is DROPPED from the union: the serializer and validator handle the remaining Date | number | string members, matching DataOnly<Date | number | string | (() => any)> = Date | number | string.',
     serializeNotes:
-      'The function arm is non-serializable, so DataOnly drops it from the union and the emitter serializes/validates the surviving Date | number | string members (Date round-trips to a Date, number and string identically). A bare function value would match no surviving member at runtime. The schema thunks resolve the same dropped-arm factory via the value-first path.',
+      'The function arm is non-serializable, so DataOnly drops it from the union and the emitter serializes/validates the surviving Date | number | string members (Date round-trips to a Date, number and string identically). The schema thunks resolve the same dropped-arm factory via the value-first path.',
     mutateEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'direct'}),

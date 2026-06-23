@@ -547,18 +547,17 @@ export const cases: CompetitorCases = {
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
-  // tuple_with_optional: [number, bigint?, boolean?, number?] — uses custom to handle undefined in middle positions
+  // tuple_with_optional: [number, bigint?, boolean?, number?] — same shape as
+  // tuple_multiple_trailing_optionals; z.tuple with trailing .optional() slots accepts explicit
+  // undefined in the middle and rejects excess args.
   'TUPLE.tuple_with_optional': {
     buildErrors: () => {
-      const schema = z.custom((v) => {
-        if (!Array.isArray(v)) return false;
-        if (v.length < 1 || v.length > 4) return false;
-        if (typeof v[0] !== 'number' || !Number.isFinite(v[0])) return false;
-        if (v.length > 1 && v[1] !== undefined && typeof v[1] !== 'bigint') return false;
-        if (v.length > 2 && v[2] !== undefined && typeof v[2] !== 'boolean') return false;
-        if (v.length > 3 && v[3] !== undefined && (typeof v[3] !== 'number' || !Number.isFinite(v[3]))) return false;
-        return true;
-      });
+      const schema = z.tuple([
+        z.number().finite(),
+        z.bigint().optional(),
+        z.boolean().optional(),
+        z.number().finite().optional(),
+      ]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -574,22 +573,20 @@ export const cases: CompetitorCases = {
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
-  // tuple_circular: self-referential tuple — optional 7th slot is the tuple itself; use custom for flexibility
+  // tuple_circular: self-referential tuple — [Date, number, string, null, string[], bigint] with an
+  // optional 7th slot that is the tuple itself; a lazy z.tuple with a trailing optional self-ref slot.
   'TUPLE.tuple_circular': {
     buildErrors: () => {
       const schema = z.lazy(() => {
-        const schema: z.ZodType = z.custom((v) => {
-          if (!Array.isArray(v)) return false;
-          if (v.length < 6) return false;
-          if (!(v[0] instanceof Date) || isNaN((v[0] as Date).getTime())) return false;
-          if (typeof v[1] !== 'number' || !Number.isFinite(v[1])) return false;
-          if (typeof v[2] !== 'string') return false;
-          if (v[3] !== null) return false;
-          if (!Array.isArray(v[4])) return false;
-          if (typeof v[5] !== 'bigint') return false;
-          if (v.length > 6 && v[6] !== undefined && !schema.safeParse(v[6]).success) return false;
-          return true;
-        });
+        const schema: z.ZodType = z.tuple([
+          z.date(),
+          z.number().finite(),
+          z.string(),
+          z.null(),
+          z.array(z.string()),
+          z.bigint(),
+          z.lazy(() => schema).optional(),
+        ]);
         return schema;
       });
       return (value: unknown) => schema.safeParse(value).success;
@@ -696,29 +693,32 @@ export const cases: CompetitorCases = {
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
+  // discriminated_union: literal 'kind' discriminator — zod 4's z.discriminatedUnion dispatches on it
   'UNION.discriminated_union': {
     buildErrors: () => {
-      const schema = z.union([
+      const schema = z.discriminatedUnion('kind', [
         z.object({kind: z.literal('a'), n: z.number().finite()}),
         z.object({kind: z.literal('b'), s: z.string()}),
       ]);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
-  // circular_union: self-referential union (date|number|string|object|array) — use custom to handle recursion and reject invalid Date/booleans/null
+  // circular_union: self-referential union (Date | number | string | object | array) — a lazy
+  // z.union whose array + record arms recurse into the union itself.
   'UNION.circular_union': {
     buildErrors: () => {
       const schema = z.lazy(() => {
-        const check = (v: unknown): boolean => {
-          if (v instanceof Date) return !isNaN(v.getTime());
-          if (typeof v === 'number') return Number.isFinite(v);
-          if (typeof v === 'string') return true;
-          if (Array.isArray(v)) return v.every(check);
-          if (typeof v === 'object' && v !== null && !(v instanceof Date) && !(v instanceof Map) && !(v instanceof Set))
-            return Object.values(v as Record<string, unknown>).every(check);
-          return false;
-        };
-        return z.custom(check);
+        const schema: z.ZodType = z.union([
+          z.date(),
+          z.number().finite(),
+          z.string(),
+          z.array(z.lazy(() => schema)),
+          z.record(
+            z.string(),
+            z.lazy(() => schema)
+          ),
+        ]);
+        return schema;
       });
       return (value: unknown) => schema.safeParse(value).success;
     },
@@ -747,9 +747,10 @@ export const cases: CompetitorCases = {
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
+  // union_same_prop_different_types: 'type' literal discriminator with arm-dependent 'prop' value
   'UNION.union_same_prop_different_types': {
     buildErrors: () => {
-      const schema = z.union([
+      const schema = z.discriminatedUnion('type', [
         z.object({type: z.literal('a'), prop: z.boolean()}),
         z.object({type: z.literal('b'), prop: z.number().finite()}),
         z.object({type: z.literal('c'), prop: z.string()}),
@@ -868,17 +869,11 @@ export const cases: CompetitorCases = {
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
-  // template_literal_index_key: index sig with 'api/*' key pattern and number values — use z.custom for key pattern constraint
+  // template_literal_index_key: index sig with an 'api/<string>' key pattern and number values —
+  // zod 4's z.record accepts a templateLiteral key schema that constrains every key.
   'TEMPLATE_LITERAL.template_literal_index_key': {
     buildErrors: () => {
-      const schema = z.custom((v) => {
-        if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
-        for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-          if (!/^api\//.test(k)) return false;
-          if (typeof val !== 'number' || !Number.isFinite(val)) return false;
-        }
-        return true;
-      });
+      const schema = z.record(z.templateLiteral(['api/', z.string()]), z.number().finite());
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1376,28 +1371,24 @@ export const cases: CompetitorCases = {
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
+  // uuidv4: first-class zod 4 builder (rejects v7 and the no-dash / non-uuid variants)
   'STRING_FORMAT.uuidv4': {
     buildErrors: () => {
-      const schema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      const schema = z.uuidv4();
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
+  // uuidv7: first-class zod 4 builder
   'STRING_FORMAT.uuidv7': {
     buildErrors: () => {
-      const schema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      const schema = z.uuidv7();
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
-  // date_iso: YYYY-MM-DD with calendar validity — zod doesn't validate calendar correctness (e.g. 2023-02-29 rejected)
+  // date_iso: YYYY-MM-DD — z.iso.date() validates ISO layout AND calendar correctness (2023-02-29 rejected)
   'STRING_FORMAT.date_iso': {
     buildErrors: () => {
-      const schema = z
-        .string()
-        .regex(/^\d{4}-\d{2}-\d{2}$/)
-        .refine((s) => {
-          const d = new Date(s + 'T00:00:00Z');
-          return !isNaN(d.getTime()) && d.toISOString().startsWith(s);
-        });
+      const schema = z.iso.date();
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1470,21 +1461,11 @@ export const cases: CompetitorCases = {
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
-  // dateTime_default: ISO 8601 datetime; must have T separator, tz offset, and calendar validity
+  // dateTime_default: ISO 8601 datetime — z.iso.datetime({offset:true}) requires the T separator,
+  // accepts Z or ±HH:MM offsets, and validates calendar correctness (2023-02-29 rejected).
   'STRING_FORMAT.dateTime_default': {
     buildErrors: () => {
-      const schema = z
-        .string()
-        .regex(/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d+)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/)
-        .refine((s) => {
-          const d = new Date(s);
-          if (isNaN(d.getTime())) return false;
-          // Verify the date part is calendar-valid (e.g. 2023-02-29 is invalid)
-          const datePart = s.slice(0, 10);
-          const [yyyy, mm, dd] = datePart.split('-').map(Number);
-          const check = new Date(Date.UTC(yyyy, mm - 1, dd));
-          return check.getUTCFullYear() === yyyy && check.getUTCMonth() + 1 === mm && check.getUTCDate() === dd;
-        });
+      const schema = z.iso.datetime({offset: true});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1589,22 +1570,12 @@ export const cases: CompetitorCases = {
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
-  // email: standard email (localPart≥2 chars, domain label≥2 chars, TLD≥2 chars; + allowed in localPart)
+  // email: zod 4 first-class z.email() builder. The case requires a localPart ≥2 chars and a first
+  // domain label ≥2 chars (e.g. 'a@b.co' is rejected), which zod's default email regex does not enforce,
+  // so we pass the case's pattern via the builder's {pattern} option rather than hand-rolling a refine.
   'STRING_FORMAT.email': {
     buildErrors: () => {
-      const schema = z.string().refine((s) => {
-        const atIdx = s.lastIndexOf('@');
-        if (atIdx < 2) return false; // localPart must be ≥2 chars
-        const local = s.slice(0, atIdx);
-        const domain = s.slice(atIdx + 1);
-        if (!/^[A-Za-z0-9.+_-]+$/.test(local)) return false;
-        const parts = domain.split('.');
-        if (parts.length < 2) return false;
-        const tld = parts[parts.length - 1];
-        const firstLabel = parts[0];
-        if (tld.length < 2 || firstLabel.length < 2) return false;
-        return parts.every((p) => /^[A-Za-z0-9-]+$/.test(p) && p.length > 0);
-      });
+      const schema = z.email({pattern: /^[A-Za-z0-9.+_-]{2,}@([A-Za-z0-9][A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1778,12 +1749,10 @@ export const cases: CompetitorCases = {
   },
 
   // ── DATETIME ──
-  // date min/max via z.date() with refine — zod date() accepts Date instances, no built-in min/max
+  // date_minmax: inclusive bounds — zod 4's z.date().min()/.max() are inclusive and reject Invalid Date
   'DATETIME.date_minmax': {
     buildErrors: () => {
-      const schema = z
-        .date()
-        .refine((d) => d >= new Date(Date.UTC(2020, 0, 1)) && d <= new Date(Date.UTC(2020, 11, 31, 23, 59, 59)));
+      const schema = z.date().min(new Date(Date.UTC(2020, 0, 1))).max(new Date(Date.UTC(2020, 11, 31, 23, 59, 59)));
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1795,42 +1764,42 @@ export const cases: CompetitorCases = {
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
+  // date_min_lt: inclusive lower via z.date().min(); the exclusive upper (lt) has no native builder, so refine
   'DATETIME.date_min_lt': {
     buildErrors: () => {
       const schema = z
         .date()
-        .refine((d) => d >= new Date(Date.UTC(2020, 0, 1, 0, 0, 0)) && d < new Date(Date.UTC(2020, 11, 31, 23, 59, 59)));
+        .min(new Date(Date.UTC(2020, 0, 1, 0, 0, 0)))
+        .refine((d) => d < new Date(Date.UTC(2020, 11, 31, 23, 59, 59)));
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
+  // date_max_now: inclusive upper bound (now) via z.date().max()
   'DATETIME.date_max_now': {
     buildErrors: () => {
-      const schema = z.date().refine((d) => d <= new Date());
+      const schema = z.date().max(new Date());
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
+  // date_rel_window: inclusive relative window via z.date().min()/.max() over computed bounds
   'DATETIME.date_rel_window': {
     buildErrors: () => {
-      const schema = z.date().refine((d) => {
-        const now = new Date();
-        const minDate = new Date(now);
-        minDate.setFullYear(minDate.getFullYear() - 1000);
-        const maxDate = new Date(now);
-        maxDate.setFullYear(maxDate.getFullYear() + 1000);
-        return d >= minDate && d <= maxDate;
-      });
+      const now = new Date();
+      const minDate = new Date(now);
+      minDate.setFullYear(minDate.getFullYear() - 1000);
+      const maxDate = new Date(now);
+      maxDate.setFullYear(maxDate.getFullYear() + 1000);
+      const schema = z.date().min(minDate).max(maxDate);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
+  // date_rel_datetime_components: inclusive lower bound (now - 1000y - 12h) via z.date().min()
   'DATETIME.date_rel_datetime_components': {
     buildErrors: () => {
-      const schema = z.date().refine((d) => {
-        const now = new Date();
-        const minDate = new Date(now);
-        minDate.setFullYear(minDate.getFullYear() - 1000);
-        minDate.setHours(minDate.getHours() - 12);
-        return d >= minDate;
-      });
+      const minDate = new Date();
+      minDate.setFullYear(minDate.getFullYear() - 1000);
+      minDate.setHours(minDate.getHours() - 12);
+      const schema = z.date().min(minDate);
       return (value: unknown) => schema.safeParse(value).success;
     },
   },
@@ -1865,10 +1834,10 @@ export const cases: CompetitorCases = {
   'REALWORLD.user': {
     buildErrors: () => {
       const schema = z.object({
-        id: z.number(),
+        id: z.number().finite(),
         email: z.string(),
         name: z.string(),
-        age: z.number().optional(),
+        age: z.number().finite().optional(),
         roles: z.array(z.enum(['admin', 'editor', 'user'])),
         active: z.boolean(),
         createdAt: z.string(),
@@ -1880,8 +1849,10 @@ export const cases: CompetitorCases = {
     buildErrors: () => {
       const schema = z.object({
         id: z.string(),
-        customer: z.object({id: z.number(), email: z.string()}),
-        items: z.array(z.object({sku: z.string(), name: z.string(), qty: z.number(), price: z.number()})),
+        customer: z.object({id: z.number().finite(), email: z.string()}),
+        items: z.array(
+          z.object({sku: z.string(), name: z.string(), qty: z.number().finite(), price: z.number().finite()})
+        ),
         shipping: z.object({
           street: z.string(),
           city: z.string(),
@@ -1890,7 +1861,7 @@ export const cases: CompetitorCases = {
           country: z.string(),
         }),
         status: z.enum(['pending', 'paid', 'shipped', 'delivered', 'cancelled']),
-        total: z.number(),
+        total: z.number().finite(),
         note: z.string().optional(),
       });
       return (value: unknown) => schema.safeParse(value).success;
@@ -1899,7 +1870,7 @@ export const cases: CompetitorCases = {
   'REALWORLD.blogPost': {
     buildErrors: () => {
       const schema = z.object({
-        id: z.number(),
+        id: z.number().finite(),
         title: z.string(),
         slug: z.string(),
         body: z.string(),
@@ -1907,7 +1878,7 @@ export const cases: CompetitorCases = {
         author: z.object({name: z.string(), email: z.string()}),
         published: z.boolean(),
         publishedAt: z.string().optional(),
-        meta: z.object({views: z.number(), likes: z.number()}),
+        meta: z.object({views: z.number().finite(), likes: z.number().finite()}),
       });
       return (value: unknown) => schema.safeParse(value).success;
     },
@@ -1918,11 +1889,13 @@ export const cases: CompetitorCases = {
         id: z.string(),
         name: z.string(),
         description: z.string(),
-        price: z.number(),
+        price: z.number().finite(),
         currency: z.enum(['USD', 'EUR', 'GBP']),
         inStock: z.boolean(),
         categories: z.array(z.string()),
-        dimensions: z.object({width: z.number(), height: z.number(), depth: z.number()}).optional(),
+        dimensions: z
+          .object({width: z.number().finite(), height: z.number().finite(), depth: z.number().finite()})
+          .optional(),
       });
       return (value: unknown) => schema.safeParse(value).success;
     },
@@ -1935,16 +1908,18 @@ export const cases: CompetitorCases = {
             id: z.string(),
             name: z.string(),
             description: z.string(),
-            price: z.number(),
+            price: z.number().finite(),
             currency: z.enum(['USD', 'EUR', 'GBP']),
             inStock: z.boolean(),
             categories: z.array(z.string()),
-            dimensions: z.object({width: z.number(), height: z.number(), depth: z.number()}).optional(),
+            dimensions: z
+              .object({width: z.number().finite(), height: z.number().finite(), depth: z.number().finite()})
+              .optional(),
           })
         ),
-        page: z.number(),
-        pageSize: z.number(),
-        total: z.number(),
+        page: z.number().finite(),
+        pageSize: z.number().finite(),
+        total: z.number().finite(),
         hasMore: z.boolean(),
       });
       return (value: unknown) => schema.safeParse(value).success;
@@ -1956,7 +1931,7 @@ export const cases: CompetitorCases = {
         email: z.string(),
         password: z.string(),
         acceptedTerms: z.literal(true),
-        profile: z.object({firstName: z.string(), lastName: z.string(), age: z.number().optional()}),
+        profile: z.object({firstName: z.string(), lastName: z.string(), age: z.number().finite().optional()}),
       });
       return (value: unknown) => schema.safeParse(value).success;
     },

@@ -3,8 +3,9 @@
 - **Competitor:** typebox (`container/benchmarks/competitors/typebox/cases.ts`)
 - **Version:** @sinclair/typebox 0.34.49
 - **Total cases:** 266 (189 implemented, 77 `NOT_SUPPORTED`)
-- **Verdicts:** OK 257 · SUSPECT 5 · WRONG 4
-- **NOT_SUPPORTED:** 77 claims · **mis-marked (WRONG/SUSPECT):** 4 (2 WRONG bigint int64/uint64, 2 SUSPECT disallowedValues / template-index-key)
+- **Verdicts (post-fix):** OK 258 (1 newly implemented) · SUSPECT 2 · FIXED/CONFIRMED 4
+- **NOT_SUPPORTED:** 76 claims after fix (was 77) · **resolved mis-marks:** 1 implemented (`string_disallowedValues`), 3 confirmed-correct-as-NS after source check (`bigint_int64`, `bigint_uint64`, `template_literal_index_key`).
+- **Audit-verdict correction:** my original `WRONG` flags on `bigint_int64`/`bigint_uint64` were themselves wrong — the float-rounding opt-out is real because TypeCompiler stringifies the bound into `BigInt(<numeric-literal>)`. Verified by running the codegen path in node.
 
 > Note: alignment summary `summary.typebox.notSupported = 154` counts both metrics (validate + validationErrors) over the supported/NS split; the source file has 77 distinct `NOT_SUPPORTED` keys. The 16 typebox `records` divergences are ALL `samplesOverridden: true` (intended, dropped from aggregate) and concern the same documented limitation: `Type.Object` does not add a plain-object guard, so `interface_all_optional` / `partial` / `deep_partial_recursive_mapped` accept Date/Map/Set/RegExp/array where the reference rejects them.
 
@@ -185,7 +186,7 @@ Implemented as `Type.String({pattern})` with the placeholder compiled to a digit
 | regex_special_chars | String({pattern escaped}) | yes | OK | |
 | template_literal_nested_in_object | Object{String({pattern}),String} | yes | OK | |
 | template_literal_union_placeholder | String({pattern (a\|b)…}) | yes | OK | |
-| template_literal_index_key | NOT_SUPPORTED | claim says Record w/ TemplateLiteral key accepts non-matching extra keys | SUSPECT | Likely modellable via `Type.Record(Type.TemplateLiteral(...), Type.Number())`: TB sets `patternProperties` AND `additionalProperties:false`, so a non-matching key (`foo`) should be REJECTED — matching the reference (invalid `{'api/users':1, foo:2}`). The opt-out premise (extra keys accepted) may be stale/wrong for 0.34. Re-verify TB's Record+template-key codegen; if additionalProperties:false holds, this is a WRONG opt-out. |
+| template_literal_index_key | NOT_SUPPORTED | claim says Record w/ TemplateLiteral key accepts non-matching extra keys | CONFIRMED NOT_SUPPORTED (was SUSPECT) | Source-confirmed kept opt-out. `RecordCreateFromPattern` (build/cjs/type/record/record.js) builds `{Kind:'Record', type:'object', patternProperties:{[pattern]:T}}` with NO `additionalProperties` field. Compiler `FromRecord` (build/cjs/compiler/compiler.js:394) then defaults `check2 = 'true'` for non-matching keys (only `additionalProperties===false` yields `'false'`). So `{foo:1}` is ACCEPTED where the reference rejects it — genuinely not expressible. |
 
 ## NATIVE (4; 3 NS)
 
@@ -264,7 +265,7 @@ Length bounds → `String({minLength,maxLength})`; char/pattern formats → `Str
 | pattern_slug/pattern_hex | String({pattern}) | yes | OK | |
 | string_allowedChars_ignoreCase | NOT_SUPPORTED | — | SUSPECT | technically expressible by expanding the char class to both cases (e.g. `^[aAbBcC]+$`), matching the ignoreCase samples; opt-out is defensible (TB has no regex `flags`) but the chars-variant is modellable. Low priority. |
 | string_allowedValues_ignoreCase | NOT_SUPPORTED | — | OK | impractical to enumerate case variants of a value set; fair opt-out |
-| string_disallowedValues | NOT_SUPPORTED | — | SUSPECT | Expressible the same way `string_disallowedChars` already is — a negative-lookahead pattern `^(?!(admin\|root)$).*$` via `Type.String({pattern})`. Opt-out claim ("no negative-match constraint") overlooks regex lookahead, which the competitor already uses elsewhere (slug `(?:-…)`). Likely WRONG; verify JS-regex lookahead compiles in TB pattern. |
+| string_disallowedValues | String({pattern}) | yes | FIXED (was SUSPECT/WRONG) | Implemented `Type.String({pattern:'^(?!(?:admin\|root)$)[\\s\\S]*$'})`. Source-confirmed: TypeCompiler `FromString` emits `new RegExp(schema.pattern).test(value)` (build/cjs/compiler/compiler.js:421-423), which compiles JS negative-lookahead fine. Verified against samples (valid `alice`, invalid `admin`/`root`). |
 | date_iso/date_DMY/date_YM/date_MD | NOT_SUPPORTED | — | OK | needs calendar-aware (leap year / month-day bounds) — regex can't |
 | date_minMax_absolute | NOT_SUPPORTED | — | OK | needs date comparison |
 | time_minMax_absolute | NOT_SUPPORTED | — | OK | needs time comparison |
@@ -289,8 +290,8 @@ Length bounds → `String({minLength,maxLength})`; char/pattern formats → `Str
 | bigint_max/min/lt/gt | BigInt({maximum/minimum/exclusive…: <bigint literal>}) | yes | OK | bigint bounds passed directly, no float coercion |
 | bigint_multipleOf | NOT_SUPPORTED | — | OK | plausible codegen bug: `value % BigInt(n) === 0` and `0n === 0` is false in JS — hard to verify exactly, fair opt-out |
 | bigint_combined | NOT_SUPPORTED | — | OK | inherits multipleOf issue |
-| bigint_int64 | NOT_SUPPORTED | — | **WRONG** | Expressible: `Type.BigInt({minimum:-9223372036854775808n, maximum:9223372036854775807n})` — identical path to `bigint_max` (which IS implemented with a bigint literal). The opt-out premise (`BigInt(9223372036854775807)` rounds in float64) is false: the bound is a bigint literal, never coerced through Number. No multipleOf here, so the multipleOf bug doesn't apply. |
-| bigint_uint64 | NOT_SUPPORTED | — | **WRONG** | Same as int64: `Type.BigInt({minimum:0n, maximum:18446744073709551615n})` is exact. Stale opt-out. |
+| bigint_int64 | NOT_SUPPORTED | — | CONFIRMED NOT_SUPPORTED (audit verdict WRONG was itself wrong) | Source-confirmed kept opt-out. TypeCompiler `FromBigInt` (build/cjs/compiler/compiler.js:249-250) emits `value <= BigInt(${schema.maximum})`. The bigint bound is interpolated as a bare Number literal `BigInt(9223372036854775807)`, which float64-rounds to `9223372036854775808n` — so invalid sample `9223372036854775808n` is wrongly accepted. (NB: the un-compiled `Value.Check` path at value/check/check.js:208-217 compares against the stored bigint directly and WOULD be exact, but the file uniformly uses TypeCompiler, so this stays NS.) |
+| bigint_uint64 | NOT_SUPPORTED | — | CONFIRMED NOT_SUPPORTED (audit verdict WRONG was itself wrong) | Same `BigInt(<numeric-literal>)` rounding: bound `18446744073709551615` → `18446744073709551616n`, so invalid `18446744073709551616n` is wrongly accepted under TypeCompiler. |
 
 ## REALWORLD (6; 0 NS)
 
@@ -309,31 +310,28 @@ Full `Type.Object` schemas mirroring the imported interfaces (`createdAt: string
 
 ## Findings summary
 
-### WRONG (4)
+### FIXED (1)
+- `STRING_FORMAT.string_disallowedValues` — **implemented** as `Type.String({pattern:'^(?!(?:admin|root)$)[\\s\\S]*$'})`. Source-confirmed: TypeCompiler `FromString` compiles `new RegExp(schema.pattern).test(value)` (build/cjs/compiler/compiler.js:421-423); JS negative-lookahead constructs and tests fine (verified in node). The competitor already uses negated classes (`disallowedChars` `^[^!@#]*$`), so this is consistent.
 
-**Stale NOT_SUPPORTED — expressible via Type.BigInt with bigint-literal bounds**
-- `BIGINT_FORMAT.bigint_int64` — `Type.BigInt({minimum:-9223372036854775808n, maximum:9223372036854775807n})`. Same codepath as the implemented `bigint_max`; the float-rounding premise is wrong because bounds are bigint literals (never `BigInt(number)`).
-- `BIGINT_FORMAT.bigint_uint64` — `Type.BigInt({minimum:0n, maximum:18446744073709551615n})`. Same fix.
+### CONFIRMED NOT_SUPPORTED after source check (3 — including a self-correction)
+- `BIGINT_FORMAT.bigint_int64` / `bigint_uint64` — **my original WRONG verdict was itself wrong.** The float-rounding premise IS real because TypeCompiler `FromBigInt` (compiler.js:249-250) emits `value <= BigInt(${schema.maximum})`, interpolating the bigint bound as a bare **Number** literal `BigInt(9223372036854775807)`, which float64-rounds to `9223372036854775808n`. Ran the codegen path in node: invalid `9223372036854775808n` / `18446744073709551616n` are wrongly accepted, breaking the boundary samples. (The un-compiled `Value.Check` path would be exact, but the file uniformly uses `TypeCompiler`; switching just these two to `Value.Check` would break the file's convention, so they stay NS.)
+- `TEMPLATE_LITERAL.template_literal_index_key` — kept NS, source-confirmed correct. `RecordCreateFromPattern` (type/record/record.js) builds the Record schema with `patternProperties` but **no `additionalProperties` field**, and the compiler's `FromRecord` (compiler.js:394) defaults non-matching keys to `'true'` (only `additionalProperties===false` rejects). So `{foo:1}` is accepted where the reference rejects it.
 
-**Stale NOT_SUPPORTED — expressible via regex the competitor already uses**
-- `STRING_FORMAT.string_disallowedValues` (classified SUSPECT pending lookahead-compile check, but strongly WRONG-leaning) — negative-lookahead `Type.String({pattern:'^(?!(admin|root)$).*$'})`. The competitor already uses lookahead/negated classes (`disallowedChars` `^[^!@#]*$`, slug `(?:-[a-z0-9]+)*`), so the "no negative-match constraint" justification is inconsistent.
-- `TEMPLATE_LITERAL.template_literal_index_key` (classified SUSPECT) — `Type.Record(Type.TemplateLiteral(...), Type.Number())`. If TB 0.34 emits `additionalProperties:false` alongside `patternProperties` (the documented `TRecord` behavior), non-matching keys ARE rejected, contradicting the opt-out comment. WRONG-leaning if confirmed.
-
-(Counted: 2 hard-WRONG bigint + 2 SUSPECT format opt-outs that are likely WRONG = 4 mis-marked NOT_SUPPORTED.)
-
-### SUSPECT (5)
+### SUSPECT (2)
 - `OBJECT.function_top_level` — relies on TypeCompiler emitting a `typeof==='function'` guard for `TFunction`, a TB "extended type" documented as not-fully-supported for value validation. Passes alignment (0 divergence) so low risk, but fragile across TB versions.
 - `STRING_FORMAT.string_allowedChars_ignoreCase` — modellable by expanding the char class to both cases; opt-out defensible (no regex flags) but not strictly impossible.
-- `STRING_FORMAT.string_disallowedValues`, `TEMPLATE_LITERAL.template_literal_index_key` — see WRONG section (need source/runtime confirmation).
 - (`string_allowedValues_ignoreCase` considered but left OK — enumerating case variants of a value set is impractical.)
 
 ### Intended divergences (not faults)
 - `OBJECT.interface_all_optional`, `UTILITY.partial`, `UTILITY.deep_partial_recursive_mapped` — `Type.Object` adds no plain-object guard, so Date/Map/Set/RegExp/array are accepted where the reference rejects. All 16 typebox alignment `records` are these, all `samplesOverridden:true`, correctly dropped from the aggregate (n-a). Implementations are idiomatic; no fix.
 
-### Overall
-TypeBox's implementations are uniformly idiomatic — pure `Type.*` combinators + `TypeCompiler`, no hand-rolled guards, no `Type.Unsafe`, no FormatRegistry shortcuts. Faithfulness is high. The only substantive issues are 2 clearly-stale bigint opt-outs (int64/uint64) and 2 format/record opt-outs whose justifications look stale against TB 0.34's API; re-deriving them would recover up to 4 rows into TypeBox's aggregate. The number/NaN, Date-invalid, Object-extra-props, and Record-key behaviors were all verified to match TypeBox 0.34.49 defaults (AllowNaN=false, additionalProperties allowed on Object).
+### Overall (post-fix)
+TypeBox's implementations are uniformly idiomatic — pure `Type.*` combinators + `TypeCompiler`, no hand-rolled guards, no `Type.Unsafe`, no FormatRegistry shortcuts. After the source-grounded re-derivation, exactly **one** new row was recovered (`string_disallowedValues`); the other three previously-suspect opt-outs are genuinely not expressible under TypeCompiler and stay NS. The number/NaN, Date-invalid, Object-extra-props, and Record-key behaviors all match TypeBox 0.34.49 defaults (AllowNaN=false, additionalProperties allowed on Object).
 
-### Unverifiable judgments (reasoned from API + source, not executed)
+### Resolved from source (build/cjs of the pinned 0.34.49 tarball)
+- JS-regex negative-lookahead **does** compile inside `Type.String({pattern})` — `FromString` → `new RegExp(pattern).test(value)` (compiler.js:421-423). ⇒ `string_disallowedValues` implemented.
+- Record-with-template-key does **not** emit `additionalProperties:false` — `RecordCreateFromPattern` omits it, compiler defaults non-matching keys to `true` (compiler.js:394). ⇒ `template_literal_index_key` stays NS.
+- TypeCompiler bigint bounds round through `BigInt(<numeric-literal>)` (compiler.js:249-252), confirmed in node. ⇒ `bigint_int64`/`uint64` stay NS (my earlier WRONG flags retracted).
+
+### Still unverified (reasoned, not executed)
 - Exact `bigint_multipleOf` codegen bug (`0n === 0`) — plausible, kept as OK opt-out.
-- Whether JS-regex lookahead compiles inside `Type.String({pattern})` at TypeCompiler time (affects `string_disallowedValues`).
-- Whether TB 0.34 Record-with-template-key emits `additionalProperties:false` (affects `template_literal_index_key`).

@@ -1804,7 +1804,7 @@ export const cases: CompetitorCases = {
       };
     },
   },
-  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED, // Type.Record with TemplateLiteral key uses patternProperties; extra keys that DON'T match the pattern are accepted rather than rejected
+  'TEMPLATE_LITERAL.template_literal_index_key': NOT_SUPPORTED, // Type.Record with an (infinite) TemplateLiteral key emits patternProperties WITHOUT additionalProperties:false, so the compiler defaults non-matching keys to `true` — `{foo:1}` is accepted where the reference rejects it
   'TEMPLATE_LITERAL.template_literal_union_placeholder': {
     build: () => {
       const schema = Type.String({pattern: `^(a|b)-${'-?([0-9]+[.]?[0-9]*|[.][0-9]+)'}$`});
@@ -2679,7 +2679,21 @@ export const cases: CompetitorCases = {
       };
     },
   },
-  'STRING_FORMAT.string_disallowedValues': NOT_SUPPORTED, // no negative-match constraint in TypeBox (no Type.Not for values)
+  'STRING_FORMAT.string_disallowedValues': {
+    build: () => {
+      const schema = Type.String({pattern: '^(?!(?:admin|root)$)[\\s\\S]*$'});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.String({pattern: '^(?!(?:admin|root)$)[\\s\\S]*$'});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
   'STRING_FORMAT.string_customErrorMessage': {
     build: () => {
       const schema = Type.Union([Type.Literal('a'), Type.Literal('b')]);
@@ -3365,8 +3379,8 @@ export const cases: CompetitorCases = {
   },
   'BIGINT_FORMAT.bigint_multipleOf': NOT_SUPPORTED, // TypeBox compiles `value % BigInt(n) === 0` but 0n !== 0 (type mismatch bug)
   'BIGINT_FORMAT.bigint_combined': NOT_SUPPORTED, // multipleOf bug + min/max interaction
-  'BIGINT_FORMAT.bigint_int64': NOT_SUPPORTED, // BigInt(9223372036854775807) rounds in float64 → wrong boundary
-  'BIGINT_FORMAT.bigint_uint64': NOT_SUPPORTED, // BigInt(18446744073709551615) rounds in float64 → wrong boundary
+  'BIGINT_FORMAT.bigint_int64': NOT_SUPPORTED, // TypeCompiler emits `value <= BigInt(9223372036854775807)` — the bound is stringified into a Number literal, which rounds to 9223372036854775808n, so the max+1 invalid sample is wrongly accepted
+  'BIGINT_FORMAT.bigint_uint64': NOT_SUPPORTED, // same TypeCompiler `BigInt(<numeric-literal>)` rounding: 18446744073709551615 → 18446744073709551616n, so the max+1 invalid sample is wrongly accepted
 
   // ── DATETIME (min/max + relative) ──
   'DATETIME.date_minmax': NOT_SUPPORTED, // requires Date comparison semantics

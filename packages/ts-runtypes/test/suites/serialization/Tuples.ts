@@ -34,7 +34,7 @@ export const TUPLES = {
     description:
       'Tuple [number, bigint?, boolean?, number?] with one required leading slot and three trailing optional slots that may be absent and round-trip symmetrically across JSON and binary.',
     serializeNotes:
-      'Samples carry the optional bigint slot as `undefined` rather than a real value, so the bigint-to-decimal-string transform is exercised by other cases; both samples round-trip with no shape asymmetry.',
+      'Samples cover the optional bigint slot both present (exercising the bigint-to-decimal-string transform in a tuple slot) and absent; all round-trip with no shape asymmetry.',
     mutateEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'direct'}),
@@ -50,6 +50,7 @@ export const TUPLES = {
       values: [
         [3, undefined, true, 4],
         [446, undefined, undefined, undefined],
+        [7, 9007199254740993n, false, 2],
       ],
     }),
   },

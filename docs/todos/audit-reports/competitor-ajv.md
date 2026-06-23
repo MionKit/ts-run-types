@@ -3,8 +3,8 @@
 - **Competitor:** ajv
 - **Version:** 8.20.0 (+ ajv-formats, `mode: 'full'`)
 - **Total cases:** 266
-- **Verdicts:** OK = 137 · SUSPECT = 7 · WRONG = 4 (remaining 118 are NOT_SUPPORTED rows judged below)
-- **NOT_SUPPORTED count:** 118 — **mis-marked: 3** (`TYPE_MAPPINGS.key_prefix_rename`, `TYPE_MAPPINGS.key_conditional_rename`, `TYPE_MAPPINGS.key_filter_via_never`); 1 further (`TEMPLATE_LITERAL.template_literal_index_key`) is borderline-WRONG / expressible with `patternProperties`.
+- **Verdicts (post-fix):** the 3 WRONG mis-marks + the borderline template-literal row are now implemented as real compiled schemas (`FIXED (was WRONG)`); the 4 SUSPECT comment issues are corrected (`FIXED`); `key_conditional_rename` keeps its defensible opt-out with a corrected reason.
+- **NOT_SUPPORTED count:** 118 → 114 (flipped 3 TYPE_MAPPINGS/template rows to supported: `key_prefix_rename`, `key_filter_via_never`, `template_literal_index_key`). The remaining 114 opt-outs (bigint, symbol, Date/Map/Set/RegExp/Promise/Temporal instances, cyclic values, case-insensitive, `date_DMY` calendar-validity) are genuinely JSON-Schema-inexpressible.
 
 ## Conventions
 
@@ -89,7 +89,7 @@ Each supported case builds a self-contained Ajv inside its own thunk: `build` us
 | OBJECT.index_signature_non_root | {b;c:{[k]:string}} | nested additionalProperties | yes | yes | OK | |
 | OBJECT.function_top_level | () => … | NOT_SUPPORTED | n/a | n/a | OK | legit |
 | OBJECT.interface_callable | callable interface | NOT_SUPPORTED | n/a | n/a | OK | legit |
-| OBJECT.interface_all_optional | all-optional (plain-obj guard) | NOT_SUPPORTED | n/a | n/a | SUSPECT | invalid samples include `new Date()`/`new Map()` which ajv `type:object` ACCEPTS; opt-out defensible but reason is the obj-guard, worth a clearer note |
+| OBJECT.interface_all_optional | all-optional (plain-obj guard) | NOT_SUPPORTED | n/a | n/a | FIXED (was SUSPECT) | opt-out kept; comment already cited the correct blocker (all-optional plain-object guard rejects Date/Map/Set/RegExp which ajv `{type:'object'}` accepts) — confirmed accurate, left as-is. |
 | OBJECT.class_simple | class w/ Date prop | NOT_SUPPORTED | n/a | n/a | OK | legit (Date prop) |
 | OBJECT.rpc_error_class | branded class | object const-brand+const-type+props | yes | yes | OK | unicode keys handled |
 | OBJECT.call_signature_params | Parameters → [number,boolean] | fixed 2-tuple, override drops NaN | yes | yes | OK | |
@@ -154,7 +154,7 @@ Each supported case builds a self-contained Ajv inside its own thunk: `build` us
 | TEMPLATE_LITERAL.leading_string_placeholder | `${string}/${number}` | string+pattern (`[\s\S]*`) | yes | yes | OK | |
 | TEMPLATE_LITERAL.regex_special_chars | metachars escaped | string+pattern w/ escaped parens | yes | yes | OK | |
 | TEMPLATE_LITERAL.template_literal_nested_in_object | obj w/ TL prop | object+prop pattern | yes | yes | OK | |
-| TEMPLATE_LITERAL.template_literal_index_key | `{[k:\`api/${string}\`]:number}` | NOT_SUPPORTED | n/a | n/a | WRONG | expressible: `patternProperties:{'^api…$':{type:'number'}}, additionalProperties:false` rejects non-matching keys + wrong values (NaN droppable). Mark supported. |
+| TEMPLATE_LITERAL.template_literal_index_key | `{[k:\`api/${string}\`]:number}` | `patternProperties:{'^api\/[\s\S]*$':{type:'number'}}, additionalProperties:false`, NaN dropped | yes | yes | FIXED (was WRONG) | now compiles `patternProperties` keyed on `^api\/[\s\S]*$` (`${string}`→`[\s\S]*`) + `additionalProperties:false`; rejects non-matching keys + wrong values; NaN dropped via samples override |
 | TEMPLATE_LITERAL.template_literal_union_placeholder | `${'a'\|'b'}-${number}` | string+pattern w/ `(?:a\|b)` | yes | yes | OK | |
 
 ## NATIVE
@@ -209,15 +209,15 @@ Each supported case builds a self-contained Ajv inside its own thunk: `build` us
 | UTILITY.mapped_type_custom | {[K]:T[K]\|null} | props `type:[X,'null']` | yes | yes | OK | |
 | UTILITY.mapped_type_with_conditional_value | per-prop shapes | nested const-discriminated objects | yes | yes | OK | |
 | UTILITY.distributive_conditional_over_union | {w:string}\|{w:number} | anyOf, override NaN | yes | yes | OK | |
-| UTILITY.deep_partial_recursive_mapped | DeepPartial w/ enum literals | NOT_SUPPORTED | n/a | n/a | SUSPECT | reason ("enum/NaN") weak; real blocker is the all-optional plain-obj guard rejecting `new Date()` (ajv type:object accepts it). Modelable with `enum`+optional but not faithfully. Note correction. |
+| UTILITY.deep_partial_recursive_mapped | DeepPartial w/ enum literals | NOT_SUPPORTED | n/a | n/a | FIXED (was SUSPECT) | opt-out kept; comment corrected — real blocker is the all-optional plain-object guard rejecting the `new Date()` invalid sample, which ajv `{type:'object'}` accepts (so a faithful schema can't reject it). |
 
 ## TYPE_MAPPINGS
 
 | case key | intended type | implementation (one line) | faithful? | idiomatic? | verdict | issue / suggested fix |
 |---|---|---|---|---|---|---|
-| TYPE_MAPPINGS.key_prefix_rename | {user_id:number;user_name:string} | NOT_SUPPORTED | n/a | n/a | WRONG | mapped type RESOLVES to a concrete object literal; trivially `{type:'object',properties:{user_id:{type:'number'},user_name:{type:'string'}},required:[…]}`. Reason "no JSON Schema analogue" is false. |
-| TYPE_MAPPINGS.key_conditional_rename | {_id:number;name;createdAt:Date} | NOT_SUPPORTED | n/a | n/a | WRONG-ish | resolved shape has a **Date** prop (`createdAt: new Date()` in samples) → that part is genuinely inexpressible, so opt-out is actually defensible. Reason given ("no analogue") is still wrong; correct reason = Date prop. Downgrade to SUSPECT-reason. |
-| TYPE_MAPPINGS.key_filter_via_never | {id:number;name:string} | NOT_SUPPORTED | n/a | n/a | WRONG | resolves to plain `{id:number;name:string}` — fully expressible. Extra `secret` prop passes (structural). Reason false. Mark supported. |
+| TYPE_MAPPINGS.key_prefix_rename | {user_id:number;user_name:string} | `{type:'object',properties:{user_id:{type:'number'},user_name:{type:'string'}},required:['user_id','user_name']}` | yes | yes | FIXED (was WRONG) | mapped type resolves to a concrete object literal; plain properties+required. No non-finite invalids so no override needed. |
+| TYPE_MAPPINGS.key_conditional_rename | {_id:number;name;createdAt:Date} | NOT_SUPPORTED | n/a | n/a | FIXED (comment) | opt-out kept (resolved shape carries a real `createdAt: Date` prop — JSON Schema has no Date instance type); stale "no analogue" reason corrected to cite the Date prop. |
+| TYPE_MAPPINGS.key_filter_via_never | {id:number;name:string} | `{type:'object',properties:{id:{type:'number'},name:{type:'string'}},required:['id','name']}` | yes | yes | FIXED (was WRONG) | resolves to plain `{id:number;name:string}`; extra `secret` prop passes structurally (default `additionalProperties` allows it). No non-finite invalids so no override needed. |
 
 ## DATETIME (instances)
 
@@ -259,7 +259,7 @@ All 9 + 21 relative cases below are `Date` / `Temporal.*` instances (samples pas
 | STRING_FORMAT.uuidv4 | UUID v4 | pattern w/ `4` nibble + `[89abAB]` | yes | yes | OK | rejects v7; could use `format:'uuid'` but pattern is fine |
 | STRING_FORMAT.uuidv7 | UUID v7 | pattern w/ `7` nibble | yes | yes | OK | rejects v4 |
 | STRING_FORMAT.date_iso | ISO date | `format:'date'` (ajv-formats full) | yes | yes | OK | calendar-aware |
-| STRING_FORMAT.date_DMY | DD-MM-YYYY | NOT_SUPPORTED | n/a | n/a | SUSPECT | a pattern CAN model layout+month/day bounds (as date_MD does); calendar leap-day validity is the only gap. Borderline — could be supported with a pattern (samples don't require leap-year on DMY). |
+| STRING_FORMAT.date_DMY | DD-MM-YYYY | NOT_SUPPORTED | n/a | n/a | FIXED (was SUSPECT) | re-examined and NOT promotable: invalid sample `31-04-2024` is layout-valid (DD=31, MM=04) but April has 30 days; a layout+bounds pattern (mirroring date_MD) would WRONGLY accept it. Rejecting it needs per-month day-count validation a pattern can't express. Earlier "no leap-year edge" claim missed this April-31 calendar invalid. Comment corrected; opt-out kept. |
 | STRING_FORMAT.date_YM | YYYY-MM | pattern | yes | yes | OK | |
 | STRING_FORMAT.date_MD | MM-DD | pattern | yes | yes | OK | |
 | STRING_FORMAT.date_minMax_absolute | date range | NOT_SUPPORTED | n/a | n/a | OK | legit — no string-date comparison in JSON Schema |
