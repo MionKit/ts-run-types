@@ -1,6 +1,15 @@
 # Audit every benchmark + test-suite case implementation, case by case
 
-> **Status: pending (review only, no fixes yet).** Triggered by a clearly wrong
+> **Status: AUDIT COMPLETE (review done; fixes are a separate follow-up).** The ten
+> classification tables + the master fix-list live in
+> [`audit-reports/`](audit-reports/) — start with
+> [`audit-reports/00-SYNTHESIS.md`](audit-reports/00-SYNTHESIS.md). Headline: the
+> trigger class (hand-rolled `z.custom` bypasses) is real and concentrated in **zod**
+> (39 WRONG); **typia** and the reference **ts-runtypes** are clean; the ts-runtypes
+> **serialization** suite has one high-value defect (a comparison helper that silently
+> neuters all 9 Map/Set cases). No production code was changed by the audit.
+>
+> **Status (original): pending (review only, no fixes yet).** Triggered by a clearly wrong
 > competitor implementation (zod `OBJECT.interface_all_optional`, below). The goal
 > of THIS task is the audit, not the fixes: review every single case in the
 > benchmark competitors and the ts-runtypes test suites, classify each as correct /
