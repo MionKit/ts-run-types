@@ -1,85 +1,81 @@
-# Step 4 — The tools you'll need
+# Step 4: The tools you'll need
 
-> Build what your rules need, and only that: something that makes random inputs (an
-> input maker), a way to replay any run from one saved number (a seed), the loop, and a
-> way to shrink a failure. This worksheet also covers Step 1 (what you're testing and
-> what you can see) and Step 2 (is fuzzing worth it?), since you settle those before you
-> build. Produces a short list of what you already have and what's missing. Full prose:
+> You're settling what's being tested and then building only the tools the rules need: an
+> input maker, a replay button (a seed), the loop, and a shrinker. This worksheet also
+> covers step 1 (what you're testing and what you can see) and step 2 (is it worth it?),
+> since you settle those with the user first. The rule throughout: look before you build,
+> and build only the gaps. Full prose:
 > [framework-fuzzy-testing.md → Step 4](../../../docs/talks/directive-driven-testing/framework-fuzzy-testing.md#step-4-build-the-pieces).
 
-## Step 1 · What are you testing? Name it and bound it.
+## Step 1 · Name the code and bound it (with the user)
 
-- [ ] Pick the smallest function or pipeline you can call directly in a test. Write its
-      signature.
-- [ ] Does it touch the outside world (CLI, server, filesystem)? Wrap that boundary so
-      you can call it like a plain function: `run(args, files) -> {stdout, exit, files,
-    diagnostics}`. Keep wrapping until it's clean and you can call it a million times.
-- **Write down:** `the code under test: (In) -> Out` (smaller = faster runs and a
-  sharper rule).
+- Ask the user for the smallest function or pipeline you can call directly in a test.
+  Read it; write its signature down.
+- If it touches the outside world (CLI, server, filesystem), wrap that boundary so you
+  can call it like a plain function: `run(args, files) -> {stdout, exit, files,
+diagnostics}`. Keep wrapping until it's clean and you can call it a million times.
+- Land on one thing: the code under test as `(In) -> Out` (smaller means faster runs and
+  a sharper rule).
 
-## Step 1 · What can you actually see?
+## Step 1 · Work out what you can see
 
-- [ ] List everything you can watch the code do: the return value, any error it throws
-      (and the error's type), stdout / exit code, files it writes, a list of
-      diagnostics.
-- [ ] **The more you can see, the stronger your rules can be.** See enough to tell
-      "clean" apart from "never ran". Example: a validator that returns 0 findings
-      _because the type failed to resolve_ looks identical to "valid"; that blind spot
-      makes a reject-bad-input rule pass for the wrong reason. What you can see limits
-      what you can check.
-- **Write down:** the record of what each run lets you observe.
+- List everything you can watch the code do: the return value, any error it throws (and
+  the error's type), stdout / exit code, files it writes, a list of diagnostics. Tell the
+  user what you found.
+- The more you can see, the stronger the rules can be. See enough to tell "clean" apart
+  from "never ran". Example: a validator that returns 0 findings _because the type failed
+  to resolve_ looks identical to "valid", and that blind spot makes a reject-bad-input
+  rule pass for the wrong reason.
 
-## Step 2 · Is fuzzing worth it here?
+## Step 2 · Check it's worth fuzzing (ask the user)
 
-A 30-second check before you build anything. Fuzzing pays off only when all three hold:
+Run the three-question check with the user before building anything:
 
-- [ ] You can run the code over and over with different inputs (it's fast and callable
-      in a loop).
-- [ ] The same input always does the same thing, or you can force that (no loose
-      randomness, clock, or network you can't pin down).
-- [ ] You have a **cheap way to tell right from wrong without re-doing the code's job**.
-      If the only way to know the answer is to rebuild what the code does, fuzzing
-      won't help.
+- Can we run the code over and over, fast, in a loop?
+- Is it repeatable, or can we force that (no loose randomness, clock, or network you
+  can't pin down)?
+- Is there a cheap way to tell right from wrong without redoing its work? Ask straight:
+  "if I hand you an output, how would you spot a wrong one without re-running the logic?"
 
-If any is false, stop here — a handful of hand-written examples is the better tool.
+If any answer is no, stop and recommend a few hand-written examples instead.
 
-## Step 4 · Pick the input maker (the most important decision)
+## Step 4 · Pick the input maker with the user (the most important decision)
 
-Ask: **how is a _valid_ input described?** That answer picks your approach.
+Ask: **how is a _valid_ input described?** That answer picks the approach. Propose one
+from the table and confirm with the user.
 
 | Valid inputs are described by…               | Input maker                                                                   |
 | -------------------------------------------- | ----------------------------------------------------------------------------- |
 | a schema / type the program reads at runtime | **DERIVE** inputs from it (reflection): `createMockType<T>()`, zod-fast-check |
 | only a written-down TS type                  | reflect it, or hand-write a small maker (`fc.Arbitrary<T>` / typia)           |
-| raw text / bytes                             | **MUTATE** real samples — splice junk into known-good inputs                  |
+| raw text / bytes                             | **MUTATE** real samples, splice junk into known-good inputs                   |
 | a SEQUENCE of operations (code with memory)  | make a random LIST of actions + a small model of the state                    |
 | two coupled things that EVOLVE via edits     | make a random list of EDIT events + a small model (build it)                  |
 
-- [ ] Does the input maker already exist? This repo has: `createMockType<T>()` (a valid
-      value), `mutateToInvalid(schema, valid)` (one spot that is provably wrong),
-      `randomJunk(depth)` (type-blind junk).
-- **Write down:** the input maker(s) you need, and whether each already exists.
+- Look first: does the input maker already exist? This repo has `createMockType<T>()` (a
+  valid value), `mutateToInvalid(schema, valid)` (one spot that is provably wrong),
+  `randomJunk(depth)` (type-blind junk). Report what's there before building anything.
 
 ## Step 4 · A replay button (the seed)
 
-- [ ] List **every** source of randomness the code or input maker touches: the random
-      number generator, `Date.now()`, the filesystem, network, hash seeds, `Object` key
-      order, `Set` / `Map` iteration order.
-- [ ] Make each one replayable from a single saved number (a seed). Repo trick:
-      `withSeededRandom(seed, fn)` swaps `Math.random` for a seeded generator for one
-      run, then restores it; `mixSeed(base, label, i)` makes a fresh seed per run.
-- **Write down:** every run reproducible from a single integer.
+- List **every** source of randomness the code or the input maker touches: the random
+  number generator, `Date.now()`, the filesystem, network, hash seeds, `Object` key
+  order, `Set` / `Map` iteration order.
+- Make each one replayable from a single saved number (a seed). Repo trick:
+  `withSeededRandom(seed, fn)` swaps `Math.random` for a seeded generator for one run,
+  then restores it; `mixSeed(base, label, i)` makes a fresh seed per run.
 
 ## Step 4 · Shrinking a failure
 
-- [ ] Decide how you'll cut a failing input down to its smallest form. fast-check does
-      this automatically. By hand, the options are: **smallest-prefix** (the fewest
-      first-K actions that still fail — what the enrich fuzzer uses), **drop-subsets**
-      (remove chunks and see if it still fails), **simplify-the-value** (shrink the
-      input itself).
-- [ ] Always keep the **seed** alongside the shrunk reproducer.
+- Decide how you'll cut a failing input down to its smallest form. fast-check does this
+  automatically. By hand, the options are: **smallest-prefix** (the fewest first-K
+  actions that still fail, what the enrich fuzzer uses), **drop-subsets** (remove chunks
+  and see if it still fails), **simplify-the-value** (shrink the input itself). Always
+  keep the **seed** alongside the shrunk reproducer.
 
-## The list: what you have, what's missing (the deliverable)
+## Fill the gap list with the user (the hand-off)
+
+Fill this in together, then build only what's **missing**.
 
 | Part             | Tool (existing or to build) | Exists? | Missing |
 | ---------------- | --------------------------- | ------- | ------- |
@@ -88,6 +84,6 @@ Ask: **how is a _valid_ input described?** That answer picks your approach.
 | what you can see |                             |         |         |
 | shrinking        |                             |         |         |
 
-Build only what's **missing**. You should already have your rules from [the rules
-worksheet (worksheet-B.md)](worksheet-B.md) — or come from [grow an existing test
-(worksheet-C.md)](worksheet-C.md) if an example test already exists.
+You should already have the rules from [the rules worksheet (worksheet-B.md)](worksheet-B.md),
+or be coming from [grow an existing test (worksheet-C.md)](worksheet-C.md) if an example
+test already exists.
