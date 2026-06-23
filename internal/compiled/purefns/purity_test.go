@@ -180,18 +180,56 @@ func TestPurity_BinaryEncodingGlobals_Allowed(t *testing.T) {
 	}
 }
 
-func TestPurity_Crypto_NotAllowed(t *testing.T) {
-	// `crypto` is deliberately ABSENT from allowedGlobals: getRandomValues /
-	// randomUUID are non-deterministic (and subtle.digest is async), so it
-	// would break purity. A pure hash is ported inline over the typed arrays
-	// instead. Referencing it stays a closure violation — this pins the
-	// exclusion so a careless future addition is caught.
+func TestPurity_Crypto_Allowed(t *testing.T) {
+	// `crypto` is allowed like Math / Date: a computation namespace that reads a
+	// benign host VALUE, not a side-effect channel. Its SYNC members
+	// (randomUUID / getRandomValues) are non-deterministic — exactly like
+	// Math.random / Date.now, which are also allowed and which mock-generator
+	// pure-fns want. Non-determinism is NOT the forbidden line, so no closure
+	// (PFE9011) or forbidden (PFE9010) diagnostic.
 	diags := withFactoryBody(t, `
   return function inner() {
-    return crypto.randomUUID();
+    const id = crypto.randomUUID();
+    const buf = crypto.getRandomValues(new Uint8Array(16));
+    return [id, buf];
+  };`)
+	if got := purityCodes(diags); len(got) != 0 {
+		t.Fatalf("crypto (sync members) must be allowed, got %v\n(all diags: %+v)", got, diags)
+	}
+}
+
+func TestPurity_CryptoSubtleAwait_IsAsyncViolation(t *testing.T) {
+	// crypto is allowed, but the synchronous-only rule still bites: its async
+	// subtle.* API can only be consumed with await. The failure is PFE9007
+	// (await), NOT a closure / forbidden on `crypto` — that is the whole
+	// principle (the async hash simply doesn't fit; a real hash is ported
+	// inline over the typed arrays).
+	diags := withFactoryBody(t, `
+  return async function inner(data: Uint8Array) {
+    return await crypto.subtle.digest('SHA-256', data);
+  };`)
+	if _, ok := firstDiagWithCode(diags, CodePurityAwait); !ok {
+		t.Fatalf("expected PFE9007 for await on crypto.subtle, got %+v", diags)
+	}
+	for _, d := range diags {
+		if (d.Code == CodePurityClosure || d.Code == CodePurityForbidden) && len(d.Args) > 0 && d.Args[0] == "crypto" {
+			t.Fatalf("crypto itself must be allowed; only the await should fail, got %+v", diags)
+		}
+	}
+}
+
+func TestPurity_SharedArrayBuffer_NotAllowed(t *testing.T) {
+	// SharedArrayBuffer is deliberately ABSENT: a cross-context shared-mutation
+	// channel (the same category as the SYNC-but-forbidden storage APIs), with
+	// no use in a self-contained pure-fn. Referencing it stays a closure
+	// violation — this pins the exclusion so a careless future addition is
+	// caught, and documents that "synchronous" was never the sole test.
+	diags := withFactoryBody(t, `
+  return function inner() {
+    return new SharedArrayBuffer(16);
   };`)
 	if _, ok := firstDiagWithCode(diags, CodePurityClosure); !ok {
-		t.Fatalf("crypto must NOT be allowed (non-deterministic); expected PFE9011, got %+v", diags)
+		t.Fatalf("SharedArrayBuffer must NOT be allowed; expected PFE9011, got %+v", diags)
 	}
 }
 

@@ -8,11 +8,16 @@ package purefns
 //     (it's a backdoor to every host global)
 //   - Temporal ADDED to allowedGlobals (Temporal proposal API is pure
 //     and safe to reference)
-//   - Binary + text-encoding constructors ADDED to allowedGlobals
+//   - Binary / text-encoding built-ins + crypto ADDED to allowedGlobals
 //     (ArrayBuffer / DataView / the typed arrays / TextEncoder|Decoder /
-//     btoa|atob) so hashing, binary-codec, and encoding algorithms can be
-//     ported inline into a factory; crypto and SharedArrayBuffer stay out
-//     (non-deterministic / threading — see the notes in the map below).
+//     btoa|atob / crypto) so hashing, binary-codec, and encoding algorithms
+//     can be ported inline into a factory. The forbidden line is I/O,
+//     side-effect channels, code-eval, and host objects — NOT non-determinism
+//     (crypto reads a host value like Math.random / Date.now, all allowed) and
+//     NOT sync-vs-async by itself (localStorage is sync yet forbidden). The
+//     orthogonal hard rule, enforced syntactically, is synchronous-only: no
+//     await / yield / dynamic import. SharedArrayBuffer stays out — a
+//     shared-mutation channel, like the forbidden storage APIs.
 //
 // When syncing future tweaks from the reference rules, the diff is
 // intentionally small and easy to review.
@@ -92,11 +97,23 @@ var allowedGlobals = map[string]bool{
 	"TextDecoder": true,
 	"btoa":        true,
 	"atob":        true,
-	// NOTE: `crypto` (Web Crypto) is deliberately ABSENT — getRandomValues /
-	// randomUUID are NON-deterministic and subtle.digest is async (a pure-fn
-	// can't await), so it would break purity; a pure hash is ported inline
-	// over the typed arrays above. `SharedArrayBuffer` is also absent: a
-	// cross-thread shared-memory primitive, irrelevant to pure byte work.
+
+	// crypto (Web Crypto). Allowed for the same reason as Math / Date: a
+	// computation namespace that reads a benign host-provided VALUE, not a
+	// side-effect channel. crypto.randomUUID / getRandomValues are SYNC and
+	// non-deterministic — exactly like Math.random / Date.now (also allowed,
+	// and which mock-generator pure-fns legitimately want). Non-determinism is
+	// NOT the forbidden line; I/O + side-effect channels + async are. The async
+	// crypto.subtle.* API is self-limiting: it can only be consumed with await,
+	// which trips PFE9007, so an async hash never fits — port the hash inline
+	// over the typed arrays above instead.
+	"crypto": true,
+	// NOTE: SharedArrayBuffer is intentionally ABSENT. Unlike ArrayBuffer (a
+	// private buffer) it is a cross-context shared-MUTATION channel — the same
+	// category as the storage APIs in forbiddenIdentifiers below (localStorage
+	// et al. are SYNC yet forbidden, because being synchronous was never the
+	// test — being free of side-effect channels is). A self-contained pure-fn
+	// has nothing to share it with, so it has no legitimate use here.
 
 	// Temporal API (Stage 3 / shipping). Pure constructors + arithmetic;
 	// safe inside factory bodies.
