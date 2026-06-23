@@ -464,7 +464,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 			typeArgument = annotated
 		}
 	}
-	options := extractValidateOptions(call, lastIndex, argsCount)
+	options := extractValidateOptions(state.scanChecker, call, lastIndex, argsCount)
 	// No-op ValidateOptions diagnostics — warn the user when an option is
 	// requested but provably has no effect on the resolved type. The
 	// emitter still produces the variant factory (always-emit
@@ -510,7 +510,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	var fnIds []string
 	var demand []protocol.SiteDemand
 	for _, fnKey := range injectionFnKeys {
-		fnId, fnDemand := computeSiteFn(fnKey, options, call, lastIndex, argsCount)
+		fnId, fnDemand := computeSiteFn(state.scanChecker, fnKey, options, call, lastIndex, argsCount)
 		fnIds = append(fnIds, fnId)
 		demand = append(demand, fnDemand...)
 	}
@@ -550,7 +550,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 // operations.Canonical reads only the axis-relevant input (strategy for JSON,
 // option names for it/te, neither otherwise), so one call covers every axis.
 // Empty fnKey (a reflection-only InjectRunTypeId site) yields ("", nil).
-func computeSiteFn(fnKey string, options validateOptions, call *ast.Node, lastIndex, argsCount int) (string, []protocol.SiteDemand) {
+func computeSiteFn(typeChecker *checker.Checker, fnKey string, options validateOptions, call *ast.Node, lastIndex, argsCount int) (string, []protocol.SiteDemand) {
 	if fnKey == "" {
 		return "", nil
 	}
@@ -562,7 +562,7 @@ func computeSiteFn(fnKey string, options validateOptions, call *ast.Node, lastIn
 	var strategy string
 	switch op.Axis {
 	case operations.AxisJsonStrategy:
-		strategy = extractStrategyOption(call, lastIndex, argsCount)
+		strategy = extractStrategyOption(typeChecker, call, lastIndex, argsCount)
 	case operations.AxisValidateOptions:
 		optionNames = options.Names()
 	}
@@ -611,36 +611,69 @@ func optionsArgumentAt(call *ast.Node, lastIndex, argsCount int) *ast.Node {
 }
 
 // eachOptionProperty visits every named PropertyAssignment of the options
-// object literal at the options slot as a (name, initializer) pair. No-op
-// when the slot is unfilled or isn't an object literal — the resolver runs
-// at build time and can't evaluate non-literal expressions, so variable
-// references / spreads / calls silently yield zero options. This matches
-// the compile-time-baked options model (baseRunTypes.ts:82-86 hashes
-// options into the RT cache key).
-func eachOptionProperty(call *ast.Node, lastIndex, argsCount int, visit func(name string, initializer *ast.Node)) {
+// object literal at the options slot as a (name, initializer) pair, descending
+// into object-spread fragments (see eachOptionPropertyOf). No-op when the slot
+// is unfilled or isn't an object literal — the resolver runs at build time and
+// can't evaluate non-literal expressions, so a variable reference / call (or a
+// spread whose operand isn't a resolvable object-literal fragment) silently
+// yields zero options. This matches the compile-time-baked options model
+// (baseRunTypes.ts:82-86 hashes options into the RT cache key).
+func eachOptionProperty(typeChecker *checker.Checker, call *ast.Node, lastIndex, argsCount int, visit func(name string, initializer *ast.Node)) {
 	// Unwrap `as const` / parens / `satisfies` so extraction accepts
 	// exactly what the slot's CompTimeFnArgs validation accepted.
 	candidate := comptimeargs.UnwrapWrappers(optionsArgumentAt(call, lastIndex, argsCount))
 	if candidate == nil || candidate.Kind != ast.KindObjectLiteralExpression {
 		return
 	}
-	objectLiteral := candidate.AsObjectLiteralExpression()
+	eachOptionPropertyOf(typeChecker, candidate, 0, visit)
+}
+
+// eachOptionPropertyOf visits the named PropertyAssignments of an options
+// object literal in SOURCE ORDER, descending into object-spread fragments
+// (`{...preset, strategy: 'mutate'}`) at the position the spread appears. The
+// source order is load-bearing: the callers are last-write-wins, so a later
+// inline key — or a later spread — overrides an earlier spread's value, the
+// same merge semantics TypeScript applies to the type-level spread the
+// CompTimeFnArgs validation already accepted. This keeps the read in lockstep
+// with the relaxed comptimeargs validator: anything Part A accepts as a spread
+// is merged here, so an accepted preset can never silently drop its options
+// and select the wrong fn-hash variant. A spread whose operand doesn't resolve
+// to an object literal is skipped (it never passed validation). Depth-bounded
+// against pathological const chains.
+func eachOptionPropertyOf(typeChecker *checker.Checker, objectLiteralNode *ast.Node, depth int, visit func(name string, initializer *ast.Node)) {
+	if depth > comptimeargs.DepthCap {
+		return
+	}
+	objectLiteral := objectLiteralNode.AsObjectLiteralExpression()
 	if objectLiteral == nil || objectLiteral.Properties == nil {
 		return
 	}
 	for _, property := range objectLiteral.Properties.Nodes {
-		if property == nil || property.Kind != ast.KindPropertyAssignment {
+		if property == nil {
 			continue
 		}
-		propertyAssignment := property.AsPropertyAssignment()
-		if propertyAssignment == nil {
-			continue
+		switch property.Kind {
+		case ast.KindPropertyAssignment:
+			propertyAssignment := property.AsPropertyAssignment()
+			if propertyAssignment == nil {
+				continue
+			}
+			name := propertyAssignment.Name()
+			if name == nil || propertyAssignment.Initializer == nil {
+				continue
+			}
+			visit(name.Text(), propertyAssignment.Initializer)
+		case ast.KindSpreadAssignment:
+			spread := property.AsSpreadAssignment()
+			if spread == nil || spread.Expression == nil {
+				continue
+			}
+			container, ok := comptimeargs.ResolveSpreadContainer(typeChecker, spread.Expression)
+			if !ok || container.Kind != ast.KindObjectLiteralExpression {
+				continue
+			}
+			eachOptionPropertyOf(typeChecker, container, depth+1, visit)
 		}
-		name := propertyAssignment.Name()
-		if name == nil || propertyAssignment.Initializer == nil {
-			continue
-		}
-		visit(name.Text(), propertyAssignment.Initializer)
 	}
 }
 
@@ -648,12 +681,15 @@ func eachOptionProperty(call *ast.Node, lastIndex, argsCount int, visit func(nam
 // slot — the JSON encoder/decoder compile-time selector. Returns "" when
 // absent or not a string literal, so the caller falls back to the function's
 // default strategy.
-func extractStrategyOption(call *ast.Node, lastIndex, argsCount int) string {
+func extractStrategyOption(typeChecker *checker.Checker, call *ast.Node, lastIndex, argsCount int) string {
 	strategy := ""
-	eachOptionProperty(call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
-		if name != "strategy" || strategy != "" {
+	eachOptionProperty(typeChecker, call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
+		if name != "strategy" {
 			return
 		}
+		// Last-write-wins: a later `strategy` (an inline override of a spread
+		// preset, or a later spread) replaces an earlier one — matching the
+		// merge semantics of `{...preset, strategy: '…'}`.
 		if initializer.Kind == ast.KindStringLiteral || initializer.Kind == ast.KindNoSubstitutionTemplateLiteral {
 			strategy = initializer.Text()
 		}
@@ -730,20 +766,31 @@ func (opts validateOptions) Names() []string {
 
 // extractValidateOptions reads the literal `<option>: true` properties at
 // the options slot for every option declared in constants.ValidateOptions.
-func extractValidateOptions(call *ast.Node, lastIndex, argsCount int) validateOptions {
+func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIndex, argsCount int) validateOptions {
 	var opts validateOptions
-	eachOptionProperty(call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
-		if initializer.Kind != ast.KindTrueKeyword {
+	eachOptionProperty(typeChecker, call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
+		known := false
+		for _, option := range constants.ValidateOptions {
+			if option.Name == name {
+				known = true
+				break
+			}
+		}
+		if !known {
 			return
 		}
-		for _, option := range constants.ValidateOptions {
-			if option.Name != name {
-				continue
-			}
+		switch initializer.Kind {
+		case ast.KindTrueKeyword:
 			if opts.enabled == nil {
 				opts.enabled = make(map[string]bool, len(constants.ValidateOptions))
 			}
 			opts.enabled[name] = true
+		case ast.KindFalseKeyword:
+			// Last-write-wins: an explicit `false` (an inline override of a
+			// spread-in `true`, or a later spread) disables the option. A
+			// no-op on an absent key, so the non-spread `{opt: false}` case
+			// behaves exactly as before.
+			delete(opts.enabled, name)
 		}
 	})
 	return opts

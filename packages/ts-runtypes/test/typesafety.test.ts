@@ -444,6 +444,27 @@ function assertionsComposerExactInference(): void {
   // array: the simple-generic shape stays exact under the brand.
   const _arr = RT.array(RT.boolean());
   assertExact<Static<typeof _arr>, boolean[]>(true);
+
+  // Spread composition — split a shared fragment into a `const` and merge it at
+  // the call site. TypeScript performs the type-level merge, so the builder
+  // reflects the merged type for free; the Go scanner accepts the spread of a
+  // `const`-bound literal fragment (CompTimeArgs). Pinned exact so a regression
+  // in the merged inference fails here.
+  const _baseFields = {id: TF.number(), name: TF.string()};
+  const _objSpread = RT.object({..._baseFields, active: RT.boolean()});
+  assertExact<Static<typeof _objSpread>, {id: number; name: string; active: boolean}>(true);
+
+  // tuple / union spread: the operand must be a TUPLE (`as const` / const-
+  // inferred) — spreading a tuple preserves per-slot precision, whereas
+  // spreading a plain `RunType[]` would collapse to an array and lose it. These
+  // pin the tuple-operand path that keeps the exact per-slot / per-member types.
+  const _tupleParts = [TF.number(), RT.boolean()] as const;
+  const _tupSpread = RT.tuple([..._tupleParts, TF.string()]);
+  assertExact<Static<typeof _tupSpread>, [number, boolean, string]>(true);
+
+  const _unionParts = [TF.string(), TF.number()] as const;
+  const _uniSpread = RT.union([..._unionParts, RT.boolean()]);
+  assertExact<Static<typeof _uniSpread>, string | number | boolean>(true);
 }
 
 // Value-first leaf branding — the `string` / `number` / `bigint` / `date`

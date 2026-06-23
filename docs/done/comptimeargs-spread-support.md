@@ -1,12 +1,34 @@
 # Support the spread operator inside `CompTimeArgs` object / array literals
 
-> **Status: pending (design note, 2026-06-23).** Today a spread element inside a
-> `CompTimeArgs<T>` / `CompTimeFnArgs<T>` literal is a hard `CTA003` error. This
-> tracks lifting that restriction so users can split shared config / schema
-> fragments into a `const` and merge them at the call site
-> (`object({...base, name: string()})`, `createJsonDecoder<T>({...preset, strategy: 'mutate'})`),
-> bringing the value-first surface to parity with what the type channel already
-> does for free.
+> **Status: DONE (shipped 2026-06-23).** A spread of a statically-resolvable
+> `const` (or inline) container fragment inside a `CompTimeArgs<T>` /
+> `CompTimeFnArgs<T>` literal is now accepted — `object({...base, name: string()})`,
+> `createJsonDecoder<T>({...preset, strategy: 'mutate'})`. Parts A, B and C all
+> shipped, with cross-module operand support (Decision 2) and shape-mismatch
+> rejection (Decision 3). A spread whose operand is dynamic, non-`const`, or a
+> shape mismatch still raises `CTA003`.
+>
+> **What shipped vs. this note:**
+> - **Part A** — `comptimeargs.ResolveSpreadContainer` (in
+>   [values.go](../../internal/comptimeargs/values.go)) resolves the operand
+>   through wrappers + `const` chain + **import aliases**; `checkObjectSpread` /
+>   `checkArraySpread` ([comptimeargs.go](../../internal/comptimeargs/comptimeargs.go))
+>   accept ONLY a resolved literal of the matching kind. Soundness refinement
+>   over the original sketch: rejection is on the resolved KIND, not by
+>   re-validating the operand as a bare literal — a scalar `const` is a valid
+>   literal leaf but is NOT a valid spread operand, so a "re-validate the
+>   operand" fallback would wrongly accept `{...someStringConst}`. All bad
+>   spreads therefore report a single uniform `CTA003` reason rather than the
+>   CTA001/CTA003 split this note proposed.
+> - **Part B** — free for builders, as predicted. Pinned by exact-inference
+>   typesafety tests (object spread + tuple/union spread of a tuple operand).
+> - **Part C** — `eachOptionProperty` threads the `*checker.Checker` and
+>   descends into spreads in source order; both readers are now last-write-wins
+>   (`extractValidateOptions` deletes on an explicit `false`,
+>   `extractStrategyOption` takes the latest) so an inline key overrides a
+>   spread-in key.
+>
+> Original design note retained below for context.
 
 ## Motivation
 

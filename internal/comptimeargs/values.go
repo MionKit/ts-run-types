@@ -35,6 +35,54 @@ func ResolveImportAlias(typeChecker *checker.Checker, symbol *ast.Symbol) *ast.S
 	return symbol
 }
 
+// ResolveSpreadContainer follows wrappers, `const` bindings, and import
+// aliases to resolve the operand of a spread (`...operand`) to its underlying
+// object- or array-literal node. Cross-module is intentional: the
+// split-and-merge use case is strongest when the spread fragment is an
+// imported shared `const`, so the trace follows import aliases the same way
+// TraceRegexpLiteral does (the same-module-only resolveConstInitializer
+// deliberately does NOT). Returns (nil, false) when the operand isn't
+// statically a literal container — a dynamic value (call result, ternary), a
+// `let` / `var`, or a `const` without a literal-container initializer.
+// Bounded by DepthCap. Shared by the Part A validator (checkObjectLiteral /
+// checkArrayLiteral) and the resolver's option-bag merge so both agree on
+// exactly which spreads resolve.
+func ResolveSpreadContainer(typeChecker *checker.Checker, node *ast.Node) (*ast.Node, bool) {
+	return resolveSpreadContainer(typeChecker, node, 0)
+}
+
+func resolveSpreadContainer(typeChecker *checker.Checker, node *ast.Node, depth int) (*ast.Node, bool) {
+	if depth > DepthCap || typeChecker == nil {
+		return nil, false
+	}
+	unwrapped := UnwrapWrappers(node)
+	if unwrapped == nil {
+		return nil, false
+	}
+	switch unwrapped.Kind {
+	case ast.KindObjectLiteralExpression, ast.KindArrayLiteralExpression:
+		return unwrapped, true
+	case ast.KindIdentifier:
+		symbol := typeChecker.GetSymbolAtLocation(unwrapped)
+		if symbol == nil {
+			return nil, false
+		}
+		var initializer *ast.Node
+		EachConstVariableDeclaration(ResolveImportAlias(typeChecker, symbol), func(variableDeclaration *ast.VariableDeclaration) bool {
+			if variableDeclaration.Initializer == nil {
+				return true
+			}
+			initializer = variableDeclaration.Initializer
+			return false
+		})
+		if initializer == nil {
+			return nil, false
+		}
+		return resolveSpreadContainer(typeChecker, initializer, depth+1)
+	}
+	return nil, false
+}
+
 // StringLiteralValue returns the value of a string-literal expression
 // (UnwrapWrappers applied first), or ("", false) for anything else. No
 // const tracing — use ResolveLiteralString when identifier chains must

@@ -98,9 +98,13 @@ export function getRunTypeId<T>(_value?: T, id?: InjectRunTypeId<T>): InjectRunT
 /**
  * Compile-time-args marker. Brands a parameter so the Go scanner enforces
  * that the matching argument is *fully literal* — at the call site or via a
- * module-scope `const` whose initializer is itself entirely literal. No
- * spread, no calls, no property access, no template substitution, no ternary.
- * Violations produce `CTA0xx` diagnostics.
+ * module-scope `const` whose initializer is itself entirely literal. Spread of
+ * a `const`-bound literal fragment IS allowed (`{...base, k: v}` /
+ * `[...members, x]`, including an imported fragment), so shared config / schema
+ * can be split into a `const` and merged at the call site. No calls, no
+ * property access, no template substitution, no ternary; a spread whose operand
+ * is dynamic or a shape mismatch (an object spread of an array, …) is still
+ * rejected. Violations produce `CTA0xx` diagnostics.
  *
  * It is the IDENTITY `T` (the value flows through unwrapped, and the marker
  * adds zero type-check cost). It deliberately carries NO phantom brand
@@ -120,7 +124,9 @@ export type CompTimeArgs<T> = T;
  * function variant — the `ValidateOptions` bag for `createValidate` /
  * `createGetValidationErrors`, the strategy for `createJsonEncoder` /
  * `createJsonDecoder`. The scanner reads it to compute the injected fn hash
- * (see `InjectTypeFnArgs`). Phantom intersection; the value flows through
+ * (see `InjectTypeFnArgs`). A `{...preset, …}` spread is merged in source order
+ * (last write wins), so a shared options preset selects the same variant as the
+ * fully-inlined options. Phantom intersection; the value flows through
  * unwrapped.
  */
 export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
