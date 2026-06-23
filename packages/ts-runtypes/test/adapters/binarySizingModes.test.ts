@@ -14,9 +14,9 @@
 //      the exact size.
 
 import * as TF from 'ts-runtypes/formats';
-import {describe, it, expect} from 'vitest';
+import {describe, it, expect, afterEach} from 'vitest';
 import * as RT from 'ts-runtypes/schema';
-import {createBinaryEncoder, createBinaryDecoder, createBinarySizer, RunTypeKind} from 'ts-runtypes';
+import {createBinaryEncoder, createBinaryDecoder, createBinarySizer, setDefaultBinarySizing, getDefaultBinarySizing, RunTypeKind} from 'ts-runtypes';
 import {createSizingSerializer, createDataViewSerializer} from '../../src/runtypes/dataView.ts';
 
 describe('binary sizing — measure pass matches the encoder', () => {
@@ -170,5 +170,31 @@ describe('createBinarySizer — exact byte count without allocating', () => {
     const v = ['alpha', 'beta', 'gamma'];
     const enc = createBinaryEncoder(s, {sizing: 'initial', bufferSize: size(v)});
     expect(createBinaryDecoder(s)(enc(v))).toEqual(v);
+  });
+});
+
+describe('setDefaultBinarySizing — global default, per-call override', () => {
+  afterEach(() => setDefaultBinarySizing()); // reset to 'dynamic'
+
+  it('reflects the set default', () => {
+    setDefaultBinarySizing('precalculate');
+    expect(getDefaultBinarySizing()).toEqual({sizing: 'precalculate', bufferSize: undefined});
+    setDefaultBinarySizing('initial', 4096);
+    expect(getDefaultBinarySizing()).toEqual({sizing: 'initial', bufferSize: 4096});
+  });
+
+  it('applies to encoders with no sizing option; per-call options override it', () => {
+    const s = RT.object({name: TF.string(), tags: RT.array(TF.string())});
+    const value = {name: 'Ada Lovelace', tags: ['x', 'y']};
+
+    // Global 'initial' with a 1-byte buffer → an encoder created with no options
+    // picks it up and throws on this payload.
+    setDefaultBinarySizing('initial', 1);
+    const usesGlobal = createBinaryEncoder(s);
+    expect(() => usesGlobal(value)).toThrow(RangeError);
+
+    // A per-call sizing option wins over the global default.
+    const overrides = createBinaryEncoder(s, {sizing: 'dynamic'});
+    expect(createBinaryDecoder(s)(overrides(value))).toEqual(value);
   });
 });
