@@ -225,6 +225,11 @@ export interface DataViewSerializer {
   index: number;
   view: DataView;
   hasEnded: boolean;
+  /** Per-write capacity reserve, used by the Go-emitted body and the serializer's
+   *  own writers as `Ser.ensureCapacity?.(n)`. Present (a grow function) only in
+   *  'dynamic' mode; `undefined` in 'precalculate' / 'initial', so every reserve
+   *  site short-circuits. **/
+  ensureCapacity?: (this: DataViewSerializer, extraBytes: number) => void;
   reset(): void;
   resize(size: number): void;
   getBuffer(): StrictArrayBuffer;
@@ -267,10 +272,13 @@ export interface DataViewDeserializer {
 }
 
 /** Optional args for `createDataViewSerializer`. `size` is an explicit
- *  override; `relatedKeys` predicts via sum-of-averages. **/
+ *  override; `relatedKeys` predicts via sum-of-averages; `grow` (default `true`)
+ *  arms in-place growth — pass `false` for the fixed-size modes ('precalculate' /
+ *  'initial') so the serializer never reserves or reallocates. **/
 export interface CreateSerializerOptions {
   size?: number;
   relatedKeys?: string[];
+  grow?: boolean;
 }
 
 /** Creates a DataView-based serializer. **/
@@ -278,9 +286,10 @@ export function createDataViewSerializer(cacheKey: string, options?: CreateSeria
   // Number overload kept for back-compat with standard callers.
   const explicitSize = typeof options === 'number' ? options : options?.size;
   const relatedKeys = typeof options === 'object' ? options.relatedKeys : undefined;
+  const grow = typeof options === 'object' && options.grow !== undefined ? options.grow : true;
   const size = explicitSize ?? predictBufferSize(cacheKey, relatedKeys);
   if (size >= POW_2_32) throw new Error('bufferSize must be strictly less than 2 ** 32');
-  return new DataViewSerializerImpl(cacheKey, size);
+  return new DataViewSerializerImpl(cacheKey, size, grow);
 }
 
 /** Creates a deserializer from ArrayBuffer or any typed-array view. **/
@@ -338,6 +347,23 @@ function evictStringBytesCache(): void {
   }
 }
 
+/** The grow function assigned to a serializer's `ensureCapacity` member in
+ *  'dynamic' mode. A single shared reference, so `Ser.ensureCapacity?.(n)` call
+ *  sites stay monomorphic. 'precalculate' / 'initial' leave the member `undefined`,
+ *  so the same call sites short-circuit (never invoked, the size arg never
+ *  evaluated). Grows geometrically but at least to the exact deficit, so a one-off
+ *  large payload settles in a single copy; throws only at the `2 ** 32` ceiling. **/
+function growEnsureCapacity(this: DataViewSerializer, extraBytes: number): void {
+  const required = this.index + extraBytes;
+  if (required <= this.buffer.byteLength) return;
+  if (required >= POW_2_32)
+    throw new RangeError(`DataViewSerializer: payload exceeds max buffer size (need ${required} bytes, max ${POW_2_32}).`);
+  let nextSize = this.buffer.byteLength * 2;
+  if (nextSize < required) nextSize = required;
+  if (nextSize >= POW_2_32) nextSize = required;
+  this.resize(nextSize);
+}
+
 class DataViewSerializerImpl implements DataViewSerializer {
   buffer: ArrayBuffer;
   private uint8View: Uint8Array;
@@ -345,11 +371,17 @@ class DataViewSerializerImpl implements DataViewSerializer {
   index: number = 0;
   view: DataView;
   hasEnded: boolean = false;
-  constructor(cacheKey: string, size: number) {
+  // Per-instance capacity reserve. Set to the shared `growEnsureCapacity` only in
+  // 'dynamic' mode; left `undefined` for 'precalculate' / 'initial' so every
+  // `this.ensureCapacity?.(n)` / `Ser.ensureCapacity?.(n)` reserve short-circuits
+  // (the call is not made and `n` is not evaluated).
+  ensureCapacity?: (this: DataViewSerializer, extraBytes: number) => void;
+  constructor(cacheKey: string, size: number, grow: boolean = true) {
     this.cacheKey = cacheKey;
     this.buffer = new ArrayBuffer(size);
     this.view = new DataView(this.buffer);
     this.uint8View = new Uint8Array(this.buffer);
+    if (grow) this.ensureCapacity = growEnsureCapacity;
   }
   reset(): void {
     this.index = 0;
@@ -365,20 +397,6 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.uint8View = new Uint8Array(this.buffer);
     if (keep > 0) this.uint8View.set(old.subarray(0, keep));
   }
-  /** Reserve `extraBytes` of headroom past the cursor, growing in place when the
-   *  prediction under-allocated. Grows geometrically but at least to the exact
-   *  deficit, so a one-off large payload settles in a single copy. Throws only
-   *  at the hard `2 ** 32` ceiling (a payload that genuinely cannot be encoded). **/
-  protected ensureCapacity(extraBytes: number): void {
-    const required = this.index + extraBytes;
-    if (required <= this.buffer.byteLength) return;
-    if (required >= POW_2_32)
-      throw new RangeError(`DataViewSerializer: payload exceeds max buffer size (need ${required} bytes, max ${POW_2_32}).`);
-    let nextSize = this.buffer.byteLength * 2;
-    if (nextSize < required) nextSize = required;
-    if (nextSize >= POW_2_32) nextSize = required;
-    this.resize(nextSize);
-  }
   /** Reserve room for a string write. Worst-case UTF-8 is 3 bytes per UTF-16
    *  code unit, plus the max-width varint gap the encode-in-place path leaves
    *  before the bytes; reserving it up front means `encodeInto` can never
@@ -388,8 +406,8 @@ class DataViewSerializerImpl implements DataViewSerializer {
    *  unencodable one. **/
   private reserveForString(charLength: number): void {
     const worstCase = MAX_VARINT + charLength * 3;
-    if (this.index + worstCase < POW_2_32) this.ensureCapacity(worstCase);
-    else this.ensureCapacity(POW_2_32 - 1 - this.index);
+    if (this.index + worstCase < POW_2_32) this.ensureCapacity?.(worstCase);
+    else this.ensureCapacity?.(POW_2_32 - 1 - this.index);
   }
   /** Write `value` as an unsigned LEB128 varint at the cursor, advancing it. **/
   private writeVarint(value: number): void {
@@ -404,7 +422,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
    *  Map/Set size, tuple-rest count) can't overflow the buffer. One byte for
    *  values < 128 — the common small-collection case — versus the old fixed 4. **/
   serLength(value: number): void {
-    this.ensureCapacity(MAX_VARINT);
+    this.ensureCapacity?.(MAX_VARINT);
     this.writeVarint(value);
   }
   /** Encode `str` into the buffer immediately after an OPTIMISTIC 1-byte varint
@@ -456,7 +474,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
     if (cached) {
       // Known byte length — write the varint prefix then blit the cached bytes
       // directly after it, no gap and no shift.
-      this.ensureCapacity(varintLen(cached.length) + cached.length);
+      this.ensureCapacity?.(varintLen(cached.length) + cached.length);
       this.writeVarint(cached.length);
       this.uint8View.set(cached, this.index);
       this.index += cached.length;
@@ -464,26 +482,26 @@ class DataViewSerializerImpl implements DataViewSerializer {
     }
     // Cache miss: encode in place, then snapshot the written bytes. The slice
     // copies (mandatory — the working buffer is overwritten on later writes).
-    this.ensureCapacity(MAX_VARINT + str.length * 3);
+    this.ensureCapacity?.(MAX_VARINT + str.length * 3);
     const written = this.encodeStringAtCursor(str);
     if (opts.stringBytesCache.size >= opts.maxCacheSize) evictStringBytesCache();
     opts.stringBytesCache.set(str, this.uint8View.slice(this.index - written, this.index));
   }
   serFloat64(n: number): void {
-    this.ensureCapacity(8);
+    this.ensureCapacity?.(8);
     this.view.setFloat64(this.index, n, LE);
     this.index += 8;
   }
   serEnum(n: number | string): void {
     if (typeof n === 'number') {
-      this.ensureCapacity(8);
+      this.ensureCapacity?.(8);
       this.view.setUint32(this.index, NUM, LE);
       this.index += 4;
       this.view.setUint32(this.index, n, LE);
       this.index += 4;
       return;
     }
-    this.ensureCapacity(4);
+    this.ensureCapacity?.(4);
     this.view.setUint32(this.index, STR, LE);
     this.index += 4;
     this.serString(n);
@@ -493,7 +511,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.view.setUint8(bitMaskIndex, newBitmask);
   }
   serTemporalInstant(value: InstantValue): void {
-    this.ensureCapacity(12);
+    this.ensureCapacity?.(12);
     // BigInt / and % both truncate toward zero, so the (possibly negative)
     // remainder recombines exactly: seconds * 1e9 + subNs === epochNanoseconds.
     this.view.setBigInt64(this.index, value.epochNanoseconds / NANOS_PER_SECOND, LE);
@@ -518,7 +536,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
   serTemporalPlainYearMonth(value: PlainYearMonthValue): void {
     if (value.calendarId !== ISO_CALENDAR) return this.serNonIsoFallback(value);
     this.serByte(1);
-    this.ensureCapacity(4);
+    this.ensureCapacity?.(4);
     this.view.setInt32(this.index, value.year, LE);
     this.index += 4;
     this.serByte(value.month);
@@ -529,12 +547,12 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.serString(value.toJSON());
   }
   private serByte(value: number): void {
-    this.ensureCapacity(1);
+    this.ensureCapacity?.(1);
     this.view.setUint8(this.index, value);
     this.index += 1;
   }
   private writePlainDateFields(value: {year: number; month: number; day: number}): void {
-    this.ensureCapacity(4);
+    this.ensureCapacity?.(4);
     this.view.setInt32(this.index, value.year, LE);
     this.index += 4;
     this.serByte(value.month);
@@ -544,7 +562,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
     this.serByte(value.hour);
     this.serByte(value.minute);
     this.serByte(value.second);
-    this.ensureCapacity(6);
+    this.ensureCapacity?.(6);
     this.view.setUint16(this.index, value.millisecond, LE);
     this.index += 2;
     this.view.setUint16(this.index, value.microsecond, LE);
@@ -578,17 +596,18 @@ const sizingView = {
  *  encoder, but every write is a no-op and only `index` advances — so after a run
  *  `getLength()` is EXACTLY the byte count the real encoder would produce (same
  *  code path, same branches, formats, temporal packing, union arms, deps). Used
- *  by `createBinaryEncoder(value, {sizing: 'exact'})` to size the buffer up front
- *  so no inline write can overflow. Only `serString`/`serLength` need overriding
+ *  by `createBinaryEncoder(value, {sizing: 'precalculate'})` to size the buffer up
+ *  front so no inline write can overflow. Only `serString`/`serLength` need overriding
  *  (they would otherwise touch the buffer); every other framing method is
  *  inherited unchanged, so the size rules can never drift from the encoder. **/
 class SizingSerializerImpl extends DataViewSerializerImpl {
   constructor(cacheKey: string) {
-    super(cacheKey, 0);
+    // grow=false leaves `ensureCapacity` undefined, so every inherited writer's
+    // `this.ensureCapacity?.(n)` reserve short-circuits — the measure pass never
+    // allocates and only advances `index`.
+    super(cacheKey, 0, false);
     this.view = sizingView;
   }
-  // No buffer to grow — the measure pass never allocates.
-  protected ensureCapacity(): void {}
   resize(): void {}
   serString(str: string): void {
     // skipCache is irrelevant to size; the measure pass never touches the cache.

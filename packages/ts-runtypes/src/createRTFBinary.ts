@@ -49,14 +49,24 @@ export interface BinaryEncoderOptions {
    *  options are not compile-time args), so it never affects the cache key. **/
   rejectCircularRefs?: boolean;
   /** Buffer-sizing strategy when the encoder owns the serializer:
-   *  - `'adaptive'` (default): predict from per-key history, grow on a miss via
-   *    the backstop loop. Fast, but the prediction can under-allocate.
-   *  - `'exact'`: run a no-op measure pass first (`createSizingSerializer`) to
-   *    compute the precise byte count, then allocate exactly that. One extra
-   *    traversal, but the buffer can never overflow and is never over-allocated.
+   *  - `'dynamic'` (default): predict the size from per-key history and grow in
+   *    place on a miss. Fast; the prediction can under-allocate but the serializer
+   *    self-grows.
+   *  - `'precalculate'`: run a no-op measure pass first (`createSizingSerializer`)
+   *    to compute the precise byte count, then allocate exactly that with growth
+   *    OFF. One extra traversal, but the buffer can never overflow, is never
+   *    over-allocated, and `ensureCapacity` is never called.
+   *  - `'initial'`: allocate exactly `bufferSize` bytes (required) every call with
+   *    growth OFF — `ensureCapacity` is never called. A payload larger than
+   *    `bufferSize` throws a `RangeError`; use `createBinarySizer<T>()` to compute a
+   *    safe size. The lowest-overhead owned path.
    *  Ignored when the caller supplies their own serializer. Runtime-only, so it
    *  never affects the cache key. **/
-  sizing?: 'adaptive' | 'exact';
+  sizing?: 'precalculate' | 'dynamic' | 'initial';
+  /** Required when `sizing: 'initial'` — the fixed buffer size in bytes, allocated
+   *  on every encode. Ignored by the other modes. Runtime-only (never affects the
+   *  cache key). **/
+  bufferSize?: number;
 }
 
 /** Caller-controlled options for `createBinaryDecoder<T>()`. **/
@@ -76,6 +86,14 @@ const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
 // own guard (`createDataViewSerializer` rejects size >= 2**32); a single payload
 // above this can't be encoded, so we re-throw the RangeError.
 const MAX_BUFFER_BYTES = 2 ** 32;
+
+// 'initial' overflow message — the caller's fixed buffer was too small.
+function initialTooSmall(bufferSize: number): RangeError {
+  return new RangeError(
+    `createBinaryEncoder: the payload does not fit in the ${bufferSize}-byte buffer for sizing 'initial'. ` +
+      `Use createBinarySizer<T>() to compute the exact size, raise bufferSize, or use sizing 'dynamic' / 'precalculate'.`
+  );
+}
 
 // binarySizingKey derives the adaptive-sizing bucket from the schema id or the
 // injected tuple's `<fnHash>_<typeId>` key — the bare type id, so every
@@ -110,7 +128,8 @@ export function createBinaryEncoder<T>(
     id,
     options?.rejectCircularRefs
   );
-  const exactSizing = options?.sizing === 'exact';
+  const sizing = options?.sizing ?? 'dynamic';
+  const bufferSize = options?.bufferSize;
   return (value, serializer) => {
     // Caller-supplied serializer: they own sizing + end-of-payload semantics,
     // so we don't record history on their behalf.
@@ -118,28 +137,46 @@ export function createBinaryEncoder<T>(
       encodeFn(value, serializer);
       return serializer.getBuffer();
     }
-    // We own the serializer.
-    //
-    // 'exact' sizing: run a no-op measure pass over the SAME encode body first,
-    // so the buffer is allocated to the precise byte count and no inline write
-    // can overflow (the backstop below then never fires).
-    //
-    // 'adaptive' (default): predict the size from per-key Welford history. The
-    // serializer's own writers (serString, serLength, serEnum, the temporal
-    // helpers) GROW IN PLACE on a miss, but the Go-emitted bodies still write
-    // scalars + container framing (numbers, union tags, optional bitmaps) inline
-    // to the DataView, bypassing those writers. If the prediction under-allocates
-    // for such a payload the raw write throws a RangeError; the loop is the
-    // backstop — grow (prefix-preserving resize) and re-encode from a clean index
-    // until it fits or hits the 2**32 ceiling.
-    let ser: DataViewSerializer;
-    if (exactSizing) {
+
+    // 'precalculate': a no-op measure pass over the SAME encode body computes the
+    // precise byte count, then we allocate exactly that with growth OFF (the
+    // serializer's `ensureCapacity` is undefined, so every reserve short-circuits).
+    // No write can overflow, so there is no backstop.
+    if (sizing === 'precalculate') {
       const sizer = createSizingSerializer(cacheKey);
       encodeFn(value, sizer);
-      ser = createDataViewSerializer(cacheKey, sizer.getLength());
-    } else {
-      ser = createDataViewSerializer(cacheKey);
+      const ser = createDataViewSerializer(cacheKey, {size: sizer.getLength(), grow: false});
+      encodeFn(value, ser);
+      ser.markAsEnded();
+      return ser.getBuffer();
     }
+
+    // 'initial': the caller fixes the size; growth is OFF. A throwing inline write
+    // (DataView OOB) is caught here; a silent Uint8Array OOB write still advances
+    // `index` past the buffer, so the post-encode length check catches that too.
+    // Either way the caller gets a clear RangeError — no retry, no history recorded.
+    if (sizing === 'initial') {
+      if (bufferSize === undefined) throw new Error("createBinaryEncoder: sizing 'initial' requires a numeric `bufferSize` option.");
+      const ser = createDataViewSerializer(cacheKey, {size: bufferSize, grow: false});
+      try {
+        encodeFn(value, ser);
+      } catch (err) {
+        if (err instanceof RangeError) throw initialTooSmall(bufferSize);
+        throw err;
+      }
+      if (ser.getLength() > bufferSize) throw initialTooSmall(bufferSize);
+      return ser.getBuffer();
+    }
+
+    // 'dynamic' (default): predict from per-key Welford history; the serializer's
+    // own writers (serString, serLength, serEnum, temporal helpers) GROW IN PLACE
+    // on a miss. The Go-emitted bodies still write scalars + container framing
+    // (numbers, union tags, optional bitmaps) inline, bypassing those writers and
+    // their reserve, so an under-allocation there throws a RangeError; the loop is
+    // the backstop — grow (prefix-preserving resize) and re-encode from a clean
+    // index until it fits or hits the 2**32 ceiling. (Retired once the Go emitter
+    // reserves for the inline writes — see docs/todos/binary-sizing-modes.md.)
+    const ser = createDataViewSerializer(cacheKey, {grow: true});
     for (;;) {
       try {
         encodeFn(value, ser);
