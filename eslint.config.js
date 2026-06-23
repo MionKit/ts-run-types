@@ -23,6 +23,9 @@ export default tseslint.config(
       // for the same reason. Both are intentional — keep the skeletons
       // out of lint's scope.
       'packages/ts-runtypes/src/caches/**',
+      // Skill worksheets + code templates are hand-authored skeletons / docs,
+      // outside any build tsconfig — keep them out of lint's project service.
+      '.claude/**',
     ],
   },
   eslint.configs.recommended,
