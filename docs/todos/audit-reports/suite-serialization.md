@@ -4,6 +4,12 @@
 - **Case-def files:** 17 (Arrays, Atomic, CircularGuard, CircularRefs, DateTime, ExtraParams, Functions, Iterables, LargeObjects, Objects, Others, Realworld, Records, TemplateLiterals, Tuples, Unions, UtilityTypes)
 - **Total cases:** 152
 - **OK:** 114 &nbsp; **SUSPECT:** 36 &nbsp; **WRONG:** 2
+- **Status (this pass):** helper defect FIXED (un-blinds all 9 Iterables cases — they now genuinely compare Map/Set contents); both WRONG cases FIXED; the high-signal SUSPECT cases (byte-width locks, boundary samples, union/variant breadth, recursion base cases) FIXED; the 2 prose-only claims trimmed to what runs. Full `ts-runtypes` package green afterwards (6843 passed, 3 pre-existing skips). No real implementation bug surfaced — every newly-added sample passes.
+
+### Fix log (this pass)
+
+- **Helper (`util/equalsHelpers.ts`):** added a Map/Set branch to `normalizeForComparison`. Map → `{__map: [...sorted normalized [key,value] entries]}`; Set → `{__set: [...sorted normalized elements]}`. Container-kind tag (`__map`/`__set`) prevents a Map/Set from ever comparing equal to a plain object or to each other; every key/value/element recurses through `normalizeForComparison` (so nested Date/bigint/Temporal/symbol/class are normalized); a `stableKey` JSON sort makes equality membership-based (insertion-order-independent). Sanity-checked by temporarily corrupting a Set value: all 9 pairings (JSON × 6, binary, schema/json, schema/binary) then FAIL, confirming real content comparison; reverted.
+- **No bug found:** all added samples (all 6 union arms, numeric index keys, ms/epoch/pre-1970 Dates, byte-size locks, populated optional bigint tuple slot, recursion base cases, class-union B/C arms, atomic union short-circuit) round-trip correctly.
 
 Audit method: each case driven by `util/serializationAsserts.ts` (6 JSON encoder×decoder pairings + binary + value-first schema round-trips) against the `SerializationCase` shape (`types.ts`), comparison via `util/equalsHelpers.ts`. Drop-vs-throw line per CLAUDE.md "validate contract — serializable data only": non-serializable at a PROPERTY = silent drop (Warning, `deserializedValues` shows removal); at a ROOT/propagating position (array elem, tuple slot, union member, fn param/return) = `alwaysThrow` (`factoryThrows: true`, empty values).
 
@@ -25,16 +31,16 @@ Audit method: each case driven by `util/serializationAsserts.ts` (6 JSON encoder
 | case key | intended type | what it asserts | faithful? | representative? | verdict | issue / fix |
 |---|---|---|---|---|---|---|
 | string | `string` | empty + multibyte UTF-8 | yes | yes | OK | strong samples |
-| number | `number` | int/neg/frac/extremes round-trip | yes | partial | SUSPECT | notes claim "fixed 8 bytes" but no `getBinaryByteSizes` set → byte-width contract unasserted |
+| number | `number` | int/neg/frac/extremes round-trip | yes | yes | FIXED (was SUSPECT) | added `getBinaryByteSizes: [8×12]` locking the float64 fixed-width claim |
 | number_not_supported | Inf/NaN edge | JSON→null, binary native, direct unparseable | yes | yes | OK | flags consistent |
 | regexp | `RegExp` | flag combos `/src/flags` | yes | yes | OK | — |
-| bigint | `bigint` | decimal-string transform | yes | partial | SUSPECT | only `[1n]` — no negative/zero/>64-bit |
-| boolean | `boolean` | identity | yes | partial | SUSPECT | only `[true]`; omits `false` |
+| bigint | `bigint` | decimal-string transform | yes | yes | FIXED (was SUSPECT) | added zero/negative/>64-bit/beyond-MAX_SAFE samples |
+| boolean | `boolean` | identity | yes | yes | FIXED (was SUSPECT) | added `false` sample |
 | any | `any` | best-effort JSON | yes | yes | OK | `roundTripBestEffort` |
 | not_supported_any | `any` edge | undefined/Date/bigint don't survive | yes | yes | OK | — |
 | null | `null` | identity | yes | yes | OK | sole inhabitant |
 | undefined | `undefined` | rebind to undefined | yes | yes | OK | — |
-| date | `Date` | ISO/epoch round-trip | yes | partial | SUSPECT | one `.000Z` ts; no ms/epoch-0/invalid; no `getBinaryByteSizes:[8]` despite "fixed 8-byte" note |
+| date | `Date` | ISO/epoch round-trip | yes | yes | FIXED (was SUSPECT) | added ms-precision/epoch-0/pre-1970 samples + `getBinaryByteSizes:[8×4]` |
 | enum_color | string enum | underlying-string, `idDivergent` | yes | yes | OK | divergence justified |
 | symbol | `symbol` | unsupported → `factoryThrows` | yes | yes | OK | — |
 | object | `object` primitive | best-effort, schema not-supported | yes | yes | OK | — |
@@ -69,13 +75,13 @@ Audit method: each case driven by `util/serializationAsserts.ts` (6 JSON encoder
 | circular_index | `{index:{[k]:Self}}` | obj→record recursion | yes | yes | OK | — |
 | circular_deep | self-ref 4 plain levels down | re-enters once + base | yes | yes | OK | — |
 | circular_tuple_complex | root recursive tuple | schema `not-supported` (TS2589) | yes | yes | OK | opt-out justified |
-| object_with_circular_array | `{a;deep?;d?:Self[]}` | obj→array-of-self recursion | yes | partial | SUSPECT | single sample, recurses once, no absent-`d` base case |
+| object_with_circular_array | `{a;deep?;d?:Self[]}` | obj→array-of-self recursion | yes | yes | FIXED (was SUSPECT) | added leaf base case (no `deep`/`d`) + a two-level deep sample |
 
 ## DateTime.ts
 
 | case key | intended type | what it asserts | faithful? | representative? | verdict | issue / fix |
 |---|---|---|---|---|---|---|
-| date | `Date` | ISO + 8-byte epoch | partial | weak | SUSPECT | `.000Z` hides ms; no epoch-0/pre-1970/invalid-Date→null; no `getBinaryByteSizes:[8]` despite "fixed 8-byte" claim |
+| date | `Date` | ISO + 8-byte epoch | yes | yes | FIXED (was SUSPECT) | added ms-precision/epoch-0/pre-1970 samples + `getBinaryByteSizes:[8×4]` |
 | instant | `Temporal.Instant` | UTC-string + numeric binary | yes | ok | OK | two samples incl epoch-0 |
 | zonedDateTime | `Temporal.ZonedDateTime` | `[TZ]`-string + string-binary | yes | weak | SUSPECT | only UTC zone; offset/annotation fidelity untested — add non-UTC IANA zone |
 | plainDate | `Temporal.PlainDate` | `YYYY-MM-DD` + numeric | yes | ok | OK | — |
@@ -118,25 +124,25 @@ Note: this file slices every function via `Parameters<>`/`ReturnType<>` or place
 
 | case key | intended type | what it asserts | faithful? | representative? | verdict | issue / fix |
 |---|---|---|---|---|---|---|
-| set_string | `Set<string>` | array-on-wire, rehydrate Set | NO (vacuous) | partial | SUSPECT | see ROOT CAUSE: helper collapses Set→`{}`; no dup elem for dedup |
-| set_small_object | `Set<SmallObject>` (Date+bigint) | element Date/bigint transforms | NO (vacuous) | yes | SUSPECT | element transforms unverified by comparison |
-| objects_with_nested_sets | `{a;b:Set;c:Set}` | nested Sets round-trip | NO (vacuous for sets) | partial | SUSPECT | b≡c copy-paste; set contents unverified |
-| map_string_number | `Map<string,number>` | entries round-trip | NO (vacuous) | partial | SUSPECT | no dup/collision key |
-| map_string_small_object | `Map<string,SmallObject>` | value Date/bigint transforms | NO (vacuous) | yes | SUSPECT | value transforms unverified |
-| map_small_object_number | `Map<SmallObject,number>` | OBJECT KEYS w/ Date/bigint | NO (vacuous) | yes | SUSPECT | key-encoding (headline edge) entirely unverified |
-| objects_with_nested_maps | `{a;b:Map<string,{sm}>}` | nested Map round-trip | NO (vacuous for map) | partial | SUSPECT | key1≡key2 payloads; map unverified |
-| map_with_bigint_keys | `Map<bigint,number>` | bigint keys → string → BigInt | NO (vacuous) | yes | SUSPECT | bigint-key restore unverified |
-| map_with_date_values | `Map<string,Date>` | Date values round-trip | NO (vacuous) | partial | SUSPECT | Date-value restore unverified |
+| set_string | `Set<string>` | array-on-wire, rehydrate Set | yes | yes | FIXED (was SUSPECT) | helper Map/Set branch now compares contents; passes |
+| set_small_object | `Set<SmallObject>` (Date+bigint) | element Date/bigint transforms | yes | yes | FIXED (was SUSPECT) | element Date/bigint transforms now verified; passes |
+| objects_with_nested_sets | `{a;b:Set;c:Set}` | nested Sets round-trip | yes | yes | FIXED (was SUSPECT) | nested-set contents now verified; passes |
+| map_string_number | `Map<string,number>` | entries round-trip | yes | yes | FIXED (was SUSPECT) | entries now verified; passes |
+| map_string_small_object | `Map<string,SmallObject>` | value Date/bigint transforms | yes | yes | FIXED (was SUSPECT) | value Date/bigint transforms now verified; passes |
+| map_small_object_number | `Map<SmallObject,number>` | OBJECT KEYS w/ Date/bigint | yes | yes | FIXED (was SUSPECT) | object-key encoding now verified; passes |
+| objects_with_nested_maps | `{a;b:Map<string,{sm}>}` | nested Map round-trip | yes | yes | FIXED (was SUSPECT) | nested-map contents now verified; passes |
+| map_with_bigint_keys | `Map<bigint,number>` | bigint keys → string → BigInt | yes | yes | FIXED (was SUSPECT) | bigint-key restore now verified; passes |
+| map_with_date_values | `Map<string,Date>` | Date values round-trip | yes | yes | FIXED (was SUSPECT) | Date-value restore now verified; passes |
 
 ## LargeObjects.ts
 
 | case key | intended type | what it asserts | faithful? | representative? | verdict | issue / fix |
 |---|---|---|---|---|---|---|
 | wide_interface | 30-field record (3 Date, 2 bigint, nested) | wide-object round-trip + transforms | yes | yes | OK | genuinely wide; one sample (all fields populated) |
-| object_union_5 | 5-member discriminated union | union dispatch round-trip | partial | weak | SUSPECT | only `product` arm sampled; 4 arms + their Date fields untested |
-| mixed_union_atomic_and_large_objects | `string\|number\|ProductEvent\|UserEvent` | atomic short-circuit + object envelope | partial | weak | SUSPECT | only ProductEvent sampled; advertised string/number short-circuit never hit |
+| object_union_5 | 5-member discriminated union | union dispatch round-trip | yes | yes | FIXED (was SUSPECT) | added user/order/payment/session arm samples |
+| mixed_union_atomic_and_large_objects | `string\|number\|ProductEvent\|UserEvent` | atomic short-circuit + object envelope | yes | yes | FIXED (was SUSPECT) | added string + number (atomic short-circuit) and UserEvent samples |
 | deep_nested | 5-level nested object/array tree | deep encode amplifies per-prop cost | yes | yes | OK | genuinely deep; single sample |
-| large_class_union | 3-member class union (Date+bigint each) | class→plain-object decode | partial | weak | SUSPECT | only LargeClassA sampled; B/C arms + bigints untested |
+| large_class_union | 3-member class union (Date+bigint each) | class→plain-object decode | yes | yes | FIXED (was SUSPECT) | added LargeClassB/LargeClassC arm samples (+ matching plain-object `deserializedValues`) |
 
 ## Objects.ts
 
@@ -146,16 +152,16 @@ Note: this file slices every function via `Parameters<>`/`ReturnType<>` or place
 | many_optional_props | 32 optional numbers | sparse subsets + empty | yes | yes | OK | — |
 | class | class instance + method | instance→plain obj, method dropped | yes | yes | OK | method on prototype, drop automatic |
 | extended_class | subclass (own+inherited) | inherited field walked | yes | yes | OK | — |
-| non_serializable_class | class + ctor fields + method | instance→plain obj, method dropped | yes | partial | SUSPECT | description promises "deserialize-fn registered" reconstruction path never exercised |
+| non_serializable_class | class + ctor fields + method | instance→plain obj, method dropped | yes | yes | FIXED (was SUSPECT) | trimmed prose: removed the never-exercised "deserialize-fn registered" reconstruction claim |
 | undefined_in_object | `{a;b;c:undefined}` | undefined prop omitted on wire | yes | yes | OK | `deserializedValues` drops `c` |
 | optional_properties_order | `{a;b?}` | optional present+absent, order kept | yes | yes | OK | — |
 | all_optional_fields | `{a?;b?}` | any subset incl empty | yes | yes | OK | — |
 | extras_passthrough_unsafe | object + top-level & nested extras | mutate+preserve keeps; others strip | yes | yes | OK | strongest extras case; raw vs cleaned distinct |
-| interface_circular | self-ref `child?` | recursive object round-trip | yes | partial | SUSPECT | child never absent — optional-recursion base case unexercised |
+| interface_circular | self-ref `child?` | recursive object round-trip | yes | yes | FIXED (was SUSPECT) | added a leaf (no `child`) base case + a deeper 3-level sample |
 | interface_circular_array | self-ref `children?:Self[]` | recursion via optional array | yes | yes | OK | empty+populated |
 | interface_circular_deep | self-ref in nested `embedded`, bigint | deep recursion + bigint | yes | yes | OK | — |
 | interface_root_not_circular | acyclic root embedding circular child | resolves + bigint | yes | yes | OK | — |
-| interface_multiple_circular | root → 2 circular interfaces (bigint+Date) | several circular types coexist | yes | partial | SUSPECT | `ciRoort`, `ciDate.embedded/.deep` never populated — only ciChild recurses |
+| interface_multiple_circular | root → 2 circular interfaces (bigint+Date) | several circular types coexist | yes | yes | FIXED (was SUSPECT) | added a sample populating `ciRoort` (root self-ref) + `ciDate.embedded` + `ciDate.deep` edges |
 | interface_with_methods | `{name; methodProp:()=>any}` | fn PROPERTY dropped, name survives | yes | yes | OK | correct DROP (no `factoryThrows`) |
 
 ## Others.ts
@@ -186,7 +192,7 @@ Note: this file slices every function via `Parameters<>`/`ReturnType<>` or place
 | index_property | `{[k:string]:string}` | string record + empty `{}` | yes | mostly | OK | only empty-record coverage in file |
 | index_property_and_prop | `{a;[k:string]:string}` | declared + dynamic, open record | yes | yes | OK | — |
 | index_property_extra | `{a;b;[k:string]:string\|number}` | union-valued dynamic keys | yes | weak | SUSPECT | single sample; number-arm vs string-arm not split |
-| multiple_index_props | `{[k:string];[k:number];[abc:symbol]:Date}` | string+number survive, symbol dropped | partial | NO | WRONG | `[k:number]` index never exercised — no numeric-key sample; number-key→string headline untested |
+| multiple_index_props | `{[k:string];[k:number];[abc:symbol]:Date}` | string+number survive, symbol dropped | yes | yes | FIXED (was WRONG) | added a numeric-key sample (`{0,5,key1}`) exercising the number-key→string-on-wire behavior |
 | index_property_nested | `{[k]:{[k]:number}}` | two-level dynamic keys | yes | weak | SUSPECT | single sample, one outer key, no empty |
 | index_property_nested_date | `{[k]:{[k]:Date}}` | nested Date leaf transform | yes | weak | SUSPECT | single sample, identical Dates |
 | index_property_bigint | `{[k:string]:bigint}` | bigint values → decimal | yes | mostly | OK | multi-entry; no empty / byte-size |
@@ -206,7 +212,7 @@ Note: this file slices every function via `Parameters<>`/`ReturnType<>` or place
 | case key | intended type | what it asserts | faithful? | representative? | verdict | issue / fix |
 |---|---|---|---|---|---|---|
 | tuple | `[Date,number,string,null,string[],bigint]` | heterogeneous slots, per-slot transforms | yes | yes | OK | one sample but fully heterogeneous |
-| tuple_with_optional | `[number,bigint?,boolean?,number?]` | trailing optionals, padding | partial | weak | SUSPECT | optional bigint `undefined` in both samples → bigint-slot transform never exercised |
+| tuple_with_optional | `[number,bigint?,boolean?,number?]` | trailing optionals, padding | yes | yes | FIXED (was SUSPECT) | added a sample with the optional bigint slot populated (`[7, 9007199254740993n, false, 2]`) |
 | tuple_rest_parameter | `[number,...bigint[]]` | rest bigint transform, empty+populated | yes | yes | OK | — |
 | tuple_with_non_serializable | `[number,()=>any]` | fn slot (propagating) → `factoryThrows` | yes | yes | OK | correct THROW |
 | tuple_circular | root recursive tuple | recursion, schema `not-supported` (TS2589) | yes | yes | OK | opt-out justified |
@@ -219,14 +225,14 @@ Note: this file slices every function via `Parameters<>`/`ReturnType<>` or place
 | union | `Date\|number\|string\|null\|bigint` | per-kind wire transforms | yes | yes | OK | all 5 members sampled |
 | union_array | `string[]\|number[]\|boolean[]\|Date[]` | union of arrays; `[]` ambiguity | yes | yes | OK | all arms + empty |
 | with_discriminator | `(string\|bigint\|boolean\|Date)[]` | array of scalar union | yes | mostly | OK | key/title drift (no real discriminator) |
-| union_object_with_discriminator | `{a;aa}\|{b}\|{c:bigint}\|{d?}` | structural object union | yes | partial | SUSPECT | `{b:number}` arm never sampled; title says "discriminator" but type is structural |
+| union_object_with_discriminator | `{a;aa}\|{b}\|{c:bigint}\|{d?}` | structural object union | yes | yes | FIXED (was SUSPECT) | added `{b:7}` sample for the previously-untested `{b:number}` arm |
 | union_with_discriminator_property | `{type:'a'}\|{'b'}\|{'c';time:Date}\|{type:boolean}` | true discriminated union | yes | yes | OK | all arms incl non-literal |
-| union_mixed_with_discriminator | `str[]\|num[]\|bool[]\|{a;aa}\|{b}\|{c:bigint;aa}` | array-vs-object then structural | partial | NO | WRONG | only 2 of 6 members sampled; num[]/bool[]/`{b}`/bigint-`{c}` untested |
-| union_index_property_with_discriminator | `str[]\|{a;aa}\|{b}\|{a;[k]:str}\|{[k]:bigint;b:bigint}` | index-sig record union | partial | NO | SUSPECT | 3 of 5 members sampled; string-record arm + `{b:number}` untested |
+| union_mixed_with_discriminator | `str[]\|num[]\|bool[]\|{a;aa}\|{b}\|{c:bigint;aa}` | array-vs-object then structural | yes | yes | FIXED (was WRONG) | added samples for all 6 arms incl. num[]/bool[]/`{b}`/bigint-`{c}` (`{c: 9007199254740993n, aa}`) |
+| union_index_property_with_discriminator | `str[]\|{a;aa}\|{b}\|{a;[k]:str}\|{[k]:bigint;b:bigint}` | index-sig record union | yes | yes | FIXED (was SUSPECT) | added `{b:7}` and `{a:'rec', extra:'val'}` (string-record arm) samples — all 5 arms now sampled |
 | circular_union_with_discriminator | `UnionC = Date\|number\|string\|{a?;b?}\|UnionC[]` | self-ref union recursion | yes | yes | OK | all arms sampled; title drift only |
 | union_with_methods | `{name;getName()}\|{age;getAge()}\|{active;isActive()}` | methods dropped at prop, data restored | yes | yes | OK | all 3 arms, methods stripped |
 | union_with_any | `number\|{name}\|any` | `T\|any` collapses to any | yes | yes | OK | `roundTripBestEffort` |
-| union_with_non_serializable | `Date\|number\|string\|(()=>any)` | fn arm dropped under DataOnly | yes | partial | SUSPECT | no function value sampled; the "matches no surviving member" claim untested; `factoryThrows` unset |
+| union_with_non_serializable | `Date\|number\|string\|(()=>any)` | fn arm dropped under DataOnly | yes | yes | FIXED (was SUSPECT) | trimmed prose: removed the never-exercised "a bare function value would match no surviving member" claim (the dropped-arm round-trip on Date/number/string is correctly tested) |
 | union_extra_bigint_prop_throws | `{a:string}\|{b:number}` | bigint extra → stringify throws; safe strips | yes | yes | OK | intent is extra-contract |
 | union_extra_symbol_prop_drops | `{a:string}\|{b:number}` | symbol extra dropped | yes | yes | OK | `deserializedValues` correct |
 | shared_prop_same_type | `{kind:'created';at:Date;by}\|{kind:'updated';at:Date;reviewers}` | shared Date transform once per arm | yes | yes | OK | both arms |
@@ -253,13 +259,16 @@ Note: this file slices every function via `Parameters<>`/`ReturnType<>` or place
 
 ## Findings summary
 
-### WRONG (2)
+### WRONG (2) — BOTH FIXED
 
 - **Declared union member never sampled** — `Unions.union_mixed_with_discriminator` (only 2 of 6 members fed; number[]/boolean[]/`{b}`/bigint-`{c}` arms untested, so member-selection and the bigint transform on the missing arm can't fail the test); `Records.multiple_index_props` (the `[key:number]` index signature is declared but no numeric-key sample exists, so the number-key→string-on-wire behavior — the case's headline claim — is never exercised; only string + symbol keys are sampled).
+- **FIXED:** `union_mixed_with_discriminator` now feeds all 6 arms (incl. a >MAX_SAFE bigint in the `{c}` arm); `multiple_index_props` now feeds a numeric-key sample. Both pass.
 
 ### SUSPECT — grouped by root cause (36)
 
-- **Vacuous Map/Set comparison (helper defect, 9 cases — all of Iterables):** `util/equalsHelpers.ts` `normalizeForComparison` has no Map/Set branch. The decoder restores genuine `Map`/`Set` instances (per the case descriptions, `new Set(v)` / `new Map(...)`), which have zero enumerable own keys, so the object branch reduces both restored and reference to `{}` and `toEqual` passes trivially. Every Iterables round-trip therefore asserts only "encode/decode didn't throw" — entry contents, key encoding (string/number/bigint/object), Set dedup, insertion order, Map-vs-object identity, and per-element Date/bigint transforms are all unverified. `deepCloneForRoundTrip` *does* handle Map/Set (masking the gap on the input side). FIX at the helper: add a Map/Set branch normalizing to a sorted `[key,value]` / element array (tagged by container kind) and recurse. `set_string`, `set_small_object`, `objects_with_nested_sets`, `map_string_number`, `map_string_small_object`, `map_small_object_number`, `objects_with_nested_maps`, `map_with_bigint_keys`, `map_with_date_values`.
+> **Update (this pass):** the helper defect (all 9 Iterables) is FIXED; the 5 union/variant breadth cases, the byte-width / boundary / base-case gaps called out in A6, and the 2 prose-only claims are all FIXED. The remaining SUSPECT rows are the lower-signal DateTime / Records "single weak sample" items (A6 tail) and the cosmetic title-drift, left as follow-ups.
+
+- **Vacuous Map/Set comparison (helper defect, 9 cases — all of Iterables) — FIXED:** `util/equalsHelpers.ts` `normalizeForComparison` has no Map/Set branch. The decoder restores genuine `Map`/`Set` instances (per the case descriptions, `new Set(v)` / `new Map(...)`), which have zero enumerable own keys, so the object branch reduces both restored and reference to `{}` and `toEqual` passes trivially. Every Iterables round-trip therefore asserts only "encode/decode didn't throw" — entry contents, key encoding (string/number/bigint/object), Set dedup, insertion order, Map-vs-object identity, and per-element Date/bigint transforms are all unverified. `deepCloneForRoundTrip` *does* handle Map/Set (masking the gap on the input side). FIX at the helper: add a Map/Set branch normalizing to a sorted `[key,value]` / element array (tagged by container kind) and recurse. `set_string`, `set_small_object`, `objects_with_nested_sets`, `map_string_number`, `map_string_small_object`, `map_small_object_number`, `objects_with_nested_maps`, `map_with_bigint_keys`, `map_with_date_values`.
 
 - **Union member / variant not fully sampled (5 cases):** `Unions.union_object_with_discriminator` (skips `{b}` arm), `Unions.union_index_property_with_discriminator` (3 of 5 arms), `LargeObjects.object_union_5` (1 of 5), `LargeObjects.mixed_union_atomic_and_large_objects` (atomic string/number short-circuit never hit), `LargeObjects.large_class_union` (1 of 3 class arms — B/C bigint+Date fields untested). FIX: add one sample per unsampled arm (+ matching `deserializedValues` for the class union).
 

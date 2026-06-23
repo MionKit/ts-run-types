@@ -110,11 +110,17 @@ export const RECORDS = {
         [Symbol('key3')]: new Date(),
         [Symbol('key4')]: new Date(),
       };
+      // Numeric keys exercise the [key: number] index signature: JS stores them
+      // as string property keys, JSON emits them as string keys, and the
+      // round-trip restores them as string keys — the headline number-key→string
+      // behavior. (`{5: 'five'}` and `{'5': 'five'}` are the same object.)
+      const objWithNumericKeys = {0: 'zero', 5: 'five', key1: 'value1'};
       return {
-        values: [{key1: 'value1', key2: 'value2'}, objWithSymbolKeys],
+        values: [{key1: 'value1', key2: 'value2'}, objWithSymbolKeys, objWithNumericKeys],
         deserializedValues: [
           {key1: 'value1', key2: 'value2'},
           {key1: 'value1', key2: 'value2'},
+          {0: 'zero', 5: 'five', key1: 'value1'},
         ],
       };
     },

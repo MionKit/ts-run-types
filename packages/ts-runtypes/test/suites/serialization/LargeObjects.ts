@@ -1023,6 +1023,42 @@ export const LARGE_OBJECTS = {
         releasedAt: Date;
         stock: number;
       }
+      interface UserEvent {
+        kind: 'user';
+        id: string;
+        username: string;
+        email: string;
+        signedUpAt: Date;
+        loginCount: number;
+        isPremium: boolean;
+      }
+      interface OrderEvent {
+        kind: 'order';
+        id: string;
+        total: number;
+        itemCount: number;
+        placedAt: Date;
+        shipped: boolean;
+        customerId: string;
+      }
+      interface PaymentEvent {
+        kind: 'payment';
+        id: string;
+        amount: number;
+        currency: string;
+        processedAt: Date;
+        refunded: boolean;
+        txId: string;
+      }
+      interface SessionEvent {
+        kind: 'session';
+        id: string;
+        userId: string;
+        startedAt: Date;
+        durationMs: number;
+        ipHash: string;
+        device: string;
+      }
       return {
         values: [
           {
@@ -1034,6 +1070,42 @@ export const LARGE_OBJECTS = {
             releasedAt: new Date('2024-02-01T00:00:00.000Z'),
             stock: 42,
           } satisfies ProductEvent,
+          {
+            kind: 'user',
+            id: 'u-1',
+            username: 'alice',
+            email: 'alice@example.com',
+            signedUpAt: new Date('2024-03-01T00:00:00.000Z'),
+            loginCount: 7,
+            isPremium: true,
+          } satisfies UserEvent,
+          {
+            kind: 'order',
+            id: 'o-1',
+            total: 99.5,
+            itemCount: 3,
+            placedAt: new Date('2024-04-01T00:00:00.000Z'),
+            shipped: false,
+            customerId: 'c-1',
+          } satisfies OrderEvent,
+          {
+            kind: 'payment',
+            id: 'pay-1',
+            amount: 49.99,
+            currency: 'USD',
+            processedAt: new Date('2024-05-01T00:00:00.000Z'),
+            refunded: false,
+            txId: 'tx-1',
+          } satisfies PaymentEvent,
+          {
+            kind: 'session',
+            id: 's-1',
+            userId: 'u-1',
+            startedAt: new Date('2024-06-01T00:00:00.000Z'),
+            durationMs: 12345,
+            ipHash: 'abc123',
+            device: 'mobile',
+          } satisfies SessionEvent,
         ],
       };
     },
@@ -1307,8 +1379,20 @@ export const LARGE_OBJECTS = {
         releasedAt: Date;
         stock: number;
       }
+      interface UserEvent {
+        kind: 'user';
+        id: string;
+        username: string;
+        email: string;
+        signedUpAt: Date;
+        loginCount: number;
+        isPremium: boolean;
+      }
       return {
         values: [
+          // Atomic short-circuit arms.
+          'just a string',
+          42,
           {
             kind: 'product',
             id: 'p-9',
@@ -1318,6 +1402,15 @@ export const LARGE_OBJECTS = {
             releasedAt: new Date('2024-04-10T00:00:00.000Z'),
             stock: 0,
           } satisfies ProductEvent,
+          {
+            kind: 'user',
+            id: 'u-9',
+            username: 'bob',
+            email: 'bob@example.com',
+            signedUpAt: new Date('2024-04-11T00:00:00.000Z'),
+            loginCount: 3,
+            isPremium: false,
+          } satisfies UserEvent,
         ],
       };
     },
@@ -2028,6 +2121,24 @@ export const LARGE_OBJECTS = {
         total!: bigint;
         tags!: string[];
       }
+      class LargeClassB {
+        kind!: 'classB';
+        beta!: string;
+        ratio!: number;
+        enabled!: boolean;
+        releasedAt!: Date;
+        score!: bigint;
+        metadata!: {label: string; weight: number};
+      }
+      class LargeClassC {
+        kind!: 'classC';
+        gamma!: string;
+        amount!: number;
+        paid!: boolean;
+        processedAt!: Date;
+        txId!: string;
+        steps!: number[];
+      }
       const a = new LargeClassA();
       a.kind = 'classA';
       a.alpha = 'alpha-value';
@@ -2036,9 +2147,27 @@ export const LARGE_OBJECTS = {
       a.when = new Date('2024-03-15T08:30:00.000Z');
       a.total = 10_000n;
       a.tags = ['x', 'y', 'z'];
+      const b = new LargeClassB();
+      b.kind = 'classB';
+      b.beta = 'beta-value';
+      b.ratio = 3.14;
+      b.enabled = false;
+      b.releasedAt = new Date('2024-07-20T10:00:00.000Z');
+      b.score = 9_999_999_999n;
+      b.metadata = {label: 'meta', weight: 1.5};
+      const c = new LargeClassC();
+      c.kind = 'classC';
+      c.gamma = 'gamma-value';
+      c.amount = 250;
+      c.paid = true;
+      c.processedAt = new Date('2024-08-25T12:30:00.000Z');
+      c.txId = 'tx-abc';
+      c.steps = [1, 2, 3];
       return {
-        values: [a],
-        deserializedValues: [{...a}],
+        // Class instances decode to plain objects, so the expected references
+        // are spreads (own enumerable props only, no prototype/class identity).
+        values: [a, b, c],
+        deserializedValues: [{...a}, {...b}, {...c}],
       };
     },
   },

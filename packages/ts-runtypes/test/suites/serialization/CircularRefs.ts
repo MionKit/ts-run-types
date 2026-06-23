@@ -419,10 +419,20 @@ export const CIRCULAR_REFS = {
       ),
     getTestData: () => ({
       values: [
+        // Base case: leaf with neither the optional `deep` nor the recursive `d`.
+        {a: 'leaf'},
         {
           a: 'hello',
           deep: {b: 'world', c: 123},
           d: [{a: 'hello2', deep: {b: 'world2', c: 1234}}],
+        },
+        // Two levels of array-of-self recursion, with a leaf at the bottom.
+        {
+          a: 'top',
+          d: [
+            {a: 'mid', d: [{a: 'bottom'}]},
+            {a: 'sibling', deep: {b: 'sd', c: 9}},
+          ],
         },
       ],
     }),

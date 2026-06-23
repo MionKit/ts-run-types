@@ -36,7 +36,18 @@ export const DATETIME = {
     schemaDecoder: () => createJsonDecoder(TF.date()),
     schemaBinaryEncoder: () => createBinaryEncoder(TF.date()),
     schemaBinaryDecoder: () => createBinaryDecoder(TF.date()),
-    getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
+    // Span whole-second, sub-second ms precision, the Unix epoch (getTime 0),
+    // and a pre-1970 (negative epoch) date.
+    getTestData: () => ({
+      values: [
+        new Date('2000-08-06T02:13:00.000Z'),
+        new Date('2000-08-06T02:13:00.123Z'),
+        new Date(0),
+        new Date('1969-12-31T23:59:59.500Z'),
+      ],
+    }),
+    // Binary stores every Date as a fixed 8-byte float64 of getTime().
+    getBinaryByteSizes: () => [8, 8, 8, 8],
   },
 
   instant: {
