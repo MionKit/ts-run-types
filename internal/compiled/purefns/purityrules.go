@@ -3,11 +3,16 @@ package purefns
 // Source of truth for the allow/forbid sets:
 // (ref: packages/devtools/src/eslint/rules/purityRules.ts)
 //
-// Two project-specific deltas applied per user instruction:
+// Three project-specific deltas applied per user instruction:
 //   - globalThis MOVED from allowedGlobals to forbiddenIdentifiers
 //     (it's a backdoor to every host global)
 //   - Temporal ADDED to allowedGlobals (Temporal proposal API is pure
 //     and safe to reference)
+//   - Binary + text-encoding constructors ADDED to allowedGlobals
+//     (ArrayBuffer / DataView / the typed arrays / TextEncoder|Decoder /
+//     btoa|atob) so hashing, binary-codec, and encoding algorithms can be
+//     ported inline into a factory; crypto and SharedArrayBuffer stay out
+//     (non-deterministic / threading — see the notes in the map below).
 //
 // When syncing future tweaks from the reference rules, the diff is
 // intentionally small and easy to review.
@@ -60,6 +65,38 @@ var allowedGlobals = map[string]bool{
 	// Console + runtime hints.
 	"console": true,
 	"Bun":     true,
+
+	// Binary data — ArrayBuffer, DataView, and the typed-array views.
+	// These are pure value transforms over bytes: the building blocks for
+	// porting a hashing / binary-codec / text-encoding algorithm INLINE into
+	// a factory body (the purity rules forbid importing one, so the algorithm
+	// must be reimplemented in place). A typed array is only ever a local
+	// inside the factory — it never reaches the validated data type — so this
+	// is fully decoupled from the DataOnly projection on the JS side.
+	"ArrayBuffer":       true,
+	"DataView":          true,
+	"Int8Array":         true,
+	"Uint8Array":        true,
+	"Uint8ClampedArray": true,
+	"Int16Array":        true,
+	"Uint16Array":       true,
+	"Int32Array":        true,
+	"Uint32Array":       true,
+	"Float32Array":      true,
+	"Float64Array":      true,
+	"BigInt64Array":     true,
+	"BigUint64Array":    true,
+
+	// Text <-> bytes and base64. Deterministic, no I/O, no host state.
+	"TextEncoder": true,
+	"TextDecoder": true,
+	"btoa":        true,
+	"atob":        true,
+	// NOTE: `crypto` (Web Crypto) is deliberately ABSENT — getRandomValues /
+	// randomUUID are NON-deterministic and subtle.digest is async (a pure-fn
+	// can't await), so it would break purity; a pure hash is ported inline
+	// over the typed arrays above. `SharedArrayBuffer` is also absent: a
+	// cross-thread shared-memory primitive, irrelevant to pure byte work.
 
 	// Temporal API (Stage 3 / shipping). Pure constructors + arithmetic;
 	// safe inside factory bodies.
