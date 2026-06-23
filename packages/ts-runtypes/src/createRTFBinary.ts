@@ -82,11 +82,6 @@ export interface BinaryDecoderOptions {
 const noopToBinaryFn: ToBinaryFn = (_v, Ser) => Ser;
 const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
 
-// Hard ceiling for the backstop grow-and-retry loop. Matches the serializer's
-// own guard (`createDataViewSerializer` rejects size >= 2**32); a single payload
-// above this can't be encoded, so we re-throw the RangeError.
-const MAX_BUFFER_BYTES = 2 ** 32;
-
 // 'initial' overflow message — the caller's fixed buffer was too small.
 function initialTooSmall(bufferSize: number): RangeError {
   return new RangeError(
@@ -168,27 +163,16 @@ export function createBinaryEncoder<T>(
       return ser.getBuffer();
     }
 
-    // 'dynamic' (default): predict from per-key Welford history; the serializer's
-    // own writers (serString, serLength, serEnum, temporal helpers) GROW IN PLACE
-    // on a miss. The Go-emitted bodies still write scalars + container framing
-    // (numbers, union tags, optional bitmaps) inline, bypassing those writers and
-    // their reserve, so an under-allocation there throws a RangeError; the loop is
-    // the backstop — grow (prefix-preserving resize) and re-encode from a clean
-    // index until it fits or hits the 2**32 ceiling. (Retired once the Go emitter
-    // reserves for the inline writes — see docs/todos/binary-sizing-modes.md.)
+    // 'dynamic' (default): predict from per-key Welford history; EVERY write — the
+    // serializer's own methods (serString, serLength, serEnum, temporal helpers)
+    // AND the Go-emitted inline scalar/framing writes — reserves via
+    // `Ser.ensureCapacity?.(n)`, so the buffer grows in place on a miss. No backstop
+    // retry loop: a single pass always fits (or throws at the 2**32 ceiling, which a
+    // payload that genuinely cannot be encoded should).
     const ser = createDataViewSerializer(cacheKey, {grow: true});
-    for (;;) {
-      try {
-        encodeFn(value, ser);
-        ser.markAsEnded();
-        return ser.getBuffer();
-      } catch (err) {
-        const nextSize = ser.buffer.byteLength * 2;
-        if (!(err instanceof RangeError) || nextSize >= MAX_BUFFER_BYTES) throw err;
-        ser.resize(nextSize);
-        ser.reset();
-      }
-    }
+    encodeFn(value, ser);
+    ser.markAsEnded();
+    return ser.getBuffer();
   };
 }
 
