@@ -226,19 +226,17 @@ Fix — add \`as const\`:
   },
 
   PFN001: {
-    headline:
-      '`PureFunction<F>` argument must be an inline arrow or function expression (or a module-scope `const` initialized to one).',
-    detail: `The build inlines / AOT-compiles the function body, so it needs to see
-the literal definition at the call site. Function calls that return a
-function, and \`let\` / \`var\` bindings can't be followed. (An imported or
-exported literal is rejected separately as PFN002.)
+    headline: '`PureFunction<F>` argument must be an INLINE arrow or function expression.',
+    detail: `The build extracts and AOT-compiles the function body, so it must see the
+literal inline at the call site. A named reference — even a module-private
+\`const f = …\` or \`function f(){}\` — is not accepted, because the literal
+must have no handle anything else can reach; the compiled copy is then the
+only one that can run. (An imported or exported literal is rejected as PFN002.)
 
 Fix — inline the function at the call site:
-+  registerValidator((v) => typeof v === 'string');
-
-Fix — use a module-scope const initialized to a function literal:
-  const validate = (v: unknown) => typeof v === 'string';
-  registerValidator(validate);`,
+-  const validate = (v: unknown) => typeof v === 'string';
+-  registerValidator(validate);
++  registerValidator((v: unknown) => typeof v === 'string');`,
   },
 
   PFN002: {
@@ -249,12 +247,11 @@ as a value — imported from another module, or exported so another module can
 import it — a caller could invoke the un-compiled function and diverge from
 the compiled behaviour.
 
-Fix — inline at the call site, or bind it to a module-private \`const\` /
-\`function\` that nothing imports or exports:
+Under the literal-only rule a named binding isn't allowed at all (see PFN001),
+so the fix is to inline the function at the call site:
 -  import {validate} from './validators';   // imported — rejected
 -  export const validate = (v) => …;        // exported — rejected
-+  const validate = (v: unknown) => typeof v === 'string';   // module-private — ok
-   registerValidator(validate);`,
++  registerValidator((v: unknown) => typeof v === 'string');   // inline — ok`,
   },
 
   MKR003: {

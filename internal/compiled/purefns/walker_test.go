@@ -150,33 +150,40 @@ export const cpf = registerPureFnFactory(ID, function () { return function() {};
 	}
 }
 
-func TestExtract_TracedFactoryConst(t *testing.T) {
+// Under the literal-only PureFunction rule a named factory reference — a
+// module-private `const f = function(){…}` or a `function f(){}` declaration —
+// is no longer a valid pure-fn: the build extracts and AOT-compiles the body, so
+// the literal must be inline at the call site. The walker silently skips these
+// (the marker layer emits PFN001 via scanCall), so no entry is extracted and the
+// walker emits no diagnostic.
+
+func TestExtract_NamedConstFactory_SilentSkip(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
 const myFactory = function () { return function inner(x: number) { return x; }; };
 export const cpf = registerPureFnFactory('rt::tracedFn', myFactory);`,
 	})
-	if len(diags) != 0 {
-		t.Fatalf("unexpected diagnostics: %+v", diags)
+	if len(entries) != 0 {
+		t.Fatalf("expected no entry for a named const factory (literal-only), got %+v", entries)
 	}
-	if len(entries) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(entries))
+	if len(diags) != 0 {
+		t.Fatalf("walker must not emit shape diagnostics (those flow through scanCall now), got %+v", diags)
 	}
 }
 
-func TestExtract_TracedFunctionDeclaration(t *testing.T) {
+func TestExtract_NamedFunctionDeclFactory_SilentSkip(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `
 import {registerPureFnFactory} from 'ts-runtypes';
 function myFactory() { return function inner() { return 1; }; }
 export const cpf = registerPureFnFactory('rt::tracedFnDecl', myFactory);`,
 	})
-	if len(diags) != 0 {
-		t.Fatalf("unexpected diagnostics: %+v", diags)
+	if len(entries) != 0 {
+		t.Fatalf("expected no entry for a named function-declaration factory (literal-only), got %+v", entries)
 	}
-	if len(entries) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(entries))
+	if len(diags) != 0 {
+		t.Fatalf("walker must not emit shape diagnostics (those flow through scanCall now), got %+v", diags)
 	}
 }
 
