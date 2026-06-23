@@ -1,7 +1,7 @@
 # Update the correctness/alignment test for the zod object-guard cases
 
 > **Status: pending — needs a container run.** Spun off from the audit-fix task
-> (`docs/todos/audit-case-implementations.md`). Three zod competitor cases were
+> (`docs/done/audit-case-implementations.md`). Three zod competitor cases were
 > changed from a hand-rolled `z.custom` plain-object guard to the idiomatic
 > `z.object(...)` that declares the **same interface as ts-runtypes**. That removes
 > the engine-bypass the audit flagged, but introduces a *known, intended* pass/reject
