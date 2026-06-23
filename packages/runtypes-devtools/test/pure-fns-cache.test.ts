@@ -188,6 +188,38 @@ export const x = registerPureFnFactory('rt::fn', externalFn);
     });
   });
 
+  register('emits PFN002 for an EXPORTED pure-fn factory (external handle)', async () => {
+    // A pure-fn literal must have no external handle — the build AOT-compiles it,
+    // so the original must not be reachable as a value. An exported factory is.
+    const sources = {
+      'exp.ts': `import {registerPureFnFactory} from 'ts-runtypes';
+export const factory = () => function v(x: number) { return x; };
+export const cpf = registerPureFnFactory('rt::exportedFn', factory);
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {includeEntryModules: true});
+      const markerCodes = (response.diagnostics ?? []).filter((d) => d.family === Family.Marker).map((d) => d.code);
+      expect(markerCodes).toContain('PFN002');
+      expect(markerCodes).not.toContain('PFN001');
+    });
+  });
+
+  register('emits PFN002 for an IMPORTED pure-fn factory (external handle)', async () => {
+    const sources = {
+      'lib.ts': `export const factory = () => function v(x: number) { return x; };`,
+      'use.ts': `import {registerPureFnFactory} from 'ts-runtypes';
+import {factory} from './lib';
+export const cpf = registerPureFnFactory('rt::importedFn', factory);
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(['use.ts'], {includeEntryModules: true});
+      const markerCodes = (response.diagnostics ?? []).filter((d) => d.family === Family.Marker).map((d) => d.code);
+      expect(markerCodes).toContain('PFN002');
+    });
+  });
+
   register('emits PFE9004 collision diagnostic for mismatched bodies', async () => {
     const sources = {
       'a.ts': `import {registerPureFnFactory} from 'ts-runtypes';

@@ -16,6 +16,7 @@ const (
 	CodeCompTimeArgsNonLiteral         = "CTA001"
 	CodeCompTimeArgsDepthExceeded      = "CTA002"
 	CodeCompTimeArgsForbiddenConstruct = "CTA003"
+	CodeCompTimeArgsWidenedConst       = "CTA004"
 )
 
 // PureFunction-marker codes (PFNxxx). Issued by the resolver when a
@@ -24,7 +25,8 @@ const (
 // reported via the existing PFE9006-PFE9011 codes from the purefns
 // package, reused unchanged.
 const (
-	CodePureFunctionNotLiteral = "PFN001"
+	CodePureFunctionNotLiteral     = "PFN001"
+	CodePureFunctionExternalHandle = "PFN002"
 )
 
 func init() {
@@ -36,7 +38,9 @@ func init() {
 		{Code: CodeCompTimeArgsNonLiteral, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> argument must be a literal at the call site or const-bound to a literal"},
 		{Code: CodeCompTimeArgsDepthExceeded, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> literal nesting exceeds depth cap (16) — refactor to flatten"},
 		{Code: CodeCompTimeArgsForbiddenConstruct, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> literal contains a forbidden construct (computed property, function call, ternary, template substitution, or a non-mergeable spread)"},
+		{Code: CodeCompTimeArgsWidenedConst, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> const argument has a widened (non-literal) member — declare the const `as const` so its values stay literal"},
 		{Code: CodePureFunctionNotLiteral, Family: FamilyMarker, Severity: SeverityError, Title: "PureFunction<F> argument must be an inline arrow or function expression"},
+		{Code: CodePureFunctionExternalHandle, Family: FamilyMarker, Severity: SeverityError, Title: "PureFunction<F> literal must not be imported or exported — bind it to an inline or module-private function so only the compiled copy can run"},
 	} {
 		register(definition)
 	}

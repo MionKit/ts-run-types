@@ -1,19 +1,49 @@
 # Markers + value-first across external modules — a test matrix, and the pure-function "no external handle" rule
 
-> **Status: pending (design + test note, 2026-06-23).** Real projects split
-> types, schemas, option presets, and pure functions across modules. The TYPE
-> channel resolves imported types for free, but the AST-literal channel
-> (`CompTimeArgs` / `CompTimeFnArgs` / `PureFunction` const-traces) is
-> deliberately same-module in some places and cross-module in others (the
-> spread-operand trace now follows import aliases). We have **no systematic
-> coverage** of "define it in module A, use the marker in module B", so those
-> asymmetries are untested and possibly surprising. Two goals:
+> **Status: DONE (shipped 2026-06-23).** Real projects split types, schemas,
+> option presets, and pure functions across modules. The TYPE channel already
+> resolved imported types for free; this work made the AST-literal channel
+> (`CompTimeArgs` / `CompTimeFnArgs` / `PureFunction` const-traces) consistent
+> across the boundary and pinned it with a cross-module test matrix. Two goals,
+> both delivered:
 > 1. A comprehensive external-module **test matrix** for every marker + the
->    basic `createX` surface, locking down (and surfacing the gaps in) the
->    cross-module behavior.
+>    basic `createX` surface, locking down the cross-module behavior.
 > 2. A deliberate **restriction**: a `PureFunction` literal must never be
->    reachable as a value — not imported, not exported — so the build's
+>    reachable as a value (not imported, not exported), so the build's
 >    AOT-compiled copy is the only thing that can ever run.
+>
+> ## What shipped
+>
+> - **Decision 1 = (a), cross-module parity, hardened.** A WHOLE imported `const`
+>   (builder child or option bag) now resolves cross-module like a spread
+>   fragment: `traceIdentifier` uses a new `resolveConstInitializerCrossModule`,
+>   and `eachOptionProperty` follows an identifier option bag through the same
+>   import-alias hop. The same-module-only `resolveConstInitializer` is kept for
+>   the pure-fn / string-literal traces.
+> - **New `as const` rule — CTA004.** A comptime arg bound to a `const` object
+>   literal must carry literal value types; a widened member (`{strategy:
+>   'mutate'}` inferred as `{strategy: string}`) is rejected. This keeps the
+>   value the build reads from the AST in lockstep with the type TypeScript
+>   resolves the overload against (a widened option bag could otherwise select a
+>   different fn variant at the type level than the build injects). Shallow,
+>   object-only: value-first builder results (`number()`) are left alone.
+> - **Part 2 — PFN002.** A `PureFunction<F>` literal that is imported (alias
+>   symbol) or exported (inline `export`, `export {f}`, `export default`,
+>   re-export) is rejected. Covers both `PureFunction<F>` and
+>   `registerPureFnFactory` (one code path: `CheckLiteralFunction`). PFN001 stays
+>   for the "not an inline literal" shape failures.
+> - **Decisions 2 & 3:** rule applies to both markers; distinct PFN002 code (the
+>   fix differs from PFN001: "un-export / inline it" vs "make it a literal").
+>
+> Code: `internal/comptimeargs/comptimeargs.go` (cross-module trace, widened-const
+> guard, import/export rejection), `internal/resolver/scan.go` (option-bag
+> cross-module read, CTA004/PFN002 mapping), `internal/diag/codes_marker.go`.
+> Tests: `internal/comptimeargs/external_test.go`,
+> `internal/resolver/external_module_test.go`,
+> `packages/ts-runtypes/test/external-module*.ts`,
+> `packages/runtypes-devtools/test/pure-fns-cache.test.ts` (PFN002). Docs:
+> `diagnosticCatalog.ts` (+ regenerated catalog JSON), `docs/ARCHITECTURE.md`,
+> website compiler-markers + pure-functions guides.
 
 ## Background — what is same-module vs cross-module TODAY
 

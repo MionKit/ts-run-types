@@ -622,7 +622,20 @@ func eachOptionProperty(typeChecker *checker.Checker, call *ast.Node, lastIndex,
 	// Unwrap `as const` / parens / `satisfies` so extraction accepts
 	// exactly what the slot's CompTimeFnArgs validation accepted.
 	candidate := comptimeargs.UnwrapWrappers(optionsArgumentAt(call, lastIndex, argsCount))
-	if candidate == nil || candidate.Kind != ast.KindObjectLiteralExpression {
+	if candidate == nil {
+		return
+	}
+	// A whole-const options bag (`createX(undefined, importedPreset)`) resolves
+	// cross-module to its `const` object literal — mirroring the spread trace, so
+	// a whole-const preset selects the same fn variant as the inlined form. The
+	// CompTimeFnArgs validation already accepted it (and enforced `as const`), so
+	// the values read here match the type the call resolved against.
+	if candidate.Kind == ast.KindIdentifier {
+		if container, ok := comptimeargs.ResolveSpreadContainer(typeChecker, candidate); ok && container.Kind == ast.KindObjectLiteralExpression {
+			candidate = container
+		}
+	}
+	if candidate.Kind != ast.KindObjectLiteralExpression {
 		return
 	}
 	eachOptionPropertyOf(typeChecker, candidate, 0, visit)
@@ -796,11 +809,12 @@ func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIn
 	return opts
 }
 
-// checkPureFunction validates that argumentNode is an inline
-// arrow / function expression (emits PFN001 on failure) and then runs
-// the purity rules against the resolved function node (emits any of
-// PFE9006–PFE9011 on violation). Inline-shape failure short-circuits —
-// there is nothing to walk for purity when the arg isn't a function.
+// checkPureFunction validates that argumentNode is an inline arrow / function
+// expression with no external handle, then runs the purity rules against the
+// resolved function node. Shape failures map to PFN001 (not a literal) or PFN002
+// (imported / exported — the literal is reachable as a value); purity violations
+// emit PFE9006–PFE9011. Inline-shape failure short-circuits — there is nothing
+// to walk for purity when the arg isn't a usable function literal.
 func (state scanState) checkPureFunction(file string, argumentNode *ast.Node) []diag.Diagnostic {
 	fnNode, shapeResult := comptimeargs.CheckLiteralFunction(state.scanChecker, argumentNode)
 	if !shapeResult.Ok {
@@ -812,8 +826,12 @@ func (state scanState) checkPureFunction(file string, argumentNode *ast.Node) []
 		if sourceFile == nil {
 			return nil
 		}
+		code := diag.CodePureFunctionNotLiteral
+		if shapeResult.Kind == comptimeargs.FailExternalHandle {
+			code = diag.CodePureFunctionExternalHandle
+		}
 		return []diag.Diagnostic{diag.New(
-			diag.CodePureFunctionNotLiteral,
+			code,
 			textpos.NodeSite(file, sourceFile, failingNode),
 		)}
 	}
@@ -846,6 +864,8 @@ func (state scanState) checkCompTimeArgs(file string, argumentNode *ast.Node) (d
 		return diag.New(diag.CodeCompTimeArgsDepthExceeded, site), true
 	case comptimeargs.FailForbiddenConstruct:
 		return diag.New(diag.CodeCompTimeArgsForbiddenConstruct, site, result.Reason), true
+	case comptimeargs.FailWidenedConst:
+		return diag.New(diag.CodeCompTimeArgsWidenedConst, site, result.Reason), true
 	default:
 		return diag.New(diag.CodeCompTimeArgsNonLiteral, site), true
 	}
