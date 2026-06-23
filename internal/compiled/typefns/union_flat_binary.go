@@ -50,9 +50,9 @@ func sentinelLiteral(width string) string {
 // `setUint16(index, value, 1, (index += 2))`.
 func writeDiscriminator(ser, width string, value int) string {
 	if width == "Uint16" {
-		return ser + ".view.setUint16(" + ser + ".index, " + strconv.Itoa(value) + ", 1, (" + ser + ".index += 2))"
+		return reserveExpr(ser, "2", ser+".view.setUint16("+ser+".index, "+strconv.Itoa(value)+", 1, ("+ser+".index += 2))")
 	}
-	return ser + ".view.setUint8(" + ser + ".index++, " + strconv.Itoa(value) + ")"
+	return reserveExpr(ser, "1", ser+".view.setUint8("+ser+".index++, "+strconv.Itoa(value)+")")
 }
 
 // readDiscriminator returns the JS expression that reads the next
@@ -112,9 +112,9 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 	if len(layout.ObjectMembers) > 0 {
 		sentinelWrite := sentinelLiteral(width)
 		if width == "Uint16" {
-			sentinelWrite = ser + ".view.setUint16(" + ser + ".index, " + sentinel + ", 1, (" + ser + ".index += 2))"
+			sentinelWrite = reserveExpr(ser, "2", ser+".view.setUint16("+ser+".index, "+sentinel+", 1, ("+ser+".index += 2))")
 		} else {
-			sentinelWrite = ser + ".view.setUint8(" + ser + ".index++, " + sentinel + ")"
+			sentinelWrite = reserveExpr(ser, "1", ser+".view.setUint8("+ser+".index++, "+sentinel+")")
 		}
 
 		// Separate required vs optional merged props. Required props skip
@@ -222,7 +222,7 @@ func emitMergedPropToBinary(mp FlatMergedProp, accessor string, ctx *EmitContext
 		if isObjectLikeKind(cand.Resolved.Kind) {
 			guard = objectGuard(accessor, validateExpr)
 		}
-		body := ser + ".view.setUint8(" + ser + ".index++, " + strconv.Itoa(i) + ")"
+		body := reserveExpr(ser, "1", ser+".view.setUint8("+ser+".index++, "+strconv.Itoa(i)+")")
 		if jc.Code != "" {
 			body += ";" + strings.TrimSpace(jc.Code)
 		}
