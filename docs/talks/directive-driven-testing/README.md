@@ -23,7 +23,8 @@ stays diffable and editable.
 |---|---|
 | [`slides.md`](slides.md) | The **Marp deck** — the talk itself: casual, no-jargon, ~10–12 min (21 short slides). |
 | [`speaker-notes.md`](speaker-notes.md) | Slide-by-slide rehearsal script with timing + cut list + Q&A. |
-| [`framework-directive-driven-testing.md`](framework-directive-driven-testing.md) | **Framework 1:** assess a project, identify the tooling it needs, and **author the directives (oracles)**. Five-question readiness model + the oracle decision tree + soundness contract. |
+| [`framework-fuzzy-testing.md`](framework-fuzzy-testing.md) | **The fuzzy-testing framework (code-first, the main methodology).** Two processes — *Tool Discovery* (A1–A6) + *Oracle Discovery* (B1–B6) — with runnable code grounded in this repo's real harness. Worked first test case: the **FriendlyType/MockData sync pipeline** (R1–R10). Written to become a skill. |
+| [`framework-directive-driven-testing.md`](framework-directive-driven-testing.md) | **Conceptual companion (no code):** the same idea at altitude — five-question readiness model + the oracle decision tree + soundness contract. |
 | [`framework-self-improving-agents.md`](framework-self-improving-agents.md) | **Framework 2:** close the loop with an LLM agent — the architecture, pseudo-code, the **trust anchor**, and the risk accounting. |
 | [`prior-art.md`](prior-art.md) | Who's already doing this (typia, PropEr, Schemathesis, Antithesis…), closeness ranking, **what not to claim on stage**, people to cite. |
 | [`sources.md`](sources.md) | Every load-bearing number/quote on a slide, tied to a primary source. |
