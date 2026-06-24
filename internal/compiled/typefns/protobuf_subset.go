@@ -211,44 +211,23 @@ func (c *protobufChecker) repeated(rt *protocol.RunType, path string) *subsetFau
 	return c.field(rt.Child, path+"[]")
 }
 
-// union maps to optional T (a single member after dropping null/undefined), a
-// oneof of messages (discriminated union), or a oneof of scalars; anything else
-// is out-of-subset.
+// union maps to optional T (a single present member after dropping
+// null/undefined) or a homogeneous scalar/literal union (e.g. "a" | "b" → one
+// string field). Discriminated / heterogeneous unions (protobuf `oneof`) are a
+// deferred follow-up — out-of-subset for now, so they round-trip via the
+// fallback and warn.
 func (c *protobufChecker) union(rt *protocol.RunType, path string) *subsetFault {
-	var present []*protocol.RunType
-	for _, member := range rt.Children {
-		md := c.deref(member)
-		if md == nil {
-			continue
-		}
-		switch md.Kind {
-		case protocol.KindNull, protocol.KindUndefined, protocol.KindVoid:
-			continue // optionality / nullability, not a wire member
-		}
-		present = append(present, md)
-	}
-	switch len(present) {
+	members := c.presentMembers(rt)
+	switch len(members) {
 	case 0:
 		return &subsetFault{path, "empty union"}
 	case 1:
-		return c.field(present[0], path) // T | undefined → optional T
+		return c.field(members[0], path) // T | undefined → optional T
 	}
-	allMessages := true
-	for _, member := range present {
-		if !c.isMessage(member) {
-			allMessages = false
-			break
-		}
+	if _, ok := c.unionScalarBase(members); !ok {
+		return &subsetFault{path, "discriminated or heterogeneous unions (protobuf oneof) are not yet supported"}
 	}
-	if !allMessages {
-		for _, member := range present {
-			if !c.isScalarKind(member) {
-				return &subsetFault{path,
-					"union mixes incompatible shapes; only discriminated message unions or scalar unions map to a oneof"}
-			}
-		}
-	}
-	for i, member := range present {
+	for i, member := range members {
 		if fault := c.field(member, path+"|"+strconv.Itoa(i)); fault != nil {
 			return fault
 		}
@@ -383,19 +362,6 @@ func (c *protobufChecker) isProtoMapKey(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindNumber:
 		return isIntegerNumber(rt)
-	}
-	return false
-}
-
-// isScalarKind reports whether rt is a protobuf scalar field kind.
-func (c *protobufChecker) isScalarKind(rt *protocol.RunType) bool {
-	if rt == nil {
-		return false
-	}
-	switch rt.Kind {
-	case protocol.KindNumber, protocol.KindString, protocol.KindTemplateLiteral,
-		protocol.KindBoolean, protocol.KindBigInt, protocol.KindEnum, protocol.KindLiteral:
-		return true
 	}
 	return false
 }
