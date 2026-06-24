@@ -39,14 +39,24 @@ return, decoder-accepts-serializer, `createBinarySizer` kept,
   The estimate is the normal cold-start path; this flat fallback only applies to
   value-first / plugin-inactive encoders, so 16 MiB was indefensible.
 
-> **Amendment (2026-06-24, post-merge follow-up).** The encoder return changed
-> from `DataViewSerializer` to a **zero-copy `Uint8Array`** view of the written
-> bytes (`.byteLength` is the exact size; `.slice()` for an owned copy; for `into`
-> the view aliases the caller's buffer). The serializer was a stateful instance
-> and a leaky abstraction; a `Uint8Array` covers every consumer use, still
-> round-trips through `createBinaryDecoder` (it already accepts any view), and the
-> decoder's serializer-detection branch was dropped. Mentions of a
-> `DataViewSerializer` return below describe the interim design.
+> **Amendment (2026-06-24, post-merge follow-up).** Two changes after the spec
+> below was written:
+>
+> 1. **Return type.** The encoder return changed from `DataViewSerializer` to a
+>    **zero-copy `Uint8Array`** view of the written bytes (`.byteLength` is the
+>    exact size; `.slice()` for an owned copy; for `intoBuffer` the view aliases
+>    the caller's buffer). The serializer was a stateful instance and a leaky
+>    abstraction; a `Uint8Array` covers every consumer use, still round-trips
+>    through `createBinaryDecoder` (it already accepts any view), and the decoder's
+>    serializer-detection branch was dropped.
+> 2. **Strategy renamed.** `sizeStrategy: 'into'` → **`'intoBuffer'`** (the
+>    parameter stays `into`, already typed `ArrayBuffer`). Self-documenting at the
+>    factory call, alongside `initialSize`. The per-strategy overloads also gained
+>    explicit forms so the return specialises for the static
+>    `createBinaryEncoder<T>(undefined, {sizeStrategy})` form too.
+>
+> Mentions of a `DataViewSerializer` return or the `'into'` strategy below describe
+> the interim design.
 - Verified: full JS suite (7166), Go suite, fuzz oracle sweep, typecheck (only
   the pre-existing enrich errors), and an integration assertion that a cold
   `dynamic` buffer is the tight per-type estimate, not the flat fallback.
