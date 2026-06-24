@@ -314,6 +314,7 @@ function isJsonSafe(samples) {
 function byteLengthOf(encoded) {
   if (encoded == null) return null;
   if (typeof encoded === 'string') return Buffer.byteLength(encoded, 'utf8');
+  if (typeof encoded.getLength === 'function') return encoded.getLength(); // DataViewSerializer (binaryEncoder return)
   if (encoded.byteLength != null) return encoded.byteLength; // ArrayBuffer / TypedArray / Buffer
   if (encoded.length != null) return encoded.length;
   return null;

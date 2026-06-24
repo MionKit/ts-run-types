@@ -23,6 +23,7 @@
 
 import {isDeepStrictEqual} from 'node:util';
 import type {RunType} from '../../src/runtypes/types.ts';
+import type {DataViewSerializer} from '../../src/runtypes/dataView.ts';
 
 /** One target type under fuzz: its schema (to drive mock + corruption) plus
  *  the family functions to exercise. Serialization fns are optional so a
@@ -37,8 +38,8 @@ export interface FuzzTarget {
   getValidationErrors: (value: unknown) => unknown[];
   jsonEncode?: (value: unknown) => string | undefined;
   jsonDecode?: (serialized: string) => unknown;
-  binaryEncode?: (value: unknown) => ArrayBuffer;
-  binaryDecode?: (buffer: ArrayBuffer) => unknown;
+  binaryEncode?: (value: unknown) => DataViewSerializer;
+  binaryDecode?: (buffer: DataViewSerializer) => unknown;
 }
 
 // O1–O7 are the value oracles (Phase 1 + Phase 2 Tier B). TR1–TR4 are the
@@ -186,7 +187,7 @@ export function checkJsonStable(target: FuzzTarget, value: unknown, ctx: CheckCt
 /** O6 — binary round-trip is stable on the wire (byte-for-byte). **/
 export function checkBinaryStable(target: FuzzTarget, value: unknown, ctx: CheckCtx): Violation | null {
   if (!target.binaryEncode || !target.binaryDecode) return null;
-  let wire1: ArrayBuffer;
+  let wire1: DataViewSerializer;
   try {
     wire1 = target.binaryEncode(value);
   } catch (err) {
@@ -194,7 +195,7 @@ export function checkBinaryStable(target: FuzzTarget, value: unknown, ctx: Check
   }
   try {
     const wire2 = target.binaryEncode(target.binaryDecode(wire1));
-    if (!isDeepStrictEqual(new Uint8Array(wire1), new Uint8Array(wire2))) {
+    if (!isDeepStrictEqual(wire1.getBufferView(), wire2.getBufferView())) {
       return violation('O6', target, ctx, 'binary round-trip is not byte-stable', value);
     }
   } catch (err) {
