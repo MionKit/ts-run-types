@@ -316,7 +316,15 @@ cmd_fullbench() {
   local competitor
   for competitor in $(competitor_list); do build_and_run_one "$competitor"; done
   echo "==> aggregate"
-  run_in_container node aggregate.mjs
+  # aggregate.mjs exits non-zero when a competitor disagrees with the shared suite
+  # on any case. Those are EXPECTED cross-library divergences (the website's
+  # Correctness page is built from them), and every competitor already wrote its
+  # results before this runs - so a non-zero exit here is a REPORT, not a run
+  # failure. Guard it (like build_and_run_one above) so the correctness gate can
+  # never abort the data-publishing pipeline under set -e; the divergence summary
+  # is still printed above.
+  run_in_container node aggregate.mjs \
+    || echo "==> aggregate: cross-library correctness divergences reported above (non-zero exit) - continuing the publish pipeline"
   echo "==> typecost"
   run_in_container node typecost/typecost.mjs
   echo "==> capture run environment (os / cpu / library versions)"
