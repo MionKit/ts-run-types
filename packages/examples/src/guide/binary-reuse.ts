@@ -6,7 +6,7 @@ type Tick = {symbol: string; price: number};
 // In a hot loop, allocate one buffer and reuse it. With sizeStrategy 'into' the
 // encoder writes into YOUR buffer and returns a zero-copy view, so there is no
 // fresh allocation per call. createBinarySizer gives a safe size to allocate.
-const encode = createBinaryEncoder<Tick>({sizeStrategy: 'into'});
+const encode = createBinaryEncoder<Tick>(undefined, {sizeStrategy: 'into'});
 const decode = createBinaryDecoder<Tick>();
 const sizeOf = createBinarySizer<Tick>();
 
