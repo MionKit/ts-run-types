@@ -21,7 +21,7 @@
 | **Scalar selection** | Reuse the existing `integerType()` constraint analysis (`formats/numeric/numberformat.go`) — the same min/max/format data `precalculate` reads for sizing — extended to choose the narrowest correct protobuf scalar. Single source of truth for wire + `.proto` + size. |
 | **`bytes` ↔ `Uint8Array`** | **In-subset via a parallel projection.** `Uint8Array` / `Uint8ClampedArray` / `ArrayBuffer` → protobuf `bytes` (zero-copy where possible). `DataOnly<T>` is left UNTOUCHED (it still strips these, preserving its instantiation budget); the binary/protobuf DECODER return type instead uses a new `ProtoData<T>` projection that keeps binary buffers as bytes. Other typed arrays (`Int32Array`, …) → packed `repeated` scalar is a follow-up; `DataView` / `SharedArrayBuffer` stay out. |
 | **`enum`** | TS **numeric enum** → protobuf `enum` (integer values; a synthesized `…_UNSPECIFIED = 0` member is added when the TS enum has no 0). TS **string-literal union** → a generated protobuf `enum` with stable, declaration-order integer assignment (the string↔int table lives in the `.proto`; lossy in that the wire carries the integer, reconstructed to the string on decode). |
-| **`oneof`** | Discriminated union of object types → protobuf `oneof`; each variant is a field. The TS discriminant property is redundant with protobuf's set-member tracking and is reconstructed on decode. Scalar unions (`string \| number`) → a `oneof` of scalar fields. Unions mixing incompatible shapes → out-of-subset. |
+| **`oneof`** | **Deferred to a follow-up increment.** Each variant consumes a field number, which breaks the one-number-per-field model the emitter / `.proto` / runtime all share, so it is sequenced after the core codec. For now: optional (`T \| undefined`) and homogeneous scalar/literal unions (`"a" \| "b"` → one string field) are in-subset; discriminated / heterogeneous unions round-trip via the fallback + Warning. The classifier already produces `ProtoFormOneof`, so re-widening is localized. |
 | **`map<K,V>`** | TS `Map<K,V>`, `Record<K,V>`, and string/number index signatures → protobuf `map<K,V>` when the key is `string` or an integral `number`. `Set<V>` → `repeated V`. Other key types → out-of-subset. |
 | **Backward compat** | The fallback (current) format is kept **verbatim**. In-subset types **change** their wire bytes (positional → protobuf). The format is private and content-addressed (entry ids embed the binary version), with no persisted-data compat guarantee, so this is acceptable; called out in the changelog. |
 
@@ -52,7 +52,7 @@ Numeric scalar is chosen from the field's **format + min/max** (the data
 | `T[]` / `ReadonlyArray<T>` | `repeated T` | Scalar elements use **packed** encoding (proto3 default). |
 | `Map<K,V>` / `Record<K,V>` / index sig | `map<K,V>` | `K` ∈ {`string`, integral `number`}. |
 | `Set<V>` | `repeated V` | Decoded back into a `Set`. |
-| discriminated union of messages | `oneof` | Discriminant reconstructed on decode. |
+| discriminated union of messages | `oneof` (deferred) | Follow-up increment; out-of-subset for now (fallback + Warning). |
 | numeric `enum` | `enum` | Synthesize `_UNSPECIFIED = 0` if absent. |
 | string-literal union | generated `enum` | Stable decl-order integers; lossy (int on wire). |
 | `x?: T` (optional) | proto3 `optional T` | Explicit presence. |
