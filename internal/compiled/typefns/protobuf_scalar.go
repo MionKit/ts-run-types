@@ -73,6 +73,11 @@ func ProtobufScalarFor(rt *protocol.RunType) (ProtoScalar, bool) {
 		return protobufNumberScalar(rt), true
 	case protocol.KindBigInt:
 		return protobufBigintScalar(rt)
+	case protocol.KindClass:
+		if isProtobufBytesClass(rt) {
+			return ProtoBytes, true // Uint8Array / ArrayBuffer → bytes
+		}
+		return "", false
 	}
 	return "", false
 }
