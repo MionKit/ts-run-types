@@ -24,6 +24,47 @@ import {
 } from 'ts-runtypes';
 import {createSizingSerializer, createDataViewSerializer} from '../../src/runtypes/dataView.ts';
 
+// Compile-time guard: the createBinaryEncoder overload must SPECIALISE the
+// returned function to the `sizeStrategy` literal — not just structurally widen
+// (BinaryEncoderFn is assignable to the 2-arg variants, so a typed bundle would
+// hide a regression). Never executed; tsc checks each @ts-expect-error, and an
+// unused one (or an un-expected error on a positive line) fails typecheck:test.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _encoderReturnSignatureChecks(v: {a: number}): void {
+  const s = RT.object({a: TF.number()});
+
+  // dynamic + precalculate take only the value.
+  const dynamic = createBinaryEncoder(s);
+  dynamic(v);
+  // @ts-expect-error dynamic encoder takes only the value
+  dynamic(v, 100);
+  const precalc = createBinaryEncoder(s, {sizeStrategy: 'precalculate'});
+  precalc(v);
+  // @ts-expect-error precalculate encoder takes only the value
+  precalc(v, 100);
+
+  // value-first SCHEMA form (T inferred from the schema).
+  const sizedSchema = createBinaryEncoder(s, {sizeStrategy: 'initialSize'});
+  sizedSchema(v, 100);
+  // @ts-expect-error initialSize encoder requires a numeric size argument
+  sizedSchema(v);
+  const intoSchema = createBinaryEncoder(s, {sizeStrategy: 'into'});
+  intoSchema(v, new ArrayBuffer(8));
+  // @ts-expect-error into encoder requires an ArrayBuffer argument
+  intoSchema(v);
+
+  // STATIC form (explicit type param + undefined value) — the form the docs use.
+  const sizedStatic = createBinaryEncoder<{a: number}>(undefined, {sizeStrategy: 'initialSize'});
+  sizedStatic(v, 100);
+  // @ts-expect-error initialSize encoder requires a numeric size argument
+  sizedStatic(v);
+  const intoStatic = createBinaryEncoder<{a: number}>(undefined, {sizeStrategy: 'into'});
+  intoStatic(v, new ArrayBuffer(8));
+  // @ts-expect-error into encoder requires an ArrayBuffer argument
+  intoStatic(v);
+}
+void _encoderReturnSignatureChecks;
+
 describe('binary sizing — measure pass matches the encoder', () => {
   it('serString size math equals real bytes written', () => {
     const samples = ['', 'a', 'hello', 'café', '€uro', '𝔘nicode surrogate', 'x'.repeat(200), 'y'.repeat(20000)];

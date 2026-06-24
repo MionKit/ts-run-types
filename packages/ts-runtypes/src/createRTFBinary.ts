@@ -37,7 +37,7 @@ export type ToBinaryFn = (value: unknown, Ser: DataViewSerializer) => DataViewSe
 export type FromBinaryFn<T = unknown> = (ret: unknown, Des: DataViewDeserializer) => T;
 
 // Encoder returned by `createBinaryEncoder<T>()`. The exact signature depends on
-// the `sizeStrategy` (see `EncoderFnFor`): all return a `Uint8Array` VIEW of the
+// the `sizeStrategy` (see the per-strategy overloads): all return a `Uint8Array` VIEW of the
 // written bytes — zero-copy, with `byteLength` the exact byte count (`.slice()`
 // for an owned copy). For the `into` strategy the view aliases the caller's
 // buffer; consume it before the next encode overwrites those bytes.
@@ -49,12 +49,14 @@ export type BinaryEncoderSizeFn = (value: unknown, size: number) => Uint8Array;
 /** `into` encoder — caller supplies the buffer to write into each call. **/
 export type BinaryEncoderIntoFn = (value: unknown, into: ArrayBuffer) => Uint8Array;
 
-/** Picks the returned encoder signature from the chosen `sizeStrategy` literal. **/
-export type EncoderFnFor<O extends BinaryEncoderOptions | undefined> = O extends {sizeStrategy: 'initialSize'}
-  ? BinaryEncoderSizeFn
-  : O extends {sizeStrategy: 'into'}
-    ? BinaryEncoderIntoFn
-    : BinaryEncoderFn;
+/** Options narrowed to a specific `sizeStrategy` literal. These drive the
+ *  per-strategy overloads of `createBinaryEncoder`: overload resolution matches
+ *  on the OPTIONS argument, so the returned signature specialises whether `T` is
+ *  inferred (from a schema or value) OR supplied explicitly as
+ *  `createBinaryEncoder<T>()` — an explicit type argument would otherwise defeat
+ *  inference of a return-shaping type parameter. **/
+type InitialSizeOptions = BinaryEncoderOptions & {sizeStrategy: 'initialSize'};
+type IntoOptions = BinaryEncoderOptions & {sizeStrategy: 'into'};
 
 /** Decoder returned by `createBinaryDecoder<T>()`. Accepts a raw buffer, a
  *  typed-array view (e.g. the encoder's `Uint8Array` output, so `decode(encode(v))`
@@ -71,8 +73,8 @@ export interface BinaryEncoderOptions {
    *  options are not compile-time args), so it never affects the cache key. **/
   rejectCircularRefs?: boolean;
   /** How the encoder's buffer is sized + what happens on overflow. A STATIC
-   *  literal: it specialises the returned function's signature (see `EncoderFnFor`)
-   *  and never affects the cache key.
+   *  literal: it specialises the returned function's signature (per-strategy
+   *  overloads) and never affects the cache key.
    *  - `'dynamic'` (default): `(val) => Uint8Array` — predict from per-key history,
    *    grow in place on a miss.
    *  - `'precalculate'`: `(val) => Uint8Array` — measure pass first, allocate
@@ -133,19 +135,40 @@ function binarySizingKey(schemaId: string | undefined, injected: unknown): strin
   return 'unknown';
 }
 
-/** Returns a binary encoder for `T`. Accepts either a value-first schema
- *  (`createBinaryEncoder(rt)`) or the value/static form. The `sizeStrategy` option
- *  (a static literal) selects the returned function's signature + behaviour. **/
-export function createBinaryEncoder<T, O extends BinaryEncoderOptions = BinaryEncoderOptions>(
+/** Returns a binary encoder for `T`. Accepts a value-first schema
+ *  (`createBinaryEncoder(rt, …)`), the value form (`createBinaryEncoder(val, …)`),
+ *  or the static form (`createBinaryEncoder<T>(undefined, …)`). The `sizeStrategy`
+ *  option (a static literal) selects the returned function's signature + behaviour;
+ *  these per-strategy overloads specialise the return for every call form. **/
+// 'initialSize' → (value, size) => Uint8Array
+export function createBinaryEncoder<T>(
   schema: RunType<T>,
-  options?: O,
+  options: InitialSizeOptions,
   id?: InjectTypeFnArgs<T, 'tb'>
-): EncoderFnFor<O>;
-export function createBinaryEncoder<T, O extends BinaryEncoderOptions = BinaryEncoderOptions>(
-  val?: T,
-  options?: O,
+): BinaryEncoderSizeFn;
+export function createBinaryEncoder<T>(
+  val: T | undefined,
+  options: InitialSizeOptions,
   id?: InjectTypeFnArgs<T, 'tb'>
-): EncoderFnFor<O>;
+): BinaryEncoderSizeFn;
+// 'into' → (value, into) => Uint8Array
+export function createBinaryEncoder<T>(
+  schema: RunType<T>,
+  options: IntoOptions,
+  id?: InjectTypeFnArgs<T, 'tb'>
+): BinaryEncoderIntoFn;
+export function createBinaryEncoder<T>(
+  val: T | undefined,
+  options: IntoOptions,
+  id?: InjectTypeFnArgs<T, 'tb'>
+): BinaryEncoderIntoFn;
+// 'dynamic' (default) / 'precalculate' → (value) => Uint8Array
+export function createBinaryEncoder<T>(
+  schema: RunType<T>,
+  options?: BinaryEncoderOptions,
+  id?: InjectTypeFnArgs<T, 'tb'>
+): BinaryEncoderFn;
+export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, id?: InjectTypeFnArgs<T, 'tb'>): BinaryEncoderFn;
 export function createBinaryEncoder<T>(
   valOrSchema?: T | RunType<T>,
   options?: BinaryEncoderOptions,
