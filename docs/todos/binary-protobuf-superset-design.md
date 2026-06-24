@@ -71,6 +71,18 @@ non-`Uint8Array` typed arrays** (note `Uint8Array`/`ArrayBuffer` ARE in-subset a
 `bytes`), `RegExp`, non-ISO `Temporal` calendars, and any `Map`/`Record` whose
 key is not string/integral.
 
+### v1 increment scope
+
+The first end-to-end codec lands the core data shapes: messages (nested +
+recursive), scalars (`number` / `string` / `bool` / `bytes` / 64-bit `bigint`),
+optional fields, homogeneous scalar/literal unions, `repeated` (arrays + `Set`),
+and `map<K,V>`. Sequenced as follow-up increments WITHIN this PR (each is rejected
+by the predicate today → fallback + Warning, so adding it is localized and
+additive): **`oneof`** (variant field-numbering), **`enum`** (integer-only
+constraint), and **well-known types** (`Date` / `Temporal` → `Timestamp` /
+`Duration` sub-messages). The classifier already produces the `Enum` / `WellKnown`
+/ `Oneof` forms, so re-widening is a predicate + emitter change only.
+
 ## `ProtoBuff<T>` constraint type (deliverable 4)
 
 Mirrors `DataOnly<T>`'s discipline (depth-bounded, no `infer` on the hot path,
