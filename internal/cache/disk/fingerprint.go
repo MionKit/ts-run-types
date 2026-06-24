@@ -28,6 +28,14 @@ type FingerprintInputs struct {
 	// different entry sets (allInternal absorbs unnamed compounds into their
 	// parents), so they must never share cache entries.
 	InlineMode string
+	// SizeBias / SizeItems / SizeStringBytes / SizeMaxBytes mirror the
+	// binary cold-start estimate config (RenderOpts.SizeEstimate). They change
+	// the size literal baked into every `tb` entry's argsText, so a change must
+	// re-derive every cached binary entry — fold them in so the cache moves.
+	SizeBias        float64
+	SizeItems       int
+	SizeStringBytes int
+	SizeMaxBytes    int
 }
 
 // Fingerprint hashes inputs into a stable 12-hex-char prefix used as the
@@ -43,15 +51,25 @@ type FingerprintInputs struct {
 // tri-state string, "v4"→"v5" added InlineMode, "v5"→"v6" redefined what
 // the InlineMode "default" token MEANS (unnamed compounds now inline; the
 // old everything-external layout is gone) — same token, different bytes,
-// so the option-dirs must move.
+// so the option-dirs must move. "v6"→"v7" added the binary cold-start
+// size-estimate inputs (and the estimate slot they bake into every `tb`
+// entry), so every prior cache is stale.
 func Fingerprint(inputs FingerprintInputs) string {
 	var sb strings.Builder
-	sb.WriteString("v6\n")
+	sb.WriteString("v7\n")
 	sb.WriteString(strconv.Itoa(inputs.HashLength))
 	sb.WriteByte('\n')
 	sb.WriteString(inputs.EmitMode)
 	sb.WriteByte('\n')
 	sb.WriteString(inputs.InlineMode)
+	sb.WriteByte('\n')
+	sb.WriteString(strconv.FormatFloat(inputs.SizeBias, 'g', -1, 64))
+	sb.WriteByte('\n')
+	sb.WriteString(strconv.Itoa(inputs.SizeItems))
+	sb.WriteByte('\n')
+	sb.WriteString(strconv.Itoa(inputs.SizeStringBytes))
+	sb.WriteByte('\n')
+	sb.WriteString(strconv.Itoa(inputs.SizeMaxBytes))
 	sb.WriteByte('\n')
 	sum := sha256.Sum256([]byte(sb.String()))
 	return hex.EncodeToString(sum[:])[:12]

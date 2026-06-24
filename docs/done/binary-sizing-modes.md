@@ -1,7 +1,7 @@
 # Binary encoder buffer sizing — three explicit modes
 
 > **SUPERSEDED (2026-06-24) by the strategy redesign in
-> [docs/todos/binary-encoder-sizing-redesign.md](../todos/binary-encoder-sizing-redesign.md).**
+> [docs/done/binary-encoder-sizing-redesign.md](./binary-encoder-sizing-redesign.md).**
 > Before this branch merged, the contract was reworked: `sizing` → `sizeStrategy`
 > (`dynamic` | `precalculate` | `initialSize` | `into`), per-call `size`/`into`
 > arguments, the encoder now returns a `DataViewSerializer`, and

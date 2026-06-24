@@ -258,9 +258,10 @@ config story. Decide whether the tsconfig entry exposes them under a nested
 `runtime?: { … }` block; the binary would emit a tiny `__rt_serializationDefaults`
 init module that calls `patchSerializationOptions` once on first import:
 
-- `defaultBufferSize` (default `2 ** 24` = 16 MiB cold-start). Already
-  parked in
-  [binary-buffer-sizing.md](../todos/binary-buffer-sizing.md#5-lower-the-16-mib-cold-start);
+- `defaultBufferSize` (default `2 ** 14` = 16 KiB cold-start fallback; the
+  `dynamic` strategy normally seeds from the per-type compile-time estimate
+  instead). Lowered from 16 MiB in
+  [binary-encoder-sizing-redesign.md](../done/binary-encoder-sizing-redesign.md);
   surfacing it on the tsconfig entry makes that change actionable without
   a runtime patch call.
 - `sizeMultiplier` (default 2, "k sigma of headroom"). Same story.

@@ -136,6 +136,22 @@ func (bigintFormatEmitter) EmitFromBinary(annotation *protocol.FormatAnnotation,
 	return ""
 }
 
+// BinarySize implements formats.BinarySizer: a bigint that fits signed or
+// unsigned 64-bit packs into 8 bytes (the SAME bigIntType check
+// EmitToBinary uses). Otherwise it falls back to the base string arm, whose
+// width is value-dependent — no fixed hint (the estimator uses its
+// unbounded-bigint default).
+func (bigintFormatEmitter) BinarySize(annotation *protocol.FormatAnnotation) formats.BinarySizeHint {
+	if annotation == nil {
+		return formats.BinarySizeHint{}
+	}
+	isInt64, isUint64 := bigIntType(annotation.Params)
+	if isInt64 || isUint64 {
+		return formats.BinarySizeHint{Fixed: 8}
+	}
+	return formats.BinarySizeHint{}
+}
+
 // bigIntType ports getBigIntType (bigIntFormat.runtype.ts:222-232):
 // both min AND max must be set for either flag to be true. Returns
 // (isBigInt64, isBigUint64).
