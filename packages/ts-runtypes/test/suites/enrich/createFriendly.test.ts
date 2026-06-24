@@ -19,6 +19,7 @@ interface User {
 
 const map: FriendlyType<User> = {
   $label: 'User account',
+  $errors: {type: 'Account is invalid'},
   name: {
     $label: 'Full name',
     $errors: {type: '$[label] must be text', minLength: '$[label] needs at least $[val] characters'},
@@ -31,9 +32,14 @@ const map: FriendlyType<User> = {
       max: '$[label] must be no more than $[val]',
     },
   },
-  tags: {$label: 'Tags', $items: {$errors: {type: 'tag #$[index] must be text'}}},
+  tags: {
+    $label: 'Tags',
+    $errors: {type: 'Tags must be a list'},
+    $items: {$label: 'Tag', $errors: {type: 'tag #$[index] must be text'}},
+  },
   profile: {
     $label: 'Profile',
+    $errors: {type: 'Profile is invalid'},
     email: {$label: 'Email', $errors: {pattern: 'Enter a valid email'}},
     score: {
       $label: 'Score',
@@ -77,7 +83,10 @@ describe('createFriendly — error rendering', () => {
   });
 
   it('label falls back to the raw field name when $label is absent', () => {
-    const m: FriendlyType<{widget: string}> = {widget: {$errors: {type: 'bad'}}};
+    // Intentionally degenerate map: omits every `$label` (and root meta) so the renderer
+    // must fall back to the raw field name. The `as` cast opts past the total `FriendlyType`
+    // contract — real callers pass a filled map; this probes the missing-`$label` safety net.
+    const m = {widget: {$errors: {type: 'bad'}}} as unknown as FriendlyType<{widget: string}>;
     const out = createFriendly(m).errors([{path: ['widget'], expected: 'string'}]);
     expect(out[0].label).toBe('widget');
     expect(out[0].message).toBe('bad');
@@ -102,7 +111,11 @@ describe('createFriendly — error rendering', () => {
   });
 
   it('$default catches an unlisted constraint', () => {
-    const m: FriendlyType<{name: string}> = {name: {$label: 'Name', $errors: {$default: '$[label] is wrong ($[path])'}}};
+    const m: FriendlyType<{name: string}> = {
+      $label: 'Form',
+      $errors: {type: 'Form is invalid'},
+      name: {$label: 'Name', $errors: {$default: '$[label] is wrong ($[path])'}},
+    };
     const out = createFriendly(m).errors([
       {path: ['name'], expected: 'string', format: {name: 'stringFormat', val: 5, formatPath: ['maxLength']}},
     ]);
@@ -110,7 +123,10 @@ describe('createFriendly — error rendering', () => {
   });
 
   it('missing map entry → graceful fallback message', () => {
-    const m: FriendlyType<{a: string; b: string}> = {a: {$label: 'A'}};
+    // Intentionally degenerate map: omits field `b` entirely (and root meta) so the renderer
+    // must fall back to the raw name + generic message for an unmapped field. The `as` cast
+    // opts past the total `FriendlyType` contract — this probes the missing-entry safety net.
+    const m = {a: {$label: 'A', $errors: {type: 'A is invalid'}}} as unknown as FriendlyType<{a: string; b: string}>;
     const out = createFriendly(m).errors([{path: ['b'], expected: 'string'}]);
     expect(out[0].label).toBe('b');
     expect(out[0].message).toBe('b is invalid');
@@ -121,6 +137,7 @@ describe('createFriendly — Map / Set entries', () => {
   it('Map value failure resolves to $values + carries the entry index', () => {
     const m: FriendlyType<Map<string, number>> = {
       $label: 'Settings',
+      $errors: {type: 'Settings must be a map'},
       $keys: {$label: 'Setting key', $errors: {type: 'key must be text'}},
       $values: {$label: 'Setting value', $errors: {type: 'value must be a number'}},
     };
@@ -130,8 +147,10 @@ describe('createFriendly — Map / Set entries', () => {
 
   it('Map key failure resolves to $keys', () => {
     const m: FriendlyType<Map<string, number>> = {
+      $label: 'Settings',
+      $errors: {type: 'Settings must be a map'},
       $keys: {$label: 'Setting key', $errors: {type: 'key must be text'}},
-      $values: {$label: 'Setting value'},
+      $values: {$label: 'Setting value', $errors: {type: 'value must be a number'}},
     };
     const out = createFriendly(m).errors([{path: [{key: 0, failed: 'mapKey'}], expected: 'string'}]);
     expect(out[0]).toEqual({path: '0', label: 'Setting key', message: 'key must be text'});
@@ -139,6 +158,8 @@ describe('createFriendly — Map / Set entries', () => {
 
   it('key + value failures at the same entry do not collide ($keys vs $values)', () => {
     const m: FriendlyType<Map<string, number>> = {
+      $label: 'Settings',
+      $errors: {type: 'Settings must be a map'},
       $keys: {$label: 'K', $errors: {type: 'bad key'}},
       $values: {$label: 'V', $errors: {type: 'bad value'}},
     };
@@ -154,7 +175,13 @@ describe('createFriendly — Map / Set entries', () => {
       tags: Set<string>;
     }
     const m: FriendlyType<Form> = {
-      tags: {$label: 'Tags', $values: {$errors: {type: 'tag #$[index] must be text'}}},
+      $label: 'Form',
+      $errors: {type: 'Form is invalid'},
+      tags: {
+        $label: 'Tags',
+        $errors: {type: 'Tags must be a set'},
+        $values: {$label: 'Tag', $errors: {type: 'tag #$[index] must be text'}},
+      },
     };
     const out = createFriendly(m).errors([{path: ['tags', {key: 2, failed: 'setKey'}], expected: 'string'}]);
     expect(out[0].path).toBe('tags.2');
@@ -166,6 +193,7 @@ describe('createFriendly — tuples', () => {
   it('fixed-tuple slot failure resolves to $slots[i] (not $items)', () => {
     const m: FriendlyType<[string, number]> = {
       $label: 'Coordinate',
+      $errors: {type: 'Coordinate must be a pair'},
       $slots: [
         {$label: 'X', $errors: {type: 'X must be text'}},
         {$label: 'Y', $errors: {type: 'Y must be a number'}},
@@ -178,7 +206,8 @@ describe('createFriendly — tuples', () => {
   it('rest-tuple element falls back to $items + $[index] (broad length)', () => {
     const m: FriendlyType<[string, ...number[]]> = {
       $label: 'Args',
-      $items: {$errors: {type: 'arg #$[index] must match'}},
+      $errors: {type: 'Args must be a list'},
+      $items: {$label: 'Arg', $errors: {type: 'arg #$[index] must match'}},
     };
     const out = createFriendly(m).errors([{path: [2], expected: 'number'}]);
     expect(out[0].path).toBe('2');
@@ -187,7 +216,16 @@ describe('createFriendly — tuples', () => {
 
   it('array of tuples: outer $items then inner $slots', () => {
     const m: FriendlyType<[string, number][]> = {
-      $items: {$slots: [{$label: 'Name'}, {$label: 'Count', $errors: {type: 'count must be a number'}}]},
+      $label: 'Pairs',
+      $errors: {type: 'Pairs must be a list'},
+      $items: {
+        $label: 'Pair',
+        $errors: {type: 'Pair must be a tuple'},
+        $slots: [
+          {$label: 'Name', $errors: {type: 'name must be text'}},
+          {$label: 'Count', $errors: {type: 'count must be a number'}},
+        ],
+      },
     };
     const out = createFriendly(m).errors([{path: [0, 1], expected: 'number'}]);
     expect(out[0].path).toBe('0.1');
@@ -199,7 +237,16 @@ describe('createFriendly — tuples', () => {
       coord: [number, number];
     }
     const m: FriendlyType<Form> = {
-      coord: {$label: 'Coord', $slots: [{$errors: {type: 'lat bad'}}, {$errors: {type: 'lng bad'}}]},
+      $label: 'Form',
+      $errors: {type: 'Form is invalid'},
+      coord: {
+        $label: 'Coord',
+        $errors: {type: 'Coord must be a pair'},
+        $slots: [
+          {$label: 'Latitude', $errors: {type: 'lat bad'}},
+          {$label: 'Longitude', $errors: {type: 'lng bad'}},
+        ],
+      },
     };
     const out = createFriendly(m).errors([{path: ['coord', 0], expected: 'number'}]);
     expect(out[0].path).toBe('coord.0');
