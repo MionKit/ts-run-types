@@ -16,7 +16,6 @@ import {
   createJsonDecoder,
   createBinaryEncoder,
   createBinaryDecoder,
-  type DataViewSerializer,
   type BinaryDecoderFn,
 } from 'ts-runtypes';
 
@@ -130,8 +129,8 @@ describe('Temporal JSON round-trip (encode → decode → equals)', () => {
 });
 
 describe('Temporal binary round-trip', () => {
-  const brt = (ser: DataViewSerializer, decode: BinaryDecoderFn<unknown>, original: unknown): void =>
-    expect(asStr(decode(ser))).toBe(asStr(original));
+  const brt = (bytes: Uint8Array, decode: BinaryDecoderFn<unknown>, original: unknown): void =>
+    expect(asStr(decode(bytes))).toBe(asStr(original));
 
   it('Instant', () =>
     brt(

@@ -172,8 +172,8 @@ export function assertSerializerIdIntegrity(c: SerializationCase): void {
     const typeEncode = typeBinaryEncoder();
     const {values} = (c.getBinaryTestData ?? c.getTestDataForStringify ?? c.getTestData)();
     values.forEach((reference, i) => {
-      const fromSchema = schemaEncode(deepCloneForRoundTrip(reference)).getBufferView();
-      const fromType = typeEncode(deepCloneForRoundTrip(reference)).getBufferView();
+      const fromSchema = schemaEncode(deepCloneForRoundTrip(reference));
+      const fromType = typeEncode(deepCloneForRoundTrip(reference));
       expect(fromSchema, `${c.title}: binary — value-first schema encoder bytes must equal type-first [values[${i}]]`).toEqual(
         fromType
       );

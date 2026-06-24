@@ -37,16 +37,17 @@ export type ToBinaryFn = (value: unknown, Ser: DataViewSerializer) => DataViewSe
 export type FromBinaryFn<T = unknown> = (ret: unknown, Des: DataViewDeserializer) => T;
 
 // Encoder returned by `createBinaryEncoder<T>()`. The exact signature depends on
-// the `sizeStrategy` (see `EncoderFnFor`): all return the populated
-// `DataViewSerializer` — read the bytes with `getBufferView()` (zero-copy) or
-// `getBuffer()` (copy); `.index` is the byte count.
+// the `sizeStrategy` (see `EncoderFnFor`): all return a `Uint8Array` VIEW of the
+// written bytes — zero-copy, with `byteLength` the exact byte count (`.slice()`
+// for an owned copy). For the `into` strategy the view aliases the caller's
+// buffer; consume it before the next encode overwrites those bytes.
 
 /** `dynamic` / `precalculate` encoder — sizes the buffer itself. **/
-export type BinaryEncoderFn = (value: unknown) => DataViewSerializer;
+export type BinaryEncoderFn = (value: unknown) => Uint8Array;
 /** `initialSize` encoder — caller supplies the initial buffer size each call. **/
-export type BinaryEncoderSizeFn = (value: unknown, size: number) => DataViewSerializer;
+export type BinaryEncoderSizeFn = (value: unknown, size: number) => Uint8Array;
 /** `into` encoder — caller supplies the buffer to write into each call. **/
-export type BinaryEncoderIntoFn = (value: unknown, into: ArrayBuffer) => DataViewSerializer;
+export type BinaryEncoderIntoFn = (value: unknown, into: ArrayBuffer) => Uint8Array;
 
 /** Picks the returned encoder signature from the chosen `sizeStrategy` literal. **/
 export type EncoderFnFor<O extends BinaryEncoderOptions | undefined> = O extends {sizeStrategy: 'initialSize'}
@@ -56,9 +57,9 @@ export type EncoderFnFor<O extends BinaryEncoderOptions | undefined> = O extends
     : BinaryEncoderFn;
 
 /** Decoder returned by `createBinaryDecoder<T>()`. Accepts a raw buffer, a
- *  typed-array view, a pre-built `DataViewDeserializer`, or a `DataViewSerializer`
- *  straight from the encoder (so `decode(encode(v))` round-trips). **/
-export type BinaryDecoderFn<T = unknown> = (input: BinaryInput | DataViewDeserializer | DataViewSerializer) => T;
+ *  typed-array view (e.g. the encoder's `Uint8Array` output, so `decode(encode(v))`
+ *  round-trips), or a pre-built `DataViewDeserializer`. **/
+export type BinaryDecoderFn<T = unknown> = (input: BinaryInput | DataViewDeserializer) => T;
 
 /** Caller-controlled options for `createBinaryEncoder<T>()`. **/
 export interface BinaryEncoderOptions {
@@ -72,15 +73,15 @@ export interface BinaryEncoderOptions {
   /** How the encoder's buffer is sized + what happens on overflow. A STATIC
    *  literal: it specialises the returned function's signature (see `EncoderFnFor`)
    *  and never affects the cache key.
-   *  - `'dynamic'` (default): `(val) => Ser` — predict from per-key history, grow
-   *    in place on a miss.
-   *  - `'precalculate'`: `(val) => Ser` — measure pass first, allocate exactly,
-   *    can't overflow (one extra traversal).
-   *  - `'initialSize'`: `(val, size) => Ser` — allocate `size` bytes; THROW on
-   *    overflow (never resizes).
-   *  - `'into'`: `(val, into) => Ser` — write into the caller's `ArrayBuffer`;
-   *    THROW on overflow (a fixed buffer can't be grown without breaking the
-   *    caller's reference). **/
+   *  - `'dynamic'` (default): `(val) => Uint8Array` — predict from per-key history,
+   *    grow in place on a miss.
+   *  - `'precalculate'`: `(val) => Uint8Array` — measure pass first, allocate
+   *    exactly, can't overflow (one extra traversal).
+   *  - `'initialSize'`: `(val, size) => Uint8Array` — allocate `size` bytes; THROW
+   *    on overflow (never resizes).
+   *  - `'into'`: `(val, into) => Uint8Array` — write into the caller's `ArrayBuffer`
+   *    (the returned view aliases it); THROW on overflow (a fixed buffer can't be
+   *    grown without breaking the caller's reference). **/
   sizeStrategy?: 'dynamic' | 'precalculate' | 'initialSize' | 'into';
 }
 
@@ -108,8 +109,9 @@ function fixedBufferTooSmall(capacity: number): RangeError {
 // Run a fixed-capacity (non-growing) encode and convert any overflow into a clear
 // RangeError. A throwing inline DataView write is caught here; a silent Uint8Array
 // OOB write still advances `index` past the buffer, so the post-encode length check
-// catches that too. No history is recorded (the caller owns sizing).
-function encodeFixed(encodeFn: ToBinaryFn, value: unknown, ser: DataViewSerializer, capacity: number): DataViewSerializer {
+// catches that too. No history is recorded (the caller owns sizing). Returns the
+// zero-copy view of the written bytes.
+function encodeFixed(encodeFn: ToBinaryFn, value: unknown, ser: DataViewSerializer, capacity: number): Uint8Array {
   try {
     encodeFn(value, ser);
   } catch (err) {
@@ -117,7 +119,7 @@ function encodeFixed(encodeFn: ToBinaryFn, value: unknown, ser: DataViewSerializ
     throw err;
   }
   if (ser.getLength() > capacity) throw fixedBufferTooSmall(capacity);
-  return ser;
+  return ser.getBufferView();
 }
 
 // binarySizingKey derives the adaptive-sizing bucket from the schema id or the
@@ -168,7 +170,7 @@ export function createBinaryEncoder<T>(
       const ser = createDataViewSerializer(cacheKey, {size: sizer.getLength(), grow: false});
       encodeFn(value, ser);
       ser.markAsEnded();
-      return ser;
+      return ser.getBufferView();
     };
     return fn;
   }
@@ -204,7 +206,7 @@ export function createBinaryEncoder<T>(
     const ser = createDataViewSerializer(cacheKey, {grow: true, coldStartSize});
     encodeFn(value, ser);
     ser.markAsEnded();
-    return ser;
+    return ser.getBufferView();
   };
   return fn;
 }
@@ -216,7 +218,7 @@ export type BinarySizerFn = (value: unknown) => number;
 /** Returns the exact on-wire byte count `createBinaryEncoder<T>()` would produce
  *  for `value`, WITHOUT allocating an output buffer. Runs the SAME emitted `'tb'`
  *  body as the encoder against a no-op measure serializer, so the count is exact:
- *  `createBinarySizer(v) === createBinaryEncoder(v)(…).getLength()`. Use it to size a
+ *  `createBinarySizer(v) === createBinaryEncoder(v)(…).byteLength`. Use it to size a
  *  `sizeStrategy: 'initialSize'` encoder or to allocate an exact `into` buffer.
  *  Reuses the encoder's `'tb'` cache entry — no new family. **/
 export function createBinarySizer<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'tb'>): BinarySizerFn;
@@ -260,9 +262,8 @@ export function createBinaryDecoder<T>(
     let des: DataViewDeserializer;
     if (input && typeof (input as DataViewDeserializer).desString === 'function') {
       des = input as DataViewDeserializer; // already a deserializer
-    } else if (input && typeof (input as DataViewSerializer).getBufferView === 'function') {
-      des = createDataViewDeserializer(cacheKey, (input as DataViewSerializer).getBufferView()); // straight from the encoder
     } else {
+      // buffer / typed-array view — incl. the encoder's Uint8Array output.
       des = createDataViewDeserializer(cacheKey, input as BinaryInput);
     }
     return decodeFn(undefined, des);
