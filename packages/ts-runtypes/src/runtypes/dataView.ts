@@ -277,8 +277,8 @@ export interface DataViewDeserializer {
 /** Optional args for `createDataViewSerializer`. `size` is an explicit
  *  override; `relatedKeys` predicts via sum-of-averages; `grow` (default `true`)
  *  arms in-place growth — pass `false` for the fixed-size strategies
- *  ('precalculate' / 'initialSize' / 'into') so the serializer never reserves or
- *  reallocates. `buffer` wraps a caller-supplied `ArrayBuffer` (the `into` strategy)
+ *  ('precalculate' / 'initialSize' / 'intoBuffer') so the serializer never reserves or
+ *  reallocates. `buffer` wraps a caller-supplied `ArrayBuffer` (the `intoBuffer` strategy)
  *  instead of allocating one; growth is always off for it (we cannot resize a
  *  caller's buffer without breaking their reference). **/
 export interface CreateSerializerOptions {
@@ -295,7 +295,7 @@ export interface CreateSerializerOptions {
 
 /** Creates a DataView-based serializer. **/
 export function createDataViewSerializer(cacheKey: string, options?: CreateSerializerOptions | number): DataViewSerializer {
-  // Caller-supplied buffer (the `into` strategy): wrap it, never grow it.
+  // Caller-supplied buffer (the `intoBuffer` strategy): wrap it, never grow it.
   if (typeof options === 'object' && options.buffer !== undefined) {
     return new DataViewSerializerImpl(cacheKey, options.buffer.byteLength, false, options.buffer);
   }
@@ -397,7 +397,7 @@ class DataViewSerializerImpl implements DataViewSerializer {
   ensureCapacity?: (this: DataViewSerializer, extraBytes: number) => void;
   constructor(cacheKey: string, size: number, grow: boolean = true, existingBuffer?: ArrayBuffer) {
     this.cacheKey = cacheKey;
-    // `existingBuffer` is a caller-supplied buffer (the `into` strategy) we wrap
+    // `existingBuffer` is a caller-supplied buffer (the `intoBuffer` strategy) we wrap
     // instead of allocating; otherwise allocate `size` bytes.
     this.buffer = existingBuffer ?? new ArrayBuffer(size);
     this.view = new DataView(this.buffer);
