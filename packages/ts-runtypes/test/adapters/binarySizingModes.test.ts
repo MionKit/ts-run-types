@@ -48,7 +48,7 @@ describe('binary sizing — measure pass matches the encoder', () => {
 });
 
 describe('binary sizing — fixed-size serializers never call ensureCapacity', () => {
-  it("growing serializer has a grow fn; fixed-size, caller-buffer, and measure pass do not", () => {
+  it('growing serializer has a grow fn; fixed-size, caller-buffer, and measure pass do not', () => {
     expect(createDataViewSerializer('k', {grow: true}).ensureCapacity, 'dynamic').toBeTypeOf('function');
     expect(createDataViewSerializer('k', {size: 64, grow: false}).ensureCapacity, 'fixed size').toBeUndefined();
     expect(createDataViewSerializer('k', {buffer: new ArrayBuffer(64)}).ensureCapacity, 'into buffer').toBeUndefined();
@@ -176,6 +176,28 @@ describe("binary sizing — 'into' writes into the caller's buffer", () => {
     expect(createBinaryDecoder(s)(enc(value, new ArrayBuffer(exact)))).toEqual(value);
 
     expect(() => enc(value, new ArrayBuffer(exact - 1))).toThrow(RangeError);
+  });
+});
+
+describe('binary sizing — dynamic seeds the cold start from the compile-time estimate', () => {
+  it('a cold dynamic buffer uses the per-type estimate, not the flat default', () => {
+    const s = RT.object({id: TF.number(), name: TF.string(), active: RT.boolean()});
+    // A fresh cacheKey ⇒ no per-key history ⇒ the cold-start size is the
+    // estimate the plugin baked into the `tb` tuple (read off `id`). If the
+    // estimate were missing it would fall back to defaultBufferSize (2**14).
+    const enc = createBinaryEncoder(s, {cacheKey: 'cold-start-estimate-probe'});
+    const ser = enc({id: 1, name: 'Ada', active: true});
+    expect(ser.buffer.byteLength, 'cold buffer is the tight per-type estimate').toBeLessThan(2 ** 14);
+    expect(ser.buffer.byteLength, 'not the flat defaultBufferSize fallback').not.toBe(2 ** 14);
+    expect(ser.buffer.byteLength, 'estimate covers the payload (no grow needed)').toBeGreaterThanOrEqual(ser.getLength());
+  });
+
+  it('a larger declared type seeds a larger cold buffer than a tiny one', () => {
+    const tiny = RT.object({flag: RT.boolean()});
+    const big = RT.object({a: TF.string(), b: TF.string(), c: TF.string(), items: RT.array(TF.string())});
+    const tinyBuf = createBinaryEncoder(tiny, {cacheKey: 'cold-tiny-probe'})({flag: true}).buffer.byteLength;
+    const bigBuf = createBinaryEncoder(big, {cacheKey: 'cold-big-probe'})({a: '', b: '', c: '', items: []}).buffer.byteLength;
+    expect(bigBuf, 'the array-bearing type estimates a bigger cold buffer').toBeGreaterThan(tinyBuf);
   });
 });
 

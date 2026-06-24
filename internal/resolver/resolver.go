@@ -93,6 +93,17 @@ type Options struct {
 	// layout). Validated at the CLI boundary; unknown values behave as
 	// default.
 	ModuleMode string
+	// SizeBias / SizeItems / SizeStringBytes / SizeMaxBytes parameterise the
+	// compile-time binary buffer-size estimate baked into every `tb` entry —
+	// the seed the runtime `dynamic` strategy uses as its cold-start buffer
+	// size. Zero-value fields fall back to the constants.DefaultSize* defaults
+	// (SizeEstimateConfig.normalized), except SizeBias whose 0 is a valid
+	// "tightest" setting; the CLI/plugin path passes the DefaultSize* values.
+	// All four fold into the disk fingerprint.
+	SizeBias        float64
+	SizeItems       int
+	SizeStringBytes int
+	SizeMaxBytes    int
 }
 
 // Resolver owns a Program and answers type queries against it. The serializer
@@ -198,9 +209,13 @@ func newRTStore(opts Options) *disk.Store {
 		return nil
 	}
 	fp := disk.Fingerprint(disk.FingerprintInputs{
-		HashLength: opts.HashLength,
-		EmitMode:   string(opts.EmitMode),
-		InlineMode: string(opts.InlineMode),
+		HashLength:      opts.HashLength,
+		EmitMode:        string(opts.EmitMode),
+		InlineMode:      string(opts.InlineMode),
+		SizeBias:        opts.SizeBias,
+		SizeItems:       opts.SizeItems,
+		SizeStringBytes: opts.SizeStringBytes,
+		SizeMaxBytes:    opts.SizeMaxBytes,
 	})
 	return disk.New(opts.CacheDir, fp)
 }

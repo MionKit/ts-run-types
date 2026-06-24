@@ -5,7 +5,13 @@
 // injected at each call site (see runtypes/entryTuple.ts).
 
 import {isRunTypeSchema} from './runtypes/rtUtils.ts';
-import {entryTupleKey, isEntryTuple, resolveEntryTupleFn, FN_HASH_LEN} from './runtypes/entryTuple.ts';
+import {
+  entryTupleKey,
+  isEntryTuple,
+  resolveEntryTupleFn,
+  binarySizeEstimateFromTuple,
+  FN_HASH_LEN,
+} from './runtypes/entryTuple.ts';
 import type {RunType} from './runtypes/types.ts';
 import {
   createDataViewSerializer,
@@ -145,7 +151,13 @@ export function createBinaryEncoder<T>(
 ): BinaryEncoderFn | BinaryEncoderSizeFn | BinaryEncoderIntoFn {
   const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
   const cacheKey = options?.cacheKey ?? binarySizingKey(schemaId, id);
-  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinaryEncoder', noopToBinaryFn, schemaId, id, options?.rejectCircularRefs);
+  const encodeFn = resolveEntryTupleFn<ToBinaryFn>(
+    'createBinaryEncoder',
+    noopToBinaryFn,
+    schemaId,
+    id,
+    options?.rejectCircularRefs
+  );
   const sizeStrategy = options?.sizeStrategy ?? 'dynamic';
 
   // 'precalculate': measure pass over the SAME body → allocate exactly, growth OFF.
@@ -164,7 +176,8 @@ export function createBinaryEncoder<T>(
   // 'initialSize': caller fixes the size each call; growth OFF, throw on overflow.
   if (sizeStrategy === 'initialSize') {
     const fn: BinaryEncoderSizeFn = (value, size) => {
-      if (typeof size !== 'number') throw new Error("createBinaryEncoder: sizeStrategy 'initialSize' requires a numeric `size` argument.");
+      if (typeof size !== 'number')
+        throw new Error("createBinaryEncoder: sizeStrategy 'initialSize' requires a numeric `size` argument.");
       return encodeFixed(encodeFn, value, createDataViewSerializer(cacheKey, {size, grow: false}), size);
     };
     return fn;
@@ -173,16 +186,22 @@ export function createBinaryEncoder<T>(
   // 'into': caller supplies the buffer each call; growth OFF, throw on overflow.
   if (sizeStrategy === 'into') {
     const fn: BinaryEncoderIntoFn = (value, into) => {
-      if (!(into instanceof ArrayBuffer)) throw new Error("createBinaryEncoder: sizeStrategy 'into' requires an ArrayBuffer `into` argument.");
+      if (!(into instanceof ArrayBuffer))
+        throw new Error("createBinaryEncoder: sizeStrategy 'into' requires an ArrayBuffer `into` argument.");
       return encodeFixed(encodeFn, value, createDataViewSerializer(cacheKey, {buffer: into}), into.byteLength);
     };
     return fn;
   }
 
-  // 'dynamic' (default): predict from per-key Welford history; every write reserves
-  // via `Ser.ensureCapacity?.(n)`, so the buffer grows in place on a miss.
+  // 'dynamic' (default): predict from per-key Welford history, seeded on a cold
+  // cache by the compile-time per-type estimate the `tb` tuple carries (a tight
+  // per-type size instead of the flat `defaultBufferSize` fallback — critical
+  // for short-lived/serverless where history never warms). Every write reserves
+  // via `Ser.ensureCapacity?.(n)`, so the buffer still grows in place if a
+  // payload outruns the estimate.
+  const coldStartSize = binarySizeEstimateFromTuple(id);
   const fn: BinaryEncoderFn = (value) => {
-    const ser = createDataViewSerializer(cacheKey, {grow: true});
+    const ser = createDataViewSerializer(cacheKey, {grow: true, coldStartSize});
     encodeFn(value, ser);
     ser.markAsEnded();
     return ser;

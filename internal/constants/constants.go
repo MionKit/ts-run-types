@@ -375,6 +375,30 @@ func (mode InlineMode) Valid() bool {
 	return mode == InlineModeDefault || mode == InlineModeAllInternal || mode == ""
 }
 
+// Binary size-estimate defaults. The compiler walks each binary-encoder type
+// at build time and bakes a buffer-size estimate into the `tb` entry; the
+// runtime `dynamic` strategy uses it as the cold-start buffer size (instead of
+// the flat defaultBufferSize fallback) until per-key history warms up. Each default is
+// overridable via a CLI flag / Vite plugin option; all four fold into the disk
+// fingerprint so a config change re-derives every estimate.
+const (
+	// DefaultSizeBias weights the estimate between a type's minimum and
+	// (capped) maximum footprint: estimate = min + bias·(cappedMax − min).
+	// 0 = tightest (most grows), 1 = most generous (most slack). 0.8 leans
+	// generous so a cold encode rarely has to grow.
+	DefaultSizeBias = 0.8
+	// DefaultSizeItems is the assumed element count for an unbounded
+	// collection (array / Map / Set / index signature) — a typical paginated
+	// page.
+	DefaultSizeItems = 100
+	// DefaultSizeStringBytes is the assumed UTF-8 byte length of an
+	// unbounded string (no maxLength format bound).
+	DefaultSizeStringBytes = 32
+	// DefaultSizeMaxBytes caps any single type's estimate so a huge declared
+	// bound (e.g. maxLength<10_000_000>) never seeds a multi-MB cold buffer.
+	DefaultSizeMaxBytes = 64 * 1024
+)
+
 // Tuple slot-0 kind discriminators for entry-module tuples. Type-fn entries
 // carry their QUOTED family tag in slot 0 instead of a number, so the runtime
 // discriminates with `typeof t[0] === 'string'`.

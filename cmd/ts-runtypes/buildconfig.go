@@ -24,6 +24,10 @@ type buildFlags struct {
 	emitMode         string
 	inlineMode       string
 	moduleMode       string
+	sizeBias         float64
+	sizeItems        int
+	sizeStringBytes  int
+	sizeMaxBytes     int
 }
 
 // buildOptions is the merged build configuration the resolver consumes.
@@ -36,6 +40,10 @@ type buildOptions struct {
 	emitMode              string
 	inlineMode            string
 	moduleMode            string
+	sizeBias              float64
+	sizeItems             int
+	sizeStringBytes       int
+	sizeMaxBytes          int
 }
 
 // mergeBuildOptions resolves the effective build configuration from the CLI
@@ -50,11 +58,15 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, hasTsconfig bo
 	// as their flag default, so an unset flag already holds the default; a
 	// present tsconfig value overrides only when the flag was not passed.
 	out := buildOptions{
-		hashLength:     flags.hashLength,
-		singleThreaded: flags.singleThreaded,
-		emitMode:       flags.emitMode,
-		inlineMode:     flags.inlineMode,
-		moduleMode:     flags.moduleMode,
+		hashLength:      flags.hashLength,
+		singleThreaded:  flags.singleThreaded,
+		emitMode:        flags.emitMode,
+		inlineMode:      flags.inlineMode,
+		moduleMode:      flags.moduleMode,
+		sizeBias:        flags.sizeBias,
+		sizeItems:       flags.sizeItems,
+		sizeStringBytes: flags.sizeStringBytes,
+		sizeMaxBytes:    flags.sizeMaxBytes,
 	}
 
 	if !flags.set["emit-mode"] && strings.TrimSpace(plugin.EmitMode) != "" {
@@ -71,6 +83,21 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, hasTsconfig bo
 	}
 	if !flags.set["single-threaded"] && plugin.SingleThreaded != nil {
 		out.singleThreaded = *plugin.SingleThreaded
+	}
+
+	// Size-estimate knobs: a tsconfig value fills in only when the flag was not
+	// explicitly passed (the flag already carries the binary default).
+	if !flags.set["size-bias"] && plugin.SizeBias != nil {
+		out.sizeBias = *plugin.SizeBias
+	}
+	if !flags.set["size-items"] && plugin.SizeItems != nil {
+		out.sizeItems = *plugin.SizeItems
+	}
+	if !flags.set["size-string-bytes"] && plugin.SizeStringBytes != nil {
+		out.sizeStringBytes = *plugin.SizeStringBytes
+	}
+	if !flags.set["size-max-bytes"] && plugin.SizeMaxBytes != nil {
+		out.sizeMaxBytes = *plugin.SizeMaxBytes
 	}
 
 	// parallelScan / parallelRender read true=on (matching the host plugin's

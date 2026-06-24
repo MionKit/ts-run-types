@@ -181,7 +181,10 @@ export interface SizeStats {
 
 /** Tunable serializer behaviour. **/
 export interface SerializationOptions {
-  /** Cold-start buffer size, used until a key has size history. Default 16 MiB (`2 ** 24`). **/
+  /** Cold-start buffer size, used until a key has size history AND no
+   *  compile-time estimate was supplied. Default 16 KiB (`2 ** 14`). The
+   *  `dynamic` binary encoder normally seeds from the per-type estimate
+   *  instead, so this only applies to value-first / plugin-inactive paths. **/
   defaultBufferSize: number;
   /** Sigma multiplier for headroom: `allocSize = mean + sizeMultiplier * stddev`.
    *  Default 2 (≈ covers payloads up to two standard deviations above the mean
@@ -201,7 +204,7 @@ const moduleSizeHistory = new Map<string, SizeStats>();
 const moduleStringBytesCache = new Map<string, Uint8Array>();
 
 const DEFAULTS: SerializationOptions = {
-  defaultBufferSize: 2 ** 24,
+  defaultBufferSize: 2 ** 14,
   sizeMultiplier: 2,
   maxStrCacheLength: 64,
   maxCacheSize: 1000,
@@ -283,6 +286,11 @@ export interface CreateSerializerOptions {
   relatedKeys?: string[];
   grow?: boolean;
   buffer?: ArrayBuffer;
+  /** Cold-start buffer size used when the key has NO history yet — the
+   *  compile-time per-type estimate the `dynamic` binary encoder passes,
+   *  replacing the `defaultBufferSize` fallback. History still refines from the
+   *  first real encode (estimate seeds, never overrides). **/
+  coldStartSize?: number;
 }
 
 /** Creates a DataView-based serializer. **/
@@ -294,8 +302,9 @@ export function createDataViewSerializer(cacheKey: string, options?: CreateSeria
   // Number overload kept for back-compat with standard callers.
   const explicitSize = typeof options === 'number' ? options : options?.size;
   const relatedKeys = typeof options === 'object' ? options.relatedKeys : undefined;
+  const coldStartSize = typeof options === 'object' ? options.coldStartSize : undefined;
   const grow = typeof options === 'object' && options.grow !== undefined ? options.grow : true;
-  const size = explicitSize ?? predictBufferSize(cacheKey, relatedKeys);
+  const size = explicitSize ?? predictBufferSize(cacheKey, relatedKeys, coldStartSize);
   if (size >= POW_2_32) throw new Error('bufferSize must be strictly less than 2 ** 32');
   return new DataViewSerializerImpl(cacheKey, size, grow);
 }
@@ -310,23 +319,25 @@ export function createDataViewDeserializer(cacheKey: string, input: BinaryInput)
 }
 
 /** Sum of historical averages for related keys, or the single key's average,
- *  falling back to `defaultBufferSize` on a cold cache. **/
-function predictBufferSize(cacheKey: string, relatedKeys?: string[]): number {
+ *  falling back to `coldStartSize` (the compile-time estimate) then
+ *  `defaultBufferSize` on a cold cache. **/
+function predictBufferSize(cacheKey: string, relatedKeys?: string[], coldStartSize?: number): number {
   if (relatedKeys && relatedKeys.length) {
     let total = 0;
     for (const key of relatedKeys) total += sizeForKey(key);
     return total;
   }
-  return sizeForKey(cacheKey);
+  return sizeForKey(cacheKey, coldStartSize);
 }
 
 /** Predict from Welford stats: `mean + sizeMultiplier * stddev`. A tight
  *  prediction is safe because the serializer grows in place on a miss — under-
- *  allocation costs one buffer copy, not a throw. Falls back to the cold-start
- *  default until the key has been observed. **/
-function sizeForKey(key: string): number {
+ *  allocation costs one buffer copy, not a throw. Until the key has been
+ *  observed, falls back to `coldStartSize` (the compile-time per-type estimate)
+ *  when supplied, else the cold-start `defaultBufferSize`. **/
+function sizeForKey(key: string, coldStartSize?: number): number {
   const stats = opts.sizeHistory.get(key);
-  if (stats === undefined || stats.count === 0) return opts.defaultBufferSize;
+  if (stats === undefined || stats.count === 0) return coldStartSize ?? opts.defaultBufferSize;
   // Sample variance (Bessel-corrected); zero for a single observation.
   const variance = stats.count > 1 ? stats.m2 / (stats.count - 1) : 0;
   const stddev = Math.sqrt(variance);

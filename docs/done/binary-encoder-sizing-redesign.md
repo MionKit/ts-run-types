@@ -1,11 +1,54 @@
 # Binary encoder sizing redesign — strategy-typed encode functions
 
-> **Status: PLAN (agreed 2026-06-24).** Final design. **Supersedes**
-> [docs/done/binary-sizing-modes.md](../done/binary-sizing-modes.md) and
-> [docs/done/binary-buffer-sizing.md](../done/binary-buffer-sizing.md), which
-> describe the interim design currently on the `binary-sizing-modes` branch (PR
-> #142). That branch is being reworked to this spec before merge. When this ships,
-> fold those two done-docs into this one (or retire them).
+> **Status: SHIPPED — Phase 1 + Phase 2 core (2026-06-24).** One Phase-2
+> sub-item (per-call-site comptime overrides) is deferred; see **Implementation
+> status** below. **Supersedes**
+> [docs/done/binary-sizing-modes.md](./binary-sizing-modes.md) and
+> [docs/done/binary-buffer-sizing.md](./binary-buffer-sizing.md), which
+> describe the interim design (PR #142). Both are retired by this doc.
+
+## Implementation status (2026-06-24)
+
+**Phase 1 — strategy contract (DONE, committed `3b625a39`).** `sizeStrategy:
+'dynamic' | 'precalculate' | 'initialSize' | 'into'`, `DataViewSerializer`
+return, decoder-accepts-serializer, `createBinarySizer` kept,
+`setDefaultBinarySizing` removed.
+
+**Phase 2 — compile-time format-aware estimate (DONE, this change).**
+
+- Format `BinarySize` hint: `formats.BinarySizer` capability +
+  `BinarySizeHint{Fixed}` ([formats/registry.go](../../internal/compiled/typefns/formats/registry.go)),
+  implemented by numberFormat (1/2/4/8) and bigintFormat (8) from the SAME
+  `integerType`/`bigIntType` logic `EmitToBinary` uses.
+- Per-type estimator: `EstimateBinarySize`
+  ([binary_size_estimate.go](../../internal/compiled/typefns/binary_size_estimate.go))
+  — memoized by type id, cycle-safe, format-aware, capped per subtree at
+  `maxBytes`. Unit-tested in `binary_size_estimate_test.go`.
+- Global config: `sizeBias` (0.8), `sizeItems` (100), `sizeStringBytes` (32),
+  `sizeMaxBytes` (65536) as constants + tsconfig plugin keys + `runtypes-devtools`
+  options + `--size-*` CLI flags, folded into the disk fingerprint (bumped
+  `v6`→`v7`).
+- Metadata: a trailing `binarySizeEstimate` slot on the `tb` entry tuple
+  (`entrymod` renderer ↔ `entryTuple.ts` `FN_TYPE_TUPLE_KEYS` /
+  `binarySizeEstimateFromTuple`), emitted only for `tb` (non-noop, non-variant).
+- Runtime: the `dynamic` closure reads the estimate off the tuple and passes it
+  as `coldStartSize` to `createDataViewSerializer`; `sizeForKey` uses it on a cold
+  cache instead of `defaultBufferSize`; Welford history still refines.
+- Default fallback lowered: `defaultBufferSize` 16 MiB (`2**24`) → 16 KiB
+  (`2**14`) in [dataView.ts](../../packages/ts-runtypes/src/runtypes/dataView.ts).
+  The estimate is the normal cold-start path; this flat fallback only applies to
+  value-first / plugin-inactive encoders, so 16 MiB was indefensible.
+- Verified: full JS suite (7166), Go suite, fuzz oracle sweep, typecheck (only
+  the pre-existing enrich errors), and an integration assertion that a cold
+  `dynamic` buffer is the tight per-type estimate, not the flat fallback.
+
+**Deferred (future enhancement, NOT shipped):** per-call-site **comptime
+overrides** of `sizeBias` / `sizeItems` / an explicit `initialSize` via
+`CompTimeFnArgs` on `createBinaryEncoder`. The global config covers the common
+case; per-encoder bias tuning would need the scanner's `CompTimeFnArgs` +
+demand machinery and either an `fnHash` fold (one `tb` entry per option set) or
+a call-site injected literal (moving the estimate off the shared tuple). Scoped
+but sizable; left out so the core ships clean. See the *Phase 2* notes below.
 
 ## Why the redesign
 

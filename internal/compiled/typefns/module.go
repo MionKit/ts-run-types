@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cache/disk"
@@ -64,6 +65,13 @@ type RenderOpts struct {
 	// (isJsonCompatible / isExtraProof) across every collect of one
 	// dispatch. See FactsTable.
 	Facts *FactsTable
+	// SizeEstimate parameterises the compile-time binary buffer-size estimate
+	// baked into every `tb` (binary-encoder) entry — the seed the runtime
+	// `dynamic` strategy uses as its cold-start buffer size. Zero-value fields
+	// fall back to the constants.DefaultSize* defaults (see
+	// SizeEstimateConfig.normalized). Folded into the disk fingerprint so a
+	// config change re-derives every estimate.
+	SizeEstimate SizeEstimateConfig
 }
 
 // familyOp recovers the operation that emits entries under a cache-module's
@@ -506,7 +514,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	if opts.EmitMode.EmitsFactory() {
 		createRTFnArg = createRTFn
 	}
-	args := trimArgsTail([]string{
+	tail := []string{
 		quoteJS(innerName),
 		quoteJS(rtTypeName(runType)),
 		codeArg,
@@ -514,7 +522,20 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		stringSliceJS(walker.RTDependencies),
 		pureFnDepsJS(walker.PureFnDependencies),
 		createRTFnArg,
-	}, fnEntryArgDefaults)
+	}
+	var args []string
+	if estimate := binaryColdStartEstimate(settings, variantSuffix, runType, refTable, opts.SizeEstimate); estimate > 0 {
+		// tb entry: the cold-start size rides slot 11 (binarySizeEstimate). The
+		// whole tail stays UN-trimmed so the estimate lands at the right index;
+		// the `u` createRTFn placeholder is never a standalone binding, so an
+		// absent factory degrades to `undefined` (matching the trimmed default).
+		if tail[6] == "u" {
+			tail[6] = "undefined"
+		}
+		args = append(tail, "undefined", strconv.Itoa(estimate)) // slot 10 alwaysThrowMessage, slot 11 estimate
+	} else {
+		args = trimArgsTail(tail, fnEntryArgDefaults)
+	}
 	deps := append([]string(nil), walker.RTDependencies...)
 	crossFamilyDeps := append([]string(nil), walker.CrossFamilyDeps...)
 	argsText := joinArgs(args)

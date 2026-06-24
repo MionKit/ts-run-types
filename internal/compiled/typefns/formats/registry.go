@@ -133,6 +133,26 @@ type BinaryDecoder interface {
 	EmitFromBinary(annotation *protocol.FormatAnnotation, des string, ctx EmitContext) string
 }
 
+// BinarySizeHint reports a format's on-wire byte footprint to the
+// compile-time buffer-size estimator. A zero value means "no hint — the
+// estimator falls back to the base-kind width".
+type BinarySizeHint struct {
+	// Fixed is the exact wire width in bytes when the format packs to a
+	// constant size (the numeric int8/16/32 ladder, the 64-bit bigint
+	// path). Zero means "not fixed".
+	Fixed int
+}
+
+// BinarySizer is an OPTIONAL Emitter capability mirroring BinaryEncoder: a
+// format that packs into a known wire width reports it here so the
+// compile-time estimator can seed the `dynamic` cold-start buffer from the
+// SAME min/max logic EmitToBinary uses — single source of truth, can't
+// drift. A format with no fixed width simply doesn't implement it (the
+// estimator then uses the base-kind width).
+type BinarySizer interface {
+	BinarySize(annotation *protocol.FormatAnnotation) BinarySizeHint
+}
+
 var (
 	registryMu sync.RWMutex
 	registry   = map[registryKey]Emitter{}
