@@ -67,8 +67,8 @@ describe('F1 — binary index signature + named properties', () => {
           for (let i = 0; i < 25; i++) {
             const value = mock!();
             // Binary must not crash and must round-trip byte-stably.
-            const b1 = new Uint8Array(binaryEncode!(value));
-            const b2 = new Uint8Array(binaryEncode!(binaryDecode!(binaryEncode!(value))));
+            const b1 = binaryEncode!(value).getBufferView();
+            const b2 = binaryEncode!(binaryDecode!(binaryEncode!(value))).getBufferView();
             expect([...b2], `binary not stable for ${title}`).toEqual([...b1]);
             // JSON and binary must agree on the decoded value.
             const viaJson = jsonEncode!(value);

@@ -51,7 +51,7 @@ const back = fromJson(wire); // string -> Date again, typed as DataOnly<Order>
 const toBytes = createBinaryEncoder<Order>();
 const fromBytes = createBinaryDecoder<Order>();
 
-const bytes = toBytes(order); // a compact binary buffer — smaller than JSON
+const bytes = toBytes(order); // a DataViewSerializer; bytes.getBufferView() is the compact wire, smaller than JSON
 const order2 = fromBytes(bytes); // back to a typed object
 // end-binary
 

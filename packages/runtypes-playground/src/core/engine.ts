@@ -261,7 +261,11 @@ function toHex(bytes: Uint8Array): string {
 }
 
 function asBytes(value: unknown): Uint8Array {
-  return value instanceof Uint8Array ? value : new Uint8Array(value as ArrayBuffer);
+  if (value instanceof Uint8Array) return value;
+  // createBinaryEncoder returns a DataViewSerializer — read its written bytes.
+  const ser = value as {getBufferView?: () => Uint8Array};
+  if (ser && typeof ser.getBufferView === 'function') return ser.getBufferView();
+  return new Uint8Array(value as ArrayBuffer);
 }
 
 // run executes the chosen operation. `input` is the parsed JS value (may be

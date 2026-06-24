@@ -1,5 +1,13 @@
 # Binary encoder buffer sizing — three explicit modes
 
+> **SUPERSEDED (2026-06-24) by the strategy redesign in
+> [docs/todos/binary-encoder-sizing-redesign.md](../todos/binary-encoder-sizing-redesign.md).**
+> Before this branch merged, the contract was reworked: `sizing` → `sizeStrategy`
+> (`dynamic` | `precalculate` | `initialSize` | `into`), per-call `size`/`into`
+> arguments, the encoder now returns a `DataViewSerializer`, and
+> `setDefaultBinarySizing` + the `bufferSize` option were removed. Read the redesign
+> doc for the current contract; the notes below are the earlier interim design.
+>
 > **Status: SHIPPED (2026-06-23).** Implemented as commits on the `binary-sizing-modes`
 > branch. The three modes, `createBinarySizer<T>()`, the `bufferSize` option, the Go
 > emitter container-boundary reserves, and the retired backstop all landed and are

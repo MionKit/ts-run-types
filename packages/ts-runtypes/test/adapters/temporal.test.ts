@@ -16,7 +16,8 @@ import {
   createJsonDecoder,
   createBinaryEncoder,
   createBinaryDecoder,
-  type StrictArrayBuffer,
+  type DataViewSerializer,
+  type BinaryDecoderFn,
 } from 'ts-runtypes';
 
 // Temporal is the polyfill global in tests (see test/setup.ts).
@@ -129,8 +130,8 @@ describe('Temporal JSON round-trip (encode → decode → equals)', () => {
 });
 
 describe('Temporal binary round-trip', () => {
-  const brt = (buffer: StrictArrayBuffer, decode: (b: StrictArrayBuffer) => unknown, original: unknown): void =>
-    expect(asStr(decode(buffer))).toBe(asStr(original));
+  const brt = (ser: DataViewSerializer, decode: BinaryDecoderFn<unknown>, original: unknown): void =>
+    expect(asStr(decode(ser))).toBe(asStr(original));
 
   it('Instant', () =>
     brt(

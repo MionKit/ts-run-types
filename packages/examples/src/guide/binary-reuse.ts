@@ -1,24 +1,28 @@
-import {createBinaryEncoder, createBinaryDecoder, createDataViewSerializer, createDataViewDeserializer} from 'ts-runtypes';
+import {createBinaryEncoder, createBinaryDecoder, createBinarySizer} from 'ts-runtypes';
 
 type Tick = {symbol: string; price: number};
 
-const encode = createBinaryEncoder<Tick>();
-const decode = createBinaryDecoder<Tick>();
-
 // start-reuse
-// In a hot loop, build the serializer once and hand it to the encoder so it
-// reuses the same backing buffer instead of allocating a fresh one each call.
-const ser = createDataViewSerializer('ticks');
+// In a hot loop, allocate one buffer and reuse it. With sizeStrategy 'into' the
+// encoder writes into YOUR buffer and returns a zero-copy view, so there is no
+// fresh allocation per call. createBinarySizer gives a safe size to allocate.
+const encode = createBinaryEncoder<Tick>({sizeStrategy: 'into'});
+const decode = createBinaryDecoder<Tick>();
+const sizeOf = createBinarySizer<Tick>();
+
 const ticks: Tick[] = [
   {symbol: 'TS', price: 7},
   {symbol: 'GO', price: 9},
 ];
 
-const buffers = ticks.map((tick) => encode(tick, ser)); // writes into the shared serializer
+const buffer = new ArrayBuffer(Math.max(...ticks.map(sizeOf)));
 
-// Same idea on the way back — reuse a deserializer for a known buffer.
-const des = createDataViewDeserializer('ticks', buffers[0]);
-const firstTick = decode(des);
+for (const tick of ticks) {
+  const view = encode(tick, buffer).getBufferView(); // Uint8Array view into `buffer`
+  decode(view); // consume the view before the next encode reuses the buffer
+}
 // end-reuse
 
-export {buffers, firstTick};
+const firstTick = decode(encode(ticks[0], buffer));
+
+export {encode, decode, firstTick};

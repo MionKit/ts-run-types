@@ -41,7 +41,7 @@ function record(label: string, encode: BinaryEncoderFn, decode: BinaryDecoderFn<
   expect(decode(buf)).toEqual(value);
   const enc = PRINT ? opsPerSec(() => encode(value)) : 0;
   const dec = PRINT ? opsPerSec(() => decode(encode(value))) : 0;
-  rows.push({label, bytes: buf.byteLength, enc, dec});
+  rows.push({label, bytes: buf.getLength(), enc, dec});
 }
 
 describe('binary wire-format size + throughput', () => {

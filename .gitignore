@@ -87,6 +87,3 @@ packages/ts-runtypes/test/suites/enrich/.tmp/
 
 # playwright-cli session artifacts (snapshots, traces, screenshots)
 .playwright-cli/
-
-# scripts/bench-sizing-suite.mjs output (regenerable, machine-specific)
-/bench-sizing-results.json

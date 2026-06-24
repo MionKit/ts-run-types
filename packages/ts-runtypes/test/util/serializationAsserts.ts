@@ -232,7 +232,7 @@ export function assertBinaryRoundTrip(c: SerializationCase): void {
     }
     if (bestEffort) return;
     if (byteSizes && byteSizes[i] !== undefined) {
-      expect(buf.byteLength, `${c.title}: values[${i}] encoded byte length`).toBe(byteSizes[i]);
+      expect(buf.getLength(), `${c.title}: values[${i}] encoded byte length`).toBe(byteSizes[i]);
     }
     const restored = decode(buf);
     const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;
