@@ -261,10 +261,7 @@ function toHex(bytes: Uint8Array): string {
 }
 
 function asBytes(value: unknown): Uint8Array {
-  if (value instanceof Uint8Array) return value;
-  // createBinaryEncoder returns a DataViewSerializer — read its written bytes.
-  const ser = value as {getBufferView?: () => Uint8Array};
-  if (ser && typeof ser.getBufferView === 'function') return ser.getBufferView();
+  if (value instanceof Uint8Array) return value; // createBinaryEncoder returns a Uint8Array view
   return new Uint8Array(value as ArrayBuffer);
 }
 

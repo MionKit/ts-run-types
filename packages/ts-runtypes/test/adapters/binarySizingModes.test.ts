@@ -1,12 +1,12 @@
 // Buffer-sizing strategies: createBinaryEncoder({sizeStrategy}) specializes the
 // returned function's signature + overflow behavior. All four produce identical
-// wire bytes and return a DataViewSerializer (read via getBufferView()/getLength();
-// createBinaryDecoder also accepts the serializer directly, so decode(encode(v))
-// round-trips):
-//   - 'dynamic'      (default) (val) => Ser            grow as needed
-//   - 'precalculate'           (val) => Ser            measure pass → exact, can't overflow
-//   - 'initialSize'            (val, size) => Ser       caller size; throws on overflow
-//   - 'into'                   (val, into) => Ser       caller buffer; throws on overflow (zero-copy)
+// wire bytes and return a Uint8Array view of the written bytes (`.byteLength` is
+// the exact size); createBinaryDecoder accepts it directly, so decode(encode(v))
+// round-trips:
+//   - 'dynamic'      (default) (val) => Uint8Array      grow as needed
+//   - 'precalculate'           (val) => Uint8Array      measure pass → exact, can't overflow
+//   - 'initialSize'            (val, size) => Uint8Array caller size; throws on overflow
+//   - 'into'                   (val, into) => Uint8Array caller buffer; throws on overflow (zero-copy)
 
 import * as TF from 'ts-runtypes/formats';
 import {describe, it, expect} from 'vitest';
@@ -71,10 +71,10 @@ interface StrategyBundle {
 
 function assertStrategiesAgree<T>(b: StrategyBundle, value: T): void {
   const size = b.sizer(value);
-  const ref = Array.from(b.dynamic(value).getBufferView());
-  expect(Array.from(b.precalculate(value).getBufferView()), 'precalculate == dynamic').toEqual(ref);
-  expect(Array.from(b.initialSize(value, size).getBufferView()), 'initialSize == dynamic').toEqual(ref);
-  expect(Array.from(b.into(value, new ArrayBuffer(size)).getBufferView()), 'into == dynamic').toEqual(ref);
+  const ref = Array.from(b.dynamic(value));
+  expect(Array.from(b.precalculate(value)), 'precalculate == dynamic').toEqual(ref);
+  expect(Array.from(b.initialSize(value, size)), 'initialSize == dynamic').toEqual(ref);
+  expect(Array.from(b.into(value, new ArrayBuffer(size))), 'into == dynamic').toEqual(ref);
 
   expect(b.dec(b.dynamic(value)), 'dynamic round-trips').toEqual(value);
   expect(b.dec(b.precalculate(value)), 'precalculate round-trips').toEqual(value);
@@ -158,7 +158,7 @@ describe("binary sizing — 'initialSize' enforces its fixed buffer", () => {
 
     expect(() => enc(value, exact - 1)).toThrow(RangeError);
     expect(createBinaryDecoder(s)(enc(value, exact))).toEqual(value);
-    expect(enc(value, exact).getLength()).toBe(exact);
+    expect(enc(value, exact).byteLength).toBe(exact);
   });
 });
 
@@ -170,7 +170,7 @@ describe("binary sizing — 'into' writes into the caller's buffer", () => {
     const enc = createBinaryEncoder(s, {sizeStrategy: 'into'});
 
     const buf = new ArrayBuffer(exact);
-    const view = enc(value, buf).getBufferView();
+    const view = enc(value, buf);
     expect(view.buffer, 'view aliases the caller buffer (zero-copy)').toBe(buf);
     expect(view.byteLength).toBe(exact);
     expect(createBinaryDecoder(s)(enc(value, new ArrayBuffer(exact)))).toEqual(value);
@@ -186,10 +186,12 @@ describe('binary sizing — dynamic seeds the cold start from the compile-time e
     // estimate the plugin baked into the `tb` tuple (read off `id`). If the
     // estimate were missing it would fall back to defaultBufferSize (2**14).
     const enc = createBinaryEncoder(s, {cacheKey: 'cold-start-estimate-probe'});
-    const ser = enc({id: 1, name: 'Ada', active: true});
-    expect(ser.buffer.byteLength, 'cold buffer is the tight per-type estimate').toBeLessThan(2 ** 14);
-    expect(ser.buffer.byteLength, 'not the flat defaultBufferSize fallback').not.toBe(2 ** 14);
-    expect(ser.buffer.byteLength, 'estimate covers the payload (no grow needed)').toBeGreaterThanOrEqual(ser.getLength());
+    // The returned Uint8Array views the encoder's buffer; `.buffer.byteLength` is
+    // the allocated cold-start size (the estimate), `.byteLength` the written bytes.
+    const out = enc({id: 1, name: 'Ada', active: true});
+    expect(out.buffer.byteLength, 'cold buffer is the tight per-type estimate').toBeLessThan(2 ** 14);
+    expect(out.buffer.byteLength, 'not the flat defaultBufferSize fallback').not.toBe(2 ** 14);
+    expect(out.buffer.byteLength, 'estimate covers the payload (no grow needed)').toBeGreaterThanOrEqual(out.byteLength);
   });
 
   it('a larger declared type seeds a larger cold buffer than a tiny one', () => {
@@ -202,7 +204,7 @@ describe('binary sizing — dynamic seeds the cold start from the compile-time e
 });
 
 describe('createBinarySizer — exact byte count without allocating', () => {
-  it('value-first form: sizer === encoder getLength', () => {
+  it('value-first form: sizer === encoder byteLength', () => {
     const s = RT.object({id: TF.number(), name: TF.string(), tags: RT.array(TF.string())});
     const size = createBinarySizer(s);
     const enc = createBinaryEncoder(s);
@@ -210,14 +212,14 @@ describe('createBinarySizer — exact byte count without allocating', () => {
       {id: 1, name: 'a', tags: []},
       {id: 2, name: 'hello', tags: ['x', 'yy', 'zzz']},
     ]) {
-      expect(size(v)).toBe(enc(v).getLength());
+      expect(size(v)).toBe(enc(v).byteLength);
     }
   });
 
-  it('static form: sizer === encoder getLength', () => {
+  it('static form: sizer === encoder byteLength', () => {
     const size = createBinarySizer<{a: number; b: string}>();
     const enc = createBinaryEncoder<{a: number; b: string}>();
     const v = {a: 42, b: 'hello world'};
-    expect(size(v)).toBe(enc(v).getLength());
+    expect(size(v)).toBe(enc(v).byteLength);
   });
 });
