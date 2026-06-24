@@ -84,6 +84,8 @@ func TestProtobuf_InSubset(t *testing.T) {
 		{"map<string,number>", pbMsg(pbProp("counts", false, mapStrNum))},
 		{"set<number>", pbMsg(pbProp("ids", false, setNum))},
 		{"record field -> map", pbMsg(pbProp("meta", false, recordField))},
+		{"uint8array -> bytes", pbMsg(pbProp("buf", false, &protocol.RunType{Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable, ClassRef: &protocol.ClassRef{Builtin: "Uint8Array"}}))},
+		{"arraybuffer -> bytes", pbMsg(pbProp("raw", false, &protocol.RunType{Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable, ClassRef: &protocol.ClassRef{Builtin: "ArrayBuffer"}}))},
 		{"bigint 64-bit", pbMsg(pbProp("big", false, pbBigintFmt(map[string]any{"min": "-1000n", "max": "1000n"})))},
 		{"scalar union -> oneof", pbMsg(pbProp("v", false, &protocol.RunType{Kind: protocol.KindUnion, Children: []*protocol.RunType{pbString(), pbNumber()}}))},
 		{"optional via union", pbMsg(pbProp("v", false, &protocol.RunType{Kind: protocol.KindUnion, Children: []*protocol.RunType{pbString(), {Kind: protocol.KindUndefined}}}))},
@@ -114,7 +116,8 @@ func TestProtobuf_OutOfSubset(t *testing.T) {
 		{"regexp field", pbMsg(pbProp("re", false, &protocol.RunType{Kind: protocol.KindRegexp})), "re"},
 		{"nested array of array", pbMsg(pbProp("grid", false, &protocol.RunType{Kind: protocol.KindArray, Child: &protocol.RunType{Kind: protocol.KindArray, Child: pbNumber()}})), "grid[]"},
 		{"bigint unbounded", pbMsg(pbProp("big", false, &protocol.RunType{Kind: protocol.KindBigInt})), "big"},
-		{"typed array (bytes deferred)", pbMsg(pbProp("buf", false, &protocol.RunType{Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable})), "buf"},
+		{"non-serializable class", pbMsg(pbProp("err", false, &protocol.RunType{Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable, ClassRef: &protocol.ClassRef{Builtin: "Error"}})), "err"},
+		{"dataview not bytes", pbMsg(pbProp("dv", false, &protocol.RunType{Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable, ClassRef: &protocol.ClassRef{Builtin: "DataView"}})), "dv"},
 		{"map bad key", pbMsg(pbProp("m", false, mapBadKey)), "m{key}"},
 		{"mixed union", pbMsg(pbProp("v", false, &protocol.RunType{Kind: protocol.KindUnion, Children: []*protocol.RunType{pbString(), pbMsg(pbProp("a", false, pbNumber()))}})), "v"},
 	}

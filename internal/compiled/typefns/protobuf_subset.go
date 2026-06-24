@@ -186,8 +186,11 @@ func (c *protobufChecker) classField(rt *protocol.RunType, path string) *subsetF
 	case protocol.SubKindSet:
 		return c.setClass(rt, path)
 	case protocol.SubKindNonSerializable:
+		if isProtobufBytesClass(rt) {
+			return nil // Uint8Array / Uint8ClampedArray / ArrayBuffer → protobuf bytes
+		}
 		return &subsetFault{path,
-			"non-serializable built-in (typed array / ArrayBuffer / WeakMap / Error); protobuf bytes are deferred"}
+			"non-serializable built-in (WeakMap / Error / DataView / other typed arrays) has no protobuf mapping"}
 	}
 	return &subsetFault{path, "this built-in class has no Protocol Buffers mapping"}
 }
@@ -327,6 +330,23 @@ func (c *protobufChecker) isMapLike(rt *protocol.RunType) bool {
 		return true
 	}
 	return rt.Kind == protocol.KindObjectLiteral && c.isPureIndexSignature(rt)
+}
+
+// isProtobufBytesClass reports whether rt is a binary buffer that maps to
+// protobuf `bytes`: Uint8Array, Uint8ClampedArray, or ArrayBuffer. These are
+// KindClass + SubKindNonSerializable with ClassRef.Builtin carrying the global
+// symbol name (serialize.go promotes non-serializable globals that way). Other
+// typed arrays (Int32Array, …) map to a packed `repeated` scalar (a follow-up);
+// DataView / SharedArrayBuffer stay out-of-subset.
+func isProtobufBytesClass(rt *protocol.RunType) bool {
+	if rt == nil || rt.Kind != protocol.KindClass || rt.SubKind != protocol.SubKindNonSerializable || rt.ClassRef == nil {
+		return false
+	}
+	switch rt.ClassRef.Builtin {
+	case "Uint8Array", "Uint8ClampedArray", "ArrayBuffer":
+		return true
+	}
+	return false
 }
 
 // isPureIndexSignature reports whether an object literal has at least one index
