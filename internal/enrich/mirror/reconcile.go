@@ -48,24 +48,44 @@ func Reconcile(spec Spec, existing []byte, readSource func(string) (string, erro
 	var ops []spliceOp
 	var addedConsts []enrich.NamedConst
 
-	// Property-merge (or queue-as-new / restore-from-carcass) each desired const.
+	// Const-rename pre-pass: a whole type renamed (User → Account) keeps its
+	// structural id (the id is name-independent) but changes its var name +
+	// annotation. Pair each such existing const with the renamed desired const by
+	// their UNIQUE shared id+form and CARRY it — rewrite var/annotation/marker in
+	// place and merge the body — instead of orphaning the old const and
+	// regenerating an empty new one. Renamed consts are excluded from the merge /
+	// append / orphan passes below (which would otherwise double-process them into
+	// overlapping splices).
+	renames := computeConstRenames(index, spec)
+	renamedExisting := map[*constEntry]bool{}
+	renamedDesiredVar := map[string]bool{}
+	for _, rename := range renames {
+		emitConstRename(&ops, index, rename)
+		renamedExisting[rename.existing] = true
+		renamedDesiredVar[renameDesiredVar(rename)] = true
+	}
+
+	// Property-merge (or queue-as-new / restore-from-carcass) each desired const
+	// not already handled as a rename.
 	for _, named := range spec.Consts {
-		if spec.WantFriendly {
+		if spec.WantFriendly && !renamedDesiredVar[named.FriendlyVar] {
 			reconcileOneConst(&ops, &addedConsts, index, named, true)
 		}
-		if spec.WantMock {
+		if spec.WantMock && !renamedDesiredVar[named.MockVar] {
 			reconcileOneConst(&ops, &addedConsts, index, named, false)
 		}
 	}
 
-	// Orphan-const: an existing owned const NOT in the desired set whose source
-	// type is no longer declared → @rtOrphan it (conservatively; see orphanConsts).
-	orphanedEntries := orphanConsts(&ops, index, spec, readSource)
+	// Orphan-const: an existing owned const NOT in the desired set (by name) and
+	// NOT renamed, whose source type is no longer declared → @rtOrphan it
+	// (conservatively; see orphanConsts).
+	orphanedEntries := orphanConsts(&ops, index, spec, readSource, renamedExisting)
 
 	// Breadcrumb clause sync: recompute the type-name list from the surviving
-	// consts (existing minus orphaned, plus added) declared in THIS source file,
-	// replacing only the `{ … }` clause and keeping `from '<src>'` byte-identical.
-	syncBreadcrumbClause(&ops, index, spec, orphanedEntries)
+	// consts (existing minus orphaned/renamed, plus added/renamed-to) declared in
+	// THIS source file, replacing only the `{ … }` clause and keeping
+	// `from '<src>'` byte-identical.
+	syncBreadcrumbClause(&ops, index, spec, orphanedEntries, renamedExisting)
 
 	// Apply the in-place splices first (all index the ORIGINAL bytes), then append
 	// new consts + any cross-file imports they introduce.
@@ -95,7 +115,7 @@ func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrich.NamedConst, index 
 		metaKeys = friendlyReservedKeys
 	}
 
-	existing := findExistingConst(index, named, varName, friendly)
+	existing := findExistingConst(index, varName)
 	if existing == nil {
 		// Restore-on-reappear: if an @rtOrphan carcass exists for this (id, form),
 		// un-comment it (restoring its preserved value) instead of regenerating.
@@ -155,27 +175,142 @@ func refreshMarker(ops *[]spliceOp, raw []byte, existing *constEntry, named enri
 	*ops = append(*ops, spliceOp{start: existing.tokenStart, end: existing.tokenStart, text: desired})
 }
 
-// findExistingConst returns the existing const matching named for the requested
-// friendly/mock form. Match precedence:
-//
-//  1. by (@rtType id, form) — the structural-id match, robust against a
-//     positional var-name swap (friendlyBox vs friendlyBox2) pairing the wrong
-//     consts.
-//  2. by var name — the fallback when the type's structural id CHANGED (a field
-//     added/removed regenerates the id, but the var name friendly<Name> is
-//     stable), or the existing const carried no marker.
-//
-// isFriendly selects the friendly (true) vs mock (false) lookup form.
-func findExistingConst(index *Index, named enrich.NamedConst, varName string, isFriendly bool) *constEntry {
-	if named.TypeID != "" {
-		if entry, ok := index.byTypeForm[typeFormKey(named.TypeID, isFriendly)]; ok {
-			return entry
-		}
-	}
+// findExistingConst returns the existing const with the given var name, or nil.
+// Matching is BY NAME — the emission identity: `friendly<Name>` / `mock<Name>`
+// mirror the source's NAMED types, so two same-shape types A and B (which share a
+// structural id) stay distinct consts. The id is deliberately NOT used to match
+// here (an id match would conflate A and B, and would also match a renamed const
+// that is simultaneously orphaned-by-name → overlapping splices). A const whose
+// name CHANGED (a whole-type rename) is paired separately by computeConstRenames,
+// which uses the shared id purely as the change-detection signal.
+func findExistingConst(index *Index, varName string) *constEntry {
 	if entry, ok := index.byVar[varName]; ok {
 		return entry
 	}
 	return nil
+}
+
+// constRename links an existing const to the desired const it was RENAMED into:
+// same structural id + form, but a new type name (so a new var + annotation).
+type constRename struct {
+	existing *constEntry
+	desired  enrich.NamedConst
+	friendly bool
+}
+
+// renameDesiredVar is the var name the renamed const takes (friendly or mock form).
+func renameDesiredVar(rename constRename) string {
+	if rename.friendly {
+		return rename.desired.FriendlyVar
+	}
+	return rename.desired.MockVar
+}
+
+// computeConstRenames pairs a DROPPED existing const (its var name no longer in
+// the desired set) with an ADDED desired const (its var name not present in the
+// mirror) that share a UNIQUE structural id, per form. A 1:1 id match is a rename:
+// the whole tree is carried and only the name changes. An id shared by >1 drop or
+// >1 add is ambiguous (e.g. two same-shape types renamed at once) and falls
+// through to the safe orphan + append path. Consts with no id never pair.
+func computeConstRenames(index *Index, spec Spec) []constRename {
+	var renames []constRename
+	for _, friendly := range []bool{true, false} {
+		if friendly && !spec.WantFriendly {
+			continue
+		}
+		if !friendly && !spec.WantMock {
+			continue
+		}
+		desiredVars := desiredVarsForForm(spec, friendly)
+		existingVars := existingVarsForForm(index, friendly)
+
+		dropByID := map[string][]*constEntry{}
+		for _, entry := range index.consts {
+			if entry.isFriendly != friendly || entry.typeID == "" || desiredVars[entry.varName] {
+				continue
+			}
+			dropByID[entry.typeID] = append(dropByID[entry.typeID], entry)
+		}
+		addByID := map[string][]enrich.NamedConst{}
+		for _, named := range spec.Consts {
+			if named.TypeID == "" {
+				continue
+			}
+			varName := named.MockVar
+			if friendly {
+				varName = named.FriendlyVar
+			}
+			if existingVars[varName] {
+				continue
+			}
+			addByID[named.TypeID] = append(addByID[named.TypeID], named)
+		}
+		for id, drops := range dropByID {
+			if adds := addByID[id]; len(drops) == 1 && len(adds) == 1 {
+				renames = append(renames, constRename{existing: drops[0], desired: adds[0], friendly: friendly})
+			}
+		}
+	}
+	return renames
+}
+
+// desiredVarsForForm collects the desired var names of one form (friendly/mock).
+func desiredVarsForForm(spec Spec, friendly bool) map[string]bool {
+	out := map[string]bool{}
+	for _, named := range spec.Consts {
+		if friendly {
+			out[named.FriendlyVar] = true
+		} else {
+			out[named.MockVar] = true
+		}
+	}
+	return out
+}
+
+// existingVarsForForm collects the existing const var names of one form.
+func existingVarsForForm(index *Index, friendly bool) map[string]bool {
+	out := map[string]bool{}
+	for _, entry := range index.consts {
+		if entry.isFriendly == friendly {
+			out[entry.varName] = true
+		}
+	}
+	return out
+}
+
+// emitConstRename carries a renamed const: it rewrites the var identifier, the
+// `Wrapper<Name>` annotation type name and the @rtType marker (name + id), then
+// merges the desired body INTO the existing one. A pure rename leaves the body
+// byte-identical (authored values preserved verbatim); a rename that also changed
+// a field merges that field too. No orphan carcass, no fresh empty twin. The
+// emitted ops cover disjoint regions (marker / var / annotation / body fields), so
+// they never overlap.
+func emitConstRename(ops *[]spliceOp, index *Index, rename constRename) {
+	existing := rename.existing
+	named := rename.desired
+	desiredVar, body, metaKeys := named.MockVar, named.Mock, mockReservedKeys
+	if rename.friendly {
+		desiredVar, body, metaKeys = named.FriendlyVar, named.Friendly, friendlyReservedKeys
+	}
+
+	if existing.varNameStart != existing.varNameEnd && existing.varName != desiredVar {
+		*ops = append(*ops, spliceOp{start: existing.varNameStart, end: existing.varNameEnd, text: desiredVar})
+	}
+	if existing.annoNameStart != existing.annoNameEnd && named.TypeName != "" && existing.typeName != named.TypeName {
+		*ops = append(*ops, spliceOp{start: existing.annoNameStart, end: existing.annoNameEnd, text: named.TypeName})
+	}
+	refreshMarker(ops, index.raw, existing, named)
+
+	if existing.body != nil {
+		existingView := newObjectView(string(index.raw), index.sourceFile, existing.body)
+		if desiredView := parseDesiredObject(body); desiredView != nil {
+			mergeObject(ops, existingView, desiredView, mergeCtx{
+				metaKeys:      metaKeys,
+				existingChild: existing.childIDs,
+				desiredChild:  named.ChildIDs,
+			})
+		}
+	}
 }
 
 // queueNewConst records a NamedConst for append exactly once (a friendly+mock

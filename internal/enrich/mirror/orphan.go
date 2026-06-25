@@ -26,7 +26,7 @@ func findCarcass(index *Index, named enrich.NamedConst, friendly bool) *carcassE
 // by the resolved breadcrumb source. Condition (b) is what distinguishes a
 // genuinely-deleted type from one simply not in this gen invocation's closure
 // (another type in the same mirror file) — the latter is left untouched.
-func orphanConsts(ops *[]spliceOp, index *Index, spec Spec, readSource func(string) (string, error)) []*constEntry {
+func orphanConsts(ops *[]spliceOp, index *Index, spec Spec, readSource func(string) (string, error), renamed map[*constEntry]bool) []*constEntry {
 	var orphaned []*constEntry
 	if spec.Out != "" {
 		// Single-file --out: every const across MANY source files lands here, but the
@@ -45,8 +45,8 @@ func orphanConsts(ops *[]spliceOp, index *Index, spec Spec, readSource func(stri
 
 	desiredVars := desiredVarSet(spec)
 	for _, entry := range index.consts {
-		if desiredVars[entry.varName] {
-			continue // still wanted
+		if desiredVars[entry.varName] || renamed[entry] {
+			continue // still wanted by name, or carried by a const rename
 		}
 		typeName := entry.typeName
 		if typeName == "" {
@@ -107,28 +107,39 @@ func orphanConstOp(raw []byte, entry *constEntry) spliceOp {
 // orphaned ranges (covers a name a HAND-AUTHORED const still uses — never drop
 // it, or that const's type breaks). No-op when the recomputed clause equals the
 // current one (idempotent).
-func syncBreadcrumbClause(ops *[]spliceOp, index *Index, spec Spec, orphanedEntries []*constEntry) {
+func syncBreadcrumbClause(ops *[]spliceOp, index *Index, spec Spec, orphanedEntries []*constEntry, renamed map[*constEntry]bool) {
 	if index.breadcrumb == nil || index.breadcrumb.clauseStart == 0 {
 		return
 	}
 
-	orphanedTypeNames := map[string]bool{}
+	// A const's type name leaves the breadcrumb when the const is orphaned OR
+	// renamed (a rename's NEW name arrives via the desired set below). removedEntries
+	// also feeds the ADD-only blanking so the old name in a renamed const's
+	// not-yet-spliced annotation/marker is not mistaken for a live use.
+	removedTypeNames := map[string]bool{}
+	removedEntries := append([]*constEntry{}, orphanedEntries...)
 	for _, entry := range orphanedEntries {
 		if entry.typeName != "" {
-			orphanedTypeNames[entry.typeName] = true
+			removedTypeNames[entry.typeName] = true
 		}
+	}
+	for entry := range renamed {
+		if entry.typeName != "" {
+			removedTypeNames[entry.typeName] = true
+		}
+		removedEntries = append(removedEntries, entry)
 	}
 
 	names := map[string]bool{}
-	// Existing consts' type names, minus orphaned ones.
+	// Existing consts' type names, minus orphaned/renamed ones.
 	for _, entry := range index.consts {
-		if entry.typeName == "" || orphanedTypeNames[entry.typeName] {
+		if entry.typeName == "" || removedTypeNames[entry.typeName] {
 			continue
 		}
 		names[entry.typeName] = true
 	}
 	// Every desired const whose type is declared in THIS source file — added,
-	// restored, or property-merged in place.
+	// restored, renamed-to, or property-merged in place.
 	thisSource := tspath.NormalizePath(spec.SourceFile)
 	for _, named := range spec.Consts {
 		declFile := named.DeclFile
@@ -140,13 +151,13 @@ func syncBreadcrumbClause(ops *[]spliceOp, index *Index, spec Spec, orphanedEntr
 		}
 	}
 	// ADD-only safety: a current breadcrumb name still textually referenced
-	// OUTSIDE the orphaned const ranges (e.g. in a hand-authored `const x:
+	// OUTSIDE the orphaned/renamed const ranges (e.g. in a hand-authored `const x:
 	// SomeType = …` the enrichment owns no entry for) MUST stay — dropping it
 	// breaks that const's type annotation. We only ever ADD here, never remove.
 	// The breadcrumb import statement itself references every name (the `import
 	// type { … }` clause), so blank ITS range too — only USES outside the import
 	// count as live.
-	blanked := orphanRanges(orphanedEntries)
+	blanked := orphanRanges(removedEntries)
 	blanked = append(blanked, [2]int{index.breadcrumb.tokenStart, index.breadcrumb.end})
 	survivingText := textOutsideRanges(index.raw, blanked)
 	for _, name := range index.breadcrumb.names {

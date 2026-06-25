@@ -80,11 +80,12 @@ type model struct {
 	fields   []modelField
 }
 
-// structuralID is the type's @rtType id. It folds in the type NAME plus the
-// SHAPE (field keys + kinds): per the reconciler's design a whole-type rename
-// CHANGES the id (the old const orphans, a new one is appended), and any field
-// add / remove / rename / retype changes it too (so the marker drifts and the
-// reconcile falls back to the var-name match, then field-level rename detection).
+// structuralID is the type's @rtType id — derived from the SHAPE alone (field
+// keys + kinds), NAME-INDEPENDENT, exactly like the real RunType.ID. So a
+// whole-type rename keeps the id (the reconciler pairs the old↔new const by that
+// shared id and carries the tree), while any field add / remove / rename / retype
+// changes it (the marker drifts; the reconcile matches by var name then does
+// field-level rename detection).
 func structuralID(input model) string {
 	pairs := make([]string, len(input.fields))
 	for i, field := range input.fields {
@@ -92,7 +93,7 @@ func structuralID(input model) string {
 	}
 	sort.Strings(pairs)
 	digest := fnv.New32a()
-	digest.Write([]byte(input.typeName + "|" + strings.Join(pairs, ",")))
+	digest.Write([]byte(strings.Join(pairs, ",")))
 	return fmt.Sprintf("t%08x", digest.Sum32())
 }
 
