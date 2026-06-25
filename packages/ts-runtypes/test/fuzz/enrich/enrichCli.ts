@@ -52,14 +52,16 @@ function runCli(cwd: string, args: string[]): CliResult {
   };
 }
 
-/** `gen src/models.ts <Type>` — create-only scaffold of the mirror file. **/
-export function scaffold(fixture: ReconcileFixture, typeName: string): CliResult {
-  return runCli(fixture.dir, ['gen', 'src/models.ts', typeName]);
+/** `gen src/models.ts <Type>` — create-only scaffold of the mirror file.
+ *  `extraArgs` appends flags (e.g. `--cache-dir=` to disable the disk cache). **/
+export function scaffold(fixture: ReconcileFixture, typeName: string, extraArgs: string[] = []): CliResult {
+  return runCli(fixture.dir, ['gen', 'src/models.ts', typeName, ...extraArgs]);
 }
 
-/** `gen src/models.ts <Type> --update` — value-preserving reconcile. **/
-export function update(fixture: ReconcileFixture, typeName: string): CliResult {
-  return runCli(fixture.dir, ['gen', 'src/models.ts', typeName, '--update']);
+/** `gen src/models.ts <Type> --update` — value-preserving reconcile.
+ *  `extraArgs` appends flags (e.g. `--cache-dir=` to disable the disk cache). **/
+export function update(fixture: ReconcileFixture, typeName: string, extraArgs: string[] = []): CliResult {
+  return runCli(fixture.dir, ['gen', 'src/models.ts', typeName, '--update', ...extraArgs]);
 }
 
 /** `gen --prune <mirror>` — strip @rtOrphan/@rtOrphanChild carcasses. **/
