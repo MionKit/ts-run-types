@@ -89,6 +89,15 @@ type constEntry struct {
 	// zero when the const has no marker block (insert before tokenStart instead).
 	markerStart int
 	markerEnd   int
+	// varNameStart / varNameEnd bound the `export const <var>` identifier, and
+	// annoNameStart / annoNameEnd the `FriendlyType<<Name>>` annotation type-name —
+	// both spliced when the const is RENAMED (its type was renamed but keeps its
+	// structural id, so it is matched + carried, not orphaned). The annotation
+	// range is (0,0) when there is no `Wrapper<Name>` annotation.
+	varNameStart  int
+	varNameEnd    int
+	annoNameStart int
+	annoNameEnd   int
 }
 
 // importEntry is one indexed import statement: its declared names + the byte
@@ -241,18 +250,23 @@ func (index *Index) indexVariableStatement(text string, statement *ast.Node) {
 		}
 
 		markerStart, markerEnd := markerBlockRange(text, statement.Pos(), tokenStart)
+		typeName, annoStart, annoEnd := annotationTypeNameRange(declaration, index.sourceFile)
 		entry := &constEntry{
-			varName:     varName,
-			isFriendly:  isFriendly,
-			typeName:    annotationTypeName(declaration),
-			typeID:      typeID,
-			childIDs:    childIDs,
-			fullStart:   statement.Pos(),
-			tokenStart:  tokenStart,
-			end:         statement.End(),
-			body:        body,
-			markerStart: markerStart,
-			markerEnd:   markerEnd,
+			varName:       varName,
+			isFriendly:    isFriendly,
+			typeName:      typeName,
+			typeID:        typeID,
+			childIDs:      childIDs,
+			fullStart:     statement.Pos(),
+			tokenStart:    tokenStart,
+			end:           statement.End(),
+			body:          body,
+			markerStart:   markerStart,
+			markerEnd:     markerEnd,
+			varNameStart:  scanner.GetTokenPosOfNode(nameNode, index.sourceFile, false),
+			varNameEnd:    nameNode.End(),
+			annoNameStart: annoStart,
+			annoNameEnd:   annoEnd,
 		}
 		index.consts = append(index.consts, entry)
 		index.byVar[varName] = entry
@@ -281,27 +295,28 @@ func formLabel(isFriendly bool) string {
 	return "mock"
 }
 
-// annotationTypeName reads the source type name from a const's
-// `FriendlyType<T>` / `MockData<T>` type annotation — the `T` identifier. Empty
-// when the annotation is absent or not a single named type argument.
-func annotationTypeName(declaration *ast.Node) string {
+// annotationTypeNameRange reads the source type name from a const's
+// `FriendlyType<T>` / `MockData<T>` annotation — the `T` identifier — plus its
+// trivia-trimmed byte range (so a rename can splice it). Name is "" and the range
+// (0,0) when the annotation is absent or not a single named type argument.
+func annotationTypeNameRange(declaration *ast.Node, sourceFile *ast.SourceFile) (name string, start, end int) {
 	typeNode := declaration.AsVariableDeclaration().Type
 	if typeNode == nil || !ast.IsTypeReferenceNode(typeNode) {
-		return ""
+		return "", 0, 0
 	}
 	args := typeNode.TypeArguments()
 	if len(args) == 0 {
-		return ""
+		return "", 0, 0
 	}
 	arg := args[0]
 	if arg == nil || !ast.IsTypeReferenceNode(arg) {
-		return ""
+		return "", 0, 0
 	}
-	name := arg.AsTypeReferenceNode().TypeName
-	if name == nil {
-		return ""
+	nameNode := arg.AsTypeReferenceNode().TypeName
+	if nameNode == nil {
+		return "", 0, 0
 	}
-	return name.Text()
+	return nameNode.Text(), scanner.GetTokenPosOfNode(nameNode, sourceFile, false), nameNode.End()
 }
 
 // indexImport records one import statement: the source breadcrumb, the

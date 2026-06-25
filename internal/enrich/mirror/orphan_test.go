@@ -148,7 +148,7 @@ func TestSyncBreadcrumbClause_KeepsHandAuthoredName(t *testing.T) {
 
 	var ops []spliceOp
 	spec := Spec{SourceFile: "/src/models.ts", Consts: nil, WantFriendly: true}
-	syncBreadcrumbClause(&ops, index, spec, []*constEntry{orphanedEntry})
+	syncBreadcrumbClause(&ops, index, spec, []*constEntry{orphanedEntry}, nil)
 
 	merged := mustSplice(t, index.raw, ops)
 	// KeepMe must survive in the breadcrumb (the hand-authored const still uses it).
@@ -190,7 +190,7 @@ func TestSyncBreadcrumbClause_DropsUnusedName(t *testing.T) {
 	// KeepMe survives because friendlyKeepMe (an enrichment const, NOT orphaned)
 	// is still in index.consts; DropMe should drop (its only const is orphaned).
 	spec := Spec{SourceFile: "/src/models.ts", Consts: nil, WantFriendly: true}
-	syncBreadcrumbClause(&ops, index, spec, []*constEntry{dropEntry})
+	syncBreadcrumbClause(&ops, index, spec, []*constEntry{dropEntry}, nil)
 
 	merged := mustSplice(t, index.raw, ops)
 	names, _ := breadcrumbNames(merged)
@@ -235,7 +235,7 @@ func TestOrphanConsts_OutModeSkipsJudgement(t *testing.T) {
 		t.Fatalf("--out mode must not read the breadcrumb source")
 		return "", nil
 	}
-	orphaned := orphanConsts(&ops, index, spec, readSource)
+	orphaned := orphanConsts(&ops, index, spec, readSource, nil)
 	if len(orphaned) != 0 || len(ops) != 0 {
 		t.Errorf("--out mode must skip the orphan judgement; got %d orphaned, %d ops", len(orphaned), len(ops))
 	}
