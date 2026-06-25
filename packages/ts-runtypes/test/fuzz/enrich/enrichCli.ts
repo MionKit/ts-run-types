@@ -86,9 +86,14 @@ export function check(fixture: ReconcileFixture): {result: CliResult; findings: 
 }
 
 /** True when a `gen`/`update`/`prune` run ended in a CONTROLLED way (exit 0,
- *  or a non-zero exit with a real diagnostic on stderr — not a panic/hang). **/
+ *  or a non-zero exit with a real diagnostic on stderr — not a panic/hang/internal bug). **/
 export function isControlled(result: CliResult): boolean {
   if (result.timedOut || result.launchError) return false;
+  // An "internal error" is the reconciler shouting that its own invariant broke
+  // (e.g. "overlapping splice ops … — internal error"). It exits non-zero with a
+  // message, so the panic/diagnostic checks below would WRONGLY pass it — flag it
+  // explicitly. This is what makes renameType's crash observable, not silent.
+  if (/internal error/i.test(result.stderr)) return false;
   if (result.status === 0) return true;
   // A non-zero exit is controlled only if it reported SOMETHING (a diagnostic),
   // not a bare crash. A Go panic prints "panic:" to stderr — treat as uncontrolled.
