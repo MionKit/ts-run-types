@@ -203,7 +203,13 @@ function freshName(ctx: Ctx, prefix: string): string {
   return `${prefix}${ctx.nameSeq++}`;
 }
 
-/** Generate a whole type: a handful of named decls (some recursive) + a root. **/
+/** Generate a whole type: a handful of named decls (some recursive) + a root.
+ *  The decls are generated up front and the root references them only some of the
+ *  time, so a decl the root never reaches would be an ORPHAN declaration — emitted
+ *  into the source but unrelated to the type the createX<root>() site actually
+ *  targets, i.e. pure noise. `pruneUnreachableDecls` drops those, so every
+ *  generated type is a single coherent graph rooted at `root` (the decls that
+ *  survive are exactly the named types the root depends on). **/
 export function genType(opts: GenOptions = DEFAULT_GEN_OPTIONS): GeneratedType {
   const ctx: Ctx = {opts, decls: [], refs: [], nameSeq: 0};
   if (opts.named) {
@@ -211,7 +217,27 @@ export function genType(opts: GenOptions = DEFAULT_GEN_OPTIONS): GeneratedType {
     for (let i = 0; i < declCount; i++) genDecl(ctx);
   }
   const root = genShape(ctx, 0);
-  return {decls: ctx.decls, root};
+  return pruneUnreachableDecls({decls: ctx.decls, root});
+}
+
+/** Drop every declared type the root cannot reach (transitively, through
+ *  decl-to-decl references). Keeps the type coherent: no orphan declarations
+ *  floating beside a root that never uses them. **/
+function pruneUnreachableDecls(gen: GeneratedType): GeneratedType {
+  if (gen.decls.length === 0) return gen;
+  const byName = new Map(gen.decls.map((decl) => [decl.name, decl] as const));
+  const reached = new Set<string>();
+  const rootRefs = new Set<string>();
+  collectRefs(gen.root, rootRefs);
+  const stack = [...rootRefs];
+  while (stack.length) {
+    const name = stack.pop()!;
+    if (reached.has(name) || !byName.has(name)) continue;
+    reached.add(name);
+    for (const ref of declRefs(byName.get(name)!)) stack.push(ref);
+  }
+  if (reached.size === gen.decls.length) return gen; // all referenced — nothing to prune
+  return {decls: gen.decls.filter((decl) => reached.has(decl.name)), root: gen.root};
 }
 
 function genDecl(ctx: Ctx): void {
