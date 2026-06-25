@@ -45,24 +45,24 @@ const TSCONFIG = JSON.stringify({
   include: ['src'],
 });
 
-function renderSource(fields: Field[]): string {
+function renderSource(fields: Field[], typeName = 'User'): string {
   const body = fields.map((field) => `  ${field.key}: ${field.type};`).join('\n');
-  return `export interface User {\n${body}\n}\n`;
+  return `export interface ${typeName} {\n${body}\n}\n`;
 }
 
-function setupProject(fields: Field[]): Project {
+function setupProject(fields: Field[], typeName = 'User'): Project {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-hmr-'));
   fs.mkdirSync(path.join(dir, 'src'));
   fs.writeFileSync(path.join(dir, 'tsconfig.json'), TSCONFIG);
   const src = path.join(dir, 'src', 'models.ts');
-  fs.writeFileSync(src, renderSource(fields));
+  fs.writeFileSync(src, renderSource(fields, typeName));
   const genDir = path.join(dir, 'generated');
   return {dir, src, genDir, mirror: path.join(genDir, 'src', 'models.ts')};
 }
 
 // genUpdate runs the real reconcile (the op a dev-loop save handler fires).
-function genUpdate(project: Project): {status: number; output: string} {
-  const result = spawnSync(BIN, ['gen', project.src, 'User', '--update', '--enrich-dir', project.genDir], {
+function genUpdate(project: Project, typeName = 'User'): {status: number; output: string} {
+  const result = spawnSync(BIN, ['gen', project.src, typeName, '--update', '--enrich-dir', project.genDir], {
     encoding: 'utf8',
   });
   return {status: result.status ?? -1, output: (result.stdout ?? '') + (result.stderr ?? '')};
@@ -71,8 +71,8 @@ function genUpdate(project: Project): {status: number; output: string} {
 // writeSource models one keystroke-burst save: it writes the new source and
 // returns the exact bytes written, so the caller can assert the reconcile left
 // the source untouched (the one-directional invariant).
-function writeSource(project: Project, fields: Field[]): string {
-  const text = renderSource(fields);
+function writeSource(project: Project, fields: Field[], typeName = 'User'): string {
+  const text = renderSource(fields, typeName);
   fs.writeFileSync(project.src, text);
   return text;
 }
@@ -244,6 +244,44 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
       mirror = fs.readFileSync(project.mirror, 'utf8');
       expect(mirror).toContain("heading: {$label: 'AUTH_TITLE'");
       expect(mirror).not.toContain('title:');
+    } finally {
+      fs.rmSync(project.dir, {recursive: true, force: true});
+    }
+  }, 60_000);
+
+  it('renaming the whole interface carries the tree and renames in place (no orphan)', () => {
+    // A whole-type rename keeps the structural id (shape unchanged), so the
+    // reconciler carries the ENTIRE tree and just rewrites the name (var,
+    // annotation, marker, breadcrumb) — no big orphan tree, no empty twin, no
+    // crash. `age` of a different type is along for the ride.
+    const fields: Field[] = [
+      {key: 'firstName', type: 'string'},
+      {key: 'lastName', type: 'string'},
+      {key: 'age', type: 'number'},
+    ];
+    const project = setupProject(fields, 'User');
+    try {
+      expect(genUpdate(project, 'User').status).toBe(0);
+
+      // Author a value on the User mirror.
+      let mirror = fs.readFileSync(project.mirror, 'utf8');
+      fs.writeFileSync(project.mirror, mirror.replace("firstName: {$label: ''", "firstName: {$label: 'AUTH_FN'"));
+
+      // Rename the interface User -> Account (same fields) and reconcile.
+      writeSource(project, fields, 'Account');
+      expect(genUpdate(project, 'Account').status, 'a whole-type rename must not crash').toBe(0);
+
+      mirror = fs.readFileSync(project.mirror, 'utf8');
+      expect(mirror, 'var renamed').toContain('export const friendlyAccount');
+      expect(mirror, 'annotation renamed').toContain('FriendlyType<Account>');
+      expect(mirror, 'authored value carried live').toContain('AUTH_FN');
+      expect(mirror, 'no orphan tree for a rename').not.toContain('@rtOrphan');
+      expect(mirror, 'old const fully gone').not.toContain('friendlyUser');
+
+      // Converged: a further reconcile is a byte-identical no-op.
+      const before = fs.readFileSync(project.mirror, 'utf8');
+      expect(genUpdate(project, 'Account').status).toBe(0);
+      expect(fs.readFileSync(project.mirror, 'utf8'), 'must converge after rename').toBe(before);
     } finally {
       fs.rmSync(project.dir, {recursive: true, force: true});
     }
