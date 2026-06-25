@@ -7,9 +7,12 @@
 > `"name"`,`"email"`,… on every object, binary writes values positionally. This
 > strategy captures most of that payload win in JSON, at native speed, by emitting
 > declared object props as a positional array (a tuple) instead of a keyed object.
-> Sibling of the binary rework in
-> [binary-protobuf-superset.md](binary-protobuf-superset.md) — together they answer
-> "should we drop binary?" (no: make JSON small for RPC, make binary interoperable).
+> Sibling of the binary rework explored in
+> [binary-protobuf-superset.md](../done/binary-protobuf-superset.md) — together they
+> answered "should we drop binary?". The protobuf-interop half was investigated and
+> dropped (will not implement, not worth the cost); the answer landed at: make JSON
+> small for RPC (this strategy), and keep binary only for numeric / byte-heavy
+> payloads.
 
 ## Goal
 
