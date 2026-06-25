@@ -1,10 +1,10 @@
 # Fuzzy / property testing for the enrich-mirror reconciler
 
-**Status: PARTIALLY IMPLEMENTED.** The in-process Go property test (Layer 1) and
-the atomic-write prerequisite (open question 4) have shipped and are green; the
-E2E HMR simulation (Layer 2), the debounce policy (open question 2), and a
-user-extra "keep" marker (open question 5) remain. The original scoping note is
-preserved below the status summary.
+**Status: LARGELY IMPLEMENTED.** The Go property test (Layer 1), the E2E HMR
+test (Layer 2), the atomic-write prerequisite (open question 4) and const-level
+rename carry (open question 1) have shipped and are green. The debounce policy
+(open question 2) and a user-extra "keep" marker (open question 5) remain. The
+original scoping note is preserved below the status summary.
 
 ## What shipped
 
@@ -37,16 +37,41 @@ preserved below the status summary.
   `TestAtomicWriteFile_ReplacesCleanly`; the parse-failure no-write contract is
   already covered by `TestUpdate_FatalOnUnparseableFile`.
 
+- **Layer 2 — E2E HMR test**, in
+  [packages/runtypes-devtools/test/enrich-hmr-e2e.test.ts](../../packages/runtypes-devtools/test/enrich-hmr-e2e.test.ts).
+  It drives the REAL binary's `gen --update` (the op a save handler fires) over a
+  real temp project across consecutive edits, asserting the dev-loop contracts:
+  updates flow types → mirror ONLY (the source is never written), the mirror
+  CONVERGES (a further reconcile is a byte-identical no-op), authored data
+  survives, a field renamed one keystroke at a time carries its value with no
+  orphan trail, and a whole-interface rename carries the tree.
+
+- **Const-level rename carry (open question 1)** — see the resolution below.
+  `computeConstRenames` + `emitConstRename` in
+  [internal/enrich/mirror/reconcile.go](../../internal/enrich/mirror/reconcile.go),
+  with worked examples in
+  [internal/enrich/mirror/reconcile_examples_test.go](../../internal/enrich/mirror/reconcile_examples_test.go).
+
 ## Open-question resolutions
 
-1. **Heuristic rename-detection — IN SCOPE, already implemented.** The merge's
-   `computeRenames` pairs a dropped field with an added one by unique child
-   identity (Tier 1: a `friendly*/mock*` value reference; Tier 2: the `@rtIds`
-   child id) and carries the authored value across the key change. The property
-   test asserts the carry holds across edit sequences. (Discovered while building
-   the fuzzer: the reconciler matches consts by a NAME-DEPENDENT structural id, so
-   a whole-type rename orphans the old const and appends a new one — the fuzzer's
-   model folds the type name into its synthetic id to stay faithful.)
+1. **Rename detection — IN SCOPE, at BOTH field and const level.**
+   - **Field rename** (`name` → `fullName`): the merge's `computeRenames` pairs a
+     dropped field with an added one by unique child identity (Tier 1: a
+     `friendly*/mock*` value reference; Tier 2: the `@rtIds` child id) and carries
+     the authored value across the key change.
+   - **Whole-type rename** (`interface User` → `Account`): the structural id is
+     NAME-INDEPENDENT (shape-only), so `computeConstRenames` pairs the dropped
+     const with the added const by their unique shared id+form and CARRIES the
+     whole tree — rewriting the var, the `FriendlyType<…>` annotation, the
+     `@rtType` marker and the breadcrumb in place — instead of orphaning the old
+     const and regenerating an empty new one.
+
+   This was a REAL bug the fuzzer originally missed: an earlier build matched a
+   renamed const by id AND orphaned it by name, producing overlapping splices that
+   crashed `gen --update`. The fuzzer's `structuralID` is now name-independent
+   (faithful), so `renameType` exercises this path and guards it. Matching is
+   NAME-FIRST (so two same-shape named types stay distinct; the id is purely the
+   change-detection signal). Worked examples live in `reconcile_examples_test.go`.
 2. **Debounce policy — DEFERRED to Layer 2.** A plugin/HMR timing concern the
    in-process test does not exercise; settle it when Layer 2 lands.
 3. **Parse-failure policy — conservative (no-op / keep).** An unparseable MIRROR
@@ -65,11 +90,13 @@ preserved below the status summary.
 
 ## What remains
 
-- **Layer 2 — E2E HMR simulation.** A Vitest driver that boots the plugin in dev
-  mode against a temp project, drives real filesystem edits from a sibling process
-  (so HMR fires for real), and asserts the same invariants on the resulting
-  mirror — the only layer that can catch true races, the debounce window (open
-  question 2), and the concurrent / repeated-fire scenarios listed below.
+- **TRUE concurrent races + the debounce window (open question 2).** The shipped
+  Layer 2 faithfully simulates the dev save-loop (write source → real
+  `gen --update`, repeated) but runs the reconciles sequentially. The reconcile is
+  not yet auto-wired into the Vite plugin's HMR, so two reconciles racing the same
+  file (a save + a format-on-save) and the debounce window are not exercised. The
+  atomic write makes that race safe; firing it for real needs the plugin
+  integration.
 - **A `@rtKeep` (or known family-extra) mechanism** to settle open question 5.
 
 ## Original scoping note
