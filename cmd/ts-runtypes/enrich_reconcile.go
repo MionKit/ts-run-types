@@ -70,10 +70,43 @@ func writeReconciled(mirrorPath string, content []byte) {
 	if err := os.MkdirAll(filepath.Dir(mirrorPath), 0o755); err != nil {
 		fatal("gen --update: mkdir %s: %v", filepath.Dir(mirrorPath), err)
 	}
-	if err := os.WriteFile(mirrorPath, content, 0o644); err != nil {
+	if err := atomicWriteFile(mirrorPath, content, 0o644); err != nil {
 		fatal("gen --update: write %s: %v", mirrorPath, err)
 	}
 	fmt.Printf("gen --update: reconciled %s\n", mirrorPath)
+}
+
+// atomicWriteFile writes content to path via a same-directory temp file then
+// renames it into place, so nothing ever observes a half-written mirror: the
+// file flips old→new in one atomic rename, and a failed write leaves the
+// original byte-identical. This is the prerequisite for racing reconciles (an
+// HMR save and a format-on-save firing together) to stay safe. It mirrors the
+// disk-cache writer in internal/cache/disk.
+func atomicWriteFile(path string, content []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(content); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Chmod(tmpPath, perm); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 // runGenPrune implements `gen --prune [<mirror-file-or-dir>]`: it walks the
@@ -142,7 +175,7 @@ func pruneMirrorFile(mirrorFile string) int {
 	if removed == 0 {
 		return 0
 	}
-	if err := os.WriteFile(mirrorFile, []byte(pruned), 0o644); err != nil {
+	if err := atomicWriteFile(mirrorFile, []byte(pruned), 0o644); err != nil {
 		fatal("gen --prune: write %s: %v", mirrorFile, err)
 	}
 	fmt.Printf("gen --prune: %s — removed %d orphan block(s)\n", mirrorFile, removed)

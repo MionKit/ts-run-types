@@ -45,3 +45,56 @@ func TestUpdate_FatalOnUnparseableFile(t *testing.T) {
 		t.Errorf("the unparseable mirror was modified; got:\n%s", after)
 	}
 }
+
+// TestAtomicWriteFile_ReplacesCleanly verifies the mirror write flips the file
+// old->new with the requested permissions and leaves no temp residue — the
+// property the racing-reconcile path (an HMR save and a format-on-save firing
+// together) depends on so no reader ever observes a torn/half-written mirror.
+func TestAtomicWriteFile_ReplacesCleanly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "model.ts")
+
+	if err := atomicWriteFile(path, []byte("first\n"), 0o644); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	assertMirrorFile(t, path, "first\n", 0o644)
+
+	// Overwrite with longer content: the file must hold the new bytes whole, never
+	// a mix of old and new.
+	if err := atomicWriteFile(path, []byte("second-and-longer\n"), 0o644); err != nil {
+		t.Fatalf("overwrite: %v", err)
+	}
+	assertMirrorFile(t, path, "second-and-longer\n", 0o644)
+
+	// The temp file must be renamed away, never left behind.
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("readdir: %v", err)
+	}
+	for _, entry := range entries {
+		if strings.Contains(entry.Name(), ".tmp") {
+			t.Errorf("atomicWriteFile left a temp file behind: %s", entry.Name())
+		}
+	}
+	if len(entries) != 1 {
+		t.Errorf("expected exactly one file in the dir, got %d", len(entries))
+	}
+}
+
+func assertMirrorFile(t *testing.T, path, want string, perm os.FileMode) {
+	t.Helper()
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if string(got) != want {
+		t.Errorf("content = %q, want %q", got, want)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	if info.Mode().Perm() != perm {
+		t.Errorf("perm = %o, want %o", info.Mode().Perm(), perm)
+	}
+}
