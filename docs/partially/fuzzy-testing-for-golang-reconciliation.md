@@ -52,6 +52,37 @@ original scoping note is preserved below the status summary.
   with worked examples in
   [internal/enrich/mirror/reconcile_examples_test.go](../../internal/enrich/mirror/reconcile_examples_test.go).
 
+- **Layer 2b — the event-driven, two-actor enrich-sync fuzzer**, in
+  [packages/ts-runtypes/test/fuzz/enrich/](../../packages/ts-runtypes/test/fuzz/enrich/)
+  (`enrichModel.ts` + `enrichFuzzRunner.ts` + `enrichFuzz.integration.test.ts`,
+  run via `pnpm run fuzz:enrich`). This is the layer the original idea actually
+  asked for: it fuzzes the OPERATIONS, not just random types. One actor plays the
+  USER editing the source type (addField / removeField / renameField / **renameType**,
+  each driving a real `gen --update`); the other plays the AI/human authoring the
+  mirror (authorFriendly / authorMock, plus malformed-edit negative probes). The
+  two interleave in random, seed-reproducible sequences and after each step the
+  oracles assert nothing authored is lost (R3), the file converges (R1/R6), and
+  every run is controlled (R10 — no crash). `renameType` and the tightened
+  `isControlled` ("internal error" ⇒ uncontrolled) were the additions that made
+  the whole-type-rename crash observable; see the issues subsection below.
+
+## Issues the fuzzers surfaced
+
+The point of fuzzing is to find what the unit tests didn't. What it found:
+
+- **Whole-type rename crashed `gen --update` ("overlapping splice ops … internal
+  error").** Renaming an interface (e.g. `User` → `Account`) made the reconciler
+  match the existing const by structural id AND orphan it by name at the same byte
+  range, producing two overlapping splice ops that aborted the run. First spotted
+  by hand, then pinned in the fuzzer: the event-driven fuzzer's `renameType`
+  command reproduces it (minimal repro **seed `0x849de66a`, 8 events**, ending in
+  `renameType`) on the pre-fix binary, and is green on the fix
+  (`226d3fa`, name-first matching + a const-rename pre-pass; see open question 1).
+  The earlier blind spot was twofold: there was no `renameType` command at all (the
+  type name was a hardcoded constant), and `isControlled` classified a non-zero
+  "internal error" exit as a *controlled* diagnostic, so even a rename that did
+  crash would have slipped past R10. Both are fixed.
+
 ## Open-question resolutions
 
 1. **Rename detection — IN SCOPE, at BOTH field and const level.**
