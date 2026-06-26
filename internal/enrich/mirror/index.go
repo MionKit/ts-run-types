@@ -42,8 +42,12 @@ type Index struct {
 	// value-import lines, in declaration order.
 	valueImports []*importEntry
 	// orphanCarcasses are the `@rtOrphan`-tagged commented-out const blocks (a
-	// type previously orphaned), keyed by `<form>:<typeID>` so a reappearing
-	// desired const can RESTORE its preserved value instead of regenerating it.
+	// type previously orphaned), keyed by VAR NAME (`friendly<Name>` / `mock<Name>`)
+	// so the SAME named type reappearing can RESTORE its preserved value. Keying by
+	// var name (the emission identity), not the structural id, is deliberate: an
+	// id key restored a DIFFERENT same-shape type's const (reviving the old name,
+	// which is re-orphaned next pass → churn) and let two same-shape desired consts
+	// both restore one carcass → overlapping splices.
 	orphanCarcasses map[string]*carcassEntry
 	// Warnings are non-fatal advisories collected while indexing (e.g. a
 	// duplicate @rtType id on two consts of the same form). The CLI prints them
@@ -181,26 +185,24 @@ var orphanCarcassPattern = regexp.MustCompile(`(?s)/\* @rtOrphan (.*?) \*/`)
 
 // indexOrphanCarcasses scans the raw text for `@rtOrphan` block comments (a
 // whole const previously orphaned), recovering each one's preserved inner text
-// and its `@rtType <Name>#<id>` id + friendly/mock form so a reappearing desired
-// const can restore it. Carcasses are NOT statements (they are comments), so
-// this is a text scan, not an AST walk.
+// keyed by its `export const <var>` name so the SAME named type reappearing can
+// restore it. Carcasses are NOT statements (they are comments), so this is a text
+// scan, not an AST walk.
 func (index *Index) indexOrphanCarcasses(text string) {
 	for _, match := range orphanCarcassPattern.FindAllStringSubmatchIndex(text, -1) {
 		blockStart, blockEnd := match[0], match[1]
 		inner := text[match[2]:match[3]]
-		typeID, _ := parseConstMarkers(inner)
-		if typeID == "" {
-			continue
+		varName := carcassVarName(inner)
+		if varName == "" {
+			continue // no recoverable var name → nothing a desired const can match
 		}
-		isFriendly := strings.Contains(inner, "FriendlyType<") || isFriendlyVar(carcassVarName(inner))
-		key := typeFormKey(typeID, isFriendly)
 		// Extend the block range to swallow a single trailing newline so a restore
 		// replaces the carcass line cleanly.
 		end := blockEnd
 		if end < len(text) && text[end] == '\n' {
 			end++
 		}
-		index.orphanCarcasses[key] = &carcassEntry{start: blockStart, end: end, inner: inner}
+		index.orphanCarcasses[varName] = &carcassEntry{start: blockStart, end: end, inner: inner}
 	}
 }
 
@@ -227,7 +229,13 @@ func firstDiagnosticMessage(diagnostics []*ast.Diagnostic) string {
 // statement declares, keyed by its @rtType id (fallback: var name).
 func (index *Index) indexVariableStatement(text string, statement *ast.Node) {
 	tokenStart := scanner.GetTokenPosOfNode(statement, index.sourceFile, false)
-	leadingComment := text[statement.Pos():tokenStart]
+	// A whole-const @rtOrphan carcass sitting ABOVE this const is leading trivia of
+	// it, but it is NOT the const's own marker — start the const's own trivia past
+	// the last such carcass so marker/id detection (and the orphan-fold) never reach
+	// into it. Without this, the first live const after a carcass adopts the
+	// carcass's @rtType as its own, and a marker refresh overwrites the carcass.
+	ownStart := ownTriviaStart(text, statement.Pos(), tokenStart)
+	leadingComment := text[ownStart:tokenStart]
 
 	for _, declaration := range variableDeclarations(statement) {
 		if !ast.IsVariableDeclaration(declaration) {
@@ -249,7 +257,7 @@ func (index *Index) indexVariableStatement(text string, statement *ast.Node) {
 			body = initializer
 		}
 
-		markerStart, markerEnd := markerBlockRange(text, statement.Pos(), tokenStart)
+		markerStart, markerEnd := markerBlockRange(text, ownStart, tokenStart)
 		typeName, annoStart, annoEnd := annotationTypeNameRange(declaration, index.sourceFile)
 		entry := &constEntry{
 			varName:       varName,
@@ -257,7 +265,7 @@ func (index *Index) indexVariableStatement(text string, statement *ast.Node) {
 			typeName:      typeName,
 			typeID:        typeID,
 			childIDs:      childIDs,
-			fullStart:     statement.Pos(),
+			fullStart:     ownStart,
 			tokenStart:    tokenStart,
 			end:           statement.End(),
 			body:          body,
@@ -411,6 +419,30 @@ func trimRange(text string, start, end int) (int, int) {
 
 func isSpaceByte(b byte) bool {
 	return b == ' ' || b == '\t' || b == '\r' || b == '\n'
+}
+
+// ownTriviaStart returns the start of a const's OWN leading trivia within
+// [fullStart, tokenStart): the byte just past the last preceding whole-const
+// `@rtOrphan` carcass block (plus its trailing newline). A carcass that merely sits
+// above a const is leading trivia of that const, but it is a separate commented-out
+// entity — not the const's own marker/comment — so the const's id/marker detection
+// and its orphan-fold start must never reach into it. Returns fullStart when there
+// is no preceding carcass.
+func ownTriviaStart(text string, fullStart, tokenStart int) int {
+	if fullStart < 0 || tokenStart > len(text) || fullStart >= tokenStart {
+		return fullStart
+	}
+	start := fullStart
+	for _, loc := range orphanCarcassPattern.FindAllStringIndex(text[fullStart:tokenStart], -1) {
+		end := fullStart + loc[1]
+		if end < tokenStart && text[end] == '\n' {
+			end++ // swallow the carcass's trailing newline so the next line is own trivia
+		}
+		if end > start {
+			start = end
+		}
+	}
+	return start
 }
 
 // markerBlockRange locates the `@rtType`-bearing `/* … */` block in the

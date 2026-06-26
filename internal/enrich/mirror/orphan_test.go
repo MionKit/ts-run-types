@@ -34,7 +34,7 @@ func breadcrumbNames(text string) ([]string, bool) {
 }
 
 // TestIndexOrphanCarcasses recovers an @rtOrphan carcass's preserved inner text
-// and indexes it by (type id, form) so a reappearing const can restore it.
+// and indexes it by VAR NAME so the same named const reappearing can restore it.
 func TestIndexOrphanCarcasses(t *testing.T) {
 	src := "import type { A } from './a';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n" +
@@ -46,7 +46,7 @@ func TestIndexOrphanCarcasses(t *testing.T) {
 		"}; */\n"
 
 	index := mustParse(t, "/rt/gen/a.ts", src)
-	carcass, ok := index.orphanCarcasses[typeFormKey("bID", true)]
+	carcass, ok := index.orphanCarcasses["friendlyB"]
 	if !ok {
 		t.Fatalf("friendly carcass not indexed; have %d carcasses", len(index.orphanCarcasses))
 	}
