@@ -206,12 +206,28 @@ func renameDesiredVar(rename constRename) string {
 	return rename.desired.MockVar
 }
 
+// constMatchThreshold is the minimum graph-parity score for a rename pairing. A
+// shared whole-graph TypeID (the graph is identical, only the name moved) scores
+// 1.0; below this floor the field-graph overlap is too weak to confidently call
+// it a rename, so the const falls through to the safe orphan + scaffold path.
+const constMatchThreshold = 0.5
+
 // computeConstRenames pairs a DROPPED existing const (its var name no longer in
 // the desired set) with an ADDED desired const (its var name not present in the
-// mirror) that share a UNIQUE structural id, per form. A 1:1 id match is a rename:
-// the whole tree is carried and only the name changes. An id shared by >1 drop or
-// >1 add is ambiguous (e.g. two same-shape types renamed at once) and falls
-// through to the safe orphan + append path. Consts with no id never pair.
+// mirror) when they are the same logical type under a NEW name — so its authored
+// tree carries instead of orphaning.
+//
+// Matching is by GRAPH PARITY, not by whole-graph id alone. A whole type rename
+// keeps its name-independent id, so a pure rename pairs at score 1.0 — but a
+// rename that ALSO reshapes (a field added/dropped/retyped) changes the id, so an
+// id-only matcher would miss it and lose the carry. Instead each (drop, add) pair
+// is scored by how much of its FIELD GRAPH overlaps (constSimilarity), and only
+// STRICT MUTUAL-BEST pairs above the threshold are carried: the add must be the
+// drop's unique best AND the drop the add's unique best. An exact tie at the top
+// (two same-shape types renamed at once — genuinely ambiguous) has no unique best
+// and falls through to the safe orphan + scaffold path: we never GUESS a carry
+// that could mis-attribute an authored value to the wrong renamed type. Consts
+// with no id never pair (no graph to score).
 func computeConstRenames(index *Index, spec Spec) []constRename {
 	var renames []constRename
 	for _, friendly := range []bool{true, false} {
@@ -224,14 +240,14 @@ func computeConstRenames(index *Index, spec Spec) []constRename {
 		desiredVars := desiredVarsForForm(spec, friendly)
 		existingVars := existingVarsForForm(index, friendly)
 
-		dropByID := map[string][]*constEntry{}
+		var drops []*constEntry
 		for _, entry := range index.consts {
 			if entry.isFriendly != friendly || entry.typeID == "" || desiredVars[entry.varName] {
 				continue
 			}
-			dropByID[entry.typeID] = append(dropByID[entry.typeID], entry)
+			drops = append(drops, entry)
 		}
-		addByID := map[string][]enrich.NamedConst{}
+		var adds []enrich.NamedConst
 		for _, named := range spec.Consts {
 			if named.TypeID == "" {
 				continue
@@ -243,15 +259,122 @@ func computeConstRenames(index *Index, spec Spec) []constRename {
 			if existingVars[varName] {
 				continue
 			}
-			addByID[named.TypeID] = append(addByID[named.TypeID], named)
+			adds = append(adds, named)
 		}
-		for id, drops := range dropByID {
-			if adds := addByID[id]; len(drops) == 1 && len(adds) == 1 {
-				renames = append(renames, constRename{existing: drops[0], desired: adds[0], friendly: friendly})
-			}
-		}
+		renames = append(renames, pairRenames(drops, adds, friendly)...)
 	}
 	return renames
+}
+
+// pairRenames selects the strict mutual-best (drop, add) pairs above the match
+// threshold. A pair is a rename iff `add` is the unique highest-scoring add for
+// `drop` AND `drop` is the unique highest-scoring drop for `add` — any tie at
+// either maximum leaves the pair unselected (ambiguous → safe fall-through).
+func pairRenames(drops []*constEntry, adds []enrich.NamedConst, friendly bool) []constRename {
+	if len(drops) == 0 || len(adds) == 0 {
+		return nil
+	}
+	score := make([][]float64, len(drops))
+	for i, drop := range drops {
+		score[i] = make([]float64, len(adds))
+		for k, add := range adds {
+			score[i][k] = constSimilarity(drop, add)
+		}
+	}
+	var renames []constRename
+	for i := range drops {
+		bestAdd, addUnique := strictArgmax(score[i])
+		if bestAdd < 0 || !addUnique || score[i][bestAdd] < constMatchThreshold {
+			continue
+		}
+		column := make([]float64, len(drops))
+		for k := range drops {
+			column[k] = score[k][bestAdd]
+		}
+		if bestDrop, dropUnique := strictArgmax(column); bestDrop != i || !dropUnique {
+			continue
+		}
+		renames = append(renames, constRename{existing: drops[i], desired: adds[bestAdd], friendly: friendly})
+	}
+	return renames
+}
+
+// strictArgmax returns the index of the single greatest value and whether it is a
+// STRICT maximum (no other index ties it). Returns (-1, false) for an empty slice.
+func strictArgmax(values []float64) (int, bool) {
+	if len(values) == 0 {
+		return -1, false
+	}
+	best := 0
+	for i := 1; i < len(values); i++ {
+		if values[i] > values[best] {
+			best = i
+		}
+	}
+	for i := range values {
+		if i != best && values[i] == values[best] {
+			return best, false
+		}
+	}
+	return best, true
+}
+
+// constSimilarity scores how likely a dropped existing const was RENAMED into an
+// added desired const, by GRAPH PARITY rather than whole-graph id alone. A shared
+// whole-graph TypeID (the graph is identical, only the name moved) is a perfect
+// 1.0 fast path. Otherwise the score blends two overlaps of the consts' top-level
+// fields: their NAMES (the human-stable skeleton that survives a reshape) and
+// their name+child-id pairs (precision: a field counts as "the same" only when
+// its child type also matches). The blend keeps a renamed-and-grown type (fields
+// kept, some added) well above the threshold while a coincidental field-name
+// collision between unrelated types (no id agreement) stays below it.
+func constSimilarity(existing *constEntry, desired enrich.NamedConst) float64 {
+	if existing.typeID != "" && existing.typeID == desired.TypeID {
+		return 1.0
+	}
+	names := diceOverlap(topLevelNames(existing.childIDs), topLevelNames(desired.ChildIDs))
+	pairs := diceOverlap(topLevelPairs(existing.childIDs), topLevelPairs(desired.ChildIDs))
+	return 0.5*names + 0.5*pairs
+}
+
+// topLevelNames is the set of top-level (non-dotted) field names from a child-id
+// map. Nested-inline paths (e.g. "profile.email") are a parent field's sub-graph,
+// not a top-level field, so they are excluded.
+func topLevelNames(childIDs map[string]string) map[string]bool {
+	out := map[string]bool{}
+	for path := range childIDs {
+		if !strings.Contains(path, ".") {
+			out[path] = true
+		}
+	}
+	return out
+}
+
+// topLevelPairs is the set of "name#childId" identities for top-level fields — a
+// field matches only when both its name and its child type id agree.
+func topLevelPairs(childIDs map[string]string) map[string]bool {
+	out := map[string]bool{}
+	for path, id := range childIDs {
+		if !strings.Contains(path, ".") {
+			out[path+"#"+id] = true
+		}
+	}
+	return out
+}
+
+// diceOverlap is the Sørensen–Dice coefficient over two sets: 2|A∩B| / (|A|+|B|),
+// and 0 when both are empty (an empty graph carries no identity to match on).
+func diceOverlap(a, b map[string]bool) float64 {
+	if len(a) == 0 && len(b) == 0 {
+		return 0
+	}
+	intersection := 0
+	for key := range a {
+		if b[key] {
+			intersection++
+		}
+	}
+	return 2 * float64(intersection) / float64(len(a)+len(b))
 }
 
 // desiredVarsForForm collects the desired var names of one form (friendly/mock).
