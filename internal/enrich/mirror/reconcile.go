@@ -313,14 +313,14 @@ func emitConstRename(ops *[]spliceOp, index *Index, rename constRename) {
 	}
 }
 
-// queueNewConst records a NamedConst for append exactly once (a friendly+mock
-// pair reconciled separately must not queue it twice).
+// queueNewConst records a NamedConst for append exactly once. Identity is the
+// var-name PAIR (friendly + mock): the same NamedConst is reconciled separately for
+// its friendly and mock forms and must not queue twice, but two DIFFERENT named
+// types that happen to share a structural id (TypeID) are distinct consts and must
+// BOTH append — so the dedup keys on the names, never on the shared id.
 func queueNewConst(addedConsts *[]enrich.NamedConst, named enrich.NamedConst) {
 	for _, existing := range *addedConsts {
-		if existing.TypeID != "" && existing.TypeID == named.TypeID {
-			return
-		}
-		if existing.FriendlyVar == named.FriendlyVar {
+		if existing.FriendlyVar == named.FriendlyVar && existing.MockVar == named.MockVar {
 			return
 		}
 	}

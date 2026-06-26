@@ -8,14 +8,20 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/enrich"
 )
 
-// findCarcass returns the @rtOrphan carcass for a reappearing desired const
-// (matched by id + friendly/mock form), or nil. A restore un-comments it,
-// recovering the author's preserved value.
+// findCarcass returns the @rtOrphan carcass for a reappearing desired const,
+// matched by VAR NAME — the SAME named type (friendly<Name> / mock<Name>) came
+// back, so its preserved value is restored. Matching by var name (not the shared
+// structural id) keeps a DIFFERENT same-shape type from reviving this carcass's
+// old-named const, and stops two same-shape desired consts from both restoring it.
 func findCarcass(index *Index, named enrich.NamedConst, friendly bool) *carcassEntry {
-	if named.TypeID == "" {
+	varName := named.MockVar
+	if friendly {
+		varName = named.FriendlyVar
+	}
+	if varName == "" {
 		return nil
 	}
-	return index.orphanCarcasses[typeFormKey(named.TypeID, friendly)]
+	return index.orphanCarcasses[varName]
 }
 
 // orphanConsts wraps each existing OWNED const that is no longer wanted in an
