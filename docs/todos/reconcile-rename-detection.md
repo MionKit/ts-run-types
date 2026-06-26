@@ -1,8 +1,13 @@
 # Reconcile: more robust type-rename detection when types share a structural id
 
-**Status:** open — the remaining reconciler gap after the whole-const `@rtOrphan`
-carcass handling was made stable (docs/done/reconcile-orphan-const-convergence.md).
-Surfaced by the type-modification fuzzer with `FUZZ_TYPEMOD_RENAMES=1`.
+**Status:** open — a code-identified limitation, NOT currently reproduced by the
+fuzzer. After the whole-const `@rtOrphan` carcass handling was made stable
+(docs/done/reconcile-orphan-const-convergence.md), the fuzzer's rename lane
+(`FUZZ_TYPEMOD_RENAMES=1`) is GREEN across 300 sequences: the rename-carry failures
+seen earlier were the carcass-marker bug, now fixed. The gap below is the residual
+`len(drops)==1 && len(adds)==1` limit, found by reading the code; the random fuzzer
+rarely creates the exact same-shape-rename ambiguity that triggers it, so renames stay
+gated (conservative) pending this work rather than because the fuzzer reddens.
 
 ## The gap
 
@@ -34,14 +39,13 @@ safe but conservative; the ambiguous case needs a real disambiguation strategy.
 
 ## Reproduce
 
-```
-FUZZ_TYPEMOD_RENAMES=1 FUZZ_TYPEMOD_SEQUENCES=300 FUZZ_TYPEMOD_DEBUG=1 pnpm run fuzz:typemod
-```
-
-`RENAMES` enables the `renameRoot` / `renameDecl` ops. Most renames now carry (the
-carcass-stability fixes cleared the common failures); the residual failures are the
-same-shape-ambiguity ones. A failing seed prints a shrunk, replayable reproducer;
-`FUZZ_TYPEMOD_REPLAY=<seed>` replays it and `FUZZ_TYPEMOD_DEBUG=1` dumps the mirrors.
+The random fuzzer does NOT readily hit this (its `FUZZ_TYPEMOD_RENAMES=1` lane is green
+over 300 sequences) — it renames one type at a time and rarely lands the exact
+same-id ambiguity. To pin it, write a TARGETED Go test next to
+[reconcile_examples_test.go](../../internal/enrich/mirror/reconcile_examples_test.go):
+two same-shape types (shared structural id), rename one, and assert its authored value
+carries to the new name rather than orphaning. A fuzzer mutation that deliberately
+renames a type INTO another existing type's shape would also surface it.
 
 ## Fix directions (to design)
 
