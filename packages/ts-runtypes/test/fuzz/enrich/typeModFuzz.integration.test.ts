@@ -8,17 +8,18 @@
 // built (root `pretest` does this); self-skips if absent.
 //
 // The default lane pins, over that full space, the reconciler's contracts (all HOLD
-// since the whole-const @rtOrphan carcass handling was made stable):
+// since the whole-const @rtOrphan carcass handling + graph-parity rename matcher
+// were made stable):
 //   NL  nothing authored is ever lost — exactly the "edit again, nothing lost" property
+//   RC  a ROOT rename (incl. rename + reshape) moves authored labels onto the LIVE
+//       const, not into an @rtOrphan carcass (docs/done/reconcile-rename-detection.md)
 //   R6  a valid edit converges (a second --update is a byte-identical no-op)
 //   R10 every run is controlled (no crash / internal error / hang)
 //   P   a failed corruption reconcile leaves the mirror byte-identical
 // A failure is a real reconciler regression, printed as a shrunk, replayable reproducer
-// (and shrink-confirmed, so transient spawn flakes never fail the suite).
-//
-// Gated behind FUZZ_TYPEMOD_RENAMES=1 (a documented reconciler GAP, not yet pinned):
-//   type-RENAME ops (renameRoot / renameDecl). The const-rename carry is not robust
-//   when types share a structural id — docs/todos/reconcile-rename-detection.md.
+// (and shrink-confirmed, so transient spawn flakes never fail the suite). Type-RENAME
+// ops (renameRoot / renameDecl / renameRootReshaped) run in the default lane now that
+// the const-level graph-parity matcher carries rename + reshape.
 //
 // Knobs: FUZZ_SEED, FUZZ_TYPEMOD_SEQUENCES, FUZZ_TYPEMOD_MAXSTEPS,
 //        FUZZ_TYPEMOD_REPLAY=<seed>  (re-run one failing sequence verbatim),

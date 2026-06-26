@@ -32,11 +32,6 @@ export interface ModifyOptions {
   // When true the switch may pick a corruption that yields unparseable / non
   // type-checking source. When false every edit stays valid TypeScript.
   allowInvalid: boolean;
-  // When true, allow TYPE-RENAME operations (`renameRoot`, `renameDecl`). OFF by
-  // default — conservatively, pending the advanced rename-detection work: the
-  // const-rename carry has a known same-structural-id ambiguity limit
-  // (docs/todos/reconcile-rename-detection.md). The random rename lane is green today.
-  renames?: boolean;
 }
 
 // The two anchor fields rootGeneratedType always adds (typed string / number, on the
@@ -390,14 +385,60 @@ const addDecl: ValidOp = {
   },
 };
 
-// The default operation set: field edits plus `addDecl` (introducing a named
-// sub-const — its orphan handling is now stable, so adding/dereferencing one no
-// longer churns or crashes).
-const VALID_OPS: ValidOp[] = [renameProp, addProp, deleteProp, changeLeaf, wrapLeaf, toggleOptional, addDecl];
+// Rename the ROOT and reshape it in ONE step (rename + add a fresh prop). The next
+// reconcile sees a NEW var name AND a NEW structural id (the added field changed the
+// graph), so neither the name match nor the whole-graph-id match fires — only the
+// const-level GRAPH-PARITY matcher can carry the authored tree across. This is the
+// rename+reshape case the old id-only matcher lost (it orphaned the const and
+// scaffolded an empty twin); it now carries, asserted by the runner's RC oracle.
+const renameRootReshaped: ValidOp = {
+  name: 'renameRootReshaped',
+  can: (rooted) => {
+    const root = rooted.decls.find((decl) => decl.name === rooted.rootName);
+    return !!root && 'props' in root;
+  },
+  apply(rooted, rng) {
+    const oldName = rooted.rootName;
+    const newName = freshTypeName(rooted.decls, rng);
+    const root = rooted.decls.find((decl) => decl.name === oldName);
+    if (root) root.name = newName;
+    renameRefs(rooted.decls, oldName, newName);
+    rooted.rootName = newName;
+    // Reshape by ADDING a prop (never dropping one) so every existing field — and
+    // its authored label — must carry; only the genuinely new field is scaffolded.
+    let added = '';
+    const renamed = rooted.decls.find((decl) => decl.name === newName);
+    if (renamed && 'props' in renamed) {
+      const propName = freshPropName(renamed.props, rng);
+      renamed.props.push({
+        name: propName,
+        optional: chance(rng, 0.3),
+        readonly: false,
+        method: false,
+        shape: randomSmallShape(rng),
+      });
+      added = `+${propName}`;
+    }
+    return `renameRootReshaped ${oldName}→${newName}${added}`;
+  },
+};
 
-// Type-RENAME ops — gated behind `renames`. The const-rename carry is not yet robust
-// when types share a structural id; see docs/todos/reconcile-rename-detection.md.
-const RENAME_OPS: ValidOp[] = [renameRoot, renameDecl];
+// The default operation set: field edits, `addDecl` (introducing a named sub-const),
+// and the TYPE-RENAME ops. Renames carry across the const-level graph-parity matcher
+// (docs/done/reconcile-rename-detection.md); the carry — pure rename AND rename +
+// reshape — is asserted on every run by the runner's RC oracle.
+const VALID_OPS: ValidOp[] = [
+  renameProp,
+  addProp,
+  deleteProp,
+  changeLeaf,
+  wrapLeaf,
+  toggleOptional,
+  addDecl,
+  renameRoot,
+  renameDecl,
+  renameRootReshaped,
+];
 
 // --- the invalid operations (text-level corruptions) ---------------------------
 
@@ -470,8 +511,7 @@ export function modifyType(rooted: RootedType, rng: () => number, opts: ModifyOp
     }
     // fall through to a valid edit if no corruption applied
   }
-  const pool = opts.renames ? [...VALID_OPS, ...RENAME_OPS] : VALID_OPS;
-  const applicable = pool.filter((op) => op.can(rooted));
+  const applicable = VALID_OPS.filter((op) => op.can(rooted));
   const op = pick(applicable, rng);
   const label = op.apply(rooted, rng);
   return {rooted, rawSource: null, editClass: 'valid', op: label};
