@@ -32,13 +32,12 @@ export interface ModifyOptions {
   // When true the switch may pick a corruption that yields unparseable / non
   // type-checking source. When false every edit stays valid TypeScript.
   allowInvalid: boolean;
-  // When true, allow the operations that exercise the reconciler's fragile type-level
-  // paths: renaming a type (`renameRoot`, `renameDecl`) — whose const-rename carry is
-  // unreliable across repeated edits — and introducing named decls (`addDecl`), whose
-  // sub-consts orphan and are mishandled. All can lose authored content / churn / crash
-  // (docs/todos/reconcile-orphan-const-convergence.md). OFF by default so the standard
-  // lane stays on field-level edits over inline-only types, where nothing is ever lost.
-  adversarial?: boolean;
+  // When true, allow TYPE-RENAME operations (`renameRoot`, `renameDecl`). The
+  // reconciler's const-rename carry is not yet robust when several types share a
+  // structural id (the rename-disambiguation gap, docs/todos/reconcile-rename-detection.md),
+  // so these stay OFF by default to keep the standard lane green; turning them on
+  // hunts that gap.
+  renames?: boolean;
 }
 
 // The two anchor fields rootGeneratedType always adds (typed string / number, on the
@@ -392,17 +391,14 @@ const addDecl: ValidOp = {
   },
 };
 
-// Field-level operations — over an inline-only type these only ever mutate fields of
-// the single root const, which the reconciler merges field-by-field without ever
-// dropping an UNtouched field. They never rename a type or add a named decl, so no
-// authored anchor is lost.
-const VALID_OPS: ValidOp[] = [renameProp, addProp, deleteProp, changeLeaf, wrapLeaf, toggleOptional];
+// The default operation set: field edits plus `addDecl` (introducing a named
+// sub-const — its orphan handling is now stable, so adding/dereferencing one no
+// longer churns or crashes).
+const VALID_OPS: ValidOp[] = [renameProp, addProp, deleteProp, changeLeaf, wrapLeaf, toggleOptional, addDecl];
 
-// Type-level / named-decl ops — gated behind `adversarial`. renameRoot / renameDecl
-// rename a type (the const-rename carry is unreliable across repeated edits); addDecl
-// introduces an orphan-prone sub-const. All are documented reconciler gaps
-// (docs/todos/reconcile-orphan-const-convergence.md).
-const ADVERSARIAL_OPS: ValidOp[] = [renameRoot, renameDecl, addDecl];
+// Type-RENAME ops — gated behind `renames`. The const-rename carry is not yet robust
+// when types share a structural id; see docs/todos/reconcile-rename-detection.md.
+const RENAME_OPS: ValidOp[] = [renameRoot, renameDecl];
 
 // --- the invalid operations (text-level corruptions) ---------------------------
 
@@ -475,56 +471,11 @@ export function modifyType(rooted: RootedType, rng: () => number, opts: ModifyOp
     }
     // fall through to a valid edit if no corruption applied
   }
-  const pool = opts.adversarial ? [...VALID_OPS, ...ADVERSARIAL_OPS] : VALID_OPS;
+  const pool = opts.renames ? [...VALID_OPS, ...RENAME_OPS] : VALID_OPS;
   const applicable = pool.filter((op) => op.can(rooted));
   const op = pick(applicable, rng);
   const label = op.apply(rooted, rng);
   return {rooted, rawSource: null, editClass: 'valid', op: label};
-}
-
-// --- inline-only projection ----------------------------------------------------
-
-// Rewrite a shape so it uses NO construct that earns its own mirror const: Map / Set
-// become arrays, Promise unwraps, function / ref collapse to `string`. Primitives,
-// arrays, tuples, objects, unions, intersections, records, Date, RegExp stay. The
-// result reconciles as a SINGLE root const (no sub-consts ⇒ no whole-const orphans).
-function inlineShape(shape: TypeShape): TypeShape {
-  switch (shape.kind) {
-    case 'map':
-      return {kind: 'array', elem: {kind: 'tuple', elems: [inlineShape(shape.key), inlineShape(shape.value)]}};
-    case 'set':
-      return {kind: 'array', elem: inlineShape(shape.elem)};
-    case 'promise':
-      return inlineShape(shape.value);
-    case 'function':
-    case 'ref':
-      return {kind: 'string'};
-    case 'array':
-      return {kind: 'array', elem: inlineShape(shape.elem)};
-    case 'record':
-      return {kind: 'record', value: inlineShape(shape.value)};
-    case 'tuple':
-      return {kind: 'tuple', elems: shape.elems.map(inlineShape)};
-    case 'union':
-      return {kind: 'union', members: shape.members.map(inlineShape)};
-    case 'intersection':
-      return {kind: 'intersection', members: shape.members.map(inlineShape)};
-    case 'object':
-      return {
-        kind: 'object',
-        props: shape.props.map((prop) => ({...prop, shape: inlineShape(prop.shape)})),
-        index: shape.index ? inlineShape(shape.index) : undefined,
-        indexKey: shape.indexKey,
-      };
-    default:
-      return shape;
-  }
-}
-
-// Project a generated type to its inline-only form: drop all named decls and inline
-// the root. The default fuzzer lane uses this so its types reconcile as one const.
-export function inlineGeneratedType(gen: GeneratedType): GeneratedType {
-  return {decls: [], root: inlineShape(gen.root)};
 }
 
 // --- rooting a generated type --------------------------------------------------
