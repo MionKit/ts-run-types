@@ -11,28 +11,22 @@
 // Frame-free (pure seed → report) so it runs under Vitest AND as a soak, and
 // deterministic so a failing seed prefix-shrinks to the shortest reproducer.
 //
-// Pinned by the default lane (these HOLD):
+// Pinned by the default lane over the FULL named type space + mid-edit corruptions
+// (these HOLD — the whole-const @rtOrphan carcass handling is now stable):
 //   NL  nothing-lost every authored sentinel survives a valid edit — live, carried
 //                    across a rename, or preserved verbatim in an @rtOrphanChild carcass
+//   R6  convergence  after a valid edit a second `--update` is a byte-identical no-op
 //   R10 totality     every `gen --update` is controlled (no panic / internal error / hang)
 //   P   parse-safety a failed corruption reconcile leaves the mirror byte-identical
-// Hunted only under FUZZ_TYPEMOD_STRICT (a documented reconciler GAP, not pinned):
-//   R6  convergence  a second `--update` is a byte-identical no-op — the reconciler
-//                    does NOT robustly converge on complex repeated edits (orphan
-//                    churn / accretion); see docs/todos/reconcile-orphan-const-convergence.md
+// Gated behind FUZZ_TYPEMOD_RENAMES (a documented reconciler GAP, not pinned):
+//   type-RENAME carry when several types share a structural id; see
+//   docs/todos/reconcile-rename-detection.md
 
 import {existsSync} from 'node:fs';
 import {makeFixture, setSource, editMirror, readMirror, type ReconcileFixture} from '../../util/enrichReconcile.ts';
 import {withSeededRandom, mixSeed} from '../seededRng.ts';
 import {genType, type GenOptions} from '../typeGen.ts';
-import {
-  ANCHOR_FIELDS,
-  inlineGeneratedType,
-  modifyType,
-  renderRootedSource,
-  rootGeneratedType,
-  type RootedType,
-} from '../typeModify.ts';
+import {modifyType, renderRootedSource, rootGeneratedType, type RootedType} from '../typeModify.ts';
 import {scaffold, update, isControlled, type CliResult} from './enrichCli.ts';
 
 // Deep but bounded — serialisable only (the reconciler scaffolds authorable
@@ -46,25 +40,16 @@ const MOD_GEN_OPTIONS: GenOptions = {
   named: true,
 };
 
+// Fraction of steps that fire a mid-edit source CORRUPTION (truncate a literal, drop
+// a brace, splice garbage). tsgo error-recovers them; the reconciler handles the
+// recovered-garbage reconcile without crashing or losing content (the whole-const
+// @rtOrphan carcass handling is now stable).
 const STEP_INVALID_CHANCE = 0.35;
-// Enable the mid-edit source CORRUPTIONS (truncate a literal, drop a brace, splice
-// garbage). OFF by default. tsgo aggressively error-RECOVERS them into arbitrary
-// types; over the inline-only default space that stays controlled, but combined with
-// FUZZ_TYPEMOD_STRICT (the named space) reconciling the recovered garbage can hit a
-// real "overlapping splice ops — internal error" crash
-// (docs/todos/reconcile-orphan-const-convergence.md). The core lane fuzzes VALID
-// operations; `FUZZ_TYPEMOD_INVALID=1` turns the corruptions on.
-const ALLOW_INVALID = !!process.env.FUZZ_TYPEMOD_INVALID;
-// `FUZZ_TYPEMOD_STRICT=1` turns on the full hunt, four things at once: keep the full
-// NAMED type space (no inline projection), enable the ADVERSARIAL ops (renameRoot /
-// renameDecl / addDecl), author EVERY label (incl. orphan-prone sub-consts), and
-// assert R6 convergence. The reconciler mishandles whole-const `@rtOrphan` carcasses
-// (churn, and a later reconcile can DELETE one, losing its label), does not reliably
-// carry a type rename, and does not converge on complex repeated edits — so STRICT
-// reproduces those documented bugs (docs/todos/reconcile-orphan-const-convergence.md).
-// Off by default: the standard lane edits fields of an INLINE-only type and authors
-// the stable ANCHOR labels, asserting NL + R10, which hold, and is green.
-const STRICT = !!process.env.FUZZ_TYPEMOD_STRICT;
+// `FUZZ_TYPEMOD_RENAMES=1` enables the TYPE-RENAME ops (renameRoot / renameDecl). The
+// const-rename carry is not yet robust when types share a structural id (the
+// rename-disambiguation gap, docs/todos/reconcile-rename-detection.md), so they are
+// OFF by default to keep the standard lane green; turning them on hunts that gap.
+const RENAMES = !!process.env.FUZZ_TYPEMOD_RENAMES;
 
 export type ModRuleId = 'R10' | 'P' | 'R6' | 'NL';
 
@@ -94,32 +79,19 @@ function why(result: CliResult): string {
 // them across structural edits).
 //
 //   deep=false (default lane): author ONLY the two anchor fields' own labels. They
-//     sit on the root const (which never orphans) and the modifier never deletes /
-//     renames them, so they MUST survive every edit elsewhere. This invariant HOLDS.
-//   deep=true (STRICT lane): author EVERY label, including those on orphan-prone
-//     sub-consts (Map / Set / enum / named types). These do NOT all survive — a
-//     whole-const @rtOrphan carcass can be deleted, losing its label — so deep mode
-//     reproduces the documented data-loss gap.
-function authorLabels(fixture: ReconcileFixture, deep: boolean): string[] {
+// Author EVERY scaffolded `$label` (including those on Map / Set / enum / named
+// sub-consts) with a unique sentinel, and return them. With the carcass handling
+// stable, all of these survive every edit — live, carried, or parked in a carcass —
+// so the full set is the nothing-lost tracer.
+function authorLabels(fixture: ReconcileFixture): string[] {
   const sentinels: string[] = [];
-  editMirror(fixture, (text) => {
-    if (deep) {
-      return text.replace(/\$label: ''/g, () => {
-        const sentinel = `LBL_${sentinels.length}_x`;
-        sentinels.push(sentinel);
-        return `$label: '${sentinel}'`;
-      });
-    }
-    let out = text;
-    for (const field of ANCHOR_FIELDS) {
-      const target = `${field}: {$label: ''`;
-      if (!out.includes(target)) continue;
-      const sentinel = `LBL_${field}_x`;
+  editMirror(fixture, (text) =>
+    text.replace(/\$label: ''/g, () => {
+      const sentinel = `LBL_${sentinels.length}_x`;
       sentinels.push(sentinel);
-      out = out.replace(target, `${field}: {$label: '${sentinel}'`);
-    }
-    return out;
-  });
+      return `$label: '${sentinel}'`;
+    })
+  );
   return sentinels;
 }
 
@@ -137,11 +109,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
 
   withSeededRandom(seed, () => {
     const gen = genType(MOD_GEN_OPTIONS);
-    // Default lane: project to inline-only (no Map / Set / named sub-types ⇒ a single
-    // root const ⇒ no whole-const orphans). STRICT keeps the full named space to hunt
-    // the orphan bugs.
-    const base = STRICT ? gen : inlineGeneratedType(gen);
-    let rooted: RootedType = rootGeneratedType(base, seed >>> 0, Math.random);
+    let rooted: RootedType = rootGeneratedType(gen, seed >>> 0, Math.random);
 
     const fixture = makeFixture(`tm-${seed >>> 0}`, renderRootedSource(rooted));
     const scaffolded = scaffold(fixture, rooted.rootName);
@@ -157,7 +125,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
       skipped = true; // scaffold produced no mirror (e.g. an empty desired set)
       return;
     }
-    const sentinels = authorLabels(fixture, STRICT);
+    const sentinels = authorLabels(fixture);
     if (sentinels.length === 0) {
       skipped = true; // nothing authorable — a degenerate root, skip
       return;
@@ -169,8 +137,8 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
 
     try {
       for (let step = 0; step < maxSteps; step++) {
-        const allowInvalid = ALLOW_INVALID && Math.random() < STEP_INVALID_CHANCE;
-        const result = modifyType(rooted, Math.random, {allowInvalid, adversarial: STRICT});
+        const allowInvalid = Math.random() < STEP_INVALID_CHANCE;
+        const result = modifyType(rooted, Math.random, {allowInvalid, renames: RENAMES});
         rooted = result.rooted;
         log.push(result.op);
 
@@ -250,31 +218,22 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
           record('NL', result.op, step, `LOST ${lost.length} authored label(s): ${lost.slice(0, 4).join(', ')}`);
           break;
         }
-        // R6 — convergence (a second --update is a byte-identical no-op) is a KNOWN
-        // RECONCILER GAP on complex repeated edits, NOT pinned by the default lane.
-        // The reconciler does not robustly converge: a whole-const @rtOrphan carcass
-        // reorders / double-splices, and an @rtOrphanChild carcass can ACCRETE another
-        // copy across passes (docs/todos/reconcile-orphan-const-convergence.md). What
-        // DOES hold — and is what the user actually cares about — is NL: nothing
-        // authored is ever lost, even when the file churns. So the default lane pins
-        // NL + R10; `FUZZ_TYPEMOD_STRICT=1` additionally asserts R6 to hunt the churn.
-        if (STRICT) {
-          const again = update(fixture, rooted.rootName);
-          if (!isControlled(again)) {
-            record('R10', `${result.op}:again`, step, `\`${again.argv.join(' ')}\` ${why(again)}`);
-            break;
+        // R6 — a valid edit converges: a second --update is a byte-identical no-op.
+        const again = update(fixture, rooted.rootName);
+        if (!isControlled(again)) {
+          record('R10', `${result.op}:again`, step, `\`${again.argv.join(' ')}\` ${why(again)}`);
+          break;
+        }
+        const settled = readMirror(fixture);
+        if (settled !== after) {
+          if (process.env.FUZZ_TYPEMOD_DEBUG) {
+            console.error(
+              `\n===== R6 DEBUG (${result.op}) =====\n--- source ---\n${source}\n` +
+                `--- after 1st update ---\n${after}\n--- after 2nd update ---\n${settled}\n=====`
+            );
           }
-          const settled = readMirror(fixture);
-          if (settled !== after) {
-            if (process.env.FUZZ_TYPEMOD_DEBUG) {
-              console.error(
-                `\n===== R6 DEBUG (${result.op}) =====\n--- source ---\n${source}\n` +
-                  `--- after 1st update ---\n${after}\n--- after 2nd update ---\n${settled}\n=====`
-              );
-            }
-            record('R6', result.op, step, 'a second --update was NOT a byte-identical no-op (not a fixed point)');
-            break;
-          }
+          record('R6', result.op, step, 'a second --update was NOT a byte-identical no-op (not a fixed point)');
+          break;
         }
       }
     } catch (err) {
