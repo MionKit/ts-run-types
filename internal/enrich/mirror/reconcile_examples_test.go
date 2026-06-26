@@ -181,6 +181,91 @@ func TestExample_TwoSameShapeRenames_ambiguousFallsThrough(t *testing.T) {
 	requireContains(t, out, "x of B")                                  // B's value preserved in its carcass
 }
 
+// Rename a NOMINAL type (an enum): its id is name-dependent so it CHANGES on
+// rename, and its const has no field graph to score — neither the id fast-path nor
+// graph-parity can pair it. The REFERENTIAL signal does: the parent field that
+// referenced the old enum now references the new one (its @rtIds child id
+// repointed e0old→e0new), concrete evidence of the rename, so the authored enum
+// label carries onto the live renamed const instead of being lost to an @rtOrphan.
+func TestExample_RenameEnum_carriesByReferentialLink(t *testing.T) {
+	existing := "import type { Holder, E0 } from '../src';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+		"/** @rtType E0#e0old */\n" +
+		"export const friendlyE0: FriendlyType<E0> = {$label: 'A status enum', $errors: {type: ''}};\n\n" +
+		"/** @rtType Holder#holdId @rtIds {kind: e0old} */\n" +
+		"export const friendlyHolder: FriendlyType<Holder> = {$label: 'Holder', kind: friendlyE0};\n"
+
+	spec := friendlySpec(
+		enrich.NamedConst{
+			TypeName: "Status", DeclFile: "/src.ts", FriendlyVar: "friendlyStatus",
+			Friendly: "{$label: '', $errors: {type: ''}}", TypeID: "e0new", // enum id changed with the rename
+		},
+		enrich.NamedConst{
+			TypeName: "Holder", DeclFile: "/src.ts", FriendlyVar: "friendlyHolder",
+			Friendly: "{$label: '', kind: friendlyStatus}",
+			TypeID:   "holdId", ChildIDs: map[string]string{"kind": "e0new"}, // field repointed to the new id
+		},
+	)
+	out := mustReconcile(t, spec, existing, sourceDeclaring("Holder", "Status"))
+
+	requireContains(t, out, "export const friendlyStatus: FriendlyType<Status> = {$label: 'A status enum'") // carried onto the LIVE const
+	requireContains(t, out, "@rtType Status#e0new")                                                         // marker renamed to the new id
+	requireMissing(t, out, "@rtType E0#e0old")                                                              // old enum not orphaned (it was renamed)
+}
+
+// Soundness: two unrelated enums deleted and two unrelated enums added, with NO
+// parent field repointing between them. There is no referential evidence and no
+// field graph, so the matcher does NOT guess — it falls through, preserving each
+// authored label in its carcass rather than mis-carrying onto an unrelated enum.
+func TestExample_RenameEnum_noReferentialLink_fallsThrough(t *testing.T) {
+	existing := "import type { E1, E2 } from '../src';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+		"/** @rtType E1#e1 */\n" +
+		"export const friendlyE1: FriendlyType<E1> = {$label: 'enum one', $errors: {type: ''}};\n\n" +
+		"/** @rtType E2#e2 */\n" +
+		"export const friendlyE2: FriendlyType<E2> = {$label: 'enum two', $errors: {type: ''}};\n"
+
+	spec := friendlySpec(
+		enrich.NamedConst{TypeName: "E3", DeclFile: "/src.ts", FriendlyVar: "friendlyE3", Friendly: "{$label: '', $errors: {type: ''}}", TypeID: "e3"},
+		enrich.NamedConst{TypeName: "E4", DeclFile: "/src.ts", FriendlyVar: "friendlyE4", Friendly: "{$label: '', $errors: {type: ''}}", TypeID: "e4"},
+	)
+	out := mustReconcile(t, spec, existing, sourceDeclaring("E3", "E4"))
+
+	requireContains(t, out, "@rtOrphan") // E1/E2 orphaned (preserved)...
+	requireContains(t, out, "enum one")  // ...labels kept in carcasses, not mis-carried
+	requireContains(t, out, "enum two")
+	requireContains(t, out, "export const friendlyE3: FriendlyType<E3> = {$label: ''") // E3/E4 scaffolded fresh
+	requireContains(t, out, "export const friendlyE4: FriendlyType<E4> = {$label: ''")
+}
+
+// Soundness: one enum E0 is referenced by TWO fields that repoint to DIFFERENT new
+// enums (fieldA→E1, fieldB→E2). The referential signal links E0 to both, so neither
+// is a unique best — strict mutual-best ties and falls through. E0's label is
+// preserved in its carcass, and neither E1 nor E2 mis-carries it.
+func TestExample_RenameEnum_ambiguousRepoint_fallsThrough(t *testing.T) {
+	existing := "import type { HolderA, HolderB, E0 } from '../src';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+		"/** @rtType E0#e0 */\n" +
+		"export const friendlyE0: FriendlyType<E0> = {$label: 'shared enum', $errors: {type: ''}};\n\n" +
+		"/** @rtType HolderA#ha @rtIds {fieldA: e0} */\n" +
+		"export const friendlyHolderA: FriendlyType<HolderA> = {$label: '', fieldA: friendlyE0};\n\n" +
+		"/** @rtType HolderB#hb @rtIds {fieldB: e0} */\n" +
+		"export const friendlyHolderB: FriendlyType<HolderB> = {$label: '', fieldB: friendlyE0};\n"
+
+	spec := friendlySpec(
+		enrich.NamedConst{TypeName: "E1", DeclFile: "/src.ts", FriendlyVar: "friendlyE1", Friendly: "{$label: '', $errors: {type: ''}}", TypeID: "e1"},
+		enrich.NamedConst{TypeName: "E2", DeclFile: "/src.ts", FriendlyVar: "friendlyE2", Friendly: "{$label: '', $errors: {type: ''}}", TypeID: "e2"},
+		enrich.NamedConst{TypeName: "HolderA", DeclFile: "/src.ts", FriendlyVar: "friendlyHolderA", Friendly: "{$label: '', fieldA: friendlyE1}", TypeID: "ha", ChildIDs: map[string]string{"fieldA": "e1"}},
+		enrich.NamedConst{TypeName: "HolderB", DeclFile: "/src.ts", FriendlyVar: "friendlyHolderB", Friendly: "{$label: '', fieldB: friendlyE2}", TypeID: "hb", ChildIDs: map[string]string{"fieldB": "e2"}},
+	)
+	out := mustReconcile(t, spec, existing, sourceDeclaring("HolderA", "HolderB", "E1", "E2"))
+
+	requireContains(t, out, "@rtOrphan")                                               // E0 orphaned (ambiguous, not guessed)
+	requireContains(t, out, "shared enum")                                             // E0's label preserved in its carcass
+	requireContains(t, out, "export const friendlyE1: FriendlyType<E1> = {$label: ''") // E1 scaffolded empty — no mis-carry
+	requireContains(t, out, "export const friendlyE2: FriendlyType<E2> = {$label: ''") // E2 scaffolded empty — no mis-carry
+}
+
 // Change a field's TYPE (age: number -> string). The old value can't carry to a
 // different type, so it is preserved verbatim in a prunable @rtOrphanChild carcass
 // and a fresh skeleton replaces it. This is preservation, not garbage — `gen
@@ -325,6 +410,37 @@ func TestExample_NewTypeSameShapeAsCarcass_doesNotReviveOldConst(t *testing.T) {
 	out2 := mustReconcile(t, spec, out, src)
 	if out != out2 {
 		t.Errorf("not a fixed point — the carcass churned across a second --update:\n--- first ---\n%s\n--- second ---\n%s", out, out2)
+	}
+}
+
+// A type whose structural id CHANGED while it was orphaned (e.g. a Map whose
+// element type was edited) restores from its carcass with a REFRESHED marker in
+// ONE pass: the stale id the carcass carried is corrected on restore, not left for
+// a second --update to fix (which was an R6 non-convergence). The authored body
+// still carries; a same-id reappear stays byte-identical (next test).
+func TestExample_RestoreCarcass_refreshesStaleMarker(t *testing.T) {
+	existing := "import type { Map } from '../src';\n" +
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+		"/* @rtOrphan /** @rtType Map#oldId @rtIds {$values: oldVal} *\\/\n" +
+		"export const friendlyMap: FriendlyType<Map> = {$label: 'Authored map', $values: {$label: 'a value'}}; */\n"
+
+	spec := friendlySpec(enrich.NamedConst{
+		TypeName: "Map", DeclFile: "/src.ts", FriendlyVar: "friendlyMap",
+		Friendly: "{$label: '', $values: {$label: ''}}",
+		TypeID:   "newId", ChildIDs: map[string]string{"$values": "newVal"}, // id changed while orphaned
+	})
+	out := mustReconcile(t, spec, existing, sourceDeclaring("Map"))
+
+	requireContains(t, out, "@rtType Map#newId")      // marker refreshed to the current id...
+	requireContains(t, out, "$values: newVal")        // ...including the @rtIds child id
+	requireContains(t, out, "$label: 'Authored map'") // authored body carried verbatim
+	requireMissing(t, out, "Map#oldId")               // stale id gone
+	requireMissing(t, out, "@rtOrphan")               // carcass consumed (restored live)
+
+	// Fixed point: a second --update is a byte-identical no-op (no stale marker left).
+	out2 := mustReconcile(t, spec, out, sourceDeclaring("Map"))
+	if out != out2 {
+		t.Errorf("restore left a stale marker → not a fixed point:\n--- first ---\n%s\n--- second ---\n%s", out, out2)
 	}
 }
 

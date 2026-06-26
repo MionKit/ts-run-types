@@ -8,9 +8,9 @@ instead of orphaning it. Proven by worked-example Go tests
 and asserted on every fuzzer run by the new RC oracle
 ([typeModFuzzRunner.ts](../../packages/ts-runtypes/test/fuzz/enrich/typeModFuzzRunner.ts)).
 
-One sibling case remains open — a NOMINAL rename with no field graph (an enum) — split
-out to [reconcile-nominal-rename-carry.md](../todos/reconcile-nominal-rename-carry.md)
-with a reproducer.
+The sibling case — a NOMINAL rename with no field graph (an enum) — is now also fixed
+(a referential signal), see
+[reconcile-nominal-rename-carry.md](./reconcile-nominal-rename-carry.md).
 
 ## The gap (fixed)
 
@@ -78,9 +78,10 @@ demote a label into a carcass — preserved (NL holds), just not on the live con
 they are covered by NL, not asserted as a live carry:
 
 - **Nominal types with no field graph (enums).** The id is name-dependent (a pure
-  rename changes it) AND there are no fields to score, so neither signal pairs them.
-  That carry needs a referential signal — tracked in
-  [reconcile-nominal-rename-carry.md](../todos/reconcile-nominal-rename-carry.md).
+  rename changes it) AND there are no fields to score, so neither structural signal
+  pairs them. Now carried by a REFERENTIAL signal (the parent field repointing), fixed
+  in [reconcile-nominal-rename-carry.md](./reconcile-nominal-rename-carry.md) — but the
+  carry is asserted by Go tests, not RC (RC stays root-scoped for the reasons below).
 - **Field renames inside a RECURSIVE type.** Renaming a field reshapes the type, so its
   id changes, and a self-referencing field's element type "changes" → it conservatively
   re-scaffolds (the same `childTypeChanged` rule that keeps a real retype safe).
