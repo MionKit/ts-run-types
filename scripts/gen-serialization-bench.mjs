@@ -39,6 +39,13 @@ import url from 'node:url';
 import {performance} from 'node:perf_hooks';
 import {createServer} from 'vite';
 
+// Load .env on the host (dev) so RT_BENCH_* knobs apply when run directly. Inside
+// the benchmark container this file is mounted ALONE (no sibling loader) and gets
+// its env via `podman run -e`, so a failing import is a harmless no-op there.
+try {
+  await import('./lib-env.mjs');
+} catch {}
+
 // The benchmark runs on Node >= 26, which ships Temporal natively — so the timed
 // encoders/decoders run on the same runtime the published library targets, with
 // no temporal-polyfill shim. The suites reference globalThis.Temporal at

@@ -20,6 +20,7 @@
 // object literal (balanced-delimiter scan, no TS dep) so the hover shows the real
 // schema/validator each library authors for that case.
 
+import './lib-env.mjs'; // load .env (dev) so RT_BENCH_* knobs apply when run directly
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';

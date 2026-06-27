@@ -20,6 +20,7 @@
 // walk + the Stats helper, splitting them across modules would just add
 // indirection without trimming code.
 
+import './lib-env.mjs'; // load .env (dev) so RT_BENCH_* knobs apply when run directly
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
