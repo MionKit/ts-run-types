@@ -213,7 +213,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
         }
         const afterEmpty = readMirror(emptyFixture);
         if (blankAuthored(after) !== blankAuthored(afterEmpty)) {
-          if (process.env.FUZZ_TYPEMOD_DEBUG) {
+          if (process.env.RT_FUZZ_TYPEMOD_DEBUG) {
             console.error(
               `\n===== CB DEBUG (${result.op}) =====\n--- source ---\n${source}\n` +
                 `--- FILLED (blanked) ---\n${blankAuthored(after)}\n--- EMPTY (blanked) ---\n${blankAuthored(afterEmpty)}\n=====`
@@ -243,7 +243,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
               break;
             }
           } else if (after !== before) {
-            if (process.env.FUZZ_TYPEMOD_DEBUG) {
+            if (process.env.RT_FUZZ_TYPEMOD_DEBUG) {
               console.error(
                 `\n===== P DEBUG (${result.op}) exit=${run.status} =====\n${run.stderr.slice(0, 400)}\n` +
                   `--- source ---\n${source}\n--- BEFORE ---\n${before}\n--- AFTER ---\n${after}\n=====`
@@ -276,7 +276,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
         // carried across the rename, or parked verbatim in an @rtOrphanChild).
         const lost = missingSentinels(after, sentinels);
         if (lost.length > 0) {
-          if (process.env.FUZZ_TYPEMOD_DEBUG) {
+          if (process.env.RT_FUZZ_TYPEMOD_DEBUG) {
             console.error(
               `\n===== NL DEBUG (${result.op}) lost=${lost.join(',')} =====\n--- source ---\n${source}\n` +
                 `--- BEFORE ---\n${before}\n--- AFTER ---\n${after}\n=====`
@@ -307,7 +307,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
           const liveAfter = liveSentinels(after, sentinels);
           const demoted = [...liveBefore].filter((sentinel) => !liveAfter.has(sentinel));
           if (demoted.length > 0) {
-            if (process.env.FUZZ_TYPEMOD_DEBUG) {
+            if (process.env.RT_FUZZ_TYPEMOD_DEBUG) {
               console.error(
                 `\n===== RC DEBUG (${result.op}) demoted=${demoted.join(',')} =====\n--- source ---\n${source}\n` +
                   `--- BEFORE ---\n${before}\n--- AFTER ---\n${after}\n=====`
@@ -330,7 +330,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
         }
         const settled = readMirror(fixture);
         if (settled !== after) {
-          if (process.env.FUZZ_TYPEMOD_DEBUG) {
+          if (process.env.RT_FUZZ_TYPEMOD_DEBUG) {
             console.error(
               `\n===== R6 DEBUG (${result.op}) =====\n--- source ---\n${source}\n` +
                 `--- after 1st update ---\n${after}\n--- after 2nd update ---\n${settled}\n=====`
@@ -442,6 +442,6 @@ export function formatModReport(report: ModFuzzReport, shrunk: ModShrunk): strin
     lines.push(`  [${violation.rule}] ${violation.op} (step ${violation.step}): ${violation.message}`);
   }
   lines.push('');
-  lines.push(`Replay: FUZZ_TYPEMOD_REPLAY=0x${shrunk.seed.toString(16)}`);
+  lines.push(`Replay: RT_FUZZ_TYPEMOD_REPLAY=0x${shrunk.seed.toString(16)}`);
   return lines.join('\n');
 }

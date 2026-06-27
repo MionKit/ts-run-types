@@ -146,7 +146,7 @@ The single deps-only image is published to the GitHub Container Registry as `ghc
 
 | Step | Command | Notes |
 | ---- | ------- | ----- |
-| Authenticate (once) | `pnpm run podman-website:login` | Reads the PAT from `GHCR_PAT` or `GHCR_PAT_FILE`, pipes via `--password-stdin`. Only needed for a **private** package. |
+| Authenticate (once) | `pnpm run podman-website:login` | Reads the PAT from `GHCR_PAT`, pipes via `--password-stdin`. Only needed for a **private** package. |
 | Run (consume) | `pnpm run website:dev` / `pnpm run bench` | Pulls the latest published image, then runs. This is the default. |
 | Publish | `pnpm run podman-website:push` | Builds the **multi-arch** (`linux/amd64,linux/arm64`) shared image and pushes it to `tsrt-website:latest`. |
 | Build/run locally | `RT_WEBSITE_USE_LOCAL=1 pnpm run website:dev` (or `RT_BENCH_USE_LOCAL=1`) | Skip the pull; build/use a local image. The maintainer/offline loop — also how you test a dep bump before pushing. |
@@ -154,7 +154,7 @@ The single deps-only image is published to the GitHub Container Registry as `ghc
 
 Dep-bump loop (host stays pnpm-free): edit `container/website/_deps/package.json` → `pnpm run podman-website:lock` (regen the lockfile in-container) → `RT_WEBSITE_USE_LOCAL=1 pnpm run website:smoke` (verify the new local image) → `pnpm run podman-website:push`.
 
-GHCR env (see [scripts/lib-ghcr.sh](scripts/lib-ghcr.sh)): `GHCR_OWNER` (default `mionkit`), `GHCR_USER` (default `M-jerez`), `GHCR_PAT` / `GHCR_PAT_FILE`, `RT_WEBSITE_USE_LOCAL` / `RT_BENCH_USE_LOCAL` (opt out of the pull), `RT_WEBSITE_REMOTE_IMAGE` / `RT_BENCH_REMOTE_IMAGE` (both now default to the one shared image `ghcr.io/$GHCR_OWNER/tsrt-website:latest`).
+GHCR env (see [scripts/lib-ghcr.sh](scripts/lib-ghcr.sh)): `GHCR_OWNER` (default `mionkit`), `GHCR_USER` (default `M-jerez`), `GHCR_PAT`, `RT_WEBSITE_USE_LOCAL` / `RT_BENCH_USE_LOCAL` (opt out of the pull), `RT_WEBSITE_REMOTE_IMAGE` / `RT_BENCH_REMOTE_IMAGE` (both now default to the one shared image `ghcr.io/$GHCR_OWNER/tsrt-website:latest`).
 
 Notes:
 

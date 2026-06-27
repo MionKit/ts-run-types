@@ -7,9 +7,9 @@
 // Flags:
 //   --registry <url>  publish to a specific registry (e.g. local verdaccio).
 //   --provenance      add npm provenance (real npm publish in CI; needs
-//                     id-token:write + NODE_AUTH_TOKEN).
+//                     id-token:write + NPM_TOKEN).
 
-import './lib-env.mjs'; // load .env (dev) so a local `npm publish` sees NODE_AUTH_TOKEN
+import './lib-env.mjs'; // load .env (dev) so a local `npm publish` sees NPM_TOKEN
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,7 +30,19 @@ function rank(name) {
   return 2; // FE packages (ts-runtypes, runtypes-devtools)
 }
 
+// Authenticate to the public registry from NPM_TOKEN (set in .env locally, the
+// NPM_TOKEN secret in CI). Mirrors the verdaccio action's `npm config set`. For a
+// custom --registry the caller sets its own auth, so skip.
+function authPublicRegistry() {
+  if (registry || !process.env.NPM_TOKEN) return;
+  execFileSync('npm', ['config', 'set', '//registry.npmjs.org/:_authToken', process.env.NPM_TOKEN], {
+    cwd: REPO_ROOT,
+    stdio: 'inherit',
+  });
+}
+
 function main() {
+  authPublicRegistry();
   const tarballs = fs
     .readdirSync(TARBALLS)
     .filter((file) => file.endsWith('.tgz'))

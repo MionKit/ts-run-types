@@ -14,7 +14,7 @@
 # Usage:
 #   scripts/podman-website.sh build-image   # build (or rebuild) the image, host-native
 #   scripts/podman-website.sh ensure        # make image ready: reuse local if it matches the published digest, else pull-or-build
-#   scripts/podman-website.sh login         # log in to GHCR (uses GHCR_PAT / GHCR_PAT_FILE)
+#   scripts/podman-website.sh login         # log in to GHCR (uses GHCR_PAT)
 #   scripts/podman-website.sh push          # build + push the multi-arch image to GHCR
 #   scripts/podman-website.sh pull          # pull the published image and tag it locally
 #   scripts/podman-website.sh lock          # regenerate _deps/pnpm-lock.yaml in-container
@@ -29,7 +29,7 @@
 #   (default)  ensure PULLS the latest published GHCR image first
 #   RT_WEBSITE_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline)
 #   RT_WEBSITE_REMOTE_IMAGE  remote ref (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest)
-#   GHCR_OWNER / GHCR_USER / GHCR_PAT / GHCR_PAT_FILE  (see scripts/lib-ghcr.sh)
+#   GHCR_OWNER / GHCR_USER / GHCR_PAT  (see scripts/lib-ghcr.sh)
 #   RT_WEBSITE_MOUNT_OPTS    extra bind-mount opts, e.g. ":z" on SELinux hosts
 #   RT_WEBSITE_CA_CERT       file OR dir of extra CA certs to trust inside the image
 #                         (corporate / MITM egress proxy). Auto-detects the host's

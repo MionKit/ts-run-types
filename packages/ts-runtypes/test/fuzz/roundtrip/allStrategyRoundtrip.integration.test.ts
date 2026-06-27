@@ -38,12 +38,12 @@ describe('fuzz / all-strategy round-trip — every codec agrees over generated t
     180_000
   );
 
-  // Autonomous soak: opt-in via FUZZ_ROUNDTRIP_SOAK_MS=<ms>.
-  const soakMs = Number(process.env.FUZZ_ROUNDTRIP_SOAK_MS ?? 0);
+  // Autonomous soak: opt-in via RT_FUZZ_ROUNDTRIP_SOAK_MS=<ms>.
+  const soakMs = Number(process.env.RT_FUZZ_ROUNDTRIP_SOAK_MS ?? 0);
   it.runIf(soakMs > 0)(
     'soak — round-trip generated types continuously and log all findings',
     async () => {
-      const report = await runRoundtripFuzzForDuration(soakMs, {seed: Number(process.env.FUZZ_SEED ?? 1)}, (v) => {
+      const report = await runRoundtripFuzzForDuration(soakMs, {seed: Number(process.env.RT_FUZZ_SEED ?? 1)}, (v) => {
         console.error(`[roundtrip-fuzz][${v.oracle}/${v.lane}] ${v.target} (seed=${v.seed}): ${v.message}\n    ${v.value}`);
       });
       console.error(

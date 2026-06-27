@@ -7,16 +7,15 @@
 # this file has no side effects beyond defining vars + functions.
 #
 # Auth: a GitHub PAT with `write:packages` (push) / `read:packages` (private
-# pull). Provide it via GHCR_PAT (inline) or GHCR_PAT_FILE (path to a file). It
-# is piped through `--password-stdin` only, never echoed and never written into a
-# layer, the build context, or git.
+# pull). Provide it inline via GHCR_PAT (set it in .env). It is piped through
+# `--password-stdin` only, never echoed and never written into a layer, the build
+# context, or git.
 #
 # Knobs (all overridable from the environment):
 #   GHCR_REGISTRY  registry host        (default: ghcr.io)
 #   GHCR_OWNER     namespace/owner      (default: mionkit)
 #   GHCR_USER      login username       (default: M-jerez)
 #   GHCR_PAT       token, inline
-#   GHCR_PAT_FILE  token, file path
 # ------------------------------------------------------------------------------
 
 # Repo-root .env loading (dev only) + the env-var registry, centralized in lib-env.sh.
@@ -25,14 +24,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib-env.sh"
 GHCR_REGISTRY="${GHCR_REGISTRY:-ghcr.io}"
 GHCR_OWNER="${GHCR_OWNER:-mionkit}"
 GHCR_USER="${GHCR_USER:-M-jerez}"
-GHCR_PAT_FILE="${GHCR_PAT_FILE:-}"
 
-# Echo the resolved PAT to stdout (no trailing newline). Non-zero if none found.
+# Echo the resolved PAT to stdout (no trailing newline). Non-zero if none set.
 ghcr_resolve_pat() {
   if [ -n "${GHCR_PAT:-}" ]; then printf '%s' "$GHCR_PAT"; return 0; fi
-  if [ -n "$GHCR_PAT_FILE" ] && [ -f "$GHCR_PAT_FILE" ]; then
-    tr -d '\r\n' < "$GHCR_PAT_FILE"; return 0
-  fi
   return 1
 }
 
@@ -40,7 +35,7 @@ ghcr_resolve_pat() {
 ghcr_login() {
   local pat
   if ! pat="$(ghcr_resolve_pat)"; then
-    echo "ghcr: no PAT found. Set GHCR_PAT=<token> or GHCR_PAT_FILE=/path/to/pat.txt" >&2
+    echo "ghcr: no PAT found. Set GHCR_PAT=<token> in .env" >&2
     return 1
   fi
   echo "==> logging in to $GHCR_REGISTRY as $GHCR_USER"

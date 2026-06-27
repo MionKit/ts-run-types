@@ -8,8 +8,8 @@
 // binary like the other enrich e2e tests, so `bin/ts-runtypes` must be built
 // (the root `pretest` does this); the test self-skips if the binary is absent.
 //
-// Knobs:  FUZZ_SEED, FUZZ_ENRICH_SEQUENCES, FUZZ_ENRICH_MAXCMDS,
-//         FUZZ_ENRICH_REPLAY=<seed>  (re-run one failing sequence verbatim).
+// Knobs:  RT_FUZZ_SEED, RT_FUZZ_ENRICH_SEQUENCES, RT_FUZZ_ENRICH_MAXCMDS,
+//         RT_FUZZ_ENRICH_REPLAY=<seed>  (re-run one failing sequence verbatim).
 
 import {existsSync} from 'node:fs';
 import {describe, it, expect, afterAll} from 'vitest';
@@ -25,10 +25,10 @@ function parseSeed(raw: string | undefined, fallback: number): number {
 }
 
 const HAS_BIN = existsSync(BIN);
-const SEED = parseSeed(process.env.FUZZ_SEED, 0x0e17c0de);
-const SEQUENCES = Number(process.env.FUZZ_ENRICH_SEQUENCES ?? 6);
-const MAX_COMMANDS = Number(process.env.FUZZ_ENRICH_MAXCMDS ?? 8);
-const REPLAY = process.env.FUZZ_ENRICH_REPLAY ? parseSeed(process.env.FUZZ_ENRICH_REPLAY, 0) : null;
+const SEED = parseSeed(process.env.RT_FUZZ_SEED, 0x0e17c0de);
+const SEQUENCES = Number(process.env.RT_FUZZ_ENRICH_SEQUENCES ?? 6);
+const MAX_COMMANDS = Number(process.env.RT_FUZZ_ENRICH_MAXCMDS ?? 8);
+const REPLAY = process.env.RT_FUZZ_ENRICH_REPLAY ? parseSeed(process.env.RT_FUZZ_ENRICH_REPLAY, 0) : null;
 
 describe('enrichment sync fuzz', () => {
   it.skipIf(!HAS_BIN)(
