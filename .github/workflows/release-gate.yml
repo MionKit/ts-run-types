@@ -2,8 +2,9 @@ name: prod · release gate
 
 # Reusable gate shared by pre-publish.yml (PR -> prod) and publish.yml (push ->
 # prod), so a release PR and the merge that lands it run the IDENTICAL checks:
-#   build         - every package + the 7-platform binary matrix + the full
-#                   source suite (Go + JS) on Linux, then pack the tarballs.
+#   build         - the full main gate (Go + JS suites incl. fuzz, lint,
+#                   typecheck, format) on Linux, then build every package + the
+#                   7-platform binary matrix and pack the tarballs.
 #   e2e           - install the PUBLISHED packages from a local verdaccio and run
 #                   the consumer suite, one full run per OS, plus a cheap
 #                   exec-smoke for the Linux side-arches.
@@ -49,8 +50,15 @@ jobs:
         run: echo "version=$(node -p "require('./lerna.json').version")" >> "$GITHUB_OUTPUT"
       - name: Go test suite
         run: go test ./internal/...
-      - name: Full JS suite (builds the resolver + dists via pretest)
+      - name: Full JS suite (builds the resolver + dists via pretest; runs fuzz)
         run: pnpm test
+      # Re-run the full main gate here too (lint/typecheck/format) so a prod PR
+      # catches anything that ever slipped onto main; runs after pnpm test so the
+      # dists the typecheck reads are already built.
+      - name: Lint + typecheck
+        run: pnpm run lint
+      - name: Check formatting
+        run: pnpm run check-format
       - name: Build FE dists (canonical, for packing)
         run: pnpm run build
       - name: Cross-compile the 7-platform binary packages
