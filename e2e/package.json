@@ -2,8 +2,12 @@
   "name": "ts-runtypes-e2e",
   "private": true,
   "type": "module",
-  "description": "Consumer end-to-end fixture. Installs the PUBLISHED ts-runtypes packages from a local registry and verifies the host-platform binary resolves, spawns, and transforms. Run per-platform in CI; its deps are added by scripts/e2e-test.mjs at the release version.",
+  "description": "Consumer end-to-end fixture. The release-gate.yml e2e job installs the PUBLISHED ts-runtypes + runtypes-devtools at the release version from a local verdaccio registry, then this suite verifies the host-platform resolver binary resolves via the ts-runtypes-bin optional-dependency model, spawns, and rewrites both getRunTypeId call shapes. vite/vitest are pinned here as devDependencies so a workspace bump can't silently diverge the release-install test.",
   "scripts": {
     "test": "vitest run"
+  },
+  "devDependencies": {
+    "vite": "5.4.10",
+    "vitest": "2.1.9"
   }
 }

@@ -1,0 +1,178 @@
+name: prod · release gate
+
+# Reusable gate shared by pre-publish.yml (PR -> prod) and publish.yml (push ->
+# prod), so a release PR and the merge that lands it run the IDENTICAL checks:
+#   build         - every package + the 7-platform binary matrix + the full
+#                   source suite (Go + JS) on Linux, then pack the tarballs.
+#   e2e           - install the PUBLISHED packages from a local verdaccio and run
+#                   the consumer suite, one full run per OS, plus a cheap
+#                   exec-smoke for the Linux side-arches.
+#   benchmarks    - the validation + type-cost benchmarks in the shared podman
+#                   image (locally built, no GHCR auth needed).
+#   website-build - the static docs site builds in the shared podman image.
+#
+# Coverage rationale (e2e): the Go resolver is pure (CGO_ENABLED=0, deterministic,
+# no platform-specific code), so cross-compilation is trusted for the ARCH axis;
+# the real per-platform risk is OS plumbing (launcher .exe/long-path resolution,
+# path handling, process spawn, CRLF) - which is per-OS, not per-arch. So:
+#   - full e2e on one runner per OS: linux-x64, darwin-arm64, win32-x64
+#   - exec-smoke (QEMU) on linux-arm64 + linux-arm
+#   - darwin-x64 + win32-arm64 are built + published but not exercised here
+#     (no common runner; Go cross-compile is trusted for the binary itself).
+#
+# The `version` output (read from lerna.json by the build job) is surfaced to the
+# caller so publish.yml tags the SAME version the gate built - never a fresh
+# lerna.json read that could drift from the packed artifact.
+on:
+  workflow_call:
+    outputs:
+      version:
+        description: 'Release version read from lerna.json by the build job'
+        value: ${{ jobs.build.outputs.version }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build + full source suite + pack
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/bootstrap
+      - id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./lerna.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Go test suite
+        run: go test ./internal/...
+      - name: Full JS suite (builds the resolver + dists via pretest)
+        run: pnpm test
+      - name: Build FE dists (canonical, for packing)
+        run: pnpm run build
+      - name: Cross-compile the 7-platform binary packages
+        run: node scripts/build-binary-packages.mjs
+      - name: Pack every package into tarballs/
+        run: node scripts/pack-artifacts.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarballs
+          path: tarballs/
+          # Long enough that a slow `release` environment approval on the publish
+          # side can still download the exact bytes the e2e validated.
+          retention-days: 14
+
+  e2e:
+    name: e2e ${{ matrix.pkg }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-latest, pkg: linux-x64}
+          - {runner: macos-14, pkg: darwin-arm64}
+          - {runner: windows-latest, pkg: win32-x64}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: tarballs
+      - uses: ./.github/actions/verdaccio-publish
+      - name: e2e (install published packages + run the suite)
+        working-directory: e2e
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          # Installs the two published packages at the release version plus the
+          # fixture's own devDeps (vite/vitest are pinned in e2e/package.json, not
+          # here, so a workspace bump can't silently diverge the install test).
+          npm install \
+            "ts-runtypes@$VERSION" \
+            "runtypes-devtools@$VERSION" \
+            --registry http://127.0.0.1:4873
+          npm test
+
+  smoke:
+    name: exec-smoke linux/${{ matrix.pkg }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: linux/arm64, pkg: linux-arm64}
+          - {platform: linux/arm/v6, pkg: linux-arm}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: tarballs
+      - uses: docker/setup-qemu-action@v3
+      - name: Exec the ${{ matrix.pkg }} binary under QEMU
+        run: |
+          # Extract just the binary (package/lib/ts-runtypes) from its tarball.
+          mkdir -p bin-rt
+          tar -xzf tarballs/ts-runtypes-binary-${{ matrix.pkg }}-*.tgz -C bin-rt --strip-components=2 package/lib/ts-runtypes
+          # Static CGO-free binary runs on a minimal image; --version proves it
+          # executes on this arch and prints the embedded version + tsgo revision.
+          docker run --rm --platform ${{ matrix.platform }} \
+            -v "$PWD/bin-rt:/rt" debian:bookworm-slim /rt/ts-runtypes --version
+
+  benchmarks:
+    name: validation + type-cost benchmarks (podman)
+    runs-on: ubuntu-latest
+    # Build the shared image locally on the runner so the benchmark stage never
+    # depends on GHCR auth / image freshness; one knob drives both stages.
+    env:
+      BENCH_USE_LOCAL: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/bootstrap
+      - name: podman version
+        run: podman --version
+      # Builds the Go resolver binary + the marker/plugin packages on the runner.
+      - name: Prep ts-runtypes toolchain
+        run: bash scripts/benchmarks.sh prep
+      # podman ships preinstalled on ubuntu-latest runners; builds the single
+      # shared website+benchmark image locally (BENCH_USE_LOCAL above).
+      - name: Build the shared website+benchmark image
+        run: bash scripts/benchmarks.sh build-image
+      - name: Run the benchmark (build + run, in the container)
+        run: bash scripts/benchmarks.sh bench
+      - name: Type-checking cost (TS type instantiations)
+        run: bash scripts/benchmarks.sh typecost
+
+  website-build:
+    name: static docs site build (podman)
+    runs-on: ubuntu-latest
+    # Prove the static site builds. Local image build (no GHCR auth); this is a
+    # build check only - the real bench-data-baked deploy happens in publish.yml.
+    env:
+      WEBSITE_USE_LOCAL: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: podman version
+        run: podman --version
+      # Identical to `pnpm run podman-website:build-image` locally.
+      - name: Build the shared website+benchmark image
+        run: bash scripts/podman-website.sh build-image
+      # Identical to `pnpm run website:build` locally - produces container/website/.output.
+      - name: Production build inside the container
+        run: bash scripts/website.sh build
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-output
+          path: container/website/.output
+          if-no-files-found: error

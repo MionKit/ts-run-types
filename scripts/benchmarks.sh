@@ -404,12 +404,16 @@ cmd_build() {
   if [ -n "${1:-}" ]; then
     run_in_container sh -c "cd competitors/$1 && pnpm run build && test -d dist"
   else
-    local competitor
+    local competitor failures=0
     for competitor in $(competitor_list); do
       echo "-------- build: $competitor --------"
+      # Keep building every competitor so all failures surface in one run, but
+      # accumulate them and exit non-zero at the end so this is a real gate
+      # (smoke relies on cmd_build returning failure when any competitor breaks).
       run_in_container sh -c "cd competitors/$competitor && pnpm run build && test -d dist" \
-        || echo "==> build '$competitor' FAILED"
+        || { echo "==> build '$competitor' FAILED"; failures=$((failures + 1)); }
     done
+    [ "$failures" -eq 0 ] || die "$failures competitor build(s) failed"
   fi
 }
 

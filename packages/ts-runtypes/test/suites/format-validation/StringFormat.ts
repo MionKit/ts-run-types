@@ -1047,7 +1047,10 @@ export const STRING_FORMAT = {
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringDate({format: 'MM-DD'})),
     mockType: () => createMockType<TF.StringDate<{format: 'MM-DD'}>>(),
     getSamples: () => ({valid: ['02-29'], invalid: ['13-01', '02-30']}),
-    expectedFormatErrors: () => [{name: 'date', val: 'MM-DD'}, {name: 'date', val: 'MM-DD'}],
+    expectedFormatErrors: () => [
+      {name: 'date', val: 'MM-DD'},
+      {name: 'date', val: 'MM-DD'},
+    ],
   },
   date_minMax_absolute: {
     title: 'String date min/max',
