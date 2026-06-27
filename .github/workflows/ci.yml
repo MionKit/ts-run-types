@@ -27,7 +27,7 @@ jobs:
     name: lint + typecheck + Go & JS suites (incl. fuzz)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       - uses: ./.github/actions/bootstrap
@@ -63,8 +63,8 @@ jobs:
     outputs:
       container: ${{ steps.filter.outputs.container }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -88,7 +88,7 @@ jobs:
       WEBSITE_USE_LOCAL: '1'
       BENCH_USE_LOCAL: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       - uses: ./.github/actions/bootstrap
