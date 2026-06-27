@@ -62,6 +62,27 @@ func flatUnionDecodeErrorVar(ctx *EmitContext) string {
 	return name
 }
 
+// discCandidateGuard returns the JS boolean expression that selects `cand` by
+// the union discriminant value — e.g. `d === "t3"` or `(d === "ta" || d ===
+// "tb")` when two members fold into one candidate. Used by the merged-prop
+// sub-dispatch in place of the per-value `validate` check when the layout has a
+// usable discriminant (mp.hasDiscDispatch): the discriminant survives a
+// round-trip, so the chosen sub-index is byte-stable even for a value whose
+// prop normalises to a shape that would re-classify under the validate path.
+func discCandidateGuard(discAccessor string, cand FlatPropCandidate) string {
+	if len(cand.DiscValues) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(cand.DiscValues))
+	for _, value := range cand.DiscValues {
+		parts = append(parts, discAccessor+" === "+value)
+	}
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	return "(" + strings.Join(parts, " || ") + ")"
+}
+
 // mergedPropSurvivingGuard returns a JS boolean expression true iff
 // `accessor`'s value matches one of the merged prop's SURVIVING
 // candidates — i.e. the value belongs to a union member where this prop
@@ -134,10 +155,11 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 
 	// Object branch — merged-property encode wrapped in `[-1, v]`.
 	if len(layout.ObjectMembers) > 0 {
+		discAccessor := layout.discAccessor(v)
 		var propParts []string
 		for _, mp := range layout.MergedProps {
 			accessor := propertyAccessor(v, mp.Name, mp.IsSafeName)
-			propCode, ok := emitMergedPropPrepare(mp, accessor, ctx)
+			propCode, ok := emitMergedPropPrepare(mp, accessor, discAccessor, ctx)
 			if !ok {
 				return RTCode{Code: "", Type: CodeNS}
 			}
@@ -184,8 +206,8 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 // codec runs only for values matching a surviving candidate; a value from
 // a stripped member (carrying the key with a foreign type) is `delete`d
 // instead, matching its DataOnly projection (G3 / G4).
-func emitMergedPropPrepare(mp FlatMergedProp, accessor string, ctx *EmitContext) (string, bool) {
-	base, ok := mergedPropPrepareBody(mp, accessor, ctx)
+func emitMergedPropPrepare(mp FlatMergedProp, accessor, discAccessor string, ctx *EmitContext) (string, bool) {
+	base, ok := mergedPropPrepareBody(mp, accessor, discAccessor, ctx)
 	if !ok {
 		return "", false
 	}
@@ -196,7 +218,7 @@ func emitMergedPropPrepare(mp FlatMergedProp, accessor string, ctx *EmitContext)
 	return base, true
 }
 
-func mergedPropPrepareBody(mp FlatMergedProp, accessor string, ctx *EmitContext) (string, bool) {
+func mergedPropPrepareBody(mp FlatMergedProp, accessor, discAccessor string, ctx *EmitContext) (string, bool) {
 	if len(mp.Candidates) == 1 {
 		ctx.SetChildAccessor(accessor)
 		jc := ctx.CompileChild(mp.Candidates[0].ChildRef, CodeS)
@@ -212,6 +234,9 @@ func mergedPropPrepareBody(mp FlatMergedProp, accessor string, ctx *EmitContext)
 		return "", true
 	}
 	// Multi-candidate with at least one non-noop — wrap every candidate.
+	// With a usable discriminant, gate each arm by the discriminant value
+	// (stable across round-trip) instead of re-validating the prop value.
+	useDisc := discAccessor != "" && mp.hasDiscDispatch()
 	var arms []string
 	for i, cand := range mp.Candidates {
 		ctx.SetChildAccessor(accessor)
@@ -223,10 +248,15 @@ func mergedPropPrepareBody(mp FlatMergedProp, accessor string, ctx *EmitContext)
 		if cand.Resolved == nil {
 			continue
 		}
-		validateExpr := unionMemberValidateCheck(cand.Resolved, ctx, accessor)
-		guard := validateExpr
-		if isObjectLikeKind(cand.Resolved.Kind) {
-			guard = objectGuard(accessor, validateExpr)
+		guard := ""
+		if useDisc {
+			guard = discCandidateGuard(discAccessor, cand)
+		} else {
+			validateExpr := unionMemberValidateCheck(cand.Resolved, ctx, accessor)
+			guard = validateExpr
+			if isObjectLikeKind(cand.Resolved.Kind) {
+				guard = objectGuard(accessor, validateExpr)
+			}
 		}
 		body := strings.TrimSpace(jc.Code)
 		if body != "" && !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
@@ -464,10 +494,11 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 			propJson string
 			dropCond string
 		}
+		discAccessor := layout.discAccessor(v)
 		var compiledProps []compiledProp
 		for _, mp := range layout.MergedProps {
 			accessor := propertyAccessor(v, mp.Name, mp.IsSafeName)
-			propJson, ok := emitMergedPropStringify(mp, accessor, ctx)
+			propJson, ok := emitMergedPropStringify(mp, accessor, discAccessor, ctx)
 			if !ok {
 				return RTCode{Code: "", Type: CodeNS}
 			}
@@ -545,7 +576,7 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 //   - If any candidate is non-noop, every candidate emits its transform
 //     wrapped with `[subIdx, value]` so the decoder can unconditionally
 //     unwrap.
-func emitMergedPropStringify(mp FlatMergedProp, accessor string, ctx *EmitContext) (string, bool) {
+func emitMergedPropStringify(mp FlatMergedProp, accessor, discAccessor string, ctx *EmitContext) (string, bool) {
 	if len(mp.Candidates) == 1 {
 		ctx.SetChildAccessor(accessor)
 		jc := ctx.CompileChild(mp.Candidates[0].ChildRef, CodeE)
@@ -560,8 +591,9 @@ func emitMergedPropStringify(mp FlatMergedProp, accessor string, ctx *EmitContex
 	}
 	// Compile every candidate up front.
 	type compiled struct {
-		code     string
-		resolved *protocol.RunType
+		code       string
+		resolved   *protocol.RunType
+		discValues []string
 	}
 	candidates := make([]compiled, 0, len(mp.Candidates))
 	for _, cand := range mp.Candidates {
@@ -578,7 +610,7 @@ func emitMergedPropStringify(mp FlatMergedProp, accessor string, ctx *EmitContex
 		if childCode == "" {
 			childCode = "JSON.stringify(" + accessor + ")"
 		}
-		candidates = append(candidates, compiled{code: childCode, resolved: cand.Resolved})
+		candidates = append(candidates, compiled{code: childCode, resolved: cand.Resolved, discValues: cand.DiscValues})
 	}
 	if len(candidates) == 0 {
 		return "", true
@@ -620,14 +652,22 @@ func emitMergedPropStringify(mp FlatMergedProp, accessor string, ctx *EmitContex
 		call := ctx.CreateFnInContext(strings.Join(arms, " ")+" throw new Error("+errVar+");", CodeRB, params, params)
 		return call, true
 	}
-	// Multi-candidate with at least one non-noop — wrap every arm.
+	// Multi-candidate with at least one non-noop — wrap every arm. With a
+	// usable discriminant, gate each arm by the discriminant value (stable
+	// across round-trip) instead of re-validating the prop value.
+	useDisc := discAccessor != "" && mp.hasDiscDispatch()
 	errVar := flatUnionEncodeErrorVar(ctx)
 	arms := make([]string, 0, len(candidates))
 	for i, cand := range candidates {
-		validateExpr := unionMemberValidateCheck(cand.resolved, ctx, accessor)
-		guard := validateExpr
-		if isObjectLikeKind(cand.resolved.Kind) {
-			guard = objectGuard(accessor, validateExpr)
+		guard := ""
+		if useDisc {
+			guard = discCandidateGuard(discAccessor, FlatPropCandidate{DiscValues: cand.discValues})
+		} else {
+			validateExpr := unionMemberValidateCheck(cand.resolved, ctx, accessor)
+			guard = validateExpr
+			if isObjectLikeKind(cand.resolved.Kind) {
+				guard = objectGuard(accessor, validateExpr)
+			}
 		}
 		arm := "if (" + guard + ") return '[" + strconv.Itoa(i) + ",' + " + cand.code + " + ']';"
 		arms = append(arms, arm)

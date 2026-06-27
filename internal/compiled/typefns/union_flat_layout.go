@@ -36,6 +36,31 @@ type FlatLayout struct {
 	// OR any object branch exists (the [-1, …] envelope coexists with
 	// the atomic envelope so the decoder must unconditionally unwrap).
 	AtomicNeedsTuple bool
+	// HasDiscriminant is true iff the object members share a single
+	// required, plain-literal discriminant property (e.g. `kind: "t0"` |
+	// `kind: "t1"` | …). When set, the merged-prop sub-dispatch selects
+	// each candidate by the discriminant VALUE (DiscName) rather than by
+	// re-classifying the prop value — the discriminant is preserved across
+	// a round-trip, so the chosen sub-index stays byte-stable even when a
+	// prop's value normalises to an ambiguous shape (e.g.
+	// `Record<string, undefined>` → `{}` after JSON drops undefined
+	// entries). See FlatPropCandidate.DiscValues.
+	HasDiscriminant bool
+	// DiscName is the discriminant property name (valid only when
+	// HasDiscriminant). DiscIsSafeName mirrors propertyAccessor's safe-name
+	// flag for it.
+	DiscName       string
+	DiscIsSafeName bool
+}
+
+// discAccessor renders the JS accessor for the union discriminant on `v`
+// (e.g. `v.kind` or `v["weird key"]`). Empty when the layout has no usable
+// discriminant.
+func (layout FlatLayout) discAccessor(v string) string {
+	if !layout.HasDiscriminant {
+		return ""
+	}
+	return propertyAccessor(v, layout.DiscName, layout.DiscIsSafeName)
 }
 
 type FlatAtomic struct {
@@ -79,6 +104,33 @@ type FlatPropCandidate struct {
 	ChildRef *protocol.RunType
 	Resolved *protocol.RunType
 	Optional bool
+	// DiscValues lists the discriminant JS literals (e.g. `"t3"`, `1`) of
+	// the object members that declared THIS candidate for the prop. Only
+	// populated when the layout has a usable discriminant; a candidate
+	// shared by two members (same canonical child id) carries both their
+	// discriminant values. The encoders dispatch a value to this candidate
+	// when its discriminant matches one of these, instead of re-validating.
+	DiscValues []string
+}
+
+// hasDiscDispatch reports whether the merged prop can use discriminant-based
+// candidate selection: there are multiple candidates needing a sub-wrap AND
+// every candidate carries at least one discriminant value (so each one is
+// reachable by a discriminant match). Single-candidate / no-sub-wrap props
+// never need it.
+func (mp FlatMergedProp) hasDiscDispatch() bool {
+	if len(mp.Candidates) < 2 || !mp.NeedsSubWrap {
+		return false
+	}
+	for _, cand := range mp.Candidates {
+		if cand.Resolved == nil {
+			continue
+		}
+		if len(cand.DiscValues) == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // buildFlatLayout consolidates the four legacy helpers
@@ -121,7 +173,17 @@ func buildFlatLayout(rt *protocol.RunType, ctx *EmitContext) FlatLayout {
 		layout.AtomicMembers = append(layout.AtomicMembers, FlatAtomic{Ref: ref, Resolved: resolved, OriginalIndex: i})
 	}
 
-	layout.MergedProps = buildMergedProps(layout.ObjectMembers, ctx)
+	// Detect a usable shared-name literal discriminant across the object
+	// members. discValueByMember is parallel to layout.ObjectMembers and
+	// feeds per-candidate DiscValues into buildMergedProps.
+	discName, discIsSafe, discValueByMember, discOK := detectFlatDiscriminant(layout.ObjectMembers, ctx)
+	if discOK {
+		layout.HasDiscriminant = true
+		layout.DiscName = discName
+		layout.DiscIsSafeName = discIsSafe
+	}
+
+	layout.MergedProps = buildMergedProps(layout.ObjectMembers, ctx, discValueByMember)
 
 	// AtomicNeedsTuple — object branch forces wrapping; otherwise any
 	// non-JSON-natural atomic member forces wrapping (all-or-nothing).
@@ -167,13 +229,22 @@ func buildFlatLayout(rt *protocol.RunType, ctx *EmitContext) FlatLayout {
 // the emit uses this to drop the per-property `=== undefined` guard.
 // Two members carrying the same canonical child id collapse to a
 // single candidate (dedupe by ChildRef.ID).
-func buildMergedProps(objectMembers []FlatObject, ctx *EmitContext) []FlatMergedProp {
+//
+// discValueByMember (when non-nil) is parallel to objectMembers and holds
+// each member's discriminant JS literal; a candidate accumulates the
+// discriminant values of every member that declared it, so the encoders can
+// dispatch by discriminant instead of re-validating the prop value.
+func buildMergedProps(objectMembers []FlatObject, ctx *EmitContext, discValueByMember []string) []FlatMergedProp {
 	indexByName := make(map[string]int)
 	presentInMember := make(map[string][]bool)
 	hasOptionalDecl := make(map[string]bool)
 	strippedByName := make(map[string]bool)
 	var merged []FlatMergedProp
 	for memberIdx, m := range objectMembers {
+		discValue := ""
+		if memberIdx < len(discValueByMember) {
+			discValue = discValueByMember[memberIdx]
+		}
 		for _, propRef := range m.Resolved.Children {
 			prop := ctx.ResolveRef(propRef)
 			if prop == nil || prop.IsStatic {
@@ -204,6 +275,9 @@ func buildMergedProps(objectMembers []FlatObject, ctx *EmitContext) []FlatMerged
 				continue
 			}
 			candidate := FlatPropCandidate{ChildRef: prop.Child, Resolved: childResolved, Optional: prop.Optional}
+			if discValue != "" {
+				candidate.DiscValues = []string{discValue}
+			}
 			if prop.Optional {
 				hasOptionalDecl[prop.Name] = true
 			}
@@ -222,8 +296,13 @@ func buildMergedProps(objectMembers []FlatObject, ctx *EmitContext) []FlatMerged
 			presentInMember[prop.Name][memberIdx] = true
 			candidates := merged[idx].Candidates
 			skip := false
-			for _, existing := range candidates {
+			for k, existing := range candidates {
 				if existing.ChildRef != nil && candidate.ChildRef != nil && existing.ChildRef.ID == candidate.ChildRef.ID {
+					// Same canonical child shared by another member — fold this
+					// member's discriminant value into the existing candidate.
+					if discValue != "" {
+						candidates[k].DiscValues = append(candidates[k].DiscValues, discValue)
+					}
 					skip = true
 					break
 				}
@@ -251,4 +330,97 @@ func buildMergedProps(objectMembers []FlatObject, ctx *EmitContext) []FlatMerged
 		merged[i].Required = allPresent && !hasOptionalDecl[merged[i].Name] && !merged[i].HasStrippedCandidate
 	}
 	return merged
+}
+
+// detectFlatDiscriminant looks for a single property name that every object
+// member declares as a REQUIRED, plain-literal value with a value unique across
+// the members — the classic discriminated-union shape (`kind: "t0"` | …). On
+// success it returns the chosen name, its safe-name flag, and a slice parallel
+// to objectMembers holding each member's discriminant JS literal.
+//
+// Self-contained on the resolved layout rather than rt.UnionDiscriminators: it
+// only accepts the strictly-usable case (shared name, plain comparable literal)
+// and yields the rendered JS literal the encoders compare against directly.
+//
+// The discriminant lets the merged-prop sub-dispatch pick each candidate by the
+// member it belongs to instead of re-validating the prop value — the value is
+// preserved across a round-trip, so the chosen sub-index stays byte-stable even
+// when a prop normalises to an ambiguous shape (e.g. `Record<string, undefined>`
+// collapsing to `{}` once JSON drops its undefined entries).
+func detectFlatDiscriminant(objectMembers []FlatObject, ctx *EmitContext) (string, bool, []string, bool) {
+	if len(objectMembers) < 2 {
+		return "", false, nil, false
+	}
+	// Per member: the plain-literal JS value of each required literal prop.
+	litByMember := make([]map[string]string, len(objectMembers))
+	safeByName := make(map[string]bool)
+	for memberIdx, m := range objectMembers {
+		lits := make(map[string]string)
+		for _, propRef := range m.Resolved.Children {
+			prop := ctx.ResolveRef(propRef)
+			if prop == nil || prop.IsStatic || prop.Optional {
+				continue
+			}
+			if prop.Kind != protocol.KindProperty && prop.Kind != protocol.KindPropertySignature {
+				continue
+			}
+			if prop.Child == nil {
+				continue
+			}
+			child := ctx.ResolveRef(prop.Child)
+			if child == nil || child.Kind != protocol.KindLiteral {
+				continue
+			}
+			literal, ok := plainLiteralJS(child)
+			if !ok {
+				continue
+			}
+			lits[prop.Name] = literal
+			safeByName[prop.Name] = prop.IsSafeName
+		}
+		litByMember[memberIdx] = lits
+	}
+	// A usable name is present in EVERY member with a value unique per member.
+	// Pick deterministically (lowest name) so codegen is stable.
+	best := ""
+	for name := range litByMember[0] {
+		seen := make(map[string]bool, len(objectMembers))
+		usable := true
+		for memberIdx := range objectMembers {
+			value, present := litByMember[memberIdx][name]
+			if !present || seen[value] {
+				usable = false
+				break
+			}
+			seen[value] = true
+		}
+		if usable && (best == "" || name < best) {
+			best = name
+		}
+	}
+	if best == "" {
+		return "", false, nil, false
+	}
+	discValueByMember := make([]string, len(objectMembers))
+	for memberIdx := range objectMembers {
+		discValueByMember[memberIdx] = litByMember[memberIdx][best]
+	}
+	return best, safeByName[best], discValueByMember, true
+}
+
+// plainLiteralJS renders a KindLiteral's value as the JS literal used in an
+// equality comparison (`=== "t3"`, `=== 1`, `=== true`). Reports false for
+// bigint / symbol literals, whose Literal payload isn't a directly comparable
+// plain value, so they're never chosen as a flat discriminant.
+func plainLiteralJS(rt *protocol.RunType) (string, bool) {
+	for _, flag := range rt.Flags {
+		if flag == "bigint" || flag == "symbol" {
+			return "", false
+		}
+	}
+	literal, err := jsLiteralFromAny(rt.Literal)
+	if err != nil {
+		return "", false
+	}
+	return literal, true
 }
