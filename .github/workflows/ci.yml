@@ -1,14 +1,19 @@
 name: ci
 
 # The gate on main (the stable development branch). Runs on every PR to main and
-# on push to main (post-merge confirmation):
-#   verify          - Go tests + gofmt/vet, the full JS suite (which builds the resolver
-#                     binary + dists via pretest and runs the fuzz integration
-#                     specs at default iteration counts), lint + typecheck, format.
-#   container-smoke - website serves-a-page + benchmark competitor-build smoke in
-#                     the shared podman image. PATH-GATED (see `changes`): it only
-#                     runs when the container inputs change, since it is heavy
-#                     (drives podman) and the main fast-path should stay quick.
+# on push to main (post-merge confirmation). ONE job, `verify`:
+#   1. Go tests + gofmt/vet, the full JS suite (which builds the resolver binary
+#      + dists via pretest and runs the fuzz integration specs at default
+#      iteration counts), lint + typecheck, format.
+#   2. THEN, only when container inputs change (path-gated), a website
+#      serves-a-page + benchmark competitor-build smoke. It reuses the bootstrap,
+#      Go binary, and dists already built above instead of standing up a second
+#      job that repeats that work. The smoke PULLS the prebuilt shared image
+#      (competitor deps incl. typia are baked into it) and mounts our freshly
+#      built binary - so it neither rebuilds the deps nor re-downloads typia. It
+#      only forces a fresh LOCAL image build when the baked deps themselves
+#      change (the `image` filter), and otherwise falls back to a local build if
+#      the image can't be pulled.
 on:
   pull_request:
     branches: [main]
@@ -24,8 +29,15 @@ concurrency:
 
 jobs:
   verify:
-    name: lint + typecheck + Go & JS suites (incl. fuzz)
+    name: verify
     runs-on: ubuntu-latest
+    # Job-level permissions REPLACE the workflow default, so every needed scope is
+    # listed: contents:read (checkout), packages:read (pull the prebuilt GHCR
+    # image), pull-requests:read (paths-filter on PRs).
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v5
         with:
@@ -52,49 +64,42 @@ jobs:
       - name: Check formatting
         run: pnpm run check-format
 
-  changes:
-    name: detect container changes
-    runs-on: ubuntu-latest
-    # Job-level permissions REPLACE the workflow default, so both are listed:
-    # contents:read for checkout, pull-requests:read for paths-filter on PRs.
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      container: ${{ steps.filter.outputs.container }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dorny/paths-filter@v4
-        id: filter
+      # --- container smoke: path-gated, reuses everything built above ----------
+      # `smoke`  = run the smoke at all (container inputs / driver scripts changed).
+      # `image`  = the BAKED deps changed (a _deps manifest or the Containerfile),
+      #            so the prebuilt image is stale -> force a fresh local build.
+      - name: Detect container changes
+        uses: dorny/paths-filter@v4
+        id: changes
         with:
           filters: |
-            container:
+            smoke:
               - 'container/**'
               - 'scripts/website.sh'
               - 'scripts/benchmarks.sh'
               - 'scripts/podman-website.sh'
               - 'scripts/lib-container.sh'
               - 'scripts/lib-ghcr.sh'
-
-  container-smoke:
-    name: website + benchmark container smoke
-    needs: changes
-    if: needs.changes.outputs.container == 'true'
-    runs-on: ubuntu-latest
-    # Build the shared image locally: deterministic, needs no GHCR auth, and when
-    # container inputs change you WANT a freshly built image, not a stale pull.
-    # website:smoke reads WEBSITE_USE_LOCAL; bench:smoke reads BENCH_USE_LOCAL.
-    env:
-      WEBSITE_USE_LOCAL: '1'
-      BENCH_USE_LOCAL: '1'
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: recursive
-      - uses: ./.github/actions/bootstrap
-      - name: podman version
-        run: podman --version
+            image:
+              - 'container/**/_deps/**'
+              - 'container/website/Containerfile'
+      # Best-effort GHCR login so the prebuilt image pulls (vs a slow local build).
+      # Non-fatal: if it fails or the image isn't accessible, ensure_image falls
+      # back to a local build automatically.
+      - name: Log in to GHCR (for the prebuilt shared image)
+        if: steps.changes.outputs.smoke == 'true'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin || echo "GHCR login failed; smoke will fall back to a local image build"
+      # USE_LOCAL is set ONLY when the baked deps changed, so a normal container
+      # change pulls the prebuilt image (deps baked, our binary mounted on top)
+      # and a deps change rebuilds the image fresh. website:smoke reads
+      # WEBSITE_USE_LOCAL; bench:smoke reads BENCH_USE_LOCAL.
       - name: Website serves-a-page smoke
+        if: steps.changes.outputs.smoke == 'true'
+        env:
+          WEBSITE_USE_LOCAL: ${{ steps.changes.outputs.image == 'true' && '1' || '' }}
         run: pnpm run website:smoke
       - name: Benchmark competitor-build smoke
+        if: steps.changes.outputs.smoke == 'true'
+        env:
+          BENCH_USE_LOCAL: ${{ steps.changes.outputs.image == 'true' && '1' || '' }}
         run: pnpm run bench:smoke

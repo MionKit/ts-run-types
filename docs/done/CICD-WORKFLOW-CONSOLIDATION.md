@@ -5,12 +5,12 @@ Scope: `.github/workflows/`, a few supporting scripts. No package/runtime code.
 
 ## What shipped
 
-- **New** `ci.yml` (PR/push → main): `verify` job + path-gated `container-smoke` job (gated by a `changes` job using `dorny/paths-filter@v3`).
+- **New** `ci.yml` (PR/push → main): a single `verify` job (Go + JS suites incl. fuzz, gofmt/vet, lint, typecheck, format) with the website + benchmark container smoke folded in as trailing **path-gated** steps (`dorny/paths-filter`), so the smoke reuses the same bootstrap + Go binary + dists instead of a second job that repeats them.
 - **Renamed** `release-build-test.yml` → `release-gate.yml`; added a `version` `workflow_call` output, a `benchmarks` job, and a `website-build` job; bumped the `tarballs` artifact retention to 14 days; dropped the e2e `vite`/`vitest` pins (now in `e2e/package.json`).
 - **Re-pointed** `pre-publish.yml` (PR → `prod`) and `publish.yml` (push → `prod`); folded the Cloudflare deploy into `publish.yml` as `deploy-website` (`needs: publish-npm`); added an npm preflight + idempotent tag guard; pinned the tag to the gate's `version` output.
 - **Deleted** `benchmarks.yml`, `website.yml`, `website-publish.yml` (folded in).
 - **Fixes:** `scripts/benchmarks.sh cmd_build` now accumulates competitor build failures and exits non-zero; `e2e/package.json` description corrected (no phantom `scripts/e2e-test.mjs`) and `vite`/`vitest` pinned as devDependencies.
-- **Decision change vs the original plan:** the `container-smoke` and the gate's `benchmarks` / `website-build` jobs **build the shared podman image locally** (`WEBSITE_USE_LOCAL` / `BENCH_USE_LOCAL`), so **no GHCR secret is needed in CI**. Rationale: deterministic, and when the container inputs change (the only time smoke runs) you want a freshly built image anyway. GHCR stays a local-dev convenience only.
+- **Image strategy:** the prod gate's `benchmarks` / `website-build` jobs **build the shared podman image locally** (`BENCH_USE_LOCAL` / `WEBSITE_USE_LOCAL`) for determinism. The main-PR smoke instead **pulls the prebuilt shared image** (competitor deps incl. typia are baked into it; our binary is mounted on top) so it skips the multi-minute dep install. It logs in to GHCR with the built-in `GITHUB_TOKEN` (no secret), and forces a fresh local build only when the baked deps themselves change (`container/**/_deps/**` or the Containerfile); if the image can't be pulled it falls back to a local build. So **no GHCR secret is needed in CI** — but for the fast pull to work, the `ghcr.io/mionkit/tsrt-website` package must be readable by the repo's token (public, or org package granted to the repo).
 
 ## Why
 
@@ -59,7 +59,7 @@ reusable gate and the existing composite actions:
     bootstrap/            (keep — apply tsgolint patches, Go 1.26 + Node 24 + pnpm, install)
     verdaccio-publish/    (keep — throwaway local registry for the consumer e2e)
   workflows/
-    ci.yml                # PR/push → main   : verify (lint, typecheck, test+fuzz, go test) + container-smoke (path-gated)
+    ci.yml                # PR/push → main   : single verify job (lint, typecheck, test+fuzz, go test, gofmt/vet) + container smoke folded in as path-gated steps
     pre-publish.yml       # PR → prod         : uses release-gate.yml. No publish.
     publish.yml           # push → prod       : uses release-gate.yml → publish-npm → deploy-website
     release-gate.yml      # reusable (workflow_call): build + 7-platform e2e + benchmarks + website-build
@@ -85,19 +85,26 @@ on:
 concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }
 
 jobs:
-  verify:          # ubuntu-latest
+  verify:          # ubuntu-latest — ONE job; the smoke is folded in as trailing path-gated steps
     - checkout (submodules: recursive) -> ./.github/actions/bootstrap
     - go test ./internal/...
     - gofmt -l cmd internal (fail if non-empty) + go vet ./cmd/... ./internal/...
     - pnpm test            # pretest builds bin/ts-runtypes + dists; runs the fuzz integration specs
     - pnpm run lint        # lerna run lint + typecheck
     - pnpm run check-format
-
-  container-smoke: # path-gated: only when container/**, scripts/website.sh, scripts/benchmarks.sh change
-    - build the shared image locally (WEBSITE_USE_LOCAL + BENCH_USE_LOCAL; no GHCR auth)
-    - pnpm run website:smoke
-    - pnpm run bench:smoke   # ONLY after its exit-code bug is fixed (see Prerequisite fixes)
+    # --- container smoke: path-gated steps, reuse the bootstrap + binary + dists above ---
+    - dorny/paths-filter (id: changes): `smoke` = container/** or driver scripts; `image` = a _deps manifest or the Containerfile
+    - [if smoke] podman login ghcr.io (built-in GITHUB_TOKEN, best-effort, non-fatal)
+    - [if smoke] pnpm run website:smoke   # WEBSITE_USE_LOCAL set ONLY if `image` changed, else pull the prebuilt image
+    - [if smoke] pnpm run bench:smoke     # BENCH_USE_LOCAL   set ONLY if `image` changed, else pull (competitor deps incl. typia are baked in)
 ```
+
+The smoke reuses `verify`'s bootstrap, Go binary, and dists rather than standing up
+a second job that repeats that work, and PULLS the prebuilt shared image (deps
+baked) instead of rebuilding it - only forcing a fresh local image build when the
+baked deps themselves change. Falls back to a local build if the image can't be
+pulled. This keeps the main fast-path quick while making the (rare) container-PR
+smoke much cheaper than a from-scratch image build.
 
 ### `release-gate.yml` — reusable (`workflow_call`)
 
@@ -243,14 +250,14 @@ write` already present.
 
 ## Branch protection (the other half — set in repo settings, not in YAML)
 
-- **`main`**: require the `ci / verify` check (and `container-smoke` when it
-  runs) before merge.
+- **`main`**: require the `ci / verify` check before merge (the container smoke
+  is part of that one job now, so there is no separate check to require).
 - **`prod`**: require the `pre-publish` gate jobs; keep the `release`
   environment's required-reviewer gate on `publish-npm`.
 
 ## Migration checklist
 
-1. Create `ci.yml` (verify + path-gated container-smoke).
+1. Create `ci.yml` (single `verify` job; container smoke folded in as path-gated steps that pull the prebuilt image).
 2. Rename `release-build-test.yml` -> `release-gate.yml`; add `benchmarks` +
    `website-build` jobs.
 3. Re-point `pre-publish.yml` to `pull_request:[prod]`; keep it as a thin
