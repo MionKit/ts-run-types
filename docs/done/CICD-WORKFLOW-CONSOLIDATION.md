@@ -10,7 +10,7 @@ Scope: `.github/workflows/`, a few supporting scripts. No package/runtime code.
 - **Re-pointed** `pre-publish.yml` (PR → `prod`) and `publish.yml` (push → `prod`); folded the Cloudflare deploy into `publish.yml` as `deploy-website` (`needs: publish-npm`); added an npm preflight + idempotent tag guard; pinned the tag to the gate's `version` output.
 - **Deleted** `benchmarks.yml`, `website.yml`, `website-publish.yml` (folded in).
 - **Fixes:** `scripts/benchmarks.sh cmd_build` now accumulates competitor build failures and exits non-zero; `e2e/package.json` description corrected (no phantom `scripts/e2e-test.mjs`) and `vite`/`vitest` pinned as devDependencies.
-- **Image strategy:** the prod gate's `benchmarks` / `website-build` jobs **build the shared podman image locally** (`BENCH_USE_LOCAL` / `WEBSITE_USE_LOCAL`) for determinism. The main-PR smoke instead **pulls the prebuilt shared image** (competitor deps incl. typia are baked into it; our binary is mounted on top) so it skips the multi-minute dep install. It logs in to GHCR with the built-in `GITHUB_TOKEN` (no secret), and forces a fresh local build only when the baked deps themselves change (`container/**/_deps/**` or the Containerfile); if the image can't be pulled it falls back to a local build. So **no GHCR secret is needed in CI** — but for the fast pull to work, the `ghcr.io/mionkit/tsrt-website` package must be readable by the repo's token (public, or org package granted to the repo).
+- **Image strategy — CI never builds the shared image, it only PULLS it.** Every image-using job (the main-PR smoke, the gate's `benchmarks` + `website-build`, and the prod `deploy-website`) uses the `pull-shared-image` composite action: log in to GHCR with the built-in `GITHUB_TOKEN` (no secret; the job grants `packages: read`), pull `ghcr.io/mionkit/tsrt-website:latest`, tag it `tsrt-website:dev`, and **fail the job if the pull fails** (a missing/stale image is a signal to republish from local, not a silent slow rebuild). The image is produced and pushed **from local** (`scripts/podman-website.sh push`); it is not a CI artifact. For the pull to work the `ghcr.io/mionkit/tsrt-website` package must be readable by the repo's token (public, or org package granted to the repo). typia is skipped in the smoke (`BENCH_NO_TYPIA`) until the image **bakes** typia's `.ttsc` native plugin (a local image change + republish); the prod `benchmarks` job runs typia.
 
 ## Why
 
@@ -115,7 +115,7 @@ everything pre-publish should:
 build         : full main gate (go test + gofmt/vet + pnpm test incl. fuzz + pnpm run lint + pnpm run check-format) + pnpm run build + build-binary-packages.mjs (7 platforms) + pack-artifacts.mjs -> upload `tarballs` artifact
 e2e (matrix)  : linux-x64 / darwin-arm64 / win32-x64 -> verdaccio install of published pkgs -> npm test
 exec-smoke    : linux-arm64 / linux-arm under QEMU -> ts-runtypes --version
-benchmarks    : bootstrap -> benchmarks.sh prep/bench/typecost   (local image build, no GHCR auth)
+benchmarks    : bootstrap -> benchmarks.sh prep -> pull prebuilt image -> bench/typecost   (CI never builds the image)
 website-build : bootstrap -> static site build (prove `website:publish generate` compiles; no deploy)
 ```
 

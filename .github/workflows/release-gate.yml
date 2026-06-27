@@ -147,10 +147,10 @@ jobs:
   benchmarks:
     name: validation + type-cost benchmarks (podman)
     runs-on: ubuntu-latest
-    # Build the shared image locally on the runner so the benchmark stage never
-    # depends on GHCR auth / image freshness; one knob drives both stages.
-    env:
-      BENCH_USE_LOCAL: '1'
+    # CI never builds the shared image; it pulls the prebuilt one (needs packages:read).
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v5
         with:
@@ -158,13 +158,12 @@ jobs:
       - uses: ./.github/actions/bootstrap
       - name: podman version
         run: podman --version
-      # Builds the Go resolver binary + the marker/plugin packages on the runner.
+      # Builds the Go resolver binary + the marker/plugin packages on the runner
+      # (these are mounted into the pulled image at run time).
       - name: Prep ts-runtypes toolchain
         run: bash scripts/benchmarks.sh prep
-      # podman ships preinstalled on ubuntu-latest runners; builds the single
-      # shared website+benchmark image locally (BENCH_USE_LOCAL above).
-      - name: Build the shared website+benchmark image
-        run: bash scripts/benchmarks.sh build-image
+      - name: Pull the prebuilt shared image (CI never builds it)
+        uses: ./.github/actions/pull-shared-image
       - name: Run the benchmark (build + run, in the container)
         run: bash scripts/benchmarks.sh bench
       - name: Type-checking cost (TS type instantiations)
@@ -173,17 +172,18 @@ jobs:
   website-build:
     name: static docs site build (podman)
     runs-on: ubuntu-latest
-    # Prove the static site builds. Local image build (no GHCR auth); this is a
-    # build check only - the real bench-data-baked deploy happens in publish.yml.
-    env:
-      WEBSITE_USE_LOCAL: '1'
+    # Prove the static site builds. CI never builds the image; it pulls the
+    # prebuilt one. This is a build check only - the real bench-data-baked deploy
+    # happens in publish.yml.
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v5
       - name: podman version
         run: podman --version
-      # Identical to `pnpm run podman-website:build-image` locally.
-      - name: Build the shared website+benchmark image
-        run: bash scripts/podman-website.sh build-image
+      - name: Pull the prebuilt shared image (CI never builds it)
+        uses: ./.github/actions/pull-shared-image
       # Identical to `pnpm run website:build` locally - produces container/website/.output.
       - name: Production build inside the container
         run: bash scripts/website.sh build

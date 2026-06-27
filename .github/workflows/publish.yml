@@ -89,6 +89,10 @@ jobs:
     needs: publish-npm
     runs-on: ubuntu-latest
     environment: production
+    # contents:read (checkout) + packages:read (pull the prebuilt shared image).
+    permissions:
+      contents: read
+      packages: read
     env:
       PAGES_PROJECT: runtypes-docs
     steps:
@@ -98,13 +102,13 @@ jobs:
       - uses: ./.github/actions/bootstrap
       - name: podman version
         run: podman --version
-      # The full pipeline in one command (image + binary + benchmarks + static
-      # site). WEBSITE_USE_LOCAL=1 forces a LOCAL image build and is mirrored onto
-      # the benchmark stage so every stage uses that same locally-built image.
-      - name: Build image + binary + benchmarks + static site
+      # CI never builds the shared image; pull the prebuilt one (republish from
+      # local if it's stale). website:publish then binds our binary + builds the
+      # benchmarks + static site against it.
+      - name: Pull the prebuilt shared image (CI never builds it)
+        uses: ./.github/actions/pull-shared-image
+      - name: Build binary + benchmarks + static site
         run: pnpm run website:publish generate
-        env:
-          WEBSITE_USE_LOCAL: '1'
       - name: Upload static artifact
         uses: actions/upload-artifact@v7
         with:
