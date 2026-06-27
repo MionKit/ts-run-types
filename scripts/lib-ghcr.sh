@@ -19,19 +19,8 @@
 #   GHCR_PAT_FILE  token, file path
 # ------------------------------------------------------------------------------
 
-# Load repo-root .env (git-ignored) so local config (GHCR_PAT, ...) lives in one
-# file (see .env.sample). Guarded so sourcing this plus lib-container.sh loads
-# once; 'set -a' exports each assignment. Absent .env (e.g. in CI) is a no-op.
-if [ -z "${RT_ENV_LOADED:-}" ]; then
-  RT_ENV_LOADED=1
-  _rt_env_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-  if [ -f "$_rt_env_dir/.env" ]; then
-    set -a
-    . "$_rt_env_dir/.env"
-    set +a
-  fi
-  unset _rt_env_dir
-fi
+# Repo-root .env loading (dev only) + the env-var registry, centralized in lib-env.sh.
+source "$(dirname "${BASH_SOURCE[0]}")/lib-env.sh"
 
 GHCR_REGISTRY="${GHCR_REGISTRY:-ghcr.io}"
 GHCR_OWNER="${GHCR_OWNER:-mionkit}"

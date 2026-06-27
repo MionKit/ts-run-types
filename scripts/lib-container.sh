@@ -17,18 +17,9 @@ if [ -z "${ROOT_DIR:-}" ]; then
 fi
 WEBSITE_DIR="$ROOT_DIR/container/website"
 
-# Load repo-root .env (git-ignored) so local config - GHCR_PAT, *_USE_LOCAL, etc. -
-# lives in one file (see .env.sample). Guarded so sourcing both libs loads once;
-# 'set -a' exports each assignment. No .env (e.g. in CI) is a silent no-op, so it
-# never affects environment-provided vars there. Only uncommented lines apply.
-if [ -z "${RT_ENV_LOADED:-}" ]; then
-  RT_ENV_LOADED=1
-  if [ -f "$ROOT_DIR/.env" ]; then
-    set -a
-    . "$ROOT_DIR/.env"
-    set +a
-  fi
-fi
+# Repo-root .env loading (dev only) + the env-var registry, centralized in lib-env.sh.
+RT_ENV_ROOT="$ROOT_DIR"
+source "$(dirname "${BASH_SOURCE[0]}")/lib-env.sh"
 
 ENGINE="${RT_WEBSITE_ENGINE:-podman}"
 # The single shared image. Built/published by podman-website.sh; run by website.sh

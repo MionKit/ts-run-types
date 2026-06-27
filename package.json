@@ -28,6 +28,7 @@
     "pretest": "pnpm run check:builds",
     "test": "vitest run",
     "check:builds": "bash scripts/check-stale-builds.sh",
+    "check:env": "bash scripts/check-env.sh",
     "fuzz:unit": "vitest run --config packages/ts-runtypes/test/fuzz/vitest.fuzz-unit.config.ts",
     "prefuzz": "pnpm run check:builds",
     "fuzz": "vitest run fuzz.integration typeFuzz.integration binaryEncoderResize",

@@ -273,6 +273,23 @@ build_vite_plugin() {
   ok "runtypes-devtools dist built"
 }
 
+# Create the dev .env (from .env.sample) if missing, then report env-var status.
+# .env is DEV-ONLY (git-ignored, never in CI); CI secrets (NPM_TOKEN, CLOUDFLARE_*)
+# are set in GitHub. Basic dev needs no env vars; GHCR_PAT is only for pushing the
+# shared image. Non-fatal - this just gives the dev a filled-in starting point.
+setup_env() {
+  if [ "$CHECK_ONLY" = 1 ]; then
+    bash "$REPO_DIR/scripts/check-env.sh" || true
+    return 0
+  fi
+  if [ -f "$REPO_DIR/.env" ]; then
+    ok ".env present"
+  else
+    ( cd "$REPO_DIR" && bash scripts/check-env.sh --create-env )
+  fi
+  bash "$REPO_DIR/scripts/check-env.sh" || true
+}
+
 main() {
   case "$OS" in
     Linux|Darwin) ;;
@@ -316,6 +333,9 @@ main() {
   install_workspace_deps
   build_go_binary
   build_vite_plugin
+
+  bold "Local env (.env, dev only)"
+  setup_env
 
   bold "Next steps (from the repo root)"
   if [ "$CHECK_ONLY" = 1 ]; then
