@@ -17,13 +17,13 @@ import {NOT_SUPPORTED, type CaseEntry, type SampleOverride, type CompetitorModul
 import {check, benchOps} from './measure.ts';
 import type {CaseResult, MetricResult, MetricSummary, CompetitorResult} from './result.ts';
 
-const NO_TIMING = process.env.BENCH_NO_TIMING === '1';
-const TIME_MS = Number(process.env.BENCH_TIME_MS ?? 100);
-// BENCH_CASE=<substr>: restrict the run to cases whose dotted key contains the
+const NO_TIMING = process.env.RT_BENCH_NO_TIMING === '1';
+const TIME_MS = Number(process.env.RT_BENCH_TIME_MS ?? 100);
+// RT_BENCH_CASE=<substr>: restrict the run to cases whose dotted key contains the
 // (case-insensitive) substring — measure ONE case's runtime across competitors.
 // A filtered run prints to the console and does NOT write <name>.json (see
 // writeResult in result.ts), so it never clobbers the full-suite results.
-const CASE_FILTER = (process.env.BENCH_CASE ?? '').toLowerCase();
+const CASE_FILTER = (process.env.RT_BENCH_CASE ?? '').toLowerCase();
 
 const asFn = (x: (() => Validator) | NotSupported | undefined): (() => Validator) | null => (typeof x === 'function' ? x : null);
 

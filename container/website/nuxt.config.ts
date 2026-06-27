@@ -3,7 +3,7 @@ import { processCodeImports, exampleWatcherPlugin } from './server/utils/code-im
 const isDev = process.env.NODE_ENV !== 'production'
 
 // Bind-mounted source on macOS/VM container hosts doesn't deliver fs events into
-// the container, so native watchers never fire. WEBSITE_POLL=1 sets this env
+// the container, so native watchers never fire. RT_WEBSITE_POLL=1 sets this env
 // (see scripts/website.sh) to make the watchers poll instead.
 const usePolling = process.env.CHOKIDAR_USEPOLLING === 'true'
 

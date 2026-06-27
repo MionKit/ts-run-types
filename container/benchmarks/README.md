@@ -165,9 +165,9 @@ code — are a separate `pnpm run gen:suite-docs`.)
 The run commands **pull the latest published `ghcr.io/mionkit/tsrt-website:latest`
 (the shared image) by default** (cheap no-op when current), falling back to a local
 build when the registry is unreachable. Set `RT_BENCH_USE_LOCAL=1` to build/use a local image
-(offline, or to test a dep bump before pushing). typia's native plugin is no
-longer pre-warmed at build time — the first `BENCH_TYPIA=1` run compiles it
-(~200s) into a persisted named volume that later runs reuse (`bench:clean` drops it).
+(offline, or to test a dep bump before pushing). typia's native plugin is
+pre-compiled into `node_modules/.ttsc` at image build time (baked into the image),
+so the bench build reuses it with no ~200s runtime compile.
 
 `bench` runs each competitor in its **own `--rm` container** (strongest
 isolation), then `aggregate.mjs` prints the table + coverage. It exits non-zero if
