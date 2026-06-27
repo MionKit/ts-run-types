@@ -14,8 +14,8 @@
 #
 # Usage:
 #   scripts/website.sh dev           # run the dev server with hot reload
-#   scripts/website.sh dev --isAgent # detached agent dev server on WEBSITE_AGENT_PORT
-#                                    #   (3100); self-stops after WEBSITE_AGENT_IDLE_SECONDS idle
+#   scripts/website.sh dev --isAgent # detached agent dev server on RT_WEBSITE_AGENT_PORT
+#                                    #   (3100); self-stops after RT_WEBSITE_AGENT_IDLE_SECONDS idle
 #   scripts/website.sh build         # production build -> container/website/.output
 #   scripts/website.sh generate      # static prerender -> container/website/.output/public
 #   scripts/website.sh smoke         # quick verify: bg dev server + curl :3000 + stop
@@ -27,25 +27,25 @@
 # push | pull | lock | clean).
 #
 # Env overrides:
-#   WEBSITE_ENGINE   container engine (default: podman)
-#   WEBSITE_IMAGE    image tag        (default: tsrt-website:dev)
-#   WEBSITE_PORT     host port        (default: 3000)
-#   WEBSITE_AGENT_PORT          agent host port      (default: 3100)
-#   WEBSITE_AGENT_IDLE_SECONDS  agent idle shutdown  (default: 300)
+#   RT_WEBSITE_ENGINE   container engine (default: podman)
+#   RT_WEBSITE_IMAGE    image tag        (default: tsrt-website:dev)
+#   RT_WEBSITE_PORT     host port        (default: 3000)
+#   RT_WEBSITE_AGENT_PORT          agent host port      (default: 3100)
+#   RT_WEBSITE_AGENT_IDLE_SECONDS  agent idle shutdown  (default: 300)
 #   (default)  run commands ensure (pull-or-build) the shared image first
-#   WEBSITE_USE_LOCAL=1   ensure uses a local image (maintainer/offline); forwarded to podman-website.sh
-#   WEBSITE_REPO_CONTEXT  host checkout that contains packages/ (source + built
+#   RT_WEBSITE_USE_LOCAL=1   ensure uses a local image (maintainer/offline); forwarded to podman-website.sh
+#   RT_WEBSITE_REPO_CONTEXT  host checkout that contains packages/ (source + built
 #                        .d.ts), mounted read-only for code-import/twoslash.
 #                        Default: sibling ../mion if present, else this repo.
-#   WEBSITE_DOCDATA      host dir of generated benchmark/test result JSON the docs
+#   RT_WEBSITE_DOCDATA      host dir of generated benchmark/test result JSON the docs
 #                        read, mounted read-only at /app/.docdata (default: .docdata).
-#   WEBSITE_POLL     filesystem polling for watchers (macOS / VM bind mounts).
-#                    Default: 1 on macOS, 0 on Linux. Set WEBSITE_POLL=0 to force off.
-#   WEBSITE_SKIP_PLAYGROUND=1  skip auto-building the /playground bundle on run. By
+#   RT_WEBSITE_POLL     filesystem polling for watchers (macOS / VM bind mounts).
+#                    Default: 1 on macOS, 0 on Linux. Set RT_WEBSITE_POLL=0 to force off.
+#   RT_WEBSITE_SKIP_PLAYGROUND=1  skip auto-building the /playground bundle on run. By
 #                    default dev/build/generate/smoke build + stage it (when missing or
 #                    stale) so /playground works; needs Go + bootstrapped submodule.
-#   WEBSITE_MOUNT_OPTS   extra bind-mount opts, e.g. ":z" on SELinux hosts
-#   WEBSITE_RUN_NETWORK  podman run network (e.g. "host" behind a proxy)
+#   RT_WEBSITE_MOUNT_OPTS   extra bind-mount opts, e.g. ":z" on SELinux hosts
+#   RT_WEBSITE_RUN_NETWORK  podman run network (e.g. "host" behind a proxy)
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
@@ -56,18 +56,18 @@ source "$SCRIPT_DIR/lib-container.sh"
 # The image owner this script delegates `ensure` to (single source of truth).
 PODMAN_WEBSITE_SH="$SCRIPT_DIR/podman-website.sh"
 
-PORT="${WEBSITE_PORT:-3000}"
+PORT="${RT_WEBSITE_PORT:-3000}"
 # Agent mode (`dev --isAgent`): reserved port so an agent-driven server never
 # collides with a human's :3000, plus the idle window after which it self-stops.
-AGENT_PORT="${WEBSITE_AGENT_PORT:-3100}"
-AGENT_IDLE_SECONDS="${WEBSITE_AGENT_IDLE_SECONDS:-300}"
+AGENT_PORT="${RT_WEBSITE_AGENT_PORT:-3100}"
+AGENT_IDLE_SECONDS="${RT_WEBSITE_AGENT_IDLE_SECONDS:-300}"
 # Watcher polling: bind mounts on macOS deliver no native fs events, so default it
 # on there (the container runs in a Linux VM). Linux bind mounts pass events through
-# natively -- keep it off. Override with WEBSITE_POLL=0/1 either way.
-if [ -z "${WEBSITE_POLL:-}" ]; then
-  [ "$(uname -s)" = "Darwin" ] && WEBSITE_POLL=1 || WEBSITE_POLL=0
+# natively -- keep it off. Override with RT_WEBSITE_POLL=0/1 either way.
+if [ -z "${RT_WEBSITE_POLL:-}" ]; then
+  [ "$(uname -s)" = "Darwin" ] && RT_WEBSITE_POLL=1 || RT_WEBSITE_POLL=0
 fi
-RUN_NETWORK="${WEBSITE_RUN_NETWORK:-}"
+RUN_NETWORK="${RT_WEBSITE_RUN_NETWORK:-}"
 
 # Source directories bind-mounted into /app (host is the source of truth).
 MOUNT_DIRS=(app content public server scripts not-rendered tests)
@@ -78,19 +78,19 @@ MOUNT_FILES=(nuxt.config.ts tsconfig.json eslint.config.mjs)
 # built .d.ts), mounted READ-ONLY so code-import + twoslash can resolve code and
 # types. This repo carries packages/examples itself, so prefer it whenever those
 # examples are present. Only fall back to a sibling ../mion checkout for a legacy
-# split layout. Override with WEBSITE_REPO_CONTEXT.
+# split layout. Override with RT_WEBSITE_REPO_CONTEXT.
 default_repo_context() {
   if [ -d "$ROOT_DIR/packages/examples" ]; then echo "$ROOT_DIR"
   elif [ -d "$ROOT_DIR/../mion/packages" ]; then ( cd "$ROOT_DIR/../mion" && pwd )
   else echo "$ROOT_DIR"; fi
 }
-REPO_CONTEXT="${WEBSITE_REPO_CONTEXT:-$(default_repo_context)}"
+REPO_CONTEXT="${RT_WEBSITE_REPO_CONTEXT:-$(default_repo_context)}"
 
 # Generated benchmark/test result JSON the docs are built from, mounted read-only.
-DOCDATA_DIR="${WEBSITE_DOCDATA:-$ROOT_DIR/.docdata}"
+DOCDATA_DIR="${RT_WEBSITE_DOCDATA:-$ROOT_DIR/.docdata}"
 
 # Make the shared image ready before a run by delegating to its owner. Honors
-# WEBSITE_USE_LOCAL / WEBSITE_IMAGE / WEBSITE_REMOTE_IMAGE via the inherited env.
+# RT_WEBSITE_USE_LOCAL / RT_WEBSITE_IMAGE / RT_WEBSITE_REMOTE_IMAGE via the inherited env.
 ensure_image() { bash "$PODMAN_WEBSITE_SH" ensure; }
 
 # Staged playground bundle (Monaco web component + resolver WASM) the /playground
@@ -120,15 +120,15 @@ playground_stale() {
 # page works without a manual build-playground.sh step. The build needs the Go
 # toolchain + bootstrapped submodule on the HOST; when those are absent or the build
 # fails we WARN and continue (the rest of the site runs; the /playground page shows
-# its own "bundle not staged" hint). Skip entirely with WEBSITE_SKIP_PLAYGROUND=1.
+# its own "bundle not staged" hint). Skip entirely with RT_WEBSITE_SKIP_PLAYGROUND=1.
 ensure_playground() {
-  [ "${WEBSITE_SKIP_PLAYGROUND:-0}" = "1" ] && { echo "==> WEBSITE_SKIP_PLAYGROUND=1 - skipping playground bundle"; return 0; }
+  [ "${RT_WEBSITE_SKIP_PLAYGROUND:-0}" = "1" ] && { echo "==> RT_WEBSITE_SKIP_PLAYGROUND=1 - skipping playground bundle"; return 0; }
   if [ -f "$PLAYGROUND_MANIFEST" ] && ! playground_stale; then
     echo "==> playground bundle up to date (public/playground-app/)"
     return 0
   fi
   if ! command -v go >/dev/null 2>&1; then
-    echo "==> WARN: Go toolchain not found - skipping playground build (the /playground page will 404). Install Go + bootstrap submodules (SETUP.md), or set WEBSITE_SKIP_PLAYGROUND=1 to silence." >&2
+    echo "==> WARN: Go toolchain not found - skipping playground build (the /playground page will 404). Install Go + bootstrap submodules (SETUP.md), or set RT_WEBSITE_SKIP_PLAYGROUND=1 to silence." >&2
     return 0
   fi
   [ -f "$PLAYGROUND_MANIFEST" ] && echo "==> playground sources changed - rebuilding bundle" || echo "==> playground bundle missing - building it"
@@ -167,7 +167,7 @@ mount_args() {
   printf -- '-v\n%s:/app/node_modules/.cache\n' "$VOL_CACHE"
 }
 
-# Echo the --network arg for `run` when WEBSITE_RUN_NETWORK is set.
+# Echo the --network arg for `run` when RT_WEBSITE_RUN_NETWORK is set.
 net_args() {
   [ -n "$RUN_NETWORK" ] && printf -- '--network=%s\n' "$RUN_NETWORK"
   return 0
@@ -184,7 +184,7 @@ env_args() {
 # watcher) to switch the watchers to polling -- the only reliable mode over a bind
 # mount that delivers no native fs events.
 poll_args() {
-  if [ "${WEBSITE_POLL:-0}" = "1" ]; then
+  if [ "${RT_WEBSITE_POLL:-0}" = "1" ]; then
     printf -- '-e\nCHOKIDAR_USEPOLLING=true\n'
   fi
 }
@@ -302,7 +302,7 @@ cmd_generate() {
 cmd_smoke() {
   ensure_image
   local cname="${CONTAINER_BASE}-smoke"
-  local timeout_s="${WEBSITE_SMOKE_TIMEOUT:-90}"
+  local timeout_s="${RT_WEBSITE_SMOKE_TIMEOUT:-90}"
   local url="http://localhost:$PORT"
   echo "==> smoke: starting dev server in background ($cname)"
   "$ENGINE" rm -f "$cname" >/dev/null 2>&1 || true
@@ -371,7 +371,7 @@ cmd_shell() {
 cmd_prep() {
   echo "==> repo context: $REPO_CONTEXT"
   local pkgdir="$REPO_CONTEXT/packages" missing=0 p
-  [ -d "$pkgdir" ] || die "no packages/ under repo context '$REPO_CONTEXT' - set WEBSITE_REPO_CONTEXT to the repo checkout"
+  [ -d "$pkgdir" ] || die "no packages/ under repo context '$REPO_CONTEXT' - set RT_WEBSITE_REPO_CONTEXT to the repo checkout"
   for p in core run-types; do
     if ls "$pkgdir/$p/.dist/esm/"*.d.ts >/dev/null 2>&1; then
       echo "  ok: packages/$p built"
@@ -394,7 +394,7 @@ cmd_prep() {
 cmd_verify_docs() {
   ensure_image
   local cname="${CONTAINER_BASE}-verify"
-  local timeout_s="${WEBSITE_SMOKE_TIMEOUT:-120}"
+  local timeout_s="${RT_WEBSITE_SMOKE_TIMEOUT:-120}"
   local base="http://localhost:$PORT"
   # Pick a real example file from the mounted context for the endpoint checks.
   local ex relpath

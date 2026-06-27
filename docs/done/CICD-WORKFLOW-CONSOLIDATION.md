@@ -10,7 +10,7 @@ Scope: `.github/workflows/`, a few supporting scripts. No package/runtime code.
 - **Re-pointed** `pre-publish.yml` (PR → `prod`) and `publish.yml` (push → `prod`); folded the Cloudflare deploy into `publish.yml` as `deploy-website` (`needs: publish-npm`); added an npm preflight + idempotent tag guard; pinned the tag to the gate's `version` output.
 - **Deleted** `benchmarks.yml`, `website.yml`, `website-publish.yml` (folded in).
 - **Fixes:** `scripts/benchmarks.sh cmd_build` now accumulates competitor build failures and exits non-zero; `e2e/package.json` description corrected (no phantom `scripts/e2e-test.mjs`) and `vite`/`vitest` pinned as devDependencies.
-- **Image strategy — CI never builds the shared image, it only PULLS it.** Every image-using job (the main-PR smoke, the gate's `benchmarks` + `website-build`, and the prod `deploy-website`) uses the `pull-shared-image` composite action: log in to GHCR with the built-in `GITHUB_TOKEN` (no secret; the job grants `packages: read`), pull `ghcr.io/mionkit/tsrt-website:latest`, tag it `tsrt-website:dev`, and **fail the job if the pull fails** (a missing/stale image is a signal to republish from local, not a silent slow rebuild). The image is produced and pushed **from local** (`scripts/podman-website.sh push`); it is not a CI artifact. For the pull to work the `ghcr.io/mionkit/tsrt-website` package must be readable by the repo's token (public, or org package granted to the repo). typia is skipped in the smoke (`BENCH_NO_TYPIA`) until the image **bakes** typia's `.ttsc` native plugin (a local image change + republish); the prod `benchmarks` job runs typia.
+- **Image strategy — CI never builds the shared image, it only PULLS it.** Every image-using job (the main-PR smoke, the gate's `benchmarks` + `website-build`, and the prod `deploy-website`) uses the `pull-shared-image` composite action: log in to GHCR with the built-in `GITHUB_TOKEN` (no secret; the job grants `packages: read`), pull `ghcr.io/mionkit/tsrt-website:latest`, tag it `tsrt-website:dev`, and **fail the job if the pull fails** (a missing/stale image is a signal to republish from local, not a silent slow rebuild). The image is produced and pushed **from local** (`scripts/podman-website.sh push`); it is not a CI artifact. For the pull to work the `ghcr.io/mionkit/tsrt-website` package must be readable by the repo's token (public, or org package granted to the repo). typia is skipped in the smoke (`RT_BENCH_NO_TYPIA`) until the image **bakes** typia's `.ttsc` native plugin (a local image change + republish); the prod `benchmarks` job runs typia.
 
 ## Why
 
@@ -95,8 +95,8 @@ jobs:
     # --- container smoke: path-gated steps, reuse the bootstrap + binary + dists above ---
     - dorny/paths-filter (id: changes): `smoke` = container/** or driver scripts; `image` = a _deps manifest or the Containerfile
     - [if smoke] podman login ghcr.io (built-in GITHUB_TOKEN, best-effort, non-fatal)
-    - [if smoke] pnpm run website:smoke   # WEBSITE_USE_LOCAL set ONLY if `image` changed, else pull the prebuilt image
-    - [if smoke] pnpm run bench:smoke     # BENCH_USE_LOCAL   set ONLY if `image` changed, else pull (competitor deps incl. typia are baked in)
+    - [if smoke] pnpm run website:smoke   # RT_WEBSITE_USE_LOCAL set ONLY if `image` changed, else pull the prebuilt image
+    - [if smoke] pnpm run bench:smoke     # RT_BENCH_USE_LOCAL   set ONLY if `image` changed, else pull (competitor deps incl. typia are baked in)
 ```
 
 The smoke reuses `verify`'s bootstrap, Go binary, and dists rather than standing up
@@ -146,7 +146,7 @@ jobs:
     - node scripts/publish-tarballs.mjs --provenance   (platform pkgs -> launcher -> FE)
     - git tag v$version (idempotent guard) -> git-cliff -> gh release create
   deploy-website: # needs: publish-npm ; environment: production
-    - pnpm run website:publish generate (WEBSITE_USE_LOCAL=1) -> wrangler pages deploy
+    - pnpm run website:publish generate (RT_WEBSITE_USE_LOCAL=1) -> wrangler pages deploy
 ```
 
 Folding the website deploy in as `needs: publish-npm` fixes the decoupling:
@@ -164,7 +164,7 @@ conditional for GHCR). Scope the publish secrets to the protected environments
 | `NPM_TOKEN` | npm | `publish.yml` (`NODE_AUTH_TOKEN`) | npm **Automation** token with publish rights to all packages |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare | wrangler `apiToken` | API token with the **Cloudflare Pages: Edit** permission |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | wrangler `accountId` | Cloudflare account ID (stored as a secret by convention) |
-| ~~`GHCR_PAT`~~ | GHCR | **not needed in CI** | CI builds the shared image locally (`WEBSITE_USE_LOCAL`); GHCR auth is a local-dev convenience only |
+| ~~`GHCR_PAT`~~ | GHCR | **not needed in CI** | CI builds the shared image locally (`RT_WEBSITE_USE_LOCAL`); GHCR auth is a local-dev convenience only |
 
 **npm — `NPM_TOKEN`:** an Automation access token (bypasses OTP, required for the
 10-package sequential publish). Publish scope must cover `ts-runtypes`,
@@ -180,7 +180,7 @@ must exist first (`wrangler pages project create runtypes-docs` — the name is
 hardcoded as `PAGES_PROJECT: runtypes-docs`).
 
 **GHCR — usually no secret.** No workflow authenticates to GHCR today
-(`website-publish.yml` runs with `WEBSITE_USE_LOCAL=1` and builds locally). It
+(`website-publish.yml` runs with `RT_WEBSITE_USE_LOCAL=1` and builds locally). It
 only matters for the planned `ci.yml` smoke job:
 - Make the GHCR package (`ghcr.io/mionkit/tsrt-website`) **public** -> no secret,
   anonymous pulls work. **Recommended.**

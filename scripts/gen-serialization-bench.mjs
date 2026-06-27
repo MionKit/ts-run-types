@@ -139,9 +139,9 @@ const SOURCE_FIELDS = ['cloneEncoder', 'mutateEncoder', 'directEncoder', 'compac
 const BANDWIDTHS_MBPS = [10, 100, 1000];
 const DEFAULT_BANDWIDTH_MBPS = 100;
 
-// BENCH_QUICK=1 trades accuracy for speed (preview / two-staged website builds):
+// RT_BENCH_QUICK=1 trades accuracy for speed (preview / two-staged website builds):
 // far fewer cycles + iterations, so numbers are noisy but every panel still renders.
-const QUICK = process.env.BENCH_QUICK === '1';
+const QUICK = process.env.RT_BENCH_QUICK === '1';
 
 // Workload knobs. Modest vs the suite exporter — every case runs 5 round-trips ×
 // (encode + decode), so keep each measurement cheap but stable.

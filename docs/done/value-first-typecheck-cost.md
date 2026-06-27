@@ -60,8 +60,8 @@ see it (any value is assignable to `unknown`). Gate it:
 
 **2. Type-cost.** Per-case inner loop, then full suite:
 ```bash
-BENCH_DUMP=REALWORLD.order pnpm bench:typecost   # print the exact probe compiled
-BENCH_CASE=order           pnpm bench:typecost   # one construct, every form (no results rewrite)
+RT_BENCH_DUMP=REALWORLD.order pnpm bench:typecost   # print the exact probe compiled
+RT_BENCH_CASE=order           pnpm bench:typecost   # one construct, every form (no results rewrite)
 pnpm bench:typecost                              # full suite, refresh results JSON
 ```
 Rank by outliers (schema abnormally high in absolute terms, or a high multiple of
@@ -70,7 +70,7 @@ TypeBox); ignore cases already at/under TypeBox.
 **3. Runtime throughput — always wins.** Type-check cost never trumps runtime perf;
 they are independent concerns. Run the runtime bench after EVERY change:
 ```bash
-BENCH_CASE=order pnpm bench    # then full: pnpm bench
+RT_BENCH_CASE=order pnpm bench    # then full: pnpm bench
 ```
 Decision rule: faithful AND typecost-improves AND runtime-flat-or-better → keep;
 otherwise discard, even if the instantiation count dropped.

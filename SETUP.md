@@ -18,7 +18,7 @@ The repository contains a **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) 
 | git    | recent   | submodule + `git apply` are used              | -                                    |
 | podman | ≥ 4.0    | docs website + benchmarks containers          | tested 4.9.3 / 5.8.3                 |
 
-> **Container runtime is Node 26.** A single shared image ([`container/website/Containerfile`](container/website/Containerfile)) builds `FROM node:26-bookworm`, which unflags the global `Temporal` API, so benchmark timings and the docs build run on native Temporal (no `temporal-polyfill`), the same runtime the published library targets. The one image holds both dependency trees in separate dirs: the website at `/app`, the benchmarks at `/bench`. Node 26 ships only `npm` (the bundled `corepack` shim was removed), so the image installs the repo-pinned pnpm globally. The **host** still only needs Node >= 24 (the prep + on-host codegen run there). Override the base with `WEBSITE_BASE_IMAGE` (mirror / air-gapped / offline-built base).
+> **Container runtime is Node 26.** A single shared image ([`container/website/Containerfile`](container/website/Containerfile)) builds `FROM node:26-bookworm`, which unflags the global `Temporal` API, so benchmark timings and the docs build run on native Temporal (no `temporal-polyfill`), the same runtime the published library targets. The one image holds both dependency trees in separate dirs: the website at `/app`, the benchmarks at `/bench`. Node 26 ships only `npm` (the bundled `corepack` shim was removed), so the image installs the repo-pinned pnpm globally. The **host** still only needs Node >= 24 (the prep + on-host codegen run there). Override the base with `RT_WEBSITE_BASE_IMAGE` (mirror / air-gapped / offline-built base).
 
 **macOS Apple Silicon also needs Rosetta 2** — the podman-machine `vfkit` backend requires it and exits 1 without it. Install with `softwareupdate --install-rosetta --agree-to-license` (the skill does this automatically).
 
@@ -100,13 +100,13 @@ The package-manager files (`package.json`, lockfile, `pnpm-workspace.yaml`, `.np
 
 The website only needs **podman**; the benchmarks additionally need **Node + pnpm + Go** for the host prep (resolver binary + first-party dists, bind-mounted into the container). On macOS the prep cross-compiles `bin/ts-runtypes-linux-<arch>` **and** `bin/extract-fn-bodies-linux-<arch>` (the serialization bench's source-body extractor) so the Linux container can execute them without a Go toolchain.
 
-> **Agents:** start the website with `scripts/website.sh dev --isAgent` (not plain `dev`). It runs in a separate container (`tsrt-website-agent`) on the reserved port **`:3100`** and self-stops after ~5 min idle, so an agent-driven server never collides with a human's `:3000` and never lingers. Hot-reload polling auto-enables on macOS; force it anywhere with `WEBSITE_POLL=1`.
+> **Agents:** start the website with `scripts/website.sh dev --isAgent` (not plain `dev`). It runs in a separate container (`tsrt-website-agent`) on the reserved port **`:3100`** and self-stops after ~5 min idle, so an agent-driven server never collides with a human's `:3000` and never lingers. Hot-reload polling auto-enables on macOS; force it anywhere with `RT_WEBSITE_POLL=1`.
 
 ### Playground (in-browser WASM, POC)
 
 The docs site has an interactive **playground** page (`/playground`) that resolves a TypeScript type **and runs the functions RunTypes generates for it** (validate, JSON/binary encode + decode, RunType graph) entirely in the browser, with no server round-trip. It is the [`runtypes-playground`](packages/runtypes-playground/) package's Monaco-based `<runtypes-playground>` web component, embedded by [`container/website/app/components/content/RuntypesPlayground.vue`](container/website/app/components/content/RuntypesPlayground.vue).
 
-The bundle is built **on the host** (the container is Node-only). `scripts/website.sh` does this automatically: `dev`, `build`, `generate`, and `smoke` build and stage it when it is missing or its sources changed, so `/playground` just works after a normal `scripts/website.sh dev`. It needs the Go toolchain + bootstrapped submodule on the host (see [Bootstrap](#bootstrap)); when those are absent or the build fails the site still runs and only `/playground` shows a "bundle not staged" hint. Skip the auto-build with `WEBSITE_SKIP_PLAYGROUND=1`.
+The bundle is built **on the host** (the container is Node-only). `scripts/website.sh` does this automatically: `dev`, `build`, `generate`, and `smoke` build and stage it when it is missing or its sources changed, so `/playground` just works after a normal `scripts/website.sh dev`. It needs the Go toolchain + bootstrapped submodule on the host (see [Bootstrap](#bootstrap)); when those are absent or the build fails the site still runs and only `/playground` shows a "bundle not staged" hint. Skip the auto-build with `RT_WEBSITE_SKIP_PLAYGROUND=1`.
 
 You can also build it directly:
 
@@ -120,23 +120,23 @@ It runs the package's `build:all` (cross-compiles `cmd/ts-runtypes-wasm` with `G
 
 The docs site documents the runtime packages: its `<code-import>` and `::twoslash-code` mechanisms read first-party source + built `.d.ts` from `packages/` at build/dev time. Those packages may live in a separate checkout. `scripts/website.sh` mounts that checkout **read-only** into the container and points the resolvers at it via `RT_REPO_ROOT` — so the website is **merge-agnostic** (works whether the packages sit in a sibling checkout today or get merged into this repo; only the env value changes).
 
-- `WEBSITE_REPO_CONTEXT` — host path to the checkout containing `packages/`. **Default:** sibling `../mion` if present, else this repo. Override to point anywhere.
+- `RT_WEBSITE_REPO_CONTEXT` — host path to the checkout containing `packages/`. **Default:** sibling `../mion` if present, else this repo. Override to point anywhere.
 - Only `packages/` (+ the drizzle-orm `.d.ts` allowlist) is mounted — never the repo root. The resolvers additionally **confine every `path=` read to `packages/`** (`resolveInPackages` in [`server/utils/repo-root.ts`](container/website/server/utils/repo-root.ts)); a path escaping it is rejected.
 - `pnpm run website:prep` verifies the context packages are built (twoslash hovers need their `.dist/esm/*.d.ts`); if missing it tells you to `pnpm -C <context> run build` first.
 - `pnpm run website:verify-docs` boots the dev server and checks code-import + twoslash + the security boundary end-to-end (curl/grep, no browser).
 
 ### Docs read benchmark/test results from `.docdata/`
 
-`pnpm run bench` publishes per-competitor result JSON into the canonical **`<repo>/.docdata/container/benchmarks/`** (future test results go in `.docdata/tests/`). The website mounts `.docdata` **read-only** at `/app/.docdata` (`RT_DOCDATA`), so doc-gen and content components consume results from there. (`WEBSITE_DOCDATA` overrides the host dir.)
+`pnpm run bench` publishes per-competitor result JSON into the canonical **`<repo>/.docdata/container/benchmarks/`** (future test results go in `.docdata/tests/`). The website mounts `.docdata` **read-only** at `/app/.docdata` (`RT_DOCDATA`), so doc-gen and content components consume results from there. (`RT_WEBSITE_DOCDATA` overrides the host dir.)
 
 Every runtime command in [`scripts/benchmarks.sh`](scripts/benchmarks.sh) self-syncs prereqs by delegating to [`scripts/check-stale-builds.sh`](scripts/check-stale-builds.sh) (also used by `pretest`): it rebuilds the Go binary, the Linux cross-binary, the plugin dist, and the marker dist when any of them is stale or has a partial tsc emit. It then readies the shared image (by delegating to `scripts/podman-website.sh`), which under `*_USE_LOCAL` rebuilds when a **dependency** input changes (`container/website/Containerfile` or anything under `container/website/_deps/` or `container/benchmarks/_deps/`). All first-party source is bind-mounted, so editing it never triggers an image rebuild. Manual `pnpm run bench:prep` remains available for explicit refresh.
 
 macOS-specific knobs:
 
-- `WEBSITE_POLL=1 pnpm run website:dev` — VM file-watch needs filesystem polling.
+- `RT_WEBSITE_POLL=1 pnpm run website:dev` — VM file-watch needs filesystem polling.
 - The skill calls `podman machine init` + `podman machine start` automatically; manually it's the same two commands.
 
-Behind a corporate / MITM proxy: pass `WEBSITE_CA_CERT=... WEBSITE_BUILD_NETWORK=host pnpm run podman-website:build-image`. See `container/website/CONTAINER.md`.
+Behind a corporate / MITM proxy: pass `RT_WEBSITE_CA_CERT=... RT_WEBSITE_BUILD_NETWORK=host pnpm run podman-website:build-image`. See `container/website/CONTAINER.md`.
 
 ### Publishing & consuming the image via GHCR
 
@@ -149,12 +149,12 @@ The single deps-only image is published to the GitHub Container Registry as `ghc
 | Authenticate (once) | `pnpm run podman-website:login` | Reads the PAT from `GHCR_PAT` or `GHCR_PAT_FILE`, pipes via `--password-stdin`. Only needed for a **private** package. |
 | Run (consume) | `pnpm run website:dev` / `pnpm run bench` | Pulls the latest published image, then runs. This is the default. |
 | Publish | `pnpm run podman-website:push` | Builds the **multi-arch** (`linux/amd64,linux/arm64`) shared image and pushes it to `tsrt-website:latest`. |
-| Build/run locally | `WEBSITE_USE_LOCAL=1 pnpm run website:dev` (or `BENCH_USE_LOCAL=1`) | Skip the pull; build/use a local image. The maintainer/offline loop — also how you test a dep bump before pushing. |
+| Build/run locally | `RT_WEBSITE_USE_LOCAL=1 pnpm run website:dev` (or `RT_BENCH_USE_LOCAL=1`) | Skip the pull; build/use a local image. The maintainer/offline loop — also how you test a dep bump before pushing. |
 | Pull only | `pnpm run podman-website:pull` | Fetch + retag without running. |
 
-Dep-bump loop (host stays pnpm-free): edit `container/website/_deps/package.json` → `pnpm run podman-website:lock` (regen the lockfile in-container) → `WEBSITE_USE_LOCAL=1 pnpm run website:smoke` (verify the new local image) → `pnpm run podman-website:push`.
+Dep-bump loop (host stays pnpm-free): edit `container/website/_deps/package.json` → `pnpm run podman-website:lock` (regen the lockfile in-container) → `RT_WEBSITE_USE_LOCAL=1 pnpm run website:smoke` (verify the new local image) → `pnpm run podman-website:push`.
 
-GHCR env (see [scripts/lib-ghcr.sh](scripts/lib-ghcr.sh)): `GHCR_OWNER` (default `mionkit`), `GHCR_USER` (default `M-jerez`), `GHCR_PAT` / `GHCR_PAT_FILE`, `WEBSITE_USE_LOCAL` / `BENCH_USE_LOCAL` (opt out of the pull), `WEBSITE_REMOTE_IMAGE` / `BENCH_REMOTE_IMAGE` (both now default to the one shared image `ghcr.io/$GHCR_OWNER/tsrt-website:latest`).
+GHCR env (see [scripts/lib-ghcr.sh](scripts/lib-ghcr.sh)): `GHCR_OWNER` (default `mionkit`), `GHCR_USER` (default `M-jerez`), `GHCR_PAT` / `GHCR_PAT_FILE`, `RT_WEBSITE_USE_LOCAL` / `RT_BENCH_USE_LOCAL` (opt out of the pull), `RT_WEBSITE_REMOTE_IMAGE` / `RT_BENCH_REMOTE_IMAGE` (both now default to the one shared image `ghcr.io/$GHCR_OWNER/tsrt-website:latest`).
 
 Notes:
 

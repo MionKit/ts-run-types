@@ -328,7 +328,7 @@ main() {
     echo "  pnpm run bench            # full validation benchmark"
     echo "  pnpm run bench:typecost   # type-checking-cost benchmark"
     if [ "$OS" = Darwin ]; then
-      echo "  (macOS: WEBSITE_POLL=1 pnpm run website:dev  for reliable hot reload)"
+      echo "  (macOS: RT_WEBSITE_POLL=1 pnpm run website:dev  for reliable hot reload)"
     fi
   fi
 

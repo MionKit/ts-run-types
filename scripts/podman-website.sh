@@ -21,21 +21,21 @@
 #   scripts/podman-website.sh clean         # remove the image + named volumes
 #
 # Env overrides:
-#   WEBSITE_ENGINE   container engine (default: podman)
-#   WEBSITE_IMAGE    image tag        (default: tsrt-website:dev)
-#   WEBSITE_BASE_IMAGE   Node 26 base image (default: node:26-bookworm); point at a
+#   RT_WEBSITE_ENGINE   container engine (default: podman)
+#   RT_WEBSITE_IMAGE    image tag        (default: tsrt-website:dev)
+#   RT_WEBSITE_BASE_IMAGE   Node 26 base image (default: node:26-bookworm); point at a
 #                        mirror / locally-built base for air-gapped or offline builds.
-#   WEBSITE_PNPM_VERSION override the pinned pnpm baked into the image.
+#   RT_WEBSITE_PNPM_VERSION override the pinned pnpm baked into the image.
 #   (default)  ensure PULLS the latest published GHCR image first
-#   WEBSITE_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline)
-#   WEBSITE_REMOTE_IMAGE  remote ref (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest)
+#   RT_WEBSITE_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline)
+#   RT_WEBSITE_REMOTE_IMAGE  remote ref (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest)
 #   GHCR_OWNER / GHCR_USER / GHCR_PAT / GHCR_PAT_FILE  (see scripts/lib-ghcr.sh)
-#   WEBSITE_MOUNT_OPTS    extra bind-mount opts, e.g. ":z" on SELinux hosts
-#   WEBSITE_CA_CERT       file OR dir of extra CA certs to trust inside the image
+#   RT_WEBSITE_MOUNT_OPTS    extra bind-mount opts, e.g. ":z" on SELinux hosts
+#   RT_WEBSITE_CA_CERT       file OR dir of extra CA certs to trust inside the image
 #                         (corporate / MITM egress proxy). Auto-detects the host's
 #                         /usr/local/share/ca-certificates when it holds certs.
-#   WEBSITE_BUILD_NETWORK podman build network (e.g. "host" behind a proxy)
-#   WEBSITE_RUN_NETWORK   podman run network for `lock` (e.g. "host" behind a proxy)
+#   RT_WEBSITE_BUILD_NETWORK podman build network (e.g. "host" behind a proxy)
+#   RT_WEBSITE_RUN_NETWORK   podman run network for `lock` (e.g. "host" behind a proxy)
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
@@ -45,8 +45,8 @@ source "$SCRIPT_DIR/lib-container.sh"
 # GHCR publish/pull helpers (login, push, pull) + the registry/owner defaults.
 source "$SCRIPT_DIR/lib-ghcr.sh"
 
-CA_SRC="${WEBSITE_CA_CERT:-}"
-BUILD_NETWORK="${WEBSITE_BUILD_NETWORK:-}"
+CA_SRC="${RT_WEBSITE_CA_CERT:-}"
+BUILD_NETWORK="${RT_WEBSITE_BUILD_NETWORK:-}"
 CACERTS_DIR="$WEBSITE_DIR/.cacerts"
 DEPS_DIR="$WEBSITE_DIR/_deps"
 # The merged image also bakes the benchmark deps (under /bench). Their manifests
@@ -54,15 +54,15 @@ DEPS_DIR="$WEBSITE_DIR/_deps"
 # website build context (.bench-deps/, git-ignored) so the Containerfile can COPY them.
 BENCH_DEPS_SRC="$ROOT_DIR/container/benchmarks/_deps"
 BENCH_DEPS_STAGE="$WEBSITE_DIR/.bench-deps"
-REMOTE_IMAGE="${WEBSITE_REMOTE_IMAGE:-$GHCR_REGISTRY/$GHCR_OWNER/tsrt-website:latest}"
+REMOTE_IMAGE="${RT_WEBSITE_REMOTE_IMAGE:-$GHCR_REGISTRY/$GHCR_OWNER/tsrt-website:latest}"
 MANIFEST_NAME="tsrt-website-manifest"
 
-# Populate container/website/.cacerts/ from $WEBSITE_CA_CERT (file or dir). Always
+# Populate container/website/.cacerts/ from $RT_WEBSITE_CA_CERT (file or dir). Always
 # leaves the dir present (possibly empty) so the Containerfile COPY never fails.
 prepare_cacerts() {
   rm -rf "$CACERTS_DIR"; mkdir -p "$CACERTS_DIR"
   # Behind a corporate / MITM egress proxy the image must trust the proxy CA to
-  # install deps over TLS. When no explicit WEBSITE_CA_CERT was given, fall back to
+  # install deps over TLS. When no explicit RT_WEBSITE_CA_CERT was given, fall back to
   # the host's standard custom-CA dir IF it holds certs (proxied envs); a harmless
   # no-op on a normal host or macOS. The host already trusts these; we propagate
   # them into the image so its install succeeds.
@@ -77,7 +77,7 @@ prepare_cacerts() {
     elif [ -f "$CA_SRC" ]; then
       cp "$CA_SRC" "$CACERTS_DIR/extra-ca.crt"
     else
-      die "WEBSITE_CA_CERT='$CA_SRC' is neither a file nor a directory"
+      die "RT_WEBSITE_CA_CERT='$CA_SRC' is neither a file nor a directory"
     fi
     echo "==> trusting extra CA certs from $CA_SRC"
   fi
@@ -95,14 +95,14 @@ prepare_bench_deps() {
   cp -R "$BENCH_DEPS_SRC"/. "$BENCH_DEPS_STAGE"/
 }
 
-# Populate BUILD_ARG_FLAGS from optional env overrides. WEBSITE_BASE_IMAGE swaps the
-# Containerfile's default Node 26 base; WEBSITE_PNPM_VERSION overrides the pinned
+# Populate BUILD_ARG_FLAGS from optional env overrides. RT_WEBSITE_BASE_IMAGE swaps the
+# Containerfile's default Node 26 base; RT_WEBSITE_PNPM_VERSION overrides the pinned
 # pnpm. Honored by both build_image and the multi-arch push.
 BUILD_ARG_FLAGS=()
 build_arg_flags() {
   BUILD_ARG_FLAGS=()
-  [ -n "${WEBSITE_BASE_IMAGE:-}" ] && BUILD_ARG_FLAGS+=(--build-arg "BASE_IMAGE=$WEBSITE_BASE_IMAGE")
-  [ -n "${WEBSITE_PNPM_VERSION:-}" ] && BUILD_ARG_FLAGS+=(--build-arg "PNPM_VERSION=$WEBSITE_PNPM_VERSION")
+  [ -n "${RT_WEBSITE_BASE_IMAGE:-}" ] && BUILD_ARG_FLAGS+=(--build-arg "BASE_IMAGE=$RT_WEBSITE_BASE_IMAGE")
+  [ -n "${RT_WEBSITE_PNPM_VERSION:-}" ] && BUILD_ARG_FLAGS+=(--build-arg "PNPM_VERSION=$RT_WEBSITE_PNPM_VERSION")
   return 0
 }
 
@@ -147,11 +147,11 @@ host_arch_digest_from_index() {
 # to the remote tag's digest for this arch, read as a manifest/index only (KBs, NO
 # layer download). Pull only when the local image is missing or not the published
 # latest; fall back to an existing local image when the registry is unreachable, then
-# to a local build. WEBSITE_USE_LOCAL=1 skips the registry entirely and uses a
+# to a local build. RT_WEBSITE_USE_LOCAL=1 skips the registry entirely and uses a
 # locally-built image (maintainer / offline loop) with the manifest-staleness rebuild.
 ensure_image() {
   require_engine
-  if [ -n "${WEBSITE_USE_LOCAL:-}" ]; then ensure_image_local; return; fi
+  if [ -n "${RT_WEBSITE_USE_LOCAL:-}" ]; then ensure_image_local; return; fi
   if "$ENGINE" image exists "$IMAGE" 2>/dev/null; then
     local index local_digest remote_digest
     index="$("$ENGINE" manifest inspect "$REMOTE_IMAGE" 2>/dev/null || true)"
@@ -221,7 +221,7 @@ cmd_pull() { require_engine; ghcr_pull_retag "$REMOTE_IMAGE" "$IMAGE"; }
 cmd_lock() {
   ensure_image
   echo "==> regenerating _deps/pnpm-lock.yaml inside the container"
-  local net=(); [ -n "${WEBSITE_RUN_NETWORK:-}" ] && net=(--network="$WEBSITE_RUN_NETWORK")
+  local net=(); [ -n "${RT_WEBSITE_RUN_NETWORK:-}" ] && net=(--network="$RT_WEBSITE_RUN_NETWORK")
   "$ENGINE" run --rm --init ${net[@]+"${net[@]}"} \
     -v "$DEPS_DIR:/lock${MOUNT_OPTS}" -w /lock "$IMAGE" \
     pnpm install --lockfile-only --no-frozen-lockfile
