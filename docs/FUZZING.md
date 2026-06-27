@@ -145,7 +145,7 @@ miss.
 
 ### The third giant switch — the widest space we can throw
 
-[`typeGen.ts`](../packages/ts-runtypes/test/fuzz/typeGen.ts) generates a
+[`typeGen.ts`](../packages/ts-runtypes/test/fuzz/core/typeGen.ts) generates a
 `GeneratedType` = `{decls, root}` (named declarations + a root type) seeded from
 `Math.random`, then renders it to real `.ts`. The point is to stress the
 pipeline with **arbitrary weird types**, not just clean DTOs:
@@ -167,7 +167,7 @@ degrade its factories to `alwaysThrow`; that's the contract working, not a bug.
 
 ### Two oracle tiers, chosen from the resolver's own signals
 
-[`typeFuzzRunner.ts`](../packages/ts-runtypes/test/fuzz/typeFuzzRunner.ts)
+[`typeFuzzRunner.ts`](../packages/ts-runtypes/test/fuzz/type/typeFuzzRunner.ts)
 checks, per generated type:
 
 | Tier  | Id      | Applies to       | Invariant                                                                                                                 |
@@ -185,10 +185,10 @@ and dangling refs — the highest-value bugs. Tier B routes by a strict
 validator get the full strong oracles (reusing the Phase-1 `fuzzOracle.ts` checks
 verbatim); everything else gets the robustness probe. The value streams come
 straight from the abstract type (`validValue` / `corruptValue` in
-[`shapeValue.ts`](../packages/ts-runtypes/test/fuzz/shapeValue.ts)), so no
+[`shapeValue.ts`](../packages/ts-runtypes/test/fuzz/value/shapeValue.ts)), so no
 dependency on `createMockType`.
 
-The harness ([`typeFuzzHarness.ts`](../packages/ts-runtypes/test/fuzz/typeFuzzHarness.ts))
+The harness ([`typeFuzzHarness.ts`](../packages/ts-runtypes/test/fuzz/type/typeFuzzHarness.ts))
 reuses the vite-plugin test helpers
 ([`helpers/inline.ts`](../packages/runtypes-devtools/test/helpers/inline.ts)):
 render the fixture → `--inline-server` `ResolverClient.setSources` (atop the

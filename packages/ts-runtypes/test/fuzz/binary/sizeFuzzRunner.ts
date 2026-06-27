@@ -15,9 +15,9 @@
 
 import {createMockType} from 'ts-runtypes';
 import type {BinarySizingOptions} from '../../../src/mocking/mockTypes.ts';
-import {mixSeed, withSeededRandom} from '../seededRng.ts';
-import {genType, isRecursive, DATA_GEN_OPTIONS} from '../typeGen.ts';
-import {openClient, compileType, hasBinary, BIN, type CompiledType} from '../typeFuzzHarness.ts';
+import {mixSeed, withSeededRandom} from '../core/seededRng.ts';
+import {genType, isRecursive, DATA_GEN_OPTIONS} from '../core/typeGen.ts';
+import {openClient, compileType, hasBinary, BIN, type CompiledType} from '../type/typeFuzzHarness.ts';
 import {checkInBounds, checkOversized, type SizeViolation} from './sizeOracle.ts';
 import {sizeLaneEligible} from './sizeEligible.ts';
 

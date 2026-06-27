@@ -5,7 +5,7 @@
 // the lane only reports real bugs on valid TypeScript.
 import {describe, it, expect} from 'vitest';
 import {isValidTypeScript, typecheckGeneratedType} from './tsValidate.ts';
-import type {GeneratedType, TypeShape} from './typeGen.ts';
+import type {GeneratedType, TypeShape} from '../core/typeGen.ts';
 
 function mixedObject(propName: string, propShape: TypeShape, indexValue: TypeShape): GeneratedType {
   return {

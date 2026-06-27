@@ -4,7 +4,7 @@
 // function / Promise / native typed-arrays / never / void) and class / callable
 // refs, which DATA_GEN_OPTIONS doesn't emit anyway — a defensive guard.
 
-import type {Decl, GeneratedType, TypeShape} from '../typeGen.ts';
+import type {Decl, GeneratedType, TypeShape} from '../core/typeGen.ts';
 
 function declMap(gen: GeneratedType): Map<string, Decl> {
   return new Map(gen.decls.map((decl) => [decl.name, decl] as const));

@@ -13,7 +13,7 @@
 import {describe, it, expect} from 'vitest';
 import {openClient, compileType, hasBinary} from './typeFuzzHarness.ts';
 import {typecheckGeneratedType} from './tsValidate.ts';
-import type {GeneratedType, TypeShape} from './typeGen.ts';
+import type {GeneratedType, TypeShape} from '../core/typeGen.ts';
 
 function lit(value: string): TypeShape {
   return {kind: 'literal', value};

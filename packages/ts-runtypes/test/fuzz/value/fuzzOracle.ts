@@ -22,7 +22,7 @@
 // junk, where validity is unknown but the property still must hold.
 
 import {isDeepStrictEqual} from 'node:util';
-import type {RunType} from '../../src/runtypes/types.ts';
+import type {RunType} from '../../../src/runtypes/types.ts';
 
 /** One target type under fuzz: its schema (to drive mock + corruption) plus
  *  the family functions to exercise. Serialization fns are optional so a

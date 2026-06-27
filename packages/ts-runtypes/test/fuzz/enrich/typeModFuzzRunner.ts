@@ -37,9 +37,9 @@
 
 import {existsSync} from 'node:fs';
 import {makeFixture, setSource, editMirror, readMirror, type ReconcileFixture} from '../../util/enrichReconcile.ts';
-import {withSeededRandom, mixSeed} from '../seededRng.ts';
-import {genType, type GenOptions} from '../typeGen.ts';
-import {modifyType, renderRootedSource, rootGeneratedType, type RootedType} from '../typeModify.ts';
+import {withSeededRandom, mixSeed} from '../core/seededRng.ts';
+import {genType, type GenOptions} from '../core/typeGen.ts';
+import {modifyType, renderRootedSource, rootGeneratedType, type RootedType} from './typeModify.ts';
 import {scaffold, update, isControlled, type CliResult} from './enrichCli.ts';
 
 // Deep but bounded — serialisable only (the reconciler scaffolds authorable

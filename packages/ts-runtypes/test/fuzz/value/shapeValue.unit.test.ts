@@ -4,8 +4,8 @@
 // strong oracles actually run on (`valueOracleSafe`, non-recursive) are checked.
 
 import {describe, it, expect} from 'vitest';
-import {withSeededRandom, mixSeed} from './seededRng.ts';
-import {genType, isRecursive, type Decl, type GeneratedType, type TypeShape} from './typeGen.ts';
+import {withSeededRandom, mixSeed} from '../core/seededRng.ts';
+import {genType, isRecursive, type Decl, type GeneratedType, type TypeShape} from '../core/typeGen.ts';
 import {genValidValue, validValue, corruptValue, valueOracleSafe} from './shapeValue.ts';
 
 // Reference validator over the safe subset (an INDEPENDENT oracle for the

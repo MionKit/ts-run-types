@@ -18,7 +18,7 @@
 //
 // Everything draws from a passed `rng` so a seed replays the whole edit sequence.
 
-import {type Decl, type GeneratedType, type PropShape, type TypeShape, renderDecl} from './typeGen.ts';
+import {type Decl, type GeneratedType, type PropShape, type TypeShape, renderDecl} from '../core/typeGen.ts';
 
 // A "rooted" type is the unit the gen CLI targets: a set of exported decls plus
 // the NAME of the one the `createX<Root>()` / `gen <Root>` site points at. A

@@ -10,7 +10,7 @@
 // in / report out — no test framework, no I/O — so it runs both inside Vitest
 // and as a standalone long-running soak (see runFuzzForDuration).
 
-import {mixSeed, withSeededRandom} from './seededRng.ts';
+import {mixSeed, withSeededRandom} from '../core/seededRng.ts';
 import {mutateToInvalid} from './invalidValue.ts';
 import {
   checkBinaryStable,

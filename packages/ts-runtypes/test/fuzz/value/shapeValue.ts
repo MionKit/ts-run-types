@@ -16,7 +16,7 @@
 // only targets provably-invalidatable positions and never descends through a
 // union / any / unknown (a sibling or catch-all could re-accept).
 
-import type {Decl, GeneratedType, IndexKeyKind, PropShape, TypeShape} from './typeGen.ts';
+import type {Decl, GeneratedType, IndexKeyKind, PropShape, TypeShape} from '../core/typeGen.ts';
 
 function rnd(): number {
   return Math.random();

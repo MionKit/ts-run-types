@@ -18,8 +18,8 @@
 
 import {isDeepStrictEqual} from 'node:util';
 import {setSerializationOptions} from '../../../src/runtypes/dataView.ts';
-import {snapshot} from '../fuzzOracle.ts';
-import type {CompiledType} from '../typeFuzzHarness.ts';
+import {snapshot} from '../value/fuzzOracle.ts';
+import type {CompiledType} from '../type/typeFuzzHarness.ts';
 
 export type SizeOracleId = 'O-SIZE-NOGROW' | 'O-SIZE-ROUNDTRIP' | 'O-SIZE-GREW';
 
