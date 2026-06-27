@@ -212,9 +212,9 @@ mount_args() {
   printf -- '-v\n%s:%s/node_modules/runtypes-devtools:ro%s\n' "$PLUGIN_PKG" "$tsgo" "$MOUNT_OPTS"
   [ -f "$BIN_PKG/lib/index.js" ] && printf -- '-v\n%s:%s/node_modules/ts-runtypes-bin:ro%s\n' "$BIN_PKG" "$tsgo" "$MOUNT_OPTS"
 
-  # typia's one-time native-plugin compile persists in a named volume (subpath of
-  # the baked node_modules); first typia run fills it, later runs reuse it.
-  printf -- '-v\n%s:/bench/competitors/typia/node_modules/.ttsc%s\n' "$VOL_TTSC" "$MOUNT_OPTS"
+  # typia's native ttsc plugin is BAKED into the image's node_modules/.ttsc (see
+  # container/website/Containerfile), so we do NOT mount a volume here - an empty
+  # named volume would shadow the baked plugin and force a ~90-200s recompile.
 
   printf -- '-v\n%s:/bench/results%s\n' "$RESULTS_DIR" "$MOUNT_OPTS"
 }
