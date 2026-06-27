@@ -521,9 +521,9 @@ func (resolver *Resolver) stampSiteModules(sites []protocol.Site) []protocol.Sit
 
 // circularGuardedFamilyTags are the family tags whose runtime factory applies
 // the circular-reference guard: createValidate ('val'),
-// createGetValidationErrors ('verr'), createBinaryEncoder ('tb'), and the three
-// createJsonEncoder composites ('jeCL'/'jeMU'/'jeDI'). Only these entries get
-// the reflection RunType bundle linked into their dep closure; every other
+// createGetValidationErrors ('verr'), createBinaryEncoder ('tb'), and the four
+// createJsonEncoder composites ('jeCL'/'jeMU'/'jeDI'/'jeCO'). Only these entries
+// get the reflection RunType bundle linked into their dep closure; every other
 // family of a circular type pays nothing (decoders take serialized input that
 // cannot cycle; the leaf families never guard).
 var circularGuardedFamilyTags = map[string]bool{
@@ -533,6 +533,7 @@ var circularGuardedFamilyTags = map[string]bool{
 	"jeCL": true,
 	"jeMU": true,
 	"jeDI": true,
+	"jeCO": true,
 }
 
 // wireCircularRunTypeDeps links the reflection RunType graph into the dep

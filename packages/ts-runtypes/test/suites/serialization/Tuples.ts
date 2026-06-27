@@ -13,8 +13,10 @@ export const TUPLES = {
     mutateEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(),
     preserveDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<[Date, number, string, null, string[], bigint]>(),
     binaryDecoder: () => createBinaryDecoder<[Date, number, string, null, string[], bigint]>(),
     schemaEncoder: () =>
@@ -38,8 +40,10 @@ export const TUPLES = {
     mutateEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(),
     preserveDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<[number, bigint?, boolean?, number?]>(),
     binaryDecoder: () => createBinaryDecoder<[number, bigint?, boolean?, number?]>(),
     schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
@@ -63,8 +67,10 @@ export const TUPLES = {
     mutateEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<[number, ...bigint[]]>(),
     preserveDecoder: () => createJsonDecoder<[number, ...bigint[]]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<[number, ...bigint[]]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<[number, ...bigint[]]>(),
     binaryDecoder: () => createBinaryDecoder<[number, ...bigint[]]>(),
     schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number()], TF.bigInt())),
@@ -80,8 +86,10 @@ export const TUPLES = {
     mutateEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<[number, () => any]>(),
     preserveDecoder: () => createJsonDecoder<[number, () => any]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<[number, () => any]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<[number, () => any]>(),
     binaryDecoder: () => createBinaryDecoder<[number, () => any]>(),
     // Expressible value-first (mirrors validation TUPLE.tuple_with_non_serializable),
@@ -112,6 +120,10 @@ export const TUPLES = {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createJsonEncoder<TupleCircular>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+      return createJsonEncoder<TupleCircular>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createJsonDecoder<TupleCircular>();
@@ -119,6 +131,10 @@ export const TUPLES = {
     preserveDecoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createJsonDecoder<TupleCircular>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+      return createJsonDecoder<TupleCircular>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -184,6 +200,13 @@ export const TUPLES = {
       }
       return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface ICircularTuple {
+        name: string;
+        parent?: [string, ICircularTuple];
+      }
+      return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface ICircularTuple {
         name: string;
@@ -197,6 +220,13 @@ export const TUPLES = {
         parent?: [string, ICircularTuple];
       }
       return createJsonDecoder<ICircularTuple>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface ICircularTuple {
+        name: string;
+        parent?: [string, ICircularTuple];
+      }
+      return createJsonDecoder<ICircularTuple>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircularTuple {

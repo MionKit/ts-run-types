@@ -394,10 +394,12 @@ const errorDefaults = () => ({vλl: undefined, pλth: [], εrr: []}) as unknown 
 const valueShaped = (fnID: string, noop: AnyFn): FamilyMeta => ({fnID, args: valueArgs, defaultParamValues: valueDefaults, noop});
 const errorShaped = (fnID: string): FamilyMeta => ({fnID, args: errorArgs, defaultParamValues: errorDefaults, noop: noopErrors});
 
-// Keyed by the tuple's slot-0 family tag. The five JSON-composite tags borrow
+// Keyed by the tuple's slot-0 family tag. The seven JSON-composite tags borrow
 // the metadata of the family whose module hosted them pre-migration (encoder
 // strategies rode prepareForJson, decoder strategies restoreFromJson) — Go:
-// constants.JsonCompositeHostTags.
+// constants.JsonCompositeHostTags. The compact strategy also adds its own two
+// type-walking primitive families (cj / cjr) which carry value-shaped identity
+// metadata like pj / rj.
 const familyMeta: Record<string, FamilyMeta> = {
   val: valueShaped('val', noopTrue),
   verr: errorShaped('verr'),
@@ -405,6 +407,10 @@ const familyMeta: Record<string, FamilyMeta> = {
   rj: valueShaped('rj', noopIdentity),
   sj: valueShaped('sj', noopStringify),
   pjs: valueShaped('pjs', noopIdentity),
+  // compact strategy walking primitives: cj builds the positional array, cjr
+  // rebuilds the keyed object — both value-shaped identity like pj / rj.
+  cj: valueShaped('cj', noopIdentity),
+  cjr: valueShaped('cjr', noopIdentity),
   huk: {
     fnID: 'huk',
     args: () => ({vλl: 'v', θpts: 'opts'}) as CompiledFnArgs,
@@ -432,8 +438,10 @@ const familyMeta: Record<string, FamilyMeta> = {
   jeCL: valueShaped('pj', noopIdentity),
   jeMU: valueShaped('pj', noopIdentity),
   jeDI: valueShaped('pj', noopIdentity),
+  jeCO: valueShaped('pj', noopIdentity),
   jdST: valueShaped('rj', noopIdentity),
   jdPR: valueShaped('rj', noopIdentity),
+  jdCO: valueShaped('rj', noopIdentity),
 };
 
 // =============================================================================

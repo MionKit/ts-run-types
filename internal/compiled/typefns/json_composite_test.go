@@ -62,6 +62,35 @@ func TestJsonComposite_DirectFnBind_EncoderDirect(t *testing.T) {
 	}
 }
 
+// The compact encoder wraps the new compactForJson (cj) walking primitive with
+// native JSON.stringify; the compact decoder wraps compactFromJson (cjr) around
+// JSON.parse. Same DIRECT `utl.getRT(key).fn` bind shape as the other strategies.
+func TestJsonComposite_DirectFnBind_CompactEncoder(t *testing.T) {
+	body := compositeBodyFor(t, "jeCO")
+	cjKey := operations.PlainHash("compactForJson") + "_obj1"
+	for _, want := range []string{
+		"const cjFn = utl.getRT('" + cjKey + "').fn",
+		"return JSON.stringify(cjFn(v));",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("jeCO body missing %q:\n%s", want, body)
+		}
+	}
+}
+
+func TestJsonComposite_DirectFnBind_CompactDecoder(t *testing.T) {
+	body := compositeBodyFor(t, "jdCO")
+	cjrKey := operations.PlainHash("compactFromJson") + "_obj1"
+	for _, want := range []string{
+		"const cjrFn = utl.getRT('" + cjrKey + "').fn",
+		"return cjrFn(JSON.parse(s));",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("jdCO body missing %q:\n%s", want, body)
+		}
+	}
+}
+
 // AssertCompositeSoftDeps — the build-time belt for the demand invariant:
 // a composite whose primitive never rendered surfaces as an Error diag
 // (JCP001) instead of a runtime `undefined.fn` TypeError.

@@ -13,8 +13,10 @@ export const UNIONS = {
     mutateEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(),
     preserveDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<Date | number | string | null | bigint>(),
     binaryDecoder: () => createBinaryDecoder<Date | number | string | null | bigint>(),
     schemaEncoder: () => createJsonEncoder(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
@@ -34,8 +36,10 @@ export const UNIONS = {
     mutateEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(),
     preserveDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<string[] | number[] | boolean[] | Date[]>(),
     binaryDecoder: () => createBinaryDecoder<string[] | number[] | boolean[] | Date[]>(),
     schemaEncoder: () =>
@@ -65,8 +69,10 @@ export const UNIONS = {
     mutateEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(),
     preserveDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<(string | bigint | boolean | Date)[]>(),
     binaryDecoder: () => createBinaryDecoder<(string | bigint | boolean | Date)[]>(),
     schemaEncoder: () => createJsonEncoder(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
@@ -97,9 +103,13 @@ export const UNIONS = {
       createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'clone'}),
     directEncoder: () =>
       createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
     preserveDecoder: () =>
       createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
     schemaEncoder: () =>
@@ -169,6 +179,13 @@ export const UNIONS = {
         | {type: 'c'; otherProp: string; time: Date}
         | {type: boolean; otherProp: string}
       >(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<
+        | {type: 'a'; otherProp: boolean}
+        | {type: 'b'; otherProp: number}
+        | {type: 'c'; otherProp: string; time: Date}
+        | {type: boolean; otherProp: string}
+      >(undefined, {strategy: 'compact'}),
     stripDecoder: () =>
       createJsonDecoder<
         | {type: 'a'; otherProp: boolean}
@@ -183,6 +200,13 @@ export const UNIONS = {
         | {type: 'c'; otherProp: string; time: Date}
         | {type: boolean; otherProp: string}
       >(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<
+        | {type: 'a'; otherProp: boolean}
+        | {type: 'b'; otherProp: number}
+        | {type: 'c'; otherProp: string; time: Date}
+        | {type: boolean; otherProp: string}
+      >(undefined, {strategy: 'compact'}),
     binaryEncoder: () =>
       createBinaryEncoder<
         | {type: 'a'; otherProp: boolean}
@@ -263,12 +287,22 @@ export const UNIONS = {
         undefined,
         {strategy: 'direct'}
       ),
+    compactEncoder: () =>
+      createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
+        undefined,
+        {strategy: 'compact'}
+      ),
     stripDecoder: () =>
       createJsonDecoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
     preserveDecoder: () =>
       createJsonDecoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
         undefined,
         {strategy: 'preserve'}
+      ),
+    compactDecoder: () =>
+      createJsonDecoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
+        undefined,
+        {strategy: 'compact'}
       ),
     binaryEncoder: () =>
       createBinaryEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
@@ -359,6 +393,14 @@ export const UNIONS = {
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint}
       >(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<
+        | string[]
+        | {a: string; aa: boolean}
+        | {b: number}
+        | {a: string; [key: string]: string}
+        | {[key: string]: bigint; b: bigint}
+      >(undefined, {strategy: 'compact'}),
     stripDecoder: () =>
       createJsonDecoder<
         | string[]
@@ -375,6 +417,14 @@ export const UNIONS = {
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint}
       >(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<
+        | string[]
+        | {a: string; aa: boolean}
+        | {b: number}
+        | {a: string; [key: string]: string}
+        | {[key: string]: bigint; b: bigint}
+      >(undefined, {strategy: 'compact'}),
     binaryEncoder: () =>
       createBinaryEncoder<
         | string[]
@@ -453,6 +503,10 @@ export const UNIONS = {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       return createJsonEncoder<UnionC>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+      return createJsonEncoder<UnionC>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       return createJsonDecoder<UnionC>();
@@ -460,6 +514,10 @@ export const UNIONS = {
     preserveDecoder: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       return createJsonDecoder<UnionC>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+      return createJsonDecoder<UnionC>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -553,6 +611,10 @@ export const UNIONS = {
       createJsonEncoder<
         {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
       >(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<
+        {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+      >(undefined, {strategy: 'compact'}),
     stripDecoder: () =>
       createJsonDecoder<
         {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
@@ -561,6 +623,10 @@ export const UNIONS = {
       createJsonDecoder<
         {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
       >(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<
+        {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+      >(undefined, {strategy: 'compact'}),
     binaryEncoder: () =>
       createBinaryEncoder<
         {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
@@ -637,8 +703,10 @@ export const UNIONS = {
     mutateEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<number | {name: string} | any>(),
     preserveDecoder: () => createJsonDecoder<number | {name: string} | any>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<number | {name: string} | any>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<number | {name: string} | any>(),
     binaryDecoder: () => createBinaryDecoder<number | {name: string} | any>(),
     // `T | any` collapses to `any` at the type-checker layer — the value-first
@@ -659,8 +727,10 @@ export const UNIONS = {
     mutateEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(),
     preserveDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<Date | number | string | (() => any)>(),
     binaryDecoder: () => createBinaryDecoder<Date | number | string | (() => any)>(),
     // The function arm is dropped the same way via the value-first path, so each
@@ -695,8 +765,10 @@ export const UNIONS = {
     mutateEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
     preserveDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{a: string} | {b: number}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string} | {b: number}>(),
     schemaEncoder: () => createJsonEncoder(RT.union([RT.object({a: TF.string()}), RT.object({b: TF.number()})])),
@@ -720,8 +792,10 @@ export const UNIONS = {
     mutateEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
     preserveDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{a: string} | {b: number}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string} | {b: number}>(),
     schemaEncoder: () => createJsonEncoder(RT.union([RT.object({a: TF.string()}), RT.object({b: TF.number()})])),
@@ -767,11 +841,19 @@ export const UNIONS = {
       createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
         strategy: 'direct',
       }),
+    compactEncoder: () =>
+      createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
+        strategy: 'compact',
+      }),
     stripDecoder: () =>
       createJsonDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
     preserveDecoder: () =>
       createJsonDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
         strategy: 'preserve',
+      }),
+    compactDecoder: () =>
+      createJsonDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
+        strategy: 'compact',
       }),
     binaryEncoder: () =>
       createBinaryEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
@@ -831,11 +913,19 @@ export const UNIONS = {
       createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
         strategy: 'direct',
       }),
+    compactEncoder: () =>
+      createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
+        strategy: 'compact',
+      }),
     stripDecoder: () =>
       createJsonDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
     preserveDecoder: () =>
       createJsonDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
         strategy: 'preserve',
+      }),
+    compactDecoder: () =>
+      createJsonDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
+        strategy: 'compact',
       }),
     binaryEncoder: () =>
       createBinaryEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
@@ -895,11 +985,19 @@ export const UNIONS = {
       createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
         strategy: 'direct',
       }),
+    compactEncoder: () =>
+      createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
+        strategy: 'compact',
+      }),
     stripDecoder: () =>
       createJsonDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
     preserveDecoder: () =>
       createJsonDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
         strategy: 'preserve',
+      }),
+    compactDecoder: () =>
+      createJsonDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
+        strategy: 'compact',
       }),
     binaryEncoder: () =>
       createBinaryEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
@@ -950,8 +1048,10 @@ export const UNIONS = {
     mutateEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
     preserveDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; b: number} | {a: boolean; c: Date}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
     schemaEncoder: () =>

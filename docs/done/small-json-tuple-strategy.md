@@ -1,6 +1,30 @@
 # Compact "small-json" encoder strategy — declared props as positional tuples
 
-> **Status: TODO (design note, 2026-06-24).** Came out of the serialization
+> **Status: SHIPPED (2026-06-29).** Implemented as the `compact` JSON
+> encoder/decoder strategy. What shipped vs the design below:
+> - **Name** is `compact` (not `tuple`/`small`): the public `strategy` value on
+>   BOTH `createJsonEncoder` and `createJsonDecoder`, and the benchmark column label.
+> - **Optionals** use a `null` placeholder (not a presence bitmap) — the cheapest
+>   path, reusing the existing TS-tuple optional convention. Consequence: a
+>   `T | null` *optional* field cannot distinguish present-`null` from absent
+>   (both decode to `undefined`), an accepted limitation.
+> - **Paired encoder + decoder.** A positional array cannot be read by the
+>   key-based strip/preserve decoders, so `compact` is a strategy on both factories.
+> - **Mechanism:** two new internal type-walking primitive families (`compactForJson`/`cj`,
+>   `compactFromJson`/`cjr`) modeled on `prepareForJsonSafe`/`restoreFromJson`,
+>   identical except the object-literal / plain-class arm emits a positional array.
+>   Composite tags `jeCO`/`jdCO`. Unions reuse the keyed flat-union envelope; any
+>   object carrying an index signature (records, and fixed objects with dynamic
+>   keys) stays keyed — only fixed-shape objects with no index signature are
+>   tupled (a nested fixed object inside a record still goes positional).
+> - **Benchmark:** the serialization bench data + website gained a `compact` column.
+> - **Deferred:** a dedicated all-strategy round-trip fuzzer is captured separately
+>   in [../todos/all-strategy-roundtrip-fuzzer.md](../todos/all-strategy-roundtrip-fuzzer.md);
+>   the existing fuzzers were intentionally left untouched here.
+>
+> ---
+>
+> Original design note (2026-06-24). Came out of the serialization
 > benchmark analysis: in a JS runtime the binary codec is 5–13x slower to encode
 > than native `JSON.stringify` (it pushes bytes in JS; JSON is V8 C++), and its
 > only real payload edge over JSON is **field-name elision** — JSON repeats

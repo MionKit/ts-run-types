@@ -23,12 +23,17 @@ export interface SerializationCase {
    *  - `cloneEncoder` — strategy 'clone' (shape-derived clone, strips extras; default).
    *  - `mutateEncoder` — strategy 'mutate' (mutate in place, preserves extras).
    *  - `directEncoder` — strategy 'direct' (single-pass, always strips).
+   *  - `compactEncoder` — strategy 'compact' (declared object props as a
+   *    positional array, no key names on the wire; strips extras like clone).
+   *    Pairs ONLY with `compactDecoder` (the positional wire can't be read by the
+   *    key-based strip/preserve decoders).
    *  Decoder pairing: every strip/direct encoder pairs with `stripDecoder`;
    *  `mutateEncoder` (preserve) pairs with `preserveDecoder` — the only path
    *  that preserves undeclared keys through the round-trip. **/
   cloneEncoder: () => JsonEncoderFn;
   directEncoder: () => JsonEncoderFn;
   mutateEncoder: () => JsonEncoderFn;
+  compactEncoder: () => JsonEncoderFn;
 
   /** Direct-mode only: when set, the case's input produces a JSON string
    *  that is not parseable by `JSON.parse` — e.g. number-at-root with
@@ -52,6 +57,11 @@ export interface SerializationCase {
    *  shape with its corresponding decoder. **/
   stripDecoder: () => JsonDecoderFn;
   preserveDecoder: () => JsonDecoderFn;
+
+  /** Decoder for the `compact` (positional-array) wire — `createJsonDecoder<T>(undefined,
+   *  {strategy: 'compact'})`. Rebuilds the keyed object from positions. Pairs ONLY
+   *  with `compactEncoder`; round-trips strip undeclared keys (shape-derived). **/
+  compactDecoder: () => JsonDecoderFn;
 
   /** Sample values to round-trip via the **mutate** path
    *  (`prepareForJson + JSON.stringify` / `JSON.parse + restoreFromJson`).
