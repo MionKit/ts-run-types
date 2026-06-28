@@ -3,7 +3,7 @@
 Status: **DONE (shipped).** Implemented as the function-free `circular(body)` form
 (callback overload REMOVED — option (b), pre-release). Fixes finding **F** at the root
 and the companion MKR001 false positive. Full JS + Go + fuzz suites green. Covers finding **F** from
-[optional-boolean-union-encoding.md](optional-boolean-union-encoding.md) (the
+[optional-boolean-union-encoding.md](../done/optional-boolean-union-encoding.md) (the
 spurious `CTA001` on schema-form recursion) and the API simplification that fixes
 it at the root.
 
