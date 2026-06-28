@@ -49,7 +49,11 @@ func main() {
 		SingleThreaded:        true,
 		DisableParallelScan:   true,
 		DisableParallelRender: true,
-		EmitMode:              constants.EmitCode,
+		// EmitFunctions ships each cache entry's factory as a LIVE `function
+		// g_<hash>(utl){…}` (code slot undefined) instead of a body string the
+		// runtime rebuilds via `new Function`. The playground's "Generated Cache"
+		// view then shows a real, readable function rather than an escaped string.
+		EmitMode: constants.EmitFunctions,
 		// The playground resolver inlines every child and bundles everything into
 		// one cache: the generated-code view reads a single self-contained entry
 		// (no helper entries split into sibling modules it wouldn't show), and the

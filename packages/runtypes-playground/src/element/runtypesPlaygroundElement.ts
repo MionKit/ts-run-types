@@ -23,7 +23,10 @@ import {
   mock,
   mockInvalid,
   versions,
-  generatedFunction,
+  generatedCache,
+  transformedSource,
+  factoryImport,
+  factoryCall,
   OPERATIONS,
   operationByKey,
   ROOT_TYPE,
@@ -40,6 +43,7 @@ import {TS_ICON, JS_ICON} from './icons.ts';
 
 type Monaco = typeof import('monaco-editor');
 type Editor = import('monaco-editor').editor.IStandaloneCodeEditor;
+type EditorOptions = import('monaco-editor').editor.IStandaloneEditorConstructionOptions;
 type PrettierApi = {format: (src: string, opts: Record<string, unknown>) => Promise<string>; plugins: unknown[]};
 
 // Debounce before regenerating the code column: long while typing in the type
@@ -60,6 +64,7 @@ const EDITOR_DTS = `declare module 'ts-runtypes' {
   export function createBinaryDecoder<T>(val?: T): (v: Uint8Array) => T;
   export function createMockType<T>(val?: T): () => T;
   export function getRunTypeId<T>(value?: T): string;
+  export function getRunType<T>(value?: T): unknown;
 }`;
 
 let stylesInjected = false;
@@ -186,6 +191,11 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   private prettier: PrettierApi | null = null;
   private typeEditor: Editor | null = null;
   private inputEditor: Editor | null = null;
+  // The read-only `import { … }` header and `const … = createX<MyType>()` footer
+  // editors that sandwich the editable type body, making the snippet read as a
+  // real file (see updateSurrounding / makeStripEditor).
+  private headerEditor: Editor | null = null;
+  private footerEditor: Editor | null = null;
   private els: Record<string, HTMLElement> = {};
   private booted = false;
   private ready = false;
@@ -198,6 +208,19 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     if (this.booted) return;
     this.booted = true;
     void this.boot();
+  }
+
+  // Dispose the Monaco editors (and pending codegen timer) when the element leaves
+  // the DOM so a host that mounts/unmounts the playground (SPA navigation) does not
+  // leak editor instances. Resetting `booted` lets a re-attached element boot again.
+  disconnectedCallback(): void {
+    if (this.codeTimer) clearTimeout(this.codeTimer);
+    this.headerEditor?.dispose();
+    this.footerEditor?.dispose();
+    this.typeEditor?.dispose();
+    this.inputEditor?.dispose();
+    this.headerEditor = this.footerEditor = this.typeEditor = this.inputEditor = null;
+    this.booted = false;
   }
 
   // Programmatic API — lets hosts (and tests) drive the component.
@@ -239,24 +262,42 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     }
   }
 
+  // loadPrettier lazy-loads the prettier standalone bundle + babel/estree plugins once.
+  private async loadPrettier(): Promise<PrettierApi> {
+    if (!this.prettier) {
+      const [standalone, babel, estree] = await Promise.all([
+        import('prettier/standalone'),
+        import('prettier/plugins/babel'),
+        import('prettier/plugins/estree'),
+      ]);
+      const plugin = (m: unknown): unknown => (m as {default?: unknown}).default ?? m;
+      this.prettier = {format: standalone.format, plugins: [plugin(babel), plugin(estree)]};
+    }
+    return this.prettier;
+  }
+
+  // beautifyModule pretty-prints module source verbatim (the generated cache
+  // `export const __rt_… = […]` module). No wrapper: it is already a top-level
+  // statement, unlike a bare function body.
+  private async beautifyModule(code: string): Promise<string> {
+    try {
+      const prettier = await this.loadPrettier();
+      return (await prettier.format(code, {parser: 'babel', plugins: prettier.plugins, printWidth: 84, tabWidth: 2})).trimEnd();
+    } catch {
+      return code;
+    }
+  }
+
   // beautify pretty-prints a generated function body with prettier (lazy-loaded).
   // The body has a top-level `return`, so it is wrapped for the parser, then the
   // wrapper line + one indent level are stripped back off.
   private async beautify(code: string): Promise<string> {
     try {
-      if (!this.prettier) {
-        const [standalone, babel, estree] = await Promise.all([
-          import('prettier/standalone'),
-          import('prettier/plugins/babel'),
-          import('prettier/plugins/estree'),
-        ]);
-        const plugin = (m: unknown): unknown => (m as {default?: unknown}).default ?? m;
-        this.prettier = {format: standalone.format, plugins: [plugin(babel), plugin(estree)]};
-      }
+      const prettier = await this.loadPrettier();
       const out = (
-        await this.prettier.format(`function __rt() {\n${code}\n}`, {
+        await prettier.format(`function __rt() {\n${code}\n}`, {
           parser: 'babel',
-          plugins: this.prettier.plugins,
+          plugins: prettier.plugins,
           printWidth: 84,
           tabWidth: 2,
         })
@@ -272,6 +313,52 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     } catch {
       return code;
     }
+  }
+
+  // makeStripEditor creates a read-only one-liner editor (the import header / the
+  // call footer). It shares the body editor's gutter config so the line numbers
+  // align, sizes itself to its content, and is overlaid with a hatch pattern + a
+  // click-swallowing layer so it reads as fixed, non-editable boilerplate.
+  private makeStripEditor(el: HTMLElement, value: string, base: EditorOptions): Editor {
+    const editor = this.monaco!.editor.create(el, {
+      ...base,
+      value,
+      language: 'typescript',
+      readOnly: true,
+      domReadOnly: true,
+      renderLineHighlight: 'none',
+      contextmenu: false,
+      scrollbar: {vertical: 'hidden', horizontalScrollbarSize: 6, alwaysConsumeMouseWheel: false},
+    });
+    // Size the container to the content so the strip is exactly as tall as its
+    // line(s); re-runs when the import / call text changes (setValue).
+    const fit = (): void => {
+      const height = editor.getContentHeight();
+      el.style.height = `${height}px`;
+      editor.layout({width: el.clientWidth, height});
+    };
+    editor.onDidContentSizeChange(fit);
+    fit();
+    return editor;
+  }
+
+  // updateLineNumberOffsets keeps the three stacked editors numbered as one file:
+  // the header owns lines 1..H, the body continues from H+1, the footer is the
+  // line after the body. Recomputed whenever the body's line count changes.
+  private updateLineNumberOffsets(): void {
+    const headerLines = this.headerEditor?.getModel()?.getLineCount() ?? 1;
+    const bodyLines = this.typeEditor?.getModel()?.getLineCount() ?? 1;
+    this.typeEditor?.updateOptions({lineNumbers: (n: number) => String(n + headerLines)});
+    this.footerEditor?.updateOptions({lineNumbers: (n: number) => String(n + headerLines + bodyLines)});
+  }
+
+  // updateSurrounding refreshes the read-only header (import) and footer (call)
+  // for the selected function + mode. The body between them is the user's type.
+  private updateSurrounding(): void {
+    const op = this.currentOp();
+    this.headerEditor?.setValue(factoryImport(op.factory));
+    this.footerEditor?.setValue(factoryCall(op.factory, op.varName, this.mode));
+    this.updateLineNumberOffsets();
   }
 
   private buildDom(): void {
@@ -294,9 +381,28 @@ export class RuntypesPlaygroundElement extends HTMLElement {
              generator that stays within MyType before bringing the button back. -->
       </div>
       <div class="rtpg-layout">
+        <section class="rtpg-pane rtpg-typepane">
+          <div class="rtpg-head"><h2>Source</h2><span class="rtpg-hint" data-el="typeHint">define <code>${ROOT_TYPE}</code></span></div>
+          <div class="rtpg-typestack">
+            <div class="rtpg-ro-wrap rtpg-ro-header">
+              <div class="rtpg-ro-editor" data-el="headerEditor"></div>
+              <div class="rtpg-ro-hatch" aria-hidden="true"></div>
+            </div>
+            <div class="rtpg-editor" data-el="editor"></div>
+            <div class="rtpg-ro-wrap rtpg-ro-footer">
+              <div class="rtpg-ro-editor" data-el="footerEditor"></div>
+              <div class="rtpg-ro-hatch" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div class="rtpg-subhead">
+            <h3>Transformed Src</h3>
+            <span class="rtpg-hint">the import + argument RunTypes injects</span>
+          </div>
+          <div class="rtpg-transformview" data-el="transformview"><div class="rtpg-placeholder">resolving…</div></div>
+        </section>
         <section class="rtpg-pane">
-          <div class="rtpg-head"><h2>Type</h2><span class="rtpg-hint" data-el="typeHint">define <code>${ROOT_TYPE}</code></span></div>
-          <div class="rtpg-editor" data-el="editor"></div>
+          <div class="rtpg-head"><h2>Generated Cache</h2><span class="rtpg-hint" data-el="codeHint"></span></div>
+          <div class="rtpg-codeview" data-el="codeview"><div class="rtpg-placeholder">resolving…</div></div>
         </section>
         <section class="rtpg-pane">
           <div class="rtpg-head"><h2>Function</h2></div>
@@ -321,10 +427,6 @@ export class RuntypesPlaygroundElement extends HTMLElement {
             <div class="rtpg-result-label">Result <span class="rtpg-hint" data-el="timing"></span></div>
             <div class="rtpg-result" data-el="output"><div class="rtpg-placeholder">Run to see the result</div></div>
           </div>
-        </section>
-        <section class="rtpg-pane">
-          <div class="rtpg-head"><h2>Generated code</h2><span class="rtpg-hint" data-el="codeHint"></span></div>
-          <div class="rtpg-codeview" data-el="codeview"><div class="rtpg-placeholder">resolving…</div></div>
         </section>
       </div>
       <div class="rtpg-overlay" data-el="overlay">
@@ -378,12 +480,31 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       fontSize: 13,
       scrollBeyondLastLine: false,
     } as const;
-    this.typeEditor = monaco.editor.create(this.els.editor, {
+    // Gutter-affecting options shared by the header / body / footer editors so
+    // their line-number columns line up pixel-for-pixel (they read as one file).
+    const stackEditor = {
       ...common,
+      folding: false,
+      glyphMargin: false,
+      lineNumbersMinChars: 3,
+      lineDecorationsWidth: 6,
+      overviewRulerLanes: 0,
+      tabSize: 2,
+    } as const;
+    this.headerEditor = this.makeStripEditor(this.els.headerEditor, factoryImport(OPERATIONS[0].factory), stackEditor);
+    this.typeEditor = monaco.editor.create(this.els.editor, {
+      ...stackEditor,
       value: this.getAttribute('type') ?? PRESETS[0].ts,
       language: 'typescript',
-      tabSize: 2,
+      // The header sits above as line 1, so the body's numbers start at 2 — the
+      // stack reads as one continuous file (offsets recomputed in updateLineNumberOffsets).
+      lineNumbers: (n: number) => String(n + 1),
     });
+    this.footerEditor = this.makeStripEditor(
+      this.els.footerEditor,
+      factoryCall(OPERATIONS[0].factory, OPERATIONS[0].varName, 'type'),
+      stackEditor
+    );
     this.inputEditor = monaco.editor.create(this.els.inputEditor, {
       ...common,
       value: this.getAttribute('input') ?? PRESETS[0].input,
@@ -395,8 +516,13 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     this.typeEditor.addCommand(runKey, () => void this.doRun());
     this.inputEditor.addCommand(runKey, () => void this.doRun());
     // Typing in the type editor refreshes the generated-code column (debounced,
-    // with the spinner showing from the first keystroke).
-    this.typeEditor.onDidChangeModelContent(() => this.scheduleCodegen(TYPE_DEBOUNCE_MS));
+    // with the spinner showing from the first keystroke) and keeps the footer's
+    // line number in step with the body's line count (immediate).
+    this.typeEditor.onDidChangeModelContent(() => {
+      this.updateLineNumberOffsets();
+      this.scheduleCodegen(TYPE_DEBOUNCE_MS);
+    });
+    this.updateLineNumberOffsets();
 
     this.buildPresets();
     this.buildModeSwitch();
@@ -410,6 +536,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     }
     select.value = this.getAttribute('operation') ?? select.options[0]?.value ?? '';
     this.syncInputVisibility();
+    this.updateSurrounding();
 
     select.addEventListener('change', () => this.onOperationChanged());
     this.els.genRandom.addEventListener('click', () => void this.generateMock());
@@ -474,6 +601,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     const preset = this.currentPreset();
     this.typeEditor?.setValue(this.mode === 'schema' ? preset.schema : preset.ts);
     this.inputEditor?.setValue(preset.input);
+    this.updateLineNumberOffsets();
     this.scheduleCodegen(PICK_DEBOUNCE_MS);
     this.resetResult();
   }
@@ -486,12 +614,15 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     // valid snippet (custom edits in the other form are replaced).
     const preset = this.currentPreset();
     this.typeEditor?.setValue(mode === 'schema' ? preset.schema : preset.ts);
+    // The call shape differs by mode (`createX<MyType>()` vs `createX(MyType)`).
+    this.updateSurrounding();
     this.scheduleCodegen(PICK_DEBOUNCE_MS);
     this.resetResult();
   }
 
   private onOperationChanged(): void {
     this.syncInputVisibility();
+    this.updateSurrounding();
     this.resetResult();
     this.scheduleCodegen(PICK_DEBOUNCE_MS);
   }
@@ -610,7 +741,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       case 'binaryRoundtrip':
         return `${label('Decoded')}${await block(result.decoded)}${diag}`;
       case 'graph':
-        return `<div class="rtpg-badge ok">RunType resolved</div>${label(`${result.runTypes.length} node(s) — full graph on the right`)}${diag}`;
+        return `<div class="rtpg-badge ok">RunType resolved (${result.runTypes.length} node(s))</div>${label('Resolved RunType')}<pre class="rtpg-code">${await this.highlight(stringify(result.runTypes), 'json')}</pre>${diag}`;
     }
   }
 
@@ -630,6 +761,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   private scheduleCodegen(delay: number): void {
     if (this.codeTimer) clearTimeout(this.codeTimer);
     this.els.codeview.innerHTML = SPINNER;
+    this.els.transformview.innerHTML = SPINNER;
     this.codeTimer = setTimeout(() => void this.updateSelectedCode(), delay);
   }
 
@@ -643,28 +775,39 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     const userCode = this.typeSource();
     const opts = this.resolverOptions();
     this.els.codeview.innerHTML = SPINNER;
+    this.els.transformview.innerHTML = SPINNER;
     try {
-      let html: string;
-      let hint: string;
-      if (op.kind === 'graph') {
-        const result = await run('graph', userCode, undefined, opts, this.mode);
-        const nodes = result.kind === 'graph' ? result.runTypes : [];
-        html = `<pre class="rtpg-code">${await this.highlight(stringify(nodes), 'json')}</pre>`;
-        hint = `RunType graph (${nodes.length} nodes)`;
-      } else {
-        const m = await generatedFunction(op.factory, userCode, opts, this.mode);
-        html = m.code
-          ? `<pre class="rtpg-code">${await this.highlight(await this.beautify(m.code), 'javascript')}</pre>`
-          : `<div class="rtpg-card-note">${escapeHtml(m.note ?? 'no code')}</div>`;
-        hint = op.factory;
-      }
+      // The Generated Cache column shows the cache module(s) the transform imports:
+      // the `export const __rt_… = […]` entry modules (their export names match the
+      // `import { __rt_… }` in Transformed Src). One module for a single function; a
+      // codec is a few that import each other - each rendered as its own section
+      // labeled with its `virtual:rt/…` name. For getRunType it is the runtype bundle.
+      const cacheModules = await generatedCache(op.factory, userCode, opts, this.mode);
+      const html = cacheModules.length
+        ? (
+            await Promise.all(
+              cacheModules.map(
+                async (m) =>
+                  `<div class="rtpg-cache-file"><div class="rtpg-cache-file-head">${escapeHtml(m.name)}</div><pre class="rtpg-code">${await this.highlight(await this.beautifyModule(m.code), 'javascript')}</pre></div>`
+              )
+            )
+          ).join('')
+        : `<div class="rtpg-card-note">no cache generated for this type</div>`;
+      // The "transformed src" view is the resolver's real transform of this file.
+      const transformed = await transformedSource(op.factory, op.varName, userCode, opts, this.mode);
+      const transformedHtml = `<pre class="rtpg-code">${await this.highlight(transformed, 'typescript')}</pre>`;
       // Drop the result if a newer regeneration started while we awaited.
       if (seq !== this.codeSeq) return;
-      this.els.codeHint.textContent = hint;
+      this.els.codeHint.textContent = cacheModules.length
+        ? `${cacheModules.length} module${cacheModules.length === 1 ? '' : 's'}`
+        : '';
       this.els.codeview.innerHTML = html;
+      this.els.transformview.innerHTML = transformedHtml;
     } catch (err) {
       if (seq !== this.codeSeq) return;
-      this.els.codeview.innerHTML = `<pre class="rtpg-code error">${escapeHtml((err as Error).message ?? String(err))}</pre>`;
+      const message = `<pre class="rtpg-code error">${escapeHtml((err as Error).message ?? String(err))}</pre>`;
+      this.els.codeview.innerHTML = message;
+      this.els.transformview.innerHTML = message;
     }
   }
 }
