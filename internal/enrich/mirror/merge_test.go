@@ -317,6 +317,33 @@ func TestMerge_ChildTypeUnchanged(t *testing.T) {
 	}
 }
 
+// TestMerge_AuthoredReservedKey_Survives pins that a reserved META key the AUTHOR
+// added but the desired skeleton LACKS (a `min` constraint on a mock pool node)
+// survives the merge verbatim — reserved keys are node config, never data fields,
+// so a desired skeleton without it must not strip or orphan it. (Ported from the
+// reconcile property fuzzer's addReservedPropToMirror mutator, pinned here
+// deterministically so the property holds without a Go-side fuzz loop.)
+func TestMerge_AuthoredReservedKey_Survives(t *testing.T) {
+	existing := "{age: {pool: [42], min: 7}}"
+	desired := "{age: {pool: []}}"
+	ctx := mergeCtx{
+		metaKeys:      mockReservedKeys,
+		existingChild: map[string]string{"age": "numID"},
+		desiredChild:  map[string]string{"age": "numID"},
+	}
+	got := mergeWithCtx(t, existing, desired, ctx)
+	if strings.Contains(got, "@rtOrphanChild") {
+		t.Errorf("an author-added reserved key must NOT orphan the node:\n%s", got)
+	}
+	if !strings.Contains(got, "min: 7") {
+		t.Errorf("author-added reserved `min` (absent from the desired skeleton) must survive:\n%s", got)
+	}
+	if !strings.Contains(got, "pool: [42]") {
+		t.Errorf("authored pool must survive:\n%s", got)
+	}
+	assertReparses(t, got)
+}
+
 // TestMerge_ShapeMismatchObjectToReference: a kept key that was an inline object
 // but is now a named-type REFERENCE (e.g. `address: {…}` → `address:
 // friendlyAddress`) switches to the reference; the old object is orphaned. This
