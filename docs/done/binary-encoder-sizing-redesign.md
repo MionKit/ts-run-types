@@ -61,6 +61,19 @@ return, decoder-accepts-serializer, `createBinarySizer` kept,
   the pre-existing enrich errors), and an integration assertion that a cold
   `dynamic` buffer is the tight per-type estimate, not the flat fallback.
 
+> **Amendment — no-resize soundness (reserve tightenings + fuzz lane).** The
+> estimate was tight, but the emitted encode body reserved a worst-case
+> per-write (hardcoded `8` for any number, `MAX_VARINT` for any collection
+> length), so a cold buffer at the tight seed grew even on an exact-fit value.
+> The reserve now matches the actual write where it's known: the packed format
+> width for a `numberFormat` integer (shared `formatFixedWidth` so estimate and
+> reserve can't drift) and `varintLen(value)` in `serLength`. With that, an
+> in-bounds value over a fixed-width / format-bounded type provably never grows
+> the cold buffer; strings keep the unavoidable `3x` UTF-8 reserve (soundness,
+> not strict no-resize). Pinned by the size fuzz lane
+> ([docs/done/binary-sizing-fuzz-test.md](./binary-sizing-fuzz-test.md),
+> `packages/ts-runtypes/test/fuzz/binary/binarySizeEstimate.integration.test.ts`).
+
 **Deferred (future enhancement, NOT shipped):** per-call-site **comptime
 overrides** of `sizeBias` / `sizeItems` / an explicit `initialSize` via
 `CompTimeFnArgs` on `createBinaryEncoder`. The global config covers the common
