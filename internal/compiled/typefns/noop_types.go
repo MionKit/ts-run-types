@@ -144,6 +144,15 @@ func jsonNoopRecursive(rt *protocol.RunType, ctx *EmitContext, mode jsonNoopMode
 		return true
 
 	case protocol.KindTupleMember:
+		// Optional tuple slots are never identity: emitTupleMember{PrepareFor,RestoreFrom}Json
+		// normalize a present-but-undefined slot to `null` (arrays serialize a present
+		// hole as null) even when the child is noop — unlike object properties, whose
+		// absent optional is dropped natively by JSON.stringify. Object properties can
+		// stay noop (emitPropertyPrepareForJson returns "" for a noop child regardless of
+		// optionality); tuple members cannot.
+		if rt.Optional {
+			return false
+		}
 		if rt.Child == nil {
 			return true
 		}

@@ -247,15 +247,26 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 		elementInfos := tsType.TargetTupleType().ElementInfos()
 		ids := make([]string, 0, len(typeArguments))
 		for i, typeArgument := range typeArguments {
-			child := computer.Compute(typeArgument)
+			optional, rest, variadic := false, false, false
 			if i < len(elementInfos) {
 				elementFlags := elementInfos[i].TupleElementFlags()
-				if elementFlags&checker.ElementFlagsRest != 0 {
-					child += "#rest"
-				}
-				if elementFlags&checker.ElementFlagsVariadic != 0 {
-					child += "#variadic"
-				}
+				optional = elementFlags&checker.ElementFlagsOptional != 0
+				rest = elementFlags&checker.ElementFlagsRest != 0
+				variadic = elementFlags&checker.ElementFlagsVariadic != 0
+			}
+			// Optional tuple slots type as `T | undefined`; strip it so the slot id
+			// matches the projected node (serialize.go projectTuple does the same).
+			var child string
+			if optional {
+				child = computer.optionalChildID(typeArgument)
+			} else {
+				child = computer.Compute(typeArgument)
+			}
+			if rest {
+				child += "#rest"
+			}
+			if variadic {
+				child += "#variadic"
 			}
 			ids = append(ids, child)
 		}
@@ -416,18 +427,18 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 	}
 	// Optional properties carry `T | undefined` at the symbol-type layer; the
 	// `optional` bit IS the "undefined-permitted" signal, so the union wrapper is
-	// redundant. Strip it before computing the child id so a RECURSIVE optional
-	// self/cross-reference closes on the inner object — not on a wrapping union node
-	// — matching the serializer (serialize.go projects optional members through
-	// StripUndefined for the same reason). Without this the structural id and the
-	// projected runtype node disagree on the optional child's shape, and a recursive
-	// optional property's cycle back-edge binds inconsistently ($23 `T | undefined`
-	// wrapper vs $30 object) between the type-first and value-first authoring paths.
-	childType := propertyType
+	// redundant. Resolve the child WITHOUT undefined before computing its id so a
+	// RECURSIVE optional self/cross-reference closes on the inner type — not on a
+	// wrapping union node — matching the serializer (serialize.go projects optional
+	// members through the same typeid.ResolveOptionalChild). Without this the
+	// structural id and the projected runtype node disagree on the optional child's
+	// shape, and a recursive optional property's cycle back-edge binds inconsistently
+	// ($23 `T | undefined` wrapper vs $30 object) between the type-first and
+	// value-first authoring paths.
+	child := computer.Compute(propertyType)
 	if optional {
-		childType = StripUndefined(childType)
+		child = computer.optionalChildID(propertyType)
 	}
-	child := computer.Compute(childType)
 	return memberID(int(kind), memberName, optional, child) + readonlyBit(readonly)
 }
 
@@ -484,7 +495,14 @@ func (computer *Computer) signatureID(signature *checker.Signature, kind protoco
 			}
 		}
 		optional := paramSymbol.Flags&ast.SymbolFlagsOptional != 0
-		child := computer.Compute(paramType)
+		// Optional params type as `T | undefined`; strip it so the param id matches
+		// the projected node (serialize.go projectSignature does the same).
+		var child string
+		if optional {
+			child = computer.optionalChildID(paramType)
+		} else {
+			child = computer.Compute(paramType)
+		}
 		if isRestParam(paramSymbol) {
 			child += "#rest"
 		}
@@ -542,27 +560,114 @@ func (computer *Computer) childIDs(types []*checker.Type) []string {
 	return out
 }
 
-// StripUndefined returns the lone non-undefined member of a `T | undefined` union
-// (so an optional property's child closes on the inner type). Returns tsType
-// unchanged when it isn't a union, or when removing `undefined` leaves zero or 2+
-// members. Shared with the parent runtype package (which imports typeid; the
-// reverse import would cycle).
-func StripUndefined(tsType *checker.Type) *checker.Type {
-	if tsType == nil || tsType.Flags()&checker.TypeFlagsUnion == 0 {
-		return tsType
+// OptionalChild is the resolved shape of an optional member's child type once
+// the redundant `undefined` is removed. Exactly one field is set:
+//   - Type: the child resolves to a single checker type (the common case —
+//     `T | undefined` → T, `boolean | undefined` → boolean, `null | undefined` → null).
+//   - Members: the survivors form a genuine multi-member union with no single
+//     checker type we can hand back (notably `T | null | undefined`, which must
+//     keep `null` but drop `undefined`); the caller synthesizes a union node /
+//     structural id from these members.
+type OptionalChild struct {
+	Type    *checker.Type
+	Members []*checker.Type
+}
+
+// ResolveOptionalChild strips the redundant `undefined` an optional member's type
+// carries (the member's `optional` bit already signals absence), restores a
+// de-normalized boolean (`true | false`) back to the `boolean` atomic, and
+// PRESERVES every other member — including `null` (so `x?: string | null` stays
+// `string | null`, and the `null | undefined` shape of `x?: null` collapses to the
+// lone `null`). It never returns a type that still carries `undefined`.
+//
+// NOTE: a `getTypeWithFacts(t, checker.TypeFactsNEUndefined)` shim export would
+// collapse this whole function to a single checker call — that is exactly what the
+// checker uses for optional-property narrowing — but the tsgolint shim does not
+// expose that method today, so we strip / restore-boolean / preserve-null here.
+func ResolveOptionalChild(typeChecker *checker.Checker, childType *checker.Type) OptionalChild {
+	if childType == nil || childType.Flags()&checker.TypeFlagsUnion == 0 {
+		return OptionalChild{Type: childType}
 	}
-	parts := tsType.Distributed()
-	kept := make([]*checker.Type, 0, len(parts))
+	parts := childType.Distributed()
+	survivors := make([]*checker.Type, 0, len(parts))
+	hasUndefined := false
+	hasNull := false
 	for _, part := range parts {
 		if part.Flags()&checker.TypeFlagsUndefined != 0 {
+			hasUndefined = true
 			continue
 		}
-		kept = append(kept, part)
+		if part.Flags()&checker.TypeFlagsNull != 0 {
+			hasNull = true
+		}
+		survivors = append(survivors, part)
 	}
-	if len(kept) == 1 {
-		return kept[0]
+	// No `undefined` to strip, or nothing survives (an `undefined`-only optional) —
+	// leave the type untouched.
+	if !hasUndefined || len(survivors) == 0 {
+		return OptionalChild{Type: childType}
 	}
-	return tsType
+	if len(survivors) == 1 {
+		return OptionalChild{Type: survivors[0]}
+	}
+	// No `null` present: GetNonNullableType strips exactly `undefined` here (there is
+	// no null to lose) and re-normalizes `true | false` back to the boolean atomic.
+	if !hasNull {
+		return OptionalChild{Type: checker.Checker_GetNonNullableType(typeChecker, childType)}
+	}
+	// `null` present: keep it, collapse a `{true, false}` pair back to boolean, and
+	// synthesize a union from the survivors (no single checker type expresses
+	// `T | null` without a union constructor the shim doesn't expose).
+	members := collapseBooleanPair(typeChecker, survivors)
+	if len(members) == 1 {
+		return OptionalChild{Type: members[0]}
+	}
+	return OptionalChild{Members: members}
+}
+
+// collapseBooleanPair replaces a `{true, false}` boolean-literal pair among the
+// members with the single `boolean` atomic. A union holds at most one of each
+// boolean literal, so exactly two boolean-literal members means the whole boolean.
+func collapseBooleanPair(typeChecker *checker.Checker, members []*checker.Type) []*checker.Type {
+	boolLiterals := 0
+	for _, member := range members {
+		if member.Flags()&checker.TypeFlagsBooleanLiteral != 0 {
+			boolLiterals++
+		}
+	}
+	if boolLiterals != 2 {
+		return members
+	}
+	out := make([]*checker.Type, 0, len(members)-1)
+	for _, member := range members {
+		if member.Flags()&checker.TypeFlagsBooleanLiteral != 0 {
+			continue
+		}
+		out = append(out, member)
+	}
+	return append(out, checker.Checker_booleanType(typeChecker))
+}
+
+// SyntheticUnionStructural returns the structural id of a union synthesized from
+// an explicit member list — used for an optional child that keeps `null` after
+// `undefined` is stripped. Mirrors the union case in dispatch (sorted member ids)
+// so a synthesized union and a real one with the same members converge on one id.
+func SyntheticUnionStructural(computer *Computer, members []*checker.Type) string {
+	ids := computer.childIDs(members)
+	sort.Strings(ids)
+	return collectionID(int(protocol.KindUnion), ids, false)
+}
+
+// optionalChildID returns the structural id of an optional member's child, with
+// the redundant `undefined` stripped. Mirrors serialize.go's serializeOptionalChild
+// so the structural id and the projected node agree on the child's shape (the
+// recursion-safety contract described on memberID).
+func (computer *Computer) optionalChildID(childType *checker.Type) string {
+	child := ResolveOptionalChild(computer.typeChecker, childType)
+	if child.Members == nil {
+		return computer.Compute(child.Type)
+	}
+	return SyntheticUnionStructural(computer, child.Members)
 }
 
 // ---------------------------------------------------------------------------
