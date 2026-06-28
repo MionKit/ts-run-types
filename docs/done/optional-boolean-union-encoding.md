@@ -15,15 +15,20 @@ issue (the playground just surfaced the generated code). Full sweep + root cause
 | **B/C** — encode-side keeps a per-member dispatch for all-JSON-identity unions; boolean not atomic | `atomicOnlyJsonIdentity` early-out in the JSON encoders (pj/pjs/sj/cj) | `fix(typefns): collapse all-JSON-identity unions on encode` |
 | **E** — binary encoder reuses the JSON union error string | binary-specific `flatUnionEncodeBinaryErrorVar` | (same as B) |
 | **F** — schema-form `RT.circular(self)` spurious CTA001 | function-free `circular(body)` + `self()` marker; MKR001 schema-builder exclusion | `feat(schema): function-free circular(body)` |
+| **record-union envelope elision** — a union whose members ALL round-trip raw (incl. object/record members) still wrapped in `[-1, merged]` / `[armIndex, value]` on JSON. e.g. `Record<string, number> \| {type; isTypeError: true}` shipped a full dispatch + envelope + `rj` module even though decode was empty | `roundTripsRaw` generalises `atomicOnlyJsonIdentity`: `AtomicNeedsTuple = !roundTripsRaw` so the object branch drops its wrap when no member needs a transform; JSON only (binary keeps its discriminant); `ukuWire` adapts to strip the bare object; `unionJsonNoop` restore mirrors it | `fix(typefns): elide JSON union envelope when every member round-trips raw` |
 | tuple optional-slot id collision (regression from A) | `#optional` suffix in the tuple slot id | `fix(typeid): encode optional flag in tuple-slot id` |
-| FE + Go regression coverage | `OptionalUnionEncoding.test.ts` (no `[index,value]` envelope) + updated stale expectations | `test(serialization): …` |
+| FE + Go regression coverage | `OptionalUnionEncoding.test.ts` + `RecordUnionEncoding.test.ts` (no top-level or nested `[index,value]` envelope; Date-member contrast keeps it; safe decoder still strips) + `union_flat_layout` / `unknownkeys_union` Go tests | `test(serialization): …` |
 
-**Verified:** ts-runtypes 7185 tests, runtypes-devtools 284, Go `./internal/...` 0 fail,
-fuzz (unit + integration + 467k-run value soak), lint + `go vet` clean.
+**Verified:** ts-runtypes + devtools JS suites green (7472 passed / 31 skipped),
+Go `./internal/...` + `./cmd/...` 0 fail, `go vet` clean, fuzz (core suite + 706k-run
+value round-trip soak, 0 violations; the type-fuzz soak's only findings are pre-existing
+`O4/junk` record `validate`/`getValidationErrors` flakes reproduced identically on the
+pre-change binary — unrelated to this work).
 
 **Remaining (explicitly optional, non-blocking — see the fix plan below):** **D** (a
-required `T | undefined` union still tuple-wraps JSON-compatible members — deferred, rare),
-**G** (the `prepareForJsonSafe` root `return ctxFn0(v)` forwarder — a one-hop polish), and
+required `T | undefined` union still tuple-wraps genuinely non-JSON-compatible members —
+narrower now after the record-union elision; deferred, rare), **G** (the
+`prepareForJsonSafe` root `return ctxFn0(v)` forwarder — a one-hop polish), and
 **H** (a build-time warning when a comptime option is passed in the value slot — DX nicety).
 None is the reported issue or a correctness bug.
 

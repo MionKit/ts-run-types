@@ -9,12 +9,15 @@
 // public createUnknownKeysToUndefined API which operates on raw
 // objects).
 //
-// For unions, the parsed wire value is `[-1, mergedObject]` (object
-// branch) or `[idx, value]` (atomic branch with tuple wrap). ukuWire
-// detects the wrapper at runtime and reaches into `v[1]` to apply the
-// merged-allowlist strip on the merged-object branch — closing the
-// decoder-safety hole at union nodes that the legacy uku-no-op-on-
-// union created.
+// For a union that carries a transform on some member, the parsed wire
+// value is `[-1, mergedObject]` (object branch) or `[idx, value]` (atomic
+// branch with tuple wrap); ukuWire detects the wrapper at runtime and
+// reaches into `v[1]` to apply the merged-allowlist strip. For a union
+// that round-trips raw (every member JSON-compatible, e.g.
+// `{a: string} | {b: number}`) there is NO envelope — the wire value is
+// the bare merged object — so ukuWire strips `v` directly. Either way the
+// decoder-safety hole at union nodes (that the legacy uku-no-op-on-union
+// created) stays closed.
 //
 // These tests craft unsafe-encoded wire payloads and assert that the
 // safe decoder nukes undeclared keys before returning.
@@ -26,11 +29,11 @@ describe('safe decoder — ukuWire strips undeclared keys at union nodes', () =>
   type Disjoint = {a: string} | {b: number};
 
   it('strips undeclared keys from an unsafe-encoded union payload', () => {
-    // Hand-craft a wire string that an unsafe encoder might produce —
-    // [-1, mergedObject] with an extra key smuggled into the merged
-    // object branch. The safe decoder must strip the extra before
-    // returning.
-    const wire = JSON.stringify([-1, {a: 'hi', evil: 'sneaky'}]);
+    // `Disjoint` round-trips raw (both members are JSON-compatible), so the
+    // wire has NO `[-1, …]` envelope — an unsafe encoder produces the bare
+    // merged object with an extra key smuggled in. The safe decoder must
+    // strip the extra before returning.
+    const wire = JSON.stringify({a: 'hi', evil: 'sneaky'});
     const decode = createJsonDecoder<Disjoint>();
     const restored = decode(wire);
     expect((restored as Record<string, unknown>).a).toBe('hi');

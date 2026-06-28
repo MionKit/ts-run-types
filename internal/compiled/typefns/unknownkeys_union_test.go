@@ -176,14 +176,17 @@ func TestUnionUnknownKeys_AtomicOnlyUnion(t *testing.T) {
 	}
 }
 
-// TestUnionUnknownKeys_WireFormatObjectBranch — ukuWire codegen on
-// `{a: string} | {b: number}` MUST contain the wrapper-peel and reach
-// into v[1].
+// TestUnionUnknownKeys_WireFormatObjectBranch — ukuWire codegen on an
+// ENVELOPING union `{a: string} | {b: bigint}` (the bigint member is
+// non-JSON-compatible, so the encoder wraps as `[-1, merged]`) MUST
+// contain the wrapper-peel and reach into v[1]. A round-trips-raw union
+// carries no envelope and is covered by
+// TestUnionUnknownKeys_WireFormatRoundTripsRawStripsBareV.
 func TestUnionUnknownKeys_WireFormatObjectBranch(t *testing.T) {
 	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
-	num := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
+	big := &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}
 	pa := &protocol.RunType{ID: "pa", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("str")}
-	pb := &protocol.RunType{ID: "pb", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: makeRef("num")}
+	pb := &protocol.RunType{ID: "pb", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: makeRef("big")}
 	obA := &protocol.RunType{ID: "obA", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pa")}}
 	obB := &protocol.RunType{ID: "obB", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pb")}}
 	union := &protocol.RunType{
@@ -191,7 +194,7 @@ func TestUnionUnknownKeys_WireFormatObjectBranch(t *testing.T) {
 		Children:          []*protocol.RunType{makeRef("obA"), makeRef("obB")},
 		SafeUnionChildren: []*protocol.RunType{makeRef("obA"), makeRef("obB")},
 	}
-	ctx := unionUnknownKeysCtx(t, []*protocol.RunType{str, num, pa, pb, obA, obB, union})
+	ctx := unionUnknownKeysCtx(t, []*protocol.RunType{str, big, pa, pb, obA, obB, union})
 
 	out := emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: ukuSnippet, CodeShape: CodeS, JsonWireFormat: true})
 	if !strings.Contains(out.Code, "Array.isArray(v)") {
@@ -208,6 +211,38 @@ func TestUnionUnknownKeys_WireFormatObjectBranch(t *testing.T) {
 	}
 }
 
+// TestUnionUnknownKeys_WireFormatRoundTripsRawStripsBareV — ukuWire on a
+// round-trips-raw pure-object union `{a: string} | {b: number}` carries NO
+// `[-1, merged]` envelope (every member is JSON-compatible), so the encoder
+// emits the bare object. ukuWire must therefore strip `v` DIRECTLY — gated on
+// a plain-object check, no wrapper-peel, no v[1] reach-in — so the decoder-
+// safety strip still fires on the bare wire.
+func TestUnionUnknownKeys_WireFormatRoundTripsRawStripsBareV(t *testing.T) {
+	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	num := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
+	pa := &protocol.RunType{ID: "pa", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("str")}
+	pb := &protocol.RunType{ID: "pb", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: makeRef("num")}
+	obA := &protocol.RunType{ID: "obA", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pa")}}
+	obB := &protocol.RunType{ID: "obB", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pb")}}
+	union := &protocol.RunType{
+		ID: "uni", Kind: protocol.KindUnion,
+		Children:          []*protocol.RunType{makeRef("obA"), makeRef("obB")},
+		SafeUnionChildren: []*protocol.RunType{makeRef("obA"), makeRef("obB")},
+	}
+	ctx := unionUnknownKeysCtx(t, []*protocol.RunType{str, num, pa, pb, obA, obB, union})
+
+	out := emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: ukuSnippet, CodeShape: CodeS, JsonWireFormat: true})
+	if strings.Contains(out.Code, "v[0] === -1") || strings.Contains(out.Code, "v[1]") {
+		t.Errorf("round-trips-raw ukuWire must NOT reach into the envelope, got: %s", out.Code)
+	}
+	if !strings.Contains(out.Code, "typeof v === 'object'") || !strings.Contains(out.Code, "!Array.isArray(v)") {
+		t.Errorf("round-trips-raw ukuWire must gate the bare-object strip, got: %s", out.Code)
+	}
+	if !strings.Contains(out.Code, "=== 'a'") || !strings.Contains(out.Code, "=== 'b'") {
+		t.Errorf("round-trips-raw ukuWire must keep the merged allowlist, got: %s", out.Code)
+	}
+}
+
 // TestUnionUnknownKeys_NonWireGatesOnPlainObject — `string[] | {a: string}`.
 // The non-wire emit MUST gate the merged-allowlist loop on a plain-object
 // runtime check. Without it, runtime values that match the array atomic
@@ -216,17 +251,21 @@ func TestUnionUnknownKeys_WireFormatObjectBranch(t *testing.T) {
 // Pins the fix for the stripMutate/Unions failures (uku ran ungated on
 // the raw runtime value).
 func TestUnionUnknownKeys_NonWireGatesOnPlainObject(t *testing.T) {
+	// bigint prop ⇒ the object member is non-JSON-compatible ⇒ the union
+	// envelopes, so the JsonWireFormat sub-assertion below still sees the
+	// `[-1, merged]` wrapper gate. The non-wire strip/has assertions hold
+	// regardless of compatibility.
 	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
-	num := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
+	big := &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}
 	arr := &protocol.RunType{ID: "arr", Kind: protocol.KindArray, Child: makeRef("str")}
-	pa := &protocol.RunType{ID: "pa", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("num")}
+	pa := &protocol.RunType{ID: "pa", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("big")}
 	obj := &protocol.RunType{ID: "obj", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pa")}}
 	union := &protocol.RunType{
 		ID: "uni", Kind: protocol.KindUnion,
 		Children:          []*protocol.RunType{makeRef("arr"), makeRef("obj")},
 		SafeUnionChildren: []*protocol.RunType{makeRef("arr"), makeRef("obj")},
 	}
-	ctx := unionUnknownKeysCtx(t, []*protocol.RunType{str, num, arr, pa, obj, union})
+	ctx := unionUnknownKeysCtx(t, []*protocol.RunType{str, big, arr, pa, obj, union})
 
 	// strip / uku-style (CodeS)
 	out := emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: ukuSnippet, CodeShape: CodeS})
@@ -241,7 +280,7 @@ func TestUnionUnknownKeys_NonWireGatesOnPlainObject(t *testing.T) {
 	}
 
 	// hasUnknownKeys (CodeE) — IIFE must also gate on plain object.
-	ctx = unionUnknownKeysCtx(t, []*protocol.RunType{str, num, arr, pa, obj, union})
+	ctx = unionUnknownKeysCtx(t, []*protocol.RunType{str, big, arr, pa, obj, union})
 	out = emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: hasSnippet, CodeShape: CodeE})
 	hasLines := ctx.walker.ContextLines()
 	if !strings.Contains(hasLines, "typeof v === 'object'") || !strings.Contains(hasLines, "!Array.isArray(v)") {
@@ -251,7 +290,7 @@ func TestUnionUnknownKeys_NonWireGatesOnPlainObject(t *testing.T) {
 	// JsonWireFormat path keeps its own wrapper gate and does NOT add
 	// the plain-object gate (v[1] is already the inner merged object
 	// post-wrapper-check).
-	ctx = unionUnknownKeysCtx(t, []*protocol.RunType{str, num, arr, pa, obj, union})
+	ctx = unionUnknownKeysCtx(t, []*protocol.RunType{str, big, arr, pa, obj, union})
 	out = emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: ukuSnippet, CodeShape: CodeS, JsonWireFormat: true})
 	if strings.Contains(out.Code, "typeof v === 'object'") {
 		t.Errorf("wire-format path must not add plain-object gate (wrapper check already gates): %s", out.Code)
@@ -292,15 +331,17 @@ func TestUnionUnknownKeys_OptionalDoesntChangeAllowlist(t *testing.T) {
 // it. Declaration order must match allocation order (inner first) so the
 // outer body's reference resolves.
 func TestUnionUnknownKeys_WireCodeEGateNestsScanCtxFn(t *testing.T) {
-	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
-	pa := &protocol.RunType{ID: "pa", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("str")}
+	// bigint prop ⇒ non-JSON-compatible member ⇒ the union envelopes, so the
+	// wire-format (`[-1, merged]`) CodeE path is exercised.
+	big := &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}
+	pa := &protocol.RunType{ID: "pa", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("big")}
 	obA := &protocol.RunType{ID: "obA", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pa")}}
 	union := &protocol.RunType{
 		ID: "uni", Kind: protocol.KindUnion,
 		Children:          []*protocol.RunType{makeRef("obA")},
 		SafeUnionChildren: []*protocol.RunType{makeRef("obA")},
 	}
-	ctx := unionUnknownKeysCtx(t, []*protocol.RunType{str, pa, obA, union})
+	ctx := unionUnknownKeysCtx(t, []*protocol.RunType{big, pa, obA, union})
 	out := emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: hasSnippet, CodeShape: CodeE, JsonWireFormat: true})
 	if !strings.HasPrefix(out.Code, "ctxFn1(") {
 		t.Errorf("wire CodeE emit should call the outer gate fn: %s", out.Code)

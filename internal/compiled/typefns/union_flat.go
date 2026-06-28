@@ -135,8 +135,11 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
 		return RTCode{Code: "", Type: CodeS}
 	}
-	// All members JSON-identity — no transform (see atomicOnlyJsonIdentity).
-	if layout.atomicOnlyJsonIdentity() {
+	// Round-trips raw — every member is JSON-compatible, so mutate has no
+	// transform to apply and needs no envelope: identity. Broader than
+	// atomicOnlyJsonIdentity (covers object/record members too — mutate never
+	// strips, so a compatible object member also passes through untouched).
+	if !layout.AtomicNeedsTuple {
 		return RTCode{Code: "", Type: CodeS}
 	}
 
@@ -193,7 +196,12 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 		if body != "" {
 			body += ";"
 		}
-		body += v + " = [-1, " + v + "]"
+		// Wrap only when the union carries a transform somewhere. When it
+		// round-trips raw (AtomicNeedsTuple false) the mutate early-out above
+		// already returned identity, so this branch runs only with the wrap.
+		if layout.AtomicNeedsTuple {
+			body += v + " = [-1, " + v + "]"
+		}
 		clause := "if (typeof " + v + " === 'object' && " + v + " !== null) {" + body + "}"
 		if len(clauses) > 0 {
 			clause = " else " + clause
@@ -306,8 +314,9 @@ func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v stri
 
 	hasObjectBranch := len(layout.ObjectMembers) > 0
 	if !layout.AtomicNeedsTuple {
-		// Whole union round-trips raw — every atomic member is noop on
-		// both halves AND there's no object branch.
+		// Whole union round-trips raw (roundTripsRaw): every member — atomic
+		// AND object/record — is JSON-compatible, so nothing was enveloped on
+		// encode and there is nothing to unwrap or reconstruct: identity.
 		return RTCode{Code: "", Type: CodeS}
 	}
 
@@ -570,8 +579,15 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 			}
 			objExpr = "'{'+(" + strings.Join(parts, "+") + ").slice(1)+'}'"
 		}
-		envelope := "'[-1,' + " + objExpr + " + ']'"
-		clause := "if (typeof " + v + " === 'object' && " + v + " !== null) { return " + envelope + ";}"
+		// Wrap in the `[-1, …]` envelope only when the union carries a
+		// transform somewhere; a round-trips-raw union (AtomicNeedsTuple false)
+		// emits the bare object JSON so it decodes identity. The per-prop
+		// stringify still strips undeclared keys either way.
+		result := objExpr
+		if layout.AtomicNeedsTuple {
+			result = "'[-1,' + " + objExpr + " + ']'"
+		}
+		clause := "if (typeof " + v + " === 'object' && " + v + " !== null) { return " + result + ";}"
 		if len(clauses) > 0 {
 			clause = " else " + clause
 		}

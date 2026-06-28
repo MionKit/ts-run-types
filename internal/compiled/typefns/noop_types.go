@@ -252,12 +252,12 @@ func jsonNoopObjectChildren(children []*protocol.RunType, ctx *EmitContext, mode
 //     load-bearing encode-time validation, so the entry is never identity.
 //     Only the degenerate all-members-dangling layout emits nothing.
 //   - decode (rj): the emit is "" exactly when AtomicNeedsTuple is false —
-//     no object-bucket member (ObjectLiteral / plain Class without an index
-//     signature ⇒ the [-1, merged] envelope) and every atomic-bucket member
-//     JSON-compatible (a non-compatible member forces the [idx, value]
-//     envelope). NOTE deliberately NOT plain isJsonCompatible(union): a
-//     union of compatible OBJECT members is wire-compatible yet still
-//     envelopes, so its decoder does real unwrap work.
+//     i.e. the union round-trips raw (roundTripsRaw): EVERY member, atomic
+//     AND object/record bucket, is JSON-compatible, so nothing was enveloped
+//     on encode and the decoder is identity. A member carrying a transform
+//     (a non-JSON-compatible atomic OR a non-JSON-compatible object member)
+//     forces the envelope, so its decoder does real unwrap work. Mirrors
+//     union_flat_layout.go's AtomicNeedsTuple = !roundTripsRaw.
 func unionJsonNoop(rt *protocol.RunType, ctx *EmitContext, mode jsonNoopMode) bool {
 	children := rt.SafeUnionChildren
 	if len(children) == 0 {
@@ -293,8 +293,14 @@ func unionJsonNoop(rt *protocol.RunType, ctx *EmitContext, mode jsonNoopMode) bo
 				}
 				continue
 			}
-			// Object bucket — the union envelopes, the decoder unwraps.
-			return false
+			// Object bucket — merges into the [-1, merged] envelope ONLY when it
+			// carries a transform. A fully JSON-compatible object/record member
+			// round-trips raw (roundTripsRaw ⇒ AtomicNeedsTuple false ⇒ identity
+			// decode), so it no longer forces non-noop.
+			if !isJsonCompatible(resolved, ctx) {
+				return false
+			}
+			continue
 		}
 		if !isJsonCompatible(resolved, ctx) {
 			return false

@@ -31,10 +31,13 @@ type FlatLayout struct {
 	// MergedProps is the deduplicated property list across ObjectMembers,
 	// ordered by first appearance.
 	MergedProps []FlatMergedProp
-	// AtomicNeedsTuple is the all-or-nothing wrap flag for the atomic
-	// branch. True iff at least one atomic member is non-JSON-natural
-	// OR any object branch exists (the [-1, …] envelope coexists with
-	// the atomic envelope so the decoder must unconditionally unwrap).
+	// AtomicNeedsTuple is the all-or-nothing wrap flag, set to the
+	// negation of roundTripsRaw. True iff at least one member (atomic
+	// OR object/record) carries an encode/decode transform, so the whole
+	// union wraps (`[armIndex, value]` atomic, `[-1, merged]` object) and
+	// the decoder unconditionally unwraps. False when every member is
+	// JSON-compatible: no envelope, identity decode. Governs the JSON
+	// emitters only — binary always writes its discriminant.
 	AtomicNeedsTuple bool
 	// HasDiscriminant is true iff the object members share a single
 	// required, plain-literal discriminant property (e.g. `kind: "t0"` |
@@ -185,18 +188,16 @@ func buildFlatLayout(rt *protocol.RunType, ctx *EmitContext) FlatLayout {
 
 	layout.MergedProps = buildMergedProps(layout.ObjectMembers, ctx, discValueByMember)
 
-	// AtomicNeedsTuple — object branch forces wrapping; otherwise any
-	// non-JSON-natural atomic member forces wrapping (all-or-nothing).
-	if len(layout.ObjectMembers) > 0 {
-		layout.AtomicNeedsTuple = true
-	} else {
-		for _, m := range layout.AtomicMembers {
-			if !isJsonCompatible(m.Resolved, ctx) {
-				layout.AtomicNeedsTuple = true
-				break
-			}
-		}
-	}
+	// AtomicNeedsTuple — the union needs the `[armIndex, value]` / `[-1, merged]`
+	// envelope iff it does NOT round-trip raw: some member carries an
+	// encode/decode transform, so the decoder must know which arm produced a
+	// value. When every member (atomic AND object) is JSON-compatible the whole
+	// union passes through native JSON untouched, so no envelope is emitted and
+	// the decoder is identity (see roundTripsRaw). This subsumes the old rule
+	// (object branch OR any non-JSON-natural atomic member forces wrapping): an
+	// object/record branch whose members are all JSON-compatible no longer
+	// forces the wrap — that's the record-union optimisation.
+	layout.AtomicNeedsTuple = !layout.roundTripsRaw(ctx)
 
 	// Per-prop NeedsSubWrap — single-candidate or no-candidate props
 	// never need a sub-wrap; multi-candidate props wrap iff at least
@@ -230,6 +231,34 @@ func buildFlatLayout(rt *protocol.RunType, ctx *EmitContext) FlatLayout {
 // (Binary is unaffected: it keeps the compact per-member discriminant.)
 func (layout FlatLayout) atomicOnlyJsonIdentity() bool {
 	return len(layout.ObjectMembers) == 0 && !layout.AtomicNeedsTuple
+}
+
+// roundTripsRaw reports whether every member — atomic AND object — is
+// isJsonCompatible, i.e. no member carries an encode/decode transform. Such a
+// union passes through native JSON unchanged: the encoder needs no
+// `[armIndex, value]` / `[-1, merged]` envelope and the decoder is identity,
+// even when object/record members are present. The object members still merge
+// (the clone strategy keeps stripping undeclared keys); only the wrap is
+// dropped. This is the record-union optimisation: e.g.
+// `Record<string, number> | {type: string; isTypeError: true}` round-trips as
+// the bare object with no `[-1, …]` envelope. Strictly broader than
+// atomicOnlyJsonIdentity, which additionally requires zero object members.
+// Drives AtomicNeedsTuple (as its negation), so the JSON emitters and the
+// shared decoder read the decision off that single flag. Binary is unaffected
+// — it always writes the discriminant (union_flat_binary.go ignores
+// AtomicNeedsTuple).
+func (layout FlatLayout) roundTripsRaw(ctx *EmitContext) bool {
+	for _, m := range layout.AtomicMembers {
+		if !isJsonCompatible(m.Resolved, ctx) {
+			return false
+		}
+	}
+	for _, m := range layout.ObjectMembers {
+		if !isJsonCompatible(m.Resolved, ctx) {
+			return false
+		}
+	}
+	return true
 }
 
 // buildMergedProps walks every object member, groups its non-static,

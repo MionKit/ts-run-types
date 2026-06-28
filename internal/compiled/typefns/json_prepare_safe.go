@@ -855,7 +855,15 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 		}
 		objLit := buildSafeObjectLiteral(props, ctx, v)
 		guard := objectGuard(v, "")
-		clauses = append(clauses, "if ("+guard+") return [-1, "+objLit+"];")
+		// The clone always strips undeclared keys (buildSafeObjectLiteral); the
+		// `[-1, …]` envelope is only needed when the union carries a transform
+		// somewhere. A round-trips-raw union (AtomicNeedsTuple false) returns the
+		// bare stripped object so it decodes identity.
+		result := objLit
+		if layout.AtomicNeedsTuple {
+			result = "[-1, " + objLit + "]"
+		}
+		clauses = append(clauses, "if ("+guard+") return "+result+";")
 	}
 
 	errVar := flatUnionEncodeErrorVar(ctx)
