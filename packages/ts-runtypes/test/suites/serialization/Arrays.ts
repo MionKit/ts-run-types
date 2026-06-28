@@ -208,19 +208,19 @@ export const ARRAYS = {
       return createBinaryDecoder<CircularArray>();
     },
     schemaEncoder: () => {
-      const ca = RT.circular((self) => RT.array(self));
+      const ca = RT.circular(RT.array(RT.self()));
       return createJsonEncoder(ca);
     },
     schemaDecoder: () => {
-      const ca = RT.circular((self) => RT.array(self));
+      const ca = RT.circular(RT.array(RT.self()));
       return createJsonDecoder(ca);
     },
     schemaBinaryEncoder: () => {
-      const ca = RT.circular((self) => RT.array(self));
+      const ca = RT.circular(RT.array(RT.self()));
       return createBinaryEncoder(ca);
     },
     schemaBinaryDecoder: () => {
-      const ca = RT.circular((self) => RT.array(self));
+      const ca = RT.circular(RT.array(RT.self()));
       return createBinaryDecoder(ca);
     },
     getTestData: () => {

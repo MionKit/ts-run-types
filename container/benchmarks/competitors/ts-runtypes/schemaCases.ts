@@ -66,15 +66,15 @@ export const schemaCases: CompetitorCases = {
   'ARRAY.union_array': () => createValidate(RT.array(RT.union([TF.string(), TF.number()]))),
   'ARRAY.tuple_array': () => createValidate(RT.array(RT.tuple([TF.string(), TF.number()]))),
   'ARRAY.circular_array': () => {
-    const ca = RT.circular((self) => RT.array(self));
+    const ca = RT.circular(RT.array(RT.self()));
     return createValidate(ca);
   },
   'ARRAY.circular_object_with_array': () => {
-    const ot = RT.circular((self) =>
+    const ot = RT.circular(
       RT.object({
         a: TF.string(),
         deep: RT.optional(RT.object({b: TF.string(), c: TF.number()})),
-        d: RT.optional(RT.array(self)),
+        d: RT.optional(RT.array(RT.self())),
       })
     );
     return createValidate(ot);
@@ -97,27 +97,25 @@ export const schemaCases: CompetitorCases = {
   'OBJECT.nested_object': () => createValidate(RT.object({a: TF.string(), deep: RT.object({b: TF.string(), c: TF.number()})})),
   'OBJECT.interface_string_array_prop': () => createValidate(RT.object({tags: RT.array(TF.string())})),
   'OBJECT.circular_interface': () => {
-    const ic = RT.circular((self) => RT.object({name: TF.string(), child: RT.optional(self)}));
+    const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
     return createValidate(ic);
   },
   'OBJECT.circular_interface_on_array': () => {
-    const ica = RT.circular((self) => RT.object({name: TF.string(), children: RT.optional(RT.array(self))}));
+    const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
     return createValidate(ica);
   },
   'OBJECT.circular_interface_on_nested_object': () => {
-    const icd = RT.circular((self) =>
+    const icd = RT.circular(
       RT.object({
         name: TF.string(),
-        embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
+        embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())}),
       })
     );
     return createValidate(icd);
   },
   'OBJECT.index_signature_string': () => createValidate(RT.record(TF.string())),
   'OBJECT.index_signature_named_props': () =>
-    createValidate(
-      RT.intersection(RT.record(RT.union([TF.string(), TF.number()])), RT.object({a: TF.string(), b: TF.number()}))
-    ),
+    createValidate(RT.intersection(RT.record(RT.union([TF.string(), TF.number()])), RT.object({a: TF.string(), b: TF.number()}))),
   'OBJECT.index_signature_nested': () => createValidate(RT.record(RT.record(TF.number()))),
   'OBJECT.index_signature_date_value': () => createValidate(RT.record(RT.record(TF.date()))),
   'OBJECT.index_signature_non_root': () =>
@@ -155,11 +153,14 @@ export const schemaCases: CompetitorCases = {
     return createValidate(RT.classType<RpcError<'test-error'>>(RpcError));
   },
   'OBJECT.call_signature_params': () => createValidate(RT.parameters(RT.func([TF.number(), RT.boolean()], TF.string()))),
-  'OBJECT.call_signature_params_with_optional': () => createValidate(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], [TF.string()])))),
-  'OBJECT.call_signature_params_with_rest': () => createValidate(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], TF.date())))),
+  'OBJECT.call_signature_params_with_optional': () =>
+    createValidate(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], [TF.string()])))),
+  'OBJECT.call_signature_params_with_rest': () =>
+    createValidate(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], TF.date())))),
   'OBJECT.record_union_keys': () => createValidate(RT.object({a: TF.number(), b: TF.number()})),
   'OBJECT.union_value_index': () => createValidate(RT.record(RT.union([TF.string(), TF.number()]))),
-  'OBJECT.object_with_union_prop': () => createValidate(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: TF.number()})),
+  'OBJECT.object_with_union_prop': () =>
+    createValidate(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: TF.number()})),
   'OBJECT.interface_inheritance': () => createValidate(RT.object({a: TF.string(), b: TF.number()})),
   'OBJECT.class_inheritance': () => {
     class Base {
@@ -180,7 +181,8 @@ export const schemaCases: CompetitorCases = {
   'TUPLE.nested_tuple_in_array': () => createValidate(RT.array(RT.tuple([TF.string(), TF.number()]))),
   'TUPLE.tuple_rest': () => createValidate(RT.tuple([TF.number()], TF.string())),
   'TUPLE.tuple_circular': NOT_SUPPORTED, // validateSchema not-supported
-  'TUPLE.tuple_multiple_trailing_optionals': () => createValidate(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+  'TUPLE.tuple_multiple_trailing_optionals': () =>
+    createValidate(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
   'TUPLE.tuple_named_labels': () => createValidate(RT.tuple([TF.string(), TF.number()])),
   'TUPLE.tuple_with_non_serializable': () => createValidate(RT.tuple([TF.number(), RT.func([], RT.any())])),
   'TUPLE.empty_tuple': () => createValidate(RT.tuple([])),
@@ -204,7 +206,8 @@ export const schemaCases: CompetitorCases = {
       ])
     ),
   'UNION.string_or_number': () => createValidate(RT.union([TF.string(), TF.number()])),
-  'UNION.union_of_array_types': () => createValidate(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean())])),
+  'UNION.union_of_array_types': () =>
+    createValidate(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean())])),
   'UNION.array_of_union': () => createValidate(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
   'UNION.union_of_object_shapes': () =>
     createValidate(
@@ -215,13 +218,13 @@ export const schemaCases: CompetitorCases = {
       RT.union([RT.object({kind: RT.literal('a'), n: TF.number()}), RT.object({kind: RT.literal('b'), s: TF.string()})])
     ),
   'UNION.circular_union': () => {
-    const uc = RT.circular((self) =>
+    const uc = RT.circular(
       RT.union([
         TF.date(),
         TF.number(),
         TF.string(),
-        RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
-        RT.array(self),
+        RT.object({a: RT.optional(RT.self()), b: RT.optional(TF.string())}),
+        RT.array(RT.self()),
       ])
     );
     return createValidate(uc);
@@ -274,7 +277,8 @@ export const schemaCases: CompetitorCases = {
     ),
   'UNION.union_with_any_fallback': () => createValidate(RT.any()),
   'UNION.union_with_unknown_fallback': () => createValidate(RT.unknown()),
-  'UNION.union_subset_small_first': () => createValidate(RT.union([RT.object({a: TF.string()}), RT.object({a: TF.string(), b: TF.number()})])),
+  'UNION.union_subset_small_first': () =>
+    createValidate(RT.union([RT.object({a: TF.string()}), RT.object({a: TF.string(), b: TF.number()})])),
   'UNION.union_subset_nested_levels': () =>
     createValidate(
       RT.union([
@@ -294,9 +298,12 @@ export const schemaCases: CompetitorCases = {
     createValidate(RT.templateLiteral(['/api/v', TF.number(), '/user/', TF.string(), '/posts/', TF.number()])),
   'TEMPLATE_LITERAL.leading_string_placeholder': () => createValidate(RT.templateLiteral([TF.string(), '/', TF.number()])),
   'TEMPLATE_LITERAL.regex_special_chars': () => createValidate(RT.templateLiteral(['(', TF.number(), ')'])),
-  'TEMPLATE_LITERAL.template_literal_nested_in_object': () => createValidate(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
-  'TEMPLATE_LITERAL.template_literal_index_key': () => createValidate(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
-  'TEMPLATE_LITERAL.template_literal_union_placeholder': () => createValidate(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', TF.number()])),
+  'TEMPLATE_LITERAL.template_literal_nested_in_object': () =>
+    createValidate(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
+  'TEMPLATE_LITERAL.template_literal_index_key': () =>
+    createValidate(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
+  'TEMPLATE_LITERAL.template_literal_union_placeholder': () =>
+    createValidate(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', TF.number()])),
 
   // ── NATIVE ──
   'NATIVE.map_string_number': () => createValidate(RT.map(TF.string(), TF.number())),
@@ -306,33 +313,33 @@ export const schemaCases: CompetitorCases = {
 
   // ── CIRCULAR ──
   'CIRCULAR.object_full_mion_shape': () => {
-    const cir = RT.circular((self) =>
+    const cir = RT.circular(
       RT.object({
         n: TF.number(),
         s: TF.string(),
-        c: RT.optional(self),
+        c: RT.optional(RT.self()),
         d: RT.optional(TF.date()),
       })
     );
     return createValidate(cir);
   },
   'CIRCULAR.array_of_union_with_self_ref': () => {
-    const cu = RT.circular((self) => RT.array(RT.union([self, TF.date(), TF.number(), TF.string()])));
+    const cu = RT.circular(RT.array(RT.union([RT.self(), TF.date(), TF.number(), TF.string()])));
     return createValidate(cu);
   },
   'CIRCULAR.object_with_tuple_prop': () => {
-    const ct = RT.circular((self) => RT.object({tuple: RT.tuple([TF.bigInt()], [self])}));
+    const ct = RT.circular(RT.object({tuple: RT.tuple([TF.bigInt()], [RT.self()])}));
     return createValidate(ct);
   },
   'CIRCULAR.object_with_index_prop': () => {
-    const ci = RT.circular((self) => RT.object({index: RT.record(self)}));
+    const ci = RT.circular(RT.object({index: RT.record(RT.self())}));
     return createValidate(ci);
   },
   'CIRCULAR.object_deeply_nested': () => {
-    const cd = RT.circular((self) =>
+    const cd = RT.circular(
       RT.object({
         deep1: RT.object({
-          deep2: RT.object({deep3: RT.object({deep4: RT.optional(self)})}),
+          deep2: RT.object({deep3: RT.object({deep4: RT.optional(RT.self())})}),
         }),
       })
     );
@@ -341,11 +348,11 @@ export const schemaCases: CompetitorCases = {
   'CIRCULAR.circular_child_under_literal_root': () => {
     // The recursive child is a `circular(...)`; the non-circular root is a plain
     // schema referencing it — no hand-written types at all.
-    const icd = RT.circular((self) =>
+    const icd = RT.circular(
       RT.object({
         name: TF.string(),
         big: TF.bigInt(),
-        embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
+        embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())}),
       })
     );
     const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
@@ -354,27 +361,27 @@ export const schemaCases: CompetitorCases = {
   'CIRCULAR.multiple_circular_types_cross_referenced': () => {
     // Mutual recursion, no types: each type's OWN back-edge uses `self`;
     // cross-references to an already-declared run-type are plain const refs.
-    const icd = RT.circular((self) =>
+    const icd = RT.circular(
       RT.object({
         name: TF.string(),
         big: TF.bigInt(),
-        embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
+        embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())}),
       })
     );
-    const icDate = RT.circular((self) =>
+    const icDate = RT.circular(
       RT.object({
         date: TF.date(),
         month: TF.number(),
         year: TF.number(),
-        embedded: RT.optional(self),
+        embedded: RT.optional(RT.self()),
         deep: RT.optional(icd),
       })
     );
-    const root = RT.circular((self) =>
+    const root = RT.circular(
       RT.object({
         isRoot: RT.literal(true),
         ciChild: icd,
-        ciRoort: RT.optional(self),
+        ciRoort: RT.optional(RT.self()),
         ciDate: icDate,
       })
     );
@@ -389,8 +396,7 @@ export const schemaCases: CompetitorCases = {
     ),
   'UTILITY.pick': () =>
     createValidate(RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['name', 'createdAt'])),
-  'UTILITY.omit': () =>
-    createValidate(RT.omit(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['age'])),
+  'UTILITY.omit': () => createValidate(RT.omit(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['age'])),
   'UTILITY.exclude_atomic': () =>
     createValidate(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]), RT.literal('age'))),
   'UTILITY.extract_atomic': () =>
@@ -424,7 +430,8 @@ export const schemaCases: CompetitorCases = {
     ),
   'UTILITY.omit_keeping_optional': () =>
     createValidate(RT.omit(RT.object({a: TF.string(), b: RT.optional(TF.number()), c: RT.boolean()}), ['a'])),
-  'UTILITY.keyof_to_literal_union': () => createValidate(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
+  'UTILITY.keyof_to_literal_union': () =>
+    createValidate(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
   'UTILITY.typeof_variable_query': () => createValidate(RT.object({url: TF.string(), port: TF.number()})),
   'UTILITY.indexed_access_type': () => createValidate(TF.string()),
   'UTILITY.conditional_type_resolved': () => createValidate(RT.boolean()),
@@ -438,7 +445,8 @@ export const schemaCases: CompetitorCases = {
         admin: RT.object({kind: RT.literal('checkbox'), value: RT.boolean()}),
       })
     ),
-  'UTILITY.distributive_conditional_over_union': () => createValidate(RT.union([RT.object({w: TF.string()}), RT.object({w: TF.number()})])),
+  'UTILITY.distributive_conditional_over_union': () =>
+    createValidate(RT.union([RT.object({w: TF.string()}), RT.object({w: TF.number()})])),
   'UTILITY.deep_partial_recursive_mapped': () =>
     createValidate(
       RT.object({
@@ -454,7 +462,8 @@ export const schemaCases: CompetitorCases = {
 
   // ── TYPE_MAPPINGS ──
   'TYPE_MAPPINGS.key_prefix_rename': () => createValidate(RT.object({user_id: TF.number(), user_name: TF.string()})),
-  'TYPE_MAPPINGS.key_conditional_rename': () => createValidate(RT.object({_id: TF.number(), name: TF.string(), createdAt: TF.date()})),
+  'TYPE_MAPPINGS.key_conditional_rename': () =>
+    createValidate(RT.object({_id: TF.number(), name: TF.string(), createdAt: TF.date()})),
   'TYPE_MAPPINGS.key_filter_via_never': () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
 
   // ── DATETIME ──
@@ -478,10 +487,13 @@ export const schemaCases: CompetitorCases = {
   'STRING_FORMAT.string_allowedChars_literal': () => createValidate(TF.string({allowedChars: {val: '.-'}})),
   'STRING_FORMAT.string_disallowedChars': () => createValidate(TF.string({disallowedChars: {val: '!@#', mockSamples: 'abc'}})),
   'STRING_FORMAT.string_allowedValues': () => createValidate(TF.string({allowedValues: {val: ['red', 'green', 'blue']}})),
-  'STRING_FORMAT.string_allowedValues_ignoreCase': () => createValidate(TF.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
+  'STRING_FORMAT.string_allowedValues_ignoreCase': () =>
+    createValidate(TF.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
   'STRING_FORMAT.string_allowedValues_escaped': () => createValidate(TF.string({allowedValues: {val: ['a.b', 'c+d']}})),
-  'STRING_FORMAT.string_disallowedValues': () => createValidate(TF.string({disallowedValues: {val: ['admin', 'root'], mockSamples: ['alice', 'bob']}})),
-  'STRING_FORMAT.string_customErrorMessage': () => createValidate(TF.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
+  'STRING_FORMAT.string_disallowedValues': () =>
+    createValidate(TF.string({disallowedValues: {val: ['admin', 'root'], mockSamples: ['alice', 'bob']}})),
+  'STRING_FORMAT.string_customErrorMessage': () =>
+    createValidate(TF.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
   'STRING_FORMAT.alpha': () => createValidate(TF.alpha()),
   'STRING_FORMAT.alphaNumeric': () => createValidate(TF.alphaNumeric()),
   'STRING_FORMAT.numeric': () => createValidate(TF.numeric()),
@@ -493,7 +505,8 @@ export const schemaCases: CompetitorCases = {
   'STRING_FORMAT.date_DMY': () => createValidate(TF.stringDate({format: 'DD-MM-YYYY'})),
   'STRING_FORMAT.date_YM': () => createValidate(TF.stringDate({format: 'YYYY-MM'})),
   'STRING_FORMAT.date_MD': () => createValidate(TF.stringDate({format: 'MM-DD'})),
-  'STRING_FORMAT.date_minMax_absolute': () => createValidate(TF.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
+  'STRING_FORMAT.date_minMax_absolute': () =>
+    createValidate(TF.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
   'STRING_FORMAT.time_iso': () => createValidate(TF.stringTime()),
   'STRING_FORMAT.time_HHmmss': () => createValidate(TF.stringTime({format: 'HH:mm:ss'})),
   'STRING_FORMAT.time_HHmmss_ms': () => createValidate(TF.stringTime({format: 'HH:mm:ss[.mmm]'})),
@@ -578,7 +591,8 @@ export const schemaCases: CompetitorCases = {
   'DATETIME.plainDate_rel_weeks': () => createValidate(TFT.plainDate({min: 'now-P52200W'})),
   'DATETIME.plainTime_minmax': () => createValidate(TFT.plainTime({min: '09:00:00', max: '17:00:00'})),
   'DATETIME.plainTime_gtlt': () => createValidate(TFT.plainTime({gt: '09:00:00', lt: '17:00:00'})),
-  'DATETIME.plainDateTime_minmax': () => createValidate(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+  'DATETIME.plainDateTime_minmax': () =>
+    createValidate(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
   'DATETIME.plainDateTime_gtlt': () => createValidate(TFT.plainDateTime({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
   'DATETIME.plainDateTime_rel': () => createValidate(TFT.plainDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
   'DATETIME.plainDateTime_rel_combo': () => createValidate(TFT.plainDateTime({min: 'now-P500YT12H'})),

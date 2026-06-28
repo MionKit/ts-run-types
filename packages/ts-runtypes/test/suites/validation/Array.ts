@@ -852,7 +852,7 @@ export const ARRAY = {
       return deserializeValidate(v);
     },
     validateSchema: () => {
-      const ca = RT.circular((self) => RT.array(self));
+      const ca = RT.circular(RT.array(RT.self()));
       return createValidate(ca);
     },
     getValidationErrors: () => {
@@ -864,7 +864,7 @@ export const ARRAY = {
       return createGetValidationErrors<DataOnly<CircularArray>>();
     },
     getValidationErrorsSchema: () => {
-      const ca = RT.circular((self) => RT.array(self));
+      const ca = RT.circular(RT.array(RT.self()));
       return createGetValidationErrors(ca);
     },
     deserializeGetValidationErrors: () => {
@@ -934,11 +934,11 @@ export const ARRAY = {
       return createValidate<DataOnly<ObjectType>>();
     },
     validateSchema: () => {
-      const ot = RT.circular((self) =>
+      const ot = RT.circular(
         RT.object({
           a: TF.string(),
           deep: RT.optional(RT.object({b: TF.string(), c: TF.number()})),
-          d: RT.optional(RT.array(self)),
+          d: RT.optional(RT.array(RT.self())),
         })
       );
       return createValidate(ot);
@@ -966,11 +966,11 @@ export const ARRAY = {
       return createGetValidationErrors<DataOnly<ObjectType>>();
     },
     getValidationErrorsSchema: () => {
-      const ot = RT.circular((self) =>
+      const ot = RT.circular(
         RT.object({
           a: TF.string(),
           deep: RT.optional(RT.object({b: TF.string(), c: TF.number()})),
-          d: RT.optional(RT.array(self)),
+          d: RT.optional(RT.array(RT.self())),
         })
       );
       return createGetValidationErrors(ot);

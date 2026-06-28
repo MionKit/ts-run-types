@@ -58,11 +58,11 @@ export const CIRCULAR = {
       return createValidate<DataOnly<Circular>>();
     },
     validateSchema: () => {
-      const cir = RT.circular((self) =>
+      const cir = RT.circular(
         RT.object({
           n: TF.number(),
           s: TF.string(),
-          c: RT.optional(self),
+          c: RT.optional(RT.self()),
           d: RT.optional(TF.date()),
         })
       );
@@ -116,11 +116,11 @@ export const CIRCULAR = {
       return createGetValidationErrors<DataOnly<Circular>>();
     },
     getValidationErrorsSchema: () => {
-      const cir = RT.circular((self) =>
+      const cir = RT.circular(
         RT.object({
           n: TF.number(),
           s: TF.string(),
-          c: RT.optional(self),
+          c: RT.optional(RT.self()),
           d: RT.optional(TF.date()),
         })
       );
@@ -213,7 +213,7 @@ export const CIRCULAR = {
     validateNotes:
       'The union check is a boolean delegation that does NOT recurse into per-arm error paths: when a nested-array element fails, getValidationErrors reports a single `expected: "union"` at the outer index, not the deep path of the inner failure.',
     validateSchema: () => {
-      const cu = RT.circular((self) => RT.array(RT.union([self, TF.date(), TF.number(), TF.string()])));
+      const cu = RT.circular(RT.array(RT.union([RT.self(), TF.date(), TF.number(), TF.string()])));
       return createValidate(cu);
     },
     validate: () => {
@@ -251,7 +251,7 @@ export const CIRCULAR = {
       return createGetValidationErrors<DataOnly<CuArray>>();
     },
     getValidationErrorsSchema: () => {
-      const cu = RT.circular((self) => RT.array(RT.union([self, TF.date(), TF.number(), TF.string()])));
+      const cu = RT.circular(RT.array(RT.union([RT.self(), TF.date(), TF.number(), TF.string()])));
       return createGetValidationErrors(cu);
     },
     deserializeGetValidationErrors: () => {
@@ -336,7 +336,7 @@ export const CIRCULAR = {
       return createValidate<DataOnly<CircularTuple>>();
     },
     validateSchema: () => {
-      const ct = RT.circular((self) => RT.object({tuple: RT.tuple([TF.bigInt()], [self])}));
+      const ct = RT.circular(RT.object({tuple: RT.tuple([TF.bigInt()], [RT.self()])}));
       return createValidate(ct);
     },
     deserializeValidate: () => {
@@ -372,7 +372,7 @@ export const CIRCULAR = {
       return createGetValidationErrors<DataOnly<CircularTuple>>();
     },
     getValidationErrorsSchema: () => {
-      const ct = RT.circular((self) => RT.object({tuple: RT.tuple([TF.bigInt()], [self])}));
+      const ct = RT.circular(RT.object({tuple: RT.tuple([TF.bigInt()], [RT.self()])}));
       return createGetValidationErrors(ct);
     },
     deserializeGetValidationErrors: () => {
@@ -466,7 +466,7 @@ export const CIRCULAR = {
       return createValidate<DataOnly<CircularIndex>>();
     },
     validateSchema: () => {
-      const ci = RT.circular((self) => RT.object({index: RT.record(self)}));
+      const ci = RT.circular(RT.object({index: RT.record(RT.self())}));
       return createValidate(ci);
     },
     deserializeValidate: () => {
@@ -502,7 +502,7 @@ export const CIRCULAR = {
       return createGetValidationErrors<DataOnly<CircularIndex>>();
     },
     getValidationErrorsSchema: () => {
-      const ci = RT.circular((self) => RT.object({index: RT.record(self)}));
+      const ci = RT.circular(RT.object({index: RT.record(RT.self())}));
       return createGetValidationErrors(ci);
     },
     deserializeGetValidationErrors: () => {
@@ -591,10 +591,10 @@ export const CIRCULAR = {
       return createValidate<DataOnly<CircularDeep>>();
     },
     validateSchema: () => {
-      const cd = RT.circular((self) =>
+      const cd = RT.circular(
         RT.object({
           deep1: RT.object({
-            deep2: RT.object({deep3: RT.object({deep4: RT.optional(self)})}),
+            deep2: RT.object({deep3: RT.object({deep4: RT.optional(RT.self())})}),
           }),
         })
       );
@@ -633,10 +633,10 @@ export const CIRCULAR = {
       return createGetValidationErrors<DataOnly<CircularDeep>>();
     },
     getValidationErrorsSchema: () => {
-      const cd = RT.circular((self) =>
+      const cd = RT.circular(
         RT.object({
           deep1: RT.object({
-            deep2: RT.object({deep3: RT.object({deep4: RT.optional(self)})}),
+            deep2: RT.object({deep3: RT.object({deep4: RT.optional(RT.self())})}),
           }),
         })
       );
@@ -756,11 +756,11 @@ export const CIRCULAR = {
     validateSchema: () => {
       // The recursive child is a `circular(...)`; the non-circular root is a plain
       // schema referencing it — no hand-written types at all.
-      const icd = RT.circular((self) =>
+      const icd = RT.circular(
         RT.object({
           name: TF.string(),
           big: TF.bigInt(),
-          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())}),
         })
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
@@ -835,11 +835,11 @@ export const CIRCULAR = {
       return createGetValidationErrors<DataOnly<RootNotCircular>>();
     },
     getValidationErrorsSchema: () => {
-      const icd = RT.circular((self) =>
+      const icd = RT.circular(
         RT.object({
           name: TF.string(),
           big: TF.bigInt(),
-          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())}),
         })
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
@@ -1045,27 +1045,27 @@ export const CIRCULAR = {
     validateSchema: () => {
       // Mutual recursion, no types: each type's OWN back-edge uses `self`;
       // cross-references to an already-declared run-type are plain const refs.
-      const icd = RT.circular((self) =>
+      const icd = RT.circular(
         RT.object({
           name: TF.string(),
           big: TF.bigInt(),
-          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())}),
         })
       );
-      const icDate = RT.circular((self) =>
+      const icDate = RT.circular(
         RT.object({
           date: TF.date(),
           month: TF.number(),
           year: TF.number(),
-          embedded: RT.optional(self),
+          embedded: RT.optional(RT.self()),
           deep: RT.optional(icd),
         })
       );
-      const root = RT.circular((self) =>
+      const root = RT.circular(
         RT.object({
           isRoot: RT.literal(true),
           ciChild: icd,
-          ciRoort: RT.optional(self),
+          ciRoort: RT.optional(RT.self()),
           ciDate: icDate,
         })
       );
@@ -1187,27 +1187,27 @@ export const CIRCULAR = {
       return createGetValidationErrors<DataOnly<RootCircular>>();
     },
     getValidationErrorsSchema: () => {
-      const icd = RT.circular((self) =>
+      const icd = RT.circular(
         RT.object({
           name: TF.string(),
           big: TF.bigInt(),
-          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())}),
         })
       );
-      const icDate = RT.circular((self) =>
+      const icDate = RT.circular(
         RT.object({
           date: TF.date(),
           month: TF.number(),
           year: TF.number(),
-          embedded: RT.optional(self),
+          embedded: RT.optional(RT.self()),
           deep: RT.optional(icd),
         })
       );
-      const root = RT.circular((self) =>
+      const root = RT.circular(
         RT.object({
           isRoot: RT.literal(true),
           ciChild: icd,
-          ciRoort: RT.optional(self),
+          ciRoort: RT.optional(RT.self()),
           ciDate: icDate,
         })
       );
