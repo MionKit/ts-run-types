@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // The `source` condition below resolves `ts-runtypes` to its .ts source, which
+    // uses the `Temporal` namespace. The base config drops `esnext.temporal` from
+    // `lib`, so add it back here (skipLibCheck hides this when resolving to dist).
+    "lib": ["ES2023", "DOM", "DOM.Iterable", "esnext.temporal"],
+    "noEmit": true,
+    // No-emit type-check of src + test together. The base config sets `composite`
+    // for the build; test files are never emitted, so disable the declaration-emit
+    // checks here and keep this focused on real type-correctness.
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    // Tests live alongside src; widen rootDir to the repo root so src/ and test/
+    // type-check together without TS6059.
+    "rootDir": "../..",
+    // Resolve `ts-runtypes` imports to its `src` via the `source` exports condition.
+    "customConditions": ["source"]
+  },
+  "include": ["src/**/*", "test/**/*", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

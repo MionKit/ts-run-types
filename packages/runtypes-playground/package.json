@@ -30,6 +30,7 @@
     "build:all": "pnpm run build:wasm && pnpm run build:site",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "demo": "vite",
     "lint": "eslint src",
     "format": "prettier --write 'src/**/*.ts'",
