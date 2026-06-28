@@ -14,7 +14,7 @@
 
 import {expect} from 'vitest';
 import {runTypeErrorsToIssues, createFriendly} from 'ts-runtypes';
-import type {RTValidationError, FriendlyType} from 'ts-runtypes';
+import type {RTValidationError} from 'ts-runtypes';
 import type {Thunk, ValidationCase} from '../suites/validation/types.ts';
 import type {FormatValidationCase} from '../suites/format-validation/types.ts';
 
@@ -609,10 +609,10 @@ export function assertFriendlyCoverage(c: AssertableCase): void {
   if (!factory) return;
   if (c.factoryThrows) return; // the factory itself throws — not a rendering concern
   const getErrors = factory() as (value: unknown) => RTValidationError[];
-  // Intentionally the empty map: this net asserts every type's errors render with NO
-  // friendly overrides (pure fallback messages). The `as` cast opts past the total
-  // `FriendlyType` contract — `{}` is the degenerate render input, not an authored map.
-  const renderer = createFriendly<unknown>({} as FriendlyType<unknown>);
+  // A bare map (only the required root meta, no field overrides): this net asserts
+  // every type's errors render with pure fallback messages. `FriendlyType<unknown>`
+  // reduces to `FriendlyMeta`, so the empty `$errors` data form satisfies it directly.
+  const renderer = createFriendly<unknown>({$label: '', $errors: {}});
   const {invalid} = c.getSamples();
   invalid.forEach((sample, i) => {
     const errs = getErrors(sample);
