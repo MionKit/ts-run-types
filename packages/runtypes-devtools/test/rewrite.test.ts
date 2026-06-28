@@ -320,9 +320,7 @@ const myAPI = getRunTypeId(routes);
     // the runtype tuples against the stub registry.
     const tuples = evalEntryModules(entryModules);
     const registered = instantiateRunTypes(tuples);
-    const entries = Object.values(registered).filter(
-      (t): t is Record<string, any> => t !== null && typeof t === 'object' && 'kind' in t
-    );
+    const entries = Object.values(registered).filter((t) => t !== null && typeof t === 'object' && 'kind' in t);
     expect(entries.length).toBeGreaterThan(0);
 
     const roots = entries.filter(
@@ -331,12 +329,13 @@ const myAPI = getRunTypeId(routes);
     );
     expect(roots.length).toBeGreaterThan(0);
     const root = roots[0];
-    const sayHello = root.children.find((m: any) => m.name === 'sayHello');
+    const sayHello = root.children?.find((m: any) => m.name === 'sayHello');
     expect(sayHello).toBeDefined();
     // Every cached RunType must carry its `id` (the primary cache handle).
     for (const t of entries) {
-      expect(typeof t.id).toBe('string');
-      expect(t.id.length).toBeGreaterThan(0);
+      const id = t.id;
+      expect(typeof id).toBe('string');
+      expect((id ?? '').length).toBeGreaterThan(0);
     }
   }
 
