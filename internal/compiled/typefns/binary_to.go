@@ -159,16 +159,21 @@ func reserveInline(ser, nBytes, write string, ctx *EmitContext) string {
 	return reserveExpr(ser, nBytes, write)
 }
 
-// fixedWidthForKind returns the worst-case inline byte width for a scalar kind
-// whose toBinary arm writes a fixed number of bytes — so a homogeneous array can
-// reserve `length * width` once instead of per element. Number covers float64 and
-// any narrower numeric-format packing (≤ 8), so 8 is a safe upper bound.
+// fixedWidthForKind returns the inline byte width for a scalar kind whose
+// toBinary arm writes a fixed number of bytes — so a homogeneous array can
+// reserve `length * width` once instead of per element. A packed numberFormat
+// (int8/16/32) writes its exact 1/2/4-byte width; an unbranded number is float64
+// (8). Matching the per-element width to what's actually written keeps the
+// container reserve tight so a cold dynamic buffer doesn't grow on in-bounds data.
 func fixedWidthForKind(rt *protocol.RunType) (int, bool) {
 	if rt == nil {
 		return 0, false
 	}
 	switch rt.Kind {
 	case protocol.KindNumber:
+		if packed := formatFixedWidth(rt); packed > 0 {
+			return packed, true
+		}
 		return 8, true
 	case protocol.KindBoolean, protocol.KindNull, protocol.KindUndefined, protocol.KindVoid:
 		return 1, true
@@ -211,11 +216,18 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		// brand may pack the value into 1/2/4 bytes (int8/16/32) — see
 		// formats/numeric. Empty override = keep the float64 base arm.
 		code := ser + ".view.setFloat64(" + ser + ".index, " + v + ", 1, (" + ser + ".index += 8))"
+		width := 8 // float64 base arm
 		if override := binaryToOverride(rt, v, ser, ctx); override != "" {
 			code = override
+			// A packed numberFormat writes exactly BinarySize().Fixed bytes
+			// (1/2/4) — reserve that, not the float64 worst case, so a cold
+			// dynamic buffer seeded at the estimate (which uses the SAME width)
+			// doesn't grow on an in-bounds packed value.
+			if packed := formatFixedWidth(rt); packed > 0 {
+				width = packed
+			}
 		}
-		// 8 is the worst-case width (float64; any packed format is ≤ 8).
-		return RTCode{Code: reserveInline(ser, "8", code, ctx), Type: CodeS}
+		return RTCode{Code: reserveInline(ser, strconv.Itoa(width), code, ctx), Type: CodeS}
 
 	case protocol.KindString, protocol.KindTemplateLiteral:
 		// ref:binary/toBinary.ts:59,85 — `serString(v)`.

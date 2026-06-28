@@ -11,7 +11,7 @@ import * as TF from 'ts-runtypes/formats';
 import {describe, it, expect, beforeAll, afterAll} from 'vitest';
 import * as RT from 'ts-runtypes/schema';
 import {createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
-import {setSerializationOptions} from '../../src/runtypes/dataView.ts';
+import {setSerializationOptions} from '../../../src/runtypes/dataView.ts';
 
 beforeAll(() => setSerializationOptions({defaultBufferSize: 1, sizeHistory: new Map()}));
 afterAll(() => setSerializationOptions({defaultBufferSize: 2 ** 14, sizeHistory: new Map()}));

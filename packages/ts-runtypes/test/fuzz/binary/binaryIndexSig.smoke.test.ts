@@ -10,9 +10,9 @@
 // number index (which constrains numeric-keyed props only). The test also
 // typechecks each shape so it can't silently drift back to invalid TypeScript.
 import {describe, it, expect} from 'vitest';
-import {hasBinary, openClient, compileType} from './typeFuzzHarness.ts';
-import {typecheckGeneratedType} from './tsValidate.ts';
-import type {GeneratedType, TypeShape} from './typeGen.ts';
+import {hasBinary, openClient, compileType} from '../typeFuzzHarness.ts';
+import {typecheckGeneratedType} from '../tsValidate.ts';
+import type {GeneratedType, TypeShape} from '../typeGen.ts';
 
 function prop(name: string, shape: TypeShape, optional = false) {
   return {name, optional, readonly: false, method: false, shape};

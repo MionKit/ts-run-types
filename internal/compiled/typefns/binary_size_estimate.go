@@ -1,10 +1,20 @@
 package typefns
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
+	"unicode/utf16"
+
 	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
+
+// maxVarintBytes mirrors dataView.ts MAX_VARINT — the length prefix every
+// serString write reserves (worst case MAX_VARINT + 3*charLength). The estimate
+// budgets that reserve where a value is type-constrained (enum / index-sig keys).
+const maxVarintBytes = 5
 
 // Compile-time buffer-size estimator for createBinaryEncoder. It walks a type
 // graph and returns an estimated on-wire byte count, baked into the `tb` entry
@@ -146,12 +156,14 @@ func (e *sizeEstimator) estimateRaw(rt *protocol.RunType, depth int) int {
 		return e.numberBytes(rt)
 	case protocol.KindBigInt:
 		return e.bigintBytes(rt)
-	case protocol.KindString, protocol.KindTemplateLiteral:
+	case protocol.KindString:
 		return e.stringBytes(rt)
+	case protocol.KindTemplateLiteral:
+		return e.templateLiteralBytes(rt)
 	case protocol.KindLiteral:
 		return 0 // value restored from the type — no wire bytes
 	case protocol.KindEnum:
-		return 8 // serEnum: uint32 tag + (number | short string)
+		return e.enumBytes(rt)
 	case protocol.KindArray:
 		return e.collectionBytes(rt, e.estimate(rt.Child, depth+1))
 	case protocol.KindObjectLiteral, protocol.KindIntersection:
@@ -163,13 +175,20 @@ func (e *sizeEstimator) estimateRaw(rt *protocol.RunType, depth int) int {
 	case protocol.KindClass:
 		return e.classBytes(rt, depth)
 	case protocol.KindRegexp:
-		// two strings (source + flags); flags are short.
+		// two strings (source + flags); flags are short. Floor at 8 so even the
+		// minimal `/a/` (serString source reserve 5+3) never grows the buffer.
 		body := e.cfg.StringBytes
-		return varintByteLen(body) + body + 2 + 1
+		est := varintByteLen(body) + body + 2 + 1
+		if est < 8 {
+			est = 8
+		}
+		return est
 	case protocol.KindAny, protocol.KindUnknown, protocol.KindObject:
 		body := e.cfg.StringBytes // JSON.stringify fallback
 		return varintByteLen(body) + body
-	case protocol.KindProperty, protocol.KindPropertySignature, protocol.KindTupleMember, protocol.KindRest:
+	case protocol.KindProperty, protocol.KindPropertySignature, protocol.KindTupleMember, protocol.KindRest, protocol.KindParameter:
+		// KindParameter wraps a Map key/value or Set item (the role is on SubKind;
+		// the element type is the Child) — measure the element it carries.
 		return e.estimate(rt.Child, depth+1)
 	default:
 		return 0 // non-serializable (function / symbol / promise / …) or unknown
@@ -178,26 +197,121 @@ func (e *sizeEstimator) estimateRaw(rt *protocol.RunType, depth int) int {
 
 // numberBytes — packed width from the format BinarySizer, else float64 (8).
 func (e *sizeEstimator) numberBytes(rt *protocol.RunType) int {
-	if w := e.formatFixed(rt); w > 0 {
+	if w := formatFixedWidth(rt); w > 0 {
 		return w
 	}
 	return 8
 }
 
-// bigintBytes — 8 when a 64-bit format packs it, else the decimal-string
-// fallback (a modest assumed width).
+// bigintBytes — 8 when a 64-bit format packs it, else the decimal-string arm,
+// whose reserve is MAX_VARINT + 3*digits. An unbranded bigint is mock-bounded to
+// |value|<=9999 (5 chars); a non-packing BRAND is mocked within its own [min,max]
+// (ignoring that bound), so budget the longest decimal the brand can emit.
 func (e *sizeEstimator) bigintBytes(rt *protocol.RunType) int {
-	if w := e.formatFixed(rt); w > 0 {
+	if w := formatFixedWidth(rt); w > 0 {
 		return w
 	}
-	const decimalDigits = 20
-	return varintByteLen(decimalDigits) + decimalDigits
+	maxDigits := 5 // unbranded mock bound "-9999"
+	if rt.FormatAnnotation != nil {
+		maxDigits = brandedBigintMaxDigits(rt.FormatAnnotation.Params)
+	}
+	if est := maxVarintBytes + 3*maxDigits; est > 21 {
+		return est
+	}
+	return 21 // floor: the unbranded 20-digit assumption (varint(20)+20)
 }
 
-// formatFixed returns the format's fixed wire width via formats.BinarySizer, or
-// 0 when the type carries no format or the format reports no fixed width.
-func (e *sizeEstimator) formatFixed(rt *protocol.RunType) int {
-	if rt.FormatAnnotation == nil {
+// brandedBigintMaxDigits returns the longest decimal string mockBigIntParams can
+// emit for a non-packing bigint brand: the max char length over its bound params
+// (min / max / gt / lt), floored at the default range's "-99999" (6). Param values
+// arrive as decimal strings, so their length IS the digit count (over-counts a
+// brand wider than the mock's ±MAX_SAFE clamp, which is sound).
+func brandedBigintMaxDigits(params map[string]any) int {
+	digits := 6 // mockBigIntParams default range -99999..99999
+	for _, key := range []string{"min", "max", "gt", "lt"} {
+		if value, ok := params[key]; ok {
+			if n := bigintParamDigitLen(value); n > digits {
+				digits = n
+			}
+		}
+	}
+	return digits
+}
+
+func bigintParamDigitLen(value any) int {
+	if meta, ok := value.(map[string]any); ok {
+		if inner, ok := meta["val"]; ok {
+			return bigintParamDigitLen(inner)
+		}
+	}
+	return len([]rune(strings.TrimSuffix(fmt.Sprint(value), "n")))
+}
+
+// templateLiteralBytes — the whole rendered template is ONE serString (reserve
+// MAX_VARINT + 3*L). The static texts are a floor the mock can't shrink, and each
+// placeholder adds its mock fragment, so budget the rendered length: static UTF-16
+// units + the per-${string} content budget (>= the mock's bound) + a digit budget
+// for numeric placeholders + literal lengths.
+func (e *sizeEstimator) templateLiteralBytes(rt *protocol.RunType) int {
+	envelope, ok := rt.Literal.(map[string]any)
+	if !ok {
+		return e.stringBytes(rt) // no layout — fall back to a plain string
+	}
+	inner, ok := envelope["templateLiteral"].(map[string]any)
+	if !ok {
+		return e.stringBytes(rt)
+	}
+	texts, _ := inner["texts"].([]any)
+	placeholders, _ := inner["placeholders"].([]any)
+	content := e.interpolate(0, e.cfg.StringBytes) // per-${string} budget >= the mock's maxRandomStringLength
+	total := 0
+	for _, textAny := range texts {
+		if text, ok := textAny.(string); ok {
+			total += utf16Len(text)
+		}
+	}
+	for _, placeholderAny := range placeholders {
+		placeholder, ok := placeholderAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch kind := spanKind(placeholder); {
+		case kind == int(protocol.KindString) || kind == int(protocol.KindAny) || kind == int(protocol.KindUnknown):
+			total += content
+		case kind == int(protocol.KindNumber) || kind == int(protocol.KindBigInt):
+			total += 20 // robustly covers the <=5-char ±9999 mock output
+		case kind == int(protocol.KindLiteral):
+			if literal, ok := placeholder["literal"]; ok {
+				total += utf16Len(fmt.Sprint(literal))
+			}
+		}
+	}
+	if est := maxVarintBytes + 3*total; est > 8 {
+		return est
+	}
+	return 8
+}
+
+// spanKind reads a template-literal placeholder's kind (serialised as int, or
+// float64 / int64 after a JSON round-trip).
+func spanKind(span map[string]any) int {
+	switch v := span["kind"].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	case int64:
+		return int(v)
+	}
+	return -1
+}
+
+// formatFixedWidth returns the format's fixed wire width via formats.BinarySizer,
+// or 0 when the type carries no format or the format reports no fixed width. The
+// SAME width EmitToBinary packs to — shared by the estimator (here) and the
+// encoder's per-write reserve (binary_to.go) so the two can't drift.
+func formatFixedWidth(rt *protocol.RunType) int {
+	if rt == nil || rt.FormatAnnotation == nil {
 		return 0
 	}
 	emitter, ok := formats.LookupForRunType(rt)
@@ -217,7 +331,35 @@ func (e *sizeEstimator) formatFixed(rt *protocol.RunType) int {
 func (e *sizeEstimator) stringBytes(rt *protocol.RunType) int {
 	min, max := e.stringContentBounds(rt)
 	content := e.interpolate(min, max)
-	return varintByteLen(content) + content
+	est := varintByteLen(content) + content
+	if est < 8 {
+		est = 8 // the shortest mock string (1 char) reserves 5+3 = 8
+	}
+	return est
+}
+
+// enumBytes — serEnum reserves 8 for a numeric member (4-byte tag + uint32) and
+// 4 + serString(member) for a string member, whose reserve high-water is
+// 4 + (MAX_VARINT + 3*codeUnits). The member is type-constrained (mockData can't
+// shrink it), so budget the largest member; a number-only / empty enum stays 8.
+func (e *sizeEstimator) enumBytes(rt *protocol.RunType) int {
+	estimate := 8
+	for _, value := range rt.Values {
+		str, ok := value.(string)
+		if !ok {
+			continue
+		}
+		if candidate := 4 + maxVarintBytes + 3*utf16Len(str); candidate > estimate {
+			estimate = candidate
+		}
+	}
+	return estimate
+}
+
+// utf16Len counts UTF-16 code units (what serString reserves 3 bytes per), not
+// runes or UTF-8 bytes — sound for astral members (2 units each).
+func utf16Len(s string) int {
+	return len(utf16.Encode([]rune(s)))
 }
 
 func (e *sizeEstimator) stringContentBounds(rt *protocol.RunType) (int, int) {
@@ -303,6 +445,15 @@ func (e *sizeEstimator) indexSigBytes(rt *protocol.RunType, depth int) int {
 	keyBytes := e.cfg.StringBytes
 	if rt.Index != nil {
 		keyBytes = e.estimate(rt.Index, depth+1)
+		// A string index key is synthesized as `key{i}` (i up to Items-1) — a
+		// length floor mockData can't shrink. Budget its serString reserve so the
+		// seed covers the longest key the encoder writes.
+		if key := e.deref(rt.Index); key != nil && (key.Kind == protocol.KindString || key.Kind == protocol.KindTemplateLiteral) {
+			maxKeyLen := 3 + len(strconv.Itoa(max(0, e.cfg.Items-1))) // len("key" + (Items-1))
+			if floor := maxVarintBytes + 3*maxKeyLen; floor > keyBytes {
+				keyBytes = floor
+			}
+		}
 	}
 	valBytes := e.estimate(rt.Child, depth+1)
 	return 4 + e.cfg.Items*(keyBytes+valBytes)
@@ -338,8 +489,9 @@ func (e *sizeEstimator) tupleBytes(rt *protocol.RunType, depth int) int {
 	return total
 }
 
-// unionBytes — the discriminator (1 byte, 2 above 255 members) plus the
-// Bias-interpolated member footprint (smallest ↔ largest).
+// unionBytes — the discriminator (1 byte, 2 above 255 members) plus the LARGEST
+// member's footprint (the mock can pick any member, so the seed must cover the
+// biggest), plus the object-branch framing (see below).
 func (e *sizeEstimator) unionBytes(rt *protocol.RunType, depth int) int {
 	members := rt.Children
 	if len(members) == 0 {
@@ -349,20 +501,64 @@ func (e *sizeEstimator) unionBytes(rt *protocol.RunType, depth int) int {
 	if len(members) > 255 {
 		discriminator = 2
 	}
-	minBytes, maxBytes := -1, 0
+	maxBytes := 0
+	objectMembers, mergedProps := 0, 0
 	for _, member := range members {
 		b := e.estimate(member, depth+1)
-		if minBytes < 0 || b < minBytes {
-			minBytes = b
-		}
 		if b > maxBytes {
 			maxBytes = b
 		}
+		if resolved := e.deref(member); isUnionObjectMember(resolved) {
+			objectMembers++
+			mergedProps += e.dataPropCount(resolved)
+		}
 	}
-	if minBytes < 0 {
-		minBytes = 0
+	// Object members ride a flat "object branch" (union_flat_binary.go): a
+	// sub-discriminator (1 byte when more than one object member, to pick which)
+	// plus a MERGED presence bitmap over the non-universal props. The exact
+	// merged-layout accounting (which props are discriminants vs merged-optional)
+	// is complex, so OVER-estimate soundly: a 1-byte framing slack + a bitmap
+	// upper bound of ceil(allProps/8). A seed may over-shoot; under-shooting would
+	// grow the cold buffer on an in-bounds value.
+	overhead := 0
+	if objectMembers > 0 {
+		overhead = 1 + (mergedProps+7)/8
+		if objectMembers > 1 {
+			overhead++
+		}
 	}
-	return discriminator + e.interpolate(minBytes, maxBytes)
+	return discriminator + maxBytes + overhead
+}
+
+// isUnionObjectMember reports whether a union member is encoded through the flat
+// union's merged object branch (structural objects + intersections).
+func isUnionObjectMember(rt *protocol.RunType) bool {
+	if rt == nil {
+		return false
+	}
+	switch rt.Kind {
+	case protocol.KindObjectLiteral, protocol.KindIntersection:
+		return true
+	case protocol.KindClass:
+		return rt.SubKind == protocol.SubKindNone
+	}
+	return false
+}
+
+// dataPropCount — the object's data properties (any non-static property), the
+// upper bound on how many can land in the merged union bitmap.
+func (e *sizeEstimator) dataPropCount(rt *protocol.RunType) int {
+	count := 0
+	for _, child := range rt.Children {
+		member := e.deref(child)
+		if member == nil || member.IsStatic {
+			continue
+		}
+		if member.Kind == protocol.KindProperty || member.Kind == protocol.KindPropertySignature {
+			count++
+		}
+	}
+	return count
 }
 
 // classBytes — the builtin classes pack to fixed layouts (Date, the compact
@@ -404,7 +600,9 @@ func (e *sizeEstimator) classBytes(rt *protocol.RunType, depth int) int {
 // SubKind-tagged children, defaulting to a string-ish estimate when absent.
 func (e *sizeEstimator) mapElement(rt *protocol.RunType, depth int) (key, val int) {
 	key, val = e.cfg.StringBytes, e.cfg.StringBytes
-	for _, child := range rt.Children {
+	// Map key/value parameters live on Arguments (appendMapArguments in
+	// serialize.go), NOT Children.
+	for _, child := range rt.Arguments {
 		member := e.deref(child)
 		if member == nil {
 			continue
@@ -421,7 +619,8 @@ func (e *sizeEstimator) mapElement(rt *protocol.RunType, depth int) (key, val in
 
 func (e *sizeEstimator) setElement(rt *protocol.RunType, depth int) int {
 	item := e.cfg.StringBytes
-	for _, child := range rt.Children {
+	// The Set item parameter lives on Arguments (appendSetArguments), NOT Children.
+	for _, child := range rt.Arguments {
 		member := e.deref(child)
 		if member != nil && member.SubKind == protocol.SubKindSetItem {
 			item = e.estimate(member, depth+1)
