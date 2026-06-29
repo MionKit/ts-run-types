@@ -13,8 +13,10 @@ export const RECORDS = {
     mutateEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{[key: string]: string}>(),
     preserveDecoder: () => createJsonDecoder<{[key: string]: string}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{[key: string]: string}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{[key: string]: string}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: string]: string}>(),
     schemaEncoder: () => createJsonEncoder(RT.record(TF.string())),
@@ -32,8 +34,10 @@ export const RECORDS = {
     mutateEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(),
     preserveDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; [key: string]: string}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; [key: string]: string}>(),
     schemaEncoder: () => createJsonEncoder(RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))),
@@ -53,9 +57,13 @@ export const RECORDS = {
     cloneEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {strategy: 'clone'}),
     directEncoder: () =>
       createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(),
     preserveDecoder: () =>
       createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; b: number; [key: string]: string | number}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b: number; [key: string]: string | number}>(),
     schemaEncoder: () =>
@@ -90,9 +98,13 @@ export const RECORDS = {
       createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {strategy: 'clone'}),
     directEncoder: () =>
       createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
     preserveDecoder: () =>
       createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
     // No value-first builder can express MULTIPLE heterogeneous index signatures
@@ -134,8 +146,10 @@ export const RECORDS = {
     mutateEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(),
     preserveDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{[key: string]: {[key: string]: number}}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: string]: {[key: string]: number}}>(),
     schemaEncoder: () => createJsonEncoder(RT.record(RT.record(TF.number()))),
@@ -153,8 +167,10 @@ export const RECORDS = {
     mutateEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(),
     preserveDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{[key: string]: {[key: string]: Date}}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: string]: {[key: string]: Date}}>(),
     schemaEncoder: () => createJsonEncoder(RT.record(RT.record(TF.date()))),
@@ -183,8 +199,10 @@ export const RECORDS = {
     mutateEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{[key: string]: bigint}>(),
     preserveDecoder: () => createJsonDecoder<{[key: string]: bigint}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{[key: string]: bigint}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{[key: string]: bigint}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: string]: bigint}>(),
     schemaEncoder: () => createJsonEncoder(RT.record(TF.bigInt())),
@@ -207,9 +225,11 @@ export const RECORDS = {
     mutateEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(),
     preserveDecoder: () =>
       createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{b: string; c: {a: string; [key: string]: string}}>(),
     binaryDecoder: () => createBinaryDecoder<{b: string; c: {a: string; [key: string]: string}}>(),
     schemaEncoder: () =>

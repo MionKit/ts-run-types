@@ -30,6 +30,12 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      function fnNoOptional(a: number, b: boolean, c: string): Date {
+        return new Date(a);
+      }
+      return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
@@ -41,6 +47,12 @@ export const FUNCTIONS = {
         return new Date(a);
       }
       return createJsonDecoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      function fnNoOptional(a: number, b: boolean, c: string): Date {
+        return new Date(a);
+      }
+      return createJsonDecoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
@@ -96,6 +108,14 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      function fnOptionalParams(a: Date, b?: boolean): bigint {
+        void a;
+        void b;
+        return 1n;
+      }
+      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
         void a;
@@ -111,6 +131,14 @@ export const FUNCTIONS = {
         return 1n;
       }
       return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      function fnOptionalParams(a: Date, b?: boolean): bigint {
+        void a;
+        void b;
+        return 1n;
+      }
+      return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -169,6 +197,15 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+        void a;
+        void b;
+        void c;
+        return new Date(0);
+      }
+      return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
         void a;
@@ -186,6 +223,15 @@ export const FUNCTIONS = {
         return new Date(0);
       }
       return createJsonDecoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+        void a;
+        void b;
+        void c;
+        return new Date(0);
+      }
+      return createJsonDecoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
@@ -245,6 +291,15 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+        void rest;
+        void a;
+        void b;
+        return new Date(0);
+      }
+      return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
         void rest;
@@ -262,6 +317,15 @@ export const FUNCTIONS = {
         return new Date(0);
       }
       return createJsonDecoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+        void rest;
+        void a;
+        void b;
+        return new Date(0);
+      }
+      return createJsonDecoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -322,6 +386,14 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      function fnOptionalParams(a: Date, b?: boolean): bigint {
+        void a;
+        void b;
+        return 1n;
+      }
+      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
         void a;
@@ -337,6 +409,14 @@ export const FUNCTIONS = {
         return 1n;
       }
       return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      function fnOptionalParams(a: Date, b?: boolean): bigint {
+        void a;
+        void b;
+        return 1n;
+      }
+      return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -393,6 +473,14 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      function fnOptionalParams(a: Date, b?: boolean): bigint {
+        void a;
+        void b;
+        return 1n;
+      }
+      return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
         void a;
@@ -408,6 +496,14 @@ export const FUNCTIONS = {
         return 1n;
       }
       return createJsonDecoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      function fnOptionalParams(a: Date, b?: boolean): bigint {
+        void a;
+        void b;
+        return 1n;
+      }
+      return createJsonDecoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -457,6 +553,13 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      function fnOnlyRestParams(...rest: number[]): Date {
+        void rest;
+        return new Date(0);
+      }
+      return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
@@ -470,6 +573,13 @@ export const FUNCTIONS = {
         return new Date(0);
       }
       return createJsonDecoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      function fnOnlyRestParams(...rest: number[]): Date {
+        void rest;
+        return new Date(0);
+      }
+      return createJsonDecoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
@@ -525,6 +635,15 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+        void a;
+        void b;
+        void c;
+        return new Date(0);
+      }
+      return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
         void a;
@@ -542,6 +661,15 @@ export const FUNCTIONS = {
         return new Date(0);
       }
       return createJsonDecoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+        void a;
+        void b;
+        void c;
+        return new Date(0);
+      }
+      return createJsonDecoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -605,6 +733,15 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+        void a;
+        void b;
+        void c;
+        return Promise.resolve(new Date(0));
+      }
+      return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
         void a;
@@ -622,6 +759,15 @@ export const FUNCTIONS = {
         return Promise.resolve(new Date(0));
       }
       return createJsonDecoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+        void a;
+        void b;
+        void c;
+        return Promise.resolve(new Date(0));
+      }
+      return createJsonDecoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
@@ -682,6 +828,15 @@ export const FUNCTIONS = {
       }
       return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+        void a;
+        void b;
+        void c;
+        return () => new Date(0);
+      }
+      return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
         void a;
@@ -699,6 +854,15 @@ export const FUNCTIONS = {
         return () => new Date(0);
       }
       return createJsonDecoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+        void a;
+        void b;
+        void c;
+        return () => new Date(0);
+      }
+      return createJsonDecoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
@@ -733,8 +897,10 @@ export const FUNCTIONS = {
     mutateEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(),
     preserveDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<Parameters<{(a: number, b: boolean): string}>>(),
     binaryDecoder: () => createBinaryDecoder<Parameters<{(a: number, b: boolean): string}>>(),
     // Call-signature parameters tuple [number, boolean].
@@ -751,8 +917,10 @@ export const FUNCTIONS = {
     mutateEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
     preserveDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<ReturnType<{(a: number, b: boolean): string}>>(),
     binaryDecoder: () => createBinaryDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
     // Call-signature return type is string.

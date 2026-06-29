@@ -62,7 +62,7 @@ type Operation struct {
 }
 
 // registry is the complete operation set: 11 public (one per createX factory)
-// plus 5 internal-only primitives the JSON composites and cross-family edges
+// plus 7 internal-only primitives the JSON composites and cross-family edges
 // reference. Order is not load-bearing (everything is keyed by Name / FnKey).
 var registry = []Operation{
 	// Public — validators (ValidateOptions axis).
@@ -89,14 +89,19 @@ var registry = []Operation{
 		// "strip" variant of clone (the old `stripClone`) redundant, and the
 		// mutate-with-strip variant (`stripMutate`) unnecessary; both were removed.
 		// `mutate` transforms in place (preserves undeclared keys, no allocation);
-		// `direct` is the single-pass stringifyJson (always strips).
+		// `direct` is the single-pass stringifyJson (always strips). `compact`
+		// emits declared object props as a positional array (no key names on the
+		// wire) and strips extras like `clone`; it pairs with the `compact` decoder.
 		DefaultStrategy: "clone",
-		Strategies:      []string{"clone", "mutate", "direct"},
+		Strategies:      []string{"clone", "mutate", "direct", "compact"},
 	},
 	{
 		Name: "jsonDecoder", Axis: AxisJsonStrategy, Public: true, FnKey: "jsonDecoder",
+		// `compact` decodes the positional-array wire the compact ENCODER produces
+		// (the key-based strip/preserve decoders can't read it), rebuilding the
+		// declared object from positions.
 		DefaultStrategy: "strip",
-		Strategies:      []string{"strip", "preserve"},
+		Strategies:      []string{"strip", "preserve", "compact"},
 	},
 
 	// Internal primitives — no PUBLIC createX factory, reachable as JSON
@@ -112,6 +117,13 @@ var registry = []Operation{
 	{Name: "restoreFromJson", FamilyTag: "rj", Axis: AxisNone, FnKey: "rj"},
 	{Name: "stringifyJson", FamilyTag: "sj", Axis: AxisNone, FnKey: "sj"},
 	{Name: "unknownKeysToUndefinedWire", FamilyTag: "ukuw", Axis: AxisNone, FnKey: "ukuw"},
+	// compactForJson / compactFromJson: the positional-tuple JSON round-trip pair
+	// the `compact` strategy composes. compactForJson builds a NEW value emitting
+	// declared object props as a positional array (no key names); compactFromJson
+	// rebuilds the keyed object from positions. Internal primitives (no public
+	// createX names them) — reached only as compact composite dependencies.
+	{Name: "compactForJson", FamilyTag: "cj", Axis: AxisNone, FnKey: "cj"},
+	{Name: "compactFromJson", FamilyTag: "cjr", Axis: AxisNone, FnKey: "cjr"},
 }
 
 var (

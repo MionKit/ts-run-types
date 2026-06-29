@@ -33,9 +33,13 @@ export const DATETIME = {
       createJsonEncoder<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {strategy: 'clone'}),
     directEncoder: () =>
       createJsonEncoder<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     preserveDecoder: () =>
       createJsonDecoder<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     binaryDecoder: () => createBinaryDecoder<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     schemaEncoder: () => createJsonEncoder(TF.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
@@ -69,10 +73,18 @@ export const DATETIME = {
       createJsonEncoder<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(undefined, {
         strategy: 'direct',
       }),
+    compactEncoder: () =>
+      createJsonEncoder<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(undefined, {
+        strategy: 'compact',
+      }),
     stripDecoder: () => createJsonDecoder<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     preserveDecoder: () =>
       createJsonDecoder<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(undefined, {
         strategy: 'preserve',
+      }),
+    compactDecoder: () =>
+      createJsonDecoder<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(undefined, {
+        strategy: 'compact',
       }),
     binaryEncoder: () => createBinaryEncoder<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     binaryDecoder: () => createBinaryDecoder<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
@@ -94,9 +106,13 @@ export const DATETIME = {
     cloneEncoder: () => createJsonEncoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'clone'}),
     directEncoder: () =>
       createJsonEncoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     preserveDecoder: () =>
       createJsonDecoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     binaryDecoder: () => createBinaryDecoder<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     schemaEncoder: () => createJsonEncoder(TFT.plainDate({min: '2020-01-01', max: '2020-12-31'})),
@@ -115,9 +131,11 @@ export const DATETIME = {
     mutateEncoder: () => createJsonEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     preserveDecoder: () =>
       createJsonDecoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     binaryDecoder: () => createBinaryDecoder<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     schemaEncoder: () => createJsonEncoder(TFT.plainTime({min: '09:00:00', max: '17:00:00'})),
@@ -145,10 +163,18 @@ export const DATETIME = {
       createJsonEncoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {
         strategy: 'direct',
       }),
+    compactEncoder: () =>
+      createJsonEncoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {
+        strategy: 'compact',
+      }),
     stripDecoder: () => createJsonDecoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     preserveDecoder: () =>
       createJsonDecoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {
         strategy: 'preserve',
+      }),
+    compactDecoder: () =>
+      createJsonDecoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {
+        strategy: 'compact',
       }),
     binaryEncoder: () => createBinaryEncoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     binaryDecoder: () => createBinaryDecoder<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
@@ -168,9 +194,13 @@ export const DATETIME = {
     mutateEncoder: () => createJsonEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     preserveDecoder: () =>
       createJsonDecoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     binaryDecoder: () => createBinaryDecoder<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     schemaEncoder: () => createJsonEncoder(TFT.plainYearMonth({min: '2020-01', max: '2020-12'})),
@@ -198,11 +228,19 @@ export const DATETIME = {
       createJsonEncoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(undefined, {
         strategy: 'direct',
       }),
+    compactEncoder: () =>
+      createJsonEncoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(undefined, {
+        strategy: 'compact',
+      }),
     stripDecoder: () =>
       createJsonDecoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     preserveDecoder: () =>
       createJsonDecoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(undefined, {
         strategy: 'preserve',
+      }),
+    compactDecoder: () =>
+      createJsonDecoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(undefined, {
+        strategy: 'compact',
       }),
     binaryEncoder: () =>
       createBinaryEncoder<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),

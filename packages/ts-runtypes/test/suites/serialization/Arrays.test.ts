@@ -10,6 +10,7 @@ import {
   assertCloneStripRoundTrip,
   assertDirectPreserveRoundTrip,
   assertDirectStripRoundTrip,
+  assertCompactRoundTrip,
   assertBinaryRoundTrip,
   assertSchemaJsonRoundTrip,
   assertSchemaBinaryRoundTrip,
@@ -23,6 +24,7 @@ describe('serialization / Arrays', () => {
     it(`clone - strip - ${c.title}`, () => assertCloneStripRoundTrip(c));
     it(`direct - preserve - ${c.title}`, () => assertDirectPreserveRoundTrip(c));
     it(`direct - strip - ${c.title}`, () => assertDirectStripRoundTrip(c));
+    it(`compact - ${c.title}`, () => assertCompactRoundTrip(c));
     it(`binary - ${c.title}`, () => assertBinaryRoundTrip(c));
     it(`schema - json - ${c.title}`, () => assertSchemaJsonRoundTrip(c));
     it(`schema - binary - ${c.title}`, () => assertSchemaBinaryRoundTrip(c));

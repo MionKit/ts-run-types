@@ -9,6 +9,8 @@ export interface CacheModuleSettings {
 }
 
 export const CACHE_MODULES = {
+  compactForJson: {name: 'compactForJsonModule', varPrefix: 'g_cj_', tag: 'cj'},
+  compactFromJson: {name: 'compactFromJsonModule', varPrefix: 'g_cjr_', tag: 'cjr'},
   formatTransform: {name: 'formatTransformModule', varPrefix: 'g_fmt_', tag: 'fmt'},
   fromBinary: {name: 'fromBinaryModule', varPrefix: 'g_fb_', tag: 'fb'},
   hasUnknownKeys: {name: 'hasUnknownKeysModule', varPrefix: 'g_huk_', tag: 'huk'},
@@ -27,6 +29,12 @@ export const CACHE_MODULES = {
   validationErrors: {name: 'validationErrorsModule', varPrefix: 'g_verr_', tag: 'verr'},
 } as const satisfies Record<string, CacheModuleSettings>;
 
+export const COMPACTFORJSON_VAR_PREFIX = 'g_cj_';
+export const COMPACTFORJSON_MODULE_NAME = 'compactForJsonModule';
+export const COMPACTFORJSON_TAG = 'cj';
+export const COMPACTFROMJSON_VAR_PREFIX = 'g_cjr_';
+export const COMPACTFROMJSON_MODULE_NAME = 'compactFromJsonModule';
+export const COMPACTFROMJSON_TAG = 'cjr';
 export const FORMATTRANSFORM_VAR_PREFIX = 'g_fmt_';
 export const FORMATTRANSFORM_MODULE_NAME = 'formatTransformModule';
 export const FORMATTRANSFORM_TAG = 'fmt';

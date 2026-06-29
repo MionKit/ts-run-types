@@ -14,10 +14,11 @@
 // the real generated encoders/decoders), NOT like container/benchmarks/ (no podman, no
 // per-competitor isolation).
 //
-// Five round-trips per case (the "competitors" the table shows):
+// Six round-trips per case (the "competitors" the table shows):
 //   clone        cloneEncoder  + preserveDecoder   (strategy 'clone', default)
 //   mutate       mutateEncoder + preserveDecoder   (strategy 'mutate')
 //   direct       directEncoder + preserveDecoder   (strategy 'direct')
+//   compact      compactEncoder + compactDecoder   (strategy 'compact', positional array)
 //   binary       binaryEncoder + binaryDecoder
 //   native JSON  JSON.stringify + JSON.parse       (baseline, JSON-safe cases only)
 //
@@ -126,12 +127,13 @@ const ROUNDTRIPS = [
   {key: 'clone', enc: 'cloneEncoder', dec: 'preserveDecoder', kind: 'json'},
   {key: 'mutate', enc: 'mutateEncoder', dec: 'preserveDecoder', kind: 'json'},
   {key: 'direct', enc: 'directEncoder', dec: 'preserveDecoder', kind: 'json'},
+  {key: 'compact', enc: 'compactEncoder', dec: 'compactDecoder', kind: 'json'},
   {key: 'binary', enc: 'binaryEncoder', dec: 'binaryDecoder', kind: 'binary'},
   {key: 'native JSON', enc: null, dec: null, kind: 'native'},
 ];
 
 // Thunk fields whose TS source we extract for the hover panel.
-const SOURCE_FIELDS = ['cloneEncoder', 'mutateEncoder', 'directEncoder', 'binaryEncoder', 'preserveDecoder', 'binaryDecoder'];
+const SOURCE_FIELDS = ['cloneEncoder', 'mutateEncoder', 'directEncoder', 'compactEncoder', 'binaryEncoder', 'preserveDecoder', 'compactDecoder', 'binaryDecoder'];
 
 // Bandwidth options for the page's round-trip selector (Mbps). Default mid-tier.
 const BANDWIDTHS_MBPS = [10, 100, 1000];

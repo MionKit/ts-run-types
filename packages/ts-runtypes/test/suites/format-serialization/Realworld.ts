@@ -41,6 +41,14 @@ export const REALWORLD = {
       }
       return createJsonEncoder<User>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface User {
+        id: TF.UUIDv4;
+        name: string;
+        email: TF.Email;
+      }
+      return createJsonEncoder<User>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface User {
         id: TF.UUIDv4;
@@ -56,6 +64,14 @@ export const REALWORLD = {
         email: TF.Email;
       }
       return createJsonDecoder<User>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface User {
+        id: TF.UUIDv4;
+        name: string;
+        email: TF.Email;
+      }
+      return createJsonDecoder<User>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface User {
@@ -123,6 +139,16 @@ export const REALWORLD = {
       }
       return createJsonEncoder<Order>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface Order {
+        id: TF.UUIDv4;
+        email: TF.Email;
+        total: number;
+        placedAt: Date;
+        status: 'pending' | 'paid' | 'shipped' | 'cancelled';
+      }
+      return createJsonEncoder<Order>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface Order {
         id: TF.UUIDv4;
@@ -142,6 +168,16 @@ export const REALWORLD = {
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
       return createJsonDecoder<Order>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface Order {
+        id: TF.UUIDv4;
+        email: TF.Email;
+        total: number;
+        placedAt: Date;
+        status: 'pending' | 'paid' | 'shipped' | 'cancelled';
+      }
+      return createJsonDecoder<Order>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface Order {

@@ -160,8 +160,16 @@ export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
  *    `JSON.stringify`. Mutates the input and PRESERVES undeclared keys on the wire.
  *  - `'direct'`: single-pass `stringifyJson` RT. Never mutates, no clone
  *    allocation, slower on non-trivial shapes; always strips undeclared keys.
+ *  - `'compact'`: like `'clone'` (shape-derived, strips undeclared keys, never
+ *    mutates) but emits each object's declared properties as a POSITIONAL ARRAY
+ *    with no key names on the wire (`{a, b}` → `[v.a, v.b]`), producing a
+ *    smaller payload. Pairs with the `'compact'` decoder, which rebuilds the
+ *    keyed object from positions. An absent optional rides a `null` placeholder,
+ *    so a `T | null` optional field cannot distinguish a present `null` from an
+ *    absent value (both decode to `undefined`). The wire is shape-coupled: both
+ *    ends must share the type, like the binary codec.
  */
-export type JsonEncoderStrategy = 'clone' | 'mutate' | 'direct';
+export type JsonEncoderStrategy = 'clone' | 'mutate' | 'direct' | 'compact';
 // `rejectCircularRefs` is the per-call circular-reference override (see ValidateOptions);
 // runtime-only — the JSON axis hashes only `strategy`, so it never forks the cache.
 export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy; rejectCircularRefs?: boolean};
@@ -169,8 +177,11 @@ export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy; rejectCircular
 /** Caller-controlled `strategy` for `createJsonDecoder<T>()`. The decoder always
  *  allocates fresh via `JSON.parse`, so the only axis is undeclared keys:
  *  `'strip'` (default) sets them to `undefined` before restore walks the
- *  declared shape; `'preserve'` passes them through untouched. **/
-export type JsonDecoderStrategy = 'strip' | 'preserve';
+ *  declared shape; `'preserve'` passes them through untouched. `'compact'`
+ *  decodes the positional-array wire the `'compact'` ENCODER produces (the
+ *  key-based strip/preserve decoders cannot read it), rebuilding the declared
+ *  object from positions. **/
+export type JsonDecoderStrategy = 'strip' | 'preserve' | 'compact';
 export type JsonDecoderOptions = {strategy?: JsonDecoderStrategy};
 
 // =============================================================================

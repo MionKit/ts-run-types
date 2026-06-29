@@ -39,6 +39,12 @@ var Families = []FamilySpec{
 	// prepareForJsonSafe: non-mutating prepareForJson sibling that strips
 	// undeclared properties and returns a new value.
 	family("prepareForJsonSafe", PrepareForJsonSafeEmitter{}),
+	// compactForJson / compactFromJson: the `compact` strategy's positional-tuple
+	// round-trip pair — declared object props as a positional array (no key names)
+	// instead of a keyed object. Non-mutating clone on encode, keyed-object rebuild
+	// on decode. See json_compact.go / json_compact_restore.go.
+	family("compactForJson", CompactForJsonEmitter{}),
+	family("compactFromJson", CompactFromJsonEmitter{}),
 	// The unknown-keys group: boolean probe, deleting/undefining mutators,
 	// error accumulator, and the decoder-internal wire-aware variant.
 	family("hasUnknownKeys", HasUnknownKeysEmitter{}),
