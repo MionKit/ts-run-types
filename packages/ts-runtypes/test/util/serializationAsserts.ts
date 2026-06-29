@@ -31,8 +31,8 @@ function safeStructuredClone(input: unknown): {ok: true; snapshot: unknown} | {o
   }
 }
 
-type JsonEncoderKey = 'mutateEncoder' | 'cloneEncoder' | 'directEncoder';
-type JsonDecoderKey = 'preserveDecoder' | 'stripDecoder';
+type JsonEncoderKey = 'mutateEncoder' | 'cloneEncoder' | 'directEncoder' | 'compactEncoder';
+type JsonDecoderKey = 'preserveDecoder' | 'stripDecoder' | 'compactDecoder';
 
 interface JsonRoundTripOpts {
   /** Assert input is unchanged after encode. True for non-mutating
@@ -192,6 +192,20 @@ export function assertDirectStripRoundTrip(c: SerializationCase): void {
     assertNoMutation: true,
     jsonStringifyMayThrow: false,
     stringifyJsonMayBeUnparseable: true,
+    useStringifyTestData: true,
+  });
+}
+
+/** compact encoder + compact decoder — the positional-array wire (declared
+ *  object props by position, no key names). The only correct pairing for the
+ *  compact strategy: the positional payload can't be read by the key-based
+ *  strip/preserve decoders. Shape-derived like clone (non-mutating, strips
+ *  undeclared keys by construction), so it uses the stringify test data. **/
+export function assertCompactRoundTrip(c: SerializationCase): void {
+  jsonRoundTrip(c, 'compactEncoder', 'compactDecoder', 'compact', 'compact', {
+    assertNoMutation: true,
+    jsonStringifyMayThrow: false,
+    stringifyJsonMayBeUnparseable: false,
     useStringifyTestData: true,
   });
 }

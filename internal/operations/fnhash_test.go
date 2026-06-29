@@ -6,12 +6,12 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/constants"
 )
 
-// expectedCanonicalKeyCount is a canary: 12 AxisNone ops (7 public leaf + 5
+// expectedCanonicalKeyCount is a canary: 14 AxisNone ops (7 public leaf + 7
 // internal primitives) × 1, plus 2 ValidateOptions ops × 4 subsets, plus
-// jsonEncoder's 3 + jsonDecoder's 2 strategies = 12 + 8 + 5. If this trips,
+// jsonEncoder's 4 + jsonDecoder's 3 strategies = 14 + 8 + 7. If this trips,
 // an operation was added/removed without updating the count (and you should
 // re-confirm the collision guard still holds).
-const expectedCanonicalKeyCount = 12 + 8 + 5
+const expectedCanonicalKeyCount = 14 + 8 + 7
 
 func TestFnHashCollisionFree(t *testing.T) {
 	// Runs at init too, but assert here so the failure is a test, not a panic.

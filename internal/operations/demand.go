@@ -54,7 +54,7 @@ func DemandFor(fnKey string, optionNames []string, strategy string) []Demand {
 			})
 		}
 		// The primitive families the composite body references.
-		for _, tag := range constants.JsonStrategyFamilies[strategy] {
+		for _, tag := range constants.JsonStrategyFamilies[op.Name+"|"+strategy] {
 			primitive, ok := byFamilyT[tag]
 			if !ok {
 				continue

@@ -11,8 +11,10 @@ export const ARRAYS = {
     mutateEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<string[]>(),
     preserveDecoder: () => createJsonDecoder<string[]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<string[]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<string[]>(),
     binaryDecoder: () => createBinaryDecoder<string[]>(),
     schemaEncoder: () => createJsonEncoder(RT.array(TF.string())),
@@ -30,8 +32,10 @@ export const ARRAYS = {
     mutateEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<Date[]>(),
     preserveDecoder: () => createJsonDecoder<Date[]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<Date[]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<Date[]>(),
     binaryDecoder: () => createBinaryDecoder<Date[]>(),
     schemaEncoder: () => createJsonEncoder(RT.array(TF.date())),
@@ -50,8 +54,10 @@ export const ARRAYS = {
     mutateEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<undefined[]>(),
     preserveDecoder: () => createJsonDecoder<undefined[]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<undefined[]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<undefined[]>(),
     binaryDecoder: () => createBinaryDecoder<undefined[]>(),
     schemaEncoder: () => createJsonEncoder(RT.array(RT.literal(undefined))),
@@ -67,8 +73,10 @@ export const ARRAYS = {
     mutateEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<string[][]>(),
     preserveDecoder: () => createJsonDecoder<string[][]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<string[][]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<string[][]>(),
     binaryDecoder: () => createBinaryDecoder<string[][]>(),
     schemaEncoder: () => createJsonEncoder(RT.array(RT.array(TF.string()))),
@@ -84,8 +92,10 @@ export const ARRAYS = {
     mutateEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<symbol[]>(),
     preserveDecoder: () => createJsonDecoder<symbol[]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<symbol[]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<symbol[]>(),
     binaryDecoder: () => createBinaryDecoder<symbol[]>(),
     // Non-serializable array element (symbol) propagates to the root → alwaysThrow.
@@ -113,6 +123,10 @@ export const ARRAYS = {
       type CircularArray = CircularArray[];
       return createJsonEncoder<CircularArray>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      type CircularArray = CircularArray[];
+      return createJsonEncoder<CircularArray>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       type CircularArray = CircularArray[];
       return createJsonDecoder<CircularArray>();
@@ -120,6 +134,10 @@ export const ARRAYS = {
     preserveDecoder: () => {
       type CircularArray = CircularArray[];
       return createJsonDecoder<CircularArray>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      type CircularArray = CircularArray[];
+      return createJsonDecoder<CircularArray>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       type CircularArray = CircularArray[];

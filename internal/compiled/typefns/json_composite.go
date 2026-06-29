@@ -45,11 +45,11 @@ type jsonCompositeFamily struct {
 var (
 	jsonEncoderFamily = jsonCompositeFamily{
 		opName: "jsonEncoder",
-		tags:   []string{"jeCL", "jeMU", "jeDI"},
+		tags:   []string{"jeCL", "jeMU", "jeDI", "jeCO"},
 	}
 	jsonDecoderFamily = jsonCompositeFamily{
 		opName: "jsonDecoder",
-		tags:   []string{"jdST", "jdPR"},
+		tags:   []string{"jdST", "jdPR", "jdCO"},
 	}
 )
 
@@ -194,7 +194,7 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 // import edge). These become the composite module's imports so the live
 // primitives (and their transitive child factories) always load with it.
 func jsonCompositeDeps(composite constants.JsonComposite, id string, isLive func(primOp string) bool) []string {
-	tags := constants.JsonStrategyFamilies[composite.Strategy]
+	tags := constants.JsonStrategyFamilies[composite.OpName+"|"+composite.Strategy]
 	deps := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		primitive, ok := operations.ByFamilyTag(tag)
@@ -297,6 +297,11 @@ func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey st
 			body = "return JSON.stringify(" + arrayWrap(wrap("pjsFn", "prepareForJsonSafe", "v")) + ");"
 		case "mutate":
 			body = "return JSON.stringify(" + arrayWrap(wrap("pjFn", "prepareForJson", "v")) + ");"
+		case "compact":
+			// Positional-array clone (compactForJson builds a NEW value emitting
+			// declared object props by position, no key names) — strips undeclared
+			// keys by construction like `clone`. Pairs with the `compact` decoder.
+			body = "return JSON.stringify(" + arrayWrap(wrap("cjFn", "compactForJson", "v")) + ");"
 		}
 		innerFn = "function " + entryKey + "(v){" + body + "}"
 	case "jsonDecoder":
@@ -305,6 +310,10 @@ func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey st
 			body = "return " + wrap("rjFn", "restoreFromJson", "JSON.parse(s)") + ";"
 		case "strip":
 			body = "return " + wrap("rjFn", "restoreFromJson", wrap("ukuwFn", "unknownKeysToUndefinedWire", "JSON.parse(s)")) + ";"
+		case "compact":
+			// Inverse of compactForJson: rebuild the keyed object from the
+			// positional array JSON.parse produced.
+			body = "return " + wrap("cjrFn", "compactFromJson", "JSON.parse(s)") + ";"
 		}
 		innerFn = "function " + entryKey + "(s){" + body + "}"
 	}

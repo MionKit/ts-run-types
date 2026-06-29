@@ -115,6 +115,41 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<WideRecord>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface WideRecord {
+        id: number;
+        name: string;
+        description: string;
+        createdAt: Date;
+        updatedAt: Date;
+        isActive: boolean;
+        score: number;
+        rank: number;
+        tag1: string;
+        tag2: string;
+        tag3: string;
+        tag4: string;
+        tag5: string;
+        count1: number;
+        count2: number;
+        count3: number;
+        flag1: boolean;
+        flag2: boolean;
+        flag3: boolean;
+        big1: bigint;
+        big2: bigint;
+        alias: string;
+        email: string;
+        city: string;
+        country: string;
+        postal: string;
+        width: number;
+        height: number;
+        weight: number;
+        meta: {category: string; priority: number; lastSeen: Date};
+      }
+      return createJsonEncoder<WideRecord>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface WideRecord {
         id: number;
@@ -184,6 +219,41 @@ export const LARGE_OBJECTS = {
         meta: {category: string; priority: number; lastSeen: Date};
       }
       return createJsonDecoder<WideRecord>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface WideRecord {
+        id: number;
+        name: string;
+        description: string;
+        createdAt: Date;
+        updatedAt: Date;
+        isActive: boolean;
+        score: number;
+        rank: number;
+        tag1: string;
+        tag2: string;
+        tag3: string;
+        tag4: string;
+        tag5: string;
+        count1: number;
+        count2: number;
+        count3: number;
+        flag1: boolean;
+        flag2: boolean;
+        flag3: boolean;
+        big1: bigint;
+        big2: bigint;
+        alias: string;
+        email: string;
+        city: string;
+        country: string;
+        postal: string;
+        width: number;
+        height: number;
+        weight: number;
+        meta: {category: string; priority: number; lastSeen: Date};
+      }
+      return createJsonDecoder<WideRecord>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface WideRecord {
@@ -616,6 +686,55 @@ export const LARGE_OBJECTS = {
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
       return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface ProductEvent {
+        kind: 'product';
+        id: string;
+        sku: string;
+        price: number;
+        available: boolean;
+        releasedAt: Date;
+        stock: number;
+      }
+      interface UserEvent {
+        kind: 'user';
+        id: string;
+        username: string;
+        email: string;
+        signedUpAt: Date;
+        loginCount: number;
+        isPremium: boolean;
+      }
+      interface OrderEvent {
+        kind: 'order';
+        id: string;
+        total: number;
+        itemCount: number;
+        placedAt: Date;
+        shipped: boolean;
+        customerId: string;
+      }
+      interface PaymentEvent {
+        kind: 'payment';
+        id: string;
+        amount: number;
+        currency: string;
+        processedAt: Date;
+        refunded: boolean;
+        txId: string;
+      }
+      interface SessionEvent {
+        kind: 'session';
+        id: string;
+        userId: string;
+        startedAt: Date;
+        durationMs: number;
+        ipHash: string;
+        device: string;
+      }
+      type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+      return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface ProductEvent {
         kind: 'product';
@@ -713,6 +832,55 @@ export const LARGE_OBJECTS = {
       }
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
       return createJsonDecoder<LargeObjectUnion>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface ProductEvent {
+        kind: 'product';
+        id: string;
+        sku: string;
+        price: number;
+        available: boolean;
+        releasedAt: Date;
+        stock: number;
+      }
+      interface UserEvent {
+        kind: 'user';
+        id: string;
+        username: string;
+        email: string;
+        signedUpAt: Date;
+        loginCount: number;
+        isPremium: boolean;
+      }
+      interface OrderEvent {
+        kind: 'order';
+        id: string;
+        total: number;
+        itemCount: number;
+        placedAt: Date;
+        shipped: boolean;
+        customerId: string;
+      }
+      interface PaymentEvent {
+        kind: 'payment';
+        id: string;
+        amount: number;
+        currency: string;
+        processedAt: Date;
+        refunded: boolean;
+        txId: string;
+      }
+      interface SessionEvent {
+        kind: 'session';
+        id: string;
+        userId: string;
+        startedAt: Date;
+        durationMs: number;
+        ipHash: string;
+        device: string;
+      }
+      type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+      return createJsonDecoder<LargeObjectUnion>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ProductEvent {
@@ -1180,6 +1348,28 @@ export const LARGE_OBJECTS = {
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
       return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface ProductEvent {
+        kind: 'product';
+        id: string;
+        sku: string;
+        price: number;
+        available: boolean;
+        releasedAt: Date;
+        stock: number;
+      }
+      interface UserEvent {
+        kind: 'user';
+        id: string;
+        username: string;
+        email: string;
+        signedUpAt: Date;
+        loginCount: number;
+        isPremium: boolean;
+      }
+      type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+      return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface ProductEvent {
         kind: 'product';
@@ -1223,6 +1413,28 @@ export const LARGE_OBJECTS = {
       }
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
       return createJsonDecoder<MixedLargeUnion>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface ProductEvent {
+        kind: 'product';
+        id: string;
+        sku: string;
+        price: number;
+        available: boolean;
+        releasedAt: Date;
+        stock: number;
+      }
+      interface UserEvent {
+        kind: 'user';
+        id: string;
+        username: string;
+        email: string;
+        signedUpAt: Date;
+        loginCount: number;
+        isPremium: boolean;
+      }
+      type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+      return createJsonDecoder<MixedLargeUnion>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ProductEvent {
@@ -1502,6 +1714,34 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface DeepNestedLeaf {
+        id: number;
+        value: string;
+        when: Date;
+      }
+      interface DeepNestedLevel5 {
+        name: string;
+        leaves: DeepNestedLeaf[];
+      }
+      interface DeepNestedLevel4 {
+        label: string;
+        children: DeepNestedLevel5[];
+      }
+      interface DeepNestedLevel3 {
+        group: string;
+        branches: DeepNestedLevel4[];
+      }
+      interface DeepNestedLevel2 {
+        category: string;
+        groups: DeepNestedLevel3[];
+      }
+      interface DeepNestedLevel1 {
+        root: string;
+        categories: DeepNestedLevel2[];
+      }
+      return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface DeepNestedLeaf {
         id: number;
@@ -1557,6 +1797,34 @@ export const LARGE_OBJECTS = {
         categories: DeepNestedLevel2[];
       }
       return createJsonDecoder<DeepNestedLevel1>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface DeepNestedLeaf {
+        id: number;
+        value: string;
+        when: Date;
+      }
+      interface DeepNestedLevel5 {
+        name: string;
+        leaves: DeepNestedLeaf[];
+      }
+      interface DeepNestedLevel4 {
+        label: string;
+        children: DeepNestedLevel5[];
+      }
+      interface DeepNestedLevel3 {
+        group: string;
+        branches: DeepNestedLevel4[];
+      }
+      interface DeepNestedLevel2 {
+        category: string;
+        groups: DeepNestedLevel3[];
+      }
+      interface DeepNestedLevel1 {
+        root: string;
+        categories: DeepNestedLevel2[];
+      }
+      return createJsonDecoder<DeepNestedLevel1>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface DeepNestedLeaf {
@@ -1857,6 +2125,37 @@ export const LARGE_OBJECTS = {
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
       return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      class LargeClassA {
+        kind!: 'classA';
+        alpha!: string;
+        count!: number;
+        flag!: boolean;
+        when!: Date;
+        total!: bigint;
+        tags!: string[];
+      }
+      class LargeClassB {
+        kind!: 'classB';
+        beta!: string;
+        ratio!: number;
+        enabled!: boolean;
+        releasedAt!: Date;
+        score!: bigint;
+        metadata!: {label: string; weight: number};
+      }
+      class LargeClassC {
+        kind!: 'classC';
+        gamma!: string;
+        amount!: number;
+        paid!: boolean;
+        processedAt!: Date;
+        txId!: string;
+        steps!: number[];
+      }
+      type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+      return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       class LargeClassA {
         kind!: 'classA';
@@ -1918,6 +2217,37 @@ export const LARGE_OBJECTS = {
       }
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
       return createJsonDecoder<LargeClassUnion>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      class LargeClassA {
+        kind!: 'classA';
+        alpha!: string;
+        count!: number;
+        flag!: boolean;
+        when!: Date;
+        total!: bigint;
+        tags!: string[];
+      }
+      class LargeClassB {
+        kind!: 'classB';
+        beta!: string;
+        ratio!: number;
+        enabled!: boolean;
+        releasedAt!: Date;
+        score!: bigint;
+        metadata!: {label: string; weight: number};
+      }
+      class LargeClassC {
+        kind!: 'classC';
+        gamma!: string;
+        amount!: number;
+        paid!: boolean;
+        processedAt!: Date;
+        txId!: string;
+        steps!: number[];
+      }
+      type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+      return createJsonDecoder<LargeClassUnion>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       class LargeClassA {

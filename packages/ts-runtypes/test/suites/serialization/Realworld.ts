@@ -161,8 +161,21 @@ export const REALWORLD = {
     },
     mutateEncoder: () => createJsonEncoder<User>(undefined, {strategy: 'mutate'}),
     directEncoder: () => createJsonEncoder<User>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => {
+      interface User {
+        id: number;
+        email: string;
+        name: string;
+        age?: number;
+        roles: ('admin' | 'editor' | 'user')[];
+        active: boolean;
+        createdAt: string;
+      }
+      return createJsonEncoder<User>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => createJsonDecoder<User>(),
     preserveDecoder: () => createJsonDecoder<User>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<User>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<User>(),
     binaryDecoder: () => createBinaryDecoder<User>(),
     schemaEncoder: () => createJsonEncoder(userSchema()),
@@ -203,8 +216,34 @@ export const REALWORLD = {
     },
     mutateEncoder: () => createJsonEncoder<Order>(undefined, {strategy: 'mutate'}),
     directEncoder: () => createJsonEncoder<Order>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => {
+      interface OrderItem {
+        sku: string;
+        name: string;
+        qty: number;
+        price: number;
+      }
+      interface Address {
+        street: string;
+        city: string;
+        state: string;
+        zip: string;
+        country: string;
+      }
+      interface Order {
+        id: string;
+        customer: {id: number; email: string};
+        items: OrderItem[];
+        shipping: Address;
+        status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
+        total: number;
+        note?: string;
+      }
+      return createJsonEncoder<Order>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => createJsonDecoder<Order>(),
     preserveDecoder: () => createJsonDecoder<Order>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<Order>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<Order>(),
     binaryDecoder: () => createBinaryDecoder<Order>(),
     schemaEncoder: () => createJsonEncoder(orderSchema()),
@@ -237,8 +276,23 @@ export const REALWORLD = {
     },
     mutateEncoder: () => createJsonEncoder<BlogPost>(undefined, {strategy: 'mutate'}),
     directEncoder: () => createJsonEncoder<BlogPost>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => {
+      interface BlogPost {
+        id: number;
+        title: string;
+        slug: string;
+        body: string;
+        tags: string[];
+        author: {name: string; email: string};
+        published: boolean;
+        publishedAt?: string;
+        meta: {views: number; likes: number};
+      }
+      return createJsonEncoder<BlogPost>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => createJsonDecoder<BlogPost>(),
     preserveDecoder: () => createJsonDecoder<BlogPost>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<BlogPost>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<BlogPost>(),
     binaryDecoder: () => createBinaryDecoder<BlogPost>(),
     schemaEncoder: () => createJsonEncoder(blogPostSchema()),
@@ -270,8 +324,22 @@ export const REALWORLD = {
     },
     mutateEncoder: () => createJsonEncoder<Product>(undefined, {strategy: 'mutate'}),
     directEncoder: () => createJsonEncoder<Product>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => {
+      interface Product {
+        id: string;
+        name: string;
+        description: string;
+        price: number;
+        currency: 'USD' | 'EUR' | 'GBP';
+        inStock: boolean;
+        categories: string[];
+        dimensions?: {width: number; height: number; depth: number};
+      }
+      return createJsonEncoder<Product>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => createJsonDecoder<Product>(),
     preserveDecoder: () => createJsonDecoder<Product>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<Product>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<Product>(),
     binaryDecoder: () => createBinaryDecoder<Product>(),
     schemaEncoder: () => createJsonEncoder(productModel()),
@@ -309,8 +377,29 @@ export const REALWORLD = {
     },
     mutateEncoder: () => createJsonEncoder<ProductPage>(undefined, {strategy: 'mutate'}),
     directEncoder: () => createJsonEncoder<ProductPage>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => {
+      interface Product {
+        id: string;
+        name: string;
+        description: string;
+        price: number;
+        currency: 'USD' | 'EUR' | 'GBP';
+        inStock: boolean;
+        categories: string[];
+        dimensions?: {width: number; height: number; depth: number};
+      }
+      interface ProductPage {
+        data: Product[];
+        page: number;
+        pageSize: number;
+        total: number;
+        hasMore: boolean;
+      }
+      return createJsonEncoder<ProductPage>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => createJsonDecoder<ProductPage>(),
     preserveDecoder: () => createJsonDecoder<ProductPage>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<ProductPage>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<ProductPage>(),
     binaryDecoder: () => createBinaryDecoder<ProductPage>(),
     schemaEncoder: () => createJsonEncoder(productPageSchema()),
@@ -338,8 +427,18 @@ export const REALWORLD = {
     },
     mutateEncoder: () => createJsonEncoder<RegistrationForm>(undefined, {strategy: 'mutate'}),
     directEncoder: () => createJsonEncoder<RegistrationForm>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => {
+      interface RegistrationForm {
+        email: string;
+        password: string;
+        acceptedTerms: true;
+        profile: {firstName: string; lastName: string; age?: number};
+      }
+      return createJsonEncoder<RegistrationForm>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => createJsonDecoder<RegistrationForm>(),
     preserveDecoder: () => createJsonDecoder<RegistrationForm>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<RegistrationForm>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<RegistrationForm>(),
     binaryDecoder: () => createBinaryDecoder<RegistrationForm>(),
     schemaEncoder: () => createJsonEncoder(registrationFormSchema()),

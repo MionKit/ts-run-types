@@ -62,6 +62,16 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_pjs_",
 		Tag:       "pjs",
 	},
+	"compactForJson": {
+		Name:      "compactForJsonModule",
+		VarPrefix: "g_cj_",
+		Tag:       "cj",
+	},
+	"compactFromJson": {
+		Name:      "compactFromJsonModule",
+		VarPrefix: "g_cjr_",
+		Tag:       "cjr",
+	},
 	"hasUnknownKeys": {
 		Name:      "hasUnknownKeysModule",
 		VarPrefix: "g_huk_",
@@ -125,8 +135,10 @@ var jsonCompositeTags = map[string]string{
 	"jsonEncoder|clone":    "jeCL",
 	"jsonEncoder|mutate":   "jeMU",
 	"jsonEncoder|direct":   "jeDI",
+	"jsonEncoder|compact":  "jeCO",
 	"jsonDecoder|strip":    "jdST",
 	"jsonDecoder|preserve": "jdPR",
+	"jsonDecoder|compact":  "jdCO",
 }
 
 // JsonComposite identifies one JSON composite family: the operation name
@@ -234,20 +246,28 @@ func ValidateVariantSuffix(names []string) string {
 	return suffix
 }
 
-// JsonStrategyFamilies maps a JSON strategy token to the cache family tags it
-// composes. Shared by the scanner (emit), the emitter (demand), and mirrored to
-// the TS runtime via gen-ts-constants.
+// JsonStrategyFamilies maps a JSON "op|strategy" key to the cache family tags it
+// composes. Keyed by op|strategy (not the bare strategy token) because the
+// encoder and decoder can share a strategy NAME — `compact` is both a
+// jsonEncoder and a jsonDecoder strategy but composes different primitives
+// (cj vs cjr). Shared by the scanner (emit) and the emitter (demand); both
+// readers hold the operation, so they pass the op-qualified key. Go-only (not
+// mirrored to TS — gen-ts-constants emits only CacheModules).
 var JsonStrategyFamilies = map[string][]string{
-	"direct": {"sj"},
+	"jsonEncoder|direct": {"sj"},
 	// `clone` is shape-derived (prepareForJsonSafe builds a new value from the
 	// declared shape), so it strips undeclared keys by construction — no separate
 	// strip pass / strip variant is needed. (Was {"pjsp"} when `clone` preserved
 	// extras; the preserve variant and the `stripClone`/`stripMutate` strategies
 	// were removed.)
-	"clone":    {"pjs"},
-	"mutate":   {"pj"},
-	"strip":    {"rj", "ukuw"},
-	"preserve": {"rj"},
+	"jsonEncoder|clone":  {"pjs"},
+	"jsonEncoder|mutate": {"pj"},
+	// `compact` emits declared object props as a positional array (no key names);
+	// cj is the encode walk, cjr the decode walk.
+	"jsonEncoder|compact":  {"cj"},
+	"jsonDecoder|strip":    {"rj", "ukuw"},
+	"jsonDecoder|preserve": {"rj"},
+	"jsonDecoder|compact":  {"cjr"},
 }
 
 // Per-entry virtual module settings (mirrored to TS via gen-ts-constants).

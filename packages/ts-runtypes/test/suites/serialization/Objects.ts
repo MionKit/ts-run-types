@@ -42,6 +42,17 @@ export const OBJECTS = {
         "weird prop name \n?>'\\\t\r": string;
         optionalString?: string;
       }>(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<{
+        startDate: Date;
+        quantity: number;
+        name: string;
+        nullValue: null;
+        big: bigint;
+        stringArray: string[];
+        "weird prop name \n?>'\\\t\r": string;
+        optionalString?: string;
+      }>(undefined, {strategy: 'compact'}),
     stripDecoder: () =>
       createJsonDecoder<{
         startDate: Date;
@@ -64,6 +75,17 @@ export const OBJECTS = {
         "weird prop name \n?>'\\\t\r": string;
         optionalString?: string;
       }>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<{
+        startDate: Date;
+        quantity: number;
+        name: string;
+        nullValue: null;
+        big: bigint;
+        stringArray: string[];
+        "weird prop name \n?>'\\\t\r": string;
+        optionalString?: string;
+      }>(undefined, {strategy: 'compact'}),
     binaryEncoder: () =>
       createBinaryEncoder<{
         startDate: Date;
@@ -189,6 +211,17 @@ export const OBJECTS = {
         };
       return createJsonEncoder<ManyOptional>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      type N = number;
+      // prettier-ignore
+      type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+      return createJsonEncoder<ManyOptional>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       type N = number;
       // prettier-ignore
@@ -210,6 +243,17 @@ export const OBJECTS = {
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
       return createJsonDecoder<ManyOptional>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      type N = number;
+      // prettier-ignore
+      type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+      return createJsonDecoder<ManyOptional>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       type N = number;
@@ -455,6 +499,24 @@ export const OBJECTS = {
       }
       return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      class MySerializableClass {
+        name: string;
+        surname: string;
+        id: number;
+        startDate: Date;
+        constructor() {
+          this.name = 'John';
+          this.surname = 'Doe';
+          this.id = 0;
+          this.startDate = new Date('2000-08-06T02:13:00.000Z');
+        }
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       class MySerializableClass {
         name: string;
@@ -490,6 +552,24 @@ export const OBJECTS = {
         }
       }
       return createJsonDecoder<MySerializableClass>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      class MySerializableClass {
+        name: string;
+        surname: string;
+        id: number;
+        startDate: Date;
+        constructor() {
+          this.name = 'John';
+          this.surname = 'Doe';
+          this.id = 0;
+          this.startDate = new Date('2000-08-06T02:13:00.000Z');
+        }
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createJsonDecoder<MySerializableClass>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       class MySerializableClass {
@@ -653,6 +733,15 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      class BaseClass {
+        baseProp: string = 'base';
+      }
+      class ExtendedClass extends BaseClass {
+        extendedProp: string = 'extended';
+      }
+      return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       class BaseClass {
         baseProp: string = 'base';
@@ -670,6 +759,15 @@ export const OBJECTS = {
         extendedProp: string = 'extended';
       }
       return createJsonDecoder<ExtendedClass>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      class BaseClass {
+        baseProp: string = 'base';
+      }
+      class ExtendedClass extends BaseClass {
+        extendedProp: string = 'extended';
+      }
+      return createJsonDecoder<ExtendedClass>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       class BaseClass {
@@ -785,6 +883,20 @@ export const OBJECTS = {
       }
       return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      class NonSerializableClass {
+        constructor(
+          public name: string,
+          public surname: string,
+          public id: number,
+          public startDate: Date
+        ) {}
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       class NonSerializableClass {
         constructor(
@@ -812,6 +924,20 @@ export const OBJECTS = {
         }
       }
       return createJsonDecoder<NonSerializableClass>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      class NonSerializableClass {
+        constructor(
+          public name: string,
+          public surname: string,
+          public id: number,
+          public startDate: Date
+        ) {}
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createJsonDecoder<NonSerializableClass>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       class NonSerializableClass {
@@ -922,8 +1048,10 @@ export const OBJECTS = {
     mutateEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(),
     preserveDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; b: number; c: undefined}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b: number; c: undefined}>(),
     schemaEncoder: () => createJsonEncoder(RT.object({a: TF.string(), b: TF.number(), c: RT.literal(undefined)})),
@@ -942,8 +1070,10 @@ export const OBJECTS = {
     mutateEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{a: string; b?: string}>(),
     preserveDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; b?: string}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b?: string}>(),
     schemaEncoder: () => createJsonEncoder(RT.object({a: TF.string(), b: RT.optional(TF.string())})),
@@ -959,8 +1089,10 @@ export const OBJECTS = {
     mutateEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{a?: string; b?: string}>(),
     preserveDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{a?: string; b?: string}>(),
     binaryDecoder: () => createBinaryDecoder<{a?: string; b?: string}>(),
     schemaEncoder: () => createJsonEncoder(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.string())})),
@@ -1016,6 +1148,19 @@ export const OBJECTS = {
         deep: {a: string; b: number};
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<{
+        startDate: Date;
+        quantity: number;
+        name: string;
+        nullValue: null;
+        stringArray: string[];
+        bigInt: bigint;
+        optionalString?: string;
+        "weird prop name \n?>'\\\t\r": string;
+        deep: {a: string; b: number};
+        '?other weird p': {c: string; d: number};
+      }>(undefined, {strategy: 'compact'}),
     stripDecoder: () =>
       createJsonDecoder<{
         startDate: Date;
@@ -1042,6 +1187,19 @@ export const OBJECTS = {
         deep: {a: string; b: number};
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<{
+        startDate: Date;
+        quantity: number;
+        name: string;
+        nullValue: null;
+        stringArray: string[];
+        bigInt: bigint;
+        optionalString?: string;
+        "weird prop name \n?>'\\\t\r": string;
+        deep: {a: string; b: number};
+        '?other weird p': {c: string; d: number};
+      }>(undefined, {strategy: 'compact'}),
     binaryEncoder: () =>
       createBinaryEncoder<{
         startDate: Date;
@@ -1205,6 +1363,13 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ICircular>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface ICircular {
+        name: string;
+        child?: ICircular;
+      }
+      return createJsonEncoder<ICircular>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface ICircular {
         name: string;
@@ -1218,6 +1383,13 @@ export const OBJECTS = {
         child?: ICircular;
       }
       return createJsonDecoder<ICircular>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface ICircular {
+        name: string;
+        child?: ICircular;
+      }
+      return createJsonDecoder<ICircular>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircular {
@@ -1278,6 +1450,13 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ICircularArray>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface ICircularArray {
+        name: string;
+        children?: ICircularArray[];
+      }
+      return createJsonEncoder<ICircularArray>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface ICircularArray {
         name: string;
@@ -1291,6 +1470,13 @@ export const OBJECTS = {
         children?: ICircularArray[];
       }
       return createJsonDecoder<ICircularArray>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface ICircularArray {
+        name: string;
+        children?: ICircularArray[];
+      }
+      return createJsonDecoder<ICircularArray>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircularArray {
@@ -1367,6 +1553,17 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {
+          hello: string;
+          child?: ICircularDeep;
+        };
+      }
+      return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface ICircularDeep {
         name: string;
@@ -1388,6 +1585,17 @@ export const OBJECTS = {
         };
       }
       return createJsonDecoder<ICircularDeep>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {
+          hello: string;
+          child?: ICircularDeep;
+        };
+      }
+      return createJsonDecoder<ICircularDeep>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircularDeep {
@@ -1487,6 +1695,18 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface RootNotCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+      }
+      return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface ICircularDeep {
         name: string;
@@ -1510,6 +1730,18 @@ export const OBJECTS = {
         ciChild: ICircularDeep;
       }
       return createJsonDecoder<RootNotCircular>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface RootNotCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+      }
+      return createJsonDecoder<RootNotCircular>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircularDeep {
@@ -1645,6 +1877,27 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootCircular>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface ICircularDate {
+        date: Date;
+        month: number;
+        year: number;
+        embedded?: ICircularDate;
+        deep?: ICircularDeep;
+      }
+      interface RootCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+        ciRoort?: RootCircular;
+        ciDate: ICircularDate;
+      }
+      return createJsonEncoder<RootCircular>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface ICircularDeep {
         name: string;
@@ -1686,6 +1939,27 @@ export const OBJECTS = {
         ciDate: ICircularDate;
       }
       return createJsonDecoder<RootCircular>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface ICircularDate {
+        date: Date;
+        month: number;
+        year: number;
+        embedded?: ICircularDate;
+        deep?: ICircularDeep;
+      }
+      interface RootCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+        ciRoort?: RootCircular;
+        ciDate: ICircularDate;
+      }
+      return createJsonDecoder<RootCircular>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircularDeep {
@@ -1850,6 +2124,13 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'direct'});
     },
+    compactEncoder: () => {
+      interface ObjectWithMethods {
+        name: string;
+        methodProp: () => any;
+      }
+      return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'compact'});
+    },
     stripDecoder: () => {
       interface ObjectWithMethods {
         name: string;
@@ -1863,6 +2144,13 @@ export const OBJECTS = {
         methodProp: () => any;
       }
       return createJsonDecoder<ObjectWithMethods>(undefined, {strategy: 'preserve'});
+    },
+    compactDecoder: () => {
+      interface ObjectWithMethods {
+        name: string;
+        methodProp: () => any;
+      }
+      return createJsonDecoder<ObjectWithMethods>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ObjectWithMethods {

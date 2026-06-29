@@ -13,8 +13,10 @@ export const TEMPLATE_LITERALS = {
     mutateEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<`api/users/${number}`>(),
     preserveDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<`api/users/${number}`>(),
     binaryDecoder: () => createBinaryDecoder<`api/users/${number}`>(),
     schemaEncoder: () => createJsonEncoder(RT.templateLiteral(['api/users/', TF.number()])),
@@ -39,8 +41,10 @@ export const TEMPLATE_LITERALS = {
     mutateEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(),
     preserveDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{url: `api/user/${number}`; method: string}>(),
     binaryDecoder: () => createBinaryDecoder<{url: `api/user/${number}`; method: string}>(),
     schemaEncoder: () => createJsonEncoder(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
@@ -66,8 +70,10 @@ export const TEMPLATE_LITERALS = {
     mutateEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(),
     preserveDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{[key: `api/${string}`]: number}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: `api/${string}`]: number}>(),
     schemaEncoder: () => createJsonEncoder(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
@@ -86,9 +92,13 @@ export const TEMPLATE_LITERALS = {
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'clone'}),
     directEncoder: () =>
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'compact'}),
     stripDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
     preserveDecoder: () =>
       createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
     binaryDecoder: () => createBinaryDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
     // Index signature + sibling named prop = intersection of the template-literal-keyed
