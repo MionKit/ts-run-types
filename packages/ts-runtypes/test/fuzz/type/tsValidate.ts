@@ -6,7 +6,7 @@
 // sites — only the `type`/`interface` defs decide validity) with the repo's own
 // `typescript` package, the same compiler the project trusts.
 import * as ts from 'typescript';
-import {renderGenerated, type GeneratedType} from './typeGen.ts';
+import {renderGenerated, type GeneratedType} from '../core/typeGen.ts';
 
 const OPTIONS: ts.CompilerOptions = {
   strict: true,

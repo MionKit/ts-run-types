@@ -28,7 +28,7 @@ import {
 import {Severity} from '../../../../runtypes-devtools/src/protocol.ts';
 import {setSerializationOptions} from '../../../src/runtypes/dataView.ts';
 import {binarySizeEstimateFromTuple} from '../../../src/runtypes/entryTuple.ts';
-import {withSeededRandom} from '../seededRng.ts';
+import {withSeededRandom} from '../core/seededRng.ts';
 
 const REPO_ROOT = path.resolve(__dirname, '../../../../..');
 const BRAND = `type TypeFormat<Base, Name extends string, Params> = Base & { readonly __rtFormatName?: Name; readonly __rtFormatParams?: Params; };`;

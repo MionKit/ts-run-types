@@ -21,7 +21,7 @@
 import {describe, it, expect} from 'vitest';
 import {hasBinary} from './typeFuzzHarness.ts';
 import {runTypeFuzz, runTypeFuzzForDuration} from './typeFuzzRunner.ts';
-import {NONDATA_GEN_OPTIONS} from './typeGen.ts';
+import {NONDATA_GEN_OPTIONS} from '../core/typeGen.ts';
 
 describe('fuzz / DataOnly non-data lane — serialize-or-fail contract over non-data types', () => {
   const register = hasBinary() ? it : it.skip;

@@ -20,7 +20,7 @@
 import {describe, it, expect} from 'vitest';
 import {openClient, compileType, hasBinary} from './typeFuzzHarness.ts';
 import {typecheckGeneratedType} from './tsValidate.ts';
-import type {GeneratedType, TypeShape, PropShape} from './typeGen.ts';
+import type {GeneratedType, TypeShape, PropShape} from '../core/typeGen.ts';
 
 function prop(name: string, shape: TypeShape, optional = false): PropShape {
   return {name, optional, readonly: false, method: false, shape};

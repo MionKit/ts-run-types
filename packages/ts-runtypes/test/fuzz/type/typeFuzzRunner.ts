@@ -21,14 +21,14 @@
 // Each iteration seeds the type AND its value stream from one number, so a
 // reported violation replays exactly.
 
-import {mixSeed, withSeededRandom} from './seededRng.ts';
-import {genType, describeType, isRecursive, DEFAULT_GEN_OPTIONS, type GeneratedType, type GenOptions} from './typeGen.ts';
-import {genValidValue, validValue, corruptValue, valueOracleSafe} from './shapeValue.ts';
+import {mixSeed, withSeededRandom} from '../core/seededRng.ts';
+import {genType, describeType, isRecursive, DEFAULT_GEN_OPTIONS, type GeneratedType, type GenOptions} from '../core/typeGen.ts';
+import {genValidValue, validValue, corruptValue, valueOracleSafe} from '../value/shapeValue.ts';
 import {compileType, openClient, renderFixture, type CompiledType, type WiredFns} from './typeFuzzHarness.ts';
 import {isValidTypeScript} from './tsValidate.ts';
-import {randomJunk} from './fuzzRunner.ts';
-import type {ResolverClient} from '../../../runtypes-devtools/src/resolver-client.ts';
-import type {RunType} from '../../src/runtypes/types.ts';
+import {randomJunk} from '../value/fuzzRunner.ts';
+import type {ResolverClient} from '../../../../runtypes-devtools/src/resolver-client.ts';
+import type {RunType} from '../../../src/runtypes/types.ts';
 import {
   checkBinaryStable,
   checkCrossWire,
@@ -40,7 +40,7 @@ import {
   snapshot,
   type FuzzTarget,
   type Violation,
-} from './fuzzOracle.ts';
+} from '../value/fuzzOracle.ts';
 
 /** Where the behaviour tier sources its conforming value: the abstract-shape
  *  generator (`shapeValue.ts`, the WILD lane) or the REAL product mock

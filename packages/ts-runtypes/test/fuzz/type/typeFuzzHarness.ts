@@ -29,17 +29,17 @@ import {
   createBinarySizer,
   createMockType,
 } from 'ts-runtypes';
-import {binarySizeEstimateFromTuple} from '../../src/runtypes/entryTuple.ts';
-import {ResolverClient, type ResolverClientOptions} from '../../../runtypes-devtools/src/resolver-client.ts';
+import {binarySizeEstimateFromTuple} from '../../../src/runtypes/entryTuple.ts';
+import {ResolverClient, type ResolverClientOptions} from '../../../../runtypes-devtools/src/resolver-client.ts';
 import {
   RUNTYPES_DTS,
   evalEntryModules,
   instantiateRunTypes,
   BIN,
   hasBinary,
-} from '../../../runtypes-devtools/test/helpers/inline.ts';
-import {Severity, type Diagnostic, type Site} from '../../../runtypes-devtools/src/protocol.ts';
-import {renderGenerated, describeType, type GeneratedType} from './typeGen.ts';
+} from '../../../../runtypes-devtools/test/helpers/inline.ts';
+import {Severity, type Diagnostic, type Site} from '../../../../runtypes-devtools/src/protocol.ts';
+import {renderGenerated, describeType, type GeneratedType} from '../core/typeGen.ts';
 
 export {hasBinary, BIN};
 

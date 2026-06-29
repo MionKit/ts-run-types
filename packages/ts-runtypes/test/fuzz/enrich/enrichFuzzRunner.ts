@@ -8,7 +8,7 @@
 // still fails is the minimal reproducer.
 
 import {makeFixture} from '../../util/enrichReconcile.ts';
-import {withSeededRandom, mixSeed} from '../seededRng.ts';
+import {withSeededRandom, mixSeed} from '../core/seededRng.ts';
 import {COMMANDS, bootstrap, type EnrichViolation} from './enrichModel.ts';
 
 export interface SequenceResult {
