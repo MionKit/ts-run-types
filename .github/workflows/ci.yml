@@ -8,14 +8,12 @@ name: ci
 #   2. THEN, only when container inputs change (path-gated), a website
 #      serves-a-page + benchmark competitor-build smoke. It reuses the bootstrap,
 #      Go binary, and dists already built above instead of standing up a second
-#      job that repeats that work. The smoke PULLS the prebuilt shared image
-#      (competitor node_modules are baked in) and mounts our freshly built binary,
-#      so it skips the dep install. It only forces a fresh LOCAL image build when
-#      the baked deps themselves change (the `image` filter), and otherwise falls
-#      back to a local build if the image can't be pulled. typia is skipped
-#      (BENCH_NO_TYPIA) because its native plugin compiles ~200s at run time and is
-#      neither baked into the image nor cached across CI runs; the prod gate's
-#      `benchmarks` job is where typia is exercised.
+#      job that repeats that work. CI NEVER builds the shared image: it PULLS the
+#      prebuilt one (competitor node_modules baked in) and mounts our freshly built
+#      binary; if the image can't be pulled the job fails (rebuild + push it from
+#      local - it is not a CI artifact). typia is skipped (BENCH_NO_TYPIA) for now
+#      because its native plugin compiles ~200s at run time and is not yet baked
+#      into the image; the prod gate's `benchmarks` job exercises typia.
 on:
   pull_request:
     branches: [main]
@@ -67,9 +65,9 @@ jobs:
         run: pnpm run check-format
 
       # --- container smoke: path-gated, reuses everything built above ----------
-      # `smoke`  = run the smoke at all (container inputs / driver scripts changed).
-      # `image`  = the BAKED deps changed (a _deps manifest or the Containerfile),
-      #            so the prebuilt image is stale -> force a fresh local build.
+      # CI NEVER builds the shared image; it PULLS the prebuilt one (deps baked)
+      # and mounts our freshly built binary. The `smoke` filter only decides
+      # WHETHER to run (container inputs / driver scripts changed).
       - name: Detect container changes
         uses: dorny/paths-filter@v4
         id: changes
@@ -82,31 +80,17 @@ jobs:
               - 'scripts/podman-website.sh'
               - 'scripts/lib-container.sh'
               - 'scripts/lib-ghcr.sh'
-            image:
-              - 'container/**/_deps/**'
-              - 'container/website/Containerfile'
-      # Best-effort GHCR login so the prebuilt image pulls (vs a slow local build).
-      # Non-fatal: if it fails or the image isn't accessible, ensure_image falls
-      # back to a local build automatically.
-      - name: Log in to GHCR (for the prebuilt shared image)
+      - name: Pull the prebuilt shared image (CI never builds it)
         if: steps.changes.outputs.smoke == 'true'
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin || echo "GHCR login failed; smoke will fall back to a local image build"
-      # USE_LOCAL is set ONLY when the baked deps changed, so a normal container
-      # change pulls the prebuilt image (deps baked, our binary mounted on top)
-      # and a deps change rebuilds the image fresh. website:smoke reads
-      # WEBSITE_USE_LOCAL; bench:smoke reads BENCH_USE_LOCAL.
+        uses: ./.github/actions/pull-shared-image
       - name: Website serves-a-page smoke
         if: steps.changes.outputs.smoke == 'true'
-        env:
-          WEBSITE_USE_LOCAL: ${{ steps.changes.outputs.image == 'true' && '1' || '' }}
         run: pnpm run website:smoke
-      # BENCH_NO_TYPIA: typia's native plugin compiles ~200s at build time into a
-      # .ttsc volume that does NOT persist across CI runs (and is not baked into the
-      # image), so it would recompile every run. Skip it in this fast smoke; the
-      # prod gate's `benchmarks` job exercises typia before release.
+      # BENCH_NO_TYPIA stays until the prebuilt image BAKES typia's .ttsc plugin (a
+      # local image change + republish); a no-.ttsc image would otherwise recompile
+      # it ~200s here. Drop this once that image is live.
       - name: Benchmark competitor-build smoke
         if: steps.changes.outputs.smoke == 'true'
         env:
-          BENCH_USE_LOCAL: ${{ steps.changes.outputs.image == 'true' && '1' || '' }}
           BENCH_NO_TYPIA: '1'
         run: pnpm run bench:smoke
