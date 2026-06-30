@@ -104,10 +104,10 @@ Today's `release-build-test.yml` jobs, plus two new ones so a prod PR runs
 everything pre-publish should:
 
 ```
-build         : go test + pnpm test + pnpm run build + build-binary-packages.mjs (7 platforms) + pack-artifacts.mjs -> upload `tarballs` artifact
+build         : full main gate (go test + pnpm test incl. fuzz + pnpm run lint + pnpm run check-format) + pnpm run build + build-binary-packages.mjs (7 platforms) + pack-artifacts.mjs -> upload `tarballs` artifact
 e2e (matrix)  : linux-x64 / darwin-arm64 / win32-x64 -> verdaccio install of published pkgs -> npm test
 exec-smoke    : linux-arm64 / linux-arm under QEMU -> ts-runtypes --version
-benchmarks    : bootstrap -> benchmarks.sh prep/bench/typecost   (pulls GHCR image)
+benchmarks    : bootstrap -> benchmarks.sh prep/bench/typecost   (local image build, no GHCR auth)
 website-build : bootstrap -> static site build (prove `website:publish generate` compiles; no deploy)
 ```
 
