@@ -24,20 +24,22 @@ fi
 
 # The registry: single source of truth for check-env.sh (mirror of .env.sample).
 # One row per var: NAME|SCOPE|TASK|DESCRIPTION
-#   SCOPE  dev = set locally in .env        |  ci = GitHub repo/Environment secret
+#   SCOPE  dev    = local config/knob (set in .env)
+#          secret = a credential: set in .env to run the step from LOCAL, or as a
+#                   GitHub repo/Environment secret when the step runs in CI
 #   TASK   the operation that needs it      |  "-" = optional knob (has a default)
 rt_env_registry() {
   cat <<'REG'
-GHCR_PAT|dev|push-image|GitHub PAT (write:packages) to push the shared image (or set GHCR_PAT_FILE)
-GHCR_PAT_FILE|dev|push-image|Path to a file holding only the GHCR token (alternative to GHCR_PAT)
+GHCR_PAT|secret|push-image|GitHub PAT (write:packages) to push the shared image (or set GHCR_PAT_FILE)
+GHCR_PAT_FILE|secret|push-image|Path to a file holding only the GHCR token (alternative to GHCR_PAT)
 GHCR_OWNER|dev|-|GHCR namespace (default mionkit)
 GHCR_USER|dev|-|GHCR login user (cosmetic; the PAT authenticates)
 RT_WEBSITE_USE_LOCAL|dev|-|Build the shared image locally instead of pulling from GHCR
 RT_BENCH_USE_LOCAL|dev|-|Build the shared image locally for benchmark runs
 RT_BENCH_NO_TYPIA|dev|-|Skip the typia competitor (its native plugin build)
 RT_BENCH_QUICK|dev|-|Fast/preview benchmark numbers (noisy)
-NPM_TOKEN|ci|publish-npm|npm automation token (CI secret; local publish uses npm login)
-CLOUDFLARE_API_TOKEN|ci|deploy-website|Cloudflare Pages: Edit API token (CI secret)
-CLOUDFLARE_ACCOUNT_ID|ci|deploy-website|Cloudflare account id (CI secret)
+NPM_TOKEN|secret|publish-npm|npm token to publish from local (or use scripts/publish.sh + npm login); the NPM_TOKEN secret in CI
+CLOUDFLARE_API_TOKEN|secret|deploy-website|Cloudflare Pages: Edit token; set in .env for a local deploy, a GitHub secret in CI
+CLOUDFLARE_ACCOUNT_ID|secret|deploy-website|Cloudflare account id; set in .env for a local deploy, a GitHub secret in CI
 REG
 }
