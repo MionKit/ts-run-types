@@ -20,7 +20,7 @@
 # ------------------------------------------------------------------------------
 
 # Load repo-root .env (git-ignored) so local config (GHCR_PAT, ...) lives in one
-# file (see .env.example). Guarded so sourcing this plus lib-container.sh loads
+# file (see .env.sample). Guarded so sourcing this plus lib-container.sh loads
 # once; 'set -a' exports each assignment. Absent .env (e.g. in CI) is a no-op.
 if [ -z "${RT_ENV_LOADED:-}" ]; then
   RT_ENV_LOADED=1
