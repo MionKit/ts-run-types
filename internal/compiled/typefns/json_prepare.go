@@ -357,6 +357,7 @@ func emitObjectJsonChildren(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	// walks into line. Shared by both, since they share this object walk.
 	publishSiblingNamedKeysForIndexSig(rt, ctx)
 	var parts []string
+	seenIndexValueIDs := map[string]bool{}
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
 		if resolved == nil {
@@ -369,6 +370,23 @@ func emitObjectJsonChildren(rt *protocol.RunType, ctx *EmitContext) RTCode {
 		if isFunctionLikeKind(resolved.Kind) {
 			ctx.EmitDiagnosticSlot(SlotMethodDropped, memberLabel(resolved))
 			continue
+		}
+		// Dedup split index signatures. A `[k: string|number|symbol]: U` key is
+		// split by the resolver into one index sig per kind, all sharing value
+		// type U. Each emits a `for…in` sweep, but for…in enumerates EVERY own
+		// string key regardless of the declared key kind, so two sweeps over the
+		// same value type would double-process each dynamic key — and these
+		// codecs MUTATE in place, so the second pass re-reads an already-
+		// transformed value (double-wrap on encode, "invalid union index" on
+		// decode). One sweep per distinct value type is correct and sufficient.
+		if resolved.Kind == protocol.KindIndexSignature {
+			valueID := indexSigValueID(resolved, ctx)
+			if valueID != "" {
+				if seenIndexValueIDs[valueID] {
+					continue
+				}
+				seenIndexValueIDs[valueID] = true
+			}
 		}
 		childRT := ctx.CompileChild(child, CodeS)
 		if childRT.Type == CodeNS {
@@ -383,6 +401,20 @@ func emitObjectJsonChildren(rt *protocol.RunType, ctx *EmitContext) RTCode {
 		return RTCode{Code: "", Type: CodeS}
 	}
 	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
+}
+
+// indexSigValueID returns the structural id of an index signature's VALUE type,
+// used to dedup split index signatures (`[k: string|number|symbol]: U` → several
+// sigs sharing value type U) so the codec emits one for-in sweep per value type.
+func indexSigValueID(rt *protocol.RunType, ctx *EmitContext) string {
+	if rt.Child == nil {
+		return ""
+	}
+	value := ctx.ResolveRef(rt.Child)
+	if value == nil {
+		return ""
+	}
+	return value.ID
 }
 
 // jsonStringifyLeaks reports whether `JSON.stringify` serializes a dropped value

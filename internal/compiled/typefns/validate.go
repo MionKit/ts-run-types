@@ -1139,6 +1139,7 @@ func emitObjectValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode
 	publishSiblingNamedKeysForIndexSig(rt, ctx)
 	allOptional := true
 	hasContributingChild := false
+	hasIndexSig := false
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
 		if resolved == nil {
@@ -1149,6 +1150,9 @@ func emitObjectValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode
 			// participate in validate validation.
 			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
 			continue
+		}
+		if resolved.Kind == protocol.KindIndexSignature {
+			hasIndexSig = true
 		}
 		if isFunctionLikeKind(resolved.Kind) {
 			// Method / MethodSignature / CallSignature directly on the
@@ -1185,16 +1189,25 @@ func emitObjectValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode
 	// Set, …). Mirrors interface.ts:allOptionalCode at
 	// (ref: packages/run-types/src/nodes/collection/interface.ts).
 	//
-	// IndexSignature children count as "non-optional" for this
-	// purpose — `{[k: string]: T}` validates every own key, so arrays
-	// would still fail the value check. Empty objects + all-optional
-	// shapes need the explicit guard.
+	// An index-signature-bearing object (a `Record<K, V>`, or a fixed
+	// object with a catch-all signature) ALSO needs the brand guard: a
+	// for-in over a Map / Set / Date / empty array enumerates no own
+	// string keys, so the per-key value check is vacuously satisfied and
+	// the bare `typeof === 'object'` lets those non-plain objects pass
+	// (`isRecord(new Map())` would wrongly be true). That over-acceptance
+	// corrupts a union's merged-prop dispatch — a Map value matches an
+	// earlier `Record` candidate and is then encoded as `{}` on every
+	// serialization lane. Gate the `[object Object]` brand on hasIndexSig
+	// so a foreign non-plain object is rejected.
+	//
+	// Empty objects + all-optional shapes need the same guard for the
+	// array-is-an-object reason (arrays *are* objects in JS).
 	//
 	// Suppressed for callable shapes (callSigChild != nil) — the
 	// value is a Function, not an Object, and the
 	// `Object.prototype.toString.call(v)` check returns
 	// '[object Function]' rather than '[object Object]' in that case.
-	if callSigChild == nil && (!hasContributingChild || allOptional) {
+	if callSigChild == nil && (!hasContributingChild || allOptional || hasIndexSig) {
 		guard := "(!Array.isArray(" + v + ") && Object.prototype.toString.call(" + v + ") === '[object Object]')"
 		// Insert AFTER the typeof guard so null/non-objects still
 		// short-circuit first.

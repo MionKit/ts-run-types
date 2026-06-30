@@ -821,10 +821,11 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 	}
 
 	if len(layout.ObjectMembers) > 0 {
+		discAccessor := layout.discAccessor(v)
 		var props []safePropEmit
 		for _, mp := range layout.MergedProps {
 			accessor := propertyAccessor(v, mp.Name, mp.IsSafeName)
-			propExpr, ok := emitMergedPropPrepareSafe(mp, accessor, ctx)
+			propExpr, ok := emitMergedPropPrepareSafe(mp, accessor, discAccessor, ctx)
 			if !ok {
 				return RTCode{Code: "", Type: CodeNS}
 			}
@@ -862,13 +863,16 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 // Single-candidate → safeChildExpr. Multi-candidate no-sub-wrap →
 // identity (accessor). Multi-candidate with sub-wrap → IIFE that
 // dispatches per candidate and returns `[subIdx, safeExpr]`.
-func emitMergedPropPrepareSafe(mp FlatMergedProp, accessor string, ctx *EmitContext) (string, bool) {
+func emitMergedPropPrepareSafe(mp FlatMergedProp, accessor, discAccessor string, ctx *EmitContext) (string, bool) {
 	if len(mp.Candidates) == 1 {
 		return safeChildExpr(mp.Candidates[0].ChildRef, accessor, ctx)
 	}
 	if !mp.NeedsSubWrap {
 		return accessor, true
 	}
+	// With a usable discriminant, gate each arm by the discriminant value
+	// (stable across round-trip) instead of re-validating the prop value.
+	useDisc := discAccessor != "" && mp.hasDiscDispatch()
 	var arms []string
 	for i, cand := range mp.Candidates {
 		if cand.Resolved == nil {
@@ -878,10 +882,15 @@ func emitMergedPropPrepareSafe(mp FlatMergedProp, accessor string, ctx *EmitCont
 		if !ok {
 			return "", false
 		}
-		validateExpr := unionMemberValidateCheck(cand.Resolved, ctx, accessor)
-		guard := validateExpr
-		if isObjectLikeKind(cand.Resolved.Kind) {
-			guard = objectGuard(accessor, validateExpr)
+		guard := ""
+		if useDisc {
+			guard = discCandidateGuard(discAccessor, cand)
+		} else {
+			validateExpr := unionMemberValidateCheck(cand.Resolved, ctx, accessor)
+			guard = validateExpr
+			if isObjectLikeKind(cand.Resolved.Kind) {
+				guard = objectGuard(accessor, validateExpr)
+			}
 		}
 		arms = append(arms, "if ("+guard+") return ["+strconv.Itoa(i)+", "+candExpr+"];")
 	}

@@ -44,8 +44,8 @@ export const RUNTYPES_DTS = `declare module 'ts-runtypes' {
   export function deserializeValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
   export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
   export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
-  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'};
-  export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct' | 'compact'};
+  export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve' | 'compact'};
   export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
   export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
   export function overrideValidate<T>(fn: PureFunction<(v: unknown) => boolean>, id?: InjectTypeFnArgs<T, 'val'>): void;
