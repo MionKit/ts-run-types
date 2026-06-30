@@ -57,6 +57,10 @@ idempotent and skips when already satisfied:
   every file under `cmd/` + `internal/`).
 - Builds `packages/runtypes-devtools/dist` (the marker package's typecheck
   consumes it; required for `pnpm test` and both smokes).
+- Creates the dev `.env` from `.env.sample` if missing, then runs
+  `pnpm run check:env` to report env-var status. `.env` is DEV-ONLY (git-ignored,
+  never loaded in CI); basic dev needs no env vars, `GHCR_PAT` is only for pushing
+  the shared image, and CI secrets (`NPM_TOKEN`, `CLOUDFLARE_*`) are set in GitHub.
 
 Pass `--check` to report status only, never install or build anything.
 
