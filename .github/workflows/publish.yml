@@ -93,7 +93,7 @@ jobs:
       contents: read
       packages: read
     env:
-      PAGES_PROJECT: runtypes-docs
+      PAGES_PROJECT: runtypes
     steps:
       - uses: actions/checkout@v5
         with:
