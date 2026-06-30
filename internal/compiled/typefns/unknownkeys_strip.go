@@ -97,6 +97,11 @@ func emitObjectStripUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 				"if (" + unknownVar + ") {for (const " + keyVar + " of " + unknownVar + ") {delete " + v + "[" + keyVar + "]}}"
 		}
 	}
+	// Publish the sibling-named-prop set so the index-sig sweep skips named
+	// props (the parent handles them separately); see the matching uku emit.
+	if hasIndex {
+		publishSiblingNamedKeysForIndexSig(rt, ctx)
+	}
 	childrenCode := unknownKeysChildrenCode(rt, ctx)
 	combined := joinSemicolons(parentCode, childrenCode)
 	if combined == "" {
@@ -145,6 +150,15 @@ func emitIndexSignatureStripUnknownKeys(rt *protocol.RunType, ctx *EmitContext) 
 	if childRT.Type == CodeNS {
 		return RTCode{Code: "", Type: CodeNS}
 	}
+	// Skip sibling named props: the parent strips them separately, and running
+	// the index-value strip on a named prop corrupts it (and a primitive named
+	// value's for-in enumerates spurious character-index keys). Unconditional,
+	// mirroring emitIndexSignatureUnknownKeysToUndefined.
+	siblingSkip := ""
+	siblingSet := siblingNamedKeysCtxKey(rt)
+	if ctx.HasContextItem(siblingSet) {
+		siblingSkip = "if (" + siblingSet + ".has(" + prop + ")) continue;"
+	}
 	patternStrip := ""
 	if keyRegexVar != "" {
 		patternStrip = "if (!" + keyRegexVar + ".test(" + prop + ")) {delete " + v + "[" + prop + "]; continue;}"
@@ -152,7 +166,7 @@ func emitIndexSignatureStripUnknownKeys(rt *protocol.RunType, ctx *EmitContext) 
 	if patternStrip == "" && childRT.Code == "" {
 		return RTCode{Code: "", Type: CodeS}
 	}
-	body := "for (const " + prop + " in " + v + ") {" + patternStrip + childRT.Code + "}"
+	body := "for (const " + prop + " in " + v + ") {" + siblingSkip + patternStrip + childRT.Code + "}"
 	return RTCode{Code: body, Type: CodeS}
 }
 

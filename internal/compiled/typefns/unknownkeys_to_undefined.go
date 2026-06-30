@@ -162,23 +162,30 @@ func emitIndexSignatureUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitCon
 	if childRT.Type == CodeNS {
 		return RTCode{Code: "", Type: CodeNS}
 	}
+	// When the index sig's parent published a sibling-named-prop set (see
+	// publishSiblingNamedKeysForIndexSig in emitObjectUnknownKeysToUndefined),
+	// the for-in sweep MUST skip those named keys entirely: the parent already
+	// processes each named prop separately, and running the index-VALUE logic on
+	// a named prop both corrupts it (its keys get measured against the index
+	// value's allowlist) and, when the named value is a primitive/string, makes
+	// the inner `for…in` enumerate the string's character indices — which on a
+	// long value overflows the unknown-keys cap and throws. Skip is unconditional
+	// (not gated on the template-literal regex path).
+	siblingSkip := ""
+	siblingSet := siblingNamedKeysCtxKey(rt)
+	if ctx.HasContextItem(siblingSet) {
+		siblingSkip = "if (" + siblingSet + ".has(" + prop + ")) continue;"
+	}
 	patternUndef := ""
 	if keyRegexVar != "" {
-		// When the index sig's parent published a sibling-named-prop
-		// set (see publishSiblingNamedKeysForIndexSig in
-		// emitObjectUnknownKeysToUndefined), exempt those keys from
-		// the regex-undefine sweep.
-		siblingSet := siblingNamedKeysCtxKey(rt)
-		guard := "!" + keyRegexVar + ".test(" + prop + ")"
-		if ctx.HasContextItem(siblingSet) {
-			guard = "!" + siblingSet + ".has(" + prop + ") && " + guard
-		}
-		patternUndef = "if (" + guard + ") {" + v + "[" + prop + "] = undefined; continue;}"
+		// Template-literal index keys also undefine keys that don't match the
+		// key pattern (the sibling skip above already exempted named props).
+		patternUndef = "if (!" + keyRegexVar + ".test(" + prop + ")) {" + v + "[" + prop + "] = undefined; continue;}"
 	}
 	if patternUndef == "" && childRT.Code == "" {
 		return RTCode{Code: "", Type: CodeS}
 	}
-	body := "for (const " + prop + " in " + v + ") {" + patternUndef + childRT.Code + "}"
+	body := "for (const " + prop + " in " + v + ") {" + siblingSkip + patternUndef + childRT.Code + "}"
 	return RTCode{Code: body, Type: CodeS}
 }
 

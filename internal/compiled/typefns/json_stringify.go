@@ -159,15 +159,30 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		// (ref: stringifyJson.ts:90-91) — `Never type cannot be stringified.`
 		return RTCode{Code: "", Type: CodeNS}
 
-	case protocol.KindNull, protocol.KindNumber:
+	case protocol.KindNumber:
 		// (ref: stringifyJson.ts:92-99) — at root, `String(v)` wraps
 		// the value into a JS string so the RT fn returns a
 		// JSON-parseable result. At non-root, the bare `v` works
-		// because the parent concatenates with `+` (auto-stringifies).
+		// because the parent concatenates with `+` (auto-stringifies)
+		// AND a number coerces correctly under `Array.join(',')`.
 		if ctx.IsRoot() {
 			return RTCode{Code: "String(" + v + ")", Type: CodeE}
 		}
 		return RTCode{Code: v, Type: CodeE}
+
+	case protocol.KindNull:
+		// At root, `String(null)` is the JSON document `"null"`. At
+		// non-root, emit the CONSTANT `'null'` string rather than the
+		// bare value: a bare `null` is fine under `+` concatenation
+		// (object / tuple slots) but `Array.prototype.join(',')` coerces
+		// null to the empty string, so the array / set push+join path
+		// would render `[null,null]` as `[,]` (invalid JSON). The `'null'`
+		// literal is correct in every parent context (a `null`-typed slot
+		// only ever holds null).
+		if ctx.IsRoot() {
+			return RTCode{Code: "String(" + v + ")", Type: CodeE}
+		}
+		return RTCode{Code: "'null'", Type: CodeE}
 
 	case protocol.KindRegexp:
 		// (ref: stringifyJson.ts:102-104).
@@ -193,8 +208,18 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		return RTCode{Code: "null", Type: CodeE}
 
 	case protocol.KindVoid:
-		// (ref: stringifyJson.ts:120-121).
-		return RTCode{Code: "undefined", Type: CodeE}
+		// (ref: stringifyJson.ts:120-121) — void normalises to `undefined`,
+		// so it needs the SAME three-way branch as KindUndefined above: at
+		// root emit `undefined`; in an array / Set parent emit the constant
+		// `'null'` (a bare `undefined` would coerce to '' under `.join(',')`
+		// and corrupt the array, e.g. `[,]`); else emit `null`.
+		if ctx.IsRoot() {
+			return RTCode{Code: "undefined", Type: CodeE}
+		}
+		if parentIsArrayLike(ctx) {
+			return RTCode{Code: "'null'", Type: CodeE}
+		}
+		return RTCode{Code: "null", Type: CodeE}
 
 	case protocol.KindArray:
 		return emitArrayStringifyJson(rt, ctx, v)
@@ -410,8 +435,15 @@ func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) R
 		// or empty string. The outer wrap filters the empties out
 		// and rejoins with `,`.
 		parts := make([]string, 0, len(pending))
-		setSkipCommas(ctx, true)
 		for _, p := range pending {
+			// Re-establish skipCommas INSIDE the loop, per iteration: a
+			// nested-object value child runs its own prop loop and clears
+			// sjSkipCommas at its end, so a single set-before-loop would let
+			// a later sibling capture the stale `false` and bake a trailing
+			// comma into its fragment (invalid JSON after filter+join).
+			// Mirrors the per-iteration set in the at-least-one-required
+			// path below.
+			setSkipCommas(ctx, true)
 			childRT := ctx.CompileChild(p.ref, CodeE)
 			if childRT.Type == CodeNS {
 				clearSkipCommas(ctx)
@@ -807,10 +839,14 @@ func emitNativeIterableStringifyJson(rt *protocol.RunType, ctx *EmitContext, v s
 
 // --- Helpers ----------------------------------------------------------
 
-// parentIsArrayLike — true when the closest stack frame above us is
-// an array / tuple. Used by the undefined emit to choose between
-// `'null'` (array slot — JSON requires a literal) and `null` (object
-// property — the property emit's optional-guard handles wrapping).
+// parentIsArrayLike — true when the closest stack frame above us is an
+// array / tuple / native iterable (Map / Set). Used by the undefined +
+// void emit to choose between `'null'` (a JSON literal that survives the
+// `[...].join(',')` the array + Set wires use — a bare `null`/`undefined`
+// would coerce to ” there and corrupt the array) and `null` (object
+// property — the property emit's optional-guard handles wrapping, and
+// object / Map-entry wires concatenate with `+`, which stringifies null
+// correctly). Map / Set parents are KindClass with the Map/Set subkind.
 func parentIsArrayLike(ctx *EmitContext) bool {
 	if ctx.walker == nil || len(ctx.walker.Stack) < 2 {
 		return false
@@ -822,6 +858,8 @@ func parentIsArrayLike(ctx *EmitContext) bool {
 	switch parent.Kind {
 	case protocol.KindArray, protocol.KindTuple, protocol.KindTupleMember:
 		return true
+	case protocol.KindClass:
+		return parent.SubKind == protocol.SubKindMap || parent.SubKind == protocol.SubKindSet
 	}
 	return false
 }
