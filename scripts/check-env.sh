@@ -48,32 +48,33 @@ print_status() {
   [ -f "$ROOT_DIR/.env" ] && have_env="yes" || have_env="no"
   [ -n "${CI:-}" ] && ci_state="yes" || ci_state="no"
   printf "RunTypes env vars   (.env present: %s   CI: %s)\n\n" "$have_env" "$ci_state"
-  printf "  %-24s %-4s %-7s %-14s %s\n" NAME SET SCOPE NEEDED-FOR DESCRIPTION
-  printf "  %-24s %-4s %-7s %-14s %s\n" "------------------------" "---" "-------" "-------------" "-----------"
+  printf "  %-30s %-4s %-8s %-14s %s\n" NAME SET SCOPE NEEDED-FOR DESCRIPTION
+  printf "  %-30s %-4s %-8s %-14s %s\n" "------------------------------" "---" "--------" "-------------" "-----------"
   while IFS='|' read -r name scope task desc; do
-    [ -z "$name" ] && continue
+    case "$name" in ''|\#*) continue ;; esac   # skip blank + #-comment section lines
     if is_set "$name"; then set="yes"; else set="-"; fi
-    printf "  %-24s %-4s %-7s %-14s %s\n" "$name" "$set" "$scope" "$task" "$desc"
+    printf "  %-30s %-4s %-8s %-14s %s\n" "$name" "$set" "$scope" "$task" "$desc"
   done < <(rt_env_registry)
   printf "\n${DIM}dev vars are local knobs in .env (cp .env.sample .env). secret vars (GHCR_PAT,${NC}\n"
   printf "${DIM}NPM_TOKEN, CLOUDFLARE_*) go in .env to run a step from local, or are GitHub secrets in CI.${NC}\n"
+  printf "${DIM}internal vars are set by the scripts themselves (container paths / plumbing) - do NOT put them in .env.${NC}\n"
 }
 
 # verify_task TASK -> 0 if its dev requirements are met, else 1 (prints guidance)
 verify_task() {
   case "$1" in
     push-image)
-      if is_set GHCR_PAT || { is_set GHCR_PAT_FILE && [ -f "${GHCR_PAT_FILE}" ]; }; then
+      if is_set GHCR_PAT; then
         printf "${GREEN}ok${NC} push-image: GHCR token is configured.\n"; return 0
       fi
-      printf "${RED}missing${NC} push-image needs GHCR_PAT (write:packages), or GHCR_PAT_FILE pointing at a token file.\n"
+      printf "${RED}missing${NC} push-image needs GHCR_PAT (write:packages).\n"
       printf "   fix: scripts/check-env.sh --create-env   then set GHCR_PAT=... in .env\n"
       return 1 ;;
     publish-npm)
-      if is_set NPM_TOKEN || is_set NODE_AUTH_TOKEN; then
-        printf "${GREEN}ok${NC} publish-npm: an npm token is set for a local publish. In CI it is the NPM_TOKEN secret.\n"; return 0
+      if is_set NPM_TOKEN; then
+        printf "${GREEN}ok${NC} publish-npm: NPM_TOKEN is set for a local publish. In CI it is the NPM_TOKEN secret.\n"; return 0
       fi
-      printf "publish-npm: no npm token in .env. To publish from local set NPM_TOKEN, or run scripts/publish.sh (interactive npm login). In CI it is the NPM_TOKEN secret.\n"
+      printf "publish-npm: no NPM_TOKEN in .env. Set NPM_TOKEN to publish from local; in CI it is the NPM_TOKEN secret.\n"
       return 0 ;;
     deploy-website)
       local miss=""

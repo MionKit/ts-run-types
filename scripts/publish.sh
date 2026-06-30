@@ -6,20 +6,29 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# Load the repo-root .env (dev only) so NPM_TOKEN is available for the publish auth.
+source "$(dirname "${BASH_SOURCE[0]}")/lib-env.sh"
+
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
 echo -e "${GREEN}  ts-runtypes publish${NC}"
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
 
-# ── Check npm auth ──
+# ── npm auth (single source: NPM_TOKEN in .env) ──
 echo ""
-echo -e "${GREEN}[1/4] Checking npm authentication...${NC}"
+echo -e "${GREEN}[1/5] Configuring npm authentication...${NC}"
 echo "──────────────────────────────────────────"
-if ! NPM_USER=$(npm whoami --no-interactive 2>/dev/null); then
-  echo -e "${RED}Not logged in to npm. Run 'npm login' first.${NC}"
+if [ -z "${NPM_TOKEN:-}" ]; then
+  echo -e "${RED}NPM_TOKEN is not set. Put NPM_TOKEN=<npm automation token> in .env (cp .env.sample .env).${NC}"
   exit 1
 fi
-echo -e "Logged in as: ${GREEN}${NPM_USER}${NC}"
+npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+NPM_USER=$(npm whoami 2>/dev/null || true)
+if [ -n "$NPM_USER" ]; then
+  echo -e "Authenticated as: ${GREEN}${NPM_USER}${NC}"
+else
+  echo -e "${GREEN}npm token configured${NC}"
+fi
 
 # ── Check clean working tree ──
 echo ""

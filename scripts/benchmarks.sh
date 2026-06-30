@@ -41,7 +41,7 @@
 #   (default)  run commands PULL the latest published shared image first.
 #   RT_BENCH_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline).
 #   RT_BENCH_REMOTE_IMAGE  remote ref (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest).
-#   GHCR_OWNER / GHCR_USER / GHCR_PAT / GHCR_PAT_FILE  (see scripts/lib-ghcr.sh).
+#   GHCR_OWNER / GHCR_USER / GHCR_PAT  (see scripts/lib-ghcr.sh).
 #   RT_BENCH_CA_CERT  file/dir of extra CA certs (corporate/MITM proxy), forwarded to the build.
 #   RT_BENCH_BASE_IMAGE / RT_BENCH_PNPM_VERSION  forwarded to the podman-website.sh build.
 #   RT_BENCH_NO_TIMING=1 / RT_BENCH_TIME_MS=N  correctness-only / per-cell window.
@@ -453,7 +453,7 @@ cmd_smoke() {
 }
 
 # Cross-library validation alignment audit (analysis only, no timing). Builds +
-# runs every competitor with AUDIT_ALIGNMENT=1 so each emits results/<name>.alignment.json
+# runs every competitor with RT_AUDIT_ALIGNMENT=1 so each emits results/<name>.alignment.json
 # (every place its validator disagrees with the SHARED ts-runtypes samples), then
 # joins + classifies them on the host. Produces results/alignment-misalignments.json,
 # _audit/findings/, and _audit/classification-summary.json. See
@@ -464,7 +464,7 @@ cmd_audit() {
   local competitor
   for competitor in $(competitor_list); do
     echo "-------- audit: $competitor --------"
-    run_in_container sh -c "cd competitors/$competitor && pnpm run build && AUDIT_ALIGNMENT=1 node dist/run.mjs" \
+    run_in_container sh -c "cd competitors/$competitor && pnpm run build && RT_AUDIT_ALIGNMENT=1 node dist/run.mjs" \
       || echo "==> audit '$competitor' FAILED (build or run) - see output above"
   done
   echo "-------- aggregate + classify (host) --------"

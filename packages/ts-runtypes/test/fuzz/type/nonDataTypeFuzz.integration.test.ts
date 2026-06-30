@@ -50,14 +50,14 @@ describe('fuzz / DataOnly non-data lane — serialize-or-fail contract over non-
     120_000
   );
 
-  // Autonomous soak: opt-in via FUZZ_NONDATA_SOAK_MS=<ms>.
-  const soakMs = Number(process.env.FUZZ_NONDATA_SOAK_MS ?? 0);
+  // Autonomous soak: opt-in via RT_FUZZ_NONDATA_SOAK_MS=<ms>.
+  const soakMs = Number(process.env.RT_FUZZ_NONDATA_SOAK_MS ?? 0);
   it.runIf(soakMs > 0)(
     'soak — generate non-data types continuously and log all findings',
     async () => {
       const report = await runTypeFuzzForDuration(
         soakMs,
-        {seed: Number(process.env.FUZZ_SEED ?? 1), gen: NONDATA_GEN_OPTIONS, valueSource: 'mock'},
+        {seed: Number(process.env.RT_FUZZ_SEED ?? 1), gen: NONDATA_GEN_OPTIONS, valueSource: 'mock'},
         (v) => {
           console.error(`[nondata-fuzz][${v.oracle}/${v.phase}] ${v.target} (seed=${v.seed}): ${v.message}\n    ${v.value}`);
         }
