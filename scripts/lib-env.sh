@@ -42,6 +42,9 @@ NPM_TOKEN|secret|publish-npm|npm token to publish from local (set in .env); the 
 CLOUDFLARE_API_TOKEN|secret|deploy-website|Cloudflare Pages: Edit token; .env for a local deploy, a GitHub secret in CI
 CLOUDFLARE_ACCOUNT_ID|secret|deploy-website|Cloudflare account id; .env for a local deploy, a GitHub secret in CI
 
+# --- deploy config (non-secret) ---
+CLOUDFLARE_PAGES_PROJECT|dev|deploy-website|Cloudflare Pages project name (default runtypes); .env for a local deploy, set in publish.yml for CI
+
 # --- GHCR coordinates (defaults already target this repo) ---
 GHCR_OWNER|dev|-|GHCR namespace (default mionkit)
 GHCR_USER|dev|-|GHCR login user (cosmetic; the PAT authenticates; default M-jerez)
