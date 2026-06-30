@@ -2,8 +2,8 @@ name: prod · release gate
 
 # Reusable gate shared by pre-publish.yml (PR -> prod) and publish.yml (push ->
 # prod), so a release PR and the merge that lands it run the IDENTICAL checks:
-#   build         - the full main gate (Go + JS suites incl. fuzz, lint,
-#                   typecheck, format) on Linux, then build every package + the
+#   build         - the full main gate (Go suite + gofmt/vet, JS suite incl. fuzz,
+#                   lint, typecheck, format) on Linux, then build every package + the
 #                   7-platform binary matrix and pack the tarballs.
 #   e2e           - install the PUBLISHED packages from a local verdaccio and run
 #                   the consumer suite, one full run per OS, plus a cheap
@@ -50,6 +50,15 @@ jobs:
         run: echo "version=$(node -p "require('./lerna.json').version")" >> "$GITHUB_OUTPUT"
       - name: Go test suite
         run: go test ./internal/...
+      - name: Go formatting + vet (our code only; never third_party)
+        run: |
+          unformatted="$(gofmt -l cmd internal)"
+          if [ -n "$unformatted" ]; then
+            echo "These Go files are not gofmt-clean (run: gofmt -w cmd internal):" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+          go vet ./cmd/... ./internal/...
       - name: Full JS suite (builds the resolver + dists via pretest; runs fuzz)
         run: pnpm test
       # Re-run the full main gate here too (lint/typecheck/format) so a prod PR

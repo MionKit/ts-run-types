@@ -88,12 +88,13 @@ jobs:
   verify:          # ubuntu-latest
     - checkout (submodules: recursive) -> ./.github/actions/bootstrap
     - go test ./internal/...
+    - gofmt -l cmd internal (fail if non-empty) + go vet ./cmd/... ./internal/...
     - pnpm test            # pretest builds bin/ts-runtypes + dists; runs the fuzz integration specs
     - pnpm run lint        # lerna run lint + typecheck
     - pnpm run check-format
 
   container-smoke: # path-gated: only when container/**, scripts/website.sh, scripts/benchmarks.sh change
-    - pull the prebuilt shared image from GHCR
+    - build the shared image locally (WEBSITE_USE_LOCAL + BENCH_USE_LOCAL; no GHCR auth)
     - pnpm run website:smoke
     - pnpm run bench:smoke   # ONLY after its exit-code bug is fixed (see Prerequisite fixes)
 ```
@@ -104,7 +105,7 @@ Today's `release-build-test.yml` jobs, plus two new ones so a prod PR runs
 everything pre-publish should:
 
 ```
-build         : full main gate (go test + pnpm test incl. fuzz + pnpm run lint + pnpm run check-format) + pnpm run build + build-binary-packages.mjs (7 platforms) + pack-artifacts.mjs -> upload `tarballs` artifact
+build         : full main gate (go test + gofmt/vet + pnpm test incl. fuzz + pnpm run lint + pnpm run check-format) + pnpm run build + build-binary-packages.mjs (7 platforms) + pack-artifacts.mjs -> upload `tarballs` artifact
 e2e (matrix)  : linux-x64 / darwin-arm64 / win32-x64 -> verdaccio install of published pkgs -> npm test
 exec-smoke    : linux-arm64 / linux-arm under QEMU -> ts-runtypes --version
 benchmarks    : bootstrap -> benchmarks.sh prep/bench/typecost   (local image build, no GHCR auth)
