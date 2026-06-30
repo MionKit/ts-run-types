@@ -51,6 +51,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Load the repo-root .env (dev only) so RT_WEBSITE_USE_LOCAL etc. apply here too.
+source "$SCRIPT_DIR/lib-env.sh"
+
 # generate = static prerender -> .output/public (Cloudflare Pages default).
 # build    = SSR/nitro build  -> .output         (needs a server runtime).
 # --quick  = fast/preview benchmark stage (RT_BENCH_QUICK=1) for a two-staged site;
