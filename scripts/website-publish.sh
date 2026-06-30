@@ -23,13 +23,13 @@
 #
 # Stage 4 is HEAVY (runtime benchmarks for every competitor + serialization +
 # compile-time tiers) and stage 3 benchmarks every suite case; a full run is many
-# minutes. Pass --quick (BENCH_QUICK=1) for the fast/preview path - this is a
+# minutes. Pass --quick (RT_BENCH_QUICK=1) for the fast/preview path - this is a
 # publish, not a dev loop.
 #
 # IMAGE SOURCE follows the same knobs as the sibling scripts. By default the
 # shared image is pulled-or-built (ensure) so CI and local never drift. Set
-# WEBSITE_USE_LOCAL=1 to force a local image build instead (maintainer/offline);
-# the orchestrator mirrors that onto the benchmark stage's BENCH_USE_LOCAL knob
+# RT_WEBSITE_USE_LOCAL=1 to force a local image build instead (maintainer/offline);
+# the orchestrator mirrors that onto the benchmark stage's RT_BENCH_USE_LOCAL knob
 # so every stage uses the SAME image source.
 #
 # OUTPUT: a static site at container/website/.output/public - point Cloudflare
@@ -45,7 +45,7 @@
 #   scripts/website-publish.sh --no-bench # SKIP stages 3+4; reuse the suite-data +
 #                                         #   bench-data already on disk (rebuild
 #                                         #   only). Errors if that data is absent.
-#   WEBSITE_USE_LOCAL=1 scripts/website-publish.sh   # force a local image build
+#   RT_WEBSITE_USE_LOCAL=1 scripts/website-publish.sh   # force a local image build
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
@@ -53,13 +53,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # generate = static prerender -> .output/public (Cloudflare Pages default).
 # build    = SSR/nitro build  -> .output         (needs a server runtime).
-# --quick  = fast/preview benchmark stage (BENCH_QUICK=1) for a two-staged site;
+# --quick  = fast/preview benchmark stage (RT_BENCH_QUICK=1) for a two-staged site;
 #            stage 3 then maps it onto every benchmark's native quick lever.
 TARGET=generate
 SKIP_BENCH=
 for arg in "$@"; do
   case "$arg" in
-    --quick)        export BENCH_QUICK=1 ;;
+    --quick)        export RT_BENCH_QUICK=1 ;;
     --no-bench)     SKIP_BENCH=1 ;;
     generate|build) TARGET="$arg" ;;
     *) echo "website-publish: unknown arg '$arg' (want: [generate|build] [--quick] [--no-bench])" >&2; exit 2 ;;
@@ -67,11 +67,11 @@ for arg in "$@"; do
 done
 
 # One USE_LOCAL knob across both child scripts: podman-website.sh / website.sh
-# read WEBSITE_USE_LOCAL; benchmarks.sh reads BENCH_USE_LOCAL (its run_manager
-# maps it back onto WEBSITE_USE_LOCAL). Mirror whichever is set so a single knob
+# read RT_WEBSITE_USE_LOCAL; benchmarks.sh reads RT_BENCH_USE_LOCAL (its run_manager
+# maps it back onto RT_WEBSITE_USE_LOCAL). Mirror whichever is set so a single knob
 # steers the whole run and the stages can't pick different images.
-if [ -n "${WEBSITE_USE_LOCAL:-}" ] || [ -n "${BENCH_USE_LOCAL:-}" ]; then
-  export WEBSITE_USE_LOCAL=1 BENCH_USE_LOCAL=1
+if [ -n "${RT_WEBSITE_USE_LOCAL:-}" ] || [ -n "${RT_BENCH_USE_LOCAL:-}" ]; then
+  export RT_WEBSITE_USE_LOCAL=1 RT_BENCH_USE_LOCAL=1
 fi
 
 step() { printf '\n========== website:publish  %s ==========\n' "$1"; }
@@ -109,7 +109,7 @@ bash "$SCRIPT_DIR/benchmarks.sh" prep
 # Stages 3+4 regenerate the git-ignored data the pages fetch: suite-data (the
 # validation/serialization test-page examples) and bench-data (the benchmark
 # numbers). --no-bench SKIPS both and reuses what is already on disk (presence
-# verified up front by require_bench_artifacts). Both honor BENCH_QUICK and both
+# verified up front by require_bench_artifacts). Both honor RT_BENCH_QUICK and both
 # need the stage-2 binary + dists.
 if [ -n "$SKIP_BENCH" ]; then
   step "3+4/5  SKIPPED (--no-bench): reusing existing suite-data + bench-data"
@@ -149,7 +149,7 @@ if [ "$TARGET" = "generate" ] && [ -d "$OUTPUT_DIR/public" ]; then
 fi
 
 echo
-echo "==> website:publish DONE (target: $TARGET${BENCH_QUICK:+, quick benchmarks}${SKIP_BENCH:+, no-bench: reused suite+bench data})"
+echo "==> website:publish DONE (target: $TARGET${RT_BENCH_QUICK:+, quick benchmarks}${SKIP_BENCH:+, no-bench: reused suite+bench data})"
 if [ "$TARGET" = "generate" ]; then
   echo "    static site:   container/website/.output/public"
   if [ -f "$OUTPUT_DIR/site.zip" ]; then echo "    static zip:    container/website/.output/site.zip"; fi

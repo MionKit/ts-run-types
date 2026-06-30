@@ -9,7 +9,7 @@ import url from 'node:url';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const COMP = path.join(HERE, 'competitors');
-const RESULTS = process.env.BENCH_RESULTS_DIR ?? path.join(HERE, 'results');
+const RESULTS = process.env.RT_BENCH_RESULTS_DIR ?? path.join(HERE, 'results');
 
 // competitor dir -> the npm package whose version represents that competitor.
 const LIBS = {

@@ -30,12 +30,12 @@ if [ -z "${RT_ENV_LOADED:-}" ]; then
   fi
 fi
 
-ENGINE="${WEBSITE_ENGINE:-podman}"
+ENGINE="${RT_WEBSITE_ENGINE:-podman}"
 # The single shared image. Built/published by podman-website.sh; run by website.sh
 # (at /app) and benchmarks.sh (at /bench).
-IMAGE="${WEBSITE_IMAGE:-tsrt-website:dev}"
-CONTAINER_BASE="${WEBSITE_CONTAINER:-tsrt-website}"
-MOUNT_OPTS="${WEBSITE_MOUNT_OPTS:-}"
+IMAGE="${RT_WEBSITE_IMAGE:-tsrt-website:dev}"
+CONTAINER_BASE="${RT_WEBSITE_CONTAINER:-tsrt-website}"
+MOUNT_OPTS="${RT_WEBSITE_MOUNT_OPTS:-}"
 
 # Named volumes hold Nuxt's generated caches (run side) so restarts stay fast and
 # the host tree is never written to; podman-website.sh:clean drops them with the image.

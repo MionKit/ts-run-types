@@ -20,7 +20,7 @@
 
 ## Development
 - The site only runs **inside its podman container** — from the host, drive it with [`scripts/website.sh`](../scripts/website.sh), not the raw `pnpm run dev` below (those are the in-container scripts).
-- **Agents: start it with `scripts/website.sh dev --isAgent`** — a separate container (`tsrt-website-agent`) on port **`:3100`** that self-stops after ~5 min idle, so it never collides with a human's `:3000` server or lingers. Plain `scripts/website.sh dev` is the human-facing `:3000` server. Hot-reload polling auto-enables on macOS (`WEBSITE_POLL=1` forces it anywhere). See the [website-browser skill](../.claude/skills/website-browser/SKILL.md) for browser-driven verification.
+- **Agents: start it with `scripts/website.sh dev --isAgent`** — a separate container (`tsrt-website-agent`) on port **`:3100`** that self-stops after ~5 min idle, so it never collides with a human's `:3000` server or lingers. Plain `scripts/website.sh dev` is the human-facing `:3000` server. Hot-reload polling auto-enables on macOS (`RT_WEBSITE_POLL=1` forces it anywhere). See the [website-browser skill](../.claude/skills/website-browser/SKILL.md) for browser-driven verification.
 - Start dev server: `pnpm run dev` (runs on `http://localhost:3000`)
 - Fresh start: `pnpm run dev:fresh` (cleans `.nuxt`, `.data`, `.output` first)
 - Build requires all mion packages built first: `pnpm run build` (runs `pnpm run build` at monorepo root, then `nuxt build`)

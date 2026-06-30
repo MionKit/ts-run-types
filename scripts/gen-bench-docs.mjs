@@ -28,7 +28,7 @@ import ts from 'typescript';
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
 const BENCH_DIR = path.join(REPO_ROOT, 'container/benchmarks');
-const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? path.join(BENCH_DIR, 'results');
+const RESULTS_DIR = process.env.RT_BENCH_RESULTS_DIR ?? path.join(BENCH_DIR, 'results');
 const COMPETITORS_DIR = path.join(BENCH_DIR, 'competitors');
 const OUT_ROOT = path.join(REPO_ROOT, 'container/website/public/bench-data');
 

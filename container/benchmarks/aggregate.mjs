@@ -10,7 +10,7 @@
 import {readdirSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 
-const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? path.resolve(process.cwd(), 'results');
+const RESULTS_DIR = process.env.RT_BENCH_RESULTS_DIR ?? path.resolve(process.cwd(), 'results');
 const PREFERRED = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
 
 const COL = 16;

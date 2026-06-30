@@ -289,7 +289,7 @@ earns its keep.
    preserving move; the existing typecost tests (if any) keep passing.
 2. **Scaffold the driver.** `container/benchmarks/compiletime/compiletime.mjs`
    alongside the existing `typecost/typecost.mjs`. Reuse the bench's existing
-   `RESULTS_DIR` + `BENCH_CASE` env conventions.
+   `RESULTS_DIR` + `RT_BENCH_CASE` env conventions.
 3. **Wire per-competitor builds.** Each competitor exposes a small helper
    `buildProbe(probePath): Promise<void>` in its competitor dir (ts-runtypes
    via Vite + the plugin; typia via esbuild + ttsc; zod/typebox/ajv via plain
