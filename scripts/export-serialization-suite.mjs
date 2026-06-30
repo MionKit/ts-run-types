@@ -27,6 +27,7 @@
 // Single-file orchestrator on purpose — see the matching header
 // comment in export-validation-suite.mjs.
 
+import './lib-env.mjs'; // load .env (dev) so RT_BENCH_* knobs apply when run directly
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

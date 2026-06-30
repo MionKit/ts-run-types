@@ -9,6 +9,7 @@
 //   --provenance      add npm provenance (real npm publish in CI; needs
 //                     id-token:write + NODE_AUTH_TOKEN).
 
+import './lib-env.mjs'; // load .env (dev) so a local `npm publish` sees NODE_AUTH_TOKEN
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
