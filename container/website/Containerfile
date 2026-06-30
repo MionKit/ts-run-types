@@ -103,6 +103,20 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd /bench/competitors/typia && pnpm install --no-frozen-lockfile \
     || echo ">> typia install failed; its column degrades gracefully (left blank that run; BENCH_NO_TYPIA=1 skips it)"
 
+# Pre-compile typia's native ttsc plugin so node_modules/.ttsc is BAKED into the
+# image. Otherwise it compiles (~90-200s) at the first runtime build. The plugin is
+# keyed on typia's version (not the caller's types), so a trivial probe warms it and
+# the real bench build reuses it. Needs network (downloads ttsc's embedded Go
+# toolchain) - available during build. Non-fatal: on failure typia just recompiles
+# the plugin at runtime, exactly as before.
+RUN cd /bench/competitors/typia \
+ && printf 'import typia from "typia";\nexport const _ttscWarm = typia.createIs<{ a: number; b: string }>();\n' > .ttsc-warm.ts \
+ && printf '{"compilerOptions":{"strict":true,"plugins":[{"transform":"typia/lib/transform"}]},"include":[".ttsc-warm.ts"]}' > tsconfig.ttsc-warm.json \
+ && node --input-type=module -e 'import {build} from "esbuild"; import ttsc from "@ttsc/unplugin/esbuild"; await build({entryPoints:[".ttsc-warm.ts"],bundle:true,write:false,format:"esm",platform:"node",target:"node22",logLevel:"info",tsconfig:"tsconfig.ttsc-warm.json",plugins:[ttsc({project:"tsconfig.ttsc-warm.json"})]});' \
+ && rm -f .ttsc-warm.ts tsconfig.ttsc-warm.json \
+ && test -d node_modules/.ttsc \
+ || echo ">> ttsc warm skipped/failed; typia recompiles its plugin at the first runtime build"
+
 # typecost runner: its own TypeScript install (it drives the compiler API). The
 # marker package it type-resolves against is bind-mounted into the ts-runtypes
 # competitor at run time (see scripts/benchmarks.sh:mount_args).
@@ -115,6 +129,5 @@ EXPOSE 3000
 
 # No CMD: scripts/website.sh (WORKDIR /app) and scripts/benchmarks.sh (WORKDIR
 # /bench) each bind-mount their first-party source and supply the command. typia's
-# first ttsc build compiles its native plugin (~200s) into
-# /bench/competitors/typia/node_modules/.ttsc at run time; that subpath is a
-# persisted named volume so the compile happens once.
+# native ttsc plugin is pre-compiled into /bench/competitors/typia/node_modules/.ttsc
+# above (baked into the image), so the bench build reuses it with no runtime compile.
