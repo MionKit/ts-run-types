@@ -2,7 +2,7 @@ name: ci
 
 # The gate on main (the stable development branch). Runs on every PR to main and
 # on push to main (post-merge confirmation):
-#   verify          - Go tests, the full JS suite (which builds the resolver
+#   verify          - Go tests + gofmt/vet, the full JS suite (which builds the resolver
 #                     binary + dists via pretest and runs the fuzz integration
 #                     specs at default iteration counts), lint + typecheck, format.
 #   container-smoke - website serves-a-page + benchmark competitor-build smoke in
@@ -33,6 +33,15 @@ jobs:
       - uses: ./.github/actions/bootstrap
       - name: Go test suite
         run: go test ./internal/...
+      - name: Go formatting + vet (our code only; never third_party)
+        run: |
+          unformatted="$(gofmt -l cmd internal)"
+          if [ -n "$unformatted" ]; then
+            echo "These Go files are not gofmt-clean (run: gofmt -w cmd internal):" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+          go vet ./cmd/... ./internal/...
       # pretest (check-stale-builds.sh) builds bin/ts-runtypes + the marker/plugin
       # dists; the run includes the *.integration.test.ts fuzz specs.
       - name: Full JS suite (builds the resolver + dists via pretest; runs fuzz)
