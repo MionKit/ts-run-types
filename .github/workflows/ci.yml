@@ -9,11 +9,13 @@ name: ci
 #      serves-a-page + benchmark competitor-build smoke. It reuses the bootstrap,
 #      Go binary, and dists already built above instead of standing up a second
 #      job that repeats that work. The smoke PULLS the prebuilt shared image
-#      (competitor deps incl. typia are baked into it) and mounts our freshly
-#      built binary - so it neither rebuilds the deps nor re-downloads typia. It
-#      only forces a fresh LOCAL image build when the baked deps themselves
-#      change (the `image` filter), and otherwise falls back to a local build if
-#      the image can't be pulled.
+#      (competitor node_modules are baked in) and mounts our freshly built binary,
+#      so it skips the dep install. It only forces a fresh LOCAL image build when
+#      the baked deps themselves change (the `image` filter), and otherwise falls
+#      back to a local build if the image can't be pulled. typia is skipped
+#      (BENCH_NO_TYPIA) because its native plugin compiles ~200s at run time and is
+#      neither baked into the image nor cached across CI runs; the prod gate's
+#      `benchmarks` job is where typia is exercised.
 on:
   pull_request:
     branches: [main]
@@ -98,8 +100,13 @@ jobs:
         env:
           WEBSITE_USE_LOCAL: ${{ steps.changes.outputs.image == 'true' && '1' || '' }}
         run: pnpm run website:smoke
+      # BENCH_NO_TYPIA: typia's native plugin compiles ~200s at build time into a
+      # .ttsc volume that does NOT persist across CI runs (and is not baked into the
+      # image), so it would recompile every run. Skip it in this fast smoke; the
+      # prod gate's `benchmarks` job exercises typia before release.
       - name: Benchmark competitor-build smoke
         if: steps.changes.outputs.smoke == 'true'
         env:
           BENCH_USE_LOCAL: ${{ steps.changes.outputs.image == 'true' && '1' || '' }}
+          BENCH_NO_TYPIA: '1'
         run: pnpm run bench:smoke
