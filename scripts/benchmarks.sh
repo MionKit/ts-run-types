@@ -233,19 +233,19 @@ host_cpu() {
 }
 
 env_args() {
-  printf -- '-e\nBENCH_RESULTS_DIR=/bench/results\n'
+  printf -- '-e\nRT_BENCH_RESULTS_DIR=/bench/results\n'
   local hostCpu; hostCpu="$(host_cpu)"
-  [ -n "$hostCpu" ] && printf -- '-e\nBENCH_HOST_CPU=%s\n' "$hostCpu"
-  [ -n "${RT_BENCH_NO_TIMING:-}" ] && printf -- '-e\nBENCH_NO_TIMING=%s\n' "$RT_BENCH_NO_TIMING"
-  [ -n "${RT_BENCH_TIME_MS:-}" ]   && printf -- '-e\nBENCH_TIME_MS=%s\n' "$RT_BENCH_TIME_MS"
+  [ -n "$hostCpu" ] && printf -- '-e\nRT_BENCH_HOST_CPU=%s\n' "$hostCpu"
+  [ -n "${RT_BENCH_NO_TIMING:-}" ] && printf -- '-e\nRT_BENCH_NO_TIMING=%s\n' "$RT_BENCH_NO_TIMING"
+  [ -n "${RT_BENCH_TIME_MS:-}" ]   && printf -- '-e\nRT_BENCH_TIME_MS=%s\n' "$RT_BENCH_TIME_MS"
   # Inspection knobs: RT_BENCH_CASE=<substr> restricts BOTH the runtime bench and
   # typecost to matching cases; RT_BENCH_DUMP=<exact.key> prints typecost probe sources.
-  [ -n "${RT_BENCH_CASE:-}" ] && printf -- '-e\nBENCH_CASE=%s\n' "$RT_BENCH_CASE"
-  [ -n "${RT_BENCH_DUMP:-}" ] && printf -- '-e\nBENCH_DUMP=%s\n' "$RT_BENCH_DUMP"
+  [ -n "${RT_BENCH_CASE:-}" ] && printf -- '-e\nRT_BENCH_CASE=%s\n' "$RT_BENCH_CASE"
+  [ -n "${RT_BENCH_DUMP:-}" ] && printf -- '-e\nRT_BENCH_DUMP=%s\n' "$RT_BENCH_DUMP"
   # compile-time bench: per-section repeat count (median of N, drop top+bottom).
-  [ -n "${RT_COMPILETIME_N:-}" ] && printf -- '-e\nCOMPILETIME_N=%s\n' "$RT_COMPILETIME_N"
+  [ -n "${RT_COMPILETIME_N:-}" ] && printf -- '-e\nRT_COMPILETIME_N=%s\n' "$RT_COMPILETIME_N"
   # Fast/preview mode flag - runners that have their own quick lever read it.
-  [ "${RT_BENCH_QUICK:-}" = 1 ] && printf -- '-e\nBENCH_QUICK=1\n'
+  [ "${RT_BENCH_QUICK:-}" = 1 ] && printf -- '-e\nRT_BENCH_QUICK=1\n'
   return 0
 }
 
