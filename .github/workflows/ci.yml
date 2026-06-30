@@ -1,0 +1,91 @@
+name: ci
+
+# The gate on main (the stable development branch). Runs on every PR to main and
+# on push to main (post-merge confirmation):
+#   verify          - Go tests, the full JS suite (which builds the resolver
+#                     binary + dists via pretest and runs the fuzz integration
+#                     specs at default iteration counts), lint + typecheck, format.
+#   container-smoke - website serves-a-page + benchmark competitor-build smoke in
+#                     the shared podman image. PATH-GATED (see `changes`): it only
+#                     runs when the container inputs change, since it is heavy
+#                     (drives podman) and the main fast-path should stay quick.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: lint + typecheck + Go & JS suites (incl. fuzz)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/bootstrap
+      - name: Go test suite
+        run: go test ./internal/...
+      # pretest (check-stale-builds.sh) builds bin/ts-runtypes + the marker/plugin
+      # dists; the run includes the *.integration.test.ts fuzz specs.
+      - name: Full JS suite (builds the resolver + dists via pretest; runs fuzz)
+        run: pnpm test
+      # Runs after pnpm test so the dists typecheck reads are already in place.
+      - name: Lint + typecheck
+        run: pnpm run lint
+      - name: Check formatting
+        run: pnpm run check-format
+
+  changes:
+    name: detect container changes
+    runs-on: ubuntu-latest
+    # Job-level permissions REPLACE the workflow default, so both are listed:
+    # contents:read for checkout, pull-requests:read for paths-filter on PRs.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      container: ${{ steps.filter.outputs.container }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            container:
+              - 'container/**'
+              - 'scripts/website.sh'
+              - 'scripts/benchmarks.sh'
+              - 'scripts/podman-website.sh'
+              - 'scripts/lib-container.sh'
+              - 'scripts/lib-ghcr.sh'
+
+  container-smoke:
+    name: website + benchmark container smoke
+    needs: changes
+    if: needs.changes.outputs.container == 'true'
+    runs-on: ubuntu-latest
+    # Build the shared image locally: deterministic, needs no GHCR auth, and when
+    # container inputs change you WANT a freshly built image, not a stale pull.
+    # website:smoke reads WEBSITE_USE_LOCAL; bench:smoke reads BENCH_USE_LOCAL.
+    env:
+      WEBSITE_USE_LOCAL: '1'
+      BENCH_USE_LOCAL: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/bootstrap
+      - name: podman version
+        run: podman --version
+      - name: Website serves-a-page smoke
+        run: pnpm run website:smoke
+      - name: Benchmark competitor-build smoke
+        run: pnpm run bench:smoke
