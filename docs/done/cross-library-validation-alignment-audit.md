@@ -403,9 +403,9 @@ minimum, maximum}` is the closest analogue. Verify the competitor case
    sixth bucket `BUILDER_THREW` because the cause is usually different (a
    library can't translate the TS type at all, vs. it ran but disagreed).
 6. **Does the audit run on the suite as-is, or also on a `pnpm run bench` in
-   `BENCH_NO_TIMING=1` mode?** Timing is irrelevant for the audit; the
+   `RT_BENCH_NO_TIMING=1` mode?** Timing is irrelevant for the audit; the
    correctness checks the runner already does are exactly what we want.
-   Almost certainly worth threading `BENCH_NO_TIMING=1` so the audit is
+   Almost certainly worth threading `RT_BENCH_NO_TIMING=1` so the audit is
    cheap to re-run on every iteration.
 7. **What about realworld cases?** `realworld/` cases are bigger and use
    richer types. They're the most likely to surface

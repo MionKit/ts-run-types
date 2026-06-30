@@ -17,7 +17,7 @@
 import {readdirSync, readFileSync, writeFileSync, mkdirSync} from 'node:fs';
 import path from 'node:path';
 
-const RESULTS_DIR = process.env.BENCH_RESULTS_DIR ?? path.resolve(process.cwd(), 'results');
+const RESULTS_DIR = process.env.RT_BENCH_RESULTS_DIR ?? path.resolve(process.cwd(), 'results');
 const OUT_DIR = process.env.AUDIT_OUT_DIR ?? RESULTS_DIR;
 const PREFERRED = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
 

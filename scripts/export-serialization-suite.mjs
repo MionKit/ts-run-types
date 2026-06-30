@@ -85,10 +85,10 @@ const APIS = [
 ];
 
 // Workload knobs. Tune at the top — no CLI flags for now.
-// BENCH_QUICK=1 (preview / two-staged website builds) shrinks the per-case
+// RT_BENCH_QUICK=1 (preview / two-staged website builds) shrinks the per-case
 // benchmarking so the suite-data regenerates fast; numbers get noisy but every
 // case's source + generated code (what the docs fetch) is still emitted.
-const QUICK = process.env.BENCH_QUICK === '1';
+const QUICK = process.env.RT_BENCH_QUICK === '1';
 const OPS_CYCLES = QUICK ? 2 : 10;
 const OPS_ITERS = QUICK ? 150 : 1_000;
 const OPS_WARMUP = QUICK ? 10 : 50;

@@ -37,19 +37,19 @@
 #   scripts/benchmarks.sh pull              # pull the shared published image and tag it locally
 #   scripts/benchmarks.sh clean             # remove the typia .ttsc volume
 #
-# Env: BENCH_ENGINE(podman) BENCH_IMAGE(tsrt-website:dev) BENCH_NO_TYPIA=1(skip typia)
+# Env: RT_BENCH_ENGINE(podman) RT_BENCH_IMAGE(tsrt-website:dev) RT_BENCH_NO_TYPIA=1(skip typia)
 #   (default)  run commands PULL the latest published shared image first.
-#   BENCH_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline).
-#   BENCH_REMOTE_IMAGE  remote ref (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest).
+#   RT_BENCH_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline).
+#   RT_BENCH_REMOTE_IMAGE  remote ref (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest).
 #   GHCR_OWNER / GHCR_USER / GHCR_PAT / GHCR_PAT_FILE  (see scripts/lib-ghcr.sh).
-#   BENCH_CA_CERT  file/dir of extra CA certs (corporate/MITM proxy), forwarded to the build.
-#   BENCH_BASE_IMAGE / BENCH_PNPM_VERSION  forwarded to the podman-website.sh build.
-#   BENCH_NO_TIMING=1 / BENCH_TIME_MS=N  correctness-only / per-cell window.
-#   BENCH_QUICK=1 (or --quick on any command)  fast/preview mode: maps onto every
-#     stage's native lever (short BENCH_TIME_MS, COMPILETIME_N=1, typia skipped,
+#   RT_BENCH_CA_CERT  file/dir of extra CA certs (corporate/MITM proxy), forwarded to the build.
+#   RT_BENCH_BASE_IMAGE / RT_BENCH_PNPM_VERSION  forwarded to the podman-website.sh build.
+#   RT_BENCH_NO_TIMING=1 / RT_BENCH_TIME_MS=N  correctness-only / per-cell window.
+#   RT_BENCH_QUICK=1 (or --quick on any command)  fast/preview mode: maps onto every
+#     stage's native lever (short RT_BENCH_TIME_MS, RT_COMPILETIME_N=1, typia skipped,
 #     serialization iters reduced). Numbers are noisy; every panel still renders.
 #     Any explicitly-set lever wins over the quick default. For two-staged sites.
-#   BENCH_BUILD_NETWORK / BENCH_RUN_NETWORK / BENCH_MOUNT_OPTS
+#   RT_BENCH_BUILD_NETWORK / RT_BENCH_RUN_NETWORK / RT_BENCH_MOUNT_OPTS
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
@@ -58,21 +58,21 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BENCH_DIR="$ROOT_DIR/container/benchmarks"
 MANAGER_SH="$SCRIPT_DIR/podman-website.sh"
 
-ENGINE="${BENCH_ENGINE:-podman}"
+ENGINE="${RT_BENCH_ENGINE:-podman}"
 # The benchmark half of the shared website+benchmark image (built by podman-website.sh).
-IMAGE="${BENCH_IMAGE:-tsrt-website:dev}"
-CONTAINER_BASE="${BENCH_CONTAINER:-tsrt-bench}"
-MOUNT_OPTS="${BENCH_MOUNT_OPTS:-}"
-RUN_NETWORK="${BENCH_RUN_NETWORK:-}"
+IMAGE="${RT_BENCH_IMAGE:-tsrt-website:dev}"
+CONTAINER_BASE="${RT_BENCH_CONTAINER:-tsrt-bench}"
+MOUNT_OPTS="${RT_BENCH_MOUNT_OPTS:-}"
+RUN_NETWORK="${RT_BENCH_RUN_NETWORK:-}"
 RESULTS_DIR="$BENCH_DIR/results"
 
 # Canonical results dir the docs website reads from (mounted read-only there).
 # Benchmark JSON is published into <docdata>/benchmarks after each run.
-DOCDATA_DIR="${BENCH_DOCDATA:-$ROOT_DIR/.docdata}"
+DOCDATA_DIR="${RT_BENCH_DOCDATA:-$ROOT_DIR/.docdata}"
 
 # Named volume persisting typia's one-time native-plugin compile (.ttsc) across
 # --rm runs (node_modules itself is baked into the image; only .ttsc must survive).
-VOL_TTSC="${BENCH_CONTAINER:-tsrt-bench}-typia-ttsc"
+VOL_TTSC="${RT_BENCH_CONTAINER:-tsrt-bench}-typia-ttsc"
 
 MARKER_PKG="$ROOT_DIR/packages/ts-runtypes"
 PLUGIN_PKG="$ROOT_DIR/packages/runtypes-devtools"
@@ -83,17 +83,17 @@ PLUGIN_PKG="$ROOT_DIR/packages/runtypes-devtools"
 BIN_PKG="$ROOT_DIR/packages/ts-runtypes-bin"
 
 # GHCR remote ref of the shared image (the same one podman-website.sh publishes). Run
-# commands pull it by default; BENCH_USE_LOCAL=1 builds/uses a local image instead.
+# commands pull it by default; RT_BENCH_USE_LOCAL=1 builds/uses a local image instead.
 source "$SCRIPT_DIR/lib-ghcr.sh"
-REMOTE_IMAGE="${BENCH_REMOTE_IMAGE:-$GHCR_REGISTRY/$GHCR_OWNER/tsrt-website:latest}"
+REMOTE_IMAGE="${RT_BENCH_REMOTE_IMAGE:-$GHCR_REGISTRY/$GHCR_OWNER/tsrt-website:latest}"
 
 # Competitors run in this order. typia is included by default: each competitor
 # installs in isolation (its own package.json + node_modules), and a failed typia
 # build/run degrades gracefully (build_and_run_one logs + continues, leaving its
-# column blank). Set BENCH_NO_TYPIA=1 to skip it where its native plugin won't build.
+# column blank). Set RT_BENCH_NO_TYPIA=1 to skip it where its native plugin won't build.
 competitor_list() {
   printf '%s\n' ts-runtypes zod typebox ajv
-  [ -z "${BENCH_NO_TYPIA:-}" ] && printf '%s\n' typia
+  [ -z "${RT_BENCH_NO_TYPIA:-}" ] && printf '%s\n' typia
   return 0
 }
 
@@ -130,13 +130,13 @@ ensure_artifacts() {
 # the bench env mapped onto podman-website.sh's knobs, so the shared image has one owner.
 run_manager() {
   (
-    export WEBSITE_IMAGE="$IMAGE" WEBSITE_REMOTE_IMAGE="$REMOTE_IMAGE"
-    if [ -n "${BENCH_ENGINE:-}" ];        then export WEBSITE_ENGINE="$BENCH_ENGINE"; fi
-    if [ -n "${BENCH_BASE_IMAGE:-}" ];    then export WEBSITE_BASE_IMAGE="$BENCH_BASE_IMAGE"; fi
-    if [ -n "${BENCH_PNPM_VERSION:-}" ];  then export WEBSITE_PNPM_VERSION="$BENCH_PNPM_VERSION"; fi
-    if [ -n "${BENCH_CA_CERT:-}" ];       then export WEBSITE_CA_CERT="$BENCH_CA_CERT"; fi
-    if [ -n "${BENCH_BUILD_NETWORK:-}" ]; then export WEBSITE_BUILD_NETWORK="$BENCH_BUILD_NETWORK"; fi
-    if [ -n "${BENCH_USE_LOCAL:-}" ];     then export WEBSITE_USE_LOCAL=1; fi
+    export RT_WEBSITE_IMAGE="$IMAGE" RT_WEBSITE_REMOTE_IMAGE="$REMOTE_IMAGE"
+    if [ -n "${RT_BENCH_ENGINE:-}" ];        then export RT_WEBSITE_ENGINE="$RT_BENCH_ENGINE"; fi
+    if [ -n "${RT_BENCH_BASE_IMAGE:-}" ];    then export RT_WEBSITE_BASE_IMAGE="$RT_BENCH_BASE_IMAGE"; fi
+    if [ -n "${RT_BENCH_PNPM_VERSION:-}" ];  then export RT_WEBSITE_PNPM_VERSION="$RT_BENCH_PNPM_VERSION"; fi
+    if [ -n "${RT_BENCH_CA_CERT:-}" ];       then export RT_WEBSITE_CA_CERT="$RT_BENCH_CA_CERT"; fi
+    if [ -n "${RT_BENCH_BUILD_NETWORK:-}" ]; then export RT_WEBSITE_BUILD_NETWORK="$RT_BENCH_BUILD_NETWORK"; fi
+    if [ -n "${RT_BENCH_USE_LOCAL:-}" ];     then export RT_WEBSITE_USE_LOCAL=1; fi
     bash "$MANAGER_SH" "$@"
   )
 }
@@ -146,7 +146,7 @@ build_image()         { run_manager build-image; }
 cmd_login()           { run_manager login; }
 cmd_push()            { run_manager push; }
 cmd_pull()            { run_manager pull; }
-# Make the shared image ready (pull-or-build, honoring BENCH_USE_LOCAL) without running.
+# Make the shared image ready (pull-or-build, honoring RT_BENCH_USE_LOCAL) without running.
 ensure_shared_image() { run_manager ensure; }
 
 ensure_prereqs() {
@@ -236,16 +236,16 @@ env_args() {
   printf -- '-e\nBENCH_RESULTS_DIR=/bench/results\n'
   local hostCpu; hostCpu="$(host_cpu)"
   [ -n "$hostCpu" ] && printf -- '-e\nBENCH_HOST_CPU=%s\n' "$hostCpu"
-  [ -n "${BENCH_NO_TIMING:-}" ] && printf -- '-e\nBENCH_NO_TIMING=%s\n' "$BENCH_NO_TIMING"
-  [ -n "${BENCH_TIME_MS:-}" ]   && printf -- '-e\nBENCH_TIME_MS=%s\n' "$BENCH_TIME_MS"
-  # Inspection knobs: BENCH_CASE=<substr> restricts BOTH the runtime bench and
-  # typecost to matching cases; BENCH_DUMP=<exact.key> prints typecost probe sources.
-  [ -n "${BENCH_CASE:-}" ] && printf -- '-e\nBENCH_CASE=%s\n' "$BENCH_CASE"
-  [ -n "${BENCH_DUMP:-}" ] && printf -- '-e\nBENCH_DUMP=%s\n' "$BENCH_DUMP"
+  [ -n "${RT_BENCH_NO_TIMING:-}" ] && printf -- '-e\nBENCH_NO_TIMING=%s\n' "$RT_BENCH_NO_TIMING"
+  [ -n "${RT_BENCH_TIME_MS:-}" ]   && printf -- '-e\nBENCH_TIME_MS=%s\n' "$RT_BENCH_TIME_MS"
+  # Inspection knobs: RT_BENCH_CASE=<substr> restricts BOTH the runtime bench and
+  # typecost to matching cases; RT_BENCH_DUMP=<exact.key> prints typecost probe sources.
+  [ -n "${RT_BENCH_CASE:-}" ] && printf -- '-e\nBENCH_CASE=%s\n' "$RT_BENCH_CASE"
+  [ -n "${RT_BENCH_DUMP:-}" ] && printf -- '-e\nBENCH_DUMP=%s\n' "$RT_BENCH_DUMP"
   # compile-time bench: per-section repeat count (median of N, drop top+bottom).
-  [ -n "${COMPILETIME_N:-}" ] && printf -- '-e\nCOMPILETIME_N=%s\n' "$COMPILETIME_N"
+  [ -n "${RT_COMPILETIME_N:-}" ] && printf -- '-e\nCOMPILETIME_N=%s\n' "$RT_COMPILETIME_N"
   # Fast/preview mode flag - runners that have their own quick lever read it.
-  [ "${BENCH_QUICK:-}" = 1 ] && printf -- '-e\nBENCH_QUICK=1\n'
+  [ "${RT_BENCH_QUICK:-}" = 1 ] && printf -- '-e\nBENCH_QUICK=1\n'
   return 0
 }
 
@@ -287,11 +287,11 @@ publish_docdata() {
 
 cmd_bench() {
   ensure_prereqs
-  # BENCH_CASE inspection run: leave the canonical results JSON untouched.
-  [ -z "${BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; find "$RESULTS_DIR" -maxdepth 1 -name '*.json' ! -name 'env.json' -delete 2>/dev/null || true; }
+  # RT_BENCH_CASE inspection run: leave the canonical results JSON untouched.
+  [ -z "${RT_BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; find "$RESULTS_DIR" -maxdepth 1 -name '*.json' ! -name 'env.json' -delete 2>/dev/null || true; }
   local competitor
   for competitor in $(competitor_list); do build_and_run_one "$competitor"; done
-  [ -n "${BENCH_CASE:-}" ] && { echo "==> BENCH_CASE='$BENCH_CASE': per-case console output above; results JSON, aggregate and docdata left untouched."; return 0; }
+  [ -n "${RT_BENCH_CASE:-}" ] && { echo "==> RT_BENCH_CASE='$RT_BENCH_CASE': per-case console output above; results JSON, aggregate and docdata left untouched."; return 0; }
   echo "-------- aggregate --------"
   run_in_container node aggregate.mjs
   publish_docdata
@@ -300,9 +300,9 @@ cmd_bench() {
 cmd_bench_one() {
   [ -n "${1:-}" ] || die "usage: bench-one <competitor> (ts-runtypes|zod|typebox|ajv|typia)"
   ensure_prereqs
-  [ -z "${BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR/$1.json" 2>/dev/null || true; }
+  [ -z "${RT_BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR/$1.json" 2>/dev/null || true; }
   build_and_run_one "$1"
-  [ -n "${BENCH_CASE:-}" ] && { echo "==> BENCH_CASE='$BENCH_CASE': per-case console output above; results JSON, aggregate and docdata left untouched."; return 0; }
+  [ -n "${RT_BENCH_CASE:-}" ] && { echo "==> RT_BENCH_CASE='$RT_BENCH_CASE': per-case console output above; results JSON, aggregate and docdata left untouched."; return 0; }
   echo "-------- aggregate --------"
   run_in_container node aggregate.mjs
   publish_docdata
@@ -339,13 +339,13 @@ cmd_fullbench() {
 # bind-mounted marker package, the plugin, the Go resolver binary) plus the Linux
 # source extractor (so no Go toolchain is needed in-container). Writes both the
 # serialization and serialization-formats datasets into container/website/public/bench-data
-# (override with BENCH_SERIALIZATION_OUT).
+# (override with RT_BENCH_SERIALIZATION_OUT).
 cmd_serialization() {
   ensure_prereqs
   [ -x "$LINUX_EXTRACT_BIN" ] || die "missing $LINUX_EXTRACT_BIN - run 'scripts/benchmarks.sh prep' first."
   [ -f "$MARKER_PKG/dist/index.js" ] || die "missing marker dist - run 'scripts/benchmarks.sh prep' first."
   [ -f "$PLUGIN_PKG/dist/index.js" ] || die "missing plugin dist - run 'scripts/benchmarks.sh prep' first."
-  local out="${BENCH_SERIALIZATION_OUT:-$ROOT_DIR/container/website/public/bench-data}"
+  local out="${RT_BENCH_SERIALIZATION_OUT:-$ROOT_DIR/container/website/public/bench-data}"
   mkdir -p "$out"
   local tsgo=/bench/competitors/ts-runtypes
   read_lines NARGS < <(net_args)
@@ -379,7 +379,7 @@ cmd_serialization() {
     -e RT_BENCH_OUT_DIR=/bench/bench-out \
     -e RT_BENCH_SSR_NOEXTERNAL=ts-runtypes,runtypes-devtools \
     -e RT_BENCH_CACHE_DIR=false \
-    -e BENCH_QUICK="${BENCH_QUICK:-}" \
+    -e RT_BENCH_QUICK="${RT_BENCH_QUICK:-}" \
     -w "$tsgo" "$IMAGE" \
     sh -c 'node gen-serialization-bench.mjs --suite serialization && node gen-serialization-bench.mjs --suite format-serialization' </dev/null
 }
@@ -427,14 +427,14 @@ cmd_typecost() {
 # whole suite as ONE file, measured on tsgo in three tiers - strip (transpile only),
 # typecheck (--noEmit), and full (type-check + transform + emit the validators). Each
 # runs in its own --rm container with cwd = its dir so tsgo/ttsc/vite resolve from that
-# competitor's node_modules. Override the pair via COMPILETIME_COMPETITORS, the repeat
-# count via COMPILETIME_N.
+# competitor's node_modules. Override the pair via RT_COMPILETIME_COMPETITORS, the repeat
+# count via RT_COMPILETIME_N.
 cmd_compiletime() {
   ensure_prereqs
   mkdir -p "$RESULTS_DIR"
   echo "==> measuring compile-time cost (strip / typecheck / full, whole suite, tsgo) in the container"
   local competitor list
-  list="${COMPILETIME_COMPETITORS:-ts-runtypes typia}"
+  list="${RT_COMPILETIME_COMPETITORS:-ts-runtypes typia}"
   for competitor in $list; do
     # Scoped refresh: only the competitors being run are cleared, so a single-
     # competitor run never drops the other's results.
@@ -478,17 +478,17 @@ cmd_clean() {
   "$ENGINE" volume rm -f "$VOL_TTSC" 2>/dev/null || true
 }
 
-# Map the single BENCH_QUICK knob onto each stage's native lever, so one flag
+# Map the single RT_BENCH_QUICK knob onto each stage's native lever, so one flag
 # speeds up every benchmark. The ${VAR+set} test only fills a lever that is UNSET,
 # so an explicitly-provided value (even empty) always wins over the quick default.
 apply_quick() {
-  [ "${BENCH_QUICK:-}" = 1 ] || return 0
-  [ -z "${BENCH_TIME_MS+set}" ] && BENCH_TIME_MS=20                       # runtime: short per-cell window (vs 100ms)
-  [ -z "${COMPILETIME_N+set}" ] && COMPILETIME_N=1                        # compile-time: single repeat (vs 5)
-  [ -z "${BENCH_NO_TYPIA+set}" ] && BENCH_NO_TYPIA=1                      # skip typia (its native build dominates)
-  [ -z "${COMPILETIME_COMPETITORS+set}" ] && COMPILETIME_COMPETITORS=ts-runtypes
-  export BENCH_QUICK BENCH_TIME_MS COMPILETIME_N BENCH_NO_TYPIA COMPILETIME_COMPETITORS
-  echo "==> BENCH_QUICK on: fast/preview mode (BENCH_TIME_MS=$BENCH_TIME_MS, COMPILETIME_N=$COMPILETIME_N, typia skipped, serialization iters reduced). Numbers are noisy." >&2
+  [ "${RT_BENCH_QUICK:-}" = 1 ] || return 0
+  [ -z "${RT_BENCH_TIME_MS+set}" ] && RT_BENCH_TIME_MS=20                       # runtime: short per-cell window (vs 100ms)
+  [ -z "${RT_COMPILETIME_N+set}" ] && RT_COMPILETIME_N=1                        # compile-time: single repeat (vs 5)
+  [ -z "${RT_BENCH_NO_TYPIA+set}" ] && RT_BENCH_NO_TYPIA=1                      # skip typia (its native build dominates)
+  [ -z "${RT_COMPILETIME_COMPETITORS+set}" ] && RT_COMPILETIME_COMPETITORS=ts-runtypes
+  export RT_BENCH_QUICK RT_BENCH_TIME_MS RT_COMPILETIME_N RT_BENCH_NO_TYPIA RT_COMPILETIME_COMPETITORS
+  echo "==> RT_BENCH_QUICK on: fast/preview mode (RT_BENCH_TIME_MS=$RT_BENCH_TIME_MS, RT_COMPILETIME_N=$RT_COMPILETIME_N, typia skipped, serialization iters reduced). Numbers are noisy." >&2
 }
 
 main() {
@@ -515,12 +515,12 @@ main() {
   esac
 }
 
-# Pull --quick out of the args from any position (sets BENCH_QUICK); everything
+# Pull --quick out of the args from any position (sets RT_BENCH_QUICK); everything
 # else is forwarded to main unchanged.
 ARGS=()
 for arg in "$@"; do
   case "$arg" in
-    --quick) BENCH_QUICK=1 ;;
+    --quick) RT_BENCH_QUICK=1 ;;
     *) ARGS+=("$arg") ;;
   esac
 done
