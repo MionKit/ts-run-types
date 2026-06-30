@@ -48,14 +48,15 @@ print_status() {
   [ -f "$ROOT_DIR/.env" ] && have_env="yes" || have_env="no"
   [ -n "${CI:-}" ] && ci_state="yes" || ci_state="no"
   printf "RunTypes env vars   (.env present: %s   CI: %s)\n\n" "$have_env" "$ci_state"
-  printf "  %-24s %-4s %-5s %-14s %s\n" NAME SET SCOPE NEEDED-FOR DESCRIPTION
-  printf "  %-24s %-4s %-5s %-14s %s\n" "------------------------" "---" "-----" "-------------" "-----------"
+  printf "  %-24s %-4s %-7s %-14s %s\n" NAME SET SCOPE NEEDED-FOR DESCRIPTION
+  printf "  %-24s %-4s %-7s %-14s %s\n" "------------------------" "---" "-------" "-------------" "-----------"
   while IFS='|' read -r name scope task desc; do
     [ -z "$name" ] && continue
     if is_set "$name"; then set="yes"; else set="-"; fi
-    printf "  %-24s %-4s %-5s %-14s %s\n" "$name" "$set" "$scope" "$task" "$desc"
+    printf "  %-24s %-4s %-7s %-14s %s\n" "$name" "$set" "$scope" "$task" "$desc"
   done < <(rt_env_registry)
-  printf "\n${DIM}dev vars go in .env (cp .env.sample .env); ci vars are GitHub repo/Environment secrets.${NC}\n"
+  printf "\n${DIM}dev vars are local knobs in .env (cp .env.sample .env). secret vars (GHCR_PAT,${NC}\n"
+  printf "${DIM}NPM_TOKEN, CLOUDFLARE_*) go in .env to run a step from local, or are GitHub secrets in CI.${NC}\n"
 }
 
 # verify_task TASK -> 0 if its dev requirements are met, else 1 (prints guidance)
@@ -69,9 +70,20 @@ verify_task() {
       printf "   fix: scripts/check-env.sh --create-env   then set GHCR_PAT=... in .env\n"
       return 1 ;;
     publish-npm)
-      printf "publish-npm runs in CI: set the NPM_TOKEN secret in GitHub. Locally, use \`npm login\`.\n"; return 0 ;;
+      if is_set NPM_TOKEN || is_set NODE_AUTH_TOKEN; then
+        printf "${GREEN}ok${NC} publish-npm: an npm token is set for a local publish. In CI it is the NPM_TOKEN secret.\n"; return 0
+      fi
+      printf "publish-npm: no npm token in .env. To publish from local set NPM_TOKEN, or run scripts/publish.sh (interactive npm login). In CI it is the NPM_TOKEN secret.\n"
+      return 0 ;;
     deploy-website)
-      printf "deploy-website runs in CI: set CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID secrets in GitHub.\n"; return 0 ;;
+      local miss=""
+      is_set CLOUDFLARE_API_TOKEN || miss="$miss CLOUDFLARE_API_TOKEN"
+      is_set CLOUDFLARE_ACCOUNT_ID || miss="$miss CLOUDFLARE_ACCOUNT_ID"
+      if [ -z "$miss" ]; then
+        printf "${GREEN}ok${NC} deploy-website: Cloudflare creds are set for a local deploy. In CI they are GitHub secrets.\n"; return 0
+      fi
+      printf "${RED}missing${NC} deploy-website needs:$miss - set them in .env for a local deploy (GitHub secrets in CI).\n"
+      return 1 ;;
     *) printf "${RED}unknown task '%s'${NC}\n" "$1"; usage; return 2 ;;
   esac
 }
