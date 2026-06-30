@@ -42,7 +42,6 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
       - uses: actions/download-artifact@v8
         with:
           name: tarballs
@@ -59,7 +58,7 @@ jobs:
       - name: Publish to npm (platform packages first, launcher, then FE)
         run: node scripts/publish-tarballs.mjs --provenance
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Tag the release (idempotent)
         shell: bash
         run: |

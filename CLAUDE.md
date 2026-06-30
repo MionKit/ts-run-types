@@ -65,6 +65,15 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 - No `@param` / `@returns` in JSDoc; prefer one-liner comments and one-line `if`s.
 - Use meaningful names in Go + TS; avoid one-letter abbreviations like `p`, `c`, `t`; when a struct field has a JSON tag, reuse that name for the local variable. Loop indices (`i`, `k`, `v`) and `err` are fine.
 
+## Environment variables
+
+- **Single source of truth:** `rt_env_registry()` in [scripts/lib-env.sh](scripts/lib-env.sh) lists EVERY env var the project consumes (scripts, containers, CI, tests). `pnpm run check:env` prints it. **Any new env var a script / container / CI step / test reads MUST be added there** — the registry is the contract.
+- **Prefix runtypes-owned vars with `RT_`** (`RT_WEBSITE_*`, `RT_BENCH_*`, `RT_FUZZ_*`, `RT_AUDIT_*`, …). External/standard names keep their conventional spelling because the tools that read them require it: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`, `GHCR_*`, `CI`, `NODE_ENV`, `PORT`.
+- **Three scopes** (the registry's `SCOPE` column): `secret` (credential), `dev` (overridable knob with a default), `internal` (set by the scripts themselves — container paths / plumbing). Mark new vars accordingly.
+- **`.env.sample` mirrors the user-settable rows only** (`secret` + `dev`); add new ones there too. NEVER list an `internal` var in `.env.sample` — setting it breaks the run.
+- **One credential, one load path:** secrets live directly in `.env` (loaded by [scripts/lib-env.sh](scripts/lib-env.sh) / [scripts/lib-env.mjs](scripts/lib-env.mjs)); no file-path alternates or proxy/duplicate names.
+- A var that crosses the host→container or host→CI boundary must be renamed on BOTH ends in the same change (the setter and every reader), or the protocol silently breaks.
+
 ## Development workflow
 
 - After modifying Go sources, rebuild `bin/ts-runtypes` before re-running JS plugin tests; Go-only tests (`go test ./internal/...`) exercise the packages directly and don't need the prebuilt binary.

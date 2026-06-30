@@ -101,13 +101,13 @@ pnpm run fuzz:unit
 # end-to-end sweep over compiled functions (builds binary + plugin first)
 pnpm run fuzz
 
-# autonomous soak: fuzz for 60s, log every finding (set FUZZ_SOAK_MS / FUZZ_SEED)
+# autonomous soak: fuzz for 60s, log every finding (set RT_FUZZ_SOAK_MS / RT_FUZZ_SEED)
 pnpm run fuzz:soak
 
 # Phase 2 — generate random TYPES and sweep both oracle tiers (builds binary first)
 pnpm run fuzz:types
 
-# Phase 2 autonomous soak (set FUZZ_TYPES_SOAK_MS / FUZZ_SEED)
+# Phase 2 autonomous soak (set RT_FUZZ_TYPES_SOAK_MS / RT_FUZZ_SEED)
 pnpm run fuzz:types:soak
 ```
 

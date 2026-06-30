@@ -41,12 +41,12 @@ describe('fuzz / binary size estimate — sound for in-bounds data', () => {
     120_000
   );
 
-  // Autonomous soak: opt-in via FUZZ_SIZE_SOAK_MS=<ms>.
-  const soakMs = Number(process.env.FUZZ_SIZE_SOAK_MS ?? 0);
+  // Autonomous soak: opt-in via RT_FUZZ_SIZE_SOAK_MS=<ms>.
+  const soakMs = Number(process.env.RT_FUZZ_SIZE_SOAK_MS ?? 0);
   it.runIf(soakMs > 0)(
     'soak — generate sized types continuously and log all findings',
     async () => {
-      const report = await runSizeFuzzForDuration(soakMs, {seed: Number(process.env.FUZZ_SEED ?? 1)}, (v) => {
+      const report = await runSizeFuzzForDuration(soakMs, {seed: Number(process.env.RT_FUZZ_SEED ?? 1)}, (v) => {
         console.error(`[size-fuzz][${v.oracle}] ${v.type} (seed=${v.seed}): ${v.message}\n    ${v.value}`);
       });
       console.error(

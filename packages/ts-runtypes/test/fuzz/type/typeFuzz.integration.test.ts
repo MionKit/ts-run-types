@@ -35,12 +35,12 @@ describe('fuzz / type-generation — oracle sweep over generated types', () => {
     120_000
   );
 
-  // Autonomous soak: opt-in via FUZZ_TYPES_SOAK_MS=<ms>.
-  const soakMs = Number(process.env.FUZZ_TYPES_SOAK_MS ?? 0);
+  // Autonomous soak: opt-in via RT_FUZZ_TYPES_SOAK_MS=<ms>.
+  const soakMs = Number(process.env.RT_FUZZ_TYPES_SOAK_MS ?? 0);
   it.runIf(soakMs > 0)(
     'soak — generate types continuously and log all findings',
     async () => {
-      const report = await runTypeFuzzForDuration(soakMs, {seed: Number(process.env.FUZZ_SEED ?? 1)}, (v) => {
+      const report = await runTypeFuzzForDuration(soakMs, {seed: Number(process.env.RT_FUZZ_SEED ?? 1)}, (v) => {
         console.error(`[type-fuzz][${v.oracle}/${v.phase}] ${v.target} (seed=${v.seed}): ${v.message}\n    ${v.value}`);
       });
       console.error(
