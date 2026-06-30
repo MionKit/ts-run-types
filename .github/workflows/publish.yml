@@ -1,29 +1,40 @@
-name: release · publish
+name: prod · publish
 
-# Fires when a release PR lands on a release line. Runs the IDENTICAL build +
-# 7-platform e2e, then — only if all of it passes — publishes to npm and tags.
-# The actual npm push runs in the protected `release` environment, so the
-# automated tag/publish still sits behind a required-reviewer gate.
+# Fires when a release PR lands on prod. Runs the IDENTICAL release gate (build +
+# 7-platform e2e + benchmarks + website build), then - only if all of it passes -
+# publishes to npm + tags, then deploys the docs site to Cloudflare Pages. Both
+# publish steps run in protected environments (required-reviewer gate).
+#
+# VERSION MODEL: the release PR into prod MUST carry the bumped version (committed
+# lerna.json + package.json files). CI never runs `lerna version`; the publish job
+# reads the version from the gate's build job output and tags exactly that.
 on:
   push:
-    branches:
-      - 'release/**'
+    branches: [prod]
 
 permissions:
   contents: read
 
-jobs:
-  build-test:
-    uses: ./.github/workflows/release-build-test.yml
+# One group across the whole release pipeline so the website deploy never races
+# the npm publish on the prod ref; a newer prod push supersedes an in-flight run.
+concurrency:
+  group: release-prod
+  cancel-in-progress: false
 
-  publish:
+jobs:
+  gate:
+    uses: ./.github/workflows/release-gate.yml
+
+  publish-npm:
     name: publish to npm + tag
-    needs: build-test
+    needs: gate
     runs-on: ubuntu-latest
     environment: release
     permissions:
       contents: write # push the release tag
       id-token: write # npm provenance
+    env:
+      VERSION: ${{ needs.gate.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,21 +47,31 @@ jobs:
         with:
           name: tarballs
           path: tarballs
-      - id: version
+      - name: Preflight - refuse to republish an existing version
         shell: bash
-        run: echo "version=$(node -p "require('./lerna.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+          # A missed bump would otherwise 409 mid-sequence after some platform
+          # packages already published. Fail early and cleanly instead.
+          if npm view "ts-runtypes@${VERSION}" version >/dev/null 2>&1; then
+            echo "ts-runtypes@${VERSION} is already on npm. Bump lerna.json on the release PR." >&2
+            exit 1
+          fi
       - name: Publish to npm (platform packages first, launcher, then FE)
         run: node scripts/publish-tarballs.mjs --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Tag the release
+      - name: Tag the release (idempotent)
         shell: bash
         run: |
-          version="${{ steps.version.outputs.version }}"
-          git tag "v${version}"
-          git push origin "v${version}"
+          # Guard so a publish re-run (e.g. retried env approval) doesn't die on a
+          # pre-existing tag after npm publish already succeeded.
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "tag v${VERSION} already exists, skipping"
+          else
+            git tag "v${VERSION}"
+            git push origin "v${VERSION}"
+          fi
       - name: Generate release notes for the new tag (git-cliff)
-        id: release_notes
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
@@ -61,6 +82,38 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          version="${{ steps.version.outputs.version }}"
-          gh release create "v${version}" --title "v${version}" --notes-file RELEASE_NOTES.md
+        run: gh release create "v${VERSION}" --title "v${VERSION}" --notes-file RELEASE_NOTES.md
+
+  deploy-website:
+    name: build + deploy docs to Cloudflare Pages
+    needs: publish-npm
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      PAGES_PROJECT: runtypes-docs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive # the Go resolver + playground WASM need the tsgolint submodule
+      - uses: ./.github/actions/bootstrap
+      - name: podman version
+        run: podman --version
+      # The full pipeline in one command (image + binary + benchmarks + static
+      # site). WEBSITE_USE_LOCAL=1 forces a LOCAL image build and is mirrored onto
+      # the benchmark stage so every stage uses that same locally-built image.
+      - name: Build image + binary + benchmarks + static site
+        run: pnpm run website:publish generate
+        env:
+          WEBSITE_USE_LOCAL: '1'
+      - name: Upload static artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-output-deploy
+          path: container/website/.output/public
+          if-no-files-found: error
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy container/website/.output/public --project-name=${{ env.PAGES_PROJECT }}

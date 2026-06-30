@@ -1,16 +1,16 @@
-name: release · pre-publish checks
+name: prod · pre-publish checks
 
-# Gate on every PR that targets a release line. Runs the full reusable build +
-# 7-platform e2e (build all packages + binaries, install the packed artifacts
-# from a local registry, run the suites on each platform). No publish.
+# Gate on every PR that targets prod (the release line). Runs the full reusable
+# release gate (build all packages + binaries, install the packed artifacts from
+# a local registry and run the consumer e2e on each platform, plus benchmarks and
+# the static website build). No publish, no secrets - safe for fork PRs.
 on:
   pull_request:
-    branches:
-      - 'release/**'
+    branches: [prod]
 
 permissions:
   contents: read
 
 jobs:
-  build-test:
-    uses: ./.github/workflows/release-build-test.yml
+  gate:
+    uses: ./.github/workflows/release-gate.yml
