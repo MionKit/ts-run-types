@@ -41,7 +41,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       - uses: ./.github/actions/bootstrap
@@ -74,7 +74,7 @@ jobs:
         run: node scripts/build-binary-packages.mjs
       - name: Pack every package into tarballs/
         run: node scripts/pack-artifacts.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tarballs
           path: tarballs/
@@ -94,11 +94,11 @@ jobs:
           - {runner: windows-latest, pkg: win32-x64}
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: tarballs
           path: tarballs
@@ -129,11 +129,11 @@ jobs:
           - {platform: linux/arm64, pkg: linux-arm64}
           - {platform: linux/arm/v6, pkg: linux-arm}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: tarballs
           path: tarballs
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
       - name: Exec the ${{ matrix.pkg }} binary under QEMU
         run: |
           # Extract just the binary (package/lib/ts-runtypes) from its tarball.
@@ -152,7 +152,7 @@ jobs:
     env:
       BENCH_USE_LOCAL: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       - uses: ./.github/actions/bootstrap
@@ -178,7 +178,7 @@ jobs:
     env:
       WEBSITE_USE_LOCAL: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: podman version
         run: podman --version
       # Identical to `pnpm run podman-website:build-image` locally.
@@ -188,7 +188,7 @@ jobs:
       - name: Production build inside the container
         run: bash scripts/website.sh build
       - name: Upload build output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: website-output
           path: container/website/.output
