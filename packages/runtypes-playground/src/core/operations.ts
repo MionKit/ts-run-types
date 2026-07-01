@@ -12,6 +12,10 @@ export interface Operation {
   label: string;
   blurb: string;
   needsInput: boolean;
+  // The variable name used when the playground shows the call as real code:
+  // `const <varName> = <factory><MyType>();` in the type column's header/footer
+  // and the "after build" transformed view.
+  varName: string;
 }
 
 export const OPERATIONS: readonly Operation[] = [
@@ -23,6 +27,7 @@ export const OPERATIONS: readonly Operation[] = [
     label: 'createValidate',
     blurb: 'Type guard: returns true when the value matches the type.',
     needsInput: true,
+    varName: 'validate',
   },
   {
     key: 'errors',
@@ -32,6 +37,7 @@ export const OPERATIONS: readonly Operation[] = [
     label: 'createGetValidationErrors',
     blurb: 'Returns the list of validation errors (empty when valid).',
     needsInput: true,
+    varName: 'getErrors',
   },
   {
     key: 'jsonEncoder',
@@ -41,6 +47,7 @@ export const OPERATIONS: readonly Operation[] = [
     label: 'createJsonEncoder',
     blurb: 'Encodes a value into its JSON-safe shape.',
     needsInput: true,
+    varName: 'toJson',
   },
   {
     key: 'jsonDecoder',
@@ -50,6 +57,7 @@ export const OPERATIONS: readonly Operation[] = [
     label: 'createJsonDecoder',
     blurb: 'Decodes JSON back into the data type (encodes your input first, then decodes it).',
     needsInput: true,
+    varName: 'fromJson',
   },
   {
     key: 'binaryEncoder',
@@ -59,6 +67,7 @@ export const OPERATIONS: readonly Operation[] = [
     label: 'createBinaryEncoder',
     blurb: 'Encodes a value into a compact binary buffer (shown as hex).',
     needsInput: true,
+    varName: 'toBinary',
   },
   {
     key: 'binaryDecoder',
@@ -68,15 +77,17 @@ export const OPERATIONS: readonly Operation[] = [
     label: 'createBinaryDecoder',
     blurb: 'Decodes a binary buffer back into the data type (encodes your input first, then decodes it).',
     needsInput: true,
+    varName: 'fromBinary',
   },
   {
     key: 'graph',
-    factory: 'getRunTypeId',
+    factory: 'getRunType',
     fnKey: null,
     kind: 'graph',
     label: 'getRunType',
-    blurb: 'Resolves the type to its RunType (the reflection graph RunTypes generates), shown on the right.',
+    blurb: 'Resolves the type to its RunType. Run to see the resolved RunType object.',
     needsInput: false,
+    varName: 'runType',
   },
 ];
 

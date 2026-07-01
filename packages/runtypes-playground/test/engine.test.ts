@@ -1,5 +1,15 @@
 import {beforeAll, describe, expect, it} from 'vitest';
-import {generatedFunction, generatedModules, mock, mockInvalid, run, setResolver, versions} from '../src/core/index.ts';
+import {
+  factoryCall,
+  factoryImport,
+  generatedCache,
+  mock,
+  mockInvalid,
+  run,
+  setResolver,
+  transformedSource,
+  versions,
+} from '../src/core/index.ts';
 import {assetsBuilt, loadNodeResolver} from './nodeResolver.ts';
 
 // End-to-end engine tests: each resolves <factory><MyType>() via the real WASM
@@ -18,6 +28,29 @@ const TYPE = `type MyType = {
 
 const VALID = {id: 1, name: 'ada', tags: ['math', 'code'], active: true};
 const INVALID = {id: 'not-a-number', name: 'ada', tags: []};
+
+// The surrounding-code templating the type column shows around the user's type
+// (header import + footer call). Pure string helpers - no resolver needed.
+describe('surrounding-code templating', () => {
+  it('factoryImport renders the ts-runtypes import line', () => {
+    expect(factoryImport('createValidate')).toBe("import { createValidate } from 'ts-runtypes';");
+    expect(factoryImport('createJsonEncoder')).toBe("import { createJsonEncoder } from 'ts-runtypes';");
+  });
+
+  it('factoryCall renders the type-first call, appending the injected arg when given', () => {
+    expect(factoryCall('createValidate', 'validate', 'type')).toBe('const validate = createValidate<MyType>();');
+    expect(factoryCall('createValidate', 'validate', 'type', '__rt_a1b_Xk7')).toBe(
+      'const validate = createValidate<MyType>(__rt_a1b_Xk7);'
+    );
+  });
+
+  it('factoryCall renders the value-first (schema) call, injecting after the schema', () => {
+    expect(factoryCall('createValidate', 'validate', 'schema')).toBe('const validate = createValidate(MyType);');
+    expect(factoryCall('createValidate', 'validate', 'schema', '__rt_a1b_Xk7')).toBe(
+      'const validate = createValidate(MyType, __rt_a1b_Xk7);'
+    );
+  });
+});
 
 const ready = assetsBuilt();
 if (!ready) {
@@ -65,11 +98,19 @@ describeIf('playground engine (WASM, live execution)', () => {
     expect(res.decoded).toMatchObject({id: 1, name: 'ada'});
   });
 
-  it('getRunTypeId resolves the RunType graph', async () => {
+  it('getRunType resolves the RunType graph', async () => {
     const res = await run('graph', TYPE);
     if (res.kind !== 'graph') throw new Error('expected graph result');
     expect(res.rootId).toBeTruthy();
     expect(res.runTypes.length).toBeGreaterThan(0);
+  });
+
+  it('generatedCache returns the runtype cache module for getRunType', async () => {
+    const mods = await generatedCache('getRunType', TYPE);
+    // Reflection is a single runtype data bundle module (compact cache, not expanded JSON).
+    expect(mods).toHaveLength(1);
+    expect(mods[0].name).toMatch(/^virtual:rt\/.+\.js$/);
+    expect(mods[0].code).toMatch(/export const __rt_/);
   });
 
   it('createMockType generates a value that validates', async () => {
@@ -121,31 +162,85 @@ const MyType = RT.object({
     expect(res.value).toBe(false);
   });
 
-  it('generated code inlines a NAMED nested type into one self-contained function', async () => {
+  it('generated cache ships a live factory function (emit mode: functions), not a code string', async () => {
+    const mods = await generatedCache('createValidate', TYPE);
+    // A single function type = one named cache module.
+    expect(mods).toHaveLength(1);
+    expect(mods[0].name).toMatch(/^virtual:rt\/.+\.js$/);
+    // The WASM resolver runs EmitFunctions (cmd/ts-runtypes-wasm/main.go), so the
+    // factory rides as a real `function g_…(utl){…}` in the tuple, not an escaped
+    // code string - clearer in the "Generated Cache" view.
+    expect(mods[0].code).toMatch(/export const __rt_/);
+    expect(mods[0].code).toMatch(/function g_[A-Za-z0-9_]+\(utl\)/);
+  });
+
+  it('generated cache returns one named module per family (codecs span several)', async () => {
+    // A JSON codec's composite looks its primitives up at runtime, so the resolver
+    // emits several sibling modules that import each other. The cache view keeps
+    // them as separate named sections (each labeled with its `virtual:rt/…` name)
+    // rather than a single blob.
+    const mods = await generatedCache('createJsonDecoder', TYPE);
+    expect(mods.length).toBeGreaterThan(1);
+    for (const m of mods) {
+      expect(m.name).toMatch(/^virtual:rt\/.+\.js$/);
+      expect(m.code).toMatch(/export const __rt_/);
+    }
+  });
+
+  it('generated cache inlines a NAMED nested type into one self-contained function', async () => {
     // Regression guard for the playground resolver's single-cache config
     // (cmd/ts-runtypes-wasm/main.go: InlineMode allInternal + ModuleMode allSingle).
     // A NAMED nested type is the discriminating case: under the resolver's DEFAULT
     // inline mode a named alias becomes a SEPARATE cache entry and the root validator
     // delegates to it (`...fn(v.outer)`), so the named member's leaf checks land in a
-    // sibling module the generated-code column never reads. allInternal inlines it into
-    // the one shown function. DO NOT relax this to an unnamed `{ ... }` object — those
-    // inline under BOTH modes, so the test would silently stop catching the regression.
+    // sibling module. allInternal inlines it into the one validate module. DO NOT
+    // relax this to an unnamed `{ ... }` object — those inline under BOTH modes, so
+    // the test would silently stop catching the regression.
     const named = `type Inner = { innerField: string; innerNum: number };
 type MyType = { outer: Inner };`;
-    const m = await generatedFunction('createValidate', named);
-    expect(m.code).toBeTruthy();
-    // The named member's leaf checks appear INLINE in the single root function...
-    expect(m.code).toContain('innerField');
-    expect(m.code).toContain('innerNum');
+    const mods = await generatedCache('createValidate', named);
+    // validate is a single family, so one module carrying the whole inlined function.
+    expect(mods).toHaveLength(1);
+    const code = mods[0].code;
+    // The named member's leaf checks appear INLINE in the single cached function...
+    expect(code).toContain('innerField');
+    expect(code).toContain('innerNum');
     // ...and it is self-contained — no delegation to an external sibling entry.
-    expect(m.code).not.toMatch(/\.fn\(/);
+    expect(code).not.toMatch(/\.fn\(/);
   });
 
-  it('generatedModules returns the generated code per family', async () => {
-    const mods = await generatedModules(TYPE);
-    expect(mods.map((m) => m.factory)).toContain('createValidate');
-    const validate = mods.find((m) => m.factory === 'createValidate');
-    expect(validate?.code).toContain('return');
+  it('transformedSource is the real transform: injected import + a clean __rt_ arg (type mode)', async () => {
+    const code = await transformedSource('createValidate', 'validate', TYPE);
+    // The injected virtual-module import the build plugin adds for the entry tuple.
+    expect(code).toMatch(/^import \{__rt_[A-Za-z0-9_]+} from 'virtual:rt\/.+';/m);
+    // The call carries the injected id as a clean trailing arg (slot-filling
+    // `undefined` padding stripped) - no `(undefined, __rt_…)`.
+    expect(code).toMatch(/const validate = createValidate<MyType>\(__rt_[A-Za-z0-9_]+\);/);
+    expect(code).not.toContain('undefined, __rt_');
+    // The user's import + type body survive verbatim.
+    expect(code).toContain("import { createValidate } from 'ts-runtypes';");
+    expect(code).toContain('id: number;');
+  });
+
+  it('transformedSource cleanup is scoped to the call - user code with (undefined, __rt_x) survives', async () => {
+    // A type body containing the exact `(undefined, __rt_…)` pattern the padding
+    // cleanup targets - it must NOT be collapsed (regression guard for the fix
+    // that scopes the cleanup to the factory call line only).
+    const tricky = `type MyType = {value: number};\n// example: someHelper(undefined, __rt_fake123)`;
+    const code = await transformedSource('createValidate', 'validate', tricky);
+    // The user's line is preserved verbatim.
+    expect(code).toContain('someHelper(undefined, __rt_fake123)');
+    // The real factory call still gets the clean injected arg (no undefined padding).
+    expect(code).toMatch(/const validate = createValidate<MyType>\(__rt_[A-Za-z0-9_]+\);/);
+  });
+
+  it('transformedSource injects the id after the schema in the value-first form (mode: schema)', async () => {
+    const schema = `import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
+const MyType = RT.object({id: TF.number(), name: TF.string()});`;
+    const code = await transformedSource('createJsonEncoder', 'toJson', schema, undefined, 'schema');
+    expect(code).toMatch(/^import \{__rt_[A-Za-z0-9_]+} from 'virtual:rt\/.+';/m);
+    expect(code).toMatch(/const toJson = createJsonEncoder\(MyType, __rt_[A-Za-z0-9_]+\);/);
   });
 
   it('handles a circular (recursive) type in both type and schema forms', async () => {

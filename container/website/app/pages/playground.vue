@@ -7,8 +7,8 @@
 // page rather than a content/*.md entry. The site's global header + footer still
 // wrap it.)
 //
-// The content is centered in a UContainer, matching the home page's content width
-// (max-w-(--ui-container), mx-auto, responsive padding).
+// The playground fills the FULL page width (no UContainer max-width / centering)
+// so the three-column editor gets as much horizontal room as possible.
 definePageMeta({ layout: 'fullscreen' });
 useSeoMeta({
   title: 'Playground',
@@ -17,15 +17,15 @@ useSeoMeta({
 </script>
 
 <template>
-  <UContainer class="rt-playground-page">
+  <div class="rt-playground-page">
     <RuntypesPlayground />
-  </UContainer>
+  </div>
 </template>
 
 <style scoped>
 .rt-playground-page {
-  padding-top: 16px;
-  padding-bottom: 16px;
+  width: 100%;
+  padding: 16px;
 }
 </style>
 
