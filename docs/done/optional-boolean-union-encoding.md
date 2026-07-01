@@ -16,7 +16,7 @@ issue (the playground just surfaced the generated code). Full sweep + root cause
 | **E** — binary encoder reuses the JSON union error string | binary-specific `flatUnionEncodeBinaryErrorVar` | (same as B) |
 | **F** — schema-form `RT.circular(self)` spurious CTA001 | function-free `circular(body)` + `self()` marker; MKR001 schema-builder exclusion | `feat(schema): function-free circular(body)` |
 | **record-union envelope elision** — a union whose members ALL round-trip raw (incl. object/record members) still wrapped in `[-1, merged]` / `[armIndex, value]` on JSON. e.g. `Record<string, number> \| {type; isTypeError: true}` shipped a full dispatch + envelope + `rj` module even though decode was empty | `roundTripsRaw` generalises `atomicOnlyJsonIdentity`: `AtomicNeedsTuple = !roundTripsRaw` so the object branch drops its wrap when no member needs a transform; JSON only (binary keeps its discriminant); `ukuWire` adapts to strip the bare object; `unionJsonNoop` restore mirrors it | `fix(typefns): elide JSON union envelope when every member round-trips raw` |
-| tuple optional-slot id collision (regression from A) | `#optional` suffix in the tuple slot id | `fix(typeid): encode optional flag in tuple-slot id` |
+| tuple optional-slot id collision (regression from A) | `?` suffix in the tuple slot id (TS optional idiom) | `fix(typeid): encode optional flag in tuple-slot id` |
 | FE + Go regression coverage | `OptionalUnionEncoding.test.ts` + `RecordUnionEncoding.test.ts` (no top-level or nested `[index,value]` envelope; Date-member contrast keeps it; safe decoder still strips) + `union_flat_layout` / `unknownkeys_union` Go tests | `test(serialization): …` |
 
 **Verified:** ts-runtypes + devtools JS suites green (7472 passed / 31 skipped),

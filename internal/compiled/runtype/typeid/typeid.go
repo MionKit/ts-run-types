@@ -257,17 +257,18 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 			// Optional tuple slots type as `T | undefined`; strip it so the slot id
 			// matches the projected node (serialize.go projectTuple does the same).
 			// Tuple slots carry no memberID/optBit (unlike object props / params), so
-			// the `#optional` suffix keeps optionality in the id — otherwise
-			// `[T, U?]` and `[T, U]` collide (the `|undefined` used to encode it
-			// implicitly, before the strip).
+			// the `?` suffix keeps optionality in the id — otherwise `[T, U?]` and
+			// `[T, U]` collide (the `|undefined` used to encode it implicitly, before
+			// the strip). Rest reuses TS's `...`; variadic keeps a distinct
+			// `#variadic` marker since it can't share `...` with rest.
 			var child string
 			if optional {
-				child = computer.optionalChildID(typeArgument) + "#optional"
+				child = computer.optionalChildID(typeArgument) + "?"
 			} else {
 				child = computer.Compute(typeArgument)
 			}
 			if rest {
-				child += "#rest"
+				child += "..."
 			}
 			if variadic {
 				child += "#variadic"
@@ -508,7 +509,7 @@ func (computer *Computer) signatureID(signature *checker.Signature, kind protoco
 			child = computer.Compute(paramType)
 		}
 		if isRestParam(paramSymbol) {
-			child += "#rest"
+			child += "..."
 		}
 		parts = append(parts, memberID(int(protocol.KindParameter), strconv.Itoa(position), optional, child))
 		position++
@@ -525,7 +526,7 @@ func (computer *Computer) signatureID(signature *checker.Signature, kind protoco
 // tuple (no rest / variadic element). Used to expand a trailing rest-tuple
 // parameter into positional params. Returns ok=false for a tuple carrying a
 // variadic-ish element (a genuine variadic signature), which is kept as a single
-// `#rest` entry instead.
+// `...` entry instead.
 func (computer *Computer) fixedTupleParamIDs(tupleType *checker.Type) ([]string, bool) {
 	typeArguments := computer.typeChecker.GetTypeArguments(tupleType)
 	elementInfos := tupleType.TargetTupleType().ElementInfos()
