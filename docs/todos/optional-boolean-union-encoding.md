@@ -569,14 +569,15 @@ unions prove common.
 Add `flatUnionEncodeBinaryErrorVar` (message `'Can not binary encode union: …'`) and
 use it at [union_flat_binary.go:187](../../internal/compiled/typefns/union_flat_binary.go) instead of the JSON `flatUnionEncodeErrorVar`.
 
-### Step 6 — Fix F: recognise the `RT.circular` callback param as a valid `CompTimeArgs` leaf
+### Step 6 — Fix F: the schema-form `RT.circular(self)` spurious CTA001
 
-Root: `array(item: CompTimeArgs<RunType<T>>)` ([schema/compose.ts:54](../../packages/ts-runtypes/src/schema/compose.ts)) makes
-`checkCompTimeArgs` ([scan.go:848](../../internal/resolver/scan.go)) validate `self` — the circular-callback parameter — which
-`comptimeargs.CheckLiteral` rejects as non-literal → **CTA001 Error** (though codegen
-succeeds). Fix in `internal/comptimeargs` leaf classification: treat an identifier that
-resolves to a `RT.circular`/recursion-builder callback parameter as an allowed schema
-leaf (return `Ok`). Test: value-first recursive schema emits zero diagnostics.
+**Moved to its own spec: [circular-self-marker-no-callback.md](circular-self-marker-no-callback.md).**
+Root: `array(item: CompTimeArgs<RunType<T>>)` makes `checkCompTimeArgs` validate the
+callback parameter `self` (an identifier) → **CTA001 Error** (though codegen succeeds).
+The better fix is the API simplification in that spec — a function-free
+`circular(object({… self() …}))` form using the existing `self()` marker (a builder
+*call*, which passes the literal check), which removes the `self` identifier entirely
+and fixes F at the root. Empirically confirmed: the marker form emits zero diagnostics.
 
 ### Step 7 — Fix G (polish): drop the `prepareForJsonSafe` root forwarder
 
