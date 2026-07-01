@@ -19,7 +19,7 @@ func TestPackageNameForFile_FindsEnclosingName(t *testing.T) {
 	mustMkdir(t, srcDir)
 	writeFile(t, filepath.Join(pkgDir, "package.json"), `{"name": "@scope/published-name"}`)
 
-	got := packageNameForFile(filepath.Join(srcDir, "index.ts"))
+	got := packageNameForFile(filepath.Join(srcDir, "index.ts"), nil)
 	if got != "@scope/published-name" {
 		t.Fatalf("expected @scope/published-name, got %q", got)
 	}
@@ -36,7 +36,7 @@ func TestPackageNameForFile_OnDiskDirNameIgnored(t *testing.T) {
 	mustMkdir(t, srcDir)
 	writeFile(t, filepath.Join(pkgDir, "package.json"), `{"name": "ts-runtypes"}`)
 
-	got := packageNameForFile(filepath.Join(srcDir, "index.ts"))
+	got := packageNameForFile(filepath.Join(srcDir, "index.ts"), nil)
 	if got != "ts-runtypes" {
 		t.Fatalf("expected ts-runtypes, got %q", got)
 	}
@@ -47,7 +47,7 @@ func TestPackageNameForFile_NoPackageJson(t *testing.T) {
 	srcDir := filepath.Join(root, "src")
 	mustMkdir(t, srcDir)
 
-	got := packageNameForFile(filepath.Join(srcDir, "orphan.ts"))
+	got := packageNameForFile(filepath.Join(srcDir, "orphan.ts"), nil)
 	if got != "" {
 		t.Fatalf("expected empty, got %q", got)
 	}
@@ -63,7 +63,7 @@ func TestPackageNameForFile_PackageJsonWithoutName(t *testing.T) {
 	// nameless package.json, not continue up to this one.
 	writeFile(t, filepath.Join(root, "package.json"), `{"name": "monorepo-root"}`)
 
-	got := packageNameForFile(filepath.Join(srcDir, "file.ts"))
+	got := packageNameForFile(filepath.Join(srcDir, "file.ts"), nil)
 	if got != "" {
 		t.Fatalf("expected empty (nameless boundary halts walk), got %q", got)
 	}
@@ -76,7 +76,7 @@ func TestPackageNameForFile_MalformedJson(t *testing.T) {
 	mustMkdir(t, srcDir)
 	writeFile(t, filepath.Join(pkgDir, "package.json"), `{not json`)
 
-	got := packageNameForFile(filepath.Join(srcDir, "file.ts"))
+	got := packageNameForFile(filepath.Join(srcDir, "file.ts"), nil)
 	if got != "" {
 		t.Fatalf("expected empty on malformed json, got %q", got)
 	}
@@ -95,11 +95,11 @@ func TestPackageNameForFile_NestedPackageWins(t *testing.T) {
 	mustMkdir(t, innerSrc)
 	writeFile(t, filepath.Join(innerPkg, "package.json"), `{"name": "@vendor/inner"}`)
 
-	outer := packageNameForFile(filepath.Join(outerSrc, "a.ts"))
+	outer := packageNameForFile(filepath.Join(outerSrc, "a.ts"), nil)
 	if outer != "outer" {
 		t.Fatalf("outer-src: expected outer, got %q", outer)
 	}
-	inner := packageNameForFile(filepath.Join(innerSrc, "b.ts"))
+	inner := packageNameForFile(filepath.Join(innerSrc, "b.ts"), nil)
 	if inner != "@vendor/inner" {
 		t.Fatalf("inner: expected @vendor/inner, got %q", inner)
 	}

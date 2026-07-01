@@ -241,14 +241,20 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		releaseLease()
 		return nil, errors.New("resolver.New: no checker available")
 	}
+	markerOpts := marker.WithDefaults(opts.Marker)
+	// Read package.json for the marker module-of-origin gate through the program's
+	// (possibly overlay/virtual) filesystem, not os.ReadFile — see marker.Options.FS.
+	markerOpts.FS = prog.FS
+	cache := runtype.NewCache(typeChecker, runtype.Options{
+		HashLength: opts.HashLength,
+	})
+	cache.SetFS(prog.FS)
 	return &Resolver{
-		Program: prog,
-		cache: runtype.NewCache(typeChecker, runtype.Options{
-			HashLength: opts.HashLength,
-		}),
+		Program:           prog,
+		cache:             cache,
 		checker:           typeChecker,
 		releaseLease:      releaseLease,
-		marker:            marker.WithDefaults(opts.Marker),
+		marker:            markerOpts,
 		opts:              opts,
 		pureFnHashes:      map[string]string{},
 		scannedFiles:      map[string]struct{}{},
@@ -293,9 +299,13 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 		resolver.releaseLease()
 	}
 	resolver.Program = prog
+	// Keep the marker's package.json FS in sync with the current program's overlay
+	// (setSources installs a fresh program + FS each call).
+	resolver.marker.FS = prog.FS
 	resolver.checker = typeChecker
 	resolver.releaseLease = releaseLease
 	resolver.cache.Rebind(typeChecker)
+	resolver.cache.SetFS(prog.FS)
 	resolver.sites = resolver.sites[:0]
 	resolver.scannedFiles = map[string]struct{}{}
 	resolver.pureFnFileCache = purefns.NewFileCache()

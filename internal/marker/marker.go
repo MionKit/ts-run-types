@@ -22,11 +22,12 @@ package marker
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
+	"github.com/microsoft/typescript-go/shim/tspath"
+	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
 )
 
 // Kind enumerates the marker brands the scanner knows about.
@@ -128,6 +129,14 @@ type Options struct {
 	// Specs, when non-empty, replaces the entire marker set. When empty
 	// WithDefaults fills it with DefaultSpecs().
 	Specs []Spec
+	// FS, when non-nil, is the virtual filesystem the package-name gate reads
+	// package.json through (DeclaredInModule → packageNameForFile). A marker
+	// declared in an OVERLAY / in-memory node_modules package (the wasm
+	// playground, in-memory test overlays) is invisible to os.ReadFile, so
+	// without this the module-of-origin gate fails and the marker's type
+	// argument is lost (T resolves to `unknown`). nil falls back to os.ReadFile
+	// (real on-disk resolution, the plugin path over a user's real node_modules).
+	FS vfspkg.FS
 }
 
 // WithDefaults populates Specs from DefaultSpecs() when empty. Returns
@@ -155,12 +164,12 @@ func DetectAny(typeChecker *checker.Checker, paramType *checker.Type, opts Optio
 	}
 	opts = WithDefaults(opts)
 	for _, spec := range opts.Specs {
-		if typeArgument, ok := matchAliasSpec(paramType, spec); ok {
+		if typeArgument, ok := matchAliasSpec(paramType, spec, opts.FS); ok {
 			return spec.Kind, typeArgument, true
 		}
 		if checker.Type_flags(paramType)&checker.TypeFlagsUnion != 0 {
 			for _, member := range paramType.Types() {
-				if typeArgument, ok := matchAliasSpec(member, spec); ok {
+				if typeArgument, ok := matchAliasSpec(member, spec, opts.FS); ok {
 					return spec.Kind, typeArgument, true
 				}
 			}
@@ -218,7 +227,7 @@ func SpecForKind(opts Options, kind Kind) (Spec, bool) {
 // aliasForSpec returns tsType's alias when its symbol name and declaring
 // module match spec — the shared first layer of every alias-based marker
 // match (DetectAny's Kind matching, the InjectTypeFnArgs fn-key read).
-func aliasForSpec(tsType *checker.Type, spec Spec) (*checker.TypeAlias, bool) {
+func aliasForSpec(tsType *checker.Type, spec Spec, fs vfspkg.FS) (*checker.TypeAlias, bool) {
 	alias := checker.Type_alias(tsType)
 	if alias == nil {
 		return nil, false
@@ -227,14 +236,14 @@ func aliasForSpec(tsType *checker.Type, spec Spec) (*checker.TypeAlias, bool) {
 	if symbol == nil || symbol.Name != spec.Name {
 		return nil, false
 	}
-	if !DeclaredInModule(symbol, spec.Module) {
+	if !DeclaredInModule(symbol, spec.Module, fs) {
 		return nil, false
 	}
 	return alias, true
 }
 
-func matchAliasSpec(tsType *checker.Type, spec Spec) (*checker.Type, bool) {
-	alias, ok := aliasForSpec(tsType, spec)
+func matchAliasSpec(tsType *checker.Type, spec Spec, fs vfspkg.FS) (*checker.Type, bool) {
+	alias, ok := aliasForSpec(tsType, spec, fs)
 	if !ok {
 		return nil, false
 	}
@@ -260,7 +269,7 @@ func FnKeysForInjectTypeFnArgs(typeChecker *checker.Checker, paramType *checker.
 	if !found {
 		return nil, false
 	}
-	if keys, ok := fnKeysFromAlias(paramType, spec); ok {
+	if keys, ok := fnKeysFromAlias(paramType, spec, opts.FS); ok {
 		return keys, true
 	}
 	// An optional `id?:` parameter resolves to `InjectTypeFnArgs<…> | undefined`,
@@ -268,7 +277,7 @@ func FnKeysForInjectTypeFnArgs(typeChecker *checker.Checker, paramType *checker.
 	// union-member walk to find it.
 	if checker.Type_flags(paramType)&checker.TypeFlagsUnion != 0 {
 		for _, member := range paramType.Types() {
-			if keys, ok := fnKeysFromAlias(member, spec); ok {
+			if keys, ok := fnKeysFromAlias(member, spec, opts.FS); ok {
 				return keys, true
 			}
 		}
@@ -284,8 +293,8 @@ func FnKeysForInjectTypeFnArgs(typeChecker *checker.Checker, paramType *checker.
 // caller supplied fewer keys — are skipped, so the same reader handles every
 // arity. Returns ok=false unless tsType carries the matching alias with at
 // least one string-literal Fn argument.
-func fnKeysFromAlias(tsType *checker.Type, spec Spec) ([]string, bool) {
-	alias, ok := aliasForSpec(tsType, spec)
+func fnKeysFromAlias(tsType *checker.Type, spec Spec, fs vfspkg.FS) ([]string, bool) {
+	alias, ok := aliasForSpec(tsType, spec, fs)
 	if !ok {
 		return nil, false
 	}
@@ -343,7 +352,11 @@ func IsFreeTypeParameter(tsType *checker.Type) bool {
 // forcing tests to insert an ambient-module overlay file as a
 // workaround. The package.json walk removes that workaround and uses
 // the same identity check as the rest of the JS ecosystem.
-func DeclaredInModule(symbol *ast.Symbol, module string) bool {
+// The `fs` argument is the resolver's virtual filesystem: when non-nil the
+// package.json walk reads through it (so overlay / in-memory node_modules
+// packages are recognised); nil falls back to os.ReadFile (real on-disk
+// resolution). The ambient-module form needs no filesystem access at all.
+func DeclaredInModule(symbol *ast.Symbol, module string, fs vfspkg.FS) bool {
 	if symbol == nil || module == "" {
 		return false
 	}
@@ -355,66 +368,85 @@ func DeclaredInModule(symbol *ast.Symbol, module string) bool {
 		if sourceFile == nil {
 			continue
 		}
-		if packageNameForFile(sourceFile.FileName()) == module {
+		if packageNameForFile(sourceFile.FileName(), fs) == module {
 			return true
 		}
 	}
 	return false
 }
 
-// packageNameCache memoises directory→package-name results across the
-// life of a resolver process. The on-disk package.json for any given
-// directory doesn't change mid-run, so caching is safe and avoids
-// repeating identical fs walks for every marker-detection call.
-// Storing "" is itself a cached answer (meaning "no package.json found
-// walking up from here").
+// packageNameCache memoises directory→package-name results for the on-disk
+// (os.ReadFile) walk across the life of a resolver process. The on-disk
+// package.json for any given directory doesn't change mid-run, so caching is
+// safe and avoids repeating identical fs walks for every marker-detection call.
+// Storing "" is itself a cached answer (meaning "no package.json found walking
+// up from here"). Only the nil-FS (on-disk) path is cached: overlay/virtual FS
+// reads are already cheap (in-memory) and their contents can change per
+// setSources, so caching them by directory alone would risk cross-overlay
+// staleness.
 var packageNameCache sync.Map // map[string]string
 
-// packageNameForFile returns the `"name"` field of the nearest
-// package.json found by walking parent directories from filePath, or ""
-// when no package.json is found, the file is unreadable, or it has no
-// name. The first package.json hit going up wins — Node's package
-// identity rule. We do NOT keep walking past a package.json that lacks
-// a `"name"` field; that file still declares a package boundary, just a
-// nameless one (so the marker check fails closed for files in such a
-// "package").
-func packageNameForFile(filePath string) string {
+// packageNameForFile returns the `"name"` field of the nearest package.json
+// found by walking parent directories from filePath, or "" when no package.json
+// is found, the file is unreadable, or it has no name. The first package.json
+// hit going up wins — Node's package identity rule. We do NOT keep walking past
+// a package.json that lacks a `"name"` field; that file still declares a package
+// boundary, just a nameless one (so the marker check fails closed for files in
+// such a "package"). When fs is non-nil the walk reads package.json through it
+// (overlay / in-memory packages); nil reads the real on-disk filesystem.
+func packageNameForFile(filePath string, fs vfspkg.FS) string {
 	if filePath == "" {
 		return ""
 	}
-	dir := filepath.Dir(filePath)
-	if cached, ok := packageNameCache.Load(dir); ok {
-		return cached.(string)
+	dir := tspath.GetDirectoryPath(tspath.NormalizePath(filePath))
+	if fs == nil {
+		if cached, ok := packageNameCache.Load(dir); ok {
+			return cached.(string)
+		}
+		name := lookupPackageNameUpward(dir, nil)
+		packageNameCache.Store(dir, name)
+		return name
 	}
-	name := lookupPackageNameUpward(dir)
-	packageNameCache.Store(dir, name)
-	return name
+	return lookupPackageNameUpward(dir, fs)
 }
 
-// lookupPackageNameUpward climbs from dir toward the filesystem root,
-// returning the `"name"` of the first readable package.json it finds.
-// Stops at the root (when filepath.Dir is a fixed point). Returns ""
-// for any of: file does not exist, JSON unparseable, name missing or
-// empty.
-func lookupPackageNameUpward(dir string) string {
+// lookupPackageNameUpward climbs from dir toward the filesystem root, returning
+// the `"name"` of the first readable package.json it finds. Stops at the root
+// (when GetDirectoryPath is a fixed point). Returns "" for any of: file does not
+// exist, JSON unparseable, name missing or empty. Reads through fs when non-nil,
+// otherwise os.ReadFile.
+func lookupPackageNameUpward(dir string, fs vfspkg.FS) string {
 	current := dir
 	for {
-		data, err := os.ReadFile(filepath.Join(current, "package.json"))
-		if err == nil {
+		if content, ok := readPackageJSON(tspath.CombinePaths(current, "package.json"), fs); ok {
 			var pkg struct {
 				Name string `json:"name"`
 			}
-			if err := json.Unmarshal(data, &pkg); err == nil {
+			if err := json.Unmarshal([]byte(content), &pkg); err == nil {
 				return pkg.Name
 			}
 			return ""
 		}
-		parent := filepath.Dir(current)
-		if parent == current {
+		parent := tspath.GetDirectoryPath(current)
+		if parent == current || parent == "" {
 			return ""
 		}
 		current = parent
 	}
+}
+
+// readPackageJSON reads path via fs (overlay / virtual filesystem) when non-nil,
+// otherwise via os.ReadFile (real disk). ok is false when the file is absent or
+// unreadable.
+func readPackageJSON(path string, fs vfspkg.FS) (string, bool) {
+	if fs != nil {
+		return fs.ReadFile(path)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	return string(data), true
 }
 
 // findAmbientModuleName walks the parent chain looking for the nearest
