@@ -70,3 +70,83 @@ createValidate<{a: string}>();
 			kind, protocol.KindObjectLiteral)
 	}
 }
+
+// Regression for the builders.IsRunType FS threading: the reflect-form annotation
+// honoring keeps the UNWRAPPED marker T (not the written `RunType<…>` annotation)
+// only when it recognises the annotation as ts-runtypes' RunType — which needs the
+// package.json gate to read the OVERLAY (builders.IsRunType receives the program
+// FS). Without the FS there, an annotated schema const `const s: RunType<{a}> = …`
+// would override T with the RunType wrapper and reflect the RunType interface
+// (id, kind, …) instead of the modeled `{a: string}`.
+func TestMarkerGate_IsRunTypeReadsOverlayForAnnotatedSchemaConst(t *testing.T) {
+	const idx = `
+export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
+export interface RunType<T = unknown> { id: string; kind: unknown; readonly __rtType?: {t: T}; [k: string]: unknown }
+export function createValidate<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+export function createValidate<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+`
+	const callCode = `import {createValidate, type RunType} from 'ts-runtypes';
+const s: RunType<{a: string}> = null as unknown as RunType<{a: string}>;
+createValidate(s);
+`
+	cwd := tspath.NormalizePath(t.TempDir())
+	overlay := map[string]string{
+		tspath.ResolvePath(cwd, "runtypes.d.ts"):                         ``,
+		tspath.ResolvePath(cwd, "node_modules/ts-runtypes/package.json"): `{"name":"ts-runtypes","exports":{".":"./index.d.ts"}}`,
+		tspath.ResolvePath(cwd, "node_modules/ts-runtypes/index.d.ts"):   idx,
+		tspath.ResolvePath(cwd, "call.ts"):                               callCode,
+	}
+	fileNames := make([]string, 0, len(overlay))
+	for path := range overlay {
+		fileNames = append(fileNames, path)
+	}
+	p, err := program.NewInferred(program.Options{Cwd: cwd, Overlay: overlay, SingleThreaded: true}, fileNames)
+	if err != nil {
+		t.Fatalf("NewInferred: %v", err)
+	}
+	r, err := resolver.New(p, resolver.Options{Cwd: cwd, SingleThreaded: true})
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+	t.Cleanup(r.Close)
+
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}, IncludeRunTypes: true})
+	if resp.Error != "" {
+		t.Fatalf("scan error: %s", resp.Error)
+	}
+	if len(resp.Sites) == 0 {
+		t.Fatalf("no site produced")
+	}
+	rootID := resp.Sites[0].ID
+	var rootKind protocol.ReflectionKind = -1
+	propNames := map[string]bool{}
+	for _, rt := range resp.RunTypes {
+		if rt.ID == rootID {
+			rootKind = rt.Kind
+		}
+		if rt.Name != "" {
+			propNames[rt.Name] = true
+		}
+	}
+	// The modeled type `{a: string}` — an object whose only property is `a`.
+	if rootKind != protocol.KindObjectLiteral {
+		t.Errorf("root resolved to kind %d, want %d (ObjectLiteral) — the annotation was not recognised as RunType via the overlay", rootKind, protocol.KindObjectLiteral)
+	}
+	if !propNames["a"] {
+		t.Errorf("reflected properties %v do not include 'a' — the modeled type was not resolved", keysOf(propNames))
+	}
+	// Must NOT have dragged in the RunType wrapper interface.
+	for _, wrapperProp := range []string{"kind", "__rtType"} {
+		if propNames[wrapperProp] {
+			t.Errorf("reflected the RunType wrapper property %q — the annotation override was not suppressed", wrapperProp)
+		}
+	}
+}
+
+func keysOf(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
