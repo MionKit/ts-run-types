@@ -194,10 +194,12 @@ export type AssembleTemplate<P extends readonly TemplatePart[]> = P extends read
 
 // ─────────────────────── Recursive schemas (self / circular) ─────────
 //
-// `circular((self) => body)` authors a self-referential schema with NO
-// hand-written type. The callback's `self` is a `RunType<Self>` placeholder baked
-// wherever the type recurses (`{next?: Self}`); `Recursive<Body>` ties the knot —
-// substituting every `Self` with the recursive type itself. `circular` brands the
+// `circular(body)` authors a self-referential schema with NO hand-written type.
+// The body points back to itself with the `self()` marker — a `RunType<Self>`
+// placeholder baked wherever the type recurses (`{next?: Self}`); `Recursive<Body>`
+// ties the knot, substituting every `Self` with the recursive type itself. Because
+// the reference is a compile-time marker, no enclosing callback is needed to capture
+// it (unlike runtime schema libraries). `circular` brands the
 // FULLY-RESOLVED `Recursive<Body>`, so the Go scanner reflects an ordinary
 // recursive type and (with the structural cycle-token anchor in typeid.go)
 // value-first converges with the type-first form.

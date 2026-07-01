@@ -517,13 +517,13 @@ export const UNION = {
       'union.spec.ts "Union circular" where a self-referential union via object and array arms is handled by always-non-inlined Union, Object, and Array with no IsCircular detection needed, terminating via the dependency-call layer\'s lazy-init two-phase cache registration.',
     validateNotes: 'Self-recursive unions traverse the cycle until the input value bottoms out at an atomic arm.',
     validateSchema: () => {
-      const uc = RT.circular((self) =>
+      const uc = RT.circular(
         RT.union([
           TF.date(),
           TF.number(),
           TF.string(),
-          RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
-          RT.array(self),
+          RT.object({a: RT.optional(RT.self()), b: RT.optional(TF.string())}),
+          RT.array(RT.self()),
         ])
       );
       return createValidate(uc);
@@ -563,13 +563,13 @@ export const UNION = {
       return createGetValidationErrors<DataOnly<UnionC>>();
     },
     getValidationErrorsSchema: () => {
-      const uc = RT.circular((self) =>
+      const uc = RT.circular(
         RT.union([
           TF.date(),
           TF.number(),
           TF.string(),
-          RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
-          RT.array(self),
+          RT.object({a: RT.optional(RT.self()), b: RT.optional(TF.string())}),
+          RT.array(RT.self()),
         ])
       );
       return createGetValidationErrors(uc);

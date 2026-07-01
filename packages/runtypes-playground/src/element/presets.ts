@@ -194,16 +194,16 @@ const MyType = RT.object({
   name: string;
   children: MyType[];
 };`,
-    // Value-first recursion: \`circular((self) => …)\` with \`self\` marking the
+    // Value-first recursion: \`circular(…)\` with the \`self()\` marker marking the
     // back-edge (a const can't reference itself in its own initializer).
     schema: `import * as RT from 'ts-runtypes/schema';
 import * as TF from 'ts-runtypes/formats';
 
-const MyType = RT.circular((self) =>
+const MyType = RT.circular(
   RT.object({
     id: TF.number(),
     name: TF.string(),
-    children: RT.array(self),
+    children: RT.array(RT.self()),
   })
 );`,
     input: `{

@@ -23,6 +23,7 @@ import {
   literal,
   regexp,
   circular,
+  self,
   func,
   parameters,
   templateLiteral,
@@ -189,7 +190,7 @@ describe('compose builders — null member survives composition (Static carrier)
 
 describe('compose builders — circular (recursive self-reference)', () => {
   it('validates a recursive linked-list node', () => {
-    const LNodeSchema = circular((self) => object({value: TF.number(), next: union([self, literal(null)])}));
+    const LNodeSchema = circular(object({value: TF.number(), next: union([self(), literal(null)])}));
     const isNode = createValidate(LNodeSchema);
     expect(isNode({value: 1, next: null})).toBe(true);
     expect(isNode({value: 1, next: {value: 2, next: null}})).toBe(true);

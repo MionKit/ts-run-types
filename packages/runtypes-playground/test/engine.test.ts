@@ -247,7 +247,7 @@ const MyType = RT.object({id: TF.number(), name: TF.string()});`;
     const typeForm = `type MyType = { id: number; name: string; children: MyType[] };`;
     const schemaForm = `import * as RT from 'ts-runtypes/schema';
 import * as TF from 'ts-runtypes/formats';
-const MyType = RT.circular((self) => RT.object({ id: TF.number(), name: TF.string(), children: RT.array(self) }));`;
+const MyType = RT.circular(RT.object({ id: TF.number(), name: TF.string(), children: RT.array(RT.self()) }));`;
     const tree = {id: 1, name: 'root', children: [{id: 2, name: 'leaf', children: []}]};
     const badNested = {id: 1, name: 'root', children: [{id: 'nope', name: 'leaf', children: []}]};
 

@@ -33,7 +33,7 @@ export {
 // Composer builders — `array` / `tuple` / `union` / `intersection` / `record` /
 // `map` / `set` / `promise` / `func` / `callable` / `templateLiteral`, the `object` assembler,
 // the `propMod({optional?, readonly?}, field)` / `optional(field)` property-modifier
-// wrappers, and the recursive-schema pair `circular((self) => …)` / `self()`. Each
+// wrappers, and the recursive-schema pair `circular(…)` / `self()`. Each
 // returns the generic `RunType<…>`; child schemas nest freely (the outer composer's
 // marker reflects the whole shape).
 export {

@@ -488,7 +488,7 @@ export const UNIONS = {
   circular_union_with_discriminator: {
     title: 'Circular union',
     description:
-      'Self-referential union UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[] recursing through the optional prop `a` and the array arm, where each node resolves by kind, the value-first form uses RT.circular(self => …) to follow the recursion to arbitrary depth, and Date members encode Date↔ISO.',
+      'Self-referential union UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[] recursing through the optional prop `a` and the array arm, where each node resolves by kind, the value-first form uses RT.circular(…self()…) to follow the recursion to arbitrary depth, and Date members encode Date↔ISO.',
     serializeNotes:
       'Recursive union — encoder and decoder must walk the self-reference (nested objects and arrays) without diverging; member selection happens fresh at every level.',
     mutateEncoder: () => {
@@ -528,49 +528,49 @@ export const UNIONS = {
       return createBinaryDecoder<UnionC>();
     },
     schemaEncoder: () => {
-      const uc = RT.circular((self) =>
+      const uc = RT.circular(
         RT.union([
           TF.date(),
           TF.number(),
           TF.string(),
-          RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
-          RT.array(self),
+          RT.object({a: RT.optional(RT.self()), b: RT.optional(TF.string())}),
+          RT.array(RT.self()),
         ])
       );
       return createJsonEncoder(uc);
     },
     schemaDecoder: () => {
-      const uc = RT.circular((self) =>
+      const uc = RT.circular(
         RT.union([
           TF.date(),
           TF.number(),
           TF.string(),
-          RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
-          RT.array(self),
+          RT.object({a: RT.optional(RT.self()), b: RT.optional(TF.string())}),
+          RT.array(RT.self()),
         ])
       );
       return createJsonDecoder(uc);
     },
     schemaBinaryEncoder: () => {
-      const uc = RT.circular((self) =>
+      const uc = RT.circular(
         RT.union([
           TF.date(),
           TF.number(),
           TF.string(),
-          RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
-          RT.array(self),
+          RT.object({a: RT.optional(RT.self()), b: RT.optional(TF.string())}),
+          RT.array(RT.self()),
         ])
       );
       return createBinaryEncoder(uc);
     },
     schemaBinaryDecoder: () => {
-      const uc = RT.circular((self) =>
+      const uc = RT.circular(
         RT.union([
           TF.date(),
           TF.number(),
           TF.string(),
-          RT.object({a: RT.optional(self), b: RT.optional(TF.string())}),
-          RT.array(self),
+          RT.object({a: RT.optional(RT.self()), b: RT.optional(TF.string())}),
+          RT.array(RT.self()),
         ])
       );
       return createBinaryDecoder(uc);
