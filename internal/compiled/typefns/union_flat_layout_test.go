@@ -57,9 +57,11 @@ func TestBuildFlatLayout_AtomicOnly(t *testing.T) {
 }
 
 // TestBuildFlatLayout_MixedAtomicAndObject — `string | {a: number}`.
-// One of each bucket; the object branch forces AtomicNeedsTuple=true
-// (the [-1, …] envelope coexists with the atomic envelope so the
-// decoder must unconditionally unwrap).
+// One of each bucket. Both members are JSON-compatible so the union
+// round-trips raw: AtomicNeedsTuple stays false (no envelope, identity
+// decode) even though an object branch exists — the record-union
+// optimisation. A non-JSON-compatible member (Date, bigint) would flip
+// it back to true; see TestBuildFlatLayout_ClassWithSubKindFallsBackToAtomic.
 func TestBuildFlatLayout_MixedAtomicAndObject(t *testing.T) {
 	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	num := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
@@ -83,8 +85,8 @@ func TestBuildFlatLayout_MixedAtomicAndObject(t *testing.T) {
 	if len(layout.ObjectMembers) != 1 || layout.ObjectMembers[0].Resolved.ID != "obj" {
 		t.Fatalf("expected single ObjectMembers={obj}, got %+v", layout.ObjectMembers)
 	}
-	if !layout.AtomicNeedsTuple {
-		t.Errorf("expected AtomicNeedsTuple=true when an object branch exists, got false")
+	if layout.AtomicNeedsTuple {
+		t.Errorf("expected AtomicNeedsTuple=false (both members JSON-compatible ⇒ round-trips raw), got true")
 	}
 	if len(layout.MergedProps) != 1 || layout.MergedProps[0].Name != "a" {
 		t.Fatalf("expected MergedProps=[{a}], got %+v", layout.MergedProps)
@@ -247,6 +249,11 @@ func TestBuildFlatLayout_IndexSigFallsBackToAtomic(t *testing.T) {
 	}
 	if len(layout.ObjectMembers) != 1 || layout.ObjectMembers[0].Resolved.ID != "obB" {
 		t.Fatalf("expected non-indexed object in ObjectMembers, got %+v", layout.ObjectMembers)
+	}
+	// Record member + plain object member, both JSON-compatible ⇒ the union
+	// round-trips raw with no `[armIndex, value]` / `[-1, merged]` envelope.
+	if layout.AtomicNeedsTuple {
+		t.Errorf("expected AtomicNeedsTuple=false (record + object, both JSON-compatible), got true")
 	}
 }
 
