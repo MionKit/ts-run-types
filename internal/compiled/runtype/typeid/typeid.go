@@ -256,9 +256,13 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 			}
 			// Optional tuple slots type as `T | undefined`; strip it so the slot id
 			// matches the projected node (serialize.go projectTuple does the same).
+			// Tuple slots carry no memberID/optBit (unlike object props / params), so
+			// the `#optional` suffix keeps optionality in the id — otherwise
+			// `[T, U?]` and `[T, U]` collide (the `|undefined` used to encode it
+			// implicitly, before the strip).
 			var child string
 			if optional {
-				child = computer.optionalChildID(typeArgument)
+				child = computer.optionalChildID(typeArgument) + "#optional"
 			} else {
 				child = computer.Compute(typeArgument)
 			}

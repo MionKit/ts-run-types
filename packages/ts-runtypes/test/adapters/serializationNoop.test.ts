@@ -89,21 +89,20 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     expect(rjEntry(encId)?.isNoop).toBe(false);
   });
 
-  it('atomic union — pj keeps the dispatch, rj collapses when no member needs the wrap', () => {
-    // Per the per-member `skipEncode + needsTupleEncoding` optimisation
-    // (ref: rtCompilers/json/stringifyJson.ts:295-306), a union member skips
-    // the `[memberIndex, value]` envelope when BOTH its prepareForJson
-    // and restoreFromJson would compile to noop. For `number | string`,
-    // every member is noop on both halves, so:
-    //   - prepareForJson keeps the if/else dispatch (with the trailing
-    //     throw on unmatched inputs) — the dispatch survives so the pj
-    //     entry stays live with isNoop=false.
-    //   - restoreFromJson has nothing to decode (no member is wrapped),
-    //     so the rj side is identity → the decoder composite elides it
-    //     and the entry never loads.
-    // For `bigint | Date`, both members are non-noop on at least one
-    // half (bigint pj/rj are non-noop, Date rj is non-noop), so the
-    // wrap is preserved on every member and both halves stay live.
+  it('atomic union — pj AND rj both collapse when no member needs the wrap', () => {
+    // A union whose members are all JSON-identity round-trips raw (no
+    // `[memberIndex, value]` envelope). For `number | string`, every member is
+    // noop on both halves, so the encoders collapse to a straight pass-through
+    // (atomicOnlyJsonIdentity — union_flat_layout.go), symmetric with the decode
+    // side which already short-circuits to identity:
+    //   - prepareForJson is identity → the pj entry is elided (no dispatch, no
+    //     trailing throw). (Previously it kept the validate-and-return-unchanged
+    //     dispatch — the finding-B asymmetry, now removed.)
+    //   - restoreFromJson has nothing to decode → the rj side is identity → the
+    //     decoder composite elides it and the entry never loads.
+    // For `bigint | Date`, both members are non-noop on at least one half (bigint
+    // pj/rj are non-noop, Date rj is non-noop), so the wrap is preserved on every
+    // member and both halves stay live.
     const noopId = getRunTypeId<AtomicNoEncRequired>();
     const encId = getRunTypeId<AtomicEncRequired>();
     createJsonEncoder<AtomicNoEncRequired>(undefined, {strategy: 'mutate'});
@@ -111,7 +110,7 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     createJsonEncoder<AtomicEncRequired>(undefined, {strategy: 'mutate'});
     createJsonDecoder<AtomicEncRequired>();
 
-    expect(pjEntry(noopId)?.isNoop).toBe(false);
+    expect(pjEntry(noopId)).toBeUndefined();
     expect(rjEntry(noopId)).toBeUndefined();
     expect(pjEntry(encId)?.isNoop).toBe(false);
     expect(rjEntry(encId)?.isNoop).toBe(false);
