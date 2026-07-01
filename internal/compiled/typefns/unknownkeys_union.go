@@ -43,9 +43,12 @@ type UnknownKeysOpts struct {
 	// undeclared key, `false` after the loop completes).
 	CodeShape CodeType
 	// JsonWireFormat — true only for ukuWire (the decoder-internal
-	// emitter). Prepends `if (Array.isArray(v) && v.length === 2 &&
-	// v[0] === -1)` and walks `v[1]` instead of `v`. Always false for
-	// the four public-API emitters.
+	// emitter). For an ENVELOPING union (AtomicNeedsTuple true) it prepends
+	// `if (Array.isArray(v) && v.length === 2 && v[0] === -1)` and walks
+	// `v[1]` instead of `v`. For a round-trips-raw union (no envelope) the
+	// wire value is the bare runtime shape, so ukuWire falls back to the
+	// plain runtime-shape strip on `v` (see emitUnionUnknownKeysMerged).
+	// Always false for the four public-API emitters.
 	JsonWireFormat bool
 }
 
@@ -77,8 +80,17 @@ func emitUnionUnknownKeysMerged(rt *protocol.RunType, ctx *EmitContext, opts Unk
 		return RTCode{Code: "", Type: opts.CodeShape}
 	}
 
+	// A round-trips-raw union (AtomicNeedsTuple false) carries NO
+	// `[-1, merged]` envelope — its JSON wire value IS the bare runtime
+	// shape (union_flat_layout.go). So ukuWire has nothing to reach into:
+	// it strips `v` directly, gated on `typeof v === 'object'`, exactly like
+	// the runtime-shape families. The wire-format reach-in on `v[1]` applies
+	// only to an ENVELOPING union (AtomicNeedsTuple true), where the encoder
+	// wrapped the merged object.
+	wireFormat := opts.JsonWireFormat && layout.AtomicNeedsTuple
+
 	target := ctx.Vλl
-	if opts.JsonWireFormat {
+	if wireFormat {
 		target = ctx.Vλl + "[1]"
 	}
 
@@ -92,9 +104,9 @@ func emitUnionUnknownKeysMerged(rt *protocol.RunType, ctx *EmitContext, opts Unk
 	// the merged-allowlist for-loop in those cases would corrupt
 	// array indices or throw on immutable primitives. The merged
 	// allowlist only makes sense when v is a plain object. The
-	// JsonWireFormat path is independently gated by the
+	// wire-format path is independently gated by the
 	// `[-1, mergedObject]` wrapper check below and keeps its own shape.
-	if !opts.JsonWireFormat {
+	if !wireFormat {
 		body = "if (typeof " + ctx.Vλl + " === 'object' && " + ctx.Vλl + " !== null && !Array.isArray(" + ctx.Vλl + ")) { " + body + " }"
 	}
 
@@ -109,13 +121,13 @@ func emitUnionUnknownKeysMerged(rt *protocol.RunType, ctx *EmitContext, opts Unk
 		// allocation order, so the reference always resolves).
 		params := ctx.CtxFnParams(ctx.Vλl)
 		scanCall := ctx.CreateFnInContext(body+" return false;", CodeRB, params, params)
-		if opts.JsonWireFormat {
+		if wireFormat {
 			gate := "if (Array.isArray(" + ctx.Vλl + ") && " + ctx.Vλl + ".length === 2 && " + ctx.Vλl + "[0] === -1) return " + scanCall + "; return false;"
 			return RTCode{Code: ctx.CreateFnInContext(gate, CodeRB, params, params), Type: CodeE}
 		}
 		return RTCode{Code: scanCall, Type: CodeE}
 	default:
-		if opts.JsonWireFormat {
+		if wireFormat {
 			gated := "if (Array.isArray(" + ctx.Vλl + ") && " + ctx.Vλl + ".length === 2 && " + ctx.Vλl + "[0] === -1) { " + body + " }"
 			return RTCode{Code: gated, Type: CodeS}
 		}
