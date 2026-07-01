@@ -1,9 +1,11 @@
 # Audit the generated code for the playground examples (found: optional `boolean` encoded as a union)
 
-Status: **open — to investigate.** Reported from the playground "Generated Cache"
-view. Scope: resolver / type graph + the compiled fn families (validate `val`,
-errors `verr`, JSON `pjs`/`rj`, binary `tb`/`fb`). NOT a playground issue (the
-playground just surfaced the generated code).
+Status: **investigated — root causes identified, not yet fixed.** Reported from
+the playground "Generated Cache" view. Scope: resolver / type graph + the
+compiled fn families (validate `val`, errors `verr`, JSON `pjs`/`rj`, binary
+`tb`/`fb`). NOT a playground issue (the playground just surfaced the generated
+code). Full sweep + root causes in **[Investigation results](#investigation-results-completed)** at the
+bottom of this file.
 
 ## Goal
 
@@ -322,7 +324,7 @@ const MyType = RT.circular((self) =>
 );
 ```
 
-## Investigation (part of this TODO — not yet done)
+## Investigation (part of this TODO — done; see results below)
 
 0. **Sweep every preset above** (both forms) across all `createX` families
    (`createValidate`, `createGetValidationErrors`, `createJsonEncoder`,
@@ -330,23 +332,130 @@ const MyType = RT.circular((self) =>
    `getRunType`), generate the code, read it, and record anything wrong or wasteful
    (union encoding where none is needed, redundant checks, wrong error strings,
    TS-form vs schema-form divergence, format-aware fields, the recursive `Tree`
-   case). Finding #1 is the seed; add findings #2, #3, … here.
+   case). Finding #1 is the seed; add findings #2, #3, … here. — **DONE**
 1. Reproduce with the **default** plugin config (not just the playground's
    `functions`/`allInternal`/`allSingle`) via a Go fixture / `bin/ts-runtypes`
-   transform, to confirm findings are not playground-specific.
-2. Confirm the scope of the widening:
-   - `active?: boolean` vs `active: boolean` (shown above).
-   - Other optional primitives: `active?: string`, `active?: number` — does
-     `T | undefined` also trigger union encoding, or is `boolean` special because
-     it is `true | false`?
-   - A genuine optional union (`x?: 'a' | 'b'`) for comparison — that one legitimately
-     needs union encoding; the boolean case should not.
-   - Validate / `getValidationErrors` and the decoders (`rj` / `fb`) — does the
-     union treatment leak there too, or only the encoders?
-3. Decide the fix: keep the optional boolean atomic (presence check + plain value)
-   rather than lowering it to a `true | false | undefined` union.
-4. Fix the secondary bug: the binary encoder reuses the JSON union error message
-   (`'Can not json encode union: …'`); it should have a binary-specific message.
-5. Add fixtures / fuzz coverage: optional primitives should round-trip without
-   union encoding; a regression test that the generated encoder for `active?:
-   boolean` contains no discriminant / union-arm logic.
+   transform, to confirm findings are not playground-specific. — **DONE** (all
+   findings are resolver/emitter-level, reproduced straight off `bin/ts-runtypes`,
+   independent of the playground).
+2. Confirm the scope of the widening. — **DONE**: it is NOT boolean-specific.
+   `active?: string` / `active?: number` (single-member optionals) are CLEAN; the
+   defect fires for **any optional whose declared type is a union of ≥2 members**
+   (`boolean` = `true | false`, `'a' | 'b'`, `string | number`, `boolean | null`).
+   A genuine optional union (`x?: 'a' | 'b'`) does NOT actually need a wire
+   envelope either (its members are JSON-identity). Validate, `getValidationErrors`,
+   and the decoders (`rj`/`cjr`/`fb`) all inherit the union treatment.
+3. Decide the fix — see finding **A** below (fix `StripUndefined`).
+4. Fix the secondary bug (binary reuses the JSON union error message) — finding **E**.
+5. Add fixtures / fuzz coverage — see [Recommended fix order](#recommended-fix-order).
+
+---
+
+## Investigation results (completed)
+
+Method: cloned the `tsgolint` submodule (blocked by the default git-proxy rewrite;
+used the project's sanctioned direct-HTTPS bypass, `GIT_CONFIG_GLOBAL=/dev/null`),
+built `bin/ts-runtypes`, and drove it directly over its `--inline-server` JSON
+protocol (NO playground). Generated and read the emitted per-family virtual
+modules for all **6 presets in BOTH forms + 11 synthetic probes** (410 files),
+importing the real `ts-runtypes` src for full fidelity, then root-caused every
+artifact in the Go source. A panel of high-reasoning agents swept the output and
+adversarially verified each finding against the generated code + Go source. Every
+finding below is CONFIRMED against verbatim generated output.
+
+### The headline
+
+The reported `active?: boolean` artifact is real and **generalizes far beyond
+boolean**. It is the intersection of **three independent defects** (A, C, D). An
+optional single-member primitive (`x?: string`, `age?: PositiveInt`) is clean; the
+trouble is any optional (or `undefined`-bearing) **union**. The user's hunch that
+the recent *json-compact* work caused it is understandable but **incorrect**: the
+compact codec (`json_compact.go`, commit `c268516`) is clean and merely *inherits*
+the pre-existing lowering (finding A3). The root causes live in the type-graph
+projection (`StripUndefined`) and the union emitters, all of which predate compact.
+
+### Findings table
+
+| ID | Sev | Class | What | Root cause (Go) |
+|----|-----|-------|------|-----------------|
+| **A** | **High** | Bug | Optional union-typed prop lowered to a `[armIndex, value]` discriminated union: +4 `val` entries, +2 modules (`pj`/`rj`), a **dead undefined arm** in every encoder (`pjs`/`pj`/`sj`/`cj`/`tb`) and dead `arm-0` in every decoder (`rj`/`cjr`/`fb`). Changes the **external JSON**: `{active:false}` → `{"active":[1,false]}`. Binary grows 1→3 bytes/elem. `verr` mislabels the field as `'union'`. | `typeid.go:562` `StripUndefined` only collapses the exact 2-member `T\|undefined` case (`len(kept)==1`); for `boolean\|undefined` = `{true,false,undefined}` it returns the **original** union with `undefined` still in it. |
+| A2 | Low | Bug (symptom of A) | Validator double-checks undefined: `v.x === undefined \|\| (typeof v.x === 'undefined' \|\| …)`. | same as A (child union keeps `undefined`). |
+| A3 | Low | Bug (symptom of A) | Compact `cj`/`cjr` carry the dead arm + `null` sentinel + envelope; a `cjr` module is emitted only to unwrap it. | same as A; compact needs no fix of its own. |
+| A4 | Low | Bug (symptom of A) | The whole envelope recurs one level deep for `{inner:{active?}}` and per-element for `{list:{active?}[]}`. | same as A. |
+| **B** | **Med** | Inefficiency | **Required** all-identity unions (`status:'pending'\|…`, `currency:'USD'\|…`, `roles`) emit an N-arm validator dispatch where **every arm returns the input unchanged**, pulling in N `val` deps + a throw — while the **decode** side already collapses to identity. Asymmetric. | `union_flat.go:123` `emitUnionPrepareForJsonFlat` / `json_prepare_safe.go:796` have no all-identity early-out; `union_flat.go:294` (decode) does. |
+| **C** | **Med** | Inefficiency | `boolean` (`true\|false`) is never collapsed to `typeof === 'boolean'` inside a union — always `v === false \|\| v === true` + two literal `val` entries + two arms. Independent of optionality (fires for required `boolean\|null` too). | `serialize.go:660` union case distributes via `tsType.Distributed()`, which splits `boolean` into two `BooleanLiteral` members; `finalizeUnion` never recombines them. |
+| **D** | **Med** | Inefficiency | All-or-nothing tuple rule: once ANY atomic member is non-JSON-compatible (here `undefined`), the WHOLE union is wrapped in `[idx,value]`, so the JSON-identity members (`false`/`true`) get needless explicit wire indices. | `union_flat_layout.go:191` sets `AtomicNeedsTuple` for the whole union if any member fails `isJsonCompatible`. |
+| **E** | Low | Bug | Binary `toBinary` throws the **JSON** message `'Can not json encode union: …'`. Present in every union-bearing `tb` (required + optional + array). | `union_flat_binary.go:187` reuses `flatUnionEncodeErrorVar` (`union_flat.go:49`). |
+| **F** | Med | Bug | Schema form only: `RT.circular((self) => … RT.array(self))` emits a spurious **CTA001 Error** diagnostic on `self`, though codegen succeeds. `tree-ts` is clean. | `scan.go` `checkCompTimeArgs` classifies the `self` identifier as a non-literal `CompTimeArgs` leaf → `CodeCompTimeArgsNonLiteral` (Error). |
+| G | Low | Inefficiency | `prepareForJsonSafe` root fn is a bare `return ctxFnN(v)` forwarder for every mixed-optionality object (one extra hop/closure). | `json_prepare_safe.go:564` `buildSafeObjectLiteral` pre-hoists via `CreateFnInContext`. |
+| H | Info | DX | TS-form `createJsonEncoder<T>({strategy:'compact'})` binds the option to the `val` slot (param 0), is **silently ignored with no diagnostic**, and falls back to `clone`. Correct form is `createJsonEncoder<T>(undefined, {strategy})`. | overload arg-slot resolution; no comptime-arg-in-value-slot warning. |
+
+### Detail + verbatim evidence
+
+**A — optional union → discriminated-union envelope (the seed, generalized).**
+`StripUndefined` ([typeid.go:550-566](../../internal/compiled/runtype/typeid/typeid.go)):
+
+```go
+parts := tsType.Distributed()          // boolean|undefined → {false, true, undefined}
+kept := …filter(undefined)…            // → {false, true}, len 2
+if len(kept) == 1 { return kept[0] }   // only the single-member case is handled
+return tsType                          // ← returns the ORIGINAL union, undefined included
+```
+
+`appendProperty` ([serialize.go:1213](../../internal/compiled/runtype/serialize.go)) then serializes that 3-member union as the property's child. Proof by contrast (all from `bin/ts-runtypes`):
+
+- `active: boolean` (required): `val` = `typeof v.active === 'boolean'`, 1 `val` entry, **no** `pj`/`rj`, `tb` writes 1 byte (`setUint8(!!v.active)`).
+- `x?: string` (single-member optional): `val` = `v.x === undefined || typeof v.x === 'string'`, **no** envelope, **no** `pj`/`rj`.
+- `active?: boolean` (`probe-opt-bool/fns__pjs.js`): 5 `val` entries and the envelope —
+  ```js
+  const ctxFn0 = function(v){
+    if ((CiE_zxt3nZt?.fn(v.active) ?? true)) return [0,v.active]; // arm 0 = undefined — DEAD (guarded by !== undefined)
+    if ((CiE_O6gS6gC?.fn(v.active) ?? true)) return [1,v.active]; // false
+    if ((CiE_jf9vtBd?.fn(v.active) ?? true)) return [2,v.active]; // true
+    throw new Error(fuEncErr)};
+  // ctxFn1: if (v.active !== undefined) _r['active']=ctxFn0(v)
+  ```
+  The matching `rj`/`cjr`/`fb` all carry the dead `if (dec0 === 0) { …=undefined }` unwrap. **External-JSON impact** (`probe-opt-bool/fns__sj.js`, the `direct` strategy meant for clean output): `{active:false}` serializes to `{"active":[1,false]}`.
+
+**B — required identity-unions not collapsed on encode** (`order-ts/fns__pjs.js`, `order-ts/fns__sj.js`): `status` (5 string literals) →
+```js
+const ctxFn0 = function(v){ if ((CiE_ea8S0s6?.fn(v.status) ?? true)) return v.status; …(×5)… throw new Error(fuEncErr)};
+```
+Every arm returns `v.status`. `order-ts` emits **no** `rj` module (decode already collapses to identity) — the asymmetry. Same for `product.currency`, `user.roles`.
+
+**C — boolean pair uncollapsed in a union** (`probe-bool-union-explicit/fns__val.js`, a REQUIRED `x: boolean | undefined`): `(typeof v.x === 'undefined' || v.x === false || v.x === true)` — no `typeof === 'boolean'`, and two separate `literal` `val` entries.
+
+**E — binary throws the JSON message** (`probe-req-litunion/fns__tb.js`): `const fuEncErr = 'Can not json encode union: item does not belong to the union'; … else { throw new Error(fuEncErr) }`.
+
+**F — spurious CTA001** (`tree-schema/_meta.json`): `{"code":"CTA001","severity":1,"site":{startLine:9,startCol:24}}` points at `self` in `children: RT.array(self)`; `tree-ts` has `diagnostics: []`.
+
+### Verified NON-issues (checked, correct by design)
+
+- **Int binary packing**: `PositiveInt`/`Integer`/`Positive` serialize as `float64` — correct, because they are UNBOUNDED (`{integer:true}` / `{min:0}`), so their range exceeds int32; the emitter DOES pack when an explicit `max` fits int8/16/32 (`numberformat.go:128-215`).
+- **Recursion + circular guard** (`tree-ts`): clean named self-recursion, runtime circular-ref guard wired only where needed (`val`/`verr`/`tb`), no inline `WeakSet` bloat.
+- **Nested all-primitive clone**: `prepareForJsonSafe` uses a `Object.keys(x).length === N` fast-path that returns the original reference when there are no extra keys to strip, and skips the `.map` for JSON-identity arrays. No needless deep clone.
+- **TS-form vs schema-form**: otherwise structurally equivalent (0 divergences) apart from finding F and the type-name label.
+
+### Recommended fix order
+
+1. **Fix A (highest impact) — `StripUndefined` (`typeid.go:562`).** When `≥1` member
+   survives after removing `undefined`, return a type built from `kept` rather than
+   the original union (the optional's presence flag already carries "absent"). This
+   alone removes A/A2/A3/A4 across all 10 families. Note the shim exposes
+   `Checker_booleanType` (so `{true,false}` → atomic `boolean` is easy) but **no
+   `getUnionType`**, so the general `'a'|'b'` rebuild needs either a serializer-side
+   filter on the serialized child node (with a DISTINCT structural id so it is not
+   shared with a genuine `…|undefined` node) or a `third_party` shim addition (which
+   must be surfaced per `CLAUDE.md`, not improvised). `exactOptionalPropertyTypes` is
+   OFF in the inferred program (`program.go:107`) — enabling it is not a fix.
+2. **Fix C — collapse `{true,false}` → `boolean` in `finalizeUnion`** (removes the
+   residual boolean split for genuine `boolean|null`).
+3. **Fix B/D — add the all-identity/JSON-compatible early-out to the JSON encode
+   emitters** (`union_flat.go:123`, `json_prepare_safe.go:796`) mirroring the decode
+   short-circuit at `union_flat.go:294`.
+4. **Fix E — binary-specific union error string** (`union_flat_binary.go:187`).
+5. **Fix F — allow the `RT.circular` callback param as a `CompTimeArgs` leaf** (`scan.go`).
+6. **Regression tests**: assert the generated `pjs`/`sj`/`tb` for `active?: boolean`
+   contains no `[…]` envelope / discriminant / `fuEncErr`; that `x?: 'a'|'b'` and
+   `x?: string|number` round-trip without a `rj` module; and add the all-strategy
+   round-trip fuzzer coverage for optional unions.
