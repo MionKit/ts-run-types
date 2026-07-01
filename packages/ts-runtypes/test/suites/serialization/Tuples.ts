@@ -243,21 +243,13 @@ export const TUPLES = {
       return createBinaryDecoder<ICircularTuple>();
     },
     schemaEncoder: () =>
-      createJsonEncoder(
-        RT.circular((self) => RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), self]))}))
-      ),
+      createJsonEncoder(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
     schemaDecoder: () =>
-      createJsonDecoder(
-        RT.circular((self) => RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), self]))}))
-      ),
+      createJsonDecoder(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(
-        RT.circular((self) => RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), self]))}))
-      ),
+      createBinaryEncoder(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(
-        RT.circular((self) => RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), self]))}))
-      ),
+      createBinaryDecoder(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
     getTestData: () => {
       interface ICircularTuple {
         name: string;

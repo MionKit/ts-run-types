@@ -1,4 +1,4 @@
-// `circular((self) => …)` + `self()` — recursive schemas with NO hand-written
+// `circular(…)` + `self()` — recursive schemas with NO hand-written
 // type. Each lowers to a CORRECT validator and CONVERGES with the equivalent
 // type-first recursive type (the structural cycle-token anchor in typeid.go makes
 // the anonymous `Recursive<Body>` and a named interface hash the same). The
@@ -7,12 +7,12 @@
 import * as TF from 'ts-runtypes/formats';
 import {describe, expect, it} from 'vitest';
 import {createValidate, createGetValidationErrors, type Static} from 'ts-runtypes';
-import {circular, object, optional, array, union, record, literal} from 'ts-runtypes/schema';
+import {circular, self, object, optional, array, union, record, literal} from 'ts-runtypes/schema';
 import 'ts-runtypes/formats';
 
 describe('circular() — recursive schemas without types', () => {
   it('object self-ref validates + converges (static & reflect)', () => {
-    const Node = circular((self) => object({n: TF.number(), s: TF.string(), c: optional(self)}));
+    const Node = circular(object({n: TF.number(), s: TF.string(), c: optional(self())}));
     const isNode = createValidate(Node);
     expect(isNode({n: 1, s: 'a'})).toBe(true);
     expect(isNode({n: 1, s: 'a', c: {n: 2, s: 'b', c: {n: 3, s: 'c'}}})).toBe(true);
@@ -34,7 +34,7 @@ describe('circular() — recursive schemas without types', () => {
   });
 
   it('array + union self-ref converges', () => {
-    const Cu = circular((self) => array(union([self, TF.date(), TF.number(), TF.string()])));
+    const Cu = circular(array(union([self(), TF.date(), TF.number(), TF.string()])));
     const isCu = createValidate(Cu);
     expect(isCu([1, 'a', new Date(), [2, 'b']])).toBe(true);
     expect(isCu([true])).toBe(false);
@@ -43,7 +43,7 @@ describe('circular() — recursive schemas without types', () => {
   });
 
   it('cycle through a record / index-signature converges', () => {
-    const Ci = circular((self) => object({index: record(self)}));
+    const Ci = circular(object({index: record(self())}));
     interface CircularIndex {
       index: {[k: string]: CircularIndex};
     }
@@ -51,7 +51,7 @@ describe('circular() — recursive schemas without types', () => {
   });
 
   it('cycle through a tuple PROPERTY converges (the case bare tokens broke)', () => {
-    const Ct = circular((self) => object({tuple: array(self)}));
+    const Ct = circular(object({tuple: array(self())}));
     interface CircularArrayProp {
       tuple: CircularArrayProp[];
     }
@@ -59,8 +59,8 @@ describe('circular() — recursive schemas without types', () => {
   });
 
   it('mutual recursion via direct cross-references converges', () => {
-    const icd = circular((self) => object({name: TF.string(), embedded: object({hello: TF.string(), child: optional(self)})}));
-    const root = circular((self) => object({isRoot: literal(true), ciChild: icd, ciSelf: optional(self)}));
+    const icd = circular(object({name: TF.string(), embedded: object({hello: TF.string(), child: optional(self())})}));
+    const root = circular(object({isRoot: literal(true), ciChild: icd, ciSelf: optional(self())}));
     const isRoot = createValidate(root);
     expect(isRoot({isRoot: true, ciChild: {name: 'a', embedded: {hello: 'h'}}})).toBe(true);
     expect(isRoot({isRoot: true, ciChild: {name: 'a', embedded: {hello: 123}}})).toBe(false);
@@ -78,7 +78,7 @@ describe('circular() — recursive schemas without types', () => {
   });
 
   it('getValidationErrors via circular() converges', () => {
-    const Node = circular((self) => object({n: TF.number(), c: optional(self)}));
+    const Node = circular(object({n: TF.number(), c: optional(self())}));
     interface NodeT {
       n: number;
       c?: NodeT;

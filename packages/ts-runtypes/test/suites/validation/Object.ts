@@ -641,7 +641,7 @@ export const OBJECT = {
       return createValidate<DataOnly<ICircular>>();
     },
     validateSchema: () => {
-      const ic = RT.circular((self) => RT.object({name: TF.string(), child: RT.optional(self)}));
+      const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
       return createValidate(ic);
     },
     deserializeValidate: () => {
@@ -667,7 +667,7 @@ export const OBJECT = {
       return createGetValidationErrors<DataOnly<ICircular>>();
     },
     getValidationErrorsSchema: () => {
-      const ic = RT.circular((self) => RT.object({name: TF.string(), child: RT.optional(self)}));
+      const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
       return createGetValidationErrors(ic);
     },
     deserializeGetValidationErrors: () => {
@@ -734,7 +734,7 @@ export const OBJECT = {
       return createValidate<DataOnly<ICircularArray>>();
     },
     validateSchema: () => {
-      const ica = RT.circular((self) => RT.object({name: TF.string(), children: RT.optional(RT.array(self))}));
+      const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
       return createValidate(ica);
     },
     deserializeValidate: () => {
@@ -760,7 +760,7 @@ export const OBJECT = {
       return createGetValidationErrors<DataOnly<ICircularArray>>();
     },
     getValidationErrorsSchema: () => {
-      const ica = RT.circular((self) => RT.object({name: TF.string(), children: RT.optional(RT.array(self))}));
+      const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
       return createGetValidationErrors(ica);
     },
     deserializeGetValidationErrors: () => {
@@ -815,10 +815,10 @@ export const OBJECT = {
       return createValidate<DataOnly<ICircularDeep>>();
     },
     validateSchema: () => {
-      const icd = RT.circular((self) =>
+      const icd = RT.circular(
         RT.object({
           name: TF.string(),
-          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())}),
         })
       );
       return createValidate(icd);
@@ -846,10 +846,10 @@ export const OBJECT = {
       return createGetValidationErrors<DataOnly<ICircularDeep>>();
     },
     getValidationErrorsSchema: () => {
-      const icd = RT.circular((self) =>
+      const icd = RT.circular(
         RT.object({
           name: TF.string(),
-          embedded: RT.object({hello: TF.string(), child: RT.optional(self)}),
+          embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())}),
         })
       );
       return createGetValidationErrors(icd);

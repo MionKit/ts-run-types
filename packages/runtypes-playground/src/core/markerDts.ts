@@ -130,7 +130,7 @@ declare module 'ts-runtypes/schema' {
   export function optional<R extends RunType<unknown>>(element: R): RunType<St<R> | undefined>;
   export function object<C extends Record<string, RunType<unknown>>>(shape: C): RunType<{[K in keyof C]: St<C[K]>}>;
   // Recursive-schema machinery — mirrors ts-runtypes/schema/static.ts so the
-  // resolver reflects \`circular((self) => …)\` as a real cyclic type (not \`any\`).
+  // resolver reflects \`circular(…self()…)\` as a real cyclic type (not \`any\`).
   const SelfBrand: unique symbol;
   type Self = {readonly [SelfBrand]: true};
   type SubstituteSelf<T, P extends [unknown]> = T extends Self
@@ -156,7 +156,7 @@ declare module 'ts-runtypes/schema' {
                     : T;
   type Recursive<Body> = SubstituteSelf<Body, [Recursive<Body>]>;
   export function self(): RunType<Self>;
-  export function circular<Body>(callback: (self: RunType<Self>) => RunType<Body>): RunType<Recursive<Body>>;
+  export function circular<Body>(body: RunType<Body>): RunType<Recursive<Body>>;
 }
 `;
 
@@ -196,7 +196,7 @@ export function schemaEditorModule(): string {
     `  export function optional(element: any): any;`,
     `  export function object(shape: Record<string, any>): any;`,
     `  export function self(): any;`,
-    `  export function circular(callback: (self: any) => any): any;`,
+    `  export function circular(body: any): any;`,
     `}`,
   ].join('\n');
 }

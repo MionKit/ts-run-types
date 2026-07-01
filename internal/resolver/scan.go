@@ -435,7 +435,12 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		// still works (T comes from the inferred return type), but the
 		// recommended replacement is the static form using `ReturnType<
 		// typeof fn>`. Emit a build warning to nudge the user toward it.
-		if argZero != nil && argZero.Kind == ast.KindCallExpression {
+		//
+		// EXCEPT a value-first schema-builder call (`object({…})`, `circular(…)`,
+		// `array(…)`, …) IS the intended reflect-form value — it's pure
+		// construction, not a side-effectful user function — so it must not warn.
+		if argZero != nil && argZero.Kind == ast.KindCallExpression &&
+			!builders.IsSchemaLeafCall(state.scanChecker, state.resolver.markerModule(), argZero) {
 			if diagnostic, ok := state.resolver.markerDiagFunctionCallArg(file, argZero); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}

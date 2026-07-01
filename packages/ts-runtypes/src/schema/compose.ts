@@ -263,26 +263,29 @@ export function set<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRunType
   return builderResult(id, {type: 'set', child: valueSchema});
 }
 
-/** The self-reference placeholder for `circular((self) => …)` — marks where a
- *  recursive type points back to itself. Only meaningful inside `circular(...)`. **/
+/** The self-reference placeholder for `circular(…)` — marks where a recursive
+ *  type points back to itself. Only meaningful inside a `circular(...)` body. **/
 export function self(id?: InjectRunTypeId<Self>): RunType<Self> {
   return builderResult(id, {type: 'self'});
 }
 
-/** A self-referential (recursive) schema with NO hand-written type:
+/** A self-referential (recursive) schema with NO hand-written type. The body is
+ *  passed DIRECTLY (no enclosing function) and points back to itself with the
+ *  `self()` marker — a compile-time placeholder, so RunTypes needs no runtime
+ *  closure to capture the self-reference the way runtime schema libraries do:
  *
- *    const Node = circular((self) => object({value: number(), next: optional(self)}));
+ *    const Node = circular(object({value: number(), next: optional(self())}));
  *    type Node = Static<typeof Node>;   // {value: number; next?: Node}
  *
  *  Brands the resolved `Recursive<Body>`, so the scanner reflects an ordinary
  *  recursive type and converges with the type-first form (structural cycle token).
- *  Mutual recursion: each type's OWN back-edge uses `self`; cross-references to
+ *  Mutual recursion: each type's OWN back-edge uses `self()`; cross-references to
  *  another already-declared run-type are plain const references. **/
 export function circular<Body>(
-  callback: CompTimeArgs<(self: RunType<Self>) => RunType<Body>>,
+  body: CompTimeArgs<RunType<Body>>,
   id?: InjectRunTypeId<Recursive<Body>>
 ): RunType<Recursive<Body>> {
-  return builderResult(id, {type: 'circular', child: callback(self())});
+  return builderResult(id, {type: 'circular', child: body});
 }
 
 /** A `Promise` builder — `promise(string())` → `RunType<Promise<string>>`.

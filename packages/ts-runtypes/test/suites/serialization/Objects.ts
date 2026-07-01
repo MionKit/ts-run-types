@@ -1406,19 +1406,19 @@ export const OBJECTS = {
       return createBinaryDecoder<ICircular>();
     },
     schemaEncoder: () => {
-      const ic = RT.circular((self) => RT.object({name: TF.string(), child: RT.optional(self)}));
+      const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
       return createJsonEncoder(ic);
     },
     schemaDecoder: () => {
-      const ic = RT.circular((self) => RT.object({name: TF.string(), child: RT.optional(self)}));
+      const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
       return createJsonDecoder(ic);
     },
     schemaBinaryEncoder: () => {
-      const ic = RT.circular((self) => RT.object({name: TF.string(), child: RT.optional(self)}));
+      const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
       return createBinaryEncoder(ic);
     },
     schemaBinaryDecoder: () => {
-      const ic = RT.circular((self) => RT.object({name: TF.string(), child: RT.optional(self)}));
+      const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
       return createBinaryDecoder(ic);
     },
     getTestData: () => ({
@@ -1493,19 +1493,19 @@ export const OBJECTS = {
       return createBinaryDecoder<ICircularArray>();
     },
     schemaEncoder: () => {
-      const ica = RT.circular((self) => RT.object({name: TF.string(), children: RT.optional(RT.array(self))}));
+      const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
       return createJsonEncoder(ica);
     },
     schemaDecoder: () => {
-      const ica = RT.circular((self) => RT.object({name: TF.string(), children: RT.optional(RT.array(self))}));
+      const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
       return createJsonDecoder(ica);
     },
     schemaBinaryEncoder: () => {
-      const ica = RT.circular((self) => RT.object({name: TF.string(), children: RT.optional(RT.array(self))}));
+      const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
       return createBinaryEncoder(ica);
     },
     schemaBinaryDecoder: () => {
-      const ica = RT.circular((self) => RT.object({name: TF.string(), children: RT.optional(RT.array(self))}));
+      const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
       return createBinaryDecoder(ica);
     },
     getTestData: () => ({
@@ -1620,26 +1620,26 @@ export const OBJECTS = {
       return createBinaryDecoder<ICircularDeep>();
     },
     schemaEncoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       return createJsonEncoder(icd);
     },
     schemaDecoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       return createJsonDecoder(icd);
     },
     schemaBinaryEncoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       return createBinaryEncoder(icd);
     },
     schemaBinaryDecoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       return createBinaryDecoder(icd);
     },
@@ -1768,29 +1768,29 @@ export const OBJECTS = {
       return createBinaryDecoder<RootNotCircular>();
     },
     schemaEncoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
       return createJsonEncoder(root);
     },
     schemaDecoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
       return createJsonDecoder(root);
     },
     schemaBinaryEncoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
       return createBinaryEncoder(root);
     },
     schemaBinaryDecoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
       return createBinaryDecoder(root);
@@ -2004,50 +2004,74 @@ export const OBJECTS = {
       return createBinaryDecoder<RootCircular>();
     },
     schemaEncoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
-      const icDate = RT.circular((self) =>
-        RT.object({date: TF.date(), month: TF.number(), year: TF.number(), embedded: RT.optional(self), deep: RT.optional(icd)})
+      const icDate = RT.circular(
+        RT.object({
+          date: TF.date(),
+          month: TF.number(),
+          year: TF.number(),
+          embedded: RT.optional(RT.self()),
+          deep: RT.optional(icd),
+        })
       );
-      const root = RT.circular((self) =>
-        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(self), ciDate: icDate})
+      const root = RT.circular(
+        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(RT.self()), ciDate: icDate})
       );
       return createJsonEncoder(root);
     },
     schemaDecoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
-      const icDate = RT.circular((self) =>
-        RT.object({date: TF.date(), month: TF.number(), year: TF.number(), embedded: RT.optional(self), deep: RT.optional(icd)})
+      const icDate = RT.circular(
+        RT.object({
+          date: TF.date(),
+          month: TF.number(),
+          year: TF.number(),
+          embedded: RT.optional(RT.self()),
+          deep: RT.optional(icd),
+        })
       );
-      const root = RT.circular((self) =>
-        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(self), ciDate: icDate})
+      const root = RT.circular(
+        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(RT.self()), ciDate: icDate})
       );
       return createJsonDecoder(root);
     },
     schemaBinaryEncoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
-      const icDate = RT.circular((self) =>
-        RT.object({date: TF.date(), month: TF.number(), year: TF.number(), embedded: RT.optional(self), deep: RT.optional(icd)})
+      const icDate = RT.circular(
+        RT.object({
+          date: TF.date(),
+          month: TF.number(),
+          year: TF.number(),
+          embedded: RT.optional(RT.self()),
+          deep: RT.optional(icd),
+        })
       );
-      const root = RT.circular((self) =>
-        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(self), ciDate: icDate})
+      const root = RT.circular(
+        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(RT.self()), ciDate: icDate})
       );
       return createBinaryEncoder(root);
     },
     schemaBinaryDecoder: () => {
-      const icd = RT.circular((self) =>
-        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(self)})})
+      const icd = RT.circular(
+        RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
-      const icDate = RT.circular((self) =>
-        RT.object({date: TF.date(), month: TF.number(), year: TF.number(), embedded: RT.optional(self), deep: RT.optional(icd)})
+      const icDate = RT.circular(
+        RT.object({
+          date: TF.date(),
+          month: TF.number(),
+          year: TF.number(),
+          embedded: RT.optional(RT.self()),
+          deep: RT.optional(icd),
+        })
       );
-      const root = RT.circular((self) =>
-        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(self), ciDate: icDate})
+      const root = RT.circular(
+        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(RT.self()), ciDate: icDate})
       );
       return createBinaryDecoder(root);
     },
