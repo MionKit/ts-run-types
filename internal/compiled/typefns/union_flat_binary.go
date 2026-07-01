@@ -184,7 +184,7 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 		clauses = append(clauses, objClause)
 	}
 
-	errVar := flatUnionEncodeErrorVar(ctx)
+	errVar := flatUnionEncodeBinaryErrorVar(ctx)
 	clauses = append(clauses, " else { throw new Error("+errVar+") }")
 	return RTCode{Code: strings.Join(clauses, ""), Type: CodeS}
 }

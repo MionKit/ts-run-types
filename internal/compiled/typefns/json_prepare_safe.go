@@ -798,6 +798,11 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
 		return RTCode{Code: "", Type: CodeS}
 	}
+	// All members JSON-identity — the value passes through unchanged; skip the
+	// per-member validate-and-return dispatch (see atomicOnlyJsonIdentity).
+	if layout.atomicOnlyJsonIdentity() {
+		return RTCode{Code: "", Type: CodeS}
+	}
 
 	var clauses []string
 

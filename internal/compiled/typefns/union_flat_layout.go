@@ -220,6 +220,18 @@ func buildFlatLayout(rt *protocol.RunType, ctx *EmitContext) FlatLayout {
 	return layout
 }
 
+// atomicOnlyJsonIdentity reports whether the union lays out as JSON-identity
+// atomic members only (no object branch, no non-JSON-compatible atomic member).
+// Such a union round-trips raw: JSON preserves the value's shape and the decoder
+// is identity (emitUnionRestoreFromJsonFlat short-circuits on !AtomicNeedsTuple),
+// so the JSON encoders collapse to a straight pass-through instead of a per-member
+// validate-and-return-unchanged dispatch chain. Literal members are JSON-identity,
+// so this covers `'a' | 'b' | 'c'`, `true | false`, `'a' | 2 | string`, etc.
+// (Binary is unaffected: it keeps the compact per-member discriminant.)
+func (layout FlatLayout) atomicOnlyJsonIdentity() bool {
+	return len(layout.ObjectMembers) == 0 && !layout.AtomicNeedsTuple
+}
+
 // buildMergedProps walks every object member, groups its non-static,
 // non-function-like Properties / PropertySignatures by name, and
 // returns the ordered merged list. Order follows the first appearance
