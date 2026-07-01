@@ -1,6 +1,8 @@
 # Function-free `circular` via the `self()` marker (and fix the spurious CTA001)
 
-Status: **open — investigated, ready to design.** Covers finding **F** from
+Status: **DONE (shipped).** Implemented as the function-free `circular(body)` form
+(callback overload REMOVED — option (b), pre-release). Fixes finding **F** at the root
+and the companion MKR001 false positive. Full JS + Go + fuzz suites green. Covers finding **F** from
 [optional-boolean-union-encoding.md](optional-boolean-union-encoding.md) (the
 spurious `CTA001` on schema-form recursion) and the API simplification that fixes
 it at the root.
@@ -116,7 +118,15 @@ resolver behaviour is identical to the fully function-free form.)
 - [x] Confirm `self()` standalone marker exists and `circular` reduces to `callback(self())`.
 - [x] Confirm the type-level recursion is `Recursive<Body>` + `Self` (callback-independent).
 - [x] Confirm the marker form resolves recursion with **no CTA001** (empirical).
-- [ ] Prototype the function-free `circular(body)` overload + runtime; typecheck `Static<>`.
-- [ ] Confirm the Go scanner needs no change for the direct-body form.
-- [ ] Choose the callback-form fate (deprecate+patch vs remove).
-- [ ] Migrate docs / examples / fixtures; add the zero-diagnostics regression.
+- [x] Ship the function-free `circular(body)` form + runtime (`compose.ts`); `Static<>` typechecks.
+- [x] Go scanner needed no change for the body form — EXCEPT a companion fix: MKR001
+      (reflect-form marker given a function-call value) false-fired on `circular(object(…))`;
+      excluded schema-builder calls from the check (`scan.go`).
+- [x] Chose **option (b): remove** the callback overload (pre-release).
+- [x] Migrated all recursive schemas (tests, playground presets + fake dts, benchmarks) via
+      an AST codemod; full JS + Go + fuzz suites green.
+
+### Shipped in
+
+- `feat(schema): function-free circular(body) via the self() marker; drop callback`
+- (companion) `fix(typeid): encode optional flag in tuple-slot id; …`

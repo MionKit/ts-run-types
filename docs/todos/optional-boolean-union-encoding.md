@@ -569,7 +569,7 @@ unions prove common.
 Add `flatUnionEncodeBinaryErrorVar` (message `'Can not binary encode union: …'`) and
 use it at [union_flat_binary.go:187](../../internal/compiled/typefns/union_flat_binary.go) instead of the JSON `flatUnionEncodeErrorVar`.
 
-### Step 6 — Fix F: the schema-form `RT.circular(self)` spurious CTA001
+### Step 6 — Fix F: the schema-form `RT.circular(self)` spurious CTA001 — ✅ DONE
 
 **Moved to its own spec: [circular-self-marker-no-callback.md](circular-self-marker-no-callback.md).**
 Root: `array(item: CompTimeArgs<RunType<T>>)` makes `checkCompTimeArgs` validate the
