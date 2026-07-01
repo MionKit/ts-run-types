@@ -18,6 +18,7 @@ package builders
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
+	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
 	"github.com/mionkit/ts-runtypes/internal/marker"
 )
 
@@ -37,7 +38,7 @@ const PropModSentinel = "__propMod"
 // so dynamic construction is still rejected. Each accepted call self-validates
 // its own CompTimeArgs args on its own scan visit, so the leaf check STOPS here
 // without recursing.
-func IsSchemaLeafCall(typeChecker *checker.Checker, markerModule string, call *ast.Node) bool {
+func IsSchemaLeafCall(typeChecker *checker.Checker, markerModule string, call *ast.Node, fs vfspkg.FS) bool {
 	if typeChecker == nil || call == nil || call.Kind != ast.KindCallExpression {
 		return false
 	}
@@ -49,7 +50,7 @@ func IsSchemaLeafCall(typeChecker *checker.Checker, markerModule string, call *a
 	if returnType == nil {
 		return false
 	}
-	if IsRunType(returnType, markerModule) {
+	if IsRunType(returnType, markerModule, fs) {
 		return true
 	}
 	// propMod / optional carrier — recognised structurally by the sentinel
@@ -63,15 +64,17 @@ func IsSchemaLeafCall(typeChecker *checker.Checker, markerModule string, call *a
 // (defensive, in case a future declaration aliases it), both gated on the
 // declaring module. Exported so the resolver can tell a schema-overload arg
 // (`createValidate(schemaConst)`, declared `RunType<T>`) from a reflect-form value.
-func IsRunType(tsType *checker.Type, markerModule string) bool {
+// fs is the resolver's virtual filesystem for the module-of-origin package.json
+// walk (nil = real on-disk); see marker.DeclaredInModule.
+func IsRunType(tsType *checker.Type, markerModule string, fs vfspkg.FS) bool {
 	if tsType == nil {
 		return false
 	}
-	if symbol := checker.Type_symbol(tsType); symbol != nil && symbol.Name == RunTypeName && marker.DeclaredInModule(symbol, markerModule) {
+	if symbol := checker.Type_symbol(tsType); symbol != nil && symbol.Name == RunTypeName && marker.DeclaredInModule(symbol, markerModule, fs) {
 		return true
 	}
 	if alias := checker.Type_alias(tsType); alias != nil {
-		if symbol := alias.Symbol(); symbol != nil && symbol.Name == RunTypeName && marker.DeclaredInModule(symbol, markerModule) {
+		if symbol := alias.Symbol(); symbol != nil && symbol.Name == RunTypeName && marker.DeclaredInModule(symbol, markerModule, fs) {
 			return true
 		}
 	}

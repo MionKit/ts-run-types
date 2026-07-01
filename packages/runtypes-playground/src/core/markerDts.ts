@@ -1,30 +1,15 @@
-// The marker ambient declaration handed to the resolver on its virtual disk.
-// The resolver gates recognition of each factory on an import from a module
-// named `ts-runtypes`; this `declare module` satisfies that without a real
-// package. Each factory's `InjectTypeFnArgs<T, '<fnKey>'>` / `InjectRunTypeId<T>`
-// trailing param is what the scanner reads to compute demand + the function
-// hash. Kept minimal: the options params are omitted because the engine places
-// the injected tuple itself when invoking the public factory.
+// Monaco in-editor stubs + shared constants for the playground.
 //
-// Both call shapes are declared so the playground can run a type EITHER as a TS
-// type (`createX<MyType>()`) or as a value-first SCHEMA (`createX(MyType)` where
-// `MyType` is built from `ts-runtypes/schema` + `ts-runtypes/formats`). The schema
-// builder modules below give tsgo enough to infer the static type from a schema;
-// `optional(...)` widens to `T | undefined` (a required key) rather than a `?:`
-// key, which is a close-enough approximation for the playground.
-//
-// `ts-runtypes/formats` carries the TYPE-FORMAT catalog (Email, UUIDv4, …): each
-// alias is the same two-sentinel brand (`__rtFormatName` + `__rtFormatParams`)
-// the resolver lifts into a RunType's FormatAnnotation, so a user-written
-// `import type { Email } from 'ts-runtypes/formats'` resolves AND drives
-// format-aware validate / mock / codegen. The catalog is built from data below so
-// the regex params embed via JSON.stringify (no hand-escaping). Pattern-bearing
-// formats (email / url) carry the same {source, flags?, mockSamples} the real
-// package registers; named formats (uuid / ip) and number formats carry their
-// plain params. Faithful to ts-runtypes/formats so behaviour matches real code.
+// The RESOLVER no longer reads a hand-written ambient `declare module` overlay
+// (it type-checks against the REAL ts-runtypes sources staged on the virtual
+// disk — see runtypesPackageSources.ts, which is faithful by construction and
+// can't drift). What remains here is used only by the in-editor Monaco language
+// service, which needs loose module stubs so a user's `import * as RT from
+// 'ts-runtypes/schema'` / `import type { Email } from 'ts-runtypes/formats'`
+// resolves in the editor without red squiggles. The precise types that drive
+// codegen come from the real sources fed to the resolver, not from these stubs.
 
-// A type-format catalog entry. `name` is the format category the Go emitter keys
-// on; `params` is embedded as a literal type via JSON so the scanner recovers it.
+// A type-format catalog entry driving the Monaco format stubs.
 interface FormatEntry {
   alias: string; // the TS type users import: `Email`
   builder: string; // the value-first builder: `email`
@@ -64,108 +49,11 @@ const FORMATS: FormatEntry[] = [
   {alias: 'PositiveInt', builder: 'positiveInt', base: 'number', name: 'numberFormat', params: {min: 0, integer: true}},
 ];
 
-// One brand alias per format: `Base & {__rtFormatName?: name; __rtFormatParams?: params}`.
-// The optional sentinels keep the format mutually assignable with its base (so
-// `'x@y.io'` flows into an `Email` slot), exactly like the real TypeFormat brand.
-function formatTypeAliases(): string {
-  return FORMATS.map(
-    (f) =>
-      `  export type ${f.alias} = ${f.base} & {readonly __rtFormatName?: '${f.name}'; readonly __rtFormatParams?: ${JSON.stringify(f.params)}};`
-  ).join('\n');
-}
-
-// Value-first builders (schema form: `TF.email()` → `RunType<Email>`).
-function formatBuilders(): string {
-  return FORMATS.map((f) => `  export function ${f.builder}(): RunType<${f.alias}>;`).join('\n');
-}
-
-export const MARKER_DTS = `
-declare module 'ts-runtypes' {
-  export type InjectRunTypeId<T> = string & {readonly __b?: T};
-  export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> =
-    string & {readonly __b?: T; readonly __f?: [F1, F2, F3]};
-  export type CompTimeArgs<T> = T & {readonly __c?: never};
-  export type CompTimeFnArgs<T> = T & {readonly __cf?: never};
-  export interface RunType<T> { readonly __rt?: T; readonly id: string; }
-  export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export function getRunType<T>(value?: T, id?: InjectRunTypeId<T>): RunType<T>;
-  // Schema overloads come FIRST so a value-first \`createX(MyType)\` infers T from
-  // RunType<T> rather than matching \`(val?: T)\` with T = RunType<T> (which would
-  // validate the schema wrapper instead of the type). The no-arg type form
-  // \`createX<MyType>()\` skips the (required) schema overload and uses \`(val?)\`.
-  export function createMockType<T>(schema: RunType<T>, options?: unknown, id?: InjectRunTypeId<T>): () => T;
-  export function createMockType<T>(val?: T, options?: unknown, id?: InjectRunTypeId<T>): () => T;
-  export function createValidate<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
-  export function createValidate<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
-  export function createGetValidationErrors<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'verr'>): (v: unknown) => unknown[];
-  export function createGetValidationErrors<T>(val?: T, id?: InjectTypeFnArgs<T, 'verr'>): (v: unknown) => unknown[];
-  export function createJsonEncoder<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: T) => unknown;
-  export function createJsonEncoder<T>(val?: T, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: T) => unknown;
-  export function createJsonDecoder<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (v: unknown) => T;
-  export function createJsonDecoder<T>(val?: T, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (v: unknown) => T;
-  export function createBinaryEncoder<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'tb'>): (v: T) => Uint8Array;
-  export function createBinaryEncoder<T>(val?: T, id?: InjectTypeFnArgs<T, 'tb'>): (v: T) => Uint8Array;
-  export function createBinaryDecoder<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'fb'>): (v: Uint8Array) => T;
-  export function createBinaryDecoder<T>(val?: T, id?: InjectTypeFnArgs<T, 'fb'>): (v: Uint8Array) => T;
-}
-declare module 'ts-runtypes/formats' {
-  import type {RunType} from 'ts-runtypes';
-  // Type-format catalog — each alias brands its base so the resolver detects it.
-${formatTypeAliases()}
-  // Scalar + value-first format builders (schema form: \`import * as TF from 'ts-runtypes/formats'\`).
-  export function string(): RunType<string>;
-  export function number(): RunType<number>;
-  export function boolean(): RunType<boolean>;
-${formatBuilders()}
-}
-declare module 'ts-runtypes/schema' {
-  import type {RunType} from 'ts-runtypes';
-  type St<R> = R extends RunType<infer T> ? T : never;
-  export function string(): RunType<string>;
-  export function number(): RunType<number>;
-  export function boolean(): RunType<boolean>;
-  export function literal<V extends string | number | boolean>(v: V): RunType<V>;
-  export function array<R extends RunType<unknown>>(element: R): RunType<St<R>[]>;
-  export function union<R extends RunType<unknown>[]>(members: [...R]): RunType<St<R[number]>>;
-  export function optional<R extends RunType<unknown>>(element: R): RunType<St<R> | undefined>;
-  export function object<C extends Record<string, RunType<unknown>>>(shape: C): RunType<{[K in keyof C]: St<C[K]>}>;
-  // Recursive-schema machinery — mirrors ts-runtypes/schema/static.ts so the
-  // resolver reflects \`circular(…self()…)\` as a real cyclic type (not \`any\`).
-  const SelfBrand: unique symbol;
-  type Self = {readonly [SelfBrand]: true};
-  type SubstituteSelf<T, P extends [unknown]> = T extends Self
-    ? P[0]
-    : T extends string | number | boolean | bigint | symbol | null | undefined
-      ? T
-      : T extends Date | RegExp
-        ? T
-        : T extends Map<any, any>
-          ? T extends Map<infer K, infer V> ? Map<SubstituteSelf<K, P>, SubstituteSelf<V, P>> : never
-          : T extends Set<any>
-            ? T extends Set<infer E> ? Set<SubstituteSelf<E, P>> : never
-            : T extends Promise<infer E>
-              ? Promise<SubstituteSelf<E, P>>
-              : T extends (...args: infer A extends readonly unknown[]) => infer R
-                ? (...args: {-readonly [K in keyof A]: SubstituteSelf<A[K], P>}) => SubstituteSelf<R, P>
-                : T extends readonly unknown[]
-                  ? number extends T['length']
-                    ? T extends readonly (infer E)[] ? SubstituteSelf<E, P>[] : never
-                    : {-readonly [K in keyof T]: SubstituteSelf<T[K], P>}
-                  : T extends object
-                    ? {[K in keyof T]: SubstituteSelf<T[K], P>}
-                    : T;
-  type Recursive<Body> = SubstituteSelf<Body, [Recursive<Body>]>;
-  export function self(): RunType<Self>;
-  export function circular<Body>(body: RunType<Body>): RunType<Recursive<Body>>;
-}
-`;
-
 // A loose `ts-runtypes/formats` module for the in-editor type checker (Monaco):
 // each format alias is just its base type and each builder returns `any`. The
-// resolver (MARKER_DTS) carries the real brands that drive format-aware codegen;
-// the editor only needs the names to resolve so a user's `import { Email } from
-// 'ts-runtypes/formats'` doesn't error. Derived from the same FORMATS catalog so
-// the two never drift.
+// RESOLVER type-checks against the REAL ts-runtypes sources (runtypesPackageSources.ts),
+// which carry the precise format brands; the editor only needs the names to
+// resolve so a user's `import { Email } from 'ts-runtypes/formats'` doesn't error.
 export function formatsEditorModule(): string {
   const aliases = FORMATS.map((f) => `  export type ${f.alias} = ${f.base};`).join('\n');
   const builders = FORMATS.map((f) => `  export function ${f.builder}(): any;`).join('\n');

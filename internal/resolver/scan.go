@@ -440,7 +440,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		// `array(…)`, …) IS the intended reflect-form value — it's pure
 		// construction, not a side-effectful user function — so it must not warn.
 		if argZero != nil && argZero.Kind == ast.KindCallExpression &&
-			!builders.IsSchemaLeafCall(state.scanChecker, state.resolver.markerModule(), argZero) {
+			!builders.IsSchemaLeafCall(state.scanChecker, state.resolver.markerModule(), argZero, state.resolver.marker.FS) {
 			if diagnostic, ok := state.resolver.markerDiagFunctionCallArg(file, argZero); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
@@ -465,7 +465,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		// from the schema overload's `RunType<T>` param). Overriding it with
 		// `RunType<T>` would validate against RunType's own shape, not `T` — and
 		// break recursive schemas bound to an annotated const.
-		if annotated, ok := state.declaredTypeFromIdentifier(argZero); ok && !builders.IsRunType(annotated, state.resolver.markerModule()) {
+		if annotated, ok := state.declaredTypeFromIdentifier(argZero); ok && !builders.IsRunType(annotated, state.resolver.markerModule(), state.resolver.marker.FS) {
 			typeArgument = annotated
 		}
 	}
@@ -901,7 +901,7 @@ func (resolver *Resolver) noopValidateOptionDiag(file string, call *ast.Node, la
 func (state scanState) isBuilderCallPredicate() func(*ast.Node) bool {
 	module := state.resolver.markerModule()
 	return func(node *ast.Node) bool {
-		return builders.IsSchemaLeafCall(state.scanChecker, module, node)
+		return builders.IsSchemaLeafCall(state.scanChecker, module, node, state.resolver.marker.FS)
 	}
 }
 

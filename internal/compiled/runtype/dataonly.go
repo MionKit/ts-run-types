@@ -3,6 +3,7 @@ package runtype
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
+	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
 	"github.com/mionkit/ts-runtypes/internal/marker"
 )
 
@@ -40,7 +41,7 @@ const dataOnlyAliasName = "DataOnly"
 // `type X = …` argument), falling back to its symbol name (matches
 // `interface X` argument). Returns ok=false for any non-matching case so
 // callers fall through to existing TypeName paths unchanged.
-func dataOnlyTypeName(tsType *checker.Type) (string, bool) {
+func dataOnlyTypeName(tsType *checker.Type, fs vfspkg.FS) (string, bool) {
 	if tsType == nil {
 		return "", false
 	}
@@ -63,7 +64,7 @@ func dataOnlyTypeName(tsType *checker.Type) (string, bool) {
 	if aliasSymbol == nil || aliasSymbol.Name != dataOnlyAliasName {
 		return "", false
 	}
-	if !marker.DeclaredInModule(aliasSymbol, marker.DefaultModule) {
+	if !marker.DeclaredInModule(aliasSymbol, marker.DefaultModule, fs) {
 		return "", false
 	}
 	innerName := nameOfBoundType(mappedTypeModifiersType(mapped))

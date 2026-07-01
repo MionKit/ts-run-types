@@ -47,7 +47,7 @@ func IsCompTimeArgsParamNode(typeChecker *checker.Checker, paramSymbol *ast.Symb
 		if symbol == nil || symbol.Name != spec.Name {
 			continue
 		}
-		if marker.DeclaredInModule(symbol, spec.Module) {
+		if marker.DeclaredInModule(symbol, spec.Module, opts.FS) {
 			return true
 		}
 	}

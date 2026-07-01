@@ -13,7 +13,8 @@ import * as RT from 'ts-runtypes';
 // runtime. Without it a format like UUID / IP throws `pf_isUUID is not a function`.
 import 'ts-runtypes/formats';
 import {loadResolver, type Resolver, type ResolverOptions, type ResolverVersions} from './wasmLoader.ts';
-import {MARKER_DTS, ROOT_TYPE} from './markerDts.ts';
+import {ROOT_TYPE} from './markerDts.ts';
+import {runtypesPackageSources} from './runtypesPackageSources.ts';
 import {operationByKey, type Operation} from './operations.ts';
 
 export type {Operation, OperationKind} from './operations.ts';
@@ -120,6 +121,20 @@ export function factoryCall(factory: string, varName: string, mode: Mode, inject
   return `const ${varName} = ${factory}<${ROOT_TYPE}>(${injectedArg ?? ''});`;
 }
 
+// pickFactorySite returns the site for the engine's appended factory call — the
+// one with the highest source position. See the `site:` note in scan(): a
+// value-first schema snippet emits an extra reflection site for its own
+// `const MyType = RT.object(...)` builder that must not be mistaken for the
+// factory call site.
+function pickFactorySite(sites: ScanResult['site'][]): ScanResult['site'] {
+  let best: ScanResult['site'] = null;
+  for (const site of sites) {
+    if (!site) continue;
+    if (!best || Number(site.pos ?? 0) > Number(best.pos ?? 0)) best = site;
+  }
+  return best;
+}
+
 function scan(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode = 'type'): ScanResult {
   // Only the factory import is injected; the user snippet writes its own
   // `import * as RT from 'ts-runtypes/schema'` / `import type { … } from
@@ -127,11 +142,16 @@ function scan(dispatch: Resolver['dispatch'], factory: string, userCode: string,
   // duplicated).
   const call = mode === 'schema' ? `${factory}(${ROOT_TYPE});` : `${factory}<${ROOT_TYPE}>();`;
   const source = [`import { ${factory} } from 'ts-runtypes';`, userCode, call, ''].join('\n');
-  dispatch({op: 'setSources', sources: {'ts-runtypes.d.ts': MARKER_DTS, [FILE]: source}});
+  dispatch({op: 'setSources', sources: {...runtypesPackageSources(), [FILE]: source}});
   const result = dispatch({op: 'scanFiles', files: [FILE], includeRunTypes: true, includeEntryModules: true});
   const sites = (result.sites as ScanResult['site'][]) ?? [];
   return {
-    site: sites[0] ?? null,
+    // The factory call is appended LAST, so its site has the highest source
+    // position. Pick it, not sites[0]: in schema mode a value-first snippet's
+    // own `const MyType = RT.object(...)` carries its OWN reflection marker
+    // (the builder's InjectRunTypeId `id` param) and emits an earlier site — the
+    // one we must NOT link against (it's the runtype facade, not the factory).
+    site: pickFactorySite(sites),
     entryModules: (result.entryModules as Record<string, string>) ?? {},
     runTypes: (result.runTypes as RunTypeNode[]) ?? [],
     diagnostics: (result.diagnostics as Diagnostic[]) ?? [],
@@ -198,20 +218,25 @@ export async function transformedSource(
 ): Promise<string> {
   const {dispatch} = await getResolver(options);
   const source = [factoryImport(factory), '', userCode.trimEnd(), '', factoryCall(factory, varName, mode)].join('\n');
-  dispatch({op: 'setSources', sources: {'ts-runtypes.d.ts': MARKER_DTS, [FILE]: source}});
+  dispatch({op: 'setSources', sources: {...runtypesPackageSources(), [FILE]: source}});
   const result = dispatch({op: 'transform', files: [FILE]});
   const code = (result.transformed as Record<string, {code?: string}> | undefined)?.[FILE]?.code;
   if (typeof code !== 'string') return source;
-  // The rewrite slot-fills the factory's leading optional parameters with
-  // `undefined` before the injected `__rt_…` id (the type-first form passes no
-  // value / options). Drop that padding so the call reads like the code a user
-  // writes - `createValidate<MyType>(__rt_…)`, not `…(undefined, __rt_…)`. Scope
-  // the cleanup to the factory call itself (the last non-empty line) so it can
-  // never touch user code that happens to contain the same `(undefined, __rt_…)`.
+  // The rewrite slot-fills the factory's optional parameters with `undefined`
+  // before the injected `__rt_…` id. Type-first passes no value/options so the
+  // padding is leading — `createValidate<MyType>(undefined, __rt_…)`; value-first
+  // passes the schema so the padding is the `options` slot between it and the id
+  // — `createJsonEncoder(MyType, undefined, __rt_…)`. Drop that padding either
+  // way so the call reads like the code a user writes (`…(__rt_…)` /
+  // `…(MyType, __rt_…)`). Scope the cleanup to the factory call itself (the last
+  // non-empty line) so it can never touch user code with the same shape.
   const lines = code.split('\n');
   for (let i = lines.length - 1; i >= 0; i--) {
     if (lines[i].trim()) {
-      lines[i] = lines[i].replace(/\((?:undefined,\s*)+(__rt_[A-Za-z0-9_]+)\)/g, '($1)');
+      lines[i] = lines[i].replace(
+        /([(,])\s*(?:undefined,\s*)+(__rt_[A-Za-z0-9_]+)\)/g,
+        (_m, sep: string, id: string) => (sep === ',' ? `, ${id})` : `(${id})`)
+      );
       break;
     }
   }

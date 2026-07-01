@@ -174,7 +174,9 @@ func enrichAnnotation(typeChecker *checker.Checker, declaration *ast.Node) (enri
 	default:
 		return mapKindNone, nil
 	}
-	if !marker.DeclaredInModule(symbol, marker.DefaultModule) {
+	// nil FS: the enrich CLI runs over a real on-disk project (tsconfig-backed
+	// program, real node_modules), so the package.json gate reads the real disk.
+	if !marker.DeclaredInModule(symbol, marker.DefaultModule, nil) {
 		return mapKindNone, nil
 	}
 	typeArgumentNodes := typeNode.TypeArguments()
