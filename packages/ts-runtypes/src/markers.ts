@@ -13,6 +13,7 @@
 // parameter on the wrapper and the transformer treats it identically.
 
 import {entryTupleKey, initFromTuple, isEntryTuple} from './runtypes/entryTuple.ts';
+import type {RunType} from './runtypes/types.ts';
 
 /**
  * Sentinel marker. `T` is a phantom type parameter used only by the checker /
@@ -72,6 +73,11 @@ export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3
  *   - REFLECTION — let `T` be inferred from a runtime value:
  *     `getRunTypeId(user)`. The value is read only for its type; at runtime it
  *     is ignored, so nothing leaks into the output.
+ *   - SCHEMA (value-first) — pass a `RunType` schema, get the id of the type it
+ *     MODELS: `getRunTypeId(object({…}))`. `T` is the UNWRAPPED modeled type;
+ *     without this overload a value-first `getRunTypeId(schema)` infers
+ *     `T = RunType<…>` and returns the id of the `RunType` wrapper interface
+ *     instead of the type the schema describes. Mirrors `createMockType`.
  *
  * Throws if the transformer is not active — the id can only be computed at
  * build time. The plugin injects the runtype's entry-module tuple at the
@@ -84,7 +90,11 @@ export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3
  * whose runtime fn is a noop validator / best-effort serializer (with a
  * build-time diagnostic).
  */
-export function getRunTypeId<T>(_value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+// Schema overload first so a value-first `getRunTypeId(schema)` binds `T` from
+// `RunType<T>` rather than matching `(_value?: T)` with `T = RunType<T>`.
+export function getRunTypeId<T>(schema: RunType<T>, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+export function getRunTypeId<T>(_value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+export function getRunTypeId<T>(_valueOrSchema?: T | RunType<T>, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (isEntryTuple(id)) {
     initFromTuple(id);
     return entryTupleKey(id) as InjectRunTypeId<T>;
