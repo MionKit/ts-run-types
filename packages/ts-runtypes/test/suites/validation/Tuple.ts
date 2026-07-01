@@ -474,7 +474,7 @@ export const TUPLE = {
     description:
       'A chain of trailing optional slots (TS grammar bars optionals before required elements) where each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.',
     validateNotes:
-      'An optional slot may be absent or explicitly `undefined`. The resolver expands an optional like `boolean?` to a union (`undefined | true | false`), so a wrong value there reports `expected: "union"` rather than `"boolean"`.',
+      'An optional slot may be absent or explicitly `undefined`. The optional strips the redundant `undefined` and keeps the inner type atomic (`boolean?` stays `boolean`, not a `undefined | true | false` union), so a wrong value there reports the bare atomic token (`expected: "boolean"`).',
     validate: () => createValidate<[number, bigint?, boolean?, number?]>(),
     standardSchema: () => createStandardSchema<[number, bigint?, boolean?, number?]>(),
     validateDataOnly: () => createValidate<DataOnly<[number, bigint?, boolean?, number?]>>(),
@@ -539,10 +539,10 @@ export const TUPLE = {
       [{path: [], expected: 'tuple'}],
       [{path: [0], expected: 'number'}],
       // [3, 1n, 'not boolean'] — slot 2 (boolean?) is non-undefined
-      // non-boolean. Because `boolean` itself models as `true | false`, the
-      // resolver expands `boolean?` to a 3-arm union (undefined | true | false),
-      // so the error is reported as 'union' not 'boolean'.
-      [{path: [2], expected: 'union'}],
+      // non-boolean. The optional strips the redundant `undefined` and restores
+      // the `boolean` atomic (not a `undefined | true | false` union), so the
+      // error is the bare 'boolean' token.
+      [{path: [2], expected: 'boolean'}],
     ],
   },
 
