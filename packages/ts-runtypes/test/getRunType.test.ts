@@ -7,6 +7,8 @@
 
 import {describe, it, expect} from 'vitest';
 import {getRunType, getRunTypeId, RunTypeKind} from 'ts-runtypes';
+import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
 
 describe('getRunType — reflected RunType node accessor', () => {
   it('(static) returns the traversable node for T', () => {
@@ -25,6 +27,28 @@ describe('getRunType — reflected RunType node accessor', () => {
     // one shared singleton per structural id — both forms land on it
     expect(fromValue.id).toBe(fromType.id);
     expect(fromValue).toBe(fromType);
+  });
+
+  it('(schema, value-first) reflects the type the schema MODELS, converging with the type form', () => {
+    // Regression: without the `getRunType(schema: RunType<T>)` overload, a
+    // value-first `getRunType(RT.object({…}))` inferred `T = RunType<…>` and
+    // reflected the whole RunType wrapper interface (id, kind, children, format
+    // annotation, …) instead of the type the schema models.
+    const schema = RT.object({id: TF.number(), name: TF.string()});
+    const fromSchema = getRunType(schema);
+    const fromType = getRunType<{id: number; name: string}>();
+    expect(fromSchema.kind).toBe(RunTypeKind.objectLiteral);
+    expect((fromSchema.children ?? []).map((child) => child.name)).toEqual(['id', 'name']);
+    // Same registered singleton as the type-first form — the modeled type, not
+    // the RunType wrapper.
+    expect(fromSchema).toBe(fromType);
+  });
+
+  it('(schema) getRunTypeId returns the MODELED type id, converging with the type form', () => {
+    const schema = RT.object({id: TF.number(), name: TF.string()});
+    const schemaId = getRunTypeId(schema);
+    const typeId = getRunTypeId<{id: number; name: string}>();
+    expect(schemaId).toBe(typeId);
   });
 
   it('resolves to the same id getRunTypeId returns (static + reflect)', () => {
