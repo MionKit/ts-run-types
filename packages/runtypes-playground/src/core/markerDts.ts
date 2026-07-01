@@ -88,6 +88,7 @@ declare module 'ts-runtypes' {
   export type CompTimeFnArgs<T> = T & {readonly __cf?: never};
   export interface RunType<T> { readonly __rt?: T; readonly id: string; }
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export function getRunType<T>(value?: T, id?: InjectRunTypeId<T>): RunType<T>;
   // Schema overloads come FIRST so a value-first \`createX(MyType)\` infers T from
   // RunType<T> rather than matching \`(val?: T)\` with T = RunType<T> (which would
   // validate the schema wrapper instead of the type). The no-arg type form

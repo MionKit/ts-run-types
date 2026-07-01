@@ -98,6 +98,28 @@ function linkRootTuple(entryModules: Record<string, string>, binding: string): u
 // from ts-runtypes/schema + ts-runtypes/formats (the call site is `<factory>(MyType)`).
 export type Mode = 'type' | 'schema';
 
+// factoryImport renders the import line the playground shows around a snippet —
+// the same `import { <factory> } from 'ts-runtypes'` the engine prepends before
+// resolving (see `scan` below), surfaced verbatim so the type column can display
+// the real surrounding code the user would write.
+export function factoryImport(factory: string): string {
+  return `import { ${factory} } from 'ts-runtypes';`;
+}
+
+// factoryCall renders the call line: `const <varName> = <factory><MyType>()` in
+// type mode, `const <varName> = <factory>(MyType)` in schema mode. When
+// `injectedArg` is given (a `__rt_<…>` binding), it is appended as the trailing
+// argument — exactly how the build plugin rewrites the call site (a 0-arg
+// `createValidate<T>()` becomes `createValidate<T>(__rt_…)`; the value-first
+// `createValidate(MyType)` becomes `createValidate(MyType, __rt_…)`).
+export function factoryCall(factory: string, varName: string, mode: Mode, injectedArg?: string | null): string {
+  if (mode === 'schema') {
+    const args = injectedArg ? `${ROOT_TYPE}, ${injectedArg}` : ROOT_TYPE;
+    return `const ${varName} = ${factory}(${args});`;
+  }
+  return `const ${varName} = ${factory}<${ROOT_TYPE}>(${injectedArg ?? ''});`;
+}
+
 function scan(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode = 'type'): ScanResult {
   // Only the factory import is injected; the user snippet writes its own
   // `import * as RT from 'ts-runtypes/schema'` / `import type { … } from
@@ -160,64 +182,65 @@ function materialize(dispatch: Resolver['dispatch'], factory: string, userCode: 
   return {fn, diagnostics};
 }
 
-// Slot index of the generated function body inside a type-fn entry tuple
-// (FN_TYPE_REQUIRED_KEYS = [familyTag, deps, ini, rtFnHash, typeName, code] in
-// packages/ts-runtypes/src/runtypes/entryTuple.ts). Noop / alwaysThrow entries
-// ship without a code string.
-const CODE_SLOT = 5;
-
-export interface GeneratedModule {
-  factory: string;
-  // The generated function source, or null when the family is a no-op (identity)
-  // for this type or could not be generated (see `note`).
-  code: string | null;
-  note?: string;
-}
-
-// The type-fn families whose generated code the playground shows, in display
-// order. Reflection (getRunTypeId / createMockType) has no per-type function code.
-const CODE_FAMILIES: ReadonlyArray<string> = [
-  'createValidate',
-  'createGetValidationErrors',
-  'createJsonEncoder',
-  'createJsonDecoder',
-  'createBinaryEncoder',
-  'createBinaryDecoder',
-];
-
-// linkOne reads the generated function source for one family by linking its entry
-// tuple and reading the code slot.
-function linkOne(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode): GeneratedModule {
-  try {
-    const {tuple} = linkEntry(dispatch, factory, userCode, mode);
-    const code = tuple[CODE_SLOT];
-    if (typeof code === 'string' && code.length > 0) return {factory, code};
-    return {factory, code: null, note: 'no-op for this type (the generated function is the identity)'};
-  } catch (err) {
-    return {factory, code: null, note: (err as Error).message ?? String(err)};
+// transformedSource returns the file the build plugin actually produces for the
+// selected factory: the resolver's real transform of `import … / <type> / const
+// … = <factory>…()`. That is the injected `import { __rt_… } from 'virtual:rt/…'`
+// block plus the call rewritten with its trailing `__rt_…` argument — shown
+// verbatim in the type column's "after build" view so the edits the plugin makes
+// on top of the generated code are visible. Falls back to the untransformed
+// source when nothing resolves (e.g. the snippet does not compile yet).
+export async function transformedSource(
+  factory: string,
+  varName: string,
+  userCode: string,
+  options?: ResolverOptions,
+  mode: Mode = 'type'
+): Promise<string> {
+  const {dispatch} = await getResolver(options);
+  const source = [factoryImport(factory), '', userCode.trimEnd(), '', factoryCall(factory, varName, mode)].join('\n');
+  dispatch({op: 'setSources', sources: {'ts-runtypes.d.ts': MARKER_DTS, [FILE]: source}});
+  const result = dispatch({op: 'transform', files: [FILE]});
+  const code = (result.transformed as Record<string, {code?: string}> | undefined)?.[FILE]?.code;
+  if (typeof code !== 'string') return source;
+  // The rewrite slot-fills the factory's leading optional parameters with
+  // `undefined` before the injected `__rt_…` id (the type-first form passes no
+  // value / options). Drop that padding so the call reads like the code a user
+  // writes - `createValidate<MyType>(__rt_…)`, not `…(undefined, __rt_…)`. Scope
+  // the cleanup to the factory call itself (the last non-empty line) so it can
+  // never touch user code that happens to contain the same `(undefined, __rt_…)`.
+  const lines = code.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trim()) {
+      lines[i] = lines[i].replace(/\((?:undefined,\s*)+(__rt_[A-Za-z0-9_]+)\)/g, '($1)');
+      break;
+    }
   }
+  return lines.join('\n').trimEnd();
 }
 
-// generatedFunction returns the generated source for ONE family (the playground's
-// selected build function).
-export async function generatedFunction(
+// A single generated cache module: the virtual-module specifier the transformed
+// file (or a sibling cache) imports, plus its `export const __rt_… = […]` source.
+export interface CacheModule {
+  name: string; // e.g. `virtual:rt/fns/jdST.js`
+  code: string;
+}
+
+// generatedCache returns the generated cache modules for this factory + type —
+// one entry per family module the resolver emits (ModuleMode allSingle = one per
+// family tag). A single-function type is one module; a JSON/binary codec is a few
+// (the composite + the primitives it looks up at runtime), which import each
+// other — the UI labels each with its module name and keeps the imports so the
+// cross-module structure is visible. For reflection (getRunType) it is the single
+// runtype data bundle.
+export async function generatedCache(
   factory: string,
   userCode: string,
   options?: ResolverOptions,
   mode: Mode = 'type'
-): Promise<GeneratedModule> {
+): Promise<CacheModule[]> {
   const {dispatch} = await getResolver(options);
-  return linkOne(dispatch, factory, userCode, mode);
-}
-
-// generatedModules returns the generated function source for each family.
-export async function generatedModules(
-  userCode: string,
-  options?: ResolverOptions,
-  mode: Mode = 'type'
-): Promise<GeneratedModule[]> {
-  const {dispatch} = await getResolver(options);
-  return CODE_FAMILIES.map((factory) => linkOne(dispatch, factory, userCode, mode));
+  const {entryModules} = scan(dispatch, factory, userCode, mode);
+  return Object.entries(entryModules).map(([basename, code]) => ({name: `virtual:rt/${basename}.js`, code: code.trim()}));
 }
 
 // mock generates a random value for the type via createMockType (the same
@@ -279,9 +302,9 @@ export async function run(
 
   switch (op.kind) {
     case 'graph': {
-      // Type mode reflects via getRunTypeId<MyType>(); schema mode resolves the
+      // Type mode reflects via getRunType<MyType>(); schema mode resolves the
       // same graph through a value-first reflection call on the schema.
-      const reflectFactory = mode === 'schema' ? 'createMockType' : 'getRunTypeId';
+      const reflectFactory = mode === 'schema' ? 'createMockType' : 'getRunType';
       const {site, runTypes, diagnostics} = scan(dispatch, reflectFactory, userCode, mode);
       const rootId = site?.id ?? null;
       const root = runTypes.find((n) => n.id === rootId) ?? runTypes[0] ?? null;
