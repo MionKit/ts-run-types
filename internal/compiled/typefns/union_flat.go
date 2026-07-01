@@ -62,6 +62,16 @@ func flatUnionDecodeErrorVar(ctx *EmitContext) string {
 	return name
 }
 
+// flatUnionEncodeBinaryErrorVar is the binary-encode counterpart of
+// flatUnionEncodeErrorVar — the binary encoder must not reuse the JSON message.
+func flatUnionEncodeBinaryErrorVar(ctx *EmitContext) string {
+	name := "fuEncBinErr"
+	if !ctx.HasContextItem(name) {
+		ctx.SetContextItem(name, "const "+name+" = 'Can not binary encode union: item does not belong to the union'")
+	}
+	return name
+}
+
 // discCandidateGuard returns the JS boolean expression that selects `cand` by
 // the union discriminant value — e.g. `d === "t3"` or `(d === "ta" || d ===
 // "tb")` when two members fold into one candidate. Used by the merged-prop
@@ -123,6 +133,10 @@ func mergedPropSurvivingGuard(mp FlatMergedProp, accessor string, ctx *EmitConte
 func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	layout := buildFlatLayout(rt, ctx)
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
+		return RTCode{Code: "", Type: CodeS}
+	}
+	// All members JSON-identity — no transform (see atomicOnlyJsonIdentity).
+	if layout.atomicOnlyJsonIdentity() {
 		return RTCode{Code: "", Type: CodeS}
 	}
 
@@ -420,6 +434,11 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 	layout := buildFlatLayout(rt, ctx)
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
 		return RTCode{Code: "", Type: CodeS}
+	}
+	// All members JSON-identity — stringify the value directly, no per-member
+	// dispatch (see atomicOnlyJsonIdentity).
+	if layout.atomicOnlyJsonIdentity() {
+		return RTCode{Code: "return JSON.stringify(" + v + ");", Type: CodeRB}
 	}
 
 	var clauses []string
