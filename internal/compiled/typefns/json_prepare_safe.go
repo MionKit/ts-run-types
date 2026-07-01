@@ -358,6 +358,17 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 		return RTCode{Code: "return {}", Type: CodeRB}
 	}
 
+	clone := buildSafeObjectClone(props, ctx)
+	if clone.Type == CodeRB {
+		// Mixed-optionality: the accumulator block already self-returns, so
+		// it IS the factory body. Splice it directly rather than hoisting into
+		// a context fn and returning `return ctxFn0(v)` — the object emit sits
+		// in statement position (root, or the walker hoists a nested CodeRB
+		// exactly once). The fastpath below can't apply here: it requires every
+		// prop be required, and a CodeRB clone means at least one is optional.
+		return clone
+	}
+
 	// Approach 3 fastpath: only applies when EVERY prop is required AND
 	// every prop's value type is extra-proof (primitive or composite of
 	// primitives — nested objects could carry runtime extras even
@@ -365,13 +376,12 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 	// clone equals `v` whenever `Object.keys(v).length === N`, so we
 	// skip the allocation on clean inputs.
 	fastpath := allExtraProof && allRequired
-	cloneExpr := buildSafeObjectLiteral(props, ctx, v)
 	if fastpath {
 		body := "if (Object.keys(" + v + ").length === " + strconv.Itoa(len(props)) + ") return " + v + ";" +
-			"return " + cloneExpr
+			"return " + clone.Code
 		return RTCode{Code: body, Type: CodeRB}
 	}
-	return RTCode{Code: "return " + cloneExpr, Type: CodeRB}
+	return RTCode{Code: "return " + clone.Code, Type: CodeRB}
 }
 
 // buildSafeIndexSignatureObject — emits a CodeRB block that builds a
@@ -489,20 +499,27 @@ func buildSafeIndexSignatureObject(v string, props []safePropEmit, skipNames []s
 	return RTCode{Code: b.String(), Type: CodeRB}
 }
 
-// buildSafeObjectLiteral assembles the JS expression that clones the
-// declared keys. The clone is built purely from the declared type shape
-// (never `{...sourceV}`), so undeclared keys are dropped by construction —
-// this is why the shape-derived clone strategy strips for free. For
-// all-required shapes the result is an object literal `{a: <expr>, b: <expr>}`.
-// For mixed-optionality shapes the accumulator block hoists into a context
-// fn (so optional props can be conditionally included without per-optional
-// object spreads, and without allocating an IIFE closure on every call).
-// accessor is the OBJECT's input accessor the prop exprs were emitted
-// against; it drives the context-fn parameter derivation.
+// buildSafeObjectClone assembles the safe-form clone of the declared keys.
+// The clone is built purely from the declared type shape (never
+// `{...sourceV}`), so undeclared keys are dropped by construction — this is
+// why the shape-derived clone strategy strips for free.
+//
+// Return shape depends on optionality:
+//   - all-required → a CodeE object-literal expression `{a: <expr>, b: <expr>}`.
+//   - mixed-optionality → a self-returning CodeRB accumulator block
+//     (`const _r={…};if(…)…;return _r;`) so optional props can be
+//     conditionally included without per-optional object spreads.
+//
+// The CodeRB block is NOT hoisted here — the caller decides. A caller in
+// STATEMENT position (the object emit at a return slot) splices the block
+// body directly; a caller in EXPRESSION position (a union member wrapped in
+// `[-1, …]`) hoists it into a per-factory context fn via CreateFnInContext.
+// Hoisting here unconditionally added a redundant `return ctxFn0(v)` layer
+// for the common object-at-root case.
 //
 // Note: this helper assumes len(props) > 0; the parent emit gates
 // the empty case separately.
-func buildSafeObjectLiteral(props []safePropEmit, ctx *EmitContext, accessor string) string {
+func buildSafeObjectClone(props []safePropEmit, ctx *EmitContext) RTCode {
 	hasOptional := false
 	for _, p := range props {
 		if p.optional {
@@ -522,9 +539,9 @@ func buildSafeObjectLiteral(props []safePropEmit, ctx *EmitContext, accessor str
 			b.WriteString(p.expr)
 		}
 		b.WriteString("}")
-		return b.String()
+		return RTCode{Code: b.String(), Type: CodeE}
 	}
-	// Mixed-optionality — accumulator block, hoisted to a context fn.
+	// Mixed-optionality — self-returning accumulator block.
 	var b strings.Builder
 	b.WriteString("const _r={")
 	first := true
@@ -560,8 +577,7 @@ func buildSafeObjectLiteral(props []safePropEmit, ctx *EmitContext, accessor str
 		b.WriteString(";")
 	}
 	b.WriteString("return _r;")
-	params := ctx.CtxFnParams(accessor)
-	return ctx.CreateFnInContext(b.String(), CodeRB, params, params)
+	return RTCode{Code: b.String(), Type: CodeRB}
 }
 
 // jsonObjectKeyLiteral returns the JS object-literal key form for a
@@ -792,7 +808,7 @@ func emitIndexSignaturePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext
 // as `[memberIndex, value]` when layout.AtomicNeedsTuple, raw
 // otherwise) so the result decodes through the existing flat
 // restoreFromJson. Each clause returns a NEW value built from
-// safeChildExpr / buildSafeObjectLiteral; the input is never touched.
+// safeChildExpr / buildSafeObjectClone; the input is never touched.
 func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	layout := buildFlatLayout(rt, ctx)
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
@@ -853,9 +869,17 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 				presenceGuard: presenceGuard,
 			})
 		}
-		objLit := buildSafeObjectLiteral(props, ctx, v)
+		clone := buildSafeObjectClone(props, ctx)
+		objLit := clone.Code
+		if clone.Type == CodeRB {
+			// Union clause is an expression slot (`[-1, …]` / `return …` within a
+			// clause chain), so a mixed-optionality accumulator block must hoist
+			// into a per-factory context fn to fit.
+			params := ctx.CtxFnParams(v)
+			objLit = ctx.CreateFnInContext(clone.Code, CodeRB, params, params)
+		}
 		guard := objectGuard(v, "")
-		// The clone always strips undeclared keys (buildSafeObjectLiteral); the
+		// The clone always strips undeclared keys (buildSafeObjectClone); the
 		// `[-1, …]` envelope is only needed when the union carries a transform
 		// somewhere. A round-trips-raw union (AtomicNeedsTuple false) returns the
 		// bare stripped object so it decodes identity.
