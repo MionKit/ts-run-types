@@ -248,6 +248,48 @@ func (cache *Cache) Serialize(tsType *checker.Type) *protocol.RunType {
 	return protocol.NewRef(id)
 }
 
+// serializeOptionalChild projects an optional member's child (property / tuple
+// slot / parameter) with the redundant `undefined` stripped — see
+// typeid.ResolveOptionalChild. Kept in lockstep with the id computer's
+// optionalChildID so the structural id and the projected node agree on the
+// child's shape (the recursion-safety contract).
+func (cache *Cache) serializeOptionalChild(childType *checker.Type) *protocol.RunType {
+	child := typeid.ResolveOptionalChild(cache.typeChecker, childType)
+	if child.Members == nil {
+		return cache.Serialize(child.Type)
+	}
+	return cache.serializeSyntheticUnion(child.Members)
+}
+
+// serializeSyntheticUnion projects a union built from an explicit member list —
+// used for an optional child that keeps `null` after `undefined` is stripped
+// (e.g. `x?: string | null`). The structural id matches
+// typeid.SyntheticUnionStructural so it dedups against an equivalent real union.
+func (cache *Cache) serializeSyntheticUnion(members []*checker.Type) *protocol.RunType {
+	structural := typeid.SyntheticUnionStructural(cache.idComputer, members)
+	if id, ok := cache.byStructural[structural]; ok {
+		return protocol.NewRef(id)
+	}
+	id, err := cache.uniqueDict(structural, cache.opts.hashLength())
+	if err != nil {
+		id = "x_" + hashid.QuickHash(structural, cache.opts.hashLength(), "")
+	}
+	cache.intern(structural, id)
+	node := &protocol.RunType{ID: id, Kind: protocol.KindUnion}
+	// Reserve the slot before projecting members so a member that cycles back sees
+	// the id.
+	cache.putNode(id, node)
+	for _, member := range members {
+		node.Children = append(node.Children, cache.Serialize(member))
+	}
+	cache.finalizeUnion(node)
+	// Re-stamp Family/NotSupported now that the children are populated (the reserve
+	// above stamped a childless node).
+	protocol.PopulateFamily(node)
+	cache.nodes[id] = node
+	return protocol.NewRef(id)
+}
+
 // AssignID projects tsType into the cache (if new) and returns its hash id.
 // Public alias for the internal assignID used by callers — like the marker
 // scanner — that only need an id, not a RunType sentinel.
@@ -865,13 +907,16 @@ func (cache *Cache) projectTuple(tsType *checker.Type, node *protocol.RunType) {
 		// In tsgo, optional tuple slots type as `T | undefined`. The reflection
 		// shape keeps the optional bit on the TupleMember and the inner type
 		// stays `T` — strip undefined when the element is optional.
-		if elementFlags&checker.ElementFlagsOptional != 0 && elementType != nil {
-			elementType = typeid.StripUndefined(elementType)
-		}
 		position := i
+		var elementChild *protocol.RunType
+		if elementFlags&checker.ElementFlagsOptional != 0 && elementType != nil {
+			elementChild = cache.serializeOptionalChild(elementType)
+		} else {
+			elementChild = cache.Serialize(elementType)
+		}
 		member := &protocol.RunType{
 			Kind:     protocol.KindTupleMember,
-			Child:    cache.Serialize(elementType),
+			Child:    elementChild,
 			Position: &position,
 		}
 		if labelDecl := info.LabeledDeclaration(); labelDecl != nil {
@@ -1207,14 +1252,14 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 		}
 		// Optional properties carry `T | undefined` at the symbol type
 		// layer; the Optional flag IS the "undefined-permitted" signal so
-		// the union wrapper is redundant. Strip it so circular optional
-		// self-references close on the inner type, not on a wrapping
-		// union node. Mirrors the tuple-member treatment at projectTuple.
-		childType := propertyType
+		// the union wrapper is redundant. Strip it (see serializeOptionalChild)
+		// so circular optional self-references close on the inner type, not on
+		// a wrapping union node. Mirrors the tuple-member / parameter treatment.
 		if member.Optional {
-			childType = typeid.StripUndefined(childType)
+			member.Child = cache.serializeOptionalChild(propertyType)
+		} else {
+			member.Child = cache.Serialize(propertyType)
 		}
-		member.Child = cache.Serialize(childType)
 	}
 
 	structural := fmt.Sprintf("_pr_%s_%s_%d", parent.ID, memberName, index)
@@ -1247,11 +1292,11 @@ func (cache *Cache) projectSignatureInto(signature *checker.Signature, node *pro
 		// layer; the Optional flag IS the "undefined-permitted" signal so
 		// the union wrapper is redundant. Mirrors the equivalent stripping
 		// in appendProperty and projectTuple.
-		childType := paramType
 		if parameter.Optional {
-			childType = typeid.StripUndefined(childType)
+			parameter.Child = cache.serializeOptionalChild(paramType)
+		} else {
+			parameter.Child = cache.Serialize(paramType)
 		}
-		parameter.Child = cache.Serialize(childType)
 		applyParameterDefault(parameter, paramSymbol)
 		structural := fmt.Sprintf("_pa_%s_%s_%d", node.ID, paramSymbol.Name, i)
 		paramID, err := cache.uniqueDict(structural, cache.opts.hashLength())
