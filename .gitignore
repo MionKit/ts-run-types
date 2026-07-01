@@ -87,3 +87,4 @@ packages/ts-runtypes/test/suites/enrich/.tmp/
 
 # playwright-cli session artifacts (snapshots, traces, screenshots)
 .playwright-cli/
+scratch-audit/
