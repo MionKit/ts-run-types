@@ -459,3 +459,124 @@ Every arm returns `v.status`. `order-ts` emits **no** `rj` module (decode alread
    contains no `[…]` envelope / discriminant / `fuEncErr`; that `x?: 'a'|'b'` and
    `x?: string|number` round-trip without a `rj` module; and add the all-strategy
    round-trip fuzzer coverage for optional unions.
+
+---
+
+## Fix plan
+
+Fixes are ordered so each step is **independently shippable and testable**.
+Step 1 (A) is the keystone and has been **empirically validated by a throwaway
+spike** (changed `StripUndefined`, rebuilt `bin/ts-runtypes`, regenerated, reverted).
+Each step lists the change, the spike-verified or expected effect, edge cases, and
+risks.
+
+### Step 1 — Fix A (keystone): strip `undefined` from multi-member optional unions ✅ spike-validated
+
+**Change** `StripUndefined` ([typeid.go:550](../../internal/compiled/runtype/typeid/typeid.go)) to take the checker and finish the job:
+
+```go
+func StripUndefined(typeChecker *checker.Checker, tsType *checker.Type) *checker.Type {
+    // …collect `kept` (non-undefined members); track hasUndefined, hasNull…
+    if !hasUndefined            { return tsType }
+    if len(kept) == 1           { return kept[0] }                              // existing behaviour
+    if len(kept) >= 2 && !hasNull {
+        return checker.Checker_GetNonNullableType(typeChecker, tsType)          // strips undefined AND re-normalises true|false → boolean
+    }
+    return tsType                                                              // has null: fall through (see Step 1b)
+}
+```
+
+Thread the checker at all **4 call sites** (both already hold one):
+`appendProperty` ([serialize.go:1215](../../internal/compiled/runtype/serialize.go), `cache.typeChecker`), `projectSignature` (:1252),
+`projectTuple` (:869), and the id computer ([typeid.go:428](../../internal/compiled/runtype/typeid/typeid.go), `computer.typeChecker`).
+Both the serializer AND the id computer must change together (the structural id must
+match the projected node — see the recursion comment at typeid.go:417) — the shared
+signature change covers both.
+
+**Spike-verified effect** (rebuilt binary, regenerated):
+- `active?: boolean` → validator collapses to `v.active === undefined || typeof v.active === 'boolean'`; binary becomes `if (v.active !== undefined) { setUint8(!!v.active); setBitMask }` (1 byte, no discriminant, no validator walk, no `fuEncErr`); the `pj` and `rj` modules **disappear** entirely (19→17 modules).
+- `x?: 'a' | 'b'` → validator `v.x === undefined || (v.x === 'a' || v.x === 'b')` (the redundant `typeof === 'undefined'` arm is gone) and the `[armIndex,value]` envelope is gone. A residual empty-arm dispatch remains → handled by **Step 2**.
+- `simple` preset (`active?: boolean` among primitives) → `pj`/`rj` gone.
+
+**Edge cases to test**: `x?: string` (unchanged, still clean), `x?: boolean`,
+`x?: 'a'|'b'`, `x?: string|number`, optional tuple slot `[T, U?]`, optional param
+`f(x?: T)`, and a **recursive optional** (`next?: Node`) — verify the structural id
+stays consistent between the TS-form and value-first schema-form (the original reason
+`StripUndefined` exists).
+
+**Step 1b — residual `x?: T | null`** (`boolean | null`, `string | null`): still falls
+through because `GetNonNullableType` would drop the legitimate `null`. Recommend
+**accepting as a documented residual** for now (rare). If it matters, expose
+`getTypeWithFacts(t, TypeFactsNEUndefined)` via a **new tsgolint shim patch** (the
+`TypeFacts` constants are already exposed; the function is not) — this is the
+sanctioned patch-authoring workflow and must be surfaced per `CLAUDE.md`, not improvised.
+
+### Step 2 — Fix B: collapse all-identity atomic unions on the ENCODE side ✅ spike-confirmed residual
+
+The decode emitters already early-out to identity (`union_flat.go:294`); the encode
+side does not. Add the symmetric guard to `emitUnionPrepareForJsonFlat`
+([union_flat.go:123](../../internal/compiled/typefns/union_flat.go)),
+`emitUnionPrepareForJsonSafe` ([json_prepare_safe.go:796](../../internal/compiled/typefns/json_prepare_safe.go)),
+and the compact `cj` encoder: when `len(layout.ObjectMembers) == 0 && !layout.AtomicNeedsTuple`
+(⇒ every member is JSON-identity), return identity (`Code: ""`). Removes the empty-arm
+dispatch for `x?: 'a'|'b'` AND the required `status`/`currency`/`roles` cases (finding B).
+**Risk**: confirm `isJsonCompatible` ⇒ noop and that dropping the per-member `throw` is
+acceptable (the decode side already omits it; encoders assume validated input — consistent).
+
+### Step 3 — Fix C: collapse `{true,false}` → `boolean` in genuine unions
+
+In `finalizeUnion` ([union_safeorder.go:23](../../internal/compiled/runtype/union_safeorder.go)) or the serialize union
+case (serialize.go:660): when the members include BOTH boolean literals, replace the
+two `KindLiteral` children with one interned `KindBoolean`. After Step 1 the optional
+case is already handled, so this only affects genuine **required** unions
+(`x: boolean | null`, `x: boolean | 'other'`). Lower priority.
+
+### Step 4 — Fix D (optional): JSON families shouldn't tuple-wrap identity members
+
+Largely subsumed by Step 1 for optionals. Residual only for genuine required
+`x: T | undefined`. If pursued: for the JSON families only, collapse all
+`isJsonCompatible` members into a single "raw" arm and reserve explicit tuple indices
+for the non-JSON members (`union_flat_layout.go:188`). Binary is unaffected (it needs the
+discriminant). Higher complexity / lower value — **defer** unless required `T | undefined`
+unions prove common.
+
+### Step 5 — Fix E: binary-specific union error string (trivial)
+
+Add `flatUnionEncodeBinaryErrorVar` (message `'Can not binary encode union: …'`) and
+use it at [union_flat_binary.go:187](../../internal/compiled/typefns/union_flat_binary.go) instead of the JSON `flatUnionEncodeErrorVar`.
+
+### Step 6 — Fix F: recognise the `RT.circular` callback param as a valid `CompTimeArgs` leaf
+
+Root: `array(item: CompTimeArgs<RunType<T>>)` ([schema/compose.ts:54](../../packages/ts-runtypes/src/schema/compose.ts)) makes
+`checkCompTimeArgs` ([scan.go:848](../../internal/resolver/scan.go)) validate `self` — the circular-callback parameter — which
+`comptimeargs.CheckLiteral` rejects as non-literal → **CTA001 Error** (though codegen
+succeeds). Fix in `internal/comptimeargs` leaf classification: treat an identifier that
+resolves to a `RT.circular`/recursion-builder callback parameter as an allowed schema
+leaf (return `Ok`). Test: value-first recursive schema emits zero diagnostics.
+
+### Step 7 — Fix G (polish): drop the `prepareForJsonSafe` root forwarder
+
+`buildSafeObjectLiteral` ([json_prepare_safe.go:564](../../internal/compiled/typefns/json_prepare_safe.go)) pre-hoists via `CreateFnInContext`,
+producing `return ctxFn0(v)`. Return the accumulator as a raw `CodeRB` block and let the
+existing hoist path wrap only when the parent slot needs it. Batch with Step 2.
+
+### Step 8 — Fix H (DX): warn on a comptime option passed in the value slot
+
+TS-form `createJsonEncoder<T>({strategy})` silently binds the option to the `val` slot
+and falls back to `clone`. Emit a build-time **Warning** when a `createX` value-slot
+argument is an object literal matching the options shape while `T` came from a type
+argument. Low priority; a docs note is an acceptable alternative.
+
+### Test strategy
+
+- **Go unit** (`internal/compiled/typefns/{union_flat_test.go, noop_types_test.go, union_flat_layout_test.go}`, plus a `StripUndefined` test): assert the collapsed child kind + the absence of envelope/dispatch. Reuse the paired-form-equivalence pattern (`TestAtomic_FormEquivalence`) so TS-form and schema-form agree for optional unions.
+- **JS plugin regression** (`packages/runtypes-devtools/test/`): assert the generated `pjs`/`sj`/`tb` for `active?: boolean` contain no `[` envelope / `fuEncErr` / discriminant; that `{active?: boolean}` emits no `pj`/`rj` module; and that the binary is 1 byte. Rebuild `bin/ts-runtypes` before `pnpm test`.
+- **Fuzz**: extend the all-strategy round-trip fuzzer (`docs/todos/all-strategy-roundtrip-fuzzer.md`, `packages/ts-runtypes/test/fuzz/`) with optional-union shapes across every strategy.
+
+### Recommended shipping order
+
+**A → E → B → C → F**, then optional **D / G / H**. A + B + E clear the reported issue
+and the bulk of the waste; C and F are independent smaller bugs; D/G/H are polish. When
+a step ships, `git mv` this todo to `docs/done/` (or `docs/partially/`) and update
+`README.md` / `docs/ARCHITECTURE.md` / the website docs if the optional wire format is
+described there.
