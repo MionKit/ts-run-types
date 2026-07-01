@@ -1,11 +1,31 @@
 # Audit the generated code for the playground examples (found: optional `boolean` encoded as a union)
 
-Status: **investigated — root causes identified, not yet fixed.** Reported from
-the playground "Generated Cache" view. Scope: resolver / type graph + the
-compiled fn families (validate `val`, errors `verr`, JSON `pjs`/`rj`, binary
-`tb`/`fb`). NOT a playground issue (the playground just surfaced the generated
-code). Full sweep + root causes in **[Investigation results](#investigation-results-completed)** at the
-bottom of this file.
+Status: **DONE (shipped).** The reported artifact and every substantive finding are
+fixed and verified (full JS + Go + fuzz suites green). Reported from the playground
+"Generated Cache" view. Scope: resolver / type graph + the compiled fn families
+(validate `val`, errors `verr`, JSON `pjs`/`rj`, binary `tb`/`fb`). NOT a playground
+issue (the playground just surfaced the generated code). Full sweep + root causes in
+**[Investigation results](#investigation-results-completed)** at the bottom of this file.
+
+## Shipped
+
+| Finding | Fix | Commit |
+|---------|-----|--------|
+| **A** — optional union-typed prop → discriminated-union envelope (properties, tuple slots, params, incl. `T\|null`; boolean restored to atomic) | `typeid.ResolveOptionalChild` at every optional site; synthetic union for the `T\|null` case | `fix(resolver): strip redundant undefined from optional members` |
+| **B/C** — encode-side keeps a per-member dispatch for all-JSON-identity unions; boolean not atomic | `atomicOnlyJsonIdentity` early-out in the JSON encoders (pj/pjs/sj/cj) | `fix(typefns): collapse all-JSON-identity unions on encode` |
+| **E** — binary encoder reuses the JSON union error string | binary-specific `flatUnionEncodeBinaryErrorVar` | (same as B) |
+| **F** — schema-form `RT.circular(self)` spurious CTA001 | function-free `circular(body)` + `self()` marker; MKR001 schema-builder exclusion | `feat(schema): function-free circular(body)` |
+| tuple optional-slot id collision (regression from A) | `#optional` suffix in the tuple slot id | `fix(typeid): encode optional flag in tuple-slot id` |
+| FE + Go regression coverage | `OptionalUnionEncoding.test.ts` (no `[index,value]` envelope) + updated stale expectations | `test(serialization): …` |
+
+**Verified:** ts-runtypes 7185 tests, runtypes-devtools 284, Go `./internal/...` 0 fail,
+fuzz (unit + integration + 467k-run value soak), lint + `go vet` clean.
+
+**Remaining (explicitly optional, non-blocking — see the fix plan below):** **D** (a
+required `T | undefined` union still tuple-wraps JSON-compatible members — deferred, rare),
+**G** (the `prepareForJsonSafe` root `return ctxFn0(v)` forwarder — a one-hop polish), and
+**H** (a build-time warning when a comptime option is passed in the value slot — DX nicety).
+None is the reported issue or a correctness bug.
 
 ## Goal
 
