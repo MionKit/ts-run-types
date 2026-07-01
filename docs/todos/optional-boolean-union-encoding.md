@@ -504,12 +504,36 @@ signature change covers both.
 stays consistent between the TS-form and value-first schema-form (the original reason
 `StripUndefined` exists).
 
-**Step 1b — residual `x?: T | null`** (`boolean | null`, `string | null`): still falls
-through because `GetNonNullableType` would drop the legitimate `null`. Recommend
-**accepting as a documented residual** for now (rare). If it matters, expose
-`getTypeWithFacts(t, TypeFactsNEUndefined)` via a **new tsgolint shim patch** (the
-`TypeFacts` constants are already exposed; the function is not) — this is the
-sanctioned patch-authoring workflow and must be surfaced per `CLAUDE.md`, not improvised.
+> **No `third_party` change is needed for this step.** `Checker_GetNonNullableType`
+> is ALREADY exposed by the shim (used by the validated spike). Step 1 is entirely
+> in our repo.
+
+**Step 1b — residual `x?: T | null`** (`boolean | null`, `string | null`): the type is
+`T | null | undefined`, and `GetNonNullableType` drops BOTH `null` and `undefined`, so
+it would lose the legitimate `null`. This is the ONLY case Step 1 doesn't clean up.
+Options, **all in-repo (none touches `third_party`)**:
+
+- **Alt A (recommended first pass): accept the residual.** `x?: T | null` keeps today's
+  minor artifact (a redundant `undefined` arm). Rare shape, zero risk.
+- **Alt B (general, in-repo): strip at the serialized-node level instead of the
+  checker-type level.** Serialize the optional child normally, then post-process the
+  resulting union node: drop the `KindUndefined` child, collapse a `{true,false}` pair
+  to `KindBoolean`, and unwrap to the lone child if only one remains — and compute the
+  structural id from that filtered member set (mirror in `serialize.go` + the `typeid`
+  computer, which already run in lockstep). Because the id is derived from the filtered
+  set, the optional-child union interns to a DISTINCT entry from a genuine required
+  `T | null | undefined`, so there's no cache collision. This needs no checker union
+  constructor and handles every case (boolean, `'a'|'b'`, `string|number`, `T|null`)
+  uniformly — it could even REPLACE the `GetNonNullableType` call in Step 1, at the
+  cost of a bit more code + keeping the two walkers mirrored.
+- **Alt C (last resort, only if a checker-level filter is ever wanted): expose
+  `getTypeWithFacts(t, TypeFactsNEUndefined)`** via a tsgolint shim patch (the
+  `TypeFacts` constants are already exposed; the function is not). This is a
+  `third_party` change and must be surfaced per `CLAUDE.md` — **not recommended**, since
+  Alt A/B avoid it entirely.
+
+Recommendation: ship Step 1 with **Alt A**; upgrade to **Alt B** if `T | null` optionals
+prove common. `third_party` (Alt C) is never required.
 
 ### Step 2 — Fix B: collapse all-identity atomic unions on the ENCODE side ✅ spike-confirmed residual
 
