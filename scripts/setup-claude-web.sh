@@ -1,65 +1,7 @@
 #!/usr/bin/env bash
 # --- BUMP THIS DATE to force a fresh setup run (YYYY-MM-DD) -------------------
 SETUP_DATE="2026-07-02"
-
-# =============================================================================
-# setup-claude-web.sh - one-shot, SELF-CONTAINED bootstrap for RunTypes on
-# Claude Code on the web (the managed, ephemeral Linux container).
-#
-# +-------------------------------------------------------------------------+
-# | THIS FILE MUST STAY SELF-CONTAINED.                                      |
-# |                                                                         |
-# | It is copy-pasted verbatim into the Claude Code web environment's       |
-# | "setup script" field, so at run time it is NOT `scripts/…` in a checkout|
-# | - it is a lone script in a temp path. It therefore MUST NOT source or   |
-# | call any other repo file (the ts-runtypes-setup skill's setup.sh,       |
-# | scripts/podman-website.sh, scripts/lib-*.sh, pm/*.sh, …) and MUST NOT   |
-# | derive the repo root from BASH_SOURCE. Every step is inlined on purpose.|
-# | If you factor something out into another file, this script breaks the   |
-# | moment it runs from the UI. Keep it standalone; DUPLICATE logic rather  |
-# | than share it.                                                          |
-# |                                                                         |
-# | The interactive, cross-platform, user-assist setup lives separately in  |
-# | .claude/skills/ts-runtypes-setup/ - that one is for humans on their own |
-# | machines (macOS + Linux, brew/apt/dnf/…). THIS one is the autonomous    |
-# | web installer. They are intentionally NOT shared and evolve separately. |
-# +-------------------------------------------------------------------------+
-#
-# What it does, in one go, no prompts, Linux/apt only:
-#   1. Node 24  - repo requires >= 24 & CI pins 24, but the web image ships
-#      20/21/22. Install via the image's nvm (nodejs.org tarball fallback) and
-#      make it win on the harness's NON-login PATH (which does not source
-#      /etc/profile.d) by symlinking node24 bins into $HOME/.local/bin. pnpm
-#      comes from corepack, pinned to the repo's packageManager.
-#   2. podman   - via apt; confirm the engine is reachable.
-#   3. Go 1.26  - present in the web image; nodejs-style tarball fallback.
-#   4. submodules tsgolint + typescript-go, SKIPPING the 620MB nested
-#      microsoft/TypeScript corpus (only typescript-go's own conformance test
-#      runner needs it, never our `go build`; its checker libs are committed +
-#      go:embed'd in typescript-go/internal/bundled/libs). Skipping it keeps the
-#      clone + ~2m15s Go build + rest under the ~5 min setup budget.
-#   5. tsgolint patches (idempotent).
-#   6. pnpm install --frozen-lockfile.
-#   7. Go resolver binary -> bin/ts-runtypes.
-#   8. runtypes-devtools dist.
-#   9. .env de-clobber - the dev .env's empty secret rows would shadow the
-#      GHCR_PAT the web env injects (lib-env.sh sources .env with `set -a`).
-#  10. GHCR login - the tsrt-website image is PRIVATE. NOTE: actually PULLING it
-#      also needs the egress policy to allow the GHCR blob host
-#      pkg-containers.githubusercontent.com; ghcr.io auth + manifest alone are
-#      not enough. That is a network-policy matter, not this script's - here we
-#      just establish the credential.
-#
-# It runs NO tests or smokes: the web setup step is time-boxed (~5 min), so it
-# only installs + builds + logs in. `pnpm test` is the user's job afterwards; a
-# green run means "ready to work", not "tests passed".
-#
-# BUMP SETUP_DATE below to force the web env to re-run this from a clean
-# container (re-clone, rebuild, re-login) after an upstream change.
-#
-# Usage:  bash setup-claude-web.sh [--check]
-# Exit:   0 ok | 1 a required step failed | 3 unsupported platform
-# =============================================================================
+# ----------------------------------------------------------------------------
 set -uo pipefail
 
 NODE_MAJOR_MIN=24
@@ -476,3 +418,62 @@ main() {
 }
 
 main "$@"
+
+# =============================================================================
+# setup-claude-web.sh - one-shot, SELF-CONTAINED bootstrap for RunTypes on
+# Claude Code on the web (the managed, ephemeral Linux container).
+#
+# +-------------------------------------------------------------------------+
+# | THIS FILE MUST STAY SELF-CONTAINED.                                      |
+# |                                                                         |
+# | It is copy-pasted verbatim into the Claude Code web environment's       |
+# | "setup script" field, so at run time it is NOT `scripts/…` in a checkout|
+# | - it is a lone script in a temp path. It therefore MUST NOT source or   |
+# | call any other repo file (the ts-runtypes-setup skill's setup.sh,       |
+# | scripts/podman-website.sh, scripts/lib-*.sh, pm/*.sh, …) and MUST NOT   |
+# | derive the repo root from BASH_SOURCE. Every step is inlined on purpose.|
+# | If you factor something out into another file, this script breaks the   |
+# | moment it runs from the UI. Keep it standalone; DUPLICATE logic rather  |
+# | than share it.                                                          |
+# |                                                                         |
+# | The interactive, cross-platform, user-assist setup lives separately in  |
+# | .claude/skills/ts-runtypes-setup/ - that one is for humans on their own |
+# | machines (macOS + Linux, brew/apt/dnf/…). THIS one is the autonomous    |
+# | web installer. They are intentionally NOT shared and evolve separately. |
+# +-------------------------------------------------------------------------+
+#
+# What it does, in one go, no prompts, Linux/apt only:
+#   1. Node 24  - repo requires >= 24 & CI pins 24, but the web image ships
+#      20/21/22. Install via the image's nvm (nodejs.org tarball fallback) and
+#      make it win on the harness's NON-login PATH (which does not source
+#      /etc/profile.d) by symlinking node24 bins into $HOME/.local/bin. pnpm
+#      comes from corepack, pinned to the repo's packageManager.
+#   2. podman   - via apt; confirm the engine is reachable.
+#   3. Go 1.26  - present in the web image; nodejs-style tarball fallback.
+#   4. submodules tsgolint + typescript-go, SKIPPING the 620MB nested
+#      microsoft/TypeScript corpus (only typescript-go's own conformance test
+#      runner needs it, never our `go build`; its checker libs are committed +
+#      go:embed'd in typescript-go/internal/bundled/libs). Skipping it keeps the
+#      clone + ~2m15s Go build + rest under the ~5 min setup budget.
+#   5. tsgolint patches (idempotent).
+#   6. pnpm install --frozen-lockfile.
+#   7. Go resolver binary -> bin/ts-runtypes.
+#   8. runtypes-devtools dist.
+#   9. .env de-clobber - the dev .env's empty secret rows would shadow the
+#      GHCR_PAT the web env injects (lib-env.sh sources .env with `set -a`).
+#  10. GHCR login - the tsrt-website image is PRIVATE. NOTE: actually PULLING it
+#      also needs the egress policy to allow the GHCR blob host
+#      pkg-containers.githubusercontent.com; ghcr.io auth + manifest alone are
+#      not enough. That is a network-policy matter, not this script's - here we
+#      just establish the credential.
+#
+# It runs NO tests or smokes: the web setup step is time-boxed (~5 min), so it
+# only installs + builds + logs in. `pnpm test` is the user's job afterwards; a
+# green run means "ready to work", not "tests passed".
+#
+# BUMP SETUP_DATE below to force the web env to re-run this from a clean
+# container (re-clone, rebuild, re-login) after an upstream change.
+#
+# Usage:  bash setup-claude-web.sh [--check]
+# Exit:   0 ok | 1 a required step failed | 3 unsupported platform
+# =============================================================================
