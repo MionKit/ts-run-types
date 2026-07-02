@@ -167,16 +167,17 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	if keys := familyEntryKeys(resp, "prepareForJson"); len(keys) != 0 {
 		t.Errorf("the absorbed-to-identity pj entry must be elided + pruned, got %v", keys)
 	}
-	// The composite (the injected binding) survives as the bare-stringify
-	// form, with no alwaysThrow code anywhere in the payload.
+	// The composite (the injected binding) survives as the noop SHORT FORM —
+	// every primitive binding elided, so the runtime registers the native
+	// JSON.stringify noop — with no alwaysThrow code anywhere in the payload.
 	jsonEncoderOp, ok := operations.ByName("jsonEncoder")
 	if !ok {
 		t.Fatal("jsonEncoder operation missing from the registry")
 	}
 	rootKey := operations.FnHashFor(jsonEncoderOp, nil, "mutate") + "_" + rootSiteID
 	userModule := entryModule(resp, rootKey)
-	if !strings.Contains(userModule, "return JSON.stringify(v);") {
-		t.Errorf("jeMU composite for the absorbed User must collapse to bare JSON.stringify, got: %s", userModule)
+	if !strings.Contains(userModule, "'User',,true]") {
+		t.Errorf("jeMU composite for the absorbed User must collapse to the noop short form, got: %s", userModule)
 	}
 	if all := allEntrySources(resp); strings.Contains(all, "'PJ001'") {
 		t.Errorf("no emitted module may carry the PJ001 alwaysThrow arg — property absorbs the never child. Got:\n%s", all)

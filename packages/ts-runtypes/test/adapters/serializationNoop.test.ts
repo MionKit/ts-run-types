@@ -6,10 +6,12 @@
 // semantically over the type graph (typefns/noop_types.go), and the JSON
 // composites ELIDE identity primitives outright — no binding, no import, no
 // module load. So where the reference asserts `entry.isNoop === true`, our runtime
-// cache simply never receives the pj/rj entry for a noop shape (the jeMU/jdST
-// composite collapses to bare `JSON.stringify(v)` / `rjOrUkuw(JSON.parse(s))`
-// with the dead half gone). Shapes that DO need a transform keep their
-// primitive entries, registered with isNoop=false.
+// cache simply never receives the pj/rj entry for a noop shape. When EVERY
+// binding elides, the composite itself arrives as the noop SHORT-FORM tuple
+// (isNoop=true, no body) and the runtime registers native JSON.stringify /
+// JSON.parse as its fn; a partially-live composite (strip's ukuw half) keeps
+// its real body with the dead half gone. Shapes that DO need a transform keep
+// their primitive entries, registered with isNoop=false.
 //
 // The entry lookups filter on `familyTag` (the tuple's exact emitting family)
 // rather than `fnID`: composites HOST on the primitive's fnID (`jeMU` carries
@@ -87,6 +89,45 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     expect(rjEntry(noopId)).toBeUndefined();
     expect(pjEntry(encId)?.isNoop).toBe(false);
     expect(rjEntry(encId)?.isNoop).toBe(false);
+  });
+
+  it('collapsed composites register as noop short-forms whose fn is NATIVE JSON', () => {
+    // When EVERY primitive binding elides, the composite itself ships as the
+    // noop short-form tuple (isNoop=true, no code, no factory) and the runtime
+    // substitutes the composite family noop — JSON.stringify for je* tags,
+    // JSON.parse for jd* tags (entryTuple.ts familyMeta). NOT the host
+    // primitive's identity: an identity fn here would return the raw value /
+    // unparsed string. The end-to-end calls below are the behavioral pin.
+    const noopId = getRunTypeId<NoJsonENCDECRequired>();
+    const enc = createJsonEncoder<NoJsonENCDECRequired>(undefined, {strategy: 'mutate'});
+    const dec = createJsonDecoder<NoJsonENCDECRequired>(undefined, {strategy: 'preserve'});
+
+    const encoderEntry = entryByFamily('jeMU', noopId);
+    expect(encoderEntry?.isNoop).toBe(true);
+    expect(encoderEntry?.code).toBeUndefined();
+    const decoderEntry = entryByFamily('jdPR', noopId);
+    expect(decoderEntry?.isNoop).toBe(true);
+    expect(decoderEntry?.code).toBeUndefined();
+
+    expect(enc({a: 1, b: 'x'})).toBe('{"a":1,"b":"x"}');
+    expect(dec('{"a":1,"b":"x"}')).toEqual({a: 1, b: 'x'});
+
+    // Transform-carrying control: the composite keeps a real body.
+    const encId = getRunTypeId<SonENCDECRequired>();
+    createJsonEncoder<SonENCDECRequired>(undefined, {strategy: 'mutate'});
+    createJsonDecoder<SonENCDECRequired>(undefined, {strategy: 'preserve'});
+    expect(entryByFamily('jeMU', encId)?.isNoop).toBe(false);
+    expect(entryByFamily('jdPR', encId)?.isNoop).toBe(false);
+  });
+
+  it('strip decoder keeps its live ukuw half for object shapes', () => {
+    // Default strip over an object is NEVER the collapsed short-form: rj
+    // elides but unknownKeysToUndefinedWire does real work, so the composite
+    // keeps `return ukuwFn(JSON.parse(s))` — and stripping still happens.
+    const noopId = getRunTypeId<NoJsonENCDECRequired>();
+    const dec = createJsonDecoder<NoJsonENCDECRequired>();
+    expect(entryByFamily('jdST', noopId)?.isNoop).toBe(false);
+    expect(dec('{"a":1,"b":"x","extra":2}')).toEqual({a: 1, b: 'x', extra: undefined});
   });
 
   it('atomic union — pj AND rj both collapse when no member needs the wrap', () => {

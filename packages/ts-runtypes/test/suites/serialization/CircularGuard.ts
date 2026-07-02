@@ -182,6 +182,37 @@ export const CIRCULAR_GUARD = {
     expectThrows: true,
   },
 
+  cycle_collapsed_noop_composite: {
+    title: 'Cycle caught on a collapsed (noop short-form) mutate encoder',
+    description:
+      'A fully JSON-compatible circular TYPE is pj-noop (the cycle-as-identity ' +
+      'fixpoint), so the jeMU composite ships as the noop short-form tuple and the ' +
+      'runtime fn is native JSON.stringify. The armed guard must still wrap it — ' +
+      'the short-form entry carries the runtype bundle SoftDep — and throw ' +
+      'CircularReferenceError, NOT the native TypeError a bare JSON.stringify ' +
+      'would raise on the cyclic value.',
+    jsonEncoder: () => {
+      interface Node {
+        name: string;
+        next?: Node;
+      }
+      return createJsonEncoder<Node>(undefined, {strategy: 'mutate', rejectCircularRefs: true});
+    },
+    binaryEncoder: () => {
+      interface Node {
+        name: string;
+        next?: Node;
+      }
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+    },
+    getValue: () => {
+      const node: {name: string; next?: unknown} = {name: 'a'};
+      node.next = node;
+      return node;
+    },
+    expectThrows: true,
+  },
+
   cycle_mutual: {
     title: 'Mutual cycle across two types',
     jsonEncoder: () => {

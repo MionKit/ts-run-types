@@ -62,12 +62,15 @@ var (
 // composite consults its primitives' rendered IsNoop flags and ELIDES the
 // binding for identity primitives: the prologue line, the import edge, and
 // the call wrapper all drop (`return JSON.parse(s)` instead of
-// `return rjFn(JSON.parse(s))`). Keying elision on the RENDERED entries —
-// not a re-derived predicate — keeps the composite exactly in lockstep with
-// whatever each family's own render decided (walker Finalize, noop gate, or
-// disk-cached verdict). A primitive missing from the graph is treated as
-// live (conservative bind; AssertCompositeSoftDeps still surfaces the
-// invariant breach). Nil graph = bind everything (unit-test shape).
+// `return rjFn(JSON.parse(s))`). When EVERY binding elides (and the root
+// needs no JSON envelope) the entry itself collapses to the noop short-form
+// tuple — no body at all; the runtime registers the composite's native-JSON
+// noop (see collectJsonCompositeEntry). Keying elision on the RENDERED
+// entries — not a re-derived predicate — keeps the composite exactly in
+// lockstep with whatever each family's own render decided (walker Finalize,
+// noop gate, or disk-cached verdict). A primitive missing from the graph is
+// treated as live (conservative bind; AssertCompositeSoftDeps still surfaces
+// the invariant breach). Nil graph = bind everything (unit-test shape).
 func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts, rendered entrymod.Graph) entrymod.Graph {
 	graph := entrymod.Graph{}
 	refTable := opts.RefTable
@@ -159,12 +162,33 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 	// and getRT materializes before returning. The resolver asserts the
 	// presence invariant at collect time (AssertCompositeSoftDeps).
 	deps := jsonCompositeDeps(composite, runType.ID, isLive)
+	wrapRoot := rootNeedsDataOnlyWrap(runType)
+
+	// Noop short-form: with every primitive binding elided (deps empty) and no
+	// root envelope, the full body would be nothing but native JSON —
+	// `return JSON.stringify(v)` / `return JSON.parse(s)` — which IS the
+	// composite family noop (entryTuple.ts registers noopStringify for je*
+	// tags, noopParse for jd* tags). Emit the same short-form tuple the family
+	// renderer uses (key, typeName, code hole, isNoop=true): no factory ships
+	// and the runtime substitutes the native-JSON fn. wrapRoot (undefined/void)
+	// encoders keep their full body — the `[v]` envelope is real work — and
+	// overridden types never reach here (redirect returned above). Not
+	// disk-cached: trivial to re-derive, like redirects.
+	if len(deps) == 0 && !wrapRoot {
+		args := holeifyArgs([]string{
+			quoteJS(entryKey),
+			quoteJS(rtTypeName(runType)),
+			"undefined", // code — holed (runtime uses the composite's native-JSON noop)
+			"true",      // isNoop — kept: the signal that selects the noop fn
+		})
+		return &entrymod.Entry{Key: entryKey, Kind: entrymod.KindTypeFn, FamilyTag: tag, ArgsText: joinArgs(args), IsNoop: true}
+	}
 
 	if cachedArgs, ok := tryReadCachedCompositeEntry(runType, tag, opts); ok {
 		return &entrymod.Entry{Key: entryKey, Kind: entrymod.KindTypeFn, FamilyTag: tag, ArgsText: cachedArgs, SoftDeps: deps}
 	}
 
-	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey, isLive, rootNeedsDataOnlyWrap(runType))
+	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey, isLive, wrapRoot)
 	_, factoryBody := WrapClosure("g_"+entryKey, entryKey, innerFn, contextLines)
 	codeArg := "undefined"
 	if opts.EmitMode.EmitsCode() {
@@ -178,7 +202,7 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 		quoteJS(entryKey),
 		quoteJS(rtTypeName(runType)),
 		codeArg,
-		"false", // isNoop — composites always emit a real body
+		"false", // isNoop — this path always has a real body (a live primitive or the wrapRoot envelope)
 		"[]",    // rtDependencies — primitive refs are resolved by fnHash, not same-family deps
 		"[]",    // pureFnDependencies
 		createRTFnArg,

@@ -293,11 +293,19 @@ func (StringifyJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID str
 //
 // Atomic-noop kinds collapse to a JSON.stringify(v) noop — there's
 // no "true identity" for stringifyJson because the input is a value
-// and the output is a string. The skeleton's noop fallback runs
-// JSON.stringify at call time.
+// and the output is a string; the family noop (entryTuple.ts
+// noopStringify) runs JSON.stringify at call time. Root arms that
+// delegate to JSON.stringify outright (string / template literal /
+// any / unknown / object / primitive literals / string enums) arrive
+// here as exactly `return JSON.stringify(v)` after the walker's root
+// CodeE wrap — byte-for-byte the family noop, so flag them too (the
+// same exact-match rule tb/fb apply to `return Ser` / `return ret`).
+// Number/null roots emit `return String(v)` — NOT equivalent
+// (String(NaN) is "NaN", JSON.stringify(NaN) is "null") — and stay
+// full bodies.
 func (StringifyJsonEmitter) Finalize(raw string) (string, bool) {
 	code := normaliseWhitespace(raw)
-	if code == "" {
+	if code == "" || code == "return JSON.stringify(v)" {
 		return "return JSON.stringify(v)", true
 	}
 	return code, false

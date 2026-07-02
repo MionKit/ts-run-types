@@ -10,11 +10,20 @@ import (
 // noopCorpusSource interns a wide spread of real checker-produced shapes —
 // primitives, optionals, literals, enums-ish unions, Dates/Maps/Sets,
 // bigints, template literals, tuples, index signatures, function props,
-// nested named objects, classes, mixed unions, and circular types — so the
-// agreement test below can pin the noop predicates against the emitters
-// across the whole reachable node set (every interned child counts, not just
-// the roots).
+// nested named objects, classes, mixed unions, circular types, and
+// format-branded strings (transforming, validate-only, and inside a union —
+// the fmt predicate's arms) — so the agreement test below can pin the noop
+// predicates against the emitters across the whole reachable node set (every
+// interned child counts, not just the roots).
 const noopCorpusSource = `import {getRunTypeId} from 'ts-runtypes';
+type TypeFormat<Base, Name extends string, Params> = Base & {
+  readonly __rtFormatName?: Name;
+  readonly __rtFormatParams?: Params;
+};
+type FmtTrim = {name: TypeFormat<string, 'stringFormat', {trim: true}>};
+type FmtLenOnly = {code: TypeFormat<string, 'stringFormat', {maxLength: 8}>};
+type FmtInUnion = {u: TypeFormat<string, 'stringFormat', {lowercase: true}> | number};
+type FmtArr = {tags: TypeFormat<string, 'stringFormat', {uppercase: true}>[]};
 type Compat = {a: string; b?: number; c: boolean | null};
 interface Nested {inner: Compat; tags: string[]}
 type Stamped = {at: Date; name: string};
@@ -34,6 +43,10 @@ type CircDate = {at: Date; next?: CircDate};
 class Account {id: number = 0; name: string = ''}
 type WithUndef = {u: undefined; v: void};
 type DeepNest = {l1: {l2: {l3: Nested[]}}};
+getRunTypeId<FmtTrim>();
+getRunTypeId<FmtLenOnly>();
+getRunTypeId<FmtInUnion>();
+getRunTypeId<FmtArr>();
 getRunTypeId<Compat>();
 getRunTypeId<Nested>();
 getRunTypeId<Stamped>();
@@ -94,9 +107,10 @@ func reachesCycle(rt *protocol.RunType, refTable map[string]*protocol.RunType, o
 
 // TestNoopPredicate_SoundAgainstEmitters is the mechanical soundness pin for
 // the dispatch gate's predicates: for every acyclic interned type in the
-// corpus and every predicate-bearing family (pj / rj / pjs), a verdict of
-// "noop" must agree with the ground truth — the gate-disabled, fully-inlined
-// compile collapsing to a noop body (typefns.NoopPredicateAgreement). A
+// corpus and every predicate-bearing family (pj / rj / pjs / fmt), a verdict
+// of "noop" must agree with the ground truth — the gate-disabled,
+// fully-inlined compile collapsing to a noop body
+// (typefns.NoopPredicateAgreement). A
 // sound-but-conservative miss (verdict false, body noop — e.g. absorbed
 // unsupported leaves) is logged, never fatal; the reverse direction IS the
 // data-corruption direction and fails the build.
@@ -117,6 +131,7 @@ func TestNoopPredicate_SoundAgainstEmitters(t *testing.T) {
 		"prepareForJson":     typefns.PrepareForJsonEmitter{},
 		"restoreFromJson":    typefns.RestoreFromJsonEmitter{},
 		"prepareForJsonSafe": typefns.PrepareForJsonSafeEmitter{},
+		"formatTransform":    typefns.FormatTransformEmitter{},
 	}
 	facts := typefns.NewFactsTable()
 	checked, skippedCyclic, conservativeMisses := 0, 0, 0

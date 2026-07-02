@@ -83,7 +83,17 @@ package disk
 // persist the fully rendered runtime throw message in a single tuple slot
 // (was a bare diag code + optional site hint resolved JS-side), so v9
 // alwaysThrow payloads carry the wrong slot shape — must miss.
-const FormatVersion = 10
+//
+// v11 extends noop elision to the entries themselves: a JSON composite whose
+// primitive bindings ALL elided (and whose root needs no JSON envelope) now
+// emits the noop SHORT-FORM tuple instead of a full `return JSON.stringify(v)`
+// / `return JSON.parse(s)` body, and stringifyJson roots that delegate
+// straight to native JSON (`return JSON.stringify(v)`) flag isNoop like
+// tb/fb's `return Ser`/`return ret` byte-matches. v10 payloads bake the old
+// full bodies (composites) and isNoop=false verdicts (sj — which jeDI keys
+// its binding elision on), so emitted bytes and liveness would depend on
+// cache temperature — must miss.
+const FormatVersion = 11
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can
