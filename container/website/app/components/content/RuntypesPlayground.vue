@@ -92,7 +92,11 @@ onMounted(async () => {
     <p v-else-if="status === 'error'" class="rt-playground-embed__status rt-playground-embed__status--error">
       {{ errorMessage }}
     </p>
-    <div ref="host" class="rt-playground-embed__host" />
+    <div
+      ref="host"
+      class="rt-playground-embed__host"
+      :class="{ 'rt-playground-embed__host--ready': status === 'ready' }"
+    />
   </div>
 </template>
 
@@ -100,17 +104,25 @@ onMounted(async () => {
 .rt-playground-embed {
   margin: 1.5rem 0;
 }
-.rt-playground-embed__host {
+/* Reserve the playground height only once the element is mounted; while loading,
+   the centered status message owns the reserved area (so it does not double up). */
+.rt-playground-embed__host--ready {
   min-height: var(--rt-pg-min-height);
 }
 .rt-playground-embed__status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--rt-pg-min-height);
+  margin: 0;
+  padding: 10px 16px;
   color: var(--ui-text-muted, #8b949e);
   font-size: 13px;
-  padding: 10px 0;
-  margin: 0;
+  text-align: center;
 }
 .rt-playground-embed__status--error {
   color: #f85149;
   white-space: pre-wrap;
+  text-align: left;
 }
 </style>

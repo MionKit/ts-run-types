@@ -1,6 +1,12 @@
 // The build functions the playground offers. `factory` is the ts-runtypes
 // export; `fnKey` matches the marker overlay. `kind` selects how the engine
 // invokes it and how the result is shaped.
+//
+// Several JSON entries share the same `createJsonEncoder` / `createJsonDecoder`
+// factory but differ by `options` — the comptime `{strategy: '…'}` literal the
+// engine appends at the call site. That literal is folded into the injected fn
+// hash (never read at runtime), so each strategy resolves to its own cache entry,
+// exactly as it does in the serialization benchmarks.
 
 export type OperationKind = 'predicate' | 'errors' | 'encode' | 'jsonRoundtrip' | 'binaryEncode' | 'binaryRoundtrip' | 'graph';
 
@@ -9,13 +15,26 @@ export interface Operation {
   factory: string;
   fnKey: string | null;
   kind: OperationKind;
+  // `<optgroup>` heading + `<option>` text for the picker.
+  group: string;
+  menuLabel: string;
+  // The factory name (used as the info-block heading / surrounding-code label).
   label: string;
+  // One-line summary shown as the info-block title; `detail` is the longer body.
   blurb: string;
+  detail: string;
   needsInput: boolean;
   // The variable name used when the playground shows the call as real code:
   // `const <varName> = <factory><MyType>();` in the type column's header/footer
   // and the "after build" transformed view.
   varName: string;
+  // The comptime options literal appended at the call site — e.g.
+  // `{strategy: 'mutate'}`. Baked into the injected fn hash at build time, so it
+  // selects the strategy without any runtime branching. Absent = no options.
+  options?: string;
+  // For roundtrip decode ops only: the encoder options used to produce the wire
+  // the decoder then reads back (the intermediate shown in the Encoded block).
+  encodeOptions?: string;
 }
 
 export const OPERATIONS: readonly Operation[] = [
@@ -24,8 +43,12 @@ export const OPERATIONS: readonly Operation[] = [
     factory: 'createValidate',
     fnKey: 'val',
     kind: 'predicate',
+    group: 'Validation',
+    menuLabel: 'validate',
     label: 'createValidate',
-    blurb: 'Type guard: returns true when the value matches the type.',
+    blurb: 'Type guard for the type.',
+    detail:
+      'Returns a function that answers true when the value matches the type and false otherwise — the classic runtime type check.',
     needsInput: true,
     varName: 'validate',
   },
@@ -34,38 +57,118 @@ export const OPERATIONS: readonly Operation[] = [
     factory: 'createGetValidationErrors',
     fnKey: 'verr',
     kind: 'errors',
+    group: 'Validation',
+    menuLabel: 'get validation errors',
     label: 'createGetValidationErrors',
-    blurb: 'Returns the list of validation errors (empty when valid).',
+    blurb: 'List every validation error.',
+    detail:
+      'Returns a function that reports each place the value diverges from the type. An empty list means the value is valid.',
     needsInput: true,
     varName: 'getErrors',
   },
   {
-    key: 'jsonEncoder',
+    key: 'jsonEncoderClone',
     factory: 'createJsonEncoder',
     fnKey: 'jsonEncoder',
     kind: 'encode',
+    group: 'JSON encode',
+    menuLabel: 'clone (default)',
     label: 'createJsonEncoder',
-    blurb: 'Encodes a value into its JSON-safe shape.',
+    blurb: 'Encode to JSON by cloning the declared shape.',
+    detail:
+      'Builds a fresh value from the declared type, so undeclared keys are dropped for free, then hands it to JSON.stringify. Never touches your input. This is the default strategy.',
     needsInput: true,
     varName: 'toJson',
+    options: "{strategy: 'clone'}",
   },
   {
-    key: 'jsonDecoder',
+    key: 'jsonEncoderMutate',
+    factory: 'createJsonEncoder',
+    fnKey: 'jsonEncoder',
+    kind: 'encode',
+    group: 'JSON encode',
+    menuLabel: 'mutate',
+    label: 'createJsonEncoder',
+    blurb: 'Encode in place, keeping unknown keys.',
+    detail:
+      'Transforms leaves in place with no clone allocation, so it is the fastest option — but it mutates the object you pass in and keeps undeclared keys on the wire.',
+    needsInput: true,
+    varName: 'toJson',
+    options: "{strategy: 'mutate'}",
+  },
+  {
+    key: 'jsonEncoderDirect',
+    factory: 'createJsonEncoder',
+    fnKey: 'jsonEncoder',
+    kind: 'encode',
+    group: 'JSON encode',
+    menuLabel: 'direct',
+    label: 'createJsonEncoder',
+    blurb: 'Single-pass encode straight to a string.',
+    detail:
+      'Serialises in one pass with no clone and no mutation, always stripping undeclared keys. Allocation-free, a touch slower on deeply nested shapes.',
+    needsInput: true,
+    varName: 'toJson',
+    options: "{strategy: 'direct'}",
+  },
+  {
+    key: 'jsonEncoderCompact',
+    factory: 'createJsonEncoder',
+    fnKey: 'jsonEncoder',
+    kind: 'encode',
+    group: 'JSON encode',
+    menuLabel: 'compact',
+    label: 'createJsonEncoder',
+    blurb: 'Encode as positional arrays (smallest wire).',
+    detail:
+      'Emits each object as a positional array with no key names on the wire, producing the smallest JSON. Pairs with the compact decoder; both ends must share the type.',
+    needsInput: true,
+    varName: 'toJson',
+    options: "{strategy: 'compact'}",
+  },
+  {
+    key: 'jsonDecoderStrip',
     factory: 'createJsonDecoder',
     fnKey: 'jsonDecoder',
     kind: 'jsonRoundtrip',
+    group: 'JSON decode',
+    menuLabel: 'remove unknown keys (default)',
     label: 'createJsonDecoder',
-    blurb: 'Decodes JSON back into the data type (encodes your input first, then decodes it).',
+    blurb: 'Decode JSON, dropping undeclared keys.',
+    detail:
+      'Parses the JSON and removes any key not declared in the type before rebuilding the value (undeclared keys become undefined). This is the default strategy. Your input is encoded first (mutate strategy, so extra keys reach the wire) and then decoded, so the full round trip is visible.',
     needsInput: true,
     varName: 'fromJson',
+    options: "{strategy: 'strip'}",
+    encodeOptions: "{strategy: 'mutate'}",
+  },
+  {
+    key: 'jsonDecoderPreserve',
+    factory: 'createJsonDecoder',
+    fnKey: 'jsonDecoder',
+    kind: 'jsonRoundtrip',
+    group: 'JSON decode',
+    menuLabel: 'keep unknown keys',
+    label: 'createJsonDecoder',
+    blurb: 'Decode JSON, keeping every key.',
+    detail:
+      'Parses the JSON and passes undeclared keys through untouched. Compare with the default: the same encoded wire keeps its extra keys here.',
+    needsInput: true,
+    varName: 'fromJson',
+    options: "{strategy: 'preserve'}",
+    encodeOptions: "{strategy: 'mutate'}",
   },
   {
     key: 'binaryEncoder',
     factory: 'createBinaryEncoder',
     fnKey: 'tb',
     kind: 'binaryEncode',
+    group: 'Binary',
+    menuLabel: 'encode',
     label: 'createBinaryEncoder',
-    blurb: 'Encodes a value into a compact binary buffer (shown as hex).',
+    blurb: 'Encode to a compact binary buffer.',
+    detail:
+      'Serialises the value into a tightly packed binary buffer, shown here as hex. Much smaller than JSON for the same data.',
     needsInput: true,
     varName: 'toBinary',
   },
@@ -74,8 +177,12 @@ export const OPERATIONS: readonly Operation[] = [
     factory: 'createBinaryDecoder',
     fnKey: 'fb',
     kind: 'binaryRoundtrip',
+    group: 'Binary',
+    menuLabel: 'decode',
     label: 'createBinaryDecoder',
-    blurb: 'Decodes a binary buffer back into the data type (encodes your input first, then decodes it).',
+    blurb: 'Decode a binary buffer back to data.',
+    detail:
+      'Reads the packed binary buffer back into the data type. Your input is encoded first and then decoded, so the full round trip is visible.',
     needsInput: true,
     varName: 'fromBinary',
   },
@@ -84,8 +191,12 @@ export const OPERATIONS: readonly Operation[] = [
     factory: 'getRunType',
     fnKey: null,
     kind: 'graph',
+    group: 'Reflection',
+    menuLabel: 'getRunType',
     label: 'getRunType',
-    blurb: 'Resolves the type to its RunType. Run to see the resolved RunType object.',
+    blurb: 'Unpack the resolved RunType.',
+    detail:
+      'Resolves the type to its RunType — the structured description RunTypes builds from your type. Unpack it to inspect every node.',
     needsInput: false,
     varName: 'runType',
   },

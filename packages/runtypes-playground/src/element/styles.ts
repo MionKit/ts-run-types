@@ -20,9 +20,23 @@ export const STYLES = `
 .rt-playground .rtpg-layout { display: grid; grid-template-columns: 1.1fr 1fr 0.9fr; gap: 1px; background: var(--rtpg-border); min-height: 460px; }
 @media (max-width: 1000px) { .rt-playground .rtpg-layout { grid-template-columns: 1fr; } }
 .rt-playground .rtpg-pane { background: var(--rtpg-bg); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-.rt-playground .rtpg-head { display: flex; align-items: baseline; justify-content: space-between; padding: 9px 13px; border-bottom: 1px solid var(--rtpg-border); background: var(--rtpg-panel); }
+.rt-playground .rtpg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 13px; border-bottom: 1px solid var(--rtpg-border); background: var(--rtpg-panel); }
 .rt-playground .rtpg-head h2 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--rtpg-muted); }
+.rt-playground .rtpg-head-title { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 .rt-playground .rtpg-hint { color: var(--rtpg-muted); font-size: 12px; }
+
+/* Numbered step badge beside each column title, with a hover/focus tooltip.
+   The tooltip is self-contained (the standalone component can't borrow the host
+   site's tooltip); z-index sits above the Monaco editors and the loading overlay. */
+.rt-playground .rtpg-step { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 16px; height: 16px; padding: 0; border: 1px solid var(--rtpg-accent-dim); border-radius: 50%; background: rgba(121, 175, 67, 0.14); color: var(--rtpg-accent); font-family: var(--rtpg-sans); font-size: 10px; font-weight: 700; line-height: 1; cursor: help; }
+.rt-playground .rtpg-step:hover, .rt-playground .rtpg-step:focus-visible { background: var(--rtpg-accent); color: #0e1116; outline: none; }
+.rt-playground .rtpg-tip { position: absolute; top: calc(100% + 7px); left: 0; z-index: 60; width: max-content; max-width: 240px; padding: 8px 10px; border: 1px solid var(--rtpg-border); border-radius: 8px; background: var(--rtpg-panel-2); color: var(--rtpg-text); font-family: var(--rtpg-sans); font-size: 11.5px; font-weight: 400; line-height: 1.45; letter-spacing: 0; text-transform: none; text-align: left; white-space: normal; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); opacity: 0; visibility: hidden; transform: translateY(-2px); transition: opacity 0.12s, transform 0.12s; pointer-events: none; }
+.rt-playground .rtpg-tip-left { left: auto; right: 0; }
+/* Single column (panes stack full-width): the rightmost tip opens right again;
+   opening left would run it off the left edge of its left-aligned badge. This
+   revert must follow the base rtpg-tip-left rule to win (equal specificity). */
+@media (max-width: 1000px) { .rt-playground .rtpg-tip-left { left: 0; right: auto; } }
+.rt-playground .rtpg-step:hover .rtpg-tip, .rt-playground .rtpg-step:focus .rtpg-tip, .rt-playground .rtpg-step:focus-visible .rtpg-tip { opacity: 1; visibility: visible; transform: translateY(0); }
 .rt-playground .rtpg-hint code, .rt-playground .rtpg-head code { font-family: var(--rtpg-mono); color: var(--rtpg-accent); }
 .rt-playground .rtpg-editor { flex: 1; min-height: 280px; }
 
@@ -43,23 +57,30 @@ export const STYLES = `
   background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(121, 175, 67, 0.16) 5px 6px); }
 
 /* "After build" section: its header strip + the transformed-code view. */
-.rt-playground .rtpg-subhead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 7px 13px; border-top: 1px solid var(--rtpg-border); border-bottom: 1px solid var(--rtpg-border); background: var(--rtpg-panel); }
+.rt-playground .rtpg-subhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 13px; border-top: 1px solid var(--rtpg-border); border-bottom: 1px solid var(--rtpg-border); background: var(--rtpg-panel); }
 .rt-playground .rtpg-subhead h3 { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--rtpg-muted); }
 .rt-playground .rtpg-transformview { flex: 2 1 0; min-height: 120px; display: flex; flex-direction: column; }
 .rt-playground .rtpg-transformview > .rtpg-code { flex: 1; margin: 0; border: 0; border-radius: 0; }
-.rt-playground .rtpg-transformview > .rtpg-loading,
 .rt-playground .rtpg-transformview > .rtpg-placeholder { padding: 13px; }
+/* While recompiling, the prior output stays visible but dimmed (a header spinner
+   signals the refresh); it is swapped for the new output only once ready. */
+.rt-playground .rtpg-transformview.is-busy, .rt-playground .rtpg-codeview.is-busy { opacity: 0.5; transition: opacity 0.15s ease; }
 .rt-playground .rtpg-controls { padding: 12px; display: flex; flex-direction: column; gap: 9px; overflow: auto; flex: 1; min-height: 0; }
 .rt-playground .rtpg-field { display: flex; flex-direction: column; gap: 6px; }
 .rt-playground .rtpg-field-label { font-size: 12px; color: var(--rtpg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .rt-playground .rtpg-field-label-row { display: flex; align-items: center; justify-content: space-between; }
 .rt-playground .rtpg-select { appearance: none; background: var(--rtpg-panel-2); color: var(--rtpg-text); border: 1px solid var(--rtpg-border); border-radius: 8px; padding: 9px 12px; font-family: var(--rtpg-mono); font-size: 13px; cursor: pointer; }
 .rt-playground .rtpg-select:focus { outline: none; border-color: var(--rtpg-accent-dim); }
-.rt-playground .rtpg-blurb { margin: 0; color: var(--rtpg-muted); font-size: 12px; line-height: 1.45; }
+/* Function info block: an accented card under the picker describing the selected
+   function (a bold one-liner + a fuller explanation), with an info glyph. */
+.rt-playground .rtpg-info { display: flex; gap: 9px; margin: 0; padding: 10px 11px; border: 1px solid var(--rtpg-accent-dim); border-left-width: 3px; border-radius: 8px; background: rgba(121, 175, 67, 0.08); }
+.rt-playground .rtpg-info-icon { flex: 0 0 auto; margin-top: 1px; color: var(--rtpg-accent); font-size: 15px; line-height: 1; }
+.rt-playground .rtpg-info-icon svg { display: block; }
+.rt-playground .rtpg-info-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rt-playground .rtpg-info-title { color: var(--rtpg-text); font-size: 12.5px; font-weight: 600; line-height: 1.35; }
+.rt-playground .rtpg-info-detail { color: var(--rtpg-muted); font-size: 12px; line-height: 1.5; }
 .rt-playground .rtpg-input-field[hidden] { display: none; }
 .rt-playground .rtpg-input-editor { height: 150px; border: 1px solid var(--rtpg-border); border-radius: 8px; overflow: hidden; }
-.rt-playground .rtpg-encoded-field[hidden] { display: none; }
-.rt-playground .rtpg-encoded { height: 150px; overflow: auto; margin: 0; font-family: var(--rtpg-mono); font-size: 12.5px; line-height: 1.5; background: var(--rtpg-panel); border: 1px solid var(--rtpg-border); border-radius: 8px; padding: 12px; white-space: pre-wrap; word-break: break-word; }
 .rt-playground .rtpg-btn-row { display: flex; gap: 6px; }
 .rt-playground .rtpg-ghost-btn { background: transparent; border: 1px solid var(--rtpg-border); color: var(--rtpg-muted); border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer; white-space: nowrap; }
 .rt-playground .rtpg-ghost-btn:hover { color: var(--rtpg-accent); border-color: var(--rtpg-accent-dim); }
@@ -75,11 +96,14 @@ export const STYLES = `
 .rt-playground .rtpg-cache-file:first-child .rtpg-cache-file-head { border-top: 0; }
 .rt-playground .rtpg-cache-file > .rtpg-code { margin: 0; border: 0; border-radius: 0; overflow: visible; }
 .rt-playground .rtpg-codeview > .rtpg-code { margin: 0; border: 0; border-radius: 0; }
-.rt-playground .rtpg-codeview > .rtpg-loading,
 .rt-playground .rtpg-codeview > .rtpg-card-note,
 .rt-playground .rtpg-codeview > .rtpg-placeholder { padding: 13px; }
 .rt-playground .rtpg-result-label { display: flex; align-items: baseline; justify-content: space-between; font-size: 11px; color: var(--rtpg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-.rt-playground .rtpg-result { flex: 1; min-height: 80px; overflow: auto; padding: 10px; border: 1px solid var(--rtpg-border); border-radius: 8px; background: var(--rtpg-bg); }
+/* No padding / border: the result blends into the controls column (the code
+   blocks inside carry their own padding), and the first block hugs the top. */
+.rt-playground .rtpg-result { flex: 1; min-height: 80px; overflow: auto; }
+.rt-playground .rtpg-result > .rtpg-block-label:first-child { margin-top: 0; }
+.rt-playground .rtpg-hex { word-break: break-all; }
 .rt-playground .rtpg-badge { display: inline-block; font-family: var(--rtpg-mono); font-weight: 700; padding: 6px 12px; border-radius: 8px; margin-bottom: 12px; }
 .rt-playground .rtpg-badge.ok { background: rgba(121,175,67,0.15); color: var(--rtpg-ok); border: 1px solid var(--rtpg-accent-dim); }
 .rt-playground .rtpg-badge.bad { background: rgba(227,83,79,0.15); color: var(--rtpg-err); border: 1px solid var(--rtpg-err); }
@@ -116,8 +140,11 @@ export const STYLES = `
 .rt-playground .rtpg-mock-badge { margin-top: 6px; font-size: 11px; line-height: 1.4; color: var(--rtpg-muted); background: rgba(121, 175, 67, 0.08); border: 1px solid var(--rtpg-accent-dim); border-radius: 6px; padding: 5px 8px; }
 .rt-playground .rtpg-mock-badge code { font-family: var(--rtpg-mono); color: var(--rtpg-accent); }
 
-/* Generated-code column: spinner while (re)generating; a note for no-op families. */
-.rt-playground .rtpg-loading { display: flex; align-items: center; gap: 9px; color: var(--rtpg-muted); font-size: 13px; padding: 4px 0; }
+/* Generated-code columns: a small header spinner shows while (re)generating; a
+   note covers no-op families. The section content itself is dimmed, not blanked. */
+.rt-playground .rtpg-head-status { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.rt-playground .rtpg-busy-spinner { flex: 0 0 auto; width: 12px; height: 12px; border: 2px solid var(--rtpg-border); border-top-color: var(--rtpg-accent); border-radius: 50%; animation: rtpg-spin 0.7s linear infinite; }
+.rt-playground .rtpg-busy-spinner[hidden] { display: none; }
 .rt-playground .rtpg-spinner { width: 15px; height: 15px; border: 2px solid var(--rtpg-border); border-top-color: var(--rtpg-accent); border-radius: 50%; animation: rtpg-spin 0.7s linear infinite; }
 @keyframes rtpg-spin { to { transform: rotate(360deg); } }
 .rt-playground .rtpg-card-note { color: var(--rtpg-muted); font-size: 12.5px; font-style: italic; }

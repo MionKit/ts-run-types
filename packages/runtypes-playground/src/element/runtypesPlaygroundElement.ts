@@ -39,7 +39,7 @@ import {
 } from '../core/index.ts';
 import {STYLES} from './styles.ts';
 import {PRESETS, type Preset} from './presets.ts';
-import {TS_ICON, JS_ICON} from './icons.ts';
+import {TS_ICON, JS_ICON, INFO_ICON} from './icons.ts';
 
 type Monaco = typeof import('monaco-editor');
 type Editor = import('monaco-editor').editor.IStandaloneCodeEditor;
@@ -165,11 +165,38 @@ function parseJsInput(code: string): unknown {
   return new Function(`return (${trimmed});`)();
 }
 
-// Drops the `create` prefix from a factory name for the picker: createValidate -> validate.
-function shortLabel(label: string): string {
-  const stripped = label.replace(/^create/, '');
-  return stripped.charAt(0).toLowerCase() + stripped.slice(1);
+// formatJsonMaybe pretty-prints a JSON string (the encoders return a serialized
+// string) so the Encoded block reads as formatted JSON rather than a quoted,
+// double-escaped string literal. Non-string values fall back to `stringify`; an
+// unparseable string is shown verbatim.
+function formatJsonMaybe(value: unknown): string {
+  if (typeof value !== 'string') return stringify(value);
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value;
+  }
 }
+
+// stepBadge renders a numbered circle beside a column title. Hovering or focusing
+// it reveals `tip` — a self-contained CSS tooltip (the standalone component can't
+// rely on the host's tooltip primitives). The button is keyboard-focusable so the
+// tip is reachable without a pointer. `openLeft` anchors the bubble to the badge's
+// right edge (for the rightmost column, so a wide tip can't overflow the panel).
+function stepBadge(n: number, tip: string, openLeft = false): string {
+  const tipClass = openLeft ? 'rtpg-tip rtpg-tip-left' : 'rtpg-tip';
+  return `<button type="button" class="rtpg-step" aria-label="Step ${n}: ${escapeHtml(tip)}">${n}<span class="${tipClass}" role="tooltip">${escapeHtml(tip)}</span></button>`;
+}
+
+// The per-title guidance shown in each numbered badge's tooltip.
+const STEP_TIPS = {
+  source: 'Edit MyType and watch the change flow through to the transformed source and the generated functions.',
+  transformed:
+    'The transformed code: the generated functions are imported and referenced by a stable type id (one id per type). RunTypes makes the smallest change it can to your original source.',
+  cache:
+    'The real, ready-to-run code RunTypes generates for your type. This is what actually executes for the function you picked, specialized to your exact shape (no schema walking or reflection at runtime).',
+  function: 'Pick one of the functions RunTypes generates from your type, then run it against the input below.',
+} as const;
 
 function renderDiagnostics(diagnostics: Diagnostic[]): string {
   if (!diagnostics || diagnostics.length === 0) return '';
@@ -183,8 +210,6 @@ function renderDiagnostics(diagnostics: Diagnostic[]): string {
     .join('');
   return `<div class="rtpg-diag"><div class="rtpg-block-label">Diagnostics</div>${items}</div>`;
 }
-
-const SPINNER = '<div class="rtpg-loading"><span class="rtpg-spinner"></span>generating…</div>';
 
 export class RuntypesPlaygroundElement extends HTMLElement {
   private monaco: Monaco | null = null;
@@ -357,7 +382,7 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   private updateSurrounding(): void {
     const op = this.currentOp();
     this.headerEditor?.setValue(factoryImport(op.factory));
-    this.footerEditor?.setValue(factoryCall(op.factory, op.varName, this.mode));
+    this.footerEditor?.setValue(factoryCall(op.factory, op.varName, this.mode, undefined, op.options));
     this.updateLineNumberOffsets();
   }
 
@@ -382,7 +407,10 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       </div>
       <div class="rtpg-layout">
         <section class="rtpg-pane rtpg-typepane">
-          <div class="rtpg-head"><h2>Source</h2><span class="rtpg-hint" data-el="typeHint">define <code>${ROOT_TYPE}</code></span></div>
+          <div class="rtpg-head">
+            <span class="rtpg-head-title"><h2>Source</h2>${stepBadge(1, STEP_TIPS.source)}</span>
+            <span class="rtpg-hint" data-el="typeHint">define <code>${ROOT_TYPE}</code></span>
+          </div>
           <div class="rtpg-typestack">
             <div class="rtpg-ro-wrap rtpg-ro-header">
               <div class="rtpg-ro-editor" data-el="headerEditor"></div>
@@ -395,21 +423,38 @@ export class RuntypesPlaygroundElement extends HTMLElement {
             </div>
           </div>
           <div class="rtpg-subhead">
-            <h3>Transformed Src</h3>
-            <span class="rtpg-hint">the import + argument RunTypes injects</span>
+            <span class="rtpg-head-title"><h3>Transformed Src</h3>${stepBadge(2, STEP_TIPS.transformed)}</span>
+            <span class="rtpg-head-status">
+              <span class="rtpg-busy-spinner" data-el="transformBusy" hidden></span>
+              <span class="rtpg-hint">the import + argument RunTypes injects</span>
+            </span>
           </div>
           <div class="rtpg-transformview" data-el="transformview"><div class="rtpg-placeholder">resolving…</div></div>
         </section>
         <section class="rtpg-pane">
-          <div class="rtpg-head"><h2>Generated Cache</h2><span class="rtpg-hint" data-el="codeHint"></span></div>
+          <div class="rtpg-head">
+            <span class="rtpg-head-title"><h2>Generated Cache</h2>${stepBadge(3, STEP_TIPS.cache)}</span>
+            <span class="rtpg-head-status">
+              <span class="rtpg-busy-spinner" data-el="cacheBusy" hidden></span>
+              <span class="rtpg-hint" data-el="codeHint"></span>
+            </span>
+          </div>
           <div class="rtpg-codeview" data-el="codeview"><div class="rtpg-placeholder">resolving…</div></div>
         </section>
         <section class="rtpg-pane">
-          <div class="rtpg-head"><h2>Function</h2></div>
+          <div class="rtpg-head">
+            <span class="rtpg-head-title"><h2>Pick a Function</h2>${stepBadge(4, STEP_TIPS.function, true)}</span>
+          </div>
           <div class="rtpg-controls">
             <label class="rtpg-field">
               <select class="rtpg-select" data-el="operation"></select></label>
-            <p class="rtpg-blurb" data-el="blurb"></p>
+            <div class="rtpg-info" data-el="info">
+              <span class="rtpg-info-icon" aria-hidden="true">${INFO_ICON}</span>
+              <div class="rtpg-info-text">
+                <div class="rtpg-info-title" data-el="infoTitle"></div>
+                <div class="rtpg-info-detail" data-el="infoDetail"></div>
+              </div>
+            </div>
             <div class="rtpg-field rtpg-input-field" data-el="inputField">
               <div class="rtpg-field-label-row"><span class="rtpg-field-label">Input (JS)</span>
                 <span class="rtpg-btn-row">
@@ -420,10 +465,6 @@ export class RuntypesPlaygroundElement extends HTMLElement {
               <div class="rtpg-mock-badge" data-el="mockBadge">Sample data generated by RunTypes <code>createMockType&lt;${ROOT_TYPE}&gt;()</code></div>
             </div>
             <button type="button" class="rtpg-run-btn" data-el="run" disabled>Run</button>
-            <div class="rtpg-field rtpg-encoded-field" data-el="encodedField" hidden>
-              <span class="rtpg-field-label">Encoded (input → encode)</span>
-              <div class="rtpg-encoded" data-el="encoded"><div class="rtpg-placeholder">Run to see the encoded value</div></div>
-            </div>
             <div class="rtpg-result-label">Result <span class="rtpg-hint" data-el="timing"></span></div>
             <div class="rtpg-result" data-el="output"><div class="rtpg-placeholder">Run to see the result</div></div>
           </div>
@@ -528,13 +569,21 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     this.buildModeSwitch();
 
     const select = this.els.operation as HTMLSelectElement;
+    // Group the options by family (Validation / JSON encode / JSON decode / …) so
+    // the strategy variants read as a small menu rather than a flat list.
+    let group: HTMLOptGroupElement | null = null;
     for (const op of OPERATIONS) {
+      if (!group || group.label !== op.group) {
+        group = document.createElement('optgroup');
+        group.label = op.group;
+        select.appendChild(group);
+      }
       const option = document.createElement('option');
       option.value = op.key;
-      option.textContent = shortLabel(op.label);
-      select.appendChild(option);
+      option.textContent = op.menuLabel;
+      group.appendChild(option);
     }
-    select.value = this.getAttribute('operation') ?? select.options[0]?.value ?? '';
+    select.value = this.getAttribute('operation') ?? OPERATIONS[0]?.key ?? '';
     this.syncInputVisibility();
     this.updateSurrounding();
 
@@ -631,21 +680,17 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   private resetResult(): void {
     this.els.output.innerHTML = '<div class="rtpg-placeholder">Run to see the result</div>';
     this.els.timing.textContent = '';
-    this.els.encoded.innerHTML = '<div class="rtpg-placeholder">Run to see the encoded value</div>';
   }
 
-  // The decode functions (createJsonDecoder / createBinaryDecoder) run encode THEN
-  // decode; for them the playground shows the intermediate encoded value in its own
-  // block under the input.
-  private isDecodeOp(op: RunResult['op']): boolean {
-    return op.kind === 'jsonRoundtrip' || op.kind === 'binaryRoundtrip';
-  }
-
+  // syncInputVisibility reflects the selected function: shows/hides the input
+  // pane, fills the info block (title + detail), and labels the run button
+  // (getRunType "unpacks" the RunType rather than running a value).
   private syncInputVisibility(): void {
     const op = this.currentOp();
     (this.els.inputField as HTMLElement).hidden = !op.needsInput;
-    (this.els.encodedField as HTMLElement).hidden = !this.isDecodeOp(op);
-    this.els.blurb.textContent = op.blurb;
+    this.els.infoTitle.textContent = op.blurb;
+    this.els.infoDetail.textContent = op.detail;
+    (this.els.run as HTMLButtonElement).textContent = op.kind === 'graph' ? 'Unpack RunTypes' : 'Run';
   }
 
   private typeSource(): string {
@@ -710,7 +755,6 @@ export class RuntypesPlaygroundElement extends HTMLElement {
       const result = await run(op.key, userCode, input, this.resolverOptions(), this.mode);
       this.els.timing.textContent = `${(performance.now() - started).toFixed(0)} ms`;
       this.els.output.innerHTML = await this.renderResult(result);
-      await this.renderEncoded(result);
     } catch (err) {
       this.els.timing.textContent = '';
       this.els.output.innerHTML = `<pre class="rtpg-code error">${escapeHtml((err as Error).message ?? String(err))}</pre>`;
@@ -718,10 +762,16 @@ export class RuntypesPlaygroundElement extends HTMLElement {
   }
 
   // renderResult shows the run result (kept compact — it sits under the Run button).
+  // For the decode functions the intermediate Encoded value is shown at the TOP of
+  // the result, above the Decoded value, so the whole round trip reads top-down.
   private async renderResult(result: RunResult): Promise<string> {
     const diag = renderDiagnostics(result.diagnostics);
     const block = async (value: unknown): Promise<string> =>
       `<div class="rtpg-code">${await this.highlight(jsValue(value), 'javascript')}</div>`;
+    // jsonBlock renders a serialized JSON string as formatted, highlighted JSON
+    // (not a re-quoted, double-escaped string literal).
+    const jsonBlock = async (value: unknown): Promise<string> =>
+      `<pre class="rtpg-code">${await this.highlight(formatJsonMaybe(value), 'json')}</pre>`;
     const label = (text: string): string => `<div class="rtpg-block-label">${text}</div>`;
     switch (result.kind) {
       case 'predicate':
@@ -732,37 +782,36 @@ export class RuntypesPlaygroundElement extends HTMLElement {
         return `${badge}${ok ? '' : await block(result.value)}${diag}`;
       }
       case 'encode':
-        return `${label('Encoded (JSON-safe)')}${await block(result.value)}${diag}`;
+        return `${label('Encoded (JSON-safe)')}${await jsonBlock(result.value)}${diag}`;
       case 'jsonRoundtrip':
-        // The encoded intermediate is shown in the Encoded block under the input.
-        return `${label('Decoded')}${await block(result.decoded)}${diag}`;
+        return `${label('Encoded (input → encode)')}${await jsonBlock(result.encoded)}${label('Decoded')}${await block(result.decoded)}${diag}`;
       case 'binaryEncode':
-        return `${label(`Binary (${result.byteLength} bytes)`)}<pre class="rtpg-code">${escapeHtml(result.hex)}</pre>${diag}`;
+        return `${label(`Binary (${result.byteLength} bytes)`)}<pre class="rtpg-code rtpg-hex">${escapeHtml(result.hex)}</pre>${diag}`;
       case 'binaryRoundtrip':
-        return `${label('Decoded')}${await block(result.decoded)}${diag}`;
+        return `${label(`Encoded (${result.byteLength} bytes)`)}<pre class="rtpg-code rtpg-hex">${escapeHtml(result.hex)}</pre>${label('Decoded')}${await block(result.decoded)}${diag}`;
       case 'graph':
         return `<div class="rtpg-badge ok">RunType resolved (${result.runTypes.length} node(s))</div>${label('Resolved RunType')}<pre class="rtpg-code">${await this.highlight(stringify(result.runTypes), 'json')}</pre>${diag}`;
     }
   }
 
-  // renderEncoded fills the Encoded block (under the input) with the encode
-  // intermediate for the decode functions — JSON-safe text for createJsonDecoder,
-  // the hex buffer for createBinaryDecoder. No-op for every other result kind.
-  private async renderEncoded(result: RunResult): Promise<void> {
-    if (result.kind === 'jsonRoundtrip') {
-      this.els.encoded.innerHTML = await this.highlight(stringify(result.encoded), 'json');
-    } else if (result.kind === 'binaryRoundtrip') {
-      this.els.encoded.innerHTML = `${result.byteLength} bytes\n${escapeHtml(result.hex)}`;
-    }
-  }
-
-  // scheduleCodegen shows the spinner immediately and (re)generates the code column
-  // after `delay` ms — long for typing, short for a discrete change.
+  // scheduleCodegen marks the two code columns busy immediately, then regenerates
+  // after `delay` ms — long for typing, short for a discrete change. The PREVIOUS
+  // Transformed Src / Generated Cache output stays on screen (dimmed, with a small
+  // header spinner) until the new output is ready, so an edit reads as an in-place
+  // refresh instead of the whole section blanking out and reappearing.
   private scheduleCodegen(delay: number): void {
     if (this.codeTimer) clearTimeout(this.codeTimer);
-    this.els.codeview.innerHTML = SPINNER;
-    this.els.transformview.innerHTML = SPINNER;
+    this.setCodegenBusy(true);
     this.codeTimer = setTimeout(() => void this.updateSelectedCode(), delay);
+  }
+
+  // setCodegenBusy toggles the "recompiling" affordance on the code columns: a
+  // header spinner plus a dim over the (still-visible) prior output.
+  private setCodegenBusy(busy: boolean): void {
+    (this.els.cacheBusy as HTMLElement).hidden = !busy;
+    (this.els.transformBusy as HTMLElement).hidden = !busy;
+    this.els.codeview.classList.toggle('is-busy', busy);
+    this.els.transformview.classList.toggle('is-busy', busy);
   }
 
   // updateSelectedCode renders the generated code for the SELECTED function + type.
@@ -774,15 +823,16 @@ export class RuntypesPlaygroundElement extends HTMLElement {
     const op = this.currentOp();
     const userCode = this.typeSource();
     const opts = this.resolverOptions();
-    this.els.codeview.innerHTML = SPINNER;
-    this.els.transformview.innerHTML = SPINNER;
+    // Keep the prior output visible while we recompile (busy dim + header spinner);
+    // it is swapped for the new output below only once it is ready.
+    this.setCodegenBusy(true);
     try {
       // The Generated Cache column shows the cache module(s) the transform imports:
       // the `export const __rt_… = […]` entry modules (their export names match the
       // `import { __rt_… }` in Transformed Src). One module for a single function; a
       // codec is a few that import each other - each rendered as its own section
       // labeled with its `virtual:rt/…` name. For getRunType it is the runtype bundle.
-      const cacheModules = await generatedCache(op.factory, userCode, opts, this.mode);
+      const cacheModules = await generatedCache(op.factory, userCode, opts, this.mode, op.options);
       const html = cacheModules.length
         ? (
             await Promise.all(
@@ -794,20 +844,23 @@ export class RuntypesPlaygroundElement extends HTMLElement {
           ).join('')
         : `<div class="rtpg-card-note">no cache generated for this type</div>`;
       // The "transformed src" view is the resolver's real transform of this file.
-      const transformed = await transformedSource(op.factory, op.varName, userCode, opts, this.mode);
+      const transformed = await transformedSource(op.factory, op.varName, userCode, opts, this.mode, op.options);
       const transformedHtml = `<pre class="rtpg-code">${await this.highlight(transformed, 'typescript')}</pre>`;
-      // Drop the result if a newer regeneration started while we awaited.
+      // Drop the result if a newer regeneration started while we awaited — it owns
+      // the busy state and will clear it when it finishes.
       if (seq !== this.codeSeq) return;
       this.els.codeHint.textContent = cacheModules.length
         ? `${cacheModules.length} module${cacheModules.length === 1 ? '' : 's'}`
         : '';
       this.els.codeview.innerHTML = html;
       this.els.transformview.innerHTML = transformedHtml;
+      this.setCodegenBusy(false);
     } catch (err) {
       if (seq !== this.codeSeq) return;
       const message = `<pre class="rtpg-code error">${escapeHtml((err as Error).message ?? String(err))}</pre>`;
       this.els.codeview.innerHTML = message;
       this.els.transformview.innerHTML = message;
+      this.setCodegenBusy(false);
     }
   }
 }
