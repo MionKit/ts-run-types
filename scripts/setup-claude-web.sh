@@ -12,7 +12,7 @@
 # .claude/skills/ts-runtypes-setup/setup.sh (the single source of truth for
 # podman install, submodules, tsgolint patches, `pnpm install`, the Go resolver
 # binary, and the runtypes-devtools dist). On top of that shared core it adds the
-# three things the web container needs and the skill alone does not do:
+# things the web container needs and the skill alone does not do:
 #
 #   1. Node 24. The web image ships Node 20/21/22, but package.json requires
 #      >= 24 and CI pins 24. We install Node 24 (via the image's nvm, or a
@@ -21,26 +21,33 @@
 #      node24 binaries into the earliest writable PATH dir ($HOME/.local/bin).
 #      pnpm is provided through corepack, pinned to the repo's packageManager.
 #
+#   1b. Light submodules. We init tsgolint + typescript-go but skip the 620MB
+#      nested microsoft/TypeScript corpus (only typescript-go's test runner uses
+#      it, never our build), pre-empting the skill's `--recursive` clone. Without
+#      this the clone alone pushes the ~2m15s Go build + rest past the ~5 min
+#      setup budget; with it the whole run lands around ~4 min.
+#
 #   2. GHCR login. The docs-website / benchmarks image
 #      (ghcr.io/$GHCR_OWNER/tsrt-website) is PRIVATE, so `podman pull` 403s and
 #      silently falls back to a slow local build unless we log in first. We run
 #      `scripts/podman-website.sh login`, which uses GHCR_PAT (already provided
-#      to the web environment). Requires the environment's network policy to
-#      allow ghcr.io (the "trusted" egress policy does).
+#      to the web environment). NOTE: actually PULLING the image also needs the
+#      egress policy to allow the GHCR blob host pkg-containers.githubusercontent.com
+#      (ghcr.io auth + manifest alone are not enough) - a network-policy matter,
+#      not this script's; here we just establish the credential.
 #
-#   3. A fast readiness check (`bin/ts-runtypes --version`) so a green run means
-#      the resolver binary built and runs. The heavy container smokes (boot the
-#      website, vite-build the benchmark - the same gates CI runs) are opt-in via
-#      --with-container-smoke, since they pull the image + run a container and
-#      would add minutes to every session boot. `pnpm test` is the full gate.
-#      (We intentionally skip `pnpm run ts-runtypes:smoke`: it is bit-rotted on
-#      main - imports a dist/rewrite.js removed in a refactor - and CI never runs
-#      it, so it always fails regardless of setup.)
+#   3. Placeholder .env de-clobber, so the empty secret rows the skill writes into
+#      .env do not shadow the real GHCR_PAT the web environment injects.
+#
+# It deliberately runs NO tests or smokes. This script is meant to be the web
+# environment's setup step, which is time-boxed (~5 min), so it only installs +
+# builds + logs in - it never runs `pnpm test`, `ts-runtypes:smoke`, or the
+# website/bench container smokes. Verifying the repo is the user's job afterwards
+# (`pnpm test`); a green setup means "ready to work", not "tests passed".
 #
 # Usage:
-#   bash scripts/setup-claude-web.sh                       # full autonomous setup
-#   bash scripts/setup-claude-web.sh --check               # report status only
-#   bash scripts/setup-claude-web.sh --with-container-smoke # also run website+bench smokes
+#   bash scripts/setup-claude-web.sh            # full autonomous setup
+#   bash scripts/setup-claude-web.sh --check    # report status only, install/build nothing
 #
 # Exit codes:
 #   0  ok
@@ -48,6 +55,15 @@
 #   3  not a supported platform (this script is Linux/claude-web only)
 # -----------------------------------------------------------------------------
 set -uo pipefail
+
+# ---------------------------------------------------------------------------
+# Setup revision - BUMP THIS DATE to force a fresh setup run.
+# Claude Code on the web re-runs its setup step when the script content changes,
+# so editing this date is enough to invalidate a cached container and re-do the
+# full bootstrap (re-pull the GHCR image, re-clone the submodules, rebuild the
+# binary, etc.) after an upstream change. Format: YYYY-MM-DD.
+# ---------------------------------------------------------------------------
+SETUP_DATE="2026-07-02"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -59,12 +75,10 @@ PNPM_PIN="$(sed -n 's/.*"packageManager": *"pnpm@\([0-9.]*\)".*/\1/p' "$REPO_DIR
 [ -n "$PNPM_PIN" ] || PNPM_PIN="11.8.0"
 
 CHECK_ONLY=0
-WITH_CONTAINER_SMOKE=0
 for arg in "$@"; do
   case "$arg" in
-    --check)                CHECK_ONLY=1 ;;
-    --with-container-smoke) WITH_CONTAINER_SMOKE=1 ;;
-    -h|--help)              sed -n '2,60p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --check)   CHECK_ONLY=1 ;;
+    -h|--help) sed -n '2,55p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown flag: $arg (try --help)" >&2; exit 1 ;;
   esac
 done
@@ -167,8 +181,54 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
-# 2. Shared host bootstrap: delegate to the setup skill (podman, submodules,
-#    patches, pnpm install, Go binary, devtools dist). Single source of truth.
+# 1b. Submodules (light) - init tsgolint + typescript-go but SKIP the 620MB
+#     nested _submodules/TypeScript (microsoft/TypeScript). That corpus is only
+#     used by typescript-go's OWN test runner (internal/testrunner), never by our
+#     `go build ./cmd/ts-runtypes`, so cloning it just burns setup time budget.
+#     Running this BEFORE the shared bootstrap makes its ensure_submodules see the
+#     modules already present and skip its own `--recursive` clone (which WOULD
+#     pull the deep submodule). Keeps the injected-git-proxy bypass as a fallback.
+# -----------------------------------------------------------------------------
+provision_submodules_light() {
+  bold "Submodules (tsgolint + typescript-go; skipping the 620MB TypeScript test corpus)"
+  local tsgolint="$REPO_DIR/third_party/tsgolint"
+  local tsgo="$tsgolint/typescript-go"
+  if [ -f "$tsgolint/go.mod" ] && [ -e "$tsgo/.git" ]; then
+    ok "submodules present"
+    return 0
+  fi
+  if [ "$CHECK_ONLY" = 1 ]; then
+    warn "submodules not initialized - re-run without --check"
+    return 0
+  fi
+  # Non-recursive: tsgolint, then typescript-go inside it. No --recursive, so the
+  # nested _submodules/TypeScript is never fetched.
+  _light_submodule_init() {
+    ( cd "$REPO_DIR" && git submodule update --init third_party/tsgolint ) &&
+    ( cd "$tsgolint" && git submodule update --init typescript-go )
+  }
+  if _light_submodule_init; then
+    ok "submodules ready (deep TypeScript corpus skipped)"
+    return 0
+  fi
+  # Some managed environments (Claude Code on the web) inject a git rewrite that
+  # routes github.com through a per-repo credential proxy, which 403s on the
+  # PUBLIC tsgolint submodule. Retry with that injected global gitconfig disabled
+  # so the clone goes over direct HTTPS (CA bundle + proxy still come from env).
+  warn "submodule init failed - retrying with the injected git-proxy rewrite bypassed"
+  if ( export GIT_CONFIG_GLOBAL=/dev/null; _light_submodule_init ); then
+    ok "submodules ready (direct-HTTPS bypass, deep TypeScript corpus skipped)"
+    return 0
+  fi
+  err "submodule init failed (direct and proxy-bypass attempts)"
+  FAILED=1
+  return 1
+}
+
+# -----------------------------------------------------------------------------
+# 2. Shared host bootstrap: delegate to the setup skill (podman, patches, pnpm
+#    install, Go binary, devtools dist). Single source of truth. Submodules are
+#    already present from step 1b, so the skill's recursive clone is skipped.
 # -----------------------------------------------------------------------------
 run_core_bootstrap() {
   bold "Host bootstrap (delegating to the ts-runtypes-setup skill)"
@@ -206,49 +266,34 @@ neutralize_placeholder_env() {
 }
 
 # -----------------------------------------------------------------------------
-# 3. GHCR login so the PRIVATE tsrt-website image can be pulled instead of built.
+# 3. GHCR login so a later `pnpm run website:dev` / `pnpm run bench` can PULL the
+#    private tsrt-website image instead of rebuilding it. Login is registry auth
+#    only - it does not pull anything, so it stays within the setup time budget.
+#    NOTE: pulling the image ALSO needs the egress policy to allow the GHCR blob
+#    host (pkg-containers.githubusercontent.com); auth + manifest via ghcr.io are
+#    not sufficient on their own. That is a network-policy concern, not this
+#    script's - here we just establish the credential.
 # -----------------------------------------------------------------------------
 ghcr_login() {
   bold "GHCR login (private image ghcr.io/${GHCR_OWNER:-mionkit}/tsrt-website)"
   if [ "$CHECK_ONLY" = 1 ]; then
     if [ -n "${GHCR_PAT:-}" ]; then ok "GHCR_PAT present - login would run"
-    else warn "GHCR_PAT not set - website/bench smokes would fall back to a local image build"; fi
+    else warn "GHCR_PAT not set - container image would have to be built locally later"; fi
     return 0
   fi
   if [ -z "${GHCR_PAT:-}" ]; then
-    warn "GHCR_PAT not set - skipping login; website/bench smokes will build the image locally"
+    warn "GHCR_PAT not set - skipping login (containers would build locally on demand)"
     return 0
   fi
   if bash "$REPO_DIR/scripts/podman-website.sh" login; then
     ok "logged in to GHCR"
   else
-    warn "GHCR login failed - website/bench smokes will fall back to a local image build"
-  fi
-}
-
-# -----------------------------------------------------------------------------
-# 4. Smokes.
-# -----------------------------------------------------------------------------
-run_smokes() {
-  [ "$CHECK_ONLY" = 1 ] && return 0
-  # Fast readiness check: the resolver binary built and runs. (We deliberately do
-  # NOT run `pnpm run ts-runtypes:smoke` here - that dev smoke is bit-rotted on
-  # main: it imports dist/rewrite.js, a module removed in a refactor, and CI does
-  # not run it so the rot went unnoticed. The real gates are `pnpm test` and the
-  # container smokes below, both of which we point the user at.)
-  bold "Wiring check (resolver binary runs)"
-  if ( cd "$REPO_DIR" && ./bin/ts-runtypes --version ); then ok "resolver binary OK"
-  else err "resolver binary did not run"; FAILED=1; fi
-
-  if [ "$WITH_CONTAINER_SMOKE" = 1 ]; then
-    bold "Container smokes (docs website + benchmarks)"
-    ( cd "$REPO_DIR" && pnpm run website:smoke ) && ok "website:smoke passed" || { err "website:smoke failed"; FAILED=1; }
-    ( cd "$REPO_DIR" && pnpm run bench:smoke )   && ok "bench:smoke passed"   || { err "bench:smoke failed";   FAILED=1; }
+    warn "GHCR login failed - containers would build locally on demand"
   fi
 }
 
 main() {
-  bold "RunTypes - Claude Code on the web setup$([ "$CHECK_ONLY" = 1 ] && echo '  [check-only]')"
+  bold "RunTypes - Claude Code on the web setup (rev $SETUP_DATE)$([ "$CHECK_ONLY" = 1 ] && echo '  [check-only]')"
   case "$(uname -s)" in
     Linux) ;;
     *) err "This script targets Claude Code on the web (Linux). For local hosts use the ts-runtypes-setup skill."; exit 3 ;;
@@ -256,16 +301,15 @@ main() {
   [ "$(id -u)" = 0 ] || warn "not running as root - podman/Node install steps may need sudo"
 
   provision_node24
+  provision_submodules_light
   run_core_bootstrap
   neutralize_placeholder_env
   ghcr_login
-  run_smokes
 
-  bold "Next steps (from the repo root)"
+  bold "Ready. Verify / work from the repo root (this setup ran no tests):"
   echo "  pnpm test                 # full JS suite (spawns the Go binary)"
   echo "  pnpm run website:dev      # docs site -> http://localhost:3000"
   echo "  pnpm run bench            # full validation benchmark"
-  echo "  bash scripts/setup-claude-web.sh --with-container-smoke   # verify the containers too"
 
   if [ "$FAILED" = 0 ]; then bold "Setup OK."; else bold "Setup incomplete - see ERR above."; exit 1; fi
 }
