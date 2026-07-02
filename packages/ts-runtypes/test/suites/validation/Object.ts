@@ -897,6 +897,7 @@ export const OBJECT = {
     validateNotes: [
       'Validates own enumerable keys via `for...in` (not inherited). The empty object `{}` is valid.',
       "Every key's value must satisfy the value type — `{ a: 1 }` fails on `{[key: string]: string}`.",
+      'A non-plain object (array, Date, Map, Set) is rejected as `objectLiteral` — a `for...in` enumerates no own string keys on those, so the per-key value check would be vacuously satisfied without an explicit brand guard. This is where `validate` and `getValidationErrors` must agree (fuzz oracle O4).',
     ],
     validate: () => createValidate<{[key: string]: string}>(),
     standardSchema: () => createStandardSchema<{[key: string]: string}>(),
@@ -930,7 +931,24 @@ export const OBJECT = {
     },
     getSamples: () => ({
       valid: [{}, {a: 'x'}, {a: 'x', b: 'y'}],
-      invalid: [{a: 1}, {a: 'x', b: 2}, null, 'not object', undefined, {a: null}, {a: undefined}],
+      // The trailing four are non-plain objects. A `for...in` enumerates no own
+      // string keys on them, so without the brand guard `getValidationErrors`
+      // reported zero errors while `validate` returned false (O4 disagreement,
+      // docs/done/verr-record-array-disagreement.md). `[]` is the documented
+      // minimal repro; Date / Map / Set mirror the fuzz discovery seeds.
+      invalid: [
+        {a: 1},
+        {a: 'x', b: 2},
+        null,
+        'not object',
+        undefined,
+        {a: null},
+        {a: undefined},
+        [],
+        new Date('2020-01-01T00:00:00.000Z'),
+        new Map(),
+        new Set(),
+      ],
     }),
     getExpectedErrors: () => [
       [{path: ['a'], expected: 'string'}],
@@ -940,6 +958,10 @@ export const OBJECT = {
       [{path: [], expected: 'objectLiteral'}],
       [{path: ['a'], expected: 'string'}],
       [{path: ['a'], expected: 'string'}],
+      [{path: [], expected: 'objectLiteral'}], // []
+      [{path: [], expected: 'objectLiteral'}], // new Date()
+      [{path: [], expected: 'objectLiteral'}], // new Map()
+      [{path: [], expected: 'objectLiteral'}], // new Set()
     ],
   },
 

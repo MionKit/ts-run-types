@@ -659,10 +659,12 @@ func emitObjectValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string
 
 	// Compile per-child error-accumulation code, filtering the same
 	// way emitObjectValidate does, AND track whether all contributing
-	// children are optional so we can add the allOptionalCode guard.
+	// children are optional (or an index signature is present) so we can
+	// add the allOptionalCode guard.
 	var childrenParts []string
 	allOptional := true
 	hasContributingChild := false
+	hasIndexSig := false
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
 		if resolved == nil {
@@ -671,6 +673,9 @@ func emitObjectValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string
 		if resolved.IsStatic {
 			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
 			continue
+		}
+		if resolved.Kind == protocol.KindIndexSignature {
+			hasIndexSig = true
 		}
 		if isFunctionLikeKind(resolved.Kind) {
 			// Method / MethodSignature / CallSignature on the shape —
@@ -700,10 +705,19 @@ func emitObjectValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string
 	} else {
 		objectCheck = "typeof " + v + " === 'object' && " + v + " !== null"
 	}
-	// allOptionalCode guard — same shape as emitObjectValidate. Without
-	// it, `{}` validators would accept `[]`, `new Date()`, `new Map()`,
-	// etc. since those all pass `typeof === 'object' && !== null`.
-	if callSigChild == nil && (!hasContributingChild || allOptional) {
+	// allOptionalCode guard — same shape (and same condition) as
+	// emitObjectValidate. Without it, `{}` validators would accept `[]`,
+	// `new Date()`, `new Map()`, etc. since those all pass `typeof ===
+	// 'object' && !== null`. The `hasIndexSig` term is essential for
+	// parity with validate: a `Record<K, V>` (or any index-signature
+	// object) walks own keys with a for-in loop, which enumerates NOTHING
+	// on an empty array / Map / Set / Date, so the per-key value check is
+	// vacuously satisfied and the bare `typeof === 'object'` lets those
+	// non-plain objects slip through with zero errors — while validate
+	// (which carries the same guard) returns false. Dropping the term
+	// breaks the createValidate/createGetValidationErrors agreement
+	// invariant (guarded by fuzz oracle O4).
+	if callSigChild == nil && (!hasContributingChild || allOptional || hasIndexSig) {
 		objectCheck = objectCheck + " && !Array.isArray(" + v + ") && Object.prototype.toString.call(" + v + ") === '[object Object]'"
 	}
 
