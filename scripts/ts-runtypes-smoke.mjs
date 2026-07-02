@@ -4,7 +4,7 @@
 // What it exercises (~1s when everything is healthy):
 //   - bin/ts-runtypes spawns and accepts an --inline-server session
 //     (no tsconfig handshake; mirrors the test helper).
-//   - The plugin's rewrite() recognises the marker import and produces a
+//   - The plugin's transform() recognises the marker import and produces a
 //     Site for both reflection forms AND a createX call.
 //   - scanFiles({includeEntryModules: true}) returns the cache modules the
 //     resolver would serve to Vite at virtual:rt/<…>.js.
@@ -20,7 +20,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {ResolverClient} from '../packages/runtypes-devtools/dist/resolver-client.js';
-import {rewrite} from '../packages/runtypes-devtools/dist/rewrite.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -69,11 +68,13 @@ let exitCode = 0;
 try {
   await client.setSources(SOURCES);
 
-  // 1) Plugin rewrite for every fixture. Each call site must produce a Site
-  //    so the patcher has somewhere to inject the resolved id.
+  // 1) Plugin transform for every fixture. Each call site must produce a Site
+  //    so the patcher has somewhere to inject the resolved id. transform() is
+  //    the resolver op the plugin's transform hook drives (see unplugin.ts); it
+  //    reads the in-memory sources set above and returns the file-tagged sites.
   for (const file of FILES) {
-    const {sites} = await rewrite(file, SOURCES[file], client);
-    if (sites.length === 0) fail(`rewrite produced no sites for ${file}`);
+    const {sites} = await client.transform([file]);
+    if (sites.length === 0) fail(`transform produced no sites for ${file}`);
   }
 
   // 2) Resolver renders the cache modules the plugin would serve at
