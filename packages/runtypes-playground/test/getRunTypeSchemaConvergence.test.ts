@@ -24,7 +24,11 @@ describe('playground / getRunType schema↔type convergence (regression)', () =>
     const s = await run('graph', SCHEMA_FORM, undefined, undefined, 'schema');
     if (t.kind !== 'graph' || s.kind !== 'graph') throw new Error('expected graph result');
 
-    const named = (rts: typeof s.runTypes) => rts.map((rt) => rt.typeName).filter(Boolean).sort();
+    const named = (rts: typeof s.runTypes) =>
+      rts
+        .map((rt) => rt.typeName)
+        .filter(Boolean)
+        .sort();
     // Type-first reflects just MyType. Schema must NOT drag in the RunType /
     // FormatAnnotation / Record library interfaces.
     for (const bad of ['RunType', 'FormatAnnotation', 'Record']) {
