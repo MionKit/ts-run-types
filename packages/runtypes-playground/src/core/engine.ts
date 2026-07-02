@@ -113,12 +113,23 @@ export function factoryImport(factory: string): string {
 // argument — exactly how the build plugin rewrites the call site (a 0-arg
 // `createValidate<T>()` becomes `createValidate<T>(__rt_…)`; the value-first
 // `createValidate(MyType)` becomes `createValidate(MyType, __rt_…)`).
-export function factoryCall(factory: string, varName: string, mode: Mode, injectedArg?: string | null): string {
+//
+// `options` is the comptime `{strategy: '…'}` literal a JSON en/decoder call
+// carries. It rides the options slot: in schema mode after the schema
+// (`createJsonEncoder(MyType, {strategy: 'mutate'})`); in type mode after an
+// explicit `undefined` for the value slot (`createJsonEncoder<MyType>(undefined,
+// {strategy: 'mutate'})`), matching the canonical call shape.
+export function factoryCall(factory: string, varName: string, mode: Mode, injectedArg?: string | null, options?: string): string {
+  const args: string[] = [];
   if (mode === 'schema') {
-    const args = injectedArg ? `${ROOT_TYPE}, ${injectedArg}` : ROOT_TYPE;
-    return `const ${varName} = ${factory}(${args});`;
+    args.push(ROOT_TYPE);
+    if (options) args.push(options);
+    if (injectedArg) args.push(injectedArg);
+    return `const ${varName} = ${factory}(${args.join(', ')});`;
   }
-  return `const ${varName} = ${factory}<${ROOT_TYPE}>(${injectedArg ?? ''});`;
+  if (options) args.push('undefined', options);
+  if (injectedArg) args.push(injectedArg);
+  return `const ${varName} = ${factory}<${ROOT_TYPE}>(${args.join(', ')});`;
 }
 
 // pickFactorySite returns the site for the engine's appended factory call — the
@@ -135,12 +146,21 @@ function pickFactorySite(sites: ScanResult['site'][]): ScanResult['site'] {
   return best;
 }
 
-function scan(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode = 'type'): ScanResult {
+function scan(
+  dispatch: Resolver['dispatch'],
+  factory: string,
+  userCode: string,
+  mode: Mode = 'type',
+  options?: string
+): ScanResult {
   // Only the factory import is injected; the user snippet writes its own
   // `import * as RT from 'ts-runtypes/schema'` / `import type { … } from
   // 'ts-runtypes/formats'`, so the imports read like real code (and aren't
-  // duplicated).
-  const call = mode === 'schema' ? `${factory}(${ROOT_TYPE});` : `${factory}<${ROOT_TYPE}>();`;
+  // duplicated). `options` (a JSON strategy literal) rides the options slot so
+  // its comptime value is folded into the injected fn hash — see factoryCall.
+  const args = mode === 'schema' ? [ROOT_TYPE] : [];
+  if (options) args.push(mode === 'schema' ? options : `undefined, ${options}`);
+  const call = mode === 'schema' ? `${factory}(${args.join(', ')});` : `${factory}<${ROOT_TYPE}>(${args.join(', ')});`;
   const source = [`import { ${factory} } from 'ts-runtypes';`, userCode, call, ''].join('\n');
   dispatch({op: 'setSources', sources: {...runtypesPackageSources(), [FILE]: source}});
   const result = dispatch({op: 'scanFiles', files: [FILE], includeRunTypes: true, includeEntryModules: true});
@@ -174,9 +194,16 @@ interface LinkedEntry {
 // linkEntry scans <factory><MyType>(), links the emitted entry modules, and
 // returns the root tuple. The binding is `__rt_<fnId>_<id>` for type-fn families
 // (validate / encoders / …) and `__rt_<id>` for reflection ones (createMockType /
-// getRunTypeId), which inject a facade tuple with no fnId.
-function linkEntry(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode = 'type'): LinkedEntry {
-  const {site, entryModules, diagnostics} = scan(dispatch, factory, userCode, mode);
+// getRunTypeId), which inject a facade tuple with no fnId. `options` selects the
+// JSON strategy (folded into the fnId), so each strategy links its own entry.
+function linkEntry(
+  dispatch: Resolver['dispatch'],
+  factory: string,
+  userCode: string,
+  mode: Mode = 'type',
+  options?: string
+): LinkedEntry {
+  const {site, entryModules, diagnostics} = scan(dispatch, factory, userCode, mode, options);
   if (!site) {
     throw new Error(
       `${factory}<…>() produced no call site. Check that the snippet compiles and defines ${ROOT_TYPE}.` +
@@ -195,9 +222,17 @@ interface Materialized {
 
 // materialize a live function by handing the linked root tuple to the public
 // ts-runtypes factory. validate/encoders/mock all take the injected tuple in the
-// trailing (3rd) arg slot — the runtime signature is (value, options, id).
-function materialize(dispatch: Resolver['dispatch'], factory: string, userCode: string, mode: Mode = 'type'): Materialized {
-  const {tuple, diagnostics} = linkEntry(dispatch, factory, userCode, mode);
+// trailing (3rd) arg slot — the runtime signature is (value, options, id). The
+// JSON strategy is already baked into the tuple's fnId at scan time, so the
+// runtime options slot stays undefined.
+function materialize(
+  dispatch: Resolver['dispatch'],
+  factory: string,
+  userCode: string,
+  mode: Mode = 'type',
+  options?: string
+): Materialized {
+  const {tuple, diagnostics} = linkEntry(dispatch, factory, userCode, mode, options);
   const fn = factories[factory](undefined, undefined, tuple) as Materialized['fn'];
   return {fn, diagnostics};
 }
@@ -214,10 +249,17 @@ export async function transformedSource(
   varName: string,
   userCode: string,
   options?: ResolverOptions,
-  mode: Mode = 'type'
+  mode: Mode = 'type',
+  fnOptions?: string
 ): Promise<string> {
   const {dispatch} = await getResolver(options);
-  const source = [factoryImport(factory), '', userCode.trimEnd(), '', factoryCall(factory, varName, mode)].join('\n');
+  const source = [
+    factoryImport(factory),
+    '',
+    userCode.trimEnd(),
+    '',
+    factoryCall(factory, varName, mode, undefined, fnOptions),
+  ].join('\n');
   dispatch({op: 'setSources', sources: {...runtypesPackageSources(), [FILE]: source}});
   const result = dispatch({op: 'transform', files: [FILE]});
   const code = (result.transformed as Record<string, {code?: string}> | undefined)?.[FILE]?.code;
@@ -260,10 +302,11 @@ export async function generatedCache(
   factory: string,
   userCode: string,
   options?: ResolverOptions,
-  mode: Mode = 'type'
+  mode: Mode = 'type',
+  fnOptions?: string
 ): Promise<CacheModule[]> {
   const {dispatch} = await getResolver(options);
-  const {entryModules} = scan(dispatch, factory, userCode, mode);
+  const {entryModules} = scan(dispatch, factory, userCode, mode, fnOptions);
   return Object.entries(entryModules).map(([basename, code]) => ({name: `virtual:rt/${basename}.js`, code: code.trim()}));
 }
 
@@ -343,12 +386,15 @@ export async function run(
       return {op, kind: 'errors', value: fn(input) as unknown[], diagnostics};
     }
     case 'encode': {
-      const {fn, diagnostics} = materialize(dispatch, op.factory, userCode, mode);
+      const {fn, diagnostics} = materialize(dispatch, op.factory, userCode, mode, op.options);
       return {op, kind: 'encode', value: fn(input), diagnostics};
     }
     case 'jsonRoundtrip': {
-      const enc = materialize(dispatch, 'createJsonEncoder', userCode, mode);
-      const dec = materialize(dispatch, 'createJsonDecoder', userCode, mode);
+      // The intermediate encoder uses `encodeOptions` (e.g. mutate, so undeclared
+      // keys reach the wire); the decoder uses `options` (preserve vs strip) — the
+      // pair is what the two decode entries demonstrate against the same input.
+      const enc = materialize(dispatch, 'createJsonEncoder', userCode, mode, op.encodeOptions);
+      const dec = materialize(dispatch, 'createJsonDecoder', userCode, mode, op.options);
       const encoded = enc.fn(input);
       const decoded = dec.fn(encoded);
       return {op, kind: 'jsonRoundtrip', encoded, decoded, diagnostics: dec.diagnostics};
