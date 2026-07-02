@@ -649,6 +649,20 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 // at least one of the member's own props to be present, or the value
 // to be an empty object.
 func unionMemberValidateCheck(member *protocol.RunType, ctx *EmitContext, v string) string {
+	// Fast path: inline the check for a SIMPLE leaf-atomic member
+	// (`typeof v === 'string'`, `v === null`, `v instanceof Date`, a literal /
+	// enum `===` chain, …) instead of importing and calling the cross-family
+	// `val_<member>` cache entry. The inlined expression is byte-identical to
+	// that entry's `fn` body — it comes from the same ValidateEmitter — so it
+	// is semantically exact, but it costs no getRT lookup, no cross-family
+	// SoftDep edge, and no `?.fn(v) ?? true` call, and lets the `val_<member>`
+	// entry be elided entirely when nothing else demands it. Format-branded and
+	// compound members (which hoist a context item or recurse through
+	// CompileChild) fall through to the cache path below. Leaf kinds are never
+	// object-like, so looseCheckGate never applies to them.
+	if inlined, ok := tryInlineLeafValidateCheck(member, ctx, v); ok {
+		return "(" + inlined + ")"
+	}
 	validateHash := operations.PlainHash("validate") + "_" + member.ID
 	ctx.registerRTLookup(validateHash)
 	base := "(" + validateHash + "?.fn(" + v + ") ?? true)"
@@ -657,6 +671,68 @@ func unionMemberValidateCheck(member *protocol.RunType, ctx *EmitContext, v stri
 		return base
 	}
 	return "(" + base + " && " + gate + ")"
+}
+
+// tryInlineLeafValidateCheck returns the inline isType expression for `member`
+// against accessor `v` when `member` is a self-contained leaf whose validate
+// emit is a single JS expression with NO context vars / helper functions and
+// NO recursion into children — i.e. exactly the case that can be spliced into
+// an `if (…)` guard. Returns ("", false) otherwise, so the caller keeps the
+// cross-family cache reference.
+//
+// It reuses ValidateEmitter.emitKindDefault (the same code that builds the
+// cached `val_<member>` body) under a throwaway EmitContext whose value var is
+// `v`. That is safe ONLY because the gated leaf kinds read solely `ctx.Vλl`
+// (plus the walker's read-only variant options for literals) and never mutate
+// the walker — no NextLocalVar, no SetContextItem, no CompileChild,
+// no registerRTLookup, no EmitDiagnostic. isInlinableLeafValidateKind enforces
+// that set; anything outside it (objects, arrays, tuples, unions, Map/Set,
+// template literals, format-branded leaves) keeps the cache path.
+func tryInlineLeafValidateCheck(member *protocol.RunType, ctx *EmitContext, v string) (string, bool) {
+	if !isInlinableLeafValidateKind(member) {
+		return "", false
+	}
+	sub := &EmitContext{Vλl: v, walker: ctx.walker}
+	rt := ValidateEmitter{}.emitKindDefault(member, sub, CodeE)
+	// Only a real, single-expression check is inlinable. Empty / CodeNS means
+	// unsupported (keep the cache path); a bare `true` / `false` carries no
+	// discriminating power, so leave those to the cache path's `?? true`
+	// noop semantics rather than baking a constant into the dispatch.
+	if rt.Type != CodeE || rt.Code == "" || rt.Code == "true" || rt.Code == "false" {
+		return "", false
+	}
+	return rt.Code, true
+}
+
+// isInlinableLeafValidateKind reports whether member's validate emit is a
+// self-contained single-expression LEAF — safe to inline into a union
+// dispatch guard (see tryInlineLeafValidateCheck). Excludes: format-branded
+// members (their EmitValidateCheck hoists a regex / pure-fn context item);
+// compound kinds that recurse through CompileChild (objectLiteral, plain
+// class, array, tuple/tupleMember, union, property/index-signature); Map / Set
+// (CompileChild over elements); NonSerializable (CodeNS); template literals
+// (hoist a regex context item); and any / unknown / never / symbol (a constant
+// or diagnostic-emitting arm, no discriminating value).
+func isInlinableLeafValidateKind(member *protocol.RunType) bool {
+	if member == nil || member.FormatAnnotation != nil {
+		return false
+	}
+	switch member.Kind {
+	case protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
+		protocol.KindBigInt, protocol.KindNull, protocol.KindUndefined,
+		protocol.KindVoid, protocol.KindRegexp, protocol.KindObject,
+		protocol.KindLiteral, protocol.KindEnum, protocol.KindPromise,
+		protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		return true
+	case protocol.KindClass:
+		// Only the atomic, leaf-emit class subkinds: Date and the Temporal
+		// builtins emit a bare `instanceof` with no CompileChild. Map / Set
+		// iterate their elements (CompileChild); a plain user class emits the
+		// object AND-chain (CompileChild); NonSerializable emits CodeNS.
+		return member.SubKind == protocol.SubKindDate || protocol.IsTemporalSubKind(member.SubKind)
+	}
+	return false
 }
 
 // looseCheckGate mirrors the getChildValidateWithLooseCheck

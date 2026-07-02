@@ -51,22 +51,38 @@ func containsStr(haystack []string, needle string) bool {
 }
 
 // buildConflictPropUnionFixture builds a union of two objectLiteral members
-// that share a property name with different (conflicting) value types:
+// that share a property name with different (conflicting) value types. The
+// conflicting values are themselves OBJECTS so the discriminator survives as a
+// genuine cross-family validate lookup (leaf-atomic members are now inlined
+// directly into the union dispatch, emitting no `val_<member>` edge). At least
+// one candidate carries a non-JSON-natural field (`n: bigint`) so the
+// merged-prop sub-dispatch is NOT collapsed by the all-noop rule and actually
+// emits the per-candidate validate discrimination:
 //
-//	{ a: bigint }  |  { a: Date }
+//	{ a: { n: bigint } }  |  { a: { s: string } }
 //
 // The encoder discriminates the conflicting `a` slot at runtime via the
-// validate validators of the two candidate types — emitting
-// `val_<bigintID>` / `val_<dateID>` cross-family lookups (a synthesized
+// validate validators of the two candidate OBJECT types — emitting
+// `val_<inner1ID>` / `val_<inner2ID>` cross-family lookups (a synthesized
 // sub-union over the property). This is the union shape that exercises the
 // cross-family `registerRTLookup("val_<member>")` path in BOTH the
 // prepareForJson and toBinary encoders (a clean discriminated union of plain
 // objects instead merges into a single `[-1, v]` branch and emits no
 // per-member dispatch on the JSON side). Returns the run-types and the union
-// root id.
+// root id. Ids `big`/`dat` are retained as the two inner-object ids so the
+// dependent structural-lookup seeds stay stable across the fixture change.
 func buildConflictPropUnionFixture() ([]*protocol.RunType, string) {
-	bigint := &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}
-	date := &protocol.RunType{ID: "dat", Kind: protocol.KindClass, SubKind: protocol.SubKindDate}
+	bigint := &protocol.RunType{ID: "bin", Kind: protocol.KindBigInt}
+	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	// Inner-object property signatures (`n: bigint`, `s: string`). The bigint
+	// field makes the first candidate's prepareForJson non-noop, forcing the
+	// merged-prop dispatch to keep its per-candidate validate discrimination.
+	innerPropN := &protocol.RunType{ID: "ipn", Kind: protocol.KindPropertySignature, Name: "n", IsSafeName: true, Child: makeRef("bin")}
+	innerPropS := &protocol.RunType{ID: "ips", Kind: protocol.KindPropertySignature, Name: "s", IsSafeName: true, Child: makeRef("str")}
+	// The two conflicting OBJECT candidates for prop `a` (kept under the ids
+	// `big`/`dat` so the cross-family edges are val_big / val_dat as before).
+	innerN := &protocol.RunType{ID: "big", Kind: protocol.KindObjectLiteral, TypeName: "InnerN", Children: []*protocol.RunType{makeRef("ipn")}}
+	innerS := &protocol.RunType{ID: "dat", Kind: protocol.KindObjectLiteral, TypeName: "InnerS", Children: []*protocol.RunType{makeRef("ips")}}
 	propABig := &protocol.RunType{ID: "pab", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("big")}
 	propADat := &protocol.RunType{ID: "pad", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("dat")}
 	obj1 := &protocol.RunType{ID: "ob1", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pab")}}
@@ -77,7 +93,7 @@ func buildConflictPropUnionFixture() ([]*protocol.RunType, string) {
 		Children:          []*protocol.RunType{makeRef("ob1"), makeRef("ob2")},
 		SafeUnionChildren: []*protocol.RunType{makeRef("ob1"), makeRef("ob2")},
 	}
-	return []*protocol.RunType{bigint, date, propABig, propADat, obj1, obj2, union}, "uni"
+	return []*protocol.RunType{bigint, str, innerPropN, innerPropS, innerN, innerS, propABig, propADat, obj1, obj2, union}, "uni"
 }
 
 // assertUnionCrossFamily renders the union root for the given encoder family
@@ -172,13 +188,18 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 
 	// The exact validator body the union root emits — unchanged by the
 	// cross-family capture. Sub-union dispatch over the conflicting `a` slot
-	// uses the candidate validate lookups. Keys are the opaque per-family fnHashes
-	// (prepareForJson for the root, validate for the discriminator lookups).
+	// uses the candidate validate lookups; the first candidate's own
+	// prepareForJson (a same-family `pj_big.fn` dep, non-noop because its inner
+	// `n` field is a bigint) transforms the surviving value. Keys are the opaque
+	// per-family fnHashes (prepareForJson for the root + same-family child,
+	// validate for the discriminator lookups).
 	pjUni := operations.PlainHash("prepareForJson") + "_uni"
+	pjBig := operations.PlainHash("prepareForJson") + "_big"
 	itBig := valKey("big")
 	itDat := valKey("dat")
 	wantBody := "function " + pjUni + "(v){if (typeof v === 'object' && v !== null) " +
-		"{if ((" + itBig + "?.fn(v.a) ?? true)) {v.a = v.a.toString();v.a = [0, v.a]} " +
+		"{if ((typeof v.a === 'object' && v.a !== null && (" + itBig + "?.fn(v.a) ?? true))) " +
+		"{v.a = " + pjBig + ".fn(v.a);v.a = [0, v.a]} " +
 		"else if ((typeof v.a === 'object' && v.a !== null && (" + itDat + "?.fn(v.a) ?? true))) " +
 		"{v.a = [1, v.a]};v = [-1, v]} else { throw new Error(fuEncErr) } return v}"
 	if !strings.Contains(out, wantBody) {

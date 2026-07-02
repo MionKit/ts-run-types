@@ -118,7 +118,7 @@ export const _ = createValidate<{a: string}>();
 // member always matches).
 func TestDemandScope_ItSeededByCrossFamilyUnion(t *testing.T) {
 	resp := scopeScan(t, `import {createBinaryEncoder} from 'ts-runtypes';
-export const _ = createBinaryEncoder<{a: bigint} | {a: Date}>();
+export const _ = createBinaryEncoder<{a: {n: number}} | {a: {s: string}}>();
 `)
 	// Sanity: the binary family IS demanded by createBinaryEncoder.
 	if !hasFamilyEntry(resp, "toBinary") {

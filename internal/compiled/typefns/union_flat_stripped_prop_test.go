@@ -53,9 +53,12 @@ func TestPrepareForJsonModule_StrippedMergedPropDropsForeignValue(t *testing.T) 
 	}
 	// The drop is GUARDED by a value-type check (the surviving Date validate),
 	// not unconditional — a real Date value is kept (Date prep is a noop in the
-	// mutate path since JSON.stringify serializes it natively).
-	if !strings.Contains(out, "?.fn(v.f2)") {
-		t.Errorf("expected the drop to be guarded by the surviving Date validate `?.fn(v.f2)`; got:\n%s", out)
+	// mutate path since JSON.stringify serializes it natively). The Date member
+	// is a leaf-atomic validate, so the guard is INLINED (`v.f2 instanceof Date
+	// && !isNaN(v.f2.getTime())`) rather than a cross-family `val_<date>?.fn(v.f2)`
+	// cache reference.
+	if !strings.Contains(out, "v.f2 instanceof Date && !isNaN(v.f2.getTime())") {
+		t.Errorf("expected the drop to be guarded by the inlined surviving Date validate `v.f2 instanceof Date && !isNaN(v.f2.getTime())`; got:\n%s", out)
 	}
 }
 
