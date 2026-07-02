@@ -2,17 +2,18 @@
 
 **Status:** spec / investigation (not started)
 **Owner:** TBD
-**Related:** [`internal/diag/`](../../internal/diag), [`internal/enrich/`](../../internal/enrich), [`packages/runtypes-devtools/src/unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts), [`packages/runtypes-devtools/src/resolver-client.ts`](../../packages/runtypes-devtools/src/resolver-client.ts)
+**Home package:** [`packages/runtypes-devtools`](../../packages/runtypes-devtools) — shipped as the existing [`./eslint` subpath export](../../packages/runtypes-devtools/package.json) (currently a placeholder at [`src/eslint/index.ts`](../../packages/runtypes-devtools/src/eslint/index.ts); this spec fills it in). **Do not create a new top-level package.** OXlint accepts ESLint-v9-flat-config plugins as-is, so the same subpath serves OXlint and ESLint; an `./oxlint` alias is an open question (§12).
+**Related:** [`internal/diag/`](../../internal/diag), [`internal/enrich/`](../../internal/enrich), [`packages/runtypes-devtools/src/unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts), [`packages/runtypes-devtools/src/resolver-client.ts`](../../packages/runtypes-devtools/src/resolver-client.ts), [`packages/runtypes-devtools/src/eslint/index.ts`](../../packages/runtypes-devtools/src/eslint/index.ts)
 
 ## 1. Problem
 
-A single OXlint plugin (`oxlint-plugin-runtypes`) should host **two rule families** that surface RunTypes-specific problems in the editor and at commit time.
+A single OXlint plugin — shipped as the **`runtypes-devtools/eslint`** subpath export (not a separate package) — should host **two rule families** that surface RunTypes-specific problems in the editor and at commit time. The [`runtypes-devtools`](../../packages/runtypes-devtools) package already houses everything the plugin needs: it depends on [`ts-runtypes-bin`](../../packages/ts-runtypes-bin) (the resolver binary launcher), ships the [`resolver-client.ts`](../../packages/runtypes-devtools/src/resolver-client.ts) transports, vendors the [`diagnosticCatalog.ts`](../../packages/runtypes-devtools/src/diagnosticCatalog.ts) message dictionary, and moves in lockstep with the binary — so co-locating the lint plugin here eliminates the version-skew / peer-dependency / catalog-copy problems that a standalone package would otherwise create. The package.json `description` already earmarks this: *"cross-bundler plugin … plus future lint integrations."*
 
 **Family A — compiler diagnostics (type-aware).** The RunTypes Go binary already emits a rich set of typed diagnostics — errors, warnings, info — for every non-fatal condition the compiler detects: unsupported types at a call site, non-serializable properties silently dropped from a validator/codec, marker misuse, pure-fn extraction problems. The catalog lives in [`internal/diag/`](../../internal/diag) (families `PureFn` / `Marker` / `RunType`; codes like `PFE9004`, `MKR001`, `VL010`, `SJ001`). Today these only surface **during a Vite / Rollup build**, re-emitted as `tsc`-style lines via `ctx.warn` / `ctx.error` ([`unplugin.ts` `formatTscDiagnostic`](../../packages/runtypes-devtools/src/unplugin.ts)). There is **no live in-editor integration**.
 
 **Family B — enrichment-file hygiene (syntactic).** The enrichment workflow ([`internal/enrich/`](../../internal/enrich), the `ts-runtypes gen` CLI) scaffolds committed, type-keyed `FriendlyType<T>` / `MockData<T>` maps into a mirror directory. Freshly-scaffolded consts carry a `@todo` placeholder line; consts/fields whose source type was deleted or renamed are commented out as `@rtOrphan` / `@rtOrphanChild` carcasses. A **clean** enrichment file has neither. We want lint rules that **forbid `@todo`, `@rtOrphan`, and `@rtOrphanChild` in generated enrichment files**, so a team can **enforce clean, finished enrichment on every commit** (and see the same warnings live in the editor).
 
-**Goal:** ship one OXlint plugin covering both families, delivered live in the editor via OXlint's LSP and enforceable at commit time via the existing husky/lint-staged gate. OXlint is the target because it is the linter surface where these belong, and its type-aware backend (tsgolint) already builds on the *same* typescript-go shim we build on.
+**Goal:** ship one OXlint plugin covering both families, delivered as a **new subpath export of `runtypes-devtools`** (populating the existing [`./eslint`](../../packages/runtypes-devtools/src/eslint/index.ts) entry — no new package), delivered live in the editor via OXlint's LSP and enforceable at commit time via the existing husky/lint-staged gate. OXlint is the target because it is the linter surface where these belong, and its type-aware backend (tsgolint) already builds on the *same* typescript-go shim we build on.
 
 ## 2. How compiler diagnostics work today (our side)
 
@@ -47,7 +48,7 @@ Everything Family A needs is already produced and reachable from Node; the only 
 
 | # | Approach | Live in IDE? | Fits OXlint target? | Effort | Verdict |
 |---|----------|:---:|:---:|:---:|---|
-| **A** | **OXlint JS plugin adapter** → shells to our binary, re-reports via `context.report({loc})` | ✅ (via oxc LSP) | ✅ native | Medium | **Recommended** — only supported injection point; reuses everything we have |
+| **A** | **OXlint JS plugin adapter** (shipped as `runtypes-devtools/eslint`) → shells to the binary via the client already in this package, re-reports via `context.report({loc})` | ✅ (via oxc LSP) | ✅ native | Medium | **Recommended** — only supported injection point; reuses everything `runtypes-devtools` already ships |
 | B | Native tsgolint rules (upstream/fork) | ✅ | ✅ but not ours to ship | Very high | Rejected — our diagnostics are a byproduct of the whole resolve/emit pipeline, not per-node AST rules; can't be reimplemented standalone without duplicating the resolver. |
 | C | Our own tiny LSP (`publishDiagnostics`) | ✅ | ❌ parallel to OXlint | Med-high | Documented fallback (§11) — editor-portable, immune to plugin-alpha churn, but a new distribution/editor-config surface. |
 | D | VS Code extension (`createDiagnosticCollection`) | ✅ | ❌ VS Code-only | Medium | Rejected as primary — not editor-portable, not "OXlint". |
@@ -61,13 +62,13 @@ A thin adapter that treats our Go binary as the diagnostics engine and republish
 
 Use OXlint's `createOnce` + `before`/`after` lifecycle so one resolver connection serves the whole run:
 
-1. **`before` (once):** lazily connect a resolver — prefer a **persistent daemon** (`ResolverSocketClient`, our `--daemon` mode) so the tsgo `Program` is built once and survives across keystrokes; fall back to spawned `ResolverClient` for a one-shot CLI run. **Binary: resolve the user's *own* installed binary** via `ts-runtypes-bin`'s `getExePath()` — `ts-runtypes-bin` is a **peerDependency**, not a pinned/direct dep, so the lint-time binary is the exact one already in the consumer's `package.json` (the same one their build uses). See §6.4.
+1. **`before` (once):** lazily connect a resolver — prefer a **persistent daemon** (`ResolverSocketClient`, our `--daemon` mode) so the tsgo `Program` is built once and survives across keystrokes; fall back to spawned `ResolverClient` for a one-shot CLI run. Both clients live **in this package** (`runtypes-devtools/src/resolver-client.ts`) — the lint entry imports them directly, no cross-package wiring. **Binary:** resolve via `ts-runtypes-bin`'s `getExePath()`, exactly as [`unplugin.ts:178`](../../packages/runtypes-devtools/src/unplugin.ts) already does — `ts-runtypes-bin` is a **direct dependency of `runtypes-devtools`** (see [package.json](../../packages/runtypes-devtools/package.json)), so the binary is guaranteed present in any install that has this package.
 2. **Per file:** read the buffer text OXlint is linting (`context.sourceCode.text` — the **unsaved** editor text); push it as an overlay via `setSources({ [absPath]: text })` (mirrors tsgolint's `source_overrides`); call `scanFiles([absPath])` diagnostics-only (do **not** opt into `includeRunTypes`/`includeEntryModules`); map each returned `diag.Diagnostic` and `context.report(...)`.
 3. **`after`:** tear down a spawned client; keep the daemon warm.
 
 ### 6.2 Diagnostic → `context.report` mapping
 
-- **Message:** the wire is intentionally short — the Go binary ships only `code + args`, never the rendered text. Resolve `code + args → headline` by **reusing the existing autogenerated dictionary**, do **not** vendor a fourth hand-copy: the canonical prose lives in [`diagnosticCatalog.ts`](../../packages/runtypes-devtools/src/diagnosticCatalog.ts) and is fused with the Go catalog's severity/family by [`gen:diag-catalog`](../../scripts/gen-diag-catalog.mjs) (`renderHeadline` is the render entry point). Prefix with the code, e.g. `"[VL010] non-serializable property 'onClick' is dropped from the validator"`. See §6.4 for how the plugin consumes it without duplication, and §6.5 for the unknown-code fallback when the binary emits a code the installed catalog lacks.
+- **Message:** the wire is intentionally short — the Go binary ships only `code + args`, never the rendered text. Resolve `code + args → headline` by **importing the sibling catalog module directly** (relative `../diagnosticCatalog`) — no re-copy, no new export surface. The canonical prose lives in [`diagnosticCatalog.ts`](../../packages/runtypes-devtools/src/diagnosticCatalog.ts) inside this package and is regenerated by [`gen:diag-catalog`](../../scripts/gen-diag-catalog.mjs); `renderHeadline` is the render entry point. Prefix with the code, e.g. `"[VL010] non-serializable property 'onClick' is dropped from the validator"`. See §6.4 for why co-location makes this trivial, and §6.5 for the unknown-code fallback when the binary emits a code the catalog lacks.
 - **Location:** `loc: { line: site.startLine, column: site.startCol - 1 }` (our col is 1-based; OXlint `loc.column` is 0-based). Emit the `{ start, end }` form when `endLine`/`endCol` exist for a real range squiggle.
 - **Related locations:** append to the message (`"\n  related: <file>(<line>,<col>): <msg>"`) — OXlint plugins have no first-class related-location field today.
 
@@ -81,27 +82,22 @@ OXlint assigns severity **per rule name from config**, but our diagnostics carry
 
 The specific code + family live in the **message**, so users still see exactly what fired. (Alternative: one rule per concern for category tuning — but a concern mixes severities, weakening the error/warn gate. Severity-tier routing is the safer default. **Decide in §12.**)
 
-### 6.4 Dependency posture — peer the binary, reuse the catalog
+### 6.4 Dependency posture — co-located, zero peer gymnastics
 
-Two firm constraints, both because **the wire codes, the message dictionary, and the binary are version-coupled**: a new diagnostic code shipped by binary vX only renders correctly against the catalog generated from vX. If the plugin pinned its *own* binary or its *own* copy of the catalog, they could drift from the version the user's build actually runs, producing wrong or `[unknown code]` messages in the editor. So:
+Because the plugin ships **inside `runtypes-devtools`**, both dependencies it needs are already in-package:
 
-- **Binary → peerDependency.** Declare `ts-runtypes-bin` (the platform launcher) as a **peerDependency**; resolve the executable at runtime with `getExePath()`. This uses the consumer's already-installed binary — the same one `runtypes-devtools` drives at build time — instead of a second, independently-versioned copy. (`runtypes-devtools` resolves the binary the same way, at [`unplugin.ts:178`](../../packages/runtypes-devtools/src/unplugin.ts).) Allow an explicit `binary` option override, exactly as devtools does.
-- **Catalog → reuse, don't copy.** Consume the existing dictionary rather than adding a fourth copy (marker runtime, devtools, and the generated artifact already exist). Cleanest: either import `renderHeadline` + the catalog from a shared surface (`runtypes-devtools` or a small extracted module), or extend [`gen:diag-catalog`](../../scripts/gen-diag-catalog.mjs) to emit a module this plugin imports. Whichever, the plugin must **not** re-transcribe wording, and the catalog it renders against must be the one generated for the user's binary version.
+- **Binary.** `ts-runtypes-bin` is a **direct dependency** of `runtypes-devtools` (see [`packages/runtypes-devtools/package.json`](../../packages/runtypes-devtools/package.json)). The lint entry calls `getExePath()` exactly like [`unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts) — the same binary the consumer's build already runs, no peer negotiation, no "install `ts-runtypes-bin`" instruction, and no risk of a lint-only install missing a dep. Allow an explicit `binary` option override, exactly as devtools' bundler entries do.
+- **Catalog.** The message dictionary lives at [`packages/runtypes-devtools/src/diagnosticCatalog.ts`](../../packages/runtypes-devtools/src/diagnosticCatalog.ts) — the lint code imports it via a **relative sibling import** (`../diagnosticCatalog`), not a package boundary. This is what "reuse, don't copy" looks like when the reuse is intra-package: literally the same TS module the bundler transform already renders through, sharing `renderHeadline` and the codes/severity/family tables.
 
-Practically this means the OXlint plugin is a **thin, near-dependency-free package**: its real inputs (the binary and the message dictionary) come from what the consumer already has installed. **This resolves §12 #1.**
+Everything version-critical (binary + catalog + lint entry) is now published from the **same package**, so version skew inside that package is impossible by construction — a `runtypes-devtools@X` install is guaranteed to have catalog@X, and its declared `ts-runtypes-bin` dep is exact-pinned (see [CLAUDE.md → pnpm policies](../../CLAUDE.md)), so the binary is also @X. §12 #1 is therefore **moot** and dropped.
 
-### 6.5 Version alignment — two layers
+### 6.5 Version alignment — one narrow residual case
 
-Because the wire codes, catalog, and binary are version-coupled (§6.4), the plugin must handle the case where the user's installed binary emits a code the installed catalog doesn't know — and, more broadly, where the binary and the catalog are on different versions at all. Two complementary layers, **neither of which hard-fails the lint run**:
+Because binary + catalog + lint entry publish from the same package (§6.4), the multi-layer version-skew story a standalone package would need collapses. There is exactly **one** residual case worth handling and it's the trivially cheap one:
 
-- **Layer 1 — eager alignment check (once per run / daemon boot, advisory).** In `before`, read the binary version — `getExePath()` then `binary --version` (which prints `ts-runtypes <version> (tsgo <rev>)`, where `<version>` is `constants.Version`, stamped at build to match the npm version), or piggyback a version field on the daemon handshake so it's free — and compare it to the `catalogVersion` (the version of the package the plugin imports the catalog from). If they differ, emit **one** advisory warning: *"ts-runtypes binary vX vs catalog vY — align them (e.g. `pnpm up`) or some diagnostics may render incompletely."* This catches the **whole** skew class deterministically at startup, instead of the user hitting a confusing `[unknown code]` only on the one file that happens to trigger a newly-added diagnostic.
-- **Layer 2 — lazy per-diagnostic fallback (graceful degradation).** Independently, when a specific `code` is absent from the catalog, still render it — `[<code>] (message unavailable — update ts-runtypes-bin / the catalog to matching versions)` — carrying the real `loc`. A diagnostic is **never silently dropped**; this also covers the edge where versions nominally match but a code is still missing.
+- **Unknown-code fallback (graceful degradation).** When `renderHeadline` receives a `code` the catalog doesn't know — which should be unreachable in a released install, but *can* happen against a locally-built `bin/ts-runtypes` running ahead of a regenerated catalog during development — render `[<code>] (message unavailable — regenerate the catalog via \`pnpm run gen:diag-catalog\`)` carrying the real `loc`. A diagnostic is **never silently dropped**.
 
-**Comparison validity & strictness.** Everything publishes in **lockstep, exact-equal** (`ts-runtypes` / `runtypes-devtools` / `ts-runtypes-bin` + the per-platform binary packages), so a healthy install has all versions identical — which makes a plain version compare a valid alignment test, and any difference a genuine signal. Warn on any mismatch, but do **not** hard-fail: a patch bump is usually harmless, and a linked / `workspace:*` dev setup will differ legitimately. Consider gating the warning on a major/minor difference if patch-level noise proves annoying.
-
-**Where to surface Layer 1.** The startup warning is not tied to a file/`loc`, and `context.report` requires a location — so emit it as a plain `console.warn` (visible in oxlint's output and the LSP trace), not forced onto some file's line 1.
-
-**Catalog source (feeds `catalogVersion`).** To make Layer 1 cheap and meaningful, import the catalog from a package whose version tracks the binary in lockstep — ideally the **core `ts-runtypes` marker package** (always installed, already carries the catalog for its runtime `alwaysThrow`, lockstep-versioned) or a small extracted catalog module — **not** the heavy Vite plugin. `catalogVersion` is then that package's version.
+No startup version-compare is needed: there is no independent "catalog version" to compare against — the catalog *is* whatever `runtypes-devtools` at the installed version shipped, and the binary is pinned to the same version by that package's `dependencies`. The old two-layer alignment scheme (advisory startup warning + per-diagnostic fallback) was there to guard a **standalone-package skew scenario that no longer exists**; we keep only Layer 2, and only for the local-dev regen edge case.
 
 ## 7. Family B — enrichment-file hygiene rules (syntactic)
 
@@ -145,7 +141,7 @@ Enrichment files are regular `.ts` files in a **mirror directory** (default `run
 
 ### 7.5 Keep tag literals in sync with Go (no drift)
 
-The `@todo` string and the orphan regex are **defined in Go** ([`mirror/helpers.go`](../../internal/enrich/mirror/helpers.go), [`mirror/orphan.go`](../../internal/enrich/mirror/orphan.go), [`mirror/reconcile.go`](../../internal/enrich/mirror/reconcile.go)). The JS rule must not hardcode a divergent copy. Export the three patterns (todo marker, orphan/orphanChild regex, `@rtType`/`@rtIds` guard) through the **existing** Go→TS constant-sync mechanism (`gen:ts-constants` → [`cmd/gen-ts-constants`](../../cmd/gen-ts-constants) → `runtypes-constants.generated.ts`) and import them in the rule. This is a hard requirement — a drifted literal silently stops enforcing.
+The `@todo` string and the orphan regex are **defined in Go** ([`mirror/helpers.go`](../../internal/enrich/mirror/helpers.go), [`mirror/orphan.go`](../../internal/enrich/mirror/orphan.go), [`mirror/reconcile.go`](../../internal/enrich/mirror/reconcile.go)). The JS rule must not hardcode a divergent copy. Extend the **existing** Go→TS constant-sync mechanism (`gen:ts-constants` → [`cmd/gen-ts-constants`](../../cmd/gen-ts-constants)) to emit the three patterns (todo marker, orphan/orphanChild regex, `@rtType`/`@rtIds` guard) into the generated file that already lives in this package — [`packages/runtypes-devtools/src/runtypes-constants.generated.ts`](../../packages/runtypes-devtools/src/runtypes-constants.generated.ts) — and import them via a **relative sibling import** (`../runtypes-constants.generated`) from the lint entry. Because both files live in the same package, this is a plain in-package import with no export-surface changes. This is a hard requirement — a drifted literal silently stops enforcing.
 
 ## 8. Family C (optional / future) — enrichment semantic validity
 
@@ -164,7 +160,7 @@ Zero bespoke editor code for either family. Once the plugin is in `jsPlugins` an
 
 The user's explicit goal for Family B is a **clean-files-on-commit** gate. Wiring:
 
-- **Add OXlint to the repo** (`oxlint` is not currently a dependency — the repo lints with ESLint today) and a `.oxlintrc.json` referencing the plugin, with an `overrides` block scoping Family B to the enrich-dir glob.
+- **Add OXlint to the repo** (`oxlint` is not currently a dependency — the repo lints with ESLint today) and a `.oxlintrc.json` referencing the plugin via its `runtypes-devtools/eslint` subpath, with an `overrides` block scoping Family B to the enrich-dir glob.
 - **Pre-commit:** [`.husky/pre-commit`](../../.husky/pre-commit) already runs `lint-staged`. Add a `lint-staged` entry for the enrich-dir glob (e.g. `runtypes/generated/**/*.ts`) that runs `oxlint` (or a `pnpm run lint:enrich` wrapper). `oxlint` exits non-zero on `error`-severity findings, matching husky's fail semantics — a `@todo`/carcass blocks the commit.
 - **CI:** run the same `oxlint` invocation in the lint job so the gate holds for pushes that bypass the hook.
 - Family A (type-aware) can run in the same `oxlint` invocation for changed source files; the daemon warm-up cost is per-run.
@@ -173,8 +169,9 @@ Because Family B is pure text, a grep/Go fallback gate is trivial, but routing i
 
 ```jsonc
 // .oxlintrc.json (consumer project)
+// The plugin is the `runtypes-devtools/eslint` subpath — no separate package to install.
 {
-  "jsPlugins": ["./node_modules/oxlint-plugin-runtypes/dist/index.js"],
+  "jsPlugins": ["./node_modules/runtypes-devtools/dist/eslint/index.js"],
   "rules": {
     "runtypes/error": "error",
     "runtypes/warn": "warn",
@@ -194,18 +191,19 @@ Because Family B is pure text, a grep/Go fallback gate is trivial, but routing i
 
 ## 11. Fallback / complement — our own LSP
 
-If OXlint's JS-plugin alpha proves too immature (§13), wrap the resolver in a minimal LSP publishing `textDocument/publishDiagnostics` (Family A from `scanFiles`; Family B from the same comment scan). Editor-portable and immune to OXlint churn, at the cost of a new binary mode + per-editor config. The two paths are **not** mutually exclusive: build the `diag → {loc, message, severity}` mapping and the comment-scan detector **transport-agnostic** so an LSP sink can be added later without rework.
+If OXlint's JS-plugin alpha proves too immature (§13), wrap the resolver in a minimal LSP publishing `textDocument/publishDiagnostics` (Family A from `scanFiles`; Family B from the same comment scan). It ships from the same package — a new `runtypes-devtools/lsp` subpath (or bin) reusing the very same mapping + detector modules the OXlint entry uses. Editor-portable and immune to OXlint churn, at the cost of a new binary mode + per-editor config. The two paths are **not** mutually exclusive: build the `diag → {loc, message, severity}` mapping and the comment-scan detector **transport-agnostic** (put them in shared modules under [`packages/runtypes-devtools/src/`](../../packages/runtypes-devtools/src)) so an LSP sink can be added later without rework.
 
 ## 12. Open questions / decisions
 
-1. **Package deps — DECIDED (§6.4, §6.5):** `ts-runtypes-bin` is a **peerDependency** resolved via `getExePath()` (the user's own binary); the message catalog is **reused** (shared import / `gen:diag-catalog`), never re-copied; `catalogVersion` for the alignment check comes from the catalog's source package. Remaining sub-questions: (a) import the catalog from the **core `ts-runtypes` marker package** (lockstep-versioned, always installed — leaning yes) or a small extracted catalog module, not the heavy Vite plugin; (b) get the `ResolverClient`/`ResolverSocketClient` from `runtypes-devtools` directly, or factor it into a small shared module so a lint-only install doesn't pull the Vite plugin (leaning shared module). Family B needs neither client nor binary.
-2. **Scan op (Family A):** reuse `scanFiles` (diagnostics-only) or add a lean `OpDiagnostics`? Measure before adding an op.
-3. **Severity mapping (Family A):** severity-tier rules (§6.3, recommended) vs concern rules.
-4. **Orphan rule granularity (Family B):** one `no-orphan-carcass` vs split const/field rules.
-5. **`@todo` strictness:** forbid *any* `@todo` in enrichment files, or only the exact scaffold line? (Leaning: any `@todo` token in an enrich-dir file — authors shouldn't hand-add todos there either.)
-6. **File-scoping default:** enrich-dir glob is configurable per project; the plugin can't know it. Ship the marker-guard (§7.4) as the always-on gate and document the `overrides` glob as the recommended primary scope.
-7. **Family C:** ship now via `check --json` shelling, later via `OpCheck`, or defer entirely?
-8. **Daemon lifecycle (Family A) in the LSP loop:** one shared daemon keyed by tsconfig/cwd; eviction on config change; debounce/cache by file-text hash.
+1. **Package placement — DECIDED:** the plugin ships inside `runtypes-devtools` on its existing [`./eslint` subpath export](../../packages/runtypes-devtools/package.json) (currently a placeholder at [`src/eslint/index.ts`](../../packages/runtypes-devtools/src/eslint/index.ts)). The binary (`ts-runtypes-bin`), the resolver clients, and the diagnostic catalog are all already in this package — the lint entry consumes them via relative sibling imports. No new package, no peerDependency, no cross-package catalog copy, no version-alignment protocol. The old open sub-questions about (a) which package to import the catalog from and (b) whether to factor out `ResolverClient` are **both moot**. Family B needs neither client nor binary.
+2. **Subpath name (cosmetic):** ship on the existing `./eslint` subpath (OXlint accepts ESLint-v9-flat-config plugins as-is), or add an `./oxlint` alias that re-exports the same module for discoverability under the OXlint target? Leaning: single `./eslint` entry, document that it *is* the OXlint plugin.
+3. **Scan op (Family A):** reuse `scanFiles` (diagnostics-only) or add a lean `OpDiagnostics`? Measure before adding an op.
+4. **Severity mapping (Family A):** severity-tier rules (§6.3, recommended) vs concern rules.
+5. **Orphan rule granularity (Family B):** one `no-orphan-carcass` vs split const/field rules.
+6. **`@todo` strictness:** forbid *any* `@todo` in enrichment files, or only the exact scaffold line? (Leaning: any `@todo` token in an enrich-dir file — authors shouldn't hand-add todos there either.)
+7. **File-scoping default:** enrich-dir glob is configurable per project; the plugin can't know it. Ship the marker-guard (§7.4) as the always-on gate and document the `overrides` glob as the recommended primary scope.
+8. **Family C:** ship now via `check --json` shelling, later via `OpCheck`, or defer entirely?
+9. **Daemon lifecycle (Family A) in the LSP loop:** one shared daemon keyed by tsconfig/cwd; eviction on config change; debounce/cache by file-text hash.
 
 ## 13. Risks
 
@@ -213,33 +211,39 @@ If OXlint's JS-plugin alpha proves too immature (§13), wrap the resolver in a m
 - **Custom *type-aware* rules inside JS plugins are unsupported** by OXlint — but Family A is **not** a type-aware rule; it shells to our own engine and only reports positions. Family B is plain syntax. Both are allowed. State this so reviewers don't conflate them.
 - **Double type-checking cost (Family A only):** our binary builds its own tsgo `Program`, independent of tsgolint. Per-file + daemon-warmed in the editor, acceptable; document expected latency.
 - **Tag-literal drift (Family B):** a hardcoded JS copy of the `@todo`/orphan patterns silently stops matching if Go changes them. §7.5's constant-sync is the mitigation and a hard requirement.
-- **Version coupling (Family A):** wire codes + catalog + binary must be the same version. Peering the binary and reusing the version-matched catalog (§6.4) is the structural mitigation; the two-layer alignment handling (§6.5) — an eager startup version-compare warning plus a per-code `[unknown code]` fallback render — surfaces any mismatch without silently dropping a message or hard-failing the run.
-- **Distribution:** ensure `ts-runtypes-bin`'s `getExePath()` resolves in a lint-only install and fails with a clear "install `ts-runtypes-bin`" message when the peer is absent (Family A). Family B needs no binary.
+- **Version coupling (Family A) — largely eliminated by co-location.** Wire codes + catalog + binary must be the same version. Because the plugin ships **inside `runtypes-devtools`** (which depends on `ts-runtypes-bin` directly and vendors the catalog), the binary + catalog + lint entry publish from a single package at a single version — skew is impossible in a released install. The only residual case is a locally-built `bin/ts-runtypes` running ahead of a regenerated catalog during in-repo development; §6.5's per-code `[unknown code]` fallback covers it without silently dropping a diagnostic.
+- **Distribution — largely eliminated by co-location.** `ts-runtypes-bin` is a direct dependency of `runtypes-devtools`, so any install that has the plugin has the binary. No peer-dependency negotiation, no lint-only install where the binary might be missing. Family B needs no binary anyway.
 
 ## 14. Milestones
 
-1. **Spike (Family B first — no binary):** `jsPlugins` plugin with `no-enrichment-todo` + `no-orphan-carcass`, comment-scan detection, marker guard, enrich-dir `overrides`. Prove a `@todo` blocks a commit and shows live in VS Code. Fastest path to value.
-2. **Constant sync:** export the tag patterns from Go via `gen:ts-constants`; import in the rule.
-3. **Family A spike:** spawn `ResolverClient`, one file, prove `context.report({loc})` renders a RunTypes compiler diagnostic in VS Code.
-4. **Family A mapping layer:** transport-agnostic `diag.Diagnostic → {loc, message, severity-tier}` with catalog rendering + col conversion + related formatting + the §6.5 unknown-code fallback and eager version-alignment warning.
+Every milestone lands inside `packages/runtypes-devtools` — no new package is created.
+
+1. **Spike (Family B first — no binary):** fill in [`packages/runtypes-devtools/src/eslint/index.ts`](../../packages/runtypes-devtools/src/eslint/index.ts) with `no-enrichment-todo` + `no-orphan-carcass`, comment-scan detection, marker guard, enrich-dir `overrides`. Prove a `@todo` blocks a commit and shows live in VS Code via `jsPlugins: ["./node_modules/runtypes-devtools/dist/eslint/index.js"]`. Fastest path to value.
+2. **Constant sync:** extend `gen:ts-constants` to emit the tag patterns into the in-package [`runtypes-constants.generated.ts`](../../packages/runtypes-devtools/src/runtypes-constants.generated.ts); import via relative sibling from the rule.
+3. **Family A spike:** import `ResolverClient` from `../resolver-client`, one file, prove `context.report({loc})` renders a RunTypes compiler diagnostic in VS Code.
+4. **Family A mapping layer:** transport-agnostic `diag.Diagnostic → {loc, message, severity-tier}` in a shared module under `packages/runtypes-devtools/src/` (so the eventual LSP sink can reuse it) — catalog rendering via the sibling `../diagnosticCatalog` import + col conversion + related formatting + the §6.5 unknown-code fallback.
 5. **Family A daemon path:** persistent `ResolverSocketClient`, source overlay, per-run lifecycle, debounce/cache.
-6. **Config + commit gate + docs:** `.oxlintrc.json` recipe, lint-staged entry, CI job, website docs.
-7. **(Optional) Family C** (`check`/`gen --check` surfacing) and **(optional) LSP sink** reusing the shared layers.
+6. **Config + commit gate + docs:** `.oxlintrc.json` recipe pointing at the `runtypes-devtools/eslint` subpath, lint-staged entry, CI job, website docs.
+7. **(Optional) Family C** (`check`/`gen --check` surfacing) and **(optional) LSP sink** (new `runtypes-devtools/lsp` subpath) reusing the same shared modules.
 
 ## 15. Testing (PR-readiness gate)
 
 Per [CLAUDE.md](../../CLAUDE.md):
 
-- **Vitest** under `packages/oxlint-plugin-runtypes`:
+- **Vitest** under [`packages/runtypes-devtools/test/eslint/`](../../packages/runtypes-devtools/test) (this is where the plugin lives — no new package):
   - *Family B:* fixture enrichment files (scaffolded-with-`@todo`, orphan carcass, clean file, and a file with legit `@rtType`/`@rtIds` only) → assert the rules fire on the dirty tags, **do not** fire on `@rtType`/`@rtIds`, and no-op outside the enrich scope. Assert reported `loc` + message.
-  - *Family A:* drive the mapping with recorded resolver responses for the pure-mapping tests (col conversion, severity routing, related formatting); add one integration test that spawns `bin/ts-runtypes` on a fixture and asserts the reported `loc`/message.
-  - *Version alignment (§6.5):* an **unknown-code fallback** test (feed a diagnostic whose `code` is absent from the catalog → assert it still renders `[<code>] (message unavailable …)` with the real `loc`, and is not dropped); and a **version-mismatch** test (binary version ≠ `catalogVersion` → assert the single advisory `console.warn` fires once and the run does not fail).
+  - *Family A:* drive the mapping with recorded resolver responses for the pure-mapping tests (col conversion, severity routing, related formatting); add one integration test that spawns `bin/ts-runtypes` on a fixture (via the sibling `ResolverClient`) and asserts the reported `loc`/message.
+  - *Unknown-code fallback (§6.5):* feed a diagnostic whose `code` is absent from the catalog → assert it still renders `[<code>] (message unavailable …)` with the real `loc`, and is not dropped.
 - **Marker coverage rule:** any test exercising the marker API must cover **both** `getRunTypeId<T>()` and `getRunTypeId(value)` shapes with a hash-equivalence assertion — applies to Family A fixtures (unsupported-type/lossy diagnostics fire from marker call sites).
 - **Constant-sync guard:** a test asserting the JS-imported tag patterns match the Go-emitted literals (guards §7.5 drift).
 - **Docs:** website page under [`container/website/content/`](../../container/website/content) (follow docs-style rules); note the OXlint integration in [README.md](../../README.md); update the enrichment docs to mention the hygiene gate.
 - On implementation, `git mv` this file into [`docs/done/`](../done) (or [`docs/partially/`](../partially)), updated to match what shipped.
 
 ## 16. References
+
+**Home package — where the plugin lives**
+- [`packages/runtypes-devtools/package.json`](../../packages/runtypes-devtools/package.json) — reserved `./eslint` subpath export; `ts-runtypes-bin` already a direct dep; description notes "future lint integrations"
+- [`packages/runtypes-devtools/src/eslint/index.ts`](../../packages/runtypes-devtools/src/eslint/index.ts) — placeholder to be filled in by this spec (empty ESLint-flat-plugin export today)
 
 **Our code — Family A**
 - [`internal/diag/catalog.go`](../../internal/diag/catalog.go) — `Diagnostic`/`Severity`/`Family`/`Site`/`Related`
