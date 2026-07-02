@@ -199,13 +199,18 @@ type TupleFrom<R, K extends readonly (keyof R)[]> = {[I in keyof K]: R[K[I]]};
 
 const ENTRY_HEAD_KEYS = ['entryKind', 'deps', 'ini'] as const;
 
-// Go's emitters trim trailing slots that hold their default value: runtype
-// rows always carry at least (id, kind); fn tuples at least
-// (rtFnHash, typeName, code) — a production entry with no deps ends at `code`
-// (isNoop false, dep lists, createRTFn all re-derived at registration), while
-// the noop short form still ends (…, code=undefined, isNoop=true); pure-fn,
+// Go's emitters render every default-valued slot as a JS array HOLE (empty
+// between commas) and drop the trailing run of holes: runtype rows always
+// carry at least (id, kind); fn tuples at least (rtFnHash, typeName, code) —
+// a production entry with no deps ends at `code` (isNoop false, dep lists,
+// createRTFn all re-derived at registration), while the noop short form still
+// ends (…, code=hole, isNoop=true). When a LATER slot is non-default (the live
+// factory in `functions`/`both` mode, the alwaysThrowMessage, or the tb size
+// estimate) the interior defaults stay as holes in place rather than being
+// dropped — index-based access reads them back as undefined either way. Pure-fn,
 // bundle, facade and missing tuples are never trimmed. The REQUIRED/TRIMMED
-// splits below mirror that, so the derived tuple types accept the short forms.
+// splits below mirror that, so the derived tuple types accept the short forms
+// (every trimmable slot is optional, and `code` is widened to `| undefined`).
 type RunTypeRowRequiredKeys = readonly ['id', 'kind'];
 type RunTypeRowTrimmedKeys = typeof RUN_TYPE_FIELD_KEYS extends readonly [unknown, unknown, ...infer Rest] ? Rest : never;
 

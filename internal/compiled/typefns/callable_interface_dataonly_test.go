@@ -60,10 +60,10 @@ func TestCallableInterface_PropertyDoesNotFailObject(t *testing.T) {
 
 	for _, fam := range []string{"validate", "prepareForJson", "prepareForJsonSafe", "stringifyJson", "restoreFromJson", "toBinary", "fromBinary"} {
 		out := renderModule(t, dump, fam)
-		// alwaysThrow renders the object entry as `_obj','<kind>',undefined,false,…`
-		// with a `Cannot …` message; a dropped property leaves the object a noop
-		// or a real factory, never that.
-		if strings.Contains(out, "_obj','objectLiteral',undefined,false") {
+		// alwaysThrow renders the object entry as `_obj','<kind>',,,,,,'<message>'`
+		// (typeName then five holes, then a quoted `Cannot …` message); a dropped
+		// property leaves the object a noop or a real factory, never that.
+		if strings.Contains(out, "_obj','objectLiteral',,,,,,'") {
 			t.Errorf("[%s] `{x: callableInterface; y: string}` should drop x, not alwaysThrow the object; got:\n%s", fam, out)
 		}
 	}
