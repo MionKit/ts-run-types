@@ -222,6 +222,15 @@ func (FromBinaryEmitter) Finalize(raw string) (string, bool) {
 	return code, false
 }
 
+// IsNoopType — fromBinary is never the family identity for a real node:
+// even literal roots ASSIGN the value (`ret = <literal>`), undefined consumes
+// its sentinel byte, and every atom reads bytes. Also deliberately NOT
+// NoopComposeAround — parents advance positionally through the byte stream,
+// so skipping a child decode would desynchronize every later read.
+func (FromBinaryEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return false
+}
+
 func emitLiteralFromBinary(rt *protocol.RunType, ret, des string) RTCode {
 	_ = des
 	// The reference binary/fromBinary.ts treats literals as compile-time noops

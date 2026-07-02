@@ -263,6 +263,13 @@ const (
 	factNoopPrepareJson
 	factNoopRestoreJson
 	factNoopFormatTransform
+	factNoopCompactFromJson
+	factNoopToBinary
+	factNoopHasUnknownKeys
+	factNoopStripUnknownKeys
+	factNoopUnknownKeyErrors
+	factNoopUnknownKeysToUndefined
+	factNoopUnknownKeysToUndefinedWire
 	factCount
 )
 
@@ -691,19 +698,22 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 			return RTCode{Code: "", Type: expectedCType}
 		}
 		// Noop gate: when the emitter's semantic predicate proves the child's
-		// entry would be the family identity (NoopTypePredicate — a pure
-		// function of the child's type graph, cycle-safe), composing a dep
-		// call around it is dead weight: the import, the `utl.getRT` context
-		// line, and the per-call indirection all do nothing. Compose around
-		// the child exactly like the unsupported case above — empty code, no
-		// dep recorded, no import emitted. This is also what collapses
-		// circular identity bodies: the cycle re-entry dispatches here, the
-		// predicate proves the cycle noop, and the surrounding loop/property
-		// code folds away (Finalize then flags the whole entry).
+		// entry would be the family identity (a pure function of the child's
+		// type graph, cycle-safe), composing a dep call around it is dead
+		// weight: the import, the `utl.getRT` context line, and the per-call
+		// indirection all do nothing. Compose around the child exactly like
+		// the unsupported case above — empty code, no dep recorded, no import
+		// emitted. This is also what collapses circular identity bodies: the
+		// cycle re-entry dispatches here, the predicate proves the cycle
+		// noop, and the surrounding loop/property code folds away. Gated on
+		// NoopComposeAround — NOT the universal NoopTypePredicate — because
+		// empty code only composes correctly for value-transform families
+		// (stringifyJson needs the child's JSON fragment, fromBinary its byte
+		// reads; see the NoopComposeAround doc).
 		// Override children skip the noop gate: the override body is the user's
 		// contract, not the structural identity the predicate proves.
 		if !overrideChild && !w.disableNoopElision {
-			if predicate, ok := w.Emitter.(NoopTypePredicate); ok {
+			if predicate, ok := w.Emitter.(NoopComposeAround); ok {
 				emitCtx := w.getEmitContext(w.Vλl)
 				childIsNoop := predicate.IsNoopType(rt, emitCtx)
 				w.putEmitContext(emitCtx)

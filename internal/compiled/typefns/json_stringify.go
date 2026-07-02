@@ -95,6 +95,15 @@ func (StringifyJsonEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — root-only: the delegation arms whose whole body is native
+// JSON.stringify (see isNoopForStringifyJson). Deliberately NOT
+// NoopComposeAround: sj parents concatenate the child call's JSON fragment,
+// so the gate's empty-code composition would drop properties from the
+// output.
+func (StringifyJsonEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForStringifyJson(rt, ctx)
+}
+
 // ReturnName is `v` — but the emit body returns a JSON string built
 // from `v`, not `v` itself. The arg name is kept for parity with the
 // other families.

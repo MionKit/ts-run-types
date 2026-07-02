@@ -121,6 +121,16 @@ func (ValidationErrorsEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — the verr entry is the error-list passthrough exactly for
+// any/unknown roots (see isNoopForValidationErrors).
+func (ValidationErrorsEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForValidationErrors(rt, ctx)
+}
+
+// NoopChildComposesAround — a child that never records an error contributes
+// nothing; empty code composes correctly.
+func (ValidationErrorsEmitter) NoopChildComposesAround() {}
+
 // ReturnName is `er` — validationErrors accumulates errors into the third
 // arg and returns it. Differs from validate which returns the first arg
 // (`v`). See Walker.returnName for how this is consumed.

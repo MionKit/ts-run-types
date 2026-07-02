@@ -134,6 +134,9 @@ func (PrepareForJsonEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) 
 	return isNoopForPrepareJson(rt, ctx)
 }
 
+// NoopChildComposesAround — a value slot the transform leaves alone contributes nothing to the mutate walk; empty code composes correctly.
+func (PrepareForJsonEmitter) NoopChildComposesAround() {}
+
 // ReturnName is `v` — prepareForJson mutates the input value (or
 // rebinds via `v = …` for symbol/regexp/bigint), then returns it.
 // Same as validate's return.

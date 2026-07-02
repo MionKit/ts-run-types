@@ -421,7 +421,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	if opts.ProvenanceSites != nil {
 		walker.rootProvenance = opts.ProvenanceSites[runType.ID]
 	}
-	innerFn, isNoop, isUnsupported := walker.Compile()
+	innerFn, shapeNoop, isUnsupported := walker.Compile()
 	if isUnsupported {
 		// Compile reached an unsupported leaf and the parent positions
 		// chose to propagate (not absorb). Render an alwaysThrow factory
@@ -462,15 +462,37 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		}
 		return entryRender{}
 	}
+	// The noop VERDICT is decided over the TYPE GRAPH — the family's
+	// IsNoopType predicate — never by inspecting the emitted text. The
+	// compiled body's shape (Finalize's bool) survives only as the
+	// protective tripwire below: a predicate that claims identity while the
+	// body disagrees would make the runtime substitute the family noop over
+	// a real transform (silent data corruption), so the mismatch ships the
+	// LIVE body and logs loudly instead. The tripwire can only demote
+	// noop→live; text never produces a noop verdict. (Hand-built test
+	// emitters without a predicate keep the shape verdict.)
+	isNoop := shapeNoop
+	if predicate, ok := emitter.(NoopTypePredicate); ok {
+		predicateCtx := walker.getEmitContext(walker.Vλl)
+		isNoop = predicate.IsNoopType(runType, predicateCtx)
+		walker.putEmitContext(predicateCtx)
+		if isNoop && !shapeNoop {
+			fmt.Fprintf(os.Stderr,
+				"ts-runtypes: noop-predicate mismatch for %s_%s (%s): IsNoopType claims identity but the compiled body is not — shipping the live body; fix the predicate arm to mirror the emitter\n",
+				settings.Tag, runType.ID, rtTypeName(runType))
+			isNoop = false
+		}
+	}
 	// Noop factories emit a SHORT-FORM tuple tail: only the cache key,
 	// typeName, and isNoop=true are passed. The JS-side consumer builds
 	// the entry with a family-specific identity `fn` (`() => true` for
 	// validate, `(v, pth, er) => er` for validationErrors, `(v) => v` for
-	// prepareForJson / restoreFromJson) and leaves `code`,
-	// `rtDependencies`, `pureFnDependencies`, and `createRTFn` as
-	// undefined. Same dep-call wiring works — a parent referencing the
-	// noop entry's `<hash>.fn(v)` still hits a real function — without
-	// the per-entry payload bloat of an inlined `return v` body.
+	// prepareForJson / restoreFromJson, native JSON for the composites) and
+	// leaves `code`, `rtDependencies`, `pureFnDependencies`, and
+	// `createRTFn` as undefined. Same dep-call wiring works — a parent
+	// referencing the noop entry's `<hash>.fn(v)` still hits a real
+	// function — without the per-entry payload bloat of an inlined
+	// `return v` body.
 	if isNoop {
 		args := []string{
 			quoteJS(innerName),

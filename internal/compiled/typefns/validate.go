@@ -125,6 +125,16 @@ func (ValidateEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — the val entry is `() => true` exactly for any/unknown roots
+// (see isNoopForValidate).
+func (ValidateEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForValidate(rt, ctx)
+}
+
+// NoopChildComposesAround — a validate term that always passes contributes
+// nothing to the parent's `&&` chain, so empty code composes correctly.
+func (ValidateEmitter) NoopChildComposesAround() {}
+
 // ReturnName is the JS identifier the walker appends after a
 // statement-shaped body. For validate the validator's "result" is the
 // boolean expression itself (CodeE / CodeRB shapes carry their own

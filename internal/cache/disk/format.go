@@ -93,7 +93,14 @@ package disk
 // full bodies (composites) and isNoop=false verdicts (sj — which jeDI keys
 // its binding elision on), so emitted bytes and liveness would depend on
 // cache temperature — must miss.
-const FormatVersion = 11
+//
+// v12 makes the noop verdict predicate-decided: every family implements
+// IsNoopType over the type graph and renderEntryWithDeps takes the verdict
+// from it (the compiled body's shape survives only as a protective
+// tripwire). Verdicts can differ from v11's Finalize-shape decisions in
+// conservative corners, so v11 payloads' IsNoop bits and short/full forms
+// must miss rather than serve cache-temperature-dependent bytes.
+const FormatVersion = 12
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can

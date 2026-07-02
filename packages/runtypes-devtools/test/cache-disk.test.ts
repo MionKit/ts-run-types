@@ -78,12 +78,12 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 11
-    // when noop elision extended to the entries themselves: all-elided JSON
-    // composites now emit the noop short-form tuple and stringifyJson flags its
-    // native `return JSON.stringify(v)` roots, so v10 payloads bake stale full
-    // bodies / isNoop verdicts and must miss.
-    expect(parsed.version).toBe(11);
+    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 12
+    // when the noop verdict became predicate-decided: every family's IsNoopType
+    // over the type graph decides the short/full form (the compiled body's
+    // shape survives only as a protective tripwire), so v11 payloads' IsNoop
+    // bits could disagree and must miss.
+    expect(parsed.version).toBe(12);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.argsText).toBe('string');

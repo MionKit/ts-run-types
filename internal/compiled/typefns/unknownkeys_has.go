@@ -40,6 +40,15 @@ func (HasUnknownKeysEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — see isNoopForUnknownKeys (shared five-family mirror).
+func (HasUnknownKeysEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForUnknownKeys(rt, ctx, hasUnknownKeysNoopSpec)
+}
+
+// NoopChildComposesAround — a child that can never report unknown keys
+// contributes nothing to the parent's `||` chain.
+func (HasUnknownKeysEmitter) NoopChildComposesAround() {}
+
 // ReturnName is `v` — does hasUnknownKeys return the value? No:
 // `returnName: rtArgsWithOptions.vλl` (constants.functions.ts:153)
 // means the SOURCE-LEVEL "what's returned by an empty body" is `v`,

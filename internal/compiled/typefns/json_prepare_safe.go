@@ -57,6 +57,9 @@ func (PrepareForJsonSafeEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitConte
 	return isNoopForPrepareJsonSafe(rt, ctx)
 }
 
+// NoopChildComposesAround — an extra-proof child slot is shared by reference (the clone helpers' composition rule); empty code composes correctly.
+func (PrepareForJsonSafeEmitter) NoopChildComposesAround() {}
+
 // ReturnName is `v` for compatibility with the walker's tail-wrap, but
 // most Safe emits return CodeE or CodeRB (their own `return ...`) so
 // the walker doesn't actually use this. Noop bodies fall through
