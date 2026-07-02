@@ -111,7 +111,7 @@ func TestInlineMode_AllInternal_NamedArrayInlines(t *testing.T) {
 // the member validate entries even though no site demands them directly.
 func TestInlineMode_Default_InlinedUnionKeepsCrossFamilyValMembers(t *testing.T) {
 	source := `import {createBinaryEncoder} from 'ts-runtypes';
-export const enc = createBinaryEncoder<{u: {a: bigint} | {a: Date}}>();
+export const enc = createBinaryEncoder<{u: {a: {n: number}} | {a: {s: string}}}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": source})
 	resp := scanWithModules(t, r, []string{"a.ts"})

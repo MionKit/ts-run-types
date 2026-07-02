@@ -198,7 +198,7 @@ func TestModuleMode_AllSingle_CrossFamilyBundleImport(t *testing.T) {
 	// fixture) — in allSingle the tb bundle must import those entries as
 	// NAMED exports of the val bundle.
 	source := `import {createBinaryEncoder} from 'ts-runtypes';
-export const _ = createBinaryEncoder<{a: bigint} | {a: Date}>();
+export const _ = createBinaryEncoder<{a: {n: number}} | {a: {s: string}}>();
 `
 	r := setupInlineMode(t, map[string]string{"a.ts": source}, constants.ModuleModeAllSingle)
 	resp := scanWithModules(t, r, []string{"a.ts"})

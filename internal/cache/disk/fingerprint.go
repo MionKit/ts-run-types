@@ -56,10 +56,13 @@ type FingerprintInputs struct {
 // entry), so every prior cache is stale. "v7"→"v8" changed the fn-entry tail
 // encoding: default-valued INTERIOR slots (code=undefined, isNoop=false, the
 // dep-list `[]`s) now render as JS array holes instead of spelled-out
-// literals, so every cached argsText is byte-different.
+// literals, so every cached argsText is byte-different. "v8"->"v9" inlines a
+// union encoder's simple leaf-atomic member checks (typeof v === 'string', …)
+// directly into the dispatch instead of a cross-family `val_<member>?.fn(v)`
+// call, so every union-encoder body (and its cross-family edge set) changed.
 func Fingerprint(inputs FingerprintInputs) string {
 	var sb strings.Builder
-	sb.WriteString("v8\n")
+	sb.WriteString("v9\n")
 	sb.WriteString(strconv.Itoa(inputs.HashLength))
 	sb.WriteByte('\n')
 	sb.WriteString(inputs.EmitMode)
