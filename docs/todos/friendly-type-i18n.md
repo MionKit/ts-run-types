@@ -68,6 +68,76 @@ mandatory `other` arm as backstop.
 | **Count source** | Always the **violated bound** (`$[val]`, cardinal). Because objects appear only on count-bearing constraints, there is no cardinal-vs-ordinal ambiguity. |
 | **Reconcile** | Reuse the generic merge/rename/orphan/splice core; swap the type-bound outer shell (desired side = source-const bytes; orphan oracle = source mirror). **One genuinely-new capability:** descend into `$errors` (today opaque) and into plural objects (locale-owned arms). |
 | **Fallback** | Source `FriendlyType` is the terminal fallback; runtime **always lenient**; strictness lives in `check --translate`. |
+| **Prerequisite** | Split today's single combined mirror file into per-family files (`friendly*` vs `mock*`) via a family **path segment**, so the per-locale subtree is a true 1:1 mirror of the friendly source. Ships first, independently (§Prerequisite). |
+
+---
+
+## Prerequisite — split the shared mirror file into per-family files (`FriendlyType` vs `MockData`)
+
+> **Ship this first, as its own refactor.** It touches the CORE enrichment emitter (every
+> user's committed mirrors, not just i18n), so it lands and migrates independently of the i18n
+> phases below.
+
+**What exists today (VERIFIED).** A source file gets exactly **one** mirror file holding **both**
+enrichment families side by side. `mirrorPath` ([config.go:148](../../cmd/ts-runtypes/config.go))
+maps `models/user.ts` → `<enrichDir>/models/user.ts` with **no family in the path**, and
+`forceTSExt` ([config.go:159](../../cmd/ts-runtypes/config.go)) only swaps the extension — there is
+**no hook** that could produce a per-family filename. The emitter then writes the `friendlyUser`
+(`FriendlyType<User>`) and `mockUser` (`MockData<User>`) consts into that same file: `Scaffold`
+([helpers.go:220](../../internal/enrich/mirror/helpers.go)) and `appendNewConsts`
+([reconcile.go:547](../../internal/enrich/mirror/reconcile.go)) push both `ConstBlock`s into one
+`blocks` slice gated by `WantFriendly`/`WantMock` ([helpers.go:24](../../internal/enrich/mirror/helpers.go)).
+The two families are told apart **only by var-name prefix** — `isFriendlyVar`/`isMockVar` =
+`hasCamelSuffix(name, "friendly"|"mock")` ([index.go:504](../../internal/enrich/mirror/index.go));
+names are built `"friendly"+baseName` / `"mock"+baseName`
+([closure.go:137](../../internal/enrich/closure.go)). So the user's assumption is correct: **one
+file per source type holds both `friendly<Name>` and `mock<Name>`.**
+
+**The change — a family path segment (decided).** Emit each family to its **own** mirror file
+under a family **path segment**, so one source `models/user.ts` produces two siblings:
+
+```
+runtypes/generated/friendly/models/user.ts   # friendlyUser  (FriendlyType<User>)  — the i18n source anchor
+runtypes/generated/mock/models/user.ts       # mockUser      (MockData<User>)      — never translated
+```
+
+**Path segment, not a `user.friendly.ts` filename infix** (the same reasoning §2 used for the
+locale, VERIFIED): `forceTSExt` ([config.go:159](../../cmd/ts-runtypes/config.go)) collapses every
+mirror to a single `.ts` and cannot express a filename infix. Putting the family in the **path**
+means `forceTSExt` never sees it — `mirrorPath` gains a `family` argument and becomes
+`join(enrichDir, family, forceTSExt(relOf(declFile)))`, no signature-shape surprise. The index
+reader and the cross-file value-import resolver thread the same segment; the segment names
+(`friendly` / `mock`) are fixed defaults (a `families.dir` config knob can come later).
+
+**How it composes with the i18n subtree.** The three subtrees sit **parallel** under the enrich
+root — `friendly/` (source language), `mock/`, and `i18n/<locale>/` (translations) — so §2's
+`i18nMirrorPath(declFile, locale) = join(i18n.dir, locale, relOf(declFile))` is **unchanged**: a
+translation still keys off the *source type's* rel path (`models/user.ts`) and now simply anchors
+to the friendly-only source mirror `friendly/models/user.ts`. (Nesting i18n *under* `friendly/`
+instead — `friendly/i18n/<locale>/…` — is a viable alternative but would rewrite that formula;
+parallel segments keep §2 intact and are the recommendation.)
+
+**Why it matters for i18n (honest framing).** It is **not a hard functional blocker** — the i18n
+design already keeps mock out of translation files (`WantMock:false`, §Scope) and the i18n reconcile
+already filters the combined source mirror to `friendly<Name>` consts by var-name (§Reconcile step
+1). But splitting **removes that coupling** and pays off three ways:
+
+1. **A true 1:1 friendly mirror.** Principle #4 ("the mirror path is the key") wants the per-locale
+   subtree to mirror *the friendly source*. With a combined file, `i18n/<locale>/models/user.ts`
+   mirrors only *part* of `models/user.ts`; with a friendly-only source file it is a literal
+   path-for-path mirror — the "one subtree to own" property i18n is built around.
+2. **A clean reconcile anchor.** The `@rtI18n <locale> from '<src-mirror>'` breadcrumb and the
+   `SourceMirrorDeclaresConst` orphan oracle (§Reconcile step 2) resolve to a file that contains
+   **only** friendly consts — no var-name filtering, no chance of a `mock*` const leaking into the
+   desired set.
+3. **Isolated change detection.** `check --translate` / `--update` fire on a friendly-source edit;
+   a combined file *also* rewrites (and re-mtimes) on a mock-only edit, adding noise the split removes.
+
+**Migration.** Existing committed combined mirrors must be split in place — a one-shot `gen`-side
+move (write the two new files, delete the old) plus a note in the enrich docs. The
+`WantFriendly`/`WantMock` flags already exist and map straight onto "which file"; the var-name
+`isFriendlyVar`/`isMockVar` heuristic becomes a **belt-and-braces** check behind a structural
+(path-based) family signal rather than the sole discriminator.
 
 ---
 
@@ -151,7 +221,7 @@ Translation files live under a **directory segment per locale**, mirroring the s
 mirror's relative sub-path:
 
 ```
-runtypes/generated/models/user.ts            # source language (unchanged) — friendlyUser
+runtypes/generated/friendly/models/user.ts   # source language (per §Prerequisite) — friendlyUser
 runtypes/generated/i18n/es/models/user.ts    # es_friendlyUser
 runtypes/generated/i18n/pl/models/user.ts    # pl_friendlyUser
 ```
@@ -577,6 +647,12 @@ configurable `sourceLocale`.
 
 ## Implementation phasing
 
+- **Phase P — prerequisite: split the mirror families (ships independently, PRECEDES all i18n work).**
+  Give `mirrorPath` a family **path segment** (`join(enrichDir, family, forceTSExt(rel))`), emit
+  `friendly*` and `mock*` to separate sibling files, teach the index reader + cross-file
+  value-import resolver the segment, and migrate existing combined mirrors. `go test ./internal/...`
+  for the path math + a combined→split migration idempotency case (a second split is a byte-identical
+  no-op). See §Prerequisite.
 - **Phase 0 — type + crash guard (ships independently).** Widen the leaf (`PluralTemplate` /
   `TemplateLeaf`, local `PluralCategory`), add `Translation<T>`, keep `$label: string`. Add the
   `typeof`-template guard in `createFriendly.ts:190`. Re-measure the enrichHarness compile-budget
