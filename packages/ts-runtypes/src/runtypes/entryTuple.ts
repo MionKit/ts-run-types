@@ -27,19 +27,21 @@
 //
 // Runtype nodes are special-cased for density: every reflection-demanded
 // node rides as one headless ROW of THE single data-bundle module
-// (`virtual:rt/runtypes.js`, kind 4 — rows in slot 4, ONE combined footer
-// initializer in slot 2, content-hash key in slot 3), and each reflection
-// root gets a tiny facade module (`virtual:rt/<rootId>.js`, kind 5) that
-// imports the bundle and carries the root id in its key slot. Each node
-// exists exactly once app-wide; facades keep the rewrite's binding-only
-// injection working unchanged.
+// (`virtual:rt/runtypes.js`, kind 4 — rows in slot 4, a parallel `rels` array
+// in slot 5 wiring each node's ref slots by ROW INDEX, content-hash key in
+// slot 3, and a residual ini in slot 2 for the rare expression-specials only),
+// and each reflection root gets a tiny facade module
+// (`virtual:rt/<rootId>.js`, kind 5) that imports the bundle and carries the
+// root id in its key slot. Each node exists exactly once app-wide; facades
+// keep the rewrite's binding-only injection working unchanged.
 //
 // `initFromTuple` registers a tuple's whole closure in two phases: walk the
 // deps() thunks recursively (post-order with a processed-keys guard, so
-// children register before parents and cycles terminate), then run each
-// newly-registered tuple's `ini`. Ref slots therefore always resolve
-// against registered entries, and fn-factory materialisation stays lazy
-// (materializeRTFn on first getRT), so cycles keep working exactly as before.
+// children register before parents and cycles terminate), then wire each
+// newly-registered bundle's `rels` by index and run any residual `ini`. Ref
+// slots therefore always resolve against registered entries, and fn-factory
+// materialisation stays lazy (materializeRTFn on first getRT), so cycles keep
+// working exactly as before.
 
 import {getRTUtils} from './rtUtils.ts';
 import type {RTUtils} from './rtUtils.ts';
@@ -112,6 +114,60 @@ const RUN_TYPE_FIELD_KEYS = [
  *  the shared deps thunk and the single combined ini. **/
 export type RunTypeRowRecord = Pick<RunType, (typeof RUN_TYPE_FIELD_KEYS)[number]>;
 
+// The ref-bearing RunType fields, in the wire order of a bundle `rels` row.
+// ⚠️ MUST match Go's runtype.renderRelations (internal/compiled/runtype/module.go).
+// child/children lead — the most common fields — so the typical relRow is one
+// or two slots long. Each node's ref slots are patched from these by index at
+// registration (wireBundleRelations); the fields NOT here (classType, literal,
+// formatAnnotation) are JS expressions handled by the residual bundle ini.
+const RUN_TYPE_REL_KEYS = [
+  'child',
+  'children',
+  'index',
+  'return',
+  'indexType',
+  'parameters',
+  'safeUnionChildren',
+  'unionDiscriminators',
+  'typeMeta',
+  'typeArguments',
+  'arguments',
+  'extendsArguments',
+  'implements',
+  'extends',
+] as const;
+
+// Parallel to RUN_TYPE_REL_KEYS: true = the slot holds an ARRAY of relation
+// targets, false = a single target. Single-ref slots (child/index/return/
+// indexType) lead the array-ref ones per RUN_TYPE_REL_KEYS.
+const RUN_TYPE_REL_IS_ARRAY = [
+  false, // child
+  true, // children
+  false, // index
+  false, // return
+  false, // indexType
+  true, // parameters
+  true, // safeUnionChildren
+  true, // unionDiscriminators
+  true, // typeMeta
+  true, // typeArguments
+  true, // arguments
+  true, // extendsArguments
+  true, // implements
+  true, // extends
+] as const;
+
+/** One relation target inside a bundle `rels` row: a row INDEX (number), a
+ *  foreign id (string — a ref whose target is not a bundle row, resolved via
+ *  useRunType), or an inline non-ref RunType (object). **/
+type RunTypeRel = number | string | object;
+
+/** A bundle `rels` row — parallel by index to `rows`. Each slot is a single
+ *  relation (single-ref field), an array of relations (array field), or
+ *  undefined (a hole: that slot carries no relation). See RUN_TYPE_REL_KEYS /
+ *  RUN_TYPE_REL_IS_ARRAY; a whole row is undefined for a leaf node. **/
+export type RunTypeRelRow = readonly (RunTypeRel | readonly RunTypeRel[] | undefined)[];
+
 /** Named view of a standalone per-node runtype module (kind 0 — emitted only
  *  under `moduleMode: 'allModules'`): the shared head plus the same scalar
  *  identification fields a bundle row carries; the per-entry ini patches this
@@ -123,16 +179,20 @@ export interface RunTypeRecord extends RunTypeRowRecord {
 }
 
 /** Named view of THE runtype data-bundle module (`virtual:rt/runtypes.js`):
- *  every reflection-demanded node as one headless row plus one combined
- *  footer initializer. `key` is a CONTENT hash over the row ids — it changes
- *  exactly when the bundle evolves, so the processed-keys guard re-registers
- *  new rows after an HMR reload of the (mutable) bundle module. **/
+ *  every reflection-demanded node as one headless row (`rows`), a parallel
+ *  `rels` array wiring each node's ref-bearing slots by ROW INDEX (see
+ *  wireBundleRelations), and a residual `ini` carrying only the rare
+ *  expression-specials (classType / bigint-symbol literal / formatAnnotation).
+ *  `key` is a CONTENT hash over the row ids — it changes exactly when the
+ *  bundle evolves, so the processed-keys guard re-registers new rows after an
+ *  HMR reload of the (mutable) bundle module. **/
 export interface RunTypeBundleRecord {
   entryKind: typeof KIND_RUN_TYPE_BUNDLE;
   deps: EntryDepsThunk | undefined;
   ini: RunTypeIni | undefined;
   key: string;
   rows: readonly RunTypeRow[];
+  rels: readonly RunTypeRelRow[];
 }
 
 /** Named view of a per-reflection-root facade module
@@ -215,7 +275,7 @@ type RunTypeRowRequiredKeys = readonly ['id', 'kind'];
 type RunTypeRowTrimmedKeys = typeof RUN_TYPE_FIELD_KEYS extends readonly [unknown, unknown, ...infer Rest] ? Rest : never;
 
 export const RUN_TYPE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, ...RUN_TYPE_FIELD_KEYS] as const;
-export const RUN_TYPE_BUNDLE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key', 'rows'] as const;
+export const RUN_TYPE_BUNDLE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key', 'rows', 'rels'] as const;
 export const RUN_TYPE_FACADE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key'] as const;
 
 const FN_TYPE_REQUIRED_KEYS = ['familyTag', 'deps', 'ini', 'rtFnHash', 'typeName', 'code'] as const;
@@ -288,6 +348,9 @@ const SLOT_KIND = 0;
 const SLOT_DEPS = 1;
 const SLOT_KEY = 3;
 const SLOT_ROWS = 4;
+const SLOT_RELS = 5;
+const _pinBundleRels: 'rels' = RUN_TYPE_BUNDLE_TUPLE_KEYS[SLOT_RELS];
+void _pinBundleRels;
 const _pinBundleHead: ['entryKind', 'deps', 'ini', 'key', 'rows'] = [
   RUN_TYPE_BUNDLE_TUPLE_KEYS[SLOT_KIND],
   RUN_TYPE_BUNDLE_TUPLE_KEYS[SLOT_DEPS],
@@ -467,11 +530,44 @@ export function initFromTuple(root: EntryTuple): void {
   const utils = getRTUtils();
   const fresh: EntryTuple[] = [];
   collectClosure(root, utils, fresh);
-  // Phase 2: footer initializers — every referenced entry now exists, so the
-  // `c(id)` registry lookups inside each ini body resolve, including cycles.
+  // Phase 2: wire each freshly-registered entry's ref slots — every referenced
+  // entry now exists, so index/`c(id)` lookups resolve, including cycles. Data
+  // bundles patch their nodes from the parallel `rels` array (by row index);
+  // then any residual ini (the rare expression-specials, or a per-node
+  // allModules footer) runs its `c(id)` assignments.
   for (const tuple of fresh) {
+    if (tuple[SLOT_KIND] === KIND_RUN_TYPE_BUNDLE) wireBundleRelations(utils, tuple as RunTypeBundleTuple);
     const ini = tuple[2] as RunTypeIni | undefined;
     if (typeof ini === 'function') ini(utils);
+  }
+}
+
+// wireBundleRelations patches every bundle node's ref-bearing slots from the
+// parallel `rels` array (slot 5). Runs in phase 2 — after registerRunTypeBundle
+// added every row — so a relation target always resolves against a registered
+// entry, cycles included (index refs have no TDZ, unlike direct const refs).
+// Each relation is a row INDEX (number → the sibling RunType), a foreign id
+// (string → a registry lookup, matching the old `c(id)` miss behavior), or an
+// inline non-ref RunType (object → used verbatim). rels shorter than rows means
+// the tail rows are leaves with no relations.
+function wireBundleRelations(utils: RTUtils, tuple: RunTypeBundleTuple): void {
+  const rows = (tuple[SLOT_ROWS] ?? []) as readonly RunTypeRow[];
+  const rels = (tuple[SLOT_RELS] ?? []) as readonly (RunTypeRelRow | undefined)[];
+  if (rels.length === 0) return;
+  const byIndex = rows.map((row) => utils.getRunType(row[0] as string));
+  const resolve = (rel: unknown): unknown =>
+    typeof rel === 'number' ? byIndex[rel] : typeof rel === 'string' ? utils.getRunType(rel) : rel;
+  for (let i = 0; i < rels.length; i++) {
+    const relRow = rels[i];
+    if (!relRow) continue; // leaf row: no relations
+    const runType = byIndex[i];
+    if (!runType) continue;
+    const target = runType as unknown as Record<string, unknown>;
+    for (let slot = 0; slot < RUN_TYPE_REL_KEYS.length; slot++) {
+      const value = relRow[slot];
+      if (value === undefined) continue;
+      target[RUN_TYPE_REL_KEYS[slot]] = RUN_TYPE_REL_IS_ARRAY[slot] ? (value as readonly unknown[]).map(resolve) : resolve(value);
+    }
   }
 }
 

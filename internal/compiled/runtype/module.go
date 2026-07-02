@@ -165,79 +165,196 @@ func isFooterLiteral(runType *protocol.RunType) bool {
 }
 
 // writeFooter fills runType's reference-bearing fields and runtime-special
-// values into the module-local `cache` table. Target refs render through the
-// hoist table (a `dN` local when the id was hoisted, else a raw `c('<id>')`
-// lookup); hoist is nil for per-node footers, which never hoist.
-func writeFooter(buffer *strings.Builder, runType *protocol.RunType, hoist map[string]string) {
+// values into the module-local `cache` table via `c('<id>')` registry lookups.
+// Used ONLY by the allModules per-node layout (CollectEntriesPerNode) — the
+// default data bundle carries ref relations as row INDICES in its parallel
+// `rels` array (renderRelations) and keeps just the expression-specials in a
+// residual footer (writeBundleSpecials).
+func writeFooter(buffer *strings.Builder, runType *protocol.RunType) {
 	name := cacheRef(runType.ID)
 	if runType.Child != nil {
-		buffer.WriteString(fmt.Sprintf("%s.child = %s;\n", name, derefExpr(runType.Child, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.child = %s;\n", name, derefExpr(runType.Child)))
 	}
 	if runType.Index != nil {
-		buffer.WriteString(fmt.Sprintf("%s.index = %s;\n", name, derefExpr(runType.Index, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.index = %s;\n", name, derefExpr(runType.Index)))
 	}
 	if runType.Return != nil {
-		buffer.WriteString(fmt.Sprintf("%s.return = %s;\n", name, derefExpr(runType.Return, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.return = %s;\n", name, derefExpr(runType.Return)))
 	}
 	if runType.IndexT != nil {
-		buffer.WriteString(fmt.Sprintf("%s.indexType = %s;\n", name, derefExpr(runType.IndexT, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.indexType = %s;\n", name, derefExpr(runType.IndexT)))
 	}
 	if len(runType.Parameters) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.parameters = [%s];\n", name, joinRefs(runType.Parameters, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.parameters = [%s];\n", name, joinRefs(runType.Parameters)))
 	}
 	if len(runType.Children) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.children = [%s];\n", name, joinRefs(runType.Children, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.children = [%s];\n", name, joinRefs(runType.Children)))
 	}
 	// safeUnionChildren — same ref objects as Children, reordered so
 	// superset shapes precede their subset equivalents.
 	if len(runType.SafeUnionChildren) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.safeUnionChildren = [%s];\n", name, joinRefs(runType.SafeUnionChildren, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.safeUnionChildren = [%s];\n", name, joinRefs(runType.SafeUnionChildren)))
 	}
 	// unionDiscriminators — parallel to safeUnionChildren; entry i is a
 	// ref to the discriminator property within safeUnionChildren[i].
 	if len(runType.UnionDiscriminators) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.unionDiscriminators = [%s];\n", name, joinRefs(runType.UnionDiscriminators, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.unionDiscriminators = [%s];\n", name, joinRefs(runType.UnionDiscriminators)))
 	}
 	// decorators — surviving object-literal types from a collapsed
 	// `primitive & {brand}` intersection.
 	if len(runType.TypeMeta) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.typeMeta = [%s];\n", name, joinRefs(runType.TypeMeta, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.typeMeta = [%s];\n", name, joinRefs(runType.TypeMeta)))
 	}
-	// formatAnnotation — name + params for a TypeFormat brand. Emitted
-	// as a JSON object literal (valid JS); the runtime reads it for
-	// mock generation (mockSamples) and format-formatter lookup. Params
-	// is already JSON-serialisable (strings / numbers / bools / nested
-	// maps / arrays / RegexpParam → {source,flags}).
 	if runType.FormatAnnotation != nil {
-		if encoded, err := json.Marshal(runType.FormatAnnotation); err == nil {
-			buffer.WriteString(fmt.Sprintf("%s.formatAnnotation = %s;\n", name, string(encoded)))
-		}
+		writeFormatAnnotation(buffer, name, runType)
 	}
 	if len(runType.TypeArguments) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.typeArguments = [%s];\n", name, joinRefs(runType.TypeArguments, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.typeArguments = [%s];\n", name, joinRefs(runType.TypeArguments)))
 	}
 	if len(runType.Arguments) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.arguments = [%s];\n", name, joinRefs(runType.Arguments, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.arguments = [%s];\n", name, joinRefs(runType.Arguments)))
 	}
 	if len(runType.ExtendsArguments) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.extendsArguments = [%s];\n", name, joinRefs(runType.ExtendsArguments, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.extendsArguments = [%s];\n", name, joinRefs(runType.ExtendsArguments)))
 	}
 	if len(runType.Implements) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.implements = [%s];\n", name, joinRefs(runType.Implements, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.implements = [%s];\n", name, joinRefs(runType.Implements)))
 	}
 	if len(runType.Extends) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.extends = [%s];\n", name, joinRefs(runType.Extends, hoist)))
+		buffer.WriteString(fmt.Sprintf("%s.extends = [%s];\n", name, joinRefs(runType.Extends)))
 	}
+	writeBundleSpecials(buffer, runType)
+}
 
+// relationSlots is the wire order of the ref-bearing RunType fields inside a
+// bundle `rels` row. MUST stay in lockstep with RUN_TYPE_REL_KEYS /
+// RUN_TYPE_REL_ARRAY in packages/ts-runtypes/src/runtypes/entryTuple.ts.
+// child/children lead because they are by far the most common (every property,
+// array, object, tuple, union), keeping the common relRow one or two slots
+// long. Single-ref slots (child/index/return/indexType) hold one target; array
+// slots hold a JS array of targets — the runtime mirror carries the same split.
+
+// renderRelations builds the index-based relation row for one bundle node:
+// every ref target renders as its ROW INDEX (a bare integer), an inline JS
+// literal for a non-ref child, or the quoted id for a ref absent from the
+// bundle (runtime falls back to a registry lookup). Trailing holes are trimmed;
+// returns "" for a leaf with no relations so the caller emits a bundle-level
+// hole. classType / formatAnnotation / footer literals are NOT here — they are
+// JS expressions handled by the residual footer (writeBundleSpecials).
+func renderRelations(runType *protocol.RunType, indexOf map[string]int) string {
+	slots := []string{
+		relRef(runType.Child, indexOf),                // 0 child
+		relRefs(runType.Children, indexOf),            // 1 children
+		relRef(runType.Index, indexOf),                // 2 index
+		relRef(runType.Return, indexOf),               // 3 return
+		relRef(runType.IndexT, indexOf),               // 4 indexType
+		relRefs(runType.Parameters, indexOf),          // 5 parameters
+		relRefs(runType.SafeUnionChildren, indexOf),   // 6 safeUnionChildren
+		relRefs(runType.UnionDiscriminators, indexOf), // 7 unionDiscriminators
+		relRefs(runType.TypeMeta, indexOf),            // 8 typeMeta
+		relRefs(runType.TypeArguments, indexOf),       // 9 typeArguments
+		relRefs(runType.Arguments, indexOf),           // 10 arguments
+		relRefs(runType.ExtendsArguments, indexOf),    // 11 extendsArguments
+		relRefs(runType.Implements, indexOf),          // 12 implements
+		relRefs(runType.Extends, indexOf),             // 13 extends
+	}
+	slots = trimTrailingHoles(slots)
+	if len(slots) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(slots, ",") + "]"
+}
+
+// relRef renders a single relation target: the row index of a ref target (a
+// bare integer), the quoted id for a ref whose target is NOT a bundle row (the
+// runtime resolves it via useRunType, matching the old footer's `c('<id>')`
+// miss behavior), an inline JS literal for a non-ref child, or "" (a hole) when
+// nil. The inline case round-trips the RunType through JSON exactly as the old
+// derefExpr did.
+func relRef(child *protocol.RunType, indexOf map[string]int) string {
+	if child == nil {
+		return ""
+	}
+	if child.Kind == protocol.KindRef {
+		if index, ok := indexOf[child.ID]; ok {
+			return strconv.Itoa(index)
+		}
+		return quoteJS(child.ID)
+	}
+	encoded, err := json.Marshal(child)
+	if err != nil {
+		return "undefined"
+	}
+	var generic any
+	if err := json.Unmarshal(encoded, &generic); err != nil {
+		return "undefined"
+	}
+	return mustJSLiteral(generic)
+}
+
+// relRefs renders an array relation slot as `[<ref0>,<ref1>,…]`, or "" (a hole)
+// when empty. Each element uses relRef, so a row index, inline literal, or
+// quoted id can mix in the same array.
+func relRefs(children []*protocol.RunType, indexOf map[string]int) string {
+	if len(children) == 0 {
+		return ""
+	}
+	parts := make([]string, len(children))
+	for i, child := range children {
+		parts[i] = relRef(child, indexOf)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+// trimTrailingHoles drops the trailing run of hole entries ("") from a slice.
+func trimTrailingHoles(slots []string) []string {
+	end := len(slots)
+	for end > 0 && slots[end-1] == "" {
+		end--
+	}
+	return slots[:end]
+}
+
+// hasBundleSpecials reports whether a node needs any residual footer line — a
+// runtime-special value that is a JS EXPRESSION rather than index-able data.
+func hasBundleSpecials(runType *protocol.RunType) bool {
+	return runType.FormatAnnotation != nil ||
+		(runType.ClassRef != nil && runType.ClassRef.Builtin != "") ||
+		isFooterLiteral(runType)
+}
+
+// writeBundleSpecials writes the residual footer lines for the runtime-special
+// fields that can't ride the index-based `rels` array because they are JS
+// EXPRESSIONS, not data: the builtin classType (globalThis.<Builtin>, possibly
+// namespace-qualified like Temporal.PlainDate), the footer-only bigint/symbol
+// literal, and the formatAnnotation object. Emitted through `c('<id>')` (a self
+// lookup only — no cross-row refs), so the bundle's residual ini carries only
+// these rare lines and is a hole for the common object/array/union node.
+func writeBundleSpecials(buffer *strings.Builder, runType *protocol.RunType) {
+	name := cacheRef(runType.ID)
+	if runType.FormatAnnotation != nil {
+		writeFormatAnnotation(buffer, name, runType)
+	}
 	// classType — built-in constructors looked up on globalThis so the
 	// generated module needs zero runtime imports.
 	if runType.ClassRef != nil && runType.ClassRef.Builtin != "" {
 		buffer.WriteString(fmt.Sprintf("%s.classType = globalThis.%s;\n", name, runType.ClassRef.Builtin))
 	}
-
-	// Footer-only literals.
+	// Footer-only literals (bigint / symbol).
 	if isFooterLiteral(runType) {
 		buffer.WriteString(fmt.Sprintf("%s.literal = %s;\n", name, footerLiteralExpr(runType)))
+	}
+}
+
+// writeFormatAnnotation emits the `<ref>.formatAnnotation = {…};` line. The
+// annotation is a name + params for a TypeFormat brand, emitted as a JSON
+// object literal (valid JS); the runtime reads it for mock generation
+// (mockSamples) and format-formatter lookup. Params is already
+// JSON-serialisable (strings / numbers / bools / nested maps / arrays /
+// RegexpParam → {source,flags}).
+func writeFormatAnnotation(buffer *strings.Builder, name string, runType *protocol.RunType) {
+	if encoded, err := json.Marshal(runType.FormatAnnotation); err == nil {
+		buffer.WriteString(fmt.Sprintf("%s.formatAnnotation = %s;\n", name, string(encoded)))
 	}
 }
 
@@ -260,27 +377,16 @@ func footerLiteralExpr(runType *protocol.RunType) string {
 	return mustJSLiteral(runType.Literal)
 }
 
-// hoistRef renders a reference to id: the hoisted local (dN) when id is in the
-// table, else the raw `c('<id>')` lookup. The preamble declares each local as
-// `dN=c('<id>')` using the raw cacheRef, so this substitution is correct at
-// every use site (the local aliases the exact same registry object).
-func hoistRef(id string, hoist map[string]string) string {
-	if name, ok := hoist[id]; ok {
-		return name
-	}
-	return cacheRef(id)
-}
-
-// derefExpr renders a single child slot. Refs become cache lookups (hoisted to
-// a `dN` local when the id cleared the hoist threshold); inline (non-ref) Types
-// are round-tripped through JSON to land in the any-tree shape that
-// mustJSLiteral understands.
-func derefExpr(runType *protocol.RunType, hoist map[string]string) string {
+// derefExpr renders a single child slot for the allModules per-node footer.
+// Refs become `c('<id>')` cache lookups; inline (non-ref) Types are
+// round-tripped through JSON to land in the any-tree shape mustJSLiteral
+// understands. (The data bundle uses renderRelations / relRef instead.)
+func derefExpr(runType *protocol.RunType) string {
 	if runType == nil {
 		return "undefined"
 	}
 	if runType.Kind == protocol.KindRef {
-		return hoistRef(runType.ID, hoist)
+		return cacheRef(runType.ID)
 	}
 	encoded, err := json.Marshal(runType)
 	if err != nil {
@@ -293,10 +399,10 @@ func derefExpr(runType *protocol.RunType, hoist map[string]string) string {
 	return mustJSLiteral(generic)
 }
 
-func joinRefs(runTypes []*protocol.RunType, hoist map[string]string) string {
+func joinRefs(runTypes []*protocol.RunType) string {
 	parts := make([]string, len(runTypes))
 	for i, runType := range runTypes {
-		parts[i] = derefExpr(runType, hoist)
+		parts[i] = derefExpr(runType)
 	}
 	return strings.Join(parts, ", ")
 }
