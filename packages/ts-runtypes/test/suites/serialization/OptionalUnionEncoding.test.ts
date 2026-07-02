@@ -4,7 +4,9 @@
 // (`{"active":[1,false]}`) fails loudly.
 // See docs/todos/optional-boolean-union-encoding.md.
 import {describe, expect, it} from 'vitest';
-import {createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
+import {createJsonDecoder, createJsonEncoder, getRunTypeId} from 'ts-runtypes';
+import * as RT from 'ts-runtypes/schema';
+import * as TF from 'ts-runtypes/formats';
 
 // A property value encoded as `:[<digit>…` is the union-envelope artifact.
 const ENVELOPE = /:\[\d/;
@@ -78,5 +80,48 @@ describe('serialization / optional-union JSON encoding (regression)', () => {
     expect(decNull(encNull({x: null})!)).toEqual({x: null});
     expect(decNull(encNull({x: 'hi'})!)).toEqual({x: 'hi'});
     expect(decNull(encNull({})!)).toEqual({});
+  });
+});
+
+// Schema-form (value-first RT.optional) counterpart of the cases above. An
+// optional property authored with RT.optional(...) — including a FORMAT child
+// like TF.string() — must encode as an OPTIONAL PROPERTY (key omitted when
+// undefined), byte-identical to the type-first `x?:` form, NOT the [index,value]
+// union envelope. Regression for the divergence where a schema optional resolved
+// as a `string | undefined` union (surfaced in the playground before it fed the
+// resolver the real ts-runtypes sources); the type-first cases above never
+// exercised the value-first surface.
+describe('serialization / schema-form optional JSON encoding (regression)', () => {
+  it('RT.optional(TF.string()) → optional property, no envelope', () => {
+    const enc = createJsonEncoder(RT.object({id: TF.string(), note: RT.optional(TF.string())}));
+    expect(enc({id: 'x'})).toBe('{"id":"x"}'); // note omitted when absent
+    expect(enc({id: 'x', note: 'hi'})).toBe('{"id":"x","note":"hi"}');
+    expect(enc({id: 'x'})).not.toMatch(ENVELOPE);
+    expect(enc({id: 'x', note: 'hi'})).not.toMatch(ENVELOPE);
+  });
+
+  it('RT.optional(RT.boolean()) → plain boolean, never [index, value]', () => {
+    const enc = createJsonEncoder(RT.object({active: RT.optional(RT.boolean())}));
+    expect(enc({active: false})).toBe('{"active":false}');
+    expect(enc({active: true})).toBe('{"active":true}');
+    expect(enc({})).toBe('{}');
+    expect(enc({active: false})).not.toMatch(ENVELOPE);
+  });
+
+  // Marker coverage rule: both getRunTypeId shapes — reflection getRunTypeId(schema)
+  // and static getRunTypeId<T>() — must land on ONE id, i.e. the schema optional
+  // models `note?: string`, not a `string | undefined` union.
+  it('schema optional converges with type-first on one id (reflect + static)', () => {
+    const schema = RT.object({id: TF.string(), note: RT.optional(TF.string())});
+    const reflectId = getRunTypeId(schema);
+    const staticId = getRunTypeId<{id: string; note?: string}>();
+    expect(reflectId).toBe(staticId);
+  });
+
+  it('schema optionals still round-trip through the decoder', () => {
+    const enc = createJsonEncoder(RT.object({note: RT.optional(TF.string())}));
+    const dec = createJsonDecoder(RT.object({note: RT.optional(TF.string())}));
+    expect(dec(enc({note: 'hi'})!)).toEqual({note: 'hi'});
+    expect(dec(enc({})!)).toEqual({});
   });
 });
