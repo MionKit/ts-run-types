@@ -26,6 +26,15 @@ func (StripUnknownKeysEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — see isNoopForUnknownKeys (shared five-family mirror).
+func (StripUnknownKeysEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForUnknownKeys(rt, ctx, stripUnknownKeysNoopSpec)
+}
+
+// NoopChildComposesAround — a child with nothing to strip mutates nothing;
+// empty code composes correctly.
+func (StripUnknownKeysEmitter) NoopChildComposesAround() {}
+
 func (StripUnknownKeysEmitter) ReturnName() string {
 	return "v"
 }

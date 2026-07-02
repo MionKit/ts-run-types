@@ -43,6 +43,18 @@ type CircDate = {at: Date; next?: CircDate};
 class Account {id: number = 0; name: string = ''}
 type WithUndef = {u: undefined; v: void};
 type DeepNest = {l1: {l2: {l3: Nested[]}}};
+type LitOnly = 'only';
+type LitObj = {k: 'a'; n: 3};
+type LitTup = ['x', 1];
+type TmplKeyRec = {[key: ` + "`k${string}`" + `]: number};
+type RecAtomic = {[key: string]: number};
+type WithNever = {name: string; bad: never};
+getRunTypeId<LitOnly>();
+getRunTypeId<LitObj>();
+getRunTypeId<LitTup>();
+getRunTypeId<TmplKeyRec>();
+getRunTypeId<RecAtomic>();
+getRunTypeId<WithNever>();
 getRunTypeId<FmtTrim>();
 getRunTypeId<FmtLenOnly>();
 getRunTypeId<FmtInUnion>();
@@ -128,10 +140,22 @@ func TestNoopPredicate_SoundAgainstEmitters(t *testing.T) {
 		}
 	}
 	emitters := map[string]typefns.Emitter{
-		"prepareForJson":     typefns.PrepareForJsonEmitter{},
-		"restoreFromJson":    typefns.RestoreFromJsonEmitter{},
-		"prepareForJsonSafe": typefns.PrepareForJsonSafeEmitter{},
-		"formatTransform":    typefns.FormatTransformEmitter{},
+		"prepareForJson":             typefns.PrepareForJsonEmitter{},
+		"restoreFromJson":            typefns.RestoreFromJsonEmitter{},
+		"prepareForJsonSafe":         typefns.PrepareForJsonSafeEmitter{},
+		"formatTransform":            typefns.FormatTransformEmitter{},
+		"validate":                   typefns.ValidateEmitter{},
+		"validationErrors":           typefns.ValidationErrorsEmitter{},
+		"stringifyJson":              typefns.StringifyJsonEmitter{},
+		"compactForJson":             typefns.CompactForJsonEmitter{},
+		"compactFromJson":            typefns.CompactFromJsonEmitter{},
+		"toBinary":                   typefns.ToBinaryEmitter{},
+		"fromBinary":                 typefns.FromBinaryEmitter{},
+		"hasUnknownKeys":             typefns.HasUnknownKeysEmitter{},
+		"stripUnknownKeys":           typefns.StripUnknownKeysEmitter{},
+		"unknownKeyErrors":           typefns.UnknownKeyErrorsEmitter{},
+		"unknownKeysToUndefined":     typefns.UnknownKeysToUndefinedEmitter{},
+		"unknownKeysToUndefinedWire": typefns.UnknownKeysToUndefinedWireEmitter{},
 	}
 	facts := typefns.NewFactsTable()
 	checked, skippedCyclic, conservativeMisses := 0, 0, 0

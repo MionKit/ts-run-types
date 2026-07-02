@@ -111,6 +111,17 @@ func (ToBinaryEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — the tb entry writes no bytes exactly for literal-only graphs
+// with no optional/rest/index slots and no format annotations (see
+// isNoopForToBinary).
+func (ToBinaryEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForToBinary(rt, ctx)
+}
+
+// NoopChildComposesAround — a child that writes no bytes contributes nothing
+// to the serializer stream; empty code composes correctly.
+func (ToBinaryEmitter) NoopChildComposesAround() {}
+
 // ReturnName is the serializer arg (`Ser`). Per
 // `RTFunctions.toBinary.returnName = rtBinarySerializerArgs.sεr`
 // (constants.functions.ts:111) — the inner fn returns the serializer

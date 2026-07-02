@@ -76,6 +76,9 @@ func (FormatTransformEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext)
 	return isNoopForFormatTransform(rt, ctx)
 }
 
+// NoopChildComposesAround — a subtree with no transform mutates nothing; empty code composes correctly.
+func (FormatTransformEmitter) NoopChildComposesAround() {}
+
 // ReturnName is `v` — format mutates the input value (or rebinds via
 // `v = …` at a transforming leaf) and returns it.
 func (FormatTransformEmitter) ReturnName() string {

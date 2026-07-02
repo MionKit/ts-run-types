@@ -32,22 +32,44 @@ import "github.com/mionkit/ts-runtypes/internal/protocol"
 // node's in-walk value can depend on the cycle-back assumption for an
 // ancestor still on the stack), exactly like FactsTable's other predicates.
 
-// NoopTypePredicate is the optional Emitter capability behind the walker's
-// dispatch-time noop gate. Implement it only when the family has a sound
-// type-graph characterization of "entry is the family identity" AND the
-// gate's compose-around contract holds — the gate replaces the child call
-// with EMPTY code, which is only correct for value-transform families
-// (identity = leave the slot alone). pj / rj / pjs / fmt implement it today.
-// Families without it keep the dep-call behavior: tb / fb always do real
-// work; the unknown-keys group's only elidable case (dep-calls to named
-// primitive-collection children) isn't worth a per-family mirror table; and
-// sj must NEVER get one — its parents concatenate the child call's JSON
-// FRAGMENT, so composing around with empty code drops the property from the
-// output (and its compound bodies genuinely differ from native JSON anyway:
-// extras-strip, declaration order, bare-number join vs "null" for NaN). sj's
-// native atomic roots are flagged by the Finalize byte-match instead.
+// NoopTypePredicate is the Emitter capability that decides "is this family's
+// entry for T the family identity?" over the TYPE GRAPH. EVERY family
+// implements it — the noop VERDICT on an emitted entry is decided by the
+// predicate, never by inspecting the emitted text (Finalize's shape result
+// survives only as the renderer's protective tripwire: a predicate that
+// claims noop while the compiled body disagrees ships the live body and
+// logs — see renderEntryWithDeps).
+//
+// Each predicate mirrors ITS OWN emitter arm-by-arm; where an emitter arm
+// delegates to another family's helpers, the predicate arm delegates to that
+// family's predicate the same way (compactForJson reuses prepareForJsonSafe's
+// wholesale — their diverging object arms agree on never-noop; compactFromJson
+// delegates restoreFromJson's shared arms but answers false at its own object
+// arms, where restoreFromJson's raw round-trip does NOT hold for the
+// positional rebuild). Where an emitter decides a slot through a helper
+// (isStrippedUnionMember, objectHasIndexSignatureChild, iterableInnerTypes,
+// literalFlavour, …), the predicate calls the SAME helper so that arm cannot
+// drift.
 type NoopTypePredicate interface {
 	IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool
+}
+
+// NoopComposeAround additionally marks the families whose predicate may feed
+// the walker's dispatch-time noop gate: the gate replaces a noop child's dep
+// call with EMPTY code, which is sound only for value-transform semantics
+// ("noop child" = leave the value / error list / byte stream untouched, so
+// emitting nothing composes correctly). Two families must stay OFF the gate:
+// stringifyJson parents concatenate the child call's returned JSON FRAGMENT
+// (composing around with empty code silently drops the property from the
+// output — a substitution gate emitting `JSON.stringify(<accessor>)` would be
+// needed instead), and fromBinary parents advance positionally through the
+// byte stream (skipping a child decode desynchronizes every later read).
+type NoopComposeAround interface {
+	NoopTypePredicate
+	// NoopChildComposesAround is a marker method (empty implementations):
+	// asserting it is the family's claim that empty code is the correct
+	// composition for a noop child.
+	NoopChildComposesAround()
 }
 
 // jsonNoopMode selects between the encode (prepareForJson) and decode
@@ -175,9 +197,12 @@ func jsonNoopRecursive(rt *protocol.RunType, ctx *EmitContext, mode jsonNoopMode
 		if resolved == nil {
 			return true
 		}
-		// Function-typed properties are dropped slots in both emitters
-		// (emitPropertyPrepareForJson / emitPropertyRestoreFromJson).
-		if isFunctionLikeKind(resolved.Kind) {
+		// Directly DataOnly-stripped values (function-like / symbol / never /
+		// Promise / non-serializable natives) are dropped slots in both
+		// emitters — the same isStrippedUnionMember test strippedPropertyDrop
+		// keys the drop on (the diagnostic-emitting wrapper stays with the
+		// emitters; the predicate shares the pure decision).
+		if isStrippedUnionMember(resolved) {
 			return true
 		}
 		return jsonNoopRecursive(resolved, ctx, mode, visited)
@@ -222,7 +247,7 @@ func jsonNoopRecursive(rt *protocol.RunType, ctx *EmitContext, mode jsonNoopMode
 		return false
 
 	case protocol.KindUnion:
-		return unionJsonNoop(rt, ctx, mode)
+		return unionJsonNoop(rt, ctx)
 	}
 	// Void (`v = undefined` on both halves), BigInt / Symbol / Regexp
 	// (value transforms), Never / Promise / function kinds (CodeNS), and
@@ -252,39 +277,27 @@ func jsonNoopObjectChildren(children []*protocol.RunType, ctx *EmitContext, mode
 	return true
 }
 
-// unionJsonNoop mirrors the flat-union emitters' top gates
+// unionJsonNoop mirrors the flat-union emitters' shared "" gates
 // (emitUnionPrepareForJsonFlat / emitUnionRestoreFromJsonFlat + the
-// buildFlatLayout bucketing they share, union_flat_layout.go):
-//
-//   - encode (pj): any resolvable member at all ⇒ the emit produces the
-//     member guard chain ending in the union-mismatch throw — that throw is
-//     load-bearing encode-time validation, so the entry is never identity.
-//     Only the degenerate all-members-dangling layout emits nothing.
-//   - decode (rj): the emit is "" exactly when AtomicNeedsTuple is false —
-//     i.e. the union round-trips raw (roundTripsRaw): EVERY member, atomic
-//     AND object/record bucket, is JSON-compatible, so nothing was enveloped
-//     on encode and the decoder is identity. A member carrying a transform
-//     (a non-JSON-compatible atomic OR a non-JSON-compatible object member)
-//     forces the envelope, so its decoder does real unwrap work. Mirrors
-//     union_flat_layout.go's AtomicNeedsTuple = !roundTripsRaw.
-func unionJsonNoop(rt *protocol.RunType, ctx *EmitContext, mode jsonNoopMode) bool {
+// buildFlatLayout bucketing they share, union_flat_layout.go): BOTH halves
+// are identity exactly when the union round-trips raw — after
+// DataOnly-stripping, EVERY member (atomic AND object/record bucket) is
+// JSON-compatible. Mutate then has no transform to apply and emits no
+// envelope (a compatible object member passes through untouched — mutate
+// never strips), and the decoder has nothing to unwrap. A member carrying a
+// transform forces the `[idx, value]` / `[-1, merged]` envelope on encode
+// and the unwrap on decode — real code on both halves. Mirrors
+// union_flat_layout.go's AtomicNeedsTuple = !roundTripsRaw; the degenerate
+// all-dangling / all-stripped layout emits nothing on either half.
+func unionJsonNoop(rt *protocol.RunType, ctx *EmitContext) bool {
 	children := rt.SafeUnionChildren
 	if len(children) == 0 {
 		children = rt.Children
 	}
-	if mode == noopModePrepare {
-		// Any resolvable member ⇒ guard chain + throw. Noop only for the
-		// degenerate all-members-dangling layout (both emitters' early "").
-		for _, ref := range children {
-			if ctx.ResolveRef(ref) != nil {
-				return false
-			}
-		}
-		return true
-	}
 	for _, ref := range children {
 		resolved := ctx.ResolveRef(ref)
-		if resolved == nil {
+		if resolved == nil || isStrippedUnionMember(resolved) {
+			// dataOnlyUnionMembers drops stripped members before bucketing.
 			continue
 		}
 		// buildFlatLayout bucketing: object-like members carrying an index
@@ -305,7 +318,7 @@ func unionJsonNoop(rt *protocol.RunType, ctx *EmitContext, mode jsonNoopMode) bo
 			// Object bucket — merges into the [-1, merged] envelope ONLY when it
 			// carries a transform. A fully JSON-compatible object/record member
 			// round-trips raw (roundTripsRaw ⇒ AtomicNeedsTuple false ⇒ identity
-			// decode), so it no longer forces non-noop.
+			// on both halves), so it no longer forces non-noop.
 			if !isJsonCompatible(resolved, ctx) {
 				return false
 			}
@@ -482,6 +495,553 @@ func formatNoopObjectChildren(children []*protocol.RunType, ctx *EmitContext, vi
 		}
 	}
 	return true
+}
+
+/** isNoopForValidate reports whether the val entry for rt is `() => true`. **/
+// Mirrors ValidateEmitter.Emit: only root any/unknown emit the bare `true`
+// (every other kind emits a load-bearing check, and validate variants only
+// reshape bodies that already check something). Applies identically to every
+// ValidateOptions variant — options cannot make any/unknown check more.
+func isNoopForValidate(rt *protocol.RunType, ctx *EmitContext) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		return false
+	}
+	return rt.Kind == protocol.KindAny || rt.Kind == protocol.KindUnknown
+}
+
+/** isNoopForValidationErrors reports whether the verr entry for rt is the
+ *  error-list passthrough. **/
+// Mirrors ValidationErrorsEmitter.Emit: only root any/unknown emit nothing.
+func isNoopForValidationErrors(rt *protocol.RunType, ctx *EmitContext) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		return false
+	}
+	return rt.Kind == protocol.KindAny || rt.Kind == protocol.KindUnknown
+}
+
+/** isNoopForStringifyJson reports whether the sj entry for rt is native
+ *  JSON.stringify. **/
+// ROOT-ONLY mirror of StringifyJsonEmitter.Emit's delegation arms — the kinds
+// whose whole body is `return JSON.stringify(v)`: any/unknown/object (no
+// schema info), string/template-literal, string-indexed (or index-less)
+// enums, and primitive literals. Number/null roots emit `return String(v)`
+// (String(NaN) is "NaN", native JSON yields "null") and booleans emit the
+// ternary — not the native call, so they stay live. No recursion: every
+// compound sj body builds the JSON text itself (extras stripped, declaration
+// order), which native stringify does not reproduce. sj deliberately does NOT
+// implement NoopComposeAround — see that interface's doc.
+func isNoopForStringifyJson(rt *protocol.RunType, ctx *EmitContext) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		return false
+	}
+	switch rt.Kind {
+	case protocol.KindAny, protocol.KindUnknown, protocol.KindObject,
+		protocol.KindString, protocol.KindTemplateLiteral:
+		return true
+	case protocol.KindEnum:
+		// Number-indexed enums emit the bare value; string enums (and enums
+		// with no IndexT) delegate to JSON.stringify.
+		if rt.IndexT != nil {
+			indexResolved := ctx.ResolveRef(rt.IndexT)
+			if indexResolved != nil && indexResolved.Kind == protocol.KindNumber {
+				return false
+			}
+		}
+		return true
+	case protocol.KindLiteral:
+		return literalFlavour(rt) == litPrimitive
+	}
+	return false
+}
+
+/** isNoopForCompactFromJson reports whether the cjr entry for rt is the
+ *  identity. **/
+// Mirrors CompactFromJsonEmitter.Emit, which reuses restoreFromJson's arms
+// EXCEPT at object positions — the positional→keyed rebuild is real work for
+// every object shape restoreFromJson would let round-trip raw. Atomic and
+// literal arms match rj; undefined/void force-rebind; Date/Temporal/Map/Set/
+// classes rebuild; the union arm IS emitUnionRestoreFromJsonFlat, so its
+// noop condition delegates to the shared restore-side union rule.
+func isNoopForCompactFromJson(rt *protocol.RunType, ctx *EmitContext) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		return false
+	}
+	if rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(factNoopCompactFromJson, rt.ID); known {
+			return verdict
+		}
+	}
+	result := compactFromJsonNoopRecursive(rt, ctx, make(map[string]struct{}))
+	if rt.ID != "" {
+		ctx.walker.factsStore(factNoopCompactFromJson, rt.ID, result)
+	}
+	return result
+}
+
+func compactFromJsonNoopRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[string]struct{}) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		return true
+	}
+	if rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(factNoopCompactFromJson, rt.ID); known {
+			return verdict
+		}
+		if _, seen := visited[rt.ID]; seen {
+			return true
+		}
+		visited[rt.ID] = struct{}{}
+	}
+	switch rt.Kind {
+
+	case protocol.KindAny, protocol.KindUnknown,
+		protocol.KindNull,
+		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
+		protocol.KindObject, protocol.KindEnum:
+		return true
+
+	case protocol.KindIntersection, protocol.KindTemplateLiteral:
+		return true
+
+	case protocol.KindLiteral:
+		return literalFlavour(rt) == litPrimitive
+
+	case protocol.KindObjectLiteral, protocol.KindClass:
+		// Every object shape (and every class subkind — Date/Temporal/Map/Set
+		// rebuild, plain classes take the positional rebuild + serializer
+		// wrap) does real decode work under compact.
+		return false
+
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		if rt.Child == nil {
+			return true
+		}
+		resolved := ctx.ResolveRef(rt.Child)
+		if resolved == nil || isStrippedUnionMember(resolved) {
+			return true
+		}
+		return compactFromJsonNoopRecursive(resolved, ctx, visited)
+
+	case protocol.KindArray:
+		if rt.Child == nil {
+			return true
+		}
+		return compactFromJsonNoopRecursive(rt.Child, ctx, visited)
+
+	case protocol.KindTuple:
+		for _, child := range rt.Children {
+			if !compactFromJsonNoopRecursive(child, ctx, visited) {
+				return false
+			}
+		}
+		return true
+
+	case protocol.KindTupleMember:
+		// Same rule as restoreFromJson: optional slots normalize (never
+		// identity), required slots follow their child.
+		if rt.Optional {
+			return false
+		}
+		if rt.Child == nil {
+			return true
+		}
+		return compactFromJsonNoopRecursive(rt.Child, ctx, visited)
+
+	case protocol.KindIndexSignature:
+		if rt.Child == nil || isSymbolKeyedIndexSig(rt, ctx) {
+			return true
+		}
+		return compactFromJsonNoopRecursive(rt.Child, ctx, visited)
+
+	case protocol.KindUnion:
+		// The compact union arm IS emitUnionRestoreFromJsonFlat — delegate
+		// to the shared flat-union rule (roundTripsRaw ⇒ identity).
+		return unionJsonNoop(rt, ctx)
+	}
+	// undefined/void (force-rebind), bigint/symbol/regexp (value
+	// transforms), never/promise/function kinds (unsupported), and any
+	// future kind: not noop.
+	return false
+}
+
+/** isNoopForToBinary reports whether the tb entry for rt writes no bytes. **/
+// Mirrors ToBinaryEmitter.Emit: literals write nothing (the value is restored
+// from the RunType at decode — v1 has no noLiterals), dropped property slots
+// write nothing, and objects/tuples of only such members write nothing —
+// PROVIDED no optional member forces the presence bitmap and no member
+// carries a format annotation (binaryToOverride may write) or an index
+// signature / rest slot (dynamic counts always serialize). Everything else —
+// atoms, arrays (varint length prefix), unions (discriminant), enums,
+// Date/Map/Set/classes — writes bytes.
+func isNoopForToBinary(rt *protocol.RunType, ctx *EmitContext) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		return false
+	}
+	if rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(factNoopToBinary, rt.ID); known {
+			return verdict
+		}
+	}
+	result := toBinaryNoopRecursive(rt, ctx, make(map[string]struct{}))
+	if rt.ID != "" {
+		ctx.walker.factsStore(factNoopToBinary, rt.ID, result)
+	}
+	return result
+}
+
+func toBinaryNoopRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[string]struct{}) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		return true
+	}
+	if rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(factNoopToBinary, rt.ID); known {
+			return verdict
+		}
+		if _, seen := visited[rt.ID]; seen {
+			return true
+		}
+		visited[rt.ID] = struct{}{}
+	}
+	// A format annotation may carry its own binary encode (binaryToOverride).
+	if rt.FormatAnnotation != nil {
+		return false
+	}
+	switch rt.Kind {
+
+	case protocol.KindLiteral:
+		// emitLiteralToBinary writes nothing for every flavour in v1.
+		return true
+
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		if rt.Optional {
+			// Presence rides the parent object's bitmap — real bytes.
+			return false
+		}
+		if rt.Child == nil {
+			return true
+		}
+		resolved := ctx.ResolveRef(rt.Child)
+		if resolved == nil || isStrippedUnionMember(resolved) {
+			return true
+		}
+		return toBinaryNoopRecursive(resolved, ctx, visited)
+
+	case protocol.KindObjectLiteral:
+		return toBinaryNoopObjectChildren(rt, ctx, visited)
+
+	case protocol.KindClass:
+		if rt.SubKind == protocol.SubKindNone {
+			return toBinaryNoopObjectChildren(rt, ctx, visited)
+		}
+		return false
+
+	case protocol.KindTuple:
+		for _, childRef := range rt.Children {
+			resolved := ctx.ResolveRef(childRef)
+			if resolved == nil {
+				continue
+			}
+			if resolved.Optional || isRestTupleMember(resolved) {
+				// Optional slots ride the bitmap; rest slots write a count.
+				return false
+			}
+			if !toBinaryNoopRecursive(resolved, ctx, visited) {
+				return false
+			}
+		}
+		return true
+
+	case protocol.KindTupleMember:
+		if rt.Optional || isRestTupleMember(rt) {
+			return false
+		}
+		if rt.Child == nil {
+			return true
+		}
+		return toBinaryNoopRecursive(rt.Child, ctx, visited)
+	}
+	// Atoms (even undefined/void write a sentinel), any/unknown/object
+	// (serString of the JSON form), arrays (length prefix), unions
+	// (discriminant), enums, index signatures (key count), Date / Temporal /
+	// Map / Set / builtins, and any future kind: bytes are written.
+	return false
+}
+
+// toBinaryNoopObjectChildren mirrors emitObjectToBinary's member walk: a
+// call-signature-carrying interface is function-like (never noop here — the
+// emit is CodeNS), an index signature writes the dynamic key count, an
+// optional member forces the presence bitmap, static and function-like slots
+// are skipped, and every surviving member must itself write nothing.
+func toBinaryNoopObjectChildren(rt *protocol.RunType, ctx *EmitContext, visited map[string]struct{}) bool {
+	if objectHasCallSignature(rt, ctx) {
+		return false
+	}
+	for _, childRef := range rt.Children {
+		resolved := ctx.ResolveRef(childRef)
+		if resolved == nil {
+			continue
+		}
+		if resolved.IsStatic || isFunctionLikeKind(resolved.Kind) {
+			continue
+		}
+		if resolved.Kind == protocol.KindIndexSignature {
+			return false
+		}
+		if resolved.Optional {
+			return false
+		}
+		if !toBinaryNoopRecursive(resolved, ctx, visited) {
+			return false
+		}
+	}
+	return true
+}
+
+// unknownKeysNoopSpec parameterises the shared unknown-keys predicate across
+// the five family variants — the families differ in what they DO at a node,
+// and (in exactly two spots) in WHETHER a node emits at all.
+type unknownKeysNoopSpec struct {
+	// fact is the family's own memo lane (verdicts differ per family).
+	fact factKind
+	// tupleAlwaysNoop — uku / ukuw no-op at tuples by design
+	// (emitTupleUnknownKeysToUndefined); has / strip / errors recurse.
+	tupleAlwaysNoop bool
+	// mapSetAlwaysNoop — ukuw keeps the Map/Set arm noop on the wire side
+	// (the instanceof check cannot match the still-parsed array); the other
+	// four recurse into the iterable's inner types.
+	mapSetAlwaysNoop bool
+}
+
+var (
+	hasUnknownKeysNoopSpec         = unknownKeysNoopSpec{fact: factNoopHasUnknownKeys}
+	stripUnknownKeysNoopSpec       = unknownKeysNoopSpec{fact: factNoopStripUnknownKeys}
+	unknownKeyErrorsNoopSpec       = unknownKeysNoopSpec{fact: factNoopUnknownKeyErrors}
+	unknownKeysToUndefinedNoopSpec = unknownKeysNoopSpec{fact: factNoopUnknownKeysToUndefined, tupleAlwaysNoop: true}
+	unknownKeysToUndefinedWireSpec = unknownKeysNoopSpec{fact: factNoopUnknownKeysToUndefinedWire, tupleAlwaysNoop: true, mapSetAlwaysNoop: true}
+)
+
+/** isNoopForUnknownKeys reports whether an unknown-keys family entry for rt
+ *  is the family identity. **/
+// Shared mirror of the five emitters' common arms (unknownkeys_arms.go /
+// unknownkeys_shared.go): the only key-carrying position is an object with
+// statically-declared names (the parent allowlist probe) or a
+// template-literal-keyed index signature (the pattern sweep); everything
+// else recurses or no-ops. Per-family divergences ride unknownKeysNoopSpec.
+func isNoopForUnknownKeys(rt *protocol.RunType, ctx *EmitContext, spec unknownKeysNoopSpec) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		return false
+	}
+	if rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(spec.fact, rt.ID); known {
+			return verdict
+		}
+	}
+	result := unknownKeysNoopRecursive(rt, ctx, spec, make(map[string]struct{}))
+	if rt.ID != "" {
+		ctx.walker.factsStore(spec.fact, rt.ID, result)
+	}
+	return result
+}
+
+func unknownKeysNoopRecursive(rt *protocol.RunType, ctx *EmitContext, spec unknownKeysNoopSpec, visited map[string]struct{}) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		return true
+	}
+	if rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(spec.fact, rt.ID); known {
+			return verdict
+		}
+		if _, seen := visited[rt.ID]; seen {
+			return true
+		}
+		visited[rt.ID] = struct{}{}
+	}
+	switch rt.Kind {
+
+	case protocol.KindObjectLiteral:
+		return unknownKeysNoopObject(rt, ctx, spec, visited)
+
+	case protocol.KindClass:
+		switch rt.SubKind {
+		case protocol.SubKindNone:
+			return unknownKeysNoopObject(rt, ctx, spec, visited)
+		case protocol.SubKindMap, protocol.SubKindSet:
+			if spec.mapSetAlwaysNoop {
+				return true
+			}
+			for _, innerType := range iterableInnerTypes(rt, ctx) {
+				if innerType == nil {
+					continue
+				}
+				if !unknownKeysNoopRecursive(innerType, ctx, spec, visited) {
+					return false
+				}
+			}
+			return true
+		}
+		// Date / Temporal / NonSerializable / future subkinds: no keys to
+		// manage — every family's arm returns empty there.
+		return true
+
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		if rt.Child == nil {
+			return true
+		}
+		resolved := ctx.ResolveRef(rt.Child)
+		if resolved == nil || isFunctionLikeKind(resolved.Kind) || resolved.IsStatic {
+			return true
+		}
+		return unknownKeysNoopRecursive(resolved, ctx, spec, visited)
+
+	case protocol.KindArray:
+		if rt.Child == nil {
+			return true
+		}
+		resolved := ctx.ResolveRef(rt.Child)
+		if resolved == nil || protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
+			return true
+		}
+		return unknownKeysNoopRecursive(resolved, ctx, spec, visited)
+
+	case protocol.KindTuple:
+		if spec.tupleAlwaysNoop {
+			return true
+		}
+		for _, child := range rt.Children {
+			if !unknownKeysNoopRecursive(child, ctx, spec, visited) {
+				return false
+			}
+		}
+		return true
+
+	case protocol.KindTupleMember:
+		if spec.tupleAlwaysNoop {
+			return true
+		}
+		if rt.Child == nil {
+			return true
+		}
+		resolved := ctx.ResolveRef(rt.Child)
+		if resolved == nil || protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
+			return true
+		}
+		return unknownKeysNoopRecursive(resolved, ctx, spec, visited)
+
+	case protocol.KindIndexSignature:
+		return unknownKeysNoopIndexSignature(rt, ctx, spec, visited)
+
+	case protocol.KindUnion:
+		return unknownKeysNoopUnion(rt, ctx)
+	}
+	// Atoms, never, functions, promises, intersections, template literals:
+	// no keys to manage.
+	return true
+}
+
+// unknownKeysNoopObject mirrors the shared object arm: without an index
+// signature ANY named child (function-typed and static names included — the
+// allowlist covers them) triggers the parent probe; with one, the parent
+// probe is suppressed and the children decide.
+func unknownKeysNoopObject(rt *protocol.RunType, ctx *EmitContext, spec unknownKeysNoopSpec, visited map[string]struct{}) bool {
+	hasIndex := objectHasIndexSignatureChild(rt, ctx)
+	if !hasIndex {
+		for _, childRef := range rt.Children {
+			resolved := ctx.ResolveRef(childRef)
+			if resolved == nil || resolved.Kind == protocol.KindIndexSignature {
+				continue
+			}
+			if resolved.Name != "" {
+				// callCheckUnknownPropertiesForHas emits the probe.
+				return false
+			}
+		}
+	}
+	for _, childRef := range rt.Children {
+		resolved := ctx.ResolveRef(childRef)
+		if resolved == nil {
+			continue
+		}
+		if resolved.IsStatic || isFunctionLikeKind(resolved.Kind) {
+			continue
+		}
+		if !unknownKeysNoopRecursive(resolved, ctx, spec, visited) {
+			return false
+		}
+	}
+	return true
+}
+
+// unknownKeysNoopIndexSignature mirrors the shared index-signature arm: a
+// template-literal key pattern always sweeps (real code); otherwise atomic
+// values have nothing to recurse into and every key is "known".
+func unknownKeysNoopIndexSignature(rt *protocol.RunType, ctx *EmitContext, spec unknownKeysNoopSpec, visited map[string]struct{}) bool {
+	if rt.Child == nil || isSymbolKeyedIndexSig(rt, ctx) {
+		return true
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+		return true
+	}
+	if rt.Index != nil {
+		indexResolved := ctx.ResolveRef(rt.Index)
+		if indexResolved != nil && indexResolved.Kind == protocol.KindTemplateLiteral {
+			if _, ok := buildTemplateLiteralRegex(indexResolved); ok {
+				return false
+			}
+		}
+	}
+	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
+		return true
+	}
+	return unknownKeysNoopRecursive(resolved, ctx, spec, visited)
+}
+
+// unknownKeysNoopUnion mirrors emitUnionUnknownKeysMerged's empty-emit
+// conditions (identical across all five families — the wire flag changes
+// only the body shape): any object-like member carrying an index signature
+// kills the merged allowlist for the whole union; with no object members —
+// or object members exposing no named properties to merge — there is
+// nothing to sweep. Member stripping mirrors dataOnlyUnionMembers via the
+// same isStrippedUnionMember helper.
+func unknownKeysNoopUnion(rt *protocol.RunType, ctx *EmitContext) bool {
+	children := rt.SafeUnionChildren
+	if len(children) == 0 {
+		children = rt.Children
+	}
+	anyObjectMember := false
+	anyMergedProp := false
+	for _, ref := range children {
+		resolved := ctx.ResolveRef(ref)
+		if resolved == nil || isStrippedUnionMember(resolved) {
+			continue
+		}
+		if isObjectLikeKind(resolved.Kind) && objectHasIndexSignatureChild(resolved, ctx) {
+			// buildFlatLayout's index-sig carve-out — the whole family no-ops.
+			return true
+		}
+		if resolved.Kind != protocol.KindObjectLiteral && (resolved.Kind != protocol.KindClass || resolved.SubKind != protocol.SubKindNone) {
+			continue
+		}
+		anyObjectMember = true
+		for _, memberChild := range resolved.Children {
+			prop := ctx.ResolveRef(memberChild)
+			if prop == nil || prop.IsStatic || isFunctionLikeKind(prop.Kind) {
+				continue
+			}
+			if (prop.Kind == protocol.KindProperty || prop.Kind == protocol.KindPropertySignature) && prop.Name != "" {
+				anyMergedProp = true
+			}
+		}
+	}
+	return !anyObjectMember || !anyMergedProp
 }
 
 // NoopPredicateAgreement is the corpus-test surface: it returns the emitter

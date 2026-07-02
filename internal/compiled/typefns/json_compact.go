@@ -80,6 +80,18 @@ func (CompactForJsonEmitter) Finalize(raw string) (string, bool) {
 
 func (CompactForJsonEmitter) ReturnName() string { return "v" }
 
+// IsNoopType delegates to prepareForJsonSafe's predicate: cj reuses pjs's
+// emit for every arm except objects, and BOTH treat objects as never-noop
+// (pjs always clones, cj always builds the positional array) — so the
+// delegation is exact.
+func (CompactForJsonEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForPrepareJsonSafe(rt, ctx)
+}
+
+// NoopChildComposesAround — cj shares pjs's composition rule (an elided
+// child slot is shared by reference), so empty code composes correctly.
+func (CompactForJsonEmitter) NoopChildComposesAround() {}
+
 // Emit mirrors PrepareForJsonSafeEmitter.Emit; only the object-literal and
 // plain-class (SubKindNone) arms diverge to the positional form. Everything else
 // delegates to the shared prepareForJsonSafe helpers.

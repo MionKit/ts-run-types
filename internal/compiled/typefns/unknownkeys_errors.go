@@ -30,6 +30,15 @@ func (UnknownKeyErrorsEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — see isNoopForUnknownKeys (shared five-family mirror).
+func (UnknownKeyErrorsEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForUnknownKeys(rt, ctx, unknownKeyErrorsNoopSpec)
+}
+
+// NoopChildComposesAround — a child that never records an unknown-key error
+// contributes nothing; empty code composes correctly.
+func (UnknownKeyErrorsEmitter) NoopChildComposesAround() {}
+
 func (UnknownKeyErrorsEmitter) ReturnName() string {
 	return "er"
 }

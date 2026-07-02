@@ -53,6 +53,19 @@ func (CompactFromJsonEmitter) Finalize(raw string) (string, bool) {
 
 func (CompactFromJsonEmitter) ReturnName() string { return "v" }
 
+// IsNoopType — restoreFromJson's arms with the object arms forced false (the
+// positional rebuild is real work where rj would round-trip raw); see
+// isNoopForCompactFromJson. Delegating rj's predicate wholesale would be
+// UNSOUND — the gate would skip the rebuild and decoded objects would stay
+// positional arrays.
+func (CompactFromJsonEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForCompactFromJson(rt, ctx)
+}
+
+// NoopChildComposesAround — an identity child slot passes through unchanged
+// (same composition rule as restoreFromJson); empty code composes correctly.
+func (CompactFromJsonEmitter) NoopChildComposesAround() {}
+
 // Emit mirrors RestoreFromJsonEmitter.Emit; only the object-literal and
 // plain-class (SubKindNone) arms diverge to the positional rebuild.
 func (CompactFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {

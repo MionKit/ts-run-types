@@ -25,6 +25,16 @@ func (UnknownKeysToUndefinedEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType — see isNoopForUnknownKeys (shared five-family mirror; uku
+// additionally no-ops at tuples by design).
+func (UnknownKeysToUndefinedEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForUnknownKeys(rt, ctx, unknownKeysToUndefinedNoopSpec)
+}
+
+// NoopChildComposesAround — a child with nothing to undefine mutates
+// nothing; empty code composes correctly.
+func (UnknownKeysToUndefinedEmitter) NoopChildComposesAround() {}
+
 func (UnknownKeysToUndefinedEmitter) ReturnName() string {
 	return "v"
 }
