@@ -34,12 +34,18 @@ import "github.com/mionkit/ts-runtypes/internal/protocol"
 
 // NoopTypePredicate is the optional Emitter capability behind the walker's
 // dispatch-time noop gate. Implement it only when the family has a sound
-// type-graph characterization of "entry is the family identity" — pj / rj /
-// pjs / fmt implement it today. Families without it keep the dep-call
-// behavior: tb / fb always do real work, sj's compound bodies genuinely
-// differ from native JSON (extras-strip + declaration order — its native
-// atomic roots are flagged by the Finalize byte-match instead), and the
-// unknown-keys group has no predicate yet.
+// type-graph characterization of "entry is the family identity" AND the
+// gate's compose-around contract holds — the gate replaces the child call
+// with EMPTY code, which is only correct for value-transform families
+// (identity = leave the slot alone). pj / rj / pjs / fmt implement it today.
+// Families without it keep the dep-call behavior: tb / fb always do real
+// work; the unknown-keys group's only elidable case (dep-calls to named
+// primitive-collection children) isn't worth a per-family mirror table; and
+// sj must NEVER get one — its parents concatenate the child call's JSON
+// FRAGMENT, so composing around with empty code drops the property from the
+// output (and its compound bodies genuinely differ from native JSON anyway:
+// extras-strip, declaration order, bare-number join vs "null" for NaN). sj's
+// native atomic roots are flagged by the Finalize byte-match instead.
 type NoopTypePredicate interface {
 	IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool
 }
