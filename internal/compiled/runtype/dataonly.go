@@ -14,6 +14,33 @@ import (
 // package never triggers the special path.
 const dataOnlyAliasName = "DataOnly"
 
+// schemaInternalAliasNames are the ts-runtypes/schema helper aliases that model
+// an object's shape from a value-first `object({...})` builder — `ObjectType<C>`
+// and its optional/readonly/mixed conditional branches. They are compiler-internal
+// and must never surface in reflection. On a COLD scan (before tsgo has
+// instantiated the schema builder types) the modeled type can be left as one of
+// these un-reduced aliases; serializing its name + type arguments (the raw builder
+// config `PropModCarrier<…, RunType<…>>`) then leaks the whole RunType wrapper into
+// the runtype bundle as dead, unreachable entries. Treating the alias as anonymous
+// drops the name AND the type-argument reflection, while the structural walk still
+// projects the modeled object shape.
+var schemaInternalAliasNames = map[string]bool{
+	"ObjectType":         true,
+	"ObjectOptionalOnly": true,
+	"ObjectReadonlyOnly": true,
+	"ObjectMixed":        true,
+}
+
+// isSchemaInternalAlias reports whether aliasSymbol names one of the
+// ts-runtypes/schema object-shape helper aliases (schemaInternalAliasNames),
+// gated on the marker package so a user type of the same name never triggers it.
+func isSchemaInternalAlias(aliasSymbol *ast.Symbol, fs vfspkg.FS) bool {
+	if aliasSymbol == nil || !schemaInternalAliasNames[aliasSymbol.Name] {
+		return false
+	}
+	return marker.DeclaredInModule(aliasSymbol, marker.DefaultModule, fs)
+}
+
 // dataOnlyTypeName recognises a synthesized mapped type that came from
 // instantiating the `DataOnly<T>` utility from `ts-runtypes`
 // and composes a stable label `"DataOnly<<innerName>>"` for it.
