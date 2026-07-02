@@ -1,100 +1,129 @@
 #!/usr/bin/env bash
-# -----------------------------------------------------------------------------
-# setup-claude-web.sh - zero-intervention bootstrap for RunTypes on Claude Code
-# on the web (the managed, ephemeral Linux container that backs a web session).
+# =============================================================================
+# setup-claude-web.sh - one-shot, SELF-CONTAINED bootstrap for RunTypes on
+# Claude Code on the web (the managed, ephemeral Linux container).
 #
-# Claude Code on the web reclaims its container between sessions, so the repo is
-# cloned fresh every time and NOTHING built is persisted. This script lands that
-# fresh container in a runnable state end-to-end, without prompts, so `pnpm test`
-# / `pnpm run website:dev` / `pnpm run bench` all work.
+# +-------------------------------------------------------------------------+
+# | THIS FILE MUST STAY SELF-CONTAINED.                                      |
+# |                                                                         |
+# | It is copy-pasted verbatim into the Claude Code web environment's       |
+# | "setup script" field, so at run time it is NOT `scripts/…` in a checkout|
+# | - it is a lone script in a temp path. It therefore MUST NOT source or   |
+# | call any other repo file (the ts-runtypes-setup skill's setup.sh,       |
+# | scripts/podman-website.sh, scripts/lib-*.sh, pm/*.sh, …) and MUST NOT   |
+# | derive the repo root from BASH_SOURCE. Every step is inlined on purpose.|
+# | If you factor something out into another file, this script breaks the   |
+# | moment it runs from the UI. Keep it standalone; DUPLICATE logic rather  |
+# | than share it.                                                          |
+# |                                                                         |
+# | The interactive, cross-platform, user-assist setup lives separately in  |
+# | .claude/skills/ts-runtypes-setup/ - that one is for humans on their own |
+# | machines (macOS + Linux, brew/apt/dnf/…). THIS one is the autonomous    |
+# | web installer. They are intentionally NOT shared and evolve separately. |
+# +-------------------------------------------------------------------------+
 #
-# It is a thin CLAUDE-WEB wrapper around the OS-agnostic host bootstrap in
-# .claude/skills/ts-runtypes-setup/setup.sh (the single source of truth for
-# podman install, submodules, tsgolint patches, `pnpm install`, the Go resolver
-# binary, and the runtypes-devtools dist). On top of that shared core it adds the
-# things the web container needs and the skill alone does not do:
+# What it does, in one go, no prompts, Linux/apt only:
+#   1. Node 24  - repo requires >= 24 & CI pins 24, but the web image ships
+#      20/21/22. Install via the image's nvm (nodejs.org tarball fallback) and
+#      make it win on the harness's NON-login PATH (which does not source
+#      /etc/profile.d) by symlinking node24 bins into $HOME/.local/bin. pnpm
+#      comes from corepack, pinned to the repo's packageManager.
+#   2. podman   - via apt; confirm the engine is reachable.
+#   3. Go 1.26  - present in the web image; nodejs-style tarball fallback.
+#   4. submodules tsgolint + typescript-go, SKIPPING the 620MB nested
+#      microsoft/TypeScript corpus (only typescript-go's own conformance test
+#      runner needs it, never our `go build`; its checker libs are committed +
+#      go:embed'd in typescript-go/internal/bundled/libs). Skipping it keeps the
+#      clone + ~2m15s Go build + rest under the ~5 min setup budget.
+#   5. tsgolint patches (idempotent).
+#   6. pnpm install --frozen-lockfile.
+#   7. Go resolver binary -> bin/ts-runtypes.
+#   8. runtypes-devtools dist.
+#   9. .env de-clobber - the dev .env's empty secret rows would shadow the
+#      GHCR_PAT the web env injects (lib-env.sh sources .env with `set -a`).
+#  10. GHCR login - the tsrt-website image is PRIVATE. NOTE: actually PULLING it
+#      also needs the egress policy to allow the GHCR blob host
+#      pkg-containers.githubusercontent.com; ghcr.io auth + manifest alone are
+#      not enough. That is a network-policy matter, not this script's - here we
+#      just establish the credential.
 #
-#   1. Node 24. The web image ships Node 20/21/22, but package.json requires
-#      >= 24 and CI pins 24. We install Node 24 (via the image's nvm, or a
-#      nodejs.org tarball fallback) and make it win on PATH for the harness's
-#      NON-login shells - which do not source /etc/profile.d - by symlinking the
-#      node24 binaries into the earliest writable PATH dir ($HOME/.local/bin).
-#      pnpm is provided through corepack, pinned to the repo's packageManager.
+# It runs NO tests or smokes: the web setup step is time-boxed (~5 min), so it
+# only installs + builds + logs in. `pnpm test` is the user's job afterwards; a
+# green run means "ready to work", not "tests passed".
 #
-#   1b. Light submodules. We init tsgolint + typescript-go but skip the 620MB
-#      nested microsoft/TypeScript corpus (only typescript-go's test runner uses
-#      it, never our build), pre-empting the skill's `--recursive` clone. Without
-#      this the clone alone pushes the ~2m15s Go build + rest past the ~5 min
-#      setup budget; with it the whole run lands around ~4 min.
+# BUMP SETUP_DATE below to force the web env to re-run this from a clean
+# container (re-clone, rebuild, re-login) after an upstream change.
 #
-#   2. GHCR login. The docs-website / benchmarks image
-#      (ghcr.io/$GHCR_OWNER/tsrt-website) is PRIVATE, so `podman pull` 403s and
-#      silently falls back to a slow local build unless we log in first. We run
-#      `scripts/podman-website.sh login`, which uses GHCR_PAT (already provided
-#      to the web environment). NOTE: actually PULLING the image also needs the
-#      egress policy to allow the GHCR blob host pkg-containers.githubusercontent.com
-#      (ghcr.io auth + manifest alone are not enough) - a network-policy matter,
-#      not this script's; here we just establish the credential.
-#
-#   3. Placeholder .env de-clobber, so the empty secret rows the skill writes into
-#      .env do not shadow the real GHCR_PAT the web environment injects.
-#
-# It deliberately runs NO tests or smokes. This script is meant to be the web
-# environment's setup step, which is time-boxed (~5 min), so it only installs +
-# builds + logs in - it never runs `pnpm test`, `ts-runtypes:smoke`, or the
-# website/bench container smokes. Verifying the repo is the user's job afterwards
-# (`pnpm test`); a green setup means "ready to work", not "tests passed".
-#
-# Usage:
-#   bash scripts/setup-claude-web.sh            # full autonomous setup
-#   bash scripts/setup-claude-web.sh --check    # report status only, install/build nothing
-#
-# Exit codes:
-#   0  ok
-#   1  a required step failed
-#   3  not a supported platform (this script is Linux/claude-web only)
-# -----------------------------------------------------------------------------
+# Usage:  bash setup-claude-web.sh [--check]
+# Exit:   0 ok | 1 a required step failed | 3 unsupported platform
+# =============================================================================
 set -uo pipefail
 
-# ---------------------------------------------------------------------------
-# Setup revision - BUMP THIS DATE to force a fresh setup run.
-# Claude Code on the web re-runs its setup step when the script content changes,
-# so editing this date is enough to invalidate a cached container and re-do the
-# full bootstrap (re-pull the GHCR image, re-clone the submodules, rebuild the
-# binary, etc.) after an upstream change. Format: YYYY-MM-DD.
-# ---------------------------------------------------------------------------
+# --- BUMP THIS DATE to force a fresh setup run (YYYY-MM-DD) -------------------
 SETUP_DATE="2026-07-02"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-SKILL_SETUP="$REPO_DIR/.claude/skills/ts-runtypes-setup/setup.sh"
-
 NODE_MAJOR_MIN=24
-# pnpm version the repo pins via package.json "packageManager" (fallback if unparsable).
-PNPM_PIN="$(sed -n 's/.*"packageManager": *"pnpm@\([0-9.]*\)".*/\1/p' "$REPO_DIR/package.json" 2>/dev/null | head -1)"
-[ -n "$PNPM_PIN" ] || PNPM_PIN="11.8.0"
+PODMAN_MIN=4.0
+GO_MIN=1.26
+GO_INSTALL_VERSION=1.26.0 # only used if Go is somehow absent from the image
 
 CHECK_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --check)   CHECK_ONLY=1 ;;
-    -h|--help) sed -n '2,55p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) grep '^#' "${BASH_SOURCE[0]:-$0}" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown flag: $arg (try --help)" >&2; exit 1 ;;
   esac
 done
 
 FAILED=0
+SUDO=""
+[ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+
 bold() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32mOK\033[0m  %s\n' "$*"; }
 warn() { printf '  \033[33m!\033[0m   %s\n' "$*"; }
 err()  { printf '  \033[31mERR\033[0m %s\n' "$*" >&2; }
-
-# node major version currently resolvable on PATH (0 if node absent).
+# true if $1 >= $2 (dotted versions)
+version_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]; }
+# node major version currently resolvable on PATH (0 if node absent)
 node_major() { command -v node >/dev/null 2>&1 && node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0; }
 
+# --- repo root ---------------------------------------------------------------
+# Copy-pasted into the UI, this script does NOT live at <repo>/scripts, so we
+# cannot use BASH_SOURCE/.. . Prefer $CLAUDE_PROJECT_DIR (set by the web env),
+# then CWD, then walk up - validating each candidate with repo markers.
+_looks_like_repo() { [ -f "$1/go.mod" ] && [ -f "$1/package.json" ] && [ -d "$1/third_party/tsgolint" ] && [ -d "$1/cmd/ts-runtypes" ]; }
+_resolve_repo_dir() {
+  local cand d selfdir
+  selfdir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
+  for cand in "${CLAUDE_PROJECT_DIR:-}" "$PWD" "$selfdir/.." "$selfdir"; do
+    [ -n "$cand" ] || continue
+    cand="$(cd "$cand" 2>/dev/null && pwd)" || continue
+    _looks_like_repo "$cand" && { printf '%s' "$cand"; return 0; }
+  done
+  for d in "$PWD" "$selfdir"; do
+    while [ -n "$d" ] && [ "$d" != "/" ]; do
+      _looks_like_repo "$d" && { printf '%s' "$d"; return 0; }
+      d="$(dirname "$d")"
+    done
+  done
+  return 1
+}
+REPO_DIR="$(_resolve_repo_dir || true)"
+if [ -z "$REPO_DIR" ]; then
+  err "could not locate the ts-runtypes repo root (looked at \$CLAUDE_PROJECT_DIR, \$PWD, and this script's dir)."
+  err "run this from inside the cloned repo, or set CLAUDE_PROJECT_DIR to the checkout."
+  exit 1
+fi
+
+# pnpm version the repo pins via package.json "packageManager" (fallback if unparsable)
+PNPM_PIN="$(sed -n 's/.*"packageManager": *"pnpm@\([0-9.]*\)".*/\1/p' "$REPO_DIR/package.json" 2>/dev/null | head -1)"
+[ -n "$PNPM_PIN" ] || PNPM_PIN="11.8.0"
+
 # -----------------------------------------------------------------------------
-# 1. Node 24. Install it (nvm first, nodejs.org tarball fallback), then make it
-#    win on PATH for the harness's non-login shells via $HOME/.local/bin symlinks.
+# 1. Node 24: install (nvm first, nodejs.org tarball fallback), then make it win
+#    on PATH for the harness's NON-login shells via $HOME/.local/bin symlinks.
 # -----------------------------------------------------------------------------
 provision_node24() {
   bold "Node $NODE_MAJOR_MIN (repo requires >= $NODE_MAJOR_MIN; CI pins $NODE_MAJOR_MIN)"
@@ -107,7 +136,7 @@ provision_node24() {
     return 0
   else
     # (a) prefer the image's nvm
-    local nvm_dir="${NVM_DIR:-}"
+    local nvm_dir="${NVM_DIR:-}" cand
     for cand in "$nvm_dir" /opt/nvm "$HOME/.nvm"; do
       [ -n "$cand" ] && [ -s "$cand/nvm.sh" ] && { nvm_dir="$cand"; break; }
     done
@@ -122,14 +151,14 @@ provision_node24() {
     # (b) fallback: nodejs.org tarball
     if [ -z "$n24root" ] || [ ! -x "$n24root/bin/node" ]; then
       warn "nvm unavailable or failed - falling back to a nodejs.org tarball"
-      local goarch; case "$(uname -m)" in
-        x86_64) goarch=x64 ;; aarch64|arm64) goarch=arm64 ;;
+      local nodearch; case "$(uname -m)" in
+        x86_64) nodearch=x64 ;; aarch64|arm64) nodearch=arm64 ;;
         *) err "unsupported arch $(uname -m) for Node auto-install"; FAILED=1; return 1 ;;
       esac
       local ver; ver="$(curl -fsSL "https://nodejs.org/dist/index.json" 2>/dev/null \
         | sed -n 's/.*"version":"v\('"$NODE_MAJOR_MIN"'\.[0-9.]*\)".*/\1/p' | head -1)"
       [ -n "$ver" ] || { err "could not resolve a Node $NODE_MAJOR_MIN release from nodejs.org"; FAILED=1; return 1; }
-      local tarball="node-v${ver}-linux-${goarch}.tar.xz"
+      local tarball="node-v${ver}-linux-${nodearch}.tar.xz"
       curl -fsSL "https://nodejs.org/dist/v${ver}/${tarball}" -o "/tmp/${tarball}" \
         || { err "Node tarball download failed"; FAILED=1; return 1; }
       rm -rf /opt/node24-dist && mkdir -p /opt/node24-dist
@@ -139,8 +168,8 @@ provision_node24() {
     fi
   fi
 
-  # Ensure the stable /opt/node24 symlink + PATH wiring even on the "already
-  # active" path, so a re-run repairs a half-set-up container.
+  # Stable /opt/node24 symlink + PATH wiring even on the "already active" path,
+  # so a re-run repairs a half-set-up container.
   if [ -n "$n24root" ]; then
     ln -sfn "$n24root" /opt/node24 || { err "could not create /opt/node24 symlink"; FAILED=1; return 1; }
   fi
@@ -156,8 +185,7 @@ provision_node24() {
   # NOT source /etc/profile.d, so a profile.d file alone would not take effect.
   # $HOME/.local/bin is first on that inherited PATH (ahead of /opt/node<xx>),
   # so symlinking the node24 binaries there makes `node`/`pnpm` resolve to 24.
-  local localbin="$HOME/.local/bin"; mkdir -p "$localbin"
-  local exe
+  local localbin="$HOME/.local/bin" exe; mkdir -p "$localbin"
   for exe in /opt/node24/bin/*; do ln -sfn "$exe" "$localbin/$(basename "$exe")"; done
   case ":$PATH:" in *":$localbin:"*) : ;; *) warn "$localbin is not on PATH - add it ahead of /opt/node<xx>/bin" ;; esac
 
@@ -181,19 +209,71 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
-# 1b. Submodules (light) - init tsgolint + typescript-go but SKIP the 620MB
-#     nested _submodules/TypeScript (microsoft/TypeScript). That corpus is only
-#     used by typescript-go's OWN test runner (internal/testrunner), never by our
-#     `go build ./cmd/ts-runtypes`, so cloning it just burns setup time budget.
-#     Running this BEFORE the shared bootstrap makes its ensure_submodules see the
-#     modules already present and skip its own `--recursive` clone (which WOULD
-#     pull the deep submodule). Keeps the injected-git-proxy bypass as a fallback.
+# 2. podman via apt, then confirm the engine is reachable (rootless on the web).
+# -----------------------------------------------------------------------------
+ensure_podman() {
+  bold "podman (container runtime for the docs website + benchmarks)"
+  if command -v podman >/dev/null 2>&1; then
+    local cur; cur="$(podman --version 2>/dev/null | awk '{print $3}')"
+    version_ge "${cur:-0}" "$PODMAN_MIN" && ok "podman ${cur:-?} (>= $PODMAN_MIN)" || warn "podman ${cur:-?} present (repo targets >= $PODMAN_MIN)"
+  elif [ "$CHECK_ONLY" = 1 ]; then
+    warn "podman missing - re-run without --check to install"
+    return 0
+  else
+    bold "Installing podman via apt"
+    # `apt-get update` refreshes every configured repo; a stale unrelated PPA can
+    # fail it, but the official repo we install from refreshed fine, so warn+continue.
+    $SUDO apt-get update -qq || warn "apt-get update reported errors from unrelated repos - continuing"
+    if $SUDO apt-get install -y -qq podman && command -v podman >/dev/null 2>&1; then
+      ok "podman installed ($(podman --version 2>/dev/null | awk '{print $3}'))"
+    else
+      err "podman install failed"; FAILED=1; return 1
+    fi
+  fi
+  [ "$CHECK_ONLY" = 1 ] && return 0
+  if podman info >/dev/null 2>&1; then ok "podman engine reachable"
+  else warn "podman engine not reachable yet (rootless init may need a moment; containers will still build on demand)"; fi
+}
+
+# -----------------------------------------------------------------------------
+# 3. Go: present in the web image; tarball fallback keeps this standalone.
+# -----------------------------------------------------------------------------
+ensure_go() {
+  bold "Go (compiles the resolver binary)"
+  if command -v go >/dev/null 2>&1; then
+    local cur; cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+    version_ge "${cur:-0}" "$GO_MIN" && ok "go ${cur:-?} (>= $GO_MIN)" || warn "go ${cur:-?} present (repo targets >= $GO_MIN)"
+    return 0
+  fi
+  [ "$CHECK_ONLY" = 1 ] && { warn "go missing - re-run without --check to install"; return 0; }
+  bold "Installing Go $GO_INSTALL_VERSION (tarball -> /usr/local/go)"
+  local goarch; case "$(uname -m)" in
+    x86_64) goarch=amd64 ;; aarch64|arm64) goarch=arm64 ;;
+    *) err "unsupported arch $(uname -m) for Go auto-install"; FAILED=1; return 1 ;;
+  esac
+  local tgz="go${GO_INSTALL_VERSION}.linux-${goarch}.tar.gz"
+  if curl -fsSL "https://go.dev/dl/${tgz}" -o "/tmp/${tgz}" \
+     && $SUDO rm -rf /usr/local/go && $SUDO tar -C /usr/local -xzf "/tmp/${tgz}"; then
+    export PATH="/usr/local/go/bin:$PATH"
+    ok "go installed ($(go version 2>/dev/null | awk '{print $3}'))"
+  else
+    err "go install failed"; FAILED=1
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# 4. Submodules (light): init tsgolint + typescript-go but SKIP the 620MB nested
+#    _submodules/TypeScript (microsoft/TypeScript). That corpus feeds only
+#    typescript-go's OWN conformance test runner (internal/testrunner), never our
+#    `go build ./cmd/ts-runtypes` - the checker's lib .d.ts files are committed in
+#    typescript-go/internal/bundled/libs and baked in via go:embed. Verified: the
+#    binary builds and the full `go test ./internal/...` suite passes without it.
 # -----------------------------------------------------------------------------
 provision_submodules_light() {
-  bold "Submodules (tsgolint + typescript-go; skipping the 620MB TypeScript test corpus)"
+  bold "Submodules (tsgolint + typescript-go; skipping the 620MB TypeScript corpus)"
   local tsgolint="$REPO_DIR/third_party/tsgolint"
   local tsgo="$tsgolint/typescript-go"
-  if [ -f "$tsgolint/go.mod" ] && [ -e "$tsgo/.git" ]; then
+  if [ -f "$tsgolint/go.mod" ] && { [ -d "$tsgo/.git" ] || [ -f "$tsgo/.git" ]; }; then
     ok "submodules present"
     return 0
   fi
@@ -201,8 +281,8 @@ provision_submodules_light() {
     warn "submodules not initialized - re-run without --check"
     return 0
   fi
-  # Non-recursive: tsgolint, then typescript-go inside it. No --recursive, so the
-  # nested _submodules/TypeScript is never fetched.
+  # Non-recursive, two steps: tsgolint, then typescript-go INSIDE it. No
+  # --recursive, so the nested _submodules/TypeScript is never fetched.
   _light_submodule_init() {
     ( cd "$REPO_DIR" && git submodule update --init third_party/tsgolint ) &&
     ( cd "$tsgolint" && git submodule update --init typescript-go )
@@ -226,29 +306,82 @@ provision_submodules_light() {
 }
 
 # -----------------------------------------------------------------------------
-# 2. Shared host bootstrap: delegate to the setup skill (podman, patches, pnpm
-#    install, Go binary, devtools dist). Single source of truth. Submodules are
-#    already present from step 1b, so the skill's recursive clone is skipped.
+# 5. Apply the tsgolint patches to the typescript-go working tree. Idempotent:
+#    a patch that already applies in reverse is treated as applied and skipped.
 # -----------------------------------------------------------------------------
-run_core_bootstrap() {
-  bold "Host bootstrap (delegating to the ts-runtypes-setup skill)"
-  [ -f "$SKILL_SETUP" ] || { err "skill setup.sh not found at $SKILL_SETUP"; FAILED=1; return 1; }
-  local args=(); [ "$CHECK_ONLY" = 1 ] && args+=(--check)
-  if bash "$SKILL_SETUP" "${args[@]}"; then
-    ok "core bootstrap complete"
-  else
-    err "core bootstrap (skill setup.sh) reported failure"
-    FAILED=1
-  fi
+apply_tsgolint_patches() {
+  bold "tsgolint patches"
+  local tsgo_dir="$REPO_DIR/third_party/tsgolint/typescript-go"
+  local patches_dir="$REPO_DIR/third_party/tsgolint/patches"
+  [ -d "$tsgo_dir" ] || { warn "typescript-go missing - skipping patches"; return 0; }
+  [ -d "$patches_dir" ] || { warn "patches/ missing - skipping"; return 0; }
+  local patches=("$patches_dir"/*.patch)
+  [ -e "${patches[0]}" ] || { ok "no tsgolint patches to apply"; return 0; }
+
+  local needs_apply=() already=0 broken=0 patch
+  for patch in "${patches[@]}"; do
+    if   ( cd "$tsgo_dir" && git apply --reverse --check "$patch" >/dev/null 2>&1 ); then already=$((already+1))
+    elif ( cd "$tsgo_dir" && git apply --check "$patch" >/dev/null 2>&1 ); then needs_apply+=("$patch")
+    elif ( cd "$tsgo_dir" && git apply --3way --check "$patch" >/dev/null 2>&1 ); then needs_apply+=("$patch")
+    else err "patch $(basename "$patch") neither applies cleanly nor in reverse"; broken=$((broken+1)); fi
+  done
+  if [ "$broken" -gt 0 ]; then err "$broken tsgolint patch(es) cannot be applied or reversed; resolve manually"; FAILED=1; return 1; fi
+  if [ "${#needs_apply[@]}" -eq 0 ]; then ok "tsgolint patches already applied ($already)"; return 0; fi
+  if [ "$CHECK_ONLY" = 1 ]; then warn "${#needs_apply[@]} tsgolint patch(es) need applying - re-run without --check"; return 0; fi
+
+  bold "Applying ${#needs_apply[@]} tsgolint patch(es)"
+  for patch in "${needs_apply[@]}"; do
+    ( cd "$tsgo_dir" && git apply --3way "$patch" ) || { err "git apply failed on $(basename "$patch")"; FAILED=1; return 1; }
+  done
+  ok "tsgolint patches applied"
 }
 
 # -----------------------------------------------------------------------------
-# 2b. Keep the placeholder .env from shadowing real environment secrets.
-#     The shared bootstrap creates .env from .env.sample, whose secret rows are
-#     empty (GHCR_PAT= etc.). lib-env.sh sources .env with `set -a`, so an empty
-#     assignment OVERWRITES the value the web environment injects - breaking GHCR
-#     login. On the web the environment is the source of truth for secrets, so we
-#     strip the empty placeholder lines whenever the process env already has them.
+# 6. Install workspace deps if node_modules is missing.
+# -----------------------------------------------------------------------------
+install_workspace_deps() {
+  bold "Workspace deps (pnpm install --frozen-lockfile)"
+  command -v pnpm >/dev/null 2>&1 || { err "pnpm missing (the Node 24 step should have provided it)"; FAILED=1; return 1; }
+  if [ -d "$REPO_DIR/node_modules" ] && [ -f "$REPO_DIR/node_modules/.modules.yaml" ]; then ok "node_modules present (skipping install)"; return 0; fi
+  [ "$CHECK_ONLY" = 1 ] && { warn "workspace deps not installed - re-run without --check"; return 0; }
+  ( cd "$REPO_DIR" && pnpm install --frozen-lockfile ) && ok "workspace deps installed" || { err "pnpm install failed"; FAILED=1; }
+}
+
+# -----------------------------------------------------------------------------
+# 7. Build the Go resolver binary at bin/ts-runtypes (skips when up-to-date).
+# -----------------------------------------------------------------------------
+build_go_binary() {
+  bold "Go resolver binary -> bin/ts-runtypes"
+  command -v go >/dev/null 2>&1 || { err "go missing - cannot build the binary"; FAILED=1; return 1; }
+  local bin="$REPO_DIR/bin/ts-runtypes"
+  if [ -x "$bin" ] && [ -z "$(find "$REPO_DIR/cmd" "$REPO_DIR/internal" -type f -newer "$bin" -print -quit 2>/dev/null)" ]; then
+    ok "binary up-to-date"; return 0
+  fi
+  [ "$CHECK_ONLY" = 1 ] && { warn "binary missing or stale - re-run without --check"; return 0; }
+  ( cd "$REPO_DIR" && go build -o bin/ts-runtypes ./cmd/ts-runtypes ) && ok "binary built" || { err "go build failed"; FAILED=1; }
+}
+
+# -----------------------------------------------------------------------------
+# 8. Build runtypes-devtools dist (consumers + the marker typecheck read it).
+# -----------------------------------------------------------------------------
+build_devtools() {
+  bold "runtypes-devtools dist"
+  command -v pnpm >/dev/null 2>&1 || { err "pnpm missing"; FAILED=1; return 1; }
+  local dist="$REPO_DIR/packages/runtypes-devtools/dist/index.js"
+  if [ -f "$dist" ] && [ -z "$(find "$REPO_DIR/packages/runtypes-devtools/src" -type f -newer "$dist" -print -quit 2>/dev/null)" ]; then
+    ok "devtools dist up-to-date"; return 0
+  fi
+  [ "$CHECK_ONLY" = 1 ] && { warn "devtools dist missing or stale - re-run without --check"; return 0; }
+  ( cd "$REPO_DIR" && pnpm --filter runtypes-devtools run build ) && ok "devtools dist built" || { err "devtools build failed"; FAILED=1; }
+}
+
+# -----------------------------------------------------------------------------
+# 9. Keep the placeholder .env from shadowing real environment secrets.
+#    A dev .env (created by the interactive skill, or a stray checkout) has empty
+#    secret rows (GHCR_PAT= etc.). lib-env.sh sources .env with `set -a`, so an
+#    empty assignment OVERWRITES the value the web env injects - breaking GHCR
+#    login. On the web the environment is the source of truth, so strip empty
+#    placeholder lines whenever the process env already provides them.
 # -----------------------------------------------------------------------------
 neutralize_placeholder_env() {
   local envfile="$REPO_DIR/.env"
@@ -256,60 +389,67 @@ neutralize_placeholder_env() {
   [ "$CHECK_ONLY" = 1 ] && return 0
   local var stripped=0
   for var in GHCR_PAT NPM_TOKEN CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_PAGES_PROJECT; do
-    # Only strip an EMPTY placeholder, and only when the environment supplies a value.
     if [ -n "${!var:-}" ] && grep -qE "^${var}=$" "$envfile"; then
       sed -i -E "/^${var}=$/d" "$envfile"
       stripped=$((stripped + 1))
     fi
   done
+  bold "Local .env (dev only)"
   [ "$stripped" -gt 0 ] && ok "stripped $stripped empty placeholder secret line(s) from .env (env values win)" || ok ".env does not shadow environment secrets"
 }
 
 # -----------------------------------------------------------------------------
-# 3. GHCR login so a later `pnpm run website:dev` / `pnpm run bench` can PULL the
-#    private tsrt-website image instead of rebuilding it. Login is registry auth
-#    only - it does not pull anything, so it stays within the setup time budget.
-#    NOTE: pulling the image ALSO needs the egress policy to allow the GHCR blob
-#    host (pkg-containers.githubusercontent.com); auth + manifest via ghcr.io are
-#    not sufficient on their own. That is a network-policy concern, not this
-#    script's - here we just establish the credential.
+# 10. GHCR login so a later `pnpm run website:dev` / `pnpm run bench` can PULL the
+#     private tsrt-website image instead of rebuilding it. Login is auth only - it
+#     pulls nothing, so it stays within the setup time budget.
 # -----------------------------------------------------------------------------
 ghcr_login() {
-  bold "GHCR login (private image ghcr.io/${GHCR_OWNER:-mionkit}/tsrt-website)"
+  local reg="${GHCR_REGISTRY:-ghcr.io}" owner="${GHCR_OWNER:-mionkit}" user="${GHCR_USER:-}"
+  bold "GHCR login (private image $reg/$owner/tsrt-website)"
   if [ "$CHECK_ONLY" = 1 ]; then
-    if [ -n "${GHCR_PAT:-}" ]; then ok "GHCR_PAT present - login would run"
-    else warn "GHCR_PAT not set - container image would have to be built locally later"; fi
+    [ -n "${GHCR_PAT:-}" ] && ok "GHCR_PAT present - login would run" || warn "GHCR_PAT not set - image would build locally on demand"
     return 0
   fi
-  if [ -z "${GHCR_PAT:-}" ]; then
-    warn "GHCR_PAT not set - skipping login (containers would build locally on demand)"
-    return 0
-  fi
-  if bash "$REPO_DIR/scripts/podman-website.sh" login; then
-    ok "logged in to GHCR"
+  [ -n "${GHCR_PAT:-}" ] || { warn "GHCR_PAT not set - skipping login (image would build locally on demand)"; return 0; }
+  command -v podman >/dev/null 2>&1 || { warn "podman missing - skipping GHCR login"; return 0; }
+  if printf '%s' "$GHCR_PAT" | podman login "$reg" -u "${user:-x-access-token}" --password-stdin >/dev/null 2>&1; then
+    ok "logged in to $reg as ${user:-x-access-token}"
   else
-    warn "GHCR login failed - containers would build locally on demand"
+    warn "GHCR login failed (check GHCR_PAT / egress policy) - image would build locally on demand"
   fi
+  # NOTE: PULLING the image also needs the egress policy to allow the GHCR blob
+  # host pkg-containers.githubusercontent.com; auth + manifest via $reg alone are
+  # not sufficient. That is a network-policy matter, outside this script.
 }
 
 main() {
   bold "RunTypes - Claude Code on the web setup (rev $SETUP_DATE)$([ "$CHECK_ONLY" = 1 ] && echo '  [check-only]')"
-  case "$(uname -s)" in
-    Linux) ;;
-    *) err "This script targets Claude Code on the web (Linux). For local hosts use the ts-runtypes-setup skill."; exit 3 ;;
-  esac
-  [ "$(id -u)" = 0 ] || warn "not running as root - podman/Node install steps may need sudo"
+  echo "  repo: $REPO_DIR"
+  if [ "$(uname -s)" != Linux ]; then
+    err "This installer targets the Linux web container. For local/macOS hosts use the ts-runtypes-setup skill."
+    exit 3
+  fi
+  if ! command -v apt-get >/dev/null 2>&1; then
+    err "apt-get not found - this installer assumes the Debian/Ubuntu web image."
+    exit 3
+  fi
+  [ "$(id -u)" = 0 ] || warn "not running as root - install steps use sudo where available"
 
   provision_node24
+  ensure_podman
+  ensure_go
   provision_submodules_light
-  run_core_bootstrap
+  apply_tsgolint_patches
+  install_workspace_deps
+  build_go_binary
+  build_devtools
   neutralize_placeholder_env
   ghcr_login
 
   bold "Ready. Verify / work from the repo root (this setup ran no tests):"
-  echo "  pnpm test                 # full JS suite (spawns the Go binary)"
-  echo "  pnpm run website:dev      # docs site -> http://localhost:3000"
-  echo "  pnpm run bench            # full validation benchmark"
+  echo "  pnpm test              # full JS suite (spawns the Go binary)"
+  echo "  pnpm run website:dev   # docs site -> http://localhost:3000"
+  echo "  pnpm run bench         # full validation benchmark"
 
   if [ "$FAILED" = 0 ]; then bold "Setup OK."; else bold "Setup incomplete - see ERR above."; exit 1; fi
 }
