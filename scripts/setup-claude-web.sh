@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# --- BUMP THIS DATE to force a fresh setup run (YYYY-MM-DD) -------------------
+SETUP_DATE="2026-07-02"
+
 # =============================================================================
 # setup-claude-web.sh - one-shot, SELF-CONTAINED bootstrap for RunTypes on
 # Claude Code on the web (the managed, ephemeral Linux container).
@@ -58,9 +61,6 @@
 # Exit:   0 ok | 1 a required step failed | 3 unsupported platform
 # =============================================================================
 set -uo pipefail
-
-# --- BUMP THIS DATE to force a fresh setup run (YYYY-MM-DD) -------------------
-SETUP_DATE="2026-07-02"
 
 NODE_MAJOR_MIN=24
 PODMAN_MIN=4.0
