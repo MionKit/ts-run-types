@@ -90,30 +90,51 @@ version_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ];
 node_major() { command -v node >/dev/null 2>&1 && node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0; }
 
 # --- repo root ---------------------------------------------------------------
-# Copy-pasted into the UI, this script does NOT live at <repo>/scripts, so we
-# cannot use BASH_SOURCE/.. . Prefer $CLAUDE_PROJECT_DIR (set by the web env),
-# then CWD, then walk up - validating each candidate with repo markers.
-_looks_like_repo() { [ -f "$1/go.mod" ] && [ -f "$1/package.json" ] && [ -d "$1/third_party/tsgolint" ] && [ -d "$1/cmd/ts-runtypes" ]; }
+# As the web environment's SETUP SCRIPT this runs BEFORE Claude Code launches:
+# $CLAUDE_PROJECT_DIR is usually UNSET (it is a hook-time var), the CWD is often
+# not the repo, and the script lives in a temp path (so BASH_SOURCE/.. is wrong).
+# So we probe the env var + CWD + this script's dir, then the known web clone
+# path, then fall back to a bounded filesystem search for the repo's go.mod
+# (identified by its unique module path). A fresh clone is fine - we only need
+# committed files, not the (uninitialized) submodules.
+_looks_like_repo() {
+  [ -f "$1/go.mod" ] && [ -f "$1/package.json" ] && [ -d "$1/cmd/ts-runtypes" ] \
+    && grep -q '^module github.com/mionkit/ts-runtypes' "$1/go.mod" 2>/dev/null
+}
 _resolve_repo_dir() {
-  local cand d selfdir
+  local cand d selfdir root gomod
   selfdir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
-  for cand in "${CLAUDE_PROJECT_DIR:-}" "$PWD" "$selfdir/.." "$selfdir"; do
+  # 1) explicit candidates, incl. the web clone convention /home/<user>/ts-run-types
+  for cand in "${CLAUDE_PROJECT_DIR:-}" "$PWD" "$selfdir/.." "$selfdir" \
+              /home/user/ts-run-types /root/ts-run-types /workspace/ts-run-types; do
     [ -n "$cand" ] || continue
     cand="$(cd "$cand" 2>/dev/null && pwd)" || continue
     _looks_like_repo "$cand" && { printf '%s' "$cand"; return 0; }
   done
+  # 2) walk up from CWD and this script's dir
   for d in "$PWD" "$selfdir"; do
     while [ -n "$d" ] && [ "$d" != "/" ]; do
       _looks_like_repo "$d" && { printf '%s' "$d"; return 0; }
       d="$(dirname "$d")"
     done
   done
+  # 3) bounded search for our go.mod under the usual clone roots (fast:
+  #    -maxdepth keeps it shallow; the module-path check rejects other go.mods)
+  for root in /home /root /workspace /app /srv; do
+    [ -d "$root" ] || continue
+    while IFS= read -r gomod; do
+      d="$(dirname "$gomod")"
+      _looks_like_repo "$d" && { printf '%s' "$d"; return 0; }
+    done < <(find "$root" -maxdepth 4 -name go.mod -type f 2>/dev/null)
+  done
   return 1
 }
 REPO_DIR="$(_resolve_repo_dir || true)"
 if [ -z "$REPO_DIR" ]; then
-  err "could not locate the ts-runtypes repo root (looked at \$CLAUDE_PROJECT_DIR, \$PWD, and this script's dir)."
-  err "run this from inside the cloned repo, or set CLAUDE_PROJECT_DIR to the checkout."
+  err "could not locate the ts-runtypes repo root."
+  err "  CLAUDE_PROJECT_DIR='${CLAUDE_PROJECT_DIR:-<unset>}'  PWD='$PWD'"
+  err "  searched those + this script's dir + go.mod (module github.com/mionkit/ts-runtypes) under /home /root /workspace /app /srv."
+  err "  If the repo is not cloned yet when the setup script runs, move the repo build to the SessionStart hook (which has \$CLAUDE_PROJECT_DIR), or set CLAUDE_PROJECT_DIR to the checkout."
   exit 1
 fi
 
