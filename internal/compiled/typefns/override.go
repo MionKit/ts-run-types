@@ -87,7 +87,7 @@ func buildRedirectEntry(entryKey string, tag string, runType *protocol.RunType, 
 	if opts.EmitMode.EmitsFactory() {
 		createRTFnArg = "function g_" + entryKey + "(utl){" + factoryBody + "}"
 	}
-	args := trimArgsTail([]string{
+	args := holeifyArgs([]string{
 		quoteJS(entryKey),
 		quoteJS(rtTypeName(runType)),
 		codeArg,
@@ -95,7 +95,7 @@ func buildRedirectEntry(entryKey string, tag string, runType *protocol.RunType, 
 		"[]",                        // rtDependencies — the redirect has no same-family children
 		"[" + quoteJS(cfnKey) + "]", // pureFnDependencies — the cfn this entry redirects to
 		createRTFnArg,
-	}, fnEntryArgDefaults)
+	})
 	return &entrymod.Entry{
 		Key:       entryKey,
 		Kind:      entrymod.KindTypeFn,

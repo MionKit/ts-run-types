@@ -475,10 +475,10 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		args := []string{
 			quoteJS(innerName),
 			quoteJS(rtTypeName(runType)),
-			"undefined", // code
-			"true",      // isNoop
+			"undefined", // code — holed below (runtime uses the family noop identity)
+			"true",      // isNoop — kept: the signal that selects the noop fn
 		}
-		argsText := joinArgs(args)
+		argsText := joinArgs(holeifyArgs(args))
 		if variantSuffix == "" {
 			// A noop body emits no dep calls, so no same-family or
 			// cross-family lookups are registered.
@@ -493,13 +493,16 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// `new Function('utl', code)(rtUtils)`. The inner-validator body
 	// remains embedded in `code` (as `return function …(v){…}`).
 	//
-	// The code (slot 2) and createRTFn (slot 6) slots vary by emit mode:
+	// The code (slot 2) and createRTFn (slot 6) slots vary by emit mode;
+	// holeifyArgs then empties every default-valued slot (interior ones too):
 	//   - EmitCode (default): code string, `u` factory placeholder. The
 	//     JS-side materializeRTFn rebuilds the factory from `code` on first
-	//     `getRT(hash)` call. The all-default tail (`false,[],[],u`) trims, so
-	//     the common dep-less entry ends at the `code` slot.
+	//     `getRT(hash)` call. The all-default tail (`false,[],[],u`) holes out,
+	//     so the common dep-less entry ends at the `code` slot.
 	//   - EmitFunctions: `undefined` code, live factory. The runtime uses the
 	//     factory directly and derives `code` lazily only if a consumer reads it.
+	//     The factory (slot 6) blocks a trailing trim, so the interior code /
+	//     isNoop / dep-list slots become holes rather than spelled-out defaults.
 	//   - EmitBoth: code string + live factory (the body twice) for runtimes
 	//     without `new Function` that still read `.code`.
 	//
@@ -525,16 +528,14 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	}
 	var args []string
 	if estimate := binaryColdStartEstimate(settings, variantSuffix, runType, refTable, opts.SizeEstimate); estimate > 0 {
-		// tb entry: the cold-start size rides slot 11 (binarySizeEstimate). The
-		// whole tail stays UN-trimmed so the estimate lands at the right index;
-		// the `u` createRTFn placeholder is never a standalone binding, so an
-		// absent factory degrades to `undefined` (matching the trimmed default).
-		if tail[6] == "u" {
-			tail[6] = "undefined"
-		}
-		args = append(tail, "undefined", strconv.Itoa(estimate)) // slot 10 alwaysThrowMessage, slot 11 estimate
+		// tb entry: the cold-start size rides slot 11 (binarySizeEstimate),
+		// after the alwaysThrowMessage slot. holeifyArgs empties the default
+		// interior slots (including the `u`/undefined createRTFn placeholder,
+		// which is never a standalone binding) while KEEPING the estimate at its
+		// fixed index — holes preserve positions, so the estimate never shifts.
+		args = holeifyArgs(append(tail, "undefined", strconv.Itoa(estimate))) // slot 10 alwaysThrowMessage, slot 11 estimate
 	} else {
-		args = trimArgsTail(tail, fnEntryArgDefaults)
+		args = holeifyArgs(tail)
 	}
 	deps := append([]string(nil), walker.RTDependencies...)
 	crossFamilyDeps := append([]string(nil), walker.CrossFamilyDeps...)
@@ -728,14 +729,17 @@ func leafKindLabel(leaf *protocol.RunType) string {
 // shipped marker package throws it verbatim, with no catalog to resolve at
 // runtime.
 //
-// Shape (relative to the normal 7-arg tail):
+// Shape (relative to the normal 7-arg tail): every interior slot between
+// typeName and the message is a hole (holeifyArgs collapses the `undefined` /
+// `false` defaults), and the runtime derives the throwing factory from the
+// message slot:
 //
 //	'<hash>', '<typeName>',
-//	undefined,  // code
-//	false,      // isNoop
-//	undefined,  // rtDependencies
-//	undefined,  // pureFnDependencies
-//	undefined,  // createRTFn — JS-side derives the throwing factory
+//	,           // code (hole)
+//	,           // isNoop (hole → false)
+//	,           // rtDependencies (hole)
+//	,           // pureFnDependencies (hole)
+//	,           // createRTFn (hole → JS-side derives the throwing factory)
 //	'<message>' // alwaysThrowMessage
 //
 // See docs/ARCHITECTURE.md (disk cache format v10).
@@ -750,7 +754,7 @@ func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCod
 		"undefined", // createRTFn
 		quoteJS(buildAlwaysThrowMessage(diagCode, kindLabel, provenance)),
 	}
-	return joinArgs(args)
+	return joinArgs(holeifyArgs(args))
 }
 
 // buildAlwaysThrowMessage renders the complete runtime throw text for an
@@ -862,28 +866,50 @@ func boolJS(b bool) string {
 	return "false"
 }
 
-// fnEntryArgDefaults holds the rendered default per slot of the normal
-// 7-arg entry tail. Slots 0-2 (key/typeName/code) are pinned ("" = never
-// trim) — code stays even as `undefined` in EmitFunctions mode. The JS-side
-// tupleToRecord zips absent slots back to undefined and registration
-// re-derives the same values (isNoop false, dep lists undefined like the
-// noop short form, createRTFn rebuilt from `code`). When a factory is emitted
-// (EmitFunctions/EmitBoth) the last slot carries the factory text, so the
-// trim run never starts.
-var fnEntryArgDefaults = []string{"", "", "", "false", "[]", "[]", "u"}
+// fnEntryArgHoles maps a tail slot index to the rendered values that read
+// back IDENTICALLY as a JS array hole (undefined) once the JS-side
+// tupleToRecord zips the tuple and registration re-derives the entry: `code`
+// is rebuilt from `createRTFn` in EmitFunctions mode, `isNoop` defaults to
+// false, the dep lists are build-only metadata never iterated at runtime, the
+// `createRTFn` placeholder degrades to undefined, and an absent
+// alwaysThrowMessage means no-throw. Replacing such a value with a hole ("")
+// drops its literal bytes even when the slot is INTERIOR — a later non-default
+// slot (the live factory in EmitFunctions/EmitBoth, or the `tb` size estimate)
+// would otherwise block the trailing trim and leave `undefined,false,[],[]`
+// spelled out. Slots absent from the map (the cache key, typeName, and the tb
+// size estimate) are never holed. Indices match the full entry tail
+// (0 key, 1 typeName, 2 code, 3 isNoop, 4 rtDependencies,
+// 5 pureFnDependencies, 6 createRTFn, 7 alwaysThrowMessage).
+var fnEntryArgHoles = map[int][]string{
+	2: {"undefined"},       // code — derived from createRTFn in functions mode
+	3: {"false"},           // isNoop — a hole reads as not-noop
+	4: {"[]", "undefined"}, // rtDependencies — build-only metadata, never iterated
+	5: {"[]", "undefined"}, // pureFnDependencies — same
+	6: {"u", "undefined"},  // createRTFn — placeholder / derived from code
+	7: {"undefined"},       // alwaysThrowMessage — a hole reads as no-throw
+}
 
-// trimArgsTail returns args without its trailing run of default-valued
-// slots; defaults[i] == "" pins slot i (never trimmed).
-func trimArgsTail(args []string, defaults []string) []string {
-	end := len(args)
-	for end > 0 {
-		i := end - 1
-		if i >= len(defaults) || defaults[i] == "" || args[i] != defaults[i] {
-			break
+// holeifyArgs replaces every slot holding a hole-equivalent value (see
+// fnEntryArgHoles) with a JS array hole (""), then drops the trailing run of
+// holes. Subsumes the old trailing-only trim: trailing defaults become holes
+// and are trimmed, while INTERIOR defaults are holed in place (positions
+// preserved, so a trailing non-default slot — the tb estimate — still lands at
+// its fixed index). The runtime tolerates a hole at every one of these slots.
+func holeifyArgs(args []string) []string {
+	out := append([]string(nil), args...)
+	for i := range out {
+		for _, holeable := range fnEntryArgHoles[i] {
+			if out[i] == holeable {
+				out[i] = ""
+				break
+			}
 		}
+	}
+	end := len(out)
+	for end > 0 && out[end-1] == "" {
 		end--
 	}
-	return args[:end]
+	return out[:end]
 }
 
 // joinArgs concatenates positional args with bare commas. The

@@ -106,9 +106,9 @@ func TestValidateModule_SingleEntryShape(t *testing.T) {
 		"'" + key + "'," +
 		"'string'," +
 		"'function " + key + "(v){return typeof v === \\'string\\'}return " + key + "'," +
-		"false," +
-		"[]," +
-		"[]," +
+		// isNoop (false), rtDependencies ([]) and pureFnDependencies ([]) are
+		// interior holes — the live factory that follows blocks a trailing trim.
+		",,," +
 		"function g_" + key + "(utl){function " + key + "(v){return typeof v === 'string'}return " + key + "}" +
 		");"
 	if !strings.Contains(out, want) {
@@ -154,10 +154,9 @@ func TestValidateModule_FunctionsMode(t *testing.T) {
 	want := "init(" +
 		"'" + key + "'," +
 		"'string'," +
-		"undefined," + // code slot dropped
-		"false," +
-		"[]," +
-		"[]," +
+		// code (undefined, dropped in functions mode), isNoop, and both dep
+		// lists are interior holes; the live factory follows in the last slot.
+		",,,," +
 		"function g_" + key + "(utl){function " + key + "(v){return typeof v === 'string'}return " + key + "}" +
 		");"
 	if !strings.Contains(out, want) {
@@ -191,7 +190,7 @@ func TestValidateModule_AtomicEmitBodies(t *testing.T) {
 		// FAQ. Renderer emits an alwaysThrow factory whose final slot is the
 		// VL002 message, rendered here at build time (not a body-bearing
 		// validator).
-		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('" + valKey("sym") + "','symbol',undefined,false,undefined,undefined,undefined," + quoteJS(buildAlwaysThrowMessage("VL002", "Symbol", nil)) + ")", false},
+		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('" + valKey("sym") + "','symbol',,,,,," + quoteJS(buildAlwaysThrowMessage("VL002", "Symbol", nil)) + ")", false},
 		{"null", &protocol.RunType{ID: "nul", Kind: protocol.KindNull}, "return v === null", false},
 		{"undefined", &protocol.RunType{ID: "und", Kind: protocol.KindUndefined}, "return typeof v === 'undefined'", false},
 		{"void", &protocol.RunType{ID: "voi", Kind: protocol.KindVoid}, "return v === undefined", false},
@@ -858,7 +857,7 @@ func TestValidateModule_CodeNSPropagation(t *testing.T) {
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{ns, stringRT}}
 		out := renderToString(t, dump)
 		wantThrow := quoteJS(buildAlwaysThrowMessage("VL001", "NonSerializableClass", nil))
-		if !strings.Contains(out, "init('"+valKey("ns1")+"','class',undefined,false,undefined,undefined,undefined,"+wantThrow+")") {
+		if !strings.Contains(out, "init('"+valKey("ns1")+"','class',,,,,,"+wantThrow+")") {
 			t.Errorf("KindClass+SubKindNonSerializable must emit an alwaysThrow init with the VL001 message, got:\n%s", out)
 		}
 		// The message rides as a plain string slot, not an embedded throw body.

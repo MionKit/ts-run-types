@@ -174,7 +174,7 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 	if opts.EmitMode.EmitsFactory() {
 		createRTFnArg = "function g_" + entryKey + "(utl){" + factoryBody + "}"
 	}
-	args := trimArgsTail([]string{
+	args := holeifyArgs([]string{
 		quoteJS(entryKey),
 		quoteJS(rtTypeName(runType)),
 		codeArg,
@@ -182,7 +182,7 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 		"[]",    // rtDependencies — primitive refs are resolved by fnHash, not same-family deps
 		"[]",    // pureFnDependencies
 		createRTFnArg,
-	}, fnEntryArgDefaults)
+	})
 	argsText := joinArgs(args)
 	writeCachedCompositeEntry(runType, tag, argsText, opts)
 	return &entrymod.Entry{Key: entryKey, Kind: entrymod.KindTypeFn, FamilyTag: tag, ArgsText: argsText, SoftDeps: deps}

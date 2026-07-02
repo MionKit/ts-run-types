@@ -53,10 +53,13 @@ type FingerprintInputs struct {
 // old everything-external layout is gone) — same token, different bytes,
 // so the option-dirs must move. "v6"→"v7" added the binary cold-start
 // size-estimate inputs (and the estimate slot they bake into every `tb`
-// entry), so every prior cache is stale.
+// entry), so every prior cache is stale. "v7"→"v8" changed the fn-entry tail
+// encoding: default-valued INTERIOR slots (code=undefined, isNoop=false, the
+// dep-list `[]`s) now render as JS array holes instead of spelled-out
+// literals, so every cached argsText is byte-different.
 func Fingerprint(inputs FingerprintInputs) string {
 	var sb strings.Builder
-	sb.WriteString("v7\n")
+	sb.WriteString("v8\n")
 	sb.WriteString(strconv.Itoa(inputs.HashLength))
 	sb.WriteByte('\n')
 	sb.WriteString(inputs.EmitMode)

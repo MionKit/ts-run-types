@@ -40,10 +40,13 @@ func objWithProp(value *protocol.RunType, optional bool, extra ...*protocol.RunT
 }
 
 // objFactoryIsAlwaysThrow reports whether the object entry rendered as an
-// alwaysThrow tuple (`_obj','objectLiteral',undefined,false,…`) rather than a
-// real factory body. Mirrors the detector in callable_interface_dataonly_test.go.
+// alwaysThrow tuple (`_obj','objectLiteral',,,,,,'<message>'` — typeName then
+// five holes for code/isNoop/rtDeps/pureFnDeps/createRTFn, then the quoted
+// message) rather than a real factory body (whose code slot holds a body
+// string) or a noop (`,,true`). Mirrors the detector in
+// callable_interface_dataonly_test.go.
 func objFactoryIsAlwaysThrow(rendered string) bool {
-	return strings.Contains(rendered, "_obj','objectLiteral',undefined,false")
+	return strings.Contains(rendered, "_obj','objectLiteral',,,,,,'")
 }
 
 // allSerdeFamilies — validate + validationErrors + the six serialization families.

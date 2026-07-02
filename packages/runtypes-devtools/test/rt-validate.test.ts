@@ -54,7 +54,9 @@ getRunTypeId<string>();
       // 2. The validate entry module exports the tuple this site's key
       //    names. Head: [familyTag, depsThunk, ini|u]; tail (slot 3+):
       //    rtFnHash, typeName, code, isNoop, rtDependencies,
-      //    pureFnDependencies, createRTFn, …
+      //    pureFnDependencies, createRTFn, … — every default-valued slot is a
+      //    JS array HOLE (reads back as undefined), even interior ones, since
+      //    the live factory (slot 9, `both` mode) blocks a trailing trim.
       const tuple = tuples[cacheKey] as readonly unknown[];
       expect(tuple, `expected entry module for ${cacheKey}`).toBeDefined();
       expect(tuple[0]).toBe('val');
@@ -66,9 +68,9 @@ getRunTypeId<string>();
       // inner validator body. The inner fn is a hoisted declaration + name
       // return (see typefns.WrapClosure).
       expect(tuple[5]).toBe('function ' + cacheKey + "(v){return typeof v === 'string'}return " + cacheKey);
-      expect(tuple[6]).toBe(false); // isNoop
-      expect(tuple[7]).toEqual([]); // rtDependencies
-      expect(tuple[8]).toEqual([]); // pureFnDependencies
+      expect(tuple[6]).toBeUndefined(); // isNoop false → hole (reads as not-noop)
+      expect(tuple[7]).toBeUndefined(); // rtDependencies [] → hole (build-only metadata)
+      expect(tuple[8]).toBeUndefined(); // pureFnDependencies [] → hole
 
       // 3. The inline factory (shared client runs emitMode 'both')
       //    materialises a working validator.
