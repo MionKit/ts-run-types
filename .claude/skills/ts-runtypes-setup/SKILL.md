@@ -40,14 +40,22 @@ idempotent and skips when already satisfied:
 - **macOS only:** if the podman engine is unreachable, runs `podman machine
   init` (when no machine exists) + `podman machine start`.
 - Initializes the `third_party/tsgolint` submodule + its nested
-  `typescript-go` submodule via `git submodule update --init --recursive`. If
-  that clone is rejected, it retries with `GIT_CONFIG_GLOBAL=/dev/null`: some
-  managed environments (e.g. Claude Code on the web) inject a git `insteadOf`
-  that routes `github.com` through a credential proxy scoped to THIS repo, which
-  403s on the PUBLIC tsgolint submodule. Disabling the injected global gitconfig
-  clones the public submodule over direct HTTPS (the CA bundle + HTTPS proxy
-  still come from env vars, so TLS keeps working); a normal host succeeds on the
-  first attempt and never reaches the retry.
+  `typescript-go` submodule with a **non-recursive** two-step init (tsgolint,
+  then `typescript-go` inside it) — deliberately NOT `--recursive`, so the
+  620MB corpus nested one level deeper (`typescript-go/_submodules/TypeScript`,
+  the original microsoft/TypeScript) is never fetched. That corpus feeds only
+  `typescript-go`'s own conformance test runner (`internal/testrunner`), never
+  our `go build ./cmd/ts-runtypes` — the checker's lib `.d.ts` files are
+  committed in `typescript-go/internal/bundled/libs` and baked into the binary
+  via `go:embed`. Skipping it is verified safe (the binary builds and the full
+  `go test ./internal/...` suite passes without it) and saves the bulk of the
+  clone. If the clone is rejected, it retries with `GIT_CONFIG_GLOBAL=/dev/null`:
+  some managed environments (e.g. Claude Code on the web) inject a git
+  `insteadOf` that routes `github.com` through a credential proxy scoped to THIS
+  repo, which 403s on the PUBLIC tsgolint submodule. Disabling the injected
+  global gitconfig clones the public submodule over direct HTTPS (the CA bundle
+  + HTTPS proxy still come from env vars, so TLS keeps working); a normal host
+  succeeds on the first attempt and never reaches the retry.
 - Applies the `third_party/tsgolint/patches/*.patch` set to the
   `typescript-go` working tree with `git apply --3way`. For each patch it
   first tries `git apply --reverse --check` to detect "already applied" and

@@ -133,10 +133,18 @@ ensure_podman_engine() {
 }
 
 # Initialize the tsgolint submodule (which itself nests typescript-go).
+#
+# NOT --recursive on purpose: typescript-go nests a third submodule,
+# _submodules/TypeScript (the 620MB original microsoft/TypeScript). That corpus
+# feeds only typescript-go's OWN conformance test runner (internal/testrunner) -
+# never our `go build ./cmd/ts-runtypes`, whose checker + lib .d.ts files are
+# committed in typescript-go/internal/bundled/libs and baked in via go:embed.
+# Skipping it saves the bulk of the clone (verified: the binary builds and the
+# full `go test ./internal/...` suite passes with the corpus absent).
 ensure_submodules() {
   local tsgolint_dir="$REPO_DIR/third_party/tsgolint"
   local tsgo_dir="$tsgolint_dir/typescript-go"
-  if [ -f "$tsgolint_dir/go.mod" ] && [ -d "$tsgo_dir/.git" ] || [ -f "$tsgo_dir/.git" ]; then
+  if [ -f "$tsgolint_dir/go.mod" ] && { [ -d "$tsgo_dir/.git" ] || [ -f "$tsgo_dir/.git" ]; }; then
     ok "submodules present (tsgolint + typescript-go)"
     return 0
   fi
@@ -144,9 +152,15 @@ ensure_submodules() {
     warn "submodules not initialized - re-run without --check to bootstrap"
     return 0
   fi
-  bold "Initializing submodules (tsgolint + typescript-go)"
-  if ( cd "$REPO_DIR" && git submodule update --init --recursive ); then
-    ok "submodules ready"
+  bold "Initializing submodules (tsgolint + typescript-go; skipping the 620MB TypeScript corpus)"
+  # Non-recursive, two steps: tsgolint, then typescript-go INSIDE it. No
+  # --recursive, so the nested _submodules/TypeScript is never fetched.
+  _init_submodules() {
+    ( cd "$REPO_DIR" && git submodule update --init third_party/tsgolint ) &&
+    ( cd "$tsgolint_dir" && git submodule update --init typescript-go )
+  }
+  if _init_submodules; then
+    ok "submodules ready (deep TypeScript corpus skipped)"
     return 0
   fi
   # Some managed environments (e.g. Claude Code on the web) inject a git
@@ -158,8 +172,8 @@ ensure_submodules() {
   # keeps working. A normal host never reaches this branch (the first attempt
   # succeeds with its global gitconfig intact).
   warn "git submodule update failed - retrying with the injected git-proxy rewrite bypassed"
-  if ( cd "$REPO_DIR" && GIT_CONFIG_GLOBAL=/dev/null git submodule update --init --recursive ); then
-    ok "submodules ready (direct-HTTPS bypass)"
+  if ( export GIT_CONFIG_GLOBAL=/dev/null; _init_submodules ); then
+    ok "submodules ready (direct-HTTPS bypass, deep TypeScript corpus skipped)"
     return 0
   fi
   err "git submodule update failed (direct and proxy-bypass attempts)"
