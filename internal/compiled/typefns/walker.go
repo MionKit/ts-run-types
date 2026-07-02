@@ -262,6 +262,7 @@ const (
 	factExtraProof
 	factNoopPrepareJson
 	factNoopRestoreJson
+	factNoopFormatTransform
 	factCount
 )
 

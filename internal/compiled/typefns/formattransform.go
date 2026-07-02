@@ -65,6 +65,17 @@ func (FormatTransformEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
+// IsNoopType implements the walker's dispatch-time noop gate: identity is
+// this family's default, so without it every NAMED compound child was
+// dep-called into an entry that itself rendered as the noop short-form —
+// `v.inner = <fmtHash>_<id>.fn(v.inner)` chains doing nothing. The predicate
+// (noop_types.go isNoopForFormatTransform) proves "no value-transforming
+// format and no fmt override reachable", letting parents compose around such
+// children and collapse to the short form themselves.
+func (FormatTransformEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+	return isNoopForFormatTransform(rt, ctx)
+}
+
 // ReturnName is `v` — format mutates the input value (or rebinds via
 // `v = …` at a transforming leaf) and returns it.
 func (FormatTransformEmitter) ReturnName() string {

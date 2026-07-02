@@ -1,10 +1,12 @@
 package resolver_test
 
 import (
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/operations"
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // prune_test.go pins the emission-side completion of noop elision
@@ -34,6 +36,96 @@ export const dec = createJsonDecoder<PlainDTO>();
 	}
 	if all := allEntrySources(resp); strings.Contains(all, "rjFn") {
 		t.Errorf("no emitted module may still bind rjFn:\n%s", all)
+	}
+}
+
+// compositeEntryKeys returns the sorted EntryModules basenames keyed under a
+// JSON composite op's STRATEGY-qualified fnHash prefix (composites are keyed
+// by FnHashFor(op, nil, strategy), not the default-variant PlainHash that
+// familyEntryKeys derives).
+func compositeEntryKeys(t *testing.T, resp protocol.Response, opName, strategy string) []string {
+	t.Helper()
+	op, ok := operations.ByName(opName)
+	if !ok {
+		t.Fatalf("unknown operation %q", opName)
+	}
+	prefix := operations.FnHashFor(op, nil, strategy) + "_"
+	var keys []string
+	for basename := range resp.EntryModules {
+		if strings.HasPrefix(basename, prefix) {
+			keys = append(keys, basename)
+		}
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// TestPrune_CollapsedCompositeShortFormEmitted — when EVERY primitive of a
+// composite elides, the composite itself is the noop short-form: the mutate
+// encoder and preserve decoder of a plain JSON-compatible DTO ship one tiny
+// tuple each (`'<TypeName>',,true` tail, no factory, no imports), the runtime
+// substitutes native JSON.stringify / JSON.parse, and the orphaned pj / rj
+// primitives are pruned.
+func TestPrune_CollapsedCompositeShortFormEmitted(t *testing.T) {
+	resp := scopeScan(t, `import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
+type PlainDTO = {a: string; b?: number};
+export const enc = createJsonEncoder<PlainDTO>(undefined, {strategy: 'mutate'});
+export const dec = createJsonDecoder<PlainDTO>(undefined, {strategy: 'preserve'});
+`)
+	if hasFamilyEntry(resp, "prepareForJson") {
+		t.Errorf("noop pj entry must be pruned once the composite collapses, got %v", familyEntryKeys(resp, "prepareForJson"))
+	}
+	if hasFamilyEntry(resp, "restoreFromJson") {
+		t.Errorf("noop rj entry must be pruned once the composite collapses, got %v", familyEntryKeys(resp, "restoreFromJson"))
+	}
+	for opName, strategy := range map[string]string{"jsonEncoder": "mutate", "jsonDecoder": "preserve"} {
+		keys := compositeEntryKeys(t, resp, opName, strategy)
+		if len(keys) != 1 {
+			t.Fatalf("expected exactly one %s/%s composite entry, got %v", opName, strategy, keys)
+		}
+		module := entryModule(resp, keys[0])
+		if !strings.Contains(module, "'PlainDTO',,true]") {
+			t.Errorf("the collapsed %s composite must be the noop short-form:\n%s", opName, module)
+		}
+		if strings.Contains(module, "import ") {
+			t.Errorf("the collapsed %s composite must carry no imports:\n%s", opName, module)
+		}
+	}
+	if all := allEntrySources(resp); strings.Contains(all, "JSON.stringify") || strings.Contains(all, "JSON.parse") {
+		t.Errorf("no emitted module may still carry a native-JSON body — that moved into the runtime noop:\n%s", all)
+	}
+}
+
+// TestPrune_DirectStrategyTwoLayerCollapse — jeDI over an atomic root used to
+// ship two dead modules (an sj entry whose body was `return JSON.stringify(v)`
+// plus the composite `return sjFn(v)` binding it). The sj Finalize byte-match
+// marks the primitive noop, the composite collapses to the short form, and the
+// orphaned sj module is pruned. The object-root control keeps both halves live
+// (sj really strips extras + fixes member order there).
+func TestPrune_DirectStrategyTwoLayerCollapse(t *testing.T) {
+	resp := scopeScan(t, `import {createJsonEncoder} from 'ts-runtypes';
+export const encStr = createJsonEncoder<string>(undefined, {strategy: 'direct'});
+`)
+	if hasFamilyEntry(resp, "stringifyJson") {
+		t.Errorf("noop sj entry must be pruned once the composite collapses, got %v", familyEntryKeys(resp, "stringifyJson"))
+	}
+	keys := compositeEntryKeys(t, resp, "jsonEncoder", "direct")
+	if len(keys) != 1 {
+		t.Fatalf("expected exactly one jeDI composite entry, got %v", keys)
+	}
+	if module := entryModule(resp, keys[0]); !strings.Contains(module, ",true]") {
+		t.Errorf("the collapsed jeDI composite must be the noop short-form:\n%s", module)
+	}
+
+	control := scopeScan(t, `import {createJsonEncoder} from 'ts-runtypes';
+type PlainDTO = {a: string; b?: number};
+export const encObj = createJsonEncoder<PlainDTO>(undefined, {strategy: 'direct'});
+`)
+	if !hasFamilyEntry(control, "stringifyJson") {
+		t.Error("sj does real work for an object root — its module must survive the prune")
+	}
+	if all := allEntrySources(control); !strings.Contains(all, "sjFn") {
+		t.Error("the jeDI composite must keep its sjFn binding for an object root")
 	}
 }
 

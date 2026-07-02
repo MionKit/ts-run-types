@@ -34,9 +34,12 @@ import "github.com/mionkit/ts-runtypes/internal/protocol"
 
 // NoopTypePredicate is the optional Emitter capability behind the walker's
 // dispatch-time noop gate. Implement it only when the family has a sound
-// type-graph characterization of "entry is the family identity" — families
-// without it (sj / tb / fb always do real work; the unknown-keys group has no
-// predicate yet) keep today's dep-call behavior.
+// type-graph characterization of "entry is the family identity" — pj / rj /
+// pjs / fmt implement it today. Families without it keep the dep-call
+// behavior: tb / fb always do real work, sj's compound bodies genuinely
+// differ from native JSON (extras-strip + declaration order — its native
+// atomic roots are flagged by the Finalize byte-match instead), and the
+// unknown-keys group has no predicate yet.
 type NoopTypePredicate interface {
 	IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool
 }
@@ -346,6 +349,133 @@ func isNoopForPrepareJsonSafe(rt *protocol.RunType, ctx *EmitContext) bool {
 		return isExtraProof(rt, ctx)
 	}
 	return false
+}
+
+/** isNoopForFormatTransform reports whether the fmt entry for rt is the identity. **/
+// Mirrors FormatTransformEmitter.Emit exactly: the ONLY non-identity leaf is a
+// string whose FormatAnnotation carries a value transform (nodeFormatTransform
+// != ""); objects / user classes / properties / arrays / tuples recurse to
+// reach one; EVERY other kind — unions included — is the emitter's identity
+// default arm (MVP: transforms inside union / Map / Set arms are a follow-up).
+// Unlike the JSON predicates the default arm is therefore TRUE; when an emit
+// arm learns a new transform position, add the mirror arm here — the corpus
+// test (noop_predicate_test.go) pins the unsound direction.
+//
+// fmt is publicly overridable (overrideFormatTransform), so a node carrying
+// Overrides["fmt"] is never identity — the walker dep-calls its cfn redirect.
+// The dispatch gate never consults the predicate for the DIRECT override child
+// (overrideChild skips it), but a deeper descendant's override must falsify
+// the walk here or the gate would elide the subtree that reaches the redirect.
+func isNoopForFormatTransform(rt *protocol.RunType, ctx *EmitContext) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		return false
+	}
+	if rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(factNoopFormatTransform, rt.ID); known {
+			return verdict
+		}
+	}
+	result := formatNoopRecursive(rt, ctx, make(map[string]struct{}))
+	if rt.ID != "" {
+		ctx.walker.factsStore(factNoopFormatTransform, rt.ID, result)
+	}
+	return result
+}
+
+func formatNoopRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[string]struct{}) bool {
+	rt = ctx.ResolveRef(rt)
+	if rt == nil {
+		// Mirrors the walker: nil / dangling children contribute no code.
+		return true
+	}
+	if rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(factNoopFormatTransform, rt.ID); known {
+			return verdict
+		}
+		if _, seen := visited[rt.ID]; seen {
+			return true
+		}
+		visited[rt.ID] = struct{}{}
+	}
+	// An fmt-overridden node redirects to the user's cfn — real code on any
+	// path that reaches it (see the doc comment above).
+	if overrideHashForTag(rt, "fmt") != "" {
+		return false
+	}
+	switch rt.Kind {
+
+	case protocol.KindString:
+		return nodeFormatTransform(rt, "v") == ""
+
+	case protocol.KindObjectLiteral:
+		return formatNoopObjectChildren(rt.Children, ctx, visited)
+
+	case protocol.KindClass:
+		if rt.SubKind == protocol.SubKindNone {
+			// User classes recurse like objects (emitObjectFormat).
+			return formatNoopObjectChildren(rt.Children, ctx, visited)
+		}
+		// Date / Map / Set / Temporal / builtins: identity arm.
+		return true
+
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		if rt.Child == nil {
+			return true
+		}
+		resolved := ctx.ResolveRef(rt.Child)
+		if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+			// Skipped slots in emitPropertyFormat.
+			return true
+		}
+		return formatNoopRecursive(resolved, ctx, visited)
+
+	case protocol.KindArray:
+		if rt.Child == nil {
+			return true
+		}
+		return formatNoopRecursive(rt.Child, ctx, visited)
+
+	case protocol.KindTuple:
+		for _, child := range rt.Children {
+			if !formatNoopRecursive(child, ctx, visited) {
+				return false
+			}
+		}
+		return true
+
+	case protocol.KindTupleMember:
+		if rt.Child == nil {
+			return true
+		}
+		return formatNoopRecursive(rt.Child, ctx, visited)
+	}
+	// Everything else mirrors the emitter's identity default arm (number /
+	// boolean / union / intersection / enum / literal / index signature /
+	// function kinds / …): the MVP emits no transform there.
+	return true
+}
+
+// formatNoopObjectChildren mirrors emitObjectFormat's member walk — static and
+// function-like members are skipped slots; every surviving property must be
+// noop.
+func formatNoopObjectChildren(children []*protocol.RunType, ctx *EmitContext, visited map[string]struct{}) bool {
+	for _, childRef := range children {
+		resolved := ctx.ResolveRef(childRef)
+		if resolved == nil {
+			continue
+		}
+		if resolved.IsStatic {
+			continue
+		}
+		if isFunctionLikeKind(resolved.Kind) {
+			continue
+		}
+		if !formatNoopRecursive(resolved, ctx, visited) {
+			return false
+		}
+	}
+	return true
 }
 
 // NoopPredicateAgreement is the corpus-test surface: it returns the emitter

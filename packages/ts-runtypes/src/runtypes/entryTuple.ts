@@ -451,6 +451,7 @@ const noopFalse = () => false;
 const noopIdentity = (v: unknown) => v;
 const noopErrors = (_v: unknown, _pth: unknown, er: unknown) => er || [];
 const noopStringify = (v: unknown) => JSON.stringify(v);
+const noopParse = (s: unknown) => JSON.parse(s as string);
 const noopToBinary = (_v: unknown, Ser: unknown) => Ser;
 const noopFromBinary = (ret: unknown) => ret;
 
@@ -465,9 +466,14 @@ const errorShaped = (fnID: string): FamilyMeta => ({fnID, args: errorArgs, defau
 // Keyed by the tuple's slot-0 family tag. The seven JSON-composite tags borrow
 // the metadata of the family whose module hosted them pre-migration (encoder
 // strategies rode prepareForJson, decoder strategies restoreFromJson) — Go:
-// constants.JsonCompositeHostTags. The compact strategy also adds its own two
-// type-walking primitive families (cj / cjr) which carry value-shaped identity
-// metadata like pj / rj.
+// constants.JsonCompositeHostTags — EXCEPT the noop fn: a composite's identity
+// is native JSON, not the host primitive's value identity. A noop composite
+// tuple (every primitive binding elided AND no wrapRoot envelope — see
+// collectJsonCompositeEntry) must register the fn its full body would have
+// been: JSON.stringify for the encoder tags, JSON.parse for the decoder tags.
+// noopIdentity here would silently return the raw value / unparsed string.
+// The compact strategy also adds its own two type-walking primitive families
+// (cj / cjr) which carry value-shaped identity metadata like pj / rj.
 const familyMeta: Record<string, FamilyMeta> = {
   val: valueShaped('val', noopTrue),
   verr: errorShaped('verr'),
@@ -502,14 +508,17 @@ const familyMeta: Record<string, FamilyMeta> = {
     noop: noopFromBinary,
   },
   fmt: valueShaped('fmt', noopIdentity),
-  // JSON composites — encoder tags host on pj metadata, decoder tags on rj.
-  jeCL: valueShaped('pj', noopIdentity),
-  jeMU: valueShaped('pj', noopIdentity),
-  jeDI: valueShaped('pj', noopIdentity),
-  jeCO: valueShaped('pj', noopIdentity),
-  jdST: valueShaped('rj', noopIdentity),
-  jdPR: valueShaped('rj', noopIdentity),
-  jdCO: valueShaped('rj', noopIdentity),
+  // JSON composites — encoder tags host on pj metadata, decoder tags on rj,
+  // but their noop is NATIVE JSON (see the comment above): an all-elided
+  // encoder body is `return JSON.stringify(v)`, an all-elided decoder body is
+  // `return JSON.parse(s)`.
+  jeCL: valueShaped('pj', noopStringify),
+  jeMU: valueShaped('pj', noopStringify),
+  jeDI: valueShaped('pj', noopStringify),
+  jeCO: valueShaped('pj', noopStringify),
+  jdST: valueShaped('rj', noopParse),
+  jdPR: valueShaped('rj', noopParse),
+  jdCO: valueShaped('rj', noopParse),
 };
 
 // =============================================================================

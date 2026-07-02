@@ -235,7 +235,10 @@ func TestDispatchGate_ElidesNoopExternalChild(t *testing.T) {
 
 // TestJsonComposite_ElidesNoopPrimitives: the composite reads its primitives'
 // rendered IsNoop flags — identity primitives lose their binding, their call
-// wrapper, and their import edge.
+// wrapper, and their import edge. When EVERY binding elides the entry itself
+// collapses to the noop SHORT FORM (key, typeName, code hole, isNoop=true) —
+// the runtime registers the composite's native-JSON noop instead (entryTuple's
+// noopStringify for je*, noopParse for jd*).
 func TestJsonComposite_ElidesNoopPrimitives(t *testing.T) {
 	rjKey := operations.PlainHash("restoreFromJson") + "_obj1"
 	ukuwKey := operations.PlainHash("unknownKeysToUndefinedWire") + "_obj1"
@@ -259,28 +262,41 @@ func TestJsonComposite_ElidesNoopPrimitives(t *testing.T) {
 	noopGraph.Add(&entrymod.Entry{Key: pjKey, Kind: entrymod.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
 	noopGraph.Add(&entrymod.Entry{Key: ukuwKey, Kind: entrymod.KindTypeFn, FamilyTag: "ukuw", ArgsText: "'" + ukuwKey + "'"})
 
-	// jdPR: rj noop → bare JSON.parse, no binding, no deps.
+	jdPRKey := operations.FnHashFor(mustOp(t, "jsonDecoder"), nil, "preserve") + "_obj1"
+	jeMUKey := operations.FnHashFor(mustOp(t, "jsonEncoder"), nil, "mutate") + "_obj1"
+
+	// jdPR: rj noop → every binding elided → the noop short form; no body,
+	// no factory, no deps. The bare JSON.parse moved into the runtime noop.
 	entry := render("jdPR", noopGraph)
-	if !strings.Contains(entry.ArgsText, "return JSON.parse(s);") || strings.Contains(entry.ArgsText, "rjFn") {
-		t.Errorf("jdPR with noop rj must collapse to bare JSON.parse:\n%s", entry.ArgsText)
+	if entry.ArgsText != "'"+jdPRKey+"','objectLiteral',,true" {
+		t.Errorf("jdPR with noop rj must collapse to the noop short form:\n%s", entry.ArgsText)
+	}
+	if !entry.IsNoop {
+		t.Error("jdPR with noop rj must flag Entry.IsNoop")
 	}
 	if len(entry.SoftDeps) != 0 {
 		t.Errorf("jdPR with noop rj must carry no primitive deps, got %v", entry.SoftDeps)
 	}
 
-	// jdST: rj noop + ukuw live → only the ukuw binding survives.
+	// jdST: rj noop + ukuw live → a real body keeping only the ukuw binding.
 	entry = render("jdST", noopGraph)
 	if !strings.Contains(entry.ArgsText, "return ukuwFn(JSON.parse(s));") || strings.Contains(entry.ArgsText, "rjFn") {
 		t.Errorf("jdST with noop rj must keep only the ukuw wrap:\n%s", entry.ArgsText)
+	}
+	if entry.IsNoop {
+		t.Error("jdST with a live ukuw must not flag Entry.IsNoop")
 	}
 	if len(entry.SoftDeps) != 1 || entry.SoftDeps[0] != ukuwKey {
 		t.Errorf("jdST deps must name only the live ukuw primitive, got %v", entry.SoftDeps)
 	}
 
-	// jeMU: pj noop → bare JSON.stringify.
+	// jeMU: pj noop → the noop short form (runtime noop is JSON.stringify).
 	entry = render("jeMU", noopGraph)
-	if !strings.Contains(entry.ArgsText, "return JSON.stringify(v);") || strings.Contains(entry.ArgsText, "pjFn") {
-		t.Errorf("jeMU with noop pj must collapse to bare JSON.stringify:\n%s", entry.ArgsText)
+	if entry.ArgsText != "'"+jeMUKey+"','objectLiteral',,true" {
+		t.Errorf("jeMU with noop pj must collapse to the noop short form:\n%s", entry.ArgsText)
+	}
+	if !entry.IsNoop {
+		t.Error("jeMU with noop pj must flag Entry.IsNoop")
 	}
 
 	// Control: a live (non-noop) rj keeps today's binding shape.
@@ -290,7 +306,223 @@ func TestJsonComposite_ElidesNoopPrimitives(t *testing.T) {
 	if !strings.Contains(entry.ArgsText, "return rjFn(JSON.parse(s));") {
 		t.Errorf("jdPR with live rj must keep the binding:\n%s", entry.ArgsText)
 	}
+	if entry.IsNoop {
+		t.Error("jdPR with a live rj must not flag Entry.IsNoop")
+	}
 	if len(entry.SoftDeps) != 1 || entry.SoftDeps[0] != rjKey {
 		t.Errorf("jdPR deps must name the live rj primitive, got %v", entry.SoftDeps)
+	}
+}
+
+// mustOp resolves an operation by name or fails the test.
+func mustOp(t *testing.T, name string) operations.Operation {
+	t.Helper()
+	op, ok := operations.ByName(name)
+	if !ok {
+		t.Fatalf("unknown operation %q", name)
+	}
+	return op
+}
+
+// formatPredicateTypes extends the shared corpus with format-carrying and
+// fmt-overridden shapes for the fmt predicate table. Formats registry is
+// populated by the package-wide formats/all blank import
+// (binary_size_estimate_test.go).
+func formatPredicateTypes(t *testing.T) (*EmitContext, map[string]*protocol.RunType) {
+	t.Helper()
+	ctx, types := noopPredicateTypes(t)
+	register := func(rt *protocol.RunType) {
+		types[rt.ID] = rt
+		ctx.walker.RefTable[rt.ID] = rt
+	}
+	register(&protocol.RunType{ID: "strTrim", Kind: protocol.KindString,
+		FormatAnnotation: &protocol.FormatAnnotation{Name: "stringFormat", Params: map[string]any{"trim": true}}})
+	register(&protocol.RunType{ID: "strLenOnly", Kind: protocol.KindString,
+		FormatAnnotation: &protocol.FormatAnnotation{Name: "stringFormat", Params: map[string]any{"maxLength": float64(8)}}})
+	register(&protocol.RunType{ID: "strOverride", Kind: protocol.KindString,
+		Overrides: map[string]string{"fmt": "cfnabc"}})
+	register(&protocol.RunType{ID: "pTrim", Kind: protocol.KindProperty, Name: "name", IsSafeName: true, Child: makeRef("strTrim")})
+	register(&protocol.RunType{ID: "pOvr", Kind: protocol.KindProperty, Name: "s", IsSafeName: true, Child: makeRef("strOverride")})
+	register(&protocol.RunType{ID: "objTrim", Kind: protocol.KindObjectLiteral, TypeName: "FmtUser", Children: []*protocol.RunType{makeRef("pTrim")}})
+	register(&protocol.RunType{ID: "objOvr", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pOvr")}})
+	register(&protocol.RunType{ID: "arrTrim", Kind: protocol.KindArray, Child: makeRef("strTrim")})
+	register(&protocol.RunType{ID: "uTrim", Kind: protocol.KindUnion, Children: []*protocol.RunType{makeRef("strTrim"), makeRef("num")}})
+	// Waste-case shape: Outer{inner: Compat} where the NAMED Compat carries no
+	// format — pre-predicate this dep-called into a noop entry.
+	register(&protocol.RunType{ID: "pInner", Kind: protocol.KindProperty, Name: "inner", IsSafeName: true, Child: makeRef("objCompat")})
+	register(&protocol.RunType{ID: "objOuter", Kind: protocol.KindObjectLiteral, TypeName: "Outer", Children: []*protocol.RunType{makeRef("pInner")}})
+	// Control: Outer whose NAMED inner carries a transform.
+	register(&protocol.RunType{ID: "pInnerFmt", Kind: protocol.KindProperty, Name: "inner", IsSafeName: true, Child: makeRef("objTrim")})
+	register(&protocol.RunType{ID: "objOuterFmt", Kind: protocol.KindObjectLiteral, TypeName: "OuterFmt", Children: []*protocol.RunType{makeRef("pInnerFmt")}})
+	return ctx, types
+}
+
+// TestNoopType_FormatTransform pins the fmt predicate's arm table: the only
+// falsifiers are a transforming format annotation and an fmt override —
+// everything else (unions included, the MVP identity arms) is noop.
+func TestNoopType_FormatTransform(t *testing.T) {
+	ctx, types := formatPredicateTypes(t)
+	cases := []struct {
+		id   string
+		want bool
+	}{
+		{"str", true},
+		{"strTrim", false},     // trim transform
+		{"strLenOnly", true},   // validate-only params — no value transform
+		{"strOverride", false}, // fmt override → cfn redirect, never identity
+		{"objTrim", false},
+		{"objOvr", false}, // override reached through a property child
+		{"objCompat", true},
+		{"objOuter", true}, // named no-format child — the collapse case
+		{"objOuterFmt", false},
+		{"arrTrim", false},
+		{"arrStr", true},
+		{"uTrim", true}, // MVP: unions are identity even with formatted members
+		{"dat", true},
+		{"mp", true},
+		{"ncls", true}, // user class with a plain string prop
+		{"fn", true},
+		{"circ", true}, // cycle with no transform — identity fixpoint
+	}
+	for _, c := range cases {
+		t.Run(c.id, func(t *testing.T) {
+			if got := isNoopForFormatTransform(types[c.id], ctx); got != c.want {
+				t.Errorf("isNoopForFormatTransform(%s) = %v, want %v", c.id, got, c.want)
+			}
+		})
+	}
+}
+
+// TestDispatchGate_FormatIdentityChainCollapses renders the fmt waste-case
+// shape end to end: Outer{inner: Compat} (named, no formats) used to emit
+// `v.inner = <fmtHash>_<id>.fn(v.inner); return v` plus the import edge while
+// Inner's entry was the noop short form — a dead chain. The gate now composes
+// around the child and Outer collapses to the short form. The control keeps
+// the dep call when the named child really transforms.
+func TestDispatchGate_FormatIdentityChainCollapses(t *testing.T) {
+	_, types := formatPredicateTypes(t)
+	dump := dumpFor(types)
+	graph := FamilyByKey("formatTransform").Collect(dump, RenderOpts{EmitMode: constants.EmitBoth}, nil)
+
+	outer := graph[operations.PlainHash("formatTransform")+"_objOuter"]
+	if outer == nil {
+		t.Fatal("no fmt entry for objOuter")
+	}
+	if !outer.IsNoop {
+		t.Errorf("fmt entry for a no-transform named-child object must collapse to noop, got:\n%s", outer.ArgsText)
+	}
+	if len(outer.Deps) != 0 {
+		t.Errorf("gated fmt child must not be recorded as a dep, got %v", outer.Deps)
+	}
+
+	control := graph[operations.PlainHash("formatTransform")+"_objOuterFmt"]
+	if control == nil {
+		t.Fatal("no fmt entry for objOuterFmt")
+	}
+	if control.IsNoop {
+		t.Error("fmt entry whose named child transforms must stay live")
+	}
+	if len(control.Deps) != 1 || control.Deps[0] != operations.PlainHash("formatTransform")+"_objTrim" {
+		t.Errorf("transforming named child must stay a dep call, got %v", control.Deps)
+	}
+}
+
+// TestStringifyJson_NativeRootCollapses pins the sj Finalize byte-match:
+// roots whose whole body is `return JSON.stringify(v)` (string / any-like
+// delegation arms) flag isNoop and emit the short form — the runtime noop IS
+// native JSON.stringify — while String(v)-shaped roots (number: NaN/Infinity
+// diverge under native stringify) and real compound bodies stay live.
+func TestStringifyJson_NativeRootCollapses(t *testing.T) {
+	_, types := noopPredicateTypes(t)
+	dump := dumpFor(types)
+	graph := FamilyByKey("stringifyJson").Collect(dump, RenderOpts{EmitMode: constants.EmitBoth}, nil)
+
+	strEntry := graph[operations.PlainHash("stringifyJson")+"_str"]
+	if strEntry == nil {
+		t.Fatal("no sj entry for str")
+	}
+	if !strEntry.IsNoop {
+		t.Errorf("sj string root must collapse to the native-stringify noop, got:\n%s", strEntry.ArgsText)
+	}
+
+	numEntry := graph[operations.PlainHash("stringifyJson")+"_num"]
+	if numEntry == nil {
+		t.Fatal("no sj entry for num")
+	}
+	if numEntry.IsNoop {
+		t.Error("sj number root (String(v) — diverges on NaN/Infinity) must stay live")
+	}
+	if !strings.Contains(numEntry.ArgsText, "return String(v)") {
+		t.Errorf("sj number root must keep the String(v) body:\n%s", numEntry.ArgsText)
+	}
+
+	objEntry := graph[operations.PlainHash("stringifyJson")+"_objCompat"]
+	if objEntry == nil {
+		t.Fatal("no sj entry for objCompat")
+	}
+	if objEntry.IsNoop {
+		t.Error("sj object root (declared-member concat, extras stripped) must stay live")
+	}
+}
+
+// TestJsonComposite_DirectStrategyTwoLayerCollapse: pre-change, jeDI over an
+// atomic string shipped TWO dead modules — an sj entry whose body was
+// `return JSON.stringify(v)` and the composite `return sjFn(v)` binding it.
+// The sj Finalize byte-match marks the primitive noop, the composite elides
+// the binding, and the whole thing collapses to one short-form tuple. The
+// object-root control keeps the delegation (sj really strips extras there).
+func TestJsonComposite_DirectStrategyTwoLayerCollapse(t *testing.T) {
+	_, types := noopPredicateTypes(t)
+	dump := dumpFor(types)
+	rendered := FamilyByKey("stringifyJson").Collect(dump, RenderOpts{EmitMode: constants.EmitBoth}, nil)
+	composite, ok := constants.JsonCompositeByTag("jeDI")
+	if !ok {
+		t.Fatal("unknown composite tag jeDI")
+	}
+
+	entry := collectJsonCompositeEntry(types["str"], "jeDI", composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered)
+	if entry == nil {
+		t.Fatal("no jeDI entry for str")
+	}
+	if !entry.IsNoop {
+		t.Errorf("jeDI over an atomic string must collapse to the noop short form, got:\n%s", entry.ArgsText)
+	}
+	if len(entry.SoftDeps) != 0 {
+		t.Errorf("collapsed jeDI must carry no primitive deps, got %v", entry.SoftDeps)
+	}
+
+	objEntry := collectJsonCompositeEntry(types["objCompat"], "jeDI", composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered)
+	if objEntry == nil {
+		t.Fatal("no jeDI entry for objCompat")
+	}
+	if objEntry.IsNoop {
+		t.Error("jeDI over an object must keep the live sj delegation")
+	}
+	if !strings.Contains(objEntry.ArgsText, "return sjFn(v);") {
+		t.Errorf("jeDI object body must bind the live sj primitive:\n%s", objEntry.ArgsText)
+	}
+}
+
+// TestJsonComposite_WrapRootNeverNoop: an undefined/void root keeps the full
+// body even when its primitive elided — the `[v]` JSON envelope is real work
+// (rootNeedsDataOnlyWrap), and the runtime noop would drop it.
+func TestJsonComposite_WrapRootNeverNoop(t *testing.T) {
+	pjKey := operations.PlainHash("prepareForJson") + "_und1"
+	runType := &protocol.RunType{ID: "und1", Kind: protocol.KindUndefined}
+	composite, ok := constants.JsonCompositeByTag("jeMU")
+	if !ok {
+		t.Fatal("unknown composite tag jeMU")
+	}
+	noopGraph := entrymod.Graph{}
+	noopGraph.Add(&entrymod.Entry{Key: pjKey, Kind: entrymod.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
+	entry := collectJsonCompositeEntry(runType, "jeMU", composite, RenderOpts{EmitMode: constants.EmitBoth}, noopGraph)
+	if entry == nil {
+		t.Fatal("no composite entry for jeMU")
+	}
+	if entry.IsNoop {
+		t.Error("wrapRoot composite must never flag Entry.IsNoop")
+	}
+	if !strings.Contains(entry.ArgsText, "return JSON.stringify([v]);") {
+		t.Errorf("wrapRoot composite must keep the array-envelope body:\n%s", entry.ArgsText)
 	}
 }
