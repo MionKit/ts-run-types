@@ -4,8 +4,5 @@
 // instead of pulling in the full `vite/client` types. Only the eager/raw form the
 // module uses is declared.
 interface ImportMeta {
-  glob(
-    pattern: string | string[],
-    options: {query: string; eager: true; import: string}
-  ): Record<string, string>;
+  glob(pattern: string | string[], options: {query: string; eager: true; import: string}): Record<string, string>;
 }

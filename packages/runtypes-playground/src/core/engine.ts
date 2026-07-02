@@ -233,9 +233,8 @@ export async function transformedSource(
   const lines = code.split('\n');
   for (let i = lines.length - 1; i >= 0; i--) {
     if (lines[i].trim()) {
-      lines[i] = lines[i].replace(
-        /([(,])\s*(?:undefined,\s*)+(__rt_[A-Za-z0-9_]+)\)/g,
-        (_m, sep: string, id: string) => (sep === ',' ? `, ${id})` : `(${id})`)
+      lines[i] = lines[i].replace(/([(,])\s*(?:undefined,\s*)+(__rt_[A-Za-z0-9_]+)\)/g, (_m, sep: string, id: string) =>
+        sep === ',' ? `, ${id})` : `(${id})`
       );
       break;
     }
