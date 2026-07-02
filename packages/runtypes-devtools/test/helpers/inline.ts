@@ -297,11 +297,12 @@ export function evalEntryModules(modules: Record<string, string>): Record<string
 }
 
 // instantiateRunTypes builds the RunType records from every row of the
-// runtype data-bundle tuple (slot 0 === 4; headless rows in slot 4) and runs
-// the bundle's combined footer initializer against a stub registry — the
-// same two-phase shape the marker package's initFromTuple performs against
-// the real rtUtils. Facade tuples (slot 0 === 5) carry no data and are
-// skipped. Returns the flat {[id]: RunType} table.
+// runtype data-bundle tuple (slot 0 === 4; headless rows in slot 4), wires each
+// node's ref slots from the parallel `rels` array (slot 5, by row index), and
+// runs any residual footer initializer (slot 2 — the rare expression-specials)
+// against a stub registry — the same two-phase shape the marker package's
+// initFromTuple performs against the real rtUtils. Facade tuples (slot 0 === 5)
+// carry no data and are skipped. Returns the flat {[id]: RunType} table.
 export function instantiateRunTypes(tuples: Record<string, EntryTuple>): Record<string, RunType> {
   const registered: Record<string, RunType> = {};
   const stub = {
@@ -311,16 +312,66 @@ export function instantiateRunTypes(tuples: Record<string, EntryTuple>): Record<
       return entry;
     },
   };
-  const inis: Array<(rtu: typeof stub) => void> = [];
+  const bundles: EntryTuple[] = [];
   for (const tuple of Object.values(tuples)) {
     if (!Array.isArray(tuple) || tuple[0] !== 4) continue;
     for (const row of (tuple[4] ?? []) as readonly (readonly unknown[])[]) {
       registered[row[0] as string] = buildRunTypeFromRow(row);
     }
-    if (typeof tuple[2] === 'function') inis.push(tuple[2] as (rtu: typeof stub) => void);
+    bundles.push(tuple);
   }
-  for (const ini of inis) ini(stub);
+  for (const tuple of bundles) {
+    wireBundleRels(tuple, registered);
+    if (typeof tuple[2] === 'function') (tuple[2] as (rtu: typeof stub) => void)(stub);
+  }
   return registered;
+}
+
+// Relation-slot order + single/array split — duplicated from
+// RUN_TYPE_REL_KEYS / RUN_TYPE_REL_IS_ARRAY in
+// packages/ts-runtypes/src/runtypes/entryTuple.ts (kept local so this test
+// helper doesn't drag the whole ts-runtypes type graph into the devtools
+// typecheck). Mirrors Go's runtype.renderRelations; the tests that walk the
+// reflected graph catch any drift.
+const REL_KEYS = [
+  'child',
+  'children',
+  'index',
+  'return',
+  'indexType',
+  'parameters',
+  'safeUnionChildren',
+  'unionDiscriminators',
+  'typeMeta',
+  'typeArguments',
+  'arguments',
+  'extendsArguments',
+  'implements',
+  'extends',
+] as const;
+const REL_IS_ARRAY = [false, true, false, false, false, true, true, true, true, true, true, true, true, true] as const;
+
+// wireBundleRels mirrors entryTuple.ts's wireBundleRelations: patch each node's
+// ref slots from the parallel `rels` array (slot 5) by ROW INDEX. A number is a
+// row index, a string a foreign id (registry lookup), anything else an inline
+// non-ref RunType. Runs after every row is registered, so cycles resolve.
+function wireBundleRels(tuple: EntryTuple, registered: Record<string, RunType>): void {
+  const rows = (tuple[4] ?? []) as readonly (readonly unknown[])[];
+  const rels = (tuple[5] ?? []) as readonly (readonly unknown[] | undefined)[];
+  const byIndex = rows.map((row) => registered[row[0] as string]);
+  const resolve = (rel: unknown): unknown =>
+    typeof rel === 'number' ? byIndex[rel] : typeof rel === 'string' ? registered[rel] : rel;
+  for (let i = 0; i < rels.length; i++) {
+    const relRow = rels[i];
+    if (!relRow) continue;
+    const target = byIndex[i] as unknown as Record<string, unknown>;
+    if (!target) continue;
+    for (let slot = 0; slot < REL_KEYS.length; slot++) {
+      const value = relRow[slot];
+      if (value === undefined) continue;
+      target[REL_KEYS[slot]] = REL_IS_ARRAY[slot] ? (value as readonly unknown[]).map(resolve) : resolve(value);
+    }
+  }
 }
 
 // buildRunTypeFromRow mirrors the 20-slot row construction in

@@ -77,16 +77,17 @@ func intPtr(n int) *int { return &n }
 
 // TestBundleShape — all nodes land as rows of ONE bundle module
 // (`virtual:rt/runtypes.js`) with tuple head [4,<hole>,<ini|hole>,'rts_<hash>',
-// [rows…]] (the bundle is dep-less — rows are inline), and each root gets a
-// facade module [5,()=>[__rt_runtypes],<hole>,'<rootId>'] whose single dep imports the bundle.
+// [rows…],[rels…]] (the bundle is dep-less — rows are inline; an atomic node
+// has no relations, so `rels` is empty), and each root gets a facade module
+// [5,()=>[__rt_runtypes],<hole>,'<rootId>'] whose single dep imports the bundle.
 func TestBundleShape(t *testing.T) {
 	modules := emitModules(t, []string{"x1"}, []*protocol.RunType{{ID: "x1", Kind: protocol.KindString}})
 	bundle := bundleOf(t, modules)
 	if !strings.Contains(bundle, "export const __rt_runtypes=[4,,,'rts_") {
 		t.Errorf("expected bundle tuple head [4,,,'rts_…'], got:\n%s", bundle)
 	}
-	if !strings.Contains(bundle, ",[['x1',5]]];") {
-		t.Errorf("expected single row [['x1',5]], got:\n%s", bundle)
+	if !strings.Contains(bundle, ",[['x1',5]],[]];") {
+		t.Errorf("expected single row [['x1',5]] + empty rels, got:\n%s", bundle)
 	}
 	if strings.Contains(bundle, "import ") {
 		t.Errorf("bundle must have no imports, got:\n%s", bundle)
@@ -166,8 +167,8 @@ func TestSimpleAtomic(t *testing.T) {
 }
 
 // TestStaticForm — Property with IsSafeName=true and Child set: the child ref
-// patches through the bundle's combined ini(rtu) body and the child is a row
-// of the same bundle.
+// is wired through the parallel `rels` array by ROW INDEX (not a c('<id>')
+// footer), and the child is a row of the same bundle.
 func TestStaticForm(t *testing.T) {
 	runTypes := []*protocol.RunType{
 		{ID: "LrjxT1", Kind: protocol.KindString},
@@ -187,11 +188,13 @@ func TestStaticForm(t *testing.T) {
 	if !strings.Contains(bundle, `['LrjxT1',5]`) {
 		t.Errorf("expected child row in the same bundle, got:\n%s", bundle)
 	}
-	if !strings.Contains(bundle, `c('BxzL39').child = c('LrjxT1');`) {
-		t.Errorf("expected ini ref assignment `c('BxzL39').child = c('LrjxT1');`, got:\n%s", bundle)
+	// Sorted rows: BxzL39(0), LrjxT1(1). BxzL39.child → row index 1, so the
+	// bundle's `rels` slot is [[1]] (LrjxT1 is a leaf, trailing-trimmed).
+	if !strings.Contains(bundle, `],[[1]]];`) {
+		t.Errorf("expected index-based child relation `rels=[[1]]`, got:\n%s", bundle)
 	}
-	if !strings.Contains(bundle, "function ini(rtu){const c=(id)=>rtu.useRunType(id);") {
-		t.Errorf("expected combined ini body, got:\n%s", bundle)
+	if strings.Contains(bundle, "function ini(") || strings.Contains(bundle, "useRunType") {
+		t.Errorf("a relation-only bundle must not emit an ini / c('<id>') footer, got:\n%s", bundle)
 	}
 }
 
@@ -261,7 +264,8 @@ func TestClassBuiltinUnchanged(t *testing.T) {
 }
 
 // TestCycle — two nodes referencing each other via Child are rows of the same
-// bundle and both ini patches go through the registry accessor.
+// bundle; the cycle is wired by ROW INDEX in `rels` (index refs have no TDZ, so
+// no back-edge special-casing is needed).
 func TestCycle(t *testing.T) {
 	a := &protocol.RunType{ID: "A1", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: protocol.NewRef("B1")}
 	b := &protocol.RunType{ID: "B1", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: protocol.NewRef("A1")}
@@ -270,49 +274,34 @@ func TestCycle(t *testing.T) {
 	if !strings.Contains(bundle, "['A1',15,") || !strings.Contains(bundle, "['B1',15,") {
 		t.Errorf("both cycle members must be rows of the bundle:\n%s", bundle)
 	}
-	if !strings.Contains(bundle, `c('A1').child = c('B1');`) || !strings.Contains(bundle, `c('B1').child = c('A1');`) {
-		t.Errorf("expected both cycle ref assignments via c() accessor:\n%s", bundle)
+	// Sorted rows: A1(0), B1(1). A1.child → 1, B1.child → 0.
+	if !strings.Contains(bundle, `,[[1],[0]]];`) {
+		t.Errorf("expected index-based cycle relations `rels=[[1],[0]]`, got:\n%s", bundle)
 	}
 }
 
-// TestFooterHoistsHotRefs — a target id referenced ≥ hoistMinRefs times in the
-// combined footer is hoisted into a `const dN=c('<id>')` local declared once
-// at the top of the ini body and reused on each edge (no repeated lookups).
-func TestFooterHoistsHotRefs(t *testing.T) {
+// TestRelationsAreIndexBased — ref relations ride the bundle's parallel `rels`
+// array as ROW INDICES, not `c('<id>')` footer lookups. A child shared by
+// several parents is referenced by its single row index from each, and a
+// relation-only bundle emits no residual ini.
+func TestRelationsAreIndexBased(t *testing.T) {
 	runTypes := []*protocol.RunType{
 		{ID: "shrd1", Kind: protocol.KindString},
 		{ID: "p1", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: protocol.NewRef("shrd1")},
 		{ID: "p2", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: protocol.NewRef("shrd1")},
-		{ID: "p3", Kind: protocol.KindProperty, Name: "c", IsSafeName: true, Child: protocol.NewRef("shrd1")},
 	}
-	bundle := bundleOf(t, emitModules(t, []string{"p1", "p2", "p3"}, runTypes))
-	// shrd1 is referenced 3× → hoisted to d1, declared once at the top.
-	if !strings.Contains(bundle, "function ini(rtu){const c=(id)=>rtu.useRunType(id);\nconst d1=c('shrd1');\n") {
-		t.Errorf("expected hoist preamble `const d1=c('shrd1');`, got:\n%s", bundle)
+	bundle := bundleOf(t, emitModules(t, []string{"p1", "p2"}, runTypes))
+	// Sorted rows: p1(0), p2(1), shrd1(2). Both p1 and p2 point child → index 2;
+	// shrd1 is a leaf (trailing-trimmed). So `rels` is [[2],[2]].
+	if !strings.Contains(bundle, `,[[2],[2]]];`) {
+		t.Errorf("expected index-based rels `[[2],[2]]`, got:\n%s", bundle)
 	}
-	// Each edge uses the local, never a repeated c('shrd1') lookup.
-	if !strings.Contains(bundle, "c('p1').child = d1;") {
-		t.Errorf("expected hoisted edge `c('p1').child = d1;`, got:\n%s", bundle)
+	// No repeated id strings, no footer lookups, no ini for a relation-only bundle.
+	if strings.Contains(bundle, "useRunType") || strings.Contains(bundle, "c('shrd1')") {
+		t.Errorf("relations must not emit c('<id>') footer lookups:\n%s", bundle)
 	}
-	if strings.Contains(bundle, ".child = c('shrd1')") {
-		t.Errorf("hot ref should be hoisted, not an inline c('shrd1') lookup:\n%s", bundle)
-	}
-}
-
-// TestFooterBelowThresholdStaysInline — a target id referenced fewer than
-// hoistMinRefs times stays an inline c('<id>') lookup, with no preamble.
-func TestFooterBelowThresholdStaysInline(t *testing.T) {
-	runTypes := []*protocol.RunType{
-		{ID: "shrd2", Kind: protocol.KindString},
-		{ID: "q1", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: protocol.NewRef("shrd2")},
-		{ID: "q2", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: protocol.NewRef("shrd2")},
-	}
-	bundle := bundleOf(t, emitModules(t, []string{"q1", "q2"}, runTypes))
-	if strings.Contains(bundle, "const d1=") {
-		t.Errorf("2 refs (< threshold) must not hoist, got:\n%s", bundle)
-	}
-	if !strings.Contains(bundle, "c('q1').child = c('shrd2');") {
-		t.Errorf("below-threshold ref should stay inline, got:\n%s", bundle)
+	if strings.Contains(bundle, "function ini") {
+		t.Errorf("no expression-specials → no ini fn expected:\n%s", bundle)
 	}
 }
 
