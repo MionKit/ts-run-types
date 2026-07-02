@@ -67,10 +67,14 @@ export interface MockOptions {
    *  outside a union, a non-string for a regexp / formatted string, …). Handy for
    *  exercising validators, decoders and error paths in tests. Off by default. **/
   invalid?: boolean;
-  /** When `invalid` is on, biases WHERE the wrong value lands (0..1): `1` always
-   *  corrupts a deep leaf (a single primitive somewhere in the value), `0` always
-   *  replaces the whole root, values in between roll per call. Default `0.85`, so
-   *  the break is usually a deep field rather than the whole value. **/
+  /** When `invalid` is on, biases the DEPTH at which the wrong value lands
+   *  (0..1) along the root→leaf axis. Every position is a candidate — the root,
+   *  any intermediate object / array on any branch, and every leaf: `1` corrupts a
+   *  leaf (a single primitive, the root and nested containers stay intact), `0`
+   *  replaces the whole root, and values in between spread the break across all
+   *  depths (a mid value can replace a whole nested object with a non-object).
+   *  Default `0.85`, so the break is usually a deep field rather than the whole
+   *  value. **/
   invalidLeafProbability?: number;
   /** Steer generation against the binary cold-start size estimate (see
    *  `createBinaryEncoder`'s `dynamic` strategy):

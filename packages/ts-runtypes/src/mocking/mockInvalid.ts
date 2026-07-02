@@ -3,14 +3,22 @@
 // replaces ONE position with a value the type rejects: the inverse of what the
 // mock would produce there (a number for a string, a value outside a union, a
 // non-string for a regexp / formatted string, an object where a primitive is
-// required, …). `invalidLeafProbability` biases WHERE the break lands — 1 always
-// a deep leaf, 0 always the whole root.
+// required, …).
+//
+// `invalidLeafProbability` biases the DEPTH at which the break lands. Every
+// position is a candidate — the root, any intermediate object / array on any
+// branch, and every leaf — each tagged with its depth (root = 0, deeper = more).
+// The probability slides the corruption along that root→leaf axis: `1` corrupts a
+// (deep) leaf, `0` replaces the whole root, and values in between spread the break
+// across all depths (a mid value can land on an intermediate node, e.g. replace a
+// whole nested object with a non-object). This is the fix for the old behaviour,
+// which only ever hit a leaf OR the root and never a node in between.
 //
 // Type-accurate by construction (it reads each node's kind / literal / union
 // members), so the corrupted position fails `validate<T>` without needing to run
 // the validator. The only positions it cannot make invalid are `any` / `unknown`
-// (nothing fails them); those are left untouched and the corruption lands
-// elsewhere when one is available.
+// (nothing fails them); those are dropped from the candidate set so the break
+// always lands on a position that can actually be made invalid.
 
 import {RunTypeKind} from '../runTypeKind.ts';
 import type {RunType} from '../runtypes/types.ts';
@@ -21,11 +29,17 @@ const K = RunTypeKind;
 
 const kindOf = (node: RunType): number => node.kind as number;
 
-interface Target {
-  parent: Record<string | number, unknown>;
-  key: string | number;
+// A corruptible position in the mocked value. `parent`/`key` are undefined for
+// the root (it has no container to mutate — corrupting it replaces the value
+// wholesale). `depth` is the value-nesting level (root = 0), used to bias WHERE
+// the break lands. `isLeaf` is true for a non-descended position (a primitive, or
+// an opaque native like Date / Map / Set / RegExp / typed array).
+export interface Target {
+  parent: Record<string | number, unknown> | undefined;
+  key: string | number | undefined;
   node: RunType | undefined;
   value: unknown;
+  depth: number;
   isLeaf: boolean;
 }
 
@@ -186,51 +200,115 @@ export function negativeFor(node: RunType | undefined, value: unknown): unknown 
   }
 }
 
-// Co-walk a container value with its (union-resolved) node, recording every
-// descendant position as a corruption target. Leaves keep their ORIGINAL node
-// (which may be a union) so negativeFor can pick a value outside it.
-function collectChildren(container: Record<string, unknown> | unknown[], node: RunType | undefined, out: Target[]): void {
-  if (Array.isArray(container)) {
-    const arr = container as unknown as Record<string | number, unknown>;
-    container.forEach((value, index) => visit(value, elemNodeAt(node, index), arr, index, out));
-    return;
-  }
-  for (const key of Object.keys(container)) {
-    visit(container[key], propChildNode(node, key), container, key, out);
-  }
-}
-
-function visit(
+// Co-walk `value` with its node, recording EVERY position (the root, every
+// intermediate container, and every leaf) as a corruption target tagged with its
+// depth. Each target keeps its ORIGINAL node (which may be a union) so negativeFor
+// can pick a value outside it. Containers are descended with their union-resolved
+// node so children map to the in-play arm.
+function collect(
   value: unknown,
   node: RunType | undefined,
-  parent: Record<string | number, unknown>,
-  key: string | number,
+  parent: Record<string | number, unknown> | undefined,
+  key: string | number | undefined,
+  depth: number,
   out: Target[]
 ): void {
-  if (isContainer(value)) {
-    out.push({parent, key, node, value, isLeaf: false});
-    collectChildren(value, memberForValue(node, value), out);
-  } else {
-    out.push({parent, key, node, value, isLeaf: true});
+  const leaf = !isContainer(value);
+  out.push({parent, key, node, value, depth, isLeaf: leaf});
+  if (leaf) return;
+  const resolved = memberForValue(node, value);
+  if (Array.isArray(value)) {
+    const arr = value as unknown as Record<string | number, unknown>;
+    value.forEach((child, index) => collect(child, elemNodeAt(resolved, index), arr, index, depth + 1, out));
+    return;
+  }
+  const container = value as Record<string, unknown>;
+  for (const childKey of Object.keys(container)) {
+    collect(container[childKey], propChildNode(resolved, childKey), container, childKey, depth + 1, out);
   }
 }
 
-// injectInvalid mutates `root` so it should fail validation: with probability
-// `invalidLeafProbability` (and when leaves exist) it corrupts a random deep
-// leaf; otherwise it replaces the whole root. Returns the (possibly replaced)
-// value.
-function injectInvalid(root: unknown, rootNode: RunType | undefined, invalidLeafProbability: number): unknown {
-  if (isContainer(root)) {
-    const targets: Target[] = [];
-    collectChildren(root, memberForValue(rootNode, root), targets);
-    const leaves = targets.filter((target) => target.isLeaf);
-    if (leaves.length > 0 && Math.random() < invalidLeafProbability) {
-      const chosen = leaves[Math.floor(Math.random() * leaves.length)];
-      chosen.parent[chosen.key] = negativeFor(chosen.node, chosen.value);
-      return root;
-    }
+// collectInvalidTargets walks the mocked value and returns every position that
+// could be corrupted, rooted at depth 0. Exposed for tests that assert the
+// selection distribution over depths (see mockInvalidDistribution.test.ts).
+export function collectInvalidTargets(root: unknown, rootNode: RunType | undefined): Target[] {
+  const out: Target[] = [];
+  collect(root, rootNode, undefined, undefined, 0, out);
+  return out;
+}
+
+// A position is corruptible unless its node is `any` / `unknown` — nothing fails
+// those, so negativeFor would return the value unchanged and the "invalid" mock
+// would actually validate. A missing node falls back to a runtime-type inverse,
+// which always corrupts, so it counts as corruptible.
+function canCorrupt(target: Target): boolean {
+  if (!target.node) return true;
+  const kind = kindOf(target.node);
+  return kind !== K.any && kind !== K.unknown;
+}
+
+// The per-level selection weight at normalized depth `nd` (0 = root, 1 = deepest)
+// for probability `p`: a linear interpolation between "favour the root" (p→0) and
+// "favour the leaves" (p→1). At p = 0.5 every depth is equally likely.
+function levelWeight(nd: number, p: number): number {
+  return (1 - p) * (1 - nd) + p * nd;
+}
+
+// chooseInvalidTarget picks ONE position to corrupt from `targets`, biased by
+// depth via `invalidLeafProbability` (p). It does NOT mutate — it only selects,
+// so tests can sample the distribution. Selection:
+//   • p >= 1  → a uniformly random leaf (the root and intermediate nodes survive);
+//   • p <= 0  → the root (the whole value is replaced);
+//   • 0 < p < 1 → every corruptible position is in play, weighted by depth so the
+//     break slides from the root (low p) to the leaves (high p) and can land on
+//     any intermediate node in between. Each depth LEVEL is weighted by
+//     `levelWeight`, then a position is drawn uniformly within the chosen level,
+//     so the depth distribution is independent of a level's branching factor.
+// Returns undefined only when nothing is corruptible (e.g. an `any` root).
+export function chooseInvalidTarget(targets: Target[], invalidLeafProbability: number): Target | undefined {
+  const corruptible = targets.filter(canCorrupt);
+  if (corruptible.length === 0) return undefined;
+  const root = corruptible.find((target) => target.parent === undefined);
+
+  if (invalidLeafProbability >= 1) {
+    const leaves = corruptible.filter((target) => target.isLeaf);
+    if (leaves.length > 0) return leaves[Math.floor(Math.random() * leaves.length)];
+    return root ?? corruptible[0];
   }
-  return negativeFor(rootNode, root);
+  if (invalidLeafProbability <= 0) return root ?? corruptible[0];
+
+  const maxDepth = corruptible.reduce((max, target) => Math.max(max, target.depth), 0);
+  if (maxDepth === 0) return root ?? corruptible[0];
+
+  const countAtDepth = new Map<number, number>();
+  for (const target of corruptible) countAtDepth.set(target.depth, (countAtDepth.get(target.depth) ?? 0) + 1);
+
+  // Weight each target by its level weight spread evenly across that level, so the
+  // total weight of a level is `levelWeight` regardless of how many nodes it holds.
+  const weights = corruptible.map(
+    (target) => levelWeight(target.depth / maxDepth, invalidLeafProbability) / (countAtDepth.get(target.depth) as number)
+  );
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  let roll = Math.random() * total;
+  for (let i = 0; i < corruptible.length; i++) {
+    roll -= weights[i];
+    if (roll < 0) return corruptible[i];
+  }
+  return corruptible[corruptible.length - 1];
+}
+
+// injectInvalid corrupts ONE position of `root` so the value fails validation:
+// it collects every corruptible position, picks one biased by
+// `invalidLeafProbability` (see chooseInvalidTarget), and replaces it with a
+// type-aware wrong value. Corrupting the root replaces the whole value (returned);
+// corrupting any other position mutates its parent in place. When nothing is
+// corruptible it falls back to replacing the root wholesale.
+function injectInvalid(root: unknown, rootNode: RunType | undefined, invalidLeafProbability: number): unknown {
+  const targets = collectInvalidTargets(root, rootNode);
+  const chosen = chooseInvalidTarget(targets, invalidLeafProbability);
+  if (!chosen || chosen.parent === undefined) return negativeFor(rootNode, root);
+  chosen.parent[chosen.key as string | number] = negativeFor(chosen.node, chosen.value);
+  return root;
 }
 
 // mockRunTypeInvalid is the `invalid` counterpart of mockRunType: a fresh valid
