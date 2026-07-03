@@ -4,17 +4,20 @@
 // type-id injection). Covers: base type failure, format-constraint failure +
 // `$[val]`, nested paths, array `$items` + `$[index]`, Map/Set `$keys`/`$values`
 // routing (by the entry's `failed` role) + the entry index, label fallback,
-// accumulation (one message per constraint), the function escape hatch (one
-// aggregated message), `$default`, and missing-entry fallback.
+// accumulation (one message per constraint), the exclusive `$default` mode
+// (one catch-all message), and missing-entry fallback. Fields carry REAL
+// format brands — the precise `ErrorTemplates<F>` typing derives each node's
+// required `$errors` keys from them.
 
 import {describe, it, expect} from 'vitest';
+import type * as TF from 'ts-runtypes/formats';
 import {createFriendly, type FriendlyType, type RTValidationError} from 'ts-runtypes';
 
 interface User {
-  name: string;
-  age: number;
+  name: TF.String<{minLength: 2}>;
+  age: TF.Number<{min: 0; max: 120}>;
   tags: string[];
-  profile: {email: string; score: number};
+  profile: {email: TF.String<{maxLength: 60}>; score: TF.Number<{min: 0; max: 100}>};
 }
 
 const map: FriendlyType<User> = {
@@ -40,16 +43,10 @@ const map: FriendlyType<User> = {
   profile: {
     $label: 'Profile',
     $errors: {type: 'Profile is invalid'},
-    email: {$label: 'Email', $errors: {pattern: 'Enter a valid email'}},
-    score: {
-      $label: 'Score',
-      $errors: (failed) => {
-        const parts: string[] = [];
-        if (failed.min) parts.push('at least ' + String(failed.min.val));
-        if (failed.max) parts.push('at most ' + String(failed.max.val));
-        return parts.length ? 'Score must be ' + parts.join(' and ') : 'Score invalid';
-      },
-    },
+    email: {$label: 'Email', $errors: {type: '', maxLength: 'Enter a valid email'}},
+    // The exclusive $default mode: ONE catch-all message, whatever failed
+    // (the replacement for the removed function form).
+    score: {$label: 'Score', $errors: {$default: 'Score must be valid'}},
   },
 };
 
@@ -70,7 +67,7 @@ describe('createFriendly — error rendering', () => {
 
   it('nested path resolves to the nested node', () => {
     const errs: RTValidationError[] = [
-      {path: ['profile', 'email'], expected: 'string', format: {name: 'stringFormat', val: 'msg', formatPath: ['pattern']}},
+      {path: ['profile', 'email'], expected: 'string', format: {name: 'stringFormat', val: 60, formatPath: ['maxLength']}},
     ];
     expect(friendly.errors(errs)).toEqual([{path: 'profile.email', label: 'Email', message: 'Enter a valid email'}]);
   });
@@ -100,14 +97,14 @@ describe('createFriendly — error rendering', () => {
     expect(friendly.errors(errs).map((m) => m.message)).toEqual(['Age must be at least 0', 'Age must be no more than 120']);
   });
 
-  it('function-form $errors → one aggregated message per field', () => {
+  it('$default mode → the one catch-all message renders for every failure', () => {
     const errs: RTValidationError[] = [
       {path: ['profile', 'score'], expected: 'number', format: {name: 'numberFormat', val: 0, formatPath: ['min']}},
       {path: ['profile', 'score'], expected: 'number', format: {name: 'numberFormat', val: 100, formatPath: ['max']}},
     ];
     const out = friendly.errors(errs);
-    expect(out).toHaveLength(1);
-    expect(out[0].message).toBe('Score must be at least 0 and at most 100');
+    expect(out).toHaveLength(2); // per-constraint accumulation, same catch-all text
+    expect(out.map((m) => m.message)).toEqual(['Score must be valid', 'Score must be valid']);
   });
 
   it('$default catches an unlisted constraint', () => {

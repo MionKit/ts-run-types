@@ -32,7 +32,8 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.String<{lowercase: true}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', lowercase: ''}};
+      // `lowercase` is a TRANSFORMER param (non-failing) — it is not an $errors key.
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####

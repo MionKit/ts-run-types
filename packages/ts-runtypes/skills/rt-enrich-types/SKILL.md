@@ -83,14 +83,13 @@ createMockType<User>({data: mockUser});
 `@rt`-prefixed tags are **compiler-owned** — the compiler reads/writes them; do not edit
 them by hand. A plain `@todo` is **yours** — the compiler only emits it.
 
-| Tag                             | Owner    | Meaning                                                                                                    |
-| ------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------- |
-| `@rtType <Name>#<id>`           | compiler | the const's stable structural identity; reconcile matches by this, not the var name                        |
-| `@rtIds {field: id, …}`         | compiler | each field's child type id — lets `--update` detect a field **rename** and carry your value across         |
-| `@rtI18n <locale> from '<rel>'` | compiler | marks a translation const: its locale + the relative path back to the source friendly mirror it translates |
-| `@rtOrphan …`                   | compiler | a whole const whose source type is gone — commented out (value preserved), removed by `--prune`            |
-| `@rtOrphanChild …`              | compiler | a single field removed from the type — commented out (value preserved), removed by `--prune`               |
-| `@todo …`                       | **you**  | a blank the compiler scaffolded — fill it in, then **delete the line**                                     |
+| Tag                     | Owner    | Meaning                                                                                            |
+| ----------------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `@rtType <Name>#<id>`   | compiler | the const's stable structural identity; reconcile matches by this, not the var name                |
+| `@rtIds {field: id, …}` | compiler | each field's child type id — lets `--update` detect a field **rename** and carry your value across |
+| `@rtOrphan …`           | compiler | a whole const whose source type is gone — commented out (value preserved), removed by `--prune`    |
+| `@rtOrphanChild …`      | compiler | a single field removed from the type — commented out (value preserved), removed by `--prune`       |
+| `@todo …`               | **you**  | a blank the compiler scaffolded — fill it in, then **delete the line**                             |
 
 Hand-authored comments are preserved across `--update` and travel with a renamed field.
 `--update` never edits your values; it only adds blanks, flags stale values, and orphans
@@ -99,49 +98,58 @@ gone fields. `--prune` is the only command that deletes.
 ## `FriendlyType<T>` — labels + error messages
 
 A combined, per-field map: `$label` (a human name) + `$errors` (one message template per
-failed constraint; count-bearing constraints scaffold plural objects). Pure data;
+declared failable constraint — the mapped type requires each key — or the exclusive
+`{$default: '…'}` catch-all; count-bearing constraints scaffold plural objects; the
+tsconfig `friendlyErrors` knob picks the scaffold mode for NEW nodes). Pure data;
 rendered at runtime by `createFriendly<T>(map)`, or by `createFriendlyI18n` with
 committed translations. The full authoring DSL — node shape, constraint keys, the `$[…]`
-placeholder DSL, plural rules, the function escape hatch, the FT0xx checks, runtime
+placeholder DSL, plural rules, the `$default` mode, the FT0xx checks, runtime
 rendering — is the **`runtypes-friendly-type`** skill; use it whenever you author or
 fill a friendly map.
 
 ## Translations — per-locale friendly files
 
 The friendly map you author IS the source language (tsconfig `i18n.sourceLocale`, default
-`en`) — there is no separate default catalog. Each target locale gets committed
-translation files that shadow the friendly mirror tree: `<i18nDir>/<locale>/<rel>.ts`
-(default `i18nDir`: `<enrichDir>/i18n`, resolved under the project root; the locale is a
-path segment, so `pt-BR` works verbatim). The const per type is `<locale>_friendly<Name>`
-(BCP-47 `-` becomes `_`: `pt_BR_friendlyUser`), annotated `Translation<Name>` (an intent
-alias of `FriendlyType<Name>`), carrying the SAME `@rtType <Name>#<id> @rtIds {…}` marker
-as the source plus `@rtI18n <locale> from '<rel-to-source-mirror>'`.
+`en`) — there is no separate default catalog and no separate translation type. Each
+target locale gets committed `FriendlyType<T>` files that shadow the friendly mirror
+tree: `<i18nDir>/<locale>/<rel>.ts` (default `i18nDir`: `<enrichDir>/i18n`, resolved
+under the project root; the locale is a path segment, so `pt-BR` works verbatim). The
+const per type is `<locale>_friendly<Name>` (BCP-47 `-` becomes `_`:
+`pt_BR_friendlyUser`), annotated `FriendlyType<Name>`, carrying the SAME
+`@rtType <Name>#<id> @rtIds {…}` markers as the source — the path + const prefix carry
+the locale. Every locale file is generated FROM THE SOURCE TYPE by the same driver as
+the friendly mirror itself; the mirror is a discovery input only (which sources
+translate), never a content input.
 
 ```
 ts-runtypes gen   --translate <locale> [<src.ts>]            # scaffold (create-only)
-ts-runtypes gen   --translate <locale> --update [<src.ts>]   # reconcile vs the friendly source mirror
+ts-runtypes gen   --translate <locale> --update [<src.ts>]   # reconcile from the SOURCE TYPE
 ts-runtypes gen   --translate <locale> --prune  [<src.ts>]   # strip @rtOrphan carcasses (the only delete)
 ts-runtypes gen   --translate all [--update]                 # fan out over tsconfig i18n.locales
 ts-runtypes check --translate <locale|all>                   # completeness gate (CI)
 ```
 
-Without `<src.ts>` the verbs walk every mirror under `<enrichDir>/friendly/`.
+Without `<src.ts>`, targets are "sources that have a friendly mirror" — path math over
+`<enrichDir>/friendly/`; the mirror's content is never read.
 
-- **Scaffold + fill rules** — a scaffold is the source tree with every string leaf and
+- **Scaffold + fill rules** — a scaffold is the type's tree with every string leaf and
   plural arm as an `@todo` blank (`''`); it NEVER copies source text as if translated.
   The authoring rules (translate only blank leaves, arms are locale-owned, prune
   freely) are in the **`runtypes-friendly-type`** skill's Translations section.
-- **`--update`** — value-preserving, mirroring `gen --update`, plus it descends ONE level
-  into `$errors`: a source-added constraint key arrives as a blank of the source's kind
-  (string, or a plural with TARGET-locale arms); a source-dropped key becomes an
-  `@rtOrphanChild` carcass; a same-key leaf is kept byte-identical. Plural arms are never
-  orphaned, renamed, or down-scoped to the source's set. Type renames carry across
-  locales via the shared `@rtType` id (const, annotation, marker AND intra-file
-  references are renamed in place).
+- **`--update`** — the same value-preserving reconcile as `gen --update` (one driver for
+  every friendly-family file), including the one-level `$errors` descent: a newly
+  declared constraint key arrives as a blank of the right kind (string, or a plural with
+  THAT FILE's locale arms); a dropped RECOGNIZED constraint key becomes an
+  `@rtOrphanChild` carcass (unknown keys are author-owned, untouched); a same-key leaf is
+  kept byte-identical; a `$default`-only node is never descended. Plural arms are never
+  orphaned, renamed, or down-scoped. Type renames carry across locales via the shared
+  `@rtType` id (const, annotation, marker AND intra-file references are renamed in
+  place).
 - **`check --translate` findings** — TR001 missing translation file; TR002 unfilled
-  `@todo` blanks; TR003 out of date vs the source mirror; TR004 orphan carcasses awaiting
-  review/prune. All Warnings (exit 0) unless tsconfig `i18n.strict: true` flips them to
-  Errors (exit 1); the runtime is always lenient regardless.
+  `@todo` blanks; TR003 out of date vs the SOURCE TYPE (a src-driven reconcile would
+  change the file); TR004 orphan carcasses awaiting review/prune. All Warnings (exit 0)
+  unless tsconfig `i18n.strict: true` flips them to Errors (exit 1); the runtime is
+  always lenient regardless.
 
 The `i18n` block lives on the `ts-runtypes` tsconfig plugin entry (dormant by default —
 zero change when absent):
@@ -150,6 +158,7 @@ zero change when absent):
 {
   "name": "ts-runtypes",
   "enrichDir": "runtypes/generated",
+  "friendlyErrors": "perConstraint", // $errors mode gen scaffolds for NEW nodes ("perConstraint" | "default")
   "i18n": {
     "sourceLocale": "en", // language the source FriendlyType maps are written in
     "dir": "runtypes/generated/i18n", // translation subtree root (default <enrichDir>/i18n)

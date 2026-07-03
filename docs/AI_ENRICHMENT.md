@@ -119,9 +119,13 @@ export interface User {
 ```
 
 ```ts
-// the authored map — validated against User at scan time
+// the authored map — validated against User by tsc AND at scan time.
+// The map is TOTAL: every field present, $label + $errors required on every
+// node (blank '' = "no custom text", renderer falls back; deleting a key just
+// re-scaffolds it — one type maps to exactly one shape).
 const userFriendly: FriendlyType<User> = {
   $label: 'User account',
+  $errors: { type: '$[label] must be an object' },
 
   name: {
     $label: 'Full name',
@@ -139,17 +143,19 @@ const userFriendly: FriendlyType<User> = {
       max: '$[label] must be no more than $[val]',
     },
   },
-  isActive: { $label: 'Active?' },
+  isActive: { $label: 'Active?', $errors: { type: '' } },
 
   tags: {
     $label: 'Tags',
-    $items: { $errors: { type: 'each tag must be text' } },
+    $errors: { type: '' },
+    $items: { $label: '', $errors: { type: 'each tag must be text' } },
   },
 
   profile: {                         // nested object — same node shape, recursively
     $label: 'Profile',
-    email: { $label: 'Email', $errors: { pattern: 'Enter a valid email address' } },
-    score: { $label: 'Score', $errors: { min: 'min $[val]', max: 'max $[val]' } },
+    $errors: { type: '' },
+    email: { $label: 'Email', $errors: { type: '', pattern: 'Enter a valid email address' } },
+    score: { $label: 'Score', $errors: { type: '', min: 'min $[val]', max: 'max $[val]' } },
   },
 };
 ```
@@ -198,10 +204,19 @@ name and value known at emit time:
 (a *message* for `pattern`/`allowedChars`, *absent* for date bounds). The
 enrichment makes `$[val]` resolve uniformly to the declared bound.
 
-**Constraint granularity is bounded by the type.** A bare `name: string` can only
-fail as `type`; you only get `minLength`/`maxLength` keys because the field is
-`FormatString<{minLength; maxLength}>`. The richness of the friendly map is a
-function of how richly the type is annotated.
+**Constraint granularity is bounded by the type — and the type ENFORCES it.**
+A bare `name: string` can only fail as `type`; you only get `minLength`/`maxLength`
+keys because the field is `FormatString<{minLength; maxLength}>`. The typing is
+param-precise: `ErrorTemplates<F>` reads the field's `__rtFormatParams` brand and
+derives the exact key set — every failable param is a REQUIRED key (blank `''` =
+no custom message), an unknown key is an excess-property error (FT003 moves into
+the IDE), count-bearing keys accept a plural object, and non-failing params
+(`isCurrency` + the transformers `trim`/`lowercase`/`uppercase`/`capitalize`/
+`replace`/`replaceAll` — the `NonFailingParams` union in
+[`friendlyType.ts`](../packages/ts-runtypes/src/enrich/friendlyType.ts), mirrored
+by `nonFailingParams` in [`internal/enrich/enrich.go`](../internal/enrich/enrich.go))
+never become keys. The richness of the friendly map is a function of how richly
+the type is annotated.
 
 ### Aggregation: errors accumulate
 
@@ -210,8 +225,8 @@ function of how richly the type is annotated.
 path short-circuits; irrelevant here.) The only short-circuits are structurally
 necessary: no separator ⇒ datetime skips `date`/`time`; no `@` ⇒ email skips
 `localPart`/`domain`. So the data DSL yields **one message per violated
-constraint** (a list). The mion-style "join into one sentence" (`at least X and at
-most Y`) needs the function escape hatch below.
+constraint** (a list). For one sentence per field regardless of which rule fired,
+use the exclusive `$default` mode below.
 
 ### Placeholder DSL
 
@@ -239,8 +254,9 @@ both legal in single-locale maps too:
   non-finite bound selects `other` directly, and plain `createFriendly` uses `en`
   rules (deterministic, matching the default `sourceLocale`). A plain string stays
   legal on a count-bearing constraint; `$label` is always a plain string.
-  Type-side: `TemplateLeaf = string | PluralTemplate` (plus `PluralCategory` and
-  the `Translation<T>` intent alias), exported from `ts-runtypes`.
+  Type-side: `TemplateLeaf = string | PluralTemplate` (plus `PluralCategory`),
+  exported from `ts-runtypes`; the TS `CountBearingKeys` union in
+  `friendlyType.ts` mirrors Go's `CountBearing` — the second TS↔Go sync point.
 - **Type-driven `$[val]` rendering.** On the `createFriendlyI18n` path the
   error's format payload says what the bound IS. A number with the `isCurrency`
   param (`TF.Currency<P>` = `Number<P & {isCurrency: true}>` — pure
@@ -260,29 +276,20 @@ both legal in single-locale maps too:
 no value (`RTValidationError` is `{path, expected, format?}`), so it would require
 threading the input into the renderer. Revisit with the `$[val]` enrichment.
 
-### Function escape hatch
+### `$default` — the exclusive catch-all mode
 
-Any `$errors` entry may be an **inline arrow** instead of a template record, for
-logic the data form can't express (joining constraints, pluralization, i18n
-lookups). It receives a synthesized `failed` object (grouped from the
-`RTValidationError`s at that path), mirroring mion ergonomics:
+A node's `$errors` is one of exactly two shapes: the per-constraint record, or
+`{$default: '…'}` — a single template rendered for EVERY failure of that field.
+The two are **mutually exclusive** (`$default` beside any other key is both a TS
+excess-property error and a Go checker Error), enforced as a union of the two
+record types. `$default` is plain data, so it stays translatable and
+reconcilable; there is NO function-form `$errors` (an inline arrow was the v1
+escape hatch — removed: opaque to translation, reconcile and the checker).
 
-```ts
-name: {
-  $label: 'Full name',
-  $errors: (failed) => {
-    const parts: string[] = [];
-    if (failed.minLength) parts.push(`at least ${failed.minLength.val} characters`);
-    if (failed.maxLength) parts.push(`at most ${failed.maxLength.val} characters`);
-    return parts.length ? `Name must be ${parts.join(' and ')}` : 'Invalid name';
-  },
-},
-```
-
-The function must be an **inline** expression (the `CompTimeArgs` literal rule — no
-external function reference); its body is opaque to the compiler and runs at
-runtime, so it may call i18n machinery freely. The trade: the data form gets
-compile-time placeholder/constraint validation (below); a function does not.
+Which mode `gen` scaffolds for a NEW node is the tsconfig plugin entry's
+top-level `friendlyErrors` knob (`"perConstraint"` default | `"default"`). Once
+a node exists its authored mode is author-owned: every later sync follows it,
+and a `$default`-only node is never descended by the `$errors` reconcile.
 
 ### Type sketch — modelled on `DataOnly<T>`
 
@@ -299,29 +306,34 @@ Three rules carried over from `DataOnly`:
    types resolve to a finite instantiation instead of tripping the TS2589 depth cap.
 2. **No `infer` on the hot path** — reach element/property types with `T[number]`
    and `T[K]`, behind cheap bare `extends` gates ordered scalar-before-object.
-3. **Homomorphic** `{ [K in keyof T]?: … }` to preserve structure for free.
+3. **Homomorphic** `{ [K in keyof T]-?: … }` to preserve structure for free
+   (`-?` because the map is TOTAL — every field of the type must be addressed).
 
 And like `DataOnly`, these should live in their own module as a self-contained,
 verbatim-sliced region with a per-branch **instantiation-budget** compile test
 (mirroring `test/types/dataonly.compile.test.ts`).
 
 ```ts
-type Template = string;                        // `$[…]`-interpolated
+type TemplateLeaf = FriendlyTemplate | PluralTemplate;   // plural only on count-bearing keys
 
-type ErrorTemplates =
-  | { type?: Template; $default?: Template; [constraint: string]: Template | undefined }
-  | ((failed: FailedConstraints) => string);   // inline-arrow escape hatch
+// Param-precise: the leaf arm threads the FIELD's own type F; its
+// `__rtFormatParams` brand decides the exact key set. Two exclusive modes:
+type ConstraintTemplates<P> = { type: FriendlyTemplate } & {
+  [K in Exclude<keyof P & string, NonFailingParams>]: K extends CountBearingKeys ? TemplateLeaf : FriendlyTemplate;
+} & { $default?: never };
+type DefaultOnlyTemplates = { $default: FriendlyTemplate; type?: never };
+export type ErrorTemplates<F = never> = /* bare `type`-only ⋁ DefaultOnly ⋁ Constraint<P> — see friendlyType.ts */ …;
 
-interface Meta { $label?: string; $errors?: ErrorTemplates }
+interface FriendlyMeta<F = never> { $label: string; $errors: ErrorTemplates<F> }  // BOTH required
 type FriendlyLeaf = string | number | boolean | bigint | null | undefined | Date | RegExp;
 type _Depth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 type FriendlyNode<T, Depth extends number = 8> =
-  Depth extends 0                ? Meta                            // budget spent — keep as leaf
-  : T extends FriendlyLeaf       ? Meta                            // scalar / native — no children
-  : T extends readonly unknown[] ? Meta & { $items?: FriendlyNode<T[number], _Depth[Depth]> }
-  : T extends object             ? Meta & { [K in keyof T]?: FriendlyNode<T[K], _Depth[Depth]> }
-  :                                Meta;
+  Depth extends 0                ? FriendlyMeta                    // budget spent — keep as leaf
+  : T extends FriendlyLeaf       ? FriendlyMeta<T>                 // leaf — F drives the $errors keys
+  : T extends readonly unknown[] ? FriendlyMeta & { $items: FriendlyNode<T[number], _Depth[Depth]> }
+  : T extends object             ? FriendlyMeta & { [K in keyof T]-?: FriendlyNode<T[K], _Depth[Depth]> }
+  :                                FriendlyMeta;                   // (real impl adds Map/Set/tuple arms)
 
 export type FriendlyType<T> = FriendlyNode<T>;
 ```
@@ -480,7 +492,7 @@ CLI (below) rather than scraping editor output.
 | `ts-runtypes check --file <p> --json`           | Validate **one file**, structured JSON out. The agent's tight feedback tool.              |
 | `ts-runtypes describe <file>#<Type> --format prompt\|json` | Emit the type's shape (names, kinds, optionality, formats, literals — all already in the `RunType` struct) as LLM prompt context. |
 | `ts-runtypes gen <file> [--mock] [--friendly] [--check] [--update] [--prune]` | Generate / refresh the type's mirror file under `enrichDir`. `--check` reports breadcrumb drift; `--update` reconciles an existing mirror value-preservingly (property merge + rename + orphan); `--prune` strips `@rtOrphan`/`@rtOrphanChild` carcasses (the only destructive op). See `gen` semantics below. |
-| `ts-runtypes gen --translate <locale>` (or `all`) `[--update] [--prune] [<src.ts>]` | Scaffold (create-only) / reconcile / prune a locale's `Translation<T>` mirrors off the friendly source mirror; `all` fans out over tsconfig `i18n.locales`; without `<src.ts>` it walks every mirror under `<enrichDir>/friendly/`. See [Translations (i18n)](#translations-i18n). |
+| `ts-runtypes gen --translate <locale>` (or `all`) `[--update] [--prune] [<src.ts>]` | Scaffold (create-only) / reconcile / prune a locale's `FriendlyType<T>` mirrors — generated from the SOURCE TYPE with the same driver as the friendly mirror (locale-parameterized); `all` fans out over tsconfig `i18n.locales`; without `<src.ts>` targets are discovered as "sources that have a friendly mirror" (path math only — the mirror is never read as an input). See [Translations (i18n)](#translations-i18n). |
 | `ts-runtypes check --translate <locale>` (or `all`) | Translation completeness gate for CI (**TR001–TR004**) — Warnings, promoted to Errors by tsconfig `i18n.strict`. |
 
 All three are **implemented** as out-of-band CLI modes of the Go binary. Validation
@@ -739,7 +751,6 @@ leading JSDoc on a declaration is preserved) and round-trip on the next update:
 | --- | --- | --- |
 | `@rtType <Name>#<id>` | JSDoc on each `export const` | the const's structural type id — the reconcile matches existing↔desired by THIS id, not the positional var name (so `friendlyBox` / `friendlyBox2` never swap bodies) |
 | `@rtIds {field: <id>, …}` | same JSDoc | a dotted-field-path → child-type-id map; recovers a primitive/inline field's identity for rename matching |
-| `@rtI18n <locale> from '<src-mirror>'` | same JSDoc — **translation consts only** | marks a translation const with its locale and the module specifier of the friendly source mirror it translates ([Translations (i18n)](#translations-i18n)) |
 | `@rtOrphan` | block comment wrapping a whole const | a const whose source type was deleted — a value-preserving carcass |
 | `@rtOrphanChild` | block comment wrapping one field | a single removed field — a value-preserving carcass |
 
@@ -750,7 +761,7 @@ the readable `field: TypeRef#id` form — the parser accepts both; the generator
 emits the bare-id form.
 
 **Namespace rule — `@rt`-prefixed tags are compiler-owned.** Every `@rt*` JSDoc
-tag (`@rtType`, `@rtIds`, `@rtI18n`, `@rtOrphan`, `@rtOrphanChild`) is machinery
+tag (`@rtType`, `@rtIds`, `@rtOrphan`, `@rtOrphanChild`) is machinery
 the compiler *reads, writes, and acts on*. A separate **plain `@todo`** is emitted on a line of
 its own directly above the `export const` of each **newly-generated** const (right
 after the `@rtType`/`@rtIds` marker line):
@@ -848,44 +859,52 @@ anything unfilled falls back to it at render time.
 
 ```
 ts-runtypes gen   --translate <locale> [<src.ts>]            # scaffold (create-only)
-ts-runtypes gen   --translate <locale> --update [<src.ts>]   # reconcile vs the friendly source mirror
+ts-runtypes gen   --translate <locale> --update [<src.ts>]   # reconcile from the SOURCE TYPE
 ts-runtypes gen   --translate <locale> --prune  [<src.ts>]   # strip @rtOrphan carcasses (the only delete)
 ts-runtypes gen   --translate all [--update]                 # fan out over tsconfig i18n.locales
 ts-runtypes check --translate <locale|all>                   # completeness gate (CI)
 ```
 
-Without `<src.ts>` the verbs walk every mirror under `<enrichDir>/friendly/`.
+Without `<src.ts>`, targets are "sources that have a friendly mirror" — derived
+by path math from the files under `<enrichDir>/friendly/`; the mirror's CONTENT
+is never an input. **One driver, one desired-state source:** a locale file is
+generated by the same EmitClosure walk (over the checker Program) as the
+friendly mirror itself, parameterized by const prefix, output path, plural arm
+set and sibling-reference renames — no file under `generated/` ever feeds the
+generation of another, so the generated dirs can be treated as write-only.
 
 - **Files + naming.** One translation file per friendly mirror per locale:
   `<i18nDir>/<locale>/<rel>.ts`, `i18nDir` defaulting to `<enrichDir>/i18n`
   (tsconfig `i18n.dir`, resolved under the project root; the locale is a PATH
   SEGMENT, so `pt-BR` works verbatim). Each source `friendly<Name>` gets a
   `<locale>_friendly<Name>` const (BCP-47 `-` becomes `_`: `pt_BR_friendlyUser`),
-  annotated `Translation<Name>`, carrying the SAME `@rtType <Name>#<id>` /
-  `@rtIds` marker as the source plus `@rtI18n <locale> from
-  '<rel-to-source-mirror>'`.
-- **The scaffold is the source tree, blanked.** Every `$label`, string template
-  and plural arm is an `@todo` blank (`''`) — source text is NEVER copied as if
-  translated. Plural objects are reseeded with the TARGET locale's CLDR arm set
-  (the source's arms are irrelevant); function-form `$errors` is copied verbatim
-  (opaque escape hatch, keeps the const type-checking); const references rename
-  to their locale siblings (`home: pl_friendlyAddress`).
-- **The translate reconcile descends `$errors`.** `--translate --update` keeps
-  the value-preserving `gen --update` semantics and additionally descends ONE
-  level into `$errors` (the type-driven reconcile treats it as an atomic leaf):
-  a source-added constraint key arrives as a blank of the source's kind (string,
-  or a plural reseeded with TARGET-locale arms); a source-dropped key becomes an
-  `@rtOrphanChild` carcass; a same-key leaf stays byte-identical. Type renames
-  carry across locales via the shared `@rtType` id (const, annotation, marker
-  and intra-file references are renamed in place).
+  annotated `FriendlyType<Name>` — the SAME type as the source map — carrying
+  the same `@rtType <Name>#<id>` / `@rtIds` markers. The path and const prefix
+  carry the locale; there is no `@rtI18n` marker.
+- **The scaffold is the type's tree, blank.** Every `$label`, string template
+  and plural arm is an `@todo` blank (`''`) — "never copy source text as if
+  translated" is true by construction (the type has no strings). Plural objects
+  carry the TARGET locale's CLDR arm set; const references rename to their
+  locale siblings (`home: pl_friendlyAddress`).
+- **The `$errors` descent is the ordinary reconcile.** Every friendly-family
+  file (source mirror and each locale) gets the same value-preserving reconcile
+  with the same one-level `$errors` descent: a newly declared constraint key
+  arrives as a blank of the right kind (plural keys with THAT FILE's locale
+  arms); a dropped RECOGNIZED constraint key becomes an `@rtOrphanChild`
+  carcass (unknown keys are author-owned and untouched — TS flags typos as
+  excess properties); a same-key leaf stays byte-identical; a `$default`-only
+  node is skipped entirely (its authored mode is respected). Type renames carry
+  across locales via the shared `@rtType` id (const, annotation, marker and
+  intra-file references are renamed in place).
 - **Plural arms are LOCALE-OWNED.** Never orphaned, never rename-paired, never
-  down-scoped to the source's arm set; a translator-pruned arm stays pruned —
-  only the mandatory `other` backstop is ever re-inserted.
+  down-scoped; a translator-pruned arm stays pruned — only the mandatory
+  `other` backstop is ever re-inserted.
 - **`check --translate` findings:** **TR001** missing translation file, **TR002**
-  unfilled `@todo` blanks, **TR003** out of date vs the source mirror (a
-  reconcile would change it), **TR004** orphan carcasses awaiting review /
-  `--prune`. All Warnings (exit 0) unless tsconfig `i18n.strict: true` promotes
-  them to Errors (exit 1); the RUNTIME is always lenient regardless.
+  unfilled `@todo` blanks, **TR003** out of date vs the source TYPE (a
+  src-driven reconcile would change the file), **TR004** orphan carcasses
+  awaiting review / `--prune`. All Warnings (exit 0) unless tsconfig
+  `i18n.strict: true` promotes them to Errors (exit 1); the RUNTIME is always
+  lenient regardless.
 - **Config** rides the same tsconfig plugin entry (zero change when absent):
 
   ```jsonc
@@ -904,8 +923,8 @@ not reactivity-tracked, so call `errors()` per render); `resolveLocale` is naive
 BCP-47 truncation (exact tag, then subtags dropped right-to-left — `pt-BR` →
 `pt` — then any available tag sharing the base language). Fallback is per leaf
 (`$label` and each `$errors` key independently; a plural leaf falls through as a
-WHOLE unit, never mixing a target arm with a source arm; a translation's
-function-form `$errors` wins wholesale) — a partial translation never throws.
+WHOLE unit, never mixing a target arm with a source arm; a `$default` template
+translates like any other leaf) — a partial translation never throws.
 
 ### Edge cases
 
@@ -1034,12 +1053,15 @@ These were the open small-detail questions; all are now **decided** (none affect
 overall architecture) and documented here:
 
 - **i18n — SHIPPED** (no longer parked; full design in
-  [docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md), summary in
-  [Translations (i18n)](#translations-i18n) above). Per-locale translation mirrors
-  live under `<enrichDir>/i18n/<locale>/`, scaffolded as blank-leaf
-  `Translation<T>` consts off the friendly source mirror (source text is never
-  copied as if translated); plural error templates are generator-owned (CLDR arms
-  per locale, count-bearing constraints only); `createFriendlyI18n(source,
+  [docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md) plus the
+  src-derived unification in
+  [docs/done/friendly-unified-src-reconcile.md](./done/friendly-unified-src-reconcile.md),
+  summary in [Translations (i18n)](#translations-i18n) above). Per-locale
+  translation mirrors live under `<enrichDir>/i18n/<locale>/`, scaffolded as
+  blank-leaf `FriendlyType<T>` consts straight from the source type (source
+  text is never copied as if translated, and no generated file feeds another);
+  plural error templates are generator-owned (CLDR arms per locale,
+  count-bearing constraints only); `createFriendlyI18n(source,
   { locale, translations })` renders with per-leaf fallback to the source map;
   `gen --translate` / `check --translate` drive scaffold, reconcile, and the CI
   completeness gate.

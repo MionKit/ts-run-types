@@ -405,7 +405,7 @@ export interface FriendlyI18nOptions<T> {
    *  inside a `computed()` / re-invoke `errors()` per render.) */
   locale: string | {readonly value: string};
   /** Committed translation consts by locale tag (`{es: es_friendlyUser}`).
-   *  Values are the same-tree `Translation<T>` maps. */
+   *  Values are same-tree `FriendlyType<T>` maps authored in that locale. */
   translations: Partial<Record<string, FriendlyType<T>>>;
   /** ISO 4217 code (`'EUR'`) for rendering `Currency`-branded bounds — a plain
    *  string or any `{value}` ref (re-read on EVERY render, like `locale`).

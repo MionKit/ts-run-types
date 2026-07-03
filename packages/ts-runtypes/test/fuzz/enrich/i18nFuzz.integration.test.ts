@@ -1,7 +1,8 @@
 // Event-driven fuzz of the FriendlyType i18n translate pipeline — random
-// translator edits (author / prune arms / clear @todo) interleaved with source
-// FriendlyType edits (add / drop fields), reconciled by the real binary, with
-// the value-preserving oracles (T1 idempotence, T2 never-copy-source, T3
+// translator edits (author / prune arms / clear @todo) interleaved with SOURCE
+// TYPE edits (add / drop fields, format params carrying the constraint set),
+// reconciled by the real binary's src-derived driver, with the
+// value-preserving oracles (T1 idempotence, T2 never-copy-mirror-text, T3
 // authored-leaf preservation, T4 orphan-keeps-value, T5 locale-owned arms, T6
 // kind stability, T7 @todo/prune discipline, T10 totality) asserted after
 // every reconcile. Every oracle mirrors a case enrichTranslate.test.ts /
@@ -32,7 +33,7 @@ const REPLAY = process.env.RT_FUZZ_I18N_REPLAY ? parseSeed(process.env.RT_FUZZ_I
 
 describe('FriendlyType i18n sync fuzz', () => {
   it.skipIf(!HAS_BIN)(
-    'keeps (source mirror, translation) consistent under random edit sequences',
+    'keeps (source type, translation) consistent under random edit sequences',
     () => {
       if (REPLAY !== null) {
         const replayed = runOneI18nSequence(REPLAY, MAX_COMMANDS);
