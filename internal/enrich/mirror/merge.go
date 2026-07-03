@@ -511,7 +511,7 @@ func replaceChildOp(existing, desired *objectView, key string) spliceOp {
 	}
 	original := existing.text[prop.propStart:end]
 	newValue := strings.TrimSpace(desired.text[desiredProp.value.Pos():desiredProp.value.End()])
-	replacement := "/* @rtOrphanChild " + sanitizeForComment(original) + " */ " + renderKey(key) + ": " + newValue + ","
+	replacement := "/* " + OrphanChildTag + " " + sanitizeForComment(original) + " */ " + renderKey(key) + ": " + newValue + ","
 	return spliceOp{start: prop.propStart, end: end, text: replacement}
 }
 
@@ -580,7 +580,7 @@ func orphanChildOp(existing *objectView, prop *propView) spliceOp {
 		}
 	}
 	original := existing.text[start:end]
-	replacement := "/* @rtOrphanChild " + sanitizeForComment(original) + " */"
+	replacement := "/* " + OrphanChildTag + " " + sanitizeForComment(original) + " */"
 	return spliceOp{start: start, end: end, text: replacement}
 }
 

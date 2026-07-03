@@ -179,7 +179,7 @@ func buildTranslationSpecs(config enrichConfig, sourceMirror string, locales []s
 	}
 	var resolvedTypes []resolvedType
 	for _, typeName := range discovery.typeNames {
-		resolved, resolveErr := enrich.ResolveTypeRaw(prog, res, discovery.declFile, typeName)
+		resolved, resolveErr := enrich.ResolveTypeRaw(prog, res.Checker(), res.Cache(), discovery.declFile, typeName)
 		if resolveErr != nil {
 			fmt.Fprintf(os.Stderr, "gen --translate: %s: skipping type %s: %v\n", sourceMirror, typeName, resolveErr)
 			continue

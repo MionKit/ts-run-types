@@ -651,6 +651,13 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
 		combinedDiagnostics := append(append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
+		// Opt-in enrichment-health pass (tag hygiene + FriendlyType/MockData
+		// content + breadcrumb drift) for the lint surfaces. Runs AFTER
+		// cache.Added(before) so the types the content checks intern never
+		// leak into this response's added* HMR signals.
+		if request.CheckEnrich {
+			combinedDiagnostics = append(combinedDiagnostics, resolver.checkEnrichFiles(request.Files)...)
+		}
 		// Override arg-nulling replacements (scoped to the requested files) ride
 		// the same Replacements channel as pure-fn factory nullings.
 		allReplacements := append(append([]protocol.Replacement(nil), pureFnReplacements...), resolver.collectOverrideReplacements(request.Files)...)
@@ -683,17 +690,19 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// render opts (provenance line/col conversion + full ref table)
 		// are built ONLY when collection will actually run — the plain
 		// rewrite-pipeline scan (no entry modules requested) skips all of
-		// that work.
+		// that work. IncludeRtDiagnostics runs the SAME collection for its
+		// diagnostics but drops the module payload (lint pass).
+		renderEntries := request.IncludeEntryModules || request.IncludeRtDiagnostics
 		var rtDiagnostics []diag.Diagnostic
 		var rtOpts typefns.RenderOpts
-		if request.IncludeEntryModules {
+		if renderEntries {
 			rtOptsStart := time.Now()
 			rtOpts = resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
 			if metrics != nil {
 				metrics.PrepMs += elapsedMs(rtOptsStart)
 			}
 		}
-		if request.IncludeRunTypes || request.IncludeEntryModules {
+		if request.IncludeRunTypes || renderEntries {
 			scopedStart := time.Now()
 			scoped := resolver.scopedDump(request.Files)
 			if metrics != nil {
@@ -702,7 +711,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			if request.IncludeRunTypes {
 				response.RunTypes = scoped.RunTypes
 			}
-			if request.IncludeEntryModules {
+			if renderEntries {
 				// Override cfn entries (whole-program) ride the pure-fn collection
 				// so the type-fn redirects resolve their `cfn::` dep modules. Kept
 				// out of the per-file pure-fn signals (replacements / addedPureFns)
@@ -712,7 +721,9 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				if modulesErr != nil {
 					return protocol.Response{Error: modulesErr.Error()}
 				}
-				response.EntryModules = modules
+				if request.IncludeEntryModules {
+					response.EntryModules = modules
+				}
 			}
 		}
 		// Flush RT diagnostics into the unified response.Diagnostics slice

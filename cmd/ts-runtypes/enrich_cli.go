@@ -85,7 +85,7 @@ func resolveOne(absPath, typeName string) (*enrich.Resolved, error) {
 		return nil, err
 	}
 	defer res.Close()
-	return enrich.ResolveType(prog, res, absPath, typeName)
+	return enrich.ResolveType(prog, res.Checker(), res.Cache(), absPath, typeName)
 }
 
 func runDescribe(args []string) {
@@ -138,6 +138,7 @@ func runGen(args []string) {
 	out := fs.String("out", "", "explicit single mirror file path (overrides the computed mirror path; forces a single file)")
 	enrichDirFlag := fs.String("enrich-dir", "", "mirror root override (precedence: this flag > tsconfig plugins entry > default runtypes/generated)")
 	check := fs.Bool("check", false, "drift check: validate mirror-file breadcrumbs instead of generating")
+	jsonFlag := fs.Bool("json", false, "with --check: emit findings as a JSON array")
 	files := fs.String("files", "", "batch mode: comma-separated files; resolve --type in each, print JSON skeletons to stdout (no writes)")
 	typeFlag := fs.String("type", "", "batch mode: the type name to resolve in every --files entry")
 	update := fs.Bool("update", false, "reconcile an existing committed mirror file against the freshly regenerated desired set (property merge, never clobbers values)")
@@ -201,7 +202,7 @@ func runGen(args []string) {
 		return
 	}
 	if *check {
-		runGenCheck(positional, *enrichDirFlag)
+		runGenCheck(positional, *enrichDirFlag, *jsonFlag)
 		return
 	}
 	if len(positional) < 2 {
@@ -228,7 +229,7 @@ func runGen(args []string) {
 		fatal("gen: %v", err)
 	}
 	defer res.Close()
-	resolved, err := enrich.ResolveTypeRaw(prog, res, absPath, typeName)
+	resolved, err := enrich.ResolveTypeRaw(prog, res.Checker(), res.Cache(), absPath, typeName)
 	if err != nil {
 		fatal("gen: %v", err)
 	}
@@ -432,7 +433,7 @@ func runGenBatch(files []string, typeName string) {
 	}
 	out := make(map[string]skeletons, len(absPaths))
 	for _, absPath := range absPaths {
-		resolved, err := enrich.ResolveType(prog, res, absPath, typeName)
+		resolved, err := enrich.ResolveType(prog, res.Checker(), res.Cache(), absPath, typeName)
 		if err != nil {
 			fatal("gen --files: %s: %v", absPath, err)
 		}

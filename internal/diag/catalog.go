@@ -55,6 +55,11 @@ const (
 	FamilyPureFn  Family = 1
 	FamilyMarker  Family = 2
 	FamilyRunType Family = 3
+	// FamilyEnrich covers the enrichment-file health checks: tag hygiene
+	// (@todo scaffolds, @rtOrphan/@rtOrphanChild carcasses), FriendlyType /
+	// MockData content validity, and mirror breadcrumb drift. Emitted only
+	// when a caller opts in (Request.CheckEnrich, `ts-runtypes check`).
+	FamilyEnrich Family = 4
 )
 
 // Site is a 1-based source location. Start/End spans are populated by the

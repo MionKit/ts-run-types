@@ -38,7 +38,7 @@ func resolveFixture(t *testing.T, relPath, typeName string, sources map[string]s
 	}
 	t.Cleanup(res.Close)
 
-	resolved, err := enrich.ResolveType(prog, res, absTarget, typeName)
+	resolved, err := enrich.ResolveType(prog, res.Checker(), res.Cache(), absTarget, typeName)
 	if err != nil {
 		t.Fatalf("ResolveType(%s): %v", typeName, err)
 	}
@@ -92,7 +92,7 @@ func TestResolveType_UnknownTypeErrors(t *testing.T) {
 	}
 	t.Cleanup(res.Close)
 
-	if _, err := enrich.ResolveType(prog, res, abs, "Missing"); err == nil {
+	if _, err := enrich.ResolveType(prog, res.Checker(), res.Cache(), abs, "Missing"); err == nil {
 		t.Fatal("ResolveType(Missing): expected error, got nil")
 	}
 }

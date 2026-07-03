@@ -8,7 +8,6 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
 	"github.com/mionkit/ts-runtypes/internal/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Resolved is the result of resolving a named type in a file: the canonical
@@ -29,28 +28,28 @@ type Resolved struct {
 }
 
 // ResolveType is the out-of-band resolution bridge: given an already-built
-// Program + Resolver and an absolute source path, it finds the type alias /
-// interface / class declaration named typeName, asks the checker for its
-// declared type, and projects it through the resolver's cache to a canonical
-// *protocol.RunType. The returned Resolve closure (cache.NodeByID) lets the
-// emit/describe walkers follow ref sentinels in the child slots.
+// Program plus the resolver's checker + runtype cache and an absolute source
+// path, it finds the type alias / interface / class declaration named
+// typeName, asks the checker for its declared type, and projects it through
+// the cache to a canonical *protocol.RunType. The returned Resolve closure
+// (cache.NodeByID) lets the emit/describe walkers follow ref sentinels in the
+// child slots.
 //
-// This deliberately reuses the SAME cache as the resolver so projected child
-// ids resolve. It never touches the marker scan or the vite render path.
-func ResolveType(prog *program.Program, res *resolver.Resolver, absPath, typeName string) (*Resolved, error) {
+// Callers pass the resolver's OWN checker + cache (res.Checker() /
+// res.Cache()) so projected child ids resolve; the parameters stay primitive
+// so this package never imports the resolver (which imports this package for
+// its checkEnrich pass). It never touches the marker scan or the vite render
+// path.
+func ResolveType(prog *program.Program, typeChecker *checker.Checker, cache *runtype.Cache, absPath, typeName string) (*Resolved, error) {
 	if prog == nil {
 		return nil, fmt.Errorf("enrich.ResolveType: program is nil")
-	}
-	if res == nil {
-		return nil, fmt.Errorf("enrich.ResolveType: resolver is nil")
 	}
 	sourceFile := prog.SourceFile(absPath)
 	if sourceFile == nil {
 		return nil, fmt.Errorf("enrich.ResolveType: source file not in program: %s", absPath)
 	}
-	typeChecker := res.Checker()
 	if typeChecker == nil {
-		return nil, fmt.Errorf("enrich.ResolveType: resolver has no checker")
+		return nil, fmt.Errorf("enrich.ResolveType: no checker")
 	}
 
 	nameNode := findTypeNameNode(sourceFile, typeName)
@@ -67,7 +66,7 @@ func ResolveType(prog *program.Program, res *resolver.Resolver, absPath, typeNam
 		return nil, fmt.Errorf("enrich.ResolveType: no declared type for %q in %s", typeName, absPath)
 	}
 
-	resolved := ProjectType(res.Cache(), tsType)
+	resolved := ProjectType(cache, tsType)
 	if resolved == nil {
 		return nil, fmt.Errorf("enrich.ResolveType: projection produced no node for %q", typeName)
 	}
@@ -83,20 +82,16 @@ func ResolveType(prog *program.Program, res *resolver.Resolver, absPath, typeNam
 //
 // Use this for EmitClosure (multi-const, references between named types); the
 // single-const describe/gen path stays on ResolveType (which inlines).
-func ResolveTypeRaw(prog *program.Program, res *resolver.Resolver, absPath, typeName string) (*Resolved, error) {
+func ResolveTypeRaw(prog *program.Program, typeChecker *checker.Checker, cache *runtype.Cache, absPath, typeName string) (*Resolved, error) {
 	if prog == nil {
 		return nil, fmt.Errorf("enrich.ResolveTypeRaw: program is nil")
-	}
-	if res == nil {
-		return nil, fmt.Errorf("enrich.ResolveTypeRaw: resolver is nil")
 	}
 	sourceFile := prog.SourceFile(absPath)
 	if sourceFile == nil {
 		return nil, fmt.Errorf("enrich.ResolveTypeRaw: source file not in program: %s", absPath)
 	}
-	typeChecker := res.Checker()
 	if typeChecker == nil {
-		return nil, fmt.Errorf("enrich.ResolveTypeRaw: resolver has no checker")
+		return nil, fmt.Errorf("enrich.ResolveTypeRaw: no checker")
 	}
 
 	nameNode := findTypeNameNode(sourceFile, typeName)
@@ -113,7 +108,6 @@ func ResolveTypeRaw(prog *program.Program, res *resolver.Resolver, absPath, type
 		return nil, fmt.Errorf("enrich.ResolveTypeRaw: no declared type for %q in %s", typeName, absPath)
 	}
 
-	cache := res.Cache()
 	node := cache.SerializeTopLevel(tsType)
 	if node == nil {
 		return nil, fmt.Errorf("enrich.ResolveTypeRaw: projection produced no node for %q", typeName)

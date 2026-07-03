@@ -1,38 +1,36 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/enrich"
 	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
 )
 
-// breadcrumbPattern matches a mirror file's source breadcrumb:
-// `import type { A, B } from '<spec>'`. Group 1 is the comma-separated type
-// names, group 2 the module specifier. It is intentionally line-oriented and
-// tolerant — only the FIRST such line (the source breadcrumb) is read; the
-// ts-runtypes DSL import and any cross-file value imports are ignored.
-var breadcrumbPattern = regexp.MustCompile(`(?m)^import\s+type\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]`)
-
-// driftFinding is one breadcrumb-drift issue for the gen --check report. Mirrors
-// the enrich.Finding shape (Code / Severity / Message) but is file-anchored
-// for the plain-text report.
+// driftFinding is one breadcrumb-drift issue for the gen --check report.
+// Mirrors the enrich.Finding shape (Code / Severity / Message) but is
+// file-anchored; Line/Col are the 1-based position of the breadcrumb import
+// (zero for file-level findings like GE000).
 type driftFinding struct {
-	File     string
-	Severity enrich.Severity
-	Code     string
-	Message  string
+	File     string          `json:"file"`
+	Severity enrich.Severity `json:"severity"`
+	Code     string          `json:"code"`
+	Message  string          `json:"message"`
+	Args     []string        `json:"args,omitempty"`
+	Line     int             `json:"line,omitempty"`
+	Col      int             `json:"col,omitempty"`
 }
 
-// runGenCheck implements `gen --check [<mirror-file-or-dir>]`: it reads each
-// mirror file's `import type { … } from '<src>'` breadcrumb, resolves <src>
-// relative to the mirror file, and reports drift:
+// runGenCheck implements `gen --check [<mirror-file-or-dir>] [--json]`: it
+// reads each mirror file's `import type { … } from '<src>'` breadcrumb,
+// resolves <src> relative to the mirror file, and reports drift:
 //
 //   - GE001 (warning) — the mirror file's location no longer matches the
 //     computed mirror-of(resolved src): cosmetic drift after an IDE rename.
@@ -41,10 +39,14 @@ type driftFinding struct {
 //   - GE003 (error)   — the resolved source exists but no longer declares an
 //     imported type (renamed/removed type).
 //
+// GE002/GE003 detection is shared with `check` and the resolver's checkEnrich
+// pass (mirror.CheckBreadcrumbDrift); GE001 lives here because only the CLI
+// knows the project's enrich-dir config.
+//
 // The argument is a single mirror .ts file or a directory to walk. With no
 // argument, it walks the enrich dir resolved from the current directory's
 // tsconfig. Exits 1 when any Error finding is present.
-func runGenCheck(positional []string, enrichDirFlag string) {
+func runGenCheck(positional []string, enrichDirFlag string, asJSON bool) {
 	var targets []string
 	if len(positional) > 0 {
 		candidate := tspath.NormalizePath(mustAbs(positional[0]))
@@ -99,7 +101,17 @@ func runGenCheck(positional []string, enrichDirFlag string) {
 		if finding.Severity == enrich.Error {
 			hasError = true
 		}
-		fmt.Printf("%s: [%s %s] %s\n", finding.File, finding.Code, finding.Severity.String(), finding.Message)
+	}
+	if asJSON {
+		encoded, encodeErr := json.MarshalIndent(findings, "", "  ")
+		if encodeErr != nil {
+			fatal("gen --check: encode json: %v", encodeErr)
+		}
+		fmt.Println(string(encoded))
+	} else {
+		for _, finding := range findings {
+			fmt.Printf("%s: [%s %s] %s\n", finding.File, finding.Code, finding.Severity.String(), finding.Message)
+		}
 	}
 	fmt.Fprintf(os.Stderr, "gen --check: %d mirror file(s), %d finding(s)\n", len(mirrorFiles), len(findings))
 	if hasError {
@@ -158,69 +170,76 @@ func collectMirrorFiles(target string) ([]string, error) {
 func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 	contents, err := os.ReadFile(mirrorFile)
 	if err != nil {
-		return []driftFinding{{File: mirrorFile, Severity: enrich.Error, Code: "GE000", Message: "cannot read mirror file: " + err.Error()}}
-	}
-	typeNames, sourceSpec, ok := parseBreadcrumb(string(contents))
-	if !ok {
-		return nil
-	}
-
-	// Resolve the breadcrumb specifier relative to the mirror file's directory.
-	resolvedSource := mirror.ResolveBreadcrumb(mirrorFile, sourceSpec)
-
-	var findings []driftFinding
-
-	// GE002 — the source no longer exists (deleted → orphaned mirror).
-	info, statErr := os.Stat(resolvedSource)
-	if statErr != nil || info.IsDir() {
-		findings = append(findings, driftFinding{
+		return []driftFinding{{
 			File:     mirrorFile,
 			Severity: enrich.Error,
-			Code:     "GE002",
-			Message:  fmt.Sprintf("breadcrumb source %q resolves to a non-existent file (%s) — orphaned mirror; delete it or re-run gen", sourceSpec, resolvedSource),
-		})
-		return findings // can't check declarations or location without the source
+			Code:     diag.CodeEnrichMirrorUnreadable,
+			Message:  "cannot read mirror file: " + err.Error(),
+			Args:     []string{err.Error()},
+		}}
 	}
+	text := string(contents)
+	breadcrumb, hasBreadcrumb := mirror.ParseBreadcrumb(text)
+	if !hasBreadcrumb {
+		return nil
+	}
+	lineIndex := mirror.NewLineIndex(text)
 
-	// GE003 — the source exists but no longer declares an imported type.
-	sourceText, readErr := os.ReadFile(resolvedSource)
-	if readErr == nil {
-		for _, typeName := range typeNames {
-			if !mirror.SourceDeclaresType(string(sourceText), typeName) {
-				findings = append(findings, driftFinding{
-					File:     mirrorFile,
-					Severity: enrich.Error,
-					Code:     "GE003",
-					Message:  fmt.Sprintf("source %s no longer declares type %q — re-run gen", resolvedSource, typeName),
-				})
-			}
+	// GE002 / GE003 — the shared source-existence + type-declaration checks.
+	var findings []driftFinding
+	for _, drift := range mirror.CheckBreadcrumbDrift(mirrorFile, text, nil) {
+		line, col := lineIndex.At(drift.Start)
+		findings = append(findings, driftFinding{
+			File:     mirrorFile,
+			Severity: drift.Severity(),
+			Code:     drift.Code,
+			Message:  drift.Message,
+			Args:     drift.Args,
+			Line:     line,
+			Col:      col,
+		})
+		if drift.Code == diag.CodeEnrichSourceMissing {
+			// Can't judge location drift without the source.
+			return findings
 		}
 	}
 
 	// GE001 — cosmetic location drift: the mirror file is not where the source's
-	// computed mirror path would put it. The expected location depends on the
-	// file's FAMILY, read off its path segment under the enrich root (friendly/ or
-	// mock/); a file at neither segment is a pre-split combined mirror (or a
-	// hand-moved one) and drifts against both family paths.
+	// computed mirror path would put it. CLI-only (needs the enrich config).
+	// The expected location depends on the file's FAMILY, read off its path
+	// segment under the enrich root (friendly/ or mock/); a file at neither
+	// segment is a pre-split combined mirror (or a hand-moved one) and drifts
+	// against both family paths.
+	resolvedSource := mirror.ResolveBreadcrumb(mirrorFile, breadcrumb.Spec)
 	config := resolveEnrichConfig(resolvedSource, enrichDirFlag)
 	family, ok := mirrorFamilyOf(config.EnrichDir, mirrorFile)
 	if !ok {
+		line, col := lineIndex.At(breadcrumb.Start)
+		expectedFriendly := config.mirrorPath(familyFriendly, resolvedSource)
+		expectedMock := config.mirrorPath(familyMock, resolvedSource)
 		findings = append(findings, driftFinding{
 			File:     mirrorFile,
 			Severity: enrich.Warning,
-			Code:     "GE001",
+			Code:     diag.CodeEnrichMirrorDrift,
 			Message: fmt.Sprintf("mirror location drift: source maps to the per-family files %s + %s but this file is %s — re-run gen to migrate/relocate",
-				config.mirrorPath(familyFriendly, resolvedSource), config.mirrorPath(familyMock, resolvedSource), mirrorFile),
+				expectedFriendly, expectedMock, mirrorFile),
+			Args: []string{expectedFriendly + " + " + expectedMock, mirrorFile},
+			Line: line,
+			Col:  col,
 		})
 		return findings
 	}
 	expectedMirror := config.mirrorPath(family, resolvedSource)
 	if tspath.NormalizePath(expectedMirror) != tspath.NormalizePath(mirrorFile) {
+		line, col := lineIndex.At(breadcrumb.Start)
 		findings = append(findings, driftFinding{
 			File:     mirrorFile,
 			Severity: enrich.Warning,
-			Code:     "GE001",
+			Code:     diag.CodeEnrichMirrorDrift,
 			Message:  fmt.Sprintf("mirror location drift: source maps to %s but this file is %s — re-run gen to relocate", expectedMirror, mirrorFile),
+			Args:     []string{expectedMirror, mirrorFile},
+			Line:     line,
+			Col:      col,
 		})
 	}
 
@@ -243,44 +262,4 @@ func mirrorFamilyOf(enrichDir, mirrorFile string) (string, bool) {
 		return first, true
 	}
 	return "", false
-}
-
-// parseBreadcrumb extracts the type names and module specifier from a mirror
-// file's first `import type { … } from '<spec>'` line. The ts-runtypes DSL
-// import (`import type { FriendlyType, MockData } from 'ts-runtypes'`) is skipped
-// so the SOURCE breadcrumb is the one returned. ok=false when no source
-// breadcrumb is present.
-func parseBreadcrumb(contents string) (typeNames []string, sourceSpec string, ok bool) {
-	for _, match := range breadcrumbPattern.FindAllStringSubmatch(contents, -1) {
-		spec := strings.TrimSpace(match[2])
-		if spec == "ts-runtypes" {
-			continue // the DSL-types import, not the source breadcrumb
-		}
-		names := splitImportNames(match[1])
-		if len(names) == 0 {
-			continue
-		}
-		return names, spec, true
-	}
-	return nil, "", false
-}
-
-// splitImportNames parses the `{ A, B as C }` body of an import clause into the
-// imported type names (the original name before any `as` alias).
-func splitImportNames(clause string) []string {
-	var names []string
-	for _, part := range strings.Split(clause, ",") {
-		name := strings.TrimSpace(part)
-		if name == "" {
-			continue
-		}
-		// `Original as Alias` — the source declares the Original name.
-		if idx := strings.Index(name, " as "); idx >= 0 {
-			name = strings.TrimSpace(name[:idx])
-		}
-		if name != "" {
-			names = append(names, name)
-		}
-	}
-	return names
 }

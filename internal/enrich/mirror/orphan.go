@@ -99,7 +99,7 @@ func orphanConstOp(raw []byte, entry *constEntry) spliceOp {
 	}
 	end := entry.end
 	original := strings.TrimRight(string(raw[start:end]), "\n")
-	replacement := "/* @rtOrphan " + sanitizeForComment(original) + " */"
+	replacement := "/* " + OrphanTag + " " + sanitizeForComment(original) + " */"
 	// Swallow a trailing newline so the carcass occupies the const's line cleanly.
 	if end < len(raw) && raw[end] == '\n' {
 		end++
