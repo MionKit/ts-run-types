@@ -1,0 +1,62 @@
+// Event-driven fuzz of the FriendlyType i18n translate pipeline — random
+// translator edits (author / prune arms / clear @todo) interleaved with source
+// FriendlyType edits (add / drop fields), reconciled by the real binary, with
+// the value-preserving oracles (T1 idempotence, T2 never-copy-source, T3
+// authored-leaf preservation, T4 orphan-keeps-value, T5 locale-owned arms, T6
+// kind stability, T7 @todo/prune discipline, T10 totality) asserted after
+// every reconcile. Every oracle mirrors a case enrichTranslate.test.ts /
+// translate_test.go proves on hand-written inputs, so a failure here is a real
+// regression. Spawns bin/ts-runtypes; self-skips when the binary is absent.
+//
+// Knobs:  RT_FUZZ_SEED, RT_FUZZ_I18N_SEQUENCES, RT_FUZZ_I18N_MAXCMDS,
+//         RT_FUZZ_I18N_REPLAY=<seed>  (re-run one failing sequence verbatim).
+
+import {existsSync} from 'node:fs';
+import {describe, it, expect, afterAll} from 'vitest';
+import {cleanupReconcileLane} from '../../util/enrichReconcile.ts';
+import {BIN} from './enrichCli.ts';
+import {runI18nFuzz, runOneI18nSequence, shrinkI18nFailure, formatI18nReport} from './i18nFuzzRunner.ts';
+
+afterAll(cleanupReconcileLane);
+
+function parseSeed(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback >>> 0;
+  return (raw.startsWith('0x') ? parseInt(raw, 16) : Number(raw)) >>> 0;
+}
+
+const HAS_BIN = existsSync(BIN);
+const SEED = parseSeed(process.env.RT_FUZZ_SEED, 0x118a10ca);
+const SEQUENCES = Number(process.env.RT_FUZZ_I18N_SEQUENCES ?? 6);
+const MAX_COMMANDS = Number(process.env.RT_FUZZ_I18N_MAXCMDS ?? 10);
+const REPLAY = process.env.RT_FUZZ_I18N_REPLAY ? parseSeed(process.env.RT_FUZZ_I18N_REPLAY, 0) : null;
+
+describe('FriendlyType i18n sync fuzz', () => {
+  it.skipIf(!HAS_BIN)(
+    'keeps (source mirror, translation) consistent under random edit sequences',
+    () => {
+      if (REPLAY !== null) {
+        const replayed = runOneI18nSequence(REPLAY, MAX_COMMANDS);
+        if (replayed.violations.length > 0) {
+          const report = {
+            runs: 1,
+            sequences: 1,
+            maxCommands: MAX_COMMANDS,
+            seed: REPLAY,
+            violations: replayed.violations,
+            firstFailureSeed: REPLAY,
+          };
+          expect.fail(formatI18nReport(report, shrinkI18nFailure(REPLAY, MAX_COMMANDS)));
+        }
+        return;
+      }
+
+      const report = runI18nFuzz({seed: SEED, sequences: SEQUENCES, maxCommands: MAX_COMMANDS});
+      if (report.violations.length > 0) {
+        const shrunk = shrinkI18nFailure(report.firstFailureSeed!, MAX_COMMANDS);
+        expect.fail(formatI18nReport(report, shrunk));
+      }
+      expect(report.runs).toBe(SEQUENCES);
+    },
+    180_000
+  );
+});

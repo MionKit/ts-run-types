@@ -1,0 +1,449 @@
+// The model + command set for the FriendlyType i18n-sync fuzzer.
+//
+// SUT: the `gen --translate` / `check --translate` pipeline over a (friendly
+// SOURCE MIRROR S, translation file T) pair — the docs/done/friendly-type-i18n
+// reconcile. We model just enough of (S, T) to state the value-preserving
+// oracles the example suite (enrichTranslate.test.ts) proves on hand-written
+// cases, then drive RANDOM edit sequences and assert after each:
+//
+//   T1  idempotence     a second `--translate --update` is byte-identical
+//   T2  never-copy      source text NEVER appears in a translation (@todo blanks only)
+//   T3  preservation    an authored translated leaf survives every update verbatim
+//   T4  orphan-keep     a source-dropped leaf's authored value lives on in a carcass
+//   T5  arms-owned      a translator-pruned plural arm stays pruned; extra arms stay
+//   T6  kind-stable     plural constraints stay objects, string constraints stay strings
+//   T7  todo/prune      prune strips carcasses only; a cleared @todo never regrows
+//   T10 totality        every CLI run is controlled — never a panic/hang
+//
+// The shape is deliberately narrow so every oracle is SOUND: one type (User),
+// one plural-bearing field (`alpha`, permanent), droppable string fields with
+// an optional `pattern` constraint. Leaf fields render on ONE LINE in both S
+// and T, so leaf-scoped assertions are plain line lookups — no parser, no
+// false positives.
+
+import {spawnSync} from 'node:child_process';
+import {mkdirSync, readFileSync, writeFileSync, existsSync} from 'node:fs';
+import {dirname, resolve} from 'node:path';
+import type {ReconcileFixture} from '../../util/enrichReconcile.ts';
+import {BIN, type CliResult, isControlled} from './enrichCli.ts';
+
+export type I18nRuleId = 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6' | 'T7' | 'T10';
+
+export interface I18nViolation {
+  rule: I18nRuleId;
+  command: string;
+  step: number;
+  seed: number;
+  message: string;
+}
+
+export const LOCALE = 'pl';
+const PL_ARMS = ['one', 'few', 'many', 'other'];
+const PLURAL_FIELD = 'alpha'; // permanent — keeps the plural oracles alive
+const NAME_POOL = ['bravo', 'charlie', 'delta', 'echo', 'foxtrot'];
+
+interface FieldSpec {
+  pattern: boolean; // carries a `pattern` (plain-string) constraint
+}
+
+export interface I18nModel {
+  /** Source-side fields (the next update's desired set). `alpha` is implicit. **/
+  fields: Map<string, FieldSpec>;
+  /** Fields as MATERIALIZED in T (as of the last scaffold/update). **/
+  tFields: Map<string, FieldSpec>;
+  /** leafId → token authored into T. leafId: `root.$label`, `<f>.$label`,
+   *  `<f>.type`, `<f>.pattern`, `alpha.minLength.<arm>`. **/
+  authored: Map<string, string>;
+  /** Tokens whose leaf the source dropped — must live on inside a carcass. **/
+  carcassed: Map<string, string>;
+  /** Arms the translator pruned from alpha's plural (never `other`). **/
+  prunedArms: Set<string>;
+  /** The translator cleared the const's @todo line — it must never regrow. **/
+  todoCleared: boolean;
+  tokenCounter: number;
+}
+
+export function initialI18nModel(): I18nModel {
+  return {
+    fields: new Map([['bravo', {pattern: true}]]),
+    tFields: new Map(),
+    authored: new Map(),
+    carcassed: new Map(),
+    prunedArms: new Set(),
+    todoCleared: false,
+    tokenCounter: 0,
+  };
+}
+
+export interface I18nCtx {
+  fixture: ReconcileFixture;
+  seed: number;
+  step: number;
+}
+
+// --- paths + SUT plumbing -------------------------------------------------------
+
+export function translationPathOf(fixture: ReconcileFixture): string {
+  return resolve(fixture.enrichDir, 'i18n', LOCALE, 'models.ts');
+}
+
+function readTranslation(fixture: ReconcileFixture): string {
+  return readFileSync(translationPathOf(fixture), 'utf8');
+}
+
+function writeTranslation(fixture: ReconcileFixture, text: string): void {
+  writeFileSync(translationPathOf(fixture), text);
+}
+
+function runTranslateCli(fixture: ReconcileFixture, args: string[]): CliResult {
+  const result = spawnSync(BIN, args, {cwd: fixture.dir, encoding: 'utf8', timeout: 30_000});
+  return {
+    status: result.status,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+    timedOut: result.error?.message.includes('ETIMEDOUT') ?? false,
+    failedToLaunch: !!result.error && !result.error.message.includes('ETIMEDOUT'),
+  };
+}
+
+// renderSourceMirror writes S (and the .ts source) from the model. Every
+// source leaf is FILLED with an `SRC_`-prefixed value — T2 asserts that prefix
+// never leaks into T.
+export function materializeSource(fixture: ReconcileFixture, model: I18nModel): void {
+  const fieldNames = [PLURAL_FIELD, ...model.fields.keys()];
+  writeFileSync(fixture.sourcePath, `export interface User { ${fieldNames.map((name) => `${name}: string`).join('; ')} }\n`);
+
+  const ids = fieldNames.map((name) => `${name}: id_${name}`).join(', ');
+  const lines: string[] = [];
+  lines.push("import type { User } from '../../../src/models';");
+  lines.push("import type { FriendlyType } from 'ts-runtypes';");
+  lines.push('');
+  lines.push(`/** @rtType User#u1 @rtIds {${ids}} */`);
+  lines.push('export const friendlyUser: FriendlyType<User> = {');
+  lines.push("  $label: 'SRC_root',");
+  lines.push("  $errors: {type: 'SRC_root_type'},");
+  lines.push(
+    `  ${PLURAL_FIELD}: {$label: 'SRC_${PLURAL_FIELD}', $errors: {type: 'SRC_type', minLength: {one: 'SRC_one', other: 'SRC_other'}}},`
+  );
+  for (const [name, spec] of model.fields) {
+    const pattern = spec.pattern ? `, pattern: 'SRC_pattern_${name}'` : '';
+    lines.push(`  ${name}: {$label: 'SRC_${name}', $errors: {type: 'SRC_type_${name}'${pattern}}},`);
+  }
+  lines.push('};');
+  lines.push('');
+  mkdirSync(dirname(fixture.friendlyPath), {recursive: true});
+  writeFileSync(fixture.friendlyPath, lines.join('\n'));
+}
+
+// --- line-scoped translation edits ----------------------------------------------
+
+// fieldLineIndex finds the ONE line declaring a leaf field in T (fails loudly
+// on ambiguity so oracles never silently probe the wrong leaf).
+function fieldLine(text: string, field: string): {lines: string[]; index: number} {
+  const lines = text.split('\n');
+  const matches = lines.map((line, index) => ({line, index})).filter(({line}) => line.trimStart().startsWith(`${field}: {`));
+  if (matches.length !== 1) {
+    throw new Error(`fuzz harness: field ${field} matched ${matches.length} lines in the translation`);
+  }
+  return {lines, index: matches[0].index};
+}
+
+function editFieldLine(fixture: ReconcileFixture, field: string, edit: (line: string) => string): boolean {
+  const text = readTranslation(fixture);
+  const {lines, index} = fieldLine(text, field);
+  const edited = edit(lines[index]);
+  if (edited === lines[index]) return false;
+  lines[index] = edited;
+  writeTranslation(fixture, lines.join('\n'));
+  return true;
+}
+
+function nextToken(model: I18nModel): string {
+  return `FZT_${model.tokenCounter++}`;
+}
+
+// --- oracles ---------------------------------------------------------------------
+
+const carcassPattern = /\/\* @rtOrphan(?:Child)? [\s\S]*? \*\//g;
+
+function stripCarcasses(text: string): string {
+  return text.replace(carcassPattern, '');
+}
+
+function violation(rule: I18nRuleId, command: string, ctx: I18nCtx, message: string): I18nViolation {
+  return {rule, command, step: ctx.step, seed: ctx.seed, message};
+}
+
+function controlledOr(result: CliResult, command: string, ctx: I18nCtx, out: I18nViolation[]): boolean {
+  if (isControlled(result)) return true;
+  const why = result.timedOut ? 'timed out' : result.failedToLaunch ? 'failed to launch' : `exit ${result.status}`;
+  out.push(violation('T10', command, ctx, `${why}: ${result.stderr.slice(0, 400)}`));
+  return false;
+}
+
+// assertInvariants runs the whole post-state oracle battery over T.
+function assertInvariants(model: I18nModel, ctx: I18nCtx, command: string, out: I18nViolation[]): void {
+  const text = readTranslation(ctx.fixture);
+  const live = stripCarcasses(text);
+
+  // T2 — source text never leaks into a translation.
+  if (text.includes('SRC_')) {
+    out.push(violation('T2', command, ctx, 'source text leaked into the translation'));
+  }
+  // T3 — every authored live leaf survives verbatim, outside any carcass.
+  for (const [leafId, token] of model.authored) {
+    if (!live.includes(token)) {
+      out.push(violation('T3', command, ctx, `authored leaf ${leafId} (${token}) lost or carcassed`));
+    }
+  }
+  // T4 — a source-dropped leaf's value lives on inside a carcass.
+  for (const [leafId, token] of model.carcassed) {
+    if (!text.includes(token)) {
+      out.push(violation('T4', command, ctx, `carcassed leaf ${leafId} (${token}) deleted (orphan must preserve)`));
+    }
+  }
+  // T5 — pruned arms stay pruned (no blank re-scaffold).
+  const {lines, index} = fieldLine(text, PLURAL_FIELD);
+  const pluralLine = lines[index];
+  for (const arm of model.prunedArms) {
+    if (new RegExp(`\\b${arm}: ''`).test(pluralLine)) {
+      out.push(violation('T5', command, ctx, `pruned arm '${arm}' re-scaffolded onto the plural`));
+    }
+  }
+  // T6 — the plural stays an object; string constraints stay strings.
+  if (!pluralLine.includes('minLength: {')) {
+    out.push(violation('T6', command, ctx, 'alpha.minLength lost its plural-object kind'));
+  }
+  if (/pattern: \{/.test(live)) {
+    out.push(violation('T6', command, ctx, 'a string constraint (pattern) became an object'));
+  }
+  // T7 — a cleared @todo never regrows (one fresh const → at most one line).
+  const todoCount = (text.match(/\/\/ @todo:/g) ?? []).length;
+  if (model.todoCleared && todoCount > 0) {
+    out.push(violation('T7', command, ctx, 'cleared @todo regrew'));
+  }
+  if (todoCount > 1) {
+    out.push(violation('T7', command, ctx, `@todo duplicated (${todoCount})`));
+  }
+}
+
+// --- commands ---------------------------------------------------------------------
+
+export interface I18nCommand {
+  name: string;
+  canApply(model: I18nModel, ctx: I18nCtx): boolean;
+  apply(model: I18nModel, ctx: I18nCtx, rng: () => number): I18nViolation[];
+}
+
+function pick<T>(items: T[], rng: () => number): T {
+  return items[Math.floor(rng() * items.length)];
+}
+
+// authorable leaf ids currently blank in T (per the model's view).
+function authorableLeaves(model: I18nModel): string[] {
+  const leaves: string[] = ['root.$label'];
+  leaves.push(`${PLURAL_FIELD}.$label`, `${PLURAL_FIELD}.type`);
+  for (const arm of PL_ARMS) {
+    if (!model.prunedArms.has(arm)) leaves.push(`${PLURAL_FIELD}.minLength.${arm}`);
+  }
+  for (const [name, spec] of model.tFields) {
+    leaves.push(`${name}.$label`, `${name}.type`);
+    if (spec.pattern) leaves.push(`${name}.pattern`);
+  }
+  return leaves.filter((leafId) => !model.authored.has(leafId));
+}
+
+// applyAuthor writes one blank leaf's token into T.
+function applyAuthor(model: I18nModel, ctx: I18nCtx, leafId: string, token: string): boolean {
+  if (leafId === 'root.$label') {
+    const text = readTranslation(ctx.fixture);
+    const edited = text.replace(/^(\s*\$label: )''/m, `$1'${token}'`);
+    if (edited === text) return false;
+    writeTranslation(ctx.fixture, edited);
+    return true;
+  }
+  const [field, key, arm] = leafId.split('.');
+  return editFieldLine(ctx.fixture, field, (line) => {
+    if (key === '$label') return line.replace("$label: ''", `$label: '${token}'`);
+    if (key === 'minLength') return line.replace(`${arm}: ''`, `${arm}: '${token}'`);
+    return line.replace(`${key}: ''`, `${key}: '${token}'`);
+  });
+}
+
+export const I18N_COMMANDS: I18nCommand[] = [
+  {
+    // The translator fills a blank leaf with a unique token.
+    name: 'authorLeaf',
+    canApply: (model) => authorableLeaves(model).length > 0,
+    apply(model, ctx, rng) {
+      const leafId = pick(authorableLeaves(model), rng);
+      const token = nextToken(model);
+      if (applyAuthor(model, ctx, leafId, token)) model.authored.set(leafId, token);
+      return [];
+    },
+  },
+  {
+    // The translator prunes an unfilled non-`other` arm (their language, their call).
+    name: 'pruneArm',
+    canApply: (model) =>
+      PL_ARMS.some(
+        (arm) => arm !== 'other' && !model.prunedArms.has(arm) && !model.authored.has(`${PLURAL_FIELD}.minLength.${arm}`)
+      ),
+    apply(model, ctx, rng) {
+      const candidates = PL_ARMS.filter(
+        (arm) => arm !== 'other' && !model.prunedArms.has(arm) && !model.authored.has(`${PLURAL_FIELD}.minLength.${arm}`)
+      );
+      const arm = pick(candidates, rng);
+      const edited = editFieldLine(ctx.fixture, PLURAL_FIELD, (line) =>
+        line.replace(`${arm}: '', `, '').replace(`, ${arm}: ''`, '')
+      );
+      if (edited) model.prunedArms.add(arm);
+      return [];
+    },
+  },
+  {
+    // The translator hand-adds an arm beyond the pl set (locale-owned superset).
+    name: 'addExtraArm',
+    canApply: (model, ctx) => !readTranslation(ctx.fixture).includes('two:'),
+    apply(model, ctx) {
+      const token = nextToken(model);
+      const edited = editFieldLine(ctx.fixture, PLURAL_FIELD, (line) => line.replace('other:', `two: '${token}', other:`));
+      if (edited) model.authored.set(`${PLURAL_FIELD}.minLength.two`, token);
+      return [];
+    },
+  },
+  {
+    // The translator clears the scaffold's @todo line.
+    name: 'clearTodo',
+    canApply: (model) => !model.todoCleared,
+    apply(model, ctx) {
+      const text = readTranslation(ctx.fixture);
+      const edited = text.replace(/\/\/ @todo:[^\n]*\n/, '');
+      if (edited !== text) {
+        writeTranslation(ctx.fixture, edited);
+        model.todoCleared = true;
+      }
+      return [];
+    },
+  },
+  {
+    // The source project adds a new field (arrives in T on the next update).
+    name: 'srcAddField',
+    canApply: (model) => model.fields.size < NAME_POOL.length,
+    apply(model, ctx, rng) {
+      const free = NAME_POOL.filter((name) => !model.fields.has(name));
+      model.fields.set(pick(free, rng), {pattern: rng() < 0.5});
+      materializeSource(ctx.fixture, model);
+      return [];
+    },
+  },
+  {
+    // The source project drops a field — its authored tokens must carcass on update.
+    name: 'srcDropField',
+    canApply: (model) => model.fields.size > 0,
+    apply(model, ctx, rng) {
+      const name = pick([...model.fields.keys()], rng);
+      model.fields.delete(name);
+      materializeSource(ctx.fixture, model);
+      return [];
+    },
+  },
+  {
+    // The i18n reconcile: run --update, then the full oracle battery + T1.
+    name: 'updateT',
+    canApply: () => true,
+    apply(model, ctx) {
+      const out: I18nViolation[] = [];
+      const first = runTranslateCli(ctx.fixture, ['gen', '--translate', LOCALE, 'src/models.ts', '--update']);
+      if (!controlledOr(first, 'updateT', ctx, out)) return out;
+      const afterFirst = readTranslation(ctx.fixture);
+
+      // Move tokens of leaves the source dropped (or de-declared) to carcassed.
+      for (const [leafId, token] of [...model.authored]) {
+        const field = leafId.split('.')[0];
+        const isFieldLeaf = field !== 'root' && field !== PLURAL_FIELD;
+        if (isFieldLeaf && !model.fields.has(field)) {
+          model.authored.delete(leafId);
+          model.carcassed.set(leafId, token);
+        }
+      }
+      model.tFields = new Map([...model.fields].map(([name, spec]) => [name, {...spec}]));
+
+      // T1 — a second update is byte-identical.
+      const second = runTranslateCli(ctx.fixture, ['gen', '--translate', LOCALE, 'src/models.ts', '--update']);
+      if (!controlledOr(second, 'updateT(second)', ctx, out)) return out;
+      const afterSecond = readTranslation(ctx.fixture);
+      if (afterSecond !== afterFirst) {
+        out.push(violation('T1', 'updateT', ctx, 'second --translate --update was not byte-identical'));
+      }
+
+      assertInvariants(model, ctx, 'updateT', out);
+      return out;
+    },
+  },
+  {
+    // The only delete: --prune strips carcasses (and only carcasses).
+    name: 'pruneT',
+    canApply: (model, ctx) => existsSync(translationPathOf(ctx.fixture)),
+    apply(model, ctx) {
+      const out: I18nViolation[] = [];
+      const result = runTranslateCli(ctx.fixture, ['gen', '--translate', LOCALE, 'src/models.ts', '--prune']);
+      if (!controlledOr(result, 'pruneT', ctx, out)) return out;
+      const text = readTranslation(ctx.fixture);
+      if (text.includes('@rtOrphan')) {
+        out.push(violation('T7', 'pruneT', ctx, 'prune left a carcass behind'));
+      }
+      model.carcassed.clear();
+      assertInvariants(model, ctx, 'pruneT', out);
+      return out;
+    },
+  },
+  {
+    // The completeness gate: controlled, and TR002 fires iff blanks exist.
+    name: 'checkT',
+    canApply: () => true,
+    apply(model, ctx) {
+      const out: I18nViolation[] = [];
+      const result = runTranslateCli(ctx.fixture, ['check', '--translate', LOCALE]);
+      if (!controlledOr(result, 'checkT', ctx, out)) return out;
+      const hasBlanks = /: ''/.test(readTranslation(ctx.fixture));
+      const reported = result.stdout.includes('TR002');
+      if (hasBlanks !== reported) {
+        out.push(violation('T10', 'checkT', ctx, `TR002 mismatch: blanks=${hasBlanks} reported=${reported}`));
+      }
+      return out;
+    },
+  },
+];
+
+// bootstrap lays down the project (tsconfig with the i18n object, source,
+// source mirror) and scaffolds the initial translation.
+export function bootstrapI18n(fixture: ReconcileFixture, seed: number): {model: I18nModel; violations: I18nViolation[]} {
+  const model = initialI18nModel();
+  const violations: I18nViolation[] = [];
+  writeFileSync(
+    resolve(fixture.dir, 'tsconfig.json'),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          rootDir: 'src',
+          plugins: [{name: 'ts-runtypes', enrichDir: 'runtypes/generated', i18n: {sourceLocale: 'en', locales: [LOCALE]}}],
+        },
+      },
+      null,
+      2
+    )
+  );
+  materializeSource(fixture, model);
+
+  const ctx: I18nCtx = {fixture, seed, step: -1};
+  const result = runTranslateCli(fixture, ['gen', '--translate', LOCALE, 'src/models.ts']);
+  if (!controlledOr(result, 'bootstrap', ctx, violations)) return {model, violations};
+  if (!existsSync(translationPathOf(fixture))) {
+    violations.push(violation('T10', 'bootstrap', ctx, 'scaffold produced no translation file'));
+    return {model, violations};
+  }
+  model.tFields = new Map([...model.fields].map(([name, spec]) => [name, {...spec}]));
+  assertInvariants(model, ctx, 'bootstrap', violations);
+  return {model, violations};
+}
