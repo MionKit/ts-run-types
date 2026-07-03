@@ -7,10 +7,10 @@
 // type-id injection and NO rtUtils — error rendering needs only the map. (UI field
 // enumeration, which needs the runtype, is the deferred registry-accessor path.)
 //
-// Aggregation matches the validator: `getValidationErrors` accumulates, so a field
-// can carry several errors. Data-form `$errors` yield ONE message per failed
-// constraint (a list); a function-form `$errors` yields ONE message per field,
-// handed all of that field's failures aggregated.
+// Aggregation matches the validator: `getValidationErrors` accumulates, so a
+// field can carry several errors and yields ONE message per failed constraint
+// (a list) — or ONE message per field when the node uses the exclusive
+// `$default` mode ({$default: '…'} instead of per-constraint keys).
 //
 // `createFriendlyI18n<T>(source, options)` — the locale-selecting wrapper over
 // the SAME walk (docs/todos → docs/done friendly-type-i18n). The source map IS
@@ -31,7 +31,7 @@
 // Always lenient — a partial translation renders, it never throws.
 
 import type {RTValidationError, RTValidationErrorPathSegment, TypeFormatError} from '../createRTFunctions.ts';
-import type {ErrorTemplates, FailedConstraints, FriendlyType, PluralTemplate} from './friendlyType.ts';
+import type {FriendlyType, PluralTemplate, TemplateLeaf} from './friendlyType.ts';
 
 /** A rendered, human-readable validation message for one failure. */
 export interface FriendlyMessage {
@@ -55,9 +55,13 @@ export interface FriendlyRenderer {
 // `$errors` meta keys plus child-field keys (`$items` for arrays and rest-tuple
 // elements, `$slots` for fixed-tuple positions, `$keys` / `$values` for
 // maps/sets).
+// Loose runtime view of a node's templates: the precise per-param typing lives
+// on the AUTHORED map (ErrorTemplates<F>); the walk only reads keys.
+type ErrorTemplatesRuntime = {[key: string]: TemplateLeaf | undefined};
+
 type FriendlyNodeRuntime = {
   $label?: string;
-  $errors?: ErrorTemplates;
+  $errors?: ErrorTemplatesRuntime;
   $items?: FriendlyNodeRuntime;
   $slots?: FriendlyNodeRuntime[];
   $keys?: FriendlyNodeRuntime;
@@ -313,13 +317,12 @@ const labelFor = (node: FriendlyNodeRuntime | undefined, path: RTValidationError
   node?.$label || rawLabel(path);
 
 // resolveTemplate picks one map-node's template string for a constraint key:
-// `$errors[key]`, then the same node's authored `$errors.$default` catch-all
-// (the author's own-language fallback beats the other map's specific message);
-// a plural leaf selects its arm with the MAP's locale (never the other map's —
-// plural leaves are atomic per map). Returns undefined when the node yields
-// nothing renderable (missing node / missing key / blank `''` @todo
-// templates), which is the caller's cross-map fallback signal. Function-form
-// `$errors` never lands here (handled at the group level).
+// `$errors[key]` (per-constraint mode), else the node's `$errors.$default`
+// (the exclusive catch-all mode — the two never coexist, so this single lookup
+// serves both); a plural leaf selects its arm with the MAP's locale (never the
+// other map's — plural leaves are atomic per map). Returns undefined when the
+// node yields nothing renderable (missing node / missing key / blank `''`
+// @todo templates), which is the caller's cross-map fallback signal.
 function resolveTemplate(
   node: FriendlyNodeRuntime | undefined,
   key: string,
@@ -327,7 +330,7 @@ function resolveTemplate(
   mapLocale: string
 ): string | undefined {
   const errorTemplates = node?.$errors;
-  if (!errorTemplates || typeof errorTemplates === 'function') return undefined;
+  if (!errorTemplates) return undefined;
   return leafTemplate(errorTemplates[key], val, mapLocale) ?? leafTemplate(errorTemplates.$default, val, mapLocale);
 }
 
@@ -357,19 +360,6 @@ function renderErrors(state: RenderState, errs: RTValidationError[]): FriendlyMe
     const node = nodeAt(state.root, group.path);
     const sourceNode = state.source ? nodeAt(state.source, group.path) : undefined;
     const label = node?.$label || sourceNode?.$label || rawLabel(group.path);
-
-    // Function-form $errors is the opaque escape hatch: the map that declares
-    // one owns the whole field's rendering (the i18n layer never reaches into
-    // the arrow — the author owns their own t() inside it). The translation's
-    // form wins when present; a translation without $errors falls to a source
-    // arrow.
-    const ownedTemplates = node?.$errors ?? sourceNode?.$errors;
-    if (typeof ownedTemplates === 'function') {
-      const failed: FailedConstraints = {};
-      for (const err of group.errors) failed[constraintKey(err.format)] = {val: primitiveVal(err.format?.val)};
-      out.push({path: group.pathStr, label, message: ownedTemplates(failed)});
-      continue;
-    }
 
     const index = numericIndex(group.path);
     for (const err of group.errors) {

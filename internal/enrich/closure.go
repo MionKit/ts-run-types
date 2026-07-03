@@ -56,6 +56,9 @@ type ClosureOptions struct {
 	// emitted NamedConst's DeclFile is left empty and the caller falls back to the
 	// root file. Built by the bridge from the checker symbol declarations.
 	DeclFiles map[string]string
+	// FriendlyErrors picks the `$errors` mode new nodes scaffold ("default" →
+	// the exclusive catch-all; else per-constraint). See EmitOptions.
+	FriendlyErrors string
 	// SourceLocale is the language the FriendlyType source maps are authored in
 	// (tsconfig `i18n.sourceLocale`); it selects the CLDR arm set count-bearing
 	// `$errors` constraints scaffold. Empty means the default ('en').
@@ -78,13 +81,14 @@ const (
 // child rendered as a const-var reference (or a broken-cycle leaf for a back-edge)
 // instead of an inlined body.
 type closureEmitter struct {
-	resolve      func(id string) *protocol.RunType
-	declFiles    map[string]string    // ID → absolute declaration source file (optional)
-	state        map[string]emitState // keyed by named type's RunType.ID
-	consts       []NamedConst         // accumulated in topological order
-	names        map[string]string    // ID → sanitized base name (e.g. "User"), unique
-	usedVar      map[string]bool      // taken sanitized base names, for disambiguation
-	sourceLocale string               // plural-arm locale for friendly scaffolds
+	resolve        func(id string) *protocol.RunType
+	declFiles      map[string]string    // ID → absolute declaration source file (optional)
+	state          map[string]emitState // keyed by named type's RunType.ID
+	consts         []NamedConst         // accumulated in topological order
+	names          map[string]string    // ID → sanitized base name (e.g. "User"), unique
+	usedVar        map[string]bool      // taken sanitized base names, for disambiguation
+	sourceLocale   string
+	friendlyErrors string // plural-arm locale for friendly scaffolds
 }
 
 // EmitClosure walks the named-type closure rooted at a NAMED type and emits one
@@ -104,12 +108,13 @@ func EmitClosure(root *protocol.RunType, opts ClosureOptions) []NamedConst {
 		return nil
 	}
 	emitter := &closureEmitter{
-		resolve:      opts.Resolve,
-		declFiles:    opts.DeclFiles,
-		state:        map[string]emitState{},
-		names:        map[string]string{},
-		usedVar:      map[string]bool{},
-		sourceLocale: opts.SourceLocale,
+		resolve:        opts.Resolve,
+		declFiles:      opts.DeclFiles,
+		state:          map[string]emitState{},
+		names:          map[string]string{},
+		usedVar:        map[string]bool{},
+		sourceLocale:   opts.SourceLocale,
+		friendlyErrors: opts.FriendlyErrors,
 	}
 	// Seed the root's display name so its const uses the caller-supplied TypeName
 	// even if the projected node's TypeName differs (re-export aliases etc.).
@@ -165,6 +170,7 @@ func (emitter *closureEmitter) emitNamed(named *protocol.RunType, displayName st
 func (emitter *closureEmitter) renderBody(self *protocol.RunType, friendly bool) string {
 	ctx := newWalkCtx(emitter.resolve)
 	ctx.setSourceLocale(emitter.sourceLocale)
+	ctx.setFriendlyErrors(emitter.friendlyErrors)
 	// The body's ROOT node (self, first encounter) must walk inline — otherwise the
 	// const body would be a reference to itself. enteredBody flips on that first
 	// encounter; a LATER encounter of self is a genuine back-edge (e.g. a

@@ -47,41 +47,62 @@ export type PluralTemplate = {other: FriendlyTemplate} & Partial<Record<PluralCa
  *  locale-invariant and source + translations stay same-tree. */
 export type TemplateLeaf = FriendlyTemplate | PluralTemplate;
 
-/** One failed sub-constraint, as handed to a function-form `$errors` handler.
- *  `val` is the violated bound (e.g. `3` for a `minLength: 3` failure). */
-export interface FailedConstraint {
-  val?: string | number | boolean | bigint;
-}
+/** Format params that can never FAIL — presentation metadata (`isCurrency`),
+ *  the mock pool (`mockSamples`) and the value transformers. Everything else
+ *  in a field's format params is a failable constraint and becomes a REQUIRED
+ *  `$errors` template key. MIRROR of the Go side's `nonFailingParams`
+ *  (internal/enrich/classify.go) — the single sync point of this design. */
+type NonFailingParams = 'isCurrency' | 'mockSamples' | 'trim' | 'lowercase' | 'uppercase' | 'capitalize' | 'replace' | 'replaceAll';
 
-/** The aggregated failed-constraint bag passed to a function-form `$errors`
- *  handler — one entry per failure at the field, keyed by the
- *  `(format.name, formatPath-tail)` discriminator: `type` for the base
- *  type-shape failure, `minLength` / `max` / `pattern` / … for format failures.
- *  Absent keys mean that constraint passed (or the type never declared it). */
-export type FailedConstraints = Record<string, FailedConstraint | undefined>;
+/** The count-bearing constraint keys — the only ones whose template may be a
+ *  plural object. Mirror of Go's `CountBearing` (internal/enrich/classify.go). */
+type CountBearingKeys = 'minLength' | 'maxLength' | 'min' | 'max' | 'lt' | 'gt';
 
-/** Per-field error rendering. EITHER the pure-data form — a record of template
- *  leaves keyed by the failed-constraint name (`type` = base failure,
- *  `$default` = fallback, plus any format sub-constraint; count-bearing
- *  constraints may carry a plural object) — OR an inline function for logic
- *  the data form can't express. The data form gets compile-time
- *  placeholder/constraint validation (the Go checker also enforces the
- *  per-constraint leaf KIND, which this permissive index signature can't); a
- *  function body is opaque to the compiler. `type` / `$default` are never
- *  count-bearing, so they stay plain strings. */
-export type ErrorTemplates =
-  | ({type?: FriendlyTemplate; $default?: FriendlyTemplate} & {[constraint: string]: TemplateLeaf | undefined})
-  | ((failed: FailedConstraints) => string);
+/** Per-constraint mode: `type` (the base kind failure) plus one REQUIRED key
+ *  per failable format param — a blank `''` means "no custom message" (the
+ *  opt-out; deleting a key just gets it re-scaffolded by `gen --update`).
+ *  Count-bearing keys accept a plural object, the rest plain templates. NO
+ *  index signature: an unknown key is an excess-property error in the IDE
+ *  (FT003, moved to compile time). `$default` is banned here — it belongs to
+ *  the exclusive mode below. */
+type ConstraintTemplates<P> = {type: FriendlyTemplate} & {
+  [K in Exclude<keyof P & string, NonFailingParams>]: K extends CountBearingKeys ? TemplateLeaf : FriendlyTemplate;
+} & {$default?: never};
+
+/** `$default` mode: ONE message for the whole field, whatever failed.
+ *  MUTUALLY EXCLUSIVE with per-constraint messages — a node is either fully
+ *  custom or fully catch-all, never a mix. The tsconfig `friendlyErrors` knob
+ *  picks which mode `gen` scaffolds FIRST; after that the node's authored
+ *  mode is owned by the author and the reconcile follows it. */
+type DefaultOnlyTemplates = {$default: FriendlyTemplate; type?: never};
+
+/** Unbranded fields (plain `string` / `number` / …) can only fail as `type`. */
+type BareTemplates = DefaultOnlyTemplates | ({type: FriendlyTemplate} & {$default?: never});
+
+/** Per-field error templates, derived from the field type `F`: a branded leaf
+ *  (`FormatString<{minLength: 2}>`, …) REQUIRES one template key per failable
+ *  param it declares; an unbranded leaf takes `type` only; either may instead
+ *  use the exclusive `$default` mode. Pure data — the old inline-function form
+ *  was REMOVED (opaque to translation, reconcile and the checker). */
+export type ErrorTemplates<F = never> = [F] extends [never]
+  ? BareTemplates
+  : F extends {readonly __rtFormatParams?: infer P}
+    ? [NonNullable<P>] extends [object]
+      ? DefaultOnlyTemplates | ConstraintTemplates<NonNullable<P>>
+      : BareTemplates
+    : BareTemplates;
 
 /** Meta keys on every node: a human label + the field's error templates, both
  *  REQUIRED — every node must be addressed (the `@todo`/diagnostic layer enforces
- *  that the VALUES are filled, which TS can't see). `__rt_typeName` is the lone
- *  optional meta: a friendly name for a NAMED type (`PG_User` → `'User'`),
+ *  that the VALUES are filled, which TS can't see). `F` is the FIELD's own type:
+ *  the leaf arm of `FriendlyNode` threads it through so `$errors` demands
+ *  exactly the keys the field's format params declare. `__rt_typeName` is the
+ *  lone optional meta: a friendly name for a NAMED type (`PG_User` → `'User'`),
  *  defaulting to the reflected type name. The `__rt_` prefix (not `$`) keeps it
  *  from colliding with a real field key in the homomorphic child map. */
-export interface FriendlyMeta {
+export interface FriendlyMeta<F = never> {
   $label: string;
-  $errors: ErrorTemplates;
+  $errors: ErrorTemplates<F>;
   __rt_typeName?: string;
 }
 
@@ -106,7 +127,7 @@ type _FriendlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 export type FriendlyNode<T, Depth extends number = 8> = Depth extends 0
   ? FriendlyMeta // budget spent — keep as a leaf
   : T extends FriendlyLeaf
-    ? FriendlyMeta // scalar / native — no children
+    ? FriendlyMeta<T> // scalar / native — no children; F drives the $errors keys
     : // Map BEFORE the array check: cheap `ReadonlyMap<any, any>` gate filters
       // non-Maps so the `infer K, V` never runs off the hot path (per DataOnly).
       T extends ReadonlyMap<any, any>
@@ -133,10 +154,7 @@ export type FriendlyNode<T, Depth extends number = 8> = Depth extends 0
  *  validated against `T` at scan time (the `ShapeCheckedArgs<T>` axis). */
 export type FriendlyType<T> = FriendlyNode<T>;
 
-/** A translation of a `FriendlyType<T>`: structurally IDENTICAL (same tree,
- *  same field paths, same `$errors` constraint keys) — the alias only makes a
- *  per-locale mirror file's intent explicit and gives tooling an unambiguous
- *  annotation to detect. One committed const per (type, locale), named
- *  `<locale>_friendly<Name>`, reconciled against the source `FriendlyType`. */
-export type Translation<T> = FriendlyType<T>;
 // #endregion friendlytype-extract
+// (`Translation<T>` was REMOVED: one type annotates every friendly-family file —
+// a translation const is `FriendlyType<T>` at `i18n/<locale>/<rel>.ts` with a
+// `<locale>_friendly*` name; the path + prefix carry the locale, not the type.)

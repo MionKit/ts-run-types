@@ -19,6 +19,10 @@ type EmitOptions struct {
 	// (tsconfig `i18n.sourceLocale`); it selects the CLDR arm set count-bearing
 	// `$errors` constraints scaffold. Empty means the default ('en').
 	SourceLocale string
+	// FriendlyErrors picks the `$errors` mode NEW nodes scaffold (tsconfig
+	// `friendlyErrors`): "" / "perConstraint" → one key per failable format
+	// param; "default" → the exclusive `{$default: ''}` catch-all.
+	FriendlyErrors string
 }
 
 // EmitFriendly renders an `export const <VarName>: FriendlyType<<TypeName>> = {…};`
@@ -29,6 +33,7 @@ type EmitOptions struct {
 func EmitFriendly(rt *protocol.RunType, opts EmitOptions) string {
 	ctx := newWalkCtx(opts.Resolve)
 	ctx.setSourceLocale(opts.SourceLocale)
+	ctx.setFriendlyErrors(opts.FriendlyErrors)
 	var b strings.Builder
 	b.WriteString("export const ")
 	b.WriteString(opts.VarName)
@@ -75,7 +80,7 @@ func MockSkeleton(rt *protocol.RunType, resolve func(id string) *protocol.RunTyp
 func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth int) {
 	rt = ctx.deref(rt)
 	if rt == nil || depth > maxWalkDepth || ctx.seen[rt] {
-		b.WriteString("{$label: '', $errors: {type: ''}}")
+		b.WriteString(ctx.bareMeta())
 		return
 	}
 	// Named-type-closure interception (EmitClosure only): a child that is another
@@ -88,7 +93,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 			b.WriteString(action.varName)
 			return
 		case namedRefBroken:
-			b.WriteString("{$label: '', $errors: {type: ''}}")
+			b.WriteString(ctx.bareMeta())
 			return
 		}
 	}
@@ -101,9 +106,9 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		// A variadic tuple (`[A, ...B[]]`) has a broad `length`, so the Phase-A
 		// type treats it as an ARRAY (`$items`); a fixed tuple gets `$slots`.
 		if isVariadicTuple(ctx, rt) {
-			b.WriteString("{$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}}")
+			b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", $items: " + ctx.bareMeta() + "}")
 		} else {
-			b.WriteString("{$label: '', $errors: {type: ''}, $slots: [")
+			b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", $slots: [")
 			for i, slot := range tupleSlots(ctx, rt) {
 				if i > 0 {
 					b.WriteString(", ")
@@ -118,7 +123,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 	if isMap(rt) {
 		ctx.seen[rt] = true
 		keyType, valueType := mapKeyValue(ctx, rt)
-		b.WriteString("{$label: '', $errors: {type: ''}, $keys: ")
+		b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", $keys: ")
 		emitFriendlyNode(b, ctx, keyType, depth+1)
 		b.WriteString(", $values: ")
 		emitFriendlyNode(b, ctx, valueType, depth+1)
@@ -128,7 +133,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 	}
 	if isSet(rt) {
 		ctx.seen[rt] = true
-		b.WriteString("{$label: '', $errors: {type: ''}, $values: ")
+		b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", $values: ")
 		emitFriendlyNode(b, ctx, setElement(ctx, rt), depth+1)
 		b.WriteString("}")
 		delete(ctx.seen, rt)
@@ -141,12 +146,16 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		return
 	}
 	if element := arrayElement(rt); element != nil {
-		b.WriteString("{$label: '', $errors: {type: ''}, $items: ")
+		b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", $items: ")
 		emitFriendlyNode(b, ctx, element, depth+1)
 		b.WriteString("}")
 		return
 	}
 	if rt.FormatAnnotation != nil {
+		if ctx.defaultErrors {
+			b.WriteString(ctx.bareMeta())
+			return
+		}
 		b.WriteString("{$label: '', $errors: {type: ''")
 		for _, key := range formatConstraintKeys(rt.FormatAnnotation) {
 			b.WriteString(", ")
@@ -157,7 +166,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		b.WriteString("}}")
 		return
 	}
-	b.WriteString("{$label: '', $errors: {type: ''}}")
+	b.WriteString(ctx.bareMeta())
 }
 
 // writeErrorLeafSkeleton emits one `$errors` constraint's blank template leaf:
@@ -183,7 +192,7 @@ func writeErrorLeafSkeleton(b *strings.Builder, ctx *walkCtx, key string) {
 func emitFriendlyObject(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth int) {
 	props := propertyChildren(ctx, rt)
 	if len(props) == 0 {
-		b.WriteString("{$label: '', $errors: {type: ''}}")
+		b.WriteString(ctx.bareMeta())
 		return
 	}
 	inner := strings.Repeat("  ", depth+1)
@@ -191,7 +200,11 @@ func emitFriendlyObject(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, 
 	b.WriteString(inner)
 	b.WriteString("$label: '',\n")
 	b.WriteString(inner)
-	b.WriteString("$errors: {type: ''},\n")
+	if ctx.defaultErrors {
+		b.WriteString("$errors: {$default: ''},\n")
+	} else {
+		b.WriteString("$errors: {type: ''},\n")
+	}
 	for _, prop := range props {
 		b.WriteString(inner)
 		b.WriteString(propKey(prop))

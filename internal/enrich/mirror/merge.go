@@ -286,28 +286,29 @@ func mergeObject(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 	// ($length/$size/$optional and the like) is author data, left untouched.
 	mergeMetaNodes(ops, existing, desired, ctx)
 
-	// $ERRORS DESCENT (i18n translate mode only): the ordinary reconcile keeps
-	// `$errors` an atomic leaf, but a translation must scaffold a @todo blank for
-	// every constraint key the source adds and orphan the ones it drops —
-	// otherwise a new constraint renders untranslated with no signal and a plural
-	// arm has no attachment point.
-	if ctx.translate {
-		mergeErrorsNode(ops, existing, desired, ctx)
-	}
+	// $ERRORS DESCENT (every friendly-family mirror — source language AND each
+	// locale): scaffold a @todo blank for every constraint key the type adds and
+	// orphan the recognized ones it drops, so a new constraint never renders
+	// silently unstyled and a plural arm always has an attachment point.
+	mergeErrorsNode(ops, existing, desired, ctx)
 }
 
 // mergeErrorsNode descends one level into a node's `$errors` record — present
-// and object-form on BOTH sides (a function-form arrow on either side is
-// opaque: the translation's form wins, nothing is merged). Constraint keys are
-// a fixed vocabulary, so there is NO rename pass at this level:
+// and object-form on BOTH sides. Constraint keys are a fixed vocabulary, so
+// there is NO rename pass at this level:
 //
+//   - a `$default`-only record on EITHER side is skipped whole: the author
+//     opted into the exclusive catch-all mode (or the project scaffolds it —
+//     tsconfig friendlyErrors: "default"), and a mode is author-owned;
 //   - a key in both, object-form on both sides → plural merge (locale-owned arms);
-//   - a key in both otherwise → kept byte-identical (an authored translation is
-//     never edited; a hand-diverged string↔object KIND is also kept — the
-//     translator owns their leaf's kind, `check --translate` reports the drift);
-//   - a desired-only key (source added a constraint) → inserted as the desired
-//     @todo blank (the blanker already shaped it: string or target-locale plural);
-//   - an existing-only key (source dropped it) → @rtOrphanChild carcass.
+//   - a key in both otherwise → kept byte-identical (an authored leaf is never
+//     edited; a hand-diverged string↔object KIND is also kept — the author owns
+//     their leaf's kind, `check` reports the drift);
+//   - a desired-only key (the type added a constraint) → inserted as the
+//     desired @todo blank (string, or a plural with the file-locale's arms);
+//   - an existing-only key the type dropped → @rtOrphanChild carcass, but ONLY
+//     for recognized constraint names (knownConstraintKeys): an author-added
+//     key we can't attribute to the type is never touched (TS flags typos).
 func mergeErrorsNode(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 	existingProp := existing.props["$errors"]
 	desiredProp := desired.props["$errors"]
@@ -315,10 +316,13 @@ func mergeErrorsNode(ops *[]spliceOp, existing, desired *objectView, ctx mergeCt
 		return
 	}
 	if !existingProp.isObject() || !desiredProp.isObject() {
-		return // function-form (or exotic) on either side — opaque, never merged
+		return // exotic value on either side — opaque, never merged
 	}
 	existingErrors := newObjectView(existing.text, existing.sourceFile, existingProp.value)
 	desiredErrors := newObjectView(desired.text, desired.sourceFile, desiredProp.value)
+	if isDefaultOnly(existingErrors) || isDefaultOnly(desiredErrors) {
+		return // the exclusive $default mode — author-owned, nothing to sync
+	}
 
 	var addKeys []string
 	for _, key := range desiredErrors.order {
@@ -340,7 +344,7 @@ func mergeErrorsNode(ops *[]spliceOp, existing, desired *objectView, ctx mergeCt
 
 	var dropKeys []string
 	for _, key := range existingErrors.order {
-		if desiredErrors.props[key] == nil {
+		if desiredErrors.props[key] == nil && knownConstraintKeys[key] {
 			dropKeys = append(dropKeys, key)
 		}
 	}
@@ -348,6 +352,29 @@ func mergeErrorsNode(ops *[]spliceOp, existing, desired *objectView, ctx mergeCt
 	for _, key := range dropKeys {
 		*ops = append(*ops, orphanChildOp(existingErrors, existingErrors.props[key]))
 	}
+}
+
+// isDefaultOnly reports whether an `$errors` record is the exclusive
+// `{$default: '…'}` catch-all mode (its ONLY key is $default).
+func isDefaultOnly(errors *objectView) bool {
+	return len(errors.order) == 1 && errors.props["$default"] != nil
+}
+
+// knownConstraintKeys are the `$errors` keys attributable to the TYPE — the
+// failable format param names across every format family, plus the base
+// `type` failure. The descent orphans an existing-only key ONLY when it is in
+// this catalog (the type declared it once and no longer does); anything else
+// is author-owned and untouched.
+var knownConstraintKeys = map[string]bool{
+	"type": true,
+	// string family
+	"minLength": true, "maxLength": true, "length": true, "pattern": true,
+	"allowedChars": true, "disallowedChars": true, "allowedValues": true, "disallowedValues": true,
+	// number / bigint family
+	"min": true, "max": true, "lt": true, "gt": true,
+	"integer": true, "float": true, "multipleOf": true,
+	// datetime family + uuid
+	"date": true, "time": true, "splitChar": true, "version": true,
 }
 
 // mergePluralObject merges one plural template (a count-bearing constraint's

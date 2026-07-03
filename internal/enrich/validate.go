@@ -221,6 +221,22 @@ func checkFriendlyErrors(findings *[]Finding, errorsView LiteralView, fieldNode 
 	if errorsView == nil {
 		return
 	}
+	// FT009: `$default` is the exclusive catch-all mode — a node either has ONE
+	// $default message or per-constraint keys, never both (mirrors the TS union).
+	keys := errorsView.Keys()
+	if len(keys) > 1 {
+		for _, key := range keys {
+			if key == "$default" {
+				*findings = append(*findings, Finding{
+					Code:     "FT009",
+					Severity: Error,
+					Path:     joinPath(path, "$errors.$default"),
+					Message:  "$default is mutually exclusive with per-constraint messages — use {$default: '…'} alone, or per-constraint keys without it",
+				})
+				break
+			}
+		}
+	}
 	allowed := allowedErrorKeys(fieldNode)
 	for _, key := range errorsView.Keys() {
 		keyPath := joinPath(path, "$errors."+key)
