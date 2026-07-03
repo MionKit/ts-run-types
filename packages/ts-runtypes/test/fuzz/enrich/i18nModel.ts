@@ -97,12 +97,14 @@ function writeTranslation(fixture: ReconcileFixture, text: string): void {
 
 function runTranslateCli(fixture: ReconcileFixture, args: string[]): CliResult {
   const result = spawnSync(BIN, args, {cwd: fixture.dir, encoding: 'utf8', timeout: 30_000});
+  const timedOut = result.signal != null && result.status == null && !result.error;
   return {
+    argv: args,
     status: result.status,
     stdout: result.stdout ?? '',
     stderr: result.stderr ?? '',
-    timedOut: result.error?.message.includes('ETIMEDOUT') ?? false,
-    failedToLaunch: !!result.error && !result.error.message.includes('ETIMEDOUT'),
+    timedOut,
+    launchError: result.error ? result.error.message : null,
   };
 }
 
@@ -176,7 +178,7 @@ function violation(rule: I18nRuleId, command: string, ctx: I18nCtx, message: str
 
 function controlledOr(result: CliResult, command: string, ctx: I18nCtx, out: I18nViolation[]): boolean {
   if (isControlled(result)) return true;
-  const why = result.timedOut ? 'timed out' : result.failedToLaunch ? 'failed to launch' : `exit ${result.status}`;
+  const why = result.timedOut ? 'timed out' : result.launchError ? `failed to launch: ${result.launchError}` : `exit ${result.status}`;
   out.push(violation('T10', command, ctx, `${why}: ${result.stderr.slice(0, 400)}`));
   return false;
 }
