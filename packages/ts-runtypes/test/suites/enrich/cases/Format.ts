@@ -15,7 +15,10 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.String<{minLength: 2; maxLength: 60}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', maxLength: '', minLength: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}},
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -43,7 +46,10 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Email;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', maxLength: '', minLength: '', pattern: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}, pattern: ''},
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -71,7 +77,10 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Url;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', maxLength: '', pattern: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: '', maxLength: {one: '', other: ''}, pattern: ''},
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -99,7 +108,10 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Number<{min: 0; max: 120}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', max: '', min: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}},
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -127,7 +139,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Positive;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', min: ''}};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', min: {one: '', other: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -141,7 +153,10 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Int32;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', integer: '', max: '', min: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: '', integer: '', max: {one: '', other: ''}, min: {one: '', other: ''}},
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -155,7 +170,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.BigPositive;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', min: ''}};
+      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', min: {one: '', other: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -169,7 +184,10 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.BigInt64;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: '', max: '', min: ''}};
+      const friendlyTarget: FriendlyType<Target> = {
+        $label: '',
+        $errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}},
+      };
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -186,9 +204,9 @@ export const FORMAT = {
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
         $errors: {type: ''},
-        name: {$label: '', $errors: {type: '', maxLength: '', minLength: ''}},
-        age: {$label: '', $errors: {type: '', max: '', min: ''}},
-        email: {$label: '', $errors: {type: '', maxLength: '', minLength: '', pattern: ''}},
+        name: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},
+        age: {$label: '', $errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
+        email: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}, pattern: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {

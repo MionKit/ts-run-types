@@ -1,6 +1,7 @@
 package enrich
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -50,23 +51,55 @@ func userFixture() *protocol.RunType {
 
 func TestEmitFriendly(t *testing.T) {
 	got := EmitFriendly(userFixture(), EmitOptions{VarName: "userFriendly", TypeName: "User"})
+	// Count-bearing constraints (minLength/maxLength/min/max) scaffold a plural
+	// OBJECT with the source locale's arms (default en: one/other); the rest
+	// stay plain strings.
 	want := `export const userFriendly: FriendlyType<User> = {
   $label: '',
   $errors: {type: ''},
-  name: {$label: '', $errors: {type: '', maxLength: '', minLength: ''}},
-  age: {$label: '', $errors: {type: '', max: '', min: ''}},
+  name: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},
+  age: {$label: '', $errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
   isActive: {$label: '', $errors: {type: ''}},
   tags: {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}},
   profile: {
     $label: '',
     $errors: {type: ''},
     email: {$label: '', $errors: {type: ''}},
-    score: {$label: '', $errors: {type: '', max: '', min: ''}},
+    score: {$label: '', $errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
   },
 };
 `
 	if got != want {
 		t.Errorf("EmitFriendly mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+// TestEmitFriendly_SourceLocaleArms: the plural arm set follows the source
+// locale — Polish scaffolds one/few/many/other, Japanese other-only, an
+// unknown locale all six.
+func TestEmitFriendly_SourceLocaleArms(t *testing.T) {
+	fixture := &protocol.RunType{
+		ID: "box", Kind: protocol.KindObjectLiteral, TypeName: "Box",
+		Children: []*protocol.RunType{
+			prop("name", fmtLeaf(protocol.KindString, "stringFormat", map[string]any{"minLength": 2})),
+		},
+	}
+	tests := []struct {
+		locale string
+		want   string
+	}{
+		{"pl", "minLength: {one: '', few: '', many: '', other: ''}"},
+		{"ja", "minLength: {other: ''}"},
+		{"pt-BR", "minLength: {one: '', many: '', other: ''}"},
+		{"xx", "minLength: {zero: '', one: '', two: '', few: '', many: '', other: ''}"},
+	}
+	for _, test := range tests {
+		t.Run(test.locale, func(t *testing.T) {
+			got := EmitFriendly(fixture, EmitOptions{VarName: "boxFriendly", TypeName: "Box", SourceLocale: test.locale})
+			if !strings.Contains(got, test.want) {
+				t.Errorf("EmitFriendly(%s) missing %q:\n%s", test.locale, test.want, got)
+			}
+		})
 	}
 }
 

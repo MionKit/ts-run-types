@@ -64,10 +64,10 @@ export const REALWORLD = {
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
         $errors: {type: ''},
-        username: {$label: '', $errors: {type: '', maxLength: '', minLength: ''}},
-        email: {$label: '', $errors: {type: '', maxLength: '', minLength: '', pattern: ''}},
-        age: {$label: '', $errors: {type: '', max: '', min: ''}},
-        website: {$label: '', $errors: {type: '', maxLength: '', pattern: ''}},
+        username: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},
+        email: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}, pattern: ''}},
+        age: {$label: '', $errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
+        website: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, pattern: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {

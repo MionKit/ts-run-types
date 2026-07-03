@@ -144,7 +144,7 @@ export const ARRAY = {
       const friendlyTarget: FriendlyType<Target> = {
         $label: '',
         $errors: {type: ''},
-        $items: {$label: '', $errors: {type: '', maxLength: '', minLength: '', pattern: ''}},
+        $items: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}, pattern: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {$items: {pool: []}, $length: [1, 3]};
