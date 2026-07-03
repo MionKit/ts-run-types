@@ -31,6 +31,15 @@ const (
 	familyMock     = "mock"
 )
 
+// defaultI18nDirName is the translation subtree's dir name under the enrich
+// root (a PARALLEL sibling of the friendly/ + mock/ family subtrees); each
+// locale owns a path segment under it: <EnrichDir>/i18n/<locale>/<rel>.
+const defaultI18nDirName = "i18n"
+
+// defaultSourceLocale is the language source FriendlyType maps are assumed to
+// be authored in when tsconfig `i18n.sourceLocale` is absent.
+const defaultSourceLocale = "en"
+
 // enrichConfig is the resolved enrichment configuration for a gen target. It is
 // the merge of (in precedence order) the --enrich-dir CLI flag, the tsconfig
 // `compilerOptions.plugins[name=ts-runtypes]` entry, and the built-in defaults.
@@ -43,6 +52,15 @@ type enrichConfig struct {
 	ProjectRoot string
 	RootDir     string
 	EnrichDir   string
+
+	// i18n knobs (the tsconfig plugin `i18n` object; docs/done/friendly-type-i18n.md).
+	// Defaults are dormant: SourceLocale 'en', I18nDir <EnrichDir>/i18n, no
+	// locales, no formats module, lenient check.
+	SourceLocale string
+	I18nDir      string
+	I18nLocales  []string
+	I18nFormats  string
+	I18nStrict   bool
 
 	// The remaining plugin options are read and stored for completeness (and
 	// future use) but are not acted on by gen yet.
@@ -69,6 +87,10 @@ type tsRuntypesPlugin struct {
 	EmitMode   string `json:"emitMode"`
 	InlineMode string `json:"inlineMode"`
 
+	// I18n is the FriendlyType translation config. A pointer so an absent key
+	// (nil) keeps every i18n default dormant.
+	I18n *i18nPluginConfig `json:"i18n"`
+
 	// Build-path project knobs, read by resolveBuildPlugin and merged in
 	// buildconfig.go. The enrichment path ignores them.
 	HashLength     *int    `json:"hashLength"`
@@ -83,6 +105,28 @@ type tsRuntypesPlugin struct {
 	SizeItems       *int     `json:"sizeItems"`
 	SizeStringBytes *int     `json:"sizeStringBytes"`
 	SizeMaxBytes    *int     `json:"sizeMaxBytes"`
+}
+
+// i18nPluginConfig is the `i18n` object under the ts-runtypes plugin entry:
+//
+//	{ "sourceLocale": "en", "dir": "runtypes/generated/i18n",
+//	  "locales": ["es", "pl"], "formats": "runtypes/i18n.formats.ts",
+//	  "strict": false }
+//
+// sourceLocale names the language the source FriendlyType maps are authored in
+// (it selects the plural arms the scaffold emits). dir is the translation
+// subtree root (locale is a PATH SEGMENT under it), resolved like enrichDir
+// (relative → under the project root); default <enrichDir>/i18n. locales is
+// the target set — the source locale is NOT listed. formats names the module
+// default-exporting Record<locale, NamedFormats> (check validates format-name
+// references against it). strict turns `check --translate` findings into
+// errors; the runtime is always lenient.
+type i18nPluginConfig struct {
+	SourceLocale string   `json:"sourceLocale"`
+	Dir          string   `json:"dir"`
+	Locales      []string `json:"locales"`
+	Formats      string   `json:"formats"`
+	Strict       bool     `json:"strict"`
 }
 
 // tsconfigShape decodes only the compilerOptions fields enrichment reads.
@@ -110,11 +154,13 @@ func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
 	targetDir := filepath.Dir(absTargetFile)
 
 	config := enrichConfig{
-		ProjectRoot: targetDir,
-		RootDir:     targetDir,
-		EnrichDir:   defaultEnrichDir,
+		ProjectRoot:  targetDir,
+		RootDir:      targetDir,
+		EnrichDir:    defaultEnrichDir,
+		SourceLocale: defaultSourceLocale,
 	}
 
+	var i18nDir, i18nFormats string
 	if tsconfigPath := findNearestTsconfig(targetDir); tsconfigPath != "" {
 		tsconfigDir := filepath.Dir(tsconfigPath)
 		config.ProjectRoot = tsconfigDir
@@ -131,6 +177,15 @@ func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
 				config.ModuleMode = plugin.ModuleMode
 				config.EmitMode = plugin.EmitMode
 				config.InlineMode = plugin.InlineMode
+				if plugin.I18n != nil {
+					if sourceLocale := strings.TrimSpace(plugin.I18n.SourceLocale); sourceLocale != "" {
+						config.SourceLocale = sourceLocale
+					}
+					i18nDir = strings.TrimSpace(plugin.I18n.Dir)
+					i18nFormats = strings.TrimSpace(plugin.I18n.Formats)
+					config.I18nLocales = plugin.I18n.Locales
+					config.I18nStrict = plugin.I18n.Strict
+				}
 			}
 		}
 	}
@@ -143,8 +198,18 @@ func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
 	// Resolve EnrichDir to an absolute path: relative values are anchored under
 	// ProjectRoot (the doc: "mirror root … relative to rootDir" — the mirror tree
 	// is laid out under projectRoot, with the per-file path computed relative to
-	// rootDir; see mirrorPath).
+	// rootDir; see mirrorPath). The i18n dir resolves the same way, defaulting to
+	// the `i18n` sibling of the family subtrees under the enrich root; the
+	// formats module resolves under ProjectRoot too.
 	config.EnrichDir = resolveUnder(config.ProjectRoot, config.EnrichDir)
+	if i18nDir != "" {
+		config.I18nDir = resolveUnder(config.ProjectRoot, i18nDir)
+	} else {
+		config.I18nDir = filepath.Join(config.EnrichDir, defaultI18nDirName)
+	}
+	if i18nFormats != "" {
+		config.I18nFormats = resolveUnder(config.ProjectRoot, i18nFormats)
+	}
 
 	return config
 }
@@ -175,6 +240,19 @@ func (config enrichConfig) mirrorRel(absSourceFile string) string {
 		rel = filepath.Base(absSourceFile)
 	}
 	return forceTSExt(rel)
+}
+
+// translationPathFor computes one locale's translation file for a friendly
+// source mirror: <I18nDir>/<locale>/<mirror's path relative to the friendly
+// family root>. The locale is a PATH SEGMENT (never a filename infix), so
+// forceTSExt never sees it and a region tag like pt-BR needs no re-parse.
+func (config enrichConfig) translationPathFor(locale, friendlyMirrorPath string) string {
+	friendlyRoot := filepath.Join(config.EnrichDir, familyFriendly)
+	rel, err := filepath.Rel(friendlyRoot, friendlyMirrorPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		rel = filepath.Base(friendlyMirrorPath)
+	}
+	return filepath.Clean(filepath.Join(config.I18nDir, locale, rel))
 }
 
 // forceTSExt replaces a source file's extension with ".ts", collapsing a ".d.ts"

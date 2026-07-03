@@ -158,6 +158,93 @@ func TestMirrorPath(t *testing.T) {
 	}
 }
 
+// TestTranslationPathFor: the locale is a path segment under the i18n dir,
+// mirroring the friendly family subtree — region tags (pt-BR) ride verbatim.
+func TestTranslationPathFor(t *testing.T) {
+	config := enrichConfig{
+		ProjectRoot: "/proj",
+		RootDir:     "/proj/src",
+		EnrichDir:   "/proj/runtypes/generated",
+		I18nDir:     "/proj/runtypes/generated/i18n",
+	}
+	tests := []struct {
+		name   string
+		locale string
+		mirror string
+		want   string
+	}{
+		{"plain locale", "pl", "/proj/runtypes/generated/friendly/models/user.ts", "/proj/runtypes/generated/i18n/pl/models/user.ts"},
+		{"region tag", "pt-BR", "/proj/runtypes/generated/friendly/models/user.ts", "/proj/runtypes/generated/i18n/pt-BR/models/user.ts"},
+		{"top-level mirror", "es", "/proj/runtypes/generated/friendly/index.ts", "/proj/runtypes/generated/i18n/es/index.ts"},
+		{"outside friendly root falls back to base", "es", "/elsewhere/user.ts", "/proj/runtypes/generated/i18n/es/user.ts"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := config.translationPathFor(test.locale, test.mirror); got != test.want {
+				t.Errorf("translationPathFor(%q, %q) = %q, want %q", test.locale, test.mirror, got, test.want)
+			}
+		})
+	}
+}
+
+// TestResolveEnrichConfig_I18n: the tsconfig plugin i18n object populates the
+// config; defaults stay dormant without it.
+func TestResolveEnrichConfig_I18n(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{
+  "compilerOptions": {
+    "rootDir": "src",
+    "plugins": [{
+      "name": "ts-runtypes",
+      "enrichDir": "runtypes/generated",
+      "i18n": {
+        "sourceLocale": "pl",
+        "locales": ["es", "pt-BR"],
+        "formats": "runtypes/i18n.formats.ts",
+        "strict": true
+      }
+    }]
+  }
+}`)
+	target := filepath.Join(dir, "src", "user.ts")
+
+	config := resolveEnrichConfig(target, "")
+	if config.SourceLocale != "pl" {
+		t.Errorf("SourceLocale = %q, want pl", config.SourceLocale)
+	}
+	if want := filepath.Join(dir, "runtypes/generated/i18n"); config.I18nDir != want {
+		t.Errorf("I18nDir = %q, want default %q", config.I18nDir, want)
+	}
+	if len(config.I18nLocales) != 2 || config.I18nLocales[0] != "es" || config.I18nLocales[1] != "pt-BR" {
+		t.Errorf("I18nLocales = %v", config.I18nLocales)
+	}
+	if want := filepath.Join(dir, "runtypes/i18n.formats.ts"); config.I18nFormats != want {
+		t.Errorf("I18nFormats = %q, want %q", config.I18nFormats, want)
+	}
+	if !config.I18nStrict {
+		t.Errorf("I18nStrict = false, want true")
+	}
+
+	// No i18n object → dormant defaults.
+	writeTestFile(t, filepath.Join(dir, "tsconfig.json"),
+		`{ "compilerOptions": { "plugins": [{ "name": "ts-runtypes" }] } }`)
+	dormant := resolveEnrichConfig(target, "")
+	if dormant.SourceLocale != "en" || len(dormant.I18nLocales) != 0 || dormant.I18nStrict || dormant.I18nFormats != "" {
+		t.Errorf("dormant i18n defaults wrong: %+v", dormant)
+	}
+	if want := filepath.Join(dir, defaultEnrichDir, "i18n"); dormant.I18nDir != want {
+		t.Errorf("dormant I18nDir = %q, want %q", dormant.I18nDir, want)
+	}
+
+	// A custom i18n.dir resolves under the project root.
+	writeTestFile(t, filepath.Join(dir, "tsconfig.json"),
+		`{ "compilerOptions": { "plugins": [{ "name": "ts-runtypes", "i18n": { "dir": "translations" } }] } }`)
+	custom := resolveEnrichConfig(target, "")
+	if want := filepath.Join(dir, "translations"); custom.I18nDir != want {
+		t.Errorf("custom I18nDir = %q, want %q", custom.I18nDir, want)
+	}
+}
+
 // TestMirrorFamilyOf reads a mirror file's family off its path segment under
 // the enrich root; a legacy combined location (or a file outside the root) has
 // no family.
