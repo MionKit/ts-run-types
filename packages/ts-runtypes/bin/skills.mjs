@@ -14,7 +14,7 @@ Usage:
   npx ts-runtypes-skills --dir <path>    copy skills into <path> (resolved from cwd)
   npx ts-runtypes-skills -h | --help     show this help
 
-Once installed, your AI agent picks the skill up automatically for enrichment tasks.`;
+Once installed, your AI agent picks the right skill up automatically for enrichment tasks.`;
 
 function printUsage(stream = process.stdout) {
   stream.write(USAGE + '\n');

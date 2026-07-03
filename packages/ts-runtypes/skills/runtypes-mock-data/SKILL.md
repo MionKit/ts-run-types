@@ -9,14 +9,14 @@ description: Author and use a `MockData<T>` for a RunTypes type — the committe
 `FriendlyType<T>` — see the `runtypes-friendly-type` skill). Unlike validators / codecs
 (pure functions of the type, recomputed every build, never committed), enrichment is
 **authored once, committed, and validated against the type forever after**. The full
-design is [docs/AI_ENRICHMENT.md](../../../docs/AI_ENRICHMENT.md).
+design is [docs/AI_ENRICHMENT.md](https://github.com/mionkit/ts-runtypes/blob/main/docs/AI_ENRICHMENT.md).
 
 A `MockData<T>` is a per-field map of **realistic sample values** — pools, ranges,
 element + length hints, optional-probability — that feeds the existing
 `createMockType<T>()` generator. The mechanical generator stays deterministic; the map
-only supplies the realistic *values* (a believable name, a plausible age, a valid
+only supplies the realistic _values_ (a believable name, a plausible age, a valid
 email). The DSL type is
-[`mockData.ts`](../../../packages/ts-runtypes/src/enrich/mockData.ts), exported from
+[`mockData.ts`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/mockData.ts), exported from
 `ts-runtypes`.
 
 ## When to use it
@@ -33,9 +33,9 @@ the generator already mocks every shape mechanically (including `Date`, `Map`, `
 ## What is shipped today vs designed
 
 - **Shipped:** the `MockData<T>` DSL type
-  ([`mockData.ts`](../../../packages/ts-runtypes/src/enrich/mockData.ts)); the
+  ([`mockData.ts`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/mockData.ts)); the
   `{ data }` option on `createMockType<T>()`
-  ([`createMockType.ts`](../../../packages/ts-runtypes/src/mocking/createMockType.ts)) —
+  ([`createMockType.ts`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/mocking/createMockType.ts)) —
   pass `createMockType<T>({ data })` and generated values are drawn from the authored
   pools / ranges (both exported from `ts-runtypes`); and the `gen` / `check` CLI that
   scaffolds the mock mirror file and cross-checks it against the live type (MD001) —
@@ -50,17 +50,17 @@ the generator already mocks every shape mechanically (including `Date`, `Map`, `
 One recursive node, uniform at every depth, structure checked against `T` by the
 `MockData<T>` mapped type. Per-field shape depends on the field's kind:
 
-| Field kind        | Node shape                                                        |
-| ----------------- | ---------------------------------------------------------------- |
-| string            | `{ pool?: string[] }`                                             |
-| number            | `{ pool?: number[]; min?: number; max?: number }`                |
-| `Date`            | `{ pool?: Date[]; min?: Date; max?: Date }`                       |
-| boolean / bigint  | `{ pool?: boolean[] }` / `{ pool?: bigint[] }`                    |
-| array / rest tuple | `{ $items?: <element node>; $length?: number \| [number, number] }` |
-| fixed tuple       | `{ $slots?: [<node per slot>] }` — positional, fixed length, no `$length` |
-| `Map`             | `{ $keys?, $values?: <node>; $size?: number \| [number, number] }` |
-| `Set`             | `{ $values?: <node>; $size?: number \| [number, number] }`        |
-| object            | `{ [K in keyof T]?: <child node> } & { $optional?: number }`     |
+| Field kind         | Node shape                                                                |
+| ------------------ | ------------------------------------------------------------------------- |
+| string             | `{ pool?: string[] }`                                                     |
+| number             | `{ pool?: number[]; min?: number; max?: number }`                         |
+| `Date`             | `{ pool?: Date[]; min?: Date; max?: Date }`                               |
+| boolean / bigint   | `{ pool?: boolean[] }` / `{ pool?: bigint[] }`                            |
+| array / rest tuple | `{ $items?: <element node>; $length?: number \| [number, number] }`       |
+| fixed tuple        | `{ $slots?: [<node per slot>] }` — positional, fixed length, no `$length` |
+| `Map`              | `{ $keys?, $values?: <node>; $size?: number \| [number, number] }`        |
+| `Set`              | `{ $values?: <node>; $size?: number \| [number, number] }`                |
+| object             | `{ [K in keyof T]?: <child node> } & { $optional?: number }`              |
 
 - **`pool`** — pick a value at random from this list.
 - **`min` / `max`** — inclusive bounds (numbers, `Date`s).
@@ -102,7 +102,9 @@ consumed by a `createMockType` call.
 import type {MockData} from 'ts-runtypes';
 import type {User} from '../../../../src/models/user';
 
-export const mockUser: MockData<User> = { /* … */ };
+export const mockUser: MockData<User> = {
+  /* … */
+};
 ```
 
 ## Feeding it to `createMockType<T>()`
@@ -116,7 +118,7 @@ import {mockUser} from 'runtypes/generated/mock/models/user';
 import type {User} from '../models/user';
 
 const makeUser = createMockType<User>({data: mockUser});
-const sample = makeUser();   // realistic, type-valid User
+const sample = makeUser(); // realistic, type-valid User
 ```
 
 (`data` rides the same options bag as `{ mock }` — `createMockType<T>({ data, mock })`.
@@ -149,8 +151,8 @@ export const mockUser: MockData<User> = {
   name: {pool: ['Alice Martin', 'Liang Wei', 'Fatima Noor', 'Diego Ramirez']},
   age: {min: 18, max: 95},
   tags: {
-    $items: {pool: ['urgent', 'beta', 'vip']},   // element node
-    $length: [1, 4],                              // 1–4 tags
+    $items: {pool: ['urgent', 'beta', 'vip']}, // element node
+    $length: [1, 4], // 1–4 tags
   },
   profile: {
     email: {pool: ['alice@example.com', 'liang@corp.io', 'fatima@mail.net']},

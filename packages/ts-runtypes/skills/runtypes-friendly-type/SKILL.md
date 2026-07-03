@@ -9,7 +9,7 @@ description: Author and use a `FriendlyType<T>` for a RunTypes type — the comm
 `MockData<T>` — see the `runtypes-mock-data` skill). Unlike validators / codecs (pure
 functions of the type, recomputed every build, never committed), enrichment is
 **authored once, committed, and validated against the type forever after**. The full
-design is [docs/AI_ENRICHMENT.md](../../../docs/AI_ENRICHMENT.md).
+design is [docs/AI_ENRICHMENT.md](https://github.com/mionkit/ts-runtypes/blob/main/docs/AI_ENRICHMENT.md).
 
 A `FriendlyType<T>` is a combined, per-field map of:
 
@@ -17,7 +17,7 @@ A `FriendlyType<T>` is a combined, per-field map of:
 - **error-message templates** — `$errors`, one template per failed constraint.
 
 It is **pure data**. The shipped runtime renderer is
-[`createFriendly<T>(map)`](../../../packages/ts-runtypes/src/enrich/createFriendly.ts);
+[`createFriendly<T>(map)`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/createFriendly.ts);
 it turns `createGetValidationErrors<T>()` output into readable messages. No type-id
 injection, no `rtUtils` — error rendering needs only `(map, errors)`.
 
@@ -36,10 +36,10 @@ map involved.
 
 - **Shipped:** the `FriendlyType<T>` DSL type with the plural + translation types
   (`PluralTemplate`, `TemplateLeaf`, `PluralCategory`, `Translation<T>`)
-  ([`friendlyType.ts`](../../../packages/ts-runtypes/src/enrich/friendlyType.ts)); the
+  ([`friendlyType.ts`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/friendlyType.ts)); the
   plural-aware `createFriendly<T>(map)` renderer plus `createFriendlyI18n`,
   `resolveLocale` and `NamedFormats`
-  ([`createFriendly.ts`](../../../packages/ts-runtypes/src/enrich/createFriendly.ts)) —
+  ([`createFriendly.ts`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/createFriendly.ts)) —
   all exported from `ts-runtypes`. The `gen` / `check` CLI (including `--translate`)
   scaffolds and validates the committed maps — see the `rt-enrich-types` skill.
 - **Designed (not yet wired):** the `ShapeCheckedArgs<T>` compile-time axis and
@@ -57,7 +57,7 @@ wrapper.
   (`TemplateLeaf = string | PluralTemplate` — see the plural section below).
 - Arrays (and rest tuples) carry `$items` (the element node); fixed tuples carry
   positional `$slots`; `Map` carries `$keys` / `$values` and `Set` carries `$values`.
-- Nested objects recurse with the *same* node shape.
+- Nested objects recurse with the _same_ node shape.
 
 The map's structure is checked against `T` by the `FriendlyType<T>` mapped type:
 authoring an object node where `T` is scalar (or vice-versa) is a type error.
@@ -82,19 +82,19 @@ as `type`. You only get `minLength` / `maxLength` keys because the field is decl
 `FormatString<{minLength; maxLength}>`. A richer friendly map requires a richer type
 annotation.
 
-Errors **accumulate** — a value violating `minLength` *and* `pattern` yields two
+Errors **accumulate** — a value violating `minLength` _and_ `pattern` yields two
 messages (a list), one per violated constraint.
 
 ## The placeholder DSL
 
 Templates are plain strings with `$[…]` tokens the renderer substitutes:
 
-| Token       | Resolves to                                                         |
-| ----------- | ------------------------------------------------------------------- |
-| `$[label]`  | the node's `$label`, falling back to the raw field name             |
-| `$[val]`    | the failed constraint's bound (`error.format.val`; e.g. `2`)        |
-| `$[path]`   | dotted path to the field (`profile.email`)                          |
-| `$[index]`  | array element index, for `$items` failures                         |
+| Token              | Resolves to                                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `$[label]`         | the node's `$label`, falling back to the raw field name                                                                                                      |
+| `$[val]`           | the failed constraint's bound (`error.format.val`; e.g. `2`)                                                                                                 |
+| `$[path]`          | dotted path to the field (`profile.email`)                                                                                                                   |
+| `$[index]`         | array element index, for `$items` failures                                                                                                                   |
 | `$[val:kind:name]` | the bound routed through a named `Intl` format (also `$[index:…]`) — kinds: `number`, `date`, `relativeTime`, `list`; names come from a `NamedFormats` table |
 
 Unknown `$[…]` tokens — and an unknown format kind/name in a three-part token — are left
@@ -181,7 +181,9 @@ import type {FriendlyType} from 'ts-runtypes';
 import type {User} from '../../../../src/models/user';
 
 /** @rtType User#9f3a @rtIds {…} */
-export const friendlyUser: FriendlyType<User> = { /* … */ };
+export const friendlyUser: FriendlyType<User> = {
+  /* … */
+};
 ```
 
 The `import type` line is best-effort — if a consumed type isn't exported, the file
@@ -192,17 +194,17 @@ fails to compile and you fix the export.
 The `check` verb cross-references the authored literal against the live `RunType` and
 reports:
 
-| Code  | Severity | Meaning                                                          |
-| ----- | -------- | ---------------------------------------------------------------- |
-| FT001 | Info     | a field of `T` has no label (renders the raw name)               |
-| FT002 | Error    | key is not a field of `T` — stale (field renamed/removed)        |
-| FT003 | Warning  | `$errors` key isn't a constraint this field's format declares    |
-| FT004 | Error    | structural mismatch (object node where `T` is scalar, or vice-versa) |
+| Code  | Severity | Meaning                                                                                                                                                                                                      |
+| ----- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| FT001 | Info     | a field of `T` has no label (renders the raw name)                                                                                                                                                           |
+| FT002 | Error    | key is not a field of `T` — stale (field renamed/removed)                                                                                                                                                    |
+| FT003 | Warning  | `$errors` key isn't a constraint this field's format declares                                                                                                                                                |
+| FT004 | Error    | structural mismatch (object node where `T` is scalar, or vice-versa)                                                                                                                                         |
 | FT005 | Warning  | unknown `$[…]` placeholder for this constraint/context — checked per plural arm; also validates three-part format tokens (binding must be `val`/`index`; kind must be `number`/`date`/`relativeTime`/`list`) |
-| FT006 | Error    | a plural object is missing the mandatory `other` arm             |
-| FT007 | Warning  | a plural-object arm key is not a CLDR category                   |
-| FT008 | Warning  | a plural object on a non-count-bearing constraint (dead arms)    |
-| FT010 | Info     | `T`'s structural id changed since authored — review for drift    |
+| FT006 | Error    | a plural object is missing the mandatory `other` arm                                                                                                                                                         |
+| FT007 | Warning  | a plural-object arm key is not a CLDR category                                                                                                                                                               |
+| FT008 | Warning  | a plural object on a non-count-bearing constraint (dead arms)                                                                                                                                                |
+| FT010 | Info     | `T`'s structural id changed since authored — review for drift                                                                                                                                                |
 
 These catch drift: rename a field and `FT002` flags the now-stale entry.
 
@@ -219,7 +221,7 @@ const friendly = createFriendly<User>(friendlyUser);
 friendly.errors(getUserErrors(badInput));
 // → [{ path: 'profile.email', label: 'Email', message: 'Enter a valid email address' }, …]
 
-friendly.label('profile.email');   // → 'Email'  (falls back to the raw field name)
+friendly.label('profile.email'); // → 'Email'  (falls back to the raw field name)
 ```
 
 `createFriendly` returns `{ errors(errs), label(path) }`:
@@ -263,7 +265,9 @@ import type {Translation} from 'ts-runtypes';
 import type {User} from '../../../../../src/models/user';
 
 /** @rtType User#9f3a @rtIds {…} @rtI18n pl from '../../../friendly/models/user' */
-export const pl_friendlyUser: Translation<User> = { /* … */ };
+export const pl_friendlyUser: Translation<User> = {
+  /* … */
+};
 ```
 
 ## Locale-aware rendering — `createFriendlyI18n`
@@ -278,13 +282,13 @@ import {es_friendlyUser} from 'runtypes/generated/i18n/es/models/user';
 import {pl_friendlyUser} from 'runtypes/generated/i18n/pl/models/user';
 
 const friendly = createFriendlyI18n(friendlyUser, {
-  locale: currentLocale,      // string | {value: string} — a {value} ref (e.g. a Vue Ref)
+  locale: currentLocale, // string | {value: string} — a {value} ref (e.g. a Vue Ref)
   translations: {es: es_friendlyUser, pl: pl_friendlyUser},
-  formats: appFormats,        // optional Record<localeTag, NamedFormats> for $[val:kind:name]
-  sourceLocale: 'en',         // optional (default 'en'): plural rules when rendering from the SOURCE map
+  formats: appFormats, // optional Record<localeTag, NamedFormats> for $[val:kind:name]
+  sourceLocale: 'en', // optional (default 'en'): plural rules when rendering from the SOURCE map
 });
 
-friendly.errors(getUserErrors(badInput));   // arm + template picked per the active locale
+friendly.errors(getUserErrors(badInput)); // arm + template picked per the active locale
 ```
 
 - A `{value}` locale ref is re-read on EVERY render, but the renderer itself is not
@@ -353,10 +357,11 @@ export const friendlyUser: FriendlyType<User> = {
 
   tags: {
     $label: 'Tags',
-    $items: {$errors: {type: 'each tag must be text'}},   // element node
+    $items: {$errors: {type: 'each tag must be text'}}, // element node
   },
 
-  profile: {                                              // nested object — recurse
+  profile: {
+    // nested object — recurse
     $label: 'Profile',
     email: {$label: 'Email', $errors: {pattern: 'Enter a valid email address'}},
     score: {$label: 'Score', $errors: {min: 'min $[val]', max: 'max $[val]'}},
