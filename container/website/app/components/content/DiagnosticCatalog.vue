@@ -8,7 +8,6 @@ interface CodeEntry {
   severity: 'error' | 'warning' | 'info';
   headline: string;
   detail: string | null;
-  hasMessage: boolean;
   summary: string | null;
   example: string | null;
   fix: string | null;

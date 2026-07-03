@@ -200,15 +200,18 @@ describe.runIf(hasBinary())(
         const expected = locate(MIRROR_DIRTY_TS, TODO_TAG);
         expect(reports[0]).toMatchObject({line: expected.line, column: expected.column});
         expect(reports[0]!.endColumn).toBe(expected.column + TODO_TAG.length);
-        expect(reports[0]!.message).toContain('[ENR001]');
+        // The @todo sits above the FriendlyType const → the FT-family code.
+        expect(reports[0]!.message).toContain('[FT020]');
       });
 
       it('no-orphan-carcass fires on both carcass forms', () => {
         const reports = reportsFor('no-orphan-carcass', 'mirror-dirty.ts');
         expect(reports).toHaveLength(2);
-        expect(reports[0]!.message).toContain('[ENR002]');
+        // Both carcasses carry no preserved annotation and sit after the last
+        // const, so they attribute to the nearest-before MockData family.
+        expect(reports[0]!.message).toContain('[MD021]');
         expect(reports[0]!.line).toBe(locate(MIRROR_DIRTY_TS, '@rtOrphan export').line);
-        expect(reports[1]!.message).toContain('[ENR003]');
+        expect(reports[1]!.message).toContain('[MD022]');
         expect(reports[1]!.line).toBe(locate(MIRROR_DIRTY_TS, '@rtOrphanChild old').line);
       });
 

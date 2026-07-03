@@ -33,12 +33,28 @@ const (
 
 // TagFinding is one dirty-tag occurrence. Start/End are byte offsets of the
 // tag TOKEN itself (never the whole carcass block) so editor squiggles stay
-// tight even when a carcass spans many lines.
+// tight even when a carcass spans many lines. BlockStart/BlockEnd bound the
+// whole carcass for the orphan kinds (equal to Start/End for a @todo) — the
+// family attribution reads the preserved const's annotation out of it.
 type TagFinding struct {
-	Kind  TagKind
-	Start int
-	End   int
+	Kind       TagKind
+	Start      int
+	End        int
+	BlockStart int
+	BlockEnd   int
 }
+
+// MirrorFamily says which per-family mirror a file (or one finding in it)
+// belongs to since the friendly/mock file split. Unknown means no signal —
+// consumers fall back to the friendly-family code and the file path tells
+// the user the rest.
+type MirrorFamily int
+
+const (
+	FamilyUnknown MirrorFamily = iota
+	FamilyFriendly
+	FamilyMock
+)
 
 // IsEnrichmentFile is the scoping guard (defense in depth under the consumer's
 // lint glob): hygiene only applies to files that look like enrichment mirrors —
@@ -50,11 +66,26 @@ type TagFinding struct {
 // `(map: FriendlyType<T>)` parameter annotations, prose with `@todo`) nor a
 // JSDoc code example can make ordinary source read as a mirror.
 func IsEnrichmentFile(text string) bool {
-	if strings.Contains(text, MarkerCommentPrefix) {
+	if HasMarkerComment(text) {
 		return true
 	}
 	masked := maskComments(text)
 	return enrichConstAnnotationPattern.MatchString(masked)
+}
+
+// HasMarkerComment reports whether text carries a reconcile marker in its
+// EMIT form — a comment that actually STARTS with `/** @rtType ` — as opposed
+// to the prefix merely appearing inside a string literal (the generated
+// diagnostic catalog embeds it in message text) or mid-comment prose. This is
+// the guard signal for "generated mirror": IsEnrichmentFile's first branch
+// and the resolver's breadcrumb-drift gate both key on it.
+func HasMarkerComment(text string) bool {
+	for _, span := range commentSpans(text) {
+		if strings.HasPrefix(text[span.start:], MarkerCommentPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // enrichConstAnnotationPattern matches a (possibly exported) const declaration
@@ -86,23 +117,34 @@ func maskComments(text string) string {
 // ScanDirtyTags returns every dirty-tag occurrence in text, ordered by Start.
 //
 //   - Orphan carcasses are matched with the SAME pattern `gen --prune` removes
-//     (orphanBlockPattern), so the rule reports exactly what prune would fix.
+//     (orphanBlockPattern), so the rule reports exactly what prune would fix —
+//     restricted to matches that START a real block comment, so the pattern
+//     appearing inside a string literal (e.g. the generated diagnostic
+//     catalog's own message text) or nested in JSDoc prose never fires.
 //   - `@todo` is matched as a comment token (line or block comment; string
 //     literals don't count) with an identifier boundary after it, so `@todos`
 //     or a pool string containing "@todo" never fire.
 //   - A `@todo` INSIDE an orphan carcass is part of the preserved const text —
 //     prune removes it with the block — so it is not reported separately.
 func ScanDirtyTags(text string) []TagFinding {
+	commentStarts := map[int]bool{}
+	for _, span := range commentSpans(text) {
+		commentStarts[span.start] = true
+	}
+
 	var findings []TagFinding
 	var carcasses [][2]int
 	for _, match := range orphanBlockPattern.FindAllStringIndex(text, -1) {
 		start, end := match[0], match[1]
+		if !commentStarts[start] {
+			continue // pattern bytes inside a string / another comment — not a carcass
+		}
 		kind, tag := TagOrphan, OrphanTag
 		if strings.HasPrefix(text[start:], "/* "+OrphanChildTag) {
 			kind, tag = TagOrphanChild, OrphanChildTag
 		}
 		tagStart := start + len("/* ")
-		findings = append(findings, TagFinding{Kind: kind, Start: tagStart, End: tagStart + len(tag)})
+		findings = append(findings, TagFinding{Kind: kind, Start: tagStart, End: tagStart + len(tag), BlockStart: start, BlockEnd: end})
 		carcasses = append(carcasses, [2]int{start, end})
 	}
 
@@ -123,12 +165,104 @@ func ScanDirtyTags(text string) []TagFinding {
 			if insideRanges(carcasses, offset) {
 				continue // preserved carcass text — the carcass finding covers it
 			}
-			findings = append(findings, TagFinding{Kind: TagTodo, Start: offset, End: after})
+			findings = append(findings, TagFinding{Kind: TagTodo, Start: offset, End: after, BlockStart: offset, BlockEnd: after})
 		}
 	}
 
 	sort.Slice(findings, func(left, right int) bool { return findings[left].Start < findings[right].Start })
 	return findings
+}
+
+// annotationFamilyPattern is the family-capturing twin of
+// enrichConstAnnotationPattern; group 1 is the DSL type name.
+var annotationFamilyPattern = regexp.MustCompile(
+	`(?m)^[ \t]*(?:export[ \t]+)?const[ \t]+[A-Za-z_$][A-Za-z0-9_$]*[ \t]*:\s*(` +
+		enrich.FriendlyTypeName + `|` + enrich.MockDataName + `)[ \t]*<`)
+
+// carcassAnnotationPattern reads the preserved const's annotation INSIDE an
+// orphan carcass (comment text, so the anchored pattern cannot apply).
+var carcassAnnotationPattern = regexp.MustCompile(
+	`const[ \t]+[A-Za-z_$][A-Za-z0-9_$]*[ \t]*:\s*(` + enrich.FriendlyTypeName + `|` + enrich.MockDataName + `)[ \t]*<`)
+
+// dslImportPattern captures the `import type { … } from 'ts-runtypes'` clause
+// body — a per-family mirror imports exactly its own DSL type.
+var dslImportPattern = regexp.MustCompile(`import[ \t]+type[ \t]*\{([^}]*)\}[ \t]*from[ \t]*['"]ts-runtypes['"]`)
+
+// FamilyClassifier attributes findings in one mirror text to a MirrorFamily.
+// Since the per-family split a generated mirror carries ONE family, read off
+// its const annotations or its DSL import; per-finding attribution (nearest
+// annotation, carcass-preserved annotation) keeps a transitional pre-split
+// COMBINED file honest too.
+type FamilyClassifier struct {
+	text string
+	// annotations are (offset, family) pairs of every live (non-comment)
+	// DSL const annotation, in text order.
+	offsets  []int
+	families []MirrorFamily
+	fallback MirrorFamily
+}
+
+// NewFamilyClassifier scans text once (comments masked, like the guard).
+func NewFamilyClassifier(text string) *FamilyClassifier {
+	classifier := &FamilyClassifier{text: text}
+	masked := maskComments(text)
+	for _, match := range annotationFamilyPattern.FindAllStringSubmatchIndex(masked, -1) {
+		classifier.offsets = append(classifier.offsets, match[0])
+		classifier.families = append(classifier.families, familyForName(masked[match[2]:match[3]]))
+	}
+	classifier.fallback = dslImportFamily(masked)
+	return classifier
+}
+
+// FamilyFor attributes one dirty-tag finding: an orphan carcass by the
+// annotation preserved INSIDE it, otherwise the nearest live annotation at or
+// after the tag (a `@todo` sits right above its const), else the nearest one
+// before it, else the file's DSL import, else Unknown.
+func (classifier *FamilyClassifier) FamilyFor(finding TagFinding) MirrorFamily {
+	if finding.Kind == TagOrphan || finding.Kind == TagOrphanChild {
+		block := classifier.text[finding.BlockStart:min(finding.BlockEnd, len(classifier.text))]
+		if match := carcassAnnotationPattern.FindStringSubmatch(block); match != nil {
+			return familyForName(match[1])
+		}
+	}
+	for i, offset := range classifier.offsets {
+		if offset >= finding.Start {
+			return classifier.families[i]
+		}
+	}
+	if n := len(classifier.offsets); n > 0 {
+		return classifier.families[n-1]
+	}
+	return classifier.fallback
+}
+
+// familyForName maps a DSL type name to its family.
+func familyForName(name string) MirrorFamily {
+	if name == enrich.MockDataName {
+		return FamilyMock
+	}
+	return FamilyFriendly
+}
+
+// dslImportFamily reads the file-level fallback signal off the ts-runtypes
+// DSL import clause: exactly one family's type imported → that family; both
+// or neither → Unknown.
+func dslImportFamily(text string) MirrorFamily {
+	match := dslImportPattern.FindStringSubmatch(text)
+	if match == nil {
+		return FamilyUnknown
+	}
+	clause := match[1]
+	hasFriendly := strings.Contains(clause, enrich.FriendlyTypeName)
+	hasMock := strings.Contains(clause, enrich.MockDataName)
+	switch {
+	case hasFriendly && !hasMock:
+		return FamilyFriendly
+	case hasMock && !hasFriendly:
+		return FamilyMock
+	default:
+		return FamilyUnknown
+	}
 }
 
 // commentSpan is a half-open [start, end) byte range covering one `//` line

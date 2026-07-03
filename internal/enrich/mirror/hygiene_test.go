@@ -169,3 +169,104 @@ func TestOrphanBlockPatternSource_JSCompatible(t *testing.T) {
 		t.Errorf("derived pattern must match a field carcass")
 	}
 }
+
+// TestFamilyClassifier_Attribution pins every attribution path FamilyFor
+// walks, in precedence order: carcass-interior annotation, nearest live
+// annotation at/after the tag, nearest one before it, the DSL import, Unknown.
+func TestFamilyClassifier_Attribution(t *testing.T) {
+	dsl := "import type { FriendlyType, MockData } from 'ts-runtypes';\n"
+	friendlyConst := "export const friendlyUser: " + enrich.FriendlyTypeName + "<User> = {};\n"
+	mockConst := "export const mockUser: " + enrich.MockDataName + "<User> = {};\n"
+
+	cases := []struct {
+		name string
+		text string
+		want []MirrorFamily // per ScanDirtyTags finding, in Start order
+	}{
+		{
+			name: "carcass interior annotation wins over surrounding consts",
+			text: dsl + friendlyConst + "/* " + OrphanTag + " export const gone: " + enrich.MockDataName + "<User> = {}; */\n" + friendlyConst,
+			want: []MirrorFamily{FamilyMock},
+		},
+		{
+			name: "todo attributes to the nearest annotation after it",
+			text: dsl + TodoLine + "\n" + mockConst,
+			want: []MirrorFamily{FamilyMock},
+		},
+		{
+			name: "trailing annotation-less carcass falls back to nearest-before",
+			text: dsl + mockConst + "/* " + OrphanTag + " export const gone = {}; */\n",
+			want: []MirrorFamily{FamilyMock},
+		},
+		{
+			name: "no consts at all: single-family DSL import decides",
+			text: "import type { " + enrich.FriendlyTypeName + " } from 'ts-runtypes';\n" + TodoLine + "\n",
+			want: []MirrorFamily{FamilyFriendly},
+		},
+		{
+			name: "no consts, both families imported: Unknown",
+			text: dsl + TodoLine + "\n",
+			want: []MirrorFamily{FamilyUnknown},
+		},
+		{
+			name: "annotation inside an ordinary comment never counts",
+			text: dsl + "// example: const x: " + enrich.FriendlyTypeName + "<T> = {}\n" + TodoLine + "\n" + mockConst,
+			want: []MirrorFamily{FamilyMock},
+		},
+	}
+	for _, testCase := range cases {
+		classifier := NewFamilyClassifier(testCase.text)
+		findings := ScanDirtyTags(testCase.text)
+		if len(findings) != len(testCase.want) {
+			t.Errorf("%s: got %d findings, want %d", testCase.name, len(findings), len(testCase.want))
+			continue
+		}
+		for i, finding := range findings {
+			if got := classifier.FamilyFor(finding); got != testCase.want[i] {
+				t.Errorf("%s: finding %d (%v) attributed to %v, want %v", testCase.name, i, finding.Kind, got, testCase.want[i])
+			}
+		}
+	}
+}
+
+// TestScanDirtyTags_StringLiteralsNeverFire pins the comment-anchoring of the
+// hygiene scan: tag patterns embedded in STRING data — exactly what the
+// generated diagnostic catalog ships, since its messages describe the tags —
+// are not carcasses, and the marker emit form inside a string does not make
+// the file an enrichment mirror.
+func TestScanDirtyTags_StringLiteralsNeverFire(t *testing.T) {
+	catalogLike := "export const DIAG = {\n" +
+		"  FT021: {detail: 'example:\\n/* " + OrphanTag + " export const gone = {}; */\\nrun gen --prune'},\n" +
+		"  FT022: {detail: \"a /* " + OrphanChildTag + " old: 1, */ example\"},\n" +
+		"  FT020: {detail: `fresh scaffold:\n" + MarkerCommentPrefix + "User#a1 */\n" + TodoLine + "`},\n" +
+		"};\n"
+	if findings := ScanDirtyTags(catalogLike); len(findings) != 0 {
+		t.Errorf("tag patterns inside string literals must not fire; got %+v", findings)
+	}
+	if IsEnrichmentFile(catalogLike) {
+		t.Errorf("marker prefix inside a string literal must not mark the file as a mirror")
+	}
+	if HasMarkerComment(catalogLike) {
+		t.Errorf("HasMarkerComment must require a real comment start")
+	}
+
+	// The same emit forms as REAL comments still fire / still gate.
+	realMirror := MarkerCommentPrefix + "User#a1 */\n" +
+		"export const friendlyUser: " + enrich.FriendlyTypeName + "<User> = {};\n" +
+		"/* " + OrphanTag + " export const gone = {}; */\n"
+	if !HasMarkerComment(realMirror) {
+		t.Errorf("real marker comment must be recognised")
+	}
+	findings := ScanDirtyTags(realMirror)
+	if len(findings) != 1 || findings[0].Kind != TagOrphan {
+		t.Errorf("real carcass must still fire exactly once; got %+v", findings)
+	}
+
+	// Orphan pattern nested INSIDE JSDoc prose is not a carcass either (the
+	// outer comment ends at the first */, so the match starts mid-comment).
+	jsdocExample := "/** example:\n * /* " + OrphanTag + " export const gone = {}; */\n" +
+		"export const a = 1;\n"
+	if findings := ScanDirtyTags(jsdocExample); len(findings) != 0 {
+		t.Errorf("orphan pattern nested in JSDoc prose must not fire; got %+v", findings)
+	}
+}

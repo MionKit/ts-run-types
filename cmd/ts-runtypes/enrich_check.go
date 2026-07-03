@@ -30,7 +30,8 @@ type fileFinding struct {
 // pass (what the runtypes-devtools lint plugin surfaces in the editor):
 //
 //   - tag hygiene: unfilled `@todo` scaffolds and stale `@rtOrphan` /
-//     `@rtOrphanChild` carcasses (ENR001–ENR003);
+//     `@rtOrphanChild` carcasses, reported under the mirror's family
+//     (FT020–FT022 / MD020–MD022);
 //   - FriendlyType / MockData content validity against the resolved T
 //     (FT002/FT003/FT005/MD001);
 //   - breadcrumb drift: source deleted / type no longer declared
@@ -81,8 +82,9 @@ func runCheck(args []string) {
 
 	// Tag hygiene — the same detection the resolver's checkEnrich pass uses
 	// and the same pattern `gen --prune` removes.
+	classifier := mirror.NewFamilyClassifier(text)
 	for _, tag := range mirror.ScanDirtyTags(text) {
-		findings = append(findings, tagFileFinding(absPath, lineIndex, tag))
+		findings = append(findings, tagFileFinding(absPath, lineIndex, tag, classifier.FamilyFor(tag)))
 	}
 
 	// FriendlyType / MockData content validity.
@@ -116,8 +118,8 @@ func runCheck(args []string) {
 }
 
 // tagFileFinding converts one hygiene TagFinding to the report shape.
-func tagFileFinding(file string, lineIndex *mirror.LineIndex, tag mirror.TagFinding) fileFinding {
-	code, message := tagCodeMessage(tag.Kind)
+func tagFileFinding(file string, lineIndex *mirror.LineIndex, tag mirror.TagFinding, family mirror.MirrorFamily) fileFinding {
+	code, message := tagCodeMessage(tag.Kind, family)
 	line, col := lineIndex.At(tag.Start)
 	endLine, endCol := lineIndex.At(tag.End)
 	return fileFinding{
@@ -130,15 +132,45 @@ func tagFileFinding(file string, lineIndex *mirror.LineIndex, tag mirror.TagFind
 	}
 }
 
-// tagCodeMessage maps a hygiene TagKind to its diag code and CLI message.
-func tagCodeMessage(kind mirror.TagKind) (string, string) {
+// tagCodeMessage maps a hygiene TagKind + mirror family to its diag code and
+// CLI message. Every hygiene code is family-specific since the per-family
+// mirror split; an unattributable finding reports under the friendly code
+// (same convention as the resolver's tagCode).
+func tagCodeMessage(kind mirror.TagKind, family mirror.MirrorFamily) (string, string) {
+	familyName := enrich.FriendlyTypeName
+	if family == mirror.FamilyMock {
+		familyName = enrich.MockDataName
+	}
 	switch kind {
 	case mirror.TagOrphan:
-		return diag.CodeEnrichOrphan, "stale " + mirror.OrphanTag + " carcass — run `ts-runtypes gen --prune` to remove it (or restore the type)"
+		return tagCode(kind, family), "stale " + mirror.OrphanTag + " carcass in a " + familyName + " mirror — run `ts-runtypes gen --prune` to remove it (or restore the type)"
 	case mirror.TagOrphanChild:
-		return diag.CodeEnrichOrphanChild, "stale " + mirror.OrphanChildTag + " field carcass — run `ts-runtypes gen --prune` to remove it (or restore the field)"
+		return tagCode(kind, family), "stale " + mirror.OrphanChildTag + " field carcass in a " + familyName + " mirror — run `ts-runtypes gen --prune` to remove it (or restore the field)"
 	default:
-		return diag.CodeEnrichTodo, "unfilled " + mirror.TodoTag + " placeholder — fill in the value, then delete the " + mirror.TodoTag + " line"
+		return tagCode(kind, family), "unfilled " + mirror.TodoTag + " placeholder — fill in the value, then delete the " + mirror.TodoTag + " line"
+	}
+}
+
+// tagCode maps a hygiene TagKind + mirror family to its diag code (the CLI
+// twin of the resolver's mapping in internal/resolver/enrichcheck.go).
+func tagCode(kind mirror.TagKind, family mirror.MirrorFamily) string {
+	if family == mirror.FamilyMock {
+		switch kind {
+		case mirror.TagOrphan:
+			return diag.CodeMockOrphanConst
+		case mirror.TagOrphanChild:
+			return diag.CodeMockOrphanField
+		default:
+			return diag.CodeMockTodo
+		}
+	}
+	switch kind {
+	case mirror.TagOrphan:
+		return diag.CodeFriendlyOrphanConst
+	case mirror.TagOrphanChild:
+		return diag.CodeFriendlyOrphanField
+	default:
+		return diag.CodeFriendlyTodo
 	}
 }
 

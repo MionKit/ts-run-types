@@ -14,8 +14,13 @@ import (
 
 // enrichFixture is the overlay project every test in this file scans: a fake
 // ts-runtypes package (so the FriendlyType/MockData module gate passes), a
-// source type, and a DIRTY mirror file — an unfilled @todo, an unknown field
-// in each map form, and an orphan carcass.
+// source type, and a DIRTY pre-split COMBINED mirror file — an unfilled @todo,
+// an unknown field in each map form, and two orphan carcasses. Combined files
+// exercise every hygiene-attribution path at once: the @todo sits above the
+// FriendlyType const (nearest-after → FT020); the first carcass preserves its
+// const's FriendlyType annotation (carcass-interior wins over the MockData
+// const below it → FT021); the trailing carcass has no annotation and nothing
+// after it (nearest-before = the MockData const → MD021).
 const enrichIdx = `
 export type FriendlyType<T> = Record<string, unknown> & {readonly __rtFriendly?: T};
 export type MockData<T> = Record<string, unknown> & {readonly __rtMock?: T};
@@ -37,13 +42,15 @@ var enrichMirror = "import type { User } from './user';\n" +
 	"  nope: {rt$label: 'Gone'},\n" +
 	"};\n" +
 	"\n" +
+	"/* " + mirror.OrphanTag + " export const friendlyOld: FriendlyType<User> = {}; */\n" +
+	"\n" +
 	"/** " + mirror.RtTypeTag + " User#u1 */\n" +
 	"export const mockUser: MockData<User> = {\n" +
 	"  age: {min: 1, max: 9},\n" +
 	"  vanished: {pool: ['x']},\n" +
 	"};\n" +
 	"\n" +
-	"/* " + mirror.OrphanTag + " export const friendlyGone = {}; */\n"
+	"/* " + mirror.OrphanTag + " export const gone = {}; */\n"
 
 // setupEnrichFixture builds the overlay program + resolver. The extra map
 // lets tests add or replace files (e.g. a mirror with a dead breadcrumb).
@@ -110,13 +117,16 @@ func TestCheckEnrich_SinglePassFindings(t *testing.T) {
 		}
 	}
 
-	// The dirty mirror carries exactly: one @todo, one orphan carcass, one
-	// unknown friendly field, one unknown mock field.
+	// The dirty mirror carries exactly: one @todo above the FriendlyType const
+	// (FT020), one carcass with a preserved FriendlyType annotation (FT021),
+	// one trailing annotation-less carcass attributed to the nearest-before
+	// MockData const (MD021), and one unknown field per family.
 	for code, want := range map[string]int{
-		diag.CodeEnrichTodo:                 1,
-		diag.CodeEnrichOrphan:               1,
-		diag.CodeEnrichUnknownFriendlyField: 1,
-		diag.CodeEnrichUnknownMockField:     1,
+		diag.CodeFriendlyTodo:         1,
+		diag.CodeFriendlyOrphanConst:  1,
+		diag.CodeMockOrphanConst:      1,
+		diag.CodeFriendlyUnknownField: 1,
+		diag.CodeMockUnknownField:     1,
 	} {
 		if len(byCode[code]) != want {
 			t.Errorf("code %s: got %d findings, want %d (all: %+v)", code, len(byCode[code]), want, found)
@@ -126,18 +136,18 @@ func TestCheckEnrich_SinglePassFindings(t *testing.T) {
 	// Positions: cross-check against the fixture text itself.
 	lineIndex := mirror.NewLineIndex(enrichMirror)
 	todoLine, todoCol := lineIndex.At(strings.Index(enrichMirror, mirror.TodoTag))
-	if got := byCode[diag.CodeEnrichTodo][0].Site; got.StartLine != todoLine || got.StartCol != todoCol {
-		t.Errorf("ENR001 site = (%d,%d), want (%d,%d)", got.StartLine, got.StartCol, todoLine, todoCol)
+	if got := byCode[diag.CodeFriendlyTodo][0].Site; got.StartLine != todoLine || got.StartCol != todoCol {
+		t.Errorf("FT020 site = (%d,%d), want (%d,%d)", got.StartLine, got.StartCol, todoLine, todoCol)
 	}
 	nopeLine, nopeCol := lineIndex.At(strings.Index(enrichMirror, "nope:"))
-	if got := byCode[diag.CodeEnrichUnknownFriendlyField][0].Site; got.StartLine != nopeLine || got.StartCol != nopeCol {
+	if got := byCode[diag.CodeFriendlyUnknownField][0].Site; got.StartLine != nopeLine || got.StartCol != nopeCol {
 		t.Errorf("FT002 site = (%d,%d), want (%d,%d) — the `nope` key node", got.StartLine, got.StartCol, nopeLine, nopeCol)
 	}
-	if args := byCode[diag.CodeEnrichUnknownFriendlyField][0].Args; len(args) != 1 || args[0] != "nope" {
+	if args := byCode[diag.CodeFriendlyUnknownField][0].Args; len(args) != 1 || args[0] != "nope" {
 		t.Errorf("FT002 args = %v, want [nope]", args)
 	}
-	if severity := byCode[diag.CodeEnrichTodo][0].Severity; severity != diag.SeverityError {
-		t.Errorf("ENR001 severity = %v, want Error", severity)
+	if severity := byCode[diag.CodeFriendlyTodo][0].Severity; severity != diag.SeverityError {
+		t.Errorf("FT020 severity = %v, want Error", severity)
 	}
 
 	// No false positives: the live keys and the @rtType/@rtIds markers never
@@ -189,7 +199,7 @@ func TestCheckEnrich_BreadcrumbDrift(t *testing.T) {
 	}
 	var ge002 []diag.Diagnostic
 	for _, diagnostic := range enrichDiagnostics(response) {
-		if diagnostic.Code == diag.CodeEnrichSourceMissing {
+		if diagnostic.Code == diag.CodeGenSourceMissing {
 			ge002 = append(ge002, diagnostic)
 		}
 	}

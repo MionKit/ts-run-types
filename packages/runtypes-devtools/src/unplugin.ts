@@ -376,9 +376,9 @@ function surfaceDiagnostics(
 //   /abs/path(line,col): error PFE9004: headline text
 //     Related: /abs/path(line,col): related message
 //
-// The user-facing headline is resolved from the JS-side catalog
-// (`packages/ts-runtypes/src/runtypes/diagnosticCatalog.ts`) — the wire
-// only carries the diagnostic code + optional positional args. Severity
+// The user-facing headline is resolved from the generated catalog
+// (`./diagnosticCatalog.generated.ts`, sourced from internal/diag) — the
+// wire only carries the diagnostic code + optional positional args. Severity
 // is numeric on the wire — switch on it to pick the human label since
 // the canonical line format requires the word, not the digit.
 export function formatTscDiagnostic(d: Diagnostic): string {
