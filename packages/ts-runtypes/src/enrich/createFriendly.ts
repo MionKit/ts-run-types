@@ -18,9 +18,16 @@
 // same-tree `FriendlyType<T>` const. Per leaf, an untranslated / @todo-blank
 // template falls through to the source; a plural leaf falls through as a WHOLE
 // unit (its own `other` backstops missing arms first). Plural arms are selected
-// via `Intl.PluralRules` on the violated bound; `$[val:number:currency]`-style
-// tokens route through named `Intl` formats. Always lenient — a partial
-// translation renders, it never throws.
+// via `Intl.PluralRules` on the violated bound.
+//
+// `$[val]` rendering is TYPE-DRIVEN on the i18n path: the failed format's name
+// (already on every TypeFormatError) says what the bound IS — a `currency`
+// brand renders via `Intl.NumberFormat(locale, {style: 'currency', currency})`
+// with the app-supplied `currency` option (no option → plain localized number,
+// never a guessed symbol); a date-family bound renders via
+// `Intl.DateTimeFormat(locale)`; everything else stays `String(val)`. There is
+// no per-template format syntax — the type is the single source of truth.
+// Always lenient — a partial translation renders, it never throws.
 
 import type {RTValidationError, RTValidationErrorPathSegment, TypeFormatError} from '../createRTFunctions.ts';
 import type {ErrorTemplates, FailedConstraints, FriendlyType, PluralTemplate} from './friendlyType.ts';
@@ -57,37 +64,24 @@ type FriendlyNodeRuntime = {
   [field: string]: unknown;
 };
 
-// `$[name]` or `$[binding:kind:formatName]` — the closed token set. The
+// `$[name]` — the closed token set (`label` / `val` / `path` / `index`). The
 // required bracket-close means a literal colon in prose (`ratio 3:1` outside
-// any `$[…]`) is never touched.
-const PLACEHOLDER = /\$\[(\w+)(?::(\w+):(\w+))?\]/g;
+// any `$[…]`) is never touched; an unknown token stays verbatim.
+const PLACEHOLDER = /\$\[(\w+)\]/g;
 
 // The default locale when none is configured: matches the tsconfig
 // `i18n.sourceLocale` default, so an unconfigured runtime and an unconfigured
 // build agree. Deterministic (never the host locale).
 const DEFAULT_LOCALE = 'en';
 
-/** Named `Intl` formats for ONE locale — declared once (the shared formats
- *  module referenced by tsconfig `i18n.formats`) and referenced from templates
- *  as `$[val:number:currency]` → `formats.number.currency`. A `relativeTime`
- *  entry carries the unit alongside the `Intl` options (the token has no unit
- *  slot). */
-export interface NamedFormats {
-  number?: Record<string, Intl.NumberFormatOptions>;
-  date?: Record<string, Intl.DateTimeFormatOptions>;
-  relativeTime?: Record<string, Intl.RelativeTimeFormatOptions & {unit: Intl.RelativeTimeFormatUnit}>;
-  list?: Record<string, Intl.ListFormatOptions>;
-}
-
 // Memoized Intl instances (the i18next addCached model): building
 // NumberFormat/PluralRules/… is expensive, so each is built once and reused
 // across renders. Module-scope singletons BESIDE the pure walk — the walk
-// itself caches nothing. Plural rules key on the locale alone; formatters key
-// on `${locale}\0${kind}\0${name}` WITHIN their NamedFormats table (a WeakMap
-// per table, so two renderers with different format tables never cross-read a
-// same-named format).
+// itself caches nothing. Plural rules key on the locale alone; the bound
+// formatters key on `${locale}\0${currency}` / `${locale}\0${style group}`.
 const pluralRulesCache = new Map<string, Intl.PluralRules>();
-const formatterCaches = new WeakMap<NamedFormats, Map<string, (value: unknown) => string>>();
+const boundNumberFormatCache = new Map<string, Intl.NumberFormat>();
+const boundDateFormatCache = new Map<string, Intl.DateTimeFormat>();
 
 function cachedPluralRules(locale: string): Intl.PluralRules {
   let rules = pluralRulesCache.get(locale);
@@ -98,60 +92,47 @@ function cachedPluralRules(locale: string): Intl.PluralRules {
   return rules;
 }
 
-/** Build (and cache) the `value => string` closure for one named format, or
- *  undefined when the name is not declared for this locale's table (the token
- *  then stays verbatim). */
-function cachedFormatter(
-  locale: string,
-  kind: string,
-  name: string,
-  formats: NamedFormats | undefined
-): ((value: unknown) => string) | undefined {
-  if (!formats) return undefined;
-  let table = formatterCaches.get(formats);
-  if (!table) {
-    table = new Map();
-    formatterCaches.set(formats, table);
+/** The `Intl.NumberFormat` for a currency-branded bound: currency style when
+ *  the app supplied a code, plain localized decimal otherwise. An invalid code
+ *  falls back to the plain decimal formatter — the renderer never throws. */
+function cachedBoundNumberFormat(locale: string, currency: string | undefined): Intl.NumberFormat {
+  const key = locale + '\0' + (currency ?? '');
+  let format = boundNumberFormatCache.get(key);
+  if (!format) {
+    try {
+      format = currency ? new Intl.NumberFormat(locale, {style: 'currency', currency}) : new Intl.NumberFormat(locale);
+    } catch {
+      format = new Intl.NumberFormat(locale);
+    }
+    boundNumberFormatCache.set(key, format);
   }
-  const key = locale + '\0' + kind + '\0' + name;
-  const hit = table.get(key);
-  if (hit) return hit;
-  const formatter = buildFormatter(locale, kind, name, formats);
-  if (formatter) table.set(key, formatter);
-  return formatter;
+  return format;
 }
 
-function buildFormatter(
-  locale: string,
-  kind: string,
-  name: string,
-  formats: NamedFormats | undefined
-): ((value: unknown) => string) | undefined {
-  if (kind === 'number') {
-    const options = formats?.number?.[name];
-    if (!options) return undefined;
-    const numberFormat = new Intl.NumberFormat(locale, options);
-    return (value) => numberFormat.format(Number(value));
+// Date-family format names → the Intl.DateTimeFormat options a bound of that
+// format renders with. Keyed by TypeFormatError.name — the type says what the
+// value is, the reader's locale says how to write it.
+const DATE_BOUND_OPTIONS: Record<string, Intl.DateTimeFormatOptions> = {
+  date: {dateStyle: 'medium'},
+  temporalPlainDate: {dateStyle: 'medium'},
+  temporalPlainYearMonth: {year: 'numeric', month: 'long'},
+  dateTime: {dateStyle: 'medium', timeStyle: 'short'},
+  nativeDate: {dateStyle: 'medium', timeStyle: 'short'},
+  temporalInstant: {dateStyle: 'medium', timeStyle: 'short'},
+  temporalZonedDateTime: {dateStyle: 'medium', timeStyle: 'short'},
+  temporalPlainDateTime: {dateStyle: 'medium', timeStyle: 'short'},
+  time: {timeStyle: 'short'},
+  temporalPlainTime: {timeStyle: 'short'},
+};
+
+function cachedBoundDateFormat(locale: string, formatName: string): Intl.DateTimeFormat {
+  const key = locale + '\0' + formatName;
+  let format = boundDateFormatCache.get(key);
+  if (!format) {
+    format = new Intl.DateTimeFormat(locale, DATE_BOUND_OPTIONS[formatName]);
+    boundDateFormatCache.set(key, format);
   }
-  if (kind === 'date') {
-    const options = formats?.date?.[name];
-    if (!options) return undefined;
-    const dateFormat = new Intl.DateTimeFormat(locale, options);
-    return (value) => dateFormat.format(value instanceof Date ? value : new Date(value as string | number));
-  }
-  if (kind === 'relativeTime') {
-    const options = formats?.relativeTime?.[name];
-    if (!options || !options.unit) return undefined;
-    const relativeFormat = new Intl.RelativeTimeFormat(locale, options);
-    return (value) => relativeFormat.format(Number(value), options.unit);
-  }
-  if (kind === 'list') {
-    const options = formats?.list?.[name];
-    if (!options) return undefined;
-    const listFormat = new Intl.ListFormat(locale, options);
-    return (value) => listFormat.format(Array.isArray(value) ? value.map(String) : [String(value)]);
-  }
-  return undefined; // unknown kind — token stays verbatim
+  return format;
 }
 
 /** Select a plural template's arm for the violated bound: the file-locale's
@@ -235,32 +216,17 @@ function numericIndex(path: RTValidationErrorPathSegment[]): number | undefined 
 
 interface InterpolateCtx {
   label: string;
-  val?: string | number | boolean | bigint;
+  /** The already-rendered `$[val]` text (type-driven on the i18n path);
+   *  undefined when the error carries no bound. */
+  valText?: string;
   path: string;
   index?: number;
-  /** The UNPROJECTED constraint value (arrays survive) — only `Intl` format
-   *  tokens read it (e.g. `$[val:list:or]` over an allow-list bound). */
-  rawVal?: unknown;
-  /** Active render locale + its named formats; absent for the single-locale
-   *  `createFriendly` path (three-part tokens then stay verbatim). */
-  locale?: string;
-  formats?: NamedFormats;
 }
 
 function interpolate(template: string, ctx: InterpolateCtx): string {
-  return template.replace(PLACEHOLDER, (whole: string, name: string, kind?: string, formatName?: string) => {
-    // Three-part `$[binding:kind:name]` — route through a named Intl format.
-    // Unknown binding/kind/name (or no formats configured) leaves the token
-    // verbatim, matching the unknown-token rule below.
-    if (kind && formatName) {
-      if (name !== 'val' && name !== 'index') return whole;
-      const formatter = cachedFormatter(ctx.locale ?? DEFAULT_LOCALE, kind, formatName, ctx.formats);
-      if (!formatter) return whole;
-      const value = name === 'index' ? ctx.index : (ctx.rawVal ?? ctx.val);
-      return value === undefined ? '' : formatter(value);
-    }
+  return template.replace(PLACEHOLDER, (whole: string, name: string) => {
     if (name === 'label') return ctx.label;
-    if (name === 'val') return ctx.val === undefined ? '' : String(ctx.val);
+    if (name === 'val') return ctx.valText ?? '';
     if (name === 'path') return ctx.path;
     if (name === 'index') return ctx.index === undefined ? '' : String(ctx.index);
     return whole;
@@ -300,15 +266,46 @@ function groupByPath(errs: RTValidationError[]): PathGroup[] {
 // One render pass's resolved inputs: the map to read (a translation, or the
 // source itself), the locale whose CLDR rules select plural arms in that map,
 // the terminal-fallback source map (absent on the single-locale path), the
-// source's own plural-rules locale, and the active locale's named formats.
-// Built fresh per label()/errors() call by the i18n wrapper (the reactive
-// `{value}` locale seam), once by `createFriendly`.
+// source's own plural-rules locale, and — on the i18n path — the type-driven
+// bound rendering flag + the app-supplied currency code. Built fresh per
+// label()/errors() call by the i18n wrapper (the reactive `{value}` seam),
+// once by `createFriendly`.
 interface RenderState {
   root: FriendlyNodeRuntime;
   rootLocale: string;
   source?: FriendlyNodeRuntime;
   sourceLocale: string;
-  formats?: NamedFormats;
+  /** True on the `createFriendlyI18n` path: `$[val]` renders by the bound's
+   *  type format. Plain `createFriendly` stays byte-stable (`String(val)`). */
+  i18n?: boolean;
+  /** ISO 4217 code for `currency`-branded bounds; absent → plain number. */
+  currency?: string;
+}
+
+/** Render a violated bound to its `$[val]` text. Plain path: `String(val)`.
+ *  i18n path: the failed format's name says what the bound IS — `currency`
+ *  renders via the locale's currency/decimal `Intl.NumberFormat`; a
+ *  date-family bound parses and renders via `Intl.DateTimeFormat` (an
+ *  unparseable bound — e.g. a relative `now-P1D` — stays verbatim); anything
+ *  else stays `String(val)`. */
+function renderBoundText(
+  state: RenderState,
+  format: TypeFormatError | undefined,
+  val: string | number | boolean | bigint | undefined
+): string | undefined {
+  if (val === undefined) return undefined;
+  if (!state.i18n || !format) return String(val);
+  if (format.name === 'currency') {
+    const numeric = Number(val);
+    if (!Number.isFinite(numeric)) return String(val);
+    return cachedBoundNumberFormat(state.rootLocale, state.currency).format(numeric);
+  }
+  if (DATE_BOUND_OPTIONS[format.name] && (typeof val === 'string' || typeof val === 'number')) {
+    const date = new Date(val);
+    if (Number.isNaN(date.getTime())) return String(val);
+    return cachedBoundDateFormat(state.rootLocale, format.name).format(date);
+  }
+  return String(val);
 }
 
 const labelFor = (node: FriendlyNodeRuntime | undefined, path: RTValidationErrorPathSegment[]): string =>
@@ -386,12 +383,9 @@ function renderErrors(state: RenderState, errs: RTValidationError[]): FriendlyMe
       const message = template
         ? interpolate(template, {
             label,
-            val,
+            valText: renderBoundText(state, err.format, val),
             path: group.pathStr,
             index,
-            rawVal: err.format?.val,
-            locale: state.rootLocale,
-            formats: state.formats,
           })
         : `${label || 'value'} is invalid`;
       out.push({path: group.pathStr, label, message});
@@ -422,10 +416,12 @@ export interface FriendlyI18nOptions<T> {
   /** Committed translation consts by locale tag (`{es: es_friendlyUser}`).
    *  Values are the same-tree `Translation<T>` maps. */
   translations: Partial<Record<string, FriendlyType<T>>>;
-  /** Named `Intl` formats per locale tag (the shared formats module). The
-   *  ACTIVE locale's entry is used; a locale without one renders three-part
-   *  tokens verbatim. */
-  formats?: Record<string, NamedFormats>;
+  /** ISO 4217 code (`'EUR'`) for rendering `Currency`-branded bounds — a plain
+   *  string or any `{value}` ref (re-read on EVERY render, like `locale`).
+   *  WHICH currency a value is in is app data, so it is supplied here, never
+   *  in the type. Omitted → a currency bound renders as a plain localized
+   *  number; a symbol is never guessed. */
+  currency?: string | {readonly value: string};
   /** The language the SOURCE map is authored in (default 'en') — the
    *  `Intl.PluralRules` used when a plural leaf renders from the source. */
   sourceLocale?: string;
@@ -465,7 +461,7 @@ export function createFriendlyI18n<T>(source: FriendlyType<T>, options: Friendly
   const sourceRoot = source as FriendlyNodeRuntime;
   const sourceLocale = options.sourceLocale ?? DEFAULT_LOCALE;
 
-  // Resolved fresh on EVERY render — the reactive `{value}` locale seam.
+  // Resolved fresh on EVERY render — the reactive `{value}` locale/currency seam.
   const state = (): RenderState => {
     const active = typeof options.locale === 'object' ? options.locale.value : options.locale;
     const matched = resolveLocale<T>(active, options.translations);
@@ -475,7 +471,8 @@ export function createFriendlyI18n<T>(source: FriendlyType<T>, options: Friendly
       rootLocale: translation ? (matched as string) : sourceLocale,
       source: translation ? sourceRoot : undefined,
       sourceLocale,
-      formats: options.formats?.[matched ?? active] ?? options.formats?.[active],
+      i18n: true,
+      currency: typeof options.currency === 'object' ? options.currency.value : options.currency,
     };
   };
 

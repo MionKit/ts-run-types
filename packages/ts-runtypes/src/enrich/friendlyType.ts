@@ -17,9 +17,10 @@
 
 /** A friendly message template — a plain string with `$[…]` placeholders the
  *  renderer substitutes: `$[label]` (the field's label, or its raw name),
- *  `$[val]` (the failed constraint's bound), `$[path]` (dotted path),
- *  `$[index]` (array element index). A three-part `$[val:number:currency]`
- *  form routes the binding through a named `Intl` format (i18n rendering). */
+ *  `$[val]` (the failed constraint's bound — rendered by its TYPE format on
+ *  the i18n path: currency via the renderer's `currency` option, date-family
+ *  bounds via `Intl.DateTimeFormat`), `$[path]` (dotted path), `$[index]`
+ *  (array element index). */
 export type FriendlyTemplate = string;
 
 /** The CLDR plural categories a plural template may carry arms for. A LOCAL

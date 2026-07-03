@@ -163,17 +163,12 @@ type translationFinding struct {
 // remaining, it does not parse.
 var todoBlankPattern = regexp.MustCompile(`:\s*''`)
 
-// formatTokenPattern extracts the NAME part of `$[val:kind:name]` tokens for
-// the formats-module reference check.
-var formatTokenPattern = regexp.MustCompile(`\$\[(?:val|index):\w+:(\w+)\]`)
-
 // runCheckTranslate implements `check --translate <locale|all>`: the
 // non-writing completeness gate. Findings: TR001 missing translation file,
 // TR002 unfilled @todo blanks, TR003 out of date vs the source mirror (a
-// reconcile would change it), TR004 orphan carcasses awaiting --prune, TR005 a
-// format-token name missing from the configured formats module. Severity is
-// Warning unless tsconfig i18n.strict is true (then everything is an Error and
-// the exit code drives CI).
+// reconcile would change it), TR004 orphan carcasses awaiting --prune.
+// Severity is Warning unless tsconfig i18n.strict is true (then everything is
+// an Error and the exit code drives CI).
 func runCheckTranslate(translateValue string, enrichDirFlag string) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -190,7 +185,6 @@ func runCheckTranslate(translateValue string, enrichDirFlag string) {
 	if config.I18nStrict {
 		severity = enrich.Error
 	}
-	formatsText := readFormatsModule(config)
 
 	var findings []translationFinding
 	checkedFiles := 0
@@ -198,7 +192,7 @@ func runCheckTranslate(translateValue string, enrichDirFlag string) {
 		for _, sourceMirror := range sourceMirrors {
 			translationPath := config.translationPathFor(locale, sourceMirror)
 			checkedFiles++
-			findings = append(findings, checkTranslationFile(config, locale, sourceMirror, translationPath, severity, formatsText)...)
+			findings = append(findings, checkTranslationFile(config, locale, sourceMirror, translationPath, severity)...)
 		}
 	}
 	sort.SliceStable(findings, func(left, right int) bool {
@@ -224,7 +218,7 @@ func runCheckTranslate(translateValue string, enrichDirFlag string) {
 
 // checkTranslationFile produces the completeness findings for one (locale,
 // source mirror) pair.
-func checkTranslationFile(config enrichConfig, locale, sourceMirror, translationPath string, severity enrich.Severity, formatsText string) []translationFinding {
+func checkTranslationFile(config enrichConfig, locale, sourceMirror, translationPath string, severity enrich.Severity) []translationFinding {
 	var findings []translationFinding
 
 	translationBytes, err := os.ReadFile(translationPath)
@@ -260,50 +254,5 @@ func checkTranslationFile(config enrichConfig, locale, sourceMirror, translation
 			Message: fmt.Sprintf("%d orphan carcass(es) awaiting review — restore or strip with gen --translate %s --prune", orphans, locale),
 		})
 	}
-
-	if formatsText != "" {
-		for _, name := range missingFormatNames(string(translationBytes), formatsText) {
-			findings = append(findings, translationFinding{
-				File: translationPath, Severity: severity, Code: "TR005",
-				Message: fmt.Sprintf("format token references %q but the formats module does not declare it", name),
-			})
-		}
-	}
 	return findings
-}
-
-// readFormatsModule returns the configured formats module's text ("" when none
-// is configured or it cannot be read — the reference check is then skipped).
-func readFormatsModule(config enrichConfig) string {
-	if config.I18nFormats == "" {
-		return ""
-	}
-	formatsBytes, err := os.ReadFile(config.I18nFormats)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "check --translate: cannot read formats module %s: %v\n", config.I18nFormats, err)
-		return ""
-	}
-	return string(formatsBytes)
-}
-
-// missingFormatNames lists the distinct `$[…:kind:name]` names in a
-// translation file that never appear as a key in the formats module text — a
-// textual containment check (`name:` or `'name':`), deliberately tolerant.
-func missingFormatNames(translationText, formatsText string) []string {
-	seen := map[string]bool{}
-	var missing []string
-	for _, match := range formatTokenPattern.FindAllStringSubmatch(translationText, -1) {
-		name := match[1]
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
-		bare := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\s*:`)
-		quoted := regexp.MustCompile(`['"]` + regexp.QuoteMeta(name) + `['"]\s*:`)
-		if !bare.MatchString(formatsText) && !quoted.MatchString(formatsText) {
-			missing = append(missing, name)
-		}
-	}
-	sort.Strings(missing)
-	return missing
 }

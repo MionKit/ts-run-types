@@ -55,11 +55,10 @@ type enrichConfig struct {
 
 	// i18n knobs (the tsconfig plugin `i18n` object; docs/done/friendly-type-i18n.md).
 	// Defaults are dormant: SourceLocale 'en', I18nDir <EnrichDir>/i18n, no
-	// locales, no formats module, lenient check.
+	// locales, lenient check.
 	SourceLocale string
 	I18nDir      string
 	I18nLocales  []string
-	I18nFormats  string
 	I18nStrict   bool
 
 	// The remaining plugin options are read and stored for completeness (and
@@ -117,15 +116,12 @@ type tsRuntypesPlugin struct {
 // (it selects the plural arms the scaffold emits). dir is the translation
 // subtree root (locale is a PATH SEGMENT under it), resolved like enrichDir
 // (relative → under the project root); default <enrichDir>/i18n. locales is
-// the target set — the source locale is NOT listed. formats names the module
-// default-exporting Record<locale, NamedFormats> (check validates format-name
-// references against it). strict turns `check --translate` findings into
-// errors; the runtime is always lenient.
+// the target set — the source locale is NOT listed. strict turns
+// `check --translate` findings into errors; the runtime is always lenient.
 type i18nPluginConfig struct {
 	SourceLocale string   `json:"sourceLocale"`
 	Dir          string   `json:"dir"`
 	Locales      []string `json:"locales"`
-	Formats      string   `json:"formats"`
 	Strict       bool     `json:"strict"`
 }
 
@@ -160,7 +156,7 @@ func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
 		SourceLocale: defaultSourceLocale,
 	}
 
-	var i18nDir, i18nFormats string
+	var i18nDir string
 	if tsconfigPath := findNearestTsconfig(targetDir); tsconfigPath != "" {
 		tsconfigDir := filepath.Dir(tsconfigPath)
 		config.ProjectRoot = tsconfigDir
@@ -182,7 +178,6 @@ func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
 						config.SourceLocale = sourceLocale
 					}
 					i18nDir = strings.TrimSpace(plugin.I18n.Dir)
-					i18nFormats = strings.TrimSpace(plugin.I18n.Formats)
 					config.I18nLocales = plugin.I18n.Locales
 					config.I18nStrict = plugin.I18n.Strict
 				}
@@ -199,16 +194,12 @@ func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
 	// ProjectRoot (the doc: "mirror root … relative to rootDir" — the mirror tree
 	// is laid out under projectRoot, with the per-file path computed relative to
 	// rootDir; see mirrorPath). The i18n dir resolves the same way, defaulting to
-	// the `i18n` sibling of the family subtrees under the enrich root; the
-	// formats module resolves under ProjectRoot too.
+	// the `i18n` sibling of the family subtrees under the enrich root.
 	config.EnrichDir = resolveUnder(config.ProjectRoot, config.EnrichDir)
 	if i18nDir != "" {
 		config.I18nDir = resolveUnder(config.ProjectRoot, i18nDir)
 	} else {
 		config.I18nDir = filepath.Join(config.EnrichDir, defaultI18nDirName)
-	}
-	if i18nFormats != "" {
-		config.I18nFormats = resolveUnder(config.ProjectRoot, i18nFormats)
 	}
 
 	return config

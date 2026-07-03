@@ -2,6 +2,7 @@ package enrich_test
 
 import (
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/enrich"
@@ -401,14 +402,16 @@ func TestCheckFriendly_FT005InsidePluralArm(t *testing.T) {
 }
 
 func TestCheckFriendly_FT005FormatTokens(t *testing.T) {
-	// Three-part `$[binding:kind:name]` tokens: binding must be val|index, kind
-	// one of the four Intl kinds; the NAME part is validated separately against
-	// the formats module (check --translate), never here.
+	// The colon-form `$[val:kind:name]` named-format tokens were REMOVED
+	// (bounds render type-driven — Currency / date formats — with plain
+	// `$[val]`): every leftover colon token flags FT005 so migrating templates
+	// get a pointer, while a literal colon in prose (`ratio 3:1`) outside a
+	// token never trips.
 	rt := objectRT(map[string]*protocol.RunType{"price": formatStringRT(map[string]any{"max": 100})})
 	view := newFakeView().obj("price", newFakeView().
 		obj("$errors", newFakeView().
-			str("type", "ok $[val:number:currency] and ratio 3:1").
-			str("max", "bad $[label:number:currency] and bad $[val:nope:x]")))
+			str("type", "removed $[val:number:currency] but ratio 3:1 is prose").
+			str("max", "removed $[label:number:currency] and $[val:nope:x], plain $[val] fine")))
 
 	findings := enrich.CheckFriendly(rt, view, nil)
 	var ft005 []enrich.Finding
@@ -417,8 +420,13 @@ func TestCheckFriendly_FT005FormatTokens(t *testing.T) {
 			ft005 = append(ft005, finding)
 		}
 	}
-	if len(ft005) != 2 {
-		t.Fatalf("expected two FT005 (bad binding + bad kind), got %v", findings)
+	if len(ft005) != 3 {
+		t.Fatalf("expected three FT005 (every leftover colon token), got %v", findings)
+	}
+	for _, finding := range ft005 {
+		if !strings.Contains(finding.Message, "no longer supported") {
+			t.Errorf("FT005 message should point at the removal; got %q", finding.Message)
+		}
 	}
 }
 

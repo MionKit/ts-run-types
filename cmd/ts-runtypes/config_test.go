@@ -200,7 +200,6 @@ func TestResolveEnrichConfig_I18n(t *testing.T) {
       "i18n": {
         "sourceLocale": "pl",
         "locales": ["es", "pt-BR"],
-        "formats": "runtypes/i18n.formats.ts",
         "strict": true
       }
     }]
@@ -218,9 +217,6 @@ func TestResolveEnrichConfig_I18n(t *testing.T) {
 	if len(config.I18nLocales) != 2 || config.I18nLocales[0] != "es" || config.I18nLocales[1] != "pt-BR" {
 		t.Errorf("I18nLocales = %v", config.I18nLocales)
 	}
-	if want := filepath.Join(dir, "runtypes/i18n.formats.ts"); config.I18nFormats != want {
-		t.Errorf("I18nFormats = %q, want %q", config.I18nFormats, want)
-	}
 	if !config.I18nStrict {
 		t.Errorf("I18nStrict = false, want true")
 	}
@@ -229,7 +225,7 @@ func TestResolveEnrichConfig_I18n(t *testing.T) {
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"),
 		`{ "compilerOptions": { "plugins": [{ "name": "ts-runtypes" }] } }`)
 	dormant := resolveEnrichConfig(target, "")
-	if dormant.SourceLocale != "en" || len(dormant.I18nLocales) != 0 || dormant.I18nStrict || dormant.I18nFormats != "" {
+	if dormant.SourceLocale != "en" || len(dormant.I18nLocales) != 0 || dormant.I18nStrict {
 		t.Errorf("dormant i18n defaults wrong: %+v", dormant)
 	}
 	if want := filepath.Join(dir, defaultEnrichDir, "i18n"); dormant.I18nDir != want {

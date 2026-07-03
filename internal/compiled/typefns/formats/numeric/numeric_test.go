@@ -182,3 +182,41 @@ func TestValidateParams(t *testing.T) {
 		t.Error("expected bigint min>max error")
 	}
 }
+
+// TestCurrency_DelegatesToNumberFamily pins the currency emitter's wholesale
+// delegation to the numberFormat helpers: identical validate predicates and
+// binary ladder, with every validation error tagged name:'currency' (the
+// friendly renderer's money discriminator) and param diagnostics prefixed
+// CurrencyFormat.
+func TestCurrency_DelegatesToNumberFamily(t *testing.T) {
+	currency := currencyEmitter{}
+	number := numberFormatEmitter{}
+	params := map[string]any{"integer": true, "min": 0.0, "max": 255.0}
+
+	if got, want := currency.EmitValidateCheck(annotation(currencyFormatName, params), "v", nil),
+		number.EmitValidateCheck(annotation(numberFormatName, params), "v", nil); got != want {
+		t.Errorf("validate check diverged: currency=%q number=%q", got, want)
+	}
+
+	errStmt := currency.EmitValidationErrorsCheck(annotation(currencyFormatName, params), "v", "pth", "errs", nil)
+	if !strings.Contains(errStmt, "name:'currency'") {
+		t.Errorf("validation errors must carry the currency format name; got %q", errStmt)
+	}
+	if strings.Contains(errStmt, "name:'numberFormat'") {
+		t.Errorf("validation errors leaked the numberFormat name: %q", errStmt)
+	}
+
+	if got, want := currency.EmitToBinary(annotation(currencyFormatName, params), "v", "Ser", nil),
+		number.EmitToBinary(annotation(numberFormatName, params), "v", "Ser", nil); got != want {
+		t.Errorf("binary encode diverged: currency=%q number=%q", got, want)
+	}
+	if got, want := currency.BinarySize(annotation(currencyFormatName, params)).Fixed, 1; got != want {
+		t.Errorf("BinarySize = %d, want %d", got, want)
+	}
+
+	bad := map[string]any{"min": 10.0, "max": 5.0}
+	msgs := currency.ValidateParams(annotation(currencyFormatName, bad))
+	if len(msgs) != 1 || !strings.HasPrefix(msgs[0], "CurrencyFormat:") {
+		t.Errorf("ValidateParams = %v, want one CurrencyFormat-prefixed message", msgs)
+	}
+}

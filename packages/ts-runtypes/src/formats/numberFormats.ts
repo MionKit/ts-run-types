@@ -38,6 +38,22 @@ export type Number<P extends NumberParams = {}, BrandName extends string = never
   BrandName
 >;
 
+// Currency — a number branded as a monetary amount: `Currency` /
+// `Currency<{min: 0}>`. Same params surface as Number (validation is
+// identical); the brand is semantic — validation errors carry the
+// `currency` format name, so createFriendlyI18n renders a violated bound
+// via Intl.NumberFormat(locale, {style: 'currency', currency}) using the
+// app-supplied `currency` renderer option. WHICH currency a value is in
+// is runtime data, deliberately never a type param (a hardcoded unit
+// would silently render the wrong symbol).
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type Currency<P extends NumberParams = {}, BrandName extends string = never> = TypeFormat<
+  number,
+  'currency',
+  P,
+  BrandName
+>;
+
 // Default number formats — ported from the reference defaultNumberFormats.ts.
 // The fixed-width int formats SET the min/max that drive the binary
 // packing optimization (Int8 → 1 byte, UInt16 → 2 bytes, …).
