@@ -1,8 +1,6 @@
 package resolver
 
 import (
-	"strings"
-
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/enrich"
@@ -14,8 +12,9 @@ import (
 // enrichment-health diagnostics (FamilyEnrich) for every requested file that
 // looks like an enrichment mirror. Three groups per file, one text read:
 //
-//   - tag hygiene (ENR001–ENR003) — pure text scan over the Program's view of
-//     the file (mirror.ScanDirtyTags), so unsaved overlay text is honored;
+//   - tag hygiene (FT020–FT022 / MD020–MD022, per the mirror's family) — pure
+//     text scan over the Program's view of the file (mirror.ScanDirtyTags), so
+//     unsaved overlay text is honored;
 //   - FriendlyType / MockData content validity (FT/MD codes) — the shared
 //     astcheck walk against this resolver's checker + runtype cache;
 //   - breadcrumb drift (GE002/GE003) — the mirror's source link, read from
@@ -41,20 +40,21 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diag.Diagnostic {
 		}
 
 		lineIndex := mirror.NewLineIndex(text)
+		classifier := mirror.NewFamilyClassifier(text)
 		for _, tag := range mirror.ScanDirtyTags(text) {
-			out = append(out, diag.New(tagCode(tag.Kind), tagSite(file, lineIndex, tag)))
+			out = append(out, diag.New(tagCode(tag.Kind, classifier.FamilyFor(tag)), tagSite(file, lineIndex, tag)))
 		}
 
 		for _, finding := range astcheck.CheckSourceFile(sourceFile, resolver.checker, resolver.cache, resolver.Program.FS, file) {
 			out = append(out, enrichDiagnostic(finding.Code, finding.Severity, finding.Args, finding.Site))
 		}
 
-		// Drift only applies to GENERATED mirrors (marker emit form present):
-		// a hand-written file that merely annotates consts with FriendlyType /
-		// MockData has ordinary relative imports, not a breadcrumb. `check`
-		// and `gen --check` — where the user explicitly targets enrichment
-		// files — stay ungated.
-		if strings.Contains(text, mirror.MarkerCommentPrefix) {
+		// Drift only applies to GENERATED mirrors (marker emit form present as
+		// a real comment): a hand-written file that merely annotates consts
+		// with FriendlyType / MockData has ordinary relative imports, not a
+		// breadcrumb. `check` and `gen --check` — where the user explicitly
+		// targets enrichment files — stay ungated.
+		if mirror.HasMarkerComment(text) {
 			absolutePath := tspath.ResolvePath(resolver.Program.TS.GetCurrentDirectory(), file)
 			for _, drift := range mirror.CheckBreadcrumbDrift(absolutePath, text, resolver.Program.FS) {
 				out = append(out, diag.New(drift.Code, tagSite(file, lineIndex, mirror.TagFinding{Start: drift.Start, End: drift.End}), drift.Args...))
@@ -66,9 +66,9 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diag.Diagnostic {
 
 // enrichDiagnostic builds the wire diagnostic for one content finding. Known
 // codes go through diag.New (severity owned by the catalog); an UNREGISTERED
-// code — a checker code that landed without a codes_enrich.go entry — must
-// not panic the resolver mid-lint, so it is built manually with the finding's
-// own severity. The JS side renders unknown codes with its own fallback, so
+// code — a checker code that landed without a codes_friendly.go /
+// codes_mock.go entry — must not panic the resolver mid-lint, so it is built
+// manually with the finding's own severity. The JS side renders unknown codes with its own fallback, so
 // the finding still reaches the user either way.
 func enrichDiagnostic(code string, severity enrich.Severity, args []string, site diag.Site) diag.Diagnostic {
 	if _, known := diag.Definitions[code]; known {
@@ -93,15 +93,30 @@ func diagSeverityFor(severity enrich.Severity) diag.Severity {
 	}
 }
 
-// tagCode maps a hygiene TagKind to its FamilyEnrich diag code.
-func tagCode(kind mirror.TagKind) string {
+// tagCode maps a hygiene TagKind + the finding's mirror family to its diag
+// code. Since the per-family file split every hygiene code is family-specific
+// (FT02x in a FriendlyType mirror, MD02x in a MockData mirror); an
+// unattributable finding (no annotation, no DSL import — only possible in a
+// degenerate hand-edited file) reports under the friendly code and the file
+// path in the site tells the user the rest.
+func tagCode(kind mirror.TagKind, family mirror.MirrorFamily) string {
+	if family == mirror.FamilyMock {
+		switch kind {
+		case mirror.TagOrphan:
+			return diag.CodeMockOrphanConst
+		case mirror.TagOrphanChild:
+			return diag.CodeMockOrphanField
+		default:
+			return diag.CodeMockTodo
+		}
+	}
 	switch kind {
 	case mirror.TagOrphan:
-		return diag.CodeEnrichOrphan
+		return diag.CodeFriendlyOrphanConst
 	case mirror.TagOrphanChild:
-		return diag.CodeEnrichOrphanChild
+		return diag.CodeFriendlyOrphanField
 	default:
-		return diag.CodeEnrichTodo
+		return diag.CodeFriendlyTodo
 	}
 }
 

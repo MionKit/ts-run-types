@@ -485,11 +485,12 @@ export interface DiagnosticRelated extends DiagnosticSite {
 // classifies impact.
 //
 // The user-facing message is NOT carried on the wire. Per-code message
-// templates live in `packages/ts-runtypes/src/runtypes/diagnosticCatalog.ts`
-// (alongside the runtime alwaysThrow catalog) and resolve at format time
-// against `args` — typically 0–2 positional substitution values (a
-// property name, a kind label, etc.). The Vite plugin renders the final
-// tsc-style line by looking up Code+Args in the catalog.
+// templates live in the GENERATED dictionary `./diagnosticCatalog.generated.ts`
+// (emitted from internal/diag/messages.go via `pnpm run gen:diag-catalog`)
+// and resolve at format time against `args` — typically 0–2 positional
+// substitution values (a property name, a kind label, etc.). The Vite
+// plugin renders the final tsc-style line by looking up Code+Args in the
+// catalog.
 export interface Diagnostic {
   code: string;
   family: Family;

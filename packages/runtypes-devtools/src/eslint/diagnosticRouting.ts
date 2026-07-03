@@ -61,14 +61,20 @@ export function routeDiagnostic(diagnostic: Diagnostic): LintReport {
 }
 
 // ruleNameFor picks the rule a diagnostic reports under. Enrichment codes get
-// per-concern rules; everything else routes by its own severity.
+// per-concern rules; everything else routes by its own severity. The hygiene
+// codes are per-family (FT02x in a FriendlyType mirror, MD02x in a MockData
+// mirror) but express the same two concerns, so both families share the
+// no-enrichment-todo / no-orphan-carcass rules.
 function ruleNameFor(diagnostic: Diagnostic): RuleName {
   if (diagnostic.family === Family.Enrich) {
     switch (diagnostic.code) {
-      case 'ENR001':
+      case 'FT020':
+      case 'MD020':
         return 'no-enrichment-todo';
-      case 'ENR002':
-      case 'ENR003':
+      case 'FT021':
+      case 'FT022':
+      case 'MD021':
+      case 'MD022':
         return 'no-orphan-carcass';
       case 'GE000':
       case 'GE001':

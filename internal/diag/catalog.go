@@ -111,6 +111,15 @@ type Diagnostic struct {
 // constructors substitute against. DocsAnchor is reserved for a future
 // reference doc.
 //
+// Headline and Detail are the USER-FACING wording: Headline is the
+// single-line message (mandatory for every code — `{0}`, `{1}` placeholders
+// substitute against Diagnostic.Args), Detail the optional multi-line
+// explanation + example fix. They are authored in messages.go and folded
+// onto the Definition at init; `gen:diag-catalog` exports them into the
+// GENERATED front-end dictionary (packages/runtypes-devtools/src/
+// diagnosticCatalog.generated.ts), so the wire keeps carrying only
+// code + args while Go stays the single source of every message.
+//
 // Summary, Fix, and Example are the human-written docs prose for the
 // website diagnostics page: Summary is a plain-language description of what
 // triggers the code and how to fix it; Fix is an optional corrected
@@ -131,6 +140,8 @@ type Definition struct {
 	Title      string
 	Template   string
 	DocsAnchor string
+	Headline   string
+	Detail     string
 	Summary    string
 	Fix        string
 	Example    string

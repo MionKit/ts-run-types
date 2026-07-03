@@ -26,6 +26,17 @@ func TestDefinitions_AllRegisteredCodesHaveFamilyAndSeverity(t *testing.T) {
 	}
 }
 
+// TestEveryCodeHasHeadline pins the messages.go contract: the FE catalog is
+// GENERATED from this package, so a registered code with no Headline would
+// reach users as a bare code with no wording.
+func TestEveryCodeHasHeadline(t *testing.T) {
+	for code, def := range Definitions {
+		if def.Headline == "" {
+			t.Errorf("code %q: no Headline — add it to messagesByCode in messages.go", code)
+		}
+	}
+}
+
 func TestNew_PopulatesFamilyAndSeverityFromCatalog(t *testing.T) {
 	d := New(CodeMarkerFunctionCallArg, Site{FilePath: "/a/b.ts", StartLine: 1, StartCol: 2}, "makeUser")
 	if d.Code != CodeMarkerFunctionCallArg {

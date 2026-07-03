@@ -83,7 +83,7 @@ describe.runIf(ready)('oxlint end to end (jsPlugins)', () => {
     // Error-severity findings must fail the commit gate.
     expect(exitCode).toBe(1);
     expect(stdout).toContain('runtypes(no-enrichment-todo)');
-    expect(stdout).toContain('[ENR001]');
+    expect(stdout).toContain('[FT020]');
     expect(stdout).toContain('runtypes(enrichment-field)');
     expect(stdout).toContain('[FT002]');
     // Family A rides the same run: the VL011 warning from the widget file.

@@ -104,7 +104,7 @@ func CheckBreadcrumbDrift(mirrorFile, contents string, fs vfspkg.FS) []DriftFind
 	// GE002 — the source no longer exists (deleted → orphaned mirror).
 	if !fsFileExists(fs, resolvedSource) {
 		return []DriftFinding{{
-			Code:    diag.CodeEnrichSourceMissing,
+			Code:    diag.CodeGenSourceMissing,
 			Args:    []string{breadcrumb.Spec, resolvedSource},
 			Message: fmt.Sprintf("breadcrumb source %q resolves to a non-existent file (%s) — orphaned mirror; delete it or re-run gen", breadcrumb.Spec, resolvedSource),
 			Start:   breadcrumb.Start,
@@ -123,7 +123,7 @@ func CheckBreadcrumbDrift(mirrorFile, contents string, fs vfspkg.FS) []DriftFind
 			continue
 		}
 		findings = append(findings, DriftFinding{
-			Code:    diag.CodeEnrichTypeMissing,
+			Code:    diag.CodeGenTypeMissing,
 			Args:    []string{resolvedSource, typeName},
 			Message: fmt.Sprintf("source %s no longer declares type %q — re-run gen", resolvedSource, typeName),
 			Start:   breadcrumb.Start,

@@ -1,27 +1,29 @@
-// Generate the data the website diagnostics page renders.
+// Generate every diagnostic-catalog artifact from the Go dump.
 //
-// Two sources, joined here because nothing else sees both:
-//   1. internal/diag (via `go run ./cmd/gen-diag-catalog`) — the authoritative
-//      list of codes, their severities, and the docs prose (summary, fix, and
-//      the verified triggering example) authored in internal/diag/prose.go.
-//   2. packages/runtypes-devtools/src/diagnosticCatalog.ts (read as source via
-//      Node type-stripping) — the user-facing headline + detail per code. We
-//      read source, not the built dist, so the page never lags the catalog.
+// internal/diag is the single source of truth for the whole catalog: which
+// codes exist, their severities, the user-facing wording (headline + detail
+// in internal/diag/messages.go), and the docs prose (summary, fix, example
+// in internal/diag/prose.go). `go run ./cmd/gen-diag-catalog` dumps it all
+// as JSON; this script fans that dump out into the two generated artifacts:
 //
-// Output: container/website/app/components/content/diagnostics-catalog.json,
-// committed so the website builds without the Go toolchain. The generator is a
-// dev-time sync step: run `pnpm run gen:diag-catalog` after changing either
-// source. The merge also reports any code that is registered Go-side but has no
-// message template (it would print the "Unrecognised diagnostic code" fallback).
+//   1. packages/runtypes-devtools/src/diagnosticCatalog.generated.ts — the
+//      front-end message dictionary (code → headline/detail templates) the
+//      bundler plugin, the lint plugin, and the runtime alwaysThrow factory
+//      render from. The binary ships only code + args over the wire.
+//   2. container/website/app/components/content/diagnostics-catalog.json —
+//      the website diagnostics page data.
+//
+// Both outputs are committed so consumers build without the Go toolchain.
+// Run `pnpm run gen:diag-catalog` after changing internal/diag.
 
 import {execFileSync} from 'node:child_process';
 import {writeFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
-import {fileURLToPath, pathToFileURL} from 'node:url';
+import {fileURLToPath} from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const catalogSourcePath = resolve(repoRoot, 'packages/runtypes-devtools/src/diagnosticCatalog.ts');
-const outPath = resolve(repoRoot, 'container/website/app/components/content/diagnostics-catalog.json');
+const generatedTsPath = resolve(repoRoot, 'packages/runtypes-devtools/src/diagnosticCatalog.generated.ts');
+const websiteJsonPath = resolve(repoRoot, 'container/website/app/components/content/diagnostics-catalog.json');
 
 // Subsystems group the code prefixes into the sections the page renders, in
 // reading order. Descriptions are short, plain-language, and dash-free so they
@@ -73,7 +75,7 @@ const SUBSYSTEMS = [
     key: 'enrichment',
     label: 'Enrichment files',
     description: 'From ts-runtypes check and the lint rules over generated FriendlyType and MockData files.',
-    prefixes: ['ENR', 'FT', 'MD', 'GE'],
+    prefixes: ['FT', 'MD', 'GE'],
   },
 ];
 
@@ -89,7 +91,7 @@ function codePrefix(code) {
   return match ? match[0] : code;
 }
 
-// 1. Authoritative code list + severity from Go.
+// The authoritative dump: codes, severities, wording, prose — all from Go.
 const goDump = execFileSync('go', ['run', './cmd/gen-diag-catalog'], {
   cwd: repoRoot,
   encoding: 'utf8',
@@ -97,29 +99,72 @@ const goDump = execFileSync('go', ['run', './cmd/gen-diag-catalog'], {
 });
 const goRecords = JSON.parse(goDump);
 
-// 2. Message templates from the devtools catalog source.
-const {DIAGNOSTIC_CATALOG} = await import(pathToFileURL(catalogSourcePath).href);
+const missingHeadlines = goRecords.filter((record) => !record.headline).map((record) => record.code);
+if (missingHeadlines.length) {
+  // internal/diag's TestEveryCodeHasHeadline pins this; fail loudly if it slips.
+  throw new Error(`gen-diag-catalog: codes with no headline in internal/diag/messages.go: ${missingHeadlines.join(', ')}`);
+}
 
-// 3. Merge. The Go list is the source of truth for which codes exist; the
-// catalog supplies the message. A code with no catalog entry falls back to its
-// Go-side title and is reported as a gap.
-const gaps = [];
-const orphanTemplates = Object.keys(DIAGNOSTIC_CATALOG).filter(
-  (code) => !goRecords.some((record) => record.code === code),
-);
+// ── Artifact 1: the front-end message dictionary ────────────────────────────
+
+/** Quote a template as a TS string literal the way prettier would (fewest escapes, single-quote tie-break). */
+function tsString(value) {
+  const singles = (value.match(/'/g) ?? []).length;
+  const doubles = (value.match(/"/g) ?? []).length;
+  const quote = singles > doubles ? '"' : "'";
+  const escaped = value
+    .replaceAll('\\', '\\\\')
+    .replaceAll(quote, '\\' + quote)
+    .replaceAll('\n', '\\n')
+    .replaceAll('\r', '\\r')
+    .replaceAll('\t', '\\t');
+  return quote + escaped + quote;
+}
+
+const entries = goRecords
+  .map((record) => {
+    const lines = [`  ${record.code}: {`, `    headline: ${tsString(record.headline)},`];
+    if (record.detail) lines.push(`    detail: ${tsString(record.detail)},`);
+    lines.push('  },');
+    return lines.join('\n');
+  })
+  .join('\n');
+
+const generatedTs = `// GENERATED FILE — DO NOT EDIT. Run \`pnpm run gen:diag-catalog\` to refresh.
+//
+// The message dictionary for every diagnostic code the Go binary can emit,
+// exported from the authoritative catalog in internal/diag (wording lives in
+// internal/diag/messages.go). The wire carries only code + args; the render
+// helpers in ./diagnosticCatalog.ts substitute \`{0}\`, \`{1}\`, … placeholders
+// against the args array to produce the final text.
+
+export interface DiagnosticEntry {
+  /** Single-line headline. Mandatory. */
+  readonly headline: string;
+  /** Optional multi-line detail block (explanation + code-example fix). */
+  readonly detail?: string;
+}
+
+export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
+${entries}
+};
+`;
+
+writeFileSync(generatedTsPath, generatedTs);
+// Normalise style with the repo's own prettier config so check-format stays green.
+execFileSync('pnpm', ['exec', 'prettier', '--write', generatedTsPath], {cwd: repoRoot, stdio: 'inherit'});
+
+// ── Artifact 2: the website diagnostics-page JSON ───────────────────────────
 
 const codes = goRecords.map((record) => {
   const subsystem = prefixToSubsystem.get(codePrefix(record.code)) ?? 'other';
   if (subsystem === 'other') console.warn(`gen-diag-catalog: no subsystem for ${record.code}`);
-  const entry = DIAGNOSTIC_CATALOG[record.code];
-  if (!entry) gaps.push(record.code);
   return {
     code: record.code,
     subsystem,
     severity: record.severity,
-    headline: entry ? entry.headline : record.title,
-    detail: entry && entry.detail ? entry.detail : null,
-    hasMessage: Boolean(entry),
+    headline: record.headline,
+    detail: record.detail ?? null,
     summary: record.summary ?? null,
     fix: record.fix ?? null,
     example: record.example ?? null,
@@ -136,21 +181,20 @@ codes.sort((left, right) => {
 
 const output = {
   $generated:
-    'by scripts/gen-diag-catalog.mjs from internal/diag + diagnosticCatalog.ts. Do not edit; run `pnpm run gen:diag-catalog`.',
+    'by scripts/gen-diag-catalog.mjs from internal/diag. Do not edit; run `pnpm run gen:diag-catalog`.',
   subsystems: SUBSYSTEMS.map(({key, label, description}) => ({key, label, description})),
   codes,
 };
 
-writeFileSync(outPath, JSON.stringify(output, null, 2) + '\n');
+writeFileSync(websiteJsonPath, JSON.stringify(output, null, 2) + '\n');
 
 // Report so the dev sees coverage at a glance.
 const bySeverity = codes.reduce((acc, code) => ({...acc, [code.severity]: (acc[code.severity] ?? 0) + 1}), {});
-console.log(`gen-diag-catalog: wrote ${codes.length} codes to ${outPath.replace(repoRoot + '/', '')}`);
+console.log(`gen-diag-catalog: wrote ${codes.length} codes to ${generatedTsPath.replace(repoRoot + '/', '')}`);
+console.log(`gen-diag-catalog: wrote ${codes.length} codes to ${websiteJsonPath.replace(repoRoot + '/', '')}`);
 console.log(`  severities: ${JSON.stringify(bySeverity)}`);
 console.log(`  by subsystem: ${JSON.stringify(
   codes.reduce((acc, code) => ({...acc, [code.subsystem]: (acc[code.subsystem] ?? 0) + 1}), {}),
 )}`);
-if (gaps.length) console.log(`  codes with no message template (fall back to Go title): ${gaps.join(', ')}`);
-if (orphanTemplates.length) console.log(`  catalog templates with no Go code: ${orphanTemplates.join(', ')}`);
 console.log(`  prose written for ${codes.length - undocumented.length}/${codes.length} codes`);
 if (undocumented.length) console.log(`  still need a hand-written summary: ${undocumented.join(', ')}`);

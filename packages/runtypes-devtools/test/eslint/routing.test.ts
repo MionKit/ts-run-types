@@ -30,9 +30,12 @@ describe('severity-tier routing (compiler families)', () => {
 
 describe('enrichment routing (per-concern rules)', () => {
   const cases: Array<[string, string]> = [
-    ['ENR001', 'no-enrichment-todo'],
-    ['ENR002', 'no-orphan-carcass'],
-    ['ENR003', 'no-orphan-carcass'],
+    ['FT020', 'no-enrichment-todo'],
+    ['MD020', 'no-enrichment-todo'],
+    ['FT021', 'no-orphan-carcass'],
+    ['FT022', 'no-orphan-carcass'],
+    ['MD021', 'no-orphan-carcass'],
+    ['MD022', 'no-orphan-carcass'],
     ['FT002', 'enrichment-field'],
     ['FT003', 'enrichment-field'],
     ['FT005', 'enrichment-field'],
@@ -60,7 +63,7 @@ describe('location conversion', () => {
   it('converts 1-based wire columns to 0-based loc columns and keeps 1-based lines', () => {
     const report = routeDiagnostic(
       diagnostic({
-        code: 'ENR001',
+        code: 'FT020',
         family: Family.Enrich,
         site: {filePath: 'm.ts', startLine: 5, startCol: 4, endLine: 5, endCol: 9},
       })
