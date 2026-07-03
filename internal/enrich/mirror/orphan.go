@@ -32,37 +32,15 @@ func findCarcass(index *Index, named enrich.NamedConst, friendly bool) *carcassE
 // by the resolved breadcrumb source. Condition (b) is what distinguishes a
 // genuinely-deleted type from one simply not in this gen invocation's closure
 // (another type in the same mirror file) — the latter is left untouched.
+// Per-locale translation files use the SAME oracle: a translation const's type
+// name comes from its @rtType/annotation exactly like a source const's, and its
+// breadcrumb import points at the src .ts.
 func orphanConsts(ops *[]spliceOp, index *Index, spec Spec, readSource func(string) (string, error), renamed map[*constEntry]bool) []*constEntry {
 	var orphaned []*constEntry
 	if spec.Out != "" {
 		// Single-file --out: every const across MANY source files lands here, but the
 		// breadcrumb resolves only ONE source — judging declaration against it would
 		// wrongly orphan a still-existing cross-file type. Skip the orphan judgement.
-		return orphaned
-	}
-
-	// ORACLE SWAP (i18n translate mode): a translation const's fate is judged
-	// against the friendly SOURCE MIRROR — "does the FriendlyType file still
-	// declare this const?" — never against the .ts type source.
-	if spec.Translate != nil {
-		sourceMirrorText, err := readSource(spec.Translate.SourceMirrorPath)
-		if err != nil {
-			return orphaned // source mirror unreadable → be conservative, orphan nothing
-		}
-		desiredVars := desiredVarSet(spec)
-		for _, entry := range index.consts {
-			if desiredVars[entry.varName] || renamed[entry] {
-				continue
-			}
-			if !isTranslationVar(entry.varName) {
-				continue // a hand-authored non-translation const — never ours to orphan
-			}
-			if SourceMirrorDeclaresConst(sourceMirrorText, SourceVarOfTranslation(entry.varName)) {
-				continue // the source FriendlyType still declares it — not an orphan
-			}
-			*ops = append(*ops, orphanConstOp(index.raw, entry))
-			orphaned = append(orphaned, entry)
-		}
 		return orphaned
 	}
 

@@ -24,18 +24,6 @@ type Spec struct {
 	WantFriendly  bool
 	WantMock      bool
 	MirrorPathFor func(declFile string) string
-	// Translate switches the reconcile into i18n mode: the desired side is the
-	// friendly SOURCE MIRROR's consts (blanked, locale-prefixed), not the type
-	// graph. nil on the ordinary type-driven reconcile.
-	Translate *TranslateSpec
-}
-
-// TranslateSpec carries the i18n reconcile's mode data: the target locale and
-// the friendly source mirror the translation file anchors to (the orphan
-// oracle reads it instead of the `.ts` type source).
-type TranslateSpec struct {
-	Locale           string
-	SourceMirrorPath string
 }
 
 // ImportSpecifier computes the ES-module specifier to reach absTarget from the
@@ -68,8 +56,8 @@ func stripModuleExt(path string) string {
 
 // ConstBlock wraps a rendered object-literal body in the
 // `export const <var>: <Wrapper><<TypeName>> = <body>;` declaration, prefixed
-// with the reconcile marker JSDoc (`@rtType` + `@rtIds`, plus `@rtI18n` on a
-// translation const) when the const carries a structural id, then a plain
+// with the reconcile marker JSDoc (`@rtType` + `@rtIds`)
+// when the const carries a structural id, then a plain
 // `@todo` line on its OWN line. The marker + the `@todo` ride the const
 // WRAPPER, never the skeleton body — the batch stdout path (runGenBatch)
 // compares the body alone, so it stays byte-identical. ConstBlock is only ever
@@ -100,10 +88,8 @@ func todoComment() string {
 
 // MarkerComment renders the reconcile JSDoc for a const: a single leading line
 // `/** @rtType <Name>#<id> @rtIds {field: <id>, …} */\n` (the @rtIds entries
-// carry the BARE child id — see formatChildIDs/ChildIDs). A translation const
-// additionally carries `@rtI18n <locale> from '<src-mirror-spec>'` — the
-// breadcrumb to the friendly SOURCE MIRROR file. It is omitted (empty string)
-// when there is no structural id (an unresolved/anonymous root), so a
+// carry the BARE child id — see formatChildIDs/ChildIDs). It is omitted (empty
+// string) when there is no structural id (an unresolved/anonymous root), so a
 // degenerate const stays marker-free. The encoding survives Prettier (leading
 // JSDoc on a declaration is preserved) and round-trips through
 // parseConstMarkers on reconcile.
@@ -122,13 +108,6 @@ func MarkerComment(named enrich.NamedConst) string {
 		b.WriteString(" @rtIds {")
 		b.WriteString(formatChildIDs(named.ChildIDs))
 		b.WriteString("}")
-	}
-	if named.I18nLocale != "" {
-		b.WriteString(" @rtI18n ")
-		b.WriteString(named.I18nLocale)
-		b.WriteString(" from '")
-		b.WriteString(named.I18nSourceSpec)
-		b.WriteString("'")
 	}
 	b.WriteString(" */\n")
 	return b.String()
@@ -244,7 +223,7 @@ func Scaffold(spec Spec, existing string) (string, []string, error) {
 	var blocks []string
 	for _, named := range spec.Consts {
 		if spec.WantFriendly && !HasExport(existing, named.FriendlyVar) {
-			blocks = append(blocks, ConstBlock(named.FriendlyVar, friendlyWrapper(spec), named, named.Friendly))
+			blocks = append(blocks, ConstBlock(named.FriendlyVar, "FriendlyType", named, named.Friendly))
 			added = append(added, named.FriendlyVar)
 		}
 		if spec.WantMock && !HasExport(existing, named.MockVar) {
@@ -317,28 +296,18 @@ func writeMirrorHeader(builder *strings.Builder, spec Spec, blocks []string) {
 }
 
 // dslTypeNames lists the ts-runtypes wrapper types a mirror file's consts
-// annotate with, per the spec's family flags: a friendly-family file imports
-// only FriendlyType (Translation for a per-locale translation file), a
-// mock-family file only MockData, a combined (--out) file both.
+// annotate with, per the spec's family flags: a friendly-family file (the
+// source language and every per-locale translation file alike) imports only
+// FriendlyType, a mock-family file only MockData, a combined (--out) file both.
 func dslTypeNames(spec Spec) []string {
 	var names []string
 	if spec.WantFriendly {
-		names = append(names, friendlyWrapper(spec))
+		names = append(names, "FriendlyType")
 	}
 	if spec.WantMock {
 		names = append(names, "MockData")
 	}
 	return names
-}
-
-// friendlyWrapper is the annotation alias a friendly-form const uses:
-// FriendlyType for the source language, Translation for a per-locale
-// translation const (structurally identical; intent marker).
-func friendlyWrapper(spec Spec) string {
-	if spec.Translate != nil {
-		return "Translation"
-	}
-	return "FriendlyType"
 }
 
 // ResolveBreadcrumb resolves a module specifier (as written in the breadcrumb,
@@ -358,13 +327,6 @@ func ResolveBreadcrumb(mirrorFile, spec string) string {
 	}
 	// Neither exists — return the .ts candidate so GE002 reports a concrete path.
 	return tsCandidate
-}
-
-// SourceMirrorDeclaresConst reports whether the friendly SOURCE MIRROR text
-// still declares `export const <sourceVar>` — the i18n orphan oracle: a
-// translation const orphans only when its source FriendlyType const is gone.
-func SourceMirrorDeclaresConst(sourceMirrorText, sourceVar string) bool {
-	return HasExport(sourceMirrorText, sourceVar)
 }
 
 // SourceDeclaresType reports whether sourceText still makes typeName available —

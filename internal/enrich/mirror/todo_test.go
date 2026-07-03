@@ -255,10 +255,10 @@ func reconcileToBytes(t *testing.T, spec Spec, existing string) []byte {
 	var addedConsts []enrich.NamedConst
 	for _, named := range spec.Consts {
 		if spec.WantFriendly {
-			reconcileOneConst(&ops, &addedConsts, index, named, true, spec.Translate != nil)
+			reconcileOneConst(&ops, &addedConsts, index, named, true)
 		}
 		if spec.WantMock {
-			reconcileOneConst(&ops, &addedConsts, index, named, false, spec.Translate != nil)
+			reconcileOneConst(&ops, &addedConsts, index, named, false)
 		}
 	}
 	merged := mustSplice(t, index.raw, ops)
