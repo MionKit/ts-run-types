@@ -124,7 +124,7 @@ export interface User {
 // The map is TOTAL: every field present, rt$label + rt$errors required on every
 // node (blank '' = "no custom text", renderer falls back; deleting a key just
 // re-scaffolds it — one type maps to exactly one shape).
-const userFriendly: FriendlyType<User> = {
+const friendlyUser: FriendlyType<User> = {
   rt$label: 'User account',
   rt$errors: { type: '$[label] must be an object' },
 
@@ -346,7 +346,7 @@ the template by the `formatPath` tail, interpolate. No type id, no `rtUtils`
 lookup:
 
 ```ts
-const friendly = createFriendly<User>(userFriendly);
+const friendly = createFriendly<User>(friendlyUser);
 friendly.errors(getUserErrors(badInput));   // → [{ path: 'profile.email', label: 'Email', message: 'Enter a valid email address' }]
 friendly.label('profile.email');             // → 'Email'
 ```
@@ -378,7 +378,7 @@ Per-field pools, ranges, and per-format hints that feed the **existing**
 per-property overrides — `MockData<T>` is just the typed, validated form of those):
 
 ```ts
-const userMock: MockData<User> = {
+const mockUser: MockData<User> = {
   name:  { pool: ['Alice Martin', 'Liang Wei', 'Fatima Noor', /* …50+ */ ] },
   age:   { min: 18, max: 95 },
   tags:  { rt$items: { pool: ['urgent', 'beta', 'vip'] }, rt$length: [1, 4] },
@@ -388,7 +388,7 @@ const userMock: MockData<User> = {
   },
 };
 
-const mockUser = createMockType<User>({ data: userMock });   // existing factory + new `data` option
+const newUser = createMockType<User>(undefined, { data: mockUser });   // existing factory + the `data` option
 ```
 
 ### The pool-validation superpower (MD003)

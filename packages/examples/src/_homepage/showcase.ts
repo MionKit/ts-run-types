@@ -43,7 +43,7 @@ orderErrors({...order, total: 'free'}); // [{path: ['total'], expected: 'number'
 const toJson = createJsonEncoder<Order>();
 const fromJson = createJsonDecoder<Order>();
 
-const wire = toJson(order); // Date -> string, ready for the network
+const wire = toJson(order)!; // Date -> string (undefined only for undefined input)
 const back = fromJson(wire); // string -> Date again, typed as DataOnly<Order>
 // end-json
 

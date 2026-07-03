@@ -82,7 +82,7 @@
     "lint": "lerna run lint && pnpm run typecheck",
     "lint-pre-committ": "eslint --quiet",
     "typecheck:test": "lerna run typecheck:test",
-    "typecheck": "pnpm run typecheck:test && tsc -p internal/testfixtures/tsconfig.json --noEmit && tsc -p internal/testfixtures/atomic/tsconfig.json --noEmit",
+    "typecheck": "pnpm run typecheck:test && tsc -p internal/testfixtures/tsconfig.json --noEmit && tsc -p internal/testfixtures/atomic/tsconfig.json --noEmit && tsc -p packages/examples/tsconfig.json",
     "build": "lerna run build",
     "podman-website:build-image": "bash scripts/podman-website.sh build-image",
     "podman-website:lock": "bash scripts/podman-website.sh lock",
