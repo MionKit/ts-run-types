@@ -30,11 +30,11 @@ func migrateLegacyMirror(config enrichConfig, declFile string) {
 		return // no legacy combined mirror — nothing to migrate
 	}
 
-	_, sourceSpec, ok := parseBreadcrumb(string(legacyBytes))
+	breadcrumb, ok := mirror.ParseBreadcrumb(string(legacyBytes))
 	if !ok {
 		return // no source breadcrumb — not one of our generated mirrors
 	}
-	resolvedSource := mirror.ResolveBreadcrumb(legacyPath, sourceSpec)
+	resolvedSource := mirror.ResolveBreadcrumb(legacyPath, breadcrumb.Spec)
 	if tspath.NormalizePath(resolvedSource) != tspath.NormalizePath(declFile) {
 		return // some other source's file — not this mirror's legacy home
 	}

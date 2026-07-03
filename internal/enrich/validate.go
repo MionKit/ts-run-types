@@ -51,6 +51,11 @@ type Finding struct {
 	Severity Severity `json:"severity"`
 	Path     string   `json:"path"`
 	Message  string   `json:"message"`
+	// Args are the positional substitution values for the JS-side diagnostic
+	// catalog ({0}, {1}, …) when the finding rides the resolver wire as a
+	// diag.Diagnostic. Message stays the CLI's pre-rendered text; the lint
+	// surfaces render from Code+Args so wording lives in one JS catalog.
+	Args []string `json:"args,omitempty"`
 }
 
 // LiteralView is the minimal read-only view of an authored object-literal that
@@ -280,6 +285,7 @@ func checkFriendlyNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, 
 				Severity: Error,
 				Path:     joinPath(path, key),
 				Message:  "unknown field '" + key + "' is not a property of the type",
+				Args:     []string{key},
 			})
 			continue
 		}
@@ -325,6 +331,7 @@ func checkFriendlyErrors(findings *[]Finding, errorsView LiteralView, fieldNode 
 				Severity: Warning,
 				Path:     keyPath,
 				Message:  "error key '" + key + "' is not a declared constraint of this field",
+				Args:     []string{key},
 			})
 		}
 		// FT005: scan the template string for bad `$[…]` placeholders.
@@ -417,6 +424,7 @@ func checkPlaceholders(findings *[]Finding, template, path string) {
 			Severity: Warning,
 			Path:     path,
 			Message:  "unknown placeholder '$[" + name + "]' (expected one of label, val, path, index)",
+			Args:     []string{name},
 		})
 	}
 }
@@ -454,6 +462,7 @@ func checkMockNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, lite
 				Severity: Error,
 				Path:     joinPath(path, key),
 				Message:  "unknown field '" + key + "' is not a property of the type",
+				Args:     []string{key},
 			})
 			continue
 		}

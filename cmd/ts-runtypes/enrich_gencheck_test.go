@@ -9,7 +9,9 @@ import (
 )
 
 // TestParseBreadcrumb verifies the source breadcrumb is extracted (skipping the
-// ts-runtypes DSL import) and the type names + specifier are returned.
+// ts-runtypes DSL import) and the type names + specifier are returned. The
+// parser moved to the shared mirror package (the resolver's checkEnrich pass
+// uses it too); this pins the CLI-visible behavior through the new API.
 func TestParseBreadcrumb(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -50,18 +52,21 @@ func TestParseBreadcrumb(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			names, spec, ok := parseBreadcrumb(test.contents)
+			breadcrumb, ok := mirror.ParseBreadcrumb(test.contents)
 			if ok != test.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, test.wantOK)
 			}
 			if !ok {
 				return
 			}
-			if !reflect.DeepEqual(names, test.wantNames) {
-				t.Errorf("names = %v, want %v", names, test.wantNames)
+			if !reflect.DeepEqual(breadcrumb.TypeNames, test.wantNames) {
+				t.Errorf("names = %v, want %v", breadcrumb.TypeNames, test.wantNames)
 			}
-			if spec != test.wantSpec {
-				t.Errorf("spec = %q, want %q", spec, test.wantSpec)
+			if breadcrumb.Spec != test.wantSpec {
+				t.Errorf("spec = %q, want %q", breadcrumb.Spec, test.wantSpec)
+			}
+			if breadcrumb.Start < 0 || breadcrumb.End <= breadcrumb.Start {
+				t.Errorf("breadcrumb range [%d,%d) must cover the import statement", breadcrumb.Start, breadcrumb.End)
 			}
 		})
 	}

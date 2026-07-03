@@ -403,6 +403,20 @@ type Request struct {
 	// OpGenerate. Modules are written under <OutDir>/types/. Required by
 	// OpGenerate; ignored by other ops.
 	OutDir string `json:"outDir,omitempty"`
+	// CheckEnrich opts a scanFiles response into the enrichment-health pass
+	// over this request's Files: tag hygiene (@todo scaffolds, @rtOrphan /
+	// @rtOrphanChild carcasses), FriendlyType/MockData content validity, and
+	// breadcrumb drift, appended to Response.Diagnostics as FamilyEnrich
+	// entries. Off by default so the rewrite pipeline pays nothing; the
+	// runtypes-devtools lint plugin is the consumer.
+	CheckEnrich bool `json:"checkEnrich,omitempty"`
+	// IncludeRtDiagnostics opts a scanFiles response into the RunType-family
+	// diagnostics (VL010, PJ001, … — emitted while RENDERING the demanded
+	// entries) WITHOUT shipping the entry modules on the wire. The render
+	// runs exactly as IncludeEntryModules would; only the module payload is
+	// dropped. Lint-plugin use: one scan returns the full diagnostic picture
+	// a build would surface. Implied by IncludeEntryModules.
+	IncludeRtDiagnostics bool `json:"includeRtDiagnostics,omitempty"`
 }
 
 // Metrics is the per-op performance block, populated only when

@@ -38,7 +38,7 @@ func resolveRawFixture(t *testing.T, relPath, typeName string, sources map[strin
 	}
 	t.Cleanup(res.Close)
 
-	resolved, err := enrich.ResolveTypeRaw(prog, res, absTarget, typeName)
+	resolved, err := enrich.ResolveTypeRaw(prog, res.Checker(), res.Cache(), absTarget, typeName)
 	if err != nil {
 		t.Fatalf("ResolveTypeRaw(%s): %v", typeName, err)
 	}

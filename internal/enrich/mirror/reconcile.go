@@ -12,7 +12,7 @@ import (
 // non-greedy up to the first ` */`; the carcass's own inner `*/` was
 // comment-sanitized to `* /` when it was written, so the first ` */` is its true
 // terminator.
-var orphanBlockPattern = regexp.MustCompile(`(?s)/\* @rtOrphan(?:Child)? .*? \*/`)
+var orphanBlockPattern = regexp.MustCompile(`(?s)` + OrphanBlockPatternSource)
 
 // friendlyReservedKeys / mockReservedKeys are the META keys each family's nodes
 // carry alongside their field children — never treated as renamable/mergeable
@@ -682,7 +682,7 @@ var statementBoundaryPattern = regexp.MustCompile(`(?m)^\s*export\s+(const|type|
 // past the field. block is the full `/* @rtOrphan… */` match.
 func carcassCrossesStatement(block string) bool {
 	count := len(statementBoundaryPattern.FindAllStringIndex(block, -1))
-	if strings.HasPrefix(block, "/* @rtOrphanChild") {
+	if strings.HasPrefix(block, "/* "+OrphanChildTag) {
 		return count > 0
 	}
 	return count > 1

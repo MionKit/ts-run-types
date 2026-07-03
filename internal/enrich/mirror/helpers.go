@@ -83,7 +83,7 @@ func ConstBlock(varName, wrapper string, named enrich.NamedConst, body string) s
 // IGNORES it (it strips only @rtOrphan/@rtOrphanChild). It is a SEPARATE line from
 // the marker so the marker index never confuses the two concerns.
 func todoComment() string {
-	return "// @todo: generated skeleton — fill in real data, then delete this line\n"
+	return TodoLine + "\n"
 }
 
 // MarkerComment renders the reconcile JSDoc for a const: a single leading line
@@ -98,14 +98,14 @@ func MarkerComment(named enrich.NamedConst) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("/** @rtType ")
+	b.WriteString(MarkerCommentPrefix)
 	if named.TypeName != "" {
 		b.WriteString(named.TypeName)
 		b.WriteString("#")
 	}
 	b.WriteString(named.TypeID)
 	if len(named.ChildIDs) > 0 {
-		b.WriteString(" @rtIds {")
+		b.WriteString(" " + RtIdsTag + " {")
 		b.WriteString(formatChildIDs(named.ChildIDs))
 		b.WriteString("}")
 	}
@@ -223,11 +223,11 @@ func Scaffold(spec Spec, existing string) (string, []string, error) {
 	var blocks []string
 	for _, named := range spec.Consts {
 		if spec.WantFriendly && !HasExport(existing, named.FriendlyVar) {
-			blocks = append(blocks, ConstBlock(named.FriendlyVar, "FriendlyType", named, named.Friendly))
+			blocks = append(blocks, ConstBlock(named.FriendlyVar, enrich.FriendlyTypeName, named, named.Friendly))
 			added = append(added, named.FriendlyVar)
 		}
 		if spec.WantMock && !HasExport(existing, named.MockVar) {
-			blocks = append(blocks, ConstBlock(named.MockVar, "MockData", named, named.Mock))
+			blocks = append(blocks, ConstBlock(named.MockVar, enrich.MockDataName, named, named.Mock))
 			added = append(added, named.MockVar)
 		}
 	}
@@ -302,21 +302,25 @@ func writeMirrorHeader(builder *strings.Builder, spec Spec, blocks []string) {
 func dslTypeNames(spec Spec) []string {
 	var names []string
 	if spec.WantFriendly {
-		names = append(names, "FriendlyType")
+		names = append(names, enrich.FriendlyTypeName)
 	}
 	if spec.WantMock {
-		names = append(names, "MockData")
+		names = append(names, enrich.MockDataName)
 	}
 	return names
 }
 
 // ResolveBreadcrumb resolves a module specifier (as written in the breadcrumb,
-// extension stripped) relative to the mirror file's directory, appending ".ts"
-// (the source is a .ts; a .d.ts-origin mirror still tracks the .ts/.d.ts source,
-// and we probe both). Returns the .ts candidate; the caller's Stat falls through
-// to GE002 when neither exists.
+// extension usually stripped) relative to the mirror file's directory,
+// appending ".ts" (the source is a .ts; a .d.ts-origin mirror still tracks the
+// .ts/.d.ts source, and we probe both). A specifier that already carries its
+// extension (allowImportingTsExtensions style) resolves as written. Returns
+// the .ts candidate when nothing exists so GE002 reports a concrete path.
 func ResolveBreadcrumb(mirrorFile, spec string) string {
 	base := filepath.Join(filepath.Dir(mirrorFile), filepath.FromSlash(spec))
+	if strings.HasSuffix(spec, ".ts") {
+		return tspath.NormalizePath(base)
+	}
 	tsCandidate := tspath.NormalizePath(base + ".ts")
 	if _, err := os.Stat(tsCandidate); err == nil {
 		return tsCandidate

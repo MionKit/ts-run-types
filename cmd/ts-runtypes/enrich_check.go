@@ -7,36 +7,37 @@ import (
 	"os"
 	"sort"
 
-	"github.com/microsoft/typescript-go/shim/ast"
-	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrich/astcheck"
 	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
-	"github.com/mionkit/ts-runtypes/internal/marker"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
-// enrichMapKind identifies which enrichment-map alias a `const … : X<T>`
-// declaration is annotated with.
-type enrichMapKind int
-
-const (
-	mapKindNone enrichMapKind = iota
-	mapKindFriendly
-	mapKindMock
-)
-
-// fileFinding pairs a Finding with its source file for the report.
+// fileFinding pairs a Finding with its source file and 1-based position for
+// the report. Line/Col are zero when a finding could not be anchored.
 type fileFinding struct {
 	File string `json:"file"`
 	enrich.Finding
+	Line    int `json:"line,omitempty"`
+	Col     int `json:"col,omitempty"`
+	EndLine int `json:"endLine,omitempty"`
+	EndCol  int `json:"endCol,omitempty"`
 }
 
-// runCheck implements `ts-runtypes check <file.ts> [--json]`: it finds every
-// `const <name>: FriendlyType<T> = {…}` / `const <name>: MockData<T> = {…}`
-// declaration in the file, resolves T to a RunType, runs the paired
-// FriendlyType / MockData checks, and reports the Findings. Exits 1 when any
-// Finding is Error severity.
+// runCheck implements `ts-runtypes check <file.ts> [--json]` — the single-file
+// enrichment health report, and the CLI twin of the resolver's checkEnrich
+// pass (what the runtypes-devtools lint plugin surfaces in the editor):
+//
+//   - tag hygiene: unfilled `@todo` scaffolds and stale `@rtOrphan` /
+//     `@rtOrphanChild` carcasses (ENR001–ENR003);
+//   - FriendlyType / MockData content validity against the resolved T
+//     (FT002/FT003/FT005/MD001);
+//   - breadcrumb drift: source deleted / type no longer declared
+//     (GE002/GE003; GE001 location drift lives in `gen --check`, which knows
+//     the project's enrich dir).
+//
+// Exits 1 when any Finding is Error severity.
 func runCheck(args []string) {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "emit findings as a JSON array")
@@ -70,149 +71,89 @@ func runCheck(args []string) {
 	if sourceFile == nil {
 		fatal("check: source file not in program: %s", absPath)
 	}
-	typeChecker := res.Checker()
-	if typeChecker == nil {
+	if res.Checker() == nil {
 		fatal("check: resolver has no checker")
 	}
 
-	findings := checkFile(sourceFile, typeChecker, res, absPath)
+	text := sourceFile.Text()
+	lineIndex := mirror.NewLineIndex(text)
+	var findings []fileFinding
+
+	// Tag hygiene — the same detection the resolver's checkEnrich pass uses
+	// and the same pattern `gen --prune` removes.
+	for _, tag := range mirror.ScanDirtyTags(text) {
+		findings = append(findings, tagFileFinding(absPath, lineIndex, tag))
+	}
+
+	// FriendlyType / MockData content validity.
+	for _, positioned := range astcheck.CheckSourceFile(sourceFile, res.Checker(), res.Cache(), prog.FS, absPath) {
+		findings = append(findings, fileFinding{
+			File:    absPath,
+			Finding: positioned.Finding,
+			Line:    positioned.Site.StartLine,
+			Col:     positioned.Site.StartCol,
+			EndLine: positioned.Site.EndLine,
+			EndCol:  positioned.Site.EndCol,
+		})
+	}
+
+	// Breadcrumb drift (GE002/GE003).
+	for _, drift := range mirror.CheckBreadcrumbDrift(absPath, text, nil) {
+		line, col := lineIndex.At(drift.Start)
+		endLine, endCol := lineIndex.At(drift.End)
+		findings = append(findings, fileFinding{
+			File:    absPath,
+			Finding: enrich.Finding{Code: drift.Code, Severity: drift.Severity(), Message: drift.Message, Args: drift.Args},
+			Line:    line,
+			Col:     col,
+			EndLine: endLine,
+			EndCol:  endCol,
+		})
+	}
+
 	sortFileFindings(findings)
-
-	exitCode := reportFindings(findings, *asJSON)
-	os.Exit(exitCode)
+	os.Exit(reportFindings(findings, *asJSON))
 }
 
-// checkFile walks the file's variable statements, runs the paired checks on
-// every FriendlyType / MockData declaration with an object-literal initializer,
-// and returns the findings tagged with the file.
-func checkFile(sourceFile *ast.SourceFile, typeChecker *checker.Checker, res *resolver.Resolver, absPath string) []fileFinding {
-	var out []fileFinding
-	root := sourceFile.AsNode()
-	if root == nil {
-		return out
+// tagFileFinding converts one hygiene TagFinding to the report shape.
+func tagFileFinding(file string, lineIndex *mirror.LineIndex, tag mirror.TagFinding) fileFinding {
+	code, message := tagCodeMessage(tag.Kind)
+	line, col := lineIndex.At(tag.Start)
+	endLine, endCol := lineIndex.At(tag.End)
+	return fileFinding{
+		File:    file,
+		Finding: enrich.Finding{Code: code, Severity: mirror.EnrichSeverity(code), Message: message},
+		Line:    line,
+		Col:     col,
+		EndLine: endLine,
+		EndCol:  endCol,
 	}
-	for _, statement := range root.Statements() {
-		if statement == nil || !ast.IsVariableStatement(statement) {
-			continue
-		}
-		for _, declaration := range variableDeclarations(statement) {
-			kind, typeArg := enrichAnnotation(typeChecker, declaration)
-			if kind == mapKindNone || typeArg == nil {
-				continue
-			}
-			literal := objectLiteralInitializer(declaration)
-			if literal == nil {
-				continue
-			}
-			resolved := enrich.ProjectType(res.Cache(), typeArg)
-			if resolved == nil {
-				continue
-			}
-			view := mirror.NewASTLiteralView(literal)
-			var findings []enrich.Finding
-			switch kind {
-			case mapKindFriendly:
-				findings = enrich.CheckFriendly(resolved.Node, view, resolved.Resolve)
-			case mapKindMock:
-				findings = enrich.CheckMock(resolved.Node, view, resolved.Resolve)
-			}
-			for _, finding := range findings {
-				out = append(out, fileFinding{File: absPath, Finding: finding})
-			}
-		}
-	}
-	return out
 }
 
-// variableDeclarations returns the VariableDeclaration nodes of a
-// VariableStatement.
-func variableDeclarations(statement *ast.Node) []*ast.Node {
-	declaration := statement.AsVariableStatement().DeclarationList
-	if declaration == nil {
-		return nil
-	}
-	list := declaration.AsVariableDeclarationList()
-	if list == nil || list.Declarations == nil {
-		return nil
-	}
-	return list.Declarations.Nodes
-}
-
-// enrichAnnotation reports whether declaration's type annotation is a
-// reference to FriendlyType / MockData declared in the ts-runtypes package, and
-// returns the reference's first type argument (T) projected to a checker type.
-//
-// The alias name is read off the type-reference SYNTAX (TypeName symbol),
-// resolving the local import alias to its target via SkipAlias, then confirming
-// the module the same way marker.go does. We can't read it off the resolved
-// `*checker.Type` (marker.go's aliasForSpec path) because FriendlyType<T>'s body
-// reduces immediately, so getTypeFromTypeNode drops the alias info.
-func enrichAnnotation(typeChecker *checker.Checker, declaration *ast.Node) (enrichMapKind, *checker.Type) {
-	if !ast.IsVariableDeclaration(declaration) {
-		return mapKindNone, nil
-	}
-	typeNode := declaration.AsVariableDeclaration().Type
-	if typeNode == nil || !ast.IsTypeReferenceNode(typeNode) {
-		return mapKindNone, nil
-	}
-	typeName := typeNode.AsTypeReferenceNode().TypeName
-	if typeName == nil {
-		return mapKindNone, nil
-	}
-	symbol := typeChecker.GetSymbolAtLocation(typeName)
-	if symbol == nil {
-		return mapKindNone, nil
-	}
-	// A `import {FriendlyType} from 'ts-runtypes'` reference resolves to a local
-	// import-alias symbol whose declaration is the import specifier; SkipAlias
-	// follows it to the original type-alias declaration in the package.
-	if symbol.Flags&ast.SymbolFlagsAlias != 0 {
-		symbol = checker.SkipAlias(symbol, typeChecker)
-	}
-	if symbol == nil {
-		return mapKindNone, nil
-	}
-	var kind enrichMapKind
-	switch symbol.Name {
-	case "FriendlyType":
-		kind = mapKindFriendly
-	case "MockData":
-		kind = mapKindMock
+// tagCodeMessage maps a hygiene TagKind to its diag code and CLI message.
+func tagCodeMessage(kind mirror.TagKind) (string, string) {
+	switch kind {
+	case mirror.TagOrphan:
+		return diag.CodeEnrichOrphan, "stale " + mirror.OrphanTag + " carcass — run `ts-runtypes gen --prune` to remove it (or restore the type)"
+	case mirror.TagOrphanChild:
+		return diag.CodeEnrichOrphanChild, "stale " + mirror.OrphanChildTag + " field carcass — run `ts-runtypes gen --prune` to remove it (or restore the field)"
 	default:
-		return mapKindNone, nil
+		return diag.CodeEnrichTodo, "unfilled " + mirror.TodoTag + " placeholder — fill in the value, then delete the " + mirror.TodoTag + " line"
 	}
-	// nil FS: the enrich CLI runs over a real on-disk project (tsconfig-backed
-	// program, real node_modules), so the package.json gate reads the real disk.
-	if !marker.DeclaredInModule(symbol, marker.DefaultModule, nil) {
-		return mapKindNone, nil
-	}
-	typeArgumentNodes := typeNode.TypeArguments()
-	if len(typeArgumentNodes) == 0 {
-		return mapKindNone, nil
-	}
-	typeArg := checker.Checker_getTypeFromTypeNode(typeChecker, typeArgumentNodes[0])
-	if typeArg == nil {
-		return mapKindNone, nil
-	}
-	return kind, typeArg
 }
 
-// objectLiteralInitializer returns declaration's initializer when it is an
-// object literal, else nil.
-func objectLiteralInitializer(declaration *ast.Node) *ast.Node {
-	initializer := declaration.AsVariableDeclaration().Initializer
-	if initializer == nil || !ast.IsObjectLiteralExpression(initializer) {
-		return nil
-	}
-	return initializer
-}
-
-// sortFileFindings orders findings by (File, Path, Code) for deterministic
-// reporting.
+// sortFileFindings orders findings by (File, Line, Col, Path, Code) for
+// deterministic reporting.
 func sortFileFindings(findings []fileFinding) {
 	sort.SliceStable(findings, func(left, right int) bool {
 		if findings[left].File != findings[right].File {
 			return findings[left].File < findings[right].File
+		}
+		if findings[left].Line != findings[right].Line {
+			return findings[left].Line < findings[right].Line
+		}
+		if findings[left].Col != findings[right].Col {
+			return findings[left].Col < findings[right].Col
 		}
 		if findings[left].Path != findings[right].Path {
 			return findings[left].Path < findings[right].Path
@@ -239,7 +180,11 @@ func reportFindings(findings []fileFinding, asJSON bool) int {
 		fmt.Println(string(encoded))
 	} else {
 		for _, finding := range findings {
-			fmt.Printf("%s:%s\n", finding.File, enrich.FormatFinding(finding.Finding))
+			if finding.Line > 0 {
+				fmt.Printf("%s(%d,%d):%s\n", finding.File, finding.Line, finding.Col, enrich.FormatFinding(finding.Finding))
+			} else {
+				fmt.Printf("%s:%s\n", finding.File, enrich.FormatFinding(finding.Finding))
+			}
 		}
 	}
 

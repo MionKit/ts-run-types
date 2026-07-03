@@ -121,11 +121,11 @@ type importEntry struct {
 
 // rtTypePattern matches the `@rtType <Name>#<id>` marker (or a bare `@rtType
 // <id>`). Group 1 is the optional readable name, group 2 the id.
-var rtTypePattern = regexp.MustCompile(`@rtType\s+(?:(\w+)#)?(\w+)`)
+var rtTypePattern = regexp.MustCompile(RtTypeTag + `\s+(?:(\w+)#)?(\w+)`)
 
 // rtIdsPattern matches the `@rtIds { … }` block; group 1 is the body between the
 // braces.
-var rtIdsPattern = regexp.MustCompile(`@rtIds\s*\{([^}]*)\}`)
+var rtIdsPattern = regexp.MustCompile(RtIdsTag + `\s*\{([^}]*)\}`)
 
 // rtIdsEntryPattern matches one `field: <ref>#<id>` (or `field: <id>`) entry
 // inside an @rtIds block. Group 1 is the dotted field path, group 3 the id.
