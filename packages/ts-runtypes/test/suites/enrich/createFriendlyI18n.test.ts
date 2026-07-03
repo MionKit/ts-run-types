@@ -1,6 +1,7 @@
 // Runtime behaviour of the FriendlyType i18n layer: plural-arm selection via
-// Intl.PluralRules on the violated bound, named Intl format tokens
-// (`$[val:number:currency]`), `resolveLocale` BCP-47 truncation, and
+// Intl.PluralRules on the violated bound, TYPE-DRIVEN `$[val]` rendering (a
+// `currency`-branded bound via the renderer's `currency` option, date-family
+// bounds via Intl.DateTimeFormat), `resolveLocale` BCP-47 truncation, and
 // `createFriendlyI18n`'s per-leaf fallback to the source map. Errors are
 // hand-built `RTValidationError[]` (no Go pipeline needed).
 
@@ -11,7 +12,6 @@ import {
   resolveLocale,
   type FriendlyType,
   type Translation,
-  type NamedFormats,
   type RTValidationError,
 } from 'ts-runtypes';
 
@@ -116,47 +116,73 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
   });
 });
 
-describe('named Intl format tokens', () => {
-  const formats: Record<string, NamedFormats> = {
-    en: {
-      number: {currency: {style: 'currency', currency: 'USD'}},
-      list: {or: {type: 'disjunction'}},
-    },
-    de: {
-      number: {currency: {style: 'currency', currency: 'EUR'}},
-    },
-  };
-
+describe('type-driven $[val] rendering', () => {
   const priceSource: FriendlyType<{price: number}> = {
     $label: '',
     $errors: {type: ''},
-    price: {$label: 'Price', $errors: {type: '', max: {other: 'must be at most $[val:number:currency]'}}},
+    price: {$label: 'Price', $errors: {type: '', max: {other: 'must be at most $[val]'}}},
   };
-  const maxError: RTValidationError[] = [
-    {path: ['price'], expected: 'number', format: {name: 'numberFormat', val: 100, formatPath: ['max']}},
+  // A `Currency`-branded bound: the error's format name is the discriminator.
+  const currencyMaxError: RTValidationError[] = [
+    {path: ['price'], expected: 'number', format: {name: 'currency', val: 100, formatPath: ['max']}},
+  ];
+  const plainNumberMaxError: RTValidationError[] = [
+    {path: ['price'], expected: 'number', format: {name: 'numberFormat', val: 1000.5, formatPath: ['max']}},
   ];
 
-  it('$[val:number:currency] formats via the active locale entry', () => {
-    const en = createFriendlyI18n(priceSource, {locale: 'en', translations: {}, formats});
-    expect(en.errors(maxError)[0].message).toBe('must be at most $100.00');
+  it('a currency bound renders with the app-supplied currency, per active locale', () => {
+    const en = createFriendlyI18n(priceSource, {locale: 'en', translations: {}, currency: 'USD'});
+    expect(en.errors(currencyMaxError)[0].message).toBe('must be at most $100.00');
 
     const de: Translation<{price: number}> = {
       $label: '',
       $errors: {type: ''},
-      price: {$label: 'Preis', $errors: {type: '', max: {other: 'höchstens $[val:number:currency]'}}},
+      price: {$label: 'Preis', $errors: {type: '', max: {other: 'höchstens $[val]'}}},
     };
-    const deRenderer = createFriendlyI18n(priceSource, {locale: 'de', translations: {de}, formats});
-    expect(deRenderer.errors(maxError)[0].message).toBe('höchstens 100,00 €');
+    const deRenderer = createFriendlyI18n(priceSource, {locale: 'de', translations: {de}, currency: 'EUR'});
+    expect(deRenderer.errors(currencyMaxError)[0].message).toBe('höchstens 100,00 €');
   });
 
-  it('an unknown format name (or kind) leaves the token verbatim', () => {
-    const src: FriendlyType<{price: number}> = {
+  it('no currency option → plain localized number, never a guessed symbol', () => {
+    const en = createFriendlyI18n(priceSource, {locale: 'en', translations: {}});
+    const message = en.errors(currencyMaxError)[0].message;
+    expect(message).toBe('must be at most 100');
+    expect(message).not.toContain('$100');
+  });
+
+  it('an invalid currency code degrades to a plain number — never throws', () => {
+    const renderer = createFriendlyI18n(priceSource, {locale: 'en', translations: {}, currency: 'NOT-A-CODE'});
+    expect(renderer.errors(currencyMaxError)[0].message).toBe('must be at most 100');
+  });
+
+  it('a {value} currency ref is re-read on every render', () => {
+    const currency = {value: 'USD'};
+    const renderer = createFriendlyI18n(priceSource, {locale: 'en', translations: {}, currency});
+    expect(renderer.errors(currencyMaxError)[0].message).toBe('must be at most $100.00');
+    currency.value = 'JPY';
+    expect(renderer.errors(currencyMaxError)[0].message).toBe('must be at most ¥100');
+  });
+
+  it('a non-currency number bound stays String(val) — no grouping surprises', () => {
+    const renderer = createFriendlyI18n(priceSource, {locale: 'en', translations: {}, currency: 'USD'});
+    expect(renderer.errors(plainNumberMaxError)[0].message).toBe('must be at most 1000.5');
+  });
+
+  it('a date-family bound renders as a localized date; a relative bound stays verbatim', () => {
+    const src: FriendlyType<{createdAt: Date}> = {
       $label: '',
       $errors: {type: ''},
-      price: {$label: '', $errors: {type: '', max: 'at most $[val:number:missing] or $[val:nope:x]'}},
+      createdAt: {$label: 'Created', $errors: {type: '', max: 'must be before $[val]'}},
     };
-    const renderer = createFriendlyI18n(src, {locale: 'en', translations: {}, formats});
-    expect(renderer.errors(maxError)[0].message).toBe('at most $[val:number:missing] or $[val:nope:x]');
+    const dateError = (bound: string): RTValidationError[] => [
+      {path: ['createdAt'], expected: 'date', format: {name: 'nativeDate', val: bound, formatPath: ['max']}},
+    ];
+    const renderer = createFriendlyI18n(src, {locale: 'en', translations: {}});
+    const formatted = renderer.errors(dateError('2026-06-15T12:00:00Z'))[0].message;
+    expect(formatted).toContain('2026');
+    expect(formatted).not.toContain('2026-06-15T12:00:00Z'); // rendered, not the raw ISO string
+    // A relative `now±P…` bound is not a parseable instant — verbatim beats wrong.
+    expect(renderer.errors(dateError('now-P1D'))[0].message).toBe('must be before now-P1D');
   });
 
   it('an unknown bare token stays verbatim; a literal colon in prose is untouched', () => {
@@ -166,16 +192,22 @@ describe('named Intl format tokens', () => {
       price: {$label: '', $errors: {type: '', max: 'ratio 3:1 and $[nonsense] with $[val]'}},
     };
     const renderer = createFriendly(src);
-    expect(renderer.errors(maxError)[0].message).toBe('ratio 3:1 and $[nonsense] with 100');
+    expect(renderer.errors(currencyMaxError)[0].message).toBe('ratio 3:1 and $[nonsense] with 100');
   });
 
-  it('plain createFriendly (no formats) leaves three-part tokens verbatim', () => {
+  it('a leftover colon-form token (removed syntax) stays verbatim', () => {
     const src: FriendlyType<{price: number}> = {
       $label: '',
       $errors: {type: ''},
       price: {$label: '', $errors: {type: '', max: 'at most $[val:number:currency]'}},
     };
-    expect(createFriendly(src).errors(maxError)[0].message).toBe('at most $[val:number:currency]');
+    expect(createFriendlyI18n(src, {locale: 'en', translations: {}, currency: 'USD'}).errors(currencyMaxError)[0].message).toBe(
+      'at most $[val:number:currency]'
+    );
+  });
+
+  it('plain createFriendly stays byte-stable: a currency bound renders String(val)', () => {
+    expect(createFriendly(priceSource).errors(currencyMaxError)[0].message).toBe('must be at most 100');
   });
 });
 

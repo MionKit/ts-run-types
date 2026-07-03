@@ -38,7 +38,7 @@ map involved.
   (`PluralTemplate`, `TemplateLeaf`, `PluralCategory`, `Translation<T>`)
   ([`friendlyType.ts`](../../../packages/ts-runtypes/src/enrich/friendlyType.ts)); the
   plural-aware `createFriendly<T>(map)` renderer plus `createFriendlyI18n`,
-  `resolveLocale` and `NamedFormats`
+  and `resolveLocale`
   ([`createFriendly.ts`](../../../packages/ts-runtypes/src/enrich/createFriendly.ts)) —
   all exported from `ts-runtypes`. The `gen` / `check` CLI (including `--translate`)
   scaffolds and validates the committed maps — see the `rt-enrich-types` skill.
@@ -95,10 +95,11 @@ Templates are plain strings with `$[…]` tokens the renderer substitutes:
 | `$[val]`    | the failed constraint's bound (`error.format.val`; e.g. `2`)        |
 | `$[path]`   | dotted path to the field (`profile.email`)                          |
 | `$[index]`  | array element index, for `$items` failures                         |
-| `$[val:kind:name]` | the bound routed through a named `Intl` format (also `$[index:…]`) — kinds: `number`, `date`, `relativeTime`, `list`; names come from a `NamedFormats` table |
+| _(type-driven)_ | `$[val]` renders by the bound's TYPE format on the i18n path: a `TF.Currency` bound via the renderer's `currency` option, date-family bounds via `Intl.DateTimeFormat` — no per-template syntax |
 
-Unknown `$[…]` tokens — and an unknown format kind/name in a three-part token — are left
-verbatim; a literal colon in prose (`ratio 3:1`) is never touched. `$[value]` (the actual
+Unknown `$[…]` tokens are left verbatim (including any leftover colon-form
+`$[val:kind:name]` token — that named-format syntax was removed; `check` flags it via
+FT005); a literal colon in prose (`ratio 3:1`) is never touched. `$[value]` (the actual
 received value) is out of scope for v1 — `RunTypeError` carries no value.
 
 ## Plural templates on count-bearing constraints
@@ -244,7 +245,7 @@ anything unfilled falls back to the source.
   the source plus `@rtI18n <locale> from '<rel-to-source-mirror>'`.
 - Scaffold with `ts-runtypes gen --translate <locale|all>`; reconcile with `--update`;
   strip orphan carcasses with `--prune`; gate completeness in CI with
-  `check --translate <locale|all>` (findings TR001–TR005). CLI + tsconfig `i18n`
+  `check --translate <locale|all>` (findings TR001–TR004). CLI + tsconfig `i18n`
   reference: the `rt-enrich-types` skill.
 - The scaffold is the source tree with every string leaf and plural arm as an `@todo`
   blank (`''`) — it NEVER copies source text as if translated. Plural objects are
@@ -280,7 +281,7 @@ import {pl_friendlyUser} from 'runtypes/generated/i18n/pl/models/user';
 const friendly = createFriendlyI18n(friendlyUser, {
   locale: currentLocale,      // string | {value: string} — a {value} ref (e.g. a Vue Ref)
   translations: {es: es_friendlyUser, pl: pl_friendlyUser},
-  formats: appFormats,        // optional Record<localeTag, NamedFormats> for $[val:kind:name]
+  currency: 'EUR',            // optional ISO 4217 code (string or {value} ref) for TF.Currency bounds
   sourceLocale: 'en',         // optional (default 'en'): plural rules when rendering from the SOURCE map
 });
 
@@ -301,11 +302,16 @@ friendly.errors(getUserErrors(badInput));   // arm + template picked per the act
   through as a WHOLE unit (never mixes a target arm with a source arm). Function-form
   `$errors` is opaque: the translation's arrow wins wholesale; a translation node
   without `$errors` falls to the source's arrow.
-- Named `Intl` format tokens (`$[val:number:currency]`, `$[index:…]`): kinds `number`,
-  `date`, `relativeTime` (its `NamedFormats` entry carries the required `unit` alongside
-  the `Intl` options), `list` (an array-valued bound formats as a list). Unknown
-  token/kind/name stays verbatim. `Intl` instances are memoized (`PluralRules` per
-  locale; formatters per `NamedFormats` table).
+- Type-driven `$[val]` rendering: the failed format's NAME (on every error) says what
+  the bound IS. A `currency`-branded bound (`TF.Currency<P>`) renders via
+  `Intl.NumberFormat(locale, {style: 'currency', currency})` with the app-supplied
+  `currency` option (omitted → plain localized number, never a guessed symbol; which
+  currency a value is in is app DATA, deliberately not a type param); a date-family
+  bound renders via `Intl.DateTimeFormat(locale)` (an unparseable relative bound like
+  `now-P1D` stays verbatim); everything else stays `String(val)`. Unknown tokens stay
+  verbatim. `Intl` instances are memoized (`PluralRules` per locale; bound formatters
+  per locale + currency / style). Plain `createFriendly` stays byte-stable
+  (`String(val)` everywhere).
 
 ## End-to-end example
 

@@ -33,7 +33,7 @@ marked `@todo`; your job is to fill those gaps with believable, valid content.
    or prune the per-locale translation files of the friendly maps (see **Translations**
    below).
 8. **`check --translate <locale|all>`** — the translation completeness gate for CI
-   (TR001–TR005; see **Translations** below).
+   (TR001–TR004; see **Translations** below).
 
 Never call an LLM inside a build — enrichment authoring is an explicit, out-of-band step
 that produces a reviewable, committed diff.
@@ -140,8 +140,7 @@ Without `<src.ts>` the verbs walk every mirror under `<enrichDir>/friendly/`.
   references are renamed in place).
 - **`check --translate` findings** — TR001 missing translation file; TR002 unfilled
   `@todo` blanks; TR003 out of date vs the source mirror; TR004 orphan carcasses awaiting
-  review/prune; TR005 a `$[val:kind:name]` format name missing from the configured
-  formats module. All Warnings (exit 0) unless tsconfig `i18n.strict: true` flips them to
+  review/prune. All Warnings (exit 0) unless tsconfig `i18n.strict: true` flips them to
   Errors (exit 1); the runtime is always lenient regardless.
 
 The `i18n` block lives on the `ts-runtypes` tsconfig plugin entry (dormant by default —
@@ -153,13 +152,13 @@ zero change when absent):
     "sourceLocale": "en",              // language the source FriendlyType maps are written in
     "dir": "runtypes/generated/i18n",  // translation subtree root (default <enrichDir>/i18n)
     "locales": ["es", "pl", "pt-BR"],  // target locales (the source locale is NOT listed)
-    "formats": "runtypes/i18n.formats.ts", // module default-exporting Record<locale, NamedFormats>
     "strict": false                    // check --translate gate severity (CI)
   } }
 ```
 
 Runtime rendering — `createFriendlyI18n`, `resolveLocale` matching, per-leaf fallback,
-named `Intl` formats — is covered in the **`runtypes-friendly-type`** skill.
+type-driven `$[val]` rendering (Currency / date bounds) — is covered in the
+**`runtypes-friendly-type`** skill.
 
 ## `MockData<T>` — realistic sample data
 

@@ -25,7 +25,7 @@ import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 import type {LeafType, BrandArg} from '../runtypes/builderTypes.ts';
 import type {StringParams, StringParamsValueFirst} from './string/stringFormats.ts';
-import type {NumberParams} from './numberFormats.ts';
+import type {NumberParams, Currency} from './numberFormats.ts';
 import type {BigIntParams} from './bigintFormats.ts';
 import type {NativeDateParams} from './datetime/dateFormats.ts';
 
@@ -74,6 +74,31 @@ export function number<const P extends NumberParams, const B extends string>(
   id?: InjectRunTypeId<LeafType<'numberFormat', P, B>>
 ): RunType<LeafType<'numberFormat', P, B>>;
 export function number(
+  formatParamsOrId?: NumberParams | InjectRunTypeId<number>,
+  brandOrId?: BrandArg<string> | InjectRunTypeId<number>,
+  id?: InjectRunTypeId<number>
+): RunType<number> {
+  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'number', formatParams});
+}
+
+/** A currency (monetary amount) field builder. `currency()` → transparent
+ *  `RunType<Currency>`; `currency({min: 0})` → `RunType<Currency<P>>`;
+ *  `currency({min: 0}, brand('Price'))` → nominal `RunType<Currency<P, 'Price'>>`.
+ *  Unlike `number()`, the no-params call STILL brands (the semantic tag is the
+ *  format's whole point). The currency UNIT is never a param — pass it to the
+ *  renderer (`createFriendlyI18n`'s `currency` option) instead. **/
+export function currency(id?: InjectRunTypeId<Currency>): RunType<Currency>;
+export function currency<const P extends NumberParams>(
+  formatParams: CompTimeArgs<P>,
+  id?: InjectRunTypeId<LeafType<'currency', P>>
+): RunType<LeafType<'currency', P>>;
+export function currency<const P extends NumberParams, const B extends string>(
+  formatParams: CompTimeArgs<P>,
+  brandTag: BrandArg<B>,
+  id?: InjectRunTypeId<LeafType<'currency', P, B>>
+): RunType<LeafType<'currency', P, B>>;
+export function currency(
   formatParamsOrId?: NumberParams | InjectRunTypeId<number>,
   brandOrId?: BrandArg<string> | InjectRunTypeId<number>,
   id?: InjectRunTypeId<number>

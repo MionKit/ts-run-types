@@ -106,17 +106,12 @@ var friendlyPlaceholders = map[string]bool{
 	"index": true,
 }
 
-// placeholderPattern matches `$[name]` and `$[binding:kind:formatName]`
-// placeholders in a friendly template (the closed token set the renderer
-// substitutes; the three-part form routes through a named Intl format).
-var placeholderPattern = regexp.MustCompile(`\$\[(\w+)(?::(\w+):(\w+))?\]`)
-
-// formatTokenBindings / formatTokenKinds are the valid first two parts of a
-// three-part `$[binding:kind:name]` token. The NAME part is validated against
-// the project's formats module by `check` when one is configured.
-var formatTokenBindings = map[string]bool{"val": true, "index": true}
-
-var formatTokenKinds = map[string]bool{"number": true, "date": true, "relativeTime": true, "list": true}
+// placeholderPattern matches `$[name]` placeholders in a friendly template —
+// the closed token set the renderer substitutes. The colon form still parses
+// (second group non-empty) ONLY so checkPlaceholders can flag it: the old
+// `$[val:kind:name]` named-format tokens were replaced by type-driven `$[val]`
+// rendering (the bound's own type format decides currency/date formatting).
+var placeholderPattern = regexp.MustCompile(`\$\[(\w+)((?::\w+)*)\]`)
 
 // CheckFriendly walks an authored FriendlyType<T> map (literal) paired with the
 // RunType T resolves to, collecting Findings. resolve follows KindRef sentinels
@@ -307,27 +302,18 @@ func allowedErrorKeys(fieldNode *protocol.RunType) map[string]bool {
 }
 
 // checkPlaceholders emits FT005 for every `$[name]` in template whose name is
-// not one of the recognised placeholders, and for a three-part
-// `$[binding:kind:name]` token whose binding or kind is invalid.
+// not one of the recognised placeholders, and for any leftover colon-form
+// token (the removed `$[val:kind:name]` named-format syntax).
 func checkPlaceholders(findings *[]Finding, template, path string) {
 	for _, match := range placeholderPattern.FindAllStringSubmatch(template, -1) {
-		name, kind := match[1], match[2]
-		if kind != "" {
-			if !formatTokenBindings[name] {
-				*findings = append(*findings, Finding{
-					Code:     "FT005",
-					Severity: Warning,
-					Path:     path,
-					Message:  "format token '$[" + name + ":" + kind + ":" + match[3] + "]' must bind val or index",
-				})
-			} else if !formatTokenKinds[kind] {
-				*findings = append(*findings, Finding{
-					Code:     "FT005",
-					Severity: Warning,
-					Path:     path,
-					Message:  "unknown format kind '" + kind + "' (expected number, date, relativeTime, or list)",
-				})
-			}
+		name, colonTail := match[1], match[2]
+		if colonTail != "" {
+			*findings = append(*findings, Finding{
+				Code:     "FT005",
+				Severity: Warning,
+				Path:     path,
+				Message:  "format token '$[" + name + colonTail + "]' is no longer supported — use plain $[val]; the bound renders by its type format (currency, date)",
+			})
 			continue
 		}
 		if friendlyPlaceholders[name] {

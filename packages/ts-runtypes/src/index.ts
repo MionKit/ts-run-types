@@ -45,7 +45,8 @@ export {type MockData, type MockNode} from './enrich/mockData.ts';
 // `createFriendlyI18n` is the locale-selecting wrapper over the same walk: the
 // source map is the source language + terminal fallback, translations are
 // same-tree per-locale consts, plurals select via Intl.PluralRules, and
-// `$[val:number:currency]`-style tokens route through named Intl formats.
+// `$[val]` renders type-driven (a Currency-branded bound via the app-supplied
+// `currency` option, date-family bounds via Intl.DateTimeFormat).
 export {
   createFriendly,
   createFriendlyI18n,
@@ -53,7 +54,6 @@ export {
   type FriendlyMessage,
   type FriendlyRenderer,
   type FriendlyI18nOptions,
-  type NamedFormats,
 } from './enrich/createFriendly.ts';
 
 // Run-type registration is per-entry now: each marker call site imports its

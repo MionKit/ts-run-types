@@ -20,9 +20,7 @@ func translateFixture(t *testing.T, strict bool) (enrichConfig, string) {
 	}
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"),
 		`{ "compilerOptions": { "rootDir": "src", "plugins": [{ "name": "ts-runtypes",
-      "i18n": { "sourceLocale": "en", "locales": ["pl"], "formats": "i18n.formats.ts", "strict": `+strictJSON+` } }] } }`)
-	writeTestFile(t, filepath.Join(dir, "i18n.formats.ts"),
-		"export default {\n  pl: {number: {currency: {style: 'currency', currency: 'PLN'}}},\n};\n")
+      "i18n": { "sourceLocale": "en", "locales": ["pl"], "strict": `+strictJSON+` } }] } }`)
 	source := filepath.Join(dir, "src", "models.ts")
 	writeTestFile(t, source, "export interface User { name: string }\n")
 	sourceMirror := filepath.Join(dir, "runtypes", "generated", "friendly", "models.ts")
@@ -89,28 +87,27 @@ func TestBuildTranslateSpec_EndToEnd(t *testing.T) {
 }
 
 // TestCheckTranslationFile_Findings covers the completeness gate's findings:
-// TR001 missing file, TR002 blanks, TR004 carcasses, TR005 unknown format
-// name — and the strict severity flip.
+// TR001 missing file, TR002 blanks, TR004 carcasses — and the strict severity
+// flip.
 func TestCheckTranslationFile_Findings(t *testing.T) {
 	config, sourceMirror := translateFixture(t, false)
 	translationPath := config.translationPathFor("pl", sourceMirror)
-	formatsText := readFormatsModule(config)
 
 	// Missing file → TR001 (warning when not strict).
-	findings := checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning, formatsText)
+	findings := checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning)
 	if len(findings) != 1 || findings[0].Code != "TR001" || findings[0].Severity != enrich.Warning {
 		t.Fatalf("want one TR001 warning; got %+v", findings)
 	}
 
-	// Scaffold, then poke in an orphan carcass + a bad format token.
+	// Scaffold, then poke in an orphan carcass beside a filled leaf.
 	spec, _ := buildTranslateSpec(config, "pl", sourceMirror, translationPath)
 	writeMirrorFile(spec)
 	raw, _ := os.ReadFile(translationPath)
 	poked := strings.Replace(string(raw), "type: ''",
-		"type: 'a $[val:number:missing] b', /* @rtOrphanChild gone: 'x' */", 1)
+		"type: 'a b', /* @rtOrphanChild gone: 'x' */", 1)
 	writeTestFile(t, translationPath, poked)
 
-	findings = checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning, formatsText)
+	findings = checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning)
 	codes := map[string]int{}
 	for _, finding := range findings {
 		codes[finding.Code]++
@@ -121,16 +118,8 @@ func TestCheckTranslationFile_Findings(t *testing.T) {
 	if codes["TR004"] != 1 {
 		t.Errorf("want TR004 for the carcass; got %+v", findings)
 	}
-	if codes["TR005"] != 1 {
-		t.Errorf("want TR005 for the missing format name; got %+v", findings)
-	}
 	if codes["TR001"] != 0 {
 		t.Errorf("file exists — no TR001; got %+v", findings)
-	}
-
-	// A declared format name produces no TR005.
-	if missing := missingFormatNames("x $[val:number:currency] y", formatsText); len(missing) != 0 {
-		t.Errorf("currency is declared; missingFormatNames = %v", missing)
 	}
 }
 
@@ -143,7 +132,7 @@ func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 	writeMirrorFile(spec)
 
 	// In sync: no TR003.
-	findings := checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning, "")
+	findings := checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning)
 	for _, finding := range findings {
 		if finding.Code == "TR003" {
 			t.Fatalf("fresh scaffold must not be out of date: %+v", findings)
@@ -155,7 +144,7 @@ func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 	grown := strings.Replace(string(raw), "type: 'must be text',", "type: 'must be text', pattern: 'letters',", 1)
 	writeTestFile(t, sourceMirror, grown)
 
-	findings = checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning, "")
+	findings = checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning)
 	sawOutOfDate := false
 	for _, finding := range findings {
 		if finding.Code == "TR003" {
@@ -175,7 +164,7 @@ func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 	if !strings.Contains(string(updated), "pattern: ''") {
 		t.Errorf("added constraint not scaffolded:\n%s", updated)
 	}
-	findings = checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning, "")
+	findings = checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning)
 	for _, finding := range findings {
 		if finding.Code == "TR003" {
 			t.Errorf("updated translation must be in sync; got %+v", findings)

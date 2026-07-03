@@ -241,14 +241,18 @@ both legal in single-locale maps too:
   legal on a count-bearing constraint; `$label` is always a plain string.
   Type-side: `TemplateLeaf = string | PluralTemplate` (plus `PluralCategory` and
   the `Translation<T>` intent alias), exported from `ts-runtypes`.
-- **Named `Intl` format tokens.** The three-part form `$[binding:kind:name]`
-  (`$[val:number:currency]`, `$[index:…]`) formats the bound through a named entry
-  of a `NamedFormats` table (`createFriendlyI18n`'s `formats` option): binding is
-  `val` or `index`; kind is `number`, `date`, `relativeTime` (its entry carries
-  the required `unit` alongside the `Intl` options), or `list` (an array-valued
-  bound formats as a list). An unknown token/kind/name stays verbatim, a literal
-  colon in prose (`ratio 3:1`) is never touched, and `Intl` instances are memoized
-  (`PluralRules` per locale; formatters per `NamedFormats` table).
+- **Type-driven `$[val]` rendering.** On the `createFriendlyI18n` path the failed
+  format's NAME (already on every `TypeFormatError`) says what the bound IS: a
+  `currency`-branded bound (the `TF.Currency<P>` number format) renders via
+  `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
+  app-supplied `currency` renderer option (a string or `{value}` ref; omitted →
+  plain localized number, never a guessed symbol); a date-family bound renders
+  via `Intl.DateTimeFormat(locale)` (an unparseable relative bound like
+  `now-P1D` stays verbatim); everything else stays `String(val)`. There is no
+  per-template format syntax — the type is the single source of truth. An
+  unknown token stays verbatim, a literal colon in prose (`ratio 3:1`) is never
+  touched, and `Intl` instances are memoized (`PluralRules` per locale; bound
+  formatters per locale + currency / style).
 
 `$[value]` (the *actual received value*) is out of scope for v1: the error carries
 no value (`RTValidationError` is `{path, expected, format?}`), so it would require
@@ -333,7 +337,7 @@ friendly.label('profile.email');             // → 'Email'
 ```
 
 Localized rendering wraps the same walk: `createFriendlyI18n<T>(source, { locale,
-translations, formats? })` returns the identical `FriendlyRenderer`, resolving the
+translations, currency? })` returns the identical `FriendlyRenderer`, resolving the
 locale by naive BCP-47 truncation and falling back **per leaf** to the source map
 (the source `FriendlyType` IS the source language — a partial translation never
 throws). See [Translations (i18n)](#translations-i18n) and
@@ -437,7 +441,7 @@ trigger differs (CLI vs build scan).
 | --------- | -------- | ------ | ---------------------------------------------------------------------------- |
 | **FT002** | Error    | ✅ `check` | key is not a field of `T` — stale (field renamed/removed)              |
 | **FT003** | Warning  | ✅ `check` | `$errors` key isn't a constraint this field's format declares (Go has `FormatAnnotation.Params`, so the exact set is known) |
-| **FT005** | Warning  | ✅ `check` | unknown `$[…]` placeholder for this constraint/context — also covers each plural ARM's placeholders and the three-part `$[binding:kind:name]` format tokens (binding must be `val`/`index`, kind must be `number`/`date`/`relativeTime`/`list`) |
+| **FT005** | Warning  | ✅ `check` | unknown `$[…]` placeholder for this constraint/context — covers each plural ARM's placeholders; any leftover colon-form `$[val:kind:name]` token (the REMOVED named-format syntax) is flagged with a pointer to plain `$[val]` |
 | **FT006** | Error    | ✅ `check` | plural template missing the mandatory `other` arm (the render backstop) |
 | **FT007** | Warning  | ✅ `check` | plural arm key is not a CLDR cardinal category (`zero`/`one`/`two`/`few`/`many`/`other`) |
 | **FT008** | Warning  | ✅ `check` | plural object on a non-count-bearing constraint — dead arms, only `other` ever renders; use a plain string |
@@ -475,7 +479,7 @@ CLI (below) rather than scraping editor output.
 | `ts-runtypes describe <file>#<Type> --format prompt\|json` | Emit the type's shape (names, kinds, optionality, formats, literals — all already in the `RunType` struct) as LLM prompt context. |
 | `ts-runtypes gen <file> [--mock] [--friendly] [--check] [--update] [--prune]` | Generate / refresh the type's mirror file under `enrichDir`. `--check` reports breadcrumb drift; `--update` reconciles an existing mirror value-preservingly (property merge + rename + orphan); `--prune` strips `@rtOrphan`/`@rtOrphanChild` carcasses (the only destructive op). See `gen` semantics below. |
 | `ts-runtypes gen --translate <locale>` (or `all`) `[--update] [--prune] [<src.ts>]` | Scaffold (create-only) / reconcile / prune a locale's `Translation<T>` mirrors off the friendly source mirror; `all` fans out over tsconfig `i18n.locales`; without `<src.ts>` it walks every mirror under `<enrichDir>/friendly/`. See [Translations (i18n)](#translations-i18n). |
-| `ts-runtypes check --translate <locale>` (or `all`) | Translation completeness gate for CI (**TR001–TR005**) — Warnings, promoted to Errors by tsconfig `i18n.strict`. |
+| `ts-runtypes check --translate <locale>` (or `all`) | Translation completeness gate for CI (**TR001–TR004**) — Warnings, promoted to Errors by tsconfig `i18n.strict`. |
 
 All three are **implemented** as out-of-band CLI modes of the Go binary. Validation
 runs via the `check` verb (CI / agents); surfacing the same FT/MD diagnostics
@@ -878,10 +882,8 @@ Without `<src.ts>` the verbs walk every mirror under `<enrichDir>/friendly/`.
 - **`check --translate` findings:** **TR001** missing translation file, **TR002**
   unfilled `@todo` blanks, **TR003** out of date vs the source mirror (a
   reconcile would change it), **TR004** orphan carcasses awaiting review /
-  `--prune`, **TR005** a `$[val:kind:name]` format name missing from the
-  configured formats module. All Warnings (exit 0) unless tsconfig
-  `i18n.strict: true` promotes them to Errors (exit 1); the RUNTIME is always
-  lenient regardless.
+  `--prune`. All Warnings (exit 0) unless tsconfig `i18n.strict: true` promotes
+  them to Errors (exit 1); the RUNTIME is always lenient regardless.
 - **Config** rides the same tsconfig plugin entry (zero change when absent):
 
   ```jsonc
@@ -889,12 +891,11 @@ Without `<src.ts>` the verbs walk every mirror under `<enrichDir>/friendly/`.
     "sourceLocale": "en",              // language the source FriendlyType maps are written in
     "dir": "runtypes/generated/i18n",  // translation subtree root (default <enrichDir>/i18n)
     "locales": ["es", "pl", "pt-BR"],  // target locales (the source locale is NOT listed)
-    "formats": "runtypes/i18n.formats.ts", // module default-exporting Record<locale, NamedFormats>
     "strict": false                    // check --translate gate severity (CI)
   }
   ```
 
-Runtime: `createFriendlyI18n<T>(source, { locale, translations, formats?,
+Runtime: `createFriendlyI18n<T>(source, { locale, translations, currency?,
 sourceLocale? })` returns the same `FriendlyRenderer` as `createFriendly`. The
 `locale` may be a `{value}` ref (re-read on EVERY render — the renderer itself is
 not reactivity-tracked, so call `errors()` per render); `resolveLocale` is naive

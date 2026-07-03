@@ -86,6 +86,14 @@ func numberConditions(params map[string]any, vλl string) []string {
 // with the literal `true`; the range/multipleOf params tag it with the
 // bound.
 func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
+	return numberValidationErrorStatements(annotation, numberFormatName, vλl, pathExpr, errorsArr)
+}
+
+// numberValidationErrorStatements is the shared validationErrors body for the
+// number-family formats (numberFormat, currency): one `if (failed) <push>`
+// statement per active predicate, tagged with the CALLER's format name so the
+// runtime TypeFormatError carries the precise brand.
+func numberValidationErrorStatements(annotation *protocol.FormatAnnotation, formatName, vλl, pathExpr, errorsArr string) string {
 	if annotation == nil {
 		return ""
 	}
@@ -93,30 +101,30 @@ func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Format
 	var statements []string
 	if value, ok := formats.ReadBoolParam(params, "integer"); ok && value {
 		statements = append(statements,
-			"if (!Number.isInteger("+vλl+")) "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "integer", "true"))
+			"if (!Number.isInteger("+vλl+")) "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "integer", "true"))
 	} else if value, ok := formats.ReadBoolParam(params, "float"); ok && value {
 		statements = append(statements,
-			"if (Number.isInteger("+vλl+")) "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "float", "true"))
+			"if (Number.isInteger("+vλl+")) "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "float", "true"))
 	}
 	if value, ok := formats.ReadNumberParam(params, "max"); ok {
 		statements = append(statements,
-			"if ("+vλl+" > "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "max", formats.FormatNumber(value)))
+			"if ("+vλl+" > "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "max", formats.FormatNumber(value)))
 	}
 	if value, ok := formats.ReadNumberParam(params, "min"); ok {
 		statements = append(statements,
-			"if ("+vλl+" < "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "min", formats.FormatNumber(value)))
+			"if ("+vλl+" < "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "min", formats.FormatNumber(value)))
 	}
 	if value, ok := formats.ReadNumberParam(params, "lt"); ok {
 		statements = append(statements,
-			"if ("+vλl+" >= "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "lt", formats.FormatNumber(value)))
+			"if ("+vλl+" >= "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "lt", formats.FormatNumber(value)))
 	}
 	if value, ok := formats.ReadNumberParam(params, "gt"); ok {
 		statements = append(statements,
-			"if ("+vλl+" <= "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "gt", formats.FormatNumber(value)))
+			"if ("+vλl+" <= "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "gt", formats.FormatNumber(value)))
 	}
 	if value, ok := formats.ReadNumberParam(params, "multipleOf"); ok {
 		statements = append(statements,
-			"if (("+vλl+" % "+formats.FormatNumber(value)+" !== 0)) "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "multipleOf", formats.FormatNumber(value)))
+			"if (("+vλl+" % "+formats.FormatNumber(value)+" !== 0)) "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "multipleOf", formats.FormatNumber(value)))
 	}
 	return strings.Join(statements, ";")
 }
@@ -267,6 +275,13 @@ func integerType(params map[string]any) integerKind {
 // spec-faithful: a `0` bound is falsy per the reference and so escapes these
 // checks — replicated here via numberTruthy for byte-for-byte parity.
 func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+	return validateNumberParams(annotation, "NumberFormat")
+}
+
+// validateNumberParams is the shared build-time param validation for the
+// number-family formats; `label` prefixes each message with the caller's
+// user-facing format name (NumberFormat / CurrencyFormat).
+func validateNumberParams(annotation *protocol.FormatAnnotation, label string) []string {
 	if annotation == nil {
 		return nil
 	}
@@ -276,7 +291,7 @@ func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 	integer, _ := formats.ReadBoolParam(params, "integer")
 	float, _ := formats.ReadBoolParam(params, "float")
 	if integer && float {
-		errs = append(errs, "NumberFormat: cannot specify both `integer` and `float`")
+		errs = append(errs, label+": cannot specify both `integer` and `float`")
 	}
 
 	// A lower bound is EITHER inclusive (`min`) OR exclusive (`gt`), never
@@ -284,31 +299,31 @@ func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 	// always redundant (one silently dominates). Same for the upper bound
 	// (`max`/`lt`). Uniform across number / bigint / date families.
 	if numberTruthy(params, "min")+numberTruthy(params, "gt") > 1 {
-		errs = append(errs, "NumberFormat: cannot specify more than one of `min` or `gt`")
+		errs = append(errs, label+": cannot specify more than one of `min` or `gt`")
 	}
 	if numberTruthy(params, "max")+numberTruthy(params, "lt") > 1 {
-		errs = append(errs, "NumberFormat: cannot specify more than one of `max` or `lt`")
+		errs = append(errs, label+": cannot specify more than one of `max` or `lt`")
 	}
 
 	min, hasMin := formats.ReadNumberParam(params, "min")
 	max, hasMax := formats.ReadNumberParam(params, "max")
 	if hasMin && min != 0 && hasMax && max != 0 && min > max {
-		errs = append(errs, "NumberFormat: `min` cannot be greater than `max`")
+		errs = append(errs, label+": `min` cannot be greater than `max`")
 	}
 	gt, hasGt := formats.ReadNumberParam(params, "gt")
 	lt, hasLt := formats.ReadNumberParam(params, "lt")
 	if hasGt && gt != 0 && hasLt && lt != 0 && gt >= lt {
-		errs = append(errs, "NumberFormat: `gt` cannot be greater than or equal to `lt`")
+		errs = append(errs, label+": `gt` cannot be greater than or equal to `lt`")
 	}
 
 	if multipleOf, ok := formats.ReadNumberParam(params, "multipleOf"); ok {
 		if multipleOf <= 0 {
-			errs = append(errs, "NumberFormat: `multipleOf` must be greater than 0")
+			errs = append(errs, label+": `multipleOf` must be greater than 0")
 		} else if multipleOf != float64(int64(multipleOf)) {
-			errs = append(errs, "NumberFormat: `multipleOf` must be an integer to avoid floating-point precision issues")
+			errs = append(errs, label+": `multipleOf` must be an integer to avoid floating-point precision issues")
 		}
 		if float {
-			errs = append(errs, "NumberFormat: `multipleOf` cannot be used with the `float` constraint")
+			errs = append(errs, label+": `multipleOf` cannot be used with the `float` constraint")
 		}
 	}
 	return errs

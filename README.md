@@ -167,7 +167,7 @@ bin/ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--update] [--pru
 bin/ts-runtypes check <file.ts> [--json]                             # FT/MD diagnostics; CI gate
 ```
 
-FriendlyType maps also translate per locale: `gen --translate <locale|all> [--update|--prune]` scaffolds and reconciles blank-leaf `Translation<T>` mirrors under `<enrichDir>/i18n/<locale>/` (the map you already wrote is the source language; unfilled leaves fall back to it), and `check --translate <locale|all>` is the CI completeness gate — Warnings, or Errors with tsconfig `i18n.strict`. At runtime `createFriendlyI18n(source, {locale, translations})` renders the localized labels/messages. Full design: [docs/done/friendly-type-i18n.md](docs/done/friendly-type-i18n.md).
+FriendlyType maps also translate per locale: `gen --translate <locale|all> [--update|--prune]` scaffolds and reconciles blank-leaf `Translation<T>` mirrors under `<enrichDir>/i18n/<locale>/` (the map you already wrote is the source language; unfilled leaves fall back to it), and `check --translate <locale|all>` is the CI completeness gate — Warnings, or Errors with tsconfig `i18n.strict`. At runtime `createFriendlyI18n(source, {locale, translations, currency?})` renders the localized labels/messages; `$[val]` bounds render type-driven — a `TF.Currency` field's bound via the app-supplied ISO code, date-family bounds via `Intl.DateTimeFormat`. Full design: [docs/done/friendly-type-i18n.md](docs/done/friendly-type-i18n.md).
 
 ### Marker family
 

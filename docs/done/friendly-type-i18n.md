@@ -24,19 +24,18 @@
 >    renderer needs it to select source-map plurals with the source language's
 >    rules; plain `createFriendly` uses `'en'` (deterministic, matching the
 >    tsconfig default) rather than the host locale.
-> 4. **The formatter cache is scoped per `NamedFormats` table** (a WeakMap of
->    per-table maps), not one global map — two renderers with different tables
->    must never cross-read a same-named format.
-> 5. **A `relativeTime` named format carries its `unit` in the options entry**
->    (`{unit: 'day', numeric: 'auto'}`) — the token has no unit slot.
+> 4. ~~The formatter cache is scoped per `NamedFormats` table~~ — superseded by
+>    deviation #10 (named formats removed entirely).
+> 5. ~~A `relativeTime` named format carries its `unit` in the options entry~~ —
+>    superseded by deviation #10 (the `relativeTime` kind was dropped).
 > 6. **A plain string stays legal on a count-bearing constraint** (the plural
 >    kind is a scaffold default, not a checker mandate); a hand-diverged
 >    string↔object kind is KEPT by the merge (the translator owns their leaf).
 >    Checker codes as shipped: FT006 (plural missing `other`, Error), FT007
 >    (non-CLDR arm, Warning), FT008 (plural on a non-count-bearing constraint,
->    Warning); `check --translate` reports TR001–TR005 (missing file / @todo
->    blanks / out-of-date / carcasses / unknown format name), Warning-severity
->    unless tsconfig `i18n.strict`.
+>    Warning); `check --translate` reports TR001–TR004 (missing file / @todo
+>    blanks / out-of-date / carcasses; TR005 died with the formats module —
+>    deviation #10), Warning-severity unless tsconfig `i18n.strict`.
 > 7. **`i18n.dir` resolves under the PROJECT ROOT** (like `enrichDir`),
 >    defaulting to `<enrichDir>/i18n` — the proposal's `"generated/i18n"`
 >    example contradicted its own "under the enrich root" note.
@@ -45,6 +44,22 @@
 >    cross-locale rename-carry surfaced; fixed for both modes.
 > 9. The built-in CLDR table ships `pl` too, and the `es`/`pt`/`fr` rows
 >    include `many` (modern CLDR, verified against ICU).
+> 10. **The named-format token layer was REPLACED before merge** (post-review
+>     product decision, superseding §6 and deviations #4–#5): the three-part
+>     `$[val:kind:name]` tokens, `NamedFormats`, the renderer `formats` option,
+>     tsconfig `i18n.formats` and TR005 are all gone. `$[val]` renders
+>     **type-driven** instead — the failed format's NAME on the error says what
+>     the bound IS: the new `TF.Currency<P>` number format (same params surface
+>     as `TF.Number`; own emitter name `currency`) renders via
+>     `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
+>     app-supplied `currency` renderer option (a string or `{value}` ref —
+>     which currency a value is in is app DATA, never a type param; omitted →
+>     plain localized number, no guessed symbol); date-family bounds render via
+>     `Intl.DateTimeFormat(locale)` (unparseable relative bounds stay
+>     verbatim); everything else stays `String(val)`. Plain `createFriendly`
+>     stays byte-stable. FT005 flags leftover colon-form tokens with a
+>     migration pointer. `relativeTime` / `list` kinds were dropped — nothing
+>     in the type system expresses them.
 >
 > Product of a design study (4 deep repo readers + 5 i18n-ecosystem researchers —
 > vue-i18n, i18next, ICU/MF2, the platform `Intl` API, and the type-safe/compile-time
@@ -101,8 +116,8 @@ mandatory `other` arm as backstop.
 | **File layout** | One committed file per (source file, locale) under a **path-segment** subtree: `runtypes/generated/i18n/<locale>/<rel>.ts`, const `<Locale>_friendly<Name>: Translation<Name>`. |
 | **Plurals** | **Generator-owned, constraint-classified.** Objects on count-bearing constraints (`minLength`/`maxLength`/`min`/`max`/`lt`/`gt`), strings elsewhere. Arms = the file-locale's CLDR categories from a built-in table (11 languages shipped; unknown → all six). Runtime selects via `Intl.PluralRules`; `other` mandatory + backstop. |
 | **Leaf type** | `TemplateLeaf = string \| PluralTemplate` (permissive in TS; the Go checker validates plural placement + arms — FT006/FT007/FT008 as shipped; a plain string stays legal anywhere, deviation #6). Language-agnostic. |
-| **Runtime** | `createFriendlyI18n(source, { locale, translations, formats?, sourceLocale? })` — thin locale selector over the one pure `createFriendly` walk; per-leaf fallback to source. `resolveLocale()` exported standalone. |
-| **Interpolation** | Keep the **closed `$[…]` DSL**. Add `$[val:number:currency]`-style tokens naming `Intl` formats declared once in config. **No ICU/MF2.** |
+| **Runtime** | `createFriendlyI18n(source, { locale, translations, currency?, sourceLocale? })` — thin locale selector over the one pure `createFriendly` walk; per-leaf fallback to source. `resolveLocale()` exported standalone. |
+| **Interpolation** | Keep the **closed `$[…]` DSL** — `$[val]` only, rendered TYPE-DRIVEN (deviation #10: `TF.Currency` bounds via the renderer `currency` option; date-family bounds via `Intl.DateTimeFormat`). **No ICU/MF2, no per-template format syntax.** |
 | **Count source** | Always the **violated bound** (`$[val]`, cardinal). Because objects appear only on count-bearing constraints, there is no cardinal-vs-ordinal ambiguity. |
 | **Reconcile** | Reuse the generic merge/rename/orphan/splice core; swap the type-bound outer shell (desired side = source-const bytes; orphan oracle = source mirror). **One genuinely-new capability:** descend into `$errors` (today opaque) and into plural objects (locale-owned arms). |
 | **Fallback** | Source `FriendlyType` is the terminal fallback; runtime **always lenient**; strictness lives in `check --translate`. |
@@ -460,7 +475,7 @@ export function resolveLocale<T>(
 export interface FriendlyI18nOptions<T> {
   locale: string | { readonly value: string };            // string OR any { value } ref (e.g. a Vue Ref) — structural read, no Vue dep
   translations: Partial<Record<string, FriendlyType<T>>>; // locale tag -> committed translation const
-  formats?: Record<string, NamedFormats>;                 // per-locale named Intl formats (§6)
+  currency?: string | { readonly value: string };         // ISO 4217 code for Currency-branded bounds (deviation #10) — app data, re-read per render
   sourceLocale?: string;                                   // language of the SOURCE map (default 'en') — its Intl.PluralRules select source-map plurals
   strict?: boolean;                                        // reserved; runtime stays lenient — strictness lives in `check`
 }
@@ -487,34 +502,32 @@ non-finite count.
 
 ### 6. Interpolation + `Intl` formatting — named formats, closed DSL
 
+> **SUPERSEDED (deviation #10).** The named-format token design below shipped
+> first and was then REPLACED before merge by type-driven rendering. As
+> implemented: the DSL stays `$[val]`-only (`/\$\[(\w+)\]/g` — a literal colon
+> in prose is never touched); the failed format's NAME on the error picks the
+> rendering. `TF.Currency<P>` (a number-family format, emitter name
+> `currency`, same params/binary ladder as `TF.Number`) renders via
+> `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
+> renderer's `currency` option (string or `{value}` ref; omitted → plain
+> localized decimal, never a guessed symbol; an invalid code degrades to the
+> plain formatter — the renderer never throws). Date-family bounds (`date`,
+> `dateTime`, `time`, `nativeDate`, `temporal*`) parse and render via
+> `Intl.DateTimeFormat(locale)` with a per-family style; an unparseable
+> relative bound (`now-P1D`) stays verbatim. Everything else stays
+> `String(val)`; plain `createFriendly` is byte-stable. Caching: `PluralRules`
+> per locale; bound formatters per `${locale}\0${currency}` /
+> `${locale}\0${formatName}` maps — module-scope singletons beside the pure
+> walk. Rationale: the type is the single source of truth — asking templates
+> to re-state what a value is duplicates knowledge that can drift, and named
+> formats existed in the ecosystems we studied only because their messages
+> aren't type-anchored. The original (unshipped) design follows for the
+> record.
+
 Keep the closed `$[…]` set; add a three-part token `$[<binding>:<kind>:<name>]` naming an
-`Intl` format declared once in config:
-
-- `binding ∈ { val, index }`; `kind ∈ { number, date, relativeTime, list }`; `name` a key
-  under `formats[locale][kind]`. E.g. `'must be at most $[val:number:currency]'`.
-- Bare `$[val]` stays raw `String(val)`. Unknown format name **or** unknown token → left
-  **verbatim** (matching today's unknown-token rule). The regex widens to
-  `/\$\[(\w+)(?::(\w+):(\w+))?\]/g` — the required bracket-close leaves a literal colon in
-  prose (`ratio 3:1` outside any `$[…]`) untouched.
-
-```ts
-export interface NamedFormats {
-  number?: Record<string, Intl.NumberFormatOptions>;
-  date?: Record<string, Intl.DateTimeFormatOptions>;
-  // relativeTime entries carry the REQUIRED unit beside the Intl options (deviation #5 —
-  // the token has no unit slot): {unit: 'day', numeric: 'auto'}.
-  relativeTime?: Record<string, Intl.RelativeTimeFormatOptions & {unit: Intl.RelativeTimeFormatUnit}>;
-  list?: Record<string, Intl.ListFormatOptions>;
-}
-// runtypes/i18n.formats.ts default-exports Record<localeTag, NamedFormats>; tsconfig i18n.formats names it.
-```
-
-**Caching (i18next `addCached` model):** a module-level
-formatter cache keyed `${locale}\0${kind}\0${name}` WITHIN its `NamedFormats` table (a WeakMap of per-table maps, as shipped — never cross-table)
-builds each `Intl.*Format` lazily and returns a `value => string` closure; `PluralRules`
-are cached separately in a plain per-locale map (they take no per-table options). Both
-caches are module-scope singletons **beside** the pure walk (the walk itself caches
-nothing).
+`Intl` format declared once in config: `binding ∈ { val, index }`;
+`kind ∈ { number, date, relativeTime, list }`; a `NamedFormats` table per locale named by
+tsconfig `i18n.formats`, with an `addCached`-style formatter cache.
 
 ---
 
@@ -596,7 +609,7 @@ ts-runtypes gen   --translate <locale>            <src>   # scaffold a locale fi
 ts-runtypes gen   --translate <locale> --update   <src>   # reconcile via the new i18n driver (source bytes = desired; asymmetric plurals)
 ts-runtypes gen   --translate <locale> --prune    <src>   # the only destructive op — strip @rtOrphan/@rtOrphanChild carcasses
 ts-runtypes gen   --translate all      --update           # fan out over every tsconfig i18n.locales entry
-ts-runtypes check --translate <locale|all>                # non-writing completeness gate: TR001–TR005 (missing file / @todo blanks / out-of-date / carcasses / unknown format name; drives strict CI)
+ts-runtypes check --translate <locale|all>                # non-writing completeness gate: TR001–TR004 (missing file / @todo blanks / out-of-date / carcasses; drives strict CI)
 ```
 
 tsconfig plugin option (new `i18n` object; precedence CLI > tsconfig > default; default =
@@ -608,7 +621,6 @@ dormant, zero behaviour change):
     "sourceLocale": "en",                  // the language the source FriendlyType is authored in (default 'en')
     "dir": "runtypes/generated/i18n",      // resolved under the PROJECT ROOT (default <enrichDir>/i18n); locale is a PATH SEGMENT
     "locales": ["es", "pl", "ar"],         // target set — the source is NOT listed (it IS the source language)
-    "formats": "runtypes/i18n.formats.ts", // optional module default-exporting Record<locale, NamedFormats>
     "strict": false                        // check --translate gate; runtime is always lenient
   } }
 ```
@@ -660,10 +672,10 @@ configurable `sourceLocale`.
    **generate** the table from the resolver's bundled ICU to cover every locale precisely.
    Runtime correctness never depends on the table (the `other` backstop), so the static
    table is a safe v1.
-2. **Where do named `Intl` format definitions live?** *Recommend* a shared module keyed by
-   locale, referenced by `tsconfig i18n.formats`, so the CLI can validate format-name
-   references at `gen`/`check` and the runtime imports the same table. Co-location duplicates
-   defs; runtime-only loses build validation.
+2. **Where do named `Intl` format definitions live?** SUPERSEDED (deviation #10): there
+   are no named formats — rendering is type-driven; the only knob is the renderer's
+   `currency` option (app data). The original recommendation (a shared module referenced
+   by `tsconfig i18n.formats`, validated by `check`) shipped first and was removed.
 3. **How strict is BCP-47 fallback in `resolveLocale`?** **DECIDED (product call): naive
    truncation** — exact tag, then subtags dropped right-to-left, then any available tag
    sharing the base language (`zh-Hant` may fall to `zh-Hans`), else source. The
