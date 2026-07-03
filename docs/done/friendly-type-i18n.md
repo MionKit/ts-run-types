@@ -62,6 +62,22 @@
 >     stays byte-stable. FT005 flags leftover colon-form tokens with a
 >     migration pointer. `relativeTime` / `list` kinds were dropped — nothing
 >     in the type system expresses them.
+> 11. **The mirror-derived translate driver was REPLACED before merge** by the
+>     unified SRC-derived reconcile
+>     ([friendly-unified-src-reconcile.md](./friendly-unified-src-reconcile.md)
+>     — the full superseding spec). Everything this document says about the
+>     friendly SOURCE MIRROR being the translation's desired side (§Reconcile,
+>     `translationBlanker`, `SourceMirrorDeclaresConst`, the
+>     `@rtI18n <locale> from '<mirror>'` marker) is HISTORY: a locale file is
+>     now generated from the SOURCE TYPE by the same EmitClosure driver as the
+>     friendly mirror (locale-parameterized plural arms, const prefix, output
+>     path, sibling renames); the mirror is a discovery input only; TR003 means
+>     "a src-driven reconcile would change the file". With it: `Translation<T>`
+>     was DELETED (locale consts are `FriendlyType<T>`), function-form `$errors`
+>     was REMOVED (data only), `$errors` typing became param-precise (required
+>     keys per declared failable param, no index signature), `$default` became
+>     the mutually exclusive catch-all mode (FT009), and the tsconfig
+>     `friendlyErrors` knob picks the scaffold mode for new nodes.
 >
 > Product of a design study (4 deep repo readers + 5 i18n-ecosystem researchers —
 > vue-i18n, i18next, ICU/MF2, the platform `Intl` API, and the type-safe/compile-time

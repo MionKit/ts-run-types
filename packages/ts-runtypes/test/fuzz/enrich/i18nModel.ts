@@ -1,13 +1,17 @@
 // The model + command set for the FriendlyType i18n-sync fuzzer.
 //
-// SUT: the `gen --translate` / `check --translate` pipeline over a (friendly
-// SOURCE MIRROR S, translation file T) pair — the docs/done/friendly-type-i18n
-// reconcile. We model just enough of (S, T) to state the value-preserving
-// oracles the example suite (enrichTranslate.test.ts) proves on hand-written
-// cases, then drive RANDOM edit sequences and assert after each:
+// SUT: the `gen --translate` / `check --translate` pipeline over a (SOURCE
+// TYPE, translation file T) pair — the SRC-DERIVED reconcile
+// (docs/done/friendly-unified-src-reconcile.md): a locale file is generated
+// from the source TYPE by the same driver as the friendly mirror; the friendly
+// mirror is a DISCOVERY input only (breadcrumb + type-name annotations), never
+// a content input. The fuzzer therefore edits the .ts SOURCE (format params
+// carry the constraint set) and keeps the friendly mirror deliberately filled
+// with `SRC_` text — T2 proves that text never leaks into T even though the
+// file sits right there. Random edit sequences, asserting after each:
 //
 //   T1  idempotence     a second `--translate --update` is byte-identical
-//   T2  never-copy      source text NEVER appears in a translation (@todo blanks only)
+//   T2  never-copy      friendly-mirror text NEVER appears in a translation
 //   T3  preservation    an authored translated leaf survives every update verbatim
 //   T4  orphan-keep     a source-dropped leaf's authored value lives on in a carcass
 //   T5  arms-owned      a translator-pruned plural arm stays pruned; extra arms stay
@@ -16,14 +20,17 @@
 //   T10 totality        every CLI run is controlled — never a panic/hang
 //
 // The shape is deliberately narrow so every oracle is SOUND: one type (User),
-// one plural-bearing field (`alpha`, permanent), droppable string fields with
-// an optional `pattern` constraint. Leaf fields render on ONE LINE in both S
-// and T, so leaf-scoped assertions are plain line lookups — no parser, no
-// false positives.
+// one plural-bearing field (`alpha`, permanent, minLength format param),
+// droppable string fields with an optional `pattern` format param. Fields use
+// the INLINE format-brand intersection (`__rtFormatName`/`__rtFormatParams`
+// sentinels — what the real TF.String<P> aliases widen to) so the temp project
+// needs no ts-runtypes install. Leaf fields render on ONE LINE in T, so
+// leaf-scoped assertions are plain line lookups — no parser, no false
+// positives.
 
 import {spawnSync} from 'node:child_process';
-import {mkdirSync, readFileSync, writeFileSync, existsSync} from 'node:fs';
-import {dirname, resolve} from 'node:path';
+import {readFileSync, writeFileSync, existsSync} from 'node:fs';
+import {resolve} from 'node:path';
 import type {ReconcileFixture} from '../../util/enrichReconcile.ts';
 import {BIN, type CliResult, isControlled} from './enrichCli.ts';
 
@@ -43,7 +50,7 @@ const PLURAL_FIELD = 'alpha'; // permanent — keeps the plural oracles alive
 const NAME_POOL = ['bravo', 'charlie', 'delta', 'echo', 'foxtrot'];
 
 interface FieldSpec {
-  pattern: boolean; // carries a `pattern` (plain-string) constraint
+  pattern: boolean; // declares a `pattern` format param (plain-string $errors key)
 }
 
 export interface I18nModel {
@@ -108,33 +115,43 @@ function runTranslateCli(fixture: ReconcileFixture, args: string[]): CliResult {
   };
 }
 
-// renderSourceMirror writes S (and the .ts source) from the model. Every
-// source leaf is FILLED with an `SRC_`-prefixed value — T2 asserts that prefix
-// never leaks into T.
-export function materializeSource(fixture: ReconcileFixture, model: I18nModel): void {
-  const fieldNames = [PLURAL_FIELD, ...model.fields.keys()];
-  writeFileSync(fixture.sourcePath, `export interface User { ${fieldNames.map((name) => `${name}: string`).join('; ')} }\n`);
+// The inline format-brand intersections the .ts source declares per field kind.
+const MINLENGTH_FMT = "string & {readonly __rtFormatName?: 'stringFormat'; readonly __rtFormatParams?: {minLength: 2}}";
+function patternFmt(name: string): string {
+  return `string & {readonly __rtFormatName?: 'stringFormat'; readonly __rtFormatParams?: {pattern: {source: '${name}'; flags: ''}}}`;
+}
 
-  const ids = fieldNames.map((name) => `${name}: id_${name}`).join(', ');
-  const lines: string[] = [];
-  lines.push("import type { User } from '../../../src/models';");
-  lines.push("import type { FriendlyType } from 'ts-runtypes';");
-  lines.push('');
-  lines.push(`/** @rtType User#u1 @rtIds {${ids}} */`);
-  lines.push('export const friendlyUser: FriendlyType<User> = {');
-  lines.push("  $label: 'SRC_root',");
-  lines.push("  $errors: {type: 'SRC_root_type'},");
-  lines.push(
-    `  ${PLURAL_FIELD}: {$label: 'SRC_${PLURAL_FIELD}', $errors: {type: 'SRC_type', minLength: {one: 'SRC_one', other: 'SRC_other'}}},`
-  );
+// materializeSource writes the .ts SOURCE from the model — the ONLY desired-
+// state input of the src-derived reconcile. The constraint set rides the
+// format params: `alpha` keeps a count-bearing minLength (plural oracles),
+// pattern-flagged fields declare a pattern param, the rest are plain strings.
+export function materializeSource(fixture: ReconcileFixture, model: I18nModel): void {
+  const decls = [`  ${PLURAL_FIELD}: ${MINLENGTH_FMT};`];
   for (const [name, spec] of model.fields) {
-    const pattern = spec.pattern ? `, pattern: 'SRC_pattern_${name}'` : '';
-    lines.push(`  ${name}: {$label: 'SRC_${name}', $errors: {type: 'SRC_type_${name}'${pattern}}},`);
+    decls.push(`  ${name}: ${spec.pattern ? patternFmt(name) : 'string'};`);
   }
-  lines.push('};');
-  lines.push('');
-  mkdirSync(dirname(fixture.friendlyPath), {recursive: true});
-  writeFileSync(fixture.friendlyPath, lines.join('\n'));
+  writeFileSync(fixture.sourcePath, `export interface User {\n${decls.join('\n')}\n}\n`);
+}
+
+// syncFriendlyMirror regenerates the friendly mirror from src (the ordinary
+// gen reconcile) and fills EVERY blank with an `SRC_`-prefixed token, keeping
+// it a realistic fully-authored source-language map. The mirror is only a
+// DISCOVERY input for the translate verbs — T2 asserts its text never leaks
+// into T, which is precisely the "generated files never feed generation"
+// contract of the src-derived design.
+export function syncFriendlyMirror(fixture: ReconcileFixture, model: I18nModel): CliResult {
+  const args = existsSync(fixture.friendlyPath)
+    ? ['gen', 'src/models.ts', 'User', '--friendly', '--update']
+    : ['gen', 'src/models.ts', 'User', '--friendly'];
+  const result = runTranslateCli(fixture, args);
+  if (isControlled(result) && existsSync(fixture.friendlyPath)) {
+    const text = readFileSync(fixture.friendlyPath, 'utf8');
+    writeFileSync(
+      fixture.friendlyPath,
+      text.replace(/: ''/g, () => `: 'SRC_${model.tokenCounter++}'`)
+    );
+  }
+  return result;
 }
 
 // --- line-scoped translation edits ----------------------------------------------
@@ -333,25 +350,31 @@ export const I18N_COMMANDS: I18nCommand[] = [
     },
   },
   {
-    // The source project adds a new field (arrives in T on the next update).
+    // The source TYPE gains a field (arrives in T on the next update). The
+    // friendly mirror re-syncs + refills too — a translation must derive from
+    // the type even with that fully-authored mirror sitting next to it.
     name: 'srcAddField',
     canApply: (model) => model.fields.size < NAME_POOL.length,
     apply(model, ctx, rng) {
+      const out: I18nViolation[] = [];
       const free = NAME_POOL.filter((name) => !model.fields.has(name));
       model.fields.set(pick(free, rng), {pattern: rng() < 0.5});
       materializeSource(ctx.fixture, model);
-      return [];
+      controlledOr(syncFriendlyMirror(ctx.fixture, model), 'srcAddField(gen)', ctx, out);
+      return out;
     },
   },
   {
-    // The source project drops a field — its authored tokens must carcass on update.
+    // The source TYPE drops a field — its authored tokens must carcass on update.
     name: 'srcDropField',
     canApply: (model) => model.fields.size > 0,
     apply(model, ctx, rng) {
+      const out: I18nViolation[] = [];
       const name = pick([...model.fields.keys()], rng);
       model.fields.delete(name);
       materializeSource(ctx.fixture, model);
-      return [];
+      controlledOr(syncFriendlyMirror(ctx.fixture, model), 'srcDropField(gen)', ctx, out);
+      return out;
     },
   },
   {
@@ -422,8 +445,9 @@ export const I18N_COMMANDS: I18nCommand[] = [
   },
 ];
 
-// bootstrap lays down the project (tsconfig with the i18n object, source,
-// source mirror) and scaffolds the initial translation.
+// bootstrap lays down the project (tsconfig with the i18n object, the .ts
+// source, and the gen-produced friendly mirror — a source translates once it
+// HAS one) and scaffolds the initial translation.
 export function bootstrapI18n(fixture: ReconcileFixture, seed: number): {model: I18nModel; violations: I18nViolation[]} {
   const model = initialI18nModel();
   const violations: I18nViolation[] = [];
@@ -443,6 +467,7 @@ export function bootstrapI18n(fixture: ReconcileFixture, seed: number): {model: 
   materializeSource(fixture, model);
 
   const ctx: I18nCtx = {fixture, seed, step: -1};
+  if (!controlledOr(syncFriendlyMirror(fixture, model), 'bootstrap(gen)', ctx, violations)) return {model, violations};
   const result = runTranslateCli(fixture, ['gen', '--translate', LOCALE, 'src/models.ts']);
   if (!controlledOr(result, 'bootstrap', ctx, violations)) return {model, violations};
   if (!existsSync(translationPathOf(fixture))) {

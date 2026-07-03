@@ -60,9 +60,7 @@ type Finding struct {
 //
 //   - Keys lists the literal's property keys in declaration order.
 //   - Child returns the nested object-literal view bound to key, or nil when
-//     that key's value is not an object literal (a string, number, array,
-//     arrow function, …). A nil return is how the checkers distinguish a
-//     data-record `$errors` from a function-form `$errors`.
+//     that key's value is not an object literal (a string, number, array, …).
 //   - StringValue returns the string-literal value bound to key (ok=false when
 //     the key is absent or its value is not a string literal).
 type LiteralView interface {
@@ -212,11 +210,11 @@ func checkFriendlyNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, 
 	}
 }
 
-// checkFriendlyErrors validates a single `$errors` data-record (errorsView)
-// against the field it belongs to. fieldNode is the field's RunType (nil at the
-// object root, where `$errors` only describes the base `type` failure). A nil
-// errorsView means the field used the function-form `$errors` (an arrow /
-// function initializer, not an object literal) — skipped, opaque to us.
+// checkFriendlyErrors validates a single `$errors` record (errorsView) against
+// the field it belongs to. fieldNode is the field's RunType (nil at the object
+// root, where `$errors` only describes the base `type` failure). A nil
+// errorsView means the initializer wasn't an object literal (malformed — the
+// TS checker flags it; nothing for us to walk).
 func checkFriendlyErrors(findings *[]Finding, errorsView LiteralView, fieldNode *protocol.RunType, path string) {
 	if errorsView == nil {
 		return

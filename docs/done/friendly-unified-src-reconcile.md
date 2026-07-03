@@ -1,10 +1,13 @@
 # Unified src-derived friendly reconcile — one type, precise `$errors`, translations from src
 
-> **Status: TODO — in progress on the `claude/friendlytypes-i18n-l8e2y3` branch
-> (PR #166).** Supersedes the friendly-mirror-derived translation driver that
-> PR shipped first (docs/done/friendly-type-i18n.md §Reconcile); lands inside
-> the same PR so the final architecture merges in one piece. Move this file to
-> `docs/done/` when it ships.
+> **Status: SHIPPED — implemented as specced on the
+> `claude/friendlytypes-i18n-l8e2y3` branch (PR #166).** Supersedes the
+> friendly-mirror-derived translation driver that PR shipped first
+> ([friendly-type-i18n.md](./friendly-type-i18n.md) §Reconcile — see its
+> deviation #11); the final architecture merged in one piece. Implementation
+> notes vs the plan: type names for translation targets come from the
+> `FriendlyType<T>` annotation (not the `@rtType` marker name), and
+> `ResolveTypeRaw` runs once per type with only `EmitClosure` per locale.
 
 ## Motivation (decided in design dialogue, 2026-07-03)
 
@@ -28,7 +31,7 @@
 1. **One type.** `Translation<T>` is deleted; `FriendlyType<T>` annotates every
    friendly-family const (`pl_friendlyUser: FriendlyType<User>`). The
    `FriendlyText` rename is a separate follow-up
-   ([friendly-text-rename.md](./friendly-text-rename.md)).
+   ([friendly-text-rename.md](../todos/friendly-text-rename.md)).
 2. **Function-form `$errors` is REMOVED entirely** (`(failed) => string`): it
    is opaque to translation, reconcile and the checker. Only data survives.
    `FailedConstraint` / `FailedConstraints` exports go with it.

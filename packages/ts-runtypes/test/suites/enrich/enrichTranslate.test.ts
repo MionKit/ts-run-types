@@ -1,28 +1,32 @@
 // Translation lane of the AI-enrichment suite: drives the `gen --translate` /
 // `check --translate` verbs over throwaway temp projects and asserts the i18n
-// behaviour end-to-end — per-locale scaffolds anchored to the friendly source
-// mirror, value-preserving reconciles (including the $errors descent), the
-// completeness gate, and prune. The Go binary MUST be rebuilt before this runs.
+// behaviour end-to-end. Translations are SRC-DERIVED: a locale file is
+// generated from the source TYPE by the same driver as the friendly mirror
+// (locale-parameterized plural arms + const prefix + output path) — the
+// friendly mirror is only ever a discovery input (which sources translate),
+// never a content input. The Go binary MUST be rebuilt before this runs.
 
 import {spawnSync} from 'node:child_process';
-import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, readFileSync, writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, resolve} from 'node:path';
 import {describe, it, expect, afterAll} from 'vitest';
-import {
-  makeFixture,
-  setSource,
-  editMirror,
-  readMirror,
-  runGen,
-  cleanupReconcileLane,
-  type ReconcileFixture,
-} from '../../util/enrichReconcile.ts';
+import {makeFixture, setSource, runGen, cleanupReconcileLane, type ReconcileFixture} from '../../util/enrichReconcile.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '../../../../../bin/ts-runtypes');
 
 afterAll(cleanupReconcileLane);
+
+// The temp projects carry no ts-runtypes install, so format-branded fields use
+// the INLINE intersection the resolver's structural format detection reads
+// (`__rtFormatName` / `__rtFormatParams` sentinels — the same shape the real
+// `TF.String<P>` aliases widen to). Inline (not via a local alias) so the
+// closure emitter keeps the field as a leaf instead of hoisting a named type.
+const NAME_FMT = "string & {readonly __rtFormatName?: 'stringFormat'; readonly __rtFormatParams?: {minLength: 2}}";
+const NAME_FMT_GROWN =
+  "string & {readonly __rtFormatName?: 'stringFormat'; readonly __rtFormatParams?: {minLength: 2; maxLength: 60}}";
+const USER_SRC = `export interface User {\n  name: ${NAME_FMT};\n  email: string;\n}\n`;
 
 // i18nFixture upgrades a reconcile fixture's tsconfig with the i18n plugin
 // object and returns the per-locale translation path helper.
@@ -52,6 +56,10 @@ function readTranslation(fixture: ReconcileFixture, locale: string): string {
   return readFileSync(translationPath(fixture, locale), 'utf8');
 }
 
+function editTranslation(fixture: ReconcileFixture, locale: string, transform: (text: string) => string): void {
+  writeFileSync(translationPath(fixture, locale), transform(readTranslation(fixture, locale)));
+}
+
 // runBin spawns the CLI from the fixture root, returning status + output.
 function runBin(fixture: ReconcileFixture, args: string[]): {status: number | null; out: string} {
   const result = spawnSync(BIN, args, {cwd: fixture.dir, encoding: 'utf8'});
@@ -64,70 +72,56 @@ function runTranslate(fixture: ReconcileFixture, locale: string, extraArgs: stri
   if (status !== 0) throw new Error(`gen --translate exited ${status}: ${out}`);
 }
 
-// The translate verbs are a pure file-to-file transform over the friendly
-// source mirror, so the $errors-descent cases author the mirror by hand
-// (matching how a user's committed, filled-in mirror looks) — the type-driven
-// gen lane is exercised separately below and in enrichReconcile.test.ts.
-function authorFriendlyMirror(fixture: ReconcileFixture, body: string): void {
-  mkdirSync(dirname(fixture.friendlyPath), {recursive: true});
-  writeFileSync(
-    fixture.friendlyPath,
-    "import type { User } from '../../../src/models';\n" + "import type { FriendlyType } from 'ts-runtypes';\n\n" + body
-  );
-}
-
-const FILLED_USER_MIRROR =
-  '/** @rtType User#u1 @rtIds {name: n1, email: e1} */\n' +
-  'export const friendlyUser: FriendlyType<User> = {\n' +
-  "  $label: 'User',\n" +
-  "  $errors: {type: 'must be a user'},\n" +
-  "  name: {$label: 'Full name', $errors: {type: 'must be text', minLength: {one: 'at least $[val] character', other: 'at least $[val] characters'}}},\n" +
-  "  email: {$label: 'Email', $errors: {type: 'must be text', pattern: 'invalid email'}},\n" +
-  '};\n';
-
 describe('enrichment i18n — gen --translate', () => {
-  it('scaffolds a same-tree per-locale file anchored to the friendly source mirror', () => {
-    const fixture = i18nFixture('tr-scaffold', 'export interface User { name: string; email: string }\n', ['pl']);
-    authorFriendlyMirror(fixture, FILLED_USER_MIRROR);
+  it('scaffolds a same-tree per-locale file straight from the source type', () => {
+    const fixture = i18nFixture('tr-scaffold', USER_SRC, ['pl']);
+    runGen(fixture, 'User'); // a source translates once it HAS a friendly mirror (discovery)
     runTranslate(fixture, 'pl');
 
     const translation = readTranslation(fixture, 'pl');
-    expect(translation).toContain('export const pl_friendlyUser: Translation<User>');
-    expect(translation).toContain("import type { Translation } from 'ts-runtypes'");
-    expect(translation, 'plural reseeds with the TARGET locale arms').toContain(
+    expect(translation, 'one type annotates every friendly-family const').toContain(
+      'export const pl_friendlyUser: FriendlyType<User>'
+    );
+    expect(translation).toContain("import type { FriendlyType } from 'ts-runtypes'");
+    expect(translation, 'breadcrumb is the ordinary src type import').toContain("from '../../../../src/models'");
+    expect(translation, 'plural keys carry the TARGET locale arms').toContain(
       "minLength: {one: '', few: '', many: '', other: ''}"
     );
-    expect(translation).toContain("@rtI18n pl from '../../friendly/models'");
-    expect(translation, 'never copies source text').not.toContain('Full name');
+    expect(translation, 'the locale rides the path + const prefix, not a marker').not.toContain('@rtI18n');
     expect(translation, 'mock never rides into translations').not.toContain('mock');
   });
 
-  it('reconciles value-preservingly, descending into $errors (the load-bearing case)', () => {
-    const fixture = i18nFixture('tr-update', 'export interface User { name: string; email: string }\n', ['pl']);
-    authorFriendlyMirror(fixture, FILLED_USER_MIRROR);
+  it('is create-only without --update: an authored file is left alone', () => {
+    const fixture = i18nFixture('tr-create-only', USER_SRC, ['pl']);
+    runGen(fixture, 'User');
+    runTranslate(fixture, 'pl');
+    editTranslation(fixture, 'pl', (text) => text.replace("name: {$label: ''", "name: {$label: 'Imię'"));
+    const authored = readTranslation(fixture, 'pl');
+    runTranslate(fixture, 'pl');
+    expect(readTranslation(fixture, 'pl'), 'plain gen --translate never touches an existing file').toBe(authored);
+  });
+
+  it('reconciles value-preservingly from the src type, descending into $errors (the load-bearing case)', () => {
+    const fixture = i18nFixture('tr-update', USER_SRC, ['pl']);
+    runGen(fixture, 'User');
     runTranslate(fixture, 'pl');
 
     // The translator fills a plural arm + a label.
-    const authored = readTranslation(fixture, 'pl')
-      .replace("one: ''", "one: 'co najmniej $[val] znak'")
-      .replace("email: {$label: ''", "email: {$label: 'Adres e-mail'");
-    writeFileSync(translationPath(fixture, 'pl'), authored);
-
-    // The source FriendlyType gains a maxLength plural — the translation
-    // reconcile must scaffold the new key INSIDE $errors with pl arms.
-    authorFriendlyMirror(
-      fixture,
-      FILLED_USER_MIRROR.replace(
-        "minLength: {one: 'at least $[val] character', other: 'at least $[val] characters'}",
-        "minLength: {one: 'at least $[val] character', other: 'at least $[val] characters'}, maxLength: {one: 'max $[val] char', other: 'max $[val] chars'}"
-      )
+    editTranslation(fixture, 'pl', (text) =>
+      text
+        .replace("minLength: {one: ''", "minLength: {one: 'co najmniej $[val] znak'")
+        .replace("email: {$label: ''", "email: {$label: 'Adres e-mail'")
     );
+
+    // The SOURCE TYPE gains a maxLength param — the reconcile must scaffold the
+    // new key INSIDE the existing $errors node, with pl arms.
+    setSource(fixture, USER_SRC.replace(NAME_FMT, NAME_FMT_GROWN));
 
     runTranslate(fixture, 'pl', ['--update']);
     const updated = readTranslation(fixture, 'pl');
     expect(updated, 'authored arm survives').toContain("one: 'co najmniej $[val] znak'");
     expect(updated, 'authored label survives').toContain("$label: 'Adres e-mail'");
-    expect(updated, 'source-added constraint scaffolded with target arms').toContain(
+    expect(updated, 'src-added constraint scaffolded with target arms').toContain(
       "maxLength: {one: '', few: '', many: '', other: ''}"
     );
 
@@ -137,14 +131,43 @@ describe('enrichment i18n — gen --translate', () => {
     expect(readTranslation(fixture, 'pl'), 'second update is byte-identical').toBe(first);
   });
 
+  it('respects the authored $errors mode and author-owned keys on update', () => {
+    const fixture = i18nFixture('tr-authored-mode', USER_SRC, ['pl']);
+    runGen(fixture, 'User');
+    runTranslate(fixture, 'pl');
+
+    // The author converts name to the exclusive $default mode and plants an
+    // unrecognized key on email (only type-attributable keys may be orphaned).
+    editTranslation(fixture, 'pl', (text) =>
+      text
+        .replace(
+          /name: \{\$label: '', \$errors: \{[^}]*\}\}\},/,
+          "name: {$label: 'Imię', $errors: {$default: 'Nieprawidłowe imię'}},"
+        )
+        .replace(
+          "email: {$label: '', $errors: {type: ''}}",
+          "email: {$label: '', $errors: {type: '', customNote: 'author-owned'}}"
+        )
+    );
+
+    runTranslate(fixture, 'pl', ['--update']);
+    const updated = readTranslation(fixture, 'pl');
+    expect(updated, 'a $default-only node is never descended').toContain("$errors: {$default: 'Nieprawidłowe imię'}");
+    expect(updated, '$default node does not get constraint keys re-scaffolded').not.toContain('minLength');
+    expect(updated, 'unrecognized keys are author-owned, never orphaned').toContain("customNote: 'author-owned'");
+    expect(updated).not.toContain('@rtOrphanChild');
+  });
+
   it('--translate all fans out over every configured locale', () => {
     const fixture = i18nFixture('tr-all', 'export interface User { name: string }\n', ['es', 'pt-BR']);
+    // The no-arg walk discovers targets as "sources that have a friendly
+    // mirror" (path math only), so generate the friendly mirror first.
     runGen(fixture, 'User');
     const {status, out} = runBin(fixture, ['gen', '--translate', 'all']);
     expect(status, out).toBe(0);
     expect(existsSync(translationPath(fixture, 'es'))).toBe(true);
     expect(existsSync(translationPath(fixture, 'pt-BR'))).toBe(true);
-    expect(readTranslation(fixture, 'pt-BR')).toContain('export const pt_BR_friendlyUser: Translation<User>');
+    expect(readTranslation(fixture, 'pt-BR')).toContain('export const pt_BR_friendlyUser: FriendlyType<User>');
   });
 
   it('--translate --prune strips translation carcasses', () => {
@@ -179,18 +202,18 @@ describe('enrichment i18n — check --translate', () => {
     expect(strictRun.status, 'strict gate fails CI on blanks').toBe(1);
   });
 
-  it('flags a missing translation file (TR001) and an out-of-date one (TR003)', () => {
+  it('flags a missing translation file (TR001) and an out-of-date one (TR003, vs the src type)', () => {
     const fixture = i18nFixture('tr-check-missing', 'export interface User { name: string }\n', ['pl']);
     runGen(fixture, 'User');
     const missing = runBin(fixture, ['check', '--translate', 'pl']);
     expect(missing.out).toContain('TR001');
 
     runTranslate(fixture, 'pl');
-    // Fill every blank so only staleness can fire, then edit the source.
-    editMirror(fixture, 'friendly', (text) => text); // touch nothing; just assert helper reachable
+    // The SOURCE TYPE changes; the translation is now stale even though the
+    // friendly mirror hasn't been updated either — staleness is src-driven.
     setSource(fixture, 'export interface User { name: string; age: number }\n');
-    runGen(fixture, 'User', ['--update']);
     const stale = runBin(fixture, ['check', '--translate', 'pl']);
     expect(stale.out).toContain('TR003');
+    expect(stale.out, 'the finding names the src file, not the friendly mirror').toContain('src/models.ts');
   });
 });
