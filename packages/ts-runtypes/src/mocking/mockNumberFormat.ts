@@ -10,9 +10,9 @@ import {registerMockingFunction} from './mockRegistry.ts';
 import type {NumberParams} from '../formats/numberFormats.ts';
 
 const mockNumberFormat = (annotation: FormatAnnotation): unknown => {
-  // `currency` shares the full NumberParams surface, so its mock is the same
-  // constraint-respecting number draw.
-  if (annotation.name !== 'numberFormat' && annotation.name !== 'currency') return undefined;
+  if (annotation.name !== 'numberFormat') return undefined;
+  // isCurrency is presentation metadata — mockNumberParams reads only the
+  // constraint params, so a Currency mock is the same constraint-respecting draw.
   return mockNumberParams((annotation.params ?? {}) as NumberParams);
 };
 

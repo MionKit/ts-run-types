@@ -13,6 +13,7 @@ type TypeFormatError = {
   name: string;
   val: StrNumber | boolean | bigint | (StrNumber | boolean | bigint)[];
   formatPath: StrNumber[];
+  isCurrency?: boolean;
 };
 interface RTValidationError {
   path: (StrNumber | object)[];

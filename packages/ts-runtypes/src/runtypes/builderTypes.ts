@@ -63,7 +63,6 @@ export type Static<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] :
 export interface LeafTypeByFormatName<P extends object, BrandName extends string = never> {
   stringFormat: TypeFormat<string, 'stringFormat', P, BrandName>;
   numberFormat: TypeFormat<number, 'numberFormat', P, BrandName>;
-  currency: TypeFormat<number, 'currency', P, BrandName>;
   bigintFormat: TypeFormat<bigint, 'bigintFormat', P, BrandName>;
   nativeDate: TypeFormat<Date, 'nativeDate', P, BrandName>;
   // Temporal leaves don't thread `BrandName` yet — value-first temporal branding

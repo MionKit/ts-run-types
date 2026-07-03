@@ -89,13 +89,13 @@ messages (a list), one per violated constraint.
 
 Templates are plain strings with `$[…]` tokens the renderer substitutes:
 
-| Token           | Resolves to                                                                                                                                                                                     |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$[label]`      | the node's `$label`, falling back to the raw field name                                                                                                                                         |
-| `$[val]`        | the failed constraint's bound (`error.format.val`; e.g. `2`)                                                                                                                                    |
-| `$[path]`       | dotted path to the field (`profile.email`)                                                                                                                                                      |
-| `$[index]`      | array element index, for `$items` failures                                                                                                                                                      |
-| _(type-driven)_ | `$[val]` renders by the bound's TYPE format on the i18n path: a `TF.Currency` bound via the renderer's `currency` option, date-family bounds via `Intl.DateTimeFormat` — no per-template syntax |
+| Token           | Resolves to                                                                                                                                                                                                     |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$[label]`      | the node's `$label`, falling back to the raw field name                                                                                                                                                         |
+| `$[val]`        | the failed constraint's bound (`error.format.val`; e.g. `2`)                                                                                                                                                    |
+| `$[path]`       | dotted path to the field (`profile.email`)                                                                                                                                                                      |
+| `$[index]`      | array element index, for `$items` failures                                                                                                                                                                      |
+| _(type-driven)_ | `$[val]` renders by the bound's TYPE on the i18n path: an `isCurrency`-marked bound (`TF.Currency`) via the renderer's `currency` option, date-family bounds via `Intl.DateTimeFormat` — no per-template syntax |
 
 Unknown `$[…]` tokens are left verbatim (including any leftover colon-form
 `$[val:kind:name]` token — that named-format syntax was removed; `check` flags it via
@@ -306,16 +306,17 @@ friendly.errors(getUserErrors(badInput)); // arm + template picked per the activ
   through as a WHOLE unit (never mixes a target arm with a source arm). Function-form
   `$errors` is opaque: the translation's arrow wins wholesale; a translation node
   without `$errors` falls to the source's arrow.
-- Type-driven `$[val]` rendering: the failed format's NAME (on every error) says what
-  the bound IS. A `currency`-branded bound (`TF.Currency<P>`) renders via
-  `Intl.NumberFormat(locale, {style: 'currency', currency})` with the app-supplied
-  `currency` option (omitted → plain localized number, never a guessed symbol; which
-  currency a value is in is app DATA, deliberately not a type param); a date-family
-  bound renders via `Intl.DateTimeFormat(locale)` (an unparseable relative bound like
-  `now-P1D` stays verbatim); everything else stays `String(val)`. Unknown tokens stay
-  verbatim. `Intl` instances are memoized (`PluralRules` per locale; bound formatters
-  per locale + currency / style). Plain `createFriendly` stays byte-stable
-  (`String(val)` everywhere).
+- Type-driven `$[val]` rendering: the error's format payload says what the bound IS.
+  An `isCurrency`-marked number bound (`TF.Currency<P>` = `Number<P & {isCurrency:
+true}>`; the pure-metadata param is echoed onto every error the field produces)
+  renders via `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
+  app-supplied `currency` option (omitted → plain localized number, never a guessed
+  symbol; WHICH currency a value is in is app DATA, deliberately not fixed in the
+  type); a date-family bound renders via `Intl.DateTimeFormat(locale)` (an
+  unparseable relative bound like `now-P1D` stays verbatim); everything else stays
+  `String(val)`. Unknown tokens stay verbatim. `Intl` instances are memoized
+  (`PluralRules` per locale; bound formatters per locale + currency / style). Plain
+  `createFriendly` stays byte-stable (`String(val)` everywhere).
 
 ## End-to-end example
 

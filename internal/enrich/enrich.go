@@ -237,8 +237,17 @@ func formatConstraintKeys(fa *protocol.FormatAnnotation) []string {
 	}
 	keys := make([]string, 0, len(fa.Params))
 	for key := range fa.Params {
+		if presentationParams[key] {
+			continue
+		}
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 	return keys
 }
+
+// presentationParams are format params that carry NO failable constraint —
+// pure metadata the emitter echoes onto error payloads for the renderer
+// (numberFormat's isCurrency). They never become `$errors` template keys, so
+// the scaffold skips them and FT003 rejects them.
+var presentationParams = map[string]bool{"isCurrency": true}

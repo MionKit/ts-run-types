@@ -21,12 +21,20 @@ import "strconv"
 // (`pth`); path is copied (`[...pth]`) so each pushed error owns its
 // array. formatPath is `[paramName]`.
 func FormatErrCall(pathExpr, errorsArr, expected, fmtName, paramName, paramValLiteral string) string {
+	return FormatErrCallWith(pathExpr, errorsArr, expected, fmtName, paramName, paramValLiteral, "")
+}
+
+// FormatErrCallWith is FormatErrCall plus extra properties spliced verbatim
+// into the emitted format object literal (e.g. ",isCurrency:true" — pure
+// presentation metadata a format echoes onto its errors for the friendly
+// renderer). extraFormatProps must be "" or start with a comma.
+func FormatErrCallWith(pathExpr, errorsArr, expected, fmtName, paramName, paramValLiteral, extraFormatProps string) string {
 	path := pathExpr
 	if path == "" {
 		path = "pth"
 	}
 	return errorsArr + ".push({expected:'" + expected + "',path:[..." + path + "]," +
-		"format:{name:'" + fmtName + "',formatPath:['" + paramName + "'],val:" + paramValLiteral + "}})"
+		"format:{name:'" + fmtName + "',formatPath:['" + paramName + "'],val:" + paramValLiteral + extraFormatProps + "}})"
 }
 
 // FormatNumber stringifies a float64 in the same way JSON does

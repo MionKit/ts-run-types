@@ -71,6 +71,10 @@ export interface TypeFormatError {
   name: string;
   val: RTValidationErrorPathSegment | boolean | bigint | (RTValidationErrorPathSegment | boolean | bigint)[];
   formatPath: (string | number)[];
+  /** Echoed by the emitter when the field's number format sets the
+   *  `isCurrency` param — pure presentation metadata: `createFriendlyI18n`
+   *  renders the violated bound as money in the active locale. */
+  isCurrency?: boolean;
 }
 
 export interface RTValidationError {

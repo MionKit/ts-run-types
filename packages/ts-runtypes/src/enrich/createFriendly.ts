@@ -20,11 +20,12 @@
 // unit (its own `other` backstops missing arms first). Plural arms are selected
 // via `Intl.PluralRules` on the violated bound.
 //
-// `$[val]` rendering is TYPE-DRIVEN on the i18n path: the failed format's name
-// (already on every TypeFormatError) says what the bound IS — a `currency`
-// brand renders via `Intl.NumberFormat(locale, {style: 'currency', currency})`
-// with the app-supplied `currency` option (no option → plain localized number,
-// never a guessed symbol); a date-family bound renders via
+// `$[val]` rendering is TYPE-DRIVEN on the i18n path: the error's format
+// payload says what the bound IS — a number with the `isCurrency` param (the
+// emitter echoes it onto the error) renders via
+// `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
+// app-supplied `currency` option (no option → plain localized number, never a
+// guessed symbol); a date-family format name renders via
 // `Intl.DateTimeFormat(locale)`; everything else stays `String(val)`. There is
 // no per-template format syntax — the type is the single source of truth.
 // Always lenient — a partial translation renders, it never throws.
@@ -283,11 +284,11 @@ interface RenderState {
 }
 
 /** Render a violated bound to its `$[val]` text. Plain path: `String(val)`.
- *  i18n path: the failed format's name says what the bound IS — `currency`
- *  renders via the locale's currency/decimal `Intl.NumberFormat`; a
- *  date-family bound parses and renders via `Intl.DateTimeFormat` (an
- *  unparseable bound — e.g. a relative `now-P1D` — stays verbatim); anything
- *  else stays `String(val)`. */
+ *  i18n path: the error's format payload says what the bound IS — the
+ *  `isCurrency` mark (echoed off the number format's param) renders via the
+ *  locale's currency/decimal `Intl.NumberFormat`; a date-family bound parses
+ *  and renders via `Intl.DateTimeFormat` (an unparseable bound — e.g. a
+ *  relative `now-P1D` — stays verbatim); anything else stays `String(val)`. */
 function renderBoundText(
   state: RenderState,
   format: TypeFormatError | undefined,
@@ -295,7 +296,7 @@ function renderBoundText(
 ): string | undefined {
   if (val === undefined) return undefined;
   if (!state.i18n || !format) return String(val);
-  if (format.name === 'currency') {
+  if (format.isCurrency) {
     const numeric = Number(val);
     if (!Number.isFinite(numeric)) return String(val);
     return cachedBoundNumberFormat(state.rootLocale, state.currency).format(numeric);

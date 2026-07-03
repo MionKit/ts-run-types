@@ -1,6 +1,6 @@
 // Runtime behaviour of the FriendlyType i18n layer: plural-arm selection via
-// Intl.PluralRules on the violated bound, TYPE-DRIVEN `$[val]` rendering (a
-// `currency`-branded bound via the renderer's `currency` option, date-family
+// Intl.PluralRules on the violated bound, TYPE-DRIVEN `$[val]` rendering (an
+// isCurrency-marked bound via the renderer's `currency` option, date-family
 // bounds via Intl.DateTimeFormat), `resolveLocale` BCP-47 truncation, and
 // `createFriendlyI18n`'s per-leaf fallback to the source map. Errors are
 // hand-built `RTValidationError[]` (no Go pipeline needed).
@@ -122,9 +122,10 @@ describe('type-driven $[val] rendering', () => {
     $errors: {type: ''},
     price: {$label: 'Price', $errors: {type: '', max: {other: 'must be at most $[val]'}}},
   };
-  // A `Currency`-branded bound: the error's format name is the discriminator.
+  // A currency-marked bound: the emitter echoes the number format's
+  // `isCurrency` param onto the error — that flag is the discriminator.
   const currencyMaxError: RTValidationError[] = [
-    {path: ['price'], expected: 'number', format: {name: 'currency', val: 100, formatPath: ['max']}},
+    {path: ['price'], expected: 'number', format: {name: 'numberFormat', val: 100, formatPath: ['max'], isCurrency: true}},
   ];
   const plainNumberMaxError: RTValidationError[] = [
     {path: ['price'], expected: 'number', format: {name: 'numberFormat', val: 1000.5, formatPath: ['max']}},

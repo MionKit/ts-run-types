@@ -183,40 +183,41 @@ func TestValidateParams(t *testing.T) {
 	}
 }
 
-// TestCurrency_DelegatesToNumberFamily pins the currency emitter's wholesale
-// delegation to the numberFormat helpers: identical validate predicates and
-// binary ladder, with every validation error tagged name:'currency' (the
-// friendly renderer's money discriminator) and param diagnostics prefixed
-// CurrencyFormat.
-func TestCurrency_DelegatesToNumberFamily(t *testing.T) {
-	currency := currencyEmitter{}
-	number := numberFormatEmitter{}
-	params := map[string]any{"integer": true, "min": 0.0, "max": 255.0}
+// TestNumberFormat_IsCurrencyEcho pins the isCurrency presentation param: it
+// adds NO validate predicate and NO binary-width change, but every emitted
+// validation error carries `isCurrency:true` inside its format payload — the
+// discriminator the friendly i18n renderer uses to render the violated bound
+// as money.
+func TestNumberFormat_IsCurrencyEcho(t *testing.T) {
+	emitter := numberFormatEmitter{}
+	plain := map[string]any{"max": 100.0}
+	currency := map[string]any{"max": 100.0, "isCurrency": true}
 
-	if got, want := currency.EmitValidateCheck(annotation(currencyFormatName, params), "v", nil),
-		number.EmitValidateCheck(annotation(numberFormatName, params), "v", nil); got != want {
-		t.Errorf("validate check diverged: currency=%q number=%q", got, want)
-	}
-
-	errStmt := currency.EmitValidationErrorsCheck(annotation(currencyFormatName, params), "v", "pth", "errs", nil)
-	if !strings.Contains(errStmt, "name:'currency'") {
-		t.Errorf("validation errors must carry the currency format name; got %q", errStmt)
-	}
-	if strings.Contains(errStmt, "name:'numberFormat'") {
-		t.Errorf("validation errors leaked the numberFormat name: %q", errStmt)
+	// No validate predicate: the check expressions are identical.
+	if got, want := emitter.EmitValidateCheck(annotation(numberFormatName, currency), "v", nil),
+		emitter.EmitValidateCheck(annotation(numberFormatName, plain), "v", nil); got != want {
+		t.Errorf("isCurrency must not change validation: %q vs %q", got, want)
 	}
 
-	if got, want := currency.EmitToBinary(annotation(currencyFormatName, params), "v", "Ser", nil),
-		number.EmitToBinary(annotation(numberFormatName, params), "v", "Ser", nil); got != want {
-		t.Errorf("binary encode diverged: currency=%q number=%q", got, want)
+	// Every emitted error echoes the flag; a plain number never does.
+	withFlag := emitter.EmitValidationErrorsCheck(annotation(numberFormatName, currency), "v", "pth", "errs", nil)
+	if !strings.Contains(withFlag, ",isCurrency:true}") {
+		t.Errorf("currency errors must echo isCurrency; got %q", withFlag)
 	}
-	if got, want := currency.BinarySize(annotation(currencyFormatName, params)).Fixed, 1; got != want {
-		t.Errorf("BinarySize = %d, want %d", got, want)
+	if !strings.Contains(withFlag, "name:'numberFormat'") {
+		t.Errorf("the format name stays numberFormat; got %q", withFlag)
+	}
+	without := emitter.EmitValidationErrorsCheck(annotation(numberFormatName, plain), "v", "pth", "errs", nil)
+	if strings.Contains(without, "isCurrency") {
+		t.Errorf("plain number errors must not carry the flag: %q", without)
 	}
 
-	bad := map[string]any{"min": 10.0, "max": 5.0}
-	msgs := currency.ValidateParams(annotation(currencyFormatName, bad))
-	if len(msgs) != 1 || !strings.HasPrefix(msgs[0], "CurrencyFormat:") {
-		t.Errorf("ValidateParams = %v, want one CurrencyFormat-prefixed message", msgs)
+	// No param invariant and no binary-width change.
+	if msgs := emitter.ValidateParams(annotation(numberFormatName, currency)); len(msgs) != 0 {
+		t.Errorf("isCurrency has no param invariants; got %v", msgs)
+	}
+	cents := map[string]any{"integer": true, "min": 0.0, "max": 255.0, "isCurrency": true}
+	if got := emitter.EmitToBinary(annotation(numberFormatName, cents), "v", "Ser", nil); !strings.Contains(got, "setUint8") {
+		t.Errorf("binary ladder unaffected by isCurrency; got %q", got)
 	}
 }

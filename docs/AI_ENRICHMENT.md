@@ -241,13 +241,15 @@ both legal in single-locale maps too:
   legal on a count-bearing constraint; `$label` is always a plain string.
   Type-side: `TemplateLeaf = string | PluralTemplate` (plus `PluralCategory` and
   the `Translation<T>` intent alias), exported from `ts-runtypes`.
-- **Type-driven `$[val]` rendering.** On the `createFriendlyI18n` path the failed
-  format's NAME (already on every `TypeFormatError`) says what the bound IS: a
-  `currency`-branded bound (the `TF.Currency<P>` number format) renders via
+- **Type-driven `$[val]` rendering.** On the `createFriendlyI18n` path the
+  error's format payload says what the bound IS. A number with the `isCurrency`
+  param (`TF.Currency<P>` = `Number<P & {isCurrency: true}>` — pure
+  presentation metadata, the only number param with no failable constraint;
+  the emitter echoes it onto every error the field produces) renders via
   `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
   app-supplied `currency` renderer option (a string or `{value}` ref; omitted →
-  plain localized number, never a guessed symbol); a date-family bound renders
-  via `Intl.DateTimeFormat(locale)` (an unparseable relative bound like
+  plain localized number, never a guessed symbol); a date-family format NAME
+  renders via `Intl.DateTimeFormat(locale)` (an unparseable relative bound like
   `now-P1D` stays verbatim); everything else stays `String(val)`. There is no
   per-template format syntax — the type is the single source of truth. An
   unknown token stays verbatim, a literal colon in prose (`ratio 3:1`) is never
