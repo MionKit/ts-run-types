@@ -1,12 +1,50 @@
 # Internationalization for `FriendlyType<T>` — the source is a locale, translations are same-tree mirrors
 
-> **Status: PROPOSAL — exploratory design, not yet scheduled.** Adds per-locale
-> translation of a type's `FriendlyType<T>` (human labels + validation-error
-> messages), built on the existing committed-mirror + value-preserving reconcile
-> machinery. Scope: `FriendlyType<T>` only (labels + `$errors` templates) — **not**
-> `MockData<T>` (sample data is never translated). This note supersedes the parked
-> one-liner in [AI_ENRICHMENT.md → Decided defaults](../AI_ENRICHMENT.md) ("*v1 is
-> single-locale; a `Record<Locale, FriendlyType<T>>` wrapper can be added later*").
+> **Status: SHIPPED.** Implemented as specced — the prerequisite family split
+> plus phases 0–6 (widened leaf + runtime, Go classification/CLDR/reconcile,
+> CLI + config, fuzzers, docs). Per-locale translation of a type's
+> `FriendlyType<T>` (human labels + validation-error messages), built on the
+> committed-mirror + value-preserving reconcile machinery. Scope:
+> `FriendlyType<T>` only (labels + `$errors` templates) — **not** `MockData<T>`
+> (sample data is never translated). This note supersedes the parked one-liner
+> in [AI_ENRICHMENT.md → Decided defaults](../AI_ENRICHMENT.md).
+>
+> **Deviations from the proposal, as implemented** (each deliberate):
+>
+> 1. **`resolveLocale` is NAIVE truncation** (product decision, overriding the
+>    cross-script-refusal recommendation in §Design decisions): exact tag →
+>    subtags dropped right-to-left → any available tag sharing the base
+>    language (`zh-Hant` falls to a `zh-Hans` file when nothing closer exists)
+>    → source.
+> 2. **Pruned plural arms stay pruned.** On an EXISTING plural leaf the
+>    reconcile re-inserts only the mandatory `other` backstop; the target
+>    locale's full arm set seeds NEW leaves only — locale ownership wins over
+>    re-scaffolding.
+> 3. **`FriendlyI18nOptions` gained `sourceLocale?`** (default `'en'`): the
+>    renderer needs it to select source-map plurals with the source language's
+>    rules; plain `createFriendly` uses `'en'` (deterministic, matching the
+>    tsconfig default) rather than the host locale.
+> 4. **The formatter cache is scoped per `NamedFormats` table** (a WeakMap of
+>    per-table maps), not one global map — two renderers with different tables
+>    must never cross-read a same-named format.
+> 5. **A `relativeTime` named format carries its `unit` in the options entry**
+>    (`{unit: 'day', numeric: 'auto'}`) — the token has no unit slot.
+> 6. **A plain string stays legal on a count-bearing constraint** (the plural
+>    kind is a scaffold default, not a checker mandate); a hand-diverged
+>    string↔object kind is KEPT by the merge (the translator owns their leaf).
+>    Checker codes as shipped: FT006 (plural missing `other`, Error), FT007
+>    (non-CLDR arm, Warning), FT008 (plural on a non-count-bearing constraint,
+>    Warning); `check --translate` reports TR001–TR005 (missing file / @todo
+>    blanks / out-of-date / carcasses / unknown format name), Warning-severity
+>    unless tsconfig `i18n.strict`.
+> 7. **`i18n.dir` resolves under the PROJECT ROOT** (like `enrichDir`),
+>    defaulting to `<enrichDir>/i18n` — the proposal's `"generated/i18n"`
+>    example contradicted its own "under the enrich root" note.
+> 8. **Const renames also rewrite sibling references** (`home: friendlyAddress`
+>    after `Address→Location`) — a latent gap in the normal reconcile that the
+>    cross-locale rename-carry surfaced; fixed for both modes.
+> 9. The built-in CLDR table ships `pl` too, and the `es`/`pt`/`fr` rows
+>    include `many` (modern CLDR, verified against ICU).
 >
 > Product of a design study (4 deep repo readers + 5 i18n-ecosystem researchers —
 > vue-i18n, i18next, ICU/MF2, the platform `Intl` API, and the type-safe/compile-time
@@ -63,7 +101,7 @@ mandatory `other` arm as backstop.
 | **File layout** | One committed file per (source file, locale) under a **path-segment** subtree: `runtypes/generated/i18n/<locale>/<rel>.ts`, const `<Locale>_friendly<Name>: Translation<Name>`. |
 | **Plurals** | **Generator-owned, constraint-classified.** Objects on count-bearing constraints (`minLength`/`maxLength`/`min`/`max`/`lt`/`gt`), strings elsewhere. Arms = the file-locale's CLDR categories from a built-in table (top ~10 locales; unknown → all six). Runtime selects via `Intl.PluralRules`; `other` mandatory + backstop. |
 | **Leaf type** | `TemplateLeaf = string \| PluralTemplate` (permissive in TS; the Go checker enforces the per-constraint kind, an FT003 extension). Language-agnostic. |
-| **Runtime** | `createFriendlyI18n(source, { locale, translations, formats? })` — thin locale selector over the one pure `createFriendly` walk; per-leaf fallback to source. `resolveLocale()` exported standalone. |
+| **Runtime** | `createFriendlyI18n(source, { locale, translations, formats?, sourceLocale? })` — thin locale selector over the one pure `createFriendly` walk; per-leaf fallback to source. `resolveLocale()` exported standalone. |
 | **Interpolation** | Keep the **closed `$[…]` DSL**. Add `$[val:number:currency]`-style tokens naming `Intl` formats declared once in config. **No ICU/MF2.** |
 | **Count source** | Always the **violated bound** (`$[val]`, cardinal). Because objects appear only on count-bearing constraints, there is no cardinal-vs-ordinal ambiguity. |
 | **Reconcile** | Reuse the generic merge/rename/orphan/splice core; swap the type-bound outer shell (desired side = source-const bytes; orphan oracle = source mirror). **One genuinely-new capability:** descend into `$errors` (today opaque) and into plural objects (locale-owned arms). |
@@ -415,6 +453,7 @@ export interface FriendlyI18nOptions<T> {
   locale: string | { readonly value: string };            // string OR any { value } ref (e.g. a Vue Ref) — structural read, no Vue dep
   translations: Partial<Record<string, FriendlyType<T>>>; // locale tag -> committed translation const
   formats?: Record<string, NamedFormats>;                 // per-locale named Intl formats (§6)
+  sourceLocale?: string;                                   // language of the SOURCE map (default 'en') — its Intl.PluralRules select source-map plurals
   strict?: boolean;                                        // reserved; runtime stays lenient — strictness lives in `check`
 }
 
@@ -461,7 +500,7 @@ export interface NamedFormats {
 ```
 
 **Caching (i18next `addCached` model):** a module-level
-`intlCache = new Map<string, (v: unknown) => string>()` keyed `${locale}\0${kind}\0${name}`
+formatter cache keyed `${locale}\0${kind}\0${name}` WITHIN its `NamedFormats` table (a WeakMap of per-table maps, as shipped — never cross-table)
 builds each `Intl.*Format` lazily and returns a `value => string` closure; `PluralRules`
 share it keyed `${locale}\0plural\0cardinal`. The cache is a module-scope singleton
 **beside** the pure walk (the walk itself caches nothing).
@@ -518,8 +557,9 @@ leaves byte-identical), then **one more level into a plural object** with the
   **locale-owned**: suppress **both** `orphanChildOp` **and** the rename pass for them. (The
   rename half matters — `computeRenames`/`fieldIdentity` would otherwise spuriously pair a
   dropped `one` with an added `few` and silently relabel a translated arm.)
-- Never down-scope to the source's arm set; require only `other`; scaffold a new blank plural
-  leaf from the **target** locale's category set.
+- Never down-scope to the source's arm set; require only `other` (as shipped, only the missing
+  mandatory `other` is ever re-inserted on an existing leaf — a translator-pruned arm stays
+  pruned); scaffold a new blank plural leaf from the **target** locale's category set.
 - Prove per-arm inserts + an orphan-child inside **one** plural object stay non-overlapping
   under the fatal-on-overlap splicer.
 
@@ -553,7 +593,7 @@ dormant, zero behaviour change):
 { "name": "ts-runtypes", "enrichDir": "runtypes/generated",
   "i18n": {
     "sourceLocale": "en",                  // the language the source FriendlyType is authored in (default 'en')
-    "dir": "generated/i18n",               // resolved under the enrich root; locale is a PATH SEGMENT
+    "dir": "runtypes/generated/i18n",      // resolved under the PROJECT ROOT (default <enrichDir>/i18n); locale is a PATH SEGMENT
     "locales": ["es", "pl", "ar"],         // target set — the source is NOT listed (it IS the source language)
     "formats": "runtypes/i18n.formats.ts", // optional module default-exporting Record<locale, NamedFormats>
     "strict": false                        // check --translate gate; runtime is always lenient
@@ -610,9 +650,10 @@ configurable `sourceLocale`.
    locale, referenced by `tsconfig i18n.formats`, so the CLI can validate format-name
    references at `gen`/`check` and the runtime imports the same table. Co-location duplicates
    defs; runtime-only loses build validation.
-3. **How strict is BCP-47 fallback in `resolveLocale`?** *Recommend* truncation that **refuses
-   cross-script** substitution (`zh-Hant` must not fall to `zh-Hans`), else source. Naive
-   truncation can silently serve the wrong script.
+3. **How strict is BCP-47 fallback in `resolveLocale`?** **DECIDED (product call): naive
+   truncation** — exact tag, then subtags dropped right-to-left, then any available tag
+   sharing the base language (`zh-Hant` may fall to `zh-Hans`), else source. The
+   cross-script-refusal alternative was considered and explicitly not taken.
 
 ## Risk register (verified hazards to honour in implementation)
 
