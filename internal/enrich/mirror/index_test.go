@@ -185,19 +185,14 @@ func TestMarkerComment(t *testing.T) {
 		t.Errorf("marker without childIDs = %q", MarkerComment(enrich.NamedConst{TypeName: "User", TypeID: "abc"}))
 	}
 
-	// A translation const appends the @rtI18n breadcrumb clause.
-	i18n := MarkerComment(enrich.NamedConst{
-		TypeName: "User", TypeID: "9f3a", ChildIDs: map[string]string{"name": "a1"},
-		I18nLocale: "pl", I18nSourceSpec: "../../friendly/models/user",
-	})
-	wantI18n := "/** @rtType User#9f3a @rtIds {name: a1} @rtI18n pl from '../../friendly/models/user' */\n"
-	if i18n != wantI18n {
-		t.Errorf("i18n MarkerComment = %q, want %q", i18n, wantI18n)
-	}
-	// The @rtType/@rtIds parse is unaffected by the extra clause.
-	typeID, childIDs = parseConstMarkers(i18n)
+	// PARSING TOLERANCE: a legacy marker carrying the retired `@rtI18n <locale>
+	// from '<spec>'` clause (written by the pre-src-derived translate driver)
+	// still parses its @rtType/@rtIds — a reconcile over an old translation file
+	// simply rewrites the marker without the clause.
+	legacyI18n := "/** @rtType User#9f3a @rtIds {name: a1} @rtI18n pl from '../../friendly/models/user' */\n"
+	typeID, childIDs = parseConstMarkers(legacyI18n)
 	if typeID != "9f3a" || !reflect.DeepEqual(childIDs, map[string]string{"name": "a1"}) {
-		t.Errorf("i18n marker round-trip = %q / %v", typeID, childIDs)
+		t.Errorf("legacy @rtI18n marker round-trip = %q / %v", typeID, childIDs)
 	}
 }
 

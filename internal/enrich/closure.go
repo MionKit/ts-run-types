@@ -35,13 +35,6 @@ type NamedConst struct {
 	// primitive/inline field's identity for rename matching. Empty when the type
 	// has no walkable children.
 	ChildIDs map[string]string
-	// I18nLocale / I18nSourceSpec are set ONLY on a translation const (the
-	// `gen --translate` desired set): the target locale tag and the module
-	// specifier of the friendly SOURCE MIRROR file (relative to the translation
-	// file). Rendered into the marker's `@rtI18n <locale> from '<spec>'`
-	// breadcrumb — the reconcile anchor and orphan oracle for translations.
-	I18nLocale     string
-	I18nSourceSpec string
 }
 
 // ClosureOptions configures EmitClosure.

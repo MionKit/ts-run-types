@@ -10,48 +10,58 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/cldr"
 	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
 )
 
 // runGenTranslate implements the `gen --translate <locale|all> [<src>]` verbs:
 // scaffold (create-only), --update (the i18n reconcile), and --prune (strip
-// carcasses from the locale's translation files). The desired side is always
-// the friendly SOURCE MIRROR — no Program/checker is built; translate is a
-// pure file-to-file transform.
+// carcasses from the locale's translation files). Translations are SRC-DERIVED:
+// the desired side is emitted from the TYPE by the same EmitClosure walk as the
+// friendly mirror, parameterized per locale (const prefix, output path, plural
+// arms, sibling refs) — the friendly mirror is read for DISCOVERY only (which
+// types to emit), never for generation content.
 func runGenTranslate(translateValue string, positional []string, update, prune bool, enrichDirFlag string) {
 	config, sourceMirrors := translateTargets(positional, enrichDirFlag)
 	locales := resolveTranslateLocales(translateValue, config)
 
-	var written, skipped, pruned int
-	for _, locale := range locales {
-		for _, sourceMirror := range sourceMirrors {
-			translationPath := config.translationPathFor(locale, sourceMirror)
-			if prune {
-				pruned += pruneMirrorFile(translationPath)
-				continue
+	// --prune is a pure carcass sweep over the locale files — it never needs the
+	// Program, so it runs (and exits) before any program building.
+	if prune {
+		pruned := 0
+		for _, locale := range locales {
+			for _, sourceMirror := range sourceMirrors {
+				pruned += pruneMirrorFile(config.translationPathFor(locale, sourceMirror))
 			}
-			spec, ok := buildTranslateSpec(config, locale, sourceMirror, translationPath)
-			if !ok {
-				skipped++
-				continue
-			}
-			var wrote bool
-			if update {
-				wrote = updateMirrorFile(spec)
-			} else {
-				wrote = writeMirrorFile(spec)
-			}
-			if wrote {
-				written++
-			} else {
-				skipped++
+		}
+		fmt.Fprintf(os.Stderr, "gen --translate --prune: %d orphan block(s) removed\n", pruned)
+		os.Exit(0)
+	}
+
+	var written, skipped int
+	for _, sourceMirror := range sourceMirrors {
+		// OUTER loop per friendly mirror: one Program amortizes across all locales.
+		specsByLocale, ok := buildTranslationSpecs(config, sourceMirror, locales)
+		if !ok {
+			skipped += len(locales)
+			continue
+		}
+		for _, locale := range locales {
+			for _, spec := range specsByLocale[locale] {
+				var wrote bool
+				if update {
+					wrote = updateMirrorFile(spec)
+				} else {
+					wrote = writeMirrorFile(spec)
+				}
+				if wrote {
+					written++
+				} else {
+					skipped++
+				}
 			}
 		}
 	}
-	if prune {
-		fmt.Fprintf(os.Stderr, "gen --translate --prune: %d orphan block(s) removed\n", pruned)
-	} else if written == 0 {
+	if written == 0 {
 		fmt.Printf("gen --translate: nothing to write — translation file(s) already up to date\n")
 	}
 	os.Exit(0)
@@ -90,64 +100,184 @@ func resolveTranslateLocales(translateValue string, config enrichConfig) []strin
 	return config.I18nLocales
 }
 
-// buildTranslateSpec assembles the mirror.Spec for one (locale, source mirror)
-// pair. ok=false (with a stderr note) when the source mirror is missing,
-// unparseable, or carries no source breadcrumb / friendly consts.
-func buildTranslateSpec(config enrichConfig, locale, sourceMirror, translationPath string) (mirror.Spec, bool) {
+// translationDiscovery is what a translate run reads off a friendly mirror —
+// DISCOVERY ONLY, never generation content: the breadcrumb resolves the src
+// decl file the Program builds over, and each friendly const's type name says
+// which types to re-emit from src.
+type translationDiscovery struct {
+	declFile  string
+	typeNames []string
+}
+
+// discoverTranslationTypes parses one friendly mirror for its src decl file +
+// the type names of its friendly consts (translation-named consts are never
+// sources; a const without a type name is skipped with a stderr note).
+// ok=false (with a stderr note) when the mirror is missing, unparseable,
+// breadcrumb-less, or names no types.
+func discoverTranslationTypes(sourceMirror string) (translationDiscovery, bool) {
 	sourceBytes, err := os.ReadFile(sourceMirror)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gen --translate: skipping %s: %v\n", sourceMirror, err)
-		return mirror.Spec{}, false
+		return translationDiscovery{}, false
 	}
 	index, err := mirror.ParseMirror(sourceMirror, sourceBytes)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gen --translate: skipping %s: %v\n", sourceMirror, err)
-		return mirror.Spec{}, false
+		return translationDiscovery{}, false
 	}
 	breadcrumb, ok := index.Breadcrumb()
 	if !ok {
 		fmt.Fprintf(os.Stderr, "gen --translate: skipping %s: no source breadcrumb\n", sourceMirror)
-		return mirror.Spec{}, false
+		return translationDiscovery{}, false
 	}
 	declFile := mirror.ResolveBreadcrumb(sourceMirror, breadcrumb)
 
-	arms := cldr.Categories(locale)
-	sourceSpec := mirror.ImportSpecifier(translationPath, sourceMirror)
-	consts := index.TranslationConsts(locale, arms, sourceSpec, declFile)
-	if len(consts) == 0 {
-		return mirror.Spec{}, false
+	var typeNames []string
+	seen := map[string]bool{}
+	for _, friendlyConst := range index.FriendlyConstTypes() {
+		if friendlyConst.TypeName == "" {
+			fmt.Fprintf(os.Stderr, "gen --translate: %s: skipping %s: no type name on its annotation\n",
+				sourceMirror, friendlyConst.VarName)
+			continue
+		}
+		if seen[friendlyConst.TypeName] {
+			continue
+		}
+		seen[friendlyConst.TypeName] = true
+		typeNames = append(typeNames, friendlyConst.TypeName)
+	}
+	if len(typeNames) == 0 {
+		fmt.Fprintf(os.Stderr, "gen --translate: skipping %s: no friendly consts with a type name\n", sourceMirror)
+		return translationDiscovery{}, false
+	}
+	return translationDiscovery{declFile: declFile, typeNames: typeNames}, true
+}
+
+// buildTranslationSpecs runs the src-derived pipeline for one friendly mirror:
+// discovery, ONE Program over the decl file (amortized across every locale of
+// the run), then per locale a fresh EmitClosure — the TARGET locale drives the
+// emitted plural arm set — transformed into locale-prefixed mirror.Specs
+// grouped by decl file exactly like gen. ok=false (with a stderr note) when
+// the mirror is unusable; the caller skips it.
+func buildTranslationSpecs(config enrichConfig, sourceMirror string, locales []string) (map[string][]mirror.Spec, bool) {
+	discovery, ok := discoverTranslationTypes(sourceMirror)
+	if !ok {
+		return nil, false
+	}
+	prog, res, err := buildProgram(discovery.declFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gen --translate: skipping %s: %v\n", sourceMirror, err)
+		return nil, false
+	}
+	defer res.Close()
+
+	// Resolve each type once — resolution is locale-independent; only the
+	// emitted plural arms differ per locale, so EmitClosure runs PER LOCALE.
+	type resolvedType struct {
+		typeName string
+		resolved *enrich.Resolved
+	}
+	var resolvedTypes []resolvedType
+	for _, typeName := range discovery.typeNames {
+		resolved, resolveErr := enrich.ResolveTypeRaw(prog, res, discovery.declFile, typeName)
+		if resolveErr != nil {
+			fmt.Fprintf(os.Stderr, "gen --translate: %s: skipping type %s: %v\n", sourceMirror, typeName, resolveErr)
+			continue
+		}
+		resolvedTypes = append(resolvedTypes, resolvedType{typeName: typeName, resolved: resolved})
+	}
+	if len(resolvedTypes) == 0 {
+		fmt.Fprintf(os.Stderr, "gen --translate: skipping %s: no resolvable types\n", sourceMirror)
+		return nil, false
 	}
 
-	// Cross-file value imports: a reference to another mirror's const resolves
-	// to the SIBLING translation file — same relative specifier (both trees
-	// shift down identically), locale-prefixed var. VarDeclFile maps each such
-	// var to its home translation file and MirrorPathFor is identity; intra-file
-	// vars map to declFile so the header emitter skips them.
-	varDeclFile := map[string]string{}
-	for _, named := range consts {
+	specsByLocale := make(map[string][]mirror.Spec, len(locales))
+	for _, locale := range locales {
+		var closure []enrich.NamedConst
+		seenVar := map[string]bool{}
+		for _, item := range resolvedTypes {
+			for _, named := range enrich.EmitClosure(item.resolved.Node, enrich.ClosureOptions{
+				TypeName:  item.typeName,
+				Resolve:   item.resolved.Resolve,
+				DeclFiles: item.resolved.DeclFiles,
+				// The TARGET locale drives the plural arm set of the emitted scaffolds.
+				SourceLocale:   locale,
+				FriendlyErrors: config.FriendlyErrors,
+			}) {
+				if seenVar[named.FriendlyVar] {
+					continue // two roots reached the same named type — one const app-wide
+				}
+				seenVar[named.FriendlyVar] = true
+				closure = append(closure, named)
+			}
+		}
+		specsByLocale[locale] = translationSpecs(config, locale, closure, discovery.declFile)
+	}
+	return specsByLocale, true
+}
+
+// translationSpecs transforms one locale's closure into its mirror.Specs: the
+// four locale parameters applied to the ordinary gen pipeline. Vars are
+// locale-prefixed, sibling const references in every body are renamed to their
+// locale twins (`home: friendlyAddress` → `home: pl_friendlyAddress`), each
+// decl-file group targets the locale sibling of that file's friendly mirror,
+// and cross-file value imports resolve to locale siblings via MirrorPathFor.
+// The breadcrumb is the normal src type import (SourceFile = the decl file).
+// Mock halves ride along untouched — WantMock is false, nothing reads them.
+func translationSpecs(config enrichConfig, locale string, closure []enrich.NamedConst, fallbackDeclFile string) []mirror.Spec {
+	renames := make(map[string]string, len(closure))
+	renameOrder := make([]string, 0, len(closure))
+	for _, named := range closure {
+		if _, ok := renames[named.FriendlyVar]; !ok {
+			renameOrder = append(renameOrder, named.FriendlyVar)
+		}
+		renames[named.FriendlyVar] = mirror.TranslationVarName(locale, named.FriendlyVar)
+	}
+
+	varDeclFile := make(map[string]string, len(closure))
+	transformed := make([]enrich.NamedConst, 0, len(closure))
+	for _, named := range closure {
+		declFile := named.DeclFile
+		if declFile == "" {
+			declFile = fallbackDeclFile
+		}
+		body := []byte(named.Friendly)
+		for _, oldVar := range renameOrder {
+			body = mirror.RenameIdentifierAll(body, oldVar, renames[oldVar])
+		}
+		named.FriendlyVar = renames[named.FriendlyVar]
+		named.Friendly = string(body)
+		transformed = append(transformed, named)
 		varDeclFile[named.FriendlyVar] = declFile
 	}
-	for _, valueImport := range index.ValueImports() {
-		targetTranslation := tspath.NormalizePath(
-			filepath.Join(filepath.Dir(translationPath), filepath.FromSlash(valueImport.Specifier)) + ".ts")
-		for _, name := range valueImport.Names {
-			if !strings.HasPrefix(name, "friendly") {
-				continue // mock/value helpers never ride into translations
-			}
-			varDeclFile[mirror.TranslationVarName(locale, name)] = targetTranslation
+
+	mirrorPathFor := func(declFile string) string {
+		return config.translationPathFor(locale, config.mirrorPath(familyFriendly, declFile))
+	}
+	var specs []mirror.Spec
+	for _, group := range groupByDeclFile(transformed, fallbackDeclFile, false) {
+		specs = append(specs, mirror.Spec{
+			MirrorPath:    mirrorPathFor(group.declFile),
+			SourceFile:    group.declFile,
+			Consts:        group.consts,
+			VarDeclFile:   varDeclFile,
+			WantFriendly:  true,
+			WantMock:      false,
+			MirrorPathFor: mirrorPathFor,
+		})
+	}
+	return specs
+}
+
+// specForMirrorPath finds the spec targeting mirrorPath, or nil (the friendly
+// mirror was skipped, or that group's home is another translation file).
+func specForMirrorPath(specs []mirror.Spec, mirrorPath string) *mirror.Spec {
+	for i := range specs {
+		if specs[i].MirrorPath == mirrorPath {
+			return &specs[i]
 		}
 	}
-
-	return mirror.Spec{
-		MirrorPath:    translationPath,
-		SourceFile:    declFile,
-		Consts:        consts,
-		VarDeclFile:   varDeclFile,
-		WantFriendly:  true,
-		WantMock:      false,
-		MirrorPathFor: func(path string) string { return path },
-		Translate:     &mirror.TranslateSpec{Locale: locale, SourceMirrorPath: sourceMirror},
-	}, true
+	return nil
 }
 
 // translationFinding is one `check --translate` completeness finding.
@@ -165,7 +295,7 @@ var todoBlankPattern = regexp.MustCompile(`:\s*''`)
 
 // runCheckTranslate implements `check --translate <locale|all>`: the
 // non-writing completeness gate. Findings: TR001 missing translation file,
-// TR002 unfilled @todo blanks, TR003 out of date vs the source mirror (a
+// TR002 unfilled @todo blanks, TR003 out of date vs the src type (a src-derived
 // reconcile would change it), TR004 orphan carcasses awaiting --prune.
 // Severity is Warning unless tsconfig i18n.strict is true (then everything is
 // an Error and the exit code drives CI).
@@ -188,11 +318,17 @@ func runCheckTranslate(translateValue string, enrichDirFlag string) {
 
 	var findings []translationFinding
 	checkedFiles := 0
-	for _, locale := range locales {
-		for _, sourceMirror := range sourceMirrors {
+	for _, sourceMirror := range sourceMirrors {
+		// One Program + closure per friendly mirror, specs per locale. A mirror
+		// that can't be processed (unreadable / markerless / unresolvable) was
+		// already noted on stderr; its targets still count as checked and get the
+		// file-local findings (TR001/TR002/TR004) — just no TR003.
+		specsByLocale, _ := buildTranslationSpecs(config, sourceMirror, locales)
+		for _, locale := range locales {
 			translationPath := config.translationPathFor(locale, sourceMirror)
 			checkedFiles++
-			findings = append(findings, checkTranslationFile(config, locale, sourceMirror, translationPath, severity)...)
+			spec := specForMirrorPath(specsByLocale[locale], translationPath)
+			findings = append(findings, checkTranslationFile(locale, translationPath, spec, severity)...)
 		}
 	}
 	sort.SliceStable(findings, func(left, right int) bool {
@@ -216,9 +352,11 @@ func runCheckTranslate(translateValue string, enrichDirFlag string) {
 	os.Exit(0)
 }
 
-// checkTranslationFile produces the completeness findings for one (locale,
-// source mirror) pair.
-func checkTranslationFile(config enrichConfig, locale, sourceMirror, translationPath string, severity enrich.Severity) []translationFinding {
+// checkTranslationFile produces the completeness findings for one translation
+// target. spec is the already-built src-derived desired side for THIS file —
+// nil when the friendly mirror couldn't be processed, which skips TR003 while
+// the file-local findings (TR001/TR002/TR004) still run.
+func checkTranslationFile(locale, translationPath string, spec *mirror.Spec, severity enrich.Severity) []translationFinding {
 	var findings []translationFinding
 
 	translationBytes, err := os.ReadFile(translationPath)
@@ -237,13 +375,13 @@ func checkTranslationFile(config enrichConfig, locale, sourceMirror, translation
 		})
 	}
 
-	// TR003 — a dry-run reconcile that would change the file means the source
-	// FriendlyType moved since the last --translate --update.
-	if spec, ok := buildTranslateSpec(config, locale, sourceMirror, translationPath); ok {
-		if _, changed, reconcileErr := mirror.Reconcile(spec, translationBytes, readSourceFile); reconcileErr == nil && changed {
+	// TR003 — a dry-run src-derived reconcile that would change the file means
+	// the source type moved since the last --translate --update.
+	if spec != nil {
+		if _, changed, reconcileErr := mirror.Reconcile(*spec, translationBytes, readSourceFile); reconcileErr == nil && changed {
 			findings = append(findings, translationFinding{
 				File: translationPath, Severity: severity, Code: "TR003",
-				Message: fmt.Sprintf("out of date vs %s — run: ts-runtypes gen --translate %s --update", sourceMirror, locale),
+				Message: fmt.Sprintf("out of date vs %s — run: ts-runtypes gen --translate %s --update", spec.SourceFile, locale),
 			})
 		}
 	}

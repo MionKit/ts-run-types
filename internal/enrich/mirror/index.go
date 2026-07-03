@@ -525,6 +525,28 @@ func (index *Index) ValueImports() []ValueImportInfo {
 	return out
 }
 
+// FriendlyConstType is one friendly-form const's public view for the translate
+// driver's DISCOVERY step: the const identifier and the source type name its
+// `FriendlyType<T>` annotation carries ("" when unannotated).
+type FriendlyConstType struct {
+	VarName  string
+	TypeName string
+}
+
+// FriendlyConstTypes lists the friendly-form consts in declaration order,
+// EXCLUDING per-locale translation vars (a translation file is never itself a
+// translate source).
+func (index *Index) FriendlyConstTypes() []FriendlyConstType {
+	var out []FriendlyConstType
+	for _, entry := range index.consts {
+		if !entry.isFriendly || isTranslationVar(entry.varName) {
+			continue
+		}
+		out = append(out, FriendlyConstType{VarName: entry.varName, TypeName: entry.typeName})
+	}
+	return out
+}
+
 // isFriendlyVar / isMockVar report whether a const identifier is one of our
 // emitted enrichment vars (friendly<Name> / mock<Name> with a CamelCase
 // suffix). A TRANSLATION const (`<locale>_friendly<Name>`, e.g.

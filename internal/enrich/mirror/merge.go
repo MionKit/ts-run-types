@@ -162,16 +162,12 @@ func desiredInitializer(sourceFile *ast.SourceFile) *ast.Node {
 // lookups in nested objects), and the existing + desired @rtIds child-id maps
 // (Tier-2 rename identity). The two child-id maps are the const's full @rtIds
 // (existing-side parsed from the marker, desired-side from named.ChildIDs),
-// keyed by full dotted path. translate flips the i18n mode on: the merge then
-// ALSO descends one level into `$errors` (constraint keys) and one more into
-// plural objects (locale-owned arms) — on the ordinary type-driven reconcile
-// `$errors` stays an atomic leaf.
+// keyed by full dotted path.
 type mergeCtx struct {
 	metaKeys      map[string]bool
 	pathPrefix    string
 	existingChild map[string]string
 	desiredChild  map[string]string
-	translate     bool
 }
 
 // childPath joins the ctx prefix with a field key (root prefix is "").

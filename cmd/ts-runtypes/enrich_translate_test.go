@@ -6,12 +6,23 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
 )
 
-// translateFixture lays down a project with a friendly source mirror (the
-// translate verbs' input) and returns its config + the mirror path.
-func translateFixture(t *testing.T, strict bool) (enrichConfig, string) {
+// These are focused unit tests of the translate driver's PURE helpers — target
+// discovery, locale expansion, the closure→spec transformation, and the
+// completeness findings. cmd tests build no checker Program (no precedent in
+// this package), so the Program-driven pipeline (buildTranslationSpecs's
+// resolve + EmitClosure arc, `gen --translate` end to end) is covered by the
+// JS e2e suite: packages/ts-runtypes/test/suites/enrich/enrichTranslate.test.ts
+// (rewritten src-derived in a later phase).
+
+// translateFixture lays down a project with a src type + a friendly source
+// mirror (the translate verbs' DISCOVERY input) and returns its config, the
+// src path, and the mirror path.
+func translateFixture(t *testing.T, strict bool) (enrichConfig, string, string) {
 	t.Helper()
 	dir := t.TempDir()
 	strictJSON := "false"
@@ -20,7 +31,7 @@ func translateFixture(t *testing.T, strict bool) (enrichConfig, string) {
 	}
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"),
 		`{ "compilerOptions": { "rootDir": "src", "plugins": [{ "name": "ts-runtypes",
-      "i18n": { "sourceLocale": "en", "locales": ["pl"], "strict": `+strictJSON+` } }] } }`)
+      "i18n": { "sourceLocale": "en", "locales": ["pl", "es"], "strict": `+strictJSON+` } }] } }`)
 	source := filepath.Join(dir, "src", "models.ts")
 	writeTestFile(t, source, "export interface User { name: string }\n")
 	sourceMirror := filepath.Join(dir, "runtypes", "generated", "friendly", "models.ts")
@@ -30,84 +41,160 @@ func translateFixture(t *testing.T, strict bool) (enrichConfig, string) {
 			"/** @rtType User#u1 @rtIds {name: n1} */\n"+
 			"export const friendlyUser: FriendlyType<User> = {\n"+
 			"  $label: 'User',\n"+
-			"  $errors: {type: 'must be a user'},\n"+
-			"  name: {$label: 'Full name', $errors: {type: 'must be text', minLength: {one: 'one char', other: '$[val] chars'}}},\n"+
-			"};\n")
-	return resolveEnrichConfig(source, ""), sourceMirror
+			"  name: {$label: 'Full name'},\n"+
+			"};\n\n"+
+			"export const pl_friendlyUser: FriendlyType<User> = {$label: ''};\n\n"+
+			"export const friendlyHelper = {$label: ''};\n")
+	return resolveEnrichConfig(source, ""), source, sourceMirror
 }
 
-// TestBuildTranslateSpec_EndToEnd drives the spec build + scaffold + reconcile
-// helpers over a real on-disk project (the non-exiting core of the
-// `gen --translate` verbs).
-func TestBuildTranslateSpec_EndToEnd(t *testing.T) {
-	config, sourceMirror := translateFixture(t, false)
-	translationPath := config.translationPathFor("pl", sourceMirror)
+// TestTranslateTargets_PositionalMapsToFriendlyMirror pins the target path
+// math: a positional src resolves to its friendly-family mirror.
+func TestTranslateTargets_PositionalMapsToFriendlyMirror(t *testing.T) {
+	config, source, sourceMirror := translateFixture(t, false)
 
-	spec, ok := buildTranslateSpec(config, "pl", sourceMirror, translationPath)
+	gotConfig, targets := translateTargets([]string{source}, "")
+	if gotConfig.EnrichDir != config.EnrichDir {
+		t.Errorf("EnrichDir = %q, want %q", gotConfig.EnrichDir, config.EnrichDir)
+	}
+	if len(targets) != 1 || targets[0] != tspath.NormalizePath(sourceMirror) {
+		t.Errorf("targets = %v, want [%s]", targets, tspath.NormalizePath(sourceMirror))
+	}
+}
+
+// TestResolveTranslateLocales expands a concrete tag as-is and fans `all` out
+// over the tsconfig i18n.locales entries.
+func TestResolveTranslateLocales(t *testing.T) {
+	config, _, _ := translateFixture(t, false)
+
+	if locales := resolveTranslateLocales("pt-BR", config); len(locales) != 1 || locales[0] != "pt-BR" {
+		t.Errorf("concrete tag: %v", locales)
+	}
+	if locales := resolveTranslateLocales("all", config); len(locales) != 2 || locales[0] != "pl" || locales[1] != "es" {
+		t.Errorf("all: %v", locales)
+	}
+}
+
+// TestDiscoverTranslationTypes reads a friendly mirror for DISCOVERY only: the
+// breadcrumb resolves the src decl file; friendly consts contribute their
+// annotation type names; translation-named and annotation-less consts are
+// skipped.
+func TestDiscoverTranslationTypes(t *testing.T) {
+	_, source, sourceMirror := translateFixture(t, false)
+
+	discovery, ok := discoverTranslationTypes(sourceMirror)
 	if !ok {
-		t.Fatalf("buildTranslateSpec failed")
+		t.Fatalf("discoverTranslationTypes failed")
 	}
-	if spec.Translate == nil || spec.Translate.Locale != "pl" || spec.Translate.SourceMirrorPath != sourceMirror {
-		t.Fatalf("Translate spec wrong: %+v", spec.Translate)
+	if discovery.declFile != tspath.NormalizePath(source) {
+		t.Errorf("declFile = %q, want %q", discovery.declFile, tspath.NormalizePath(source))
 	}
-	if len(spec.Consts) != 1 || spec.Consts[0].FriendlyVar != "pl_friendlyUser" {
-		t.Fatalf("desired consts wrong: %+v", spec.Consts)
-	}
-
-	// Scaffold writes the translation file with PL arms and blank leaves.
-	if wrote := writeMirrorFile(spec); !wrote {
-		t.Fatalf("scaffold wrote nothing")
-	}
-	scaffolded, err := os.ReadFile(translationPath)
-	if err != nil {
-		t.Fatalf("translation file not written: %v", err)
-	}
-	text := string(scaffolded)
-	for _, want := range []string{
-		"export const pl_friendlyUser: Translation<User>",
-		"minLength: {one: '', few: '', many: '', other: ''}",
-		"@rtI18n pl from '",
-		"import type { Translation } from 'ts-runtypes';",
-	} {
-		if !strings.Contains(text, want) {
-			t.Errorf("scaffold missing %q:\n%s", want, text)
-		}
-	}
-	if strings.Contains(text, "Full name") {
-		t.Errorf("scaffold must not copy source text:\n%s", text)
+	if len(discovery.typeNames) != 1 || discovery.typeNames[0] != "User" {
+		t.Errorf("typeNames = %v, want [User] (translation var + annotation-less const skipped)", discovery.typeNames)
 	}
 
-	// A second create-only run is a no-op; an update run is byte-identical.
-	if wrote := writeMirrorFile(spec); wrote {
-		t.Errorf("second scaffold must be a create-only no-op")
-	}
-	if wrote := updateMirrorFile(spec); wrote {
-		t.Errorf("update over an unchanged source must be a byte-identical no-op")
+	// A missing mirror is a skip, not a fatal.
+	if _, ok := discoverTranslationTypes(filepath.Join(t.TempDir(), "absent.ts")); ok {
+		t.Errorf("a missing mirror must not discover anything")
 	}
 }
 
-// TestCheckTranslationFile_Findings covers the completeness gate's findings:
-// TR001 missing file, TR002 blanks, TR004 carcasses — and the strict severity
-// flip.
-func TestCheckTranslationFile_Findings(t *testing.T) {
-	config, sourceMirror := translateFixture(t, false)
-	translationPath := config.translationPathFor("pl", sourceMirror)
+// TestTranslationSpecs_TransformAndGrouping drives the pure closure→spec
+// transformation: locale-prefixed vars, sibling references renamed inside
+// EVERY body, decl-file grouping, and locale-sibling pathing for cross-file
+// imports.
+func TestTranslationSpecs_TransformAndGrouping(t *testing.T) {
+	config, source, _ := translateFixture(t, false)
+	geoSource := filepath.Join(filepath.Dir(source), "geo.ts")
 
-	// Missing file → TR001 (warning when not strict).
-	findings := checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning)
+	closure := []enrich.NamedConst{
+		{TypeName: "Address", DeclFile: geoSource, FriendlyVar: "friendlyAddress", MockVar: "mockAddress",
+			Friendly: "{$label: ''}", Mock: "{}", TypeID: "a1"},
+		{TypeName: "User", DeclFile: source, FriendlyVar: "friendlyUser", MockVar: "mockUser",
+			Friendly: "{$label: '', home: friendlyAddress}", Mock: "{}", TypeID: "u1",
+			ChildIDs: map[string]string{"home": "a1"}},
+	}
+	specs := translationSpecs(config, "pl", closure, source)
+	if len(specs) != 2 {
+		t.Fatalf("want one spec per decl-file group; got %d: %+v", len(specs), specs)
+	}
+
+	geoSpec, userSpec := specs[0], specs[1]
+	wantGeoPath := config.translationPathFor("pl", config.mirrorPath(familyFriendly, geoSource))
+	if geoSpec.MirrorPath != wantGeoPath || geoSpec.SourceFile != geoSource {
+		t.Errorf("geo spec = %q / %q, want %q / %q", geoSpec.MirrorPath, geoSpec.SourceFile, wantGeoPath, geoSource)
+	}
+	if len(geoSpec.Consts) != 1 || geoSpec.Consts[0].FriendlyVar != "pl_friendlyAddress" {
+		t.Errorf("geo consts = %+v", geoSpec.Consts)
+	}
+	if !geoSpec.WantFriendly || geoSpec.WantMock {
+		t.Errorf("a translation spec is friendly-only: %+v", geoSpec)
+	}
+	if len(userSpec.Consts) != 1 || userSpec.Consts[0].FriendlyVar != "pl_friendlyUser" {
+		t.Fatalf("user consts = %+v", userSpec.Consts)
+	}
+	// The sibling reference inside the body renamed to its locale twin; the
+	// mock half rides along untouched.
+	if got := userSpec.Consts[0].Friendly; got != "{$label: '', home: pl_friendlyAddress}" {
+		t.Errorf("sibling reference not renamed: %q", got)
+	}
+	if userSpec.Consts[0].MockVar != "mockUser" || userSpec.Consts[0].Mock != "{}" {
+		t.Errorf("mock half must ride along untouched: %+v", userSpec.Consts[0])
+	}
+	// Cross-file value imports resolve to LOCALE SIBLINGS.
+	if userSpec.VarDeclFile["pl_friendlyAddress"] != geoSource {
+		t.Errorf("VarDeclFile = %v", userSpec.VarDeclFile)
+	}
+	if got := userSpec.MirrorPathFor(geoSource); got != wantGeoPath {
+		t.Errorf("MirrorPathFor(geo) = %q, want %q", got, wantGeoPath)
+	}
+}
+
+// stubTranslationSpec hand-builds the src-derived desired side for the fixture
+// (what buildTranslationSpecs emits for locale pl) so the findings tests need
+// no Program.
+func stubTranslationSpec(source, translationPath, friendlyBody string) mirror.Spec {
+	return mirror.Spec{
+		MirrorPath:   translationPath,
+		SourceFile:   source,
+		WantFriendly: true,
+		WantMock:     false,
+		VarDeclFile:  map[string]string{"pl_friendlyUser": source},
+		MirrorPathFor: func(declFile string) string {
+			return translationPath
+		},
+		Consts: []enrich.NamedConst{{
+			TypeName: "User", DeclFile: source, FriendlyVar: "pl_friendlyUser",
+			Friendly: friendlyBody, TypeID: "u1", ChildIDs: map[string]string{"name": "n1"},
+		}},
+	}
+}
+
+// TestCheckTranslationFile_Findings covers the file-local findings: TR001
+// missing file, TR002 blanks, TR004 carcasses — all spec-free (a nil spec
+// skips only TR003), plus the strict severity flip.
+func TestCheckTranslationFile_Findings(t *testing.T) {
+	dir := t.TempDir()
+	translationPath := filepath.Join(dir, "models.ts")
+
+	// Missing file → TR001 (warning when not strict; Error under i18n.strict).
+	findings := checkTranslationFile("pl", translationPath, nil, enrich.Warning)
 	if len(findings) != 1 || findings[0].Code != "TR001" || findings[0].Severity != enrich.Warning {
 		t.Fatalf("want one TR001 warning; got %+v", findings)
 	}
+	strict := checkTranslationFile("pl", translationPath, nil, enrich.Error)
+	if len(strict) != 1 || strict[0].Severity != enrich.Error {
+		t.Fatalf("strict severity must flip to Error; got %+v", strict)
+	}
 
-	// Scaffold, then poke in an orphan carcass beside a filled leaf.
-	spec, _ := buildTranslateSpec(config, "pl", sourceMirror, translationPath)
-	writeMirrorFile(spec)
-	raw, _ := os.ReadFile(translationPath)
-	poked := strings.Replace(string(raw), "type: ''",
-		"type: 'a b', /* @rtOrphanChild gone: 'x' */", 1)
-	writeTestFile(t, translationPath, poked)
-
-	findings = checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning)
+	// Blanks + a carcass in an existing file → TR002 + TR004, and no TR003
+	// without a spec.
+	writeTestFile(t, translationPath,
+		"export const pl_friendlyUser = {\n"+
+			"  $label: '',\n"+
+			"  name: {$label: 'ok'}, /* @rtOrphanChild gone: 'x' */\n"+
+			"};\n")
+	findings = checkTranslationFile("pl", translationPath, nil, enrich.Warning)
 	codes := map[string]int{}
 	for _, finding := range findings {
 		codes[finding.Code]++
@@ -118,56 +205,62 @@ func TestCheckTranslationFile_Findings(t *testing.T) {
 	if codes["TR004"] != 1 {
 		t.Errorf("want TR004 for the carcass; got %+v", findings)
 	}
-	if codes["TR001"] != 0 {
-		t.Errorf("file exists — no TR001; got %+v", findings)
+	if codes["TR001"] != 0 || codes["TR003"] != 0 {
+		t.Errorf("no TR001 (file exists) and no TR003 (nil spec); got %+v", findings)
 	}
 }
 
-// TestCheckTranslationFile_OutOfDate: a source-mirror edit flips TR003 on
-// until a --translate --update run.
+// TestCheckTranslationFile_OutOfDate: TR003 = a dry-run src-derived reconcile
+// would change the file — driven by an already-built spec (the stub stands in
+// for the Program-built desired side), flipping on after the desired side
+// grows and off again after an update.
 func TestCheckTranslationFile_OutOfDate(t *testing.T) {
-	config, sourceMirror := translateFixture(t, false)
-	translationPath := config.translationPathFor("pl", sourceMirror)
-	spec, _ := buildTranslateSpec(config, "pl", sourceMirror, translationPath)
-	writeMirrorFile(spec)
+	_, source, _ := translateFixture(t, false)
+	translationPath := filepath.Join(filepath.Dir(source), "..", "runtypes", "generated", "i18n", "pl", "models.ts")
+
+	baseSpec := stubTranslationSpec(source, translationPath, "{$label: '', name: {$label: ''}}")
+	if wrote := writeMirrorFile(baseSpec); !wrote {
+		t.Fatalf("scaffold wrote nothing")
+	}
+	scaffolded, err := os.ReadFile(translationPath)
+	if err != nil {
+		t.Fatalf("translation file not written: %v", err)
+	}
+	if !strings.Contains(string(scaffolded), "export const pl_friendlyUser: FriendlyType<User>") {
+		t.Errorf("translation consts annotate FriendlyType (Translation is retired):\n%s", scaffolded)
+	}
 
 	// In sync: no TR003.
-	findings := checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning)
-	for _, finding := range findings {
+	for _, finding := range checkTranslationFile("pl", translationPath, &baseSpec, enrich.Warning) {
 		if finding.Code == "TR003" {
-			t.Fatalf("fresh scaffold must not be out of date: %+v", findings)
+			t.Fatalf("fresh scaffold must not be out of date: %+v", finding)
 		}
 	}
 
-	// The source gains a constraint → TR003 until updated.
-	raw, _ := os.ReadFile(sourceMirror)
-	grown := strings.Replace(string(raw), "type: 'must be text',", "type: 'must be text', pattern: 'letters',", 1)
-	writeTestFile(t, sourceMirror, grown)
-
-	findings = checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning)
+	// The src type gains a field → the desired side grows → TR003 until updated.
+	grownSpec := stubTranslationSpec(source, translationPath, "{$label: '', name: {$label: ''}, email: {$label: ''}}")
+	grownSpec.Consts[0].ChildIDs["email"] = "e1"
 	sawOutOfDate := false
-	for _, finding := range findings {
+	for _, finding := range checkTranslationFile("pl", translationPath, &grownSpec, enrich.Warning) {
 		if finding.Code == "TR003" {
 			sawOutOfDate = true
 		}
 	}
 	if !sawOutOfDate {
-		t.Fatalf("want TR003 after a source edit; got %+v", findings)
+		t.Fatalf("want TR003 after the desired side grew")
 	}
 
 	// Update, then clean again.
-	spec, _ = buildTranslateSpec(config, "pl", sourceMirror, translationPath)
-	if wrote := updateMirrorFile(spec); !wrote {
-		t.Fatalf("update should reconcile the added constraint")
+	if wrote := updateMirrorFile(grownSpec); !wrote {
+		t.Fatalf("update should reconcile the added field")
 	}
 	updated, _ := os.ReadFile(translationPath)
-	if !strings.Contains(string(updated), "pattern: ''") {
-		t.Errorf("added constraint not scaffolded:\n%s", updated)
+	if !strings.Contains(string(updated), "email: {$label: ''}") {
+		t.Errorf("added field not scaffolded:\n%s", updated)
 	}
-	findings = checkTranslationFile(config, "pl", sourceMirror, translationPath, enrich.Warning)
-	for _, finding := range findings {
+	for _, finding := range checkTranslationFile("pl", translationPath, &grownSpec, enrich.Warning) {
 		if finding.Code == "TR003" {
-			t.Errorf("updated translation must be in sync; got %+v", findings)
+			t.Errorf("updated translation must be in sync; got %+v", finding)
 		}
 	}
 }
