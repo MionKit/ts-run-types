@@ -2,15 +2,20 @@
 // --prune` over throwaway temp projects on disk and asserts the full reconcile
 // behaviour — property merge preserves authored values, renames carry values
 // under the new key, dropped fields become @rtOrphanChild carcasses, a re-run is
-// a byte-identical no-op, and --prune strips the carcasses. The Go binary MUST
-// be rebuilt before this runs (the suite spawns bin/ts-runtypes).
+// a byte-identical no-op, and --prune strips the carcasses. Each family owns its
+// own mirror subtree (runtypes/generated/friendly/ vs mock/), so assertions are
+// per-family. The Go binary MUST be rebuilt before this runs (the suite spawns
+// bin/ts-runtypes).
 
+import {existsSync, mkdirSync, writeFileSync} from 'node:fs';
+import {dirname, resolve} from 'node:path';
 import {describe, it, expect, afterAll} from 'vitest';
 import {
   makeFixture,
   setSource,
   editMirror,
   readMirror,
+  readMirrors,
   runGen,
   runPrune,
   cleanupReconcileLane,
@@ -22,42 +27,42 @@ describe('enrichment reconcile — gen --update', () => {
   it('property merge preserves other fields when a field type changes', () => {
     const fixture = makeFixture('merge-keep', 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User');
-    // Author values into friendlyUser + mockUser.
-    editMirror(fixture, (text) =>
-      text
-        .replace("name: {$label: '',", "name: {$label: 'Full name',")
-        .replace('name: {pool: []}', "name: {pool: ['Alice', 'Bob']}")
-    );
+    // Author values into friendlyUser + mockUser (each in its own family file).
+    editMirror(fixture, 'friendly', (text) => text.replace("name: {$label: '',", "name: {$label: 'Full name',"));
+    editMirror(fixture, 'mock', (text) => text.replace('name: {pool: []}', "name: {pool: ['Alice', 'Bob']}"));
     // Change age's type (string), add a field; the structural id changes.
     setSource(fixture, 'export interface User { name: string; age: string; isActive: boolean }\n');
     runGen(fixture, 'User', ['--update']);
 
-    const out = readMirror(fixture);
-    expect(out, 'authored friendly value preserved').toContain("name: {$label: 'Full name',");
-    expect(out, 'authored mock pool preserved').toContain("name: {pool: ['Alice', 'Bob']}");
-    expect(out, 'new field added in friendly').toContain("isActive: {$label: '', $errors: {type: ''}}");
-    expect(out, 'new field added in mock').toContain('isActive: {pool: []}');
+    const friendly = readMirror(fixture, 'friendly');
+    const mock = readMirror(fixture, 'mock');
+    expect(friendly, 'authored friendly value preserved').toContain("name: {$label: 'Full name',");
+    expect(mock, 'authored mock pool preserved').toContain("name: {pool: ['Alice', 'Bob']}");
+    expect(friendly, 'new field added in friendly').toContain("isActive: {$label: '', $errors: {type: ''}}");
+    expect(mock, 'new field added in mock').toContain('isActive: {pool: []}');
+    expect(friendly, 'friendly file holds no mock const').not.toContain('mockUser');
+    expect(mock, 'mock file holds no friendly const').not.toContain('friendlyUser');
   });
 
   it('is a byte-identical no-op on an unchanged re-run', () => {
     const fixture = makeFixture('idempotent', 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, (text) => text.replace("name: {$label: '',", "name: {$label: 'Full name',"));
+    editMirror(fixture, 'friendly', (text) => text.replace("name: {$label: '',", "name: {$label: 'Full name',"));
     runGen(fixture, 'User', ['--update']);
-    const first = readMirror(fixture);
+    const first = readMirrors(fixture);
     runGen(fixture, 'User', ['--update']);
-    const second = readMirror(fixture);
+    const second = readMirrors(fixture);
     expect(second, 'second --update must be byte-identical').toBe(first);
   });
 
   it('carries an authored value under a renamed field (Tier-2 primitive)', () => {
     const fixture = makeFixture('rename-primitive', 'export interface User { fullName: string }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, (text) => text.replace("fullName: {$label: '',", "fullName: {$label: 'Full name',"));
+    editMirror(fixture, 'friendly', (text) => text.replace("fullName: {$label: '',", "fullName: {$label: 'Full name',"));
     setSource(fixture, 'export interface User { name: string }\n');
     runGen(fixture, 'User', ['--update']);
 
-    const out = readMirror(fixture);
+    const out = readMirror(fixture, 'friendly');
     expect(out, 'value carried under new key').toContain("name: {$label: 'Full name',");
     expect(out, 'old key gone').not.toContain('fullName');
     expect(out, 'rename must not orphan').not.toContain('@rtOrphanChild');
@@ -72,7 +77,7 @@ describe('enrichment reconcile — gen --update', () => {
     setSource(fixture, 'export interface Address { street: string }\nexport interface User { residence: Address }\n');
     runGen(fixture, 'User', ['--update']);
 
-    const out = readMirror(fixture);
+    const out = readMirror(fixture, 'friendly');
     expect(out, 'reference carried under new key').toContain('residence: friendlyAddress');
     expect(out, 'old key gone').not.toContain('home:');
     expect(out, 'rename must not orphan').not.toContain('@rtOrphanChild');
@@ -81,13 +86,63 @@ describe('enrichment reconcile — gen --update', () => {
   it('comments out a removed field as @rtOrphanChild, preserving its value', () => {
     const fixture = makeFixture('orphan-child', 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, (text) => text.replace("age: {$label: '',", "age: {$label: 'Age in years',"));
+    editMirror(fixture, 'friendly', (text) => text.replace("age: {$label: '',", "age: {$label: 'Age in years',"));
     setSource(fixture, 'export interface User { name: string }\n');
     runGen(fixture, 'User', ['--update']);
 
-    const out = readMirror(fixture);
+    const out = readMirror(fixture, 'friendly');
     expect(out, 'dropped field carcass present').toContain('@rtOrphanChild');
     expect(out, 'dropped value preserved').toContain("age: {$label: 'Age in years',");
+  });
+});
+
+describe('enrichment reconcile — family split', () => {
+  it('gen writes one mirror file per family, each importing only its own DSL type', () => {
+    const fixture = makeFixture('family-split', 'export interface User { name: string }\n');
+    runGen(fixture, 'User');
+
+    const friendly = readMirror(fixture, 'friendly');
+    const mock = readMirror(fixture, 'mock');
+    expect(friendly).toContain('export const friendlyUser: FriendlyType<User>');
+    expect(friendly).toContain("import type { FriendlyType } from 'ts-runtypes'");
+    expect(friendly).not.toContain('MockData');
+    expect(mock).toContain('export const mockUser: MockData<User>');
+    expect(mock).toContain("import type { MockData } from 'ts-runtypes'");
+    expect(mock).not.toContain('FriendlyType');
+  });
+
+  it('migrates a pre-split combined mirror in place, carrying authored values (idempotently)', () => {
+    const fixture = makeFixture('family-migrate', 'export interface User { name: string }\n');
+    // Hand-write a LEGACY combined mirror at the old (no-family) path.
+    const legacyPath = resolve(fixture.enrichDir, 'models.ts');
+    mkdirSync(dirname(legacyPath), {recursive: true});
+    writeFileSync(
+      legacyPath,
+      "import type { User } from '../../src/models';\n" +
+        "import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+        'export const friendlyUser: FriendlyType<User> = {\n' +
+        "  $label: 'The user',\n" +
+        "  $errors: {type: ''},\n" +
+        "  name: {$label: 'Full name', $errors: {type: ''}},\n" +
+        '};\n\n' +
+        'export const mockUser: MockData<User> = {\n' +
+        "  name: {pool: ['Alice']},\n" +
+        '};\n'
+    );
+
+    runGen(fixture, 'User', ['--update']);
+
+    expect(existsSync(legacyPath), 'legacy combined file deleted').toBe(false);
+    const friendly = readMirror(fixture, 'friendly');
+    const mock = readMirror(fixture, 'mock');
+    expect(friendly, 'authored friendly label carried').toContain("$label: 'Full name'");
+    expect(mock, 'authored mock pool carried').toContain("pool: ['Alice']");
+    expect(friendly, 'breadcrumb recomputed one level deeper').toContain("from '../../../src/models'");
+
+    // A second --update over the migrated state is a byte-identical no-op.
+    const first = readMirrors(fixture);
+    runGen(fixture, 'User', ['--update']);
+    expect(readMirrors(fixture), 'post-migration re-run is byte-identical').toBe(first);
   });
 });
 
@@ -99,13 +154,15 @@ describe('enrichment reconcile — @todo lifecycle', () => {
   it('stamps exactly one plain @todo on each newly-generated const', () => {
     const fixture = makeFixture('todo-fresh', 'export interface User { name: string }\n');
     runGen(fixture, 'User');
-    const out = readMirror(fixture);
-    // friendlyUser + mockUser each carry exactly one @todo line.
-    expect(out.match(/@todo/g)?.length, 'one @todo per new const (friendly + mock)').toBe(2);
+    const friendly = readMirror(fixture, 'friendly');
+    const mock = readMirror(fixture, 'mock');
+    // friendlyUser and mockUser each carry exactly one @todo line, in their own file.
+    expect(friendly.match(/@todo/g)?.length, 'one @todo on the friendly const').toBe(1);
+    expect(mock.match(/@todo/g)?.length, 'one @todo on the mock const').toBe(1);
     // It is a PLAIN @todo, never the @rt-namespaced @rtTodo.
-    expect(out, 'the flag is a plain @todo, not @rtTodo').not.toContain('@rtTodo');
+    expect(friendly, 'the flag is a plain @todo, not @rtTodo').not.toContain('@rtTodo');
     // It sits on its OWN `//` line, after the @rtType marker, before the export.
-    expect(out, '@todo follows the marker on a separate line').toMatch(
+    expect(friendly, '@todo follows the marker on a separate line').toMatch(
       /@rtType[^\n]*\*\/\n\/\/ @todo:[^\n]*\nexport const friendly/
     );
   });
@@ -116,23 +173,23 @@ describe('enrichment reconcile — @todo lifecycle', () => {
     // Add a field: existing consts are property-merged, never re-stamped.
     setSource(fixture, 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User', ['--update']);
-    const out = readMirror(fixture);
-    // Still exactly two @todo (the two original consts) — none added by --update.
-    expect(out.match(/@todo/g)?.length, 'no @todo added on update').toBe(2);
+    expect(readMirror(fixture, 'friendly').match(/@todo/g)?.length, 'no @todo added on update (friendly)').toBe(1);
+    expect(readMirror(fixture, 'mock').match(/@todo/g)?.length, 'no @todo added on update (mock)').toBe(1);
   });
 
   it('keeps a user-cleared @todo cleared across --update', () => {
     const fixture = makeFixture('todo-cleared', 'export interface User { name: string }\n');
     runGen(fixture, 'User');
     // User fills in real data and deletes the @todo line from friendlyUser.
-    editMirror(fixture, (text) => text.replace(/\/\/ @todo:[^\n]*\n(export const friendlyUser)/, '$1'));
-    expect(readMirror(fixture).match(/@todo/g)?.length, 'one @todo left (mockUser)').toBe(1);
+    editMirror(fixture, 'friendly', (text) => text.replace(/\/\/ @todo:[^\n]*\n(export const friendlyUser)/, '$1'));
+    expect(readMirror(fixture, 'friendly').match(/@todo/g) ?? [], 'friendly @todo cleared').toHaveLength(0);
     // A reconcile must not regrow the cleared one.
     setSource(fixture, 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User', ['--update']);
-    const out = readMirror(fixture);
-    expect(out.match(/@todo/g)?.length, 'cleared @todo stays cleared').toBe(1);
-    expect(out, 'friendlyUser stays @todo-free').toMatch(/\*\/\nexport const friendlyUser/);
+    const friendly = readMirror(fixture, 'friendly');
+    expect(friendly.match(/@todo/g) ?? [], 'cleared @todo stays cleared').toHaveLength(0);
+    expect(friendly, 'friendlyUser stays @todo-free').toMatch(/\*\/\nexport const friendlyUser/);
+    expect(readMirror(fixture, 'mock').match(/@todo/g)?.length, 'mockUser keeps its own @todo').toBe(1);
   });
 
   it('stamps @todo on a const newly ADDED during --update', () => {
@@ -141,10 +198,11 @@ describe('enrichment reconcile — @todo lifecycle', () => {
     // Introduce a referenced named type → new friendlyAddress/mockAddress consts.
     setSource(fixture, 'export interface Address { street: string }\nexport interface User { name: string; home: Address }\n');
     runGen(fixture, 'User', ['--update']);
-    const out = readMirror(fixture);
-    // Two original + two new = four @todo; the new Address consts are stamped.
-    expect(out.match(/@todo/g)?.length, 'new consts each get a @todo').toBe(4);
-    expect(out, 'new friendlyAddress carries @todo').toMatch(/\/\/ @todo:[^\n]*\nexport const friendlyAddress/);
+    const friendly = readMirror(fixture, 'friendly');
+    // One original + one new = two @todo per family; the new Address const is stamped.
+    expect(friendly.match(/@todo/g)?.length, 'new friendly const gets a @todo').toBe(2);
+    expect(readMirror(fixture, 'mock').match(/@todo/g)?.length, 'new mock const gets a @todo').toBe(2);
+    expect(friendly, 'new friendlyAddress carries @todo').toMatch(/\/\/ @todo:[^\n]*\nexport const friendlyAddress/);
   });
 
   it('--prune leaves @todo intact', () => {
@@ -153,12 +211,12 @@ describe('enrichment reconcile — @todo lifecycle', () => {
     // Create an @rtOrphanChild carcass so prune has something to strip.
     setSource(fixture, 'export interface User { name: string }\n');
     runGen(fixture, 'User', ['--update']);
-    expect(readMirror(fixture)).toContain('@rtOrphanChild');
+    expect(readMirror(fixture, 'friendly')).toContain('@rtOrphanChild');
 
-    const before = readMirror(fixture).match(/@todo/g)?.length ?? 0;
+    const before = readMirrors(fixture).match(/@todo/g)?.length ?? 0;
     expect(before, 'precondition: @todo present').toBeGreaterThan(0);
     runPrune(fixture);
-    const out = readMirror(fixture);
+    const out = readMirrors(fixture);
     expect(out, '@rtOrphan carcasses gone').not.toContain('@rtOrphan');
     expect(out.match(/@todo/g)?.length, '@todo untouched by prune').toBe(before);
   });
@@ -167,26 +225,27 @@ describe('enrichment reconcile — @todo lifecycle', () => {
     const fixture = makeFixture('todo-idempotent', 'export interface User { name: string }\n');
     runGen(fixture, 'User');
     runGen(fixture, 'User', ['--update']);
-    const first = readMirror(fixture);
+    const first = readMirrors(fixture);
     runGen(fixture, 'User', ['--update']);
-    const second = readMirror(fixture);
+    const second = readMirrors(fixture);
     expect(second, 'update re-run is byte-identical').toBe(first);
     expect(second.match(/@todo/g)?.length, 'no @todo duplication on re-run').toBe(2);
   });
 });
 
 describe('enrichment reconcile — gen --prune', () => {
-  it('strips @rtOrphanChild carcasses, leaving live fields', () => {
+  it('strips @rtOrphanChild carcasses in BOTH family files, leaving live fields', () => {
     const fixture = makeFixture('prune', 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, (text) => text.replace("age: {$label: ''}", "age: {$label: 'Age'}"));
+    editMirror(fixture, 'friendly', (text) => text.replace("age: {$label: ''}", "age: {$label: 'Age'}"));
     setSource(fixture, 'export interface User { name: string }\n');
     runGen(fixture, 'User', ['--update']);
-    expect(readMirror(fixture)).toContain('@rtOrphanChild');
+    expect(readMirror(fixture, 'friendly')).toContain('@rtOrphanChild');
+    expect(readMirror(fixture, 'mock')).toContain('@rtOrphanChild');
 
     runPrune(fixture);
-    const out = readMirror(fixture);
-    expect(out, 'orphan tags gone after prune').not.toContain('@rtOrphan');
-    expect(out, 'live field survives').toContain('name:');
+    const both = readMirrors(fixture);
+    expect(both, 'orphan tags gone after prune (both families)').not.toContain('@rtOrphan');
+    expect(both, 'live field survives').toContain('name:');
   });
 });

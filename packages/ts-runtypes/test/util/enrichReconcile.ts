@@ -23,13 +23,20 @@ const LANE_ROOT = resolve(HERE, '../suites/enrich/.tmp/reconcile');
 // a flaky ENOENT. Each worker has its own module instance, so its Set is private to it.
 const createdFixtures = new Set<string>();
 
+// A mirror family: each enrichment family owns its own mirror subtree
+// (runtypes/generated/friendly/ vs runtypes/generated/mock/).
+export type MirrorFamily = 'friendly' | 'mock';
+
 // A reconcile fixture is a self-contained temp project under a unique subdir of
 // the reconcile lane. `dir` is the project root (holds tsconfig + src/);
-// `sourcePath` is the source .ts; `mirrorPath` is its computed mirror file.
+// `sourcePath` is the source .ts; `enrichDir` is the mirror root;
+// `friendlyPath` / `mockPath` are the source's per-family mirror files.
 export interface ReconcileFixture {
   dir: string;
   sourcePath: string;
-  mirrorPath: string;
+  enrichDir: string;
+  friendlyPath: string;
+  mockPath: string;
 }
 
 const TSCONFIG = JSON.stringify(
@@ -44,7 +51,8 @@ const TSCONFIG = JSON.stringify(
 );
 
 // makeFixture lays down a temp project with one source module at src/<name>.ts
-// carrying `source`. The mirror path mirrors src/ under runtypes/generated/.
+// carrying `source`. Each family's mirror path mirrors src/ under its family
+// segment of runtypes/generated/.
 export function makeFixture(name: string, source: string): ReconcileFixture {
   const dir = resolve(LANE_ROOT, name);
   createdFixtures.add(dir);
@@ -53,8 +61,15 @@ export function makeFixture(name: string, source: string): ReconcileFixture {
   writeFileSync(resolve(dir, 'tsconfig.json'), TSCONFIG);
   const sourcePath = resolve(dir, 'src', 'models.ts');
   writeFileSync(sourcePath, source);
-  const mirrorPath = resolve(dir, 'runtypes', 'generated', 'models.ts');
-  return {dir, sourcePath, mirrorPath};
+  const enrichDir = resolve(dir, 'runtypes', 'generated');
+  const friendlyPath = resolve(enrichDir, 'friendly', 'models.ts');
+  const mockPath = resolve(enrichDir, 'mock', 'models.ts');
+  return {dir, sourcePath, enrichDir, friendlyPath, mockPath};
+}
+
+// mirrorPathOf resolves a family's mirror file path.
+export function mirrorPathOf(fixture: ReconcileFixture, family: MirrorFamily): string {
+  return family === 'friendly' ? fixture.friendlyPath : fixture.mockPath;
 }
 
 // setSource rewrites the fixture's source module (simulating a type edit).
@@ -62,16 +77,24 @@ export function setSource(fixture: ReconcileFixture, source: string): void {
   writeFileSync(fixture.sourcePath, source);
 }
 
-// editMirror reads, transforms, and rewrites the mirror file — used to inject
-// authored values before a reconcile.
-export function editMirror(fixture: ReconcileFixture, transform: (text: string) => string): void {
-  const text = readFileSync(fixture.mirrorPath, 'utf8');
-  writeFileSync(fixture.mirrorPath, transform(text));
+// editMirror reads, transforms, and rewrites one family's mirror file — used to
+// inject authored values before a reconcile.
+export function editMirror(fixture: ReconcileFixture, family: MirrorFamily, transform: (text: string) => string): void {
+  const path = mirrorPathOf(fixture, family);
+  const text = readFileSync(path, 'utf8');
+  writeFileSync(path, transform(text));
 }
 
-// readMirror returns the mirror file's current text (throws if absent).
-export function readMirror(fixture: ReconcileFixture): string {
-  return readFileSync(fixture.mirrorPath, 'utf8');
+// readMirror returns one family's mirror file text (throws if absent).
+export function readMirror(fixture: ReconcileFixture, family: MirrorFamily): string {
+  return readFileSync(mirrorPathOf(fixture, family), 'utf8');
+}
+
+// readMirrors returns BOTH families' mirror texts concatenated (a missing file
+// reads as '') — the whole-state view for convergence / no-op compares.
+export function readMirrors(fixture: ReconcileFixture): string {
+  const read = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : '');
+  return read(fixture.friendlyPath) + '\n<<<mock>>>\n' + read(fixture.mockPath);
 }
 
 // runGen runs `gen <source> <Type> [extraArgs…]` from the fixture's project
@@ -83,9 +106,10 @@ export function runGen(fixture: ReconcileFixture, typeName: string, extraArgs: s
   if (result.status !== 0) throw new Error(`gen ${args.join(' ')} exited ${result.status}: ${result.stderr}\n${result.stdout}`);
 }
 
-// runPrune runs `gen --prune <mirrorPath>` from the fixture's project root.
+// runPrune runs `gen --prune <enrichDir>` from the fixture's project root —
+// the whole mirror root, so carcasses in BOTH family files are swept.
 export function runPrune(fixture: ReconcileFixture): void {
-  const result = spawnSync(BIN, ['gen', '--prune', fixture.mirrorPath], {cwd: fixture.dir, encoding: 'utf8'});
+  const result = spawnSync(BIN, ['gen', '--prune', fixture.enrichDir], {cwd: fixture.dir, encoding: 'utf8'});
   if (result.error) throw new Error(`prune failed to launch: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`gen --prune exited ${result.status}: ${result.stderr}\n${result.stdout}`);
 }

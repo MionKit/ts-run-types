@@ -16,6 +16,10 @@
 //      every reconcile leaves a parseable mirror (a successful exit proves the
 //      reconcile re-parsed it).
 //
+// One source file mirrors into TWO generated files, one per enrichment family:
+// <enrichDir>/friendly/<rel>.ts (friendly consts) and <enrichDir>/mock/<rel>.ts
+// (mock consts); whole-output oracles (convergence, orphan absence) read both.
+//
 // Where Layer 1 (internal/enrich/mirror property test) drives Reconcile with a
 // SYNTHETIC desired set, this layer exercises the REAL compiler -> reconcile ->
 // disk pipeline end to end, so the structural ids, closure grouping and atomic
@@ -37,7 +41,8 @@ interface Project {
   dir: string;
   src: string;
   genDir: string;
-  mirror: string;
+  friendlyMirror: string;
+  mockMirror: string;
 }
 
 const TSCONFIG = JSON.stringify({
@@ -57,7 +62,20 @@ function setupProject(fields: Field[], typeName = 'User'): Project {
   const src = path.join(dir, 'src', 'models.ts');
   fs.writeFileSync(src, renderSource(fields, typeName));
   const genDir = path.join(dir, 'generated');
-  return {dir, src, genDir, mirror: path.join(genDir, 'src', 'models.ts')};
+  // Split mirror layout: one generated file per enrichment family under <enrichDir>/<family>/<rel>.
+  return {
+    dir,
+    src,
+    genDir,
+    friendlyMirror: path.join(genDir, 'friendly', 'src', 'models.ts'),
+    mockMirror: path.join(genDir, 'mock', 'src', 'models.ts'),
+  };
+}
+
+// readMirrors concatenates both family mirrors, for whole-output oracles
+// (convergence, orphan absence) that must cover every file the reconcile owns.
+function readMirrors(project: Project): string {
+  return fs.readFileSync(project.friendlyMirror, 'utf8') + fs.readFileSync(project.mockMirror, 'utf8');
 }
 
 // genUpdate runs the real reconcile (the op a dev-loop save handler fires).
@@ -105,13 +123,16 @@ function runRandomSequence(seed: number, steps: number): void {
   const project = setupProject(fields);
   try {
     expect(genUpdate(project).status, `seed ${seed}: seed reconcile`).toBe(0);
+    // The scaffold writes one mirror per family.
+    expect(fs.existsSync(project.friendlyMirror), `seed ${seed}: friendly mirror missing`).toBe(true);
+    expect(fs.existsSync(project.mockMirror), `seed ${seed}: mock mirror missing`).toBe(true);
 
     // The user authors a value: set the friendly root $label (always-live node
     // meta, so it must survive every edit) to a unique sentinel.
     const sentinel = `AUTH_${seed}`;
-    let mirror = fs.readFileSync(project.mirror, 'utf8');
-    expect(mirror, `seed ${seed}: unexpected seed mirror shape`).toContain("$label: ''");
-    fs.writeFileSync(project.mirror, mirror.replace("$label: ''", `$label: '${sentinel}'`));
+    let friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
+    expect(friendly, `seed ${seed}: unexpected seed mirror shape`).toContain("$label: ''");
+    fs.writeFileSync(project.friendlyMirror, friendly.replace("$label: ''", `$label: '${sentinel}'`));
 
     for (let step = 0; step < steps; step++) {
       const choice = Math.floor(rng() * 4);
@@ -134,16 +155,16 @@ function runRandomSequence(seed: number, steps: number): void {
 
       // One-directional: the reconcile never writes the source.
       expect(fs.readFileSync(project.src, 'utf8'), `seed ${seed} step ${step}: source was modified`).toBe(written);
-      // No data loss: the authored value is still somewhere in the mirror.
-      mirror = fs.readFileSync(project.mirror, 'utf8');
-      expect(mirror, `seed ${seed} step ${step}: authored value lost`).toContain(sentinel);
+      // No data loss: the authored value is still somewhere in the friendly mirror.
+      friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
+      expect(friendly, `seed ${seed} step ${step}: authored value lost`).toContain(sentinel);
     }
 
     // Convergence: a further reconcile with no source change is a byte-identical
-    // no-op — the file has stabilised, no garbage is still being churned in.
-    const before = fs.readFileSync(project.mirror, 'utf8');
+    // no-op across BOTH mirrors — the files have stabilised, no garbage churn.
+    const before = readMirrors(project);
     expect(genUpdate(project).status, `seed ${seed}: convergence reconcile`).toBe(0);
-    expect(fs.readFileSync(project.mirror, 'utf8'), `seed ${seed}: not converged`).toBe(before);
+    expect(readMirrors(project), `seed ${seed}: not converged`).toBe(before);
   } finally {
     fs.rmSync(project.dir, {recursive: true, force: true});
   }
@@ -159,14 +180,17 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
     ]);
     try {
       expect(genUpdate(project).status, 'seed reconcile').toBe(0);
+      // The scaffold writes one mirror per family.
+      expect(fs.existsSync(project.friendlyMirror), 'friendly mirror missing').toBe(true);
+      expect(fs.existsSync(project.mockMirror), 'mock mirror missing').toBe(true);
 
       // Author the friendly root label AND a field label.
-      let mirror = fs.readFileSync(project.mirror, 'utf8');
-      mirror = mirror.replace("$label: ''", "$label: 'AUTH_ROOT'");
-      mirror = mirror.replace("name: {$label: ''", "name: {$label: 'AUTH_NAME'");
-      fs.writeFileSync(project.mirror, mirror);
-      expect(mirror).toContain('AUTH_ROOT');
-      expect(mirror).toContain('AUTH_NAME');
+      let friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
+      friendly = friendly.replace("$label: ''", "$label: 'AUTH_ROOT'");
+      friendly = friendly.replace("name: {$label: ''", "name: {$label: 'AUTH_NAME'");
+      fs.writeFileSync(project.friendlyMirror, friendly);
+      expect(friendly).toContain('AUTH_ROOT');
+      expect(friendly).toContain('AUTH_NAME');
 
       // A run of consecutive edits: rename a field, add a field, change a type.
       const sequence: Field[][] = [
@@ -189,15 +213,15 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
         const written = writeSource(project, fields);
         expect(genUpdate(project).status).toBe(0);
         expect(fs.readFileSync(project.src, 'utf8'), 'source must be untouched by the reconcile').toBe(written);
-        mirror = fs.readFileSync(project.mirror, 'utf8');
-        expect(mirror, 'authored root label lost').toContain('AUTH_ROOT');
-        expect(mirror, 'authored field value lost').toContain('AUTH_NAME');
+        friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
+        expect(friendly, 'authored root label lost').toContain('AUTH_ROOT');
+        expect(friendly, 'authored field value lost').toContain('AUTH_NAME');
       }
 
-      // Convergence: an extra reconcile with no source change is a no-op.
-      const before = fs.readFileSync(project.mirror, 'utf8');
+      // Convergence: an extra reconcile with no source change is a no-op on both mirrors.
+      const before = readMirrors(project);
       expect(genUpdate(project).status).toBe(0);
-      expect(fs.readFileSync(project.mirror, 'utf8'), 'mirror must converge (no churn)').toBe(before);
+      expect(readMirrors(project), 'mirrors must converge (no churn)').toBe(before);
     } finally {
       fs.rmSync(project.dir, {recursive: true, force: true});
     }
@@ -221,8 +245,8 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
     ]);
     try {
       expect(genUpdate(project).status).toBe(0);
-      let mirror = fs.readFileSync(project.mirror, 'utf8');
-      fs.writeFileSync(project.mirror, mirror.replace("title: {$label: ''", "title: {$label: 'AUTH_TITLE'"));
+      let friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
+      fs.writeFileSync(project.friendlyMirror, friendly.replace("title: {$label: ''", "title: {$label: 'AUTH_TITLE'"));
 
       // Type `title` -> `heading`, one character per save, reconciling each time.
       const keystrokes = ['titl', 'tit', 'ti', 't', 'th', 'the', 'thea', 'head', 'headi', 'headin', 'heading'];
@@ -232,18 +256,21 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
           {key: 'age', type: 'number'},
         ]);
         expect(genUpdate(project).status, `keystroke '${key}': reconcile failed`).toBe(0);
-        mirror = fs.readFileSync(project.mirror, 'utf8');
-        expect(mirror, `keystroke '${key}': an in-place rename must not leave an @rtOrphan carcass`).not.toContain('@rtOrphan');
+        // The carcass check covers BOTH family mirrors; the carried value lives in the friendly one.
+        expect(readMirrors(project), `keystroke '${key}': an in-place rename must not leave an @rtOrphan carcass`).not.toContain(
+          '@rtOrphan'
+        );
+        friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
         expect(
-          mirror.split('AUTH_TITLE').length - 1,
+          friendly.split('AUTH_TITLE').length - 1,
           `keystroke '${key}': the authored value must be carried exactly once (no empty twin)`
         ).toBe(1);
       }
 
-      // The value ends up on the renamed field; the old name is gone entirely.
-      mirror = fs.readFileSync(project.mirror, 'utf8');
-      expect(mirror).toContain("heading: {$label: 'AUTH_TITLE'");
-      expect(mirror).not.toContain('title:');
+      // The value ends up on the renamed field; the old name is gone from both mirrors.
+      friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
+      expect(friendly).toContain("heading: {$label: 'AUTH_TITLE'");
+      expect(readMirrors(project)).not.toContain('title:');
     } finally {
       fs.rmSync(project.dir, {recursive: true, force: true});
     }
@@ -263,25 +290,30 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
     try {
       expect(genUpdate(project, 'User').status).toBe(0);
 
-      // Author a value on the User mirror.
-      let mirror = fs.readFileSync(project.mirror, 'utf8');
-      fs.writeFileSync(project.mirror, mirror.replace("firstName: {$label: ''", "firstName: {$label: 'AUTH_FN'"));
+      // Author a value on the User friendly mirror.
+      let friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
+      fs.writeFileSync(project.friendlyMirror, friendly.replace("firstName: {$label: ''", "firstName: {$label: 'AUTH_FN'"));
 
       // Rename the interface User -> Account (same fields) and reconcile.
       writeSource(project, fields, 'Account');
       expect(genUpdate(project, 'Account').status, 'a whole-type rename must not crash').toBe(0);
 
-      mirror = fs.readFileSync(project.mirror, 'utf8');
-      expect(mirror, 'var renamed').toContain('export const friendlyAccount');
-      expect(mirror, 'annotation renamed').toContain('FriendlyType<Account>');
-      expect(mirror, 'authored value carried live').toContain('AUTH_FN');
-      expect(mirror, 'no orphan tree for a rename').not.toContain('@rtOrphan');
-      expect(mirror, 'old const fully gone').not.toContain('friendlyUser');
+      friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
+      expect(friendly, 'var renamed').toContain('export const friendlyAccount');
+      expect(friendly, 'annotation renamed').toContain('FriendlyType<Account>');
+      expect(friendly, 'authored value carried live').toContain('AUTH_FN');
+      expect(friendly, 'old const fully gone').not.toContain('friendlyUser');
+      // Mock-side parity: the mock mirror renames in place the same way.
+      const mock = fs.readFileSync(project.mockMirror, 'utf8');
+      expect(mock, 'mock var renamed').toContain('export const mockAccount');
+      expect(mock, 'mock annotation renamed').toContain('MockData<Account>');
+      expect(mock, 'old mock const fully gone').not.toContain('mockUser');
+      expect(readMirrors(project), 'no orphan tree for a rename').not.toContain('@rtOrphan');
 
-      // Converged: a further reconcile is a byte-identical no-op.
-      const before = fs.readFileSync(project.mirror, 'utf8');
+      // Converged: a further reconcile is a byte-identical no-op on both mirrors.
+      const before = readMirrors(project);
       expect(genUpdate(project, 'Account').status).toBe(0);
-      expect(fs.readFileSync(project.mirror, 'utf8'), 'must converge after rename').toBe(before);
+      expect(readMirrors(project), 'must converge after rename').toBe(before);
     } finally {
       fs.rmSync(project.dir, {recursive: true, force: true});
     }

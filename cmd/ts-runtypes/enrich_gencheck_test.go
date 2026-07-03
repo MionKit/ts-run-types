@@ -161,18 +161,36 @@ func TestResolveBreadcrumb(t *testing.T) {
 }
 
 // TestCheckMirrorFile_Clean: a mirror whose breadcrumb resolves to a source that
-// still declares the type, at the correct mirror location, yields no findings.
+// still declares the type, at the correct per-family mirror location, yields no
+// findings.
 func TestCheckMirrorFile_Clean(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{ "compilerOptions": { "rootDir": "src" } }`)
 	writeTestFile(t, filepath.Join(dir, "src", "models", "user.ts"), "export interface User { name: string }")
-	mirror := filepath.Join(dir, "runtypes", "generated", "models", "user.ts")
-	writeTestFile(t, mirror, "import type { User } from '../../../src/models/user';\n"+
+	mirror := filepath.Join(dir, "runtypes", "generated", "friendly", "models", "user.ts")
+	writeTestFile(t, mirror, "import type { User } from '../../../../src/models/user';\n"+
 		"import type { FriendlyType } from 'ts-runtypes';\n\nexport const friendlyUser = {};\n")
 
 	findings := checkMirrorFile(mirror, "")
 	if len(findings) != 0 {
 		t.Errorf("clean mirror should have no findings; got %+v", findings)
+	}
+}
+
+// TestCheckMirrorFile_LegacyCombinedDrifts: a pre-split combined mirror (no
+// family segment in its path) is flagged GE001 so the user re-runs gen to
+// migrate it into the per-family files.
+func TestCheckMirrorFile_LegacyCombinedDrifts(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{ "compilerOptions": { "rootDir": "src" } }`)
+	writeTestFile(t, filepath.Join(dir, "src", "models", "user.ts"), "export interface User { name: string }")
+	mirror := filepath.Join(dir, "runtypes", "generated", "models", "user.ts")
+	writeTestFile(t, mirror, "import type { User } from '../../../src/models/user';\n"+
+		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\nexport const friendlyUser = {};\n")
+
+	findings := checkMirrorFile(mirror, "")
+	if len(findings) != 1 || findings[0].Code != "GE001" {
+		t.Fatalf("legacy combined mirror should yield exactly one GE001; got %+v", findings)
 	}
 }
 

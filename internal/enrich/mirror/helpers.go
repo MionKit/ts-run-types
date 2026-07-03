@@ -258,7 +258,9 @@ func writeMirrorHeader(builder *strings.Builder, spec Spec, blocks []string) {
 	builder.WriteString(" } from '")
 	builder.WriteString(sourceSpec)
 	builder.WriteString("';\n")
-	builder.WriteString("import type { FriendlyType, MockData } from 'ts-runtypes';\n")
+	builder.WriteString("import type { ")
+	builder.WriteString(strings.Join(dslTypeNames(spec), ", "))
+	builder.WriteString(" } from 'ts-runtypes';\n")
 
 	// Cross-file value imports: collect the friendly*/mock* vars referenced in the
 	// rendered blocks whose declaration file differs from this group's source file,
@@ -287,6 +289,21 @@ func writeMirrorHeader(builder *strings.Builder, spec Spec, blocks []string) {
 		builder.WriteString(line)
 	}
 	builder.WriteString("\n")
+}
+
+// dslTypeNames lists the ts-runtypes wrapper types a mirror file's consts
+// annotate with, per the spec's family flags: a friendly-family file imports
+// only FriendlyType, a mock-family file only MockData, a combined (--out) file
+// both.
+func dslTypeNames(spec Spec) []string {
+	var names []string
+	if spec.WantFriendly {
+		names = append(names, "FriendlyType")
+	}
+	if spec.WantMock {
+		names = append(names, "MockData")
+	}
+	return names
 }
 
 // ResolveBreadcrumb resolves a module specifier (as written in the breadcrumb,

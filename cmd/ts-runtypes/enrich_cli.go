@@ -246,36 +246,76 @@ func runGen(args []string) {
 
 	var written, skipped int
 	for _, group := range groups {
-		mirrorPath := config.mirrorPath(group.declFile)
-		if *out != "" {
-			mirrorPath = tspath.NormalizePath(mustAbs(*out))
-		}
-		spec := mirror.Spec{
-			MirrorPath:    mirrorPath,
-			SourceFile:    group.declFile,
-			Consts:        group.consts,
-			VarDeclFile:   varDeclFile,
-			Out:           *out,
-			WantFriendly:  wantFriendly,
-			WantMock:      wantMock,
-			MirrorPathFor: config.mirrorPath,
-		}
-		var wrote bool
-		if *update {
-			wrote = updateMirrorFile(spec)
-		} else {
-			wrote = writeMirrorFile(spec)
-		}
-		if wrote {
-			written++
-		} else {
-			skipped++
+		for _, spec := range groupSpecs(config, group, varDeclFile, *out, wantFriendly, wantMock) {
+			var wrote bool
+			if *update {
+				wrote = updateMirrorFile(spec)
+			} else {
+				wrote = writeMirrorFile(spec)
+			}
+			if wrote {
+				written++
+			} else {
+				skipped++
+			}
 		}
 	}
 	if written == 0 {
 		fmt.Printf("gen: nothing to write — mirror file(s) already have the requested export(s)\n")
 	}
 	os.Exit(0)
+}
+
+// groupSpecs builds the mirror.Spec set for one source-file group: one spec PER
+// WANTED FAMILY (friendly / mock), each targeting its own family-segment mirror
+// file with a family-matched MirrorPathFor (so cross-file value imports resolve
+// to sibling files of the SAME family). The --out override collapses everything
+// into one combined single-file spec (the legacy shape, kept for the explicit
+// escape hatch). Before the per-family specs are built, a pre-split combined
+// mirror at the legacy (no-family) path is migrated in place.
+func groupSpecs(config enrichConfig, group declFileGroup, varDeclFile map[string]string, out string, wantFriendly, wantMock bool) []mirror.Spec {
+	if out != "" {
+		return []mirror.Spec{{
+			MirrorPath:    tspath.NormalizePath(mustAbs(out)),
+			SourceFile:    group.declFile,
+			Consts:        group.consts,
+			VarDeclFile:   varDeclFile,
+			Out:           out,
+			WantFriendly:  wantFriendly,
+			WantMock:      wantMock,
+			MirrorPathFor: config.legacyMirrorPath,
+		}}
+	}
+
+	migrateLegacyMirror(config, group.declFile)
+
+	var specs []mirror.Spec
+	for _, family := range wantedFamilies(wantFriendly, wantMock) {
+		family := family
+		specs = append(specs, mirror.Spec{
+			MirrorPath:    config.mirrorPath(family, group.declFile),
+			SourceFile:    group.declFile,
+			Consts:        group.consts,
+			VarDeclFile:   varDeclFile,
+			WantFriendly:  family == familyFriendly,
+			WantMock:      family == familyMock,
+			MirrorPathFor: func(declFile string) string { return config.mirrorPath(family, declFile) },
+		})
+	}
+	return specs
+}
+
+// wantedFamilies lists the family segments a gen invocation targets, friendly
+// first (matching the historical const order in the combined file).
+func wantedFamilies(wantFriendly, wantMock bool) []string {
+	var families []string
+	if wantFriendly {
+		families = append(families, familyFriendly)
+	}
+	if wantMock {
+		families = append(families, familyMock)
+	}
+	return families
 }
 
 // declFileGroup is one mirror file's worth of consts: every NamedConst whose

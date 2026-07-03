@@ -9,7 +9,7 @@
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {resolve, dirname} from 'node:path';
-import type {ReconcileFixture} from '../../util/enrichReconcile.ts';
+import {mirrorPathOf, type MirrorFamily, type ReconcileFixture} from '../../util/enrichReconcile.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // packages/ts-runtypes/test/fuzz/enrich → up 5 to the repo root.
@@ -64,16 +64,20 @@ export function update(fixture: ReconcileFixture, typeName: string, extraArgs: s
   return runCli(fixture.dir, ['gen', 'src/models.ts', typeName, '--update', ...extraArgs]);
 }
 
-/** `gen --prune <mirror>` — strip @rtOrphan/@rtOrphanChild carcasses. **/
+/** `gen --prune <enrichDir>` — strip @rtOrphan/@rtOrphanChild carcasses from
+ *  the whole mirror root (sweeps BOTH family files). **/
 export function prune(fixture: ReconcileFixture): CliResult {
-  return runCli(fixture.dir, ['gen', '--prune', fixture.mirrorPath]);
+  return runCli(fixture.dir, ['gen', '--prune', fixture.enrichDir]);
 }
 
-/** `check <mirror> --json` — returns the parsed findings plus the raw result.
+/** `check <family mirror> --json` — returns the parsed findings plus the raw result.
  *  exit 0 (clean) / 1 (an Error-severity finding) are BOTH controlled; any other
  *  exit, a launch error, a timeout, or unparseable JSON is surfaced as a problem. **/
-export function check(fixture: ReconcileFixture): {result: CliResult; findings: CheckFinding[]; controlled: boolean} {
-  const result = runCli(fixture.dir, ['check', fixture.mirrorPath, '--json']);
+export function check(
+  fixture: ReconcileFixture,
+  family: MirrorFamily
+): {result: CliResult; findings: CheckFinding[]; controlled: boolean} {
+  const result = runCli(fixture.dir, ['check', mirrorPathOf(fixture, family), '--json']);
   const controlled = !result.timedOut && result.launchError == null && (result.status === 0 || result.status === 1);
   let findings: CheckFinding[] = [];
   if (controlled) {

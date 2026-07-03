@@ -45,18 +45,24 @@ type driftFinding struct {
 // argument, it walks the enrich dir resolved from the current directory's
 // tsconfig. Exits 1 when any Error finding is present.
 func runGenCheck(positional []string, enrichDirFlag string) {
-	var target string
+	var targets []string
 	if len(positional) > 0 {
 		candidate := tspath.NormalizePath(mustAbs(positional[0]))
 		config := resolveEnrichConfig(candidate, enrichDirFlag)
 		// A path OUTSIDE the enrich dir is a SOURCE file (the `gen <source> --check`
-		// form): check ITS mirror, not the source file itself — whose own
+		// form): check ITS mirrors, not the source file itself — whose own
 		// `import type { … }` lines would otherwise be misread as breadcrumbs. A
-		// path inside the enrich dir (a mirror file, or the dir) is scanned directly.
+		// source file has one mirror per family (plus, transitionally, a pre-split
+		// combined file at the legacy path). A path inside the enrich dir (a mirror
+		// file, or the dir) is scanned directly.
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() && !isUnder(config.EnrichDir, candidate) {
-			target = config.mirrorPath(candidate)
+			targets = []string{
+				config.mirrorPath(familyFriendly, candidate),
+				config.mirrorPath(familyMock, candidate),
+				config.legacyMirrorPath(candidate),
+			}
 		} else {
-			target = candidate
+			targets = []string{candidate}
 		}
 	} else {
 		cwd, err := os.Getwd()
@@ -65,12 +71,16 @@ func runGenCheck(positional []string, enrichDirFlag string) {
 		}
 		// Resolve the enrich dir from cwd's tsconfig — the default scan root.
 		config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), enrichDirFlag)
-		target = config.EnrichDir
+		targets = []string{config.EnrichDir}
 	}
 
-	mirrorFiles, err := collectMirrorFiles(target)
-	if err != nil {
-		fatal("gen --check: %v", err)
+	var mirrorFiles []string
+	for _, target := range targets {
+		files, err := collectMirrorFiles(target)
+		if err != nil {
+			fatal("gen --check: %v", err)
+		}
+		mirrorFiles = append(mirrorFiles, files...)
 	}
 
 	var findings []driftFinding
@@ -188,9 +198,23 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 	}
 
 	// GE001 — cosmetic location drift: the mirror file is not where the source's
-	// computed mirror path would put it.
+	// computed mirror path would put it. The expected location depends on the
+	// file's FAMILY, read off its path segment under the enrich root (friendly/ or
+	// mock/); a file at neither segment is a pre-split combined mirror (or a
+	// hand-moved one) and drifts against both family paths.
 	config := resolveEnrichConfig(resolvedSource, enrichDirFlag)
-	expectedMirror := config.mirrorPath(resolvedSource)
+	family, ok := mirrorFamilyOf(config.EnrichDir, mirrorFile)
+	if !ok {
+		findings = append(findings, driftFinding{
+			File:     mirrorFile,
+			Severity: enrich.Warning,
+			Code:     "GE001",
+			Message: fmt.Sprintf("mirror location drift: source maps to the per-family files %s + %s but this file is %s — re-run gen to migrate/relocate",
+				config.mirrorPath(familyFriendly, resolvedSource), config.mirrorPath(familyMock, resolvedSource), mirrorFile),
+		})
+		return findings
+	}
+	expectedMirror := config.mirrorPath(family, resolvedSource)
 	if tspath.NormalizePath(expectedMirror) != tspath.NormalizePath(mirrorFile) {
 		findings = append(findings, driftFinding{
 			File:     mirrorFile,
@@ -201,6 +225,24 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 	}
 
 	return findings
+}
+
+// mirrorFamilyOf reads a mirror file's family off its path: the first segment
+// of its path relative to the enrich root must be a known family dir. ok=false
+// for a file outside the enrich root or at the pre-split combined location.
+func mirrorFamilyOf(enrichDir, mirrorFile string) (string, bool) {
+	rel, err := filepath.Rel(enrichDir, mirrorFile)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", false
+	}
+	first := filepath.ToSlash(rel)
+	if idx := strings.Index(first, "/"); idx >= 0 {
+		first = first[:idx]
+	}
+	if first == familyFriendly || first == familyMock {
+		return first, true
+	}
+	return "", false
 }
 
 // parseBreadcrumb extracts the type names and module specifier from a mirror
