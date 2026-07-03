@@ -178,7 +178,11 @@ function violation(rule: I18nRuleId, command: string, ctx: I18nCtx, message: str
 
 function controlledOr(result: CliResult, command: string, ctx: I18nCtx, out: I18nViolation[]): boolean {
   if (isControlled(result)) return true;
-  const why = result.timedOut ? 'timed out' : result.launchError ? `failed to launch: ${result.launchError}` : `exit ${result.status}`;
+  const why = result.timedOut
+    ? 'timed out'
+    : result.launchError
+      ? `failed to launch: ${result.launchError}`
+      : `exit ${result.status}`;
   out.push(violation('T10', command, ctx, `${why}: ${result.stderr.slice(0, 400)}`));
   return false;
 }
