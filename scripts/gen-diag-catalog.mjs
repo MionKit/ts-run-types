@@ -69,6 +69,12 @@ const SUBSYSTEMS = [
     description: 'From custom per-type function overrides.',
     prefixes: ['OVR'],
   },
+  {
+    key: 'enrichment',
+    label: 'Enrichment files',
+    description: 'From ts-runtypes check and the lint rules over generated FriendlyType and MockData files.',
+    prefixes: ['ENR', 'FT', 'MD', 'GE'],
+  },
 ];
 
 /** Map a code prefix (its leading letters) to a subsystem key. */
