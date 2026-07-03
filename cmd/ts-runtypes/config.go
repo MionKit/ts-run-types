@@ -61,6 +61,11 @@ type enrichConfig struct {
 	I18nLocales  []string
 	I18nStrict   bool
 
+	// FriendlyErrors picks the `$errors` mode `gen` scaffolds for NEW friendly
+	// nodes: "perConstraint" (default) or "default" (the exclusive
+	// `{$default: ''}` catch-all). An authored node's mode is author-owned.
+	FriendlyErrors string
+
 	// The remaining plugin options are read and stored for completeness (and
 	// future use) but are not acted on by gen yet.
 	ModuleMode string
@@ -83,8 +88,11 @@ type tsRuntypesPlugin struct {
 	Name       string `json:"name"`
 	EnrichDir  string `json:"enrichDir"`
 	ModuleMode string `json:"moduleMode"`
-	EmitMode   string `json:"emitMode"`
-	InlineMode string `json:"inlineMode"`
+	// FriendlyErrors: "perConstraint" (default) | "default" — the `$errors`
+	// mode `gen` scaffolds for NEW friendly nodes.
+	FriendlyErrors string `json:"friendlyErrors"`
+	EmitMode       string `json:"emitMode"`
+	InlineMode     string `json:"inlineMode"`
 
 	// I18n is the FriendlyType translation config. A pointer so an absent key
 	// (nil) keeps every i18n default dormant.
@@ -171,6 +179,7 @@ func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
 					config.EnrichDir = enrichDir
 				}
 				config.ModuleMode = plugin.ModuleMode
+				config.FriendlyErrors = strings.TrimSpace(plugin.FriendlyErrors)
 				config.EmitMode = plugin.EmitMode
 				config.InlineMode = plugin.InlineMode
 				if plugin.I18n != nil {

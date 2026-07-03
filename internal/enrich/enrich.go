@@ -50,6 +50,11 @@ type walkCtx struct {
 	// constraint scaffolds arms for — the source locale's category set (default:
 	// English `one`/`other`). Non-count-bearing constraints stay plain strings.
 	pluralArms []string
+	// defaultErrors flips the scaffold's `$errors` mode to the exclusive
+	// `{$default: ''}` catch-all (tsconfig `friendlyErrors: "default"`). Only
+	// affects what NEW nodes scaffold — an authored node's mode is owned by
+	// the author and the reconcile follows it.
+	defaultErrors bool
 }
 
 // namedRefAction tells a node walker how to handle a child that is a reference to
@@ -69,6 +74,21 @@ const (
 
 func newWalkCtx(resolve func(id string) *protocol.RunType) *walkCtx {
 	return &walkCtx{resolve: resolve, seen: map[*protocol.RunType]bool{}, pluralArms: cldr.Categories("en")}
+}
+
+// setFriendlyErrors flips the scaffold's `$errors` mode ("default" → the
+// exclusive `{$default: ”}` catch-all; anything else → per-constraint).
+func (ctx *walkCtx) setFriendlyErrors(mode string) {
+	ctx.defaultErrors = mode == "default"
+}
+
+// bareMeta is the meta skeleton for a node with no format constraints — and,
+// in default-errors mode, for EVERY node (the catch-all replaces the record).
+func (ctx *walkCtx) bareMeta() string {
+	if ctx.defaultErrors {
+		return "{$label: '', $errors: {$default: ''}}"
+	}
+	return "{$label: '', $errors: {type: ''}}"
 }
 
 // setSourceLocale swaps the ctx's plural-arm set to locale's CLDR categories —
@@ -228,16 +248,16 @@ func argumentChild(ctx *walkCtx, rt *protocol.RunType, index int) *protocol.RunT
 // format-carrying node — the param names the type declares (minLength, max,
 // pattern, version, …), sorted for deterministic output. These are exactly the
 // `$errors` template keys the renderer can match (the (format.name,
-// formatPath-tail) discriminator). Transformer-only params may appear too; this
-// is a starting scaffold the author prunes (refined when the noop predicate is
-// shared). Always-present base failure `type` is added by the caller.
+// formatPath-tail) discriminator). Non-failing params (presentation metadata,
+// mock pools, transformers — see nonFailingParams) are excluded. Always-present
+// base failure `type` is added by the caller.
 func formatConstraintKeys(fa *protocol.FormatAnnotation) []string {
 	if fa == nil || len(fa.Params) == 0 {
 		return nil
 	}
 	keys := make([]string, 0, len(fa.Params))
 	for key := range fa.Params {
-		if presentationParams[key] {
+		if nonFailingParams[key] {
 			continue
 		}
 		keys = append(keys, key)
@@ -246,8 +266,19 @@ func formatConstraintKeys(fa *protocol.FormatAnnotation) []string {
 	return keys
 }
 
-// presentationParams are format params that carry NO failable constraint —
-// pure metadata the emitter echoes onto error payloads for the renderer
-// (numberFormat's isCurrency). They never become `$errors` template keys, so
-// the scaffold skips them and FT003 rejects them.
-var presentationParams = map[string]bool{"isCurrency": true}
+// nonFailingParams are format params that carry NO failable constraint:
+// presentation metadata (isCurrency), the mock pool (mockSamples) and the
+// value transformers. They never become `$errors` template keys, so the
+// scaffold skips them and FT003 rejects them. MIRROR of the TS-side
+// `NonFailingParams` union in packages/ts-runtypes/src/enrich/friendlyType.ts
+// — the single sync point of the precise-typing design.
+var nonFailingParams = map[string]bool{
+	"isCurrency":  true,
+	"mockSamples": true,
+	"trim":        true,
+	"lowercase":   true,
+	"uppercase":   true,
+	"capitalize":  true,
+	"replace":     true,
+	"replaceAll":  true,
+}

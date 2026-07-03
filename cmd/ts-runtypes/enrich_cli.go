@@ -234,10 +234,11 @@ func runGen(args []string) {
 	}
 
 	closure := enrich.EmitClosure(resolved.Node, enrich.ClosureOptions{
-		TypeName:     typeName,
-		Resolve:      resolved.Resolve,
-		DeclFiles:    resolved.DeclFiles,
-		SourceLocale: config.SourceLocale,
+		TypeName:       typeName,
+		Resolve:        resolved.Resolve,
+		DeclFiles:      resolved.DeclFiles,
+		SourceLocale:   config.SourceLocale,
+		FriendlyErrors: config.FriendlyErrors,
 	})
 
 	// Group the closure by declaration source file → one mirror file per group.

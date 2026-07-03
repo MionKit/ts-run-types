@@ -29,7 +29,6 @@ export {type Static} from './schema/static.ts';
 // templates; `MockData<T>` carries sample pools/ranges feeding `createMockType`.
 export {
   type FriendlyType,
-  type Translation,
   type FriendlyNode,
   type FriendlyMeta,
   type ErrorTemplates,
@@ -37,8 +36,6 @@ export {
   type PluralCategory,
   type PluralTemplate,
   type TemplateLeaf,
-  type FailedConstraint,
-  type FailedConstraints,
 } from './enrich/friendlyType.ts';
 export {type MockData, type MockNode} from './enrich/mockData.ts';
 // Pure-data runtime: render `getValidationErrors` output into human messages.
