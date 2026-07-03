@@ -40,12 +40,19 @@ type fileFinding struct {
 func runCheck(args []string) {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "emit findings as a JSON array")
+	enrichDirFlag := fs.String("enrich-dir", "", "mirror root override (precedence: this flag > tsconfig plugins entry > default)")
+	translate := fs.String("translate", "", "i18n completeness gate: report @todo blanks / orphans / out-of-date translations for a locale (or 'all')")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes check <file.ts> [--json]")
+		fmt.Fprintln(os.Stderr, "   or: ts-runtypes check --translate <locale|all>   (translation completeness; strict via tsconfig i18n.strict)")
 	}
 	positional, flags := splitArgs(args)
 	if err := fs.Parse(flags); err != nil {
 		fatal("check: %v", err)
+	}
+	if *translate != "" {
+		runCheckTranslate(*translate, *enrichDirFlag)
+		return
 	}
 	if len(positional) < 1 {
 		fs.Usage()

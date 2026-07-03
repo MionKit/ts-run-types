@@ -142,16 +142,30 @@ func runGen(args []string) {
 	typeFlag := fs.String("type", "", "batch mode: the type name to resolve in every --files entry")
 	update := fs.Bool("update", false, "reconcile an existing committed mirror file against the freshly regenerated desired set (property merge, never clobbers values)")
 	prune := fs.Bool("prune", false, "destructive: remove every comment block/line tagged @rtOrphan / @rtOrphanChild")
+	translate := fs.String("translate", "", "i18n: scaffold/reconcile per-locale FriendlyType translation files (a locale tag, or 'all' for every tsconfig i18n.locales entry)")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--enrich-dir <dir>] [--out <path>]")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen <file.ts> <TypeName> --update   (reconcile an existing mirror)")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --prune [<mirror-file-or-dir>]   (strip @rtOrphan carcasses)")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --check [<mirror-file-or-dir>]   (breadcrumb drift)")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --files a.ts,b.ts --type Target   (batch, JSON to stdout)")
+		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --translate <locale> [<src.ts>]           (scaffold a locale's translation files)")
+		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --translate <locale> --update [<src.ts>]  (reconcile translations against the friendly source mirror)")
+		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --translate <locale> --prune  [<src.ts>]  (strip translation orphan carcasses)")
 	}
 	positional, flags := splitArgs(args)
 	if err := fs.Parse(flags); err != nil {
 		fatal("gen: %v", err)
+	}
+
+	// --translate is its own lane: the desired side is the friendly source
+	// mirror, never the type graph — so it excludes the type-driven modes.
+	if *translate != "" {
+		if *check || *files != "" || *mock || *friendly || *out != "" {
+			fatal("gen: --translate can only combine with --update / --prune / --enrich-dir")
+		}
+		runGenTranslate(*translate, positional, *update, *prune, *enrichDirFlag)
+		return
 	}
 
 	// Mutual-exclusion guards. --update is the reconcile op; it cannot combine
@@ -220,9 +234,10 @@ func runGen(args []string) {
 	}
 
 	closure := enrich.EmitClosure(resolved.Node, enrich.ClosureOptions{
-		TypeName:  typeName,
-		Resolve:   resolved.Resolve,
-		DeclFiles: resolved.DeclFiles,
+		TypeName:     typeName,
+		Resolve:      resolved.Resolve,
+		DeclFiles:    resolved.DeclFiles,
+		SourceLocale: config.SourceLocale,
 	})
 
 	// Group the closure by declaration source file → one mirror file per group.
@@ -438,6 +453,7 @@ var valueFlags = map[string]bool{
 	"--files": true, "-files": true,
 	"--type": true, "-type": true,
 	"--enrich-dir": true, "-enrich-dir": true,
+	"--translate": true, "-translate": true,
 }
 
 // splitArgs separates positional arguments from flag tokens so flags may appear
