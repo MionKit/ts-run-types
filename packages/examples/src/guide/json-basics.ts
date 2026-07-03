@@ -17,7 +17,7 @@ const session: Session = {
 const encode = createJsonEncoder<Session>();
 const decode = createJsonDecoder<Session>();
 
-const wire = encode(session); // a JSON string — Date and Map survive
+const wire = encode(session)!; // a JSON string — Date and Map survive
 const back = decode(wire); // Date is a Date again, Map is a Map again
 
 back.startedAt instanceof Date; // true

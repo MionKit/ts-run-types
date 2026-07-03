@@ -24,7 +24,7 @@ type Invoice = {id: string; total: Money};
 const encode = createJsonEncoder<Invoice>();
 const decode = createJsonDecoder<Invoice>();
 
-const json = encode({id: 'inv_1', total: new Money(4999, 'USD')});
+const json = encode({id: 'inv_1', total: new Money(4999, 'USD')})!;
 const back = decode(json); // back.total is a real Money instance again
 
 export {Money, encode, decode, back};

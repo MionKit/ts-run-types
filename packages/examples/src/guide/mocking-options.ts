@@ -9,7 +9,7 @@ type Account = {
 // start-options
 // Options can be set at the factory (apply to every call) or per call.
 // They merge: defaults < factory < call.
-const mockAccount = createMockType<Account>({
+const mockAccount = createMockType<Account>(undefined, {
   mock: {
     minNumber: 0,
     maxNumber: 1000, // numbers land in [0, 1000]

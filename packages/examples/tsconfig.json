@@ -1,0 +1,28 @@
+{
+  // Type-checks EVERY website example (pnpm run typecheck at the root, hence
+  // lint and CI): the docs import these files via <code-import>, so the type
+  // checker is the drift alarm — a doc example that no longer matches the API
+  // fails the build instead of going quietly stale.
+  //
+  // `paths` resolves the public package names without an install, through the
+  // BUILT dist .d.ts of each package — the published surface a consumer sees
+  // (and skipLibCheck keeps the packages' own internals out of this program;
+  // they have their own typechecks). Stale-dist risk is covered by the root
+  // check:builds staleness gate.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "paths": {
+      "ts-runtypes": ["./../ts-runtypes/dist/index.d.ts"],
+      "ts-runtypes/formats": ["./../ts-runtypes/dist/formats/index.d.ts"],
+      "ts-runtypes/schema": ["./../ts-runtypes/dist/schema/index.d.ts"],
+      "runtypes-devtools/vite": ["./../runtypes-devtools/dist/vite.d.ts"]
+    }
+  },
+  "include": ["src"]
+}

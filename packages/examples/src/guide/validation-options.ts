@@ -8,11 +8,11 @@ type Flag = {kind: 'on' | 'off'; values: number[]};
 
 // noLiterals: a literal check degrades to its base type
 // (here 'on' | 'off' becomes "any string").
-const isFlagLoose = createValidate<Flag>({noLiterals: true});
+const isFlagLoose = createValidate<Flag>(undefined, {noLiterals: true});
 
 // noIsArrayCheck: skip the leading Array.isArray() guard on array validators
 // (handy when you've already proven the value is an array upstream).
-const isFlagFast = createValidate<Flag>({noIsArrayCheck: true});
+const isFlagFast = createValidate<Flag>(undefined, {noIsArrayCheck: true});
 // end-options
 
 export {isFlagLoose, isFlagFast};

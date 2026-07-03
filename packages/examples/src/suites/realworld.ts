@@ -55,7 +55,7 @@ orderErrors({...order, total: 'free'}); // [{path: ['total'], expected: 'number'
 const toJson = createJsonEncoder<Order>();
 const fromJson = createJsonDecoder<Order>();
 
-const wire = toJson(order); // Date -> string, ready for the network
+const wire = toJson(order)!; // Date -> string, ready for the network
 const back = fromJson(wire); // string -> Date again
 
 // Binary — the same type, a compact buffer instead of JSON.
