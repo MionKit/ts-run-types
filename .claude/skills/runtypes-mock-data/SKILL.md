@@ -25,7 +25,7 @@ email). The DSL type is
   (random strings for names, out-of-domain numbers) and you want believable fixtures.
 - You're building test fixtures / seed data and want pools of real-looking values that
   are still **guaranteed valid** for the type.
-- You're scaffolding a type's committed `*.rt.ts` enrichment sibling.
+- You're scaffolding a type's committed mock mirror file.
 
 If random-but-valid values are fine, just call `createMockType<T>()` with no `data` —
 the generator already mocks every shape mechanically (including `Date`, `Map`, `Set`).
@@ -39,8 +39,8 @@ the generator already mocks every shape mechanically (including `Date`, `Map`, `
   pass `createMockType<T>({ data })` and generated values are drawn from the authored
   pools / ranges. Both exported from `ts-runtypes`.
 - **Designed (not yet wired):** the MD003 pool-value validation (build-time check that
-  each pool entry satisfies the field), and the `gen` CLI that scaffolds the `*.rt.ts`
-  sibling. The map is type-checked against `T` today regardless.
+  each pool entry satisfies the field), and the `gen` CLI that scaffolds the mock
+  mirror file. The map is type-checked against `T` today regardless.
 
 ## The node model — per-field pools / ranges
 
@@ -73,22 +73,26 @@ designed diagnostics: MD001 (key not a field of `T`), MD002 (structural mismatch
 (`min > max` / inverted `$length`), MD005 (pool below a configured floor, off by
 default).
 
-## Where the map lives — the `.rt.ts` sibling
+## Where the map lives — the mock mirror file
 
-Like `FriendlyType<T>`, a `MockData<T>` map is committed in a sibling of the file where
-the **type is defined**, not where it's consumed: `src/models/user.ts` →
-`src/models/user.rt.ts`. One sibling per source file, one `export` per enriched type
-defined there — **one enrichment home per type, at its definition**, however many files
-mock it. It's the first committed RunTypes artifact (everything else is gitignored
-cache) and is hand-editable. `MockData<T>` is generated **demand-driven** — only for
-types actually consumed by a `createMockType` call.
+Like `FriendlyType<T>`, a `MockData<T>` map is committed in a **mirror directory** whose
+tree shadows your source, anchored at the file where the **type is defined**, not where
+it's consumed — and each enrichment family gets its own file: `src/models/user.ts` →
+`<enrichDir>/mock/models/user.ts` (default `enrichDir`: `runtypes/generated`, so
+`runtypes/generated/mock/models/user.ts`), holding `mock<Name>` consts. `FriendlyType<T>`
+consts live separately under `<enrichDir>/friendly/…` — the two families never share one
+file. One mirror file per source file, one `export` per enriched type defined there —
+**one enrichment home per type, at its definition**, however many files mock it. It's
+the first committed RunTypes artifact (everything else is gitignored cache) and is
+hand-editable. `MockData<T>` is generated **demand-driven** — only for types actually
+consumed by a `createMockType` call.
 
 ```ts
-// src/models/user.rt.ts — committed, hand-editable.  rt-id: 9f3a (User structural hash)
+// runtypes/generated/mock/models/user.ts — committed, hand-editable
 import type {MockData} from 'ts-runtypes';
-import type {User} from './user';
+import type {User} from '../../../../src/models/user';
 
-export const userMock: MockData<User> = { /* … */ };
+export const mockUser: MockData<User> = { /* … */ };
 ```
 
 ## Feeding it to `createMockType<T>()`
@@ -98,11 +102,11 @@ The consumer imports the map from the sibling and passes it via the `data` optio
 
 ```ts
 import {createMockType} from 'ts-runtypes';
-import {userMock} from '../models/user.rt';
+import {mockUser} from 'runtypes/generated/mock/models/user';
 import type {User} from '../models/user';
 
-const mockUser = createMockType<User>({data: userMock});
-const sample = mockUser();   // realistic, type-valid User
+const makeUser = createMockType<User>({data: mockUser});
+const sample = makeUser();   // realistic, type-valid User
 ```
 
 (`data` rides the same options bag as `{ mock }` — `createMockType<T>({ data, mock })`.
@@ -127,11 +131,11 @@ export interface User {
 ```
 
 ```ts
-// src/models/user.rt.ts — the committed enrichment sibling
+// runtypes/generated/mock/models/user.ts — the committed mock mirror
 import type {MockData} from 'ts-runtypes';
-import type {User} from './user';
+import type {User} from '../../../../src/models/user';
 
-export const userMock: MockData<User> = {
+export const mockUser: MockData<User> = {
   name: {pool: ['Alice Martin', 'Liang Wei', 'Fatima Noor', 'Diego Ramirez']},
   age: {min: 18, max: 95},
   tags: {
@@ -148,12 +152,12 @@ export const userMock: MockData<User> = {
 ```ts
 // src/test/fixtures.ts — the CONSUMER
 import {createMockType} from 'ts-runtypes';
-import {userMock} from '../models/user.rt';
+import {mockUser} from 'runtypes/generated/mock/models/user';
 import type {User} from '../models/user';
 
-const mockUser = createMockType<User>({data: userMock});
+const makeUser = createMockType<User>({data: mockUser});
 
-const fixture = mockUser();
+const fixture = makeUser();
 // e.g. { name: 'Liang Wei', age: 41, tags: ['beta','vip'],
 //        profile: { email: 'alice@example.com', score: 72 } }
 ```
@@ -164,7 +168,8 @@ build, never the test.
 
 ## Authoring checklist
 
-- Put the map in the **definition file's** `*.rt.ts` sibling, not the consumer's.
+- Put the map in the **definition's mock mirror file** (`<enrichDir>/mock/<rel>.ts`,
+  default `runtypes/generated/mock/…`), not the consumer's file.
 - Type it `MockData<T>` so structure is checked against `T`.
 - Use `pool` for enumerable/realistic values (names, emails, tags); use `min`/`max` for
   numeric and `Date` ranges.
