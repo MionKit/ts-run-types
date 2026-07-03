@@ -3,7 +3,7 @@
 // `mockRunType(runType, options, [])` directly over hand-built RunType graphs +
 // a MockData node — the same shape the plugin would feed in. Covers: string /
 // number / Date / boolean / bigint pool selection, number + Date range bounds,
-// array `$length` (fixed + range) and `$items`, nested object descent, and the
+// array `rt$length` (fixed + range) and `rt$items`, nested object descent, and the
 // strictly-additive no-data sanity case. Each assertion runs many iterations so
 // the random generator can't pass by luck.
 //
@@ -100,35 +100,35 @@ describe('MockData consumption — numeric / Date ranges', () => {
 describe('MockData consumption — arrays', () => {
   const arrayNode = rt({kind: RunTypeKind.array, child: rt({kind: RunTypeKind.string})});
 
-  it('$length fixes the element count', () => {
+  it('rt$length fixes the element count', () => {
     for (let i = 0; i < ITERATIONS; i++) {
-      const value = mock(arrayNode, {$length: 4}) as unknown[];
+      const value = mock(arrayNode, {rt$length: 4}) as unknown[];
       expect(Array.isArray(value)).toBe(true);
       expect(value).toHaveLength(4);
     }
   });
 
-  it('$length as [min,max] keeps the count in range', () => {
+  it('rt$length as [min,max] keeps the count in range', () => {
     for (let i = 0; i < ITERATIONS; i++) {
-      const value = mock(arrayNode, {$length: [2, 5]}) as unknown[];
+      const value = mock(arrayNode, {rt$length: [2, 5]}) as unknown[];
       expect(value.length).toBeGreaterThanOrEqual(2);
       expect(value.length).toBeLessThanOrEqual(5);
     }
   });
 
-  it('$items pool drives every element', () => {
+  it('rt$items pool drives every element', () => {
     const pool = ['x', 'y'];
     for (let i = 0; i < ITERATIONS; i++) {
-      const value = mock(arrayNode, {$length: 6, $items: {pool}}) as string[];
+      const value = mock(arrayNode, {rt$length: 6, rt$items: {pool}}) as string[];
       expect(value).toHaveLength(6);
       for (const element of value) expect(pool).toContain(element);
     }
   });
 
-  it('$items min/max bound numeric elements', () => {
+  it('rt$items min/max bound numeric elements', () => {
     const numericArray = rt({kind: RunTypeKind.array, child: rt({kind: RunTypeKind.number})});
     for (let i = 0; i < ITERATIONS; i++) {
-      const value = mock(numericArray, {$length: 3, $items: {min: 100, max: 110}}) as number[];
+      const value = mock(numericArray, {rt$length: 3, rt$items: {min: 100, max: 110}}) as number[];
       expect(value).toHaveLength(3);
       for (const element of value) {
         expect(element).toBeGreaterThanOrEqual(100);

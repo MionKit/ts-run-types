@@ -40,11 +40,11 @@ func translateFixture(t *testing.T, strict bool) (enrichConfig, string, string) 
 			"import type { FriendlyType } from 'ts-runtypes';\n\n"+
 			"/** @rtType User#u1 @rtIds {name: n1} */\n"+
 			"export const friendlyUser: FriendlyType<User> = {\n"+
-			"  $label: 'User',\n"+
-			"  name: {$label: 'Full name'},\n"+
+			"  rt$label: 'User',\n"+
+			"  name: {rt$label: 'Full name'},\n"+
 			"};\n\n"+
-			"export const pl_friendlyUser: FriendlyType<User> = {$label: ''};\n\n"+
-			"export const friendlyHelper = {$label: ''};\n")
+			"export const pl_friendlyUser: FriendlyType<User> = {rt$label: ''};\n\n"+
+			"export const friendlyHelper = {rt$label: ''};\n")
 	return resolveEnrichConfig(source, ""), source, sourceMirror
 }
 
@@ -109,9 +109,9 @@ func TestTranslationSpecs_TransformAndGrouping(t *testing.T) {
 
 	closure := []enrich.NamedConst{
 		{TypeName: "Address", DeclFile: geoSource, FriendlyVar: "friendlyAddress", MockVar: "mockAddress",
-			Friendly: "{$label: ''}", Mock: "{}", TypeID: "a1"},
+			Friendly: "{rt$label: ''}", Mock: "{}", TypeID: "a1"},
 		{TypeName: "User", DeclFile: source, FriendlyVar: "friendlyUser", MockVar: "mockUser",
-			Friendly: "{$label: '', home: friendlyAddress}", Mock: "{}", TypeID: "u1",
+			Friendly: "{rt$label: '', home: friendlyAddress}", Mock: "{}", TypeID: "u1",
 			ChildIDs: map[string]string{"home": "a1"}},
 	}
 	specs := translationSpecs(config, "pl", closure, source)
@@ -135,7 +135,7 @@ func TestTranslationSpecs_TransformAndGrouping(t *testing.T) {
 	}
 	// The sibling reference inside the body renamed to its locale twin; the
 	// mock half rides along untouched.
-	if got := userSpec.Consts[0].Friendly; got != "{$label: '', home: pl_friendlyAddress}" {
+	if got := userSpec.Consts[0].Friendly; got != "{rt$label: '', home: pl_friendlyAddress}" {
 		t.Errorf("sibling reference not renamed: %q", got)
 	}
 	if userSpec.Consts[0].MockVar != "mockUser" || userSpec.Consts[0].Mock != "{}" {
@@ -191,8 +191,8 @@ func TestCheckTranslationFile_Findings(t *testing.T) {
 	// without a spec.
 	writeTestFile(t, translationPath,
 		"export const pl_friendlyUser = {\n"+
-			"  $label: '',\n"+
-			"  name: {$label: 'ok'}, /* @rtOrphanChild gone: 'x' */\n"+
+			"  rt$label: '',\n"+
+			"  name: {rt$label: 'ok'}, /* @rtOrphanChild gone: 'x' */\n"+
 			"};\n")
 	findings = checkTranslationFile("pl", translationPath, nil, enrich.Warning)
 	codes := map[string]int{}
@@ -218,7 +218,7 @@ func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 	_, source, _ := translateFixture(t, false)
 	translationPath := filepath.Join(filepath.Dir(source), "..", "runtypes", "generated", "i18n", "pl", "models.ts")
 
-	baseSpec := stubTranslationSpec(source, translationPath, "{$label: '', name: {$label: ''}}")
+	baseSpec := stubTranslationSpec(source, translationPath, "{rt$label: '', name: {rt$label: ''}}")
 	if wrote := writeMirrorFile(baseSpec); !wrote {
 		t.Fatalf("scaffold wrote nothing")
 	}
@@ -238,7 +238,7 @@ func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 	}
 
 	// The src type gains a field → the desired side grows → TR003 until updated.
-	grownSpec := stubTranslationSpec(source, translationPath, "{$label: '', name: {$label: ''}, email: {$label: ''}}")
+	grownSpec := stubTranslationSpec(source, translationPath, "{rt$label: '', name: {rt$label: ''}, email: {rt$label: ''}}")
 	grownSpec.Consts[0].ChildIDs["email"] = "e1"
 	sawOutOfDate := false
 	for _, finding := range checkTranslationFile("pl", translationPath, &grownSpec, enrich.Warning) {
@@ -255,7 +255,7 @@ func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 		t.Fatalf("update should reconcile the added field")
 	}
 	updated, _ := os.ReadFile(translationPath)
-	if !strings.Contains(string(updated), "email: {$label: ''}") {
+	if !strings.Contains(string(updated), "email: {rt$label: ''}") {
 		t.Errorf("added field not scaffolded:\n%s", updated)
 	}
 	for _, finding := range checkTranslationFile("pl", translationPath, &grownSpec, enrich.Warning) {

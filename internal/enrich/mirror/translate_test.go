@@ -32,16 +32,16 @@ import type { FriendlyType } from 'ts-runtypes';
 
 /** @rtType Address#a1 @rtIds {street: s1} */
 export const pl_friendlyAddress: FriendlyType<Address> = {
-  $label: '',
-  $errors: {type: ''},
-  street: {$label: 'Ulica', $errors: {type: ''}},
+  rt$label: '',
+  rt$errors: {type: ''},
+  street: {rt$label: 'Ulica', rt$errors: {type: ''}},
 };
 
 /** @rtType User#u1 @rtIds {home: a1, name: n1} */
 export const pl_friendlyUser: FriendlyType<User> = {
-  $label: '',
-  $errors: {type: ''},
-  name: {$label: '', $errors: {
+  rt$label: '',
+  rt$errors: {type: ''},
+  name: {rt$label: '', rt$errors: {
     type: '',
     minLength: {one: '', few: '', many: '', other: ''},
     pattern: 'tylko litery',
@@ -57,14 +57,14 @@ func desiredTranslationConsts() []enrich.NamedConst {
 	address := enrich.NamedConst{
 		TypeName: "Address", DeclFile: translationSrcPath,
 		FriendlyVar: "pl_friendlyAddress",
-		Friendly:    "{$label: '', $errors: {type: ''}, street: {$label: '', $errors: {type: ''}}}",
+		Friendly:    "{rt$label: '', rt$errors: {type: ''}, street: {rt$label: '', rt$errors: {type: ''}}}",
 		TypeID:      "a1", ChildIDs: map[string]string{"street": "s1"},
 	}
 	user := enrich.NamedConst{
 		TypeName: "User", DeclFile: translationSrcPath,
 		FriendlyVar: "pl_friendlyUser",
-		Friendly: "{$label: '', $errors: {type: ''}, " +
-			"name: {$label: '', $errors: {type: '', minLength: {one: '', few: '', many: '', other: ''}, pattern: ''}}, " +
+		Friendly: "{rt$label: '', rt$errors: {type: ''}, " +
+			"name: {rt$label: '', rt$errors: {type: '', minLength: {one: '', few: '', many: '', other: ''}, pattern: ''}}, " +
 			"home: pl_friendlyAddress}",
 		TypeID: "u1", ChildIDs: map[string]string{"home": "a1", "name": "n1"},
 	}
@@ -111,7 +111,7 @@ func TestTranslation_InSyncIsNoOp(t *testing.T) {
 func TestTranslation_ErrorsDescentScaffoldsAddedConstraints(t *testing.T) {
 	// The src type gains a maxLength (count-bearing → a plural with the TARGET
 	// locale's arms, already baked into the desired side by EmitClosure) and an
-	// allowedChars (plain string) on name — the $errors descent must scaffold
+	// allowedChars (plain string) on name — the rt$errors descent must scaffold
 	// both as blanks in the translation.
 	grown := desiredTranslationConsts()
 	grown[1].Friendly = strings.Replace(grown[1].Friendly,
@@ -240,7 +240,7 @@ func TestTranslation_ConstRenameCarriesWithSiblingFixup(t *testing.T) {
 	if strings.Contains(out, "@rtOrphan ") {
 		t.Errorf("a rename must never orphan:\n%s", out)
 	}
-	if !strings.Contains(out, "street: {$label: 'Ulica'") {
+	if !strings.Contains(out, "street: {rt$label: 'Ulica'") {
 		t.Errorf("authored value lost across the rename:\n%s", out)
 	}
 	if !strings.Contains(out, "home: pl_friendlyLocation,") {

@@ -114,7 +114,7 @@ func TestSkeletons_ObjectLiteralOnly(t *testing.T) {
 	if !strings.HasPrefix(strings.TrimSpace(friendly), "{") {
 		t.Errorf("FriendlySkeleton should start with '{'; got:\n%s", friendly)
 	}
-	for _, want := range []string{"$label: ''", "name:", "tags:", "$items"} {
+	for _, want := range []string{"rt$label: ''", "name:", "tags:", "rt$items"} {
 		if !strings.Contains(friendly, want) {
 			t.Errorf("FriendlySkeleton missing %q; got:\n%s", want, friendly)
 		}
@@ -122,7 +122,7 @@ func TestSkeletons_ObjectLiteralOnly(t *testing.T) {
 	if strings.Contains(mock, "export const") {
 		t.Errorf("MockSkeleton should be a bare object literal; got:\n%s", mock)
 	}
-	for _, want := range []string{"name: {pool: []}", "$length: [1, 3]"} {
+	for _, want := range []string{"name: {pool: []}", "rt$length: [1, 3]"} {
 		if !strings.Contains(mock, want) {
 			t.Errorf("MockSkeleton missing %q; got:\n%s", want, mock)
 		}

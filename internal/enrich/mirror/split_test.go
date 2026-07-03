@@ -12,9 +12,9 @@ import { friendlyCard, mockCard } from './billing/card';
 /** @rtType Address#a1 @rtIds {street: s1} */
 // @todo: generated skeleton — fill in real data, then delete this line
 export const friendlyAddress: FriendlyType<Address> = {
-  $label: 'Address',
-  $errors: {type: ''},
-  street: {$label: 'Street name', $errors: {type: ''}},
+  rt$label: 'Address',
+  rt$errors: {type: ''},
+  street: {rt$label: 'Street name', rt$errors: {type: ''}},
 };
 
 /** @rtType Address#a1 @rtIds {street: s1} */
@@ -22,7 +22,7 @@ export const mockAddress: MockData<Address> = {
   street: {pool: ['Main St']},
 };
 
-// a hand-added helper the author references from a function-form $errors
+// a hand-added helper the author references from a function-form rt$errors
 const sharedHelper = 'shared';
 
 /* @rtOrphan /** @rtType Gone#g1 *\/
@@ -32,9 +32,9 @@ export const mockGone: MockData<Gone> = {
 
 /** @rtType User#u1 @rtIds {name: n1, home: a1} */
 export const friendlyUser: FriendlyType<User> = {
-  $label: 'User',
-  $errors: {type: ''},
-  name: {$label: 'Full name', $errors: {type: '', minLength: 'too short'}},
+  rt$label: 'User',
+  rt$errors: {type: ''},
+  name: {rt$label: 'Full name', rt$errors: {type: '', minLength: 'too short'}},
   home: friendlyAddress,
   card: friendlyCard,
 };
@@ -72,7 +72,7 @@ func TestSplitCombined(t *testing.T) {
 			name: "friendly", text: friendly, path: friendlyPath,
 			wantVars: []string{"friendlyAddress", "friendlyUser"}, banVars: []string{"mockAddress", "mockUser"},
 			wantDSL: "import type { FriendlyType } from 'ts-runtypes';", banDSL: "MockData",
-			wantAuthoredValue:  "street: {$label: 'Street name', $errors: {type: ''}},",
+			wantAuthoredValue:  "street: {rt$label: 'Street name', rt$errors: {type: ''}},",
 			wantValueImport:    "import { friendlyCard } from './billing/card';",
 			droppedValueImport: "mockCard",
 		},
@@ -149,8 +149,8 @@ import type { FriendlyType, MockData } from 'ts-runtypes';
 
 /** @rtType User#u1 */
 export const friendlyUser: FriendlyType<User> = {
-  $label: '',
-  $errors: {type: ''},
+  rt$label: '',
+  rt$errors: {type: ''},
 };
 `
 	friendlyOut, mockOut, err := SplitCombined(

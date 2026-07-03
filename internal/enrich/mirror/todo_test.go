@@ -40,7 +40,7 @@ func TestConstBlock_EmitsTodoAfterMarker(t *testing.T) {
 		TypeID:      "uID",
 		ChildIDs:    map[string]string{"name": "nID"},
 	}
-	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{$label: ''}")
+	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{rt$label: ''}")
 
 	if strings.Count(block, "@todo") != 1 {
 		t.Errorf("a new const must carry exactly one @todo line:\n%s", block)
@@ -76,7 +76,7 @@ func TestConstBlock_EmitsTodoAfterMarker(t *testing.T) {
 // independent of whether the reconcile marker is present.
 func TestConstBlock_EmitsTodoWithoutMarker(t *testing.T) {
 	named := enrich.NamedConst{TypeName: "Anon", FriendlyVar: "friendlyAnon"} // no TypeID
-	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{$label: ''}")
+	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{rt$label: ''}")
 	if strings.Contains(block, "@rtType") {
 		t.Fatalf("precondition: a const with no TypeID should have no @rtType marker:\n%s", block)
 	}
@@ -106,7 +106,7 @@ func TestAppendNewConsts_StampsTodo(t *testing.T) {
 		TypeName:    "B",
 		FriendlyVar: "friendlyB",
 		MockVar:     "mockB",
-		Friendly:    "{$label: ''}",
+		Friendly:    "{rt$label: ''}",
 		Mock:        "{}",
 		TypeID:      "bID",
 	}}
@@ -128,8 +128,8 @@ func TestReconcile_DoesNotReAddTodo(t *testing.T) {
 		"\n" +
 		"/** @rtType User#uID @rtIds {name: nID} */\n" +
 		"export const friendlyUser: FriendlyType<User> = {\n" +
-		"  $label: '',\n" +
-		"  name: {$label: 'Full name'},\n" +
+		"  rt$label: '',\n" +
+		"  name: {rt$label: 'Full name'},\n" +
 		"};\n" +
 		"\n" +
 		"/** @rtType User#uID @rtIds {name: nID} */\n" +
@@ -148,7 +148,7 @@ func TestReconcile_DoesNotReAddTodo(t *testing.T) {
 			DeclFile:    "/src/models.ts",
 			FriendlyVar: "friendlyUser",
 			MockVar:     "mockUser",
-			Friendly:    "{$label: '', name: {$label: ''}}",
+			Friendly:    "{rt$label: '', name: {rt$label: ''}}",
 			Mock:        "{name: {pool: []}}",
 			TypeID:      "uID",
 			ChildIDs:    map[string]string{"name": "nID"},
@@ -164,7 +164,7 @@ func TestReconcile_DoesNotReAddTodo(t *testing.T) {
 		t.Errorf("a cleared @todo must stay cleared and a present one must not duplicate; got %d:\n%s", n, out)
 	}
 	// The authored value survives, the cleared const is unchanged.
-	if !strings.Contains(out, "name: {$label: 'Full name'}") {
+	if !strings.Contains(out, "name: {rt$label: 'Full name'}") {
 		t.Errorf("authored value must be preserved:\n%s", out)
 	}
 	// friendlyUser must NOT have re-grown a @todo line: the leading-trivia span
@@ -182,7 +182,7 @@ func TestReconcile_DoesNotReAddTodo(t *testing.T) {
 func TestPruneIgnoresTodo(t *testing.T) {
 	src := "/** @rtType User#uID */\n" +
 		todoLine + "\n" +
-		"export const friendlyUser: FriendlyType<User> = { $label: '' };\n"
+		"export const friendlyUser: FriendlyType<User> = { rt$label: '' };\n"
 	pruned, removed, _ := PruneOrphanBlocks(src)
 	if removed != 0 {
 		t.Errorf("--prune must ignore @todo (removed=%d):\n%s", removed, pruned)
@@ -222,8 +222,8 @@ func TestSkeletonBody_NoTodo(t *testing.T) {
 	// and both are invoked solely by constBlock (the wrapper) — never by the
 	// skeleton emitters. A representative emitted body must therefore be @todo-free.
 	for _, body := range []string{
-		"{$label: ''}",
-		"{$label: '', name: {$label: 'Full name'}}",
+		"{rt$label: ''}",
+		"{rt$label: '', name: {rt$label: 'Full name'}}",
 		"{pool: ['Ann', 'Bob']}",
 	} {
 		if strings.Contains(body, "@todo") || strings.Contains(body, "@rt") {
@@ -234,7 +234,7 @@ func TestSkeletonBody_NoTodo(t *testing.T) {
 	// marker + @todo lines up to `export const`), leaves a body with no @todo —
 	// proving the flag never bleeds into the body the batch path emits.
 	named := enrich.NamedConst{TypeName: "User", FriendlyVar: "friendlyUser", TypeID: "uID"}
-	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{$label: ''}")
+	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{rt$label: ''}")
 	body := block[strings.Index(block, "= ")+2:]
 	if strings.Contains(body, "@todo") {
 		t.Errorf("the @todo must live in the wrapper, never in the body:\n%s", body)

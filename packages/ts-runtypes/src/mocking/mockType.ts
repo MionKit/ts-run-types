@@ -112,7 +112,7 @@ function decayOptionsForNesting(options: RunTypeMockOptions, nestLevel: number):
 
 // ─────────────────────── MockData node threading ───────────────────────
 // The walker carries the "current MockData node" inside the options bag
-// (`options.dataNode`), descended by property name (objects) / `$items`
+// (`options.dataNode`), descended by property name (objects) / `rt$items`
 // (arrays) at each recursion. Everything below is a strict no-op when no
 // data node is present, so behaviour is byte-identical without `data`.
 
@@ -143,10 +143,10 @@ function dataPool(node: MockDataNode | undefined): unknown[] | undefined {
   return undefined;
 }
 
-/** Resolve the element count for an array node from `$length` (a fixed `n` or
+/** Resolve the element count for an array node from `rt$length` (a fixed `n` or
  *  a `[min, max]` range), or undefined to fall through to the global option. **/
 function dataArrayLength(node: MockDataNode | undefined): number | undefined {
-  const len = node?.$length;
+  const len = node?.rt$length;
   if (typeof len === 'number') return len;
   if (Array.isArray(len) && len.length === 2) return random(len[0], len[1]);
   return undefined;
@@ -247,7 +247,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
         const maxDate = dataNode?.max instanceof Date ? dataNode.max : mOps.maxDate;
         return mockDate(minDate, maxDate);
       }
-      // Map/Set MockData is v1-limited (no `$keys`/`$values` in the DSL — the
+      // Map/Set MockData is v1-limited (no `rt$keys`/`rt$values` in the DSL — the
       // node projects through the object branch). Clear the data node so a
       // stray parent node never leaks into key/value/element generation.
       if (subKind === RunTypeSubKind.map) return mockMap(runType, withDataNode(options, undefined), stack);
@@ -267,11 +267,11 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     case RunTypeKind.array: {
       const child = runType.child as RunType | undefined;
       if (!child) throw new Error('Cannot mock array: child runtype missing.');
-      // Data-node `$length` (fixed or [min,max]) overrides the global length;
-      // `$items` is the element node threaded into each child mock.
+      // Data-node `rt$length` (fixed or [min,max]) overrides the global length;
+      // `rt$items` is the element node threaded into each child mock.
       const length = dataArrayLength(dataNode) ?? mOps.arrayLength ?? random(0, mOps.maxRandomItemsLength);
       if (length === 0) return [];
-      const childOpts = withDataNode(options, asDataNode(dataNode?.$items));
+      const childOpts = withDataNode(options, asDataNode(dataNode?.rt$items));
       const items: unknown[] = [];
       for (let i = 0; i < length; i++) items.push(mockRunType(child, childOpts, stack));
       return items;
@@ -279,9 +279,9 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     case RunTypeKind.tuple: {
       const children = (runType.children ?? []) as RunType[];
       const perElemOptions = mOps.tupleOptions;
-      // Tuples share one `$items` element node (v1 limitation — the DSL has no
+      // Tuples share one `rt$items` element node (v1 limitation — the DSL has no
       // per-slot tuple nodes). Threaded into every member's options.
-      const itemsNode = asDataNode(dataNode?.$items);
+      const itemsNode = asDataNode(dataNode?.rt$items);
       const baseOpts = withDataNode(options, itemsNode);
       const params = children.map((member, index) => {
         const childOpts = perElemOptions?.[index] ? mergeChildOptions(baseOpts, perElemOptions[index]) : baseOpts;

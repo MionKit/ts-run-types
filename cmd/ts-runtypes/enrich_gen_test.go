@@ -40,7 +40,7 @@ func TestGroupByDeclFile(t *testing.T) {
 // TestReferencedVars extracts only the friendly*/mock* const-var identifiers
 // (camelCase suffix), ignoring meta keys and lowercase field names.
 func TestReferencedVars(t *testing.T) {
-	body := "{\n  $label: '',\n  address: friendlyAddress,\n  billing: mockBilling,\n  note: {$label: ''},\n  mockish: 'x',\n}"
+	body := "{\n  rt$label: '',\n  address: friendlyAddress,\n  billing: mockBilling,\n  note: {rt$label: ''},\n  mockish: 'x',\n}"
 	got := mirror.ReferencedVars(body)
 	want := []string{"friendlyAddress", "mockBilling"}
 	if !reflect.DeepEqual(got, want) {

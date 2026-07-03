@@ -102,13 +102,14 @@ func newObjectView(text string, sourceFile *ast.SourceFile, node *ast.Node) *obj
 }
 
 // fieldKeys returns the DATA-field keys (non-meta) of an object view, in
-// declaration order. Meta keys ($label, $errors, pool, …) belong to the node
+// declaration order. Meta keys (rt$label, rt$errors, pool, …) belong to the node
 // itself and are never merged as fields.
 func (view *objectView) fieldKeys(metaKeys map[string]bool) []string {
 	out := make([]string, 0, len(view.order))
 	for _, key := range view.order {
-		if metaKeys[key] || strings.HasPrefix(key, "$") {
-			continue // a $-prefixed key is always meta, never a data field
+		if metaKeys[key] || strings.HasPrefix(key, "rt$") {
+			continue // an rt$-prefixed key is always meta, never a data field (the
+			// prefix is RESERVED — FT011/MD011; a plain $-key is an ordinary field)
 		}
 		out = append(out, key)
 	}
@@ -274,12 +275,12 @@ func mergeObject(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 		*ops = append(*ops, orphanChildOp(existing, existing.props[key]))
 	}
 
-	// META-RECURSE: the structural meta nodes ($items array element, $keys/$values
-	// Map/Set element, $slots tuple slots) carry NESTED enrichment shapes that are
+	// META-RECURSE: the structural meta nodes (rt$items array element, rt$keys/rt$values
+	// Map/Set element, rt$slots tuple slots) carry NESTED enrichment shapes that are
 	// NOT data fields — so they are excluded from the field merge above, yet they
 	// still drift when the underlying element type gains a sub-field. Descend into
 	// them so nested enrichment is merged like any other object. Scalar meta
-	// ($length/$size/$optional and the like) is author data, left untouched.
+	// (rt$length/rt$size/rt$optional and the like) is author data, left untouched.
 	mergeMetaNodes(ops, existing, desired, ctx)
 
 	// $ERRORS DESCENT (every friendly-family mirror — source language AND each
@@ -289,11 +290,11 @@ func mergeObject(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 	mergeErrorsNode(ops, existing, desired, ctx)
 }
 
-// mergeErrorsNode descends one level into a node's `$errors` record — present
+// mergeErrorsNode descends one level into a node's `rt$errors` record — present
 // and object-form on BOTH sides. Constraint keys are a fixed vocabulary, so
 // there is NO rename pass at this level:
 //
-//   - a `$default`-only record on EITHER side is skipped whole: the author
+//   - a `rt$default`-only record on EITHER side is skipped whole: the author
 //     opted into the exclusive catch-all mode (or the project scaffolds it —
 //     tsconfig friendlyErrors: "default"), and a mode is author-owned;
 //   - a key in both, object-form on both sides → plural merge (locale-owned arms);
@@ -306,8 +307,8 @@ func mergeObject(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 //     for recognized constraint names (knownConstraintKeys): an author-added
 //     key we can't attribute to the type is never touched (TS flags typos).
 func mergeErrorsNode(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
-	existingProp := existing.props["$errors"]
-	desiredProp := desired.props["$errors"]
+	existingProp := existing.props["rt$errors"]
+	desiredProp := desired.props["rt$errors"]
 	if existingProp == nil || desiredProp == nil {
 		return
 	}
@@ -317,7 +318,7 @@ func mergeErrorsNode(ops *[]spliceOp, existing, desired *objectView, ctx mergeCt
 	existingErrors := newObjectView(existing.text, existing.sourceFile, existingProp.value)
 	desiredErrors := newObjectView(desired.text, desired.sourceFile, desiredProp.value)
 	if isDefaultOnly(existingErrors) || isDefaultOnly(desiredErrors) {
-		return // the exclusive $default mode — author-owned, nothing to sync
+		return // the exclusive rt$default mode — author-owned, nothing to sync
 	}
 
 	var addKeys []string
@@ -350,13 +351,13 @@ func mergeErrorsNode(ops *[]spliceOp, existing, desired *objectView, ctx mergeCt
 	}
 }
 
-// isDefaultOnly reports whether an `$errors` record is the exclusive
-// `{$default: '…'}` catch-all mode (its ONLY key is $default).
+// isDefaultOnly reports whether an `rt$errors` record is the exclusive
+// `{rt$default: '…'}` catch-all mode (its ONLY key is rt$default).
 func isDefaultOnly(errors *objectView) bool {
-	return len(errors.order) == 1 && errors.props["$default"] != nil
+	return len(errors.order) == 1 && errors.props["rt$default"] != nil
 }
 
-// knownConstraintKeys are the `$errors` keys attributable to the TYPE — the
+// knownConstraintKeys are the `rt$errors` keys attributable to the TYPE — the
 // failable format param names across every format family, plus the base
 // `type` failure. The descent orphans an existing-only key ONLY when it is in
 // this catalog (the type declared it once and no longer does); anything else
@@ -393,13 +394,13 @@ func mergePluralObject(ops *[]spliceOp, existingErrors, desiredErrors *objectVie
 
 // objectMetaKeys are the meta keys whose VALUE is itself an object node carrying
 // a nested enrichment shape — the merge descends into each (existing↔desired)
-// the same way it recurses a data field. $keys/$values/$items appear on
-// Map/Set/array nodes. $slots is handled separately (it is an ARRAY of nodes).
-var objectMetaKeys = []string{"$items", "$keys", "$values"}
+// the same way it recurses a data field. rt$keys/rt$values/rt$items appear on
+// Map/Set/array nodes. rt$slots is handled separately (it is an ARRAY of nodes).
+var objectMetaKeys = []string{"rt$items", "rt$keys", "rt$values"}
 
 // mergeMetaNodes recurses through the structural meta nodes of a pair of object
-// views: each object-valued meta key ($items/$keys/$values) is merged in place
-// when present-and-object on both sides, and $slots is walked positionally
+// views: each object-valued meta key (rt$items/rt$keys/rt$values) is merged in place
+// when present-and-object on both sides, and rt$slots is walked positionally
 // (paired by index, each slot recursed). It never adds/drops/renames meta keys —
 // only descends into the ones present on both sides — so the node's own shape is
 // owned by the emitter, not the merge.
@@ -411,7 +412,7 @@ func mergeMetaNodes(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx
 			continue
 		}
 		if !existingProp.isObject() || !desiredProp.isObject() {
-			continue // a leaf meta value (e.g. `$items: {pool: []}` is an object; a
+			continue // a leaf meta value (e.g. `rt$items: {pool: []}` is an object; a
 			// non-object would be author scalar data) — nothing to recurse
 		}
 		childExisting := newObjectView(existing.text, existing.sourceFile, existingProp.value)
@@ -421,15 +422,15 @@ func mergeMetaNodes(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx
 	mergeSlots(ops, existing, desired, ctx)
 }
 
-// mergeSlots walks a tuple's `$slots` array positionally: it pairs existing slot
+// mergeSlots walks a tuple's `rt$slots` array positionally: it pairs existing slot
 // i with desired slot i and recurses each (when both are objects). Slots are
 // fixed-position, so a length change (a slot added/removed) is left to the
 // emitter on regenerate — we only merge the overlap (the shorter length), never
 // inserting or dropping array elements (which would shift positions). The dotted
-// path segment matches the emitter's `$slots.<i>` convention for @rtIds lookups.
+// path segment matches the emitter's `rt$slots.<i>` convention for @rtIds lookups.
 func mergeSlots(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
-	existingProp := existing.props["$slots"]
-	desiredProp := desired.props["$slots"]
+	existingProp := existing.props["rt$slots"]
+	desiredProp := desired.props["rt$slots"]
 	if existingProp == nil || desiredProp == nil {
 		return
 	}
@@ -449,7 +450,7 @@ func mergeSlots(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 		}
 		childExisting := newObjectView(existing.text, existing.sourceFile, existingSlot)
 		childDesired := newObjectView(desired.text, desired.sourceFile, desiredSlot)
-		mergeObject(ops, childExisting, childDesired, ctx.descend("$slots."+strconv.Itoa(i)))
+		mergeObject(ops, childExisting, childDesired, ctx.descend("rt$slots."+strconv.Itoa(i)))
 	}
 }
 
@@ -525,7 +526,7 @@ func insertFieldsOp(existing, desired *objectView, addKeys []string) spliceOp {
 	var b strings.Builder
 	// Separator guard: each added field carries a TRAILING comma, so it relies on
 	// the previous property already ending in one. A Prettier-collapsed single-line
-	// object (`{$label: '', name: {…}}`) drops the trailing comma on its last
+	// object (`{rt$label: '', name: {…}}`) drops the trailing comma on its last
 	// property, so scan back over whitespace to the previous non-space byte — if it
 	// is neither `,` (already separated) nor `{` (the object is empty, no separator
 	// needed), prepend a leading comma so the inserted block stays valid.

@@ -27,7 +27,7 @@ export interface NumberParams {
   multipleOf?: number;
   /** Marks the value as a monetary amount. PURE PRESENTATION METADATA — the
    *  only number param with no failable constraint: validation, serialization
-   *  and mocking ignore it, and it never becomes an `$errors` template key.
+   *  and mocking ignore it, and it never becomes an `rt$errors` template key.
    *  The emitter echoes it onto every error the field produces, so
    *  `createFriendlyI18n` renders a violated bound via
    *  `Intl.NumberFormat(locale, {style: 'currency', currency})` with the

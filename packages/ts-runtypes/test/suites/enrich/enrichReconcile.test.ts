@@ -7,8 +7,10 @@
 // per-family. The Go binary MUST be rebuilt before this runs (the suite spawns
 // bin/ts-runtypes).
 
+import {spawnSync} from 'node:child_process';
 import {existsSync, mkdirSync, writeFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {describe, it, expect, afterAll} from 'vitest';
 import {
   makeFixture,
@@ -23,12 +25,14 @@ import {
 
 afterAll(cleanupReconcileLane);
 
+const BIN_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../bin/ts-runtypes');
+
 describe('enrichment reconcile — gen --update', () => {
   it('property merge preserves other fields when a field type changes', () => {
     const fixture = makeFixture('merge-keep', 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User');
     // Author values into friendlyUser + mockUser (each in its own family file).
-    editMirror(fixture, 'friendly', (text) => text.replace("name: {$label: '',", "name: {$label: 'Full name',"));
+    editMirror(fixture, 'friendly', (text) => text.replace("name: {rt$label: '',", "name: {rt$label: 'Full name',"));
     editMirror(fixture, 'mock', (text) => text.replace('name: {pool: []}', "name: {pool: ['Alice', 'Bob']}"));
     // Change age's type (string), add a field; the structural id changes.
     setSource(fixture, 'export interface User { name: string; age: string; isActive: boolean }\n');
@@ -36,9 +40,9 @@ describe('enrichment reconcile — gen --update', () => {
 
     const friendly = readMirror(fixture, 'friendly');
     const mock = readMirror(fixture, 'mock');
-    expect(friendly, 'authored friendly value preserved').toContain("name: {$label: 'Full name',");
+    expect(friendly, 'authored friendly value preserved').toContain("name: {rt$label: 'Full name',");
     expect(mock, 'authored mock pool preserved').toContain("name: {pool: ['Alice', 'Bob']}");
-    expect(friendly, 'new field added in friendly').toContain("isActive: {$label: '', $errors: {type: ''}}");
+    expect(friendly, 'new field added in friendly').toContain("isActive: {rt$label: '', rt$errors: {type: ''}}");
     expect(mock, 'new field added in mock').toContain('isActive: {pool: []}');
     expect(friendly, 'friendly file holds no mock const').not.toContain('mockUser');
     expect(mock, 'mock file holds no friendly const').not.toContain('friendlyUser');
@@ -47,7 +51,7 @@ describe('enrichment reconcile — gen --update', () => {
   it('is a byte-identical no-op on an unchanged re-run', () => {
     const fixture = makeFixture('idempotent', 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, 'friendly', (text) => text.replace("name: {$label: '',", "name: {$label: 'Full name',"));
+    editMirror(fixture, 'friendly', (text) => text.replace("name: {rt$label: '',", "name: {rt$label: 'Full name',"));
     runGen(fixture, 'User', ['--update']);
     const first = readMirrors(fixture);
     runGen(fixture, 'User', ['--update']);
@@ -58,12 +62,12 @@ describe('enrichment reconcile — gen --update', () => {
   it('carries an authored value under a renamed field (Tier-2 primitive)', () => {
     const fixture = makeFixture('rename-primitive', 'export interface User { fullName: string }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, 'friendly', (text) => text.replace("fullName: {$label: '',", "fullName: {$label: 'Full name',"));
+    editMirror(fixture, 'friendly', (text) => text.replace("fullName: {rt$label: '',", "fullName: {rt$label: 'Full name',"));
     setSource(fixture, 'export interface User { name: string }\n');
     runGen(fixture, 'User', ['--update']);
 
     const out = readMirror(fixture, 'friendly');
-    expect(out, 'value carried under new key').toContain("name: {$label: 'Full name',");
+    expect(out, 'value carried under new key').toContain("name: {rt$label: 'Full name',");
     expect(out, 'old key gone').not.toContain('fullName');
     expect(out, 'rename must not orphan').not.toContain('@rtOrphanChild');
   });
@@ -86,13 +90,13 @@ describe('enrichment reconcile — gen --update', () => {
   it('comments out a removed field as @rtOrphanChild, preserving its value', () => {
     const fixture = makeFixture('orphan-child', 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, 'friendly', (text) => text.replace("age: {$label: '',", "age: {$label: 'Age in years',"));
+    editMirror(fixture, 'friendly', (text) => text.replace("age: {rt$label: '',", "age: {rt$label: 'Age in years',"));
     setSource(fixture, 'export interface User { name: string }\n');
     runGen(fixture, 'User', ['--update']);
 
     const out = readMirror(fixture, 'friendly');
     expect(out, 'dropped field carcass present').toContain('@rtOrphanChild');
-    expect(out, 'dropped value preserved').toContain("age: {$label: 'Age in years',");
+    expect(out, 'dropped value preserved').toContain("age: {rt$label: 'Age in years',");
   });
 });
 
@@ -121,9 +125,9 @@ describe('enrichment reconcile — family split', () => {
       "import type { User } from '../../src/models';\n" +
         "import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
         'export const friendlyUser: FriendlyType<User> = {\n' +
-        "  $label: 'The user',\n" +
-        "  $errors: {type: ''},\n" +
-        "  name: {$label: 'Full name', $errors: {type: ''}},\n" +
+        "  rt$label: 'The user',\n" +
+        "  rt$errors: {type: ''},\n" +
+        "  name: {rt$label: 'Full name', rt$errors: {type: ''}},\n" +
         '};\n\n' +
         'export const mockUser: MockData<User> = {\n' +
         "  name: {pool: ['Alice']},\n" +
@@ -135,7 +139,7 @@ describe('enrichment reconcile — family split', () => {
     expect(existsSync(legacyPath), 'legacy combined file deleted').toBe(false);
     const friendly = readMirror(fixture, 'friendly');
     const mock = readMirror(fixture, 'mock');
-    expect(friendly, 'authored friendly label carried').toContain("$label: 'Full name'");
+    expect(friendly, 'authored friendly label carried').toContain("rt$label: 'Full name'");
     expect(mock, 'authored mock pool carried').toContain("pool: ['Alice']");
     expect(friendly, 'breadcrumb recomputed one level deeper').toContain("from '../../../src/models'");
 
@@ -237,7 +241,7 @@ describe('enrichment reconcile — gen --prune', () => {
   it('strips @rtOrphanChild carcasses in BOTH family files, leaving live fields', () => {
     const fixture = makeFixture('prune', 'export interface User { name: string; age: number }\n');
     runGen(fixture, 'User');
-    editMirror(fixture, 'friendly', (text) => text.replace("age: {$label: ''}", "age: {$label: 'Age'}"));
+    editMirror(fixture, 'friendly', (text) => text.replace("age: {rt$label: ''}", "age: {rt$label: 'Age'}"));
     setSource(fixture, 'export interface User { name: string }\n');
     runGen(fixture, 'User', ['--update']);
     expect(readMirror(fixture, 'friendly')).toContain('@rtOrphanChild');
@@ -247,5 +251,39 @@ describe('enrichment reconcile — gen --prune', () => {
     const both = readMirrors(fixture);
     expect(both, 'orphan tags gone after prune (both families)').not.toContain('@rtOrphan');
     expect(both, 'live field survives').toContain('name:');
+  });
+});
+
+describe('the rt$ reserved meta prefix', () => {
+  // The rt$ prefix is RESERVED for enrichment meta keys (rt$label, rt$errors, …):
+  // a source-type property named rt$… cannot be enriched, while a plain
+  // $-prefixed property is an ordinary field (fixed by construction — before the
+  // rt$ rename, a `$label` property produced a broken duplicate-key scaffold).
+
+  it('a plain $label property is an ordinary field: scaffolded, addressable, idempotent', () => {
+    const fixture = makeFixture('rc-dollar-field', 'export interface Weird { $label: string; $errors: number; name: string }\n');
+    runGen(fixture, 'Weird');
+
+    const friendly = readMirror(fixture, 'friendly');
+    expect(friendly, 'meta keys carry the rt$ prefix').toContain('rt$label:');
+    expect(friendly, 'the $label property is a normal child node').toMatch(/'?\$label'?: \{rt\$label: ''/);
+    expect(friendly, 'the $errors property is a normal child node').toMatch(/'?\$errors'?: \{rt\$label: ''/);
+
+    // The reconcile round-trips: an update over the untouched file is a no-op.
+    runGen(fixture, 'Weird', ['--update']);
+    expect(readMirror(fixture, 'friendly'), 'update is byte-identical').toBe(friendly);
+
+    // And the field is value-preserving like any other.
+    editMirror(fixture, 'friendly', (text) => text.replace(/'?\$label'?: \{rt\$label: ''/, "'$label': {rt$label: 'Dollar'"));
+    runGen(fixture, 'Weird', ['--update']);
+    expect(readMirror(fixture, 'friendly'), 'authored value on the $label field survives').toContain("rt$label: 'Dollar'");
+  });
+
+  it('gen refuses a type with an rt$-prefixed property, naming it', () => {
+    const fixture = makeFixture('rc-reserved-prop', "export interface Bad { 'rt$label': string; name: string }\n");
+    const result = spawnSync(BIN_PATH, ['gen', 'src/models.ts', 'Bad'], {cwd: fixture.dir, encoding: 'utf8'});
+    expect(result.status, 'gen must fail on a reserved-prefix property').not.toBe(0);
+    expect(`${result.stderr}${result.stdout}`).toContain('reserved enrichment meta prefix');
+    expect(existsSync(fixture.friendlyPath), 'no mirror file is written').toBe(false);
   });
 });

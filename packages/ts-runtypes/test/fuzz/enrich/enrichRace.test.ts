@@ -41,15 +41,15 @@ const SOURCE = 'export interface User {\n  name: string;\n  age: number;\n  emai
 // A racing sibling save grows the type by one field mid-reconcile.
 const SOURCE_GREW = 'export interface User {\n  name: string;\n  age: number;\n  email: string;\n  phone: string;\n}\n';
 
-// authorSentinels fills every friendly-file $label blank with a unique sentinel and
+// authorSentinels fills every friendly-file rt$label blank with a unique sentinel and
 // returns them — the tracers for "nothing authored is lost through the race".
 function authorSentinels(fixture: ReconcileFixture): string[] {
   const sentinels: string[] = [];
   editMirror(fixture, 'friendly', (text) =>
-    text.replace(/\$label: ''/g, () => {
+    text.replace(/rt\$label: ''/g, () => {
       const sentinel = `LBL_${sentinels.length}_x`;
       sentinels.push(sentinel);
-      return `$label: '${sentinel}'`;
+      return `rt$label: '${sentinel}'`;
     })
   );
   return sentinels;

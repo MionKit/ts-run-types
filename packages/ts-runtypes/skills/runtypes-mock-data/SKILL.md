@@ -1,6 +1,6 @@
 ---
 name: runtypes-mock-data
-description: Author and use a `MockData<T>` for a RunTypes type — the committed, type-keyed map of realistic sample-value POOLS / RANGES per field that feed `createMockType<T>()`. Use when generating mock data, sample values, realistic test fixtures, or seed data for a type; when authoring or editing a `*.rt.ts` enrichment sibling's mock map; or when wiring per-field `{ pool }` / `{ min, max }` / `{ $items, $length }` / `{ $optional }` overrides into `createMockType<T>({ data })`. Covers the per-field node shape, that pool/range values are validated against the field's type + format at build time (the MD003 rule), and where the map lives.
+description: Author and use a `MockData<T>` for a RunTypes type — the committed, type-keyed map of realistic sample-value POOLS / RANGES per field that feed `createMockType<T>()`. Use when generating mock data, sample values, realistic test fixtures, or seed data for a type; when authoring or editing a `*.rt.ts` enrichment sibling's mock map; or when wiring per-field `{ pool }` / `{ min, max }` / `{ rt$items, rt$length }` / `{ rt$optional }` overrides into `createMockType<T>({ data })`. Covers the per-field node shape, that pool/range values are validated against the field's type + format at build time (the MD003 rule), and where the map lives.
 ---
 
 # Authoring & using `MockData<T>`
@@ -50,25 +50,25 @@ the generator already mocks every shape mechanically (including `Date`, `Map`, `
 One recursive node, uniform at every depth, structure checked against `T` by the
 `MockData<T>` mapped type. Per-field shape depends on the field's kind:
 
-| Field kind         | Node shape                                                                |
-| ------------------ | ------------------------------------------------------------------------- |
-| string             | `{ pool?: string[] }`                                                     |
-| number             | `{ pool?: number[]; min?: number; max?: number }`                         |
-| `Date`             | `{ pool?: Date[]; min?: Date; max?: Date }`                               |
-| boolean / bigint   | `{ pool?: boolean[] }` / `{ pool?: bigint[] }`                            |
-| array / rest tuple | `{ $items?: <element node>; $length?: number \| [number, number] }`       |
-| fixed tuple        | `{ $slots?: [<node per slot>] }` — positional, fixed length, no `$length` |
-| `Map`              | `{ $keys?, $values?: <node>; $size?: number \| [number, number] }`        |
-| `Set`              | `{ $values?: <node>; $size?: number \| [number, number] }`                |
-| object             | `{ [K in keyof T]?: <child node> } & { $optional?: number }`              |
+| Field kind         | Node shape                                                                    |
+| ------------------ | ----------------------------------------------------------------------------- |
+| string             | `{ pool?: string[] }`                                                         |
+| number             | `{ pool?: number[]; min?: number; max?: number }`                             |
+| `Date`             | `{ pool?: Date[]; min?: Date; max?: Date }`                                   |
+| boolean / bigint   | `{ pool?: boolean[] }` / `{ pool?: bigint[] }`                                |
+| array / rest tuple | `{ rt$items?: <element node>; rt$length?: number \| [number, number] }`       |
+| fixed tuple        | `{ rt$slots?: [<node per slot>] }` — positional, fixed length, no `rt$length` |
+| `Map`              | `{ rt$keys?, rt$values?: <node>; rt$size?: number \| [number, number] }`      |
+| `Set`              | `{ rt$values?: <node>; rt$size?: number \| [number, number] }`                |
+| object             | `{ [K in keyof T]?: <child node> } & { rt$optional?: number }`                |
 
 - **`pool`** — pick a value at random from this list.
 - **`min` / `max`** — inclusive bounds (numbers, `Date`s).
-- **`$items`** — the element node for array (and rest-tuple) members; **`$slots`** — one
+- **`rt$items`** — the element node for array (and rest-tuple) members; **`rt$slots`** — one
   node per fixed-tuple position.
-- **`$length`** — array length, fixed (`3`) or a `[min, max]` range; **`$size`** — the
+- **`rt$length`** — array length, fixed (`3`) or a `[min, max]` range; **`rt$size`** — the
   Map/Set equivalent.
-- **`$optional`** — present-probability (0..1) for optional members on an object node.
+- **`rt$optional`** — present-probability (0..1) for optional members on an object node.
 
 ## The pool-validation superpower (MD003)
 
@@ -80,7 +80,7 @@ into a `FormatNumber<{max: 100}>` field, is caught at parse time (MD003, Error).
 other mock library can do this — it falls straight out of the existing validator.
 MD003 is designed but not wired into `check` yet; shipped today is MD001 (key not a
 field of `T`, Error). Also designed: MD002 (structural mismatch — left to the
-`MockData<T>` mapped type), MD004 (`min > max` / inverted `$length`), MD005 (pool below
+`MockData<T>` mapped type), MD004 (`min > max` / inverted `rt$length`), MD005 (pool below
 a configured floor, off by default).
 
 ## Where the map lives — the mock mirror file
@@ -151,8 +151,8 @@ export const mockUser: MockData<User> = {
   name: {pool: ['Alice Martin', 'Liang Wei', 'Fatima Noor', 'Diego Ramirez']},
   age: {min: 18, max: 95},
   tags: {
-    $items: {pool: ['urgent', 'beta', 'vip']}, // element node
-    $length: [1, 4], // 1–4 tags
+    rt$items: {pool: ['urgent', 'beta', 'vip']}, // element node
+    rt$length: [1, 4], // 1–4 tags
   },
   profile: {
     email: {pool: ['alice@example.com', 'liang@corp.io', 'fatima@mail.net']},
@@ -186,8 +186,8 @@ Every value above satisfies `User` — and once MD003 is wired into `check`, a s
   numeric and `Date` ranges.
 - Keep every pool/range value **valid for the field's type + format** — MD003 will
   reject `score: 150` against `FormatNumber<{max: 100}>`.
-- For arrays set `$items` (element values) and `$length` (count); fixed tuples take
-  `$slots`, Map/Set take `$keys`/`$values` + `$size`; for objects use `$optional` to
+- For arrays set `rt$items` (element values) and `rt$length` (count); fixed tuples take
+  `rt$slots`, Map/Set take `rt$keys`/`rt$values` + `rt$size`; for objects use `rt$optional` to
   tune optional-member probability.
 - Keep mock pools out of production bundles — import them from tests/seeds only
   (normal tree-shaking handles it).

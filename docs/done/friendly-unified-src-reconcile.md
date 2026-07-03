@@ -8,6 +8,9 @@
 > notes vs the plan: type names for translation targets come from the
 > `FriendlyType<T>` annotation (not the `@rtType` marker name), and
 > `ResolveTypeRaw` runs once per type with only `EmitClosure` per locale.
+> Follow-up shipped in the same PR: every meta key this document spells `$X`
+> ships as `rt$X` — the reserved-prefix rename
+> ([enrich-meta-key-prefix.md](./enrich-meta-key-prefix.md)).
 
 ## Motivation (decided in design dialogue, 2026-07-03)
 

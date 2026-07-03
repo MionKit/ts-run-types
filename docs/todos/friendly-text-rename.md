@@ -8,8 +8,8 @@
 
 The `-Type` suffix misleads: `FriendlyType<User>` reads as a *type transformer*
 ("a friendly version of the User type"), when the thing it names is a **map of
-human-facing text** — field labels (`$label`) + error-message templates
-(`$errors`). `FriendlyText<User>` says what it is: the friendly text for `User`.
+human-facing text** — field labels (`rt$label`) + error-message templates
+(`rt$errors`). `FriendlyText<User>` says what it is: the friendly text for `User`.
 It also reads correctly on a translation const (`pl_friendlyUser:
 FriendlyText<User>` — "the Polish friendly text for User"), which matters now
 that `Translation<T>` is gone and one type annotates every friendly-family file.

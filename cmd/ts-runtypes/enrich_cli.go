@@ -232,6 +232,11 @@ func runGen(args []string) {
 	if err != nil {
 		fatal("gen: %v", err)
 	}
+	// The rt$ prefix is RESERVED for enrichment meta keys — a colliding
+	// property makes the scaffold unrepresentable, so refuse up front.
+	if collisions := enrich.ReservedPropertyCollisions(resolved.Node, resolved.Resolve); len(collisions) > 0 {
+		fatal("gen: %s: property %s collides with the reserved enrichment meta prefix 'rt$' — rename the property or exclude the type from enrichment", typeName, strings.Join(collisions, ", "))
+	}
 
 	closure := enrich.EmitClosure(resolved.Node, enrich.ClosureOptions{
 		TypeName:       typeName,

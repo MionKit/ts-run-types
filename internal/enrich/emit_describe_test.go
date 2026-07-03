@@ -55,17 +55,17 @@ func TestEmitFriendly(t *testing.T) {
 	// OBJECT with the source locale's arms (default en: one/other); the rest
 	// stay plain strings.
 	want := `export const userFriendly: FriendlyType<User> = {
-  $label: '',
-  $errors: {type: ''},
-  name: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},
-  age: {$label: '', $errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
-  isActive: {$label: '', $errors: {type: ''}},
-  tags: {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}},
+  rt$label: '',
+  rt$errors: {type: ''},
+  name: {rt$label: '', rt$errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},
+  age: {rt$label: '', rt$errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
+  isActive: {rt$label: '', rt$errors: {type: ''}},
+  tags: {rt$label: '', rt$errors: {type: ''}, rt$items: {rt$label: '', rt$errors: {type: ''}}},
   profile: {
-    $label: '',
-    $errors: {type: ''},
-    email: {$label: '', $errors: {type: ''}},
-    score: {$label: '', $errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
+    rt$label: '',
+    rt$errors: {type: ''},
+    email: {rt$label: '', rt$errors: {type: ''}},
+    score: {rt$label: '', rt$errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
   },
 };
 `
@@ -109,7 +109,7 @@ func TestEmitMock(t *testing.T) {
   name: {pool: []},
   age: {pool: []},
   isActive: {pool: []},
-  tags: {$items: {pool: []}, $length: [1, 3]},
+  tags: {rt$items: {pool: []}, rt$length: [1, 3]},
   profile: {
     email: {pool: []},
     score: {pool: []},
@@ -181,36 +181,36 @@ func setFixture() *protocol.RunType {
 	}
 }
 
-// TestEmitFriendlyTuple pins the structural `$slots` shape (solution A).
+// TestEmitFriendlyTuple pins the structural `rt$slots` shape (solution A).
 func TestEmitFriendlyTuple(t *testing.T) {
 	got := EmitFriendly(tupleFixture(), EmitOptions{VarName: "tupleFriendly", TypeName: "Target"})
-	want := "export const tupleFriendly: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $slots: [{$label: '', $errors: {type: ''}}, {$label: '', $errors: {type: ''}}]};\n"
+	want := "export const tupleFriendly: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}, rt$slots: [{rt$label: '', rt$errors: {type: ''}}, {rt$label: '', rt$errors: {type: ''}}]};\n"
 	if got != want {
 		t.Errorf("EmitFriendly(tuple) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
-// TestEmitMockTuple pins the structural `$slots` shape (fixed length, no $length).
+// TestEmitMockTuple pins the structural `rt$slots` shape (fixed length, no rt$length).
 func TestEmitMockTuple(t *testing.T) {
 	got := EmitMock(tupleFixture(), EmitOptions{VarName: "tupleMock", TypeName: "Target"})
-	want := "export const tupleMock: MockData<Target> = {$slots: [{pool: []}, {pool: []}]};\n"
+	want := "export const tupleMock: MockData<Target> = {rt$slots: [{pool: []}, {pool: []}]};\n"
 	if got != want {
 		t.Errorf("EmitMock(tuple) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
-// TestEmitMockEmptyTuple confirms an empty tuple yields an empty $slots array.
+// TestEmitMockEmptyTuple confirms an empty tuple yields an empty rt$slots array.
 func TestEmitMockEmptyTuple(t *testing.T) {
 	empty := &protocol.RunType{ID: "empty", Kind: protocol.KindTuple}
 	got := MockSkeleton(empty, nil)
-	if got != "{$slots: []}" {
-		t.Errorf("MockSkeleton(empty tuple) = %q, want %q", got, "{$slots: []}")
+	if got != "{rt$slots: []}" {
+		t.Errorf("MockSkeleton(empty tuple) = %q, want %q", got, "{rt$slots: []}")
 	}
 }
 
 // TestEmitVariadicTuple confirms a rest/variadic tuple (`[number, ...string[]]`)
-// routes through the ARRAY shape ($items/$length), matching the Phase-A type's
-// `number extends T['length']` branch — NOT the fixed `$slots`.
+// routes through the ARRAY shape (rt$items/rt$length), matching the Phase-A type's
+// `number extends T['length']` branch — NOT the fixed `rt$slots`.
 func TestEmitVariadicTuple(t *testing.T) {
 	rest := &protocol.RunType{Kind: protocol.KindTupleMember, Flags: []string{"rest"}, Child: leaf(protocol.KindString)}
 	tuple := &protocol.RunType{
@@ -218,42 +218,42 @@ func TestEmitVariadicTuple(t *testing.T) {
 		Children: []*protocol.RunType{tupleMember(leaf(protocol.KindNumber)), rest},
 	}
 	gotFriendly := FriendlySkeleton(tuple, nil)
-	if gotFriendly != "{$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}}" {
+	if gotFriendly != "{rt$label: '', rt$errors: {type: ''}, rt$items: {rt$label: '', rt$errors: {type: ''}}}" {
 		t.Errorf("FriendlySkeleton(variadic tuple) = %q", gotFriendly)
 	}
 	gotMock := MockSkeleton(tuple, nil)
-	if gotMock != "{$items: {pool: []}, $length: [1, 3]}" {
+	if gotMock != "{rt$items: {pool: []}, rt$length: [1, 3]}" {
 		t.Errorf("MockSkeleton(variadic tuple) = %q", gotMock)
 	}
 }
 
-// TestEmitFriendlyMap pins the structural `$keys`/`$values` shape.
+// TestEmitFriendlyMap pins the structural `rt$keys`/`rt$values` shape.
 func TestEmitFriendlyMap(t *testing.T) {
 	got := EmitFriendly(mapFixture(), EmitOptions{VarName: "mapFriendly", TypeName: "Target"})
-	want := "export const mapFriendly: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $keys: {$label: '', $errors: {type: ''}}, $values: {$label: '', $errors: {type: ''}}};\n"
+	want := "export const mapFriendly: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}, rt$keys: {rt$label: '', rt$errors: {type: ''}}, rt$values: {rt$label: '', rt$errors: {type: ''}}};\n"
 	if got != want {
 		t.Errorf("EmitFriendly(map) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
-// TestEmitMockMap pins the structural `$keys`/`$values` shape (no $size emitted).
+// TestEmitMockMap pins the structural `rt$keys`/`rt$values` shape (no rt$size emitted).
 func TestEmitMockMap(t *testing.T) {
 	got := EmitMock(mapFixture(), EmitOptions{VarName: "mapMock", TypeName: "Target"})
-	want := "export const mapMock: MockData<Target> = {$keys: {pool: []}, $values: {pool: []}};\n"
+	want := "export const mapMock: MockData<Target> = {rt$keys: {pool: []}, rt$values: {pool: []}};\n"
 	if got != want {
 		t.Errorf("EmitMock(map) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
-// TestEmitSet pins the structural `$values` shape for both emitters.
+// TestEmitSet pins the structural `rt$values` shape for both emitters.
 func TestEmitSet(t *testing.T) {
 	gotFriendly := EmitFriendly(setFixture(), EmitOptions{VarName: "setFriendly", TypeName: "Target"})
-	wantFriendly := "export const setFriendly: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $values: {$label: '', $errors: {type: ''}}};\n"
+	wantFriendly := "export const setFriendly: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}, rt$values: {rt$label: '', rt$errors: {type: ''}}};\n"
 	if gotFriendly != wantFriendly {
 		t.Errorf("EmitFriendly(set) mismatch:\n--- got ---\n%s\n--- want ---\n%s", gotFriendly, wantFriendly)
 	}
 	gotMock := EmitMock(setFixture(), EmitOptions{VarName: "setMock", TypeName: "Target"})
-	wantMock := "export const setMock: MockData<Target> = {$values: {pool: []}};\n"
+	wantMock := "export const setMock: MockData<Target> = {rt$values: {pool: []}};\n"
 	if gotMock != wantMock {
 		t.Errorf("EmitMock(set) mismatch:\n--- got ---\n%s\n--- want ---\n%s", gotMock, wantMock)
 	}

@@ -20,17 +20,17 @@ export const REALWORLD = {
       type Target = User;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        id: {$label: '', $errors: {type: ''}},
-        name: {$label: '', $errors: {type: ''}},
-        email: {$label: '', $errors: {type: ''}},
-        tags: {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        id: {rt$label: '', rt$errors: {type: ''}},
+        name: {rt$label: '', rt$errors: {type: ''}},
+        email: {rt$label: '', rt$errors: {type: ''}},
+        tags: {rt$label: '', rt$errors: {type: ''}, rt$items: {rt$label: '', rt$errors: {type: ''}}},
         profile: {
-          $label: '',
-          $errors: {type: ''},
-          bio: {$label: '', $errors: {type: ''}},
-          age: {$label: '', $errors: {type: ''}},
+          rt$label: '',
+          rt$errors: {type: ''},
+          bio: {rt$label: '', rt$errors: {type: ''}},
+          age: {rt$label: '', rt$errors: {type: ''}},
         },
       };
       // ##### mock #####
@@ -38,7 +38,7 @@ export const REALWORLD = {
         id: {pool: []},
         name: {pool: []},
         email: {pool: []},
-        tags: {$items: {pool: []}, $length: [1, 3]},
+        tags: {rt$items: {pool: []}, rt$length: [1, 3]},
         profile: {
           bio: {pool: []},
           age: {pool: []},
@@ -62,12 +62,15 @@ export const REALWORLD = {
       type Target = RegistrationForm;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        username: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},
-        email: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}, pattern: ''}},
-        age: {$label: '', $errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
-        website: {$label: '', $errors: {type: '', maxLength: {one: '', other: ''}, pattern: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        username: {rt$label: '', rt$errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},
+        email: {
+          rt$label: '',
+          rt$errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}, pattern: ''},
+        },
+        age: {rt$label: '', rt$errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
+        website: {rt$label: '', rt$errors: {type: '', maxLength: {one: '', other: ''}, pattern: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -94,27 +97,27 @@ export const REALWORLD = {
       type Target = Order;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        orderId: {$label: '', $errors: {type: ''}},
-        total: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        orderId: {rt$label: '', rt$errors: {type: ''}},
+        total: {rt$label: '', rt$errors: {type: ''}},
         items: {
-          $label: '',
-          $errors: {type: ''},
-          $items: {
-            $label: '',
-            $errors: {type: ''},
-            sku: {$label: '', $errors: {type: ''}},
-            qty: {$label: '', $errors: {type: ''}},
-            price: {$label: '', $errors: {type: ''}},
+          rt$label: '',
+          rt$errors: {type: ''},
+          rt$items: {
+            rt$label: '',
+            rt$errors: {type: ''},
+            sku: {rt$label: '', rt$errors: {type: ''}},
+            qty: {rt$label: '', rt$errors: {type: ''}},
+            price: {rt$label: '', rt$errors: {type: ''}},
           },
         },
         shipping: {
-          $label: '',
-          $errors: {type: ''},
-          address: {$label: '', $errors: {type: ''}},
-          city: {$label: '', $errors: {type: ''}},
-          zip: {$label: '', $errors: {type: ''}},
+          rt$label: '',
+          rt$errors: {type: ''},
+          address: {rt$label: '', rt$errors: {type: ''}},
+          city: {rt$label: '', rt$errors: {type: ''}},
+          zip: {rt$label: '', rt$errors: {type: ''}},
         },
       };
       // ##### mock #####
@@ -122,12 +125,12 @@ export const REALWORLD = {
         orderId: {pool: []},
         total: {pool: []},
         items: {
-          $items: {
+          rt$items: {
             sku: {pool: []},
             qty: {pool: []},
             price: {pool: []},
           },
-          $length: [1, 3],
+          rt$length: [1, 3],
         },
         shipping: {
           address: {pool: []},
@@ -154,17 +157,17 @@ export const REALWORLD = {
       type Target = BlogPost;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        title: {$label: '', $errors: {type: ''}},
-        body: {$label: '', $errors: {type: ''}},
-        publishedAt: {$label: '', $errors: {type: ''}},
-        tags: {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        title: {rt$label: '', rt$errors: {type: ''}},
+        body: {rt$label: '', rt$errors: {type: ''}},
+        publishedAt: {rt$label: '', rt$errors: {type: ''}},
+        tags: {rt$label: '', rt$errors: {type: ''}, rt$items: {rt$label: '', rt$errors: {type: ''}}},
         author: {
-          $label: '',
-          $errors: {type: ''},
-          name: {$label: '', $errors: {type: ''}},
-          email: {$label: '', $errors: {type: ''}},
+          rt$label: '',
+          rt$errors: {type: ''},
+          name: {rt$label: '', rt$errors: {type: ''}},
+          email: {rt$label: '', rt$errors: {type: ''}},
         },
       };
       // ##### mock #####
@@ -172,7 +175,7 @@ export const REALWORLD = {
         title: {pool: []},
         body: {pool: []},
         publishedAt: {pool: []},
-        tags: {$items: {pool: []}, $length: [1, 3]},
+        tags: {rt$items: {pool: []}, rt$length: [1, 3]},
         author: {
           name: {pool: []},
           email: {pool: []},

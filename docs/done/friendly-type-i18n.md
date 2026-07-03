@@ -78,6 +78,14 @@
 >     keys per declared failable param, no index signature), `$default` became
 >     the mutually exclusive catch-all mode (FT009), and the tsconfig
 >     `friendlyErrors` knob picks the scaffold mode for new nodes.
+> 12. **Every enrichment meta key was renamed to the reserved `rt$` prefix
+>     before merge** ([enrich-meta-key-prefix.md](./enrich-meta-key-prefix.md)
+>     — the superseding spec): `$label`/`$errors`/`$items`/`$slots`/`$keys`/
+>     `$values`/`$default` → `rt$label`/…/`rt$default` (and mock's `$length`/
+>     `$size`/`$optional`; `__rt_typeName` → `rt$typeName`). Every `$X` key in
+>     THIS document reads as `rt$X` in the shipped code. The `rt$` prefix is
+>     reserved in enriched types (gen refuses / FT011/MD011); a plain
+>     `$`-prefixed property is an ordinary field.
 >
 > Product of a design study (4 deep repo readers + 5 i18n-ecosystem researchers —
 > vue-i18n, i18next, ICU/MF2, the platform `Intl` API, and the type-safe/compile-time

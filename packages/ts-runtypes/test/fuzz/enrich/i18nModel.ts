@@ -50,7 +50,7 @@ const PLURAL_FIELD = 'alpha'; // permanent — keeps the plural oracles alive
 const NAME_POOL = ['bravo', 'charlie', 'delta', 'echo', 'foxtrot'];
 
 interface FieldSpec {
-  pattern: boolean; // declares a `pattern` format param (plain-string $errors key)
+  pattern: boolean; // declares a `pattern` format param (plain-string rt$errors key)
 }
 
 export interface I18nModel {
@@ -58,7 +58,7 @@ export interface I18nModel {
   fields: Map<string, FieldSpec>;
   /** Fields as MATERIALIZED in T (as of the last scaffold/update). **/
   tFields: Map<string, FieldSpec>;
-  /** leafId → token authored into T. leafId: `root.$label`, `<f>.$label`,
+  /** leafId → token authored into T. leafId: `root.rt$label`, `<f>.rt$label`,
    *  `<f>.type`, `<f>.pattern`, `alpha.minLength.<arm>`. **/
   authored: Map<string, string>;
   /** Tokens whose leaf the source dropped — must live on inside a carcass. **/
@@ -264,13 +264,13 @@ function pick<T>(items: T[], rng: () => number): T {
 
 // authorable leaf ids currently blank in T (per the model's view).
 function authorableLeaves(model: I18nModel): string[] {
-  const leaves: string[] = ['root.$label'];
-  leaves.push(`${PLURAL_FIELD}.$label`, `${PLURAL_FIELD}.type`);
+  const leaves: string[] = ['root.rt$label'];
+  leaves.push(`${PLURAL_FIELD}.rt$label`, `${PLURAL_FIELD}.type`);
   for (const arm of PL_ARMS) {
     if (!model.prunedArms.has(arm)) leaves.push(`${PLURAL_FIELD}.minLength.${arm}`);
   }
   for (const [name, spec] of model.tFields) {
-    leaves.push(`${name}.$label`, `${name}.type`);
+    leaves.push(`${name}.rt$label`, `${name}.type`);
     if (spec.pattern) leaves.push(`${name}.pattern`);
   }
   return leaves.filter((leafId) => !model.authored.has(leafId));
@@ -278,16 +278,16 @@ function authorableLeaves(model: I18nModel): string[] {
 
 // applyAuthor writes one blank leaf's token into T.
 function applyAuthor(model: I18nModel, ctx: I18nCtx, leafId: string, token: string): boolean {
-  if (leafId === 'root.$label') {
+  if (leafId === 'root.rt$label') {
     const text = readTranslation(ctx.fixture);
-    const edited = text.replace(/^(\s*\$label: )''/m, `$1'${token}'`);
+    const edited = text.replace(/^(\s*rt\$label: )''/m, `$1'${token}'`);
     if (edited === text) return false;
     writeTranslation(ctx.fixture, edited);
     return true;
   }
   const [field, key, arm] = leafId.split('.');
   return editFieldLine(ctx.fixture, field, (line) => {
-    if (key === '$label') return line.replace("$label: ''", `$label: '${token}'`);
+    if (key === 'rt$label') return line.replace("rt$label: ''", `rt$label: '${token}'`);
     if (key === 'minLength') return line.replace(`${arm}: ''`, `${arm}: '${token}'`);
     return line.replace(`${key}: ''`, `${key}: '${token}'`);
   });

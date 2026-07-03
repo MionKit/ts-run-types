@@ -49,12 +49,12 @@ type ClosureOptions struct {
 	// emitted NamedConst's DeclFile is left empty and the caller falls back to the
 	// root file. Built by the bridge from the checker symbol declarations.
 	DeclFiles map[string]string
-	// FriendlyErrors picks the `$errors` mode new nodes scaffold ("default" →
+	// FriendlyErrors picks the `rt$errors` mode new nodes scaffold ("default" →
 	// the exclusive catch-all; else per-constraint). See EmitOptions.
 	FriendlyErrors string
 	// SourceLocale is the language the FriendlyType source maps are authored in
 	// (tsconfig `i18n.sourceLocale`); it selects the CLDR arm set count-bearing
-	// `$errors` constraints scaffold. Empty means the default ('en').
+	// `rt$errors` constraints scaffold. Empty means the default ('en').
 	SourceLocale string
 }
 
@@ -90,7 +90,7 @@ type closureEmitter struct {
 // var (friendly<Name> / mock<Name>); anonymous/inline shapes are inlined into the
 // parent const via the existing emitFriendlyNode/emitMockNode arms. Cycles break
 // at the back-edge: a reference to an in-progress named type becomes a leaf node
-// (friendly `{$label: ”}`, mock `{}`), never a const reference, so the emitted
+// (friendly `{rt$label: ”}`, mock `{}`), never a const reference, so the emitted
 // const graph never hits a TDZ self-reference.
 //
 // A named root whose fields are all anonymous yields exactly ONE NamedConst whose
@@ -257,21 +257,21 @@ func (emitter *closureEmitter) collectChildIDs(out map[string]string, ctx *walkC
 	switch {
 	case rt.Kind == protocol.KindTuple:
 		for i, slot := range tupleSlots(ctx, rt) {
-			emitter.recordChild(out, ctx, slot, joinChildPath(path, "$slots."+itoa(i)), depth)
+			emitter.recordChild(out, ctx, slot, joinChildPath(path, "rt$slots."+itoa(i)), depth)
 		}
 	case isMap(rt):
 		keyType, valueType := mapKeyValue(ctx, rt)
-		emitter.recordChild(out, ctx, keyType, joinChildPath(path, "$keys"), depth)
-		emitter.recordChild(out, ctx, valueType, joinChildPath(path, "$values"), depth)
+		emitter.recordChild(out, ctx, keyType, joinChildPath(path, "rt$keys"), depth)
+		emitter.recordChild(out, ctx, valueType, joinChildPath(path, "rt$values"), depth)
 	case isSet(rt):
-		emitter.recordChild(out, ctx, setElement(ctx, rt), joinChildPath(path, "$values"), depth)
+		emitter.recordChild(out, ctx, setElement(ctx, rt), joinChildPath(path, "rt$values"), depth)
 	case isObjectLike(ctx, rt):
 		for _, prop := range propertyChildren(ctx, rt) {
 			emitter.recordChild(out, ctx, prop.Child, joinChildPath(path, prop.Name), depth)
 		}
 	default:
 		if element := arrayElement(rt); element != nil {
-			emitter.recordChild(out, ctx, element, joinChildPath(path, "$items"), depth)
+			emitter.recordChild(out, ctx, element, joinChildPath(path, "rt$items"), depth)
 		}
 	}
 }

@@ -16,17 +16,18 @@ var orphanBlockPattern = regexp.MustCompile(`(?s)/\* @rtOrphan(?:Child)? .*? \*/
 
 // friendlyReservedKeys / mockReservedKeys are the META keys each family's nodes
 // carry alongside their field children — never treated as renamable/mergeable
-// fields. Any `$`-prefixed key is meta by construction (a reserved-key field
-// collision is a documented diagnostic, not a normal field); the mock family
+// fields. Any `rt$`-prefixed key is meta by construction (the prefix is
+// RESERVED — an rt$ property in a source type is refused by gen and flagged
+// FT011/MD011; a plain `$` key is an ordinary field); the mock family
 // additionally reserves the bare leaf keys pool/min/max.
 var friendlyReservedKeys = map[string]bool{
-	"$label": true, "$errors": true, "$items": true,
-	"$slots": true, "$keys": true, "$values": true,
+	"rt$label": true, "rt$errors": true, "rt$items": true,
+	"rt$slots": true, "rt$keys": true, "rt$values": true,
 }
 
 var mockReservedKeys = map[string]bool{
-	"$items": true, "$length": true, "$optional": true,
-	"$slots": true, "$keys": true, "$values": true, "$size": true,
+	"rt$items": true, "rt$length": true, "rt$optional": true,
+	"rt$slots": true, "rt$keys": true, "rt$values": true, "rt$size": true,
 	"pool": true, "min": true, "max": true,
 }
 

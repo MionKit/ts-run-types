@@ -2,7 +2,7 @@ import type {FriendlyType, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Template-literal kinds. The emitter treats a template-literal type as a
-// string-shaped LEAF — friendly `{$label: ''}`, mock `{pool: []}` (both valid,
+// string-shaped LEAF — friendly `{rt$label: ''}`, mock `{pool: []}` (both valid,
 // since a template-literal type extends `string`). Mirrors the validation
 // suite's TEMPLATE_LITERAL range.
 export const TEMPLATE_LITERAL = {
@@ -12,7 +12,7 @@ export const TEMPLATE_LITERAL = {
       // ##### src #####
       type Target = `${string}/${number}`;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
+      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -26,7 +26,7 @@ export const TEMPLATE_LITERAL = {
       // ##### src #####
       type Target = `api/user/${number}`;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
+      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -40,7 +40,7 @@ export const TEMPLATE_LITERAL = {
       // ##### src #####
       type Target = `${'a' | 'b'}-${number}`;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
+      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -54,7 +54,7 @@ export const TEMPLATE_LITERAL = {
       // ##### src #####
       type Target = `(${number})`;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
+      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -68,7 +68,7 @@ export const TEMPLATE_LITERAL = {
       // ##### src #####
       type Target = `/api/v${number}/user/${string}/posts/${number}`;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
+      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####

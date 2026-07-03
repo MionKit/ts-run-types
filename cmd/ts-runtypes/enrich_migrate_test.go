@@ -22,9 +22,9 @@ func migrateFixture(t *testing.T) (enrichConfig, string) {
 			"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n"+
 			"/** @rtType User#u1 @rtIds {name: n1} */\n"+
 			"export const friendlyUser: FriendlyType<User> = {\n"+
-			"  $label: 'The user',\n"+
-			"  $errors: {type: ''},\n"+
-			"  name: {$label: 'Full name', $errors: {type: ''}},\n"+
+			"  rt$label: 'The user',\n"+
+			"  rt$errors: {type: ''},\n"+
+			"  name: {rt$label: 'Full name', rt$errors: {type: ''}},\n"+
 			"};\n\n"+
 			"/** @rtType User#u1 @rtIds {name: n1} */\n"+
 			"export const mockUser: MockData<User> = {\n"+
@@ -55,7 +55,7 @@ func TestMigrateLegacyMirror_SplitsAndDeletes(t *testing.T) {
 	}
 	friendly, mock := string(friendlyBytes), string(mockBytes)
 
-	if !strings.Contains(friendly, "$label: 'Full name'") || strings.Contains(friendly, "mockUser") {
+	if !strings.Contains(friendly, "rt$label: 'Full name'") || strings.Contains(friendly, "mockUser") {
 		t.Errorf("friendly mirror wrong:\n%s", friendly)
 	}
 	if !strings.Contains(mock, "pool: ['Alice']") || strings.Contains(mock, "friendlyUser") {
@@ -101,7 +101,7 @@ func TestMigrateLegacyMirror_ForeignFileUntouched(t *testing.T) {
 	legacyPath := config.legacyMirrorPath(source)
 	foreign := "import type { Other } from '../../src/other';\n" +
 		"import type { FriendlyType } from 'ts-runtypes';\n\n" +
-		"export const friendlyOther: FriendlyType<Other> = {$label: '', $errors: {type: ''}};\n"
+		"export const friendlyOther: FriendlyType<Other> = {rt$label: '', rt$errors: {type: ''}};\n"
 	writeTestFile(t, legacyPath, foreign)
 
 	migrateLegacyMirror(config, source)

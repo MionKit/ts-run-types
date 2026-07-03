@@ -216,7 +216,7 @@ func TestEmitClosure_Circular(t *testing.T) {
 
 	// Exactly one of the two edges is broken to a leaf; the other is a forward
 	// const reference. The emit starts at A → descends into B (in-progress) → B's
-	// edge back to A breaks. So B references nothing (a:{$label:''}) and A
+	// edge back to A breaks. So B references nothing (a:{rt$label:''}) and A
 	// references friendlyB.
 	leafEdges := 0
 	refEdges := 0
@@ -226,9 +226,9 @@ func TestEmitClosure_Circular(t *testing.T) {
 		}
 	}
 	for _, named := range []enrich.NamedConst{a, b} {
-		// The cross-type field (a or b) is a leaf when it has `{$label: '', $errors: {type: ''}}`
+		// The cross-type field (a or b) is a leaf when it has `{rt$label: '', rt$errors: {type: ''}}`
 		// and is NOT a const reference.
-		if strings.Contains(named.Friendly, "a: {$label: '', $errors: {type: ''}}") || strings.Contains(named.Friendly, "b: {$label: '', $errors: {type: ''}}") {
+		if strings.Contains(named.Friendly, "a: {rt$label: '', rt$errors: {type: ''}}") || strings.Contains(named.Friendly, "b: {rt$label: '', rt$errors: {type: ''}}") {
 			leafEdges++
 		}
 	}

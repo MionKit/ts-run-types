@@ -184,6 +184,10 @@ func buildTranslationSpecs(config enrichConfig, sourceMirror string, locales []s
 			fmt.Fprintf(os.Stderr, "gen --translate: %s: skipping type %s: %v\n", sourceMirror, typeName, resolveErr)
 			continue
 		}
+		// The rt$ prefix is RESERVED for enrichment meta keys (see gen).
+		if collisions := enrich.ReservedPropertyCollisions(resolved.Node, resolved.Resolve); len(collisions) > 0 {
+			fatal("gen --translate: %s: property %s collides with the reserved enrichment meta prefix 'rt$' — rename the property or exclude the type from enrichment", typeName, strings.Join(collisions, ", "))
+		}
 		resolvedTypes = append(resolvedTypes, resolvedType{typeName: typeName, resolved: resolved})
 	}
 	if len(resolvedTypes) == 0 {

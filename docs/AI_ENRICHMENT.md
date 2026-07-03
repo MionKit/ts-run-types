@@ -98,11 +98,12 @@ The two artifacts:
 
 ### Node model
 
-One recursive node. Every node is `{ $label?, $errors?, ...childFields }`:
-`$`-prefixed keys are meta, every other key is a child field. Leaf nodes simply
-have no children, so nesting is uniform with no `fields:` wrapper. (`$`-prefixed
-field names in the source type are the one reserved-key collision; flagged as a
-diagnostic if it ever happens.)
+One recursive node. Every node is `{ rt$label, rt$errors, ...childFields }`:
+`rt$`-prefixed keys are meta, every other key is a child field. Leaf nodes simply
+have no children, so nesting is uniform with no `fields:` wrapper. The `rt$`
+prefix is RESERVED: a source-type property named `rt$…` cannot be enriched —
+`gen` refuses it and `check` reports FT011 (friendly) / MD011 (mock). A plain
+`$`-prefixed property is an ordinary field.
 
 ```ts
 // models/user.ts
@@ -120,54 +121,54 @@ export interface User {
 
 ```ts
 // the authored map — validated against User by tsc AND at scan time.
-// The map is TOTAL: every field present, $label + $errors required on every
+// The map is TOTAL: every field present, rt$label + rt$errors required on every
 // node (blank '' = "no custom text", renderer falls back; deleting a key just
 // re-scaffolds it — one type maps to exactly one shape).
 const userFriendly: FriendlyType<User> = {
-  $label: 'User account',
-  $errors: { type: '$[label] must be an object' },
+  rt$label: 'User account',
+  rt$errors: { type: '$[label] must be an object' },
 
   name: {
-    $label: 'Full name',
-    $errors: {
+    rt$label: 'Full name',
+    rt$errors: {
       type: '$[label] must be text',
       minLength: '$[label] needs at least $[val] characters',
       maxLength: '$[label] allows at most $[val] characters',
     },
   },
   age: {
-    $label: 'Age',
-    $errors: {
+    rt$label: 'Age',
+    rt$errors: {
       type: '$[label] must be a number',
       min: '$[label] must be at least $[val]',
       max: '$[label] must be no more than $[val]',
     },
   },
-  isActive: { $label: 'Active?', $errors: { type: '' } },
+  isActive: { rt$label: 'Active?', rt$errors: { type: '' } },
 
   tags: {
-    $label: 'Tags',
-    $errors: { type: '' },
-    $items: { $label: '', $errors: { type: 'each tag must be text' } },
+    rt$label: 'Tags',
+    rt$errors: { type: '' },
+    rt$items: { rt$label: '', rt$errors: { type: 'each tag must be text' } },
   },
 
   profile: {                         // nested object — same node shape, recursively
-    $label: 'Profile',
-    $errors: { type: '' },
-    email: { $label: 'Email', $errors: { type: '', pattern: 'Enter a valid email address' } },
-    score: { $label: 'Score', $errors: { type: '', min: 'min $[val]', max: 'max $[val]' } },
+    rt$label: 'Profile',
+    rt$errors: { type: '' },
+    email: { rt$label: 'Email', rt$errors: { type: '', pattern: 'Enter a valid email address' } },
+    score: { rt$label: 'Score', rt$errors: { type: '', min: 'min $[val]', max: 'max $[val]' } },
   },
 };
 ```
 
-Container meta keys: arrays/tuples use `$items` (element node); maps/sets use
-`$keys` / `$values` (their error paths carry the object path-segment
+Container meta keys: arrays/tuples use `rt$items` (element node); maps/sets use
+`rt$keys` / `rt$values` (their error paths carry the object path-segment
 `{key, failed}` — the renderer handles those). Unions get node-level
-`$label` / `$errors` only in v1; per-member addressing (`$members`) is deferred.
+`rt$label` / `rt$errors` only in v1; per-member addressing (`$members`) is deferred.
 
 ### Error keys = the verified `(format.name, formatPath-tail)` discriminator
 
-Each `$errors` key names the failed sub-constraint. This is **not** an invented
+Each `rt$errors` key names the failed sub-constraint. This is **not** an invented
 key set — it maps 1:1 onto what `createGetValidationErrors<T>()` actually emits.
 A validation failure is a `RTValidationError` (see
 [`createRTFunctions.ts`](../packages/ts-runtypes/src/createRTFunctions.ts)):
@@ -180,7 +181,7 @@ interface RTValidationError {
 }
 ```
 
-The `$errors` key is **`error.format.formatPath.at(-1)`**, and `type` is the base
+The `rt$errors` key is **`error.format.formatPath.at(-1)`**, and `type` is the base
 type-shape failure (a `RTValidationError` with no `.format`). The Go format emitters
 ([`internal/compiled/typefns/formats/`](../internal/compiled/typefns/formats/))
 write one independent `if (fail) push(...)` per constraint, with the constraint
@@ -226,16 +227,16 @@ path short-circuits; irrelevant here.) The only short-circuits are structurally
 necessary: no separator ⇒ datetime skips `date`/`time`; no `@` ⇒ email skips
 `localPart`/`domain`. So the data DSL yields **one message per violated
 constraint** (a list). For one sentence per field regardless of which rule fired,
-use the exclusive `$default` mode below.
+use the exclusive `rt$default` mode below.
 
 ### Placeholder DSL
 
 Templates are plain strings with `$[…]` tokens, validated by the compiler:
 
-- `$[label]` — the node's `$label`, falling back to the raw field name.
+- `$[label]` — the node's `rt$label`, falling back to the raw field name.
 - `$[val]`   — the failed constraint's parameter (`error.format.val`; see enrichment).
 - `$[path]`  — dotted path to the field.
-- `$[index]` — array element index, for `$items` failures.
+- `$[index]` — array element index, for `rt$items` failures.
 
 Two template extensions shipped with the i18n layer — both validated by `check`,
 both legal in single-locale maps too:
@@ -253,7 +254,7 @@ both legal in single-locale maps too:
   (`$[val]` — `minLength: 3` pluralizes for 3, NOT the received value's length); a
   non-finite bound selects `other` directly, and plain `createFriendly` uses `en`
   rules (deterministic, matching the default `sourceLocale`). A plain string stays
-  legal on a count-bearing constraint; `$label` is always a plain string.
+  legal on a count-bearing constraint; `rt$label` is always a plain string.
   Type-side: `TemplateLeaf = string | PluralTemplate` (plus `PluralCategory`),
   exported from `ts-runtypes`; the TS `CountBearingKeys` union in
   `friendlyType.ts` mirrors Go's `CountBearing` — the second TS↔Go sync point.
@@ -276,20 +277,20 @@ both legal in single-locale maps too:
 no value (`RTValidationError` is `{path, expected, format?}`), so it would require
 threading the input into the renderer. Revisit with the `$[val]` enrichment.
 
-### `$default` — the exclusive catch-all mode
+### `rt$default` — the exclusive catch-all mode
 
-A node's `$errors` is one of exactly two shapes: the per-constraint record, or
-`{$default: '…'}` — a single template rendered for EVERY failure of that field.
-The two are **mutually exclusive** (`$default` beside any other key is both a TS
+A node's `rt$errors` is one of exactly two shapes: the per-constraint record, or
+`{rt$default: '…'}` — a single template rendered for EVERY failure of that field.
+The two are **mutually exclusive** (`rt$default` beside any other key is both a TS
 excess-property error and a Go checker Error), enforced as a union of the two
-record types. `$default` is plain data, so it stays translatable and
-reconcilable; there is NO function-form `$errors` (an inline arrow was the v1
+record types. `rt$default` is plain data, so it stays translatable and
+reconcilable; there is NO function-form `rt$errors` (an inline arrow was the v1
 escape hatch — removed: opaque to translation, reconcile and the checker).
 
 Which mode `gen` scaffolds for a NEW node is the tsconfig plugin entry's
 top-level `friendlyErrors` knob (`"perConstraint"` default | `"default"`). Once
 a node exists its authored mode is author-owned: every later sync follows it,
-and a `$default`-only node is never descended by the `$errors` reconcile.
+and a `rt$default`-only node is never descended by the `rt$errors` reconcile.
 
 ### Type sketch — modelled on `DataOnly<T>`
 
@@ -320,18 +321,18 @@ type TemplateLeaf = FriendlyTemplate | PluralTemplate;   // plural only on count
 // `__rtFormatParams` brand decides the exact key set. Two exclusive modes:
 type ConstraintTemplates<P> = { type: FriendlyTemplate } & {
   [K in Exclude<keyof P & string, NonFailingParams>]: K extends CountBearingKeys ? TemplateLeaf : FriendlyTemplate;
-} & { $default?: never };
-type DefaultOnlyTemplates = { $default: FriendlyTemplate; type?: never };
+} & { rt$default?: never };
+type DefaultOnlyTemplates = { rt$default: FriendlyTemplate; type?: never };
 export type ErrorTemplates<F = never> = /* bare `type`-only ⋁ DefaultOnly ⋁ Constraint<P> — see friendlyType.ts */ …;
 
-interface FriendlyMeta<F = never> { $label: string; $errors: ErrorTemplates<F> }  // BOTH required
+interface FriendlyMeta<F = never> { rt$label: string; rt$errors: ErrorTemplates<F> }  // BOTH required
 type FriendlyLeaf = string | number | boolean | bigint | null | undefined | Date | RegExp;
 type _Depth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 type FriendlyNode<T, Depth extends number = 8> =
   Depth extends 0                ? FriendlyMeta                    // budget spent — keep as leaf
-  : T extends FriendlyLeaf       ? FriendlyMeta<T>                 // leaf — F drives the $errors keys
-  : T extends readonly unknown[] ? FriendlyMeta & { $items: FriendlyNode<T[number], _Depth[Depth]> }
+  : T extends FriendlyLeaf       ? FriendlyMeta<T>                 // leaf — F drives the rt$errors keys
+  : T extends readonly unknown[] ? FriendlyMeta & { rt$items: FriendlyNode<T[number], _Depth[Depth]> }
   : T extends object             ? FriendlyMeta & { [K in keyof T]-?: FriendlyNode<T[K], _Depth[Depth]> }
   :                                FriendlyMeta;                   // (real impl adds Map/Set/tuple arms)
 
@@ -380,7 +381,7 @@ per-property overrides — `MockData<T>` is just the typed, validated form of th
 const userMock: MockData<User> = {
   name:  { pool: ['Alice Martin', 'Liang Wei', 'Fatima Noor', /* …50+ */ ] },
   age:   { min: 18, max: 95 },
-  tags:  { $items: { pool: ['urgent', 'beta', 'vip'] }, $length: [1, 4] },
+  tags:  { rt$items: { pool: ['urgent', 'beta', 'vip'] }, rt$length: [1, 4] },
   profile: {
     email: { pool: ['alice@example.com', 'liang@corp.io', /* … */ ] },
     score: { min: 0, max: 100 },
@@ -409,10 +410,10 @@ type _MockDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 type MockNode<T, Depth extends number = 8> =
   Depth extends 0                ? { pool?: T[] }                  // budget spent — keep as leaf pool
-  : T extends readonly unknown[] ? { $items?: MockNode<T[number], _MockDepth[Depth]>; $length?: number | [number, number] }
+  : T extends readonly unknown[] ? { rt$items?: MockNode<T[number], _MockDepth[Depth]>; rt$length?: number | [number, number] }
   : T extends number             ? { pool?: number[]; min?: number; max?: number }
   : T extends string             ? { pool?: string[] }
-  : T extends object             ? { [K in keyof T]?: MockNode<T[K], _MockDepth[Depth]>; $optional?: number }
+  : T extends object             ? { [K in keyof T]?: MockNode<T[K], _MockDepth[Depth]>; rt$optional?: number }
   :                                { pool?: T[] };
 
 export type MockData<T> = MockNode<T>;
@@ -428,7 +429,7 @@ export type MockData<T> = MockNode<T>;
 > key an excess property (editor error), and an object-vs-scalar shape mismatch is a
 > type error (both proven by the P1 instantiation-budget tests). So the Go pass
 > below is a **refinement layer** — it adds only what the type system can't see:
-> constraint-key existence (FT003 — the `$errors` record has an index signature, so
+> constraint-key existence (FT003 — the `rt$errors` record has an index signature, so
 > TS accepts any key), `$[…]` placeholder validity (FT005), mock pool-value
 > validation (MD003), and the semantic-drift hash (FT010/MD010). The feature is
 > already useful with just the types + the editor; the pass sharpens the diagnostics.
@@ -454,11 +455,13 @@ trigger differs (CLI vs build scan).
 | Code      | Severity | Status | Meaning                                                                       |
 | --------- | -------- | ------ | ---------------------------------------------------------------------------- |
 | **FT002** | Error    | ✅ `check` | key is not a field of `T` — stale (field renamed/removed)              |
-| **FT003** | Warning  | ✅ `check` | `$errors` key isn't a constraint this field's format declares (Go has `FormatAnnotation.Params`, so the exact set is known) |
+| **FT003** | Warning  | ✅ `check` | `rt$errors` key isn't a constraint this field's format declares (Go has `FormatAnnotation.Params`, so the exact set is known) |
 | **FT005** | Warning  | ✅ `check` | unknown `$[…]` placeholder for this constraint/context — covers each plural ARM's placeholders; any leftover colon-form `$[val:kind:name]` token (the REMOVED named-format syntax) is flagged with a pointer to plain `$[val]` |
 | **FT006** | Error    | ✅ `check` | plural template missing the mandatory `other` arm (the render backstop) |
 | **FT007** | Warning  | ✅ `check` | plural arm key is not a CLDR cardinal category (`zero`/`one`/`two`/`few`/`many`/`other`) |
 | **FT008** | Warning  | ✅ `check` | plural object on a non-count-bearing constraint — dead arms, only `other` ever renders; use a plain string |
+| **FT009** | Error    | ✅ `check` | `rt$default` beside any other `rt$errors` key — the catch-all and per-constraint modes are mutually exclusive |
+| **FT011** | Error    | ✅ `check` | a property of `T` is named `rt$…` — collides with the reserved enrichment meta prefix (`gen` refuses such a type up front) |
 | **FT001** | Info     | deferred | field of `T` has no label (renders the raw name)                       |
 | **FT004** | Error    | deferred (TS catches) | structural mismatch (object node where `T` is scalar)     |
 | **FT010** | Info     | deferred | `T`'s structural id changed since authored — review for semantic drift |
@@ -468,9 +471,10 @@ trigger differs (CLI vs build scan).
 | Code      | Severity | Status | Meaning                                                            |
 | --------- | -------- | ------ | ----------------------------------------------------------------- |
 | **MD001** | Error    | ✅ `check` | key is not a field of `T`                                      |
+| **MD011** | Error    | ✅ `check` | a property of `T` is named `rt$…` — the reserved enrichment meta prefix (`gen` refuses such a type up front) |
 | **MD002** | Error    | deferred (TS catches) | structural mismatch                               |
 | **MD003** | Error    | deferred (needs validator) | a pool/range value **fails validation** against the field's type/format |
-| **MD004** | Warning  | deferred | `min > max`, or `$length` inverted                              |
+| **MD004** | Warning  | deferred | `min > max`, or `rt$length` inverted                              |
 | **MD005** | Info     | deferred | pool below a configured floor (e.g. `< 50`) — off by default     |
 | **MD010** | Info     | deferred | structural drift since authored                                 |
 
@@ -671,12 +675,12 @@ emitted output mirrors the **named-type** structure:
 - **Anonymous / inline shapes are inlined** into their parent const (no name → no const).
 - **Cycles break at the back-edge.** Emit named consts in dependency (topological)
   order; a back-edge to an already-in-progress named type becomes a **leaf node**
-  (friendly `{$label:''}`, mock `{}`) so the const graph never hits a TDZ self-reference.
+  (friendly `{rt$label:''}`, mock `{}`) so the const graph never hits a TDZ self-reference.
 
 ```ts
 // interface A { id: string; b: B }   interface B { id: string; a: A }
-export const friendlyB: FriendlyType<B> = {$label: '', id: {$label: ''}, a: {$label: ''}}; // back-edge → leaf
-export const friendlyA: FriendlyType<A> = {$label: '', id: {$label: ''}, b: friendlyB};     // forward ref
+export const friendlyB: FriendlyType<B> = {rt$label: '', id: {rt$label: ''}, a: {rt$label: ''}}; // back-edge → leaf
+export const friendlyA: FriendlyType<A> = {rt$label: '', id: {rt$label: ''}, b: friendlyB};     // forward ref
 ```
 
 ### Structural node shapes (solution A)
@@ -687,15 +691,15 @@ types model the same):
 
 | Kind | friendly node | mock node |
 | --- | --- | --- |
-| tuple `[A, B]` | `{$label?, $slots: [node, node]}` | `{$slots: [node, node]}` (fixed length, no `$length`) |
-| `Map<K,V>` | `{$label?, $keys: node, $values: node}` | `{$keys: node, $values: node, $size?: [min,max]}` |
-| `Set<U>` | `{$label?, $values: node}` | `{$values: node, $size?: [min,max]}` |
-| index sig `{[k]:V}` | `{$label?, $values: node}` | `{$values: node, $size?: [min,max]}` |
-| array `U[]` | `{$label?, $items: node}` | `{$items: node, $length?}` |
+| tuple `[A, B]` | `{rt$label?, rt$slots: [node, node]}` | `{rt$slots: [node, node]}` (fixed length, no `rt$length`) |
+| `Map<K,V>` | `{rt$label?, rt$keys: node, rt$values: node}` | `{rt$keys: node, rt$values: node, rt$size?: [min,max]}` |
+| `Set<U>` | `{rt$label?, rt$values: node}` | `{rt$values: node, rt$size?: [min,max]}` |
+| index sig `{[k]:V}` | `{rt$label?, rt$values: node}` | `{rt$values: node, rt$size?: [min,max]}` |
+| array `U[]` | `{rt$label?, rt$items: node}` | `{rt$items: node, rt$length?}` |
 
-Tuples use **`$slots`** (per-slot, homomorphic `{[K in keyof T]: node}`) — the correct
-reflection of a fixed tuple — distinct from arrays' `$items`/`$length`. Map/Set/index-sig
-get `$keys`/`$values`/`$size`. This supersedes the earlier leaf-pool divergence: the
+Tuples use **`rt$slots`** (per-slot, homomorphic `{[K in keyof T]: node}`) — the correct
+reflection of a fixed tuple — distinct from arrays' `rt$items`/`rt$length`. Map/Set/index-sig
+get `rt$keys`/`rt$values`/`rt$size`. This supersedes the earlier leaf-pool divergence: the
 emitter and the DSL types now agree structurally for every kind.
 
 ### Trigger policy
@@ -881,18 +885,18 @@ generation of another, so the generated dirs can be treated as write-only.
   annotated `FriendlyType<Name>` — the SAME type as the source map — carrying
   the same `@rtType <Name>#<id>` / `@rtIds` markers. The path and const prefix
   carry the locale; there is no `@rtI18n` marker.
-- **The scaffold is the type's tree, blank.** Every `$label`, string template
+- **The scaffold is the type's tree, blank.** Every `rt$label`, string template
   and plural arm is an `@todo` blank (`''`) — "never copy source text as if
   translated" is true by construction (the type has no strings). Plural objects
   carry the TARGET locale's CLDR arm set; const references rename to their
   locale siblings (`home: pl_friendlyAddress`).
-- **The `$errors` descent is the ordinary reconcile.** Every friendly-family
+- **The `rt$errors` descent is the ordinary reconcile.** Every friendly-family
   file (source mirror and each locale) gets the same value-preserving reconcile
-  with the same one-level `$errors` descent: a newly declared constraint key
+  with the same one-level `rt$errors` descent: a newly declared constraint key
   arrives as a blank of the right kind (plural keys with THAT FILE's locale
   arms); a dropped RECOGNIZED constraint key becomes an `@rtOrphanChild`
   carcass (unknown keys are author-owned and untouched — TS flags typos as
-  excess properties); a same-key leaf stays byte-identical; a `$default`-only
+  excess properties); a same-key leaf stays byte-identical; a `rt$default`-only
   node is skipped entirely (its authored mode is respected). Type renames carry
   across locales via the shared `@rtType` id (const, annotation, marker and
   intra-file references are renamed in place).
@@ -922,8 +926,8 @@ sourceLocale? })` returns the same `FriendlyRenderer` as `createFriendly`. The
 not reactivity-tracked, so call `errors()` per render); `resolveLocale` is naive
 BCP-47 truncation (exact tag, then subtags dropped right-to-left — `pt-BR` →
 `pt` — then any available tag sharing the base language). Fallback is per leaf
-(`$label` and each `$errors` key independently; a plural leaf falls through as a
-WHOLE unit, never mixing a target arm with a source arm; a `$default` template
+(`rt$label` and each `rt$errors` key independently; a plural leaf falls through as a
+WHOLE unit, never mixing a target arm with a source arm; a `rt$default` template
 translates like any other leaf) — a partial translation never throws.
 
 ### Edge cases
@@ -1067,7 +1071,7 @@ overall architecture) and documented here:
   completeness gate.
 - **`$[value]`** (the actual received value) in templates — needs the input threaded
   into the renderer or added to `RTValidationError`. Revisit with the `$[val]` enrichment.
-- **Union per-member addressing** (`$members`) — node-level `$label`/`$errors` only
+- **Union per-member addressing** (`$members`) — node-level `rt$label`/`rt$errors` only
   for v1.
 - **Auto-wire vs explicit** — **explicit committed imports, permanently** (per the
   persistence invariant). The injected/registry "auto-wire" variant was considered

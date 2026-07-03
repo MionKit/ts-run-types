@@ -83,8 +83,8 @@ func findingCodes(findings []enrich.Finding) []string {
 func TestCheckFriendly_FT002UnknownField(t *testing.T) {
 	rt := objectRT(map[string]*protocol.RunType{"name": stringRT()})
 	view := newFakeView().
-		obj("name", newFakeView().str("$label", "Name")).
-		obj("nope", newFakeView().str("$label", "Nope"))
+		obj("name", newFakeView().str("rt$label", "Name")).
+		obj("nope", newFakeView().str("rt$label", "Nope"))
 
 	findings := enrich.CheckFriendly(rt, view, nil)
 
@@ -108,7 +108,7 @@ func TestCheckFriendly_FT002UnknownField(t *testing.T) {
 func TestCheckFriendly_FT005BadPlaceholder(t *testing.T) {
 	rt := objectRT(map[string]*protocol.RunType{"name": stringRT()})
 	view := newFakeView().obj("name", newFakeView().
-		obj("$errors", newFakeView().str("type", "must be a $[nope] for $[label]")))
+		obj("rt$errors", newFakeView().str("type", "must be a $[nope] for $[label]")))
 
 	findings := enrich.CheckFriendly(rt, view, nil)
 
@@ -131,11 +131,11 @@ func TestCheckFriendly_FT005BadPlaceholder(t *testing.T) {
 func TestCheckFriendly_Clean(t *testing.T) {
 	rt := objectRT(map[string]*protocol.RunType{"name": stringRT(), "email": stringRT()})
 	view := newFakeView().
-		str("$label", "User").
+		str("rt$label", "User").
 		obj("name", newFakeView().
-			str("$label", "Name").
-			obj("$errors", newFakeView().str("type", "$[label] is required"))).
-		obj("email", newFakeView().str("$label", "Email"))
+			str("rt$label", "Name").
+			obj("rt$errors", newFakeView().str("type", "$[label] is required"))).
+		obj("email", newFakeView().str("rt$label", "Email"))
 
 	findings := enrich.CheckFriendly(rt, view, nil)
 	if len(findings) != 0 {
@@ -145,7 +145,7 @@ func TestCheckFriendly_Clean(t *testing.T) {
 
 func TestCheckFriendly_FT003UnknownConstraint(t *testing.T) {
 	// A string field branded with a FormatString carrying a minLength param —
-	// `type`, `$default`, and `minLength` are the only valid $errors keys.
+	// `type`, `rt$default`, and `minLength` are the only valid rt$errors keys.
 	formatted := &protocol.RunType{
 		Kind: protocol.KindString,
 		FormatAnnotation: &protocol.FormatAnnotation{
@@ -155,7 +155,7 @@ func TestCheckFriendly_FT003UnknownConstraint(t *testing.T) {
 	}
 	rt := objectRT(map[string]*protocol.RunType{"code": formatted})
 	view := newFakeView().obj("code", newFakeView().
-		obj("$errors", newFakeView().
+		obj("rt$errors", newFakeView().
 			str("type", "bad type").
 			str("minLength", "too short"). // declared constraint — OK
 			str("maxLength", "too long"))) // NOT declared — FT003
@@ -174,14 +174,14 @@ func TestCheckFriendly_FT003UnknownConstraint(t *testing.T) {
 	if ft003[0].Severity != enrich.Warning {
 		t.Errorf("FT003 severity = %v, want Warning", ft003[0].Severity)
 	}
-	if ft003[0].Path != "code.$errors.maxLength" {
-		t.Errorf("FT003 path = %q, want %q", ft003[0].Path, "code.$errors.maxLength")
+	if ft003[0].Path != "code.rt$errors.maxLength" {
+		t.Errorf("FT003 path = %q, want %q", ft003[0].Path, "code.rt$errors.maxLength")
 	}
 }
 
 // TestCheckFriendly_FT003PresentationParam pins the presentation-param carve
 // out: `isCurrency` is the one number param with NO failable constraint, so it
-// never becomes a valid `$errors` key — authoring one is flagged FT003 exactly
+// never becomes a valid `rt$errors` key — authoring one is flagged FT003 exactly
 // like any other undeclared constraint.
 func TestCheckFriendly_FT003PresentationParam(t *testing.T) {
 	formatted := &protocol.RunType{
@@ -193,7 +193,7 @@ func TestCheckFriendly_FT003PresentationParam(t *testing.T) {
 	}
 	rt := objectRT(map[string]*protocol.RunType{"price": formatted})
 	view := newFakeView().obj("price", newFakeView().
-		obj("$errors", newFakeView().
+		obj("rt$errors", newFakeView().
 			str("type", "bad type").
 			str("max", "too much").          // declared constraint — OK
 			str("isCurrency", "not money"))) // presentation metadata — FT003
@@ -208,20 +208,20 @@ func TestCheckFriendly_FT003PresentationParam(t *testing.T) {
 	if len(ft003) != 1 {
 		t.Fatalf("expected exactly one FT003 (isCurrency); got %v", findings)
 	}
-	if ft003[0].Path != "price.$errors.isCurrency" {
-		t.Errorf("FT003 path = %q, want %q", ft003[0].Path, "price.$errors.isCurrency")
+	if ft003[0].Path != "price.rt$errors.isCurrency" {
+		t.Errorf("FT003 path = %q, want %q", ft003[0].Path, "price.rt$errors.isCurrency")
 	}
 }
 
 func TestCheckFriendly_FunctionFormErrorsSkipped(t *testing.T) {
-	// A function-form `$errors` is not an object literal, so Child("$errors")
+	// A function-form `rt$errors` is not an object literal, so Child("rt$errors")
 	// returns nil and FT003/FT005 are skipped — no findings for the field.
 	rt := objectRT(map[string]*protocol.RunType{"name": stringRT()})
-	view := newFakeView().obj("name", newFakeView().str("$errors", "(failed) => 'x'"))
+	view := newFakeView().obj("name", newFakeView().str("rt$errors", "(failed) => 'x'"))
 
 	findings := enrich.CheckFriendly(rt, view, nil)
 	if len(findings) != 0 {
-		t.Fatalf("function-form $errors should be skipped; got %v", findings)
+		t.Fatalf("function-form rt$errors should be skipped; got %v", findings)
 	}
 }
 
@@ -251,11 +251,11 @@ func TestCheckMock_MD001UnknownField(t *testing.T) {
 }
 
 func TestCheckMock_MetaKeysNotFlagged(t *testing.T) {
-	// `pool`, `min`, `max`, `$optional` are reserved mock keys — never flagged
+	// `pool`, `min`, `max`, `rt$optional` are reserved mock keys — never flagged
 	// as unknown fields even though they aren't properties of the type.
 	rt := objectRT(map[string]*protocol.RunType{"age": {Kind: protocol.KindNumber}})
 	view := newFakeView().
-		str("$optional", "1").
+		str("rt$optional", "1").
 		obj("age", newFakeView().str("min", "0").str("max", "120").str("pool", "[]"))
 
 	findings := enrich.CheckMock(rt, view, nil)
@@ -266,15 +266,15 @@ func TestCheckMock_MetaKeysNotFlagged(t *testing.T) {
 
 func TestCheckFriendly_NestedAndArray(t *testing.T) {
 	// Nested object + array element: an unknown key at depth flags FT002 with a
-	// dotted path through `$items`.
+	// dotted path through `rt$items`.
 	inner := objectRT(map[string]*protocol.RunType{"city": stringRT()})
 	addresses := &protocol.RunType{Kind: protocol.KindArray, Child: inner}
 	rt := objectRT(map[string]*protocol.RunType{"addresses": addresses})
 
 	view := newFakeView().obj("addresses", newFakeView().
-		obj("$items", newFakeView().
-			obj("city", newFakeView().str("$label", "City")).
-			obj("zip", newFakeView().str("$label", "Zip")))) // zip not a property
+		obj("rt$items", newFakeView().
+			obj("city", newFakeView().str("rt$label", "City")).
+			obj("zip", newFakeView().str("rt$label", "Zip")))) // zip not a property
 
 	findings := enrich.CheckFriendly(rt, view, nil)
 	var ft002 *enrich.Finding
@@ -286,21 +286,21 @@ func TestCheckFriendly_NestedAndArray(t *testing.T) {
 	if ft002 == nil {
 		t.Fatalf("expected FT002 in nested array element; got %v", findingCodes(findings))
 	}
-	if ft002.Path != "addresses.$items.zip" {
-		t.Errorf("FT002 path = %q, want %q", ft002.Path, "addresses.$items.zip")
+	if ft002.Path != "addresses.rt$items.zip" {
+		t.Errorf("FT002 path = %q, want %q", ft002.Path, "addresses.rt$items.zip")
 	}
 }
 
 func TestCheckFriendly_NestedObjectErrorsNotDoubled(t *testing.T) {
-	// A nested-OBJECT field's own `$errors` must be checked exactly once — not
+	// A nested-OBJECT field's own `rt$errors` must be checked exactly once — not
 	// once by the parent and again when the object node is walked. One bad
-	// placeholder in profile.$errors must yield exactly one FT005, never two.
+	// placeholder in profile.rt$errors must yield exactly one FT005, never two.
 	inner := objectRT(map[string]*protocol.RunType{"email": stringRT()})
 	rt := objectRT(map[string]*protocol.RunType{"profile": inner})
 
 	view := newFakeView().obj("profile", newFakeView().
-		obj("$errors", newFakeView().str("type", "bad $[nope]")).
-		obj("email", newFakeView().str("$label", "Email")))
+		obj("rt$errors", newFakeView().str("type", "bad $[nope]")).
+		obj("email", newFakeView().str("rt$label", "Email")))
 
 	findings := enrich.CheckFriendly(rt, view, nil)
 	count := 0
@@ -310,12 +310,12 @@ func TestCheckFriendly_NestedObjectErrorsNotDoubled(t *testing.T) {
 		}
 	}
 	if count != 1 {
-		t.Fatalf("nested-object $errors should yield exactly one FT005, got %d: %v", count, findings)
+		t.Fatalf("nested-object rt$errors should yield exactly one FT005, got %d: %v", count, findings)
 	}
 }
 
 // formatStringRT builds a string field branded with a FormatString carrying the
-// given params — its declared constraint keys become valid $errors keys.
+// given params — its declared constraint keys become valid rt$errors keys.
 func formatStringRT(params map[string]any) *protocol.RunType {
 	return &protocol.RunType{
 		Kind:             protocol.KindString,
@@ -328,7 +328,7 @@ func TestCheckFriendly_PluralLeafClean(t *testing.T) {
 	// mandatory `other` is clean; per-arm placeholders are validated.
 	rt := objectRT(map[string]*protocol.RunType{"name": formatStringRT(map[string]any{"minLength": 2})})
 	view := newFakeView().obj("name", newFakeView().
-		obj("$errors", newFakeView().
+		obj("rt$errors", newFakeView().
 			str("type", "must be text").
 			obj("minLength", newFakeView().
 				str("one", "at least $[val] character").
@@ -343,7 +343,7 @@ func TestCheckFriendly_PluralLeafClean(t *testing.T) {
 func TestCheckFriendly_FT006MissingOther(t *testing.T) {
 	rt := objectRT(map[string]*protocol.RunType{"name": formatStringRT(map[string]any{"minLength": 2})})
 	view := newFakeView().obj("name", newFakeView().
-		obj("$errors", newFakeView().
+		obj("rt$errors", newFakeView().
 			obj("minLength", newFakeView().str("one", "at least $[val]"))))
 
 	findings := enrich.CheckFriendly(rt, view, nil)
@@ -359,15 +359,15 @@ func TestCheckFriendly_FT006MissingOther(t *testing.T) {
 	if ft006.Severity != enrich.Error {
 		t.Errorf("FT006 severity = %v, want Error", ft006.Severity)
 	}
-	if ft006.Path != "name.$errors.minLength" {
-		t.Errorf("FT006 path = %q, want %q", ft006.Path, "name.$errors.minLength")
+	if ft006.Path != "name.rt$errors.minLength" {
+		t.Errorf("FT006 path = %q, want %q", ft006.Path, "name.rt$errors.minLength")
 	}
 }
 
 func TestCheckFriendly_FT007UnknownArm(t *testing.T) {
 	rt := objectRT(map[string]*protocol.RunType{"name": formatStringRT(map[string]any{"minLength": 2})})
 	view := newFakeView().obj("name", newFakeView().
-		obj("$errors", newFakeView().
+		obj("rt$errors", newFakeView().
 			obj("minLength", newFakeView().
 				str("other", "chars").
 				str("lots", "way too many")))) // not a CLDR category
@@ -385,8 +385,8 @@ func TestCheckFriendly_FT007UnknownArm(t *testing.T) {
 	if ft007.Severity != enrich.Warning {
 		t.Errorf("FT007 severity = %v, want Warning", ft007.Severity)
 	}
-	if ft007.Path != "name.$errors.minLength.lots" {
-		t.Errorf("FT007 path = %q, want %q", ft007.Path, "name.$errors.minLength.lots")
+	if ft007.Path != "name.rt$errors.minLength.lots" {
+		t.Errorf("FT007 path = %q, want %q", ft007.Path, "name.rt$errors.minLength.lots")
 	}
 }
 
@@ -394,7 +394,7 @@ func TestCheckFriendly_FT008PluralOnNonCountBearing(t *testing.T) {
 	// `pattern` carries no count: a plural object there has dead arms.
 	rt := objectRT(map[string]*protocol.RunType{"email": formatStringRT(map[string]any{"pattern": "x"})})
 	view := newFakeView().obj("email", newFakeView().
-		obj("$errors", newFakeView().
+		obj("rt$errors", newFakeView().
 			obj("pattern", newFakeView().str("one", "x").str("other", "y"))))
 
 	findings := enrich.CheckFriendly(rt, view, nil)
@@ -415,7 +415,7 @@ func TestCheckFriendly_FT008PluralOnNonCountBearing(t *testing.T) {
 func TestCheckFriendly_FT005InsidePluralArm(t *testing.T) {
 	rt := objectRT(map[string]*protocol.RunType{"name": formatStringRT(map[string]any{"minLength": 2})})
 	view := newFakeView().obj("name", newFakeView().
-		obj("$errors", newFakeView().
+		obj("rt$errors", newFakeView().
 			obj("minLength", newFakeView().
 				str("one", "bad $[nope]").
 				str("other", "fine $[val]"))))
@@ -430,8 +430,8 @@ func TestCheckFriendly_FT005InsidePluralArm(t *testing.T) {
 	if len(ft005) != 1 {
 		t.Fatalf("expected exactly one FT005 inside the plural arm; got %v", findings)
 	}
-	if ft005[0].Path != "name.$errors.minLength.one" {
-		t.Errorf("FT005 path = %q, want %q", ft005[0].Path, "name.$errors.minLength.one")
+	if ft005[0].Path != "name.rt$errors.minLength.one" {
+		t.Errorf("FT005 path = %q, want %q", ft005[0].Path, "name.rt$errors.minLength.one")
 	}
 }
 
@@ -443,7 +443,7 @@ func TestCheckFriendly_FT005FormatTokens(t *testing.T) {
 	// token never trips.
 	rt := objectRT(map[string]*protocol.RunType{"price": formatStringRT(map[string]any{"max": 100})})
 	view := newFakeView().obj("price", newFakeView().
-		obj("$errors", newFakeView().
+		obj("rt$errors", newFakeView().
 			str("type", "removed $[val:number:currency] but ratio 3:1 is prose").
 			str("max", "removed $[label:number:currency] and $[val:nope:x], plain $[val] fine")))
 
@@ -471,4 +471,77 @@ func contains(haystack []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+func TestCheckFriendly_FT011ReservedProperty(t *testing.T) {
+	// A source-type property named rt$… collides with the reserved enrichment
+	// meta prefix — Error, whatever the authored literal looks like.
+	rt := objectRT(map[string]*protocol.RunType{"rt$label": stringRT(), "name": stringRT()})
+	view := newFakeView().obj("name", newFakeView().str("rt$label", "Name"))
+
+	findings := enrich.CheckFriendly(rt, view, nil)
+
+	var ft011 *enrich.Finding
+	for i := range findings {
+		if findings[i].Code == "FT011" {
+			ft011 = &findings[i]
+		}
+	}
+	if ft011 == nil {
+		t.Fatalf("expected FT011 for reserved property; got %v", findingCodes(findings))
+	}
+	if ft011.Severity != enrich.Error {
+		t.Errorf("FT011 severity = %v, want Error", ft011.Severity)
+	}
+	if ft011.Path != "rt$label" {
+		t.Errorf("FT011 path = %q, want %q", ft011.Path, "rt$label")
+	}
+}
+
+func TestCheckMock_MD011ReservedProperty(t *testing.T) {
+	rt := objectRT(map[string]*protocol.RunType{"rt$optional": stringRT()})
+	view := newFakeView()
+
+	findings := enrich.CheckMock(rt, view, nil)
+
+	found := false
+	for _, finding := range findings {
+		if finding.Code == "MD011" && finding.Severity == enrich.Error && finding.Path == "rt$optional" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected MD011 Error at rt$optional; got %v", findingCodes(findings))
+	}
+}
+
+func TestCheckFriendly_PlainDollarPropertyIsOrdinaryField(t *testing.T) {
+	// The bare `$` prefix is NOT reserved: a property named $label is an
+	// ordinary child field — addressable, no FT002/FT011.
+	rt := objectRT(map[string]*protocol.RunType{"$label": stringRT()})
+	view := newFakeView().obj("$label", newFakeView().str("rt$label", "Dollar label"))
+
+	findings := enrich.CheckFriendly(rt, view, nil)
+
+	for _, finding := range findings {
+		if finding.Code == "FT002" || finding.Code == "FT011" {
+			t.Fatalf("a plain $-property must be an ordinary field; got %s at %s", finding.Code, finding.Path)
+		}
+	}
+}
+
+func TestReservedPropertyCollisions_NestedPaths(t *testing.T) {
+	rt := objectRT(map[string]*protocol.RunType{
+		"profile": objectRT(map[string]*protocol.RunType{"rt$errors": stringRT()}),
+		"name":    stringRT(),
+	})
+
+	collisions := enrich.ReservedPropertyCollisions(rt, nil)
+
+	if len(collisions) != 1 || collisions[0] != "profile.rt$errors" {
+		t.Fatalf("collisions = %v, want [profile.rt$errors]", collisions)
+	}
+	if clean := enrich.ReservedPropertyCollisions(objectRT(map[string]*protocol.RunType{"name": stringRT()}), nil); len(clean) != 0 {
+		t.Fatalf("clean type reported collisions: %v", clean)
+	}
 }

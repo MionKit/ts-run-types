@@ -2,11 +2,11 @@ import type {FriendlyType, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Builtin / native kinds. Date and RegExp are scalar-like leaves — friendly
-// `{$label: ''}`, mock `{pool: []}`. Map and Set reflect their STRUCTURE
+// `{rt$label: ''}`, mock `{pool: []}`. Map and Set reflect their STRUCTURE
 // (solution A): the emitter walks the key/value/element types. `Map<K,V>` →
-// friendly `{$label: '', $keys, $values}` / mock `{$keys, $values}` (the
-// optional `$size` is left for the author to add); `Set<U>` → friendly
-// `{$label: '', $values}` / mock `{$values}`. All are valid `FriendlyType` /
+// friendly `{rt$label: '', rt$keys, rt$values}` / mock `{rt$keys, rt$values}` (the
+// optional `rt$size` is left for the author to add); `Set<U>` → friendly
+// `{rt$label: '', rt$values}` / mock `{rt$values}`. All are valid `FriendlyType` /
 // `MockData` — no `as` cast needed. Mirrors the validation suite's NATIVE range.
 export const NATIVE = {
   date: {
@@ -15,7 +15,7 @@ export const NATIVE = {
       // ##### src #####
       type Target = Date;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
+      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -29,7 +29,7 @@ export const NATIVE = {
       // ##### src #####
       type Target = RegExp;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
+      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -44,13 +44,13 @@ export const NATIVE = {
       type Target = Map<string, number>;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        $keys: {$label: '', $errors: {type: ''}},
-        $values: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        rt$keys: {rt$label: '', rt$errors: {type: ''}},
+        rt$values: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {$keys: {pool: []}, $values: {pool: []}};
+      const mockTarget: MockData<Target> = {rt$keys: {pool: []}, rt$values: {pool: []}};
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
@@ -62,9 +62,13 @@ export const NATIVE = {
       // ##### src #####
       type Target = Set<string>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}, $values: {$label: '', $errors: {type: ''}}};
+      const friendlyTarget: FriendlyType<Target> = {
+        rt$label: '',
+        rt$errors: {type: ''},
+        rt$values: {rt$label: '', rt$errors: {type: ''}},
+      };
       // ##### mock #####
-      const mockTarget: MockData<Target> = {$values: {pool: []}};
+      const mockTarget: MockData<Target> = {rt$values: {pool: []}};
       // ##### result #####
       return {friendlyTarget, mockTarget};
     },
