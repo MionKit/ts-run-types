@@ -792,9 +792,9 @@ configurable `sourceLocale`.
 [ARCHITECTURE.md](../ARCHITECTURE.md) (reconcile + `$errors` descent + constraint
 classification), [ROADMAP.md](../ROADMAP.md), the website docs under
 [container/website/content](../../container/website/content) (plain-language style, incl. a
-new Translations page), and the [runtypes-friendly-type](../../.claude/skills/runtypes-friendly-type) /
-[rt-enrich-types](../../.claude/skills/rt-enrich-types) skills (all three enrichment skills —
-including [runtypes-mock-data](../../.claude/skills/runtypes-mock-data) — now also ship inside
+new Translations page), and the [runtypes-friendly-type](../../packages/ts-runtypes/skills/runtypes-friendly-type) /
+[rt-enrich-types](../../packages/ts-runtypes/skills/rt-enrich-types) skills (all three enrichment skills —
+including [runtypes-mock-data](../../packages/ts-runtypes/skills/runtypes-mock-data) — now also ship inside
 the `ts-runtypes` npm package, installable via `npx ts-runtypes-skills`).
 
 ## Acceptance
