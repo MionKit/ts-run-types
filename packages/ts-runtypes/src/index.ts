@@ -29,16 +29,32 @@ export {type Static} from './schema/static.ts';
 // templates; `MockData<T>` carries sample pools/ranges feeding `createMockType`.
 export {
   type FriendlyType,
+  type Translation,
   type FriendlyNode,
   type FriendlyMeta,
   type ErrorTemplates,
   type FriendlyTemplate,
+  type PluralCategory,
+  type PluralTemplate,
+  type TemplateLeaf,
   type FailedConstraint,
   type FailedConstraints,
 } from './enrich/friendlyType.ts';
 export {type MockData, type MockNode} from './enrich/mockData.ts';
 // Pure-data runtime: render `getValidationErrors` output into human messages.
-export {createFriendly, type FriendlyMessage, type FriendlyRenderer} from './enrich/createFriendly.ts';
+// `createFriendlyI18n` is the locale-selecting wrapper over the same walk: the
+// source map is the source language + terminal fallback, translations are
+// same-tree per-locale consts, plurals select via Intl.PluralRules, and
+// `$[val:number:currency]`-style tokens route through named Intl formats.
+export {
+  createFriendly,
+  createFriendlyI18n,
+  resolveLocale,
+  type FriendlyMessage,
+  type FriendlyRenderer,
+  type FriendlyI18nOptions,
+  type NamedFormats,
+} from './enrich/createFriendly.ts';
 
 // Run-type registration is per-entry now: each marker call site imports its
 // type's virtual entry module and registers it (plus transitive children) on

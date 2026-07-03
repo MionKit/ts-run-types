@@ -139,6 +139,53 @@ describe('FriendlyType<T> — per-branch correctness (total contract)', () => {
     );
   });
 
+  it('plural template leaves: other mandatory, arms optional, $label stays a string', () => {
+    check(
+      `
+      interface User { name: string }
+      // a count-bearing constraint may carry a plural object (arms per locale)
+      const _en: FriendlyType<User> = {
+        $label: '', $errors: {type: ''},
+        name: { $label: 'Name', $errors: {
+          type: 'must be text',
+          minLength: { one: 'at least $[val] character', other: 'at least $[val] characters' },
+        } },
+      };
+      // asymmetric arms: any CLDR category subset is fine as long as other is present
+      const _pl: Translation<User> = {
+        $label: '', $errors: {type: ''},
+        name: { $label: '', $errors: {
+          type: '',
+          minLength: { one: '', few: '', many: '', other: '' },
+        } },
+      };
+      // 'other' is REQUIRED on a plural object
+      // @ts-expect-error — plural object without 'other' is rejected
+      const _noOther: FriendlyType<User> = { $label: '', $errors: {type: ''}, name: { $label: '', $errors: { minLength: { one: 'x' } } } };
+      // a non-CLDR arm key is rejected
+      // @ts-expect-error — 'lots' is not a CLDR plural category
+      const _badArm: FriendlyType<User> = { $label: '', $errors: {type: ''}, name: { $label: '', $errors: { minLength: { other: '', lots: '' } } } };
+      // $label is never plural
+      // @ts-expect-error — $label must stay a plain string
+      const _pluralLabel: FriendlyType<User> = { $label: {other: ''}, $errors: {type: ''}, name: { $label: '', $errors: {type: ''} } };
+      // 'type' is not count-bearing — a plural object there is rejected
+      // @ts-expect-error — 'type' stays a plain string template
+      const _pluralType: FriendlyType<User> = { $label: '', $errors: {type: {other: ''}}, name: { $label: '', $errors: {type: ''} } };
+      `,
+      0
+    );
+  });
+
+  it('Translation<T> is structurally FriendlyType<T>', () => {
+    check(
+      `
+      interface User { name: string }
+      type _same = Expect<Equal<Translation<User>, FriendlyType<User>>>;
+      `,
+      0
+    );
+  });
+
   it('function-form $errors (escape hatch)', () => {
     check(
       `

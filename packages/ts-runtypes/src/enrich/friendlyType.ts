@@ -18,8 +18,33 @@
 /** A friendly message template — a plain string with `$[…]` placeholders the
  *  renderer substitutes: `$[label]` (the field's label, or its raw name),
  *  `$[val]` (the failed constraint's bound), `$[path]` (dotted path),
- *  `$[index]` (array element index). */
+ *  `$[index]` (array element index). A three-part `$[val:number:currency]`
+ *  form routes the binding through a named `Intl` format (i18n rendering). */
 export type FriendlyTemplate = string;
+
+/** The CLDR plural categories a plural template may carry arms for. A LOCAL
+ *  union, deliberately not `Intl.LDMLPluralRule`: this `#region` block is
+ *  sliced verbatim into the instantiation-budget compile test and must stay
+ *  self-contained (lib + own decls only). Runtime code outside the region may
+ *  use `Intl.LDMLPluralRule` directly. */
+export type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
+
+/** A plural error template: one arm per CLDR category the map's language uses.
+ *  `other` is mandatory (CLDR guarantees the category and it is the in-leaf
+ *  backstop); the rest are optional so each locale supplies exactly the
+ *  categories it needs. LANGUAGE-AGNOSTIC — the SAME type for every locale;
+ *  the arms PRESENT differ per file, never the type. The renderer selects one
+ *  arm via `Intl.PluralRules` on the violated bound (`$[val]`), falling to
+ *  `other` when the selected category has no arm. */
+export type PluralTemplate = {other: FriendlyTemplate} & Partial<Record<PluralCategory, FriendlyTemplate>>;
+
+/** An error-template leaf: a plain template OR a plural object. Which kind
+ *  appears at a given constraint is decided by the CONSTRAINT, not the author —
+ *  count-bearing constraints (minLength / maxLength / min / max / lt / gt)
+ *  carry a plural object, everything else a plain string. The generator emits
+ *  the right kind and the Go checker enforces it, so the kind is
+ *  locale-invariant and source + translations stay same-tree. */
+export type TemplateLeaf = FriendlyTemplate | PluralTemplate;
 
 /** One failed sub-constraint, as handed to a function-form `$errors` handler.
  *  `val` is the violated bound (e.g. `3` for a `minLength: 3` failure). */
@@ -34,14 +59,17 @@ export interface FailedConstraint {
  *  Absent keys mean that constraint passed (or the type never declared it). */
 export type FailedConstraints = Record<string, FailedConstraint | undefined>;
 
-/** Per-field error rendering. EITHER the pure-data form — a record of templates
- *  keyed by the failed-constraint name (`type` = base failure, `$default` =
- *  fallback, plus any format sub-constraint) — OR an inline function for logic
- *  the data form can't express (joining constraints, pluralization, i18n). The
- *  data form gets compile-time placeholder/constraint validation; a function
- *  body is opaque to the compiler. */
+/** Per-field error rendering. EITHER the pure-data form — a record of template
+ *  leaves keyed by the failed-constraint name (`type` = base failure,
+ *  `$default` = fallback, plus any format sub-constraint; count-bearing
+ *  constraints may carry a plural object) — OR an inline function for logic
+ *  the data form can't express. The data form gets compile-time
+ *  placeholder/constraint validation (the Go checker also enforces the
+ *  per-constraint leaf KIND, which this permissive index signature can't); a
+ *  function body is opaque to the compiler. `type` / `$default` are never
+ *  count-bearing, so they stay plain strings. */
 export type ErrorTemplates =
-  | ({type?: FriendlyTemplate; $default?: FriendlyTemplate} & {[constraint: string]: FriendlyTemplate | undefined})
+  | ({type?: FriendlyTemplate; $default?: FriendlyTemplate} & {[constraint: string]: TemplateLeaf | undefined})
   | ((failed: FailedConstraints) => string);
 
 /** Meta keys on every node: a human label + the field's error templates, both
@@ -103,4 +131,11 @@ export type FriendlyNode<T, Depth extends number = 8> = Depth extends 0
 /** The friendly map for `T` — combined labels + per-field error templates,
  *  validated against `T` at scan time (the `ShapeCheckedArgs<T>` axis). */
 export type FriendlyType<T> = FriendlyNode<T>;
+
+/** A translation of a `FriendlyType<T>`: structurally IDENTICAL (same tree,
+ *  same field paths, same `$errors` constraint keys) — the alias only makes a
+ *  per-locale mirror file's intent explicit and gives tooling an unambiguous
+ *  annotation to detect. One committed const per (type, locale), named
+ *  `<locale>_friendly<Name>`, reconciled against the source `FriendlyType`. */
+export type Translation<T> = FriendlyType<T>;
 // #endregion friendlytype-extract
