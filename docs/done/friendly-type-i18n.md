@@ -99,8 +99,8 @@ mandatory `other` arm as backstop.
 | --- | --- |
 | **Source** | The source `FriendlyType` is a first-class locale (`sourceLocale`, default `'en'`, configurable). No separate default catalog. |
 | **File layout** | One committed file per (source file, locale) under a **path-segment** subtree: `runtypes/generated/i18n/<locale>/<rel>.ts`, const `<Locale>_friendly<Name>: Translation<Name>`. |
-| **Plurals** | **Generator-owned, constraint-classified.** Objects on count-bearing constraints (`minLength`/`maxLength`/`min`/`max`/`lt`/`gt`), strings elsewhere. Arms = the file-locale's CLDR categories from a built-in table (top ~10 locales; unknown → all six). Runtime selects via `Intl.PluralRules`; `other` mandatory + backstop. |
-| **Leaf type** | `TemplateLeaf = string \| PluralTemplate` (permissive in TS; the Go checker enforces the per-constraint kind, an FT003 extension). Language-agnostic. |
+| **Plurals** | **Generator-owned, constraint-classified.** Objects on count-bearing constraints (`minLength`/`maxLength`/`min`/`max`/`lt`/`gt`), strings elsewhere. Arms = the file-locale's CLDR categories from a built-in table (11 languages shipped; unknown → all six). Runtime selects via `Intl.PluralRules`; `other` mandatory + backstop. |
+| **Leaf type** | `TemplateLeaf = string \| PluralTemplate` (permissive in TS; the Go checker validates plural placement + arms — FT006/FT007/FT008 as shipped; a plain string stays legal anywhere, deviation #6). Language-agnostic. |
 | **Runtime** | `createFriendlyI18n(source, { locale, translations, formats?, sourceLocale? })` — thin locale selector over the one pure `createFriendly` walk; per-leaf fallback to source. `resolveLocale()` exported standalone. |
 | **Interpolation** | Keep the **closed `$[…]` DSL**. Add `$[val:number:currency]`-style tokens naming `Intl` formats declared once in config. **No ICU/MF2.** |
 | **Count source** | Always the **violated bound** (`$[val]`, cardinal). Because objects appear only on count-bearing constraints, there is no cardinal-vs-ordinal ambiguity. |
@@ -171,11 +171,15 @@ already filters the combined source mirror to `friendly<Name>` consts by var-nam
 3. **Isolated change detection.** `check --translate` / `--update` fire on a friendly-source edit;
    a combined file *also* rewrites (and re-mtimes) on a mock-only edit, adding noise the split removes.
 
-**Migration.** Existing committed combined mirrors must be split in place — a one-shot `gen`-side
-move (write the two new files, delete the old) plus a note in the enrich docs. The
-`WantFriendly`/`WantMock` flags already exist and map straight onto "which file"; the var-name
-`isFriendlyVar`/`isMockVar` heuristic becomes a **belt-and-braces** check behind a structural
-(path-based) family signal rather than the sole discriminator.
+**Migration (as shipped).** A pre-split combined mirror migrates **automatically on the next
+`gen` pass** over its source: every const, marker, hand comment and `@rtOrphan` carcass is
+carried verbatim into its family's file, the source breadcrumb import is recomputed, and the
+legacy combined file is deleted — guarded (the breadcrumb must resolve to the same source;
+an existing family file is never clobbered, a warning is printed instead; writes are atomic).
+`gen --check` flags an un-migrated combined mirror as GE001 location drift; `--out` keeps the
+combined single-file layout as an explicit escape hatch. The `WantFriendly`/`WantMock` flags
+map straight onto "which file"; the var-name `isFriendlyVar`/`isMockVar` heuristic is a
+**belt-and-braces** check behind the structural (path-based) family signal.
 
 ---
 
@@ -307,19 +311,22 @@ export type PluralTemplate = { other: FriendlyTemplate } & Partial<Record<Plural
  *  kind is locale-invariant and the reconcile is monomorphic per leaf. */
 export type TemplateLeaf = FriendlyTemplate | PluralTemplate;
 
-// ErrorTemplates' record arm value becomes `TemplateLeaf | undefined` (was
-// `FriendlyTemplate | undefined`). The inline-arrow arm is UNCHANGED.
+// ErrorTemplates' record arm index signature becomes `TemplateLeaf | undefined` (was
+// `FriendlyTemplate | undefined`); the pinned `type` / `$default` keys stay plain
+// `FriendlyTemplate` (never count-bearing). The inline-arrow arm is UNCHANGED.
 ```
 
 - `FriendlyTemplate` stays `string`; `$label` stays a plain `string` (labels are never
   count-driven — a deliberate minimal call).
 - Add `export type Translation<T> = FriendlyType<T>;` — zero merge/runtime impact
   (structurally identical), pure readability + unambiguous detection.
-- **TypeScript stays permissive** (`string | PluralTemplate`); the **Go checker** enforces
-  the per-constraint kind (count-bearing → object with the file-locale's arms; else string)
-  and that each arm is a valid template — a natural extension of today's FT003 ("key must be
-  a declared constraint of `T`'s format"), which already relies on Go enforcing what the
-  permissive TS index signature can't.
+- **TypeScript stays permissive** (`string | PluralTemplate`); the **Go checker** validates
+  plural placement and arms — as shipped: FT006 (plural missing the mandatory `other`,
+  Error), FT007 (non-CLDR arm key, Warning), FT008 (plural on a non-count-bearing
+  constraint — dead arms, Warning), and FT005 extended to validate placeholders per arm plus
+  the three-part format tokens. A plain string stays legal on a count-bearing constraint
+  (the plural kind is a scaffold default, not a checker mandate — deviation #6). Same
+  spirit as today's FT003: Go enforces what the permissive TS index signature can't.
 - **v1 drops exact-count keys** (`'=0'`, `'=1'`): a template-literal index signature adds
   cost to the budget-measured extract slice and complicates the Go arm-set predicate. Deferred.
 
@@ -340,9 +347,10 @@ string↔string, never a mismatch (this is what resolves the string-vs-object co
 **The arms** of a plural object are the file-locale's CLDR categories, from a **built-in
 per-language table**:
 
-- **Top ~10 locales shipped** (`en, es, zh, hi, ar, pt, ru, ja, de, fr`) → exact category
-  set (`en` → `one`/`other`; `pl`/`ru` → `one`/`few`/`many`/`other`; `ar` → all six; `zh`/`ja`
-  → `other` only).
+- **11 languages shipped** (`en, es, zh, hi, ar, pt, ru, ja, de, fr, pl` — CLDR 45,
+  verified against ICU) → exact category set (`en` → `one`/`other`; `pl`/`ru` →
+  `one`/`few`/`many`/`other`; `es`/`pt`/`fr` → `one`/`many`/`other` (modern CLDR); `ar` →
+  all six; `zh`/`ja` → `other` only).
 - **Unknown locale → emit all six** (`zero`/`one`/`two`/`few`/`many`/`other`). Only `other`
   is a hard requirement; the extras are optional prompts the translator fills where the
   language uses them and prunes otherwise (an unused filled arm is harmless — it is never
@@ -421,7 +429,7 @@ filled:
 
 ```ts
 // runtypes/generated/i18n/pl/models/user.ts
-/** @rtType User#9f3a @rtIds {name: a1b2, email: e5f6} @rtI18n pl from '../../../models/user' */
+/** @rtType User#9f3a @rtIds {name: a1b2, email: e5f6} @rtI18n pl from '../../../friendly/models/user' */
 export const pl_friendlyUser: Translation<User> = {
   $label: '',
   name: { $label: '', $errors: {
@@ -447,7 +455,7 @@ wrapper pre-selects which map the walk reads:
 export function resolveLocale<T>(
   locale: string,
   translations: Partial<Record<string, FriendlyType<T>>>,
-): string | undefined;   // best-match tag or undefined; BCP-47 truncation that REFUSES cross-script substitution
+): string | undefined;   // best-match tag or undefined; NAIVE BCP-47 truncation (exact tag → subtags dropped right-to-left → any tag sharing the base language) — deviation #1
 
 export interface FriendlyI18nOptions<T> {
   locale: string | { readonly value: string };            // string OR any { value } ref (e.g. a Vue Ref) — structural read, no Vue dep
@@ -493,7 +501,9 @@ Keep the closed `$[…]` set; add a three-part token `$[<binding>:<kind>:<name>]
 export interface NamedFormats {
   number?: Record<string, Intl.NumberFormatOptions>;
   date?: Record<string, Intl.DateTimeFormatOptions>;
-  relativeTime?: Record<string, Intl.RelativeTimeFormatOptions>;
+  // relativeTime entries carry the REQUIRED unit beside the Intl options (deviation #5 —
+  // the token has no unit slot): {unit: 'day', numeric: 'auto'}.
+  relativeTime?: Record<string, Intl.RelativeTimeFormatOptions & {unit: Intl.RelativeTimeFormatUnit}>;
   list?: Record<string, Intl.ListFormatOptions>;
 }
 // runtypes/i18n.formats.ts default-exports Record<localeTag, NamedFormats>; tsconfig i18n.formats names it.
@@ -502,8 +512,9 @@ export interface NamedFormats {
 **Caching (i18next `addCached` model):** a module-level
 formatter cache keyed `${locale}\0${kind}\0${name}` WITHIN its `NamedFormats` table (a WeakMap of per-table maps, as shipped — never cross-table)
 builds each `Intl.*Format` lazily and returns a `value => string` closure; `PluralRules`
-share it keyed `${locale}\0plural\0cardinal`. The cache is a module-scope singleton
-**beside** the pure walk (the walk itself caches nothing).
+are cached separately in a plain per-locale map (they take no per-table options). Both
+caches are module-scope singletons **beside** the pure walk (the walk itself caches
+nothing).
 
 ---
 
@@ -518,7 +529,8 @@ fatal-on-overlap splicer, `parseDesiredObject`, `computeConstRenames`, and the w
 
 ### The new i18n driver (swaps the four type-bound arms)
 
-Discriminated by a translate mode carrying `{ Locale, SourceMirrorBytes }`:
+Discriminated by a translate mode (`TranslateSpec{Locale, SourceMirrorPath}` as shipped;
+the driver reads the source-mirror bytes from that path):
 
 1. **Desired side = source-const bytes.** Instead of `EmitClosure` walking the type,
    `ParseMirror` the source mirror; feed each source `friendly<Name>` object-literal body to
@@ -563,10 +575,11 @@ leaves byte-identical), then **one more level into a plural object** with the
 - Prove per-arm inserts + an orphan-child inside **one** plural object stay non-overlapping
   under the fatal-on-overlap splicer.
 
-Note the leaf **kind** (string vs object) is guaranteed consistent between source and target
-by the generator's constraint-classification, so the merge never has to reconcile a
-string-against-object; a hand-edit that diverges the kind is ordinary shape drift, flagged by
-`check`. **`@todo`/orphan semantics:** a blank scaffold counts as **absent** at render and
+Note the leaf **kind** (string vs object) is scaffolded consistently between source and
+target by the generator's constraint-classification, so the merge never has to *reconcile*
+a string-against-object; a hand-edit that diverges the kind is KEPT by the merge — the
+translator owns their leaf (deviation #6; a plural placed on a non-count-bearing constraint
+draws FT008). **`@todo`/orphan semantics:** a blank scaffold counts as **absent** at render and
 falls through to the source leaf (partial translations render). Carcasses are value-preserving
 and restorable; `--prune` is the only delete. **Never auto-copy the source string as if
 translated** — an empty `@todo` is the honest signal.
@@ -583,7 +596,7 @@ ts-runtypes gen   --translate <locale>            <src>   # scaffold a locale fi
 ts-runtypes gen   --translate <locale> --update   <src>   # reconcile via the new i18n driver (source bytes = desired; asymmetric plurals)
 ts-runtypes gen   --translate <locale> --prune    <src>   # the only destructive op — strip @rtOrphan/@rtOrphanChild carcasses
 ts-runtypes gen   --translate all      --update           # fan out over every tsconfig i18n.locales entry
-ts-runtypes check --translate <locale>                    # non-writing completeness gate: report @todo blanks / orphans / missing nodes (drives strict CI)
+ts-runtypes check --translate <locale|all>                # non-writing completeness gate: TR001–TR005 (missing file / @todo blanks / out-of-date / carcasses / unknown format name; drives strict CI)
 ```
 
 tsconfig plugin option (new `i18n` object; precedence CLI > tsconfig > default; default =
@@ -604,7 +617,7 @@ dormant, zero behaviour change):
 `SourceLocale` / `I18nDir` / `I18nLocales` / `I18nFormats` fields, and the reconcile's
 `MirrorPathFor` closure is parameterized so cross-file value imports between translation
 files resolve to sibling `i18n/<locale>/` paths. The **plural-category table** lives in a new
-`internal/enrich/cldr` package (built-in top-~10 map + an all-six fallback).
+`internal/enrich/cldr` package (built-in 11-language map + an all-six fallback).
 
 ## Fallback semantics — always lenient at runtime
 
@@ -640,12 +653,13 @@ configurable `sourceLocale`.
 
 ## Design decisions to settle
 
-1. **How does the Go generator obtain each locale's CLDR plural-category set?** *Decided
-   direction:* ship a **built-in static table for ~10 common locales** (`en, es, zh, hi, ar,
-   pt, ru, ja, de, fr`); **unknown locale → emit all six** categories (only `other` required,
-   the rest optional prompts). Open sub-question: whether to later **generate** the table from
-   the resolver's bundled ICU to cover every locale precisely. Runtime correctness never
-   depends on the table (the `other` backstop), so the static table is a safe v1.
+1. **How does the Go generator obtain each locale's CLDR plural-category set?** *As
+   shipped:* a **built-in static table for 11 languages** (`en, es, zh, hi, ar, pt, ru, ja,
+   de, fr, pl` — CLDR 45, ICU-verified); **unknown locale → emit all six** categories (only
+   `other` required, the rest optional prompts). Open sub-question: whether to later
+   **generate** the table from the resolver's bundled ICU to cover every locale precisely.
+   Runtime correctness never depends on the table (the `other` backstop), so the static
+   table is a safe v1.
 2. **Where do named `Intl` format definitions live?** *Recommend* a shared module keyed by
    locale, referenced by `tsconfig i18n.formats`, so the CLI can validate format-name
    references at `gen`/`check` and the runtime imports the same table. Co-location duplicates
@@ -667,9 +681,9 @@ configurable `sourceLocale`.
 - **[CRASH]** `Intl.PluralRules.select(NaN)` throws `RangeError`; a plural on a bound that isn't
   a finite number must select `other` instead of calling `select`.
 - **Plural table required at generation** — the generator can't emit arms without each locale's
-  category set. Mitigated by the built-in top-~10 table + all-six fallback + the runtime `other`
-  backstop (a wrong/missing arm degrades, never breaks). Pin/generate the table and enforce
-  `other`-mandatory at build.
+  category set. Mitigated by the built-in 11-language table + all-six fallback + the runtime
+  `other` backstop (a wrong/missing arm degrades, never breaks). Pin/generate the table and
+  enforce `other`-mandatory at build.
 - **Constraint-classification must agree** between the generator (which emits object vs string)
   and the checker (which validates the kind). Keep the count-bearing list in one place
   (`internal/operations` / the constraint catalog) so both read it.
@@ -703,14 +717,14 @@ configurable `sourceLocale`.
   module-level `intlCache`. Vitest: per-category selection (en `one/other`, pl
   `one/few/many/other`, ar all six, ja `other`-only), format tokens, unknown-token/format
   verbatim, the `ratio 3:1` non-mis-parse.
-- **Phase 2 — locale-selecting wrapper.** `createFriendlyI18n` + `resolveLocale` (cross-script
-  refusal), leaf-granular fallback-to-source, reactive `{ value }` seam. Vitest: partial-
-  translation fallback, whole-plural atomic fallback, ref-driven switch, function-form node
-  ignores i18n.
+- **Phase 2 — locale-selecting wrapper.** `createFriendlyI18n` + `resolveLocale` (naive
+  truncation — the decided product call, deviation #1), leaf-granular fallback-to-source,
+  reactive `{ value }` seam. Vitest: partial-translation fallback, whole-plural atomic
+  fallback, ref-driven switch, function-form node ignores i18n.
 - **Phase 3 — constraint classification + CLDR table (Go).** The count-bearing constraint list
-  (shared with the checker), the `internal/enrich/cldr` table (top-~10 + all-six fallback), and
-  the scaffold that emits object-vs-string per constraint with the file-locale's arms. `go test`
-  for the classification + arm emission per locale.
+  (shared with the checker), the `internal/enrich/cldr` table (11 languages + all-six fallback),
+  and the scaffold that emits object-vs-string per constraint with the file-locale's arms.
+  `go test` for the classification + arm emission per locale.
 - **Phase 4 — Go reconcile driver (the load-bearing new merge code).** `$errors` descent + plural
   sub-object rules (locale-owned arms: suppress orphan AND rename, never down-scope); desired-side
   swap; orphan-oracle swap; `isTranslationVar`. `go test ./internal/...`: source adds a key →
@@ -734,12 +748,15 @@ configurable `sourceLocale`.
 
 ## Docs to update on landing
 
-[README.md](../../README.md) (feature + CLI flags), [AI_ENRICHMENT.md](../AI_ENRICHMENT.md)
-(replace the parked i18n note with a link here), [ARCHITECTURE.md](../ARCHITECTURE.md)
-(reconcile + `$errors` descent + constraint classification), [ROADMAP.md](../ROADMAP.md), the
-website docs under [container/website/content](../../container/website/content) (plain-language
-style), and the [runtypes-friendly-type](../../.claude/skills/runtypes-friendly-type) /
-[rt-enrich-types](../../.claude/skills/rt-enrich-types) skills.
+**All updated on landing:** [README.md](../../README.md) (feature + CLI flags),
+[AI_ENRICHMENT.md](../AI_ENRICHMENT.md) (replaced the parked i18n note with a link here),
+[ARCHITECTURE.md](../ARCHITECTURE.md) (reconcile + `$errors` descent + constraint
+classification), [ROADMAP.md](../ROADMAP.md), the website docs under
+[container/website/content](../../container/website/content) (plain-language style, incl. a
+new Translations page), and the [runtypes-friendly-type](../../.claude/skills/runtypes-friendly-type) /
+[rt-enrich-types](../../.claude/skills/rt-enrich-types) skills (all three enrichment skills —
+including [runtypes-mock-data](../../.claude/skills/runtypes-mock-data) — now also ship inside
+the `ts-runtypes` npm package, installable via `npx ts-runtypes-skills`).
 
 ## Acceptance
 
