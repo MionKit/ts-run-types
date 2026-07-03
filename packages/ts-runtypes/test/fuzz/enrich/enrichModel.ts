@@ -16,7 +16,14 @@
 //   R8  @todo / prune     prune strips carcasses, never touches @todo
 //   R10 totality         every CLI run is controlled — never a panic/hang
 
-import {setSource, editMirror, readMirror, type ReconcileFixture} from '../../util/enrichReconcile.ts';
+import {
+  setSource,
+  editMirror,
+  readMirror,
+  readMirrors,
+  type MirrorFamily,
+  type ReconcileFixture,
+} from '../../util/enrichReconcile.ts';
 import {scaffold, update, prune, check, isControlled, type CliResult} from './enrichCli.ts';
 
 export type RuleId = 'R1' | 'R2' | 'R3' | 'R5' | 'R6' | 'R7a' | 'R8' | 'R10';
@@ -119,31 +126,40 @@ function controlledOr(result: CliResult, command: string, ctx: Ctx, out: EnrichV
   return false;
 }
 
-/** R3 — every OTHER live field's authored tokens must still be present. **/
-function preservationOr(model: Model, mirror: string, except: string, command: string, ctx: Ctx, out: EnrichViolation[]): void {
+/** R3 — every OTHER live field's authored tokens must still be present, each
+ *  in ITS OWN family's mirror file (labels are friendly-only, pools mock-only). **/
+function preservationOr(
+  model: Model,
+  friendly: string,
+  mock: string,
+  except: string,
+  command: string,
+  ctx: Ctx,
+  out: EnrichViolation[]
+): void {
   for (const [field, a] of model.authored) {
     if (field === except) continue;
-    if (a.label && !mirror.includes(a.label))
+    if (a.label && !friendly.includes(a.label))
       out.push(v('R3', command, ctx, `authored friendly label of \`${field}\` (${a.label}) was lost`));
-    if (a.poolToken && !mirror.includes(a.poolToken))
+    if (a.poolToken && !mock.includes(a.poolToken))
       out.push(v('R3', command, ctx, `authored mock pool of \`${field}\` (${a.poolToken}) was lost`));
   }
 }
 
-/** R1/R6 — a second `--update` must be byte-identical to the first result. **/
+/** R1/R6 — a second `--update` must leave BOTH family files byte-identical. **/
 function convergenceOr(
   fixture: ReconcileFixture,
   typeName: string,
-  firstMirror: string,
+  firstMirrors: string,
   command: string,
   ctx: Ctx,
   out: EnrichViolation[]
 ): void {
   const again = update(fixture, typeName);
   if (!controlledOr(again, command, ctx, out)) return;
-  const second = readMirror(fixture);
-  if (second !== firstMirror)
-    out.push(v('R6', command, ctx, 'a second --update was NOT a byte-identical no-op (file is not a fixed point)'));
+  const second = readMirrors(fixture);
+  if (second !== firstMirrors)
+    out.push(v('R6', command, ctx, 'a second --update was NOT a byte-identical no-op (files are not a fixed point)'));
 }
 
 export interface Ctx {
@@ -172,15 +188,16 @@ const addField: Command = {
     setSource(ctx.fixture, renderSource(model));
     const result = update(ctx.fixture, model.typeName);
     if (!controlledOr(result, this.name, ctx, out)) return out;
-    const mirror = readMirror(ctx.fixture);
-    // R2 (add): the new field gets a fresh scaffold node in BOTH consts.
-    if (!mirror.includes(`${name}: {$label: ''`))
+    const friendly = readMirror(ctx.fixture, 'friendly');
+    const mock = readMirror(ctx.fixture, 'mock');
+    // R2 (add): the new field gets a fresh scaffold node in BOTH family files.
+    if (!friendly.includes(`${name}: {$label: ''`))
       out.push(v('R2', this.name, ctx, `added field \`${name}\` has no friendly scaffold node`));
-    if (!mirror.includes(`${name}: {pool: []}`))
+    if (!mock.includes(`${name}: {pool: []}`))
       out.push(v('R2', this.name, ctx, `added field \`${name}\` has no mock scaffold node`));
     // R3 (others untouched) + R6 (fixed point).
-    preservationOr(model, mirror, name, this.name, ctx, out);
-    convergenceOr(ctx.fixture, model.typeName, mirror, this.name, ctx, out);
+    preservationOr(model, friendly, mock, name, this.name, ctx, out);
+    convergenceOr(ctx.fixture, model.typeName, readMirrors(ctx.fixture), this.name, ctx, out);
     return out;
   },
 };
@@ -196,7 +213,7 @@ const authorFriendly: Command = {
     const token = `FZL_${field}_${ctx.step}`;
     const target = `${field}: {$label: ''`;
     let took = false;
-    editMirror(ctx.fixture, (text) => {
+    editMirror(ctx.fixture, 'friendly', (text) => {
       if (!text.includes(target)) return text;
       took = true;
       return text.replace(target, `${field}: {$label: '${token}'`);
@@ -221,7 +238,7 @@ const authorMock: Command = {
     if (!lit) return [];
     const target = `${field}: {pool: []}`;
     let took = false;
-    editMirror(ctx.fixture, (text) => {
+    editMirror(ctx.fixture, 'mock', (text) => {
       if (!text.includes(target)) return text;
       took = true;
       return text.replace(target, `${field}: {pool: [${lit.literal}]}`);
@@ -249,13 +266,20 @@ const removeField: Command = {
     setSource(ctx.fixture, renderSource(model));
     const result = update(ctx.fixture, model.typeName);
     if (!controlledOr(result, this.name, ctx, out)) return out;
-    const mirror = readMirror(ctx.fixture);
+    const friendly = readMirror(ctx.fixture, 'friendly');
+    const mock = readMirror(ctx.fixture, 'mock');
     // R7a: a removed field with an authored value becomes an @rtOrphanChild
     // carcass that PRESERVES the value (proven: enrichReconcile orphan-child test).
+    // The dropped field carcasses in BOTH family files; each authored token must
+    // survive in ITS family's carcass (label → friendly file, pool → mock file).
     if (authored.label || authored.poolToken) {
-      if (!mirror.includes('@rtOrphanChild'))
-        out.push(v('R7a', this.name, ctx, `removed authored field \`${name}\` left no @rtOrphanChild carcass`));
-      if (authored.label && !mirror.includes(authored.label))
+      if (!friendly.includes('@rtOrphanChild'))
+        out.push(
+          v('R7a', this.name, ctx, `removed authored field \`${name}\` left no @rtOrphanChild carcass in the friendly file`)
+        );
+      if (!mock.includes('@rtOrphanChild'))
+        out.push(v('R7a', this.name, ctx, `removed authored field \`${name}\` left no @rtOrphanChild carcass in the mock file`));
+      if (authored.label && !friendly.includes(authored.label))
         out.push(
           v(
             'R7a',
@@ -264,11 +288,11 @@ const removeField: Command = {
             `removed field \`${name}\` lost its authored label (${authored.label}) instead of carcassing it`
           )
         );
-      if (authored.poolToken && !mirror.includes(authored.poolToken))
+      if (authored.poolToken && !mock.includes(authored.poolToken))
         out.push(v('R7a', this.name, ctx, `removed field \`${name}\` lost its authored pool (${authored.poolToken})`));
     }
-    preservationOr(model, mirror, name, this.name, ctx, out);
-    convergenceOr(ctx.fixture, model.typeName, mirror, this.name, ctx, out);
+    preservationOr(model, friendly, mock, name, this.name, ctx, out);
+    convergenceOr(ctx.fixture, model.typeName, readMirrors(ctx.fixture), this.name, ctx, out);
     return out;
   },
 };
@@ -291,14 +315,15 @@ const renameField: Command = {
     setSource(ctx.fixture, renderSource(model));
     const result = update(ctx.fixture, model.typeName);
     if (!controlledOr(result, this.name, ctx, out)) return out;
-    const mirror = readMirror(ctx.fixture);
+    const friendly = readMirror(ctx.fixture, 'friendly');
+    const mock = readMirror(ctx.fixture, 'mock');
     // Rename carries the authored value under the new key (proven: rename tests).
-    if (authored?.label && !mirror.includes(authored.label))
+    if (authored?.label && !friendly.includes(authored.label))
       out.push(v('R2', this.name, ctx, `rename ${oldName}→${newName} LOST the authored label (${authored.label})`));
-    if (authored?.poolToken && !mirror.includes(authored.poolToken))
+    if (authored?.poolToken && !mock.includes(authored.poolToken))
       out.push(v('R2', this.name, ctx, `rename ${oldName}→${newName} LOST the authored pool (${authored.poolToken})`));
-    preservationOr(model, mirror, newName, this.name, ctx, out);
-    convergenceOr(ctx.fixture, model.typeName, mirror, this.name, ctx, out);
+    preservationOr(model, friendly, mock, newName, this.name, ctx, out);
+    convergenceOr(ctx.fixture, model.typeName, readMirrors(ctx.fixture), this.name, ctx, out);
     return out;
   },
 };
@@ -324,20 +349,22 @@ const renameType: Command = {
     setSource(ctx.fixture, renderSource(model));
     const result = update(ctx.fixture, newName);
     if (!controlledOr(result, this.name, ctx, out)) return out;
-    const mirror = readMirror(ctx.fixture);
-    // R2 (rename type): the consts move to the new name, with NO stale old-name
-    // tree left behind (a stale tree is the orphan-carcass / overlapping-splice bug).
-    if (!mirror.includes(`friendly${newName}`))
+    const friendly = readMirror(ctx.fixture, 'friendly');
+    const mock = readMirror(ctx.fixture, 'mock');
+    // R2 (rename type): each family's const moves to the new name in ITS file,
+    // with NO stale old-name tree left behind (a stale tree is the orphan-carcass /
+    // overlapping-splice bug).
+    if (!friendly.includes(`friendly${newName}`))
       out.push(v('R2', this.name, ctx, `rename type ${oldName}→${newName}: no friendly${newName} const emitted`));
-    if (!mirror.includes(`mock${newName}`))
+    if (!mock.includes(`mock${newName}`))
       out.push(v('R2', this.name, ctx, `rename type ${oldName}→${newName}: no mock${newName} const emitted`));
-    if (mirror.includes(`friendly${oldName}`))
+    if (friendly.includes(`friendly${oldName}`))
       out.push(v('R2', this.name, ctx, `rename type ${oldName}→${newName} left a stale friendly${oldName} tree behind`));
-    if (mirror.includes(`mock${oldName}`))
+    if (mock.includes(`mock${oldName}`))
       out.push(v('R2', this.name, ctx, `rename type ${oldName}→${newName} left a stale mock${oldName} tree behind`));
     // R3: renaming the TYPE keeps every field's authored leaf — nothing is excepted.
-    preservationOr(model, mirror, '', this.name, ctx, out);
-    convergenceOr(ctx.fixture, newName, mirror, this.name, ctx, out);
+    preservationOr(model, friendly, mock, '', this.name, ctx, out);
+    convergenceOr(ctx.fixture, newName, readMirrors(ctx.fixture), this.name, ctx, out);
     return out;
   },
 };
@@ -349,10 +376,10 @@ const idempotenceProbe: Command = {
     const out: EnrichViolation[] = [];
     const r1 = update(ctx.fixture, model.typeName);
     if (!controlledOr(r1, this.name, ctx, out)) return out;
-    const first = readMirror(ctx.fixture);
+    const first = readMirrors(ctx.fixture);
     const r2 = update(ctx.fixture, model.typeName);
     if (!controlledOr(r2, this.name, ctx, out)) return out;
-    const second = readMirror(ctx.fixture);
+    const second = readMirrors(ctx.fixture);
     if (first !== second) out.push(v('R1', this.name, ctx, 'two consecutive --update runs were NOT byte-identical'));
     return out;
   },
@@ -363,17 +390,21 @@ const pruneProbe: Command = {
   canApply: () => true,
   apply(model, ctx, _rng) {
     const out: EnrichViolation[] = [];
-    const before = readMirror(ctx.fixture);
+    const before = readMirrors(ctx.fixture);
     const todoBefore = countOccurrences(before, '@todo');
     const result = prune(ctx.fixture);
     if (!controlledOr(result, this.name, ctx, out)) return out;
-    const after = readMirror(ctx.fixture);
-    // R8: prune strips carcasses, leaves @todo + live fields intact.
+    // R8: prune (now a whole-enrichDir sweep) strips carcasses from BOTH family
+    // files, leaves every @todo + live field intact.
+    const after = readMirrors(ctx.fixture);
     if (after.includes('@rtOrphan')) out.push(v('R8', this.name, ctx, 'prune left an @rtOrphan/@rtOrphanChild carcass behind'));
     if (countOccurrences(after, '@todo') !== todoBefore)
       out.push(v('R8', this.name, ctx, `prune changed the @todo count (${todoBefore} → ${countOccurrences(after, '@todo')})`));
+    const friendly = readMirror(ctx.fixture, 'friendly');
+    const mock = readMirror(ctx.fixture, 'mock');
     for (const field of model.fields.keys()) {
-      if (!after.includes(`${field}:`)) out.push(v('R8', this.name, ctx, `prune dropped a LIVE field node \`${field}\``));
+      if (!friendly.includes(`${field}:`) || !mock.includes(`${field}:`))
+        out.push(v('R8', this.name, ctx, `prune dropped a LIVE field node \`${field}\``));
     }
     // carcasses are gone → re-adding a removed field would scaffold fresh.
     model.removed.clear();
@@ -381,9 +412,10 @@ const pruneProbe: Command = {
   },
 };
 
-// Negative-space probes (R5): apply ONE malformed mirror edit, run `check`, and
-// assert the SPECIFIC diagnostic code fires (verified live: MD001 / FT002 /
-// FT005), then REVERT so the sequence continues from a valid state.
+// Negative-space probes (R5): splice ONE malformed edit into a single FAMILY's
+// mirror file, run `check` against THAT file, and assert the SPECIFIC diagnostic
+// code fires (verified live: MD001 / FT002 / FT005), then REVERT so the sequence
+// continues from a valid state.
 //
 // Channel boundary (discovered by running it): the `check` CLI does NOT look
 // inside a function-form `$errors` (opaque to the walk) and does NOT do MD003
@@ -391,19 +423,25 @@ const pruneProbe: Command = {
 // DIFFERENT observation channel. So a "non-literal node in comptime args" probe
 // (the CTA case) belongs to a future build-driven harness, not this one — `check`
 // is the wrong instrument for it.
-function negativeProbe(name: string, expectedCode: string, token: string, mutate: (text: string) => string): Command {
+function negativeProbe(
+  name: string,
+  family: MirrorFamily,
+  expectedCode: string,
+  token: string,
+  mutate: (text: string) => string
+): Command {
   return {
     name,
     canApply: () => true,
     apply(_model, ctx, _rng) {
       const out: EnrichViolation[] = [];
-      const snapshot = readMirror(ctx.fixture);
-      editMirror(ctx.fixture, (text) => mutate(text));
-      if (!readMirror(ctx.fixture).includes(token)) {
-        editMirror(ctx.fixture, () => snapshot); // anchor not found — skip, never false-fire
+      const snapshot = readMirror(ctx.fixture, family);
+      editMirror(ctx.fixture, family, (text) => mutate(text));
+      if (!readMirror(ctx.fixture, family).includes(token)) {
+        editMirror(ctx.fixture, family, () => snapshot); // anchor not found — skip, never false-fire
         return out;
       }
-      const {findings, controlled} = check(ctx.fixture);
+      const {findings, controlled} = check(ctx.fixture, family);
       if (!controlled) out.push(v('R10', name, ctx, `check was uncontrolled on a mirror carrying a ${name}`));
       else if (!findings.some((finding) => finding.code === expectedCode)) {
         out.push(
@@ -415,27 +453,27 @@ function negativeProbe(name: string, expectedCode: string, token: string, mutate
           )
         );
       }
-      editMirror(ctx.fixture, () => snapshot); // revert: keep the sequence valid
+      editMirror(ctx.fixture, family, () => snapshot); // revert: keep the sequence valid
       return out;
     },
   };
 }
 
-const unknownMockField = negativeProbe('unknownMockField', 'MD001', 'fzUnrelated', (text) =>
+const unknownMockField = negativeProbe('unknownMockField', 'mock', 'MD001', 'fzUnrelated', (text) =>
   text.replace(
     `export const mock${TYPE_NAME}: MockData<${TYPE_NAME}> = {`,
     `export const mock${TYPE_NAME}: MockData<${TYPE_NAME}> = {\n  fzUnrelated: {pool: []},`
   )
 );
 
-const unknownFriendlyField = negativeProbe('unknownFriendlyField', 'FT002', 'fzUnrelated', (text) =>
+const unknownFriendlyField = negativeProbe('unknownFriendlyField', 'friendly', 'FT002', 'fzUnrelated', (text) =>
   text.replace(
     `export const friendly${TYPE_NAME}: FriendlyType<${TYPE_NAME}> = {`,
     `export const friendly${TYPE_NAME}: FriendlyType<${TYPE_NAME}> = {\n  fzUnrelated: {$label: ''},`
   )
 );
 
-const badPlaceholder = negativeProbe('badPlaceholder', 'FT005', '$[badname]', (text) =>
+const badPlaceholder = negativeProbe('badPlaceholder', 'friendly', 'FT005', '$[badname]', (text) =>
   text.replace("$errors: {type: ''}", "$errors: {type: 'x $[badname]'}")
 );
 

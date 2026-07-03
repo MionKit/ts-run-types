@@ -21,6 +21,16 @@ import (
 // neither a --enrich-dir flag nor a tsconfig plugins entry supplies one.
 const defaultEnrichDir = "runtypes/generated"
 
+// Family path segments under the enrich root. Each enrichment family owns its
+// own mirror subtree (<EnrichDir>/<family>/<rel>), so one source file maps to
+// one mirror file PER FAMILY: friendly/models/user.ts holds friendlyUser,
+// mock/models/user.ts holds mockUser. The segment lives in the PATH (never a
+// filename infix) so forceTSExt stays family-blind.
+const (
+	familyFriendly = "friendly"
+	familyMock     = "mock"
+)
+
 // enrichConfig is the resolved enrichment configuration for a gen target. It is
 // the merge of (in precedence order) the --enrich-dir CLI flag, the tsconfig
 // `compilerOptions.plugins[name=ts-runtypes]` entry, and the built-in defaults.
@@ -139,19 +149,32 @@ func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
 	return config
 }
 
-// mirrorPath computes the mirror file for a source file under this config:
-// <EnrichDir>/<absSourceFile relative to RootDir>, with the extension forced to
-// ".ts" (a .d.ts source maps to a plain .ts mirror, which holds runtime consts).
-// When absSourceFile is not under RootDir (filepath.Rel escapes with ".."), it
-// falls back to the source's base name directly under EnrichDir so the mirror
-// never lands outside the tree.
-func (config enrichConfig) mirrorPath(absSourceFile string) string {
+// mirrorPath computes one family's mirror file for a source file under this
+// config: <EnrichDir>/<family>/<absSourceFile relative to RootDir>, with the
+// extension forced to ".ts" (a .d.ts source maps to a plain .ts mirror, which
+// holds runtime consts). When absSourceFile is not under RootDir (filepath.Rel
+// escapes with ".."), it falls back to the source's base name directly under
+// the family dir so the mirror never lands outside the tree.
+func (config enrichConfig) mirrorPath(family, absSourceFile string) string {
+	return filepath.Clean(filepath.Join(config.EnrichDir, family, config.mirrorRel(absSourceFile)))
+}
+
+// legacyMirrorPath is the pre-split COMBINED mirror location (no family
+// segment) a source file used to map to. Read-only: gen consults it solely to
+// migrate an old combined mirror into the per-family files (see
+// migrateLegacyMirror); nothing is ever written there again.
+func (config enrichConfig) legacyMirrorPath(absSourceFile string) string {
+	return filepath.Clean(filepath.Join(config.EnrichDir, config.mirrorRel(absSourceFile)))
+}
+
+// mirrorRel is the source file's mirror-relative sub-path: relative to RootDir
+// (base name when outside it), extension forced to ".ts".
+func (config enrichConfig) mirrorRel(absSourceFile string) string {
 	rel, err := filepath.Rel(config.RootDir, absSourceFile)
 	if err != nil || strings.HasPrefix(rel, "..") {
 		rel = filepath.Base(absSourceFile)
 	}
-	rel = forceTSExt(rel)
-	return filepath.Clean(filepath.Join(config.EnrichDir, rel))
+	return forceTSExt(rel)
 }
 
 // forceTSExt replaces a source file's extension with ".ts", collapsing a ".d.ts"

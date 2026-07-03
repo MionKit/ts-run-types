@@ -25,6 +25,7 @@ import {
   setSource,
   editMirror,
   readMirror,
+  readMirrors,
   cleanupReconcileLane,
   type ReconcileFixture,
 } from '../../util/enrichReconcile.ts';
@@ -40,11 +41,11 @@ const SOURCE = 'export interface User {\n  name: string;\n  age: number;\n  emai
 // A racing sibling save grows the type by one field mid-reconcile.
 const SOURCE_GREW = 'export interface User {\n  name: string;\n  age: number;\n  email: string;\n  phone: string;\n}\n';
 
-// authorSentinels fills every $label blank with a unique sentinel and returns them —
-// the tracers for "nothing authored is lost through the race".
+// authorSentinels fills every friendly-file $label blank with a unique sentinel and
+// returns them — the tracers for "nothing authored is lost through the race".
 function authorSentinels(fixture: ReconcileFixture): string[] {
   const sentinels: string[] = [];
-  editMirror(fixture, (text) =>
+  editMirror(fixture, 'friendly', (text) =>
     text.replace(/\$label: ''/g, () => {
       const sentinel = `LBL_${sentinels.length}_x`;
       sentinels.push(sentinel);
@@ -86,13 +87,14 @@ function spawnControlled(result: {code: number | null; stderr: string}): boolean
 }
 
 // settledAndConverged drains the post-race state to a fixed point: a first --update
-// applies whatever the final source demands, a second must be a byte-identical no-op.
-function settledAndConverged(fixture: ReconcileFixture): {converged: boolean; mirror: string} {
+// applies whatever the final source demands, a second must leave BOTH family files
+// byte-identical. Returns the settled friendly file (where the sentinels live).
+function settledAndConverged(fixture: ReconcileFixture): {converged: boolean; friendly: string} {
   update(fixture, ROOT);
-  const first = readMirror(fixture);
+  const first = readMirrors(fixture);
   update(fixture, ROOT);
-  const second = readMirror(fixture);
-  return {converged: first === second, mirror: second};
+  const second = readMirrors(fixture);
+  return {converged: first === second, friendly: readMirror(fixture, 'friendly')};
 }
 
 describe('enrich reconcile — concurrent CLI race', () => {
@@ -119,12 +121,13 @@ describe('enrich reconcile — concurrent CLI race', () => {
           if (result.code === null) continue;
           expect(result.code).toBe(0);
         }
-        // The mirror still exists, parses, and CONVERGES (a further --update is a no-op).
-        expect(existsSync(fixture.mirrorPath)).toBe(true);
-        const {converged, mirror} = settledAndConverged(fixture);
+        // Both family mirrors still exist, parse, and CONVERGE (a further --update is a no-op).
+        expect(existsSync(fixture.friendlyPath)).toBe(true);
+        expect(existsSync(fixture.mockPath)).toBe(true);
+        const {converged, friendly} = settledAndConverged(fixture);
         expect(converged).toBe(true);
         // Nothing authored was lost through the race.
-        for (const sentinel of sentinels) expect(mirror).toContain(sentinel);
+        for (const sentinel of sentinels) expect(friendly).toContain(sentinel);
       }
     },
     120_000
@@ -147,10 +150,10 @@ describe('enrich reconcile — concurrent CLI race', () => {
 
         // Settles to a fixed point reflecting the FINAL source, with every original label
         // still present (the added field carries no sentinel; the existing ones survive).
-        const {converged, mirror} = settledAndConverged(fixture);
+        const {converged, friendly} = settledAndConverged(fixture);
         expect(converged).toBe(true);
-        expect(mirror).toContain('phone'); // the racing field is reconciled in
-        for (const sentinel of sentinels) expect(mirror).toContain(sentinel);
+        expect(friendly).toContain('phone'); // the racing field is reconciled in
+        for (const sentinel of sentinels) expect(friendly).toContain(sentinel);
       }
     },
     120_000

@@ -36,7 +36,7 @@
 // root-rename carry is asserted by RC (docs/done/reconcile-rename-detection.md).
 
 import {existsSync} from 'node:fs';
-import {makeFixture, setSource, editMirror, readMirror, type ReconcileFixture} from '../../util/enrichReconcile.ts';
+import {makeFixture, setSource, editMirror, readMirrors, type ReconcileFixture} from '../../util/enrichReconcile.ts';
 import {withSeededRandom, mixSeed} from '../core/seededRng.ts';
 import {genType, type GenOptions} from '../core/typeGen.ts';
 import {modifyType, renderRootedSource, rootGeneratedType, type RootedType} from './typeModify.ts';
@@ -61,8 +61,8 @@ const STEP_INVALID_CHANCE = 0.35;
 
 export type ModRuleId = 'R10' | 'P' | 'R6' | 'NL' | 'RC' | 'CB';
 
-// blankAuthored empties every authored `$label` value so two mirrors that differ ONLY
-// in authored text compare equal — the normalizer for the content-blindness oracle.
+// blankAuthored empties every authored `$label` value so two mirror states that differ
+// ONLY in authored text compare equal — the normalizer for the content-blindness oracle.
 // Labels are the only thing the fuzzer authors (authorLabels); everything else (mock
 // pools, $errors) stays blank in both the filled and empty twins.
 function blankAuthored(mirror: string): string {
@@ -77,8 +77,9 @@ const orphanBlockPattern = /\/\* @rtOrphan(?:Child)? [\s\S]*? \*\//g;
 
 // liveSentinels returns the authored sentinels still present once every @rtOrphan
 // carcass is stripped — i.e. carried onto a LIVE const, not parked in a carcass.
-function liveSentinels(mirror: string, sentinels: string[]): Set<string> {
-  const live = mirror.replace(orphanBlockPattern, '');
+// Runs over the combined both-families text so a carcass in EITHER family is seen.
+function liveSentinels(mirrors: string, sentinels: string[]): Set<string> {
+  const live = mirrors.replace(orphanBlockPattern, '');
   return new Set(sentinels.filter((sentinel) => live.includes(sentinel)));
 }
 
@@ -108,13 +109,13 @@ function why(result: CliResult): string {
 // them across structural edits).
 //
 //   deep=false (default lane): author ONLY the two anchor fields' own labels. They
-// Author EVERY scaffolded `$label` (including those on Map / Set / enum / named
-// sub-consts) with a unique sentinel, and return them. With the carcass handling
-// stable, all of these survive every edit — live, carried, or parked in a carcass —
-// so the full set is the nothing-lost tracer.
+// Author EVERY scaffolded `$label` in the FRIENDLY mirror (including those on
+// Map / Set / enum / named sub-consts) with a unique sentinel, and return them.
+// With the carcass handling stable, all of these survive every edit — live,
+// carried, or parked in a carcass — so the full set is the nothing-lost tracer.
 function authorLabels(fixture: ReconcileFixture): string[] {
   const sentinels: string[] = [];
-  editMirror(fixture, (text) =>
+  editMirror(fixture, 'friendly', (text) =>
     text.replace(/\$label: ''/g, () => {
       const sentinel = `LBL_${sentinels.length}_x`;
       sentinels.push(sentinel);
@@ -124,8 +125,8 @@ function authorLabels(fixture: ReconcileFixture): string[] {
   return sentinels;
 }
 
-function missingSentinels(mirror: string, sentinels: string[]): string[] {
-  return sentinels.filter((sentinel) => !mirror.includes(sentinel));
+function missingSentinels(mirrors: string, sentinels: string[]): string[] {
+  return sentinels.filter((sentinel) => !mirrors.includes(sentinel));
 }
 
 // Run ONE sequence: generate a rooted type, scaffold + author, then apply up to
@@ -148,10 +149,8 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
       skipped = true;
       return;
     }
-    try {
-      readMirror(fixture);
-    } catch {
-      skipped = true; // scaffold produced no mirror (e.g. an empty desired set)
+    if (!existsSync(fixture.friendlyPath) || !existsSync(fixture.mockPath)) {
+      skipped = true; // scaffold produced no mirrors (e.g. an empty desired set)
       return;
     }
     const sentinels = authorLabels(fixture);
@@ -165,7 +164,11 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
     // it must reconcile to the same STRUCTURE as the filled fixture. Scaffolded from the
     // same source the filled one was, so it cannot fail here if the filled one didn't.
     const emptyFixture = makeFixture(`tm-${seed >>> 0}-empty`, renderRootedSource(rooted));
-    if (!isControlled(scaffold(emptyFixture, rooted.rootName)) || !existsSync(emptyFixture.mirrorPath)) {
+    if (
+      !isControlled(scaffold(emptyFixture, rooted.rootName)) ||
+      !existsSync(emptyFixture.friendlyPath) ||
+      !existsSync(emptyFixture.mockPath)
+    ) {
       skipped = true;
       return;
     }
@@ -181,7 +184,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
         rooted = result.rooted;
         log.push(result.op);
 
-        const before = readMirror(fixture);
+        const before = readMirrors(fixture);
         const source = result.rawSource ?? renderRootedSource(rooted);
         setSource(fixture, source);
         setSource(emptyFixture, source);
@@ -193,13 +196,18 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
           record('R10', result.op, step, `\`${run.argv.join(' ')}\` ${why(run)}`);
           break;
         }
-        // The mirror must still EXIST after a controlled reconcile — a successful
-        // run that leaves no file is a write bug (and would crash the next read).
-        if (!existsSync(fixture.mirrorPath)) {
-          record('R10', result.op, step, `gen exited ${run.status} but the mirror is GONE — stderr: ${run.stderr.slice(0, 200)}`);
+        // Both family mirrors must still EXIST after a controlled reconcile — a
+        // successful run that leaves a file missing is a write bug.
+        if (!existsSync(fixture.friendlyPath) || !existsSync(fixture.mockPath)) {
+          record(
+            'R10',
+            result.op,
+            step,
+            `gen exited ${run.status} but a family mirror is GONE — stderr: ${run.stderr.slice(0, 200)}`
+          );
           break;
         }
-        const after = readMirror(fixture);
+        const after = readMirrors(fixture);
 
         // CB — content-blindness: the empty twin (same edits, no authored values) must
         // reconcile to the same CONTROL outcome and the same STRUCTURE. The filled run
@@ -207,11 +215,11 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
         // too, and the two mirrors must match once authored text is blanked. Holds for
         // both valid edits and recovered/failed corruptions (the source is identical for
         // both twins, so only a value-dependent reconcile branch could diverge them).
-        if (!isControlled(runEmpty) || !existsSync(emptyFixture.mirrorPath)) {
+        if (!isControlled(runEmpty) || !existsSync(emptyFixture.friendlyPath) || !existsSync(emptyFixture.mockPath)) {
           record('CB', result.op, step, `empty twin diverged in control: filled ok, empty ${why(runEmpty)}`);
           break;
         }
-        const afterEmpty = readMirror(emptyFixture);
+        const afterEmpty = readMirrors(emptyFixture);
         if (blankAuthored(after) !== blankAuthored(afterEmpty)) {
           if (process.env.RT_FUZZ_TYPEMOD_DEBUG) {
             console.error(
@@ -328,7 +336,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
           record('R10', `${result.op}:again`, step, `\`${again.argv.join(' ')}\` ${why(again)}`);
           break;
         }
-        const settled = readMirror(fixture);
+        const settled = readMirrors(fixture);
         if (settled !== after) {
           if (process.env.RT_FUZZ_TYPEMOD_DEBUG) {
             console.error(
@@ -341,7 +349,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
         }
       }
     } catch (err) {
-      // A readMirror / fs throw mid-sequence (e.g. a vanished mirror) is a real
+      // A mirror-read / fs throw mid-sequence (e.g. a vanished mirror) is a real
       // robustness failure, not a harness bug — report it, never crash the run.
       const message = err instanceof Error ? err.message : String(err);
       record('R10', log[log.length - 1] ?? '?', log.length - 1, `threw mid-sequence: ${message}`);

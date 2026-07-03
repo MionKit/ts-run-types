@@ -123,8 +123,10 @@ func TestResolveEnrichConfig_GarbageTsconfig(t *testing.T) {
 	}
 }
 
-// TestMirrorPath verifies the mirror path math, including the .d.ts → .ts
-// collapse and the under-rootDir relativization.
+// TestMirrorPath verifies the per-family mirror path math, including the
+// family path segment, the .d.ts → .ts collapse, and the under-rootDir
+// relativization — plus the legacy (pre-split, no-family) path the migration
+// reads.
 func TestMirrorPath(t *testing.T) {
 	config := enrichConfig{
 		ProjectRoot: "/proj",
@@ -132,19 +134,52 @@ func TestMirrorPath(t *testing.T) {
 		EnrichDir:   "/proj/runtypes/generated",
 	}
 	tests := []struct {
-		name string
-		src  string
-		want string
+		name   string
+		family string
+		src    string
+		want   string
 	}{
-		{"ts under root", "/proj/src/models/user.ts", "/proj/runtypes/generated/models/user.ts"},
-		{"d.ts collapses to ts", "/proj/src/types/api.d.ts", "/proj/runtypes/generated/types/api.ts"},
-		{"top-level file", "/proj/src/index.ts", "/proj/runtypes/generated/index.ts"},
-		{"outside root falls back to base", "/elsewhere/foo.ts", "/proj/runtypes/generated/foo.ts"},
+		{"friendly under root", familyFriendly, "/proj/src/models/user.ts", "/proj/runtypes/generated/friendly/models/user.ts"},
+		{"mock under root", familyMock, "/proj/src/models/user.ts", "/proj/runtypes/generated/mock/models/user.ts"},
+		{"d.ts collapses to ts", familyFriendly, "/proj/src/types/api.d.ts", "/proj/runtypes/generated/friendly/types/api.ts"},
+		{"top-level file", familyMock, "/proj/src/index.ts", "/proj/runtypes/generated/mock/index.ts"},
+		{"outside root falls back to base", familyFriendly, "/elsewhere/foo.ts", "/proj/runtypes/generated/friendly/foo.ts"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := config.mirrorPath(test.src); got != test.want {
-				t.Errorf("mirrorPath(%q) = %q, want %q", test.src, got, test.want)
+			if got := config.mirrorPath(test.family, test.src); got != test.want {
+				t.Errorf("mirrorPath(%q, %q) = %q, want %q", test.family, test.src, got, test.want)
+			}
+		})
+	}
+
+	if got, want := config.legacyMirrorPath("/proj/src/models/user.ts"), "/proj/runtypes/generated/models/user.ts"; got != want {
+		t.Errorf("legacyMirrorPath = %q, want %q", got, want)
+	}
+}
+
+// TestMirrorFamilyOf reads a mirror file's family off its path segment under
+// the enrich root; a legacy combined location (or a file outside the root) has
+// no family.
+func TestMirrorFamilyOf(t *testing.T) {
+	enrichDir := "/proj/runtypes/generated"
+	tests := []struct {
+		name   string
+		path   string
+		family string
+		ok     bool
+	}{
+		{"friendly file", "/proj/runtypes/generated/friendly/models/user.ts", familyFriendly, true},
+		{"mock file", "/proj/runtypes/generated/mock/user.ts", familyMock, true},
+		{"legacy combined", "/proj/runtypes/generated/models/user.ts", "", false},
+		{"outside root", "/elsewhere/user.ts", "", false},
+		{"friendly-named leaf at root", "/proj/runtypes/generated/friendly.ts", "", false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			family, ok := mirrorFamilyOf(enrichDir, test.path)
+			if family != test.family || ok != test.ok {
+				t.Errorf("mirrorFamilyOf(%q) = (%q, %v), want (%q, %v)", test.path, family, ok, test.family, test.ok)
 			}
 		})
 	}
