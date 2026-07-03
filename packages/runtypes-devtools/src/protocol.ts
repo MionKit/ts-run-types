@@ -313,6 +313,17 @@ export interface Request {
   // <srcDir>/__runtypes). `generate` writes modules under <outDir>/types/;
   // `transform` injects imports relative to it. Empty keeps virtual specifiers.
   outDir?: string;
+  // scanFiles only — opts the response into the enrichment-health pass over
+  // the request's files (tag hygiene + FriendlyType/MockData content +
+  // breadcrumb drift), appended to diagnostics as Family.Enrich entries.
+  // Off by default so the rewrite pipeline pays nothing; the lint plugin is
+  // the consumer.
+  checkEnrich?: boolean;
+  // scanFiles only — opts the response into the RunType-family diagnostics
+  // (emitted while rendering the demanded entries) WITHOUT the entry-module
+  // payload. Implied by includeEntryModules; the lint plugin sets it so one
+  // scan surfaces everything a build would.
+  includeRtDiagnostics?: boolean;
 }
 
 // Metrics mirrors the Go-side protocol.Metrics — populated on a response
@@ -441,11 +452,14 @@ export const Severity = {
 export type Severity = (typeof Severity)[keyof typeof Severity];
 
 // Family classifies a Diagnostic by which subsystem produced it. Same
-// numeric-on-the-wire scheme as Severity.
+// numeric-on-the-wire scheme as Severity. Enrich covers the opt-in
+// enrichment-health pass (Request.checkEnrich): tag hygiene, FriendlyType /
+// MockData content validity, and mirror breadcrumb drift.
 export const Family = {
   PureFn: 1,
   Marker: 2,
   RunType: 3,
+  Enrich: 4,
 } as const;
 export type Family = (typeof Family)[keyof typeof Family];
 

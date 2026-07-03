@@ -1,0 +1,81 @@
+// Prefilter gate tests + the Go↔TS constant-sync guard: the generated tag
+// constants the JS side matches with must be byte-identical to the literals
+// the Go emitters/detectors define in internal/enrich/mirror/tags.go (the
+// single source of truth). A drifted literal silently stops enforcing, so
+// this guard reads the Go source directly.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import {describe, expect, it} from 'vitest';
+import {looksLikeEnrichmentFile, needsResolverPass, referencesMarkerModule} from '../../src/eslint/prefilter.ts';
+import {
+  FRIENDLY_TYPE_NAME,
+  MARKER_COMMENT_PREFIX,
+  MOCK_DATA_NAME,
+  ORPHAN_BLOCK_PATTERN_SOURCE,
+  ORPHAN_CHILD_TAG,
+  ORPHAN_TAG,
+  RT_IDS_TAG,
+  RT_TYPE_TAG,
+  TODO_LINE,
+  TODO_TAG,
+} from '../../src/runtypes-constants.generated.ts';
+
+const TAGS_GO = fs.readFileSync(path.resolve(__dirname, '../../../../internal/enrich/mirror/tags.go'), 'utf8');
+const NAMES_GO = fs.readFileSync(path.resolve(__dirname, '../../../../internal/enrich/names.go'), 'utf8');
+
+describe('constant sync with internal/enrich/mirror/tags.go', () => {
+  it('tag literals match the Go definitions byte for byte', () => {
+    expect(TAGS_GO).toContain(`RtTypeTag = "${RT_TYPE_TAG}"`);
+    expect(TAGS_GO).toContain(`RtIdsTag  = "${RT_IDS_TAG}"`);
+    expect(TAGS_GO).toContain(`TodoTag = "${TODO_TAG}"`);
+    expect(TAGS_GO).toContain(`OrphanTag      = "${ORPHAN_TAG}"`);
+    expect(ORPHAN_CHILD_TAG).toBe(`${ORPHAN_TAG}Child`);
+    expect(NAMES_GO).toContain(`FriendlyTypeName = "${FRIENDLY_TYPE_NAME}"`);
+    expect(NAMES_GO).toContain(`MockDataName     = "${MOCK_DATA_NAME}"`);
+  });
+
+  it('composite constants keep the Go composition shape', () => {
+    expect(TODO_LINE.startsWith(`// ${TODO_TAG}: `)).toBe(true);
+    expect(MARKER_COMMENT_PREFIX).toBe(`/** ${RT_TYPE_TAG} `);
+  });
+
+  it('the orphan-block pattern compiles in JS with the s flag and matches both emit forms', () => {
+    const pattern = new RegExp(ORPHAN_BLOCK_PATTERN_SOURCE, 'gs');
+    expect(`/* ${ORPHAN_TAG} export const gone = {}; */`).toMatch(pattern);
+    pattern.lastIndex = 0;
+    expect(`/* ${ORPHAN_CHILD_TAG} old: {},\nmore */`).toMatch(pattern);
+    // No Go-only inline flags leaked into the shared source.
+    expect(ORPHAN_BLOCK_PATTERN_SOURCE).not.toContain('(?s)');
+  });
+});
+
+describe('referencesMarkerModule', () => {
+  it('matches quoted import specifiers only, not path mentions in comments', () => {
+    expect(referencesMarkerModule(`import {createValidate} from 'ts-runtypes';`)).toBe(true);
+    expect(referencesMarkerModule(`import {x} from "ts-runtypes/schema";`)).toBe(true);
+    expect(referencesMarkerModule('// see packages/ts-runtypes/src for details')).toBe(false);
+  });
+});
+
+describe('looksLikeEnrichmentFile', () => {
+  it('matches the marker EMIT form and the annotation form', () => {
+    expect(looksLikeEnrichmentFile(`${MARKER_COMMENT_PREFIX}User#a1 */\nexport const friendlyUser = {};`)).toBe(true);
+    expect(looksLikeEnrichmentFile(`export const f: ${FRIENDLY_TYPE_NAME}<User> = {};`)).toBe(true);
+    expect(looksLikeEnrichmentFile(`export const m:\n  ${MOCK_DATA_NAME}<User> = {};`)).toBe(true);
+  });
+
+  it('never matches bare tag strings, declarations, or prose mentions', () => {
+    expect(looksLikeEnrichmentFile(`export const RT_TYPE_TAG = '${RT_TYPE_TAG}';`)).toBe(false);
+    expect(looksLikeEnrichmentFile(`export type ${FRIENDLY_TYPE_NAME}<T> = unknown; // the \`${TODO_TAG}\` layer`)).toBe(false);
+    expect(looksLikeEnrichmentFile(`// ${TODO_TAG}: refactor\nexport const a = 1;`)).toBe(false);
+  });
+});
+
+describe('needsResolverPass', () => {
+  it('is the union of both gates', () => {
+    expect(needsResolverPass(`import {getRunTypeId} from 'ts-runtypes';`)).toBe(true);
+    expect(needsResolverPass(`export const f: ${FRIENDLY_TYPE_NAME}<User> = {};`)).toBe(true);
+    expect(needsResolverPass('export const a = 1;')).toBe(false);
+  });
+});

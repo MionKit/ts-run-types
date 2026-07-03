@@ -613,6 +613,89 @@ Fix — narrow the type to the actual shape you expect:
   -  const errors = createGetValidationErrors<unknown>()(value);
 +  const errors = createGetValidationErrors<User>()(value);`,
   },
+
+  // ─────────── Enrichment health family (ENR / FT / MD / GE) ───────────
+  //
+  // Emitted only by the opt-in enrichment pass — `ts-runtypes check`,
+  // `gen --check`, and the resolver's checkEnrich request behind the
+  // runtypes-devtools lint plugin. Never by a build.
+
+  ENR001: {
+    headline: 'Unfilled `@todo` placeholder — fill in the real data, then delete the `@todo` line.',
+    detail: `The generator stamps a \`@todo\` line on every freshly-scaffolded
+enrichment const. It means "this skeleton still carries generated blanks".
+A clean, committed enrichment file has none.
+
+Fix — author the real labels / error messages / mock values for the
+const, then delete the whole \`@todo\` line (the compiler never removes
+it for you).`,
+  },
+  ENR002: {
+    headline: 'Stale `@rtOrphan` carcass — run `ts-runtypes gen --prune` to remove it (or restore the type).',
+    detail: `The reconcile commented this const out because its source type was
+deleted or renamed. The carcass preserves your authored values so a
+reappearing type can restore them — but a clean, committed enrichment
+file has none.
+
+Fix — if the type is really gone: \`ts-runtypes gen --prune\`.
+Fix — if the type was renamed: re-run \`ts-runtypes gen <source> <Type>
+--update\`; a matching carcass is restored with your values intact.`,
+  },
+  ENR003: {
+    headline: 'Stale `@rtOrphanChild` field carcass — run `ts-runtypes gen --prune` to remove it (or restore the field).',
+    detail: `The reconcile commented this field out because the source type no
+longer declares it. The carcass preserves your authored value — but a
+clean, committed enrichment file has none.
+
+Fix — if the field is really gone: \`ts-runtypes gen --prune\`.
+Fix — if the field was renamed: re-run \`ts-runtypes gen <source> <Type>
+--update\`; the value moves to the renamed field when the ids match.`,
+  },
+  FT002: {
+    headline: 'Unknown field `{0}` — the type does not declare it, so this FriendlyType entry is dead.',
+    detail: `The FriendlyType map names a field the source type does not have
+(removed, renamed, or a typo). Its labels/messages can never be used.
+
+Fix — remove the entry, or re-run \`ts-runtypes gen <source> <Type>
+--update\` to reconcile the map against the current type.`,
+  },
+  FT003: {
+    headline: 'Error key `{0}` is not a declared constraint of this field — the message can never fire.',
+    detail: `\`$errors\` keys must name a failure the field can actually produce:
+\`type\`, \`$default\`, or one of the field's declared format constraints
+(\`minLength\`, \`pattern\`, …). An undeclared key is dead configuration.
+
+Fix — remove the key, or add the matching constraint to the field's
+TypeFormat.`,
+  },
+  FT005: {
+    headline: 'Unknown placeholder `$[{0}]` — expected one of `$[label]`, `$[val]`, `$[path]`, `$[index]`.',
+    detail: `Error-message templates substitute a fixed placeholder set. An unknown
+name renders literally instead of substituting.
+
+Fix — use one of the recognised placeholders, or escape the literal text.`,
+  },
+  MD001: {
+    headline: 'Unknown field `{0}` — the type does not declare it, so this MockData entry is dead.',
+    detail: `The MockData map names a field the source type does not have (removed,
+renamed, or a typo). Its pool/range can never feed a generated mock.
+
+Fix — remove the entry, or re-run \`ts-runtypes gen <source> <Type>
+--update\` to reconcile the map against the current type.`,
+  },
+  GE000: {
+    headline: 'Cannot read enrichment mirror file: {0}',
+  },
+  GE001: {
+    headline:
+      'Mirror location drift — the source maps to `{0}` but this file lives at `{1}`; re-run `ts-runtypes gen` to relocate.',
+  },
+  GE002: {
+    headline: 'Breadcrumb source `{0}` no longer exists ({1}) — the mirror is orphaned; delete it or re-run `ts-runtypes gen`.',
+  },
+  GE003: {
+    headline: 'Source {0} no longer declares type `{1}` — re-run `ts-runtypes gen`.',
+  },
 };
 
 function dropFunctionProp(family: string, verb: string): DiagnosticEntry {
