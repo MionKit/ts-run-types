@@ -1,6 +1,6 @@
 ---
 name: runtypes-friendly-type
-description: Author and use a `FriendlyType<T>` for a RunTypes type — the committed, type-keyed map of human-readable field LABELS + ERROR-MESSAGE templates. Use when writing or editing friendly validation errors, friendly/human-readable field labels, form-builder labels, or a `*.rt.ts` enrichment sibling; when turning `createGetValidationErrors<T>()` output into readable messages via `createFriendly<T>(map).errors(...)`; or when an `$errors` / `$label` / `$[label]` / `$[val]` placeholder template needs writing. Covers the `{ $label, $errors, ...children }` node shape (total: both meta keys required on every node), the `$[…]` placeholder DSL, the param-precise error-template keys (the failed-constraint name: `type`, `minLength`, `min`, `max`, `pattern`, …), the exclusive `$default` catch-all mode, and where the map lives.
+description: Author and use a `FriendlyType<T>` for a RunTypes type — the committed, type-keyed map of human-readable field LABELS + ERROR-MESSAGE templates. Use when writing or editing friendly validation errors, friendly/human-readable field labels, form-builder labels, or a `*.rt.ts` enrichment sibling; when turning `createGetValidationErrors<T>()` output into readable messages via `createFriendly<T>(map).errors(...)`; or when an `rt$errors` / `rt$label` / `$[label]` / `$[val]` placeholder template needs writing. Covers the `{ rt$label, rt$errors, ...children }` node shape (total: both meta keys required on every node), the `$[…]` placeholder DSL, the param-precise error-template keys (the failed-constraint name: `type`, `minLength`, `min`, `max`, `pattern`, …), the exclusive `rt$default` catch-all mode, and where the map lives.
 ---
 
 # Authoring & using `FriendlyType<T>`
@@ -13,8 +13,8 @@ design is [docs/AI_ENRICHMENT.md](../../../docs/AI_ENRICHMENT.md).
 
 A `FriendlyType<T>` is a combined, per-field map of:
 
-- **labels** — `$label`, a human name for each field (`'Full name'` for `name`);
-- **error-message templates** — `$errors`, one template per failed constraint.
+- **labels** — `rt$label`, a human name for each field (`'Full name'` for `name`);
+- **error-message templates** — `rt$errors`, one template per failed constraint.
 
 It is **pure data**. The shipped runtime renderer is
 [`createFriendly<T>(map)`](../../../packages/ts-runtypes/src/enrich/createFriendly.ts);
@@ -46,19 +46,20 @@ map involved.
 - **Designed (not yet wired):** the `ShapeCheckedArgs<T>` compile-time axis and
   `rtUtils` registry accessors.
 
-## The node model — `{ $label, $errors, ...children }`
+## The node model — `{ rt$label, rt$errors, ...children }`
 
-One recursive node, uniform at every depth. `$`-prefixed keys are **meta**; every other
-key is a **child field**. Leaf nodes simply have no children — there is no `fields:`
-wrapper.
+One recursive node, uniform at every depth. `rt$`-prefixed keys are **meta**; every
+other key is a **child field** (the `rt$` prefix is RESERVED — a source-type property
+named `rt$…` is refused by `gen` and flagged FT011; a plain `$foo` property is just a
+field). Leaf nodes simply have no children — there is no `fields:` wrapper.
 
-- `$label: string` — the field's human name; always a plain string. REQUIRED.
-- `$errors` — the field's error templates. REQUIRED. Either the per-constraint
-  record or the exclusive `{$default: '…'}` catch-all (below). A template leaf
+- `rt$label: string` — the field's human name; always a plain string. REQUIRED.
+- `rt$errors` — the field's error templates. REQUIRED. Either the per-constraint
+  record or the exclusive `{rt$default: '…'}` catch-all (below). A template leaf
   is a plain string, or on count-bearing constraints a **plural object**
   (`TemplateLeaf = string | PluralTemplate` — see the plural section below).
-- Arrays (and rest tuples) carry `$items` (the element node); fixed tuples carry
-  positional `$slots`; `Map` carries `$keys` / `$values` and `Set` carries `$values`.
+- Arrays (and rest tuples) carry `rt$items` (the element node); fixed tuples carry
+  positional `rt$slots`; `Map` carries `rt$keys` / `rt$values` and `Set` carries `rt$values`.
 - Nested objects recurse with the *same* node shape, every field of `T` present.
 
 **The map is TOTAL.** Every field appears and every node carries both meta keys; a
@@ -68,11 +69,11 @@ back; one type maps to exactly one shape.
 
 The map's structure is checked against `T` by the `FriendlyType<T>` mapped type:
 a missing field, an object node where `T` is scalar (or vice-versa), an unknown
-`$errors` key — all TYPE errors, caught in the IDE before `check` even runs.
+`rt$errors` key — all TYPE errors, caught in the IDE before `check` even runs.
 
-## `$errors` keys = the failed-constraint name
+## `rt$errors` keys = the failed-constraint name
 
-Each `$errors` key names the sub-constraint that failed. This is **not** an invented key
+Each `rt$errors` key names the sub-constraint that failed. This is **not** an invented key
 set — it maps 1:1 onto what `createGetValidationErrors<T>()` emits. The renderer picks
 the template by the error's `(format.name, formatPath-tail)` discriminator:
 
@@ -93,14 +94,14 @@ non-failing params never become keys (`isCurrency`, `mockSamples`, and the trans
 bare `name: string` takes `type` only; a richer friendly map requires a richer type
 annotation.
 
-**`$default` — the exclusive catch-all mode.** `$errors: {$default: '…'}` renders that
+**`rt$default` — the exclusive catch-all mode.** `rt$errors: {rt$default: '…'}` renders that
 ONE message for every failure of the field. It never mixes with per-constraint keys
 (TS union + FT009 Error). Each node picks its own mode; which mode `gen` scaffolds for
 a NEW node is the tsconfig `friendlyErrors` knob (`"perConstraint"` default |
 `"default"`), and once a node exists its authored mode is followed by every sync.
 
 Errors **accumulate** — a value violating `minLength` *and* `pattern` yields two
-messages (a list), one per violated constraint (a `$default` node yields its one
+messages (a list), one per violated constraint (a `rt$default` node yields its one
 message per failure).
 
 ## The placeholder DSL
@@ -109,10 +110,10 @@ Templates are plain strings with `$[…]` tokens the renderer substitutes:
 
 | Token       | Resolves to                                                         |
 | ----------- | ------------------------------------------------------------------- |
-| `$[label]`  | the node's `$label`, falling back to the raw field name             |
+| `$[label]`  | the node's `rt$label`, falling back to the raw field name             |
 | `$[val]`    | the failed constraint's bound (`error.format.val`; e.g. `2`)        |
 | `$[path]`   | dotted path to the field (`profile.email`)                          |
-| `$[index]`  | array element index, for `$items` failures                         |
+| `$[index]`  | array element index, for `rt$items` failures                         |
 | _(type-driven)_ | `$[val]` renders by the bound's TYPE on the i18n path: an `isCurrency`-marked bound (`TF.Currency`) via the renderer's `currency` option, date-family bounds via `Intl.DateTimeFormat` — no per-template syntax |
 
 Unknown `$[…]` tokens are left verbatim (including any leftover colon-form
@@ -129,8 +130,8 @@ CLDR cardinal categories (`TemplateLeaf = string | PluralTemplate`; `PluralTempl
 
 ```ts
 name: {
-  $label: 'Full name',
-  $errors: {
+  rt$label: 'Full name',
+  rt$errors: {
     type: '$[label] must be text',                        // plain string, as before
     minLength: {                                          // plural object
       one: '$[label] needs at least $[val] character',
@@ -147,7 +148,7 @@ name: {
   **Fill the arms; never restructure the object.** Only `other` is mandatory; prune the
   arms you don't use.
 - All other constraints (`type`, `pattern`, `allowedChars`, …) stay plain strings, and
-  `$label` is always a plain string. A plain string on a count-bearing constraint
+  `rt$label` is always a plain string. A plain string on a count-bearing constraint
   remains legal.
 - **The plural count is the VIOLATED BOUND** (`$[val]` — a `minLength: 3` failure selects
   the arm for `3`), NOT the received value's length. The renderer picks the arm via
@@ -155,22 +156,22 @@ name: {
   `other` directly. Plain `createFriendly` uses `en` rules (deterministic, matching the
   default `sourceLocale`).
 
-## Per-constraint vs `$default` — the two (exclusive) modes
+## Per-constraint vs `rt$default` — the two (exclusive) modes
 
-`$errors` is EITHER the per-constraint record OR the single catch-all — never a mix,
+`rt$errors` is EITHER the per-constraint record OR the single catch-all — never a mix,
 and never a function (the v1 inline-arrow escape hatch was REMOVED: opaque to
 translation, reconcile and the checker; only data survives):
 
 - **Per-constraint** — `{type: '…', minLength: '…', …}`. Yields **one message per
   failed constraint**; every key compiler-validated (placeholders too, FT005).
-- **`$default`** — `{$default: '…'}`. Yields that ONE message for every failure of the
+- **`rt$default`** — `{rt$default: '…'}`. Yields that ONE message for every failure of the
   field. Plain data, so it translates and reconciles like any other leaf.
 
 ```ts
-// $default mode — one sentence covers every failure of the field
+// rt$default mode — one sentence covers every failure of the field
 name: {
-  $label: 'Full name',
-  $errors: {$default: 'Enter a name between 2 and 60 characters'},
+  rt$label: 'Full name',
+  rt$errors: {rt$default: 'Enter a name between 2 and 60 characters'},
 },
 ```
 
@@ -208,14 +209,15 @@ reports:
 | ----- | -------- | ---------------------------------------------------------------- |
 | FT001 | Info     | a field of `T` has no label (renders the raw name)               |
 | FT002 | Error    | key is not a field of `T` — stale (field renamed/removed)        |
-| FT003 | Warning  | `$errors` key isn't a constraint this field's format declares (TS catches this first as an excess-property error) |
+| FT003 | Warning  | `rt$errors` key isn't a constraint this field's format declares (TS catches this first as an excess-property error) |
 | FT004 | Error    | structural mismatch (object node where `T` is scalar, or vice-versa) |
 | FT005 | Warning  | unknown `$[…]` placeholder for this constraint/context — checked per plural arm; also validates three-part format tokens (binding must be `val`/`index`; kind must be `number`/`date`/`relativeTime`/`list`) |
 | FT006 | Error    | a plural object is missing the mandatory `other` arm             |
 | FT007 | Warning  | a plural-object arm key is not a CLDR category                   |
 | FT008 | Warning  | a plural object on a non-count-bearing constraint (dead arms)    |
-| FT009 | Error    | `$default` beside any other `$errors` key — the modes are mutually exclusive |
+| FT009 | Error    | `rt$default` beside any other `rt$errors` key — the modes are mutually exclusive |
 | FT010 | Info     | `T`'s structural id changed since authored — review for drift    |
+| FT011 | Error    | a property of `T` is named `rt$…` — the reserved meta prefix (`gen` refuses the type up front; rename the property) |
 
 These catch drift: rename a field and `FT002` flags the now-stale entry.
 
@@ -238,7 +240,7 @@ friendly.label('profile.email');   // → 'Email'  (falls back to the raw field 
 `createFriendly` returns `{ errors(errs), label(path) }`:
 
 - `errors(errs)` — groups `RunTypeError[]` by path, looks up the node, and for each
-  failed constraint interpolates the matching template (a `$default` node renders its
+  failed constraint interpolates the matching template (a `rt$default` node renders its
   one message per failure). Returns `FriendlyMessage[]` (`{ path, label, message }`).
 - `label(path)` — the friendly label for a dotted path or a raw path-segment array.
 
@@ -260,7 +262,7 @@ falls back to the source at render time.
   `@rtType <Name>#<id> @rtIds {…}` markers as the source. The path + const prefix
   carry the locale; there is no i18n marker.
 - Scaffold with `ts-runtypes gen --translate <locale|all>`; reconcile with `--update`
-  (src-driven, value-preserving, descends `$errors`); strip orphan carcasses with
+  (src-driven, value-preserving, descends `rt$errors`); strip orphan carcasses with
   `--prune`; gate completeness in CI with `check --translate <locale|all>` (findings
   TR001–TR004; TR003 = a src-driven reconcile would change the file). CLI + tsconfig
   `i18n` reference: the `rt-enrich-types` skill.
@@ -272,7 +274,7 @@ falls back to the source at render time.
 **Filling a translation file:** translate ONLY blank (`''`) leaves; never edit an
 already-filled leaf; never copy the source text across. Prune the plural arms your
 language doesn't use — arms are locale-owned, so a pruned arm stays pruned across
-reconciles (only the mandatory `other` is ever re-inserted). A `$default`-mode node
+reconciles (only the mandatory `other` is ever re-inserted). A `rt$default`-mode node
 has exactly one string to translate and is never descended.
 
 ```ts
@@ -314,8 +316,8 @@ friendly.errors(getUserErrors(badInput));   // arm + template picked per the act
   language; the renderer then uses the source.
 - Fallback is per-leaf and never throws on a partial translation (a reserved `strict`
   option exists; the runtime is always lenient): a blank (`''`) or missing translated
-  leaf falls to the source — `$label` and each `$errors` key independently, with a
-  node's own authored `$default` tried before falling cross-map. A plural leaf falls
+  leaf falls to the source — `rt$label` and each `rt$errors` key independently, with a
+  node's own authored `rt$default` tried before falling cross-map. A plural leaf falls
   through as a WHOLE unit (never mixes a target arm with a source arm).
 - Type-driven `$[val]` rendering: the error's format payload says what the bound IS.
   An `isCurrency`-marked number bound (`TF.Currency<P>` = `Number<P & {isCurrency:
@@ -353,38 +355,38 @@ import type {FriendlyType} from 'ts-runtypes';
 import type {User} from '../../../../src/models/user';
 
 export const friendlyUser: FriendlyType<User> = {
-  $label: 'User account',
-  $errors: {type: '$[label] must be an object'},
+  rt$label: 'User account',
+  rt$errors: {type: '$[label] must be an object'},
 
   name: {
-    $label: 'Full name',
-    $errors: {
+    rt$label: 'Full name',
+    rt$errors: {
       type: '$[label] must be text',
       minLength: '$[label] needs at least $[val] characters',
       maxLength: '$[label] allows at most $[val] characters',
     },
   },
   age: {
-    $label: 'Age',
-    $errors: {
+    rt$label: 'Age',
+    rt$errors: {
       type: '$[label] must be a number',
       min: '$[label] must be at least $[val]',
       max: '$[label] must be no more than $[val]',
     },
   },
-  isActive: {$label: 'Active?', $errors: {type: ''}},
+  isActive: {rt$label: 'Active?', rt$errors: {type: ''}},
 
   tags: {
-    $label: 'Tags',
-    $errors: {type: ''},
-    $items: {$label: '', $errors: {type: 'each tag must be text'}},   // element node
+    rt$label: 'Tags',
+    rt$errors: {type: ''},
+    rt$items: {rt$label: '', rt$errors: {type: 'each tag must be text'}},   // element node
   },
 
   profile: {                                              // nested object — recurse
-    $label: 'Profile',
-    $errors: {type: ''},
-    email: {$label: 'Email', $errors: {type: '', pattern: 'Enter a valid email address'}},
-    score: {$label: 'Score', $errors: {$default: 'Score must be between 0 and 100'}},  // $default mode
+    rt$label: 'Profile',
+    rt$errors: {type: ''},
+    email: {rt$label: 'Email', rt$errors: {type: '', pattern: 'Enter a valid email address'}},
+    score: {rt$label: 'Score', rt$errors: {rt$default: 'Score must be between 0 and 100'}},  // rt$default mode
   },
 };
 ```
@@ -409,12 +411,12 @@ const messages = friendly.errors(getUserErrors({name: 'A', age: 200, profile: {e
 - Put the map in the **definition's friendly mirror file**
   (`<enrichDir>/friendly/<rel>.ts`), not the consumer's file.
 - Type it `FriendlyType<T>` so structure is checked against `T`. The map is TOTAL:
-  every field present, `$label` + `$errors` on every node. Blank `''` = no custom
+  every field present, `rt$label` + `rt$errors` on every node. Blank `''` = no custom
   text (FT001 Info nudges unlabeled fields); never delete a key — it re-scaffolds.
-- The `$errors` key set is exactly the field's **declared failable format params**
+- The `rt$errors` key set is exactly the field's **declared failable format params**
   plus `type` — the mapped type requires each and rejects any other. A bare `string`
   takes `type` only.
-- Want one sentence per field? Use `$errors: {$default: '…'}` — exclusive, never mixed
+- Want one sentence per field? Use `rt$errors: {rt$default: '…'}` — exclusive, never mixed
   with per-constraint keys (FT009). Scaffold mode for new nodes: tsconfig
   `friendlyErrors`.
 - On count-bearing constraints, fill the scaffolded plural arms in place — never
@@ -422,5 +424,5 @@ const messages = friendly.errors(getUserErrors({name: 'A', age: 200, profile: {e
   the violated bound, not the received value's length.
 - In a locale file, translate only blank leaves, never copy the source text, and prune
   the arms your language doesn't use — they stay pruned.
-- For arrays use `$items` (fixed tuples `$slots`; Map/Set `$keys` / `$values`); for
+- For arrays use `rt$items` (fixed tuples `rt$slots`; Map/Set `rt$keys` / `rt$values`); for
   nested objects recurse with the same node shape.

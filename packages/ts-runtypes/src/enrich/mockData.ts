@@ -19,10 +19,10 @@ type _MockDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 /** Recursive mock-data node — structural per solution A (docs/AI_ENRICHMENT.md):
  *  composite kinds reflect their structure. Numbers → pool + min/max; strings →
- *  pool; Date → pool + min/max; tuples → per-slot homomorphic `$slots` (fixed
- *  length, NO `$length`); `Map` → `$keys`/`$values`/`$size`; `Set` →
- *  `$values`/`$size`; arrays → element node (`$items`) + `$length`; objects →
- *  homomorphic optional child map + `$optional` (present-probability for optional
+ *  pool; Date → pool + min/max; tuples → per-slot homomorphic `rt$slots` (fixed
+ *  length, NO `rt$length`); `Map` → `rt$keys`/`rt$values`/`rt$size`; `Set` →
+ *  `rt$values`/`rt$size`; arrays → element node (`rt$items`) + `rt$length`; objects →
+ *  homomorphic optional child map + `rt$optional` (present-probability for optional
  *  members); other leaves (boolean, bigint, …) → a value pool. `Map`/`Set` gates
  *  run BEFORE the array check, fronted by a cheap `Readonly{Map,Set}<any…>` test
  *  so `infer` stays off the hot path (mirroring `DataOnly`). NOTE: index
@@ -34,19 +34,19 @@ export type MockNode<T, Depth extends number = 8> = Depth extends 0
     // non-Maps so the `infer K, V` never runs off the hot path (per DataOnly).
     T extends ReadonlyMap<any, any>
     ? T extends ReadonlyMap<infer K, infer V>
-      ? {$keys: MockNode<K, _MockDepth[Depth]>; $values: MockNode<V, _MockDepth[Depth]>; $size?: number | [number, number]}
+      ? {rt$keys: MockNode<K, _MockDepth[Depth]>; rt$values: MockNode<V, _MockDepth[Depth]>; rt$size?: number | [number, number]}
       : {pool: T[]} // unreachable — gate guarantees a Map
     : T extends ReadonlySet<any>
       ? T extends ReadonlySet<infer U>
-        ? {$values: MockNode<U, _MockDepth[Depth]>; $size?: number | [number, number]}
+        ? {rt$values: MockNode<U, _MockDepth[Depth]>; rt$size?: number | [number, number]}
         : {pool: T[]} // unreachable — gate guarantees a Set
       : T extends readonly unknown[]
         ? // tuple vs array: a tuple has a literal `length`, an array's `length` is
-          // the broad `number`. Tuple → per-slot homomorphic `$slots` (fixed
-          // length, no `$length`); array → `$items` element node + `$length`.
+          // the broad `number`. Tuple → per-slot homomorphic `rt$slots` (fixed
+          // length, no `rt$length`); array → `rt$items` element node + `rt$length`.
           number extends T['length']
-          ? {$items: MockNode<T[number], _MockDepth[Depth]>; $length?: number | [number, number]}
-          : {$slots: {[K in keyof T]: MockNode<T[K], _MockDepth[Depth]>}}
+          ? {rt$items: MockNode<T[number], _MockDepth[Depth]>; rt$length?: number | [number, number]}
+          : {rt$slots: {[K in keyof T]: MockNode<T[K], _MockDepth[Depth]>}}
         : T extends number
           ? {pool: number[]; min?: number; max?: number}
           : T extends string
@@ -65,7 +65,7 @@ export type MockNode<T, Depth extends number = 8> = Depth extends 0
                   : T extends bigint
                     ? {pool: bigint[]}
                     : T extends object
-                      ? {[K in keyof T]-?: MockNode<T[K], _MockDepth[Depth]>} & {$optional?: number}
+                      ? {[K in keyof T]-?: MockNode<T[K], _MockDepth[Depth]>} & {rt$optional?: number}
                       : {pool: T[]};
 
 /** The mock-data map for `T`, validated against `T` at scan time — every pool /

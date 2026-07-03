@@ -1,8 +1,8 @@
 // Per-branch correctness test for `FriendlyType<T>` (total contract: every field
-// required; `$label` + `$errors` required on every node; `__rt_typeName`
-// optional root meta) — including the PARAM-PRECISE `$errors` typing: a branded
+// required; `rt$label` + `rt$errors` required on every node; `rt$typeName`
+// optional root meta) — including the PARAM-PRECISE `rt$errors` typing: a branded
 // field's failable format params become REQUIRED template keys, count-bearing
-// keys may pluralize, `$default` is the mutually exclusive catch-all mode, and
+// keys may pluralize, `rt$default` is the mutually exclusive catch-all mode, and
 // non-failing params (isCurrency, transformers) never become keys.
 //
 // Each `it` compiles a representative snippet for ONE branch of `FriendlyNode`
@@ -19,7 +19,7 @@
 // FriendlyType machinery, uncomment the log in `check`, compare each printed
 // `net` to its budget, LOWER budgets that went down, and treat a raise as a
 // cost regression to fix (never raise a budget to make the suite pass).
-// Baseline (2026-07-03): the total-contract + param-precise `$errors` flip —
+// Baseline (2026-07-03): the total-contract + param-precise `rt$errors` flip —
 // measured 171 → 482 on the 4-field prototype; per-branch nets below. The
 // counts are TERMINAL (a FriendlyType instantiates once per mirror const and
 // never propagates through consumer code the way DataOnly does).
@@ -44,83 +44,83 @@ function check(snippet: string, budget: number): number {
 }
 
 describe('FriendlyType<T> — per-branch correctness (total contract)', () => {
-  it('scalar leaves carry $label + $errors (both required); $default is the exclusive mode', () => {
+  it('scalar leaves carry rt$label + rt$errors (both required); rt$default is the exclusive mode', () => {
     check(
       `
-      type _01 = Expect<Assignable<{$label: 'n'; $errors: {type: 't'}}, FriendlyType<string>>>;
-      type _02 = Expect<Assignable<{$label: 'a'; $errors: {type: 't'}}, FriendlyType<number>>>;
-      type _03 = Expect<Assignable<{$label: 'b'; $errors: {type: 't'}}, FriendlyType<boolean>>>;
-      type _04 = Expect<Assignable<{$label: 'g'; $errors: {type: 't'}}, FriendlyType<bigint>>>;
-      type _05 = Expect<Assignable<{$label: 'd'; $errors: {type: 't'}}, FriendlyType<Date>>>;
+      type _01 = Expect<Assignable<{rt$label: 'n'; rt$errors: {type: 't'}}, FriendlyType<string>>>;
+      type _02 = Expect<Assignable<{rt$label: 'a'; rt$errors: {type: 't'}}, FriendlyType<number>>>;
+      type _03 = Expect<Assignable<{rt$label: 'b'; rt$errors: {type: 't'}}, FriendlyType<boolean>>>;
+      type _04 = Expect<Assignable<{rt$label: 'g'; rt$errors: {type: 't'}}, FriendlyType<bigint>>>;
+      type _05 = Expect<Assignable<{rt$label: 'd'; rt$errors: {type: 't'}}, FriendlyType<Date>>>;
       // the optional root type name is accepted
-      type _06 = Expect<Assignable<{$label: 'n'; $errors: {type: 't'}; __rt_typeName: 'User'}, FriendlyType<string>>>;
-      // $default mode: one catch-all message instead of per-constraint keys
-      type _07 = Expect<Assignable<{$label: 'n'; $errors: {$default: 'x'}}, FriendlyType<string>>>;
-      // $errors is REQUIRED — a label-only node is rejected
-      type _08 = ExpectFalse<Assignable<{$label: 'n'}, FriendlyType<string>>>;
-      // $label is REQUIRED — an errors-only node is rejected
-      type _09 = ExpectFalse<Assignable<{$errors: {type: 't'}}, FriendlyType<string>>>;
-      // $default NEVER mixes with per-constraint keys (mutually exclusive)
-      type _10 = ExpectFalse<Assignable<{$label: 'n'; $errors: {type: 't'; $default: 'x'}}, FriendlyType<string>>>;
+      type _06 = Expect<Assignable<{rt$label: 'n'; rt$errors: {type: 't'}; rt$typeName: 'User'}, FriendlyType<string>>>;
+      // rt$default mode: one catch-all message instead of per-constraint keys
+      type _07 = Expect<Assignable<{rt$label: 'n'; rt$errors: {rt$default: 'x'}}, FriendlyType<string>>>;
+      // rt$errors is REQUIRED — a label-only node is rejected
+      type _08 = ExpectFalse<Assignable<{rt$label: 'n'}, FriendlyType<string>>>;
+      // rt$label is REQUIRED — an errors-only node is rejected
+      type _09 = ExpectFalse<Assignable<{rt$errors: {type: 't'}}, FriendlyType<string>>>;
+      // rt$default NEVER mixes with per-constraint keys (mutually exclusive)
+      type _10 = ExpectFalse<Assignable<{rt$label: 'n'; rt$errors: {type: 't'; rt$default: 'x'}}, FriendlyType<string>>>;
       `,
       130
     );
   });
 
-  it('param-precise $errors: declared format params become REQUIRED keys', () => {
+  it('param-precise rt$errors: declared format params become REQUIRED keys', () => {
     check(
       BRAND +
         `
       interface User { name: Fmt<string, {minLength: 2; maxLength: 60}>; age: number }
       const _ok: FriendlyType<User> = {
-        $label: 'User',
-        $errors: {type: 'must be an object'},
-        name: { $label: 'Name', $errors: {
+        rt$label: 'User',
+        rt$errors: {type: 'must be an object'},
+        name: { rt$label: 'Name', rt$errors: {
           type: 'must be text',
           minLength: 'min $[val] chars',
           maxLength: '', // blank = no custom message; the key is still REQUIRED
         } },
-        age: { $label: 'Age', $errors: {type: 'must be a number'} },
+        age: { rt$label: 'Age', rt$errors: {type: 'must be a number'} },
       };
-      const _missingKey: FriendlyType<User> = { $label: '', $errors: {type: ''},
+      const _missingKey: FriendlyType<User> = { rt$label: '', rt$errors: {type: ''},
         // @ts-expect-error — maxLength is declared by the format, so its key is required
-        name: { $label: '', $errors: { type: '', minLength: '' } },
-        age: { $label: '', $errors: {type: ''} } };
-      const _unknownKey: FriendlyType<User> = { $label: '', $errors: {type: ''},
+        name: { rt$label: '', rt$errors: { type: '', minLength: '' } },
+        age: { rt$label: '', rt$errors: {type: ''} } };
+      const _unknownKey: FriendlyType<User> = { rt$label: '', rt$errors: {type: ''},
         // @ts-expect-error — 'pattern' is not a constraint of this field (no index signature)
-        name: { $label: '', $errors: { type: '', minLength: '', maxLength: '', pattern: 'x' } },
-        age: { $label: '', $errors: {type: ''} } };
-      const _bareWithKeys: FriendlyType<User> = { $label: '', $errors: {type: ''},
-        name: { $label: '', $errors: { type: '', minLength: '', maxLength: '' } },
+        name: { rt$label: '', rt$errors: { type: '', minLength: '', maxLength: '', pattern: 'x' } },
+        age: { rt$label: '', rt$errors: {type: ''} } };
+      const _bareWithKeys: FriendlyType<User> = { rt$label: '', rt$errors: {type: ''},
+        name: { rt$label: '', rt$errors: { type: '', minLength: '', maxLength: '' } },
         // @ts-expect-error — a plain (unbranded) field only fails as 'type'
-        age: { $label: '', $errors: { type: '', min: '' } } };
-      // $default mode is a legal alternative on a branded field too
-      const _defaultMode: FriendlyType<User> = { $label: '', $errors: {type: ''},
-        name: { $label: '', $errors: { $default: 'Enter a valid name' } },
-        age: { $label: '', $errors: {type: ''} } };
+        age: { rt$label: '', rt$errors: { type: '', min: '' } } };
+      // rt$default mode is a legal alternative on a branded field too
+      const _defaultMode: FriendlyType<User> = { rt$label: '', rt$errors: {type: ''},
+        name: { rt$label: '', rt$errors: { rt$default: 'Enter a valid name' } },
+        age: { rt$label: '', rt$errors: {type: ''} } };
       `,
       153
     );
   });
 
-  it('non-failing params (isCurrency, transformers) never become $errors keys', () => {
+  it('non-failing params (isCurrency, transformers) never become rt$errors keys', () => {
     check(
       BRAND +
         `
       interface Order { total: Fmt<number, {max: 100; isCurrency: true}>; code: Fmt<string, {lowercase: true}> }
       const _ok: FriendlyType<Order> = {
-        $label: '', $errors: {type: ''},
-        total: { $label: 'Total', $errors: { type: '', max: 'at most $[val]' } },
-        code: { $label: 'Code', $errors: { type: '' } },
+        rt$label: '', rt$errors: {type: ''},
+        total: { rt$label: 'Total', rt$errors: { type: '', max: 'at most $[val]' } },
+        code: { rt$label: 'Code', rt$errors: { type: '' } },
       };
-      const _currencyKey: FriendlyType<Order> = { $label: '', $errors: {type: ''},
+      const _currencyKey: FriendlyType<Order> = { rt$label: '', rt$errors: {type: ''},
         // @ts-expect-error — isCurrency is presentation metadata, not a template key
-        total: { $label: '', $errors: { type: '', max: '', isCurrency: 'x' } },
-        code: { $label: '', $errors: { type: '' } } };
-      const _transformerKey: FriendlyType<Order> = { $label: '', $errors: {type: ''},
-        total: { $label: '', $errors: { type: '', max: '' } },
+        total: { rt$label: '', rt$errors: { type: '', max: '', isCurrency: 'x' } },
+        code: { rt$label: '', rt$errors: { type: '' } } };
+      const _transformerKey: FriendlyType<Order> = { rt$label: '', rt$errors: {type: ''},
+        total: { rt$label: '', rt$errors: { type: '', max: '' } },
         // @ts-expect-error — lowercase is a transformer, not a template key
-        code: { $label: '', $errors: { type: '', lowercase: 'x' } } };
+        code: { rt$label: '', rt$errors: { type: '', lowercase: 'x' } } };
       `,
       204
     );
@@ -132,15 +132,15 @@ describe('FriendlyType<T> — per-branch correctness (total contract)', () => {
         `
       interface User { name: Fmt<string, {minLength: 2}>; age: number }
       const _ok: FriendlyType<User> = {
-        $label: 'User',
-        $errors: {type: 'must be an object'},
-        name: { $label: 'Name', $errors: { type: 'must be text', minLength: 'min $[val] chars' } },
-        age: { $label: 'Age', $errors: { type: 'must be a number' } },
+        rt$label: 'User',
+        rt$errors: {type: 'must be an object'},
+        name: { rt$label: 'Name', rt$errors: { type: 'must be text', minLength: 'min $[val] chars' } },
+        age: { rt$label: 'Age', rt$errors: { type: 'must be a number' } },
       };
       // @ts-expect-error — 'age' is missing (every field is required)
-      const _missing: FriendlyType<User> = { $label: '', $errors: {type: ''}, name: { $label: 'Name', $errors: {type: '', minLength: ''} } };
+      const _missing: FriendlyType<User> = { rt$label: '', rt$errors: {type: ''}, name: { rt$label: 'Name', rt$errors: {type: '', minLength: ''} } };
       // @ts-expect-error — 'extra' is not a field of User
-      const _bad: FriendlyType<User> = { $label: '', $errors: {type: ''}, name: { $label: '', $errors: {type: '', minLength: ''} }, age: { $label: '', $errors: {type: ''} }, extra: { $label: 'x', $errors: {type: ''} } };
+      const _bad: FriendlyType<User> = { rt$label: '', rt$errors: {type: ''}, name: { rt$label: '', rt$errors: {type: '', minLength: ''} }, age: { rt$label: '', rt$errors: {type: ''} }, extra: { rt$label: 'x', rt$errors: {type: ''} } };
       `,
       139
     );
@@ -152,13 +152,13 @@ describe('FriendlyType<T> — per-branch correctness (total contract)', () => {
         `
       interface User { name: string; profile: { email: Fmt<string, {pattern: {source: 'x'}}>; score: Fmt<number, {max: 100}> } }
       const _ok: FriendlyType<User> = {
-        $label: '', $errors: {type: ''},
-        name: { $label: 'Name', $errors: {type: ''} },
+        rt$label: '', rt$errors: {type: ''},
+        name: { rt$label: 'Name', rt$errors: {type: ''} },
         profile: {
-          $label: 'Profile',
-          $errors: {type: ''},
-          email: { $label: 'Email', $errors: { type: '', pattern: 'invalid email' } },
-          score: { $label: 'Score', $errors: { type: '', max: 'too high' } },
+          rt$label: 'Profile',
+          rt$errors: {type: ''},
+          email: { rt$label: 'Email', rt$errors: { type: '', pattern: 'invalid email' } },
+          score: { rt$label: 'Score', rt$errors: { type: '', max: 'too high' } },
         },
       };
       `,
@@ -166,103 +166,103 @@ describe('FriendlyType<T> — per-branch correctness (total contract)', () => {
     );
   });
 
-  it('arrays carry $items (element node)', () => {
+  it('arrays carry rt$items (element node)', () => {
     check(
       BRAND +
         `
       interface User { tags: string[]; scores: Fmt<number, {min: 0}>[] }
       const _ok: FriendlyType<User> = {
-        $label: '', $errors: {type: ''},
-        tags: { $label: 'Tags', $errors: {type: ''}, $items: { $label: '', $errors: { type: 'each tag must be text' } } },
-        scores: { $label: '', $errors: {type: ''}, $items: { $label: '', $errors: { type: '', min: 'min $[val]' } } },
+        rt$label: '', rt$errors: {type: ''},
+        tags: { rt$label: 'Tags', rt$errors: {type: ''}, rt$items: { rt$label: '', rt$errors: { type: 'each tag must be text' } } },
+        scores: { rt$label: '', rt$errors: {type: ''}, rt$items: { rt$label: '', rt$errors: { type: '', min: 'min $[val]' } } },
       };
-      type _arr = Expect<Assignable<{$label: ''; $errors: {type: ''}; $items: {$label: ''; $errors: {type: 't'}}}, FriendlyType<string[]>>>;
+      type _arr = Expect<Assignable<{rt$label: ''; rt$errors: {type: ''}; rt$items: {rt$label: ''; rt$errors: {type: 't'}}}, FriendlyType<string[]>>>;
       `,
       222
     );
   });
 
-  it('tuples carry $slots (per-slot nodes), distinct from arrays', () => {
+  it('tuples carry rt$slots (per-slot nodes), distinct from arrays', () => {
     check(
       BRAND +
         `
       const _ok: FriendlyType<[string, Fmt<number, {min: 1}>]> = {
-        $label: 'Pair',
-        $errors: {type: ''},
-        $slots: [
-          { $label: 'Name', $errors: {type: ''} },
-          { $label: 'Age', $errors: { type: '', min: 'too small' } },
+        rt$label: 'Pair',
+        rt$errors: {type: ''},
+        rt$slots: [
+          { rt$label: 'Name', rt$errors: {type: ''} },
+          { rt$label: 'Age', rt$errors: { type: '', min: 'too small' } },
         ],
       };
-      // a tuple does NOT accept $items
-      type _noitems = ExpectFalse<Assignable<{$label: 'x'; $errors: {type: 't'}; $items: {$label: 'x'; $errors: {type: 't'}}}, FriendlyType<[string, number]>>>;
+      // a tuple does NOT accept rt$items
+      type _noitems = ExpectFalse<Assignable<{rt$label: 'x'; rt$errors: {type: 't'}; rt$items: {rt$label: 'x'; rt$errors: {type: 't'}}}, FriendlyType<[string, number]>>>;
       `,
       180
     );
   });
 
-  it('Map carries $keys / $values', () => {
+  it('Map carries rt$keys / rt$values', () => {
     check(
       BRAND +
         `
       const _ok: FriendlyType<Map<string, Fmt<number, {min: 0}>>> = {
-        $label: 'Lookup',
-        $errors: {type: ''},
-        $keys: { $label: 'Key', $errors: {type: ''} },
-        $values: { $label: 'Value', $errors: { type: '', min: 'too small' } },
+        rt$label: 'Lookup',
+        rt$errors: {type: ''},
+        rt$keys: { rt$label: 'Key', rt$errors: {type: ''} },
+        rt$values: { rt$label: 'Value', rt$errors: { type: '', min: 'too small' } },
       };
       `,
       368
     );
   });
 
-  it('Set carries $values', () => {
+  it('Set carries rt$values', () => {
     check(
       BRAND +
         `
       const _ok: FriendlyType<Set<Fmt<string, {minLength: 1}>>> = {
-        $label: 'Tags',
-        $errors: {type: ''},
-        $values: { $label: 'Tag', $errors: { type: '', minLength: 'too short' } },
+        rt$label: 'Tags',
+        rt$errors: {type: ''},
+        rt$values: { rt$label: 'Tag', rt$errors: { type: '', minLength: 'too short' } },
       };
       `,
       318
     );
   });
 
-  it('plural template leaves: other mandatory, arms optional, $label stays a string', () => {
+  it('plural template leaves: other mandatory, arms optional, rt$label stays a string', () => {
     check(
       BRAND +
         `
       interface User { name: Fmt<string, {minLength: 2}> }
       // a count-bearing constraint may carry a plural object (arms per locale)
       const _en: FriendlyType<User> = {
-        $label: '', $errors: {type: ''},
-        name: { $label: 'Name', $errors: {
+        rt$label: '', rt$errors: {type: ''},
+        name: { rt$label: 'Name', rt$errors: {
           type: 'must be text',
           minLength: { one: 'at least $[val] character', other: 'at least $[val] characters' },
         } },
       };
       // asymmetric arms: any CLDR category subset is fine as long as other is present
       const _pl: FriendlyType<User> = {
-        $label: '', $errors: {type: ''},
-        name: { $label: '', $errors: {
+        rt$label: '', rt$errors: {type: ''},
+        name: { rt$label: '', rt$errors: {
           type: '',
           minLength: { one: '', few: '', many: '', other: '' },
         } },
       };
       // 'other' is REQUIRED on a plural object
       // @ts-expect-error — plural object without 'other' is rejected
-      const _noOther: FriendlyType<User> = { $label: '', $errors: {type: ''}, name: { $label: '', $errors: { type: '', minLength: { one: 'x' } } } };
+      const _noOther: FriendlyType<User> = { rt$label: '', rt$errors: {type: ''}, name: { rt$label: '', rt$errors: { type: '', minLength: { one: 'x' } } } };
       // a non-CLDR arm key is rejected
       // @ts-expect-error — 'lots' is not a CLDR plural category
-      const _badArm: FriendlyType<User> = { $label: '', $errors: {type: ''}, name: { $label: '', $errors: { type: '', minLength: { other: '', lots: '' } } } };
-      // $label is never plural
-      // @ts-expect-error — $label must stay a plain string
-      const _pluralLabel: FriendlyType<User> = { $label: {other: ''}, $errors: {type: ''}, name: { $label: '', $errors: {type: '', minLength: ''} } };
+      const _badArm: FriendlyType<User> = { rt$label: '', rt$errors: {type: ''}, name: { rt$label: '', rt$errors: { type: '', minLength: { other: '', lots: '' } } } };
+      // rt$label is never plural
+      // @ts-expect-error — rt$label must stay a plain string
+      const _pluralLabel: FriendlyType<User> = { rt$label: {other: ''}, rt$errors: {type: ''}, name: { rt$label: '', rt$errors: {type: '', minLength: ''} } };
       // 'type' is not count-bearing — a plural object there is rejected
       // @ts-expect-error — 'type' stays a plain string template
-      const _pluralType: FriendlyType<User> = { $label: '', $errors: {type: {other: ''}}, name: { $label: '', $errors: {type: '', minLength: ''} } };
+      const _pluralType: FriendlyType<User> = { rt$label: '', rt$errors: {type: {other: ''}}, name: { rt$label: '', rt$errors: {type: '', minLength: ''} } };
       `,
       157
     );
@@ -274,12 +274,12 @@ describe('FriendlyType<T> — per-branch correctness (total contract)', () => {
         `
       interface User { age: Fmt<number, {integer: true; max: 120}> }
       const _ok: FriendlyType<User> = {
-        $label: '', $errors: {type: ''},
-        age: { $label: '', $errors: { type: '', integer: 'whole numbers', max: {other: 'at most $[val]'} } },
+        rt$label: '', rt$errors: {type: ''},
+        age: { rt$label: '', rt$errors: { type: '', integer: 'whole numbers', max: {other: 'at most $[val]'} } },
       };
-      const _bad: FriendlyType<User> = { $label: '', $errors: {type: ''},
+      const _bad: FriendlyType<User> = { rt$label: '', rt$errors: {type: ''},
         // @ts-expect-error — 'integer' never pluralizes (only min/max/lt/gt/minLength/maxLength do)
-        age: { $label: '', $errors: { type: '', integer: {one: '', other: ''}, max: '' } } };
+        age: { rt$label: '', rt$errors: { type: '', integer: {one: '', other: ''}, max: '' } } };
       `,
       160
     );
@@ -290,9 +290,9 @@ describe('FriendlyType<T> — per-branch correctness (total contract)', () => {
       `
       interface User { nickname?: string; status: 'active' | 'inactive' }
       const _ok: FriendlyType<User> = {
-        $label: '', $errors: {type: ''},
-        nickname: { $label: 'Nickname', $errors: {type: ''} },
-        status: { $label: 'Status', $errors: { type: 'invalid status' } },
+        rt$label: '', rt$errors: {type: ''},
+        nickname: { rt$label: 'Nickname', rt$errors: {type: ''} },
+        status: { rt$label: 'Status', rt$errors: { type: 'invalid status' } },
       };
       `,
       91
@@ -304,16 +304,16 @@ describe('FriendlyType<T> — per-branch correctness (total contract)', () => {
       `
       interface Deep { a: { b: { c: { d: { e: string } } } } }
       const _ok: FriendlyType<Deep> = {
-        $label: '', $errors: {type: ''},
+        rt$label: '', rt$errors: {type: ''},
         a: {
-          $label: '', $errors: {type: ''},
+          rt$label: '', rt$errors: {type: ''},
           b: {
-            $label: '', $errors: {type: ''},
+            rt$label: '', rt$errors: {type: ''},
             c: {
-              $label: '', $errors: {type: ''},
+              rt$label: '', rt$errors: {type: ''},
               d: {
-                $label: '', $errors: {type: ''},
-                e: { $label: 'E', $errors: {type: ''} },
+                rt$label: '', rt$errors: {type: ''},
+                e: { rt$label: 'E', rt$errors: {type: ''} },
               },
             },
           },
@@ -329,9 +329,9 @@ describe('FriendlyType<T> — per-branch correctness (total contract)', () => {
       `
       interface Node { value: string; next: Node | null }
       const _ok: FriendlyType<Node> = {
-        $label: '', $errors: {type: ''},
-        value: { $label: 'Value', $errors: {type: ''} },
-        next: { $label: '', $errors: {type: ''} },
+        rt$label: '', rt$errors: {type: ''},
+        value: { rt$label: 'Value', rt$errors: {type: ''} },
+        next: { rt$label: '', rt$errors: {type: ''} },
       };
       `,
       84

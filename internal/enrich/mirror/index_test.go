@@ -28,9 +28,9 @@ func TestParseMirror_IndexConsts(t *testing.T) {
 		"\n" +
 		"/** @rtType User#abc1234 @rtIds {name: string#n1, age: number#a2} */\n" +
 		"export const friendlyUser: FriendlyType<User> = {\n" +
-		"  $label: 'User',\n" +
-		"  name: { $label: 'Name' },\n" +
-		"  age: { $label: 'Age' },\n" +
+		"  rt$label: 'User',\n" +
+		"  name: { rt$label: 'Name' },\n" +
+		"  age: { rt$label: 'Age' },\n" +
 		"};\n" +
 		"\n" +
 		"export const mockUser: MockData<User> = {\n" +
@@ -85,9 +85,9 @@ func TestParseMirror_IndexConsts(t *testing.T) {
 // name. This is the C5 guard.
 func TestParseMirror_DuplicateTypeIDKeepsFirst(t *testing.T) {
 	src := "/** @rtType User#dupID */\n" +
-		"export const friendlyUserA: FriendlyType<User> = { $label: 'A' };\n" +
+		"export const friendlyUserA: FriendlyType<User> = { rt$label: 'A' };\n" +
 		"/** @rtType User#dupID */\n" +
-		"export const friendlyUserB: FriendlyType<User> = { $label: 'B' };\n"
+		"export const friendlyUserB: FriendlyType<User> = { rt$label: 'B' };\n"
 
 	index := mustParse(t, "/rt/gen/user.ts", src)
 	entry, ok := index.byTypeForm[typeFormKey("dupID", true)]
@@ -109,7 +109,7 @@ func TestParseMirror_IndexImports(t *testing.T) {
 	src := "import type { User, Post } from '../../models/user';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n" +
 		"import { friendlyAddress, mockAddress } from './address';\n" +
-		"export const friendlyUser: FriendlyType<User> = { $label: '' };\n"
+		"export const friendlyUser: FriendlyType<User> = { rt$label: '' };\n"
 
 	index := mustParse(t, "/rt/gen/models/user.ts", src)
 

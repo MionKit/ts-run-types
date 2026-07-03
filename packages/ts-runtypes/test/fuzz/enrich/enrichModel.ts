@@ -39,7 +39,7 @@ export interface EnrichViolation {
 export type FieldType = 'string' | 'number' | 'boolean';
 
 interface Authored {
-  /** Unique token embedded in a friendly `$label` (always settable). **/
+  /** Unique token embedded in a friendly `rt$label` (always settable). **/
   label?: string;
   /** Unique token embedded in a mock `pool` (string/number fields only). **/
   poolToken?: string;
@@ -191,7 +191,7 @@ const addField: Command = {
     const friendly = readMirror(ctx.fixture, 'friendly');
     const mock = readMirror(ctx.fixture, 'mock');
     // R2 (add): the new field gets a fresh scaffold node in BOTH family files.
-    if (!friendly.includes(`${name}: {$label: ''`))
+    if (!friendly.includes(`${name}: {rt$label: ''`))
       out.push(v('R2', this.name, ctx, `added field \`${name}\` has no friendly scaffold node`));
     if (!mock.includes(`${name}: {pool: []}`))
       out.push(v('R2', this.name, ctx, `added field \`${name}\` has no mock scaffold node`));
@@ -206,17 +206,17 @@ const authorFriendly: Command = {
   name: 'authorFriendly',
   canApply: (m) => [...m.fields.keys()].some((f) => !m.authored.get(f)?.label),
   apply(model, ctx, _rng) {
-    // Pure setup (no oracle): fill a friendly $label so later edits can be
+    // Pure setup (no oracle): fill a friendly rt$label so later edits can be
     // checked for preservation. Only records state if the edit actually took.
     const field = [...model.fields.keys()].find((f) => !model.authored.get(f)?.label);
     if (!field) return [];
     const token = `FZL_${field}_${ctx.step}`;
-    const target = `${field}: {$label: ''`;
+    const target = `${field}: {rt$label: ''`;
     let took = false;
     editMirror(ctx.fixture, 'friendly', (text) => {
       if (!text.includes(target)) return text;
       took = true;
-      return text.replace(target, `${field}: {$label: '${token}'`);
+      return text.replace(target, `${field}: {rt$label: '${token}'`);
     });
     if (took) {
       const a = model.authored.get(field) ?? {};
@@ -418,7 +418,7 @@ const pruneProbe: Command = {
 // continues from a valid state.
 //
 // Channel boundary (discovered by running it): the `check` CLI does NOT look
-// inside a function-form `$errors` (opaque to the walk) and does NOT do MD003
+// inside a function-form `rt$errors` (opaque to the walk) and does NOT do MD003
 // pool-type checks — those are BUILD-time (CompTimeArgs CTA001/2/3, MD003), a
 // DIFFERENT observation channel. So a "non-literal node in comptime args" probe
 // (the CTA case) belongs to a future build-driven harness, not this one — `check`
@@ -469,12 +469,12 @@ const unknownMockField = negativeProbe('unknownMockField', 'mock', 'MD001', 'fzU
 const unknownFriendlyField = negativeProbe('unknownFriendlyField', 'friendly', 'FT002', 'fzUnrelated', (text) =>
   text.replace(
     `export const friendly${TYPE_NAME}: FriendlyType<${TYPE_NAME}> = {`,
-    `export const friendly${TYPE_NAME}: FriendlyType<${TYPE_NAME}> = {\n  fzUnrelated: {$label: ''},`
+    `export const friendly${TYPE_NAME}: FriendlyType<${TYPE_NAME}> = {\n  fzUnrelated: {rt$label: ''},`
   )
 );
 
 const badPlaceholder = negativeProbe('badPlaceholder', 'friendly', 'FT005', '$[badname]', (text) =>
-  text.replace("$errors: {type: ''}", "$errors: {type: 'x $[badname]'}")
+  text.replace("rt$errors: {type: ''}", "rt$errors: {type: 'x $[badname]'}")
 );
 
 /** The event alphabet the generator samples from. **/

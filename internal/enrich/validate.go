@@ -69,30 +69,108 @@ type LiteralView interface {
 	StringValue(key string) (string, bool)
 }
 
-// friendlyMetaKeys are the reserved `$`-meta keys a FriendlyType node may carry
+// friendlyMetaKeys are the reserved `rt$`-meta keys a FriendlyType node may carry
 // alongside its field children — never matched against the RunType's properties.
 var friendlyMetaKeys = map[string]bool{
-	"$label":  true,
-	"$errors": true,
-	"$items":  true,
+	"rt$label":  true,
+	"rt$errors": true,
+	"rt$items":  true,
 }
 
 // mockMetaKeys are the reserved keys a MockData node may carry alongside its
 // field children — never matched against the RunType's properties.
 var mockMetaKeys = map[string]bool{
-	"$items":    true,
-	"$length":   true,
-	"$optional": true,
-	"pool":      true,
-	"min":       true,
-	"max":       true,
+	"rt$items":    true,
+	"rt$length":   true,
+	"rt$optional": true,
+	"pool":        true,
+	"min":         true,
+	"max":         true,
 }
 
-// errorRecordReservedKeys are the always-valid keys inside an `$errors`
+// reservedMetaPrefix is the namespace RESERVED for enrichment meta keys
+// (rt$label, rt$errors, rt$items, …). A type declaring an rt$-prefixed
+// property cannot be enriched — the scaffold could not tell such a field from
+// the node meta. `gen` refuses the type; the checker reports it as FT011
+// (friendly) / MD011 (mock). Plain `$`-prefixed properties are ordinary fields
+// (the bare `$` prefix is NOT reserved — only `rt$` is).
+const reservedMetaPrefix = "rt$"
+
+// derefPropertyChildren returns rt's Property/PropertySignature members with
+// each CHILD deref'd first — tolerating both node forms: the raw closure shape
+// (children are `{kind: ref, id}` sentinels) and the inlined single-const
+// shape (children are canonical property nodes; deref is a no-op).
+func derefPropertyChildren(ctx *walkCtx, rt *protocol.RunType) []*protocol.RunType {
+	out := make([]*protocol.RunType, 0, len(rt.Children))
+	for _, child := range rt.Children {
+		child = ctx.deref(child)
+		if child == nil || child.NotSupported {
+			continue
+		}
+		switch child.Kind {
+		case protocol.KindProperty, protocol.KindPropertySignature:
+			out = append(out, child)
+		}
+	}
+	return out
+}
+
+// checkReservedProperties emits one Error per rt$-prefixed property the
+// RUNTYPE itself declares at this node (code FT011 or MD011 per family).
+func checkReservedProperties(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, path, code string) {
+	println("DEBUG checkReserved path=", path, "props=", len(derefPropertyChildren(ctx, rt)))
+	for _, prop := range derefPropertyChildren(ctx, rt) {
+		println("DEBUG prop name=", prop.Name)
+		if strings.HasPrefix(prop.Name, reservedMetaPrefix) {
+			*findings = append(*findings, Finding{
+				Code:     code,
+				Severity: Error,
+				Path:     joinPath(path, prop.Name),
+				Message:  "property '" + prop.Name + "' collides with the reserved enrichment meta prefix 'rt$' — rename the property or exclude the type from enrichment",
+			})
+		}
+	}
+}
+
+// ReservedPropertyCollisions walks rt's enrichment graph and returns the
+// dotted path of every rt$-prefixed property it declares — gen's pre-flight:
+// a non-empty result means the type cannot be scaffolded (the CLI fails with
+// the offending paths; `check` reports the same as FT011/MD011).
+func ReservedPropertyCollisions(rt *protocol.RunType, resolve func(id string) *protocol.RunType) []string {
+	ctx := newWalkCtx(resolve)
+	var collisions []string
+	var walk func(rt *protocol.RunType, path string, depth int)
+	walk = func(rt *protocol.RunType, path string, depth int) {
+		rt = ctx.deref(rt)
+		if rt == nil || depth > maxWalkDepth || ctx.seen[rt] {
+			return
+		}
+		if element := arrayElement(rt); element != nil {
+			walk(element, joinPath(path, "rt$items"), depth+1)
+			return
+		}
+		if !isObjectLike(ctx, rt) {
+			return
+		}
+		ctx.seen[rt] = true
+		defer delete(ctx.seen, rt)
+		for _, prop := range derefPropertyChildren(ctx, rt) {
+			if strings.HasPrefix(prop.Name, reservedMetaPrefix) {
+				collisions = append(collisions, joinPath(path, prop.Name))
+				continue
+			}
+			walk(prop.Child, joinPath(path, prop.Name), depth+1)
+		}
+	}
+	walk(rt, "", 0)
+	return collisions
+}
+
+// errorRecordReservedKeys are the always-valid keys inside an `rt$errors`
 // data-record, regardless of the field's declared format constraints.
 var errorRecordReservedKeys = map[string]bool{
-	"type":     true,
-	"$default": true,
+	"type":       true,
+	"rt$default": true,
 }
 
 // friendlyPlaceholders are the `$[…]` substitution names a friendly template
@@ -164,18 +242,18 @@ func checkFriendlyNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, 
 		return
 	}
 
-	// This node's own `$errors` describes failures OF THIS NODE — checked exactly
+	// This node's own `rt$errors` describes failures OF THIS NODE — checked exactly
 	// once, here, against this node's RunType (its declared format constraints, or
-	// type/$default for an object). Leaf fields are handled here too: they return
-	// at the `!isObjectLike` gate below without descending, so their `$errors` is
+	// type/rt$default for an object). Leaf fields are handled here too: they return
+	// at the `!isObjectLike` gate below without descending, so their `rt$errors` is
 	// never re-visited (which is what previously double-counted nested objects).
-	checkFriendlyErrors(findings, literal.Child("$errors"), rt, path)
+	checkFriendlyErrors(findings, literal.Child("rt$errors"), rt, path)
 
-	// An array node carries its child shape under `$items` — descend there
+	// An array node carries its child shape under `rt$items` — descend there
 	// paired with the element RunType.
 	if element := arrayElement(rt); element != nil {
-		if items := literal.Child("$items"); items != nil {
-			checkFriendlyNode(findings, ctx, element, items, joinPath(path, "$items"), depth+1)
+		if items := literal.Child("rt$items"); items != nil {
+			checkFriendlyNode(findings, ctx, element, items, joinPath(path, "rt$items"), depth+1)
 		}
 		return
 	}
@@ -187,10 +265,11 @@ func checkFriendlyNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, 
 	defer delete(ctx.seen, rt)
 
 	byName := childByName(ctx, rt)
+	checkReservedProperties(findings, ctx, rt, path, "FT011")
 	for _, key := range literal.Keys() {
 		if friendlyMetaKeys[key] {
-			// $label / $errors / $items belong to the owning node, not a field —
-			// $errors was handled above; $items only on arrays; $label is free text.
+			// rt$label / rt$errors / rt$items belong to the owning node, not a field —
+			// rt$errors was handled above; rt$items only on arrays; rt$label is free text.
 			continue
 		}
 		child, ok := byName[key]
@@ -210,26 +289,26 @@ func checkFriendlyNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, 
 	}
 }
 
-// checkFriendlyErrors validates a single `$errors` record (errorsView) against
+// checkFriendlyErrors validates a single `rt$errors` record (errorsView) against
 // the field it belongs to. fieldNode is the field's RunType (nil at the object
-// root, where `$errors` only describes the base `type` failure). A nil
+// root, where `rt$errors` only describes the base `type` failure). A nil
 // errorsView means the initializer wasn't an object literal (malformed — the
 // TS checker flags it; nothing for us to walk).
 func checkFriendlyErrors(findings *[]Finding, errorsView LiteralView, fieldNode *protocol.RunType, path string) {
 	if errorsView == nil {
 		return
 	}
-	// FT009: `$default` is the exclusive catch-all mode — a node either has ONE
-	// $default message or per-constraint keys, never both (mirrors the TS union).
+	// FT009: `rt$default` is the exclusive catch-all mode — a node either has ONE
+	// rt$default message or per-constraint keys, never both (mirrors the TS union).
 	keys := errorsView.Keys()
 	if len(keys) > 1 {
 		for _, key := range keys {
-			if key == "$default" {
+			if key == "rt$default" {
 				*findings = append(*findings, Finding{
 					Code:     "FT009",
 					Severity: Error,
-					Path:     joinPath(path, "$errors.$default"),
-					Message:  "$default is mutually exclusive with per-constraint messages — use {$default: '…'} alone, or per-constraint keys without it",
+					Path:     joinPath(path, "rt$errors.rt$default"),
+					Message:  "rt$default is mutually exclusive with per-constraint messages — use {rt$default: '…'} alone, or per-constraint keys without it",
 				})
 				break
 			}
@@ -237,9 +316,9 @@ func checkFriendlyErrors(findings *[]Finding, errorsView LiteralView, fieldNode 
 	}
 	allowed := allowedErrorKeys(fieldNode)
 	for _, key := range errorsView.Keys() {
-		keyPath := joinPath(path, "$errors."+key)
+		keyPath := joinPath(path, "rt$errors."+key)
 		if !allowed[key] {
-			// FT003: a constraint key that is neither type/$default nor one of the
+			// FT003: a constraint key that is neither type/rt$default nor one of the
 			// field's declared format constraints.
 			*findings = append(*findings, Finding{
 				Code:     "FT003",
@@ -300,8 +379,8 @@ func checkPluralLeaf(findings *[]Finding, plural LiteralView, key, keyPath strin
 	}
 }
 
-// allowedErrorKeys returns the set of valid `$errors` record keys for a field:
-// the always-valid type/$default plus the field's declared format constraints.
+// allowedErrorKeys returns the set of valid `rt$errors` record keys for a field:
+// the always-valid type/rt$default plus the field's declared format constraints.
 func allowedErrorKeys(fieldNode *protocol.RunType) map[string]bool {
 	allowed := make(map[string]bool, len(errorRecordReservedKeys)+2)
 	for key := range errorRecordReservedKeys {
@@ -349,8 +428,8 @@ func checkMockNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, lite
 	}
 
 	if element := arrayElement(rt); element != nil {
-		if items := literal.Child("$items"); items != nil {
-			checkMockNode(findings, ctx, element, items, joinPath(path, "$items"), depth+1)
+		if items := literal.Child("rt$items"); items != nil {
+			checkMockNode(findings, ctx, element, items, joinPath(path, "rt$items"), depth+1)
 		}
 		return
 	}
@@ -362,6 +441,7 @@ func checkMockNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, lite
 	defer delete(ctx.seen, rt)
 
 	byName := childByName(ctx, rt)
+	checkReservedProperties(findings, ctx, rt, path, "MD011")
 	for _, key := range literal.Keys() {
 		if mockMetaKeys[key] {
 			continue

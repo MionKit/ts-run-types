@@ -95,13 +95,13 @@ describe('enrichment i18n — gen --translate', () => {
     const fixture = i18nFixture('tr-create-only', USER_SRC, ['pl']);
     runGen(fixture, 'User');
     runTranslate(fixture, 'pl');
-    editTranslation(fixture, 'pl', (text) => text.replace("name: {$label: ''", "name: {$label: 'Imię'"));
+    editTranslation(fixture, 'pl', (text) => text.replace("name: {rt$label: ''", "name: {rt$label: 'Imię'"));
     const authored = readTranslation(fixture, 'pl');
     runTranslate(fixture, 'pl');
     expect(readTranslation(fixture, 'pl'), 'plain gen --translate never touches an existing file').toBe(authored);
   });
 
-  it('reconciles value-preservingly from the src type, descending into $errors (the load-bearing case)', () => {
+  it('reconciles value-preservingly from the src type, descending into rt$errors (the load-bearing case)', () => {
     const fixture = i18nFixture('tr-update', USER_SRC, ['pl']);
     runGen(fixture, 'User');
     runTranslate(fixture, 'pl');
@@ -110,17 +110,17 @@ describe('enrichment i18n — gen --translate', () => {
     editTranslation(fixture, 'pl', (text) =>
       text
         .replace("minLength: {one: ''", "minLength: {one: 'co najmniej $[val] znak'")
-        .replace("email: {$label: ''", "email: {$label: 'Adres e-mail'")
+        .replace("email: {rt$label: ''", "email: {rt$label: 'Adres e-mail'")
     );
 
     // The SOURCE TYPE gains a maxLength param — the reconcile must scaffold the
-    // new key INSIDE the existing $errors node, with pl arms.
+    // new key INSIDE the existing rt$errors node, with pl arms.
     setSource(fixture, USER_SRC.replace(NAME_FMT, NAME_FMT_GROWN));
 
     runTranslate(fixture, 'pl', ['--update']);
     const updated = readTranslation(fixture, 'pl');
     expect(updated, 'authored arm survives').toContain("one: 'co najmniej $[val] znak'");
-    expect(updated, 'authored label survives').toContain("$label: 'Adres e-mail'");
+    expect(updated, 'authored label survives').toContain("rt$label: 'Adres e-mail'");
     expect(updated, 'src-added constraint scaffolded with target arms').toContain(
       "maxLength: {one: '', few: '', many: '', other: ''}"
     );
@@ -131,29 +131,29 @@ describe('enrichment i18n — gen --translate', () => {
     expect(readTranslation(fixture, 'pl'), 'second update is byte-identical').toBe(first);
   });
 
-  it('respects the authored $errors mode and author-owned keys on update', () => {
+  it('respects the authored rt$errors mode and author-owned keys on update', () => {
     const fixture = i18nFixture('tr-authored-mode', USER_SRC, ['pl']);
     runGen(fixture, 'User');
     runTranslate(fixture, 'pl');
 
-    // The author converts name to the exclusive $default mode and plants an
+    // The author converts name to the exclusive rt$default mode and plants an
     // unrecognized key on email (only type-attributable keys may be orphaned).
     editTranslation(fixture, 'pl', (text) =>
       text
         .replace(
-          /name: \{\$label: '', \$errors: \{[^}]*\}\}\},/,
-          "name: {$label: 'Imię', $errors: {$default: 'Nieprawidłowe imię'}},"
+          /name: \{rt\$label: '', rt\$errors: \{[^}]*\}\}\},/,
+          "name: {rt$label: 'Imię', rt$errors: {rt$default: 'Nieprawidłowe imię'}},"
         )
         .replace(
-          "email: {$label: '', $errors: {type: ''}}",
-          "email: {$label: '', $errors: {type: '', customNote: 'author-owned'}}"
+          "email: {rt$label: '', rt$errors: {type: ''}}",
+          "email: {rt$label: '', rt$errors: {type: '', customNote: 'author-owned'}}"
         )
     );
 
     runTranslate(fixture, 'pl', ['--update']);
     const updated = readTranslation(fixture, 'pl');
-    expect(updated, 'a $default-only node is never descended').toContain("$errors: {$default: 'Nieprawidłowe imię'}");
-    expect(updated, '$default node does not get constraint keys re-scaffolded').not.toContain('minLength');
+    expect(updated, 'a rt$default-only node is never descended').toContain("rt$errors: {rt$default: 'Nieprawidłowe imię'}");
+    expect(updated, 'rt$default node does not get constraint keys re-scaffolded').not.toContain('minLength');
     expect(updated, 'unrecognized keys are author-owned, never orphaned').toContain("customNote: 'author-owned'");
     expect(updated).not.toContain('@rtOrphanChild');
   });

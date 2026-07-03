@@ -46,12 +46,12 @@ type walkCtx struct {
 	// const-var reference, or a broken-cycle leaf. nil ⇒ inline everything (the
 	// single-const path and the unit-test shape).
 	namedRef func(rt *protocol.RunType) namedRefAction
-	// pluralArms are the CLDR plural categories a COUNT-BEARING `$errors`
+	// pluralArms are the CLDR plural categories a COUNT-BEARING `rt$errors`
 	// constraint scaffolds arms for — the source locale's category set (default:
 	// English `one`/`other`). Non-count-bearing constraints stay plain strings.
 	pluralArms []string
-	// defaultErrors flips the scaffold's `$errors` mode to the exclusive
-	// `{$default: ''}` catch-all (tsconfig `friendlyErrors: "default"`). Only
+	// defaultErrors flips the scaffold's `rt$errors` mode to the exclusive
+	// `{rt$default: ''}` catch-all (tsconfig `friendlyErrors: "default"`). Only
 	// affects what NEW nodes scaffold — an authored node's mode is owned by
 	// the author and the reconcile follows it.
 	defaultErrors bool
@@ -76,8 +76,8 @@ func newWalkCtx(resolve func(id string) *protocol.RunType) *walkCtx {
 	return &walkCtx{resolve: resolve, seen: map[*protocol.RunType]bool{}, pluralArms: cldr.Categories("en")}
 }
 
-// setFriendlyErrors flips the scaffold's `$errors` mode ("default" → the
-// exclusive `{$default: ”}` catch-all; anything else → per-constraint).
+// setFriendlyErrors flips the scaffold's `rt$errors` mode ("default" → the
+// exclusive `{rt$default: ”}` catch-all; anything else → per-constraint).
 func (ctx *walkCtx) setFriendlyErrors(mode string) {
 	ctx.defaultErrors = mode == "default"
 }
@@ -86,9 +86,9 @@ func (ctx *walkCtx) setFriendlyErrors(mode string) {
 // in default-errors mode, for EVERY node (the catch-all replaces the record).
 func (ctx *walkCtx) bareMeta() string {
 	if ctx.defaultErrors {
-		return "{$label: '', $errors: {$default: ''}}"
+		return "{rt$label: '', rt$errors: {rt$default: ''}}"
 	}
-	return "{$label: '', $errors: {type: ''}}"
+	return "{rt$label: '', rt$errors: {type: ''}}"
 }
 
 // setSourceLocale swaps the ctx's plural-arm set to locale's CLDR categories —
@@ -195,8 +195,8 @@ func tupleSlots(ctx *walkCtx, rt *protocol.RunType) []*protocol.RunType {
 // isVariadicTuple reports whether the tuple carries a rest / variadic member
 // (`[A, ...B[]]`). Such a tuple has a broad `length: number`, so the
 // FriendlyType / MockData mapped types route it through the ARRAY branch
-// (`number extends T['length']`), NOT the fixed `$slots` branch. The emitter
-// mirrors that: a variadic tuple emits the array shape (`$items`/`$length`) so
+// (`number extends T['length']`), NOT the fixed `rt$slots` branch. The emitter
+// mirrors that: a variadic tuple emits the array shape (`rt$items`/`rt$length`) so
 // the skeleton stays assignable to the Phase-A type. A member is flagged "rest"
 // or "variadic" by the serializer (serialize.go projectTuple).
 func isVariadicTuple(ctx *walkCtx, rt *protocol.RunType) bool {
@@ -247,7 +247,7 @@ func argumentChild(ctx *walkCtx, rt *protocol.RunType, index int) *protocol.RunT
 // formatConstraintKeys returns the candidate failed-constraint keys for a
 // format-carrying node — the param names the type declares (minLength, max,
 // pattern, version, …), sorted for deterministic output. These are exactly the
-// `$errors` template keys the renderer can match (the (format.name,
+// `rt$errors` template keys the renderer can match (the (format.name,
 // formatPath-tail) discriminator). Non-failing params (presentation metadata,
 // mock pools, transformers — see nonFailingParams) are excluded. Always-present
 // base failure `type` is added by the caller.
@@ -268,7 +268,7 @@ func formatConstraintKeys(fa *protocol.FormatAnnotation) []string {
 
 // nonFailingParams are format params that carry NO failable constraint:
 // presentation metadata (isCurrency), the mock pool (mockSamples) and the
-// value transformers. They never become `$errors` template keys, so the
+// value transformers. They never become `rt$errors` template keys, so the
 // scaffold skips them and FT003 rejects them. MIRROR of the TS-side
 // `NonFailingParams` union in packages/ts-runtypes/src/enrich/friendlyType.ts
 // — the single sync point of the precise-typing design.

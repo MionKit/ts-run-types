@@ -601,8 +601,8 @@ function assertFriendlySegment(seg: unknown, ctx: string): void {
  *  copes with the output: (1) every path segment is a shape descend() routes
  *  (the census above), and (2) `createFriendly` emits exactly one non-empty
  *  message per error, with a string path, without throwing. Routing CORRECTNESS
- *  per category (object → field, array → $items, tuple → $slots, Map/Set →
- *  $keys/$values) is pinned in createFriendly.test.ts; this is the cross-suite
+ *  per category (object → field, array → rt$items, tuple → rt$slots, Map/Set →
+ *  rt$keys/rt$values) is pinned in createFriendly.test.ts; this is the cross-suite
  *  net that no type produces an unrenderable error. **/
 export function assertFriendlyCoverage(c: AssertableCase): void {
   const factory = resolveThunk(c.getValidationErrors);
@@ -611,9 +611,9 @@ export function assertFriendlyCoverage(c: AssertableCase): void {
   const getErrors = factory() as (value: unknown) => RTValidationError[];
   // A bare map (only the required root meta, no field overrides): this net asserts
   // every type's errors render with pure fallback messages. `FriendlyType<unknown>`
-  // reduces to `FriendlyMeta`, whose `$errors` needs the base `type` key (blank =
+  // reduces to `FriendlyMeta`, whose `rt$errors` needs the base `type` key (blank =
   // no custom message, everything falls to the generic fallback).
-  const renderer = createFriendly<unknown>({$label: '', $errors: {type: ''}});
+  const renderer = createFriendly<unknown>({rt$label: '', rt$errors: {type: ''}});
   const {invalid} = c.getSamples();
   invalid.forEach((sample, i) => {
     const errs = getErrors(sample);

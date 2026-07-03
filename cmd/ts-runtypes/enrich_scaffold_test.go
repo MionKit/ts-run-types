@@ -28,7 +28,7 @@ func TestWriteMirrorFile_CreateOnly_IdempotentTodo(t *testing.T) {
 			TypeName:    "User",
 			FriendlyVar: "friendlyUser",
 			MockVar:     "mockUser",
-			Friendly:    "{$label: ''}",
+			Friendly:    "{rt$label: ''}",
 			Mock:        "{}",
 			TypeID:      "uID",
 		}},

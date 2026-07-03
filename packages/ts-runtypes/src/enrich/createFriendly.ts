@@ -10,7 +10,7 @@
 // Aggregation matches the validator: `getValidationErrors` accumulates, so a
 // field can carry several errors and yields ONE message per failed constraint
 // (a list) — or ONE message per field when the node uses the exclusive
-// `$default` mode ({$default: '…'} instead of per-constraint keys).
+// `rt$default` mode ({rt$default: '…'} instead of per-constraint keys).
 //
 // `createFriendlyI18n<T>(source, options)` — the locale-selecting wrapper over
 // the SAME walk (docs/todos → docs/done friendly-type-i18n). The source map IS
@@ -51,21 +51,21 @@ export interface FriendlyRenderer {
   errors(errs: RTValidationError[]): FriendlyMessage[];
 }
 
-// Runtime view of a node — the authored map is a plain object with `$label` /
-// `$errors` meta keys plus child-field keys (`$items` for arrays and rest-tuple
-// elements, `$slots` for fixed-tuple positions, `$keys` / `$values` for
+// Runtime view of a node — the authored map is a plain object with `rt$label` /
+// `rt$errors` meta keys plus child-field keys (`rt$items` for arrays and rest-tuple
+// elements, `rt$slots` for fixed-tuple positions, `rt$keys` / `rt$values` for
 // maps/sets).
 // Loose runtime view of a node's templates: the precise per-param typing lives
 // on the AUTHORED map (ErrorTemplates<F>); the walk only reads keys.
 type ErrorTemplatesRuntime = {[key: string]: TemplateLeaf | undefined};
 
 type FriendlyNodeRuntime = {
-  $label?: string;
-  $errors?: ErrorTemplatesRuntime;
-  $items?: FriendlyNodeRuntime;
-  $slots?: FriendlyNodeRuntime[];
-  $keys?: FriendlyNodeRuntime;
-  $values?: FriendlyNodeRuntime;
+  rt$label?: string;
+  rt$errors?: ErrorTemplatesRuntime;
+  rt$items?: FriendlyNodeRuntime;
+  rt$slots?: FriendlyNodeRuntime[];
+  rt$keys?: FriendlyNodeRuntime;
+  rt$values?: FriendlyNodeRuntime;
   [field: string]: unknown;
 };
 
@@ -160,16 +160,16 @@ function segmentKey(seg: RTValidationErrorPathSegment): string | number {
   return seg.key;
 }
 
-/** Descend one segment: string → child field; number → `$slots[i]` for a fixed
- *  tuple, else `$items` (array / rest-tuple element); Map / Set entry → `$keys`
- *  (a `mapKey` failure) or `$values` (a `mapValue` / `setKey` failure), routed
- *  by the segment's `failed` role. A fixed tuple has positional `$slots`; an
- *  array (and a rest tuple, whose `length` is the broad `number`) has `$items`. */
+/** Descend one segment: string → child field; number → `rt$slots[i]` for a fixed
+ *  tuple, else `rt$items` (array / rest-tuple element); Map / Set entry → `rt$keys`
+ *  (a `mapKey` failure) or `rt$values` (a `mapValue` / `setKey` failure), routed
+ *  by the segment's `failed` role. A fixed tuple has positional `rt$slots`; an
+ *  array (and a rest tuple, whose `length` is the broad `number`) has `rt$items`. */
 function descend(node: FriendlyNodeRuntime | undefined, seg: RTValidationErrorPathSegment): FriendlyNodeRuntime | undefined {
   if (!node) return undefined;
   if (typeof seg === 'string') return node[seg] as FriendlyNodeRuntime | undefined;
-  if (typeof seg === 'number') return node.$slots ? node.$slots[seg] : node.$items;
-  return seg.failed === 'mapKey' ? node.$keys : node.$values;
+  if (typeof seg === 'number') return node.rt$slots ? node.rt$slots[seg] : node.rt$items;
+  return seg.failed === 'mapKey' ? node.rt$keys : node.rt$values;
 }
 
 function nodeAt(root: FriendlyNodeRuntime, path: RTValidationErrorPathSegment[]): FriendlyNodeRuntime | undefined {
@@ -178,7 +178,7 @@ function nodeAt(root: FriendlyNodeRuntime, path: RTValidationErrorPathSegment[])
   return node;
 }
 
-/** Fallback label when a node has no `$label`: the last STRING segment (the
+/** Fallback label when a node has no `rt$label`: the last STRING segment (the
  *  field name) if any, else the last segment stringified. */
 function rawLabel(path: RTValidationErrorPathSegment[]): string {
   for (let i = path.length - 1; i >= 0; i--) {
@@ -246,7 +246,7 @@ interface PathGroup {
 
 /** Grouping signature: the dotted path, but a Map / Set entry also encodes its
  *  `failed` role so a key-failure and a value-failure at the SAME entry index
- *  resolve to their own (`$keys` vs `$values`) node instead of colliding. */
+ *  resolve to their own (`rt$keys` vs `rt$values`) node instead of colliding. */
 function groupSignature(path: RTValidationErrorPathSegment[]): string {
   return path.map((seg) => (typeof seg === 'object' ? `${seg.key} ${seg.failed ?? ''}` : String(seg))).join('.');
 }
@@ -314,10 +314,10 @@ function renderBoundText(
 }
 
 const labelFor = (node: FriendlyNodeRuntime | undefined, path: RTValidationErrorPathSegment[]): string =>
-  node?.$label || rawLabel(path);
+  node?.rt$label || rawLabel(path);
 
 // resolveTemplate picks one map-node's template string for a constraint key:
-// `$errors[key]` (per-constraint mode), else the node's `$errors.$default`
+// `rt$errors[key]` (per-constraint mode), else the node's `rt$errors.rt$default`
 // (the exclusive catch-all mode — the two never coexist, so this single lookup
 // serves both); a plural leaf selects its arm with the MAP's locale (never the
 // other map's — plural leaves are atomic per map). Returns undefined when the
@@ -329,9 +329,9 @@ function resolveTemplate(
   val: string | number | boolean | bigint | undefined,
   mapLocale: string
 ): string | undefined {
-  const errorTemplates = node?.$errors;
+  const errorTemplates = node?.rt$errors;
   if (!errorTemplates) return undefined;
-  return leafTemplate(errorTemplates[key], val, mapLocale) ?? leafTemplate(errorTemplates.$default, val, mapLocale);
+  return leafTemplate(errorTemplates[key], val, mapLocale) ?? leafTemplate(errorTemplates.rt$default, val, mapLocale);
 }
 
 // leafTemplate renders one template leaf to a non-blank string, or undefined —
@@ -349,7 +349,7 @@ function leafTemplate(
 function renderLabel(state: RenderState, path: string | RTValidationErrorPathSegment[]): string {
   const segs = typeof path === 'string' ? (path === '' ? [] : path.split('.')) : path;
   const node = nodeAt(state.root, segs);
-  if (node?.$label) return node.$label;
+  if (node?.rt$label) return node.rt$label;
   const sourceNode = state.source ? nodeAt(state.source, segs) : undefined;
   return labelFor(sourceNode, segs);
 }
@@ -359,7 +359,7 @@ function renderErrors(state: RenderState, errs: RTValidationError[]): FriendlyMe
   for (const group of groupByPath(errs)) {
     const node = nodeAt(state.root, group.path);
     const sourceNode = state.source ? nodeAt(state.source, group.path) : undefined;
-    const label = node?.$label || sourceNode?.$label || rawLabel(group.path);
+    const label = node?.rt$label || sourceNode?.rt$label || rawLabel(group.path);
 
     const index = numericIndex(group.path);
     for (const err of group.errors) {

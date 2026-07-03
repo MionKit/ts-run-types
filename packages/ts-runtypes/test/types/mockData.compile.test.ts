@@ -1,6 +1,6 @@
 // Per-branch correctness test for `MockData<T>` (total contract: every field
-// required, value slot `pool`/`$items`/`$values`/`$keys`/`$slots` required;
-// tuning knobs `min`/`max`/`$length`/`$size`/`$optional` optional).
+// required, value slot `pool`/`rt$items`/`rt$values`/`rt$keys`/`rt$slots` required;
+// tuning knobs `min`/`max`/`rt$length`/`rt$size`/`rt$optional` optional).
 //
 // Each `it` compiles a representative snippet for ONE branch of `MockNode`
 // (src/enrich/mockData.ts) and asserts valid maps are assignable + invalid maps
@@ -44,7 +44,7 @@ describe('MockData<T> — per-branch correctness (total contract)', () => {
       const _ok: MockData<User> = {
         name: { pool: ['Alice', 'Liang', 'Fatima'] },
         age: { pool: [], min: 18, max: 95 },
-        $optional: 0.5,
+        rt$optional: 0.5,
       };
       // @ts-expect-error — 'age' is missing (every field is required)
       const _missing: MockData<User> = { name: { pool: [] } };
@@ -57,59 +57,59 @@ describe('MockData<T> — per-branch correctness (total contract)', () => {
     );
   });
 
-  it('arrays carry $items (+ optional $length)', () => {
+  it('arrays carry rt$items (+ optional rt$length)', () => {
     check(
       `
       interface User { tags: string[]; scores: number[] }
       const _ok: MockData<User> = {
-        tags: { $items: { pool: ['a', 'b'] }, $length: [1, 4] },
-        scores: { $items: { pool: [], min: 0, max: 10 }, $length: 3 },
+        tags: { rt$items: { pool: ['a', 'b'] }, rt$length: [1, 4] },
+        scores: { rt$items: { pool: [], min: 0, max: 10 }, rt$length: 3 },
       };
       `,
       0
     );
   });
 
-  it('tuples carry $slots (per-slot nodes), distinct from arrays', () => {
+  it('tuples carry rt$slots (per-slot nodes), distinct from arrays', () => {
     check(
       `
       const _ok: MockData<[string, number]> = {
-        $slots: [{ pool: ['a', 'b'] }, { pool: [], min: 0, max: 9 }],
+        rt$slots: [{ pool: ['a', 'b'] }, { pool: [], min: 0, max: 9 }],
       };
-      type _slots = Expect<Assignable<{$slots: [{pool: string[]}, {pool: number[]}]}, MockData<[string, number]>>>;
-      // an array still gets $items (NOT $slots) — tuple/array discrimination
-      type _items = Expect<Assignable<{$items: {pool: string[]}; $length: 3}, MockData<string[]>>>;
-      // an array does NOT accept $slots
-      type _noslots = ExpectFalse<Assignable<{$slots: [{pool: string[]}]}, MockData<string[]>>>;
-      // a tuple does NOT accept $length (fixed length)
-      type _nolength = ExpectFalse<Assignable<{$length: 3}, MockData<[string, number]>>>;
+      type _slots = Expect<Assignable<{rt$slots: [{pool: string[]}, {pool: number[]}]}, MockData<[string, number]>>>;
+      // an array still gets rt$items (NOT rt$slots) — tuple/array discrimination
+      type _items = Expect<Assignable<{rt$items: {pool: string[]}; rt$length: 3}, MockData<string[]>>>;
+      // an array does NOT accept rt$slots
+      type _noslots = ExpectFalse<Assignable<{rt$slots: [{pool: string[]}]}, MockData<string[]>>>;
+      // a tuple does NOT accept rt$length (fixed length)
+      type _nolength = ExpectFalse<Assignable<{rt$length: 3}, MockData<[string, number]>>>;
       `,
       0
     );
   });
 
-  it('Map carries $keys / $values (+ optional $size)', () => {
+  it('Map carries rt$keys / rt$values (+ optional rt$size)', () => {
     check(
       `
       const _ok: MockData<Map<string, number>> = {
-        $keys: { pool: ['a', 'b'] },
-        $values: { pool: [], min: 0, max: 9 },
-        $size: [0, 3],
+        rt$keys: { pool: ['a', 'b'] },
+        rt$values: { pool: [], min: 0, max: 9 },
+        rt$size: [0, 3],
       };
-      type _map = Expect<Assignable<{$keys: {pool: string[]}; $values: {pool: number[]}; $size: [0, 3]}, MockData<Map<string, number>>>>;
+      type _map = Expect<Assignable<{rt$keys: {pool: string[]}; rt$values: {pool: number[]}; rt$size: [0, 3]}, MockData<Map<string, number>>>>;
       `,
       0
     );
   });
 
-  it('Set carries $values (+ optional $size)', () => {
+  it('Set carries rt$values (+ optional rt$size)', () => {
     check(
       `
       const _ok: MockData<Set<string>> = {
-        $values: { pool: ['a', 'b'] },
-        $size: 3,
+        rt$values: { pool: ['a', 'b'] },
+        rt$size: 3,
       };
-      type _set = Expect<Assignable<{$values: {pool: string[]}; $size: 3}, MockData<Set<string>>>>;
+      type _set = Expect<Assignable<{rt$values: {pool: string[]}; rt$size: 3}, MockData<Set<string>>>>;
       `,
       0
     );

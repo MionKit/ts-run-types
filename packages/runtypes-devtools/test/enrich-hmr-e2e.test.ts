@@ -127,12 +127,12 @@ function runRandomSequence(seed: number, steps: number): void {
     expect(fs.existsSync(project.friendlyMirror), `seed ${seed}: friendly mirror missing`).toBe(true);
     expect(fs.existsSync(project.mockMirror), `seed ${seed}: mock mirror missing`).toBe(true);
 
-    // The user authors a value: set the friendly root $label (always-live node
+    // The user authors a value: set the friendly root rt$label (always-live node
     // meta, so it must survive every edit) to a unique sentinel.
     const sentinel = `AUTH_${seed}`;
     let friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
-    expect(friendly, `seed ${seed}: unexpected seed mirror shape`).toContain("$label: ''");
-    fs.writeFileSync(project.friendlyMirror, friendly.replace("$label: ''", `$label: '${sentinel}'`));
+    expect(friendly, `seed ${seed}: unexpected seed mirror shape`).toContain("rt$label: ''");
+    fs.writeFileSync(project.friendlyMirror, friendly.replace("rt$label: ''", `rt$label: '${sentinel}'`));
 
     for (let step = 0; step < steps; step++) {
       const choice = Math.floor(rng() * 4);
@@ -186,8 +186,8 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
 
       // Author the friendly root label AND a field label.
       let friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
-      friendly = friendly.replace("$label: ''", "$label: 'AUTH_ROOT'");
-      friendly = friendly.replace("name: {$label: ''", "name: {$label: 'AUTH_NAME'");
+      friendly = friendly.replace("rt$label: ''", "rt$label: 'AUTH_ROOT'");
+      friendly = friendly.replace("name: {rt$label: ''", "name: {rt$label: 'AUTH_NAME'");
       fs.writeFileSync(project.friendlyMirror, friendly);
       expect(friendly).toContain('AUTH_ROOT');
       expect(friendly).toContain('AUTH_NAME');
@@ -246,7 +246,7 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
     try {
       expect(genUpdate(project).status).toBe(0);
       let friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
-      fs.writeFileSync(project.friendlyMirror, friendly.replace("title: {$label: ''", "title: {$label: 'AUTH_TITLE'"));
+      fs.writeFileSync(project.friendlyMirror, friendly.replace("title: {rt$label: ''", "title: {rt$label: 'AUTH_TITLE'"));
 
       // Type `title` -> `heading`, one character per save, reconciling each time.
       const keystrokes = ['titl', 'tit', 'ti', 't', 'th', 'the', 'thea', 'head', 'headi', 'headin', 'heading'];
@@ -269,7 +269,7 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
 
       // The value ends up on the renamed field; the old name is gone from both mirrors.
       friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
-      expect(friendly).toContain("heading: {$label: 'AUTH_TITLE'");
+      expect(friendly).toContain("heading: {rt$label: 'AUTH_TITLE'");
       expect(readMirrors(project)).not.toContain('title:');
     } finally {
       fs.rmSync(project.dir, {recursive: true, force: true});
@@ -292,7 +292,7 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
 
       // Author a value on the User friendly mirror.
       let friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
-      fs.writeFileSync(project.friendlyMirror, friendly.replace("firstName: {$label: ''", "firstName: {$label: 'AUTH_FN'"));
+      fs.writeFileSync(project.friendlyMirror, friendly.replace("firstName: {rt$label: ''", "firstName: {rt$label: 'AUTH_FN'"));
 
       // Rename the interface User -> Account (same fields) and reconcile.
       writeSource(project, fields, 'Account');

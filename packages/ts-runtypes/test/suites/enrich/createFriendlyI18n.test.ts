@@ -15,18 +15,18 @@ interface User {
 }
 
 const source: FriendlyType<User> = {
-  $label: 'User account',
-  $errors: {type: 'Account is invalid'},
+  rt$label: 'User account',
+  rt$errors: {type: 'Account is invalid'},
   name: {
-    $label: 'Full name',
-    $errors: {
+    rt$label: 'Full name',
+    rt$errors: {
       type: '$[label] must be text',
       minLength: {one: 'at least $[val] character', other: 'at least $[val] characters'},
     },
   },
   age: {
-    $label: 'Age',
-    $errors: {type: '$[label] must be a number', min: '$[label] must be at least $[val]'},
+    rt$label: 'Age',
+    rt$errors: {type: '$[label] must be a number', min: '$[label] must be at least $[val]'},
   },
 };
 
@@ -49,11 +49,11 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
 
   it('pl: one/few/many arms select by CLDR rules', () => {
     const pl: FriendlyType<User> = {
-      $label: '',
-      $errors: {type: ''},
+      rt$label: '',
+      rt$errors: {type: ''},
       name: {
-        $label: 'Imię i nazwisko',
-        $errors: {
+        rt$label: 'Imię i nazwisko',
+        rt$errors: {
           type: '',
           minLength: {
             one: 'co najmniej $[val] znak',
@@ -63,7 +63,7 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
           },
         },
       },
-      age: {$label: '', $errors: {type: '', min: ''}},
+      age: {rt$label: '', rt$errors: {type: '', min: ''}},
     };
     const friendly = createFriendlyI18n<User>(source, {locale: 'pl', translations: {pl}});
     expect(friendly.errors(minLengthError(1))[0].message).toBe('co najmniej 1 znak');
@@ -74,10 +74,10 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
   it('ar: all six categories select', () => {
     const arms = {zero: 'z $[val]', one: 'o $[val]', two: 't $[val]', few: 'f $[val]', many: 'm $[val]', other: 'x $[val]'};
     const ar: FriendlyType<User> = {
-      $label: '',
-      $errors: {type: ''},
-      name: {$label: '', $errors: {type: '', minLength: arms}},
-      age: {$label: '', $errors: {type: '', min: ''}},
+      rt$label: '',
+      rt$errors: {type: ''},
+      name: {rt$label: '', rt$errors: {type: '', minLength: arms}},
+      age: {rt$label: '', rt$errors: {type: '', min: ''}},
     };
     const friendly = createFriendlyI18n<User>(source, {locale: 'ar', translations: {ar}});
     expect(friendly.errors(minLengthError(0))[0].message).toBe('z 0');
@@ -90,10 +90,10 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
 
   it('ja: other-only plural always selects other', () => {
     const ja: FriendlyType<User> = {
-      $label: '',
-      $errors: {type: ''},
-      name: {$label: '', $errors: {type: '', minLength: {other: '$[val]文字以上'}}},
-      age: {$label: '', $errors: {type: '', min: ''}},
+      rt$label: '',
+      rt$errors: {type: ''},
+      name: {rt$label: '', rt$errors: {type: '', minLength: {other: '$[val]文字以上'}}},
+      age: {rt$label: '', rt$errors: {type: '', min: ''}},
     };
     const friendly = createFriendlyI18n<User>(source, {locale: 'ja', translations: {ja}});
     expect(friendly.errors(minLengthError(1))[0].message).toBe('1文字以上');
@@ -104,7 +104,7 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
     // en select(1) = 'one', but only `other` is filled — the in-leaf backstop.
     const sparse: FriendlyType<User> = {
       ...source,
-      name: {$label: 'Full name', $errors: {type: '', minLength: {other: 'need $[val]+ chars'}}},
+      name: {rt$label: 'Full name', rt$errors: {type: '', minLength: {other: 'need $[val]+ chars'}}},
     };
     expect(createFriendly<User>(sparse).errors(minLengthError(1))[0].message).toBe('need 1+ chars');
   });
@@ -112,9 +112,9 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
 
 describe('type-driven $[val] rendering', () => {
   const priceSource: FriendlyType<{price: TF.Currency<{max: 100}>}> = {
-    $label: '',
-    $errors: {type: ''},
-    price: {$label: 'Price', $errors: {type: '', max: {other: 'must be at most $[val]'}}},
+    rt$label: '',
+    rt$errors: {type: ''},
+    price: {rt$label: 'Price', rt$errors: {type: '', max: {other: 'must be at most $[val]'}}},
   };
   // A currency-marked bound: the emitter echoes the number format's
   // `isCurrency` param onto the error — that flag is the discriminator.
@@ -130,9 +130,9 @@ describe('type-driven $[val] rendering', () => {
     expect(en.errors(currencyMaxError)[0].message).toBe('must be at most $100.00');
 
     const de: FriendlyType<{price: TF.Currency<{max: 100}>}> = {
-      $label: '',
-      $errors: {type: ''},
-      price: {$label: 'Preis', $errors: {type: '', max: {other: 'höchstens $[val]'}}},
+      rt$label: '',
+      rt$errors: {type: ''},
+      price: {rt$label: 'Preis', rt$errors: {type: '', max: {other: 'höchstens $[val]'}}},
     };
     const deRenderer = createFriendlyI18n(priceSource, {locale: 'de', translations: {de}, currency: 'EUR'});
     expect(deRenderer.errors(currencyMaxError)[0].message).toBe('höchstens 100,00 €');
@@ -165,9 +165,9 @@ describe('type-driven $[val] rendering', () => {
 
   it('a date-family bound renders as a localized date; a relative bound stays verbatim', () => {
     const src: FriendlyType<{createdAt: TF.Date<{max: 'now'}>}> = {
-      $label: '',
-      $errors: {type: ''},
-      createdAt: {$label: 'Created', $errors: {type: '', max: 'must be before $[val]'}},
+      rt$label: '',
+      rt$errors: {type: ''},
+      createdAt: {rt$label: 'Created', rt$errors: {type: '', max: 'must be before $[val]'}},
     };
     const dateError = (bound: string): RTValidationError[] => [
       {path: ['createdAt'], expected: 'date', format: {name: 'nativeDate', val: bound, formatPath: ['max']}},
@@ -182,9 +182,9 @@ describe('type-driven $[val] rendering', () => {
 
   it('an unknown bare token stays verbatim; a literal colon in prose is untouched', () => {
     const src: FriendlyType<{price: TF.Currency<{max: 100}>}> = {
-      $label: '',
-      $errors: {type: ''},
-      price: {$label: '', $errors: {type: '', max: 'ratio 3:1 and $[nonsense] with $[val]'}},
+      rt$label: '',
+      rt$errors: {type: ''},
+      price: {rt$label: '', rt$errors: {type: '', max: 'ratio 3:1 and $[nonsense] with $[val]'}},
     };
     const renderer = createFriendly(src);
     expect(renderer.errors(currencyMaxError)[0].message).toBe('ratio 3:1 and $[nonsense] with 100');
@@ -192,9 +192,9 @@ describe('type-driven $[val] rendering', () => {
 
   it('a leftover colon-form token (removed syntax) stays verbatim', () => {
     const src: FriendlyType<{price: TF.Currency<{max: 100}>}> = {
-      $label: '',
-      $errors: {type: ''},
-      price: {$label: '', $errors: {type: '', max: 'at most $[val:number:currency]'}},
+      rt$label: '',
+      rt$errors: {type: ''},
+      price: {rt$label: '', rt$errors: {type: '', max: 'at most $[val:number:currency]'}},
     };
     expect(createFriendlyI18n(src, {locale: 'en', translations: {}, currency: 'USD'}).errors(currencyMaxError)[0].message).toBe(
       'at most $[val:number:currency]'
@@ -229,15 +229,15 @@ describe('resolveLocale — naive BCP-47 truncation', () => {
 
 describe('createFriendlyI18n — per-leaf fallback to the source', () => {
   const es: FriendlyType<User> = {
-    $label: 'Cuenta de usuario',
-    $errors: {type: ''},
+    rt$label: 'Cuenta de usuario',
+    rt$errors: {type: ''},
     name: {
-      $label: 'Nombre completo',
+      rt$label: 'Nombre completo',
       // minLength arms still @todo-blank; type translated.
-      $errors: {type: '$[label] debe ser texto', minLength: {one: '', other: ''}},
+      rt$errors: {type: '$[label] debe ser texto', minLength: {one: '', other: ''}},
     },
     // age wholly untranslated (@todo blanks).
-    age: {$label: '', $errors: {type: '', min: ''}},
+    age: {rt$label: '', rt$errors: {type: '', min: ''}},
   };
 
   it('renders translated leaves in the active locale', () => {
@@ -250,7 +250,7 @@ describe('createFriendlyI18n — per-leaf fallback to the source', () => {
 
   it('a blank translated leaf falls through to the source leaf (label + template)', () => {
     const friendly = createFriendlyI18n<User>(source, {locale: 'es', translations: {es}});
-    // age.$label is '' → source label; age.min is '' → source template.
+    // age.rt$label is '' → source label; age.min is '' → source template.
     expect(friendly.label('age')).toBe('Age');
     const out = friendly.errors([
       {path: ['age'], expected: 'number', format: {name: 'numberFormat', val: 18, formatPath: ['min']}},
@@ -283,29 +283,29 @@ describe('createFriendlyI18n — per-leaf fallback to the source', () => {
     expect(friendly.label('name')).toBe('Nombre completo');
   });
 
-  it("a translation's $default mode wins over the source's per-constraint messages", () => {
+  it("a translation's rt$default mode wins over the source's per-constraint messages", () => {
     // The exclusive catch-all replaces the removed function form: the
     // translator opted their node into one message for everything.
     const esDefault: FriendlyType<User> = {
       ...es,
-      name: {$label: 'Nombre', $errors: {$default: 'mensaje propio'}},
+      name: {rt$label: 'Nombre', rt$errors: {rt$default: 'mensaje propio'}},
     };
     const friendly = createFriendlyI18n<User>(source, {locale: 'es', translations: {es: esDefault}});
     expect(friendly.errors(minLengthError(2))[0].message).toBe('mensaje propio');
   });
 
-  it("a source node's $default backstops a translation node without $errors", () => {
+  it("a source node's rt$default backstops a translation node without rt$errors", () => {
     const defaultSource = {
-      $label: 'Root',
-      $errors: {type: ''},
-      name: {$label: 'Name', $errors: {$default: 'from source default'}},
-      age: {$label: 'Age', $errors: {type: '', min: ''}},
+      rt$label: 'Root',
+      rt$errors: {type: ''},
+      name: {rt$label: 'Name', rt$errors: {rt$default: 'from source default'}},
+      age: {rt$label: 'Age', rt$errors: {type: '', min: ''}},
     } as unknown as FriendlyType<User>;
     const bare = {
-      $label: '',
-      $errors: {type: ''},
-      name: {$label: 'Nombre'},
-      age: {$label: '', $errors: {type: '', min: ''}},
+      rt$label: '',
+      rt$errors: {type: ''},
+      name: {rt$label: 'Nombre'},
+      age: {rt$label: '', rt$errors: {type: '', min: ''}},
     } as unknown as FriendlyType<User>;
     const friendly = createFriendlyI18n<User>(defaultSource, {locale: 'es', translations: {es: bare}});
     const out = friendly.errors(minLengthError(2));
@@ -316,13 +316,13 @@ describe('createFriendlyI18n — per-leaf fallback to the source', () => {
   it('sourceLocale drives source-map plural rules when the source is not English', () => {
     // Polish-primary project: the SOURCE map carries Polish arms.
     const plSource: FriendlyType<User> = {
-      $label: '',
-      $errors: {type: ''},
+      rt$label: '',
+      rt$errors: {type: ''},
       name: {
-        $label: 'Imię',
-        $errors: {type: '', minLength: {one: '$[val] znak', few: '$[val] znaki', many: '$[val] znaków', other: '$[val] znaku'}},
+        rt$label: 'Imię',
+        rt$errors: {type: '', minLength: {one: '$[val] znak', few: '$[val] znaki', many: '$[val] znaków', other: '$[val] znaku'}},
       },
-      age: {$label: '', $errors: {type: '', min: ''}},
+      age: {rt$label: '', rt$errors: {type: '', min: ''}},
     };
     const friendly = createFriendlyI18n<User>(plSource, {locale: 'de', translations: {}, sourceLocale: 'pl'});
     expect(friendly.errors(minLengthError(2))[0].message).toBe('2 znaki');
@@ -330,7 +330,7 @@ describe('createFriendlyI18n — per-leaf fallback to the source', () => {
   });
 
   it('never throws on a partial translation (whole node missing)', () => {
-    const sparse = {$label: '', $errors: {type: ''}} as unknown as FriendlyType<User>;
+    const sparse = {rt$label: '', rt$errors: {type: ''}} as unknown as FriendlyType<User>;
     const friendly = createFriendlyI18n<User>(source, {locale: 'es', translations: {es: sparse}});
     const out = friendly.errors(minLengthError(3));
     expect(out[0].message).toBe('at least 3 characters');

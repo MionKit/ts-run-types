@@ -13,10 +13,10 @@ export const UTILITY = {
       type Target = Pick<Person, 'name' | 'createdAt'>;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        name: {$label: '', $errors: {type: ''}},
-        createdAt: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        name: {rt$label: '', rt$errors: {type: ''}},
+        createdAt: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -35,10 +35,10 @@ export const UTILITY = {
       type Target = Omit<{a: string; b?: number; c: boolean}, 'a'>;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        b: {$label: '', $errors: {type: ''}},
-        c: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        b: {rt$label: '', rt$errors: {type: ''}},
+        c: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -57,10 +57,10 @@ export const UTILITY = {
       type Target = Partial<{name: string; age: number}>;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        name: {$label: '', $errors: {type: ''}},
-        age: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        name: {rt$label: '', rt$errors: {type: ''}},
+        age: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -79,10 +79,10 @@ export const UTILITY = {
       type Target = Required<{name?: string; age?: number}>;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        name: {$label: '', $errors: {type: ''}},
-        age: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        name: {rt$label: '', rt$errors: {type: ''}},
+        age: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -101,10 +101,10 @@ export const UTILITY = {
       type Target = Readonly<{name: string; age: number}>;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        name: {$label: '', $errors: {type: ''}},
-        age: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        name: {rt$label: '', rt$errors: {type: ''}},
+        age: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -123,10 +123,10 @@ export const UTILITY = {
       type Target = Record<'a' | 'b', number>;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        a: {$label: '', $errors: {type: ''}},
-        b: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        a: {rt$label: '', rt$errors: {type: ''}},
+        b: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -145,10 +145,10 @@ export const UTILITY = {
       type Target = ReturnType<() => {a: string; b: number}>;
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        a: {$label: '', $errors: {type: ''}},
-        b: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        a: {rt$label: '', rt$errors: {type: ''}},
+        b: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -166,7 +166,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = keyof {name: string; age: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
+      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -180,7 +180,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = {name: string; age: number}['name'];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
+      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -194,7 +194,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = NonNullable<string | number | null | undefined>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {$label: '', $errors: {type: ''}};
+      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####

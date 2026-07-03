@@ -53,7 +53,7 @@ func TestIsCategory(t *testing.T) {
 			t.Errorf("IsCategory(%q) = false, want true", category)
 		}
 	}
-	for _, bad := range []string{"", "lots", "One", "$default"} {
+	for _, bad := range []string{"", "lots", "One", "rt$default"} {
 		if IsCategory(bad) {
 			t.Errorf("IsCategory(%q) = true, want false", bad)
 		}

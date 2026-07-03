@@ -61,9 +61,9 @@ type enrichConfig struct {
 	I18nLocales  []string
 	I18nStrict   bool
 
-	// FriendlyErrors picks the `$errors` mode `gen` scaffolds for NEW friendly
+	// FriendlyErrors picks the `rt$errors` mode `gen` scaffolds for NEW friendly
 	// nodes: "perConstraint" (default) or "default" (the exclusive
-	// `{$default: ''}` catch-all). An authored node's mode is author-owned.
+	// `{rt$default: ''}` catch-all). An authored node's mode is author-owned.
 	FriendlyErrors string
 
 	// The remaining plugin options are read and stored for completeness (and
@@ -88,7 +88,7 @@ type tsRuntypesPlugin struct {
 	Name       string `json:"name"`
 	EnrichDir  string `json:"enrichDir"`
 	ModuleMode string `json:"moduleMode"`
-	// FriendlyErrors: "perConstraint" (default) | "default" — the `$errors`
+	// FriendlyErrors: "perConstraint" (default) | "default" — the `rt$errors`
 	// mode `gen` scaffolds for NEW friendly nodes.
 	FriendlyErrors string `json:"friendlyErrors"`
 	EmitMode       string `json:"emitMode"`

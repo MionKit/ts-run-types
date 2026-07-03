@@ -97,13 +97,13 @@ gone fields. `--prune` is the only command that deletes.
 
 ## `FriendlyType<T>` — labels + error messages
 
-A combined, per-field map: `$label` (a human name) + `$errors` (one message template per
+A combined, per-field map: `rt$label` (a human name) + `rt$errors` (one message template per
 declared failable constraint — the mapped type requires each key — or the exclusive
-`{$default: '…'}` catch-all; count-bearing constraints scaffold plural objects; the
+`{rt$default: '…'}` catch-all; count-bearing constraints scaffold plural objects; the
 tsconfig `friendlyErrors` knob picks the scaffold mode for NEW nodes). Pure data;
 rendered at runtime by `createFriendly<T>(map)`, or by `createFriendlyI18n` with
 committed translations. The full authoring DSL — node shape, constraint keys, the `$[…]`
-placeholder DSL, plural rules, the `$default` mode, the FT0xx checks, runtime
+placeholder DSL, plural rules, the `rt$default` mode, the FT0xx checks, runtime
 rendering — is the **`runtypes-friendly-type`** skill; use it whenever you author or
 fill a friendly map.
 
@@ -137,11 +137,11 @@ Without `<src.ts>`, targets are "sources that have a friendly mirror" — path m
   The authoring rules (translate only blank leaves, arms are locale-owned, prune
   freely) are in the **`runtypes-friendly-type`** skill's Translations section.
 - **`--update`** — the same value-preserving reconcile as `gen --update` (one driver for
-  every friendly-family file), including the one-level `$errors` descent: a newly
+  every friendly-family file), including the one-level `rt$errors` descent: a newly
   declared constraint key arrives as a blank of the right kind (string, or a plural with
   THAT FILE's locale arms); a dropped RECOGNIZED constraint key becomes an
   `@rtOrphanChild` carcass (unknown keys are author-owned, untouched); a same-key leaf is
-  kept byte-identical; a `$default`-only node is never descended. Plural arms are never
+  kept byte-identical; a `rt$default`-only node is never descended. Plural arms are never
   orphaned, renamed, or down-scoped. Type renames carry across locales via the shared
   `@rtType` id (const, annotation, marker AND intra-file references are renamed in
   place).
@@ -158,7 +158,7 @@ zero change when absent):
 {
   "name": "ts-runtypes",
   "enrichDir": "runtypes/generated",
-  "friendlyErrors": "perConstraint", // $errors mode gen scaffolds for NEW nodes ("perConstraint" | "default")
+  "friendlyErrors": "perConstraint", // rt$errors mode gen scaffolds for NEW nodes ("perConstraint" | "default")
   "i18n": {
     "sourceLocale": "en", // language the source FriendlyType maps are written in
     "dir": "runtypes/generated/i18n", // translation subtree root (default <enrichDir>/i18n)
@@ -174,7 +174,7 @@ type-driven `$[val]` rendering (Currency / date bounds) — is covered in the
 
 ## `MockData<T>` — realistic sample data
 
-Per-field value pools and ranges (`pool`, `min`/`max`, `$items`/`$length`, `$optional`)
+Per-field value pools and ranges (`pool`, `min`/`max`, `rt$items`/`rt$length`, `rt$optional`)
 that feed `createMockType<T>({ data })`: the mechanical generator keeps handling
 structure + format-correctness, you supply _believable_ values. The full authoring DSL
 — node shapes per field kind, the MD0xx checks, end-to-end wiring — is the

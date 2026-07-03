@@ -106,7 +106,7 @@ export interface BinarySizingOptions {
 
 /** Loose runtime view of a `MockNode` (../enrich/mockData.ts) — the walker
  *  reads pools / ranges / array controls structurally, descending by property
- *  name (objects) or `$items` (arrays). Typed permissively because the walker
+ *  name (objects) or `rt$items` (arrays). Typed permissively because the walker
  *  operates over erased `unknown` values; the typed surface is `MockData<T>` on
  *  the public `data` field. Every slot is optional, so an absent / partial node
  *  leaves the corresponding generation path untouched (strictly additive). **/
@@ -117,11 +117,11 @@ export interface MockDataNode {
   min?: number | Date;
   max?: number | Date;
   /** Array element data node. **/
-  $items?: MockDataNode;
+  rt$items?: MockDataNode;
   /** Array element count — fixed `n` or `[min, max]` range. **/
-  $length?: number | [number, number];
+  rt$length?: number | [number, number];
   /** Present-probability for optional object members (reserved; not yet read). **/
-  $optional?: number;
+  rt$optional?: number;
   /** Per-property child node (objects), descended by property name. **/
   [property: string]: unknown;
 }
@@ -137,7 +137,7 @@ export interface RunTypeMockOptions<T = unknown> {
   mock?: DeepPartial<MockOptions>;
   data?: MockData<T>;
   /** Internal: the current MockData node for the node being walked. Seeded
-   *  from `data` at walk entry, descended by field name / `$items` / element.
+   *  from `data` at walk entry, descended by field name / `rt$items` / element.
    *  Not part of the caller-facing surface — set by the walker. **/
   dataNode?: MockDataNode;
 }

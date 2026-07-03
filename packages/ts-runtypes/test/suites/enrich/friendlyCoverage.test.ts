@@ -5,8 +5,8 @@
 // validator change that emits a new segment shape without teaching the renderer
 // to route it, the bug class that silently broke Map/Set and tuples), and (2)
 // the renderer emits one non-empty message per error without throwing. Per-
-// category routing CORRECTNESS (object → field, array → $items, tuple → $slots,
-// Map/Set → $keys/$values) is pinned in createFriendly.test.ts.
+// category routing CORRECTNESS (object → field, array → rt$items, tuple → rt$slots,
+// Map/Set → rt$keys/rt$values) is pinned in createFriendly.test.ts.
 //
 // The two suites are iterated in SEPARATE describes (not merged): both define
 // `REALWORLD` and `DATETIME` group keys, so spreading them into one object would

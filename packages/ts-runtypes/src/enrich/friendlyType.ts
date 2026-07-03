@@ -50,7 +50,7 @@ export type TemplateLeaf = FriendlyTemplate | PluralTemplate;
 /** Format params that can never FAIL — presentation metadata (`isCurrency`),
  *  the mock pool (`mockSamples`) and the value transformers. Everything else
  *  in a field's format params is a failable constraint and becomes a REQUIRED
- *  `$errors` template key. MIRROR of the Go side's `nonFailingParams`
+ *  `rt$errors` template key. MIRROR of the Go side's `nonFailingParams`
  *  (internal/enrich/enrich.go) — keep the two lists identical. */
 type NonFailingParams =
   | 'isCurrency'
@@ -71,26 +71,26 @@ type CountBearingKeys = 'minLength' | 'maxLength' | 'min' | 'max' | 'lt' | 'gt';
  *  opt-out; deleting a key just gets it re-scaffolded by `gen --update`).
  *  Count-bearing keys accept a plural object, the rest plain templates. NO
  *  index signature: an unknown key is an excess-property error in the IDE
- *  (FT003, moved to compile time). `$default` is banned here — it belongs to
+ *  (FT003, moved to compile time). `rt$default` is banned here — it belongs to
  *  the exclusive mode below. */
 type ConstraintTemplates<P> = {type: FriendlyTemplate} & {
   [K in Exclude<keyof P & string, NonFailingParams>]: K extends CountBearingKeys ? TemplateLeaf : FriendlyTemplate;
-} & {$default?: never};
+} & {rt$default?: never};
 
-/** `$default` mode: ONE message for the whole field, whatever failed.
+/** `rt$default` mode: ONE message for the whole field, whatever failed.
  *  MUTUALLY EXCLUSIVE with per-constraint messages — a node is either fully
  *  custom or fully catch-all, never a mix. The tsconfig `friendlyErrors` knob
  *  picks which mode `gen` scaffolds FIRST; after that the node's authored
  *  mode is owned by the author and the reconcile follows it. */
-type DefaultOnlyTemplates = {$default: FriendlyTemplate; type?: never};
+type DefaultOnlyTemplates = {rt$default: FriendlyTemplate; type?: never};
 
 /** Unbranded fields (plain `string` / `number` / …) can only fail as `type`. */
-type BareTemplates = DefaultOnlyTemplates | ({type: FriendlyTemplate} & {$default?: never});
+type BareTemplates = DefaultOnlyTemplates | ({type: FriendlyTemplate} & {rt$default?: never});
 
 /** Per-field error templates, derived from the field type `F`: a branded leaf
  *  (`FormatString<{minLength: 2}>`, …) REQUIRES one template key per failable
  *  param it declares; an unbranded leaf takes `type` only; either may instead
- *  use the exclusive `$default` mode. Pure data — the old inline-function form
+ *  use the exclusive `rt$default` mode. Pure data — the old inline-function form
  *  was REMOVED (opaque to translation, reconcile and the checker). */
 export type ErrorTemplates<F = never> = [F] extends [never]
   ? BareTemplates
@@ -103,15 +103,16 @@ export type ErrorTemplates<F = never> = [F] extends [never]
 /** Meta keys on every node: a human label + the field's error templates, both
  *  REQUIRED — every node must be addressed (the `@todo`/diagnostic layer enforces
  *  that the VALUES are filled, which TS can't see). `F` is the FIELD's own type:
- *  the leaf arm of `FriendlyNode` threads it through so `$errors` demands
- *  exactly the keys the field's format params declare. `__rt_typeName` is the
+ *  the leaf arm of `FriendlyNode` threads it through so `rt$errors` demands
+ *  exactly the keys the field's format params declare. `rt$typeName` is the
  *  lone optional meta: a friendly name for a NAMED type (`PG_User` → `'User'`),
- *  defaulting to the reflected type name. The `__rt_` prefix (not `$`) keeps it
- *  from colliding with a real field key in the homomorphic child map. */
+ *  defaulting to the reflected type name. The `rt$` prefix is RESERVED in
+ *  enriched types (gen refuses / FT011 flags a colliding `rt$…` property), so
+ *  meta keys can never be shadowed by the homomorphic child map. */
 export interface FriendlyMeta<F = never> {
-  $label: string;
-  $errors: ErrorTemplates<F>;
-  __rt_typeName?: string;
+  rt$label: string;
+  rt$errors: ErrorTemplates<F>;
+  rt$typeName?: string;
 }
 
 /** Scalar / native kinds that carry only meta (no child fields). */
@@ -124,9 +125,9 @@ type _FriendlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 /** Recursive friendly node — structural per solution A (docs/AI_ENRICHMENT.md):
  *  composite kinds reflect their structure, NOT an opaque leaf. Scalars/natives →
- *  meta only; tuples → meta + per-slot homomorphic `$slots` (`{[K in keyof T]}`);
- *  `Map` → meta + `$keys`/`$values`; `Set` → meta + `$values`; arrays → meta +
- *  `$items` (element node, via `T[number]`); objects → meta + a homomorphic
+ *  meta only; tuples → meta + per-slot homomorphic `rt$slots` (`{[K in keyof T]}`);
+ *  `Map` → meta + `rt$keys`/`rt$values`; `Set` → meta + `rt$values`; arrays → meta +
+ *  `rt$items` (element node, via `T[number]`); objects → meta + a homomorphic
  *  optional child map. Branch order is most-specific-first; `Map`/`Set` gates run
  *  BEFORE the array check (a Map is not an array, but the cheap `Readonly{Map,Set}`
  *  gates keep `infer` off the hot path, mirroring `DataOnly`). NOTE: index
@@ -135,25 +136,25 @@ type _FriendlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 export type FriendlyNode<T, Depth extends number = 8> = Depth extends 0
   ? FriendlyMeta // budget spent — keep as a leaf
   : T extends FriendlyLeaf
-    ? FriendlyMeta<T> // scalar / native — no children; F drives the $errors keys
+    ? FriendlyMeta<T> // scalar / native — no children; F drives the rt$errors keys
     : // Map BEFORE the array check: cheap `ReadonlyMap<any, any>` gate filters
       // non-Maps so the `infer K, V` never runs off the hot path (per DataOnly).
       T extends ReadonlyMap<any, any>
       ? T extends ReadonlyMap<infer K, infer V>
-        ? FriendlyMeta & {$keys: FriendlyNode<K, _FriendlyDepth[Depth]>; $values: FriendlyNode<V, _FriendlyDepth[Depth]>}
+        ? FriendlyMeta & {rt$keys: FriendlyNode<K, _FriendlyDepth[Depth]>; rt$values: FriendlyNode<V, _FriendlyDepth[Depth]>}
         : FriendlyMeta // unreachable — gate guarantees a Map
       : T extends ReadonlySet<any>
         ? T extends ReadonlySet<infer U>
-          ? FriendlyMeta & {$values: FriendlyNode<U, _FriendlyDepth[Depth]>}
+          ? FriendlyMeta & {rt$values: FriendlyNode<U, _FriendlyDepth[Depth]>}
           : FriendlyMeta // unreachable — gate guarantees a Set
         : T extends readonly unknown[]
           ? // tuple vs array: a tuple has a literal `length`, an array's `length`
-            // is the broad `number`. Tuple → per-slot homomorphic `$slots`
+            // is the broad `number`. Tuple → per-slot homomorphic `rt$slots`
             // (`{[K in keyof tuple]}` yields a tuple type — the intended
-            // `$slots: [node, node]`); array → `$items` element node.
+            // `rt$slots: [node, node]`); array → `rt$items` element node.
             number extends T['length']
-            ? FriendlyMeta & {$items: FriendlyNode<T[number], _FriendlyDepth[Depth]>}
-            : FriendlyMeta & {$slots: {[K in keyof T]: FriendlyNode<T[K], _FriendlyDepth[Depth]>}}
+            ? FriendlyMeta & {rt$items: FriendlyNode<T[number], _FriendlyDepth[Depth]>}
+            : FriendlyMeta & {rt$slots: {[K in keyof T]: FriendlyNode<T[K], _FriendlyDepth[Depth]>}}
           : T extends object
             ? FriendlyMeta & {[K in keyof T]-?: FriendlyNode<T[K], _FriendlyDepth[Depth]>}
             : FriendlyMeta;

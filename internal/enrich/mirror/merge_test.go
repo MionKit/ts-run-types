@@ -28,18 +28,18 @@ func mergeFriendly(t *testing.T, existingBody, desiredBody string) string {
 // TestMerge_KeepLeafValues: a field present in both as a leaf keeps its authored
 // value + formatting byte-for-byte.
 func TestMerge_KeepLeafValues(t *testing.T) {
-	existing := "{$label: 'User', name: {$label: 'Full name'}, age: {$label: 'Age'}}"
-	desired := "{$label: '', name: {$label: ''}, age: {$label: ''}}"
+	existing := "{rt$label: 'User', name: {rt$label: 'Full name'}, age: {rt$label: 'Age'}}"
+	desired := "{rt$label: '', name: {rt$label: ''}, age: {rt$label: ''}}"
 	got := mergeFriendly(t, existing, desired)
 	// Wrapped as `const _ = <body>;` — assert the values survive.
-	if !strings.Contains(got, "name: {$label: 'Full name'}") {
+	if !strings.Contains(got, "name: {rt$label: 'Full name'}") {
 		t.Errorf("authored 'Full name' not preserved:\n%s", got)
 	}
-	if !strings.Contains(got, "age: {$label: 'Age'}") {
+	if !strings.Contains(got, "age: {rt$label: 'Age'}") {
 		t.Errorf("authored 'Age' not preserved:\n%s", got)
 	}
-	if !strings.Contains(got, "$label: 'User'") {
-		t.Errorf("authored root $label not preserved:\n%s", got)
+	if !strings.Contains(got, "rt$label: 'User'") {
+		t.Errorf("authored root rt$label not preserved:\n%s", got)
 	}
 }
 
@@ -49,13 +49,13 @@ func TestMerge_KeepLeafValues(t *testing.T) {
 // (a Prettier-collapsed single-line object), so the insert must inject the
 // separator itself (regression for the missing-separator-comma bug A1).
 func TestMerge_AddField(t *testing.T) {
-	existing := "{$label: '', name: {$label: 'Full name'}}"
-	desired := "{$label: '', name: {$label: ''}, isActive: {$label: ''}}"
+	existing := "{rt$label: '', name: {rt$label: 'Full name'}}"
+	desired := "{rt$label: '', name: {rt$label: ''}, isActive: {rt$label: ''}}"
 	got := mergeFriendly(t, existing, desired)
-	if !strings.Contains(got, "name: {$label: 'Full name'}") {
+	if !strings.Contains(got, "name: {rt$label: 'Full name'}") {
 		t.Errorf("existing field not preserved:\n%s", got)
 	}
-	if !strings.Contains(got, "isActive: {$label: ''}") {
+	if !strings.Contains(got, "isActive: {rt$label: ''}") {
 		t.Errorf("added field 'isActive' missing:\n%s", got)
 	}
 	assertReparses(t, got)
@@ -67,14 +67,14 @@ func TestMerge_AddField(t *testing.T) {
 // `name: {…}\n  isActive: {…},` — two properties with no separator → syntax
 // error → the next gen --update fatals at parseMirror. This is the A1 regression.
 func TestMerge_AddFieldNoTrailingComma(t *testing.T) {
-	existing := "{$label: '', name: {$label: 'Full name'}}"
-	desired := "{$label: '', name: {$label: ''}, isActive: {$label: ''}}"
+	existing := "{rt$label: '', name: {rt$label: 'Full name'}}"
+	desired := "{rt$label: '', name: {rt$label: ''}, isActive: {rt$label: ''}}"
 	got := mergeFriendly(t, existing, desired)
 	assertReparses(t, got)
 	// The separator must be present: between the `name` value's closing `}` and the
 	// added `isActive` there is a comma (possibly preceded by the object's `}` for
 	// the value).
-	if !strings.Contains(got, "isActive: {$label: ''}") {
+	if !strings.Contains(got, "isActive: {rt$label: ''}") {
 		t.Errorf("added field missing:\n%s", got)
 	}
 }
@@ -104,13 +104,13 @@ func assertReparses(t *testing.T, wrapped string) {
 // @rtOrphanChild, its value preserved, and the trailing comma swallowed (no
 // dangling separator).
 func TestMerge_OrphanChild(t *testing.T) {
-	existing := "{$label: '', name: {$label: 'Full name'}, age: {$label: 'Age in years'}, isActive: {$label: ''}}"
-	desired := "{$label: '', name: {$label: ''}, isActive: {$label: ''}}"
+	existing := "{rt$label: '', name: {rt$label: 'Full name'}, age: {rt$label: 'Age in years'}, isActive: {rt$label: ''}}"
+	desired := "{rt$label: '', name: {rt$label: ''}, isActive: {rt$label: ''}}"
 	got := mergeFriendly(t, existing, desired)
 	if !strings.Contains(got, "@rtOrphanChild") {
 		t.Errorf("orphan tag missing:\n%s", got)
 	}
-	if !strings.Contains(got, "age: {$label: 'Age in years'}") {
+	if !strings.Contains(got, "age: {rt$label: 'Age in years'}") {
 		t.Errorf("orphaned value not preserved:\n%s", got)
 	}
 	// No dangling `,` directly before isActive's comment region — the result must
@@ -124,8 +124,8 @@ func TestMerge_OrphanChild(t *testing.T) {
 // TestMerge_IdempotentNoOp: merging the desired skeleton against a structurally
 // matching (but Prettier-formatted) existing body yields ZERO splice ops.
 func TestMerge_IdempotentNoOp(t *testing.T) {
-	existing := "{ $label: 'User', name: { $label: 'Full name' }, age: { $label: 'Age' } }"
-	desired := "{$label: '', name: {$label: ''}, age: {$label: ''}}"
+	existing := "{ rt$label: 'User', name: { rt$label: 'Full name' }, age: { rt$label: 'Age' } }"
+	desired := "{rt$label: '', name: {rt$label: ''}, age: {rt$label: ''}}"
 	existingView := parseDesiredObject(existing)
 	desiredView := parseDesiredObject(desired)
 	var ops []spliceOp
@@ -186,8 +186,8 @@ func TestSanitizeForComment_RoundTrip(t *testing.T) {
 // TestMerge_RenameTier1: a named-type field renamed (home → residence) shares the
 // `friendlyAddress` reference identity → the value is carried under the new key.
 func TestMerge_RenameTier1(t *testing.T) {
-	existing := "{$label: '', home: friendlyAddress}"
-	desired := "{$label: '', residence: friendlyAddress}"
+	existing := "{rt$label: '', home: friendlyAddress}"
+	desired := "{rt$label: '', residence: friendlyAddress}"
 	got := mergeWithCtx(t, existing, desired, mergeCtx{metaKeys: friendlyReservedKeys})
 	if !strings.Contains(got, "residence: friendlyAddress") {
 		t.Errorf("Tier-1 rename should carry value under new key 'residence':\n%s", got)
@@ -203,15 +203,15 @@ func TestMerge_RenameTier1(t *testing.T) {
 // TestMerge_RenameTier2: a primitive field renamed (fullName → name) shares its
 // @rtIds child id → the authored value is carried under the new key.
 func TestMerge_RenameTier2(t *testing.T) {
-	existing := "{$label: '', fullName: {$label: 'Full name'}}"
-	desired := "{$label: '', name: {$label: ''}}"
+	existing := "{rt$label: '', fullName: {rt$label: 'Full name'}}"
+	desired := "{rt$label: '', name: {rt$label: ''}}"
 	ctx := mergeCtx{
 		metaKeys:      friendlyReservedKeys,
 		existingChild: map[string]string{"fullName": "strID"},
 		desiredChild:  map[string]string{"name": "strID"},
 	}
 	got := mergeWithCtx(t, existing, desired, ctx)
-	if !strings.Contains(got, "name: {$label: 'Full name'}") {
+	if !strings.Contains(got, "name: {rt$label: 'Full name'}") {
 		t.Errorf("Tier-2 rename should carry authored value under new key 'name':\n%s", got)
 	}
 	if strings.Contains(got, "@rtOrphanChild") {
@@ -229,8 +229,8 @@ func TestMerge_RenameIdentityPrefersChildID(t *testing.T) {
 	// `y` (id bID) → should pair. Both old fields share the ref `friendlyThing`, so
 	// ref-name identity would make 2 drops + 2 adds collide → ambiguous → no
 	// rename. Child-id identity keeps a↔x and b↔y as distinct singleton buckets.
-	existing := "{$label: '', a: friendlyThing, b: friendlyThing}"
-	desired := "{$label: '', x: friendlyThing, y: friendlyThing}"
+	existing := "{rt$label: '', a: friendlyThing, b: friendlyThing}"
+	desired := "{rt$label: '', x: friendlyThing, y: friendlyThing}"
 	ctx := mergeCtx{
 		metaKeys:      friendlyReservedKeys,
 		existingChild: map[string]string{"a": "aID", "b": "bID"},
@@ -254,8 +254,8 @@ func TestMerge_RenameIdentityPrefersChildID(t *testing.T) {
 // id (e.g. both string) — the identity is ambiguous, so NO rename; the drop is
 // orphaned and the add inserted.
 func TestMerge_RenameAmbiguousFallback(t *testing.T) {
-	existing := "{$label: '', oldA: {$label: 'A'}, oldB: {$label: 'B'}}"
-	desired := "{$label: '', newA: {$label: ''}, newB: {$label: ''}}"
+	existing := "{rt$label: '', oldA: {rt$label: 'A'}, oldB: {rt$label: 'B'}}"
+	desired := "{rt$label: '', newA: {rt$label: ''}, newB: {rt$label: ''}}"
 	// All four share id "strID" → 2 drops + 2 adds in one bucket → ambiguous.
 	ctx := mergeCtx{
 		metaKeys:      friendlyReservedKeys,
@@ -266,7 +266,7 @@ func TestMerge_RenameAmbiguousFallback(t *testing.T) {
 	if !strings.Contains(got, "@rtOrphanChild") {
 		t.Errorf("ambiguous identity should fall through to orphan-child:\n%s", got)
 	}
-	if !strings.Contains(got, "newA: {$label: ''}") || !strings.Contains(got, "newB: {$label: ''}") {
+	if !strings.Contains(got, "newA: {rt$label: ''}") || !strings.Contains(got, "newB: {rt$label: ''}") {
 		t.Errorf("ambiguous adds should be inserted fresh:\n%s", got)
 	}
 }
@@ -277,8 +277,8 @@ func TestMerge_RenameAmbiguousFallback(t *testing.T) {
 // (number-pool) value silently rides the now-string field. This is the A4
 // regression for the childID-change arm.
 func TestMerge_ChildTypeChanged(t *testing.T) {
-	existing := "{$label: '', age: {min: 0, max: 120}}"
-	desired := "{$label: '', age: {pool: ['x']}}"
+	existing := "{rt$label: '', age: {min: 0, max: 120}}"
+	desired := "{rt$label: '', age: {pool: ['x']}}"
 	ctx := mergeCtx{
 		metaKeys:      mockReservedKeys,
 		existingChild: map[string]string{"age": "numID"},
@@ -301,8 +301,8 @@ func TestMerge_ChildTypeChanged(t *testing.T) {
 // both sides keeps its authored value byte-for-byte (no orphan, no replace) — the
 // childID-change arm only fires on a real change.
 func TestMerge_ChildTypeUnchanged(t *testing.T) {
-	existing := "{$label: '', age: {pool: [42]}}"
-	desired := "{$label: '', age: {pool: ['x']}}"
+	existing := "{rt$label: '', age: {pool: [42]}}"
+	desired := "{rt$label: '', age: {pool: ['x']}}"
 	ctx := mergeCtx{
 		metaKeys:      mockReservedKeys,
 		existingChild: map[string]string{"age": "numID"},
@@ -349,8 +349,8 @@ func TestMerge_AuthoredReservedKey_Survives(t *testing.T) {
 // friendlyAddress`) switches to the reference; the old object is orphaned. This
 // is the A4 regression for the object↔leaf shape-mismatch arm.
 func TestMerge_ShapeMismatchObjectToReference(t *testing.T) {
-	existing := "{$label: '', address: {$label: '', street: {$label: 'St'}}}"
-	desired := "{$label: '', address: friendlyAddress}"
+	existing := "{rt$label: '', address: {rt$label: '', street: {rt$label: 'St'}}}"
+	desired := "{rt$label: '', address: friendlyAddress}"
 	got := mergeWithCtx(t, existing, desired, mergeCtx{metaKeys: friendlyReservedKeys})
 	if !strings.Contains(got, "@rtOrphanChild") {
 		t.Errorf("object→reference shape change should orphan the old object:\n%s", got)
@@ -358,7 +358,7 @@ func TestMerge_ShapeMismatchObjectToReference(t *testing.T) {
 	if !strings.Contains(got, "address: friendlyAddress") {
 		t.Errorf("the field must switch to the reference:\n%s", got)
 	}
-	if !strings.Contains(got, "street: {$label: 'St'}") {
+	if !strings.Contains(got, "street: {rt$label: 'St'}") {
 		t.Errorf("the old object must be preserved in the carcass:\n%s", got)
 	}
 	assertReparses(t, got)
@@ -367,13 +367,13 @@ func TestMerge_ShapeMismatchObjectToReference(t *testing.T) {
 // TestMerge_ShapeMismatchReferenceToObject: the inverse — a leaf/reference that
 // became an inline object is replaced the same way.
 func TestMerge_ShapeMismatchReferenceToObject(t *testing.T) {
-	existing := "{$label: '', address: friendlyAddress}"
-	desired := "{$label: '', address: {$label: '', city: {$label: ''}}}"
+	existing := "{rt$label: '', address: friendlyAddress}"
+	desired := "{rt$label: '', address: {rt$label: '', city: {rt$label: ''}}}"
 	got := mergeWithCtx(t, existing, desired, mergeCtx{metaKeys: friendlyReservedKeys})
 	if !strings.Contains(got, "@rtOrphanChild") {
 		t.Errorf("reference→object shape change should orphan the old reference:\n%s", got)
 	}
-	if !strings.Contains(got, "city: {$label: ''}") {
+	if !strings.Contains(got, "city: {rt$label: ''}") {
 		t.Errorf("the field must switch to the fresh object skeleton:\n%s", got)
 	}
 	assertReparses(t, got)
@@ -383,8 +383,8 @@ func TestMerge_ShapeMismatchReferenceToObject(t *testing.T) {
 // (no trailing comma) — the in-place replace must still re-parse cleanly (the
 // fresh property carries its own trailing comma, valid before `}`).
 func TestMerge_ChildTypeChangedLastField(t *testing.T) {
-	existing := "{$label: '', name: {pool: ['n']}, age: {min: 0}}"
-	desired := "{$label: '', name: {pool: ['n']}, age: {pool: ['x']}}"
+	existing := "{rt$label: '', name: {pool: ['n']}, age: {min: 0}}"
+	desired := "{rt$label: '', name: {pool: ['n']}, age: {pool: ['x']}}"
 	ctx := mergeCtx{
 		metaKeys:      mockReservedKeys,
 		existingChild: map[string]string{"name": "strID", "age": "numID"},
@@ -397,70 +397,70 @@ func TestMerge_ChildTypeChangedLastField(t *testing.T) {
 	}
 }
 
-// TestMerge_MetaRecurseItems: an `$items` element OBJECT gains a sub-field on
-// the desired side — the merge must descend through the `$items` meta node and
+// TestMerge_MetaRecurseItems: an `rt$items` element OBJECT gains a sub-field on
+// the desired side — the merge must descend through the `rt$items` meta node and
 // ADD the new sub-field while preserving the authored sibling. This is the B1
 // regression: meta keys were excluded from the merge entirely, so nested
 // enrichment under arrays froze at first generation.
 func TestMerge_MetaRecurseItems(t *testing.T) {
 	// `tags: SomeObj[]` — the array element is an object with enrich.
-	existing := "{$label: '', tags: {$label: 'Tags', $items: {$label: '', id: {$label: 'ID'}}}}"
-	desired := "{$label: '', tags: {$label: '', $items: {$label: '', id: {$label: ''}, name: {$label: ''}}}}"
+	existing := "{rt$label: '', tags: {rt$label: 'Tags', rt$items: {rt$label: '', id: {rt$label: 'ID'}}}}"
+	desired := "{rt$label: '', tags: {rt$label: '', rt$items: {rt$label: '', id: {rt$label: ''}, name: {rt$label: ''}}}}"
 	got := mergeFriendly(t, existing, desired)
-	if !strings.Contains(got, "id: {$label: 'ID'}") {
-		t.Errorf("authored $items sub-field value must survive:\n%s", got)
+	if !strings.Contains(got, "id: {rt$label: 'ID'}") {
+		t.Errorf("authored rt$items sub-field value must survive:\n%s", got)
 	}
-	if !strings.Contains(got, "name: {$label: ''}") {
-		t.Errorf("new $items sub-field 'name' must be added:\n%s", got)
+	if !strings.Contains(got, "name: {rt$label: ''}") {
+		t.Errorf("new rt$items sub-field 'name' must be added:\n%s", got)
 	}
 	assertReparses(t, got)
 }
 
-// TestMerge_MetaRecurseValues: a Map/Set `$values` element object gains a
-// sub-field — merged through the `$values` meta node.
+// TestMerge_MetaRecurseValues: a Map/Set `rt$values` element object gains a
+// sub-field — merged through the `rt$values` meta node.
 func TestMerge_MetaRecurseValues(t *testing.T) {
-	existing := "{$label: '', cache: {$label: '', $values: {$label: '', a: {$label: 'A'}}}}"
-	desired := "{$label: '', cache: {$label: '', $values: {$label: '', a: {$label: ''}, b: {$label: ''}}}}"
+	existing := "{rt$label: '', cache: {rt$label: '', rt$values: {rt$label: '', a: {rt$label: 'A'}}}}"
+	desired := "{rt$label: '', cache: {rt$label: '', rt$values: {rt$label: '', a: {rt$label: ''}, b: {rt$label: ''}}}}"
 	got := mergeFriendly(t, existing, desired)
-	if !strings.Contains(got, "a: {$label: 'A'}") {
-		t.Errorf("authored $values sub-field must survive:\n%s", got)
+	if !strings.Contains(got, "a: {rt$label: 'A'}") {
+		t.Errorf("authored rt$values sub-field must survive:\n%s", got)
 	}
-	if !strings.Contains(got, "b: {$label: ''}") {
-		t.Errorf("new $values sub-field 'b' must be added:\n%s", got)
+	if !strings.Contains(got, "b: {rt$label: ''}") {
+		t.Errorf("new rt$values sub-field 'b' must be added:\n%s", got)
 	}
 	assertReparses(t, got)
 }
 
-// TestMerge_MetaRecurseSlots: a tuple `$slots` entry (positional) gains a
+// TestMerge_MetaRecurseSlots: a tuple `rt$slots` entry (positional) gains a
 // sub-field — paired by index and merged. Slot 0 keeps its authored value; slot
 // 1 gains a field.
 func TestMerge_MetaRecurseSlots(t *testing.T) {
-	existing := "{$label: '', pair: {$label: '', $slots: [{$label: 'First'}, {$label: '', x: {$label: 'X'}}]}}"
-	desired := "{$label: '', pair: {$label: '', $slots: [{$label: ''}, {$label: '', x: {$label: ''}, y: {$label: ''}}]}}"
+	existing := "{rt$label: '', pair: {rt$label: '', rt$slots: [{rt$label: 'First'}, {rt$label: '', x: {rt$label: 'X'}}]}}"
+	desired := "{rt$label: '', pair: {rt$label: '', rt$slots: [{rt$label: ''}, {rt$label: '', x: {rt$label: ''}, y: {rt$label: ''}}]}}"
 	got := mergeFriendly(t, existing, desired)
-	if !strings.Contains(got, "$label: 'First'") {
+	if !strings.Contains(got, "rt$label: 'First'") {
 		t.Errorf("slot 0 authored value must survive:\n%s", got)
 	}
-	if !strings.Contains(got, "x: {$label: 'X'}") {
+	if !strings.Contains(got, "x: {rt$label: 'X'}") {
 		t.Errorf("slot 1 authored sub-field value must survive:\n%s", got)
 	}
-	if !strings.Contains(got, "y: {$label: ''}") {
+	if !strings.Contains(got, "y: {rt$label: ''}") {
 		t.Errorf("slot 1 new sub-field 'y' must be added:\n%s", got)
 	}
 	assertReparses(t, got)
 }
 
-// TestMerge_MetaRecurseScalarUntouched: scalar meta ($length) is author data and
+// TestMerge_MetaRecurseScalarUntouched: scalar meta (rt$length) is author data and
 // must never be touched by the meta recursion.
 func TestMerge_MetaRecurseScalarUntouched(t *testing.T) {
-	existing := "{$items: {pool: [1, 2]}, $length: [2, 5]}"
-	desired := "{$items: {pool: []}, $length: [1, 3]}"
+	existing := "{rt$items: {pool: [1, 2]}, rt$length: [2, 5]}"
+	desired := "{rt$items: {pool: []}, rt$length: [1, 3]}"
 	got := mergeFriendly(t, existing, desired)
-	if !strings.Contains(got, "$length: [2, 5]") {
-		t.Errorf("authored scalar $length must survive untouched:\n%s", got)
+	if !strings.Contains(got, "rt$length: [2, 5]") {
+		t.Errorf("authored scalar rt$length must survive untouched:\n%s", got)
 	}
 	if !strings.Contains(got, "pool: [1, 2]") {
-		t.Errorf("authored $items pool must survive:\n%s", got)
+		t.Errorf("authored rt$items pool must survive:\n%s", got)
 	}
 	assertReparses(t, got)
 }
@@ -468,13 +468,13 @@ func TestMerge_MetaRecurseScalarUntouched(t *testing.T) {
 // TestMerge_NestedRecurse: a nested object field gains a new sub-field while its
 // sibling's authored value survives.
 func TestMerge_NestedRecurse(t *testing.T) {
-	existing := "{$label: '', profile: {$label: '', email: {$label: 'Email'}}}"
-	desired := "{$label: '', profile: {$label: '', email: {$label: ''}, score: {$label: ''}}}"
+	existing := "{rt$label: '', profile: {rt$label: '', email: {rt$label: 'Email'}}}"
+	desired := "{rt$label: '', profile: {rt$label: '', email: {rt$label: ''}, score: {rt$label: ''}}}"
 	got := mergeFriendly(t, existing, desired)
-	if !strings.Contains(got, "email: {$label: 'Email'}") {
+	if !strings.Contains(got, "email: {rt$label: 'Email'}") {
 		t.Errorf("nested authored value not preserved:\n%s", got)
 	}
-	if !strings.Contains(got, "score: {$label: ''}") {
+	if !strings.Contains(got, "score: {rt$label: ''}") {
 		t.Errorf("nested added field 'score' missing:\n%s", got)
 	}
 }
@@ -498,8 +498,8 @@ func TestMerge_NestedRecurse(t *testing.T) {
 // field (the field still exists, so the comment is NOT folded into the carcass and
 // is NOT stripped). It survives a later --prune (it describes the live field).
 func TestComment_KeptTypeChange_SurvivesAbove(t *testing.T) {
-	existing := "{$label: '',\n  // age in years\n  age: {min: 0, max: 120}}"
-	desired := "{$label: '', age: {pool: ['x']}}"
+	existing := "{rt$label: '',\n  // age in years\n  age: {min: 0, max: 120}}"
+	desired := "{rt$label: '', age: {pool: ['x']}}"
 	ctx := mergeCtx{
 		metaKeys:      mockReservedKeys,
 		existingChild: map[string]string{"age": "numID"},
@@ -525,8 +525,8 @@ func TestComment_KeptTypeChange_SurvivesAbove(t *testing.T) {
 // (home → residence, both `friendlyAddress`) carries its leading comment under the
 // new key — the comment moves with the field, same as the Tier-2 primitive case.
 func TestComment_Tier1Rename_MovesWithField(t *testing.T) {
-	existing := "{$label: '',\n  // where the user lives\n  home: friendlyAddress}"
-	desired := "{$label: '', residence: friendlyAddress}"
+	existing := "{rt$label: '',\n  // where the user lives\n  home: friendlyAddress}"
+	desired := "{rt$label: '', residence: friendlyAddress}"
 	got := mergeWithCtx(t, existing, desired, mergeCtx{metaKeys: friendlyReservedKeys})
 	assertReparses(t, got)
 	if strings.Contains(got, "@rtOrphanChild") {
@@ -549,8 +549,8 @@ func TestComment_Tier1Rename_MovesWithField(t *testing.T) {
 // (The in-place key-splice leaves the leading comment untouched, so it stays
 // above the renamed field.)
 func TestComment_Tier2Rename_MovesWithField(t *testing.T) {
-	existing := "{$label: '',\n  // the person's legal name\n  fullName: {$label: 'Full name'}}"
-	desired := "{$label: '', name: {$label: ''}}"
+	existing := "{rt$label: '',\n  // the person's legal name\n  fullName: {rt$label: 'Full name'}}"
+	desired := "{rt$label: '', name: {rt$label: ''}}"
 	ctx := mergeCtx{
 		metaKeys:      friendlyReservedKeys,
 		existingChild: map[string]string{"fullName": "strID"},
@@ -564,7 +564,7 @@ func TestComment_Tier2Rename_MovesWithField(t *testing.T) {
 	if !strings.Contains(got, "// the person's legal name") {
 		t.Errorf("leading comment must survive the rename:\n%s", got)
 	}
-	if strings.Index(got, "// the person's legal name") > strings.Index(got, "name: {$label: 'Full name'}") {
+	if strings.Index(got, "// the person's legal name") > strings.Index(got, "name: {rt$label: 'Full name'}") {
 		t.Errorf("leading comment must move WITH the renamed field (above 'name'):\n%s", got)
 	}
 }
@@ -583,8 +583,8 @@ func TestComment_DroppedField_FoldsIntoCarcass(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			existing := "{$label: '',\n  " + tc.comment + "\n  age: {$label: 'Age'}, name: {$label: ''}}"
-			desired := "{$label: '', name: {$label: ''}}"
+			existing := "{rt$label: '',\n  " + tc.comment + "\n  age: {rt$label: 'Age'}, name: {rt$label: ''}}"
+			desired := "{rt$label: '', name: {rt$label: ''}}"
 			got := mergeFriendly(t, existing, desired)
 			assertReparses(t, got)
 			if !strings.Contains(got, "@rtOrphanChild") {
@@ -611,7 +611,7 @@ func TestComment_DroppedField_FoldsIntoCarcass(t *testing.T) {
 				t.Errorf("the dropped field + its folded comment must be gone after --prune:\n%s", pruned)
 			}
 			// The surviving sibling is untouched.
-			if !strings.Contains(pruned, "name: {$label: ''}") {
+			if !strings.Contains(pruned, "name: {rt$label: ''}") {
 				t.Errorf("the surviving field must remain after prune:\n%s", pruned)
 			}
 		})
@@ -621,11 +621,11 @@ func TestComment_DroppedField_FoldsIntoCarcass(t *testing.T) {
 // TestComment_DroppedField_NoComment_Unchanged: the no-leading-comment drop is
 // unaffected by the fold logic — the carcass starts at the field key as before.
 func TestComment_DroppedField_NoComment_Unchanged(t *testing.T) {
-	existing := "{$label: '', age: {$label: 'Age'}, name: {$label: ''}}"
-	desired := "{$label: '', name: {$label: ''}}"
+	existing := "{rt$label: '', age: {rt$label: 'Age'}, name: {rt$label: ''}}"
+	desired := "{rt$label: '', name: {rt$label: ''}}"
 	got := mergeFriendly(t, existing, desired)
 	assertReparses(t, got)
-	if !strings.Contains(got, "/* @rtOrphanChild age: {$label: 'Age'},") {
+	if !strings.Contains(got, "/* @rtOrphanChild age: {rt$label: 'Age'},") {
 		t.Errorf("a no-comment drop must carcass exactly the field (no fold):\n%s", got)
 	}
 }
@@ -634,17 +634,17 @@ func TestComment_DroppedField_NoComment_Unchanged(t *testing.T) {
 // inside a nested object that the merge RECURSES into must survive, while a new
 // sibling sub-field is added.
 func TestComment_NestedSubField_SurvivesRecurse(t *testing.T) {
-	existing := "{$label: '', profile: {$label: '',\n    // the contact email\n    email: {$label: 'Email'}}}"
-	desired := "{$label: '', profile: {$label: '', email: {$label: ''}, score: {$label: ''}}}"
+	existing := "{rt$label: '', profile: {rt$label: '',\n    // the contact email\n    email: {rt$label: 'Email'}}}"
+	desired := "{rt$label: '', profile: {rt$label: '', email: {rt$label: ''}, score: {rt$label: ''}}}"
 	got := mergeFriendly(t, existing, desired)
 	assertReparses(t, got)
 	if !strings.Contains(got, "// the contact email") {
 		t.Errorf("a nested sub-field comment must survive the recurse:\n%s", got)
 	}
-	if !strings.Contains(got, "email: {$label: 'Email'}") {
+	if !strings.Contains(got, "email: {rt$label: 'Email'}") {
 		t.Errorf("the nested authored value must survive:\n%s", got)
 	}
-	if !strings.Contains(got, "score: {$label: ''}") {
+	if !strings.Contains(got, "score: {rt$label: ''}") {
 		t.Errorf("the new nested sub-field must be added:\n%s", got)
 	}
 }
@@ -653,14 +653,14 @@ func TestComment_NestedSubField_SurvivesRecurse(t *testing.T) {
 // KEPT field is left byte-identical (the merge never touches a kept leaf's bytes),
 // even when a sibling field is added.
 func TestComment_InlineKeptField_Survives(t *testing.T) {
-	existing := "{$label: '', name: {$label: 'N'} /* inline on name */, age: {$label: ''}}"
-	desired := "{$label: '', name: {$label: ''}, age: {$label: ''}, extra: {$label: ''}}"
+	existing := "{rt$label: '', name: {rt$label: 'N'} /* inline on name */, age: {rt$label: ''}}"
+	desired := "{rt$label: '', name: {rt$label: ''}, age: {rt$label: ''}, extra: {rt$label: ''}}"
 	got := mergeFriendly(t, existing, desired)
 	assertReparses(t, got)
 	if !strings.Contains(got, "/* inline on name */") {
 		t.Errorf("an inline comment on a kept field must survive:\n%s", got)
 	}
-	if !strings.Contains(got, "extra: {$label: ''}") {
+	if !strings.Contains(got, "extra: {rt$label: ''}") {
 		t.Errorf("the added sibling must be present:\n%s", got)
 	}
 }
@@ -670,7 +670,7 @@ func TestComment_InlineKeptField_Survives(t *testing.T) {
 // past propStart.
 func TestCarcassFoldStart_Detection(t *testing.T) {
 	t.Run("line comment folds", func(t *testing.T) {
-		view := parseDesiredObject("{$label: '',\n  // c\n  age: {$label: 'A'}}")
+		view := parseDesiredObject("{rt$label: '',\n  // c\n  age: {rt$label: 'A'}}")
 		prop := view.props["age"]
 		start := carcassFoldStart(view.text, prop)
 		if start >= prop.propStart {
@@ -681,7 +681,7 @@ func TestCarcassFoldStart_Detection(t *testing.T) {
 		}
 	})
 	t.Run("no comment keeps propStart", func(t *testing.T) {
-		view := parseDesiredObject("{$label: '', age: {$label: 'A'}}")
+		view := parseDesiredObject("{rt$label: '', age: {rt$label: 'A'}}")
 		prop := view.props["age"]
 		if carcassFoldStart(view.text, prop) != prop.propStart {
 			t.Errorf("a no-comment field must keep propStart")

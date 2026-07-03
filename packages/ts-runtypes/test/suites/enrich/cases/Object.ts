@@ -2,10 +2,10 @@ import type {FriendlyType, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Object-like kinds — interfaces / object literals / intersections. Friendly
-// emits `{$label: '', <field>: <node>, …}`; mock emits `{<field>: <node>, …}`.
+// emits `{rt$label: '', <field>: <node>, …}`; mock emits `{<field>: <node>, …}`.
 // Mirrors the validation suite's OBJECT range. (Bare index-signature roots are
-// excluded: the emitter projects them as a `{$label: ''}` leaf, but
-// `FriendlyType<{[k: string]: V}>` makes EVERY string key a node — `$label`
+// excluded: the emitter projects them as a `{rt$label: ''}` leaf, but
+// `FriendlyType<{[k: string]: V}>` makes EVERY string key a node — `rt$label`
 // then collides with the index signature, so the leaf isn't type-checkable. The
 // validation suite exercises index signatures as object MEMBERS, not roots.)
 export const OBJECT = {
@@ -16,10 +16,10 @@ export const OBJECT = {
       type Target = {a: string; b: number};
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        a: {$label: '', $errors: {type: ''}},
-        b: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        a: {rt$label: '', rt$errors: {type: ''}},
+        b: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -38,10 +38,10 @@ export const OBJECT = {
       type Target = {a: string; b?: number};
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        a: {$label: '', $errors: {type: ''}},
-        b: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        a: {rt$label: '', rt$errors: {type: ''}},
+        b: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -60,14 +60,14 @@ export const OBJECT = {
       type Target = {a: string; deep: {b: string; c: number}};
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        a: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        a: {rt$label: '', rt$errors: {type: ''}},
         deep: {
-          $label: '',
-          $errors: {type: ''},
-          b: {$label: '', $errors: {type: ''}},
-          c: {$label: '', $errors: {type: ''}},
+          rt$label: '',
+          rt$errors: {type: ''},
+          b: {rt$label: '', rt$errors: {type: ''}},
+          c: {rt$label: '', rt$errors: {type: ''}},
         },
       };
       // ##### mock #####
@@ -90,10 +90,10 @@ export const OBJECT = {
       type Target = {readonly name: string; readonly age: number};
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        name: {$label: '', $errors: {type: ''}},
-        age: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        name: {rt$label: '', rt$errors: {type: ''}},
+        age: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -112,10 +112,10 @@ export const OBJECT = {
       type Target = {a: string} & {b: number};
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        a: {$label: '', $errors: {type: ''}},
-        b: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        a: {rt$label: '', rt$errors: {type: ''}},
+        b: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -134,15 +134,15 @@ export const OBJECT = {
       type Target = {a: {b: {c: string}}};
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
+        rt$label: '',
+        rt$errors: {type: ''},
         a: {
-          $label: '',
-          $errors: {type: ''},
+          rt$label: '',
+          rt$errors: {type: ''},
           b: {
-            $label: '',
-            $errors: {type: ''},
-            c: {$label: '', $errors: {type: ''}},
+            rt$label: '',
+            rt$errors: {type: ''},
+            c: {rt$label: '', rt$errors: {type: ''}},
           },
         },
       };
@@ -166,13 +166,13 @@ export const OBJECT = {
       type Target = {s: string; n: number; b: boolean; d: Date; big: bigint};
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        s: {$label: '', $errors: {type: ''}},
-        n: {$label: '', $errors: {type: ''}},
-        b: {$label: '', $errors: {type: ''}},
-        d: {$label: '', $errors: {type: ''}},
-        big: {$label: '', $errors: {type: ''}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        s: {rt$label: '', rt$errors: {type: ''}},
+        n: {rt$label: '', rt$errors: {type: ''}},
+        b: {rt$label: '', rt$errors: {type: ''}},
+        d: {rt$label: '', rt$errors: {type: ''}},
+        big: {rt$label: '', rt$errors: {type: ''}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
@@ -194,13 +194,13 @@ export const OBJECT = {
       type Target = {tags: string[]};
       // ##### friendly #####
       const friendlyTarget: FriendlyType<Target> = {
-        $label: '',
-        $errors: {type: ''},
-        tags: {$label: '', $errors: {type: ''}, $items: {$label: '', $errors: {type: ''}}},
+        rt$label: '',
+        rt$errors: {type: ''},
+        tags: {rt$label: '', rt$errors: {type: ''}, rt$items: {rt$label: '', rt$errors: {type: ''}}},
       };
       // ##### mock #####
       const mockTarget: MockData<Target> = {
-        tags: {$items: {pool: []}, $length: [1, 3]},
+        tags: {rt$items: {pool: []}, rt$length: [1, 3]},
       };
       // ##### result #####
       return {friendlyTarget, mockTarget};

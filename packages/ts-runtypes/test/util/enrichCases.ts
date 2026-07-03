@@ -71,7 +71,7 @@ function splitByMarkers(caseKey: string, body: string): CaseSpans {
 // A trailing ` as <Type>` assertion is stripped: a few divergent leaf kinds
 // (tuple, Map, Set — the emitter treats them as opaque leaves and emits a
 // `{pool: []}` mock that is NOT structurally assignable to `MockData<T>`, since
-// that type models tuples as `{$items, $length}` and Map/Set as homomorphic
+// that type models tuples as `{rt$items, rt$length}` and Map/Set as homomorphic
 // object maps) author their mock as `{pool: []} as MockData<Target>`. We strip
 // the cast so the comparison sees the bare literal the generator emits.
 function initializerOf(caseKey: string, constName: string, declaration: string): string {

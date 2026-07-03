@@ -14,10 +14,10 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/enrich"
 )
 
-// blankLabels empties every authored $label value so two mirrors that differ ONLY in
+// blankLabels empties every authored rt$label value so two mirrors that differ ONLY in
 // authored text compare equal — the normalizer for the content-blindness check.
 func blankLabels(mirror string) string {
-	return regexp.MustCompile(`\$label: '[^']*'`).ReplaceAllString(mirror, "$$label: ''")
+	return regexp.MustCompile(`rt\$label: '[^']*'`).ReplaceAllString(mirror, "rt$$label: ''")
 }
 
 // Metamorphic: the reconciler is CONTENT-BLIND. The SAME source edit (drop `age`, add
@@ -31,13 +31,13 @@ func TestExample_ReconcileIsContentBlind(t *testing.T) {
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType User#u1 @rtIds {name: strId, age: numId} */\n"
 	emptyExisting := header +
-		"export const friendlyUser: FriendlyType<User> = {$label: '', name: {$label: ''}, age: {$label: ''}};\n"
+		"export const friendlyUser: FriendlyType<User> = {rt$label: '', name: {rt$label: ''}, age: {rt$label: ''}};\n"
 	filledExisting := header +
-		"export const friendlyUser: FriendlyType<User> = {$label: 'Account', name: {$label: 'Name'}, age: {$label: 'Age'}};\n"
+		"export const friendlyUser: FriendlyType<User> = {rt$label: 'Account', name: {rt$label: 'Name'}, age: {rt$label: 'Age'}};\n"
 
 	spec := friendlySpec(enrich.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
-		Friendly: "{$label: '', name: {$label: ''}, email: {$label: ''}}",
+		Friendly: "{rt$label: '', name: {rt$label: ''}, email: {rt$label: ''}}",
 		TypeID:   "u2", ChildIDs: map[string]string{"name": "strId", "email": "strId"},
 	})
 	outEmpty := mustReconcile(t, spec, emptyExisting, sourceDeclaring("User"))
@@ -103,20 +103,20 @@ func TestExample_RenameField_carriesValue(t *testing.T) {
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType User#u1 @rtIds {name: strId} */\n" +
 		"export const friendlyUser: FriendlyType<User> = {\n" +
-		"  $label: '',\n" +
-		"  name: {$label: 'Full name'},\n" +
+		"  rt$label: '',\n" +
+		"  name: {rt$label: 'Full name'},\n" +
 		"};\n"
 
 	spec := friendlySpec(enrich.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
-		Friendly: "{$label: '', fullName: {$label: ''}}",
+		Friendly: "{rt$label: '', fullName: {rt$label: ''}}",
 		TypeID:   "u2", ChildIDs: map[string]string{"fullName": "strId"},
 	})
 	out := mustReconcile(t, spec, existing, sourceDeclaring("User"))
 
-	requireContains(t, out, "fullName: {$label: 'Full name'}") // value carried to the new key
-	requireMissing(t, out, "@rtOrphan")                        // no orphan trail
-	requireMissing(t, out, "name: {$label")                    // old key gone (it became fullName)
+	requireContains(t, out, "fullName: {rt$label: 'Full name'}") // value carried to the new key
+	requireMissing(t, out, "@rtOrphan")                          // no orphan trail
+	requireMissing(t, out, "name: {rt$label")                    // old key gone (it became fullName)
 }
 
 // Rename a whole INTERFACE (User -> Account). Same shape => same structural id, so
@@ -128,13 +128,13 @@ func TestExample_RenameInterface_carriesTreeAndRenames(t *testing.T) {
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType User#shapeId @rtIds {name: strId} */\n" +
 		"export const friendlyUser: FriendlyType<User> = {\n" +
-		"  $label: 'A person',\n" +
-		"  name: {$label: 'Full name'},\n" +
+		"  rt$label: 'A person',\n" +
+		"  name: {rt$label: 'Full name'},\n" +
 		"};\n"
 
 	spec := friendlySpec(enrich.NamedConst{
 		TypeName: "Account", DeclFile: "/src.ts", FriendlyVar: "friendlyAccount",
-		Friendly: "{$label: '', name: {$label: ''}}",
+		Friendly: "{rt$label: '', name: {rt$label: ''}}",
 		TypeID:   "shapeId", ChildIDs: map[string]string{"name": "strId"},
 	})
 	out := mustReconcile(t, spec, existing, sourceDeclaring("Account"))
@@ -142,8 +142,8 @@ func TestExample_RenameInterface_carriesTreeAndRenames(t *testing.T) {
 	requireContains(t, out, "export const friendlyAccount: FriendlyType<Account>") // var + annotation renamed
 	requireContains(t, out, "@rtType Account#shapeId")                             // marker renamed (same id)
 	requireContains(t, out, "import type { Account }")                             // breadcrumb renamed
-	requireContains(t, out, "$label: 'A person'")                                  // root label carried
-	requireContains(t, out, "name: {$label: 'Full name'}")                         // field carried
+	requireContains(t, out, "rt$label: 'A person'")                                // root label carried
+	requireContains(t, out, "name: {rt$label: 'Full name'}")                       // field carried
 	requireMissing(t, out, "@rtOrphan")                                            // no orphan tree
 	requireMissing(t, out, "friendlyUser")                                         // old const fully gone
 }
@@ -159,14 +159,14 @@ func TestExample_RenameAndReshape_carriesByGraphParity(t *testing.T) {
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType Widget#widId @rtIds {id: idStr, size: numId} */\n" +
 		"export const friendlyWidget: FriendlyType<Widget> = {\n" +
-		"  $label: 'A widget',\n" +
-		"  id: {$label: 'Identifier'},\n" +
-		"  size: {$label: 'Size in mm'},\n" +
+		"  rt$label: 'A widget',\n" +
+		"  id: {rt$label: 'Identifier'},\n" +
+		"  size: {rt$label: 'Size in mm'},\n" +
 		"};\n"
 
 	spec := friendlySpec(enrich.NamedConst{
 		TypeName: "Gadget", DeclFile: "/src.ts", FriendlyVar: "friendlyGadget",
-		Friendly: "{$label: '', id: {$label: ''}, size: {$label: ''}, color: {$label: ''}}",
+		Friendly: "{rt$label: '', id: {rt$label: ''}, size: {rt$label: ''}, color: {rt$label: ''}}",
 		TypeID:   "gadId", // different whole-graph id — the reshape changed it
 		ChildIDs: map[string]string{"id": "idStr", "size": "numId", "color": "colId"},
 	})
@@ -174,9 +174,9 @@ func TestExample_RenameAndReshape_carriesByGraphParity(t *testing.T) {
 
 	requireContains(t, out, "export const friendlyGadget: FriendlyType<Gadget>") // var + annotation renamed
 	requireContains(t, out, "@rtType Gadget#gadId")                              // marker updated to new id
-	requireContains(t, out, "$label: 'A widget'")                                // root label carried
-	requireContains(t, out, "id: {$label: 'Identifier'}")                        // kept field carried
-	requireContains(t, out, "size: {$label: 'Size in mm'}")                      // kept field carried
+	requireContains(t, out, "rt$label: 'A widget'")                              // root label carried
+	requireContains(t, out, "id: {rt$label: 'Identifier'}")                      // kept field carried
+	requireContains(t, out, "size: {rt$label: 'Size in mm'}")                    // kept field carried
 	requireContains(t, out, "color:")                                            // new field scaffolded
 	requireMissing(t, out, "@rtOrphan")                                          // nothing orphaned
 	requireMissing(t, out, "friendlyWidget")                                     // old const fully gone
@@ -198,11 +198,11 @@ func TestExample_TwoSameShapeRenames_ambiguousFallsThrough(t *testing.T) {
 	existing := "import type { A, B } from '../src';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType A#sameId @rtIds {x: strId} */\n" +
-		"export const friendlyA: FriendlyType<A> = {$label: 'the A', x: {$label: 'x of A'}};\n\n" +
+		"export const friendlyA: FriendlyType<A> = {rt$label: 'the A', x: {rt$label: 'x of A'}};\n\n" +
 		"/** @rtType B#sameId @rtIds {x: strId} */\n" +
-		"export const friendlyB: FriendlyType<B> = {$label: 'the B', x: {$label: 'x of B'}};\n"
+		"export const friendlyB: FriendlyType<B> = {rt$label: 'the B', x: {rt$label: 'x of B'}};\n"
 
-	body := "{$label: '', x: {$label: ''}}"
+	body := "{rt$label: '', x: {rt$label: ''}}"
 	spec := friendlySpec(
 		enrich.NamedConst{TypeName: "X", DeclFile: "/src.ts", FriendlyVar: "friendlyX", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
 		enrich.NamedConst{TypeName: "Y", DeclFile: "/src.ts", FriendlyVar: "friendlyY", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
@@ -226,26 +226,26 @@ func TestExample_RenameEnum_carriesByReferentialLink(t *testing.T) {
 	existing := "import type { Holder, E0 } from '../src';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType E0#e0old */\n" +
-		"export const friendlyE0: FriendlyType<E0> = {$label: 'A status enum', $errors: {type: ''}};\n\n" +
+		"export const friendlyE0: FriendlyType<E0> = {rt$label: 'A status enum', rt$errors: {type: ''}};\n\n" +
 		"/** @rtType Holder#holdId @rtIds {kind: e0old} */\n" +
-		"export const friendlyHolder: FriendlyType<Holder> = {$label: 'Holder', kind: friendlyE0};\n"
+		"export const friendlyHolder: FriendlyType<Holder> = {rt$label: 'Holder', kind: friendlyE0};\n"
 
 	spec := friendlySpec(
 		enrich.NamedConst{
 			TypeName: "Status", DeclFile: "/src.ts", FriendlyVar: "friendlyStatus",
-			Friendly: "{$label: '', $errors: {type: ''}}", TypeID: "e0new", // enum id changed with the rename
+			Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e0new", // enum id changed with the rename
 		},
 		enrich.NamedConst{
 			TypeName: "Holder", DeclFile: "/src.ts", FriendlyVar: "friendlyHolder",
-			Friendly: "{$label: '', kind: friendlyStatus}",
+			Friendly: "{rt$label: '', kind: friendlyStatus}",
 			TypeID:   "holdId", ChildIDs: map[string]string{"kind": "e0new"}, // field repointed to the new id
 		},
 	)
 	out := mustReconcile(t, spec, existing, sourceDeclaring("Holder", "Status"))
 
-	requireContains(t, out, "export const friendlyStatus: FriendlyType<Status> = {$label: 'A status enum'") // carried onto the LIVE const
-	requireContains(t, out, "@rtType Status#e0new")                                                         // marker renamed to the new id
-	requireMissing(t, out, "@rtType E0#e0old")                                                              // old enum not orphaned (it was renamed)
+	requireContains(t, out, "export const friendlyStatus: FriendlyType<Status> = {rt$label: 'A status enum'") // carried onto the LIVE const
+	requireContains(t, out, "@rtType Status#e0new")                                                           // marker renamed to the new id
+	requireMissing(t, out, "@rtType E0#e0old")                                                                // old enum not orphaned (it was renamed)
 }
 
 // Soundness: two unrelated enums deleted and two unrelated enums added, with NO
@@ -256,21 +256,21 @@ func TestExample_RenameEnum_noReferentialLink_fallsThrough(t *testing.T) {
 	existing := "import type { E1, E2 } from '../src';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType E1#e1 */\n" +
-		"export const friendlyE1: FriendlyType<E1> = {$label: 'enum one', $errors: {type: ''}};\n\n" +
+		"export const friendlyE1: FriendlyType<E1> = {rt$label: 'enum one', rt$errors: {type: ''}};\n\n" +
 		"/** @rtType E2#e2 */\n" +
-		"export const friendlyE2: FriendlyType<E2> = {$label: 'enum two', $errors: {type: ''}};\n"
+		"export const friendlyE2: FriendlyType<E2> = {rt$label: 'enum two', rt$errors: {type: ''}};\n"
 
 	spec := friendlySpec(
-		enrich.NamedConst{TypeName: "E3", DeclFile: "/src.ts", FriendlyVar: "friendlyE3", Friendly: "{$label: '', $errors: {type: ''}}", TypeID: "e3"},
-		enrich.NamedConst{TypeName: "E4", DeclFile: "/src.ts", FriendlyVar: "friendlyE4", Friendly: "{$label: '', $errors: {type: ''}}", TypeID: "e4"},
+		enrich.NamedConst{TypeName: "E3", DeclFile: "/src.ts", FriendlyVar: "friendlyE3", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e3"},
+		enrich.NamedConst{TypeName: "E4", DeclFile: "/src.ts", FriendlyVar: "friendlyE4", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e4"},
 	)
 	out := mustReconcile(t, spec, existing, sourceDeclaring("E3", "E4"))
 
 	requireContains(t, out, "@rtOrphan") // E1/E2 orphaned (preserved)...
 	requireContains(t, out, "enum one")  // ...labels kept in carcasses, not mis-carried
 	requireContains(t, out, "enum two")
-	requireContains(t, out, "export const friendlyE3: FriendlyType<E3> = {$label: ''") // E3/E4 scaffolded fresh
-	requireContains(t, out, "export const friendlyE4: FriendlyType<E4> = {$label: ''")
+	requireContains(t, out, "export const friendlyE3: FriendlyType<E3> = {rt$label: ''") // E3/E4 scaffolded fresh
+	requireContains(t, out, "export const friendlyE4: FriendlyType<E4> = {rt$label: ''")
 }
 
 // Soundness: one enum E0 is referenced by TWO fields that repoint to DIFFERENT new
@@ -281,24 +281,24 @@ func TestExample_RenameEnum_ambiguousRepoint_fallsThrough(t *testing.T) {
 	existing := "import type { HolderA, HolderB, E0 } from '../src';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType E0#e0 */\n" +
-		"export const friendlyE0: FriendlyType<E0> = {$label: 'shared enum', $errors: {type: ''}};\n\n" +
+		"export const friendlyE0: FriendlyType<E0> = {rt$label: 'shared enum', rt$errors: {type: ''}};\n\n" +
 		"/** @rtType HolderA#ha @rtIds {fieldA: e0} */\n" +
-		"export const friendlyHolderA: FriendlyType<HolderA> = {$label: '', fieldA: friendlyE0};\n\n" +
+		"export const friendlyHolderA: FriendlyType<HolderA> = {rt$label: '', fieldA: friendlyE0};\n\n" +
 		"/** @rtType HolderB#hb @rtIds {fieldB: e0} */\n" +
-		"export const friendlyHolderB: FriendlyType<HolderB> = {$label: '', fieldB: friendlyE0};\n"
+		"export const friendlyHolderB: FriendlyType<HolderB> = {rt$label: '', fieldB: friendlyE0};\n"
 
 	spec := friendlySpec(
-		enrich.NamedConst{TypeName: "E1", DeclFile: "/src.ts", FriendlyVar: "friendlyE1", Friendly: "{$label: '', $errors: {type: ''}}", TypeID: "e1"},
-		enrich.NamedConst{TypeName: "E2", DeclFile: "/src.ts", FriendlyVar: "friendlyE2", Friendly: "{$label: '', $errors: {type: ''}}", TypeID: "e2"},
-		enrich.NamedConst{TypeName: "HolderA", DeclFile: "/src.ts", FriendlyVar: "friendlyHolderA", Friendly: "{$label: '', fieldA: friendlyE1}", TypeID: "ha", ChildIDs: map[string]string{"fieldA": "e1"}},
-		enrich.NamedConst{TypeName: "HolderB", DeclFile: "/src.ts", FriendlyVar: "friendlyHolderB", Friendly: "{$label: '', fieldB: friendlyE2}", TypeID: "hb", ChildIDs: map[string]string{"fieldB": "e2"}},
+		enrich.NamedConst{TypeName: "E1", DeclFile: "/src.ts", FriendlyVar: "friendlyE1", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e1"},
+		enrich.NamedConst{TypeName: "E2", DeclFile: "/src.ts", FriendlyVar: "friendlyE2", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e2"},
+		enrich.NamedConst{TypeName: "HolderA", DeclFile: "/src.ts", FriendlyVar: "friendlyHolderA", Friendly: "{rt$label: '', fieldA: friendlyE1}", TypeID: "ha", ChildIDs: map[string]string{"fieldA": "e1"}},
+		enrich.NamedConst{TypeName: "HolderB", DeclFile: "/src.ts", FriendlyVar: "friendlyHolderB", Friendly: "{rt$label: '', fieldB: friendlyE2}", TypeID: "hb", ChildIDs: map[string]string{"fieldB": "e2"}},
 	)
 	out := mustReconcile(t, spec, existing, sourceDeclaring("HolderA", "HolderB", "E1", "E2"))
 
-	requireContains(t, out, "@rtOrphan")                                               // E0 orphaned (ambiguous, not guessed)
-	requireContains(t, out, "shared enum")                                             // E0's label preserved in its carcass
-	requireContains(t, out, "export const friendlyE1: FriendlyType<E1> = {$label: ''") // E1 scaffolded empty — no mis-carry
-	requireContains(t, out, "export const friendlyE2: FriendlyType<E2> = {$label: ''") // E2 scaffolded empty — no mis-carry
+	requireContains(t, out, "@rtOrphan")                                                 // E0 orphaned (ambiguous, not guessed)
+	requireContains(t, out, "shared enum")                                               // E0's label preserved in its carcass
+	requireContains(t, out, "export const friendlyE1: FriendlyType<E1> = {rt$label: ''") // E1 scaffolded empty — no mis-carry
+	requireContains(t, out, "export const friendlyE2: FriendlyType<E2> = {rt$label: ''") // E2 scaffolded empty — no mis-carry
 }
 
 // Change a field's TYPE (age: number -> string). The old value can't carry to a
@@ -310,19 +310,19 @@ func TestExample_ChangeFieldType_parksOldValueInCarcass(t *testing.T) {
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType User#u1 @rtIds {age: numId} */\n" +
 		"export const friendlyUser: FriendlyType<User> = {\n" +
-		"  $label: '',\n" +
-		"  age: {$label: 'Years old'},\n" +
+		"  rt$label: '',\n" +
+		"  age: {rt$label: 'Years old'},\n" +
 		"};\n"
 
 	spec := friendlySpec(enrich.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
-		Friendly: "{$label: '', age: {$label: ''}}",
+		Friendly: "{rt$label: '', age: {rt$label: ''}}",
 		TypeID:   "u2", ChildIDs: map[string]string{"age": "strId"}, // age is now a string
 	})
 	out := mustReconcile(t, spec, existing, sourceDeclaring("User"))
 
-	requireContains(t, out, "@rtOrphanChild")      // old value parked in a carcass...
-	requireContains(t, out, "$label: 'Years old'") // ...preserved verbatim (prune to drop it)
+	requireContains(t, out, "@rtOrphanChild")        // old value parked in a carcass...
+	requireContains(t, out, "rt$label: 'Years old'") // ...preserved verbatim (prune to drop it)
 }
 
 // Add a field. A fresh skeleton is inserted; existing authored values are
@@ -332,19 +332,19 @@ func TestExample_AddField_insertsFreshSkeleton(t *testing.T) {
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType User#u1 @rtIds {name: strId} */\n" +
 		"export const friendlyUser: FriendlyType<User> = {\n" +
-		"  $label: '',\n" +
-		"  name: {$label: 'Full name'},\n" +
+		"  rt$label: '',\n" +
+		"  name: {rt$label: 'Full name'},\n" +
 		"};\n"
 
 	spec := friendlySpec(enrich.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
-		Friendly: "{$label: '', name: {$label: ''}, email: {$label: ''}}",
+		Friendly: "{rt$label: '', name: {rt$label: ''}, email: {rt$label: ''}}",
 		TypeID:   "u2", ChildIDs: map[string]string{"name": "strId", "email": "strId"},
 	})
 	out := mustReconcile(t, spec, existing, sourceDeclaring("User"))
 
-	requireContains(t, out, "name: {$label: 'Full name'}") // existing value untouched
-	requireContains(t, out, "email:")                      // new field added
+	requireContains(t, out, "name: {rt$label: 'Full name'}") // existing value untouched
+	requireContains(t, out, "email:")                        // new field added
 	requireMissing(t, out, "@rtOrphan")
 }
 
@@ -355,21 +355,21 @@ func TestExample_DeleteField_orphanChildsIt(t *testing.T) {
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType User#u1 @rtIds {name: strId, nickname: strId} */\n" +
 		"export const friendlyUser: FriendlyType<User> = {\n" +
-		"  $label: '',\n" +
-		"  name: {$label: 'Full name'},\n" +
-		"  nickname: {$label: 'Nickname'},\n" +
+		"  rt$label: '',\n" +
+		"  name: {rt$label: 'Full name'},\n" +
+		"  nickname: {rt$label: 'Nickname'},\n" +
 		"};\n"
 
 	spec := friendlySpec(enrich.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
-		Friendly: "{$label: '', name: {$label: ''}}",
+		Friendly: "{rt$label: '', name: {rt$label: ''}}",
 		TypeID:   "u2", ChildIDs: map[string]string{"name": "strId"},
 	})
 	out := mustReconcile(t, spec, existing, sourceDeclaring("User"))
 
-	requireContains(t, out, "name: {$label: 'Full name'}") // surviving field untouched
-	requireContains(t, out, "@rtOrphanChild")              // deleted field commented out...
-	requireContains(t, out, "$label: 'Nickname'")          // ...with its value preserved
+	requireContains(t, out, "name: {rt$label: 'Full name'}") // surviving field untouched
+	requireContains(t, out, "@rtOrphanChild")                // deleted field commented out...
+	requireContains(t, out, "rt$label: 'Nickname'")          // ...with its value preserved
 }
 
 // Two DIFFERENT named types with the SAME shape (A and B share a structural id)
@@ -379,11 +379,11 @@ func TestExample_TwoSameShapeTypes_stayDistinct(t *testing.T) {
 	existing := "import type { A, B } from '../src';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/** @rtType A#sameId @rtIds {x: strId} */\n" +
-		"export const friendlyA: FriendlyType<A> = {$label: 'the A', x: {$label: 'x of A'}};\n\n" +
+		"export const friendlyA: FriendlyType<A> = {rt$label: 'the A', x: {rt$label: 'x of A'}};\n\n" +
 		"/** @rtType B#sameId @rtIds {x: strId} */\n" +
-		"export const friendlyB: FriendlyType<B> = {$label: 'the B', x: {$label: 'x of B'}};\n"
+		"export const friendlyB: FriendlyType<B> = {rt$label: 'the B', x: {rt$label: 'x of B'}};\n"
 
-	body := "{$label: '', x: {$label: ''}}"
+	body := "{rt$label: '', x: {rt$label: ''}}"
 	spec := friendlySpec(
 		enrich.NamedConst{TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
 		enrich.NamedConst{TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
@@ -407,9 +407,9 @@ func TestExample_SameShapeNewTypes_noDoubleRestoreCrash(t *testing.T) {
 	existing := "import type { A, B } from '../src';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/* @rtOrphan /** @rtType C#shape *\\/\n" +
-		"export const friendlyC: FriendlyType<C> = {$label: 'old C label'}; */\n"
+		"export const friendlyC: FriendlyType<C> = {rt$label: 'old C label'}; */\n"
 
-	body := "{$label: ''}"
+	body := "{rt$label: ''}"
 	spec := friendlySpec(
 		enrich.NamedConst{TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: body, TypeID: "shape"},
 		enrich.NamedConst{TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: body, TypeID: "shape"},
@@ -430,10 +430,10 @@ func TestExample_NewTypeSameShapeAsCarcass_doesNotReviveOldConst(t *testing.T) {
 	existing := "import type { A } from '../src';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/* @rtOrphan /** @rtType C#shape *\\/\n" +
-		"export const friendlyC: FriendlyType<C> = {$label: 'old C'}; */\n"
+		"export const friendlyC: FriendlyType<C> = {rt$label: 'old C'}; */\n"
 
 	spec := friendlySpec(enrich.NamedConst{
-		TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: "{$label: ''}", TypeID: "shape",
+		TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: "{rt$label: ''}", TypeID: "shape",
 	})
 	src := sourceDeclaring("A")
 	out := mustReconcile(t, spec, existing, src)
@@ -456,21 +456,21 @@ func TestExample_NewTypeSameShapeAsCarcass_doesNotReviveOldConst(t *testing.T) {
 func TestExample_RestoreCarcass_refreshesStaleMarker(t *testing.T) {
 	existing := "import type { Map } from '../src';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
-		"/* @rtOrphan /** @rtType Map#oldId @rtIds {$values: oldVal} *\\/\n" +
-		"export const friendlyMap: FriendlyType<Map> = {$label: 'Authored map', $values: {$label: 'a value'}}; */\n"
+		"/* @rtOrphan /** @rtType Map#oldId @rtIds {rt$values: oldVal} *\\/\n" +
+		"export const friendlyMap: FriendlyType<Map> = {rt$label: 'Authored map', rt$values: {rt$label: 'a value'}}; */\n"
 
 	spec := friendlySpec(enrich.NamedConst{
 		TypeName: "Map", DeclFile: "/src.ts", FriendlyVar: "friendlyMap",
-		Friendly: "{$label: '', $values: {$label: ''}}",
-		TypeID:   "newId", ChildIDs: map[string]string{"$values": "newVal"}, // id changed while orphaned
+		Friendly: "{rt$label: '', rt$values: {rt$label: ''}}",
+		TypeID:   "newId", ChildIDs: map[string]string{"rt$values": "newVal"}, // id changed while orphaned
 	})
 	out := mustReconcile(t, spec, existing, sourceDeclaring("Map"))
 
-	requireContains(t, out, "@rtType Map#newId")      // marker refreshed to the current id...
-	requireContains(t, out, "$values: newVal")        // ...including the @rtIds child id
-	requireContains(t, out, "$label: 'Authored map'") // authored body carried verbatim
-	requireMissing(t, out, "Map#oldId")               // stale id gone
-	requireMissing(t, out, "@rtOrphan")               // carcass consumed (restored live)
+	requireContains(t, out, "@rtType Map#newId")        // marker refreshed to the current id...
+	requireContains(t, out, "rt$values: newVal")        // ...including the @rtIds child id
+	requireContains(t, out, "rt$label: 'Authored map'") // authored body carried verbatim
+	requireMissing(t, out, "Map#oldId")                 // stale id gone
+	requireMissing(t, out, "@rtOrphan")                 // carcass consumed (restored live)
 
 	// Fixed point: a second --update is a byte-identical no-op (no stale marker left).
 	out2 := mustReconcile(t, spec, out, sourceDeclaring("Map"))
@@ -486,13 +486,13 @@ func TestExample_DeletedTypeReappears_restoresByName(t *testing.T) {
 	existing := "import type { A } from '../src';\n" +
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
 		"/* @rtOrphan /** @rtType B#bId *\\/\n" +
-		"export const friendlyB: FriendlyType<B> = {$label: 'Authored B'}; */\n"
+		"export const friendlyB: FriendlyType<B> = {rt$label: 'Authored B'}; */\n"
 
 	spec := friendlySpec(enrich.NamedConst{
-		TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: "{$label: ''}", TypeID: "bId",
+		TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: "{rt$label: ''}", TypeID: "bId",
 	})
 	out := mustReconcile(t, spec, existing, sourceDeclaring("B"))
 
-	requireContains(t, out, "export const friendlyB: FriendlyType<B> = {$label: 'Authored B'}") // restored verbatim
-	requireMissing(t, out, "@rtOrphan")                                                         // carcass un-commented
+	requireContains(t, out, "export const friendlyB: FriendlyType<B> = {rt$label: 'Authored B'}") // restored verbatim
+	requireMissing(t, out, "@rtOrphan")                                                           // carcass un-commented
 }

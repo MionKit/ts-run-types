@@ -17,17 +17,17 @@ type EmitOptions struct {
 	Resolve func(id string) *protocol.RunType
 	// SourceLocale is the language the FriendlyType source map is authored in
 	// (tsconfig `i18n.sourceLocale`); it selects the CLDR arm set count-bearing
-	// `$errors` constraints scaffold. Empty means the default ('en').
+	// `rt$errors` constraints scaffold. Empty means the default ('en').
 	SourceLocale string
-	// FriendlyErrors picks the `$errors` mode NEW nodes scaffold (tsconfig
+	// FriendlyErrors picks the `rt$errors` mode NEW nodes scaffold (tsconfig
 	// `friendlyErrors`): "" / "perConstraint" → one key per failable format
-	// param; "default" → the exclusive `{$default: ''}` catch-all.
+	// param; "default" → the exclusive `{rt$default: ''}` catch-all.
 	FriendlyErrors string
 }
 
 // EmitFriendly renders an `export const <VarName>: FriendlyType<<TypeName>> = {…};`
-// skeleton for rt: one entry per data field, every node seeded with `$label: ”`,
-// and `$errors` pre-keyed with `type` plus the field's declared format
+// skeleton for rt: one entry per data field, every node seeded with `rt$label: ”`,
+// and `rt$errors` pre-keyed with `type` plus the field's declared format
 // constraints (minLength / max / pattern / …). A starting scaffold for the
 // author or agent to fill in.
 func EmitFriendly(rt *protocol.RunType, opts EmitOptions) string {
@@ -47,7 +47,7 @@ func EmitFriendly(rt *protocol.RunType, opts EmitOptions) string {
 
 // EmitMock renders an `export const <VarName>: MockData<<TypeName>> = {…};`
 // skeleton: one entry per data field, leaves seeded with an empty `pool`, arrays
-// with `$items` + `$length`. The author fills the pools with realistic values.
+// with `rt$items` + `rt$length`. The author fills the pools with realistic values.
 func EmitMock(rt *protocol.RunType, opts EmitOptions) string {
 	ctx := newWalkCtx(opts.Resolve)
 	var b strings.Builder
@@ -104,11 +104,11 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 	if rt.Kind == protocol.KindTuple {
 		ctx.seen[rt] = true
 		// A variadic tuple (`[A, ...B[]]`) has a broad `length`, so the Phase-A
-		// type treats it as an ARRAY (`$items`); a fixed tuple gets `$slots`.
+		// type treats it as an ARRAY (`rt$items`); a fixed tuple gets `rt$slots`.
 		if isVariadicTuple(ctx, rt) {
-			b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", $items: " + ctx.bareMeta() + "}")
+			b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", rt$items: " + ctx.bareMeta() + "}")
 		} else {
-			b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", $slots: [")
+			b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", rt$slots: [")
 			for i, slot := range tupleSlots(ctx, rt) {
 				if i > 0 {
 					b.WriteString(", ")
@@ -123,9 +123,9 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 	if isMap(rt) {
 		ctx.seen[rt] = true
 		keyType, valueType := mapKeyValue(ctx, rt)
-		b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", $keys: ")
+		b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", rt$keys: ")
 		emitFriendlyNode(b, ctx, keyType, depth+1)
-		b.WriteString(", $values: ")
+		b.WriteString(", rt$values: ")
 		emitFriendlyNode(b, ctx, valueType, depth+1)
 		b.WriteString("}")
 		delete(ctx.seen, rt)
@@ -133,7 +133,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 	}
 	if isSet(rt) {
 		ctx.seen[rt] = true
-		b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", $values: ")
+		b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", rt$values: ")
 		emitFriendlyNode(b, ctx, setElement(ctx, rt), depth+1)
 		b.WriteString("}")
 		delete(ctx.seen, rt)
@@ -146,7 +146,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		return
 	}
 	if element := arrayElement(rt); element != nil {
-		b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", $items: ")
+		b.WriteString("{" + ctx.bareMeta()[1:len(ctx.bareMeta())-1] + ", rt$items: ")
 		emitFriendlyNode(b, ctx, element, depth+1)
 		b.WriteString("}")
 		return
@@ -156,7 +156,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 			b.WriteString(ctx.bareMeta())
 			return
 		}
-		b.WriteString("{$label: '', $errors: {type: ''")
+		b.WriteString("{rt$label: '', rt$errors: {type: ''")
 		for _, key := range formatConstraintKeys(rt.FormatAnnotation) {
 			b.WriteString(", ")
 			b.WriteString(key)
@@ -169,7 +169,7 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 	b.WriteString(ctx.bareMeta())
 }
 
-// writeErrorLeafSkeleton emits one `$errors` constraint's blank template leaf:
+// writeErrorLeafSkeleton emits one `rt$errors` constraint's blank template leaf:
 // a plural OBJECT (one blank arm per source-locale CLDR category) for a
 // count-bearing constraint, a plain blank string otherwise. Generator-owned
 // plurals: the author only ever fills string leaves, never builds the shape.
@@ -198,12 +198,12 @@ func emitFriendlyObject(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, 
 	inner := strings.Repeat("  ", depth+1)
 	b.WriteString("{\n")
 	b.WriteString(inner)
-	b.WriteString("$label: '',\n")
+	b.WriteString("rt$label: '',\n")
 	b.WriteString(inner)
 	if ctx.defaultErrors {
-		b.WriteString("$errors: {$default: ''},\n")
+		b.WriteString("rt$errors: {rt$default: ''},\n")
 	} else {
-		b.WriteString("$errors: {type: ''},\n")
+		b.WriteString("rt$errors: {type: ''},\n")
 	}
 	for _, prop := range props {
 		b.WriteString(inner)
@@ -236,17 +236,17 @@ func emitMockNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth 
 		}
 	}
 	// Structural composite kinds (solution A) — emitted BEFORE the object/leaf
-	// arms. Tuples get a fixed-length `$slots` (no `$length`); Map/Set get
-	// `$keys`/`$values` (the optional `$size` is left for the author to add).
+	// arms. Tuples get a fixed-length `rt$slots` (no `rt$length`); Map/Set get
+	// `rt$keys`/`rt$values` (the optional `rt$size` is left for the author to add).
 	if rt.Kind == protocol.KindTuple {
 		ctx.seen[rt] = true
 		// A variadic tuple (`[A, ...B[]]`) has a broad `length`, so the Phase-A
-		// type treats it as an ARRAY (`$items`/`$length`); a fixed tuple gets
-		// the fixed-length `$slots`.
+		// type treats it as an ARRAY (`rt$items`/`rt$length`); a fixed tuple gets
+		// the fixed-length `rt$slots`.
 		if isVariadicTuple(ctx, rt) {
-			b.WriteString("{$items: {pool: []}, $length: [1, 3]}")
+			b.WriteString("{rt$items: {pool: []}, rt$length: [1, 3]}")
 		} else {
-			b.WriteString("{$slots: [")
+			b.WriteString("{rt$slots: [")
 			for i, slot := range tupleSlots(ctx, rt) {
 				if i > 0 {
 					b.WriteString(", ")
@@ -261,9 +261,9 @@ func emitMockNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth 
 	if isMap(rt) {
 		ctx.seen[rt] = true
 		keyType, valueType := mapKeyValue(ctx, rt)
-		b.WriteString("{$keys: ")
+		b.WriteString("{rt$keys: ")
 		emitMockNode(b, ctx, keyType, depth+1)
-		b.WriteString(", $values: ")
+		b.WriteString(", rt$values: ")
 		emitMockNode(b, ctx, valueType, depth+1)
 		b.WriteString("}")
 		delete(ctx.seen, rt)
@@ -271,7 +271,7 @@ func emitMockNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth 
 	}
 	if isSet(rt) {
 		ctx.seen[rt] = true
-		b.WriteString("{$values: ")
+		b.WriteString("{rt$values: ")
 		emitMockNode(b, ctx, setElement(ctx, rt), depth+1)
 		b.WriteString("}")
 		delete(ctx.seen, rt)
@@ -284,9 +284,9 @@ func emitMockNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth 
 		return
 	}
 	if element := arrayElement(rt); element != nil {
-		b.WriteString("{$items: ")
+		b.WriteString("{rt$items: ")
 		emitMockNode(b, ctx, element, depth+1)
-		b.WriteString(", $length: [1, 3]}")
+		b.WriteString(", rt$length: [1, 3]}")
 		return
 	}
 	b.WriteString("{pool: []}")

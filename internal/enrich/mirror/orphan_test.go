@@ -41,8 +41,8 @@ func TestIndexOrphanCarcasses(t *testing.T) {
 		"\n" +
 		"/* @rtOrphan /** @rtType B#bID @rtIds {y: yid} *\\/\n" +
 		"export const friendlyB: FriendlyType<B> = {\n" +
-		"  $label: '',\n" +
-		"  y: {$label: 'Year'},\n" +
+		"  rt$label: '',\n" +
+		"  y: {rt$label: 'Year'},\n" +
 		"}; */\n"
 
 	index := mustParse(t, "/rt/gen/a.ts", src)
@@ -53,7 +53,7 @@ func TestIndexOrphanCarcasses(t *testing.T) {
 	if !strings.Contains(carcass.inner, "export const friendlyB") {
 		t.Errorf("carcass inner missing the const: %q", carcass.inner)
 	}
-	if !strings.Contains(carcass.inner, "y: {$label: 'Year'}") {
+	if !strings.Contains(carcass.inner, "y: {rt$label: 'Year'}") {
 		t.Errorf("carcass inner should preserve the authored value: %q", carcass.inner)
 	}
 	// The restore reverses the comment-sanitization (`*\/` → `*/`).
@@ -68,8 +68,8 @@ func TestIndexOrphanCarcasses(t *testing.T) {
 func TestOrphanConstOp(t *testing.T) {
 	src := "/** @rtType B#bID @rtIds {y: yid} */\n" +
 		"export const friendlyB: FriendlyType<B> = {\n" +
-		"  $label: '',\n" +
-		"  y: {$label: 'Year'},\n" +
+		"  rt$label: '',\n" +
+		"  y: {rt$label: 'Year'},\n" +
 		"};\n"
 	index := mustParse(t, "/rt/gen/a.ts", src)
 	entry := index.byTypeForm[typeFormKey("bID", true)]
@@ -98,7 +98,7 @@ func TestOrphanConstOp_FoldsLeadingComment(t *testing.T) {
 		"\n" +
 		"// hand-authored note about friendlyB\n" +
 		"/** @rtType B#bID */\n" +
-		"export const friendlyB: FriendlyType<B> = { $label: '' };\n"
+		"export const friendlyB: FriendlyType<B> = { rt$label: '' };\n"
 	index := mustParse(t, "/rt/gen/a.ts", src)
 	entry := index.byTypeForm[typeFormKey("bID", true)]
 	if entry == nil {
@@ -133,7 +133,7 @@ func TestSyncBreadcrumbClause_KeepsHandAuthoredName(t *testing.T) {
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n" +
 		"\n" +
 		"/** @rtType DropMe#dropID */\n" +
-		"export const friendlyDropMe: FriendlyType<DropMe> = { $label: '' };\n" +
+		"export const friendlyDropMe: FriendlyType<DropMe> = { rt$label: '' };\n" +
 		"\n" +
 		"// hand-authored, not enrichment-owned — still uses KeepMe\n" +
 		"export const widget: KeepMe = { kind: 'k' };\n"
@@ -175,10 +175,10 @@ func TestSyncBreadcrumbClause_DropsUnusedName(t *testing.T) {
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n" +
 		"\n" +
 		"/** @rtType DropMe#dropID */\n" +
-		"export const friendlyDropMe: FriendlyType<DropMe> = { $label: '' };\n" +
+		"export const friendlyDropMe: FriendlyType<DropMe> = { rt$label: '' };\n" +
 		"\n" +
 		"/** @rtType KeepMe#keepID */\n" +
-		"export const friendlyKeepMe: FriendlyType<KeepMe> = { $label: '' };\n"
+		"export const friendlyKeepMe: FriendlyType<KeepMe> = { rt$label: '' };\n"
 
 	index := mustParse(t, "/rt/gen/models.ts", src)
 	dropEntry := index.byTypeForm[typeFormKey("dropID", true)]
@@ -224,7 +224,7 @@ func TestOrphanConsts_OutModeSkipsJudgement(t *testing.T) {
 		"import type { FriendlyType, MockData } from 'ts-runtypes';\n" +
 		"\n" +
 		"/** @rtType Gone#goneID */\n" +
-		"export const friendlyGone: FriendlyType<Gone> = { $label: '' };\n"
+		"export const friendlyGone: FriendlyType<Gone> = { rt$label: '' };\n"
 
 	index := mustParse(t, "/rt/gen/out.ts", src)
 	var ops []spliceOp
@@ -245,14 +245,14 @@ func TestOrphanConsts_OutModeSkipsJudgement(t *testing.T) {
 // (whole block) carcasses, leaving the live content intact.
 func TestPruneOrphanBlocks(t *testing.T) {
 	src := "export const friendlyA = {\n" +
-		"  x: {$label: ''},\n" +
-		"  /* @rtOrphanChild old: {$label: 'Old'}, */\n" +
+		"  x: {rt$label: ''},\n" +
+		"  /* @rtOrphanChild old: {rt$label: 'Old'}, */\n" +
 		"};\n" +
 		"\n" +
 		"/* @rtOrphan /** @rtType B#bID *\\/\n" +
-		"export const friendlyB = { y: {$label: ''} }; */\n" +
+		"export const friendlyB = { y: {rt$label: ''} }; */\n" +
 		"\n" +
-		"export const friendlyC = { z: {$label: ''} };\n"
+		"export const friendlyC = { z: {rt$label: ''} };\n"
 
 	pruned, removed, _ := PruneOrphanBlocks(src)
 	if removed != 2 {
@@ -261,7 +261,7 @@ func TestPruneOrphanBlocks(t *testing.T) {
 	if strings.Contains(pruned, "@rtOrphan") {
 		t.Errorf("orphan tags should be gone:\n%s", pruned)
 	}
-	if !strings.Contains(pruned, "x: {$label: ''}") || !strings.Contains(pruned, "friendlyC") {
+	if !strings.Contains(pruned, "x: {rt$label: ''}") || !strings.Contains(pruned, "friendlyC") {
 		t.Errorf("live content must survive:\n%s", pruned)
 	}
 	// The inline orphan-child line is removed cleanly — no leftover blank gap with
@@ -286,10 +286,10 @@ func TestPruneOrphanBlocks(t *testing.T) {
 // friendlyLive const between them.
 func TestPruneOrphanBlocks_MalformedCarcassSkipped(t *testing.T) {
 	src := "/* @rtOrphan /** @rtType A#aID *\\/\n" +
-		"export const friendlyA = { a: {$label: ''} };\n" + // terminator removed here
-		"export const friendlyLive = { live: {$label: ''} };\n" +
+		"export const friendlyA = { a: {rt$label: ''} };\n" + // terminator removed here
+		"export const friendlyLive = { live: {rt$label: ''} };\n" +
 		"/* @rtOrphan /** @rtType B#bID *\\/\n" +
-		"export const friendlyB = { b: {$label: ''} }; */\n"
+		"export const friendlyB = { b: {rt$label: ''} }; */\n"
 
 	pruned, removed, skipped := PruneOrphanBlocks(src)
 	// The malformed first match (which spans friendlyLive) is skipped → 0 removed,
@@ -320,7 +320,7 @@ func TestCarcassCrossesStatement(t *testing.T) {
 	if !carcassCrossesStatement("/* @rtOrphanChild old: {},\nexport const leak = {}; */") {
 		t.Errorf("an @rtOrphanChild carcass containing a declaration must be flagged")
 	}
-	if carcassCrossesStatement("/* @rtOrphanChild old: {$label: 'Old'}, */") {
+	if carcassCrossesStatement("/* @rtOrphanChild old: {rt$label: 'Old'}, */") {
 		t.Errorf("a clean @rtOrphanChild field carcass must not be flagged")
 	}
 }

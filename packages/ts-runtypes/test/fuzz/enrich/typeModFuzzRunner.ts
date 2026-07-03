@@ -61,12 +61,12 @@ const STEP_INVALID_CHANCE = 0.35;
 
 export type ModRuleId = 'R10' | 'P' | 'R6' | 'NL' | 'RC' | 'CB';
 
-// blankAuthored empties every authored `$label` value so two mirror states that differ
+// blankAuthored empties every authored `rt$label` value so two mirror states that differ
 // ONLY in authored text compare equal — the normalizer for the content-blindness oracle.
 // Labels are the only thing the fuzzer authors (authorLabels); everything else (mock
-// pools, $errors) stays blank in both the filled and empty twins.
+// pools, rt$errors) stays blank in both the filled and empty twins.
 function blankAuthored(mirror: string): string {
-  return mirror.replace(/\$label: '[^']*'/g, () => "$label: ''");
+  return mirror.replace(/rt\$label: '[^']*'/g, () => "rt$label: ''");
 }
 
 // orphanBlockPattern strips @rtOrphan / @rtOrphanChild block comments to leave only
@@ -104,22 +104,22 @@ function why(result: CliResult): string {
   return `exit ${result.status}: ${result.stderr.slice(0, 240)}`;
 }
 
-// Author friendly `$label`s with unique sentinels and return them — the tracers
+// Author friendly `rt$label`s with unique sentinels and return them — the tracers
 // for "nothing lost" (labels are type-INDEPENDENT, so the reconciler must carry
 // them across structural edits).
 //
 //   deep=false (default lane): author ONLY the two anchor fields' own labels. They
-// Author EVERY scaffolded `$label` in the FRIENDLY mirror (including those on
+// Author EVERY scaffolded `rt$label` in the FRIENDLY mirror (including those on
 // Map / Set / enum / named sub-consts) with a unique sentinel, and return them.
 // With the carcass handling stable, all of these survive every edit — live,
 // carried, or parked in a carcass — so the full set is the nothing-lost tracer.
 function authorLabels(fixture: ReconcileFixture): string[] {
   const sentinels: string[] = [];
   editMirror(fixture, 'friendly', (text) =>
-    text.replace(/\$label: ''/g, () => {
+    text.replace(/rt\$label: ''/g, () => {
       const sentinel = `LBL_${sentinels.length}_x`;
       sentinels.push(sentinel);
-      return `$label: '${sentinel}'`;
+      return `rt$label: '${sentinel}'`;
     })
   );
   return sentinels;
