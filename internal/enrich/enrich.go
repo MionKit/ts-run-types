@@ -22,7 +22,9 @@ package enrich
 
 import (
 	"sort"
+	"strings"
 
+	"github.com/mionkit/ts-runtypes/internal/enrich/cldr"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -44,6 +46,10 @@ type walkCtx struct {
 	// const-var reference, or a broken-cycle leaf. nil ⇒ inline everything (the
 	// single-const path and the unit-test shape).
 	namedRef func(rt *protocol.RunType) namedRefAction
+	// pluralArms are the CLDR plural categories a COUNT-BEARING `$errors`
+	// constraint scaffolds arms for — the source locale's category set (default:
+	// English `one`/`other`). Non-count-bearing constraints stay plain strings.
+	pluralArms []string
 }
 
 // namedRefAction tells a node walker how to handle a child that is a reference to
@@ -62,7 +68,15 @@ const (
 )
 
 func newWalkCtx(resolve func(id string) *protocol.RunType) *walkCtx {
-	return &walkCtx{resolve: resolve, seen: map[*protocol.RunType]bool{}}
+	return &walkCtx{resolve: resolve, seen: map[*protocol.RunType]bool{}, pluralArms: cldr.Categories("en")}
+}
+
+// setSourceLocale swaps the ctx's plural-arm set to locale's CLDR categories —
+// the `i18n.sourceLocale` knob threading into every friendly scaffold.
+func (ctx *walkCtx) setSourceLocale(locale string) {
+	if strings.TrimSpace(locale) != "" {
+		ctx.pluralArms = cldr.Categories(locale)
+	}
 }
 
 // deref follows a KindRef sentinel to its canonical node when a resolver is

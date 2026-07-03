@@ -279,6 +279,149 @@ func TestCheckFriendly_NestedObjectErrorsNotDoubled(t *testing.T) {
 	}
 }
 
+// formatStringRT builds a string field branded with a FormatString carrying the
+// given params — its declared constraint keys become valid $errors keys.
+func formatStringRT(params map[string]any) *protocol.RunType {
+	return &protocol.RunType{
+		Kind:             protocol.KindString,
+		FormatAnnotation: &protocol.FormatAnnotation{Name: "stringFormat", Params: params},
+	}
+}
+
+func TestCheckFriendly_PluralLeafClean(t *testing.T) {
+	// A plural object on a count-bearing constraint with valid CLDR arms and a
+	// mandatory `other` is clean; per-arm placeholders are validated.
+	rt := objectRT(map[string]*protocol.RunType{"name": formatStringRT(map[string]any{"minLength": 2})})
+	view := newFakeView().obj("name", newFakeView().
+		obj("$errors", newFakeView().
+			str("type", "must be text").
+			obj("minLength", newFakeView().
+				str("one", "at least $[val] character").
+				str("other", "at least $[val] characters"))))
+
+	findings := enrich.CheckFriendly(rt, view, nil)
+	if len(findings) != 0 {
+		t.Fatalf("clean plural leaf produced findings: %v", findings)
+	}
+}
+
+func TestCheckFriendly_FT006MissingOther(t *testing.T) {
+	rt := objectRT(map[string]*protocol.RunType{"name": formatStringRT(map[string]any{"minLength": 2})})
+	view := newFakeView().obj("name", newFakeView().
+		obj("$errors", newFakeView().
+			obj("minLength", newFakeView().str("one", "at least $[val]"))))
+
+	findings := enrich.CheckFriendly(rt, view, nil)
+	var ft006 *enrich.Finding
+	for i := range findings {
+		if findings[i].Code == "FT006" {
+			ft006 = &findings[i]
+		}
+	}
+	if ft006 == nil {
+		t.Fatalf("expected FT006 for a plural without `other`; got %v", findingCodes(findings))
+	}
+	if ft006.Severity != enrich.Error {
+		t.Errorf("FT006 severity = %v, want Error", ft006.Severity)
+	}
+	if ft006.Path != "name.$errors.minLength" {
+		t.Errorf("FT006 path = %q, want %q", ft006.Path, "name.$errors.minLength")
+	}
+}
+
+func TestCheckFriendly_FT007UnknownArm(t *testing.T) {
+	rt := objectRT(map[string]*protocol.RunType{"name": formatStringRT(map[string]any{"minLength": 2})})
+	view := newFakeView().obj("name", newFakeView().
+		obj("$errors", newFakeView().
+			obj("minLength", newFakeView().
+				str("other", "chars").
+				str("lots", "way too many")))) // not a CLDR category
+
+	findings := enrich.CheckFriendly(rt, view, nil)
+	var ft007 *enrich.Finding
+	for i := range findings {
+		if findings[i].Code == "FT007" {
+			ft007 = &findings[i]
+		}
+	}
+	if ft007 == nil {
+		t.Fatalf("expected FT007 for a non-CLDR arm; got %v", findingCodes(findings))
+	}
+	if ft007.Severity != enrich.Warning {
+		t.Errorf("FT007 severity = %v, want Warning", ft007.Severity)
+	}
+	if ft007.Path != "name.$errors.minLength.lots" {
+		t.Errorf("FT007 path = %q, want %q", ft007.Path, "name.$errors.minLength.lots")
+	}
+}
+
+func TestCheckFriendly_FT008PluralOnNonCountBearing(t *testing.T) {
+	// `pattern` carries no count: a plural object there has dead arms.
+	rt := objectRT(map[string]*protocol.RunType{"email": formatStringRT(map[string]any{"pattern": "x"})})
+	view := newFakeView().obj("email", newFakeView().
+		obj("$errors", newFakeView().
+			obj("pattern", newFakeView().str("one", "x").str("other", "y"))))
+
+	findings := enrich.CheckFriendly(rt, view, nil)
+	var ft008 *enrich.Finding
+	for i := range findings {
+		if findings[i].Code == "FT008" {
+			ft008 = &findings[i]
+		}
+	}
+	if ft008 == nil {
+		t.Fatalf("expected FT008 for a plural on a non-count-bearing constraint; got %v", findingCodes(findings))
+	}
+	if ft008.Severity != enrich.Warning {
+		t.Errorf("FT008 severity = %v, want Warning", ft008.Severity)
+	}
+}
+
+func TestCheckFriendly_FT005InsidePluralArm(t *testing.T) {
+	rt := objectRT(map[string]*protocol.RunType{"name": formatStringRT(map[string]any{"minLength": 2})})
+	view := newFakeView().obj("name", newFakeView().
+		obj("$errors", newFakeView().
+			obj("minLength", newFakeView().
+				str("one", "bad $[nope]").
+				str("other", "fine $[val]"))))
+
+	findings := enrich.CheckFriendly(rt, view, nil)
+	var ft005 []enrich.Finding
+	for _, finding := range findings {
+		if finding.Code == "FT005" {
+			ft005 = append(ft005, finding)
+		}
+	}
+	if len(ft005) != 1 {
+		t.Fatalf("expected exactly one FT005 inside the plural arm; got %v", findings)
+	}
+	if ft005[0].Path != "name.$errors.minLength.one" {
+		t.Errorf("FT005 path = %q, want %q", ft005[0].Path, "name.$errors.minLength.one")
+	}
+}
+
+func TestCheckFriendly_FT005FormatTokens(t *testing.T) {
+	// Three-part `$[binding:kind:name]` tokens: binding must be val|index, kind
+	// one of the four Intl kinds; the NAME part is validated separately against
+	// the formats module (check --translate), never here.
+	rt := objectRT(map[string]*protocol.RunType{"price": formatStringRT(map[string]any{"max": 100})})
+	view := newFakeView().obj("price", newFakeView().
+		obj("$errors", newFakeView().
+			str("type", "ok $[val:number:currency] and ratio 3:1").
+			str("max", "bad $[label:number:currency] and bad $[val:nope:x]")))
+
+	findings := enrich.CheckFriendly(rt, view, nil)
+	var ft005 []enrich.Finding
+	for _, finding := range findings {
+		if finding.Code == "FT005" {
+			ft005 = append(ft005, finding)
+		}
+	}
+	if len(ft005) != 2 {
+		t.Fatalf("expected two FT005 (bad binding + bad kind), got %v", findings)
+	}
+}
+
 func contains(haystack []string, needle string) bool {
 	for _, item := range haystack {
 		if item == needle {

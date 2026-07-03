@@ -15,6 +15,10 @@ type EmitOptions struct {
 	// Resolve looks up a KindRef sentinel's canonical node by id; nil means the
 	// graph is fully inlined (no refs to follow).
 	Resolve func(id string) *protocol.RunType
+	// SourceLocale is the language the FriendlyType source map is authored in
+	// (tsconfig `i18n.sourceLocale`); it selects the CLDR arm set count-bearing
+	// `$errors` constraints scaffold. Empty means the default ('en').
+	SourceLocale string
 }
 
 // EmitFriendly renders an `export const <VarName>: FriendlyType<<TypeName>> = {…};`
@@ -24,6 +28,7 @@ type EmitOptions struct {
 // author or agent to fill in.
 func EmitFriendly(rt *protocol.RunType, opts EmitOptions) string {
 	ctx := newWalkCtx(opts.Resolve)
+	ctx.setSourceLocale(opts.SourceLocale)
 	var b strings.Builder
 	b.WriteString("export const ")
 	b.WriteString(opts.VarName)
@@ -146,12 +151,33 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		for _, key := range formatConstraintKeys(rt.FormatAnnotation) {
 			b.WriteString(", ")
 			b.WriteString(key)
-			b.WriteString(": ''")
+			b.WriteString(": ")
+			writeErrorLeafSkeleton(b, ctx, key)
 		}
 		b.WriteString("}}")
 		return
 	}
 	b.WriteString("{$label: '', $errors: {type: ''}}")
+}
+
+// writeErrorLeafSkeleton emits one `$errors` constraint's blank template leaf:
+// a plural OBJECT (one blank arm per source-locale CLDR category) for a
+// count-bearing constraint, a plain blank string otherwise. Generator-owned
+// plurals: the author only ever fills string leaves, never builds the shape.
+func writeErrorLeafSkeleton(b *strings.Builder, ctx *walkCtx, key string) {
+	if !CountBearing(key) {
+		b.WriteString("''")
+		return
+	}
+	b.WriteString("{")
+	for i, arm := range ctx.pluralArms {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(arm)
+		b.WriteString(": ''")
+	}
+	b.WriteString("}")
 }
 
 func emitFriendlyObject(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, depth int) {

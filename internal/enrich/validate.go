@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mionkit/ts-runtypes/internal/enrich/cldr"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -105,8 +106,17 @@ var friendlyPlaceholders = map[string]bool{
 	"index": true,
 }
 
-// placeholderPattern matches `$[name]` placeholders in a friendly template.
-var placeholderPattern = regexp.MustCompile(`\$\[(\w+)\]`)
+// placeholderPattern matches `$[name]` and `$[binding:kind:formatName]`
+// placeholders in a friendly template (the closed token set the renderer
+// substitutes; the three-part form routes through a named Intl format).
+var placeholderPattern = regexp.MustCompile(`\$\[(\w+)(?::(\w+):(\w+))?\]`)
+
+// formatTokenBindings / formatTokenKinds are the valid first two parts of a
+// three-part `$[binding:kind:name]` token. The NAME part is validated against
+// the project's formats module by `check` when one is configured.
+var formatTokenBindings = map[string]bool{"val": true, "index": true}
+
+var formatTokenKinds = map[string]bool{"number": true, "date": true, "relativeTime": true, "list": true}
 
 // CheckFriendly walks an authored FriendlyType<T> map (literal) paired with the
 // RunType T resolves to, collecting Findings. resolve follows KindRef sentinels
@@ -218,20 +228,66 @@ func checkFriendlyErrors(findings *[]Finding, errorsView LiteralView, fieldNode 
 	}
 	allowed := allowedErrorKeys(fieldNode)
 	for _, key := range errorsView.Keys() {
+		keyPath := joinPath(path, "$errors."+key)
 		if !allowed[key] {
 			// FT003: a constraint key that is neither type/$default nor one of the
 			// field's declared format constraints.
 			*findings = append(*findings, Finding{
 				Code:     "FT003",
 				Severity: Warning,
-				Path:     joinPath(path, "$errors."+key),
+				Path:     keyPath,
 				Message:  "error key '" + key + "' is not a declared constraint of this field",
 			})
 		}
 		// FT005: scan the template string for bad `$[…]` placeholders.
 		if template, ok := errorsView.StringValue(key); ok {
-			checkPlaceholders(findings, template, joinPath(path, "$errors."+key))
+			checkPlaceholders(findings, template, keyPath)
+			continue
 		}
+		// A nested object literal is a plural template (arms per CLDR category).
+		if plural := errorsView.Child(key); plural != nil {
+			checkPluralLeaf(findings, plural, key, keyPath)
+		}
+	}
+}
+
+// checkPluralLeaf validates one plural template object: the mandatory `other`
+// backstop (FT006), CLDR-valid arm keys (FT007), per-arm placeholders (FT005),
+// and that the constraint can pluralize at all (FT008 — a plural object on a
+// non-count-bearing constraint has dead arms; only `other` ever renders).
+func checkPluralLeaf(findings *[]Finding, plural LiteralView, key, keyPath string) {
+	if !CountBearing(key) {
+		*findings = append(*findings, Finding{
+			Code:     "FT008",
+			Severity: Warning,
+			Path:     keyPath,
+			Message:  "constraint '" + key + "' carries no count — a plural object here has dead arms (only 'other' renders); use a plain string",
+		})
+	}
+	hasOther := false
+	for _, arm := range plural.Keys() {
+		if arm == "other" {
+			hasOther = true
+		}
+		if !cldr.IsCategory(arm) {
+			*findings = append(*findings, Finding{
+				Code:     "FT007",
+				Severity: Warning,
+				Path:     keyPath + "." + arm,
+				Message:  "unknown plural arm '" + arm + "' (CLDR categories: zero, one, two, few, many, other)",
+			})
+		}
+		if template, ok := plural.StringValue(arm); ok {
+			checkPlaceholders(findings, template, keyPath+"."+arm)
+		}
+	}
+	if !hasOther {
+		*findings = append(*findings, Finding{
+			Code:     "FT006",
+			Severity: Error,
+			Path:     keyPath,
+			Message:  "plural template must carry the mandatory 'other' arm (the render backstop)",
+		})
 	}
 }
 
@@ -251,10 +307,29 @@ func allowedErrorKeys(fieldNode *protocol.RunType) map[string]bool {
 }
 
 // checkPlaceholders emits FT005 for every `$[name]` in template whose name is
-// not one of the recognised placeholders.
+// not one of the recognised placeholders, and for a three-part
+// `$[binding:kind:name]` token whose binding or kind is invalid.
 func checkPlaceholders(findings *[]Finding, template, path string) {
 	for _, match := range placeholderPattern.FindAllStringSubmatch(template, -1) {
-		name := match[1]
+		name, kind := match[1], match[2]
+		if kind != "" {
+			if !formatTokenBindings[name] {
+				*findings = append(*findings, Finding{
+					Code:     "FT005",
+					Severity: Warning,
+					Path:     path,
+					Message:  "format token '$[" + name + ":" + kind + ":" + match[3] + "]' must bind val or index",
+				})
+			} else if !formatTokenKinds[kind] {
+				*findings = append(*findings, Finding{
+					Code:     "FT005",
+					Severity: Warning,
+					Path:     path,
+					Message:  "unknown format kind '" + kind + "' (expected number, date, relativeTime, or list)",
+				})
+			}
+			continue
+		}
 		if friendlyPlaceholders[name] {
 			continue
 		}
