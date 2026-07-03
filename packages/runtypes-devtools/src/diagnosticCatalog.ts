@@ -661,8 +661,8 @@ Fix — remove the entry, or re-run \`ts-runtypes gen <source> <Type>
   },
   FT003: {
     headline: 'Error key `{0}` is not a declared constraint of this field — the message can never fire.',
-    detail: `\`$errors\` keys must name a failure the field can actually produce:
-\`type\`, \`$default\`, or one of the field's declared format constraints
+    detail: `\`rt$errors\` keys must name a failure the field can actually produce:
+\`type\`, \`rt$default\`, or one of the field's declared format constraints
 (\`minLength\`, \`pattern\`, …). An undeclared key is dead configuration.
 
 Fix — remove the key, or add the matching constraint to the field's
@@ -675,6 +675,45 @@ name renders literally instead of substituting.
 
 Fix — use one of the recognised placeholders, or escape the literal text.`,
   },
+  FT006: {
+    headline: 'Plural error template is missing the mandatory `other` arm — the render has no backstop.',
+    detail: `Plural templates render the CLDR arm matching the count, and \`other\`
+is the arm every locale falls back to. Without it some counts have no
+message at all.
+
+Fix — add an \`other\` arm to the plural object.`,
+  },
+  FT007: {
+    headline: 'Unknown plural arm `{0}` — CLDR categories are `zero`, `one`, `two`, `few`, `many`, `other`.',
+    detail: `Plural template keys must be CLDR plural categories; anything else can
+never be selected.
+
+Fix — rename the arm to one of the six categories, or remove it.`,
+  },
+  FT008: {
+    headline: 'Constraint `{0}` carries no count — a plural template here has dead arms; use a plain string.',
+    detail: `Only count-bearing constraints (\`minLength\`, \`min\`, …) can select a
+plural arm. On a non-count constraint only \`other\` ever renders, so the
+remaining arms are dead configuration.
+
+Fix — replace the plural object with a plain string message.`,
+  },
+  FT009: {
+    headline: '`rt$default` is mutually exclusive with per-constraint messages — use one mode or the other.',
+    detail: `An \`rt$errors\` record is either ONE \`rt$default\` catch-all or a set of
+per-constraint keys, mirroring the TS union. Mixing them makes the intent
+ambiguous.
+
+Fix — keep \`{rt$default: '…'}\` alone, or the per-constraint keys without it.`,
+  },
+  FT011: {
+    headline: 'Property `{0}` collides with the reserved `rt$` enrichment prefix — the type cannot be enriched.',
+    detail: `\`rt$\`-prefixed keys are reserved for enrichment meta (\`rt$label\`,
+\`rt$errors\`, …); a source property with that prefix is indistinguishable
+from node meta.
+
+Fix — rename the property, or exclude the type from enrichment.`,
+  },
   MD001: {
     headline: 'Unknown field `{0}` — the type does not declare it, so this MockData entry is dead.',
     detail: `The MockData map names a field the source type does not have (removed,
@@ -682,6 +721,14 @@ renamed, or a typo). Its pool/range can never feed a generated mock.
 
 Fix — remove the entry, or re-run \`ts-runtypes gen <source> <Type>
 --update\` to reconcile the map against the current type.`,
+  },
+  MD011: {
+    headline: 'Property `{0}` collides with the reserved `rt$` enrichment prefix — the type cannot be enriched.',
+    detail: `\`rt$\`-prefixed keys are reserved for enrichment meta (\`rt$items\`,
+\`rt$length\`, …); a source property with that prefix is indistinguishable
+from node meta.
+
+Fix — rename the property, or exclude the type from enrichment.`,
   },
   GE000: {
     headline: 'Cannot read enrichment mirror file: {0}',

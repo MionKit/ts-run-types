@@ -34,7 +34,7 @@ The original spec split detection: Family A (compiler diagnostics) from the Go b
 | `runtypes/info` | Info severity | off |
 | `runtypes/no-enrichment-todo` | ENR001 | error |
 | `runtypes/no-orphan-carcass` | ENR002, ENR003 | error |
-| `runtypes/enrichment-field` | FT002, FT003, FT005, MD001 (+ future enrich codes) | error |
+| `runtypes/enrichment-field` | FT002, FT003, FT005–FT009, FT011, MD001, MD011 (+ future enrich codes) | error |
 | `runtypes/enrichment-drift` | GE000, GE002, GE003 | error |
 
 Routing, message rendering (catalog + `[CODE]` prefix + inline related locations + the §6.5 unknown-code fallback — a diagnostic is never silently dropped), and the 1-based→0-based column conversion live in the transport-agnostic [`diagnosticRouting.ts`](../../packages/runtypes-devtools/src/eslint/diagnosticRouting.ts), reusable by a future LSP sink unchanged.

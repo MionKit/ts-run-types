@@ -20,6 +20,7 @@
     "third_party/**",
     "**/dist/**",
     "**/test/**",
+    "packages/examples/**",
     "container/**",
     "docs/**",
     "bin/**",
