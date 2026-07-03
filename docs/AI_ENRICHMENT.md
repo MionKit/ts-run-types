@@ -12,10 +12,17 @@
 >   existing mirror against the regenerated set (property merge, field rename,
 >   `@rtType`/`@rtIds` markers, `@rtOrphan`/`@rtOrphanChild` carcasses), with a
 >   byte-identical idempotent re-run, and a destructive prune sweep (see
->   [`gen` semantics → `--update`](#gen---update--reconcile-value-preserving-merge)).
+>   [`gen` semantics → `--update`](#gen---update--reconcile-value-preserving-merge));
+> - the **per-family mirror split** (`<enrichDir>/friendly/` + `<enrichDir>/mock/`
+>   subtrees, with a one-shot auto-migration of pre-split combined mirrors) and the
+>   **FriendlyType i18n layer** — per-locale translation mirrors, generator-owned
+>   plural templates (checked by **FT006 / FT007 / FT008**), `createFriendlyI18n`,
+>   `gen`/`check --translate` (see [Translations (i18n)](#translations-i18n) and
+>   [docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md)).
 >
 > **Storage + consumption model (this doc):** enrichment is committed to a **mirror
-> directory** (`runtypes/generated/`, configured via the tsconfig `plugins` entry)
+> directory** (`runtypes/generated/`, configured via the tsconfig `plugins` entry;
+> one subtree per artifact family — `friendly/` + `mock/`)
 > and consumed through **real, committed imports** — never plugin-injected. This
 > follows the persistence invariant ([below](#persistence-invariant--committed-artifacts-get-committed-links)):
 > a committed artifact gets a committed (visible) link; only *ephemeral* cache modules
@@ -215,6 +222,34 @@ Templates are plain strings with `$[…]` tokens, validated by the compiler:
 - `$[path]`  — dotted path to the field.
 - `$[index]` — array element index, for `$items` failures.
 
+Two template extensions shipped with the i18n layer — both validated by `check`,
+both legal in single-locale maps too:
+
+- **Plural templates.** A **count-bearing** constraint (`minLength` / `maxLength` /
+  `min` / `max` / `lt` / `gt` — the shared `CountBearing` table in
+  [`internal/enrich/classify.go`](../internal/enrich/classify.go), read by emitter
+  and checker alike so they can never disagree) may carry a plural OBJECT instead
+  of a plain string: `minLength: {one: '…', other: '…'}`. Arm keys are CLDR
+  cardinal categories; only `other` is mandatory (FT006); `gen` scaffolds the arm
+  set of the source locale (tsconfig `i18n.sourceLocale`, default `en` — built-in
+  CLDR table in [`internal/enrich/cldr/`](../internal/enrich/cldr/) covering
+  en/es/zh/hi/ar/pt/ru/ja/de/fr/pl, all six categories for any other locale). The
+  renderer selects the arm via `Intl.PluralRules` on the **violated bound**
+  (`$[val]` — `minLength: 3` pluralizes for 3, NOT the received value's length); a
+  non-finite bound selects `other` directly, and plain `createFriendly` uses `en`
+  rules (deterministic, matching the default `sourceLocale`). A plain string stays
+  legal on a count-bearing constraint; `$label` is always a plain string.
+  Type-side: `TemplateLeaf = string | PluralTemplate` (plus `PluralCategory` and
+  the `Translation<T>` intent alias), exported from `ts-runtypes`.
+- **Named `Intl` format tokens.** The three-part form `$[binding:kind:name]`
+  (`$[val:number:currency]`, `$[index:…]`) formats the bound through a named entry
+  of a `NamedFormats` table (`createFriendlyI18n`'s `formats` option): binding is
+  `val` or `index`; kind is `number`, `date`, `relativeTime` (its entry carries
+  the required `unit` alongside the `Intl` options), or `list` (an array-valued
+  bound formats as a list). An unknown token/kind/name stays verbatim, a literal
+  colon in prose (`ratio 3:1`) is never touched, and `Intl` instances are memoized
+  (`PluralRules` per locale; formatters per `NamedFormats` table).
+
 `$[value]` (the *actual received value*) is out of scope for v1: the error carries
 no value (`RTValidationError` is `{path, expected, format?}`), so it would require
 threading the input into the renderer. Revisit with the `$[val]` enrichment.
@@ -296,6 +331,13 @@ const friendly = createFriendly<User>(userFriendly);
 friendly.errors(getUserErrors(badInput));   // → [{ path: 'profile.email', label: 'Email', message: 'Enter a valid email address' }]
 friendly.label('profile.email');             // → 'Email'
 ```
+
+Localized rendering wraps the same walk: `createFriendlyI18n<T>(source, { locale,
+translations, formats? })` returns the identical `FriendlyRenderer`, resolving the
+locale by naive BCP-47 truncation and falling back **per leaf** to the source map
+(the source `FriendlyType` IS the source language — a partial translation never
+throws). See [Translations (i18n)](#translations-i18n) and
+[docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md).
 
 **UI form-building is deferred and *does* need the runtype.** To enumerate every
 field of `User` (labelling the ones in the map, falling back to raw names for the
@@ -395,7 +437,10 @@ trigger differs (CLI vs build scan).
 | --------- | -------- | ------ | ---------------------------------------------------------------------------- |
 | **FT002** | Error    | ✅ `check` | key is not a field of `T` — stale (field renamed/removed)              |
 | **FT003** | Warning  | ✅ `check` | `$errors` key isn't a constraint this field's format declares (Go has `FormatAnnotation.Params`, so the exact set is known) |
-| **FT005** | Warning  | ✅ `check` | unknown `$[…]` placeholder for this constraint/context                 |
+| **FT005** | Warning  | ✅ `check` | unknown `$[…]` placeholder for this constraint/context — also covers each plural ARM's placeholders and the three-part `$[binding:kind:name]` format tokens (binding must be `val`/`index`, kind must be `number`/`date`/`relativeTime`/`list`) |
+| **FT006** | Error    | ✅ `check` | plural template missing the mandatory `other` arm (the render backstop) |
+| **FT007** | Warning  | ✅ `check` | plural arm key is not a CLDR cardinal category (`zero`/`one`/`two`/`few`/`many`/`other`) |
+| **FT008** | Warning  | ✅ `check` | plural object on a non-count-bearing constraint — dead arms, only `other` ever renders; use a plain string |
 | **FT001** | Info     | deferred | field of `T` has no label (renders the raw name)                       |
 | **FT004** | Error    | deferred (TS catches) | structural mismatch (object node where `T` is scalar)     |
 | **FT010** | Info     | deferred | `T`'s structural id changed since authored — review for semantic drift |
@@ -429,6 +474,8 @@ CLI (below) rather than scraping editor output.
 | `ts-runtypes check --file <p> --json`           | Validate **one file**, structured JSON out. The agent's tight feedback tool.              |
 | `ts-runtypes describe <file>#<Type> --format prompt\|json` | Emit the type's shape (names, kinds, optionality, formats, literals — all already in the `RunType` struct) as LLM prompt context. |
 | `ts-runtypes gen <file> [--mock] [--friendly] [--check] [--update] [--prune]` | Generate / refresh the type's mirror file under `enrichDir`. `--check` reports breadcrumb drift; `--update` reconciles an existing mirror value-preservingly (property merge + rename + orphan); `--prune` strips `@rtOrphan`/`@rtOrphanChild` carcasses (the only destructive op). See `gen` semantics below. |
+| `ts-runtypes gen --translate <locale>` (or `all`) `[--update] [--prune] [<src.ts>]` | Scaffold (create-only) / reconcile / prune a locale's `Translation<T>` mirrors off the friendly source mirror; `all` fans out over tsconfig `i18n.locales`; without `<src.ts>` it walks every mirror under `<enrichDir>/friendly/`. See [Translations (i18n)](#translations-i18n). |
+| `ts-runtypes check --translate <locale>` (or `all`) | Translation completeness gate for CI (**TR001–TR005**) — Warnings, promoted to Errors by tsconfig `i18n.strict`. |
 
 All three are **implemented** as out-of-band CLI modes of the Go binary. Validation
 runs via the `check` verb (CI / agents); surfacing the same FT/MD diagnostics
@@ -488,20 +535,24 @@ reviewable diff; results are always committed and human-reviewed.
 ## Storage — the mirror directory
 
 Enrichment is stored in a committed **mirror directory** whose tree shadows your
-source tree: a type defined in `<rootDir>/models/user.ts` gets its enrichment in
-`<enrichDir>/models/user.ts`. Storage is anchored to the **type's definition** (not
-its call sites) — the committed analog of the cache's *one canonical entry per type*
-rule: **one enrichment home per type, at its definition**, however many files
-consume it. A mirror tree (rather than `.rt.ts` siblings interleaved with source)
-keeps generated, committed artifacts out of the hand-authored source tree entirely.
+source tree, **one subtree per artifact family**: a type defined in
+`<rootDir>/models/user.ts` gets its friendly map in
+`<enrichDir>/friendly/models/user.ts` and its mock data in
+`<enrichDir>/mock/models/user.ts`. Storage is anchored to the **type's definition**
+(not its call sites) — the committed analog of the cache's *one canonical entry per
+type* rule: **one enrichment home per type per family, at its definition**, however
+many files consume it. A mirror tree (rather than `.rt.ts` siblings interleaved
+with source) keeps generated, committed artifacts out of the hand-authored source
+tree entirely.
 
 ```
 <rootDir>/models/user.ts          interface User { … }          ← definition
 <rootDir>/services/userApi.ts     createMockType<User>()        ← consumer
 <rootDir>/test/fixtures.ts        createMockType<User>()        ← consumer
                                   ──────────────────────────────────
-gen ⇒  <enrichDir>/models/user.ts   export const userMock: MockData<User> = { … }
-                                    (ONE mirror file, at the definition's mirror path)
+gen ⇒  <enrichDir>/friendly/models/user.ts   export const friendlyUser: FriendlyType<User> = { … }
+       <enrichDir>/mock/models/user.ts       export const mockUser:     MockData<User>     = { … }
+                                  (ONE mirror file per family, at the definition's mirror path)
 ```
 
 ### Configuration — the tsconfig `plugins` entry
@@ -516,7 +567,7 @@ tsgo already looks:
     "plugins": [
       {
         "name": "ts-runtypes",
-        "enrichDir": "runtypes/generated", // mirror root (default); relative to rootDir
+        "enrichDir": "runtypes/generated", // mirror root (default); the friendly/ + mock/ family subtrees live under it
         "moduleMode": "default",
         "emitMode": "code",
         "inlineMode": "default"
@@ -528,24 +579,38 @@ tsgo already looks:
 
 Precedence is **CLI flag > tsconfig entry > built-in default**. `enrichDir` defaults
 to `runtypes/generated`; the mirror path for a type is
-`<enrichDir>/<declFile relative to rootDir>`.
+`<enrichDir>/<family>/<declFile relative to rootDir>` with `family` = `friendly` |
+`mock`. The optional `i18n` object under the same entry configures the translation
+layer ([Translations (i18n)](#translations-i18n)) and is dormant when absent.
 
 ### Algorithm
 
 - **Demand discovery — global.** Scan all call sites across the project.
 - **Output location — the definition's mirror.** For each demanded *named* type `T`,
   resolve `T` to its declaration's source file `F` (following re-exports to the
-  original), compute `F`'s mirror path under `enrichDir`, and write/refresh it.
+  original), compute `F`'s per-family mirror paths under `enrichDir`
+  (`friendly/<rel>` / `mock/<rel>`), and write/refresh them.
 
-One mirror file per source file holds one export per enriched type defined there:
+One mirror file per source file **per family** holds one export per enriched type
+defined there — `friendly<Name>` consts in the `friendly/` subtree, `mock<Name>`
+consts in `mock/`, each family file importing only its own wrapper type:
 
 ```ts
-// runtypes/generated/models/user.ts — GENERATED, COMMITTED, hand-editable.
-import type { User, Post } from '../../../models/user';
+// runtypes/generated/friendly/models/user.ts — GENERATED, COMMITTED, hand-editable.
+import type { User, Post } from '../../../../models/user';
+import type { FriendlyType } from 'ts-runtypes';
 
-export const userMock:     MockData<User>     = { /* … */ };
-export const userFriendly: FriendlyType<User> = { /* … */ };
-export const postMock:     MockData<Post>     = { /* … */ };
+export const friendlyUser: FriendlyType<User> = { /* … */ };
+export const friendlyPost: FriendlyType<Post> = { /* … */ };
+```
+
+```ts
+// runtypes/generated/mock/models/user.ts — same source, the mock family's mirror.
+import type { User, Post } from '../../../../models/user';
+import type { MockData } from 'ts-runtypes';
+
+export const mockUser: MockData<User> = { /* … */ };
+export const mockPost: MockData<Post> = { /* … */ };
 ```
 
 This is the **first committed RunTypes artifact** — every other output is gitignored
@@ -555,6 +620,21 @@ source can form); it is best-effort — if a consumed type isn't exported, the
 generated file simply fails to compile and the user fixes the export. That same
 `import type` line doubles as the **breadcrumb** for drift detection (see
 [`gen` semantics](#gen-semantics)).
+
+**Migrating a pre-split combined mirror.** A legacy mirror (one file at the
+no-family path holding both `friendly*` and `mock*` consts) is migrated
+automatically — once — by the next `gen` run over its source: every const, marker,
+hand-written comment and `@rtOrphan` carcass is carried VERBATIM into its family's
+file, the source breadcrumb is recomputed for the one-directory-deeper location
+(cross-mirror value-import specifiers are untouched — both endpoints move down one
+family segment, so the relative path between two mirror files is unchanged), and
+the legacy file is deleted (`SplitCombined` in
+[`internal/enrich/mirror/split.go`](../internal/enrich/mirror/split.go)). The
+guards are conservative: the legacy file's breadcrumb must resolve back to the
+same source, and an existing family file is never overwritten (a stderr warning
+asks for a hand-merge instead). Until migrated, `gen --check` flags a combined
+mirror as **GE001** location drift. `--out <path>` keeps the old combined
+single-file layout as an explicit escape hatch.
 
 ### Named-type-driven emission (decided)
 
@@ -653,6 +733,7 @@ leading JSDoc on a declaration is preserved) and round-trip on the next update:
 | --- | --- | --- |
 | `@rtType <Name>#<id>` | JSDoc on each `export const` | the const's structural type id — the reconcile matches existing↔desired by THIS id, not the positional var name (so `friendlyBox` / `friendlyBox2` never swap bodies) |
 | `@rtIds {field: <id>, …}` | same JSDoc | a dotted-field-path → child-type-id map; recovers a primitive/inline field's identity for rename matching |
+| `@rtI18n <locale> from '<src-mirror>'` | same JSDoc — **translation consts only** | marks a translation const with its locale and the module specifier of the friendly source mirror it translates ([Translations (i18n)](#translations-i18n)) |
 | `@rtOrphan` | block comment wrapping a whole const | a const whose source type was deleted — a value-preserving carcass |
 | `@rtOrphanChild` | block comment wrapping one field | a single removed field — a value-preserving carcass |
 
@@ -663,8 +744,8 @@ the readable `field: TypeRef#id` form — the parser accepts both; the generator
 emits the bare-id form.
 
 **Namespace rule — `@rt`-prefixed tags are compiler-owned.** Every `@rt*` JSDoc
-tag (`@rtType`, `@rtIds`, `@rtOrphan`, `@rtOrphanChild`) is machinery the compiler
-*reads, writes, and acts on*. A separate **plain `@todo`** is emitted on a line of
+tag (`@rtType`, `@rtIds`, `@rtI18n`, `@rtOrphan`, `@rtOrphanChild`) is machinery
+the compiler *reads, writes, and acts on*. A separate **plain `@todo`** is emitted on a line of
 its own directly above the `export const` of each **newly-generated** const (right
 after the `@rtType`/`@rtIds` marker line):
 
@@ -750,12 +831,85 @@ out*, so a dropped field/const can be reviewed (and restored on reappearance)
 before a deliberate prune sweep removes it for good. It is idempotent: a file
 with no carcasses is left untouched.
 
+### Translations (i18n)
+
+The friendly family translates per locale — the full design lives in
+[docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md); this is the
+mirror-side summary. The tsconfig `i18n` object is optional (defaults apply when
+absent — zero change for a project that never translates), and the source
+`FriendlyType` map IS the source language (no separate default catalog) —
+anything unfilled falls back to it at render time.
+
+```
+ts-runtypes gen   --translate <locale> [<src.ts>]            # scaffold (create-only)
+ts-runtypes gen   --translate <locale> --update [<src.ts>]   # reconcile vs the friendly source mirror
+ts-runtypes gen   --translate <locale> --prune  [<src.ts>]   # strip @rtOrphan carcasses (the only delete)
+ts-runtypes gen   --translate all [--update]                 # fan out over tsconfig i18n.locales
+ts-runtypes check --translate <locale|all>                   # completeness gate (CI)
+```
+
+Without `<src.ts>` the verbs walk every mirror under `<enrichDir>/friendly/`.
+
+- **Files + naming.** One translation file per friendly mirror per locale:
+  `<i18nDir>/<locale>/<rel>.ts`, `i18nDir` defaulting to `<enrichDir>/i18n`
+  (tsconfig `i18n.dir`, resolved under the project root; the locale is a PATH
+  SEGMENT, so `pt-BR` works verbatim). Each source `friendly<Name>` gets a
+  `<locale>_friendly<Name>` const (BCP-47 `-` becomes `_`: `pt_BR_friendlyUser`),
+  annotated `Translation<Name>`, carrying the SAME `@rtType <Name>#<id>` /
+  `@rtIds` marker as the source plus `@rtI18n <locale> from
+  '<rel-to-source-mirror>'`.
+- **The scaffold is the source tree, blanked.** Every `$label`, string template
+  and plural arm is an `@todo` blank (`''`) — source text is NEVER copied as if
+  translated. Plural objects are reseeded with the TARGET locale's CLDR arm set
+  (the source's arms are irrelevant); function-form `$errors` is copied verbatim
+  (opaque escape hatch, keeps the const type-checking); const references rename
+  to their locale siblings (`home: pl_friendlyAddress`).
+- **The translate reconcile descends `$errors`.** `--translate --update` keeps
+  the value-preserving `gen --update` semantics and additionally descends ONE
+  level into `$errors` (the type-driven reconcile treats it as an atomic leaf):
+  a source-added constraint key arrives as a blank of the source's kind (string,
+  or a plural reseeded with TARGET-locale arms); a source-dropped key becomes an
+  `@rtOrphanChild` carcass; a same-key leaf stays byte-identical. Type renames
+  carry across locales via the shared `@rtType` id (const, annotation, marker
+  and intra-file references are renamed in place).
+- **Plural arms are LOCALE-OWNED.** Never orphaned, never rename-paired, never
+  down-scoped to the source's arm set; a translator-pruned arm stays pruned —
+  only the mandatory `other` backstop is ever re-inserted.
+- **`check --translate` findings:** **TR001** missing translation file, **TR002**
+  unfilled `@todo` blanks, **TR003** out of date vs the source mirror (a
+  reconcile would change it), **TR004** orphan carcasses awaiting review /
+  `--prune`, **TR005** a `$[val:kind:name]` format name missing from the
+  configured formats module. All Warnings (exit 0) unless tsconfig
+  `i18n.strict: true` promotes them to Errors (exit 1); the RUNTIME is always
+  lenient regardless.
+- **Config** rides the same tsconfig plugin entry (zero change when absent):
+
+  ```jsonc
+  "i18n": {
+    "sourceLocale": "en",              // language the source FriendlyType maps are written in
+    "dir": "runtypes/generated/i18n",  // translation subtree root (default <enrichDir>/i18n)
+    "locales": ["es", "pl", "pt-BR"],  // target locales (the source locale is NOT listed)
+    "formats": "runtypes/i18n.formats.ts", // module default-exporting Record<locale, NamedFormats>
+    "strict": false                    // check --translate gate severity (CI)
+  }
+  ```
+
+Runtime: `createFriendlyI18n<T>(source, { locale, translations, formats?,
+sourceLocale? })` returns the same `FriendlyRenderer` as `createFriendly`. The
+`locale` may be a `{value}` ref (re-read on EVERY render — the renderer itself is
+not reactivity-tracked, so call `errors()` per render); `resolveLocale` is naive
+BCP-47 truncation (exact tag, then subtags dropped right-to-left — `pt-BR` →
+`pt` — then any available tag sharing the base language). Fallback is per leaf
+(`$label` and each `$errors` key independently; a plural leaf falls through as a
+WHOLE unit, never mixing a target arm with a source arm; a translation's
+function-form `$errors` wins wholesale) — a partial translation never throws.
+
 ### Edge cases
 
 | Case                                          | Policy                                                                  |
 | --------------------------------------------- | ----------------------------------------------------------------------- |
-| Named type in user `.ts`                      | mirror file at its definition's mirror path — the rule                  |
-| Several types in one file                     | one mirror file, one export per type                                    |
+| Named type in user `.ts`                      | per-family mirror files at its definition's mirror path — the rule      |
+| Several types in one file                     | one mirror file per family, one export per type                         |
 | Re-exported / `import type` aliased           | follow to the original declaration; the mirror tracks that file         |
 | Anonymous/inline `createMockType<{a:string}>()` | no named home → **skip** (no mirror file)                             |
 | Generic instantiations `Box<string>` vs `Box<number>` | separate entries in `Box`'s mirror file, one per structural id, name-disambiguated |
@@ -805,11 +959,11 @@ The consumer imports the enrichment const from its mirror file and passes it. Pl
 greppable, IDE-managed code — no injection, no id-routing, no registry:
 
 ```ts
-import { userMock }     from 'runtypes/generated/models/user';
-import { userFriendly } from 'runtypes/generated/models/user';
+import { mockUser }     from 'runtypes/generated/mock/models/user';
+import { friendlyUser } from 'runtypes/generated/friendly/models/user';
 
-createMockType<User>({ data: userMock });
-const friendly = createFriendly<User>(userFriendly);
+createMockType<User>({ data: mockUser });
+const friendly = createFriendly<User>(friendlyUser);
 ```
 
 `createFriendly<T>(map)` and `createMockType<T>({ data })` are already **explicit**
@@ -876,9 +1030,16 @@ production graph. No special registration-gating mechanism required.
 These were the open small-detail questions; all are now **decided** (none affect the
 overall architecture) and documented here:
 
-- **i18n.** v1 is single-locale. A `Record<Locale, FriendlyType<T>>` wrapper can be
-  added later without a breaking change; the same marker-detection that finds
-  enrichment can emit a translation-file scaffold per locale.
+- **i18n — SHIPPED** (no longer parked; full design in
+  [docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md), summary in
+  [Translations (i18n)](#translations-i18n) above). Per-locale translation mirrors
+  live under `<enrichDir>/i18n/<locale>/`, scaffolded as blank-leaf
+  `Translation<T>` consts off the friendly source mirror (source text is never
+  copied as if translated); plural error templates are generator-owned (CLDR arms
+  per locale, count-bearing constraints only); `createFriendlyI18n(source,
+  { locale, translations })` renders with per-leaf fallback to the source map;
+  `gen --translate` / `check --translate` drive scaffold, reconcile, and the CI
+  completeness gate.
 - **`$[value]`** (the actual received value) in templates — needs the input threaded
   into the renderer or added to `RTValidationError`. Revisit with the `$[val]` enrichment.
 - **Union per-member addressing** (`$members`) — node-level `$label`/`$errors` only
