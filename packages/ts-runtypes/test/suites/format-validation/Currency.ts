@@ -1,10 +1,11 @@
-// Currency format cases — `TF.Currency<P>` is a number branded as a monetary
-// amount: validation and mocking are identical to `TF.Number<P>` (same params
-// surface); the brand's job is semantic — every format error carries
-// `name: 'currency'`, the discriminator `createFriendlyI18n` uses to render a
-// violated bound via `Intl.NumberFormat(locale, {style: 'currency', currency})`
-// with the app-supplied currency code. WHICH currency a value is in is runtime
-// data, deliberately never a type param.
+// Currency cases — `TF.Currency<P>` is a param preset over the plain number
+// format (`Number<P & {isCurrency: true}>`), so validation, serialization and
+// mocking are identical to `TF.Number<P>`. The `isCurrency` param is pure
+// presentation metadata: the emitter echoes it onto every format error, the
+// discriminator `createFriendlyI18n` uses to render a violated bound via
+// `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
+// app-supplied currency code. WHICH currency a value is in is runtime data,
+// deliberately never fixed in the type.
 import * as TF from 'ts-runtypes/formats';
 import type {FormatValidationCase} from './types.ts';
 import 'ts-runtypes/formats';
@@ -14,9 +15,9 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 export const CURRENCY = {
   currency_plain: {
     title: 'Unconstrained currency amount',
-    description: 'A bare Currency brand: validates as a plain number (the brand is semantic, not a constraint).',
+    description: 'A bare Currency mark: validates as a plain number (isCurrency is presentation metadata, not a constraint).',
     validateNotes:
-      'Any finite number passes — the currency brand adds no numeric constraint of its own. A non-number ("5") fails the number typeof gate.',
+      'Any finite number passes — the isCurrency param adds no numeric constraint of its own. A non-number ("5") fails the number typeof gate.',
     validate: () => createValidate<TF.Currency>(),
     standardSchema: () => createStandardSchema<TF.Currency>(),
     validateReflect: () => {
@@ -52,22 +53,22 @@ export const CURRENCY = {
   },
   currency_max: {
     title: 'Currency with inclusive max',
-    description: 'Currency with an upper bound; the format error carries name currency (the friendly-renderer discriminator).',
+    description: 'Currency with an upper bound; the format error echoes isCurrency (the friendly-renderer discriminator).',
     validateNotes:
-      'Boundary value 100 passes (inclusive); 101 fails on `max` with a `currency`-named format error. A non-number ("5") fails the number typeof gate before any format check.',
+      'Boundary value 100 passes (inclusive); 101 fails on `max` with an isCurrency-flagged format error. A non-number ("5") fails the number typeof gate before any format check.',
     validate: () => createValidate<TF.Currency<{max: 100}>>(),
     standardSchema: () => createStandardSchema<TF.Currency<{max: 100}>>(),
     // One hand-authored Standard Schema expectation per file (see
     // NumberFormat.ts): pins the consumer-facing {message, path} output — and
-    // here specifically that the issue's format payload carries the `currency`
-    // brand name end-to-end.
+    // here specifically that the issue's format payload carries the echoed
+    // isCurrency mark end-to-end.
     getExpectedStandardErrors: () => [
       [
         {
           message: 'Failed max constraint (100)',
           path: [],
           expected: 'number',
-          format: {name: 'currency', formatPath: ['max'], val: 100},
+          format: {name: 'numberFormat', formatPath: ['max'], val: 100, isCurrency: true},
         },
       ],
       [{message: 'Expected number', path: [], expected: 'number'}],
@@ -101,7 +102,7 @@ export const CURRENCY = {
     getValidationErrorsSchema: () => createGetValidationErrors(TF.currency({max: 100})),
     mockType: () => createMockType<TF.Currency<{max: 100}>>(),
     getSamples: () => ({valid: [100, 0, -50], invalid: [101, '5']}),
-    expectedFormatErrors: () => [{name: 'currency', val: 100, formatPathTail: 'max'}, null],
+    expectedFormatErrors: () => [{name: 'numberFormat', val: 100, formatPathTail: 'max'}, null],
   },
   currency_minor_units: {
     title: 'Currency in integer minor units',
@@ -141,9 +142,9 @@ export const CURRENCY = {
     mockType: () => createMockType<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
     getSamples: () => ({valid: [0, 1999, 65535], invalid: [19.99, 65536, -1]}),
     expectedFormatErrors: () => [
-      {name: 'currency', val: true, formatPathTail: 'integer'},
-      {name: 'currency', val: 65535, formatPathTail: 'max'},
-      {name: 'currency', val: 0, formatPathTail: 'min'},
+      {name: 'numberFormat', val: true, formatPathTail: 'integer'},
+      {name: 'numberFormat', val: 65535, formatPathTail: 'max'},
+      {name: 'numberFormat', val: 0, formatPathTail: 'min'},
     ],
   },
 } as const satisfies Record<string, FormatValidationCase>;

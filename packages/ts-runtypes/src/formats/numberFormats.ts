@@ -25,6 +25,15 @@ export interface NumberParams {
   lt?: number;
   gt?: number;
   multipleOf?: number;
+  /** Marks the value as a monetary amount. PURE PRESENTATION METADATA — the
+   *  only number param with no failable constraint: validation, serialization
+   *  and mocking ignore it, and it never becomes an `$errors` template key.
+   *  The emitter echoes it onto every error the field produces, so
+   *  `createFriendlyI18n` renders a violated bound via
+   *  `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
+   *  app-supplied `currency` renderer option. WHICH currency a value is in is
+   *  runtime data, deliberately never a type param. */
+  isCurrency?: boolean;
 }
 
 // Number — the branded number alias users annotate with:
@@ -38,21 +47,13 @@ export type Number<P extends NumberParams = {}, BrandName extends string = never
   BrandName
 >;
 
-// Currency — a number branded as a monetary amount: `Currency` /
-// `Currency<{min: 0}>`. Same params surface as Number (validation is
-// identical); the brand is semantic — validation errors carry the
-// `currency` format name, so createFriendlyI18n renders a violated bound
-// via Intl.NumberFormat(locale, {style: 'currency', currency}) using the
-// app-supplied `currency` renderer option. WHICH currency a value is in
-// is runtime data, deliberately never a type param (a hardcoded unit
-// would silently render the wrong symbol).
+// Currency — a number marked as a monetary amount: `Currency` /
+// `Currency<{min: 0}>`. A PARAM PRESET over the plain number format (like
+// Integer / Int8), merging `isCurrency: true` into the user's params — no
+// distinct format name, no special Go functionality; the mark rides the
+// params like everything else in the number family (see NumberParams).
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export type Currency<P extends NumberParams = {}, BrandName extends string = never> = TypeFormat<
-  number,
-  'currency',
-  P,
-  BrandName
->;
+export type Currency<P extends NumberParams = {}, BrandName extends string = never> = Number<P & {isCurrency: true}, BrandName>;
 
 // Default number formats — ported from the reference defaultNumberFormats.ts.
 // The fixed-width int formats SET the min/max that drive the binary

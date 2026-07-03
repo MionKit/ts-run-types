@@ -1,10 +1,13 @@
 // format-validation / Currency — every CURRENCY case through the same
 // per-variant it() blocks as NumberFormat: 5 validate + 5 getValidationErrors
 // forms (the format payload asserted across static / reflect /
-// deserialize-static / deserialize-reflect + the value-first schema contract,
-// proving the `currency` brand name survives every type-resolution path) +
-// 2 mockType forms.
-import {describe, it} from 'vitest';
+// deserialize-static / deserialize-reflect + the value-first schema contract) +
+// 2 mockType forms — plus a focused pair proving the `isCurrency` param is
+// echoed onto error payloads end-to-end (the friendly renderer's money
+// discriminator) in both marker call shapes.
+import {describe, it, expect} from 'vitest';
+import * as TF from 'ts-runtypes/formats';
+import {createGetValidationErrors} from 'ts-runtypes';
 import {CURRENCY} from './Currency.ts';
 import {
   assertValidateStatic,
@@ -39,4 +42,21 @@ describe('format-validation / Currency', () => {
     it(titleFor(c, 'mockType/static'), () => assertMockTypeStatic(c));
     it(titleFor(c, 'mockType/reflect'), () => assertMockTypeReflect(c));
   }
+
+  it('the isCurrency param is echoed onto error payloads (static form)', () => {
+    const errors = createGetValidationErrors<TF.Currency<{max: 100}>>()(101);
+    expect(errors[0]?.format?.name).toBe('numberFormat');
+    expect(errors[0]?.format?.isCurrency).toBe(true);
+  });
+
+  it('the isCurrency param is echoed onto error payloads (value-first form)', () => {
+    const errors = createGetValidationErrors(TF.currency({max: 100}))(101);
+    expect(errors[0]?.format?.name).toBe('numberFormat');
+    expect(errors[0]?.format?.isCurrency).toBe(true);
+  });
+
+  it('a plain number error never carries the flag', () => {
+    const errors = createGetValidationErrors<TF.Number<{max: 100}>>()(101);
+    expect(errors[0]?.format?.isCurrency).toBeUndefined();
+  });
 });

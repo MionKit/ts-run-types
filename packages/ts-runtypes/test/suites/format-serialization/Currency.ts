@@ -1,7 +1,8 @@
-// Currency serialization cases — the brand delegates its wire behaviour to the
-// number family: JSON writes the plain number; binary reuses the numberFormat
-// integer ladder, so integer minor-unit bounds pack into the narrowest int and
-// an unconstrained amount rides the base float64 arm.
+// Currency serialization cases — isCurrency is presentation metadata, so the
+// wire behaviour is the plain number family's: JSON writes the plain number;
+// binary uses the numberFormat integer ladder, so integer minor-unit bounds
+// pack into the narrowest int and an unconstrained amount rides the base
+// float64 arm.
 import * as TF from 'ts-runtypes/formats';
 import type {SerializationCase} from './types.ts';
 import 'ts-runtypes/formats';
@@ -12,7 +13,7 @@ export const CURRENCY = {
     title: 'Currency amount (float64)',
     description:
       'JSON + binary (de)serialization of an unconstrained TF.Currency; no integer bounds, so binary rides the base 8-byte float64 arm while JSON writes the plain number.',
-    serializeNotes: 'The currency brand never touches the wire — values serialize exactly like the equivalent plain number.',
+    serializeNotes: 'The isCurrency mark never touches the wire — values serialize exactly like the equivalent plain number.',
     mutateEncoder: () => createJsonEncoder<TF.Currency>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<TF.Currency>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<TF.Currency>(undefined, {strategy: 'direct'}),

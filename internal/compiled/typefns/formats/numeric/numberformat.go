@@ -86,45 +86,41 @@ func numberConditions(params map[string]any, vλl string) []string {
 // with the literal `true`; the range/multipleOf params tag it with the
 // bound.
 func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
-	return numberValidationErrorStatements(annotation, numberFormatName, vλl, pathExpr, errorsArr)
-}
-
-// numberValidationErrorStatements is the shared validationErrors body for the
-// number-family formats (numberFormat, currency): one `if (failed) <push>`
-// statement per active predicate, tagged with the CALLER's format name so the
-// runtime TypeFormatError carries the precise brand.
-func numberValidationErrorStatements(annotation *protocol.FormatAnnotation, formatName, vλl, pathExpr, errorsArr string) string {
 	if annotation == nil {
 		return ""
 	}
 	params := annotation.Params
+	// isCurrency is PURE PRESENTATION METADATA (no failable constraint): it is
+	// echoed verbatim onto every error this field emits, so the friendly i18n
+	// renderer can render the violated bound as money
+	// (Intl.NumberFormat(locale, {style: 'currency', currency})).
+	extra := ""
+	if isCurrency, ok := formats.ReadBoolParam(params, "isCurrency"); ok && isCurrency {
+		extra = ",isCurrency:true"
+	}
+	errCall := func(paramName, paramValLiteral string) string {
+		return formats.FormatErrCallWith(pathExpr, errorsArr, "number", numberFormatName, paramName, paramValLiteral, extra)
+	}
 	var statements []string
 	if value, ok := formats.ReadBoolParam(params, "integer"); ok && value {
-		statements = append(statements,
-			"if (!Number.isInteger("+vλl+")) "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "integer", "true"))
+		statements = append(statements, "if (!Number.isInteger("+vλl+")) "+errCall("integer", "true"))
 	} else if value, ok := formats.ReadBoolParam(params, "float"); ok && value {
-		statements = append(statements,
-			"if (Number.isInteger("+vλl+")) "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "float", "true"))
+		statements = append(statements, "if (Number.isInteger("+vλl+")) "+errCall("float", "true"))
 	}
 	if value, ok := formats.ReadNumberParam(params, "max"); ok {
-		statements = append(statements,
-			"if ("+vλl+" > "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "max", formats.FormatNumber(value)))
+		statements = append(statements, "if ("+vλl+" > "+formats.FormatNumber(value)+") "+errCall("max", formats.FormatNumber(value)))
 	}
 	if value, ok := formats.ReadNumberParam(params, "min"); ok {
-		statements = append(statements,
-			"if ("+vλl+" < "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "min", formats.FormatNumber(value)))
+		statements = append(statements, "if ("+vλl+" < "+formats.FormatNumber(value)+") "+errCall("min", formats.FormatNumber(value)))
 	}
 	if value, ok := formats.ReadNumberParam(params, "lt"); ok {
-		statements = append(statements,
-			"if ("+vλl+" >= "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "lt", formats.FormatNumber(value)))
+		statements = append(statements, "if ("+vλl+" >= "+formats.FormatNumber(value)+") "+errCall("lt", formats.FormatNumber(value)))
 	}
 	if value, ok := formats.ReadNumberParam(params, "gt"); ok {
-		statements = append(statements,
-			"if ("+vλl+" <= "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "gt", formats.FormatNumber(value)))
+		statements = append(statements, "if ("+vλl+" <= "+formats.FormatNumber(value)+") "+errCall("gt", formats.FormatNumber(value)))
 	}
 	if value, ok := formats.ReadNumberParam(params, "multipleOf"); ok {
-		statements = append(statements,
-			"if (("+vλl+" % "+formats.FormatNumber(value)+" !== 0)) "+formats.FormatErrCall(pathExpr, errorsArr, "number", formatName, "multipleOf", formats.FormatNumber(value)))
+		statements = append(statements, "if (("+vλl+" % "+formats.FormatNumber(value)+" !== 0)) "+errCall("multipleOf", formats.FormatNumber(value)))
 	}
 	return strings.Join(statements, ";")
 }
@@ -275,13 +271,7 @@ func integerType(params map[string]any) integerKind {
 // spec-faithful: a `0` bound is falsy per the reference and so escapes these
 // checks — replicated here via numberTruthy for byte-for-byte parity.
 func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
-	return validateNumberParams(annotation, "NumberFormat")
-}
-
-// validateNumberParams is the shared build-time param validation for the
-// number-family formats; `label` prefixes each message with the caller's
-// user-facing format name (NumberFormat / CurrencyFormat).
-func validateNumberParams(annotation *protocol.FormatAnnotation, label string) []string {
+	const label = "NumberFormat"
 	if annotation == nil {
 		return nil
 	}

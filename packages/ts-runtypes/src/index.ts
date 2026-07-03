@@ -45,7 +45,7 @@ export {type MockData, type MockNode} from './enrich/mockData.ts';
 // `createFriendlyI18n` is the locale-selecting wrapper over the same walk: the
 // source map is the source language + terminal fallback, translations are
 // same-tree per-locale consts, plurals select via Intl.PluralRules, and
-// `$[val]` renders type-driven (a Currency-branded bound via the app-supplied
+// `$[val]` renders type-driven (an isCurrency-marked bound via the app-supplied
 // `currency` option, date-family bounds via Intl.DateTimeFormat).
 export {
   createFriendly,

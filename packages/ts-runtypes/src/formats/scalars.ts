@@ -82,28 +82,28 @@ export function number(
   return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'number', formatParams});
 }
 
-/** A currency (monetary amount) field builder. `currency()` → transparent
- *  `RunType<Currency>`; `currency({min: 0})` → `RunType<Currency<P>>`;
- *  `currency({min: 0}, brand('Price'))` → nominal `RunType<Currency<P, 'Price'>>`.
- *  Unlike `number()`, the no-params call STILL brands (the semantic tag is the
- *  format's whole point). The currency UNIT is never a param — pass it to the
- *  renderer (`createFriendlyI18n`'s `currency` option) instead. **/
+/** A currency (monetary amount) field builder — the value-first spelling of
+ *  the `Currency` param preset: `currency()` ≡ `number({isCurrency: true})`,
+ *  `currency({min: 0})` merges `isCurrency: true` into the params. Unlike
+ *  `number()`, the no-params call still carries the mark (that IS the point).
+ *  The currency UNIT is never a param — pass it to the renderer
+ *  (`createFriendlyI18n`'s `currency` option) instead. **/
 export function currency(id?: InjectRunTypeId<Currency>): RunType<Currency>;
 export function currency<const P extends NumberParams>(
   formatParams: CompTimeArgs<P>,
-  id?: InjectRunTypeId<LeafType<'currency', P>>
-): RunType<LeafType<'currency', P>>;
+  id?: InjectRunTypeId<LeafType<'numberFormat', P & {isCurrency: true}>>
+): RunType<LeafType<'numberFormat', P & {isCurrency: true}>>;
 export function currency<const P extends NumberParams, const B extends string>(
   formatParams: CompTimeArgs<P>,
   brandTag: BrandArg<B>,
-  id?: InjectRunTypeId<LeafType<'currency', P, B>>
-): RunType<LeafType<'currency', P, B>>;
+  id?: InjectRunTypeId<LeafType<'numberFormat', P & {isCurrency: true}, B>>
+): RunType<LeafType<'numberFormat', P & {isCurrency: true}, B>>;
 export function currency(
   formatParamsOrId?: NumberParams | InjectRunTypeId<number>,
   brandOrId?: BrandArg<string> | InjectRunTypeId<number>,
   id?: InjectRunTypeId<number>
 ): RunType<number> {
-  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const formatParams = typeof formatParamsOrId === 'object' ? {...formatParamsOrId, isCurrency: true} : {isCurrency: true};
   return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'number', formatParams});
 }
 

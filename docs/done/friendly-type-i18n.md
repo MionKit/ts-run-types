@@ -48,9 +48,11 @@
 >     product decision, superseding §6 and deviations #4–#5): the three-part
 >     `$[val:kind:name]` tokens, `NamedFormats`, the renderer `formats` option,
 >     tsconfig `i18n.formats` and TR005 are all gone. `$[val]` renders
->     **type-driven** instead — the failed format's NAME on the error says what
->     the bound IS: the new `TF.Currency<P>` number format (same params surface
->     as `TF.Number`; own emitter name `currency`) renders via
+>     **type-driven** instead — the error's format payload says what the bound
+>     IS: the new `TF.Currency<P>` preset (`Number<P & {isCurrency: true}>` —
+>     `isCurrency` is a pure-metadata number PARAM, no distinct format name and
+>     no Go validation of its own; the emitter echoes it onto every error the
+>     field produces) renders via
 >     `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
 >     app-supplied `currency` renderer option (a string or `{value}` ref —
 >     which currency a value is in is app DATA, never a type param; omitted →
@@ -475,7 +477,7 @@ export function resolveLocale<T>(
 export interface FriendlyI18nOptions<T> {
   locale: string | { readonly value: string };            // string OR any { value } ref (e.g. a Vue Ref) — structural read, no Vue dep
   translations: Partial<Record<string, FriendlyType<T>>>; // locale tag -> committed translation const
-  currency?: string | { readonly value: string };         // ISO 4217 code for Currency-branded bounds (deviation #10) — app data, re-read per render
+  currency?: string | { readonly value: string };         // ISO 4217 code for isCurrency-marked bounds (deviation #10) — app data, re-read per render
   sourceLocale?: string;                                   // language of the SOURCE map (default 'en') — its Intl.PluralRules select source-map plurals
   strict?: boolean;                                        // reserved; runtime stays lenient — strictness lives in `check`
 }
@@ -505,9 +507,10 @@ non-finite count.
 > **SUPERSEDED (deviation #10).** The named-format token design below shipped
 > first and was then REPLACED before merge by type-driven rendering. As
 > implemented: the DSL stays `$[val]`-only (`/\$\[(\w+)\]/g` — a literal colon
-> in prose is never touched); the failed format's NAME on the error picks the
-> rendering. `TF.Currency<P>` (a number-family format, emitter name
-> `currency`, same params/binary ladder as `TF.Number`) renders via
+> in prose is never touched); the error's format payload picks the rendering.
+> `TF.Currency<P>` (`Number<P & {isCurrency: true}>` — a param preset like
+> `Integer`/`Int8`; the emitter echoes the pure-metadata `isCurrency` param
+> onto every error the field produces) renders via
 > `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
 > renderer's `currency` option (string or `{value}` ref; omitted → plain
 > localized decimal, never a guessed symbol; an invalid code degrades to the
