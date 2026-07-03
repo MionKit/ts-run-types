@@ -40,6 +40,32 @@ func orphanConsts(ops *[]spliceOp, index *Index, spec Spec, readSource func(stri
 		// wrongly orphan a still-existing cross-file type. Skip the orphan judgement.
 		return orphaned
 	}
+
+	// ORACLE SWAP (i18n translate mode): a translation const's fate is judged
+	// against the friendly SOURCE MIRROR — "does the FriendlyType file still
+	// declare this const?" — never against the .ts type source.
+	if spec.Translate != nil {
+		sourceMirrorText, err := readSource(spec.Translate.SourceMirrorPath)
+		if err != nil {
+			return orphaned // source mirror unreadable → be conservative, orphan nothing
+		}
+		desiredVars := desiredVarSet(spec)
+		for _, entry := range index.consts {
+			if desiredVars[entry.varName] || renamed[entry] {
+				continue
+			}
+			if !isTranslationVar(entry.varName) {
+				continue // a hand-authored non-translation const — never ours to orphan
+			}
+			if SourceMirrorDeclaresConst(sourceMirrorText, SourceVarOfTranslation(entry.varName)) {
+				continue // the source FriendlyType still declares it — not an orphan
+			}
+			*ops = append(*ops, orphanConstOp(index.raw, entry))
+			orphaned = append(orphaned, entry)
+		}
+		return orphaned
+	}
+
 	if index.breadcrumb == nil {
 		return orphaned // no source link → can't safely judge declaration
 	}

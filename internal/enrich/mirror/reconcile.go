@@ -56,11 +56,12 @@ func Reconcile(spec Spec, existing []byte, readSource func(string) (string, erro
 	// regenerating an empty new one. Renamed consts are excluded from the merge /
 	// append / orphan passes below (which would otherwise double-process them into
 	// overlapping splices).
+	translate := spec.Translate != nil
 	renames := computeConstRenames(index, spec)
 	renamedExisting := map[*constEntry]bool{}
 	renamedDesiredVar := map[string]bool{}
 	for _, rename := range renames {
-		emitConstRename(&ops, index, rename)
+		emitConstRename(&ops, index, rename, translate)
 		renamedExisting[rename.existing] = true
 		renamedDesiredVar[renameDesiredVar(rename)] = true
 	}
@@ -69,10 +70,10 @@ func Reconcile(spec Spec, existing []byte, readSource func(string) (string, erro
 	// not already handled as a rename.
 	for _, named := range spec.Consts {
 		if spec.WantFriendly && !renamedDesiredVar[named.FriendlyVar] {
-			reconcileOneConst(&ops, &addedConsts, index, named, true)
+			reconcileOneConst(&ops, &addedConsts, index, named, true, translate)
 		}
 		if spec.WantMock && !renamedDesiredVar[named.MockVar] {
-			reconcileOneConst(&ops, &addedConsts, index, named, false)
+			reconcileOneConst(&ops, &addedConsts, index, named, false, translate)
 		}
 	}
 
@@ -93,6 +94,21 @@ func Reconcile(spec Spec, existing []byte, readSource func(string) (string, erro
 	if err != nil {
 		return nil, false, err
 	}
+
+	// REFERENCE FIXUP: a renamed const's declaration was spliced above, but
+	// sibling consts may still REFERENCE the old var (`home: friendlyAddress`
+	// after Address→Location) — the body merge deliberately keeps leaf-in-both
+	// fields byte-identical, so the stale identifier survives the splice pass.
+	// Rewrite it boundary-aware over the merged bytes (post-splice, so it can
+	// never overlap a splice). A carcass's preserved text is rewritten too — a
+	// later restore then references the LIVE const.
+	for _, rename := range renames {
+		newVar := renameDesiredVar(rename)
+		if rename.existing.varName != newVar {
+			merged = replaceIdentifierAll(merged, rename.existing.varName, newVar)
+		}
+	}
+
 	appended := appendNewConsts(merged, spec, index, addedConsts)
 
 	if string(appended) == string(existing) {
@@ -101,11 +117,39 @@ func Reconcile(spec Spec, existing []byte, readSource func(string) (string, erro
 	return appended, true, nil
 }
 
+// replaceIdentifierAll rewrites every standalone-identifier occurrence of
+// oldVar in text to newVar (word-boundary on both sides, so `friendlyUser`
+// never matches inside `friendlyUserProfile`).
+func replaceIdentifierAll(text []byte, oldVar, newVar string) []byte {
+	source := string(text)
+	var b strings.Builder
+	from := 0
+	for {
+		idx := strings.Index(source[from:], oldVar)
+		if idx < 0 {
+			b.WriteString(source[from:])
+			return []byte(b.String())
+		}
+		pos := from + idx
+		afterPos := pos + len(oldVar)
+		beforeOK := pos == 0 || !isIdentByte(source[pos-1])
+		afterOK := afterPos >= len(source) || !isIdentByte(source[afterPos])
+		if beforeOK && afterOK {
+			b.WriteString(source[from:pos])
+			b.WriteString(newVar)
+			from = afterPos
+			continue
+		}
+		b.WriteString(source[from : pos+1])
+		from = pos + 1
+	}
+}
+
 // reconcileOneConst reconciles ONE friendly-or-mock const: it finds the matching
 // existing const by @rtType id (fallback var name), and either property-merges
 // it (recording splice ops) or, when there is no match, queues it for append.
 // addedConsts dedups so a friendly+mock pair queues a single NamedConst once.
-func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrich.NamedConst, index *Index, named enrich.NamedConst, friendly bool) {
+func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrich.NamedConst, index *Index, named enrich.NamedConst, friendly, translate bool) {
 	varName, body, metaKeys := formParts(named, friendly)
 
 	existing := findExistingConst(index, varName)
@@ -138,7 +182,7 @@ func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrich.NamedConst, index 
 	// by id again instead of the var-name fallback.
 	refreshMarker(ops, index.raw, existing, named)
 
-	mergeConstBody(ops, index, existing, body, metaKeys, named.ChildIDs)
+	mergeConstBody(ops, index, existing, body, metaKeys, named.ChildIDs, translate)
 }
 
 // formParts returns the var name, body text, and reserved-key set for one form
@@ -155,7 +199,7 @@ func formParts(named enrich.NamedConst, friendly bool) (varName, body string, me
 // existing + desired object views and merges them under the given reserved-key
 // set + child-id maps. No-op when the desired body is not an object literal.
 // Assumes existing.body is non-nil (the caller guards it).
-func mergeConstBody(ops *[]spliceOp, index *Index, existing *constEntry, body string, metaKeys map[string]bool, desiredChild map[string]string) {
+func mergeConstBody(ops *[]spliceOp, index *Index, existing *constEntry, body string, metaKeys map[string]bool, desiredChild map[string]string, translate bool) {
 	existingView := newObjectView(string(index.raw), index.sourceFile, existing.body)
 	desiredView := parseDesiredObject(body)
 	if desiredView == nil {
@@ -165,6 +209,7 @@ func mergeConstBody(ops *[]spliceOp, index *Index, existing *constEntry, body st
 		metaKeys:      metaKeys,
 		existingChild: existing.childIDs,
 		desiredChild:  desiredChild,
+		translate:     translate,
 	})
 }
 
@@ -174,7 +219,7 @@ func mergeConstBody(ops *[]spliceOp, index *Index, existing *constEntry, body st
 // (a hand-authored file), a fresh marker is inserted before the const keyword.
 // No op when the marker already matches (idempotent).
 func refreshMarker(ops *[]spliceOp, raw []byte, existing *constEntry, named enrich.NamedConst) {
-	desired := MarkerComment(named.TypeName, named.TypeID, named.ChildIDs)
+	desired := MarkerComment(named)
 	if desired == "" {
 		return
 	}
@@ -199,7 +244,7 @@ func refreshMarker(ops *[]spliceOp, raw []byte, existing *constEntry, named enri
 // `export`/`const` keyword so a body token can't match). A marker-free const, or a
 // desired with no structural id, is returned unchanged.
 func refreshRestoredMarker(inner string, named enrich.NamedConst) string {
-	desired := MarkerComment(named.TypeName, named.TypeID, named.ChildIDs)
+	desired := MarkerComment(named)
 	if desired == "" {
 		return inner
 	}
@@ -501,7 +546,7 @@ func existingVarsForForm(index *Index, friendly bool) map[string]bool {
 // a field merges that field too. No orphan carcass, no fresh empty twin. The
 // emitted ops cover disjoint regions (marker / var / annotation / body fields), so
 // they never overlap.
-func emitConstRename(ops *[]spliceOp, index *Index, rename constRename) {
+func emitConstRename(ops *[]spliceOp, index *Index, rename constRename, translate bool) {
 	existing := rename.existing
 	named := rename.desired
 	desiredVar, body, metaKeys := formParts(named, rename.friendly)
@@ -515,7 +560,7 @@ func emitConstRename(ops *[]spliceOp, index *Index, rename constRename) {
 	refreshMarker(ops, index.raw, existing, named)
 
 	if existing.body != nil {
-		mergeConstBody(ops, index, existing, body, metaKeys, named.ChildIDs)
+		mergeConstBody(ops, index, existing, body, metaKeys, named.ChildIDs, translate)
 	}
 }
 
@@ -545,7 +590,7 @@ func appendNewConsts(merged []byte, spec Spec, index *Index, addedConsts []enric
 	var blocks []string
 	for _, named := range addedConsts {
 		if spec.WantFriendly {
-			blocks = append(blocks, ConstBlock(named.FriendlyVar, "FriendlyType", named, named.Friendly))
+			blocks = append(blocks, ConstBlock(named.FriendlyVar, friendlyWrapper(spec), named, named.Friendly))
 		}
 		if spec.WantMock {
 			blocks = append(blocks, ConstBlock(named.MockVar, "MockData", named, named.Mock))

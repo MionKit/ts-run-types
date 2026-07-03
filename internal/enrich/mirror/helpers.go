@@ -24,6 +24,18 @@ type Spec struct {
 	WantFriendly  bool
 	WantMock      bool
 	MirrorPathFor func(declFile string) string
+	// Translate switches the reconcile into i18n mode: the desired side is the
+	// friendly SOURCE MIRROR's consts (blanked, locale-prefixed), not the type
+	// graph. nil on the ordinary type-driven reconcile.
+	Translate *TranslateSpec
+}
+
+// TranslateSpec carries the i18n reconcile's mode data: the target locale and
+// the friendly source mirror the translation file anchors to (the orphan
+// oracle reads it instead of the `.ts` type source).
+type TranslateSpec struct {
+	Locale           string
+	SourceMirrorPath string
 }
 
 // ImportSpecifier computes the ES-module specifier to reach absTarget from the
@@ -56,15 +68,16 @@ func stripModuleExt(path string) string {
 
 // ConstBlock wraps a rendered object-literal body in the
 // `export const <var>: <Wrapper><<TypeName>> = <body>;` declaration, prefixed
-// with the reconcile marker JSDoc (`@rtType` + `@rtIds`) when the const carries
-// a structural id, then a plain `@todo` line on its OWN line. The marker + the
-// `@todo` ride the const WRAPPER, never the skeleton body — the batch stdout path
-// (runGenBatch) compares the body alone, so it stays byte-identical. ConstBlock is
-// only ever called for a NEWLY-generated const (create-only first-gen, a new const
+// with the reconcile marker JSDoc (`@rtType` + `@rtIds`, plus `@rtI18n` on a
+// translation const) when the const carries a structural id, then a plain
+// `@todo` line on its OWN line. The marker + the `@todo` ride the const
+// WRAPPER, never the skeleton body — the batch stdout path (runGenBatch)
+// compares the body alone, so it stays byte-identical. ConstBlock is only ever
+// called for a NEWLY-generated const (create-only first-gen, a new const
 // appended during --update), so a fresh `@todo` is always correct here; the
 // reconcile NEVER re-stamps it on an already-existing const.
 func ConstBlock(varName, wrapper string, named enrich.NamedConst, body string) string {
-	marker := MarkerComment(named.TypeName, named.TypeID, named.ChildIDs)
+	marker := MarkerComment(named)
 	return marker + todoComment() + "export const " + varName + ": " + wrapper + "<" + named.TypeName + "> = " + body + ";\n"
 }
 
@@ -87,26 +100,35 @@ func todoComment() string {
 
 // MarkerComment renders the reconcile JSDoc for a const: a single leading line
 // `/** @rtType <Name>#<id> @rtIds {field: <id>, …} */\n` (the @rtIds entries
-// carry the BARE child id — see formatChildIDs/ChildIDs). It is omitted
-// (empty string) when there is no structural id (an unresolved/anonymous root),
-// so a degenerate const stays marker-free. The encoding survives Prettier
-// (leading JSDoc on a declaration is preserved) and round-trips through
+// carry the BARE child id — see formatChildIDs/ChildIDs). A translation const
+// additionally carries `@rtI18n <locale> from '<src-mirror-spec>'` — the
+// breadcrumb to the friendly SOURCE MIRROR file. It is omitted (empty string)
+// when there is no structural id (an unresolved/anonymous root), so a
+// degenerate const stays marker-free. The encoding survives Prettier (leading
+// JSDoc on a declaration is preserved) and round-trips through
 // parseConstMarkers on reconcile.
-func MarkerComment(typeName, typeID string, childIDs map[string]string) string {
-	if typeID == "" {
+func MarkerComment(named enrich.NamedConst) string {
+	if named.TypeID == "" {
 		return ""
 	}
 	var b strings.Builder
 	b.WriteString("/** @rtType ")
-	if typeName != "" {
-		b.WriteString(typeName)
+	if named.TypeName != "" {
+		b.WriteString(named.TypeName)
 		b.WriteString("#")
 	}
-	b.WriteString(typeID)
-	if len(childIDs) > 0 {
+	b.WriteString(named.TypeID)
+	if len(named.ChildIDs) > 0 {
 		b.WriteString(" @rtIds {")
-		b.WriteString(formatChildIDs(childIDs))
+		b.WriteString(formatChildIDs(named.ChildIDs))
 		b.WriteString("}")
+	}
+	if named.I18nLocale != "" {
+		b.WriteString(" @rtI18n ")
+		b.WriteString(named.I18nLocale)
+		b.WriteString(" from '")
+		b.WriteString(named.I18nSourceSpec)
+		b.WriteString("'")
 	}
 	b.WriteString(" */\n")
 	return b.String()
@@ -169,10 +191,11 @@ func CrossFileImportLines(fromMirror string, importsByMirror map[string]map[stri
 	return lines
 }
 
-// ReferencedVars returns the distinct friendly*/mock* identifiers appearing in a
-// rendered body — the const-var references the closure emitter inlined. It is a
-// token scan (the bodies are object literals with bare identifier values), the
-// same convention the closure test's TDZ check uses.
+// ReferencedVars returns the distinct friendly*/mock*/<locale>_friendly*
+// identifiers appearing in a rendered body — the const-var references the
+// closure emitter (or the translation blanker) inlined. It is a token scan
+// (the bodies are object literals with bare identifier values), the same
+// convention the closure test's TDZ check uses.
 func ReferencedVars(body string) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -182,12 +205,14 @@ func ReferencedVars(body string) []string {
 		if token == "friendly" || token == "mock" {
 			continue
 		}
-		if !strings.HasPrefix(token, "friendly") && !strings.HasPrefix(token, "mock") {
+		if !strings.HasPrefix(token, "friendly") && !strings.HasPrefix(token, "mock") && !isTranslationVar(token) {
 			continue
 		}
-		suffix := strings.TrimPrefix(strings.TrimPrefix(token, "friendly"), "mock")
-		if suffix == "" || suffix[0] < 'A' || suffix[0] > 'Z' {
-			continue // not a const-var (e.g. a field literally named "mockX" in lowercase)
+		if !isTranslationVar(token) {
+			suffix := strings.TrimPrefix(strings.TrimPrefix(token, "friendly"), "mock")
+			if suffix == "" || suffix[0] < 'A' || suffix[0] > 'Z' {
+				continue // not a const-var (e.g. a field literally named "mockX" in lowercase)
+			}
 		}
 		if !seen[token] {
 			seen[token] = true
@@ -219,7 +244,7 @@ func Scaffold(spec Spec, existing string) (string, []string, error) {
 	var blocks []string
 	for _, named := range spec.Consts {
 		if spec.WantFriendly && !HasExport(existing, named.FriendlyVar) {
-			blocks = append(blocks, ConstBlock(named.FriendlyVar, "FriendlyType", named, named.Friendly))
+			blocks = append(blocks, ConstBlock(named.FriendlyVar, friendlyWrapper(spec), named, named.Friendly))
 			added = append(added, named.FriendlyVar)
 		}
 		if spec.WantMock && !HasExport(existing, named.MockVar) {
@@ -293,17 +318,27 @@ func writeMirrorHeader(builder *strings.Builder, spec Spec, blocks []string) {
 
 // dslTypeNames lists the ts-runtypes wrapper types a mirror file's consts
 // annotate with, per the spec's family flags: a friendly-family file imports
-// only FriendlyType, a mock-family file only MockData, a combined (--out) file
-// both.
+// only FriendlyType (Translation for a per-locale translation file), a
+// mock-family file only MockData, a combined (--out) file both.
 func dslTypeNames(spec Spec) []string {
 	var names []string
 	if spec.WantFriendly {
-		names = append(names, "FriendlyType")
+		names = append(names, friendlyWrapper(spec))
 	}
 	if spec.WantMock {
 		names = append(names, "MockData")
 	}
 	return names
+}
+
+// friendlyWrapper is the annotation alias a friendly-form const uses:
+// FriendlyType for the source language, Translation for a per-locale
+// translation const (structurally identical; intent marker).
+func friendlyWrapper(spec Spec) string {
+	if spec.Translate != nil {
+		return "Translation"
+	}
+	return "FriendlyType"
 }
 
 // ResolveBreadcrumb resolves a module specifier (as written in the breadcrumb,
@@ -323,6 +358,13 @@ func ResolveBreadcrumb(mirrorFile, spec string) string {
 	}
 	// Neither exists — return the .ts candidate so GE002 reports a concrete path.
 	return tsCandidate
+}
+
+// SourceMirrorDeclaresConst reports whether the friendly SOURCE MIRROR text
+// still declares `export const <sourceVar>` — the i18n orphan oracle: a
+// translation const orphans only when its source FriendlyType const is gone.
+func SourceMirrorDeclaresConst(sourceMirrorText, sourceVar string) bool {
+	return HasExport(sourceMirrorText, sourceVar)
 }
 
 // SourceDeclaresType reports whether sourceText still makes typeName available —
