@@ -1,6 +1,6 @@
 ---
 name: rt-enrich-types
-description: Drive the RunTypes enrichment workflow — author and maintain the committed, type-keyed FriendlyType<T> (human labels + error messages) and MockData<T> (realistic sample data) for a type. Use when scaffolding or filling a type's enrichment file, when running the `ts-runtypes` CLI (`describe` / `gen` / `gen --update` / `gen --prune` / `check`), when filling `@todo` blanks the compiler left, or when working with the enrichment JSDoc tags (`@rtType`, `@rtIds`, `@rtOrphan`, `@rtOrphanChild`, `@todo`). Covers the mirror directory, the compiler-scaffolds/agent-fills loop, the node shapes, and the placeholder DSL.
+description: Drive the RunTypes enrichment workflow — author and maintain the committed, type-keyed FriendlyType<T> (human labels + error messages) and MockData<T> (realistic sample data) for a type. Use when scaffolding or filling a type's enrichment file, when running the `ts-runtypes` CLI (`describe` / `gen` / `gen --update` / `gen --prune` / `check`), when filling `@todo` blanks the compiler left, or when working with the enrichment JSDoc tags (`@rtType`, `@rtIds`, `@rtOrphan`, `@rtOrphanChild`, `@todo`). Covers the mirror directory, the compiler-scaffolds/agent-fills loop, the CLI verbs, and the tsconfig i18n block; the per-family authoring DSLs are the runtypes-friendly-type and runtypes-mock-data skills.
 ---
 
 # RunTypes enrichment — the compiler scaffolds, you fill the blanks
@@ -98,41 +98,13 @@ gone fields. `--prune` is the only command that deletes.
 
 ## `FriendlyType<T>` — labels + error messages
 
-A combined, per-field map: `$label` (human name) + `$errors` (one message template per
-failed constraint). Pure data; rendered at runtime by `createFriendly<T>(map)`.
-
-- Node shape: `{ $label?, $errors?, ...childFields }` — `$`-keys are meta, every other key
-  is a child field; nests the same way at every depth. Arrays/tuples use `$items`/`$slots`;
-  Map/Set use `$keys`/`$values`.
-- `$errors` keys name the **failed constraint** (`type`, `minLength`, `min`, `max`,
-  `pattern`, …, `$default`) — bounded by the type: a bare `string` only has `type`.
-- Placeholder DSL in templates: `$[label]`, `$[val]` (the constraint bound), `$[path]`,
-  `$[index]`.
-- `$errors` is either a `{ constraint: template }` record (one message per constraint,
-  compiler-validated) or an inline `(failed) => string` (one message per field, for
-  joining/pluralization/i18n).
-- Count-bearing constraints (`minLength`, `maxLength`, `min`, `max`, `lt`, `gt`) scaffold
-  a **plural object** instead of a plain string (`minLength: { one: '', other: '' }` —
-  arms from the source locale's CLDR cardinal set): fill the arms, never restructure;
-  only `other` is mandatory, unused arms are prunable; the plural count is the
-  **violated bound** (`$[val]`), not the received value's length. A plain string stays
-  legal there, and `$label` is always a plain string.
-
-```ts
-export const friendlyUser: FriendlyType<User> = {
-  $label: 'User account',
-  name: { $label: 'Full name', $errors: {
-    type: '$[label] must be text',
-    minLength: '$[label] needs at least $[val] characters',
-  } },
-};
-```
-
-Use it to turn `createGetValidationErrors<T>()` output into readable messages:
-`createFriendly<T>(map).errors(errs)` → `{ path, label, message }[]`; `.label(path)` for a
-field's label. `createFriendlyI18n(map, { locale, translations, formats?, sourceLocale? })`
-is the locale-aware form — same renderer interface, selecting a committed translation via
-BCP-47 matching (`resolveLocale`) with per-leaf fallback to the source map.
+A combined, per-field map: `$label` (a human name) + `$errors` (one message template per
+failed constraint; count-bearing constraints scaffold plural objects). Pure data;
+rendered at runtime by `createFriendly<T>(map)`, or by `createFriendlyI18n` with
+committed translations. The full authoring DSL — node shape, constraint keys, the `$[…]`
+placeholder DSL, plural rules, the function escape hatch, the FT0xx checks, runtime
+rendering — is the **`runtypes-friendly-type`** skill; use it whenever you author or
+fill a friendly map.
 
 ## Translations — per-locale friendly files
 
@@ -155,14 +127,10 @@ ts-runtypes check --translate <locale|all>                   # completeness gate
 
 Without `<src.ts>` the verbs walk every mirror under `<enrichDir>/friendly/`.
 
-- **Scaffold** — the source tree with every string leaf and plural arm as an `@todo`
-  blank (`''`); it NEVER copies source text as if translated. Plural objects are reseeded
-  with the TARGET locale's CLDR arm set, function-form `$errors` is copied verbatim, and
-  const references are renamed to their locale siblings (`home: pl_friendlyAddress`).
-- **Filling one** — translate ONLY blank (`''`) leaves; never edit an already-filled
-  leaf; never copy the source text across. Prune plural arms your language doesn't use —
-  arms are locale-owned, so a pruned arm stays pruned (only the mandatory `other` is ever
-  re-inserted).
+- **Scaffold + fill rules** — a scaffold is the source tree with every string leaf and
+  plural arm as an `@todo` blank (`''`); it NEVER copies source text as if translated.
+  The authoring rules (translate only blank leaves, arms are locale-owned, prune
+  freely) are in the **`runtypes-friendly-type`** skill's Translations section.
 - **`--update`** — value-preserving, mirroring `gen --update`, plus it descends ONE level
   into `$errors`: a source-added constraint key arrives as a blank of the source's kind
   (string, or a plural with TARGET-locale arms); a source-dropped key becomes an
@@ -190,32 +158,16 @@ zero change when absent):
   } }
 ```
 
-At runtime `createFriendlyI18n(source, { locale, translations, formats?, sourceLocale? })`
-returns the same renderer as `createFriendly`: a `{ value }` locale ref is re-read on
-every render, `resolveLocale` picks the translation by naive BCP-47 truncation (exact
-tag, then `pt-BR` → `pt`, then any tag sharing the base language), and every unfilled
-leaf falls back per-leaf to the source map — it never throws on a partial translation.
+Runtime rendering — `createFriendlyI18n`, `resolveLocale` matching, per-leaf fallback,
+named `Intl` formats — is covered in the **`runtypes-friendly-type`** skill.
 
 ## `MockData<T>` — realistic sample data
 
-Per-field value pools and ranges that feed `createMockType<T>({ data })`. The mechanical
-generator handles structure + format-correctness; you supply *believable* values.
-
-- `pool: [...]` — draw from this list (strings, numbers, booleans, …).
-- `min` / `max` — bound numbers/dates.
-- `$items` + `$length` — array element node + length; `$slots` — fixed tuple slots;
-  `$keys` / `$values` — Map/Set.
-- Object fields recurse; `$optional` sets present-probability for optional members.
-
-```ts
-export const mockUser: MockData<User> = {
-  name: { pool: ['Ada Lovelace', 'Linus Torvalds', 'Grace Hopper'] },
-  age: { min: 18, max: 95 },
-};
-```
-
-Every pool/range value is **validated against its field** at build time — a malformed
-email in an `email` pool, or an out-of-range number, is a build error.
+Per-field value pools and ranges (`pool`, `min`/`max`, `$items`/`$length`, `$optional`)
+that feed `createMockType<T>({ data })`: the mechanical generator keeps handling
+structure + format-correctness, you supply *believable* values. The full authoring DSL
+— node shapes per field kind, the MD0xx checks, end-to-end wiring — is the
+**`runtypes-mock-data`** skill; use it whenever you author or fill a mock map.
 
 ## Authoring checklist
 
@@ -223,12 +175,9 @@ email in an `email` pool, or an out-of-range number, is a build error.
 - Fill **every `@todo`** the scaffold left, then **delete that `@todo` line**.
 - Never touch `@rt*` tags or `@rtOrphan`/`@rtOrphanChild` comment blocks — the compiler
   owns them; `--prune` clears orphans.
-- Friendly `$errors` keys must match the field's **declared** constraints only.
-- Fill scaffolded plural objects arm-by-arm (keep `other`, prune unused arms); never
-  turn one back into a plain string or invent arm keys.
-- In a translation file, translate only blank leaves and prune unused plural arms —
-  never copy source text, never edit filled leaves (see **Translations**).
-- Keep mock pools out of production bundles (use them in tests/seeds — normal
-  tree-shaking handles it).
-- After editing, run `check` and resolve every Error before committing.
+- After editing, run `check` (and `check --translate` for translations) and resolve
+  every Error before committing.
 - When the type changes, prefer `gen --update` (keeps your values) over regenerating.
+- The family-specific rules — friendly constraint keys, plural arms, translation fill
+  discipline, mock pools/ranges — are in the **`runtypes-friendly-type`** and
+  **`runtypes-mock-data`** skills' checklists.
