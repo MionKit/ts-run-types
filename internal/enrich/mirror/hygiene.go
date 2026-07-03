@@ -1,6 +1,7 @@
 package mirror
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 
@@ -41,42 +42,45 @@ type TagFinding struct {
 
 // IsEnrichmentFile is the scoping guard (defense in depth under the consumer's
 // lint glob): hygiene only applies to files that look like enrichment mirrors —
-// a reconcile marker in its EMIT form (`/** @rtType …`), or a
-// `: FriendlyType<` / `: MockData<` ANNOTATION (which covers a freshly-
-// scaffolded const whose unresolved root got no marker). Both signals require
-// the concrete generated shape — a bare "@rtType" in a string or comment, or
-// the DSL package's own `export type FriendlyType<…>` declarations and prose
-// (which may carry `@todo`), never match — so an accidentally broad lint glob
-// cannot flag arbitrary code.
+// a reconcile marker in its EMIT form (`/** @rtType …`), or a CONST
+// declaration annotated with the DSL types (`export const x: FriendlyType<…>`,
+// the shape every scaffold emits — covering a freshly-scaffolded const whose
+// unresolved root got no marker). The const annotation is matched with
+// comments MASKED OUT, so neither the DSL package's own sources (declarations,
+// `(map: FriendlyType<T>)` parameter annotations, prose with `@todo`) nor a
+// JSDoc code example can make ordinary source read as a mirror.
 func IsEnrichmentFile(text string) bool {
 	if strings.Contains(text, MarkerCommentPrefix) {
 		return true
 	}
-	return hasEnrichAnnotation(text, enrich.FriendlyTypeName) || hasEnrichAnnotation(text, enrich.MockDataName)
+	masked := maskComments(text)
+	return enrichConstAnnotationPattern.MatchString(masked)
 }
 
-// hasEnrichAnnotation reports whether text contains `: <name><` — the type
-// ANNOTATION form (`const x: FriendlyType<T>`), tolerating whitespace between
-// the colon and the name. A declaration (`export type FriendlyType<T>`) or a
-// prose mention has no colon introducer and never matches.
-func hasEnrichAnnotation(text, name string) bool {
-	needle := name + "<"
-	from := 0
-	for {
-		idx := strings.Index(text[from:], needle)
-		if idx < 0 {
-			return false
-		}
-		pos := from + idx
-		from = pos + 1
-		cursor := pos - 1
-		for cursor >= 0 && isSpaceByte(text[cursor]) {
-			cursor--
-		}
-		if cursor >= 0 && text[cursor] == ':' {
-			return true
+// enrichConstAnnotationPattern matches a (possibly exported) const declaration
+// annotated `: FriendlyType<` / `: MockData<` at the start of a line — the
+// exact shape ConstBlock emits. `\s*` after the colon tolerates a formatter
+// wrapping the annotation onto the next line.
+var enrichConstAnnotationPattern = regexp.MustCompile(
+	`(?m)^[ \t]*(?:export[ \t]+)?const[ \t]+[A-Za-z_$][A-Za-z0-9_$]*[ \t]*:\s*(?:` +
+		enrich.FriendlyTypeName + `|` + enrich.MockDataName + `)[ \t]*<`)
+
+// maskComments blanks every comment byte (newlines preserved) so structural
+// probes never match inside doc prose or JSDoc code examples.
+func maskComments(text string) string {
+	spans := commentSpans(text)
+	if len(spans) == 0 {
+		return text
+	}
+	masked := []byte(text)
+	for _, span := range spans {
+		for i := span.start; i < span.end && i < len(masked); i++ {
+			if masked[i] != '\n' {
+				masked[i] = ' '
+			}
 		}
 	}
+	return string(masked)
 }
 
 // ScanDirtyTags returns every dirty-tag occurrence in text, ordered by Start.

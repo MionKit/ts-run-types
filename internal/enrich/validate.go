@@ -123,15 +123,14 @@ func derefPropertyChildren(ctx *walkCtx, rt *protocol.RunType) []*protocol.RunTy
 // checkReservedProperties emits one Error per rt$-prefixed property the
 // RUNTYPE itself declares at this node (code FT011 or MD011 per family).
 func checkReservedProperties(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, path, code string) {
-	println("DEBUG checkReserved path=", path, "props=", len(derefPropertyChildren(ctx, rt)))
 	for _, prop := range derefPropertyChildren(ctx, rt) {
-		println("DEBUG prop name=", prop.Name)
 		if strings.HasPrefix(prop.Name, reservedMetaPrefix) {
 			*findings = append(*findings, Finding{
 				Code:     code,
 				Severity: Error,
 				Path:     joinPath(path, prop.Name),
 				Message:  "property '" + prop.Name + "' collides with the reserved enrichment meta prefix 'rt$' — rename the property or exclude the type from enrichment",
+				Args:     []string{prop.Name},
 			})
 		}
 	}
@@ -357,6 +356,7 @@ func checkPluralLeaf(findings *[]Finding, plural LiteralView, key, keyPath strin
 			Severity: Warning,
 			Path:     keyPath,
 			Message:  "constraint '" + key + "' carries no count — a plural object here has dead arms (only 'other' renders); use a plain string",
+			Args:     []string{key},
 		})
 	}
 	hasOther := false
@@ -370,6 +370,7 @@ func checkPluralLeaf(findings *[]Finding, plural LiteralView, key, keyPath strin
 				Severity: Warning,
 				Path:     keyPath + "." + arm,
 				Message:  "unknown plural arm '" + arm + "' (CLDR categories: zero, one, two, few, many, other)",
+				Args:     []string{arm},
 			})
 		}
 		if template, ok := plural.StringValue(arm); ok {

@@ -32,8 +32,8 @@ describe.runIf(ready)('oxlint end to end (jsPlugins)', () => {
         '/** @rtType User#u1 @rtIds {name: n1} */\n' +
         `${TODO_LINE}\n` +
         'export const friendlyUser: FriendlyType<User> = {\n' +
-        "  name: {$label: 'Name'},\n" +
-        "  nope: {$label: 'Gone'},\n" +
+        "  name: {rt$label: 'Name'},\n" +
+        "  nope: {rt$label: 'Gone'},\n" +
         '};\n',
       'widget.ts':
         "import {createValidate} from 'ts-runtypes';\n\n" +

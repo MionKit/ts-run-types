@@ -58,8 +58,8 @@ import type { FriendlyType, MockData } from 'ts-runtypes';
 /** @rtType User#u1 @rtIds {age: a1, name: n1} */
 ${TODO_LINE}
 export const friendlyUser: FriendlyType<User> = {
-  name: {$label: 'Name'},
-  nope: {$label: 'Gone'},
+  name: {rt$label: 'Name'},
+  nope: {rt$label: 'Gone'},
 };
 
 /** @rtType User#u1 */
@@ -77,8 +77,8 @@ import type { FriendlyType } from 'ts-runtypes';
 
 /** @rtType User#u1 @rtIds {age: a1, name: n1} */
 export const friendlyUser: FriendlyType<User> = {
-  name: {$label: 'Name'},
-  age: {$label: 'Age'},
+  name: {rt$label: 'Name'},
+  age: {rt$label: 'Age'},
 };
 `;
 
@@ -87,7 +87,7 @@ import type { FriendlyType } from 'ts-runtypes';
 
 /** @rtType Ghost#g1 */
 export const friendlyGhost: FriendlyType<{name: string}> = {
-  name: {$label: 'Name'},
+  name: {rt$label: 'Name'},
 };
 `;
 

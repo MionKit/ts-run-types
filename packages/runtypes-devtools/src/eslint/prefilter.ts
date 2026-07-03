@@ -18,34 +18,26 @@ export function referencesMarkerModule(text: string): boolean {
   return text.includes(`'${MARKER_MODULE}`) || text.includes(`"${MARKER_MODULE}`) || text.includes('registerPureFnFactory');
 }
 
+// enrichConstAnnotationPattern mirrors the Go-side guard's structural probe: a
+// (possibly exported) CONST declaration annotated with a DSL type — the exact
+// shape every scaffold emits. The Go guard additionally masks comments before
+// matching (a JSDoc code example there never counts); this pre-filter skips
+// the masking — a rare comment-only match just pays one resolver round trip
+// that the authoritative Go guard then rejects.
+const enrichConstAnnotationPattern = new RegExp(
+  `^[ \\t]*(?:export[ \\t]+)?const[ \\t]+[A-Za-z_$][A-Za-z0-9_$]*[ \\t]*:\\s*(?:${FRIENDLY_TYPE_NAME}|${MOCK_DATA_NAME})[ \\t]*<`,
+  'm'
+);
+
 // looksLikeEnrichmentFile gates the enrichment rules — the JS twin of the
 // Go-side mirror.IsEnrichmentFile guard (which stays authoritative; this one
 // only avoids pointless round trips, so it mirrors the same signals): a
 // reconcile marker in its EMIT form (the `/** @rtType ` prefix MarkerComment
-// writes), or a `: FriendlyType<` / `: MockData<` ANNOTATION (colon
-// introducer required). Files that merely mention the tags in strings or
-// comments never match, so they never pay a round trip and never fire.
+// writes), or the DSL-annotated const declaration. Files that merely mention
+// the tags or types in strings, prose, or parameter annotations never match,
+// so they never pay a round trip and never fire.
 export function looksLikeEnrichmentFile(text: string): boolean {
-  return (
-    text.includes(MARKER_COMMENT_PREFIX) ||
-    hasEnrichAnnotation(text, FRIENDLY_TYPE_NAME) ||
-    hasEnrichAnnotation(text, MOCK_DATA_NAME)
-  );
-}
-
-// hasEnrichAnnotation mirrors the Go-side check: `: <name><` with optional
-// whitespace after the colon — the annotation form, never a declaration.
-function hasEnrichAnnotation(text: string, name: string): boolean {
-  const needle = `${name}<`;
-  let from = 0;
-  for (;;) {
-    const idx = text.indexOf(needle, from);
-    if (idx < 0) return false;
-    from = idx + 1;
-    let cursor = idx - 1;
-    while (cursor >= 0 && /\s/.test(text[cursor]!)) cursor--;
-    if (cursor >= 0 && text[cursor] === ':') return true;
-  }
+  return text.includes(MARKER_COMMENT_PREFIX) || enrichConstAnnotationPattern.test(text);
 }
 
 // needsResolverPass is the union gate the rules share: one resolver pass per
