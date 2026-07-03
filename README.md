@@ -70,6 +70,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 | [packages/ts-runtypes](packages/ts-runtypes/)                                                       | `ts-runtypes` — `InjectRunTypeId<T>` marker type, `getRunTypeId` (static + value-first forms). |
 | [packages/runtypes-devtools](packages/runtypes-devtools/)                                              | Cross-bundler plugin (unplugin: Vite/Rollup/webpack/Rspack/esbuild): spawns the Go binary, writes cache modules to real files under `<outDir>/types/`, injects relative imports per file. |
 | [packages/runtypes-devtools/src/resolver-client.ts](packages/runtypes-devtools/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                             |
+| [packages/runtypes-devtools/src/eslint/](packages/runtypes-devtools/src/eslint/) | OXlint / ESLint-v9 lint plugin (`runtypes-devtools/eslint`): compiler diagnostics live in the editor + the enrichment-hygiene commit gate. |
 | [internal/compiled/transform/](internal/compiled/transform/) | Applies the returned `Site[]` as byte-offset insertions (+ dedup import block + source map) in Go, via `OpTransform`. |
 
 ## Use
@@ -135,6 +136,15 @@ Project-level compiler options live in the `ts-runtypes` entry under `compilerOp
 ```
 
 Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `cacheDir`, `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`, `i18n` (the FriendlyType translation config — see the enrichment verbs below). An unknown key is ignored with a build-time stderr warning. Host-specific knobs (`binary`, `cwd`, `tsconfig` path, `outDir`) stay on the bundler plugin — they're properties of the host, not the project. Full list, defaults, and the precedence chain: the [Configuration guide](container/website/content/2.guide/9.configuration.md).
+
+## Linting (OXlint / ESLint)
+
+The same compiler serves a lint plugin, shipped as the `runtypes-devtools/eslint` subpath (no extra package). Point OXlint's `jsPlugins` (or an ESLint v9 flat config) at it and you get:
+
+- **`runtypes/error` / `runtypes/warn` / `runtypes/info`** — every compiler diagnostic (unsupported types, marker misuse, silently-dropped members), routed by its own severity, live in the editor via the oxc language server.
+- **`runtypes/no-enrichment-todo`, `runtypes/no-orphan-carcass`, `runtypes/enrichment-field`, `runtypes/enrichment-drift`** — the enrichment-file hygiene gate: unfilled `@todo` scaffolds, stale `@rtOrphan`/`@rtOrphanChild` carcasses, dead map entries, and mirrors whose source moved or vanished. `oxlint` exits non-zero on error findings, so the same config blocks dirty enrichment files at commit time (lint-staged) and in CI.
+
+The findings also ship straight from the CLI (`ts-runtypes check <file> --json`, `ts-runtypes gen --check --json`) for pipelines without a node linter. Full setup: the [Linting guide](container/website/content/2.guide/10.linting.md).
 
 ## CLI
 

@@ -5,7 +5,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 ## Dual-language repo: Go binary + JS workspace
 
 - **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) + [internal/](internal/) reaches into tsgo's checker via the `oxc-project/tsgolint` shim to answer call-site type queries.
-- **JS workspace** at [packages/](packages/) — `ts-runtypes` (marker + runtime helpers), `runtypes-devtools` (spawns the binary, rewrites calls, emits the cache module), and `ts-runtypes-bin` (platform launcher: `getExePath()` resolves the prebuilt resolver binary for the host from per-platform `ts-runtypes-binary-<os>-<arch>` optional deps).
+- **JS workspace** at [packages/](packages/) — `ts-runtypes` (marker + runtime helpers), `runtypes-devtools` (spawns the binary, rewrites calls, emits the cache module; also ships the OXlint/ESLint lint plugin on its `./eslint` subpath — pure transport over the resolver's `checkEnrich` + `includeRtDiagnostics` scan flags, see [docs/ARCHITECTURE.md → The lint surface](docs/ARCHITECTURE.md#the-lint-surface--one-pass-oxlintESLint-transport)), and `ts-runtypes-bin` (platform launcher: `getExePath()` resolves the prebuilt resolver binary for the host from per-platform `ts-runtypes-binary-<os>-<arch>` optional deps).
 - **External Go deps** at [third_party/](third_party/) are git submodules treated as read-only vendored sources.
 - The Go binary is the side-channel; the JS packages are the only public surface.
 - The Vite plugin's tests spawn `bin/ts-runtypes` — the binary MUST be built before `pnpm test` (see [SETUP.md → Build](SETUP.md#build)).
