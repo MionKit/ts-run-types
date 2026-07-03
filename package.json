@@ -79,7 +79,9 @@
     "format": "prettier --write 'packages/**/*.{ts,md}' && gofmt -w cmd internal",
     "check-format": "prettier --check 'packages/**/*.{ts,md}' && gofmt -l cmd internal && test -z \"$(gofmt -l cmd internal)\"",
     "check-format-pre-commit": "prettier --check",
-    "lint": "lerna run lint && pnpm run typecheck",
+    "lint": "lerna run lint && pnpm run typecheck && pnpm run lint:runtypes",
+    "prelint:runtypes": "pnpm run check:builds",
+    "lint:runtypes": "oxlint",
     "lint-pre-committ": "eslint --quiet",
     "typecheck:test": "lerna run typecheck:test",
     "typecheck": "pnpm run typecheck:test && tsc -p internal/testfixtures/tsconfig.json --noEmit && tsc -p internal/testfixtures/atomic/tsconfig.json --noEmit && tsc -p packages/examples/tsconfig.json",
@@ -135,6 +137,9 @@
     ],
     "packages/**/*.{spec,test}.ts": [
       "pnpm run check-format-pre-commit --"
+    ],
+    "**/*.ts": [
+      "pnpm exec oxlint"
     ]
   },
   "devDependencies": {
@@ -150,6 +155,7 @@
     "lerna": "9.0.7",
     "lint-staged": "16.4.0",
     "nx": "22.4.4",
+    "oxlint": "1.68.0",
     "prettier": "3.8.2",
     "rimraf": "6.1.3",
     "temporal-polyfill": "0.3.2",

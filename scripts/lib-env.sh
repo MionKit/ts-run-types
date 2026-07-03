@@ -118,6 +118,9 @@ RT_FUZZ_RACE|dev|-|enable the enrich race test (set by fuzz:race)
 RT_FUZZ_RACE_ITERATIONS|dev|-|enrich race iterations (default 2)
 RT_FUZZ_RACE_FANOUT|dev|-|enrich race fanout (default 6)
 
+# --- lint knobs (the runtypes-devtools OXlint/ESLint plugin) ---
+RT_LINT_PRESPAWN|dev|-|Set 0 to skip the lint plugin's load-time resolver pre-spawn (small hosts)
+
 # --- alignment-audit knobs (scripts/benchmarks.sh audit + the harness) ---
 RT_AUDIT_OUT_DIR|dev|-|Audit output dir (default the results dir)
 RT_AUDIT_TSX|dev|-|Path to the tsx runner for the host-side audit collector

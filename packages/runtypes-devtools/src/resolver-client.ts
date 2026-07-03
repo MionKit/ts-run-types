@@ -57,6 +57,11 @@ export interface ResolverClientOptions {
   // circular types stay external) or 'allInternal' (everything except
   // circular inlines, names ignored). Undefined leaves the binary default.
   inlineMode?: 'default' | 'allInternal';
+  // Forwarded as --single-threaded: one checker, serial scan/render. The
+  // lint session uses it — per-file interactive scans gain little from the
+  // pool, and a light child keeps editor/CI hosts (which may run several
+  // lint runtimes side by side) well under process/memory limits.
+  singleThreaded?: boolean;
 }
 
 // Common JSON-per-line request/response framing. Owns the in-flight request
@@ -124,6 +129,14 @@ export interface ScanFilesOptions {
   // per-phase wall times, Go memory deltas). Bench-harness use; the
   // rewrite pipeline never sets it.
   includeMetrics?: boolean;
+  // Opts the response into the enrichment-health pass over the request's
+  // files (tag hygiene + FriendlyType/MockData content + breadcrumb drift),
+  // returned as Family.Enrich diagnostics. Lint-plugin use; the rewrite
+  // pipeline never sets it.
+  checkEnrich?: boolean;
+  // Opts the response into the RunType-family render diagnostics (VL010,
+  // PJ001, …) without the entry-module payload. Lint-plugin use.
+  includeRtDiagnostics?: boolean;
 }
 
 // ScanFilesResult is the shape returned by scanFiles. Sites are flat —
@@ -211,6 +224,8 @@ abstract class ResolverClientBase implements ResolverConnection {
     if (opts.includeRunTypes) req.includeRunTypes = true;
     if (opts.includeEntryModules) req.includeEntryModules = true;
     if (opts.includeMetrics) req.includeMetrics = true;
+    if (opts.checkEnrich) req.checkEnrich = true;
+    if (opts.includeRtDiagnostics) req.includeRtDiagnostics = true;
     const resp = await this.transport.request(req);
     if (resp.error) throw new Error(`scanFiles [${files.join(', ')}]: ${resp.error}`);
     return {
@@ -307,6 +322,35 @@ abstract class ResolverClientBase implements ResolverConnection {
   }
 }
 
+// buildResolverArgs assembles the resolver child's argv from client options.
+// Shared by ResolverClient (which spawns the child itself) and the lint
+// session's spawn-shim path (which hands the argv to a pre-spawned launcher
+// — see eslint/spawn-shim.ts).
+export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: ResolverClientOptions = {}): string[] {
+  const args = ['--one-shot', '--cwd', cwd];
+  // --tsconfig is meaningless in inline / server modes — the Go binary
+  // ignores it. Skip the flag to keep the CLI honest.
+  if (!opts.inlineSources && !opts.serverMode && tsconfigPath) {
+    args.push('--tsconfig', tsconfigPath);
+  }
+  if (opts.inlineSources) args.push('--inline-sources-stdin');
+  if (opts.serverMode) args.push('--inline-server');
+  // Forward an explicit empty string too (a deliberate "disable caching"
+  // that must override tsconfig); only undefined skips the flag entirely.
+  if (opts.cacheDir !== undefined) args.push('--cache-dir', opts.cacheDir);
+  if (opts.emitMode) args.push('--emit-mode', opts.emitMode);
+  if (opts.sizeBias !== undefined) args.push('--size-bias', String(opts.sizeBias));
+  if (opts.sizeItems !== undefined) args.push('--size-items', String(opts.sizeItems));
+  if (opts.sizeStringBytes !== undefined) args.push('--size-string-bytes', String(opts.sizeStringBytes));
+  if (opts.sizeMaxBytes !== undefined) args.push('--size-max-bytes', String(opts.sizeMaxBytes));
+  if (opts.parallelScan === false) args.push('--no-parallel-scan');
+  if (opts.parallelRender === false) args.push('--no-parallel-render');
+  if (opts.moduleMode) args.push('--module-mode', opts.moduleMode);
+  if (opts.inlineMode) args.push('--inline-mode', opts.inlineMode);
+  if (opts.singleThreaded) args.push('--single-threaded');
+  return args;
+}
+
 // ResolverClient spawns the ts-runtypes binary and drives it over its
 // JSON-per-line stdio protocol. The child process is kept alive until
 // `close()` so the Program + checker pool are amortised across queries.
@@ -324,26 +368,7 @@ export class ResolverClient extends ResolverClientBase {
 
   constructor(binary: string, cwd: string, tsconfigPath: string, opts: ResolverClientOptions = {}) {
     super();
-    const args = ['--one-shot', '--cwd', cwd];
-    // --tsconfig is meaningless in inline / server modes — the Go binary
-    // ignores it. Skip the flag to keep the CLI honest.
-    if (!opts.inlineSources && !opts.serverMode && tsconfigPath) {
-      args.push('--tsconfig', tsconfigPath);
-    }
-    if (opts.inlineSources) args.push('--inline-sources-stdin');
-    if (opts.serverMode) args.push('--inline-server');
-    // Forward an explicit empty string too (a deliberate "disable caching"
-    // that must override tsconfig); only undefined skips the flag entirely.
-    if (opts.cacheDir !== undefined) args.push('--cache-dir', opts.cacheDir);
-    if (opts.emitMode) args.push('--emit-mode', opts.emitMode);
-    if (opts.sizeBias !== undefined) args.push('--size-bias', String(opts.sizeBias));
-    if (opts.sizeItems !== undefined) args.push('--size-items', String(opts.sizeItems));
-    if (opts.sizeStringBytes !== undefined) args.push('--size-string-bytes', String(opts.sizeStringBytes));
-    if (opts.sizeMaxBytes !== undefined) args.push('--size-max-bytes', String(opts.sizeMaxBytes));
-    if (opts.parallelScan === false) args.push('--no-parallel-scan');
-    if (opts.parallelRender === false) args.push('--no-parallel-render');
-    if (opts.moduleMode) args.push('--module-mode', opts.moduleMode);
-    if (opts.inlineMode) args.push('--inline-mode', opts.inlineMode);
+    const args = buildResolverArgs(cwd, tsconfigPath, opts);
     this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit']});
     if (!this.child.stdin || !this.child.stdout) {
       throw new Error('failed to spawn ts-runtypes (no stdio pipes)');
@@ -354,6 +379,10 @@ export class ResolverClient extends ResolverClientBase {
       stdin.end();
       this.child.kill();
     });
+    // A spawn failure (missing binary, host limits) surfaces as an 'error'
+    // event with NO 'exit' — drain in-flight requests instead of hanging
+    // callers until their timeout.
+    this.child.on('error', (error) => this.transport.markClosed(`spawn failed: ${error.message}`));
     if (opts.inlineSources) {
       // Handshake: write the source map as a single JSON line before any
       // requests can be queued. The Go side blocks on this before building
@@ -362,6 +391,25 @@ export class ResolverClient extends ResolverClientBase {
       this.transport.writeUnframed(JSON.stringify({sources: opts.inlineSources}) + '\n');
     }
     this.child.on('exit', () => this.transport.markClosed('resolver exited'));
+  }
+}
+
+// ResolverStreamClient drives the same JSON-per-line protocol over caller-
+// supplied streams. The lint session's spawn-shim path uses it: the resolver
+// child's stdio pipes belong to the pre-spawned launcher process rather than
+// a ChildProcess this module owns, so the caller wires close/exit itself.
+export class ResolverStreamClient extends ResolverClientBase {
+  protected readonly transport: MessageTransport;
+
+  constructor(stdin: Writable, stdout: Readable, onClose: () => void) {
+    super();
+    this.transport = new MessageTransport(stdin, stdout, onClose);
+  }
+
+  // markClosed drains in-flight requests with an error when the underlying
+  // process went away (the caller observes the exit, not this class).
+  markClosed(reason: string): void {
+    this.transport.markClosed(reason);
   }
 }
 
