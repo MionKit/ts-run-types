@@ -296,24 +296,25 @@ import type { User } from './user';
 
 // scaffolded by `gen`: every field in place, each blank marked @todo
 export const userFriendly: FriendlyType<User> = {
-  $label: '', // @todo
+  rt$label: '', // @todo
+  rt$errors: { type: '' }, // @todo
   name: {
-    $label: '', // @todo
-    $errors: {
+    rt$label: '', // @todo
+    rt$errors: {
       type: '',      // @todo
       minLength: '', // @todo
       maxLength: '', // @todo
     },
   },
   age: {
-    $label: '', // @todo
-    $errors: {
+    rt$label: '', // @todo
+    rt$errors: {
       type: '', // @todo
       min: '',  // @todo
       max: '',  // @todo
     },
   },
-  email: { $label: '', $errors: { pattern: '' } },          // @todo
+  email: { rt$label: '', rt$errors: { type: '', pattern: '' } },   // @todo
 };
 ```
 
@@ -322,24 +323,25 @@ import type { FriendlyType } from 'ts-runtypes';
 import type { User } from './user';
 
 export const userFriendly: FriendlyType<User> = {
-  $label: 'User account',
+  rt$label: 'User account',
+  rt$errors: { type: '' },
   name: {
-    $label: 'Full name',
-    $errors: {
+    rt$label: 'Full name',
+    rt$errors: {
       type: '$[label] must be a valid name',
       minLength: '$[label] needs at least $[val] characters',
       maxLength: '$[label] allows at most $[val] characters',
     },
   },
   age: {
-    $label: 'Age',
-    $errors: {
+    rt$label: 'Age',
+    rt$errors: {
       type: '$[label] must be a number',
       min: '$[label] must be at least $[val]',
       max: '$[label] must be no more than $[val]',
     },
   },
-  email: { $label: 'Email', $errors: { pattern: 'Enter a valid email address' } },
+  email: { rt$label: 'Email', rt$errors: { type: '', pattern: 'Enter a valid email address' } },
 };
 ```
 
