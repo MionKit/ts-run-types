@@ -499,14 +499,75 @@ func parseConstMarkers(comment string) (typeID string, childIDs map[string]strin
 	return typeID, childIDs
 }
 
+// Breadcrumb returns the source breadcrumb's module specifier (the first
+// `import type { … } from '<non-ts-runtypes>'`), ok=false when the file has
+// none.
+func (index *Index) Breadcrumb() (string, bool) {
+	if index.breadcrumb == nil {
+		return "", false
+	}
+	return index.breadcrumb.specifier, true
+}
+
+// ValueImportInfo is one cross-file value import's public view: the imported
+// names and the module specifier, as written.
+type ValueImportInfo struct {
+	Names     []string
+	Specifier string
+}
+
+// ValueImports lists the file's cross-file value imports in declaration order.
+func (index *Index) ValueImports() []ValueImportInfo {
+	out := make([]ValueImportInfo, 0, len(index.valueImports))
+	for _, entry := range index.valueImports {
+		out = append(out, ValueImportInfo{Names: entry.names, Specifier: entry.specifier})
+	}
+	return out
+}
+
 // isFriendlyVar / isMockVar report whether a const identifier is one of our
-// emitted enrichment vars (friendly<Name> / mock<Name> with a CamelCase suffix).
+// emitted enrichment vars (friendly<Name> / mock<Name> with a CamelCase
+// suffix). A TRANSLATION const (`<locale>_friendly<Name>`, e.g.
+// `es_friendlyUser`) counts as friendly-form too — same tree, same reconcile
+// machinery — via the leading-prefix predicate isTranslationVar.
 func isFriendlyVar(name string) bool {
-	return hasCamelSuffix(name, "friendly")
+	return hasCamelSuffix(name, "friendly") || isTranslationVar(name)
 }
 
 func isMockVar(name string) bool {
 	return hasCamelSuffix(name, "mock")
+}
+
+// isTranslationVar reports whether name is a per-locale translation const:
+// `<localePrefix>_friendly<Name>` with a non-empty leading segment and a
+// CamelCase type suffix. The LEADING locale segment (never a suffix) is
+// deliberate: `friendlyUser_es` would still match hasCamelSuffix(name,
+// "friendly") as a plain friendly const, whereas the leading form is
+// unambiguous.
+func isTranslationVar(name string) bool {
+	idx := strings.Index(name, "_friendly")
+	if idx <= 0 {
+		return false
+	}
+	return hasCamelSuffix(name[idx+1:], "friendly")
+}
+
+// TranslationVarName builds the translation const identifier for a source
+// friendly var: `<locale>_<sourceVar>` with BCP-47 separators sanitized to
+// underscores (`pt-BR` → `pt_BR_friendlyUser`).
+func TranslationVarName(locale, sourceVar string) string {
+	return strings.ReplaceAll(locale, "-", "_") + "_" + sourceVar
+}
+
+// SourceVarOfTranslation strips the leading locale segment off a translation
+// const name (`es_friendlyUser` → `friendlyUser`); returns name unchanged when
+// it is not a translation var.
+func SourceVarOfTranslation(name string) string {
+	idx := strings.Index(name, "_friendly")
+	if idx <= 0 {
+		return name
+	}
+	return name[idx+1:]
 }
 
 // hasCamelSuffix reports whether name is prefix + a CamelCase suffix (first

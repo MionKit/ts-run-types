@@ -162,12 +162,16 @@ func desiredInitializer(sourceFile *ast.SourceFile) *ast.Node {
 // lookups in nested objects), and the existing + desired @rtIds child-id maps
 // (Tier-2 rename identity). The two child-id maps are the const's full @rtIds
 // (existing-side parsed from the marker, desired-side from named.ChildIDs),
-// keyed by full dotted path.
+// keyed by full dotted path. translate flips the i18n mode on: the merge then
+// ALSO descends one level into `$errors` (constraint keys) and one more into
+// plural objects (locale-owned arms) — on the ordinary type-driven reconcile
+// `$errors` stays an atomic leaf.
 type mergeCtx struct {
 	metaKeys      map[string]bool
 	pathPrefix    string
 	existingChild map[string]string
 	desiredChild  map[string]string
+	translate     bool
 }
 
 // childPath joins the ctx prefix with a field key (root prefix is "").
@@ -281,6 +285,87 @@ func mergeObject(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
 	// them so nested enrichment is merged like any other object. Scalar meta
 	// ($length/$size/$optional and the like) is author data, left untouched.
 	mergeMetaNodes(ops, existing, desired, ctx)
+
+	// $ERRORS DESCENT (i18n translate mode only): the ordinary reconcile keeps
+	// `$errors` an atomic leaf, but a translation must scaffold a @todo blank for
+	// every constraint key the source adds and orphan the ones it drops —
+	// otherwise a new constraint renders untranslated with no signal and a plural
+	// arm has no attachment point.
+	if ctx.translate {
+		mergeErrorsNode(ops, existing, desired, ctx)
+	}
+}
+
+// mergeErrorsNode descends one level into a node's `$errors` record — present
+// and object-form on BOTH sides (a function-form arrow on either side is
+// opaque: the translation's form wins, nothing is merged). Constraint keys are
+// a fixed vocabulary, so there is NO rename pass at this level:
+//
+//   - a key in both, object-form on both sides → plural merge (locale-owned arms);
+//   - a key in both otherwise → kept byte-identical (an authored translation is
+//     never edited; a hand-diverged string↔object KIND is also kept — the
+//     translator owns their leaf's kind, `check --translate` reports the drift);
+//   - a desired-only key (source added a constraint) → inserted as the desired
+//     @todo blank (the blanker already shaped it: string or target-locale plural);
+//   - an existing-only key (source dropped it) → @rtOrphanChild carcass.
+func mergeErrorsNode(ops *[]spliceOp, existing, desired *objectView, ctx mergeCtx) {
+	existingProp := existing.props["$errors"]
+	desiredProp := desired.props["$errors"]
+	if existingProp == nil || desiredProp == nil {
+		return
+	}
+	if !existingProp.isObject() || !desiredProp.isObject() {
+		return // function-form (or exotic) on either side — opaque, never merged
+	}
+	existingErrors := newObjectView(existing.text, existing.sourceFile, existingProp.value)
+	desiredErrors := newObjectView(desired.text, desired.sourceFile, desiredProp.value)
+
+	var addKeys []string
+	for _, key := range desiredErrors.order {
+		existingKey := existingErrors.props[key]
+		if existingKey == nil {
+			addKeys = append(addKeys, key)
+			continue
+		}
+		desiredKey := desiredErrors.props[key]
+		if existingKey.isObject() && desiredKey.isObject() {
+			mergePluralObject(ops, existingErrors, desiredErrors, key)
+		}
+		// Same key, any other kind pairing: keep the existing bytes verbatim.
+	}
+	sort.Strings(addKeys)
+	if len(addKeys) > 0 {
+		*ops = append(*ops, insertFieldsOp(existingErrors, desiredErrors, addKeys))
+	}
+
+	var dropKeys []string
+	for _, key := range existingErrors.order {
+		if desiredErrors.props[key] == nil {
+			dropKeys = append(dropKeys, key)
+		}
+	}
+	sort.Strings(dropKeys)
+	for _, key := range dropKeys {
+		*ops = append(*ops, orphanChildOp(existingErrors, existingErrors.props[key]))
+	}
+}
+
+// mergePluralObject merges one plural template (a count-bearing constraint's
+// object leaf) with the ASYMMETRIC-PLURAL rule: arms are LOCALE-OWNED. An arm
+// the translation has beyond the target set is NEVER orphaned and NEVER
+// rename-paired (a dropped `one` must not relabel into an added `few`); an arm
+// the translator PRUNED stays pruned (their language, their call) — only the
+// mandatory `other` backstop is ever re-inserted; a filled arm is kept
+// byte-identical. The source's arm set never down-scopes the translation's.
+func mergePluralObject(ops *[]spliceOp, existingErrors, desiredErrors *objectView, key string) {
+	existingPlural := newObjectView(existingErrors.text, existingErrors.sourceFile, existingErrors.props[key].value)
+	desiredPlural := newObjectView(desiredErrors.text, desiredErrors.sourceFile, desiredErrors.props[key].value)
+
+	if existingPlural.props["other"] == nil && desiredPlural.props["other"] != nil {
+		*ops = append(*ops, insertFieldsOp(existingPlural, desiredPlural, []string{"other"}))
+	}
+	// Existing-only arms: kept (locale-owned); arms in both: kept byte-identical;
+	// desired-only arms beyond `other`: never forced onto a pruned set.
 }
 
 // objectMetaKeys are the meta keys whose VALUE is itself an object node carrying

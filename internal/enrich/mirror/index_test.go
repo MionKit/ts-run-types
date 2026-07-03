@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/mionkit/ts-runtypes/internal/enrich"
 )
 
 // mustParse parses a mirror file that is expected to be valid, failing the test
@@ -158,7 +160,7 @@ func TestParseConstMarkers(t *testing.T) {
 // TestMarkerComment renders a deterministic, parse-round-tripping JSDoc marker
 // (sorted @rtIds keys), and omits the comment entirely when there is no id.
 func TestMarkerComment(t *testing.T) {
-	got := MarkerComment("User", "9f3a", map[string]string{"age": "b2", "name": "a1"})
+	got := MarkerComment(enrich.NamedConst{TypeName: "User", TypeID: "9f3a", ChildIDs: map[string]string{"age": "b2", "name": "a1"}})
 	want := "/** @rtType User#9f3a @rtIds {age: b2, name: a1} */\n"
 	if got != want {
 		t.Errorf("MarkerComment = %q, want %q", got, want)
@@ -174,31 +176,68 @@ func TestMarkerComment(t *testing.T) {
 	}
 
 	// No id → no marker.
-	if MarkerComment("User", "", nil) != "" {
+	if MarkerComment(enrich.NamedConst{TypeName: "User"}) != "" {
 		t.Errorf("expected empty marker for empty typeID")
 	}
 
 	// No childIDs → @rtType only.
-	if MarkerComment("User", "abc", nil) != "/** @rtType User#abc */\n" {
-		t.Errorf("marker without childIDs = %q", MarkerComment("User", "abc", nil))
+	if MarkerComment(enrich.NamedConst{TypeName: "User", TypeID: "abc"}) != "/** @rtType User#abc */\n" {
+		t.Errorf("marker without childIDs = %q", MarkerComment(enrich.NamedConst{TypeName: "User", TypeID: "abc"}))
+	}
+
+	// A translation const appends the @rtI18n breadcrumb clause.
+	i18n := MarkerComment(enrich.NamedConst{
+		TypeName: "User", TypeID: "9f3a", ChildIDs: map[string]string{"name": "a1"},
+		I18nLocale: "pl", I18nSourceSpec: "../../friendly/models/user",
+	})
+	wantI18n := "/** @rtType User#9f3a @rtIds {name: a1} @rtI18n pl from '../../friendly/models/user' */\n"
+	if i18n != wantI18n {
+		t.Errorf("i18n MarkerComment = %q, want %q", i18n, wantI18n)
+	}
+	// The @rtType/@rtIds parse is unaffected by the extra clause.
+	typeID, childIDs = parseConstMarkers(i18n)
+	if typeID != "9f3a" || !reflect.DeepEqual(childIDs, map[string]string{"name": "a1"}) {
+		t.Errorf("i18n marker round-trip = %q / %v", typeID, childIDs)
 	}
 }
 
-// TestHasCamelSuffix gates friendly*/mock* var recognition on a CamelCase suffix.
+// TestHasCamelSuffix gates friendly*/mock*/<locale>_friendly* var recognition
+// on a CamelCase suffix (leading locale segments count as friendly-form).
 func TestHasCamelSuffix(t *testing.T) {
 	cases := map[string]bool{
-		"friendlyUser": true,
-		"mockUser":     true,
-		"friendly":     false,
-		"mock":         false,
-		"friendlyx":    false,
-		"mockish":      false,
-		"mockA":        true,
+		"friendlyUser":       true,
+		"mockUser":           true,
+		"friendly":           false,
+		"mock":               false,
+		"friendlyx":          false,
+		"mockish":            false,
+		"mockA":              true,
+		"es_friendlyUser":    true,
+		"pt_BR_friendlyUser": true,
+		"es_friendlyx":       false,
+		"_friendlyUser":      false,
 	}
 	for name, want := range cases {
 		got := isFriendlyVar(name) || isMockVar(name)
 		if got != want {
 			t.Errorf("recognized(%q) = %v, want %v", name, got, want)
 		}
+	}
+}
+
+// TestTranslationVarNames covers the locale-prefix predicate + the two-way
+// var-name mapping (BCP-47 separators sanitized to underscores).
+func TestTranslationVarNames(t *testing.T) {
+	if TranslationVarName("pt-BR", "friendlyUser") != "pt_BR_friendlyUser" {
+		t.Errorf("TranslationVarName = %q", TranslationVarName("pt-BR", "friendlyUser"))
+	}
+	if SourceVarOfTranslation("pt_BR_friendlyUser") != "friendlyUser" {
+		t.Errorf("SourceVarOfTranslation = %q", SourceVarOfTranslation("pt_BR_friendlyUser"))
+	}
+	if SourceVarOfTranslation("friendlyUser") != "friendlyUser" {
+		t.Errorf("SourceVarOfTranslation must pass a non-translation var through")
+	}
+	if isTranslationVar("friendlyUser") || !isTranslationVar("es_friendlyUser") {
+		t.Errorf("isTranslationVar misclassifies")
 	}
 }
