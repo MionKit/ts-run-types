@@ -134,7 +134,7 @@ Project-level compiler options live in the `ts-runtypes` entry under `compilerOp
 }
 ```
 
-Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `cacheDir`, `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`. An unknown key is ignored with a build-time stderr warning. Host-specific knobs (`binary`, `cwd`, `tsconfig` path, `outDir`) stay on the bundler plugin — they're properties of the host, not the project. Full list, defaults, and the precedence chain: the [Configuration guide](container/website/content/2.guide/9.configuration.md).
+Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `cacheDir`, `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`, `i18n` (the FriendlyType translation config — see the enrichment verbs below). An unknown key is ignored with a build-time stderr warning. Host-specific knobs (`binary`, `cwd`, `tsconfig` path, `outDir`) stay on the bundler plugin — they're properties of the host, not the project. Full list, defaults, and the precedence chain: the [Configuration guide](container/website/content/2.guide/9.configuration.md).
 
 ## CLI
 
@@ -156,6 +156,18 @@ bin/ts-runtypes --one-shot --tsconfig tsconfig.json < requests.jsonl > cache.jso
 ```bash
 bin/ts-runtypes --daemon --tsconfig tsconfig.json --socket /tmp/ts-runtypes.sock
 ```
+
+### Enrichment verbs (out-of-band)
+
+`describe` / `gen` / `check` maintain the committed `FriendlyType<T>` / `MockData<T>` enrichment mirrors — one file per source file per family under `<enrichDir>/friendly/` + `<enrichDir>/mock/` (default `runtypes/generated`), consumed through ordinary committed imports, never injected. See [docs/AI_ENRICHMENT.md](docs/AI_ENRICHMENT.md):
+
+```bash
+bin/ts-runtypes describe <file.ts> <TypeName> [--format text|json]   # type shape as prompt context
+bin/ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--update] [--prune] [--check]
+bin/ts-runtypes check <file.ts> [--json]                             # FT/MD diagnostics; CI gate
+```
+
+FriendlyType maps also translate per locale: `gen --translate <locale|all> [--update|--prune]` scaffolds and reconciles blank-leaf `Translation<T>` mirrors under `<enrichDir>/i18n/<locale>/` (the map you already wrote is the source language; unfilled leaves fall back to it), and `check --translate <locale|all>` is the CI completeness gate — Warnings, or Errors with tsconfig `i18n.strict`. At runtime `createFriendlyI18n(source, {locale, translations})` renders the localized labels/messages. Full design: [docs/done/friendly-type-i18n.md](docs/done/friendly-type-i18n.md).
 
 ### Marker family
 
