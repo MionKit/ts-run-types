@@ -921,7 +921,12 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				// source keeps the array length aligned with Sources.
 				sourceMap.SourcesContent = make([]*string, len(sourceMap.Sources))
 			}
-			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap}
+			// SourceHash rides go-mode too (8 bytes) so the plugin can DETECT an
+			// upstream pre-plugin that edited the source before us — 'go' rebuilds
+			// from the resolver's view and would otherwise clobber that edit
+			// silently. The plugin warns on mismatch; the transform itself is
+			// unaffected either way.
+			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap, SourceHash: transform.SourceHash(source)}
 		}
 		combinedDiagnostics := append(append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
 		response := protocol.Response{

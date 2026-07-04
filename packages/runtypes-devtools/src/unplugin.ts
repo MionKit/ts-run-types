@@ -242,7 +242,12 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // returns the whole rewritten file + source map; the plugin just plumbs
   // {code, map} to the bundler. Also the safe fallback for 'edits' mode when the
   // source-consistency guard can't be satisfied.
-  async function transformViaGo(rel: string) {
+  //
+  // driftCheck is set only when 'go' is the PRIMARY mode: 'go' rebuilds from the
+  // resolver's view and so silently clobbers an upstream enforce:'pre' plugin's
+  // edit, but the returned sourceHash lets us at least DETECT and warn. It is
+  // omitted on the 'edits'-mode fallback path (the drift is already known there).
+  async function transformViaGo(rel: string, driftCheck?: {ctx: any; code: string}) {
     // Default keeps self-contained maps; an explicit `sourcesContent: false`
     // trims the embedded original source from the map.
     const goOpts = options.sourcesContent === false ? {omitSourcesContent: true} : undefined;
@@ -254,6 +259,12 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
     const fileResult = result.transformed[rel];
     if (!fileResult || typeof fileResult.code !== 'string') return null;
+    if (driftCheck && fileResult.sourceHash !== undefined && fileResult.sourceHash !== sourceHash(driftCheck.code)) {
+      driftCheck.ctx.warn?.(
+        `runtypes-devtools: transform 'go' source drift on ${rel} — the rewrite was applied to the resolver's copy, not the source another plugin handed us. ` +
+          `Order runtypes-devtools first among enforce:'pre' plugins so it sees pristine source.`
+      );
+    }
     // fileResult.map is our wire SourceMap — structurally valid but typed with
     // `sources: (string|null)[]` where the bundler input wants string[]; cast.
     return {code: fileResult.code, map: (fileResult.map ?? undefined) as any};
@@ -355,7 +366,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       if (!importsMarkerModule && !code.includes('registerPureFnFactory')) return null;
 
       const rel = path.relative(cwdAbs || process.cwd(), id);
-      return transformMode === 'edits' ? transformViaEdits(this, rel, code) : transformViaGo(rel);
+      return transformMode === 'edits' ? transformViaEdits(this, rel, code) : transformViaGo(rel, {ctx: this, code});
     },
 
     vite: {
