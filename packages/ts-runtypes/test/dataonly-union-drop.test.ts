@@ -20,6 +20,17 @@ import {
   createBinaryDecoder,
 } from 'ts-runtypes';
 
+// A NAMED all-stripped union — externalized as its own cache entry (the name
+// rule), so it is reached through the walker's dispatch gate rather than being
+// inlined into its parent. Both members DataOnly-strip (non-serializable
+// natives), so the union projects to `never`. See the gate-elision regression
+// test at the bottom of the collapse suite.
+type NativeUnion = ArrayBuffer | SharedArrayBuffer;
+interface HasNativeUnion {
+  x: NativeUnion;
+  y: number;
+}
+
 describe('DataOnly union-member drop', () => {
   test('Date | symbol — symbol arm dropped, validates as Date', () => {
     const isit = createValidate<Date | symbol>();
@@ -70,5 +81,34 @@ describe('DataOnly collapse-to-never / empty still throws', () => {
     expect(() => createJsonEncoder<[string, symbol]>()).toThrow();
     expect(() => createJsonEncoder<Map<string, symbol>>()).toThrow();
     expect(() => createJsonEncoder<Set<symbol>>()).toThrow();
+  });
+
+  // Regression: an all-stripped union at a NESTED, EXTERNALIZED position.
+  // The union's noop predicate (unionJsonNoop) once reported the all-stripped
+  // union as identity, so the walker's dispatch gate elided the `x` transform;
+  // with no live primitive left, the whole encoder collapsed to the JSON
+  // composite noop short-form and the runtime substituted native
+  // JSON.stringify — silently emitting `{"x":{},"y":1}` instead of throwing.
+  // Every strategy must reach the union's alwaysThrow (never round-trip a
+  // non-serializable native as `{}`). Root-position collapse is covered above;
+  // this pins the nested + externalized (named-union) path the gate walks.
+  test('all-stripped union at a nested externalized property still throws (gate-elision regression)', () => {
+    const buf = new ArrayBuffer(4);
+    expect(() => {
+      const encode = createJsonEncoder<HasNativeUnion>(undefined, {strategy: 'mutate'});
+      return encode({x: buf, y: 1} as HasNativeUnion);
+    }).toThrow();
+    expect(() => {
+      const encode = createJsonEncoder<HasNativeUnion>(); // clone (default)
+      return encode({x: buf, y: 1} as HasNativeUnion);
+    }).toThrow();
+    expect(() => {
+      const encode = createJsonEncoder<HasNativeUnion>(undefined, {strategy: 'direct'});
+      return encode({x: buf, y: 1} as HasNativeUnion);
+    }).toThrow();
+    expect(() => {
+      const encode = createBinaryEncoder<HasNativeUnion>();
+      return encode({x: buf, y: 1} as HasNativeUnion);
+    }).toThrow();
   });
 });

@@ -10,11 +10,19 @@ import (
 // noopCorpusSource interns a wide spread of real checker-produced shapes —
 // primitives, optionals, literals, enums-ish unions, Dates/Maps/Sets,
 // bigints, template literals, tuples, index signatures, function props,
-// nested named objects, classes, mixed unions, circular types, and
+// nested named objects, classes, mixed unions, circular types,
 // format-branded strings (transforming, validate-only, and inside a union —
-// the fmt predicate's arms) — so the agreement test below can pin the noop
-// predicates against the emitters across the whole reachable node set (every
-// interned child counts, not just the roots).
+// the fmt predicate's arms), objects whose sole property is a
+// DataOnly-stripped value that JSON.stringify leaks as data (a
+// non-serializable native / a Promise), and an all-stripped union — so the
+// agreement test below can pin the noop predicates against the emitters across
+// the whole reachable node set (every interned child counts, not just the
+// roots). The leak objects guard the prepare (mutate) predicate's property arm:
+// pj `delete`s the leaking key from the live object (real code), so the object
+// is NOT identity on encode even though every other family drops the slot with
+// empty code. The all-stripped union (every member projects to `never`) guards
+// unionJsonNoop: its DataOnly projection is `never`, so the emitter keeps the
+// members and alwaysThrows — NOT the identity — on pj / rj / cjr.
 const noopCorpusSource = `import {getRunTypeId} from 'ts-runtypes';
 type TypeFormat<Base, Name extends string, Params> = Base & {
   readonly __rtFormatName?: Name;
@@ -49,6 +57,12 @@ type LitTup = ['x', 1];
 type TmplKeyRec = {[key: ` + "`k${string}`" + `]: number};
 type RecAtomic = {[key: string]: number};
 type WithNever = {name: string; bad: never};
+type WithLeakNative = {a: ArrayBuffer};
+type WithLeakPromise = {p: Promise<number>; b: number};
+type AllStrippedUnion = ArrayBuffer | SharedArrayBuffer;
+getRunTypeId<WithLeakNative>();
+getRunTypeId<WithLeakPromise>();
+getRunTypeId<AllStrippedUnion>();
 getRunTypeId<LitOnly>();
 getRunTypeId<LitObj>();
 getRunTypeId<LitTup>();
