@@ -81,15 +81,14 @@ const SSR_NOEXTERNAL = (process.env.RT_BENCH_SSR_NOEXTERNAL ?? '')
   .map((s) => s.trim())
   .filter(Boolean);
 
-// Resolver disk cache: defaults to <cwd>/node_modules/.cache. In-container cwd is
-// the read-only marker mount, so RT_BENCH_CACHE_DIR=false disables it (a single
-// suite load needs no persistence); a path overrides the location.
-const CACHE_DIR_OPT =
-  process.env.RT_BENCH_CACHE_DIR === 'false'
-    ? {cacheDir: false}
-    : process.env.RT_BENCH_CACHE_DIR
-      ? {cacheDir: process.env.RT_BENCH_CACHE_DIR}
-      : {};
+// Resolver disk cache: it follows TypeScript's incremental switch, and this
+// bench loads the suite through `tsconfig.test.json` (incremental:false), so it
+// is off by default. The in-container run also passes RT_BENCH_CACHE_DIR=false
+// (the marker mount is read-only, so a write must never be attempted) — forward
+// it to the binary's internal RT_CACHE_DIR control: 'false' forces the cache
+// off, a path forces it on there. The plugin's resolver child inherits the env.
+if (process.env.RT_BENCH_CACHE_DIR === 'false') process.env.RT_CACHE_DIR = '';
+else if (process.env.RT_BENCH_CACHE_DIR) process.env.RT_CACHE_DIR = process.env.RT_BENCH_CACHE_DIR;
 
 // Files-mode writes the generated cache modules under <outDir>/types. The default
 // (<srcDir>/__runtypes, inferred from the tsconfig) lands under the read-only marker
@@ -179,7 +178,7 @@ async function loadSuiteWithPlugin() {
     ssr: {resolve: {conditions: ['source']}, ...(SSR_NOEXTERNAL.length ? {noExternal: SSR_NOEXTERNAL.map((p) => new RegExp(p))} : {})},
     optimizeDeps: {noDiscovery: true},
     logLevel: 'error',
-    plugins: [runtypesPlugin({binary: BIN, cwd: PACKAGE_ROOT, tsconfig: 'tsconfig.test.json', ...CACHE_DIR_OPT, ...OUTDIR_OPT})],
+    plugins: [runtypesPlugin({binary: BIN, cwd: PACKAGE_ROOT, tsconfig: 'tsconfig.test.json', ...OUTDIR_OPT})],
   });
   try {
     const mod = await server.ssrLoadModule(SUITE_PATH);

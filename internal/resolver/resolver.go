@@ -17,6 +17,7 @@ package resolver
 import (
 	"context"
 	"errors"
+	"path/filepath"
 
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-runtypes/internal/cache/disk"
@@ -60,15 +61,24 @@ type Options struct {
 	// memos, merged at the join), validate always renders last and
 	// serially. SingleThreaded implies serial here too.
 	DisableParallelRender bool
-	// CacheDir, when non-empty, points at a directory under which the
-	// resolver persists per-(typeID, fnTag) RT artifacts. Typically
-	// <projectRoot>/node_modules/.cache/ts-runtypes. The disk layer
-	// fingerprints non-version build options (hash lengths, marker
-	// settings) into a subdirectory so distinct configurations don't
-	// share cache entries; binary version is folded into the typeID
-	// hash so cross-version files never collide. Empty disables caching
-	// (the in-memory walker runs every time, matching test mode).
+	// CacheDir is the EXPLICIT cache-location override (the internal
+	// RT_CACHE_DIR control — tests + direct-binary power users). When
+	// non-empty, the resolver persists per-(typeID, fnTag) RT artifacts
+	// under it regardless of the project's incremental setting. When empty,
+	// the location follows CacheFollowsIncremental (below). The disk layer
+	// fingerprints non-version build options (hash lengths, marker settings)
+	// into a subdirectory so distinct configurations don't share cache
+	// entries; binary version is folded into the typeID hash so cross-version
+	// files never collide.
 	CacheDir string
+	// CacheFollowsIncremental, when true and CacheDir is empty, turns the RT
+	// disk cache on IFF the loaded Program enables TypeScript's incremental /
+	// composite compilation — at the canonical
+	// <Cwd>/node_modules/.cache/ts-runtypes location. This is the normal
+	// (plugin) flow: the cache follows tsc's own on/off switch. When false
+	// and CacheDir is empty, caching is off (the in-memory walker runs every
+	// time — the inline / server test default). Ignored when CacheDir is set.
+	CacheFollowsIncremental bool
 	// EmitMode selects what every typefns module renderer ships in its
 	// code/factory slots: EmitCode (default) ships only the body `code`
 	// string (the runtime rebuilds the factory via `new Function('utl',
@@ -201,11 +211,28 @@ func (resolver *Resolver) verdictsFor(scanChecker *checker.Checker) map[*checker
 	return verdicts
 }
 
-// newRTStore builds the on-disk store for opts, returning nil when
-// caching is disabled. Centralised so New / NewServer share the same
-// fingerprinting rules.
-func newRTStore(opts Options) *disk.Store {
-	if opts.CacheDir == "" {
+// cacheLocation resolves the RT disk-cache base directory for opts given the
+// loaded Program's incremental setting. An explicit CacheDir override always
+// wins; otherwise the cache follows tsc's incremental switch (on at the
+// canonical node_modules/.cache/ts-runtypes when the project is incremental /
+// composite, off otherwise). Empty result means caching is disabled.
+func cacheLocation(opts Options, incremental bool) string {
+	if opts.CacheDir != "" {
+		return opts.CacheDir
+	}
+	if opts.CacheFollowsIncremental && incremental {
+		return filepath.Join(opts.Cwd, "node_modules", ".cache", "ts-runtypes")
+	}
+	return ""
+}
+
+// newRTStore builds the on-disk store for opts, returning nil when caching is
+// disabled. incremental is the loaded Program's IsIncremental() (false in
+// server mode, where no Program exists yet). Centralised so New / NewServer
+// share the same fingerprinting rules.
+func newRTStore(opts Options, incremental bool) *disk.Store {
+	baseDir := cacheLocation(opts, incremental)
+	if baseDir == "" {
 		return nil
 	}
 	fp := disk.Fingerprint(disk.FingerprintInputs{
@@ -217,7 +244,7 @@ func newRTStore(opts Options) *disk.Store {
 		SizeStringBytes: opts.SizeStringBytes,
 		SizeMaxBytes:    opts.SizeMaxBytes,
 	})
-	return disk.New(opts.CacheDir, fp)
+	return disk.New(baseDir, fp)
 }
 
 // RTStore returns the on-disk RT artifact cache, or nil when
@@ -260,7 +287,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		scannedFiles:      map[string]struct{}{},
 		pureFnFileCache:   purefns.NewFileCache(),
 		verdictsByChecker: map[*checker.Checker]map[*checker.Type]markerVerdict{},
-		rtStore:           newRTStore(opts),
+		rtStore:           newRTStore(opts, prog.IsIncremental()),
 	}, nil
 }
 
@@ -278,7 +305,9 @@ func NewServer(opts Options) *Resolver {
 		scannedFiles:      map[string]struct{}{},
 		pureFnFileCache:   purefns.NewFileCache(),
 		verdictsByChecker: map[*checker.Checker]map[*checker.Type]markerVerdict{},
-		rtStore:           newRTStore(opts),
+		// Server mode has no Program yet (installed later via setSources, always
+		// an inferred/non-incremental project), so caching is override-only.
+		rtStore: newRTStore(opts, false),
 	}
 }
 

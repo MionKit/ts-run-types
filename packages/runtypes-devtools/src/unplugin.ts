@@ -66,14 +66,13 @@ export interface PluginOptions {
   sizeItems?: number;
   sizeStringBytes?: number;
   sizeMaxBytes?: number;
-  // On-disk RT artifact cache location. Default (undefined) wires the
-  // cache to `<cwd>/node_modules/.cache/ts-runtypes`. Pass an
-  // explicit string to redirect to a custom directory. Pass `false`
-  // to disable caching entirely — used by the marker package's own
-  // vitest config to keep test runs from populating the project tree
-  // with cache artifacts. This is the INTERNAL incremental artifact cache,
-  // separate from `outDir` (the importable generated modules).
-  cacheDir?: string | false;
+  // NB: there is deliberately NO cacheDir option. The on-disk RT artifact cache
+  // (the incremental build cache under node_modules/.cache/ts-runtypes, separate
+  // from `outDir`) follows TypeScript's own `incremental` / `composite` switch —
+  // on when the project's tsconfig is incremental, off otherwise. There is no
+  // knob to set here; align it with tsc by toggling `incremental` in tsconfig.
+  // (The internal RT_CACHE_DIR env var overrides it for tests / direct use.)
+  //
   // Parallelism opt-outs. The Go binary parallelizes its marker scan
   // (across the tsgo checker pool) and its per-family entry collection
   // by default; pass `false` to force the corresponding serial path
@@ -178,20 +177,13 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // default and echoes the resolved path back from generate().
     outDirAbs = options.outDir ? path.resolve(cwdAbs, options.outDir) : '';
     // tsconfig is the canonical config surface for the Go compiler's project
-    // knobs (emitMode, moduleMode, inlineMode, cacheDir, hashLength, …). The
-    // plugin forwards a flag ONLY for an option set explicitly here, so an
-    // unset option falls through to the tsconfig ts-runtypes plugin entry and
-    // the binary's defaults — tsc-style precedence: a forwarded flag overrides
-    // tsconfig overrides the default.
+    // knobs (emitMode, moduleMode, inlineMode, hashLength, …). The plugin
+    // forwards a flag ONLY for an option set explicitly here, so an unset
+    // option falls through to the tsconfig ts-runtypes plugin entry and the
+    // binary's defaults — tsc-style precedence: a forwarded flag overrides
+    // tsconfig overrides the default. The RT disk cache has no knob here: it
+    // follows the project's `incremental` / `composite` tsconfig setting.
     //
-    // cacheDir is the one host-resolved knob: `false` forwards an explicit
-    // disable (empty --cache-dir), a string forwards that path, and undefined
-    // forwards nothing so the binary derives <cwd>/node_modules/.cache/ts-runtypes
-    // (the canonical tooling-artifact location, wiped by standard `clean`
-    // recipes) or honours a tsconfig cacheDir.
-    let cacheDir: string | undefined;
-    if (options.cacheDir === false) cacheDir = '';
-    else if (typeof options.cacheDir === 'string') cacheDir = options.cacheDir;
     // Surface a config typo at the host boundary (the binary validates the
     // merged value too) — only when the user actually set moduleMode.
     if (
@@ -208,7 +200,6 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // ts-runtypes-bin launcher (throws with a clear message if none is installed).
     const binaryPath = options.binary ?? getExePath();
     resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
-      ...(cacheDir !== undefined ? {cacheDir} : {}),
       ...(options.emitMode ? {emitMode: options.emitMode} : {}),
       ...(options.sizeBias !== undefined ? {sizeBias: options.sizeBias} : {}),
       ...(options.sizeItems !== undefined ? {sizeItems: options.sizeItems} : {}),

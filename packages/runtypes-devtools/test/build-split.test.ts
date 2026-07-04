@@ -65,8 +65,10 @@ describe('vite build / per-entry code splitting', () => {
             runtypes({
               binary: BIN,
               cwd: PACKAGE_ROOT,
+              // tsconfig.test.json sets incremental:false, so the RT disk cache
+              // is off (it follows TypeScript's incremental switch) — no
+              // node_modules/.cache artifacts from this build.
               tsconfig: 'tsconfig.test.json',
-              cacheDir: false,
               // Isolated output root: the marker package's own vitest writes to
               // <PACKAGE_ROOT>/__runtypes with a different program, so a shared dir
               // would race-prune these fixtures' modules. Cleaned with FIXTURE_DIR.

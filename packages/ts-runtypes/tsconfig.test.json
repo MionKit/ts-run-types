@@ -14,6 +14,12 @@
     "composite": false,
     "declaration": false,
     "declarationMap": false,
+    // `incremental` is inherited as true from the root config. Turn it off here
+    // so the Go resolver — which drives the RT disk cache off TypeScript's
+    // incremental switch — treats the marker package's own test runs as
+    // non-incremental, keeping them hermetic (no artifacts under
+    // node_modules/.cache during vitest, the build tests, or the benches).
+    "incremental": false,
     // Drop `rootDir` from the build config (tests live alongside src)
     // so `pnpm typecheck:test` can include both src/ and test/ without
     // hitting TS6059. Set to the repo root (not just the package) so the

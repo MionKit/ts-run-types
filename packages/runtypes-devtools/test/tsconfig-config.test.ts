@@ -59,8 +59,9 @@ function makeFixture(pluginEntry: string): string {
 }
 
 // scanModules spawns a default-mode resolver against the fixture's tsconfig and
-// returns the recorded sites. cacheDir:'' forwards an explicit disable so the
-// run never writes under node_modules.
+// returns the recorded sites. cacheDir:'' forces the disk cache off (child
+// RT_CACHE_DIR=''), so the run never writes under node_modules regardless of
+// the fixture tsconfig's incremental setting.
 async function scanSites(dir: string, opts: {moduleMode?: string} = {}) {
   const client = new ResolverClient(BIN, dir, 'tsconfig.json', {cacheDir: '', ...opts});
   try {

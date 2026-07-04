@@ -80,15 +80,16 @@ Options:
     --inline-server     persistent inline-sources server: start with no
                         Program, accept setSources / resetCache / scanFiles /
                         dump ops; used by long-lived test daemons
-    --cache-dir PATH    base directory for the on-disk RT artifact cache
-                        (typically node_modules/.cache/ts-runtypes).
-                        Per-(typeID, fnTag) files under
-                        <cache-dir>/<optsFingerprint>/<typeID>/<fnTag>.json
-                        let subsequent builds skip the walker for unchanged
-                        types. Binary version is folded into every typeID
-                        hash so cross-version files never collide.
-                        Empty disables caching.
     -h, --help          show help
+
+The on-disk RT artifact cache (per-(typeID, fnTag) files under
+<cwd>/node_modules/.cache/ts-runtypes/<optsFingerprint>/...) follows TypeScript's
+own incremental switch: it is enabled when the loaded tsconfig sets
+"incremental" or "composite", and disabled otherwise. The internal RT_CACHE_DIR
+environment variable overrides this for tests and direct-binary use: set it to a
+path to force the cache on at that location, or to an empty string to force it
+off. Binary version is folded into every typeID hash so cross-version files
+never collide.
 `
 
 func main() {
@@ -117,7 +118,6 @@ func main() {
 		noParallelRender   bool
 		inlineSourcesStdin bool
 		inlineServer       bool
-		cacheDir           string
 		emitMode           string
 		inlineMode         string
 		moduleMode         string
@@ -151,8 +151,6 @@ func main() {
 		"read {\"sources\":{relpath:content}} from stdin before the request stream")
 	flag.BoolVar(&inlineServer, "inline-server", false,
 		"persistent inline-sources server: start with no Program; accept setSources / resetCache ops")
-	flag.StringVar(&cacheDir, "cache-dir", "",
-		"base directory for the on-disk RT artifact cache (empty disables)")
 	flag.StringVar(&emitMode, "emit-mode", string(constants.EmitCode),
 		"what each cache entry ships in its code/factory slots: "+
 			"code (default — body string only; the JS side rebuilds the factory via `new Function` on first lookup), "+
@@ -259,7 +257,6 @@ func main() {
 		singleThreaded:   singleThreaded,
 		noParallelScan:   noParallelScan,
 		noParallelRender: noParallelRender,
-		cacheDir:         cacheDir,
 		runTypesGenDir:   runTypesGenDir,
 		emitMode:         emitMode,
 		inlineMode:       inlineMode,
@@ -268,7 +265,7 @@ func main() {
 		sizeItems:        sizeItems,
 		sizeStringBytes:  sizeStringBytes,
 		sizeMaxBytes:     sizeMaxBytes,
-	}, plugin, hasTsconfig, absCwd)
+	}, plugin, absCwd)
 
 	// Stdio decoder/encoder is built up front because in inline-sources mode
 	// we consume one handshake line from stdin BEFORE constructing the
@@ -298,21 +295,29 @@ func main() {
 		os.Exit(2)
 	}
 
+	// RT disk cache: the internal RT_CACHE_DIR env var is the only control
+	// (the public cacheDir plugin/tsconfig knob was dropped). Three states:
+	// unset → the cache follows the project's incremental/composite setting
+	// (CacheFollowsIncremental, resolved against the loaded Program); set to a
+	// path → force the cache on at that path; set to "" → force it off.
+	cacheDirOverride, cacheDirSet := os.LookupEnv("RT_CACHE_DIR")
+
 	resolverOpts := resolver.Options{
-		HashLength:            merged.hashLength,
-		Marker:                marker.Options{},
-		Cwd:                   absCwd,
-		SingleThreaded:        merged.singleThreaded,
-		DisableParallelScan:   merged.disableParallelScan,
-		DisableParallelRender: merged.disableParallelRender,
-		CacheDir:              merged.cacheDir,
-		EmitMode:              constants.EmitMode(merged.emitMode),
-		InlineMode:            constants.InlineMode(merged.inlineMode),
-		ModuleMode:            merged.moduleMode,
-		SizeBias:              merged.sizeBias,
-		SizeItems:             merged.sizeItems,
-		SizeStringBytes:       merged.sizeStringBytes,
-		SizeMaxBytes:          merged.sizeMaxBytes,
+		HashLength:              merged.hashLength,
+		Marker:                  marker.Options{},
+		Cwd:                     absCwd,
+		SingleThreaded:          merged.singleThreaded,
+		DisableParallelScan:     merged.disableParallelScan,
+		DisableParallelRender:   merged.disableParallelRender,
+		CacheDir:                normalizeCacheDir(cacheDirOverride, absCwd),
+		CacheFollowsIncremental: !cacheDirSet,
+		EmitMode:                constants.EmitMode(merged.emitMode),
+		InlineMode:              constants.InlineMode(merged.inlineMode),
+		ModuleMode:              merged.moduleMode,
+		SizeBias:                merged.sizeBias,
+		SizeItems:               merged.sizeItems,
+		SizeStringBytes:         merged.sizeStringBytes,
+		SizeMaxBytes:            merged.sizeMaxBytes,
 	}
 
 	// Compile mode is a batch build, not a stdio session: it drives the two-pass

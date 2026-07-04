@@ -139,3 +139,18 @@ func NewInferred(opts Options, fileNames []string) (*Program, error) {
 func (program *Program) SourceFile(absPath string) *ast.SourceFile {
 	return program.TS.GetSourceFile(absPath)
 }
+
+// IsIncremental reports whether the loaded project enables TypeScript's
+// incremental or composite compilation — tsc's own switch for persisting build
+// state between runs. The RT disk cache follows it: on when the project is
+// incremental/composite, off otherwise. The value comes from the fully parsed
+// config, so an `incremental`/`composite` inherited through `extends` counts.
+// Nil-safe (returns false when there is no program, e.g. the inline-server
+// path before its first setSources).
+func (program *Program) IsIncremental() bool {
+	if program == nil || program.TS == nil {
+		return false
+	}
+	options := program.TS.Options()
+	return options != nil && options.IsIncremental()
+}

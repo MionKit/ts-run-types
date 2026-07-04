@@ -17,16 +17,19 @@ export interface ResolverClientOptions {
   // setSources / reset cycles, so a single child process can serve every
   // test in a vitest file.
   serverMode?: boolean;
-  // Base directory for the on-disk RT artifact cache. The Go binary
+  // INTERNAL cache override (tests + direct-binary power users; NOT a public
+  // plugin knob). The public RT disk cache follows TypeScript's `incremental` /
+  // `composite` switch; this forces it via the child's RT_CACHE_DIR env var so
+  // parallel spawns stay isolated (each child gets its own value). The Go binary
   // fingerprints non-version build options into a subdir and folds binary
   // version into every typeID hash, so cache files never cross-contaminate
   // between configurations or releases. Three states:
-  //   - a path string → forwarded as `--cache-dir <path>`.
-  //   - an empty string → forwarded as an explicit disable (`--cache-dir ""`),
-  //     which overrides a tsconfig cacheDir and the binary's node_modules default.
-  //   - undefined → NOT forwarded, so the binary derives its own default
-  //     (<cwd>/node_modules/.cache/ts-runtypes in tsconfig mode, off in the
-  //     inline / server test modes) or reads the tsconfig cacheDir.
+  //   - a path string → child env RT_CACHE_DIR=<path>: force caching on there.
+  //   - an empty string → child env RT_CACHE_DIR="": force caching off,
+  //     overriding the project's incremental setting.
+  //   - undefined → RT_CACHE_DIR not set, so the binary follows the project's
+  //     incremental setting (on for an incremental tsconfig, off otherwise; off
+  //     in the inline / server test modes, which carry no tsconfig).
   cacheDir?: string;
   // Forwarded as --emit-mode. Selects what each RT entry ships in its
   // code/factory slots: 'code' (default — body string only, factory rebuilt
@@ -379,9 +382,8 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
   }
   if (opts.inlineSources) args.push('--inline-sources-stdin');
   if (opts.serverMode) args.push('--inline-server');
-  // Forward an explicit empty string too (a deliberate "disable caching"
-  // that must override tsconfig); only undefined skips the flag entirely.
-  if (opts.cacheDir !== undefined) args.push('--cache-dir', opts.cacheDir);
+  // cacheDir is NOT a CLI arg — it rides the child's RT_CACHE_DIR env var
+  // (set by ResolverClient's spawn) so parallel spawns stay isolated.
   if (opts.emitMode) args.push('--emit-mode', opts.emitMode);
   if (opts.sizeBias !== undefined) args.push('--size-bias', String(opts.sizeBias));
   if (opts.sizeItems !== undefined) args.push('--size-items', String(opts.sizeItems));
@@ -413,7 +415,12 @@ export class ResolverClient extends ResolverClientBase {
   constructor(binary: string, cwd: string, tsconfigPath: string, opts: ResolverClientOptions = {}) {
     super();
     const args = buildResolverArgs(cwd, tsconfigPath, opts);
-    this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit']});
+    // cacheDir (internal override) rides the child's RT_CACHE_DIR env, not a
+    // CLI arg, so concurrent spawns with different cache dirs don't collide.
+    // A path forces the cache on there, '' forces it off; undefined leaves the
+    // env untouched so the binary follows the project's incremental setting.
+    const env = opts.cacheDir !== undefined ? {...process.env, RT_CACHE_DIR: opts.cacheDir} : process.env;
+    this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit'], env});
     if (!this.child.stdin || !this.child.stdout) {
       throw new Error('failed to spawn ts-runtypes (no stdio pipes)');
     }
