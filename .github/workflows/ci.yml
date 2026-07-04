@@ -3,20 +3,20 @@ name: ci
 # The gate on main (the stable development branch). Runs on every PR to main and
 # on push to main (post-merge confirmation).
 #
-# The heavy work is split across TWO balanced jobs on their own runners, grouped
-# by KIND so they finish at about the same time:
-#   checks — Go suite (gofmt/vet/test) + check-format + lint/typecheck
-#   js     — the full JS/vitest suite (fuzz included), unsharded
-# The Go suite (go vet + go test) is the wall-clock floor of the `checks` runner,
-# and the full JS/vitest suite is the floor of the `js` runner; the two are
-# roughly equal, so the jobs balance. oxlint + tsc typecheck are cheap (~30s
-# combined), so the static checks ride beside the Go suite without tipping it.
-# (This used to be Go+shard-1 vs lint+shard-2 with `vitest --shard`. Once oxlint
+# The heavy work is split across TWO balanced jobs on their own runners. The Go
+# suite is lighter than the full JS/vitest suite, so the heavy JS *fuzz* tests
+# ride the Go runner to even the two out:
+#   go-fuzz — Go suite (gofmt/vet/test) + the JS fuzz suite (test/fuzz/**)
+#   js-lint — check-format + lint/typecheck + the rest of the JS suite
+# `vitest run test/fuzz` and `vitest run --exclude '**/test/fuzz/**'` are a
+# complete, DISJOINT partition of the suite (23 + 151 = 174 files), so no test is
+# dropped or double-run — a semantic split by directory instead of a hash shard.
+# (This used to be Go+shard-1 vs lint+shard-2 with `vitest --shard`; once oxlint
 # replaced the much heavier ESLint the lint side went light, so the even shards
-# left the Go job overloaded — grouping by kind rebalances without a shard split
-# to keep complete/disjoint.) Each job re-runs `bootstrap`, which restores the
-# shared, tsgolint-keyed Go build cache, so the tsgo compile is a cache hit and
-# the per-job resolver build is fast, not minutes.
+# left the Go job overloaded. Moving the fuzz suite — the JS heavyweight — onto
+# the otherwise-light Go runner rebalances.) Each job re-runs `bootstrap`, which
+# restores the shared, tsgolint-keyed Go build cache, so the tsgo compile is a
+# cache hit and the per-job resolver build is fast, not minutes.
 #
 # A FOURTH job, `smoke`, runs the website serves-a-page + benchmark
 # competitor-build checks. It is path-gated (only when container inputs change,
@@ -41,12 +41,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── checks: Go suite + format + lint/typecheck (no JS tests) ───────────────
-  # All the static/Go checks on one runner. The Go suite (vet + test) is the
-  # wall-clock floor here; check-format and lint/typecheck are cheap enough to
-  # ride along without tipping the balance against the `js` job.
-  checks:
-    name: go tests + lint
+  # ── go-fuzz: Go suite + the JS fuzz suite ─────────────────────────────────
+  # The Go suite (vet + test) is the wall floor here; the JS fuzz tests (the JS
+  # heavyweight) ride along on this otherwise-Go-bound runner to balance it
+  # against js-lint.
+  go-fuzz:
+    name: go tests + fuzz
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -67,33 +67,35 @@ jobs:
         run: go vet ./cmd/... ./internal/...
       - name: Go test suite
         run: go test ./internal/...
-      # check-format needs nothing built (oxfmt + prettier + gofmt over sources).
-      - name: Check formatting
-        run: pnpm run check-format
-      # `pnpm run lint` runs typecheck, which reads the built dists — so the
-      # resolver + dists must already be on disk when lint runs.
-      - name: Build the resolver + dists (needed by lint's typecheck)
+      # The fuzz tests spawn the binary and read the dists — build first
+      # (cache-warm from go test/vet, so ~fast).
+      - name: Build the resolver + dists (spawned/read by the fuzz suite)
         run: pnpm run check:builds
-      - name: Lint + typecheck
-        run: pnpm run lint
+      - name: JS fuzz suite (test/fuzz/** — 23 files)
+        run: pnpm exec vitest run test/fuzz
 
-  # ── js: the full JS/vitest suite on its own runner ────────────────────────
-  # The whole suite (fuzz included) runs here UNSHARDED — it gets a dedicated
-  # runner whose wall roughly matches the `checks` job's Go suite, so the two
-  # finish together. No shard partition to keep complete/disjoint.
-  js:
-    name: js test suite
+  # ── js-lint: the rest of the JS suite + lint/typecheck/format ─────────────
+  # Everything except the fuzz suite runs here, plus the static checks. Together
+  # with go-fuzz this is a complete, disjoint partition of the JS suite.
+  js-lint:
+    name: js tests + lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
       - uses: ./.github/actions/bootstrap
-      # The tests spawn the binary and read the dists — build before running.
-      - name: Build the resolver + dists (spawned/read by the JS suite)
+      # Fail-fast ordering — cheap checks before the suite.
+      - name: Check formatting (no build needed — runs first)
+        run: pnpm run check-format
+      # `pnpm run lint` runs typecheck, which reads the built dists; the JS suite
+      # also spawns the binary — one build feeds both.
+      - name: Build the resolver + dists (needed by lint + the JS suite)
         run: pnpm run check:builds
-      - name: JS test suite (full; fuzz included)
-        run: pnpm exec vitest run
+      - name: Lint + typecheck
+        run: pnpm run lint
+      - name: JS suite (everything except test/fuzz — 151 files)
+        run: pnpm exec vitest run --exclude '**/test/fuzz/**'
 
   # Decides WHETHER the container smoke runs (container inputs / driver scripts
   # changed). Kept as its own tiny job so `smoke` can gate on it without a
