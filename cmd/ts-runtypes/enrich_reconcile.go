@@ -157,7 +157,9 @@ func collectPruneTargets(positional []string, enrichDirFlag string) []string {
 // rewriting it in place. It returns the number of blocks removed (0 → file
 // untouched, not rewritten). This is the ONLY path that truly deletes content.
 // A malformed carcass that mirror.PruneOrphanBlocks refuses to remove (it would
-// span a live statement) is reported to stderr so the user fixes it by hand.
+// span a live statement) is reported to stderr so the user fixes it by hand;
+// a file that does not PARSE is skipped whole with a warning (prune never
+// rewrites bytes it cannot confidently lex — same stance as gen --update).
 func pruneMirrorFile(mirrorFile string) int {
 	bytes, err := os.ReadFile(mirrorFile)
 	if err != nil {
@@ -166,7 +168,11 @@ func pruneMirrorFile(mirrorFile string) int {
 		}
 		fatal("gen --prune: read %s: %v", mirrorFile, err)
 	}
-	pruned, removed, skipped := mirror.PruneOrphanBlocks(string(bytes))
+	pruned, removed, skipped, err := mirror.PruneOrphanBlocks(string(bytes))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gen --prune: skipping %s: %v\n", mirrorFile, err)
+		return 0
+	}
 	for _, carcass := range skipped {
 		fmt.Fprintf(os.Stderr,
 			"gen --prune: skipping a malformed orphan carcass that appears to span a live statement boundary — fix it by hand:\n%.120s…\n",

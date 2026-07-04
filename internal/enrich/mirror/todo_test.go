@@ -183,7 +183,7 @@ func TestPruneIgnoresTodo(t *testing.T) {
 	src := "/** @rtType User#uID */\n" +
 		todoLine + "\n" +
 		"export const friendlyUser: FriendlyType<User> = { rt$label: '' };\n"
-	pruned, removed, _ := PruneOrphanBlocks(src)
+	pruned, removed, _, _ := PruneOrphanBlocks(src)
 	if removed != 0 {
 		t.Errorf("--prune must ignore @todo (removed=%d):\n%s", removed, pruned)
 	}

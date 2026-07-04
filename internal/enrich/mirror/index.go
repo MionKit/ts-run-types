@@ -194,11 +194,18 @@ var orphanCarcassPattern = regexp.MustCompile(`(?s)/\* @rtOrphan (.*?) \*/`)
 // indexOrphanCarcasses scans the raw text for `@rtOrphan` block comments (a
 // whole const previously orphaned), recovering each one's preserved inner text
 // keyed by its `export const <var>` name so the SAME named type reappearing can
-// restore it. Carcasses are NOT statements (they are comments), so this is a text
-// scan, not an AST walk.
+// restore it. Carcasses are NOT statements (they are comments), so this is a
+// text scan, not an AST walk — but matches are anchored to real comment starts
+// (the mirror's own parse via NewScanForSourceFile), so an authored string
+// value embedding the carcass syntax can never register as restorable: a
+// restore-on-reappear from string bytes would splice data back in as live code.
 func (index *Index) indexOrphanCarcasses(text string) {
+	scan := NewScanForSourceFile(index.sourceFile)
 	for _, match := range orphanCarcassPattern.FindAllStringSubmatchIndex(text, -1) {
 		blockStart, blockEnd := match[0], match[1]
+		if !scan.commentStartsAt(blockStart) {
+			continue // carcass bytes inside a literal / mid-comment — not a carcass
+		}
 		inner := text[match[2]:match[3]]
 		varName := carcassVarName(inner)
 		if varName == "" {

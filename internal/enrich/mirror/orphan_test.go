@@ -114,7 +114,7 @@ func TestOrphanConstOp_FoldsLeadingComment(t *testing.T) {
 	}
 	// Applying the op and pruning leaves NO trace of the hand-authored comment.
 	merged := mustSplice(t, index.raw, []spliceOp{op})
-	pruned, _, _ := PruneOrphanBlocks(merged)
+	pruned, _, _, _ := PruneOrphanBlocks(merged)
 	if strings.Contains(pruned, "hand-authored note") {
 		t.Errorf("--prune should remove the folded leading comment:\n%s", pruned)
 	}
@@ -254,7 +254,10 @@ func TestPruneOrphanBlocks(t *testing.T) {
 		"\n" +
 		"export const friendlyC = { z: {rt$label: ''} };\n"
 
-	pruned, removed, _ := PruneOrphanBlocks(src)
+	pruned, removed, _, pruneErr := PruneOrphanBlocks(src)
+	if pruneErr != nil {
+		t.Fatalf("prune errored: %v", pruneErr)
+	}
 	if removed != 2 {
 		t.Fatalf("removed = %d, want 2", removed)
 	}
@@ -272,9 +275,9 @@ func TestPruneOrphanBlocks(t *testing.T) {
 
 	// No orphans → unchanged, zero removed.
 	clean := "export const x = 1;\n"
-	out, n, _ := PruneOrphanBlocks(clean)
-	if n != 0 || out != clean {
-		t.Errorf("clean text should be untouched; n=%d out=%q", n, out)
+	out, n, _, cleanErr := PruneOrphanBlocks(clean)
+	if cleanErr != nil || n != 0 || out != clean {
+		t.Errorf("clean text should be untouched; n=%d err=%v out=%q", n, cleanErr, out)
 	}
 }
 
@@ -291,7 +294,10 @@ func TestPruneOrphanBlocks_MalformedCarcassSkipped(t *testing.T) {
 		"/* @rtOrphan /** @rtType B#bID *\\/\n" +
 		"export const friendlyB = { b: {rt$label: ''} }; */\n"
 
-	pruned, removed, skipped := PruneOrphanBlocks(src)
+	pruned, removed, skipped, pruneErr := PruneOrphanBlocks(src)
+	if pruneErr != nil {
+		t.Fatalf("prune errored (the malformed carcass must be SKIPPED, not refused): %v", pruneErr)
+	}
 	// The malformed first match (which spans friendlyLive) is skipped → 0 removed,
 	// and the live const survives intact.
 	if !strings.Contains(pruned, "friendlyLive") {
@@ -322,7 +328,10 @@ func TestPruneOrphanBlocks_StringLiteralsNeverPruned(t *testing.T) {
 		"  // a /* " + OrphanTag + " export const alsoGone = {}; */ inside a line comment\n" +
 		"};\n"
 
-	pruned, removed, skipped := PruneOrphanBlocks(authored)
+	pruned, removed, skipped, pruneErr := PruneOrphanBlocks(authored)
+	if pruneErr != nil {
+		t.Fatalf("prune errored on a valid authored mirror: %v", pruneErr)
+	}
 	if pruned != authored || removed != 0 || len(skipped) != 0 {
 		t.Fatalf("authored strings / line comments must survive prune byte-identical; removed=%d skipped=%d\n%s", removed, len(skipped), pruned)
 	}
@@ -334,7 +343,10 @@ func TestPruneOrphanBlocks_StringLiteralsNeverPruned(t *testing.T) {
 	// A REAL carcass in the same file is still removed, and the authored
 	// strings documenting the tag survive alongside it.
 	withReal := authored + "/* " + OrphanTag + " export const friendlyGone = {}; */\n"
-	prunedReal, removedReal, skippedReal := PruneOrphanBlocks(withReal)
+	prunedReal, removedReal, skippedReal, realErr := PruneOrphanBlocks(withReal)
+	if realErr != nil {
+		t.Fatalf("prune errored: %v", realErr)
+	}
 	if removedReal != 1 || len(skippedReal) != 0 {
 		t.Fatalf("the real carcass must be removed; removed=%d skipped=%d\n%s", removedReal, len(skippedReal), prunedReal)
 	}
@@ -343,6 +355,46 @@ func TestPruneOrphanBlocks_StringLiteralsNeverPruned(t *testing.T) {
 	}
 	if strings.Contains(prunedReal, "friendlyGone") {
 		t.Errorf("real carcass const must be gone:\n%s", prunedReal)
+	}
+}
+
+// TestPruneOrphanBlocks_ParseErrorRefused: prune is destructive, so text that
+// does not PARSE is refused whole (error, nothing removed, bytes untouched) —
+// the same stance ParseMirror takes for gen --update. The CLI warns and skips
+// the file; the user fixes the syntax and re-runs.
+func TestPruneOrphanBlocks_ParseErrorRefused(t *testing.T) {
+	broken := "export const = {{{;\n/* " + OrphanTag + " export const gone = {}; */\n"
+	pruned, removed, skipped, pruneErr := PruneOrphanBlocks(broken)
+	if pruneErr == nil {
+		t.Fatalf("unparseable text must be refused; got removed=%d skipped=%d", removed, len(skipped))
+	}
+	if pruned != broken || removed != 0 {
+		t.Errorf("refused text must come back byte-identical with nothing removed; removed=%d\n%s", removed, pruned)
+	}
+}
+
+// TestIndexOrphanCarcasses_StringEmbeddedNeverIndexed closes the restore side
+// of the string-literal anchoring: an authored mirror VALUE embedding the
+// carcass syntax (an rt$label documenting it) must not register as a
+// restorable carcass — a restore-on-reappear keyed off string bytes would
+// splice the string's interior back in as live code.
+func TestIndexOrphanCarcasses_StringEmbeddedNeverIndexed(t *testing.T) {
+	src := "import type { FriendlyType } from 'ts-runtypes';\n" +
+		"\n" +
+		"/** @rtType Docs#docsID */\n" +
+		"export const friendlyDocs: FriendlyType<Docs> = {\n" +
+		"  snippet: {rt$label: 'x /* @rtOrphan export const friendlyGone = {}; */'},\n" +
+		"};\n"
+	index := mustParse(t, "/rt/gen/a.ts", src)
+	if len(index.orphanCarcasses) != 0 {
+		t.Errorf("string-embedded carcass bytes must not index as restorable; got %d", len(index.orphanCarcasses))
+	}
+
+	// A REAL carcass in the same file still indexes.
+	withReal := src + "\n/* @rtOrphan /** @rtType Gone#goneID *\\/\nexport const friendlyGone: FriendlyType<Gone> = { rt$label: '' }; */\n"
+	indexReal := mustParse(t, "/rt/gen/a.ts", withReal)
+	if _, ok := indexReal.orphanCarcasses["friendlyGone"]; !ok {
+		t.Errorf("the real carcass must still index; have %d carcasses", len(indexReal.orphanCarcasses))
 	}
 }
 

@@ -62,30 +62,42 @@ const (
 // declaration annotated with the DSL types (`export const x: FriendlyText<…>`,
 // the shape every scaffold emits — covering a freshly-scaffolded const whose
 // unresolved root got no marker). The const annotation is matched with
-// comments MASKED OUT, so neither the DSL package's own sources (declarations,
-// `(map: FriendlyText<T>)` parameter annotations, prose with `@todo`) nor a
-// JSDoc code example can make ordinary source read as a mirror.
-func IsEnrichmentFile(text string) bool {
-	if HasMarkerComment(text) {
+// comments AND literal bodies masked out, so neither the DSL package's own
+// sources (declarations, `(map: FriendlyText<T>)` parameter annotations,
+// prose with `@todo`), a JSDoc code example, nor a template literal embedding
+// a mirror-shaped line can make ordinary source read as a mirror.
+func (scan *Scan) IsEnrichmentFile() bool {
+	if scan.HasMarkerComment() {
 		return true
 	}
-	masked := maskComments(text)
-	return enrichConstAnnotationPattern.MatchString(masked)
+	return enrichConstAnnotationPattern.MatchString(scan.structureMaskedText())
 }
 
-// HasMarkerComment reports whether text carries a reconcile marker in its
+// IsEnrichmentFile is the one-shot twin of Scan.IsEnrichmentFile (parses text
+// per call — build a Scan to share the parse across probes).
+func IsEnrichmentFile(text string) bool {
+	return NewScan(text).IsEnrichmentFile()
+}
+
+// HasMarkerComment reports whether the text carries a reconcile marker in its
 // EMIT form — a comment that actually STARTS with `/** @rtType ` — as opposed
 // to the prefix merely appearing inside a string literal (the generated
 // diagnostic catalog embeds it in message text) or mid-comment prose. This is
 // the guard signal for "generated mirror": IsEnrichmentFile's first branch
 // and the resolver's breadcrumb-drift gate both key on it.
-func HasMarkerComment(text string) bool {
-	for _, span := range commentSpans(text) {
-		if strings.HasPrefix(text[span.start:], MarkerCommentPrefix) {
+func (scan *Scan) HasMarkerComment() bool {
+	for _, span := range scan.spans {
+		if strings.HasPrefix(scan.text[span.start:], MarkerCommentPrefix) {
 			return true
 		}
 	}
 	return false
+}
+
+// HasMarkerComment is the one-shot twin of Scan.HasMarkerComment (parses text
+// per call — build a Scan to share the parse across probes).
+func HasMarkerComment(text string) bool {
+	return NewScan(text).HasMarkerComment()
 }
 
 // enrichConstAnnotationPattern matches a (possibly exported) const declaration
@@ -96,55 +108,54 @@ var enrichConstAnnotationPattern = regexp.MustCompile(
 	`(?m)^[ \t]*(?:export[ \t]+)?const[ \t]+[A-Za-z_$][A-Za-z0-9_$]*[ \t]*:\s*(?:` +
 		dslWrapperAlternation + `)[ \t]*<`)
 
-// maskComments blanks every comment byte (newlines preserved) so structural
-// probes never match inside doc prose or JSDoc code examples.
-func maskComments(text string) string {
-	spans := commentSpans(text)
-	if len(spans) == 0 {
-		return text
-	}
-	masked := []byte(text)
-	for _, span := range spans {
-		for i := span.start; i < span.end && i < len(masked); i++ {
-			if masked[i] != '\n' {
-				masked[i] = ' '
-			}
-		}
-	}
-	return string(masked)
-}
-
-// CarcassMatches returns the byte ranges of every REAL orphan carcass in text:
-// `orphanBlockPattern` matches (the raw pattern `gen --prune` removes)
+// CarcassMatches returns the byte ranges of every REAL orphan carcass in the
+// text: `orphanBlockPattern` matches (the raw pattern `gen --prune` removes)
 // restricted to those that START a genuine block-comment span. This is the
 // single definition of "what a carcass IS", shared by the lint scan
-// (ScanDirtyTags) and the destructive prune (PruneOrphanBlocks) so the two can
-// never disagree — the same single-source principle tags.go applies to the tag
-// literals. Two match classes are filtered out identically for both consumers:
-//   - the pattern bytes appearing inside a STRING literal (the generated
-//     diagnostic catalog embeds the tag syntax in its message text) or nested
-//     in JSDoc prose — the match does not begin a comment span; and
+// (DirtyTags), the destructive prune (PruneOrphanBlocks) and the
+// restore-on-reappear index (indexOrphanCarcasses) so they can never disagree
+// — the same single-source principle tags.go applies to the tag literals. Two
+// match classes are filtered out identically for every consumer:
+//   - the pattern bytes appearing inside a STRING / template / regex literal
+//     (the generated diagnostic catalog embeds the tag syntax in its message
+//     text) or nested in JSDoc prose — the match does not begin a comment
+//     span; and
 //   - a carcass-looking sequence inside a `//` LINE comment — the match starts
 //     mid-line, not at the `//`, so it never begins a block-comment span.
 //
 // Ranges are half-open [start, end) byte offsets, in text order.
-func CarcassMatches(text string) [][2]int {
-	commentStarts := map[int]bool{}
-	for _, span := range commentSpans(text) {
-		commentStarts[span.start] = true
-	}
+func (scan *Scan) CarcassMatches() [][2]int {
 	var matches [][2]int
-	for _, match := range orphanBlockPattern.FindAllStringIndex(text, -1) {
+	for _, match := range orphanBlockPattern.FindAllStringIndex(scan.text, -1) {
 		start, end := match[0], match[1]
-		if !commentStarts[start] {
-			continue // pattern bytes inside a string / another comment — not a carcass
+		if !scan.commentStartsAt(start) {
+			continue // pattern bytes inside a literal / another comment — not a carcass
 		}
 		matches = append(matches, [2]int{start, end})
 	}
 	return matches
 }
 
-// ScanDirtyTags returns every dirty-tag occurrence in text, ordered by Start.
+// CarcassMatches is the one-shot twin of Scan.CarcassMatches (parses text per
+// call — build a Scan to share the parse across probes).
+func CarcassMatches(text string) [][2]int {
+	return NewScan(text).CarcassMatches()
+}
+
+// commentStartsAt reports whether a comment span starts exactly at offset.
+func (scan *Scan) commentStartsAt(offset int) bool {
+	for _, span := range scan.spans {
+		if span.start == offset {
+			return true
+		}
+		if span.start > offset {
+			return false // spans are in text order
+		}
+	}
+	return false
+}
+
+// DirtyTags returns every dirty-tag occurrence in the text, ordered by Start.
 //
 //   - Orphan carcasses come from CarcassMatches — the SAME comment-anchored
 //     set `gen --prune` removes, so the rule reports exactly what prune would
@@ -155,9 +166,10 @@ func CarcassMatches(text string) [][2]int {
 //     or a pool string containing "@todo" never fire.
 //   - A `@todo` INSIDE an orphan carcass is part of the preserved const text —
 //     prune removes it with the block — so it is not reported separately.
-func ScanDirtyTags(text string) []TagFinding {
+func (scan *Scan) DirtyTags() []TagFinding {
+	text := scan.text
 	var findings []TagFinding
-	carcasses := CarcassMatches(text)
+	carcasses := scan.CarcassMatches()
 	for _, carcass := range carcasses {
 		start, end := carcass[0], carcass[1]
 		kind, tag := TagOrphan, OrphanTag
@@ -168,7 +180,7 @@ func ScanDirtyTags(text string) []TagFinding {
 		findings = append(findings, TagFinding{Kind: kind, Start: tagStart, End: tagStart + len(tag), BlockStart: start, BlockEnd: end})
 	}
 
-	for _, comment := range commentSpans(text) {
+	for _, comment := range scan.spans {
 		body := text[comment.start:comment.end]
 		from := 0
 		for {
@@ -191,6 +203,12 @@ func ScanDirtyTags(text string) []TagFinding {
 
 	sort.Slice(findings, func(left, right int) bool { return findings[left].Start < findings[right].Start })
 	return findings
+}
+
+// ScanDirtyTags is the one-shot twin of Scan.DirtyTags (parses text per call —
+// build a Scan to share the parse across probes).
+func ScanDirtyTags(text string) []TagFinding {
+	return NewScan(text).DirtyTags()
 }
 
 // dslWrapperAlternation is the regex alternation of every recognized DSL
@@ -228,16 +246,26 @@ type FamilyClassifier struct {
 	fallback MirrorFamily
 }
 
-// NewFamilyClassifier scans text once (comments masked, like the guard).
-func NewFamilyClassifier(text string) *FamilyClassifier {
-	classifier := &FamilyClassifier{text: text}
-	masked := maskComments(text)
+// FamilyClassifier builds the classifier off the scan's masked probe texts:
+// live const annotations are read with comments AND literals masked (a JSDoc
+// example or template-embedded annotation never counts), while the DSL-import
+// fallback reads the comments-only mask (it must see the quoted 'ts-runtypes'
+// specifier — a string literal the structural mask blanks).
+func (scan *Scan) FamilyClassifier() *FamilyClassifier {
+	classifier := &FamilyClassifier{text: scan.text}
+	masked := scan.structureMaskedText()
 	for _, match := range annotationFamilyPattern.FindAllStringSubmatchIndex(masked, -1) {
 		classifier.offsets = append(classifier.offsets, match[0])
 		classifier.families = append(classifier.families, familyForName(masked[match[2]:match[3]]))
 	}
-	classifier.fallback = dslImportFamily(masked)
+	classifier.fallback = dslImportFamily(scan.importMaskedText())
 	return classifier
+}
+
+// NewFamilyClassifier is the one-shot twin of Scan.FamilyClassifier (parses
+// text per call — build a Scan to share the parse across probes).
+func NewFamilyClassifier(text string) *FamilyClassifier {
+	return NewScan(text).FamilyClassifier()
 }
 
 // FamilyFor attributes one dirty-tag finding: an orphan carcass by the
@@ -299,73 +327,12 @@ func dslImportFamily(text string) MirrorFamily {
 
 // commentSpan is a half-open [start, end) byte range covering one `//` line
 // comment (through end of line) or one `/* … */` block comment (including its
-// delimiters).
+// delimiters). Spans are produced by scanComments (scanTags.go) — a linear pass
+// guided by the parse's literal-token oracle, so a tag inside string data
+// never counts as a comment and a comment inside a template interpolation
+// does.
 type commentSpan struct {
 	start, end int
-}
-
-// commentSpans scans text once and returns every comment range, skipping
-// string and template literals so a tag inside data never counts as a comment.
-// Template `${…}` interpolations are treated as part of the string (a comment
-// inside an interpolation is missed — the safe, under-reporting direction for
-// generated data files).
-func commentSpans(text string) []commentSpan {
-	var spans []commentSpan
-	i, n := 0, len(text)
-	for i < n {
-		switch text[i] {
-		case '/':
-			if i+1 < n && text[i+1] == '/' {
-				start := i
-				for i < n && text[i] != '\n' {
-					i++
-				}
-				spans = append(spans, commentSpan{start, i})
-				continue
-			}
-			if i+1 < n && text[i+1] == '*' {
-				start := i
-				i += 2
-				for i+1 < n && !(text[i] == '*' && text[i+1] == '/') {
-					i++
-				}
-				if i+1 < n {
-					i += 2
-				} else {
-					i = n
-				}
-				spans = append(spans, commentSpan{start, i})
-				continue
-			}
-			i++
-		case '\'', '"':
-			quote := text[i]
-			i++
-			for i < n && text[i] != quote && text[i] != '\n' {
-				if text[i] == '\\' {
-					i++
-				}
-				i++
-			}
-			if i < n {
-				i++
-			}
-		case '`':
-			i++
-			for i < n && text[i] != '`' {
-				if text[i] == '\\' {
-					i++
-				}
-				i++
-			}
-			if i < n {
-				i++
-			}
-		default:
-			i++
-		}
-	}
-	return spans
 }
 
 // insideRanges reports whether offset falls inside any half-open range.

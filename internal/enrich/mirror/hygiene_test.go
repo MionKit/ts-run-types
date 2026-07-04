@@ -66,7 +66,10 @@ func TestScanDirtyTags_OrphanCarcasses(t *testing.T) {
 		t.Errorf("second finding = %+v (%q), want TagOrphanChild on %q", findings[1], text[findings[1].Start:findings[1].End], OrphanChildTag)
 	}
 
-	pruned, removed, skipped := PruneOrphanBlocks(text)
+	pruned, removed, skipped, pruneErr := PruneOrphanBlocks(text)
+	if pruneErr != nil {
+		t.Fatalf("prune errored: %v", pruneErr)
+	}
 	if removed != 2 || len(skipped) != 0 {
 		t.Fatalf("prune removed %d (skipped %d), want 2 removed", removed, len(skipped))
 	}
@@ -124,6 +127,10 @@ func TestIsEnrichmentFile(t *testing.T) {
 		// A JSDoc CODE EXAMPLE showing the const shape lives inside a comment —
 		// masked out, so docs-heavy sources with @todo prose never read as mirrors.
 		{"jsdoc code example", "/**\n * Example:\n *   export const friendlyUser: " + enrich.FriendlyTypeName + "<User> = {};\n * then fill the " + TodoTag + " blanks.\n */\nexport function helper() {}", false},
+		// A multiline TEMPLATE embedding a mirror-shaped line is string data —
+		// the structural mask blanks literal bodies, so it never reads as a
+		// mirror (the docs site's own example snippets ship exactly this).
+		{"template-embedded annotation", "export const doc = `\nexport const friendlyUser: " + enrich.FriendlyTypeName + "<User> = {};\n`;\n", false},
 		{"empty", "", false},
 	}
 	for _, testCase := range cases {
@@ -268,5 +275,65 @@ func TestScanDirtyTags_StringLiteralsNeverFire(t *testing.T) {
 		"export const a = 1;\n"
 	if findings := ScanDirtyTags(jsdocExample); len(findings) != 0 {
 		t.Errorf("orphan pattern nested in JSDoc prose must not fire; got %+v", findings)
+	}
+}
+
+// TestScan_TemplateInterpolationComments pins the parse-oracle upgrade of the
+// comment scan: a template `${…}` interpolation is CODE between two
+// template-literal tokens, so a comment inside one is a real comment — both
+// detected by the scan and removed by prune (the old text-only lexer treated
+// the whole template as string data and missed it). The template's literal
+// parts stay opaque: tag bytes there still never fire.
+func TestScan_TemplateInterpolationComments(t *testing.T) {
+	text := "export const mockUser = {\n" +
+		"  greeting: {pool: [`hi ${/* " + OrphanChildTag + " old: {}, */ name} — not a " + TodoTag + " here`]},\n" +
+		"  farewell: {pool: [`bye ${/* " + TodoTag + ": pick a pool */ word}`]},\n" +
+		"};\n"
+
+	findings := ScanDirtyTags(text)
+	if len(findings) != 2 {
+		t.Fatalf("want the carcass + @todo inside the interpolations (and nothing from the literal parts); got %d: %+v", len(findings), findings)
+	}
+	if findings[0].Kind != TagOrphanChild || text[findings[0].Start:findings[0].End] != OrphanChildTag {
+		t.Errorf("first finding = %+v (%q), want TagOrphanChild", findings[0], text[findings[0].Start:findings[0].End])
+	}
+	if findings[1].Kind != TagTodo {
+		t.Errorf("second finding = %+v, want TagTodo inside the interpolation", findings[1])
+	}
+
+	// Prune agrees (lint/prune symmetry): the interpolation carcass is removed,
+	// the template stays otherwise intact and valid.
+	pruned, removed, skipped, pruneErr := PruneOrphanBlocks(text)
+	if pruneErr != nil || removed != 1 || len(skipped) != 0 {
+		t.Fatalf("prune must remove exactly the interpolation carcass; removed=%d skipped=%d err=%v", removed, len(skipped), pruneErr)
+	}
+	if !strings.Contains(pruned, "`hi ${ name}") {
+		t.Errorf("interpolation must survive with the carcass gone:\n%s", pruned)
+	}
+	if strings.Contains(pruned, OrphanChildTag) {
+		t.Errorf("carcass must be gone:\n%s", pruned)
+	}
+}
+
+// TestScan_RegexLiteralNeverPhantomComment pins the other oracle fix: `/*`
+// bytes INSIDE a regex literal are not a comment start. The old text-only
+// lexer opened a phantom comment there; with a later real comment supplying
+// the ` */` terminator, the raw pattern then "matched" a carcass spanning the
+// live code between them — which lint reported and prune DELETED (the
+// malformed-carcass guard only counts `export` statements, and a plain const
+// slipped under it). The parse knows the regex is one opaque token.
+func TestScan_RegexLiteralNeverPhantomComment(t *testing.T) {
+	text := "export const mockData = { pattern: /a\\/* " + OrphanTag + " x/ };\n" +
+		"export const keep = 1; /* tail */\n"
+
+	if findings := ScanDirtyTags(text); len(findings) != 0 {
+		t.Fatalf("tag bytes inside a regex literal must not fire; got %+v", findings)
+	}
+	pruned, removed, skipped, pruneErr := PruneOrphanBlocks(text)
+	if pruneErr != nil {
+		t.Fatalf("prune errored: %v", pruneErr)
+	}
+	if pruned != text || removed != 0 || len(skipped) != 0 {
+		t.Errorf("prune must leave the regex + live code byte-identical; removed=%d skipped=%d\n%s", removed, len(skipped), pruned)
 	}
 }
