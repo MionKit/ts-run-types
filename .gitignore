@@ -14,7 +14,6 @@ packages/*/.coverage/
 dist/
 .dist/
 .coverage/
-.nx/
 *.tsbuildinfo
 .pnpm-store/
 .pnpm-debug.log*

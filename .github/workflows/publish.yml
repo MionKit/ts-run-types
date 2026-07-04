@@ -6,7 +6,7 @@ name: prod · publish
 # publish steps run in protected environments (required-reviewer gate).
 #
 # VERSION MODEL: the release PR into prod MUST carry the bumped version (committed
-# lerna.json + package.json files). CI never runs `lerna version`; the publish job
+# version.json + package.json files, e.g. via `node scripts/bump-version.mjs`). CI
 # reads the version from the gate's build job output and tags exactly that.
 on:
   push:
@@ -52,7 +52,7 @@ jobs:
           # A missed bump would otherwise 409 mid-sequence after some platform
           # packages already published. Fail early and cleanly instead.
           if npm view "ts-runtypes@${VERSION}" version >/dev/null 2>&1; then
-            echo "ts-runtypes@${VERSION} is already on npm. Bump lerna.json on the release PR." >&2
+            echo "ts-runtypes@${VERSION} is already on npm. Bump version.json on the release PR." >&2
             exit 1
           fi
       - name: Publish to npm (platform packages first, launcher, then FE)

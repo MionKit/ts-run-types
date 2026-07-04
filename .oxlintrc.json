@@ -27,7 +27,6 @@
     "**/.dist/**",
     "**/coverage/**",
     "**/.coverage/**",
-    "**/.nx/**",
     "**/test/**",
     "packages/examples/**",
     "packages/ts-runtypes/src/caches/**",
