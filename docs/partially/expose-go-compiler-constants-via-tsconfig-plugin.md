@@ -5,6 +5,13 @@ is the canonical project-config surface, read on the build path with tsc-style
 precedence); some maximal extras were resolved as decisions/docs rather than
 code. See **What shipped** below; the original scoping note follows it verbatim.
 
+> **Superseded (cacheDir):** the `cacheDir` plugin key / `--cache-dir` flag
+> described below were later removed by
+> [docs/done/cache-align-with-typescript-incremental.md](../done/cache-align-with-typescript-incremental.md).
+> The RT disk cache now follows TypeScript's `incremental` / `composite` switch
+> instead of a knob of ours; the internal `RT_CACHE_DIR` env var is the only
+> override. Read the mentions of `cacheDir` below as historical.
+
 ## What shipped
 
 The build path now reads `compilerOptions.plugins[name=ts-runtypes]` and merges

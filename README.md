@@ -135,7 +135,9 @@ Project-level compiler options live in the `ts-runtypes` entry under `compilerOp
 }
 ```
 
-Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `cacheDir`, `runTypesGenDir` (where `--compile` writes its cache modules — [Compile](#compile-tsc-like-no-bundler)), `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`, `i18n` (the FriendlyText translation config — see the enrichment verbs below). An unknown key is ignored with a build-time stderr warning. Host-specific knobs (`binary`, `cwd`, `tsconfig` path, `outDir`, `transformMode`, `sourcesContent`) stay on the bundler plugin — they're properties of the host, not the project. Full list, defaults, and the precedence chain: the [Configuration guide](container/website/content/2.guide/9.configuration.md).
+Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `runTypesGenDir` (where `--compile` writes its cache modules — [Compile](#compile-tsc-like-no-bundler)), `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`, `i18n` (the FriendlyText translation config — see the enrichment verbs below). An unknown key is ignored with a build-time stderr warning. Host-specific knobs (`binary`, `cwd`, `tsconfig` path, `outDir`, `transformMode`, `sourcesContent`) stay on the bundler plugin — they're properties of the host, not the project. Full list, defaults, and the precedence chain: the [Configuration guide](container/website/content/2.guide/9.configuration.md).
+
+There is deliberately no `cacheDir` knob: the on-disk artifact cache (under `node_modules/.cache/ts-runtypes`) follows TypeScript's own `incremental` / `composite` setting — on when your tsconfig is incremental, off otherwise — so it matches how `tsc` already caches. (An internal `RT_CACHE_DIR` env var overrides this for tests and direct-binary use.)
 
 ### `transformMode` (host-level)
 

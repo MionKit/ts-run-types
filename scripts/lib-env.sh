@@ -119,6 +119,9 @@ RT_FUZZ_RACE|dev|-|enable the enrich race test (set by fuzz:race)
 RT_FUZZ_RACE_ITERATIONS|dev|-|enrich race iterations (default 2)
 RT_FUZZ_RACE_FANOUT|dev|-|enrich race fanout (default 6)
 
+# --- resolver knobs (the ts-runtypes Go binary) ---
+RT_CACHE_DIR|dev|-|Internal RT disk-cache override (tests/power users): path forces it on there, "" forces it off, unset follows the tsconfig incremental/composite setting
+
 # --- lint knobs (the runtypes-devtools OXlint/ESLint plugin) ---
 RT_LINT_PRESPAWN|dev|-|Set 0 to skip the lint plugin's load-time resolver pre-spawn (small hosts)
 
@@ -146,6 +149,6 @@ RT_BENCH_PLUGIN_ENTRY|internal|-|Serialization-bench vite plugin entry (passed v
 RT_EXTRACT_BIN|internal|-|Serialization-bench fn-body extractor path (passed via -e)
 RT_BENCH_OUT_DIR|internal|-|Serialization-bench output dir (passed via -e)
 RT_BENCH_SSR_NOEXTERNAL|internal|-|Serialization-bench vite ssr.noExternal list (passed via -e)
-RT_BENCH_CACHE_DIR|internal|-|Serialization-bench resolver cache dir / false (passed via -e)
+RT_BENCH_CACHE_DIR|internal|-|Serialization-bench resolver cache dir / false (passed via -e; forwarded to the binary's RT_CACHE_DIR)
 REG
 }

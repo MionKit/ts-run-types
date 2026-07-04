@@ -1,6 +1,8 @@
 // End-to-end test for the on-disk RT artifact cache. Spawns a
-// short-lived ResolverClient with --cache-dir pointed at a temp
-// directory, runs a scanFiles request, asserts that:
+// short-lived ResolverClient with the internal `cacheDir` override (forwarded
+// as the child's RT_CACHE_DIR env) pointed at a temp directory, which forces
+// the cache on there regardless of the project's incremental setting. Runs a
+// scanFiles request, asserts that:
 //   1. cache files appear under <cacheDir>/<fp>/<typeID>/<fnTag>.json
 //      (the layout the plan locked in: file id == type id);
 //   2. a second spawn against the same cache dir produces byte-identical
@@ -15,9 +17,10 @@ import {describe, it, expect, beforeAll, afterAll} from 'vitest';
 import {ResolverClient} from '../src/resolver-client.ts';
 import {BIN, hasBinary, RUNTYPES_DTS} from './helpers/inline.ts';
 
-// Fresh ResolverClient with a cache-dir that points at the supplied
-// scratch directory. Each test owns its own scratch root so they can
-// run in parallel without stomping on each other.
+// Fresh ResolverClient forcing the cache on at the supplied scratch directory
+// (via the internal cacheDir override → child RT_CACHE_DIR env). Each test owns
+// its own scratch root, and the override rides per-child env, so they run in
+// parallel without stomping on each other.
 function spawnWithCache(cacheDir: string): ResolverClient {
   const root = path.resolve(__dirname, '../../..');
   return new ResolverClient(BIN, root, '', {serverMode: true, cacheDir});

@@ -100,11 +100,15 @@ type tsRuntypesPlugin struct {
 
 	// Build-path project knobs, read by resolveBuildPlugin and merged in
 	// buildconfig.go. The enrichment path ignores them.
-	HashLength     *int    `json:"hashLength"`
-	CacheDir       *string `json:"cacheDir"`
-	SingleThreaded *bool   `json:"singleThreaded"`
-	ParallelScan   *bool   `json:"parallelScan"`
-	ParallelRender *bool   `json:"parallelRender"`
+	//
+	// NB: there is deliberately NO cacheDir key. The RT disk cache follows
+	// TypeScript's own `incremental` / `composite` switch (on when the project
+	// is incremental, off otherwise) rather than a knob of ours; the internal
+	// RT_CACHE_DIR env var overrides it for tests / direct-binary power users.
+	HashLength     *int  `json:"hashLength"`
+	SingleThreaded *bool `json:"singleThreaded"`
+	ParallelScan   *bool `json:"parallelScan"`
+	ParallelRender *bool `json:"parallelRender"`
 	// RunTypesGenDir is where `--compile` writes the generated cache modules
 	// (the emitted .js import them by relative path). Distinct from CacheDir (the
 	// incremental artifact cache under node_modules/.cache). A pointer so an

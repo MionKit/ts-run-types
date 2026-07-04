@@ -23,10 +23,11 @@ func baseFlags() buildFlags {
 	}
 }
 
-// TestMergeBuildOptions_DefaultsWhenEmpty: no flags, no plugin entry, inline
-// mode (hasTsconfig=false) yields exactly the binary defaults — caching off.
+// TestMergeBuildOptions_DefaultsWhenEmpty: no flags, no plugin entry yields
+// exactly the binary defaults (the RT cache is resolved separately, off the
+// project's incremental setting — not part of buildOptions).
 func TestMergeBuildOptions_DefaultsWhenEmpty(t *testing.T) {
-	got := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{}, false, "/proj")
+	got := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{}, "/proj")
 	want := buildOptions{
 		hashLength: 0, emitMode: "code", inlineMode: "default", moduleMode: "default",
 		runTypesGenDir: filepath.Join("/proj", "__runtypes"),
@@ -47,15 +48,13 @@ func TestMergeBuildOptions_TsconfigFillsGaps(t *testing.T) {
 		SingleThreaded: boolPtr(true),
 		ParallelScan:   boolPtr(false),
 		ParallelRender: boolPtr(false),
-		CacheDir:       strPtr("/abs/cache"),
 	}
-	got := mergeBuildOptions(baseFlags(), plugin, true, "/proj")
+	got := mergeBuildOptions(baseFlags(), plugin, "/proj")
 	want := buildOptions{
 		hashLength:            9,
 		singleThreaded:        true,
 		disableParallelScan:   true,
 		disableParallelRender: true,
-		cacheDir:              "/abs/cache",
 		runTypesGenDir:        filepath.Join("/proj", "__runtypes"),
 		emitMode:              "both",
 		inlineMode:            "allInternal",
@@ -115,7 +114,7 @@ func TestMergeBuildOptions_FlagOverridesTsconfig(t *testing.T) {
 		HashLength:     intPtr(9),   // shadowed by the flag
 		SingleThreaded: boolPtr(false),
 	}
-	got := mergeBuildOptions(flags, plugin, true, "/proj")
+	got := mergeBuildOptions(flags, plugin, "/proj")
 	if got.emitMode != "functions" {
 		t.Errorf("emitMode = %q, want flag value functions", got.emitMode)
 	}
@@ -133,11 +132,11 @@ func TestMergeBuildOptions_FlagOverridesTsconfig(t *testing.T) {
 // TestMergeBuildOptions_ParallelInversion: tsconfig parallelScan:true means
 // parallel-on (disable=false); :false means the serial path.
 func TestMergeBuildOptions_ParallelInversion(t *testing.T) {
-	on := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{ParallelScan: boolPtr(true), ParallelRender: boolPtr(true)}, true, "/proj")
+	on := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{ParallelScan: boolPtr(true), ParallelRender: boolPtr(true)}, "/proj")
 	if on.disableParallelScan || on.disableParallelRender {
 		t.Errorf("parallel:true should leave disable=false, got %+v", on)
 	}
-	off := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{ParallelScan: boolPtr(false), ParallelRender: boolPtr(false)}, true, "/proj")
+	off := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{ParallelScan: boolPtr(false), ParallelRender: boolPtr(false)}, "/proj")
 	if !off.disableParallelScan || !off.disableParallelRender {
 		t.Errorf("parallel:false should set disable=true, got %+v", off)
 	}
@@ -145,46 +144,33 @@ func TestMergeBuildOptions_ParallelInversion(t *testing.T) {
 	flags := baseFlags()
 	flags.set["no-parallel-scan"] = true
 	flags.noParallelScan = true
-	mixed := mergeBuildOptions(flags, tsRuntypesPlugin{ParallelScan: boolPtr(true)}, true, "/proj")
+	mixed := mergeBuildOptions(flags, tsRuntypesPlugin{ParallelScan: boolPtr(true)}, "/proj")
 	if !mixed.disableParallelScan {
 		t.Errorf("--no-parallel-scan flag should win over tsconfig parallelScan:true")
 	}
 }
 
-// TestResolveCacheDir covers the three cache layers + the node_modules default.
-func TestResolveCacheDir(t *testing.T) {
-	nodeModulesDefault := filepath.Join("/proj", "node_modules", ".cache", "ts-runtypes")
+// TestNormalizeCacheDir covers the internal RT_CACHE_DIR override normalization:
+// empty stays empty (explicit disable), absolute passes through, relative
+// anchors under cwd. The enable/incremental decision lives in the resolver
+// (resolver.cacheLocation); this helper only resolves the override path.
+func TestNormalizeCacheDir(t *testing.T) {
 	tests := []struct {
-		name        string
-		flags       buildFlags
-		plugin      tsRuntypesPlugin
-		hasTsconfig bool
-		want        string
+		name  string
+		value string
+		want  string
 	}{
-		{"inline mode, nothing set, caching off", baseFlags(), tsRuntypesPlugin{}, false, ""},
-		{"tsconfig mode default node_modules", baseFlags(), tsRuntypesPlugin{}, true, nodeModulesDefault},
-		{"tsconfig cacheDir absolute", baseFlags(), tsRuntypesPlugin{CacheDir: strPtr("/abs/c")}, true, "/abs/c"},
-		{"tsconfig cacheDir relative anchors under cwd", baseFlags(), tsRuntypesPlugin{CacheDir: strPtr(".cache/rt")}, true, filepath.Join("/proj", ".cache/rt")},
-		{"tsconfig cacheDir empty disables even in tsconfig mode", baseFlags(), tsRuntypesPlugin{CacheDir: strPtr("")}, true, ""},
+		{"empty stays empty (disable)", "", ""},
+		{"whitespace-only trims to empty", "  ", ""},
+		{"absolute passes through", "/abs/c", "/abs/c"},
+		{"relative anchors under cwd", ".cache/rt", filepath.Join("/proj", ".cache/rt")},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := resolveCacheDir(test.flags, test.plugin, test.hasTsconfig, "/proj"); got != test.want {
-				t.Errorf("resolveCacheDir = %q, want %q", got, test.want)
+			if got := normalizeCacheDir(test.value, "/proj"); got != test.want {
+				t.Errorf("normalizeCacheDir(%q) = %q, want %q", test.value, got, test.want)
 			}
 		})
-	}
-
-	// An explicit --cache-dir flag wins; an explicit empty flag disables.
-	flags := baseFlags()
-	flags.set["cache-dir"] = true
-	flags.cacheDir = "/flag/c"
-	if got := resolveCacheDir(flags, tsRuntypesPlugin{CacheDir: strPtr("/abs/c")}, true, "/proj"); got != "/flag/c" {
-		t.Errorf("flag cacheDir should win, got %q", got)
-	}
-	flags.cacheDir = ""
-	if got := resolveCacheDir(flags, tsRuntypesPlugin{CacheDir: strPtr("/abs/c")}, true, "/proj"); got != "" {
-		t.Errorf("explicit empty --cache-dir should disable, got %q", got)
 	}
 }
 
@@ -204,7 +190,6 @@ func TestResolveBuildPlugin(t *testing.T) {
         "hashLength": 9,
         "singleThreaded": true,
         "parallelScan": false,
-        "cacheDir": ".cache/rt",
         "runTypesGenDir": "gen/rt",
       },
     ],
@@ -227,9 +212,6 @@ func TestResolveBuildPlugin(t *testing.T) {
 	if plugin.ParallelScan == nil || *plugin.ParallelScan {
 		t.Errorf("parallelScan pointer = %v, want false", plugin.ParallelScan)
 	}
-	if plugin.CacheDir == nil || *plugin.CacheDir != ".cache/rt" {
-		t.Errorf("cacheDir pointer = %v, want .cache/rt", plugin.CacheDir)
-	}
 	if plugin.RunTypesGenDir == nil || *plugin.RunTypesGenDir != "gen/rt" {
 		t.Errorf("runTypesGenDir pointer = %v, want gen/rt", plugin.RunTypesGenDir)
 	}
@@ -250,10 +232,20 @@ func TestUnknownPluginKeys(t *testing.T) {
 	}
 
 	allKnown := withConfig(t, `{ "compilerOptions": { "plugins": [
-    { "name": "ts-runtypes", "emitMode": "both", "hashLength": 7, "cacheDir": ".c", "runTypesGenDir": "gen" }
+    { "name": "ts-runtypes", "emitMode": "both", "hashLength": 7, "runTypesGenDir": "gen" }
   ] } }`)
 	if got := unknownPluginKeys(allKnown, ""); len(got) != 0 {
 		t.Errorf("recognised keys should not warn, got %v", got)
+	}
+
+	// cacheDir is no longer a recognised key — the RT cache follows the
+	// project's incremental setting, not a plugin knob — so it warns like any
+	// other unknown key (a project still carrying it gets a nudge to remove it).
+	removedCacheDir := withConfig(t, `{ "compilerOptions": { "plugins": [
+    { "name": "ts-runtypes", "cacheDir": ".cache/rt" }
+  ] } }`)
+	if got := unknownPluginKeys(removedCacheDir, ""); len(got) != 1 || got[0] != "cacheDir" {
+		t.Errorf("removed cacheDir key should warn, got %v", got)
 	}
 
 	typos := withConfig(t, `{ "compilerOptions": { "plugins": [

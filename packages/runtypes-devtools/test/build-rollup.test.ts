@@ -46,8 +46,8 @@ describe('rollup build / runtypes-devtools/rollup entry', () => {
       const plugin = runtypesRollup({
         binary: BIN,
         cwd: PACKAGE_ROOT,
+        // tsconfig.test.json is incremental:false → RT disk cache off.
         tsconfig: 'tsconfig.test.json',
-        cacheDir: false,
         outDir: OUT_DIR,
       }) as any;
       expect(plugin.name).toBe('runtypes-devtools');

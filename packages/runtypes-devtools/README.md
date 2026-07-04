@@ -59,16 +59,17 @@ export default {
 
 ## Options
 
-| Option                            | Default                           | Description                                                       |
-| --------------------------------- | --------------------------------- | ----------------------------------------------------------------- |
-| `binary`                          | auto (via `ts-runtypes-bin`)      | Path to a custom `ts-runtypes` binary.                            |
-| `cwd`                             | bundler root                      | Project root (where `tsconfig.json` lives).                       |
-| `tsconfig`                        | `"tsconfig.json"`                 | tsconfig path, relative to `cwd`.                                 |
-| `emitMode`                        | `"code"`                          | What each cache entry ships: `code`, `functions`, or `both`.      |
-| `cacheDir`                        | `node_modules/.cache/ts-runtypes` | On-disk artifact cache; pass `false` to disable.                  |
-| `moduleMode`                      | `"default"`                       | Virtual-module grouping: `default`, `allSingle`, `allModules`.    |
-| `inlineMode`                      | `"default"`                       | Child-inlining policy: `default` or `allInternal`.                |
-| `parallelScan` / `parallelRender` | `true`                            | Opt out of the resolver's parallel phases (benchmarking / debug). |
+| Option                            | Default                      | Description                                                       |
+| --------------------------------- | ---------------------------- | ----------------------------------------------------------------- |
+| `binary`                          | auto (via `ts-runtypes-bin`) | Path to a custom `ts-runtypes` binary.                            |
+| `cwd`                             | bundler root                 | Project root (where `tsconfig.json` lives).                       |
+| `tsconfig`                        | `"tsconfig.json"`            | tsconfig path, relative to `cwd`.                                 |
+| `emitMode`                        | `"code"`                     | What each cache entry ships: `code`, `functions`, or `both`.      |
+| `moduleMode`                      | `"default"`                  | Virtual-module grouping: `default`, `allSingle`, `allModules`.    |
+| `inlineMode`                      | `"default"`                  | Child-inlining policy: `default` or `allInternal`.                |
+| `parallelScan` / `parallelRender` | `true`                       | Opt out of the resolver's parallel phases (benchmarking / debug). |
+
+The on-disk artifact cache (`node_modules/.cache/ts-runtypes`) has no option here: it follows TypeScript's `incremental` / `composite` tsconfig setting (on when your project is incremental, off otherwise).
 
 ## Status
 

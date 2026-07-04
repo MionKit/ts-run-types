@@ -47,12 +47,12 @@ export default defineConfig({
       // are smaller; runtimes without `new Function` opt into 'functions' or
       // 'both' on the plugin themselves.
       emitMode: 'both',
-      // Disable the on-disk RT artifact cache for test runs. The
-      // disk-cache feature has its own dedicated end-to-end suite in
-      // runtypes-devtools/test/cache-disk.test.ts (which points at
-      // os.tmpdir()); the marker package's tests should not pollute
-      // node_modules/.cache with thousands of artifact files.
-      cacheDir: false,
+      // The on-disk RT artifact cache follows TypeScript's incremental switch,
+      // and `tsconfig.test.json` sets `incremental: false`, so these test runs
+      // are cache-off with no knob — they never pollute node_modules/.cache
+      // with thousands of artifact files. The disk-cache feature has its own
+      // dedicated end-to-end suite (runtypes-devtools/test/cache-disk.test.ts,
+      // which forces the cache on at an os.tmpdir() path).
     }),
   ],
   test: {

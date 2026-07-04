@@ -20,7 +20,6 @@ type buildFlags struct {
 	singleThreaded   bool
 	noParallelScan   bool
 	noParallelRender bool
-	cacheDir         string
 	runTypesGenDir   string
 	emitMode         string
 	inlineMode       string
@@ -37,7 +36,6 @@ type buildOptions struct {
 	singleThreaded        bool
 	disableParallelScan   bool
 	disableParallelRender bool
-	cacheDir              string
 	runTypesGenDir        string
 	emitMode              string
 	inlineMode            string
@@ -51,11 +49,11 @@ type buildOptions struct {
 // mergeBuildOptions resolves the effective build configuration from the CLI
 // flags and the tsconfig plugin entry. Precedence (highest first): an
 // explicitly-set flag, then the tsconfig plugin entry, then the binary default
-// the flag already carries. hasTsconfig is true only in the on-disk-tsconfig
-// mode (program.New); it gates the node_modules cache default so the inline /
-// server test modes stay cache-off unless a flag turns caching on. absCwd
-// anchors relative cacheDir values.
-func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, hasTsconfig bool, absCwd string) buildOptions {
+// the flag already carries. absCwd anchors relative path values (runTypesGenDir).
+// The RT disk cache is NOT resolved here — it follows the project's incremental
+// setting (see resolver.Options.CacheFollowsIncremental) with the internal
+// RT_CACHE_DIR env override applied in main.go.
+func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string) buildOptions {
 	// emit / inline / module-mode flags are declared with the binary default
 	// as their flag default, so an unset flag already holds the default; a
 	// present tsconfig value overrides only when the flag was not passed.
@@ -113,7 +111,6 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, hasTsconfig bo
 		out.disableParallelRender = !*plugin.ParallelRender
 	}
 
-	out.cacheDir = resolveCacheDir(flags, plugin, hasTsconfig, absCwd)
 	out.runTypesGenDir = resolveRunTypesGenDir(flags, plugin, absCwd)
 	return out
 }
@@ -140,21 +137,11 @@ func resolveRunTypesGenDir(flags buildFlags, plugin tsRuntypesPlugin, absCwd str
 	return value
 }
 
-// resolveCacheDir layers the cache location: an explicit --cache-dir flag wins
-// (an explicit empty value disables caching); then the tsconfig cacheDir; then,
-// only in the on-disk-tsconfig mode, the canonical
-// <cwd>/node_modules/.cache/ts-runtypes default the host plugin used to inject.
-// Relative values resolve under absCwd. An empty result disables caching.
-func resolveCacheDir(flags buildFlags, plugin tsRuntypesPlugin, hasTsconfig bool, absCwd string) string {
-	value := ""
-	switch {
-	case flags.set["cache-dir"]:
-		value = strings.TrimSpace(flags.cacheDir)
-	case plugin.CacheDir != nil:
-		value = strings.TrimSpace(*plugin.CacheDir)
-	case hasTsconfig:
-		value = filepath.Join(absCwd, "node_modules", ".cache", "ts-runtypes")
-	}
+// normalizeCacheDir resolves the internal RT_CACHE_DIR override value to an
+// absolute path (empty stays empty — an explicit disable). Relative values
+// anchor under absCwd, matching how runTypesGenDir resolves.
+func normalizeCacheDir(value, absCwd string) string {
+	value = strings.TrimSpace(value)
 	if value == "" {
 		return ""
 	}

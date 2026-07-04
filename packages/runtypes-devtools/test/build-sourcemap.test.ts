@@ -56,8 +56,8 @@ describe.each(['edits', 'go'] as const)('vite build / composite source map [tran
           runtypes({
             binary: BIN,
             cwd: PACKAGE_ROOT,
+            // tsconfig.test.json is incremental:false → RT disk cache off.
             tsconfig: 'tsconfig.test.json',
-            cacheDir: false,
             transformMode: mode,
             // Isolated output root so this nested build never shares (and
             // prunes) the marker package's own vitest `__runtypes/types` dir —

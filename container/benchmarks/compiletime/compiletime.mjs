@@ -129,6 +129,11 @@ async function setupFull() {
   fullMs = async () => {
     wipe(RT_CACHE);
     wipe(VITE_CACHE);
+    // The RT disk cache follows the project's incremental setting; force it on
+    // at RT_CACHE (a wipeable location) via the internal RT_CACHE_DIR env so
+    // each run starts cold (wiped above) and the cache never lands in the
+    // competitor's node_modules. The plugin's resolver child inherits this env.
+    process.env.RT_CACHE_DIR = RT_CACHE;
     const t0 = process.hrtime.bigint();
     await viteBuild({
       configFile: false,
@@ -136,7 +141,7 @@ async function setupFull() {
       logLevel: 'silent',
       clearScreen: false,
       cacheDir: VITE_CACHE,
-      plugins: [rtPlugin({binary: RT_BINARY, cwd: COMPETITOR_DIR, tsconfig: '__compiletime_tsconfig.json', cacheDir: RT_CACHE})],
+      plugins: [rtPlugin({binary: RT_BINARY, cwd: COMPETITOR_DIR, tsconfig: '__compiletime_tsconfig.json'})],
       build: {ssr: PROBE, outDir: OUT_DIR, write: true, minify: false, target: 'node22', emptyOutDir: true, reportCompressedSize: false, rollupOptions: {onwarn() {}}},
     });
     return Number(process.hrtime.bigint() - t0) / 1e6;
