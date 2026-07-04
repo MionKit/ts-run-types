@@ -191,6 +191,13 @@ func composeEmittedMap(text, mapPath, cwd string, mapAByAbs map[string]*protocol
 		return text // un-rewritten file: js → original already
 	}
 	composed := transform.ComposeMaps(mapA, &mapB)
+	// Map A carried the ABSOLUTE source path; tsc convention is a path relative
+	// to the .map file (portable when the output dir moves). Match it.
+	if len(composed.Sources) == 1 && filepath.IsAbs(composed.Sources[0]) {
+		if rel, relErr := filepath.Rel(filepath.Dir(mapPath), composed.Sources[0]); relErr == nil {
+			composed.Sources[0] = filepath.ToSlash(rel)
+		}
+	}
 	encoded, err := json.Marshal(composed)
 	if err != nil {
 		return text

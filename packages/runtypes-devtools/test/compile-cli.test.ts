@@ -1,0 +1,94 @@
+// End-to-end for the tsc-style compile CLI (`ts-runtypes --compile`): a real
+// temp project is compiled by spawning the binary, and we assert (1) the emitted
+// .js has the rewrite applied with the binding import relativized to the cache
+// dir, (2) the composed source map points at the ORIGINAL .ts line (not the
+// import-shifted rewritten line), and (3) the generated cache module actually
+// materializes a WORKING validator at runtime.
+import {describe, expect, it} from 'vitest';
+import {spawnSync} from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {BIN, hasBinary} from './helpers/inline.ts';
+import {decodeMappings} from './helpers/sourcemap.ts';
+
+const register = hasBinary() ? it : it.skip;
+
+const RUNTYPES_DTS = `declare module 'ts-runtypes' {
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
+  export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
+  export type ValidateFn = (value: unknown) => boolean;
+  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<{noLiterals?: boolean}>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
+}
+`;
+
+const TSCONFIG = `{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
+    "rootDir": "src", "outDir": "dist", "sourceMap": true, "strict": true
+  },
+  "include": ["src"]
+}
+`;
+
+// The createValidate call sits on original line 5 (0-based).
+const USER_TS = `import {createValidate} from 'ts-runtypes';
+interface User {
+  id: number;
+  name: string;
+}
+export const isUser = createValidate<User>();
+`;
+
+describe('ts-runtypes --compile (tsc-like CLI)', () => {
+  register('emits .js with a composed map back to the original source and a working cache', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-compile-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'tsconfig.json'), TSCONFIG);
+      fs.mkdirSync(path.join(dir, 'src'));
+      fs.writeFileSync(path.join(dir, 'src', 'runtypes.d.ts'), RUNTYPES_DTS);
+      fs.writeFileSync(path.join(dir, 'src', 'user.ts'), USER_TS);
+
+      const run = spawnSync(
+        BIN,
+        ['--compile', '--cwd', dir, '--tsconfig', 'tsconfig.json', '--compile-cache-dir', path.join(dir, '__runtypes')],
+        {encoding: 'utf8'}
+      );
+      expect(run.status, run.stderr).toBe(0);
+
+      // (1) Emitted .js: types stripped, binding import relativized, call rewritten.
+      const js = fs.readFileSync(path.join(dir, 'dist', 'user.js'), 'utf8');
+      expect(js).not.toContain('virtual:rt');
+      expect(js).toMatch(/import \{\s*__rt_[A-Za-z0-9_$]+\s*\} from '\.\.\/__runtypes\/types\/[A-Za-z0-9_$]+\.js'/);
+      expect(js).toMatch(/createValidate\(undefined, undefined, __rt_[A-Za-z0-9_$]+\)/);
+
+      // (2) Composed map: the call's generated line maps back to ORIGINAL line 5,
+      // and NO segment references a line beyond the original file (5) — a leaked
+      // rewritten (import-shifted) line would exceed it.
+      const map = JSON.parse(fs.readFileSync(path.join(dir, 'dist', 'user.js.map'), 'utf8'));
+      expect(map.sources).toHaveLength(1);
+      expect(map.sources[0]).toMatch(/user\.ts$/);
+      const originalLines = decodeMappings(map.mappings)
+        .flat()
+        .map((s) => s.originalLine);
+      expect(Math.max(...originalLines)).toBeLessThanOrEqual(5);
+      expect(originalLines).toContain(5);
+
+      // (3) The generated cache module materializes a WORKING validator.
+      const cacheDir = path.join(dir, '__runtypes', 'types');
+      const cacheFile = fs.readdirSync(cacheDir).find((f) => f.endsWith('.js'))!;
+      const cacheSource = fs.readFileSync(path.join(cacheDir, cacheFile), 'utf8');
+      // The entry tuple's code slot is the validator body: `function X(v){…}return X`.
+      const body = cacheSource.match(/'(function [A-Za-z0-9_$]+\(v\)\{.*return [A-Za-z0-9_$]+)'/s)?.[1];
+      expect(body, `no validator body found in ${cacheSource}`).toBeDefined();
+      const unescaped = body!.replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+      const validate = new Function('utl', unescaped)({}) as (v: unknown) => boolean;
+      expect(validate({id: 1, name: 'mario'})).toBe(true);
+      expect(validate({id: 'not-a-number', name: 'mario'})).toBe(false);
+      expect(validate({id: 1})).toBe(false);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+});
