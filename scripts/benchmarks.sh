@@ -27,6 +27,7 @@
 #   scripts/benchmarks.sh website-bench     # ALL website bench data in one shot (Node 26)
 #   scripts/benchmarks.sh typecost          # per-competitor type-instantiation cost
 #   scripts/benchmarks.sh compiletime       # tsgo build cost: strip / typecheck / full (ts-runtypes, typia)
+#   scripts/benchmarks.sh transform-wire    # transform wire cost: 'go' vs 'edits' (size x density x file count)
 #   scripts/benchmarks.sh capture-env       # write results/env.json (os / cpu / lib versions)
 #   scripts/benchmarks.sh build [<name>]    # vite build only (all, or one competitor)
 #   scripts/benchmarks.sh smoke             # quick verify: build every competitor's dist
@@ -201,6 +202,14 @@ mount_args() {
     case "$base" in node_modules|package.json|dist) continue ;; esac
     printf -- '-v\n%s:/bench/compiletime/%s:ro%s\n' "$f" "$base" "$MOUNT_OPTS"
   done
+  # The transform-wire runner (drives runtypes-devtools' ResolverClient over a
+  # synthetic corpus to compare 'go' vs 'edits' transform wire cost).
+  for f in "$BENCH_DIR"/transform-wire/*; do
+    [ -e "$f" ] || continue
+    base="$(basename "$f")"
+    case "$base" in node_modules|package.json|dist) continue ;; esac
+    printf -- '-v\n%s:/bench/transform-wire/%s:ro%s\n' "$f" "$base" "$MOUNT_OPTS"
+  done
   printf -- '-v\n%s:/bench/aggregate.mjs:ro%s\n' "$BENCH_DIR/aggregate.mjs" "$MOUNT_OPTS"
   printf -- '-v\n%s:/bench/capture-env.mjs:ro%s\n' "$BENCH_DIR/capture-env.mjs" "$MOUNT_OPTS"
   printf -- '-v\n%s:/bench/tsconfig.base.json:ro%s\n' "$BENCH_DIR/tsconfig.base.json" "$MOUNT_OPTS"
@@ -244,6 +253,8 @@ env_args() {
   [ -n "${RT_BENCH_DUMP:-}" ] && printf -- '-e\nRT_BENCH_DUMP=%s\n' "$RT_BENCH_DUMP"
   # compile-time bench: per-section repeat count (median of N, drop top+bottom).
   [ -n "${RT_COMPILETIME_N:-}" ] && printf -- '-e\nRT_COMPILETIME_N=%s\n' "$RT_COMPILETIME_N"
+  # transform-wire bench: per-cell repeat count (median of N).
+  [ -n "${RT_TRANSFORM_WIRE_N:-}" ] && printf -- '-e\nRT_TRANSFORM_WIRE_N=%s\n' "$RT_TRANSFORM_WIRE_N"
   # Fast/preview mode flag - runners that have their own quick lever read it.
   [ "${RT_BENCH_QUICK:-}" = 1 ] && printf -- '-e\nRT_BENCH_QUICK=1\n'
   return 0
@@ -446,6 +457,16 @@ cmd_compiletime() {
   publish_docdata
 }
 
+cmd_transform_wire() {
+  ensure_prereqs
+  mkdir -p "$RESULTS_DIR"
+  echo "==> measuring transform wire cost ('go' vs 'edits', swept over size x density x file count) in the container"
+  rm -f "$RESULTS_DIR/transform-wire.json" 2>/dev/null || true
+  run_in_container sh -c "cd competitors/ts-runtypes && node ../../transform-wire/transform-wire.mjs" \
+    || echo "==> transform-wire FAILED - see output above"
+  publish_docdata
+}
+
 cmd_smoke() {
   ensure_prereqs
   echo "==> smoke: build every competitor's dist (no run)"
@@ -485,9 +506,10 @@ apply_quick() {
   [ "${RT_BENCH_QUICK:-}" = 1 ] || return 0
   [ -z "${RT_BENCH_TIME_MS+set}" ] && RT_BENCH_TIME_MS=20                       # runtime: short per-cell window (vs 100ms)
   [ -z "${RT_COMPILETIME_N+set}" ] && RT_COMPILETIME_N=1                        # compile-time: single repeat (vs 5)
+  [ -z "${RT_TRANSFORM_WIRE_N+set}" ] && RT_TRANSFORM_WIRE_N=1                  # transform-wire: single repeat (vs 5)
   [ -z "${RT_BENCH_NO_TYPIA+set}" ] && RT_BENCH_NO_TYPIA=1                      # skip typia (its native build dominates)
   [ -z "${RT_COMPILETIME_COMPETITORS+set}" ] && RT_COMPILETIME_COMPETITORS=ts-runtypes
-  export RT_BENCH_QUICK RT_BENCH_TIME_MS RT_COMPILETIME_N RT_BENCH_NO_TYPIA RT_COMPILETIME_COMPETITORS
+  export RT_BENCH_QUICK RT_BENCH_TIME_MS RT_COMPILETIME_N RT_TRANSFORM_WIRE_N RT_BENCH_NO_TYPIA RT_COMPILETIME_COMPETITORS
   echo "==> RT_BENCH_QUICK on: fast/preview mode (RT_BENCH_TIME_MS=$RT_BENCH_TIME_MS, RT_COMPILETIME_N=$RT_COMPILETIME_N, typia skipped, serialization iters reduced). Numbers are noisy." >&2
 }
 
@@ -505,13 +527,14 @@ main() {
     audit)       require_engine; cmd_audit ;;
     typecost)    require_engine; cmd_typecost ;;
     compiletime) require_engine; cmd_compiletime ;;
+    transform-wire) require_engine; cmd_transform_wire ;;
     capture-env) require_engine; ensure_prereqs; run_in_container node capture-env.mjs ;;
     shell)       require_engine; cmd_shell ;;
     login)       cmd_login ;;
     push)        cmd_push ;;
     pull)        cmd_pull ;;
     clean)       require_engine; cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | fullbench | serialization | website-bench | build [<name>] | smoke | audit | typecost | compiletime | shell | login | push | pull | clean" ;;
+    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | fullbench | serialization | website-bench | build [<name>] | smoke | audit | typecost | compiletime | transform-wire | shell | login | push | pull | clean" ;;
   esac
 }
 
