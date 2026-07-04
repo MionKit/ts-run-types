@@ -74,6 +74,6 @@
     }
   },
   "devDependencies": {
-    "vite": "5.4.10"
+    "vite": "8.0.16"
   }
 }
