@@ -223,7 +223,7 @@ func Scaffold(spec Spec, existing string) (string, []string, error) {
 	var blocks []string
 	for _, named := range spec.Consts {
 		if spec.WantFriendly && !HasExport(existing, named.FriendlyVar) {
-			blocks = append(blocks, ConstBlock(named.FriendlyVar, enrich.FriendlyTypeName, named, named.Friendly))
+			blocks = append(blocks, ConstBlock(named.FriendlyVar, enrich.FriendlyTextName, named, named.Friendly))
 			added = append(added, named.FriendlyVar)
 		}
 		if spec.WantMock && !HasExport(existing, named.MockVar) {
@@ -298,11 +298,11 @@ func writeMirrorHeader(builder *strings.Builder, spec Spec, blocks []string) {
 // dslTypeNames lists the ts-runtypes wrapper types a mirror file's consts
 // annotate with, per the spec's family flags: a friendly-family file (the
 // source language and every per-locale translation file alike) imports only
-// FriendlyType, a mock-family file only MockData, a combined (--out) file both.
+// FriendlyText, a mock-family file only MockData, a combined (--out) file both.
 func dslTypeNames(spec Spec) []string {
 	var names []string
 	if spec.WantFriendly {
-		names = append(names, enrich.FriendlyTypeName)
+		names = append(names, enrich.FriendlyTextName)
 	}
 	if spec.WantMock {
 		names = append(names, enrich.MockDataName)

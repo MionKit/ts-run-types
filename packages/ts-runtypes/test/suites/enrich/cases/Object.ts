@@ -1,11 +1,11 @@
-import type {FriendlyType, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Object-like kinds — interfaces / object literals / intersections. Friendly
 // emits `{rt$label: '', <field>: <node>, …}`; mock emits `{<field>: <node>, …}`.
 // Mirrors the validation suite's OBJECT range. (Bare index-signature roots are
 // excluded: the emitter projects them as a `{rt$label: ''}` leaf, but
-// `FriendlyType<{[k: string]: V}>` makes EVERY string key a node — `rt$label`
+// `FriendlyText<{[k: string]: V}>` makes EVERY string key a node — `rt$label`
 // then collides with the index signature, so the leaf isn't type-checkable. The
 // validation suite exercises index signatures as object MEMBERS, not roots.)
 export const OBJECT = {
@@ -15,7 +15,7 @@ export const OBJECT = {
       // ##### src #####
       type Target = {a: string; b: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         a: {rt$label: '', rt$errors: {type: ''}},
@@ -37,7 +37,7 @@ export const OBJECT = {
       // ##### src #####
       type Target = {a: string; b?: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         a: {rt$label: '', rt$errors: {type: ''}},
@@ -59,7 +59,7 @@ export const OBJECT = {
       // ##### src #####
       type Target = {a: string; deep: {b: string; c: number}};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         a: {rt$label: '', rt$errors: {type: ''}},
@@ -89,7 +89,7 @@ export const OBJECT = {
       // ##### src #####
       type Target = {readonly name: string; readonly age: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         name: {rt$label: '', rt$errors: {type: ''}},
@@ -111,7 +111,7 @@ export const OBJECT = {
       // ##### src #####
       type Target = {a: string} & {b: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         a: {rt$label: '', rt$errors: {type: ''}},
@@ -133,7 +133,7 @@ export const OBJECT = {
       // ##### src #####
       type Target = {a: {b: {c: string}}};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         a: {
@@ -165,7 +165,7 @@ export const OBJECT = {
       // ##### src #####
       type Target = {s: string; n: number; b: boolean; d: Date; big: bigint};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         s: {rt$label: '', rt$errors: {type: ''}},
@@ -193,7 +193,7 @@ export const OBJECT = {
       // ##### src #####
       type Target = {tags: string[]};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         tags: {rt$label: '', rt$errors: {type: ''}, rt$items: {rt$label: '', rt$errors: {type: ''}}},

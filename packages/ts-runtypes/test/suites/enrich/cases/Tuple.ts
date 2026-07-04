@@ -1,12 +1,12 @@
-import type {FriendlyType, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Tuple kinds. The emitter reflects tuple STRUCTURE (solution A): a fixed-length
 // tuple emits friendly `{rt$label: '', rt$slots: [node, …]}` and mock `{rt$slots:
 // [node, …]}` (fixed length, no `rt$length`) — one node per slot. A VARIADIC tuple
-// (`[A, ...B[]]`) has a broad `length: number`, so the `FriendlyType`/`MockData`
+// (`[A, ...B[]]`) has a broad `length: number`, so the `FriendlyText`/`MockData`
 // mapped types route it through the ARRAY branch (`rt$items`/`rt$length`); the
-// emitter mirrors that. Both shapes are valid `FriendlyType<Target>` /
+// emitter mirrors that. Both shapes are valid `FriendlyText<Target>` /
 // `MockData<Target>` — no `as` cast needed. Mirrors the validation suite's
 // TUPLE range.
 export const TUPLE = {
@@ -16,7 +16,7 @@ export const TUPLE = {
       // ##### src #####
       type Target = [string, number];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$slots: [
@@ -37,7 +37,7 @@ export const TUPLE = {
       // ##### src #####
       type Target = [string];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$slots: [{rt$label: '', rt$errors: {type: ''}}],
@@ -55,7 +55,7 @@ export const TUPLE = {
       // ##### src #####
       type Target = [name: string, age: number];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$slots: [
@@ -76,7 +76,7 @@ export const TUPLE = {
       // ##### src #####
       type Target = [number, bigint?, boolean?, number?];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$slots: [
@@ -101,7 +101,7 @@ export const TUPLE = {
       // ##### friendly #####
       // A variadic tuple has `length: number`, so the type (and emitter) treat
       // it as an array — `rt$items`, not `rt$slots`.
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$items: {rt$label: '', rt$errors: {type: ''}},
@@ -119,7 +119,7 @@ export const TUPLE = {
       // ##### src #####
       type Target = readonly [string, number];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$slots: [
@@ -140,7 +140,7 @@ export const TUPLE = {
       // ##### src #####
       type Target = [Date, number, string, null, bigint];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$slots: [
@@ -164,7 +164,7 @@ export const TUPLE = {
       // ##### src #####
       type Target = [];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}, rt$slots: []};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}, rt$slots: []};
       // ##### mock #####
       const mockTarget: MockData<Target> = {rt$slots: []};
       // ##### result #####

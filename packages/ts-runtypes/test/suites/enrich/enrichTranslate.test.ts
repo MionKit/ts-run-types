@@ -80,9 +80,9 @@ describe('enrichment i18n — gen --translate', () => {
 
     const translation = readTranslation(fixture, 'pl');
     expect(translation, 'one type annotates every friendly-family const').toContain(
-      'export const pl_friendlyUser: FriendlyType<User>'
+      'export const pl_friendlyUser: FriendlyText<User>'
     );
-    expect(translation).toContain("import type { FriendlyType } from 'ts-runtypes'");
+    expect(translation).toContain("import type { FriendlyText } from 'ts-runtypes'");
     expect(translation, 'breadcrumb is the ordinary src type import').toContain("from '../../../../src/models'");
     expect(translation, 'plural keys carry the TARGET locale arms').toContain(
       "minLength: {one: '', few: '', many: '', other: ''}"
@@ -167,7 +167,7 @@ describe('enrichment i18n — gen --translate', () => {
     expect(status, out).toBe(0);
     expect(existsSync(translationPath(fixture, 'es'))).toBe(true);
     expect(existsSync(translationPath(fixture, 'pt-BR'))).toBe(true);
-    expect(readTranslation(fixture, 'pt-BR')).toContain('export const pt_BR_friendlyUser: FriendlyType<User>');
+    expect(readTranslation(fixture, 'pt-BR')).toContain('export const pt_BR_friendlyUser: FriendlyText<User>');
   });
 
   it('--translate --prune strips translation carcasses', () => {

@@ -28,10 +28,10 @@ describe.runIf(ready)('oxlint end to end (jsPlugins)', () => {
       'user.ts': 'export interface User {\n  name: string;\n}\n',
       'mirror.ts':
         "import type { User } from './user';\n" +
-        "import type { FriendlyType } from 'ts-runtypes';\n\n" +
+        "import type { FriendlyText } from 'ts-runtypes';\n\n" +
         '/** @rtType User#u1 @rtIds {name: n1} */\n' +
         `${TODO_LINE}\n` +
-        'export const friendlyUser: FriendlyType<User> = {\n' +
+        'export const friendlyUser: FriendlyText<User> = {\n' +
         "  name: {rt$label: 'Name'},\n" +
         "  nope: {rt$label: 'Gone'},\n" +
         '};\n',

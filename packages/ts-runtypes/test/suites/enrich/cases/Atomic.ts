@@ -1,4 +1,4 @@
-import type {FriendlyType, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Atomic kinds — every primitive / literal / native-leaf produces a leaf
@@ -11,7 +11,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = string;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -25,7 +25,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = number;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -39,7 +39,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = boolean;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -53,7 +53,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = bigint;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -67,7 +67,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = Date;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -81,7 +81,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = RegExp;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -95,7 +95,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = null;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -109,7 +109,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = undefined;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -123,7 +123,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = void;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -137,7 +137,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = 2;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -151,7 +151,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = 'a';
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -165,7 +165,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = true;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -179,7 +179,7 @@ export const ATOMIC = {
       // ##### src #####
       type Target = 1n;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####

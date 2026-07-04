@@ -25,10 +25,10 @@ export {type DataOnly} from './runtypes/dataOnly.ts';
 export {type Static} from './schema/static.ts';
 
 // AI enrichment — type-keyed, committed maps validated against `T` at scan time
-// (see docs/AI_ENRICHMENT.md). `FriendlyType<T>` combines labels + error
+// (see docs/AI_ENRICHMENT.md). `FriendlyText<T>` combines labels + error
 // templates; `MockData<T>` carries sample pools/ranges feeding `createMockType`.
 export {
-  type FriendlyType,
+  type FriendlyText,
   type FriendlyNode,
   type FriendlyMeta,
   type ErrorTemplates,
@@ -36,7 +36,10 @@ export {
   type PluralCategory,
   type PluralTemplate,
   type TemplateLeaf,
-} from './enrich/friendlyType.ts';
+} from './enrich/friendlyText.ts';
+import type {FriendlyText} from './enrich/friendlyText.ts';
+/** @deprecated Renamed to `FriendlyText`. This alias is kept for one release; migrate `FriendlyType<T>` → `FriendlyText<T>`. */
+export type FriendlyType<T> = FriendlyText<T>;
 export {type MockData, type MockNode} from './enrich/mockData.ts';
 // Pure-data runtime: render `getValidationErrors` output into human messages.
 // `createFriendlyI18n` is the locale-selecting wrapper over the same walk: the

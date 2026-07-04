@@ -205,7 +205,7 @@ func declFileForSymbol(symbol *ast.Symbol) string {
 // ProjectType projects an already-resolved checker type through cache to a
 // canonical, fully-inlined *Resolved — the shape the enrichment walkers expect.
 // Use this when the caller already holds the *checker.Type for the type of
-// interest (e.g. the `check` command, which reads T off a `FriendlyType<T>`
+// interest (e.g. the `check` command, which reads T off a `FriendlyText<T>`
 // annotation's type argument) rather than a named declaration in a file.
 // Returns nil when the projection yields no node.
 func ProjectType(cache *runtype.Cache, tsType *checker.Type) *Resolved {

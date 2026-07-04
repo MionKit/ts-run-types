@@ -496,21 +496,21 @@ var messagesByCode = map[string]message{
 		Detail:   "Same reason as VL021: `any` and `unknown` describe \"anything\", so the\nchecker has no structure to compare against. The returned error array\nwill always be empty.\n\nFix — narrow the type to the actual shape you expect:\n  -  const errors = createGetValidationErrors<unknown>()(value);\n+  const errors = createGetValidationErrors<User>()(value);",
 	},
 
-	// ─────────── FriendlyType mirror files (FTxxx) ───────────
+	// ─────────── FriendlyText mirror files (FTxxx) ───────────
 	//
 	// Since the per-family mirror split, a source type enriches into TWO
-	// generated files: a FriendlyType mirror (labels + error messages, plus
+	// generated files: a FriendlyText mirror (labels + error messages, plus
 	// its per-locale translation twins) and a MockData mirror. FT codes fire
-	// in the FriendlyType file, MD codes in the MockData file; the shared
+	// in the FriendlyText file, MD codes in the MockData file; the shared
 	// gen/prune/update commands regenerate both.
 
 	CodeFriendlyUnknownField: {
-		Headline: "Unknown field `{0}` — the type does not declare it, so this FriendlyType entry is dead.",
-		Detail:   "The FriendlyType map names a field the source type does not have\n(removed, renamed, or a typo). Its labels and messages can never be\nused.\n\nExample — `nick` no longer exists on the type:\n  interface User { name: string }\n  export const friendlyUser: FriendlyType<User> = {\n    name: {rt$label: 'Name'},\n-   nick: {rt$label: 'Nickname'},\n  };\n\nFix — remove the entry, or re-run the reconcile so the mirror follows\nthe type (a renamed field carries its authored values along):\n  ts-runtypes gen <source.ts> <Type> --update",
+		Headline: "Unknown field `{0}` — the type does not declare it, so this FriendlyText entry is dead.",
+		Detail:   "The FriendlyText map names a field the source type does not have\n(removed, renamed, or a typo). Its labels and messages can never be\nused.\n\nExample — `nick` no longer exists on the type:\n  interface User { name: string }\n  export const friendlyUser: FriendlyText<User> = {\n    name: {rt$label: 'Name'},\n-   nick: {rt$label: 'Nickname'},\n  };\n\nFix — remove the entry, or re-run the reconcile so the mirror follows\nthe type (a renamed field carries its authored values along):\n  ts-runtypes gen <source.ts> <Type> --update",
 	},
 	CodeFriendlyUnknownConstraint: {
 		Headline: "Error key `{0}` is not a declared constraint of this field — the message can never fire.",
-		Detail:   "`rt$errors` keys must name a failure the field can actually produce:\n`type`, `rt$default`, or one of the field's declared format constraints\n(`minLength`, `pattern`, `min`, …). An undeclared key is dead\nconfiguration.\n\nExample — the field has no `maxLength` constraint:\n  interface User { name: string & FormatString<{minLength: 2}> }\n  export const friendlyUser: FriendlyType<User> = {\n    name: {\n      rt$errors: {\n        minLength: 'Name needs at least 2 characters',\n-       maxLength: 'Name is too long',\n      },\n    },\n  };\n\nFix — remove the key, or declare the matching constraint on the field's\nTypeFormat so the message has a failure to describe.",
+		Detail:   "`rt$errors` keys must name a failure the field can actually produce:\n`type`, `rt$default`, or one of the field's declared format constraints\n(`minLength`, `pattern`, `min`, …). An undeclared key is dead\nconfiguration.\n\nExample — the field has no `maxLength` constraint:\n  interface User { name: string & FormatString<{minLength: 2}> }\n  export const friendlyUser: FriendlyText<User> = {\n    name: {\n      rt$errors: {\n        minLength: 'Name needs at least 2 characters',\n-       maxLength: 'Name is too long',\n      },\n    },\n  };\n\nFix — remove the key, or declare the matching constraint on the field's\nTypeFormat so the message has a failure to describe.",
 	},
 	CodeFriendlyBadPlaceholder: {
 		Headline: "Unknown placeholder `$[{0}]` — expected one of `$[label]`, `$[val]`, `$[path]`, `$[index]`.",
@@ -538,15 +538,15 @@ var messagesByCode = map[string]message{
 	},
 	CodeFriendlyTodo: {
 		Headline: "Unfilled `@todo` placeholder — fill in the real labels/messages, then delete the `@todo` line.",
-		Detail:   "The generator stamps a `@todo` line on every freshly-scaffolded const in\na FriendlyType mirror file. It means \"this skeleton still carries\ngenerated blanks\". A clean, committed mirror has none.\n\nExample — a fresh scaffold:\n  /** @rtType User#a1b2c3 @rtIds {name: d4e5f6} */\n- // @todo: generated skeleton — fill in real data, then delete this line\n  export const friendlyUser: FriendlyType<User> = {\n-   name: {rt$label: ''},\n+   name: {rt$label: 'Name'},\n  };\n\nFix — author the real labels and error messages for the const, then\ndelete the whole `@todo` line (the compiler never removes it for you).",
+		Detail:   "The generator stamps a `@todo` line on every freshly-scaffolded const in\na FriendlyText mirror file. It means \"this skeleton still carries\ngenerated blanks\". A clean, committed mirror has none.\n\nExample — a fresh scaffold:\n  /** @rtType User#a1b2c3 @rtIds {name: d4e5f6} */\n- // @todo: generated skeleton — fill in real data, then delete this line\n  export const friendlyUser: FriendlyText<User> = {\n-   name: {rt$label: ''},\n+   name: {rt$label: 'Name'},\n  };\n\nFix — author the real labels and error messages for the const, then\ndelete the whole `@todo` line (the compiler never removes it for you).",
 	},
 	CodeFriendlyOrphanConst: {
 		Headline: "Stale `@rtOrphan` carcass — run `ts-runtypes gen --prune` to remove it (or restore the type).",
-		Detail:   "The reconcile commented this FriendlyType const out because its source\ntype was deleted or renamed. The carcass preserves your authored labels\nand messages so a reappearing type can restore them — but a clean,\ncommitted mirror has none.\n\nFix — if the type is really gone, prune the carcass:\n  ts-runtypes gen --prune\n\nFix — if the type was renamed, re-run the reconcile; a matching carcass\nis restored with your values intact:\n  ts-runtypes gen <source.ts> <NewName> --update",
+		Detail:   "The reconcile commented this FriendlyText const out because its source\ntype was deleted or renamed. The carcass preserves your authored labels\nand messages so a reappearing type can restore them — but a clean,\ncommitted mirror has none.\n\nFix — if the type is really gone, prune the carcass:\n  ts-runtypes gen --prune\n\nFix — if the type was renamed, re-run the reconcile; a matching carcass\nis restored with your values intact:\n  ts-runtypes gen <source.ts> <NewName> --update",
 	},
 	CodeFriendlyOrphanField: {
 		Headline: "Stale `@rtOrphanChild` field carcass — run `ts-runtypes gen --prune` to remove it (or restore the field).",
-		Detail:   "The reconcile commented this field out because the source type no longer\ndeclares it. The carcass preserves your authored value inline — but a\nclean, committed mirror has none.\n\nExample:\n  export const friendlyUser: FriendlyType<User> = {\n-   /* @rtOrphanChild nick: {rt$label: 'Nickname'}, */\n    name: {rt$label: 'Name'},\n  };\n\nFix — if the field is really gone: `ts-runtypes gen --prune`.\nFix — if the field was renamed, re-run `--update`; the authored value\nmoves to the renamed field when the ids match.",
+		Detail:   "The reconcile commented this field out because the source type no longer\ndeclares it. The carcass preserves your authored value inline — but a\nclean, committed mirror has none.\n\nExample:\n  export const friendlyUser: FriendlyText<User> = {\n-   /* @rtOrphanChild nick: {rt$label: 'Nickname'}, */\n    name: {rt$label: 'Name'},\n  };\n\nFix — if the field is really gone: `ts-runtypes gen --prune`.\nFix — if the field was renamed, re-run `--update`; the authored value\nmoves to the renamed field when the ids match.",
 	},
 
 	// ─────────── MockData mirror files (MDxxx) ───────────

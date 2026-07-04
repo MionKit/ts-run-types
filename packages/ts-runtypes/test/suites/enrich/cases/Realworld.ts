@@ -1,5 +1,5 @@
 import type * as TF from 'ts-runtypes/formats';
-import type {FriendlyType, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Real-world composite shapes — nested objects, arrays, and format-branded
@@ -19,7 +19,7 @@ export const REALWORLD = {
       }
       type Target = User;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         id: {rt$label: '', rt$errors: {type: ''}},
@@ -61,7 +61,7 @@ export const REALWORLD = {
       }
       type Target = RegistrationForm;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         username: {rt$label: '', rt$errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},
@@ -96,7 +96,7 @@ export const REALWORLD = {
       }
       type Target = Order;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         orderId: {rt$label: '', rt$errors: {type: ''}},
@@ -156,7 +156,7 @@ export const REALWORLD = {
       }
       type Target = BlogPost;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         title: {rt$label: '', rt$errors: {type: ''}},

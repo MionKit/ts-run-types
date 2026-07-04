@@ -405,7 +405,7 @@ type Request struct {
 	OutDir string `json:"outDir,omitempty"`
 	// CheckEnrich opts a scanFiles response into the enrichment-health pass
 	// over this request's Files: tag hygiene (@todo scaffolds, @rtOrphan /
-	// @rtOrphanChild carcasses), FriendlyType/MockData content validity, and
+	// @rtOrphanChild carcasses), FriendlyText/MockData content validity, and
 	// breadcrumb drift, appended to Response.Diagnostics as FamilyEnrich
 	// entries. Off by default so the rewrite pipeline pays nothing; the
 	// runtypes-devtools lint plugin is the consumer.

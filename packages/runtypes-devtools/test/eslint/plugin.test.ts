@@ -53,11 +53,11 @@ const USER_TS = `export interface User {
 `;
 
 const MIRROR_DIRTY_TS = `import type { User } from './user';
-import type { FriendlyType, MockData } from 'ts-runtypes';
+import type { FriendlyText, MockData } from 'ts-runtypes';
 
 /** @rtType User#u1 @rtIds {age: a1, name: n1} */
 ${TODO_LINE}
-export const friendlyUser: FriendlyType<User> = {
+export const friendlyUser: FriendlyText<User> = {
   name: {rt$label: 'Name'},
   nope: {rt$label: 'Gone'},
 };
@@ -73,20 +73,20 @@ export const keep = {/* @rtOrphanChild old: 1, */ fresh: 1};
 `;
 
 const MIRROR_CLEAN_TS = `import type { User } from './user';
-import type { FriendlyType } from 'ts-runtypes';
+import type { FriendlyText } from 'ts-runtypes';
 
 /** @rtType User#u1 @rtIds {age: a1, name: n1} */
-export const friendlyUser: FriendlyType<User> = {
+export const friendlyUser: FriendlyText<User> = {
   name: {rt$label: 'Name'},
   age: {rt$label: 'Age'},
 };
 `;
 
 const MIRROR_DRIFT_TS = `import type { Ghost } from './ghost';
-import type { FriendlyType } from 'ts-runtypes';
+import type { FriendlyText } from 'ts-runtypes';
 
 /** @rtType Ghost#g1 */
-export const friendlyGhost: FriendlyType<{name: string}> = {
+export const friendlyGhost: FriendlyText<{name: string}> = {
   name: {rt$label: 'Name'},
 };
 `;

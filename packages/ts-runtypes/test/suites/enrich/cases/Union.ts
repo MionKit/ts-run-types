@@ -1,9 +1,9 @@
-import type {FriendlyType, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Union kinds. The emitter treats a union as an OPAQUE LEAF — friendly
 // `{rt$label: ''}`, mock `{pool: []}`. For PRIMITIVE / LITERAL unions the leaf is
-// a valid `FriendlyType` / `MockData` (the type distributes to a union of leaf
+// a valid `FriendlyText` / `MockData` (the type distributes to a union of leaf
 // pools, and `{pool: []}` satisfies each arm). Object-MEMBER unions are
 // excluded: `MockData<{a}|{b}>` distributes to object maps, so the `{pool: []}`
 // leaf would not type-check there (a known emitter/type divergence — see the
@@ -16,7 +16,7 @@ export const UNION = {
       // ##### src #####
       type Target = string | number;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -30,7 +30,7 @@ export const UNION = {
       // ##### src #####
       type Target = string | null;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -44,7 +44,7 @@ export const UNION = {
       // ##### src #####
       type Target = 'UNO' | 'DOS' | 'TRES';
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -58,7 +58,7 @@ export const UNION = {
       // ##### src #####
       type Target = Date | number | string | null | bigint;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -72,7 +72,7 @@ export const UNION = {
       // ##### src #####
       type Target = number | boolean;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -86,7 +86,7 @@ export const UNION = {
       // ##### src #####
       type Target = string | undefined;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####

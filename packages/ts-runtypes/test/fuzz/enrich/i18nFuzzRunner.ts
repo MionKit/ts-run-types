@@ -1,4 +1,4 @@
-// Seeded driver + shrinker for the FriendlyType i18n-sync fuzzer. Frame-free
+// Seeded driver + shrinker for the FriendlyText i18n-sync fuzzer. Frame-free
 // (no test runner): pure (seed → report), so it runs under Vitest AND as a
 // standalone soak. Mirrors enrichFuzzRunner.ts — one SEQUENCE is a fresh temp
 // workspace + a deterministic random series of translator/source events; a

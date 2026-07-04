@@ -134,7 +134,7 @@ func runDescribe(args []string) {
 func runGen(args []string) {
 	fs := flag.NewFlagSet("gen", flag.ExitOnError)
 	mock := fs.Bool("mock", false, "emit a MockData<T> skeleton")
-	friendly := fs.Bool("friendly", false, "emit a FriendlyType<T> skeleton")
+	friendly := fs.Bool("friendly", false, "emit a FriendlyText<T> skeleton")
 	out := fs.String("out", "", "explicit single mirror file path (overrides the computed mirror path; forces a single file)")
 	enrichDirFlag := fs.String("enrich-dir", "", "mirror root override (precedence: this flag > tsconfig plugins entry > default runtypes/generated)")
 	check := fs.Bool("check", false, "drift check: validate mirror-file breadcrumbs instead of generating")
@@ -143,7 +143,7 @@ func runGen(args []string) {
 	typeFlag := fs.String("type", "", "batch mode: the type name to resolve in every --files entry")
 	update := fs.Bool("update", false, "reconcile an existing committed mirror file against the freshly regenerated desired set (property merge, never clobbers values)")
 	prune := fs.Bool("prune", false, "destructive: remove every comment block/line tagged @rtOrphan / @rtOrphanChild")
-	translate := fs.String("translate", "", "i18n: scaffold/reconcile per-locale FriendlyType translation files (a locale tag, or 'all' for every tsconfig i18n.locales entry)")
+	translate := fs.String("translate", "", "i18n: scaffold/reconcile per-locale FriendlyText translation files (a locale tag, or 'all' for every tsconfig i18n.locales entry)")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--enrich-dir <dir>] [--out <path>]")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen <file.ts> <TypeName> --update   (reconcile an existing mirror)")

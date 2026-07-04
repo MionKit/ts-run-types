@@ -1,7 +1,7 @@
-# AI enrichment — `FriendlyType<T>` and `MockData<T>`
+# AI enrichment — `FriendlyText<T>` and `MockData<T>`
 
 > **Status: implemented** (branch `feat/ai-enrichment`). **Shipped + tested:**
-> - the `FriendlyType<T>` / `MockData<T>` DSL types (type-checked against `T`, with
+> - the `FriendlyText<T>` / `MockData<T>` DSL types (type-checked against `T`, with
 >   structural node shapes — solution A), the pure-data `createFriendly<T>(map)`
 >   renderer, and the `createMockType<T>({ data })` integration — all exported from
 >   `ts-runtypes`;
@@ -15,7 +15,7 @@
 >   [`gen` semantics → `--update`](#gen---update--reconcile-value-preserving-merge));
 > - the **per-family mirror split** (`<enrichDir>/friendly/` + `<enrichDir>/mock/`
 >   subtrees, with a one-shot auto-migration of pre-split combined mirrors) and the
->   **FriendlyType i18n layer** — per-locale translation mirrors, generator-owned
+>   **FriendlyText i18n layer** — per-locale translation mirrors, generator-owned
 >   plural templates (checked by **FT006 / FT007 / FT008**), `createFriendlyI18n`,
 >   `gen`/`check --translate` (see [Translations (i18n)](#translations-i18n) and
 >   [docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md)).
@@ -43,7 +43,7 @@ because there is nothing to keep in sync; the artifact *is* the type, recomputed
 All of it lives only as ephemeral `virtual:rt/*` modules + the gitignored
 `node_modules/.cache/ts-runtypes/` disk cache.
 
-`FriendlyType<T>` and `MockData<T>` are a different species:
+`FriendlyText<T>` and `MockData<T>` are a different species:
 
 | Property        | Generated cache (today)         | Enrichment (this doc)                       |
 | --------------- | ------------------------------- | ------------------------------------------- |
@@ -84,7 +84,7 @@ committed*. Enrichment therefore never rides the plugin's injection path.
 
 The two artifacts:
 
-- **`FriendlyType<T>`** — combined human-readable **labels + error messages** for a
+- **`FriendlyText<T>`** — combined human-readable **labels + error messages** for a
   type. Pure data. Used for validation-error rendering today; powers form-building
   UI later.
 - **`MockData<T>`** — realistic sample **value pools / ranges** per field. Feeds the
@@ -94,7 +94,7 @@ The two artifacts:
 
 ---
 
-## `FriendlyType<T>`
+## `FriendlyText<T>`
 
 ### Node model
 
@@ -124,7 +124,7 @@ export interface User {
 // The map is TOTAL: every field present, rt$label + rt$errors required on every
 // node (blank '' = "no custom text", renderer falls back; deleting a key just
 // re-scaffolds it — one type maps to exactly one shape).
-const friendlyUser: FriendlyType<User> = {
+const friendlyUser: FriendlyText<User> = {
   rt$label: 'User account',
   rt$errors: { type: '$[label] must be an object' },
 
@@ -336,7 +336,7 @@ type FriendlyNode<T, Depth extends number = 8> =
   : T extends object             ? FriendlyMeta & { [K in keyof T]-?: FriendlyNode<T[K], _Depth[Depth]> }
   :                                FriendlyMeta;                   // (real impl adds Map/Set/tuple arms)
 
-export type FriendlyType<T> = FriendlyNode<T>;
+export type FriendlyText<T> = FriendlyNode<T>;
 ```
 
 ### Runtime API — pure-data now, UI deferred
@@ -354,7 +354,7 @@ friendly.label('profile.email');             // → 'Email'
 Localized rendering wraps the same walk: `createFriendlyI18n<T>(source, { locale,
 translations, currency? })` returns the identical `FriendlyRenderer`, resolving the
 locale by naive BCP-47 truncation and falling back **per leaf** to the source map
-(the source `FriendlyType` IS the source language — a partial translation never
+(the source `FriendlyText` IS the source language — a partial translation never
 throws). See [Translations (i18n)](#translations-i18n) and
 [docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md).
 
@@ -401,7 +401,7 @@ out of the existing validator.
 
 ### Type sketch
 
-Same construction as `FriendlyType` above — depth-bounded, `infer`-free, scalar
+Same construction as `FriendlyText` above — depth-bounded, `infer`-free, scalar
 gates before the object branch, structure-preserving homomorphic map (see the
 `DataOnly` reference there):
 
@@ -423,7 +423,7 @@ export type MockData<T> = MockNode<T>;
 
 ## Validation — the `check` command (build surfacing deferred)
 
-> **Most drift is already caught by TypeScript itself.** Because `FriendlyType<T>`
+> **Most drift is already caught by TypeScript itself.** Because `FriendlyText<T>`
 > / `MockData<T>` are *precise* mapped types, the user's own type-checker rejects
 > the bulk of drift with no Go pass at all: a renamed/removed field makes the map
 > key an excess property (editor error), and an object-vs-scalar shape mismatch is a
@@ -435,7 +435,7 @@ export type MockData<T> = MockNode<T>;
 > already useful with just the types + the editor; the pass sharpens the diagnostics.
 
 **Implemented today as the `check` CLI command** (not yet the Vite build). It finds
-`FriendlyType<T>` / `MockData<T>` const declarations, resolves `T`'s `RunType`, and
+`FriendlyText<T>` / `MockData<T>` const declarations, resolves `T`'s `RunType`, and
 runs a **kind-switch paired walk** of the authored object-literal against the
 `RunType` — the emitter convention, in
 [`internal/enrich/validate.go`](../internal/enrich/validate.go) over a tiny
@@ -450,7 +450,7 @@ today only checks *literalness* but this also cross-references the literal's key
 against `T`'s children and formats. The walk logic is identical to `check`; only the
 trigger differs (CLI vs build scan).
 
-### `FriendlyType` diagnostics
+### `FriendlyText` diagnostics
 
 | Code      | Severity | Status | Meaning                                                                       |
 | --------- | -------- | ------ | ---------------------------------------------------------------------------- |
@@ -496,7 +496,7 @@ CLI (below) rather than scraping editor output.
 | `ts-runtypes check --file <p> --json`           | Validate **one file**, structured JSON out. The agent's tight feedback tool.              |
 | `ts-runtypes describe <file>#<Type> --format prompt\|json` | Emit the type's shape (names, kinds, optionality, formats, literals — all already in the `RunType` struct) as LLM prompt context. |
 | `ts-runtypes gen <file> [--mock] [--friendly] [--check] [--update] [--prune]` | Generate / refresh the type's mirror file under `enrichDir`. `--check` reports breadcrumb drift; `--update` reconciles an existing mirror value-preservingly (property merge + rename + orphan); `--prune` strips `@rtOrphan`/`@rtOrphanChild` carcasses (the only destructive op). See `gen` semantics below. |
-| `ts-runtypes gen --translate <locale>` (or `all`) `[--update] [--prune] [<src.ts>]` | Scaffold (create-only) / reconcile / prune a locale's `FriendlyType<T>` mirrors — generated from the SOURCE TYPE with the same driver as the friendly mirror (locale-parameterized); `all` fans out over tsconfig `i18n.locales`; without `<src.ts>` targets are discovered as "sources that have a friendly mirror" (path math only — the mirror is never read as an input). See [Translations (i18n)](#translations-i18n). |
+| `ts-runtypes gen --translate <locale>` (or `all`) `[--update] [--prune] [<src.ts>]` | Scaffold (create-only) / reconcile / prune a locale's `FriendlyText<T>` mirrors — generated from the SOURCE TYPE with the same driver as the friendly mirror (locale-parameterized); `all` fans out over tsconfig `i18n.locales`; without `<src.ts>` targets are discovered as "sources that have a friendly mirror" (path math only — the mirror is never read as an input). See [Translations (i18n)](#translations-i18n). |
 | `ts-runtypes check --translate <locale>` (or `all`) | Translation completeness gate for CI (**TR001–TR004**) — Warnings, promoted to Errors by tsconfig `i18n.strict`. |
 
 All three are **implemented** as out-of-band CLI modes of the Go binary. Validation
@@ -572,7 +572,7 @@ tree entirely.
 <rootDir>/services/userApi.ts     createMockType<User>()        ← consumer
 <rootDir>/test/fixtures.ts        createMockType<User>()        ← consumer
                                   ──────────────────────────────────
-gen ⇒  <enrichDir>/friendly/models/user.ts   export const friendlyUser: FriendlyType<User> = { … }
+gen ⇒  <enrichDir>/friendly/models/user.ts   export const friendlyUser: FriendlyText<User> = { … }
        <enrichDir>/mock/models/user.ts       export const mockUser:     MockData<User>     = { … }
                                   (ONE mirror file per family, at the definition's mirror path)
 ```
@@ -620,10 +620,10 @@ consts in `mock/`, each family file importing only its own wrapper type:
 ```ts
 // runtypes/generated/friendly/models/user.ts — GENERATED, COMMITTED, hand-editable.
 import type { User, Post } from '../../../../models/user';
-import type { FriendlyType } from 'ts-runtypes';
+import type { FriendlyText } from 'ts-runtypes';
 
-export const friendlyUser: FriendlyType<User> = { /* … */ };
-export const friendlyPost: FriendlyType<Post> = { /* … */ };
+export const friendlyUser: FriendlyText<User> = { /* … */ };
+export const friendlyPost: FriendlyText<Post> = { /* … */ };
 ```
 
 ```ts
@@ -679,14 +679,14 @@ emitted output mirrors the **named-type** structure:
 
 ```ts
 // interface A { id: string; b: B }   interface B { id: string; a: A }
-export const friendlyB: FriendlyType<B> = {rt$label: '', id: {rt$label: ''}, a: {rt$label: ''}}; // back-edge → leaf
-export const friendlyA: FriendlyType<A> = {rt$label: '', id: {rt$label: ''}, b: friendlyB};     // forward ref
+export const friendlyB: FriendlyText<B> = {rt$label: '', id: {rt$label: ''}, a: {rt$label: ''}}; // back-edge → leaf
+export const friendlyA: FriendlyText<A> = {rt$label: '', id: {rt$label: ''}, b: friendlyB};     // forward ref
 ```
 
 ### Structural node shapes (solution A)
 
 The emitter **reflects type structure at the node level too** — composite kinds are NOT
-collapsed to opaque leaves. New DSL shapes (the `FriendlyType<T>`/`MockData<T>` mapped
+collapsed to opaque leaves. New DSL shapes (the `FriendlyText<T>`/`MockData<T>` mapped
 types model the same):
 
 | Kind | friendly node | mock node |
@@ -706,7 +706,7 @@ emitter and the DSL types now agree structurally for every kind.
 
 | Artifact         | Generated for…                                                              |
 | ---------------- | --------------------------------------------------------------------------- |
-| `FriendlyType<T>`| **any** type referenced by **any** RunTypes marker (broad — friendly also serves future UI, so we scaffold eagerly) |
+| `FriendlyText<T>`| **any** type referenced by **any** RunTypes marker (broad — friendly also serves future UI, so we scaffold eagerly) |
 | `MockData<T>`    | only types consumed by a **`createMockType`** call (demand-driven by the mock consumer) |
 
 ### `gen` semantics
@@ -773,7 +773,7 @@ after the `@rtType`/`@rtIds` marker line):
 ```ts
 /** @rtType User#9f3a @rtIds {name: a1b2} */
 // @todo: generated skeleton — fill in real data, then delete this line
-export const friendlyUser: FriendlyType<User> = { … };
+export const friendlyUser: FriendlyText<User> = { … };
 ```
 
 It is deliberately **outside** the `@rt` namespace — a bare `//` line comment, not
@@ -858,7 +858,7 @@ The friendly family translates per locale — the full design lives in
 [docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md); this is the
 mirror-side summary. The tsconfig `i18n` object is optional (defaults apply when
 absent — zero change for a project that never translates), and the source
-`FriendlyType` map IS the source language (no separate default catalog) —
+`FriendlyText` map IS the source language (no separate default catalog) —
 anything unfilled falls back to it at render time.
 
 ```
@@ -882,7 +882,7 @@ generation of another, so the generated dirs can be treated as write-only.
   (tsconfig `i18n.dir`, resolved under the project root; the locale is a PATH
   SEGMENT, so `pt-BR` works verbatim). Each source `friendly<Name>` gets a
   `<locale>_friendly<Name>` const (BCP-47 `-` becomes `_`: `pt_BR_friendlyUser`),
-  annotated `FriendlyType<Name>` — the SAME type as the source map — carrying
+  annotated `FriendlyText<Name>` — the SAME type as the source map — carrying
   the same `@rtType <Name>#<id>` / `@rtIds` markers. The path and const prefix
   carry the locale; there is no `@rtI18n` marker.
 - **The scaffold is the type's tree, blank.** Every `rt$label`, string template
@@ -913,7 +913,7 @@ generation of another, so the generated dirs can be treated as write-only.
 
   ```jsonc
   "i18n": {
-    "sourceLocale": "en",              // language the source FriendlyType maps are written in
+    "sourceLocale": "en",              // language the source FriendlyText maps are written in
     "dir": "runtypes/generated/i18n",  // translation subtree root (default <enrichDir>/i18n)
     "locales": ["es", "pl", "pt-BR"],  // target locales (the source locale is NOT listed)
     "strict": false                    // check --translate gate severity (CI)
@@ -962,7 +962,7 @@ library provides (#2) or the user explicitly opts in (#3). Built-ins (`Date`,
 Two implications:
 
 - **Enrichment becomes part of a library's public API.** A library that wants to
-  support this adds `ts-runtypes` (for the `FriendlyType`/`MockData` types) and
+  support this adds `ts-runtypes` (for the `FriendlyText`/`MockData` types) and
   exports its enrichment consts as named exports; a consumer imports them directly,
   same as any other library value — no special-casing.
 - **The opt-in tag needs an anchor.** The cleanest is a tagged local re-export,
@@ -1062,7 +1062,7 @@ overall architecture) and documented here:
   [docs/done/friendly-unified-src-reconcile.md](./done/friendly-unified-src-reconcile.md),
   summary in [Translations (i18n)](#translations-i18n) above). Per-locale
   translation mirrors live under `<enrichDir>/i18n/<locale>/`, scaffolded as
-  blank-leaf `FriendlyType<T>` consts straight from the source type (source
+  blank-leaf `FriendlyText<T>` consts straight from the source type (source
   text is never copied as if translated, and no generated file feeds another);
   plural error templates are generator-owned (CLDR arms per locale,
   count-bearing constraints only); `createFriendlyI18n(source,

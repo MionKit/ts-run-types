@@ -70,8 +70,8 @@ func TestResolveType_EmitFriendly(t *testing.T) {
 		TypeName: "User",
 		Resolve:  resolved.Resolve,
 	})
-	if !strings.Contains(got, "FriendlyType<User>") {
-		t.Errorf("EmitFriendly missing 'FriendlyType<User>'; got:\n%s", got)
+	if !strings.Contains(got, "FriendlyText<User>") {
+		t.Errorf("EmitFriendly missing 'FriendlyText<User>'; got:\n%s", got)
 	}
 	if !strings.Contains(got, "name:") {
 		t.Errorf("EmitFriendly missing 'name:' entry; got:\n%s", got)
@@ -108,7 +108,7 @@ func TestSkeletons_ObjectLiteralOnly(t *testing.T) {
 	friendly := enrich.FriendlySkeleton(resolved.Node, resolved.Resolve)
 	mock := enrich.MockSkeleton(resolved.Node, resolved.Resolve)
 
-	if strings.Contains(friendly, "export const") || strings.Contains(friendly, "FriendlyType<") {
+	if strings.Contains(friendly, "export const") || strings.Contains(friendly, "FriendlyText<") {
 		t.Errorf("FriendlySkeleton should be a bare object literal; got:\n%s", friendly)
 	}
 	if !strings.HasPrefix(strings.TrimSpace(friendly), "{") {

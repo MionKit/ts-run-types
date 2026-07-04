@@ -1,5 +1,5 @@
 // `createFriendly<T>(map)` — renders `getValidationErrors` output into
-// human-readable messages using a `FriendlyType<T>` map (see docs/AI_ENRICHMENT.md).
+// human-readable messages using a `FriendlyText<T>` map (see docs/AI_ENRICHMENT.md).
 //
 // Pure data over (map, errors): for each error it walks `error.path` into the map,
 // picks a template by the `(format.name, formatPath-tail)` discriminator (`type`
@@ -15,7 +15,7 @@
 // `createFriendlyI18n<T>(source, options)` — the locale-selecting wrapper over
 // the SAME walk (docs/todos → docs/done friendly-type-i18n). The source map IS
 // the source language and the terminal fallback; a translation is another
-// same-tree `FriendlyType<T>` const. Per leaf, an untranslated / @todo-blank
+// same-tree `FriendlyText<T>` const. Per leaf, an untranslated / @todo-blank
 // template falls through to the source; a plural leaf falls through as a WHOLE
 // unit (its own `other` backstops missing arms first). Plural arms are selected
 // via `Intl.PluralRules` on the violated bound.
@@ -31,7 +31,7 @@
 // Always lenient — a partial translation renders, it never throws.
 
 import type {RTValidationError, RTValidationErrorPathSegment, TypeFormatError} from '../createRTFunctions.ts';
-import type {FriendlyType, PluralTemplate, TemplateLeaf} from './friendlyType.ts';
+import type {FriendlyText, PluralTemplate, TemplateLeaf} from './friendlyText.ts';
 
 /** A rendered, human-readable validation message for one failure. */
 export interface FriendlyMessage {
@@ -385,7 +385,7 @@ function renderErrors(state: RenderState, errs: RTValidationError[]): FriendlyMe
   return out;
 }
 
-export function createFriendly<T>(map: FriendlyType<T>): FriendlyRenderer {
+export function createFriendly<T>(map: FriendlyText<T>): FriendlyRenderer {
   const state: RenderState = {
     root: map as FriendlyNodeRuntime,
     rootLocale: DEFAULT_LOCALE,
@@ -405,8 +405,8 @@ export interface FriendlyI18nOptions<T> {
    *  inside a `computed()` / re-invoke `errors()` per render.) */
   locale: string | {readonly value: string};
   /** Committed translation consts by locale tag (`{es: es_friendlyUser}`).
-   *  Values are same-tree `FriendlyType<T>` maps authored in that locale. */
-  translations: Partial<Record<string, FriendlyType<T>>>;
+   *  Values are same-tree `FriendlyText<T>` maps authored in that locale. */
+  translations: Partial<Record<string, FriendlyText<T>>>;
   /** ISO 4217 code (`'EUR'`) for rendering `Currency`-branded bounds — a plain
    *  string or any `{value}` ref (re-read on EVERY render, like `locale`).
    *  WHICH currency a value is in is app data, so it is supplied here, never
@@ -427,7 +427,7 @@ export interface FriendlyI18nOptions<T> {
  *  matches a `zh-Hans` file when nothing closer exists — naive by design).
  *  Returns undefined when nothing shares the base language (the caller falls
  *  back to the source). */
-export function resolveLocale<T>(locale: string, translations: Partial<Record<string, FriendlyType<T>>>): string | undefined {
+export function resolveLocale<T>(locale: string, translations: Partial<Record<string, FriendlyText<T>>>): string | undefined {
   if (!locale) return undefined;
   const have = (tag: string) => translations[tag] !== undefined;
   // Exact, then right-to-left truncation of the requested tag.
@@ -448,7 +448,7 @@ export function resolveLocale<T>(locale: string, translations: Partial<Record<st
  *  `source` map is the source language and the terminal fallback; every leaf
  *  (labels, error templates) falls through to it when the active translation
  *  leaves it blank. Never throws on a partial translation. */
-export function createFriendlyI18n<T>(source: FriendlyType<T>, options: FriendlyI18nOptions<T>): FriendlyRenderer {
+export function createFriendlyI18n<T>(source: FriendlyText<T>, options: FriendlyI18nOptions<T>): FriendlyRenderer {
   const sourceRoot = source as FriendlyNodeRuntime;
   const sourceLocale = options.sourceLocale ?? DEFAULT_LOCALE;
 

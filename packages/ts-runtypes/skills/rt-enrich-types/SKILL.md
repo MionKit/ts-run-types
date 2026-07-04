@@ -1,12 +1,12 @@
 ---
 name: rt-enrich-types
-description: Drive the RunTypes enrichment workflow — author and maintain the committed, type-keyed FriendlyType<T> (human labels + error messages) and MockData<T> (realistic sample data) for a type. Use when scaffolding or filling a type's enrichment file, when running the `ts-runtypes` CLI (`describe` / `gen` / `gen --update` / `gen --prune` / `check`), when filling `@todo` blanks the compiler left, or when working with the enrichment JSDoc tags (`@rtType`, `@rtIds`, `@rtOrphan`, `@rtOrphanChild`, `@todo`). Covers the mirror directory, the compiler-scaffolds/agent-fills loop, the CLI verbs, and the tsconfig i18n block; the per-family authoring DSLs are the runtypes-friendly-type and runtypes-mock-data skills.
+description: Drive the RunTypes enrichment workflow — author and maintain the committed, type-keyed FriendlyText<T> (human labels + error messages) and MockData<T> (realistic sample data) for a type. Use when scaffolding or filling a type's enrichment file, when running the `ts-runtypes` CLI (`describe` / `gen` / `gen --update` / `gen --prune` / `check`), when filling `@todo` blanks the compiler left, or when working with the enrichment JSDoc tags (`@rtType`, `@rtIds`, `@rtOrphan`, `@rtOrphanChild`, `@todo`). Covers the mirror directory, the compiler-scaffolds/agent-fills loop, the CLI verbs, and the tsconfig i18n block; the per-family authoring DSLs are the runtypes-friendly-type and runtypes-mock-data skills.
 ---
 
 # RunTypes enrichment — the compiler scaffolds, you fill the blanks
 
 Enrichment is the **committed, type-keyed data RunTypes can't generate on its own**: human
-labels + error messages (`FriendlyType<T>`) and realistic sample values (`MockData<T>`).
+labels + error messages (`FriendlyText<T>`) and realistic sample values (`MockData<T>`).
 Unlike validators/codecs (pure functions of the type, recomputed every build, never
 committed), enrichment is **authored once, committed, and validated against the type
 forever after**. Full design: [docs/AI_ENRICHMENT.md](https://github.com/mionkit/ts-runtypes/blob/main/docs/AI_ENRICHMENT.md).
@@ -42,7 +42,7 @@ that produces a reviewable, committed diff.
 
 Enrichment is committed to a **mirror directory** whose tree shadows your source, split
 **per family**: a type defined in `<rootDir>/models/user.ts` gets its `friendly<Name>`
-consts (`FriendlyType<Name>`) in `<enrichDir>/friendly/models/user.ts` and its
+consts (`FriendlyText<Name>`) in `<enrichDir>/friendly/models/user.ts` and its
 `mock<Name>` consts (`MockData<Name>`) in `<enrichDir>/mock/models/user.ts` (default
 `enrichDir`: `runtypes/generated`, configurable via the `ts-runtypes` entry under
 `compilerOptions.plugins` in `tsconfig.json`). One mirror file per family per source
@@ -95,7 +95,7 @@ Hand-authored comments are preserved across `--update` and travel with a renamed
 `--update` never edits your values; it only adds blanks, flags stale values, and orphans
 gone fields. `--prune` is the only command that deletes.
 
-## `FriendlyType<T>` — labels + error messages
+## `FriendlyText<T>` — labels + error messages
 
 A combined, per-field map: `rt$label` (a human name) + `rt$errors` (one message template per
 declared failable constraint — the mapped type requires each key — or the exclusive
@@ -111,11 +111,11 @@ fill a friendly map.
 
 The friendly map you author IS the source language (tsconfig `i18n.sourceLocale`, default
 `en`) — there is no separate default catalog and no separate translation type. Each
-target locale gets committed `FriendlyType<T>` files that shadow the friendly mirror
+target locale gets committed `FriendlyText<T>` files that shadow the friendly mirror
 tree: `<i18nDir>/<locale>/<rel>.ts` (default `i18nDir`: `<enrichDir>/i18n`, resolved
 under the project root; the locale is a path segment, so `pt-BR` works verbatim). The
 const per type is `<locale>_friendly<Name>` (BCP-47 `-` becomes `_`:
-`pt_BR_friendlyUser`), annotated `FriendlyType<Name>`, carrying the SAME
+`pt_BR_friendlyUser`), annotated `FriendlyText<Name>`, carrying the SAME
 `@rtType <Name>#<id> @rtIds {…}` markers as the source — the path + const prefix carry
 the locale. Every locale file is generated FROM THE SOURCE TYPE by the same driver as
 the friendly mirror itself; the mirror is a discovery input only (which sources
@@ -160,7 +160,7 @@ zero change when absent):
   "enrichDir": "runtypes/generated",
   "friendlyErrors": "perConstraint", // rt$errors mode gen scaffolds for NEW nodes ("perConstraint" | "default")
   "i18n": {
-    "sourceLocale": "en", // language the source FriendlyType maps are written in
+    "sourceLocale": "en", // language the source FriendlyText maps are written in
     "dir": "runtypes/generated/i18n", // translation subtree root (default <enrichDir>/i18n)
     "locales": ["es", "pl", "pt-BR"], // target locales (the source locale is NOT listed)
     "strict": false, // check --translate gate severity (CI)

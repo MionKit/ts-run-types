@@ -1,8 +1,48 @@
 # Rename `FriendlyType<T>` → `FriendlyText<T>`
 
-> **Status: TODO** (decided 2026-07-03, deferred out of the FriendlyType-i18n PR
-> to keep that PR's surface stable). Blocked on nothing; do as its own small PR
-> after the i18n work lands.
+> **Status: DONE** (decided 2026-07-03, shipped 2026-07-04). `FriendlyText<T>` is
+> the only non-deprecated name; the generator emits it; the legacy `FriendlyType`
+> spelling still parses through the deprecation window (`gen --update` migrates
+> committed mirrors in place). Full Go + JS suites green; compile budgets
+> re-measured (unchanged — a rename doesn't move instantiation counts).
+
+## As shipped (deviations from / detail on the plan below)
+
+- **The type file MOVED** to `packages/ts-runtypes/src/enrich/friendlyText.ts`,
+  the `#region friendlytype-extract` marker → `friendlytext-extract`, and the
+  compile test → `test/types/friendlyText.compile.test.ts`; `enrichHarness.ts`
+  slice reference updated in lockstep.
+- **Go recognition/emission** ([internal/enrich/names.go](../../internal/enrich/names.go)):
+  added `FriendlyTextName` (emitted) + kept `FriendlyTypeName` (legacy) +
+  `FriendlyWrapperNames` / `IsFriendlyWrapperName` for dual-name parsing. astcheck,
+  the hygiene file-guard regex, and the reconcile all accept both; every emitter
+  (emit.go, helpers.go, reconcile.go, split.go) writes `FriendlyText`.
+- **Lazy `gen --update` migration** (`migrateLegacyFriendlyWrapper` in
+  [reconcile.go](../../internal/enrich/mirror/reconcile.go)): a surviving legacy
+  const's annotation wrapper AND the `import type { FriendlyType }` DSL import are
+  spliced to `FriendlyText` together; orphaned consts keep their wrapper verbatim
+  (the carcass splice would collide). `SplitCombined` preserves the source's
+  wrapper spelling so a split file stays internally consistent, then migrates on
+  the next update. Covered by `TestExample_LegacyFriendlyTypeAnnotationMigrates`
+  and `TestExample_OrphanedLegacyConst_keepsVerbatimWrapper`.
+- **Deprecated alias** lives in [src/index.ts](../../packages/ts-runtypes/src/index.ts)
+  (`export type FriendlyType<T> = FriendlyText<T>`), so pre-rename files keep
+  compiling until the alias is dropped.
+- **Generated constants**: `FRIENDLY_TEXT_NAME` added alongside the retained
+  `FRIENDLY_TYPE_NAME`; the devtools lint pre-filter accepts both spellings.
+- **Historical docs** (`docs/done/`, `docs/talks/`, `docs/maybes/`, `CHANGELOG`)
+  were left on the old name as accurate history; a handful of Go/JS tests keep
+  legacy `FriendlyType` inputs on purpose as backward-compat parse coverage.
+- The Go fixtures overlay (`internal/testfixtures/runtypes.d.ts`) carries no
+  enrichment-type declarations, so nothing to change there; enrich tests that
+  need an overlay declare their own inline.
+
+---
+
+## Original plan
+
+> Deferred out of the FriendlyType-i18n PR to keep that PR's surface stable; done
+> as its own small PR after the i18n work landed.
 
 ## Why
 

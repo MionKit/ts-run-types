@@ -25,20 +25,20 @@ const translationSrcText = "export interface Address { street: string }\n" +
 	"export interface User { name: string; home: Address }\n"
 
 // translationFixture is an EXISTING pl translation file: locale-prefixed
-// consts annotated FriendlyType<T>, a src-type breadcrumb, pl plural arms, and
+// consts annotated FriendlyText<T>, a src-type breadcrumb, pl plural arms, and
 // two authored (translated) leaves the reconcile must preserve.
 const translationFixture = `import type { Address, User } from '../../../../src/models';
-import type { FriendlyType } from 'ts-runtypes';
+import type { FriendlyText } from 'ts-runtypes';
 
 /** @rtType Address#a1 @rtIds {street: s1} */
-export const pl_friendlyAddress: FriendlyType<Address> = {
+export const pl_friendlyAddress: FriendlyText<Address> = {
   rt$label: '',
   rt$errors: {type: ''},
   street: {rt$label: 'Ulica', rt$errors: {type: ''}},
 };
 
 /** @rtType User#u1 @rtIds {home: a1, name: n1} */
-export const pl_friendlyUser: FriendlyType<User> = {
+export const pl_friendlyUser: FriendlyText<User> = {
   rt$label: '',
   rt$errors: {type: ''},
   name: {rt$label: '', rt$errors: {
@@ -192,7 +192,7 @@ func TestTranslation_OnlyMandatoryOtherArmReinserted(t *testing.T) {
 func TestTranslation_OrphanViaNormalOracle(t *testing.T) {
 	// The Address type is deleted from src: the translation const orphans via
 	// the SAME SourceDeclaresType oracle as any mirror const — its type name
-	// comes from its FriendlyType<Address> annotation, its breadcrumb points at
+	// comes from its FriendlyText<Address> annotation, its breadcrumb points at
 	// the src .ts. The preserved value survives inside the carcass.
 	userOnly := desiredTranslationConsts()[1:]
 	srcWithoutAddress := "export interface User { name: string; home: unknown }\n"
@@ -231,7 +231,7 @@ func TestTranslation_ConstRenameCarriesWithSiblingFixup(t *testing.T) {
 	if !changed {
 		t.Fatalf("src rename must carry into the translation")
 	}
-	if !strings.Contains(out, "export const pl_friendlyLocation: FriendlyType<Location>") {
+	if !strings.Contains(out, "export const pl_friendlyLocation: FriendlyText<Location>") {
 		t.Errorf("translation const not renamed in place:\n%s", out)
 	}
 	if !strings.Contains(out, "@rtType Location#a1") {

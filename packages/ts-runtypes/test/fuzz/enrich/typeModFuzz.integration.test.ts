@@ -1,4 +1,4 @@
-// Type-modification fuzz of the FriendlyType/MockData reconciler. The second, wider
+// Type-modification fuzz of the FriendlyText/MockData reconciler. The second, wider
 // application of the enrich fuzzer (see enrichFuzz.integration.test.ts): instead of
 // editing a flat hardcoded `User`, it generates a RANDOM deep type (typeGen, FULL
 // named space — objects, arrays, unions, Map/Set, enums, named interfaces) and drives

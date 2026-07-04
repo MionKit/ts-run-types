@@ -1,9 +1,9 @@
-import type {FriendlyType} from 'ts-runtypes';
+import type {FriendlyText} from 'ts-runtypes';
 import type {User} from './user';
 
 // Fill what you can, leave the rest blank — a blank leaf keeps rendering in
 // the source language.
-export const pl_friendlyUser: FriendlyType<User> = {
+export const pl_friendlyUser: FriendlyText<User> = {
   rt$label: 'Konto użytkownika',
   rt$errors: {type: ''},
   name: {

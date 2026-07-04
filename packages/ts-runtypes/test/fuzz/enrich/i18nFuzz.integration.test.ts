@@ -1,4 +1,4 @@
-// Event-driven fuzz of the FriendlyType i18n translate pipeline — random
+// Event-driven fuzz of the FriendlyText i18n translate pipeline — random
 // translator edits (author / prune arms / clear @todo) interleaved with SOURCE
 // TYPE edits (add / drop fields, format params carrying the constraint set),
 // reconciled by the real binary's src-derived driver, with the
@@ -31,7 +31,7 @@ const SEQUENCES = Number(process.env.RT_FUZZ_I18N_SEQUENCES ?? 6);
 const MAX_COMMANDS = Number(process.env.RT_FUZZ_I18N_MAXCMDS ?? 10);
 const REPLAY = process.env.RT_FUZZ_I18N_REPLAY ? parseSeed(process.env.RT_FUZZ_I18N_REPLAY, 0) : null;
 
-describe('FriendlyType i18n sync fuzz', () => {
+describe('FriendlyText i18n sync fuzz', () => {
   it.skipIf(!HAS_BIN)(
     'keeps (source type, translation) consistent under random edit sequences',
     () => {

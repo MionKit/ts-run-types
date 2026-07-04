@@ -1,5 +1,5 @@
-// Package astcheck is the shared AST walk behind the FriendlyType / MockData
-// content checks: it finds every `const <name>: FriendlyType<T> | MockData<T>
+// Package astcheck is the shared AST walk behind the FriendlyText / MockData
+// content checks: it finds every `const <name>: FriendlyText<T> | MockData<T>
 // = {…}` declaration in a source file, resolves T through the runtype cache,
 // runs the paired checkers from internal/enrich, and anchors each finding to
 // a real source position (the literal node its dotted Path points at).
@@ -44,7 +44,7 @@ type PositionedFinding struct {
 }
 
 // CheckSourceFile walks sourceFile's variable statements, runs the paired
-// FriendlyType / MockData checks on every enrichment const with an
+// FriendlyText / MockData checks on every enrichment const with an
 // object-literal initializer, and returns position-anchored findings.
 // moduleFS is the filesystem the marker package.json gate reads — pass the
 // Program's FS so overlay-backed programs resolve; nil falls through to the
@@ -110,13 +110,13 @@ func variableDeclarations(statement *ast.Node) []*ast.Node {
 }
 
 // enrichAnnotation reports whether declaration's type annotation is a
-// reference to FriendlyType / MockData declared in the ts-runtypes package, and
+// reference to FriendlyText / MockData declared in the ts-runtypes package, and
 // returns the reference's first type argument (T) projected to a checker type.
 //
 // The alias name is read off the type-reference SYNTAX (TypeName symbol),
 // resolving the local import alias to its target via SkipAlias, then confirming
 // the module the same way marker.go does. We can't read it off the resolved
-// `*checker.Type` (marker.go's aliasForSpec path) because FriendlyType<T>'s body
+// `*checker.Type` (marker.go's aliasForSpec path) because FriendlyText<T>'s body
 // reduces immediately, so getTypeFromTypeNode drops the alias info.
 func enrichAnnotation(typeChecker *checker.Checker, declaration *ast.Node, moduleFS vfspkg.FS) (mapKind, *checker.Type) {
 	if !ast.IsVariableDeclaration(declaration) {
@@ -134,7 +134,7 @@ func enrichAnnotation(typeChecker *checker.Checker, declaration *ast.Node, modul
 	if symbol == nil {
 		return mapKindNone, nil
 	}
-	// A `import {FriendlyType} from 'ts-runtypes'` reference resolves to a local
+	// A `import {FriendlyText} from 'ts-runtypes'` reference resolves to a local
 	// import-alias symbol whose declaration is the import specifier; SkipAlias
 	// follows it to the original type-alias declaration in the package.
 	if symbol.Flags&ast.SymbolFlagsAlias != 0 {
@@ -144,10 +144,10 @@ func enrichAnnotation(typeChecker *checker.Checker, declaration *ast.Node, modul
 		return mapKindNone, nil
 	}
 	var kind mapKind
-	switch symbol.Name {
-	case enrich.FriendlyTypeName:
+	switch {
+	case enrich.IsFriendlyWrapperName(symbol.Name): // FriendlyText (+ legacy FriendlyType)
 		kind = mapKindFriendly
-	case enrich.MockDataName:
+	case symbol.Name == enrich.MockDataName:
 		kind = mapKindMock
 	default:
 		return mapKindNone, nil

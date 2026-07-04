@@ -54,7 +54,7 @@ func TestEmitFriendly(t *testing.T) {
 	// Count-bearing constraints (minLength/maxLength/min/max) scaffold a plural
 	// OBJECT with the source locale's arms (default en: one/other); the rest
 	// stay plain strings.
-	want := `export const userFriendly: FriendlyType<User> = {
+	want := `export const userFriendly: FriendlyText<User> = {
   rt$label: '',
   rt$errors: {type: ''},
   name: {rt$label: '', rt$errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},
@@ -184,7 +184,7 @@ func setFixture() *protocol.RunType {
 // TestEmitFriendlyTuple pins the structural `rt$slots` shape (solution A).
 func TestEmitFriendlyTuple(t *testing.T) {
 	got := EmitFriendly(tupleFixture(), EmitOptions{VarName: "tupleFriendly", TypeName: "Target"})
-	want := "export const tupleFriendly: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}, rt$slots: [{rt$label: '', rt$errors: {type: ''}}, {rt$label: '', rt$errors: {type: ''}}]};\n"
+	want := "export const tupleFriendly: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}, rt$slots: [{rt$label: '', rt$errors: {type: ''}}, {rt$label: '', rt$errors: {type: ''}}]};\n"
 	if got != want {
 		t.Errorf("EmitFriendly(tuple) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
@@ -230,7 +230,7 @@ func TestEmitVariadicTuple(t *testing.T) {
 // TestEmitFriendlyMap pins the structural `rt$keys`/`rt$values` shape.
 func TestEmitFriendlyMap(t *testing.T) {
 	got := EmitFriendly(mapFixture(), EmitOptions{VarName: "mapFriendly", TypeName: "Target"})
-	want := "export const mapFriendly: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}, rt$keys: {rt$label: '', rt$errors: {type: ''}}, rt$values: {rt$label: '', rt$errors: {type: ''}}};\n"
+	want := "export const mapFriendly: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}, rt$keys: {rt$label: '', rt$errors: {type: ''}}, rt$values: {rt$label: '', rt$errors: {type: ''}}};\n"
 	if got != want {
 		t.Errorf("EmitFriendly(map) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
@@ -248,7 +248,7 @@ func TestEmitMockMap(t *testing.T) {
 // TestEmitSet pins the structural `rt$values` shape for both emitters.
 func TestEmitSet(t *testing.T) {
 	gotFriendly := EmitFriendly(setFixture(), EmitOptions{VarName: "setFriendly", TypeName: "Target"})
-	wantFriendly := "export const setFriendly: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}, rt$values: {rt$label: '', rt$errors: {type: ''}}};\n"
+	wantFriendly := "export const setFriendly: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}, rt$values: {rt$label: '', rt$errors: {type: ''}}};\n"
 	if gotFriendly != wantFriendly {
 		t.Errorf("EmitFriendly(set) mismatch:\n--- got ---\n%s\n--- want ---\n%s", gotFriendly, wantFriendly)
 	}

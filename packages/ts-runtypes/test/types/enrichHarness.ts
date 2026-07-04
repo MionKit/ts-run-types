@@ -1,7 +1,7 @@
-// Harness for the per-branch `FriendlyType<T>` / `MockData<T>` instantiation-budget
-// tests (friendlyType.compile.test.ts / mockData.compile.test.ts). Builds the
+// Harness for the per-branch `FriendlyText<T>` / `MockData<T>` instantiation-budget
+// tests (friendlyText.compile.test.ts / mockData.compile.test.ts). Builds the
 // PREAMBLE by slicing the REAL machinery VERBATIM out of
-// src/enrich/{friendlyType,mockData}.ts between the `#region …-extract`
+// src/enrich/{friendlyText,mockData}.ts between the `#region …-extract`
 // markers (so the harness can never drift from the shipped types) + the
 // type-level assertion helpers, and binds each to the shared compiler measurer
 // in compileHarness.ts. Each region is self-contained (lib + own decls), so no
@@ -13,7 +13,7 @@ import {makeMeasurer, type MeasureResult} from './compileHarness.ts';
 
 export type {MeasureResult};
 
-const FRIENDLY_TS = fileURLToPath(new URL('../../src/enrich/friendlyType.ts', import.meta.url));
+const FRIENDLY_TS = fileURLToPath(new URL('../../src/enrich/friendlyText.ts', import.meta.url));
 const MOCK_TS = fileURLToPath(new URL('../../src/enrich/mockData.ts', import.meta.url));
 
 /** Slice a `#region <name> … #endregion <name>` block out of a source file and
@@ -36,7 +36,7 @@ type ExpectFalse<T extends false> = T;
 type Assignable<A, B> = A extends B ? true : false;
 `;
 
-const FRIENDLY_PREAMBLE = `${extractRegion(FRIENDLY_TS, 'friendlytype-extract')}\n${ASSERT_PREAMBLE}\n`;
+const FRIENDLY_PREAMBLE = `${extractRegion(FRIENDLY_TS, 'friendlytext-extract')}\n${ASSERT_PREAMBLE}\n`;
 const MOCK_PREAMBLE = `${extractRegion(MOCK_TS, 'mockdata-extract')}\n${ASSERT_PREAMBLE}\n`;
 
 /** Compile `FRIENDLY_PREAMBLE + snippet`; report errors + raw/net instantiations. **/

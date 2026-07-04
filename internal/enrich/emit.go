@@ -15,7 +15,7 @@ type EmitOptions struct {
 	// Resolve looks up a KindRef sentinel's canonical node by id; nil means the
 	// graph is fully inlined (no refs to follow).
 	Resolve func(id string) *protocol.RunType
-	// SourceLocale is the language the FriendlyType source map is authored in
+	// SourceLocale is the language the FriendlyText source map is authored in
 	// (tsconfig `i18n.sourceLocale`); it selects the CLDR arm set count-bearing
 	// `rt$errors` constraints scaffold. Empty means the default ('en').
 	SourceLocale string
@@ -25,7 +25,7 @@ type EmitOptions struct {
 	FriendlyErrors string
 }
 
-// EmitFriendly renders an `export const <VarName>: FriendlyType<<TypeName>> = {…};`
+// EmitFriendly renders an `export const <VarName>: FriendlyText<<TypeName>> = {…};`
 // skeleton for rt: one entry per data field, every node seeded with `rt$label: ”`,
 // and `rt$errors` pre-keyed with `type` plus the field's declared format
 // constraints (minLength / max / pattern / …). A starting scaffold for the
@@ -37,7 +37,7 @@ func EmitFriendly(rt *protocol.RunType, opts EmitOptions) string {
 	var b strings.Builder
 	b.WriteString("export const ")
 	b.WriteString(opts.VarName)
-	b.WriteString(": FriendlyType<")
+	b.WriteString(": " + FriendlyTextName + "<")
 	b.WriteString(opts.TypeName)
 	b.WriteString("> = ")
 	emitFriendlyNode(&b, ctx, rt, 0)
@@ -61,7 +61,7 @@ func EmitMock(rt *protocol.RunType, opts EmitOptions) string {
 	return b.String()
 }
 
-// FriendlySkeleton renders ONLY the FriendlyType object-literal skeleton for rt
+// FriendlySkeleton renders ONLY the FriendlyText object-literal skeleton for rt
 // (no `export const … =` wrapper, no trailing `;`) — the value the batch/stdout
 // `gen` mode returns so the test harness compares against a case's initializer.
 func FriendlySkeleton(rt *protocol.RunType, resolve func(id string) *protocol.RunType) string {

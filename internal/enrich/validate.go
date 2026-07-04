@@ -43,7 +43,7 @@ func (severity Severity) MarshalJSON() ([]byte, error) {
 	return json.Marshal(severity.String())
 }
 
-// Finding is one issue the paired walk found in an authored FriendlyType /
+// Finding is one issue the paired walk found in an authored FriendlyText /
 // MockData map. Code is the stable identifier (FT002, MD001, …); Path is the
 // dotted field path inside the map (root is "").
 type Finding struct {
@@ -74,7 +74,7 @@ type LiteralView interface {
 	StringValue(key string) (string, bool)
 }
 
-// friendlyMetaKeys are the reserved `rt$`-meta keys a FriendlyType node may carry
+// friendlyMetaKeys are the reserved `rt$`-meta keys a FriendlyText node may carry
 // alongside its field children — never matched against the RunType's properties.
 var friendlyMetaKeys = map[string]bool{
 	"rt$label":  true,
@@ -193,7 +193,7 @@ var friendlyPlaceholders = map[string]bool{
 // rendering (the bound's own type format decides currency/date formatting).
 var placeholderPattern = regexp.MustCompile(`\$\[(\w+)((?::\w+)*)\]`)
 
-// CheckFriendly walks an authored FriendlyType<T> map (literal) paired with the
+// CheckFriendly walks an authored FriendlyText<T> map (literal) paired with the
 // RunType T resolves to, collecting Findings. resolve follows KindRef sentinels
 // in child slots; pass nil when the graph is fully inlined (the unit-test
 // shape). See validate.go's package doc for the wired checks (FT002/FT003/FT005).
@@ -214,7 +214,7 @@ func CheckMock(rt *protocol.RunType, literal LiteralView, resolve func(id string
 }
 
 // TODO(refine): FT004 / MD002 (value-shape mismatch) are left to the TS type
-// checker — the precise FriendlyType<T> / MockData<T> mapped types already
+// checker — the precise FriendlyText<T> / MockData<T> mapped types already
 // reject a wrong-shaped value at the call site. MD003 (each pool value
 // validates against the field) needs the runtime validator and is out of scope
 // for this CLI pass. MD004 (min > max), FT010 / MD010 (authored-vs-current

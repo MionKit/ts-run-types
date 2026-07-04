@@ -1,5 +1,5 @@
 // Package enrich is the Go-side, build-time-only codegen + analysis for the
-// AI-enrichment artifacts FriendlyType<T> and MockData<T> (see
+// AI-enrichment artifacts FriendlyText<T> and MockData<T> (see
 // docs/AI_ENRICHMENT.md). It is deliberately SEPARATE from the existing
 // resolver/typefns/emitter pipeline: it consumes the shared data model
 // (protocol.RunType) as a library and adds nothing to the hot scan/render path.
@@ -8,7 +8,7 @@
 // protocol.ReflectionKind, where the per-node output depends on the current node
 // (the same shape as compiled/runtype/serialize.go and the typefns families):
 //
-//   - emit.go     — walks a RunType to EMIT a `.rt.ts` FriendlyType/MockData
+//   - emit.go     — walks a RunType to EMIT a `.rt.ts` FriendlyText/MockData
 //     skeleton (the `gen` command's codegen).
 //   - describe.go — walks a RunType to a human/JSON description (the `describe`
 //     command's prompt context).
@@ -194,7 +194,7 @@ func tupleSlots(ctx *walkCtx, rt *protocol.RunType) []*protocol.RunType {
 
 // isVariadicTuple reports whether the tuple carries a rest / variadic member
 // (`[A, ...B[]]`). Such a tuple has a broad `length: number`, so the
-// FriendlyType / MockData mapped types route it through the ARRAY branch
+// FriendlyText / MockData mapped types route it through the ARRAY branch
 // (`number extends T['length']`), NOT the fixed `rt$slots` branch. The emitter
 // mirrors that: a variadic tuple emits the array shape (`rt$items`/`rt$length`) so
 // the skeleton stays assignable to the Phase-A type. A member is flagged "rest"
