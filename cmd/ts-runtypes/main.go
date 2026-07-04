@@ -50,8 +50,10 @@ Options:
                         emit .js via tsgo with source maps composed back to the
                         ORIGINAL source, and write the generated cache modules
                         to disk. Emits to the tsconfig outDir; no stdio protocol.
-    --compile-cache-dir DIR  where --compile writes the cache modules
-                        (default <cwd>/__runtypes)
+    --run-types-gen-dir DIR  where --compile writes the cache modules
+                        (default <cwd>/__runtypes). Also readable as the
+                        "runTypesGenDir" key in the tsconfig ts-runtypes
+                        plugin entry (the flag overrides it, tsc-style).
     --hash-length N     short-id length for type hashes (default 7)
     --single-threaded   force single-checker mode (useful for tests);
                         also disables the parallel scan + renders
@@ -108,7 +110,7 @@ func main() {
 		outJSON            string
 		outModulesDir      string
 		compileMode        bool
-		compileCacheDir    string
+		runTypesGenDir     string
 		hashLength         int
 		singleThreaded     bool
 		noParallelScan     bool
@@ -137,7 +139,7 @@ func main() {
 	flag.StringVar(&outModulesDir, "out-modules", "", "write per-entry virtual modules to DIR after stdin EOF")
 	flag.BoolVar(&compileMode, "compile", false,
 		"compile mode: transform + emit .js with composed source maps + generated caches to disk (tsc-like); uses the tsconfig outDir")
-	flag.StringVar(&compileCacheDir, "compile-cache-dir", "",
+	flag.StringVar(&runTypesGenDir, "run-types-gen-dir", "",
 		"where compile writes the generated cache modules (default <cwd>/__runtypes); the emitted .js import them by relative path")
 	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 7)")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
@@ -258,6 +260,7 @@ func main() {
 		noParallelScan:   noParallelScan,
 		noParallelRender: noParallelRender,
 		cacheDir:         cacheDir,
+		runTypesGenDir:   runTypesGenDir,
 		emitMode:         emitMode,
 		inlineMode:       inlineMode,
 		moduleMode:       moduleMode,
@@ -322,7 +325,9 @@ func main() {
 		compileResult, compileErr := compile.Run(compile.Options{
 			Cwd:          absCwd,
 			TsconfigPath: tsconfigPath,
-			CacheOutDir:  compileCacheDir,
+			// merged.runTypesGenDir layers the flag over the tsconfig
+			// `runTypesGenDir` entry over the <cwd>/__runtypes default.
+			GenDir:       merged.runTypesGenDir,
 			ResolverOpts: resolverOpts,
 		})
 		if compileErr != nil {

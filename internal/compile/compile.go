@@ -38,13 +38,13 @@ import (
 )
 
 // Options configures a compile run. Cwd + TsconfigPath locate the project;
-// CacheOutDir is where the generated cache modules land (the emitted .js import
+// GenDir is where the generated cache modules land (the emitted .js import
 // them by a relative path). ResolverOpts carries the compiler knobs (emitMode,
 // moduleMode, hashLength, …) exactly as the plugin/CLI merge them.
 type Options struct {
 	Cwd          string
 	TsconfigPath string
-	CacheOutDir  string
+	GenDir       string
 	ResolverOpts resolver.Options
 }
 
@@ -61,13 +61,13 @@ func Run(opts Options) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compile: abs(cwd): %w", err)
 	}
-	cacheOutDir := opts.CacheOutDir
-	if cacheOutDir == "" {
-		cacheOutDir = filepath.Join(cwd, "__runtypes")
+	genDir := opts.GenDir
+	if genDir == "" {
+		genDir = filepath.Join(cwd, "__runtypes")
 	}
-	cacheOutDir, err = filepath.Abs(cacheOutDir)
+	genDir, err = filepath.Abs(genDir)
 	if err != nil {
-		return nil, fmt.Errorf("compile: abs(cacheOutDir): %w", err)
+		return nil, fmt.Errorf("compile: abs(genDir): %w", err)
 	}
 
 	// ── Pass 1: original program, scan, rewrite, generate caches ──────────────
@@ -112,15 +112,15 @@ func Run(opts Options) (*Result, error) {
 		}
 	}
 
-	// Generate the cache modules to <cacheOutDir>/types.
-	gen := r1.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: cacheOutDir})
+	// Generate the cache modules to <genDir>/types.
+	gen := r1.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: genDir})
 	if gen.Error != "" {
 		return nil, fmt.Errorf("compile: generate: %s", gen.Error)
 	}
 	result.Caches = gen.Generated
 	result.Diagnostics = append(result.Diagnostics, gen.Diagnostics...)
 	if gen.OutDir != "" {
-		cacheOutDir = gen.OutDir
+		genDir = gen.OutDir
 	}
 
 	// ── Pass 2: overlaid program, emit, relativize + compose ──────────────────
@@ -153,7 +153,7 @@ func Run(opts Options) (*Result, error) {
 			// against THIS output file's location to the cache dir. Same-line
 			// string edits on the import block (which maps to nothing), so the
 			// composed map stays valid.
-			final[outPath] = resolver.RelativizeUserImports(outPath, cacheOutDir, text)
+			final[outPath] = resolver.RelativizeUserImports(outPath, genDir, text)
 		default:
 			final[outPath] = text
 		}

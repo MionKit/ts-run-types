@@ -135,7 +135,7 @@ Project-level compiler options live in the `ts-runtypes` entry under `compilerOp
 }
 ```
 
-Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `cacheDir`, `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`, `i18n` (the FriendlyText translation config — see the enrichment verbs below). An unknown key is ignored with a build-time stderr warning. Host-specific knobs (`binary`, `cwd`, `tsconfig` path, `outDir`, `transformMode`, `sourcesContent`) stay on the bundler plugin — they're properties of the host, not the project. Full list, defaults, and the precedence chain: the [Configuration guide](container/website/content/2.guide/9.configuration.md).
+Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `cacheDir`, `runTypesGenDir` (where `--compile` writes its cache modules — [Compile](#compile-tsc-like-no-bundler)), `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`, `i18n` (the FriendlyText translation config — see the enrichment verbs below). An unknown key is ignored with a build-time stderr warning. Host-specific knobs (`binary`, `cwd`, `tsconfig` path, `outDir`, `transformMode`, `sourcesContent`) stay on the bundler plugin — they're properties of the host, not the project. Full list, defaults, and the precedence chain: the [Configuration guide](container/website/content/2.guide/9.configuration.md).
 
 ### `transformMode` (host-level)
 
@@ -161,7 +161,7 @@ The findings also ship straight from the CLI (`ts-runtypes check <file> --json`,
 bin/ts-runtypes --compile --tsconfig tsconfig.json
 ```
 
-A batch build for hosts without a bundler plugin: it transforms every marker file, emits `.js` via tsgo (honoring the tsconfig `outDir` / `target` / `module` / `sourceMap`), **composes the source maps back to the original TypeScript** so breakpoints land on your source, and writes the generated cache modules (default `<cwd>/__runtypes`, override with `--compile-cache-dir`). ESM output with external source maps; see [the design doc](docs/done/transform-cli-compile-command.md#known-limitations--follow-ups) for the current limits.
+A batch build for hosts without a bundler plugin: it transforms every marker file, emits `.js` via tsgo (honoring the tsconfig `outDir` / `target` / `module` / `sourceMap`), **composes the source maps back to the original TypeScript** so breakpoints land on your source, and writes the generated cache modules (default `<cwd>/__runtypes`, override with `--run-types-gen-dir`). ESM output with external source maps; see [the design doc](docs/done/transform-cli-compile-command.md#known-limitations--follow-ups) for the current limits.
 
 ### One-shot (stdio JSON)
 
