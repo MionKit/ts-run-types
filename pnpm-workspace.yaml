@@ -49,7 +49,15 @@ minimumReleaseAge: 43200
 # `rolldown` package we already accept. Note: this list is Rolldown's binding
 # set (no riscv64), which differs from oxlint/oxfmt's — re-verify against the
 # resolved rolldown version if vite bumps it.
+#
+# `@types/node` — pure TypeScript declaration files (DefinitelyTyped): no runtime
+# code and no install script (ignoreScripts blocks those anyway), so the 30-day
+# window — which defends against fast-spreading malicious *runtime* releases —
+# buys nothing here. Excluded so the types can track the Node major (26) the repo
+# runs on without lagging a month. Its sole dep, undici-types, is also pure types
+# and ages in on its own.
 minimumReleaseAgeExclude:
+  - '@types/node'
   - '@rolldown/binding-darwin-x64'
   - '@rolldown/binding-darwin-arm64'
   - '@rolldown/binding-win32-x64-msvc'

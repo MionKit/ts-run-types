@@ -64,7 +64,7 @@ export class LintSession {
         resolve();
       });
       worker.once('error', (error) => {
-        this.dead = `lint worker failed: ${error.message}`;
+        this.dead = `lint worker failed: ${error instanceof Error ? error.message : String(error)}`;
         clearTimeout(timer);
         resolve();
       });
