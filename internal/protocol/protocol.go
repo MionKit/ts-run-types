@@ -417,6 +417,20 @@ type Request struct {
 	// dropped. Lint-plugin use: one scan returns the full diagnostic picture
 	// a build would surface. Implied by IncludeEntryModules.
 	IncludeRtDiagnostics bool `json:"includeRtDiagnostics,omitempty"`
+	// EmitEdits switches OpTransform from 'go' mode (full rewritten Code + Map
+	// per file) to 'edits' mode: each TransformResult carries ImportBlock +
+	// Edits + SourceHash for the FE to apply itself, and Code/Map are left
+	// empty. A per-request knob (not a persistent flag) — it changes only the
+	// wire shape, never the artifacts, so it must never fold into any disk-cache
+	// fingerprint. Ignored by every op other than OpTransform.
+	EmitEdits bool `json:"emitEdits,omitempty"`
+	// OmitSourcesContent drops the ORIGINAL source out of each 'go'-mode
+	// TransformResult.Map.sourcesContent (the heaviest single wire item — the
+	// whole source a second time). The bundler composes chained maps and fills
+	// original content downstream, so it rarely needs our copy. Off by default
+	// (self-contained maps stay the norm); the transform-mode benchmark sweeps
+	// it. No effect in 'edits' mode (the FE generates its own map).
+	OmitSourcesContent bool `json:"omitSourcesContent,omitempty"`
 }
 
 // Metrics is the per-op performance block, populated only when
@@ -648,13 +662,54 @@ type Replacement struct {
 	ImportFrom string `json:"importFrom,omitempty"`
 }
 
-// TransformResult is the per-file output of OpTransform: the rewritten source,
-// its source map, and the cache-module basenames the rewritten file now imports
+// TransformResult is the per-file output of OpTransform. Two wire shapes,
+// selected by Request.EmitEdits:
+//
+//   - 'go' mode (EmitEdits false, the default): Code is the fully rewritten
+//     source and Map its source map — the compiler-driven path where Go applies
+//     the rewrite and the plugin plumbs {code, map} straight to the bundler.
+//   - 'edits' mode (EmitEdits true): Code/Map are empty and instead ImportBlock
+//   - Edits carry the raw edit list for the FE to apply itself (lighter wire:
+//     O(sites) instead of the whole rewritten file + dense map). SourceHash is
+//     the consistency guard — the applier hashes the bundler-supplied source and
+//     falls back to a source upload on mismatch (see docs/ARCHITECTURE.md →
+//     Rewrite mechanics).
+//
+// EmittedModules is the cache-module basenames the rewritten file now imports
 // (so a consumer emitting modules to disk knows which were referenced).
 type TransformResult struct {
-	Code           string     `json:"code"`
-	Map            *SourceMap `json:"map,omitempty"`
-	EmittedModules []string   `json:"emittedModules,omitempty"`
+	Code string     `json:"code,omitempty"`
+	Map  *SourceMap `json:"map,omitempty"`
+	// ImportBlock is the deduped import statement block the rewrite prepends at
+	// offset 0 (single physical line, already relativized to <outDir>/types when
+	// files-mode is in effect). Empty when the file needs no injected imports.
+	// 'edits' mode only; the FE prepends it verbatim.
+	ImportBlock string `json:"importBlock,omitempty"`
+	// Edits is the flat point/span edit list (NOT including ImportBlock), in
+	// UTF-16 CODE-UNIT offsets against the ORIGINAL source — the FE applier
+	// indexes JS strings natively, so Go converts every byte offset via
+	// makeByteToChar first. 'edits' mode only.
+	Edits []Edit `json:"edits,omitempty"`
+	// SourceHash is a non-cryptographic FNV-1a/32 hash of the exact source bytes
+	// the Edits offsets index (the resolver's Program/overlay view). The FE
+	// applier hashes the bundler-supplied source; a mismatch means an upstream
+	// pre-plugin edited the source out from under us, so the applier re-uploads
+	// the source (setSources) and re-requests rather than misplacing every edit.
+	// 'edits' mode only.
+	SourceHash     string   `json:"sourceHash,omitempty"`
+	EmittedModules []string `json:"emittedModules,omitempty"`
+}
+
+// Edit is one point insertion (Start == End) or span replacement (Start < End)
+// against the original source, in UTF-16 CODE-UNIT offsets. The wire unit is a
+// hard contract: UTF-16 code units, never bytes, never runes — astral-plane
+// characters make the three diverge. Used only by 'edits'-mode OpTransform;
+// the resolver's own byte offsets (Site.Pos, Replacement.Start/End) are
+// converted to UTF-16 before they become Edits.
+type Edit struct {
+	Start int    `json:"start"`
+	End   int    `json:"end"`
+	Text  string `json:"text"`
 }
 
 // SourceMap is a standard source-map v3 object — the plain shape Vite/Rollup
