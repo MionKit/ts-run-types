@@ -1,13 +1,14 @@
 # Expose Go-compiler tunables through the tsconfig plugin entry
 
-**Status: partially shipped.** The consolidation's core goal landed (tsconfig
-is the canonical project-config surface, read on the build path with tsc-style
-precedence); some maximal extras were resolved as decisions/docs rather than
-code. See **What shipped** below; the original scoping note follows it verbatim.
+**Status: done.** The consolidation's core goal landed (tsconfig is the
+canonical project-config surface, read on the build path with tsc-style
+precedence); the remaining maximal extras were resolved as decisions/docs rather
+than code and will not be implemented, so this record lives here in `done/`. See
+**What shipped** below; the original scoping note follows it verbatim.
 
 > **Superseded (cacheDir):** the `cacheDir` plugin key / `--cache-dir` flag
 > described below were later removed by
-> [docs/done/cache-align-with-typescript-incremental.md](../done/cache-align-with-typescript-incremental.md).
+> [cache-align-with-typescript-incremental.md](cache-align-with-typescript-incremental.md).
 > The RT disk cache now follows TypeScript's `incremental` / `composite` switch
 > instead of a knob of ours; the internal `RT_CACHE_DIR` env var is the only
 > override. Read the mentions of `cacheDir` below as historical.
@@ -268,7 +269,7 @@ init module that calls `patchSerializationOptions` once on first import:
 - `defaultBufferSize` (default `2 ** 14` = 16 KiB cold-start fallback; the
   `dynamic` strategy normally seeds from the per-type compile-time estimate
   instead). Lowered from 16 MiB in
-  [binary-encoder-sizing-redesign.md](../done/binary-encoder-sizing-redesign.md);
+  [binary-encoder-sizing-redesign.md](binary-encoder-sizing-redesign.md);
   surfacing it on the tsconfig entry makes that change actionable without
   a runtime patch call.
 - `sizeMultiplier` (default 2, "k sigma of headroom"). Same story.
