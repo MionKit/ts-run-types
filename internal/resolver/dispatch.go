@@ -883,7 +883,29 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 					fileReplacements = append(fileReplacements, replacement)
 				}
 			}
-			code, sourceMap := transform.Apply(file, sourceFile.Text(), fileSites, fileReplacements)
+			source := sourceFile.Text()
+			if request.EmitEdits {
+				// 'edits' mode: hand the FE the raw edit list instead of the
+				// rewritten file + map. ComputeEdits shares Apply's insertion /
+				// import-block machinery, so applying these edits with the FE's
+				// EditBuffer reproduces Apply's output byte-for-byte. The
+				// SourceHash lets the FE detect an upstream pre-plugin that
+				// edited the source out from under the resolver's byte offsets.
+				importBlock, edits := transform.ComputeEdits(source, fileSites, fileReplacements)
+				if importBlock != "" && request.OutDir != "" {
+					// Files-mode: relativize the injected block's virtual:rt
+					// specifiers exactly as 'go' mode does to the whole file —
+					// the block is the only place those specifiers appear.
+					importBlock = relativizeUserImports(resolver.absPath(file), resolver.absPath(request.OutDir), importBlock)
+				}
+				transformed[file] = protocol.TransformResult{
+					ImportBlock: importBlock,
+					Edits:       edits,
+					SourceHash:  transform.SourceHash(source),
+				}
+				continue
+			}
+			code, sourceMap := transform.Apply(file, source, fileSites, fileReplacements)
 			if request.OutDir != "" {
 				// Files-mode: rewrite the injected import block's virtual:rt
 				// specifiers to paths relative to this file (the generated
@@ -892,6 +914,12 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				// relates them. The block is one physical line, so this leaves
 				// the source map valid.
 				code = relativizeUserImports(resolver.absPath(file), resolver.absPath(request.OutDir), code)
+			}
+			if request.OmitSourcesContent && sourceMap != nil {
+				// Drop the embedded original source — the bundler fills it from
+				// its own copy when composing the chained map. One nil slot per
+				// source keeps the array length aligned with Sources.
+				sourceMap.SourcesContent = make([]*string, len(sourceMap.Sources))
 			}
 			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap}
 		}
