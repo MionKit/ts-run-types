@@ -135,7 +135,14 @@ Project-level compiler options live in the `ts-runtypes` entry under `compilerOp
 }
 ```
 
-Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `cacheDir`, `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`, `i18n` (the FriendlyText translation config — see the enrichment verbs below). An unknown key is ignored with a build-time stderr warning. Host-specific knobs (`binary`, `cwd`, `tsconfig` path, `outDir`) stay on the bundler plugin — they're properties of the host, not the project. Full list, defaults, and the precedence chain: the [Configuration guide](container/website/content/2.guide/9.configuration.md).
+Recognised keys: `emitMode`, `moduleMode`, `inlineMode`, `hashLength`, `cacheDir`, `singleThreaded`, `parallelScan`, `parallelRender`, `enrichDir`, `i18n` (the FriendlyText translation config — see the enrichment verbs below). An unknown key is ignored with a build-time stderr warning. Host-specific knobs (`binary`, `cwd`, `tsconfig` path, `outDir`, `transformMode`, `sourcesContent`) stay on the bundler plugin — they're properties of the host, not the project. Full list, defaults, and the precedence chain: the [Configuration guide](container/website/content/2.guide/9.configuration.md).
+
+### `transformMode` (host-level)
+
+How the per-file rewrite crosses the resolver↔plugin wire. Both produce identical output; the choice is purely wire cost.
+
+- **`'edits'` (default)** — the resolver returns the raw edit list (import block + call-site splices + a source-content hash) and the plugin applies it, generating the source map itself. The wire is O(sites) instead of the whole rewritten file plus its map, so it wins the dev loop on large / many-marker files (measured 6-55× less inbound wire, growing with file size). It requires this plugin to see **pristine source**, so order `runtypes-devtools` first among any `enforce: 'pre'` plugins; if another plugin edits a file before it, the source hash catches the drift, the plugin re-syncs and warns, and it falls back to `'go'` if it still can't reconcile.
+- **`'go'`** — the resolver applies the rewrite and returns the whole rewritten file plus its source map. Heavier wire, but the only path for a non-JS / plugin-free host, and the safe fallback. Pair it with `sourcesContent: false` to drop the embedded original source from the map (the bundler fills it when composing the chained map) — the heaviest single wire item, gone at no debuggability cost in a normal build.
 
 ## Linting (OXlint / ESLint)
 
