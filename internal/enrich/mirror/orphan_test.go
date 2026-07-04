@@ -306,6 +306,46 @@ func TestPruneOrphanBlocks_MalformedCarcassSkipped(t *testing.T) {
 	}
 }
 
+// TestPruneOrphanBlocks_StringLiteralsNeverPruned closes the prune half of the
+// lint/prune asymmetry (docs/todos → docs/done: prune-carcass-string-literal-
+// anchoring): since PruneOrphanBlocks now shares CarcassMatches with the lint
+// scan, prune removes EXACTLY what lint reports. A carcass byte sequence
+// embedded in an AUTHORED string value (an rt$label / rt$errors template that
+// documents the tag syntax) or inside a `//` line comment is neither reported
+// nor pruned — it comes out byte-identical. The destructive twin of
+// TestScanDirtyTags_StringLiteralsNeverFire.
+func TestPruneOrphanBlocks_StringLiteralsNeverPruned(t *testing.T) {
+	authored := "import type { FriendlyType } from 'ts-runtypes';\n" +
+		"export const friendlyDocs: FriendlyType<Docs> = {\n" +
+		"  snippet: {rt$label: 'Example: /* " + OrphanTag + " export const gone = {}; */'},\n" +
+		"  note: {rt$errors: {required: \"use /* " + OrphanChildTag + " old: 1, */ to mark it\"}},\n" +
+		"  // a /* " + OrphanTag + " export const alsoGone = {}; */ inside a line comment\n" +
+		"};\n"
+
+	pruned, removed, skipped := PruneOrphanBlocks(authored)
+	if pruned != authored || removed != 0 || len(skipped) != 0 {
+		t.Fatalf("authored strings / line comments must survive prune byte-identical; removed=%d skipped=%d\n%s", removed, len(skipped), pruned)
+	}
+	// Lint agrees: it reports nothing on the same text.
+	if findings := ScanDirtyTags(authored); len(findings) != 0 {
+		t.Errorf("lint must agree with prune (report nothing); got %+v", findings)
+	}
+
+	// A REAL carcass in the same file is still removed, and the authored
+	// strings documenting the tag survive alongside it.
+	withReal := authored + "/* " + OrphanTag + " export const friendlyGone = {}; */\n"
+	prunedReal, removedReal, skippedReal := PruneOrphanBlocks(withReal)
+	if removedReal != 1 || len(skippedReal) != 0 {
+		t.Fatalf("the real carcass must be removed; removed=%d skipped=%d\n%s", removedReal, len(skippedReal), prunedReal)
+	}
+	if !strings.Contains(prunedReal, "rt$label: 'Example: /* "+OrphanTag) {
+		t.Errorf("authored string documenting the tag must survive a real prune:\n%s", prunedReal)
+	}
+	if strings.Contains(prunedReal, "friendlyGone") {
+		t.Errorf("real carcass const must be gone:\n%s", prunedReal)
+	}
+}
+
 // TestCarcassCrossesStatement covers the per-tag thresholds directly.
 func TestCarcassCrossesStatement(t *testing.T) {
 	// A well-formed whole-const carcass wraps exactly one declaration → fine.
