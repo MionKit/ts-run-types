@@ -4,6 +4,7 @@ import {createUnplugin} from 'unplugin';
 import {getExePath} from 'ts-runtypes-bin';
 import {renderHeadline} from './diagnosticCatalog.ts';
 import {ResolverClient} from './resolver-client.ts';
+import {applyEdits, sourceHash} from './apply-edits.ts';
 import {Family, Severity, type Diagnostic} from './protocol.ts';
 import {
   MODULE_MODE_ALL_MODULES,
@@ -104,6 +105,27 @@ export interface PluginOptions {
   //                   One function per call-site type per family, at the
   //                   cost of duplicating shapes shared across roots.
   inlineMode?: 'default' | 'allInternal';
+  // How the per-file rewrite crosses the wire (host-level, NOT a project
+  // semantic — it must never fold into any disk-cache fingerprint; the
+  // artifacts are identical either way):
+  //   'edits' (default) — the resolver returns the raw edit list (import block
+  //             + call-site splices + a source-content hash) and the plugin
+  //             applies it here, generating the source map JS-side. O(sites)
+  //             on the wire, so it wins the dev loop on large / many-marker
+  //             files. Requires this plugin to see pristine source (run it
+  //             first among enforce:'pre' plugins); on source drift it detects
+  //             the mismatch, re-syncs via setSources, and warns.
+  //   'go'    — the resolver applies the rewrite and returns the whole
+  //             rewritten file + source map. Heavier wire, but the only option
+  //             for a non-JS / plugin-free host, and the safe fallback when an
+  //             upstream pre-plugin rewrites the source before us.
+  transformMode?: 'go' | 'edits';
+  // 'go' mode only — whether the returned source map embeds the original source
+  // in `sourcesContent`. Default true (self-contained maps). Set false to drop
+  // it: the bundler composes the chained map and fills original content itself,
+  // so this trims the heaviest single wire item at no cost to debuggability in
+  // a normal build. No effect in 'edits' mode (the FE generates its own map).
+  sourcesContent?: boolean;
 }
 
 // MARKER_MODULE is the package whose import marks a file as worth scanning;
@@ -123,6 +145,15 @@ const MARKER_MODULE = 'ts-runtypes';
 // the `vite` escape hatch.
 export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) => {
   const options = rawOptions ?? {};
+  // Wire mode for the per-file rewrite. Default 'edits' (the light path that
+  // wins the bundler dev loop); 'go' is the full-transform fallback. Validated
+  // at the host boundary so a config typo fails loudly.
+  const transformMode: 'go' | 'edits' = options.transformMode ?? 'edits';
+  if (transformMode !== 'go' && transformMode !== 'edits') {
+    throw new Error(
+      `[runtypes-devtools] unknown transformMode ${JSON.stringify(options.transformMode)} — expected 'go' | 'edits'`
+    );
+  }
   let resolver: ResolverClient | null = null;
   let cwdAbs = '';
   // The resolved RunTypes output root (<cwd>/__runtypes by default). Set by
@@ -207,6 +238,72 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     if (!fs.existsSync(gitkeep)) fs.writeFileSync(gitkeep, '');
   }
 
+  // transformViaGo is the 'go'-mode path: the resolver applies the rewrite and
+  // returns the whole rewritten file + source map; the plugin just plumbs
+  // {code, map} to the bundler. Also the safe fallback for 'edits' mode when the
+  // source-consistency guard can't be satisfied.
+  async function transformViaGo(rel: string) {
+    // Default keeps self-contained maps; an explicit `sourcesContent: false`
+    // trims the embedded original source from the map.
+    const goOpts = options.sourcesContent === false ? {omitSourcesContent: true} : undefined;
+    const result = await resolver!.transform([rel], outDirAbs, goOpts);
+    // A file outside the buildStart Program may surface new types / pure fns;
+    // regenerate so the modules its injected imports point at exist on disk
+    // before the bundler resolves them. (write-only-on-change keeps it cheap.)
+    if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(outDirAbs);
+    if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
+    const fileResult = result.transformed[rel];
+    if (!fileResult || typeof fileResult.code !== 'string') return null;
+    // fileResult.map is our wire SourceMap — structurally valid but typed with
+    // `sources: (string|null)[]` where the bundler input wants string[]; cast.
+    return {code: fileResult.code, map: (fileResult.map ?? undefined) as any};
+  }
+
+  // transformViaEdits is the 'edits'-mode path: the resolver returns the raw
+  // edit list, the plugin applies it to the bundler-supplied `code` and
+  // generates the map JS-side (lighter wire). The source-consistency guard
+  // protects against an upstream pre-plugin that edited the source out from
+  // under the resolver's byte offsets: on a hash mismatch we re-upload the
+  // source and re-request once; if it still diverges, or the applier throws,
+  // we fall back to 'go' mode so a build is never broken by this optimization.
+  async function transformViaEdits(ctx: any, rel: string, code: string) {
+    const incomingHash = sourceHash(code);
+    let result = await resolver!.transform([rel], outDirAbs, {emitEdits: true});
+    if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(outDirAbs);
+    if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
+    let fileResult = result.transformed[rel];
+    if (!fileResult) return null;
+
+    if (fileResult.sourceHash !== undefined && fileResult.sourceHash !== incomingHash) {
+      ctx.warn?.(
+        `runtypes-devtools: transform 'edits' source drift on ${rel} — re-syncing via setSources. ` +
+          `An enforce:'pre' plugin likely edited this file before runtypes-devtools; order runtypes-devtools first to avoid the extra round-trip.`
+      );
+      try {
+        await resolver!.setSources({[rel]: code});
+        result = await resolver!.transform([rel], outDirAbs, {emitEdits: true});
+        if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(outDirAbs);
+        if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
+        fileResult = result.transformed[rel];
+      } catch {
+        return transformViaGo(rel);
+      }
+      // Still divergent after a fresh upload — bail to 'go' mode for correctness.
+      if (!fileResult || (fileResult.sourceHash !== undefined && fileResult.sourceHash !== incomingHash)) {
+        return transformViaGo(rel);
+      }
+    }
+
+    try {
+      const applied = applyEdits(rel, code, fileResult.importBlock ?? '', fileResult.edits ?? []);
+      return {code: applied.code, map: applied.map as any};
+    } catch (error) {
+      // A malformed edit set (should be impossible) must not break the build.
+      ctx.warn?.(`runtypes-devtools: 'edits' apply failed on ${rel} (${String(error)}) — falling back to 'go' mode.`);
+      return transformViaGo(rel);
+    }
+  }
+
   return {
     name: 'runtypes-devtools',
     // Must run BEFORE vite/esbuild's built-in TypeScript transform. The
@@ -258,22 +355,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       if (!importsMarkerModule && !code.includes('registerPureFnFactory')) return null;
 
       const rel = path.relative(cwdAbs || process.cwd(), id);
-      // The Go binary owns the full transform (OpTransform): it scans, applies
-      // the call-site rewrites + dedup import block + bindings (relativized to
-      // <outDir>/types since outDirAbs is passed), and generates the source map.
-      const result = await resolver.transform([rel], outDirAbs);
-      // A file outside the buildStart Program may surface new types / pure fns;
-      // regenerate so the modules its injected imports point at exist on disk
-      // before the bundler resolves them. (write-only-on-change keeps it cheap.)
-      if (result.addedRunTypes || result.addedPureFns) await resolver.generate(outDirAbs);
-      if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
-      const fileResult = result.transformed[rel];
-      if (!fileResult) return null;
-      // The Go-generated map lets the bundler chain our edits into the
-      // composite source map. fileResult.map is our wire SourceMap (protocol.ts)
-      // — structurally valid but typed with `sources: (string|null)[]` where the
-      // bundler source-map input wants string[]; cast at the boundary.
-      return {code: fileResult.code, map: (fileResult.map ?? undefined) as any};
+      return transformMode === 'edits' ? transformViaEdits(this, rel, code) : transformViaGo(rel);
     },
 
     vite: {

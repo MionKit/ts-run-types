@@ -64,6 +64,16 @@ export interface ResolverClientOptions {
   singleThreaded?: boolean;
 }
 
+// WireStats is the cumulative byte + request tally of a connection's stdio
+// traffic (UTF-8 wire bytes, both directions). The transform-mode benchmark
+// reads it to compare 'go' vs 'edits' wire cost; always-on because the cost of
+// counting is negligible beside the JSON encode/decode of the same lines.
+export interface WireStats {
+  bytesWritten: number;
+  bytesRead: number;
+  requests: number;
+}
+
 // Common JSON-per-line request/response framing. Owns the in-flight request
 // queue. The transport is agnostic to whether the streams come from a
 // spawned child process or a Unix-socket connection.
@@ -71,6 +81,9 @@ class MessageTransport {
   private lines: Interface;
   private queue: Array<(r: Response) => void> = [];
   private closed = false;
+  private bytesWritten = 0;
+  private bytesRead = 0;
+  private requestCount = 0;
 
   constructor(
     private readonly stdin: Writable,
@@ -79,6 +92,8 @@ class MessageTransport {
   ) {
     this.lines = createInterface({input: stdout});
     this.lines.on('line', (line) => {
+      // + 1 for the newline framing readline stripped — counts the whole line.
+      this.bytesRead += Buffer.byteLength(line, 'utf8') + 1;
       const done = this.queue.shift();
       if (!done) return;
       try {
@@ -87,6 +102,10 @@ class MessageTransport {
         done({error: `parse: ${String(e)}`});
       }
     });
+  }
+
+  wireStats(): WireStats {
+    return {bytesWritten: this.bytesWritten, bytesRead: this.bytesRead, requests: this.requestCount};
   }
 
   // markClosed is called by external close hooks (child 'exit', socket
@@ -107,7 +126,10 @@ class MessageTransport {
     if (this.closed) throw new Error('resolver is closed');
     return new Promise<Response>((resolve) => {
       this.queue.push(resolve);
-      this.stdin.write(JSON.stringify(req) + '\n');
+      const payload = JSON.stringify(req) + '\n';
+      this.bytesWritten += Buffer.byteLength(payload, 'utf8');
+      this.requestCount += 1;
+      this.stdin.write(payload);
     });
   }
 
@@ -203,13 +225,24 @@ export interface GenerateResult {
 // without caring which transport is in use.
 export interface ResolverConnection {
   scanFiles(files: string[], opts?: ScanFilesOptions): Promise<ScanFilesResult>;
-  transform(files: string[], outDir?: string): Promise<TransformFilesResult>;
+  transform(files: string[], outDir?: string, opts?: TransformOptions): Promise<TransformFilesResult>;
   generate(outDir?: string): Promise<GenerateResult>;
   dump(): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
   tsCompile(): Promise<number>;
+  wireStats(): WireStats;
   close(): void;
+}
+
+// TransformOptions selects the transform wire mode. `emitEdits: true` is
+// 'edits' mode — each TransformResult carries importBlock + edits + sourceHash
+// for the FE to apply itself; omitted (or false) is 'go' mode (full code + map).
+// `omitSourcesContent` is a 'go'-mode wire trim (drop the embedded original
+// source from the map); no effect in 'edits' mode.
+export interface TransformOptions {
+  emitEdits?: boolean;
+  omitSourcesContent?: boolean;
 }
 
 // Mixed-in ops implementation shared between the two clients. Inheritance
@@ -254,14 +287,18 @@ abstract class ResolverClientBase implements ResolverConnection {
     };
   }
 
-  // transform runs the compiler-driven per-file transform (OpTransform): the
-  // Go binary scans, rewrites, injects the dedup import block + bindings, and
-  // generates the source map, returning finished code + map per file. The
-  // plugin's transform() hook plumbs the result straight to Vite.
-  async transform(files: string[], outDir?: string): Promise<TransformFilesResult> {
+  // transform runs the compiler-driven per-file transform (OpTransform). In
+  // 'go' mode (default) the Go binary scans, rewrites, injects the dedup import
+  // block + bindings, and generates the source map, returning finished code +
+  // map per file. In 'edits' mode (opts.emitEdits) it instead returns the raw
+  // edit list (importBlock + edits + sourceHash) for the FE applier — a lighter
+  // wire. Either way the plugin drives HMR off the same added* signals.
+  async transform(files: string[], outDir?: string, opts: TransformOptions = {}): Promise<TransformFilesResult> {
     if (files.length === 0) throw new Error('transform: files must be non-empty');
     const req: Request = {op: 'transform', files};
     if (outDir) req.outDir = outDir;
+    if (opts.emitEdits) req.emitEdits = true;
+    if (opts.omitSourcesContent) req.omitSourcesContent = true;
     const resp = await this.transport.request(req);
     if (resp.error) throw new Error(`transform [${files.join(', ')}]: ${resp.error}`);
     return {
@@ -315,6 +352,13 @@ abstract class ResolverClientBase implements ResolverConnection {
     const resp = await this.transport.request({op: 'tsCompile'});
     if (resp.error) throw new Error(`tsCompile: ${resp.error}`);
     return resp.tsCompileMs ?? 0;
+  }
+
+  // wireStats exposes the connection's cumulative stdio byte + request tally
+  // (both directions, UTF-8). The transform-mode benchmark reads it to compare
+  // 'go' vs 'edits' wire cost.
+  wireStats(): WireStats {
+    return this.transport.wireStats();
   }
 
   close(): void {
