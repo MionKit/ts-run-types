@@ -1,7 +1,16 @@
 # `edits`-mode coarse source map — `mapResolution: 'boundary' | 'lines'`
 
-**Status:** spec / idea (not started) — surfaced by the transform-wire benchmark ([docs/done/transform-wire-modes.md → Benchmark findings](../done/transform-wire-modes.md#benchmark-findings)).
+**Status:** spec / idea (**deferred**, low priority) — surfaced by the transform-wire benchmark ([docs/done/transform-wire-modes.md → Benchmark findings](../done/transform-wire-modes.md#benchmark-findings)). Subordinate to the [transform CLI + wire architecture](./transform-cli-compile-command.md).
 **Related:** [`packages/runtypes-devtools/src/apply-edits.ts`](../../packages/runtypes-devtools/src/apply-edits.ts), [`edit-buffer.ts`](../../packages/runtypes-devtools/src/edit-buffer.ts), [`internal/compiled/transform/edits.go`](../../internal/compiled/transform/edits.go), [`unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts)
+
+## Decision (2026-07-04, review)
+
+Deferred and de-prioritised. The benchmark showed the FE map walk never dominates a real (concurrent) build, so the coarse map is a niche win. Two line-count-preserving variants that would have made the map builder trivial were **evaluated and rejected**:
+
+- **comment-out the replaced function** (`fn(){…}` → `/** fn(){…} */`) — killed by the nested `*/` hazard (`*/` occurs in regexes, strings, existing comments); the escaping fix is its own per-char scan, plus it carries dead comment bytes.
+- **newline-pad the replacement** (`binding` + N `\n` to match the span's newlines) — hazard-free, but adds strippable blank-line runs to the output for no substantial gain.
+
+Conclusion: if this is ever built, keep the current char-edit wire (do NOT preserve line count), let the multi-line pure-fn collapse be handled by the map builder's **line-delta tracking** (jump the original-line cursor past collapsed lines — `O(rare replacements)`), and apply a uniform **per-edit refinement** (a segment at each line start + one after each edit) rather than a `single-vs-multi-edit` flag the client can derive itself. Note the FE needs **no** byte↔UTF-16 conversion — Go ships UTF-16 offsets (see the architecture doc).
 
 ## 1. Problem
 
