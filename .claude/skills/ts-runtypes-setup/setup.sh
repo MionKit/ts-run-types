@@ -31,7 +31,7 @@
 #
 # Supported tool versions (kept in sync with CLAUDE.md -> "Containerized apps"):
 #   podman >= 4.0    both apps (container runtime)
-#   Node   >= 24     benchmarks host build (root package.json engines)
+#   Node   >= 26     benchmarks host build (root package.json engines)
 #   pnpm   >= 11     monorepo workspace policies (packageManager pnpm@11.1.1)
 #   Go     >= 1.26   benchmarks resolver binary (go.mod)
 #
@@ -50,7 +50,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 PODMAN_MIN=4.0
-NODE_MIN=24
+NODE_MIN=26
 PNPM_MIN=11
 GO_MIN=1.26
 GO_INSTALL_VERSION=1.26.0 # used only when Go is absent on Linux and tarball is fetched

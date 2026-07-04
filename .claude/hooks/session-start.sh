@@ -20,7 +20,7 @@ set -uo pipefail
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
 
 REPO="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)}"
-NODE_MAJOR_MIN=24
+NODE_MAJOR_MIN=26
 GO_MIN=1.26
 
 fails=0

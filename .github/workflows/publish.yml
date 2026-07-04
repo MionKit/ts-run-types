@@ -41,7 +41,7 @@ jobs:
           fetch-depth: 0 # full history + tags so git-cliff can build the release notes
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 26
       - uses: actions/download-artifact@v8
         with:
           name: tarballs
