@@ -30,7 +30,12 @@ const sample = {mapProp: 'x'} as MapThing;
 export const reflectedId = getRunTypeId(sample);
 `;
 
-describe('vite build / composite source map', () => {
+// Run the whole composite-map proof in BOTH transform wire modes: 'edits' (the
+// FE applies the edit list + generates the map) and 'go' (the resolver returns
+// the finished file + map). Both must chain cleanly through Vite's map
+// composition — the modes are byte-equal by construction (see
+// transform-modes.test.ts), and this proves that survives a real build.
+describe.each(['edits', 'go'] as const)('vite build / composite source map [transformMode=%s]', (mode) => {
   const register = hasBinary() ? it : it.skip;
 
   // One real build shared by both form assertions (the build is the slow
@@ -53,6 +58,7 @@ describe('vite build / composite source map', () => {
             cwd: PACKAGE_ROOT,
             tsconfig: 'tsconfig.test.json',
             cacheDir: false,
+            transformMode: mode,
             // Isolated output root so this nested build never shares (and
             // prunes) the marker package's own vitest `__runtypes/types` dir —
             // the two programs differ (this one adds entry-map.ts), so a shared
