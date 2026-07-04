@@ -16,9 +16,36 @@ runs:
         cd third_party/tsgolint/typescript-go
         git apply --3way ../patches/*.patch
 
+    # Read the pinned tsgolint revision so the Go build-cache key tracks it (see
+    # the cache step below).
+    - name: Resolve the tsgolint pin (for the Go build-cache key)
+      id: tsgo
+      shell: bash
+      run: echo "sha=$(git -C third_party/tsgolint rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+    # setup-go's built-in cache keys ONLY on go.sum, which never moves when the
+    # tsgolint submodule is bumped (every typescript-go dep comes in through a
+    # local `replace` path, not go.sum). That combination silently freezes the
+    # cache on the pre-bump objects and recompiles all of tsgo on every run after
+    # a bump. So we manage the cache ourselves (setup-go: cache:false) and key it
+    # on the tsgolint pin. GOCACHE is content-addressed, so our internal/ + cmd/
+    # code — which changes almost every PR — is a cheap recompile that reuses the
+    # cached tsgo objects; only a real tsgolint bump repopulates them (once, via
+    # the restore-keys prefix fallback, then saved fresh under the new key).
+    - name: Restore Go build cache (keyed on the tsgolint pin, not our sources)
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-gocache-${{ hashFiles('go.mod', 'go.sum') }}-${{ steps.tsgo.outputs.sha }}
+        restore-keys: |
+          ${{ runner.os }}-gocache-
+
     - uses: actions/setup-go@v6
       with:
         go-version: '1.26'
+        cache: false
 
     - uses: pnpm/action-setup@v6
 
