@@ -79,6 +79,22 @@ func ComposeMaps(rewriteMap, emitMap *protocol.SourceMap) *protocol.SourceMap {
 	}
 }
 
+// OriginalLines returns the originalLine of every source-bearing (4+ field)
+// segment in a v3 `mappings` string, in encounter order. An introspection
+// helper — the compile CLI's tests use it to assert a composed map points at
+// original lines rather than the import-shifted rewritten ones.
+func OriginalLines(mappings string) []int {
+	var lines []int
+	for _, row := range decodeMappings(mappings) {
+		for _, seg := range row {
+			if seg.fields >= 4 {
+				lines = append(lines, seg.srcLine)
+			}
+		}
+	}
+	return lines
+}
+
 // lookupOriginal finds the original position map A assigns to a rewritten
 // position (line, col): the segment on generated line `line` with the largest
 // genCol not exceeding col (source maps snap to the previous segment). Segments
