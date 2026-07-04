@@ -63,7 +63,7 @@ func TestCompile_EmitsJsWithComposedMap(t *testing.T) {
 	result, err := Run(Options{
 		Cwd:          tmp,
 		TsconfigPath: "tsconfig.json",
-		CacheOutDir:  filepath.Join(tmp, "__runtypes"),
+		GenDir:       filepath.Join(tmp, "__runtypes"),
 		ResolverOpts: resolver.Options{
 			Cwd:        tmp,
 			EmitMode:   constants.EmitCode,
@@ -127,7 +127,7 @@ func TestCompile_EmitsJsWithComposedMap(t *testing.T) {
 		t.Errorf("composed map has no segment for the call line (original line 2)")
 	}
 
-	// Cache modules were generated to <cacheOutDir>/types.
+	// Cache modules were generated to <genDir>/types.
 	if len(result.Caches) == 0 {
 		t.Errorf("no cache modules generated")
 	}

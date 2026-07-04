@@ -21,6 +21,7 @@ type buildFlags struct {
 	noParallelScan   bool
 	noParallelRender bool
 	cacheDir         string
+	runTypesGenDir   string
 	emitMode         string
 	inlineMode       string
 	moduleMode       string
@@ -37,6 +38,7 @@ type buildOptions struct {
 	disableParallelScan   bool
 	disableParallelRender bool
 	cacheDir              string
+	runTypesGenDir        string
 	emitMode              string
 	inlineMode            string
 	moduleMode            string
@@ -112,7 +114,30 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, hasTsconfig bo
 	}
 
 	out.cacheDir = resolveCacheDir(flags, plugin, hasTsconfig, absCwd)
+	out.runTypesGenDir = resolveRunTypesGenDir(flags, plugin, absCwd)
 	return out
+}
+
+// resolveRunTypesGenDir layers where `--compile` writes its cache modules: an
+// explicit --run-types-gen-dir flag wins, then the tsconfig `runTypesGenDir`
+// entry, then the <cwd>/__runtypes default. Relative values resolve under
+// absCwd. Unlike cacheDir there is no disable state — compile always needs an
+// output location — so an empty explicit value falls through to the default.
+func resolveRunTypesGenDir(flags buildFlags, plugin tsRuntypesPlugin, absCwd string) string {
+	value := ""
+	switch {
+	case flags.set["run-types-gen-dir"]:
+		value = strings.TrimSpace(flags.runTypesGenDir)
+	case plugin.RunTypesGenDir != nil:
+		value = strings.TrimSpace(*plugin.RunTypesGenDir)
+	}
+	if value == "" {
+		value = filepath.Join(absCwd, "__runtypes")
+	}
+	if !filepath.IsAbs(value) {
+		value = filepath.Join(absCwd, value)
+	}
+	return value
 }
 
 // resolveCacheDir layers the cache location: an explicit --cache-dir flag wins

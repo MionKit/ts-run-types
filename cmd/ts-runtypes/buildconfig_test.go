@@ -27,7 +27,10 @@ func baseFlags() buildFlags {
 // mode (hasTsconfig=false) yields exactly the binary defaults — caching off.
 func TestMergeBuildOptions_DefaultsWhenEmpty(t *testing.T) {
 	got := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{}, false, "/proj")
-	want := buildOptions{hashLength: 0, emitMode: "code", inlineMode: "default", moduleMode: "default"}
+	want := buildOptions{
+		hashLength: 0, emitMode: "code", inlineMode: "default", moduleMode: "default",
+		runTypesGenDir: filepath.Join("/proj", "__runtypes"),
+	}
 	if got != want {
 		t.Errorf("merge defaults = %+v, want %+v", got, want)
 	}
@@ -53,12 +56,45 @@ func TestMergeBuildOptions_TsconfigFillsGaps(t *testing.T) {
 		disableParallelScan:   true,
 		disableParallelRender: true,
 		cacheDir:              "/abs/cache",
+		runTypesGenDir:        filepath.Join("/proj", "__runtypes"),
 		emitMode:              "both",
 		inlineMode:            "allInternal",
 		moduleMode:            "allSingle",
 	}
 	if got != want {
 		t.Errorf("merge from tsconfig = %+v, want %+v", got, want)
+	}
+}
+
+// TestResolveRunTypesGenDir covers the three layers: flag > tsconfig > the
+// <cwd>/__runtypes default (there is no disable state — compile always emits).
+func TestResolveRunTypesGenDir(t *testing.T) {
+	defaultDir := filepath.Join("/proj", "__runtypes")
+	tests := []struct {
+		name   string
+		flags  buildFlags
+		plugin tsRuntypesPlugin
+		want   string
+	}{
+		{"nothing set uses the default", baseFlags(), tsRuntypesPlugin{}, defaultDir},
+		{"tsconfig absolute wins over default", baseFlags(), tsRuntypesPlugin{RunTypesGenDir: strPtr("/abs/rt")}, "/abs/rt"},
+		{"tsconfig relative anchors under cwd", baseFlags(), tsRuntypesPlugin{RunTypesGenDir: strPtr("gen/rt")}, filepath.Join("/proj", "gen/rt")},
+		{"tsconfig empty falls through to default", baseFlags(), tsRuntypesPlugin{RunTypesGenDir: strPtr("")}, defaultDir},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := resolveRunTypesGenDir(test.flags, test.plugin, "/proj"); got != test.want {
+				t.Errorf("resolveRunTypesGenDir = %q, want %q", got, test.want)
+			}
+		})
+	}
+
+	// An explicit --run-types-gen-dir flag wins over the tsconfig value.
+	flags := baseFlags()
+	flags.set["run-types-gen-dir"] = true
+	flags.runTypesGenDir = "/flag/rt"
+	if got := resolveRunTypesGenDir(flags, tsRuntypesPlugin{RunTypesGenDir: strPtr("/abs/rt")}, "/proj"); got != "/flag/rt" {
+		t.Errorf("flag runTypesGenDir should win, got %q", got)
 	}
 }
 
@@ -169,6 +205,7 @@ func TestResolveBuildPlugin(t *testing.T) {
         "singleThreaded": true,
         "parallelScan": false,
         "cacheDir": ".cache/rt",
+        "runTypesGenDir": "gen/rt",
       },
     ],
   },
@@ -193,6 +230,9 @@ func TestResolveBuildPlugin(t *testing.T) {
 	if plugin.CacheDir == nil || *plugin.CacheDir != ".cache/rt" {
 		t.Errorf("cacheDir pointer = %v, want .cache/rt", plugin.CacheDir)
 	}
+	if plugin.RunTypesGenDir == nil || *plugin.RunTypesGenDir != "gen/rt" {
+		t.Errorf("runTypesGenDir pointer = %v, want gen/rt", plugin.RunTypesGenDir)
+	}
 
 	// No tsconfig in the directory → ok=false, tolerant.
 	if _, ok := resolveBuildPlugin(t.TempDir(), ""); ok {
@@ -210,7 +250,7 @@ func TestUnknownPluginKeys(t *testing.T) {
 	}
 
 	allKnown := withConfig(t, `{ "compilerOptions": { "plugins": [
-    { "name": "ts-runtypes", "emitMode": "both", "hashLength": 7, "cacheDir": ".c" }
+    { "name": "ts-runtypes", "emitMode": "both", "hashLength": 7, "cacheDir": ".c", "runTypesGenDir": "gen" }
   ] } }`)
 	if got := unknownPluginKeys(allKnown, ""); len(got) != 0 {
 		t.Errorf("recognised keys should not warn, got %v", got)

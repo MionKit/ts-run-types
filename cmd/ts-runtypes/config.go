@@ -105,6 +105,11 @@ type tsRuntypesPlugin struct {
 	SingleThreaded *bool   `json:"singleThreaded"`
 	ParallelScan   *bool   `json:"parallelScan"`
 	ParallelRender *bool   `json:"parallelRender"`
+	// RunTypesGenDir is where `--compile` writes the generated cache modules
+	// (the emitted .js import them by relative path). Distinct from CacheDir (the
+	// incremental artifact cache under node_modules/.cache). A pointer so an
+	// absent key falls through to the <cwd>/__runtypes default. Compile-only.
+	RunTypesGenDir *string `json:"runTypesGenDir"`
 
 	// Binary buffer size-estimate knobs (the dynamic strategy's cold-start
 	// seed). Pointers so an absent key falls through to the binary default.

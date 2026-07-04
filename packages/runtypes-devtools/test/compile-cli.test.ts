@@ -52,7 +52,7 @@ describe('ts-runtypes --compile (tsc-like CLI)', () => {
 
       const run = spawnSync(
         BIN,
-        ['--compile', '--cwd', dir, '--tsconfig', 'tsconfig.json', '--compile-cache-dir', path.join(dir, '__runtypes')],
+        ['--compile', '--cwd', dir, '--tsconfig', 'tsconfig.json', '--run-types-gen-dir', path.join(dir, '__runtypes')],
         {encoding: 'utf8'}
       );
       expect(run.status, run.stderr).toBe(0);
