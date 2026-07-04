@@ -1,11 +1,21 @@
 # `edits`-mode coarse source map — `mapResolution: 'boundary' | 'lines'`
 
-**Status:** spec / idea (**deferred**, low priority) — surfaced by the transform-wire benchmark ([docs/done/transform-wire-modes.md → Benchmark findings](../done/transform-wire-modes.md#benchmark-findings)). Subordinate to the [transform CLI + wire architecture](./transform-cli-compile-command.md).
-**Related:** [`packages/runtypes-devtools/src/apply-edits.ts`](../../packages/runtypes-devtools/src/apply-edits.ts), [`edit-buffer.ts`](../../packages/runtypes-devtools/src/edit-buffer.ts), [`internal/compiled/transform/edits.go`](../../internal/compiled/transform/edits.go), [`unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts)
+**Status:** **REJECTED — built, evaluated, reverted (2026-07-04). Do not re-propose without solving the map-chain column problem below.**
+**Related:** [`packages/runtypes-devtools/src/apply-edits.ts`](../../packages/runtypes-devtools/src/apply-edits.ts), [`edit-buffer.ts`](../../packages/runtypes-devtools/src/edit-buffer.ts), [`unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts)
 
-## Decision (2026-07-04, review)
+## Decision (2026-07-04) — implemented then reverted
 
-Deferred and de-prioritised. The benchmark showed the FE map walk never dominates a real (concurrent) build, so the coarse map is a niche win. Two line-count-preserving variants that would have made the map builder trivial were **evaluated and rejected**:
+A full `mapResolution: 'lines'` option was **implemented and benchmarked** (line-anchored FE map + per-edit re-anchor, `'edits'`-mode only): it cut the FE map-generation cost ~5× on a 92 KiB file (3.99 → 0.74 ms). It was then **reverted** because the fidelity cost is not worth the niche win:
+
+- **The map is a link in a chain, not a debugger's direct input.** Our transform runs `enforce: 'pre'`; downstream tools (esbuild type-strip, Rollup bundle, minifier) each add a map that **composes** with ours. Composition **snaps** (no column interpolation, per `@jridgewell/trace-mapping`), so the final map is only as column-precise as its coarsest link. A `'lines'` map makes **every** composed position column-coarse, all the way to production/minified source maps.
+- **Line-only accuracy isn't enough for the full chain.** It's fine for dev breakpoints (line-based), but a **minified** production map feeds column-precise error tooling (e.g. Sentry pinpointing which expression on a line); with `'lines'`, file + original line resolve correctly but the **column collapses to the line start / nearest binding**. The chain does NOT break (validated by a real `vite build` e2e that composed cleanly and stayed line-accurate) — but the output is a poor citizen in a real toolchain.
+- **The win is marginal.** The map cost only bites on very large single files, is ms-scale, and concurrent builds already hide it (the char-edits wire cut — the actual headline, 6–210× — is unaffected and stays).
+
+**Net:** not worth the added surface (`mapResolution` option + a second map path) for a dev-only, big-file-only saving that degrades production maps. The `'edits'` default stays full `'boundary'` granularity.
+
+### Earlier exploration (kept for context)
+
+Two line-count-preserving variants that would have made the map builder trivial were also **evaluated and rejected**:
 
 - **comment-out the replaced function** (`fn(){…}` → `/** fn(){…} */`) — killed by the nested `*/` hazard (`*/` occurs in regexes, strings, existing comments); the escaping fix is its own per-char scan, plus it carries dead comment bytes.
 - **newline-pad the replacement** (`binding` + N `\n` to match the span's newlines) — hazard-free, but adds strippable blank-line runs to the output for no substantial gain.
