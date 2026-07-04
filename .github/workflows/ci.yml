@@ -1,19 +1,26 @@
 name: ci
 
 # The gate on main (the stable development branch). Runs on every PR to main and
-# on push to main (post-merge confirmation). ONE job, `verify`:
-#   1. Go tests + gofmt/vet, the full JS suite (which builds the resolver binary
-#      + dists via pretest and runs the fuzz integration specs at default
-#      iteration counts), lint + typecheck, format.
-#   2. THEN, only when container inputs change (path-gated), a website
-#      serves-a-page + benchmark competitor-build smoke. It reuses the bootstrap,
-#      Go binary, and dists already built above instead of standing up a second
-#      job that repeats that work. CI NEVER builds the shared image: it PULLS the
-#      prebuilt one (competitor node_modules baked in) and mounts our freshly built
-#      binary; if the image can't be pulled the job fails (rebuild + push it from
-#      local - it is not a CI artifact). typia is skipped (RT_BENCH_NO_TYPIA) for now
-#      because its native plugin compiles ~200s at run time and is not yet baked
-#      into the image; the prod gate's `benchmarks` job exercises typia.
+# on push to main (post-merge confirmation).
+#
+# The heavy work is split into TWO independent jobs that run in parallel rather
+# than one serial job: the Go suite (`go`) and the JS suite + lint/typecheck/
+# format (`js`). They share no runtime state, so serialising them just added
+# their times together. Each job re-runs `bootstrap`, which restores the shared,
+# tsgolint-keyed Go build cache, so the expensive typescript-go compile is a
+# cache hit in both. lint/typecheck/format ride on the `js` job (rather than a
+# third parallel job) so they reuse the resolver + dists `pnpm test` already
+# built — its `prelint` becomes a cheap build-ID staleness check, not a rebuild.
+#
+# A FOURTH job, `smoke`, runs the website serves-a-page + benchmark
+# competitor-build checks. It is path-gated (only when container inputs change,
+# decided by the tiny `changes` job) and runs in PARALLEL with the verify jobs
+# instead of tailing them. It NEVER builds the shared image: it PULLS the
+# prebuilt one (competitor node_modules baked in) and mounts our freshly built
+# binary; if the image can't be pulled the job fails (rebuild + push it from
+# local — it is not a CI artifact). typia is skipped (RT_BENCH_NO_TYPIA) for now
+# because its native plugin compiles ~200s at run time and is not yet baked into
+# the image; the prod gate's `benchmarks` job exercises typia.
 on:
   pull_request:
     branches: [main]
@@ -28,24 +35,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: verify
+  go:
+    name: go suite
     runs-on: ubuntu-latest
-    # Job-level permissions REPLACE the workflow default, so every needed scope is
-    # listed: contents:read (checkout), packages:read (pull the prebuilt GHCR
-    # image), pull-requests:read (paths-filter on PRs).
-    permissions:
-      contents: read
-      packages: read
-      pull-requests: read
     steps:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
       - uses: ./.github/actions/bootstrap
-      - name: Go test suite
-        run: go test ./internal/...
-      - name: Go formatting + vet (our code only; never third_party)
+      # Fail-fast: the cheap checks run before the ~3-minute test suite, so a
+      # gofmt/vet slip fails in seconds instead of after all the tests. gofmt is
+      # instant; vet compiles (cache-warm) and also warms the compile cache the
+      # test step reuses.
+      - name: Go formatting (our code only; never third_party)
         run: |
           unformatted="$(gofmt -l cmd internal)"
           if [ -n "$unformatted" ]; then
@@ -53,24 +55,51 @@ jobs:
             echo "$unformatted" >&2
             exit 1
           fi
-          go vet ./cmd/... ./internal/...
-      # pretest (check-stale-builds.sh) builds bin/ts-runtypes + the marker/plugin
-      # dists; the run includes the *.integration.test.ts fuzz specs.
-      - name: Full JS suite (builds the resolver + dists via pretest; runs fuzz)
-        run: pnpm test
-      # Runs after pnpm test so the dists typecheck reads are already in place.
+      - name: Go vet (our code only; never third_party)
+        run: go vet ./cmd/... ./internal/...
+      - name: Go test suite
+        run: go test ./internal/...
+
+  js:
+    name: js suite + lint (+ fuzz)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/bootstrap
+      # Fail-fast ordering — cheap checks before the ~3.5-minute suite:
+      #   1. check-format needs nothing built (prettier + gofmt over sources), so
+      #      it goes first and fails in seconds on an unformatted file.
+      #   2. Build the resolver + dists ONCE, explicitly. `pnpm run lint` runs
+      #      typecheck before its own prelint build, so the dists must already be
+      #      on disk when lint runs — hence the explicit build here.
+      #   3. Lint + typecheck, then the full test suite last. Both re-run
+      #      check:builds as a cheap build-ID staleness check, not a real rebuild.
+      - name: Check formatting (no build needed — runs first)
+        run: pnpm run check-format
+      - name: Build the resolver + dists (needed by lint + tests)
+        run: pnpm run check:builds
       - name: Lint + typecheck
         run: pnpm run lint
-      - name: Check formatting
-        run: pnpm run check-format
+      - name: Full JS suite (builds nothing new here; runs fuzz)
+        run: pnpm test
 
-      # --- container smoke: path-gated, reuses everything built above ----------
-      # CI NEVER builds the shared image; it PULLS the prebuilt one (deps baked)
-      # and mounts our freshly built binary. The `smoke` filter only decides
-      # WHETHER to run (container inputs / driver scripts changed).
-      - name: Detect container changes
-        uses: dorny/paths-filter@v4
-        id: changes
+  # Decides WHETHER the container smoke runs (container inputs / driver scripts
+  # changed). Kept as its own tiny job so `smoke` can gate on it without a
+  # bootstrap, and so a non-container PR never spins up a smoke runner at all.
+  changes:
+    name: detect container changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      smoke: ${{ steps.filter.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v4
+        id: filter
         with:
           filters: |
             smoke:
@@ -80,17 +109,33 @@ jobs:
               - 'scripts/podman-website.sh'
               - 'scripts/lib-container.sh'
               - 'scripts/lib-ghcr.sh'
+
+  # Path-gated container smoke, parallel with the verify jobs. Self-contained: it
+  # builds its own resolver + linux binaries for the container mounts, then pulls
+  # the prebuilt shared image (CI never builds it).
+  smoke:
+    name: container smoke
+    needs: changes
+    if: needs.changes.outputs.smoke == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/bootstrap
+      - name: Build the resolver + linux binaries for the container mounts
+        run: bash scripts/check-stale-builds.sh all linux-go linux-extract
       - name: Pull the prebuilt shared image (CI never builds it)
-        if: steps.changes.outputs.smoke == 'true'
         uses: ./.github/actions/pull-shared-image
       - name: Website serves-a-page smoke
-        if: steps.changes.outputs.smoke == 'true'
         run: pnpm run website:smoke
       # RT_BENCH_NO_TYPIA stays until the prebuilt image BAKES typia's .ttsc plugin (a
       # local image change + republish); a no-.ttsc image would otherwise recompile
       # it ~200s here. Drop this once that image is live.
       - name: Benchmark competitor-build smoke
-        if: steps.changes.outputs.smoke == 'true'
         env:
           RT_BENCH_NO_TYPIA: '1'
         run: pnpm run bench:smoke
