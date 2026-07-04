@@ -31,7 +31,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 ## Go side
 
 - Go ≥ 1.26 (enforced by `go.mod`); `go test ./internal/...` for the Go suite.
-- Pipeline is split across single-purpose packages under [internal/](internal/) — program, resolver, marker, compiled/runtype, compiled/typefns, compiled/purefns, compiled/entrymod, protocol, constants, diag, cache, hashid, testfixtures — keep each focused, never introduce cross-package state.
+- Pipeline is split across single-purpose packages under [internal/](internal/) — program, resolver, marker, compiled/runtype, compiled/typefns, compiled/purefns, compiled/entrymod, compiled/transform (rewrite + source-map: `Apply`/`ComputeEdits`/`ComposeMaps`), compile (the `--compile` tsc-like batch: overlay emit + map composition), protocol, constants, diag, cache, hashid, testfixtures — keep each focused, never introduce cross-package state.
 - Go fixtures live in [internal/testfixtures/](internal/testfixtures/) (F1–F17) covering atomic kinds, primitives/objects/unions, inferred generics, and `InjectRunTypeId<T>` marker variants.
 - Our Go code lives ONLY in [cmd/](cmd/) and [internal/](internal/); never edit [third_party/](third_party/).
 

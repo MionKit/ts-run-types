@@ -155,6 +155,14 @@ The findings also ship straight from the CLI (`ts-runtypes check <file> --json`,
 
 ## CLI
 
+### Compile (tsc-like, no bundler)
+
+```bash
+bin/ts-runtypes --compile --tsconfig tsconfig.json
+```
+
+A batch build for hosts without a bundler plugin: it transforms every marker file, emits `.js` via tsgo (honoring the tsconfig `outDir` / `target` / `module` / `sourceMap`), **composes the source maps back to the original TypeScript** so breakpoints land on your source, and writes the generated cache modules (default `<cwd>/__runtypes`, override with `--compile-cache-dir`). ESM output with external source maps; see [the design doc](docs/done/transform-cli-compile-command.md#known-limitations--follow-ups) for the current limits.
+
 ### One-shot (stdio JSON)
 
 ```bash
