@@ -72,8 +72,8 @@ function mergeMockOptions(
   const callMock = callOpts?.mock as Partial<MockOptions> | undefined;
   const merged: MockOptions = {
     ...defaultMockOptions,
-    ...(factoryMock ?? {}),
-    ...(callMock ?? {}),
+    ...factoryMock,
+    ...callMock,
   };
   const data = (callOpts?.data ?? factoryOpts?.data) as RunTypeMockOptions<unknown>['data'];
   const result: RunTypeMockOptions<unknown> = {mock: merged};
