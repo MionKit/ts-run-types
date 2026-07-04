@@ -515,7 +515,7 @@ func TestComment_KeptTypeChange_SurvivesAbove(t *testing.T) {
 		t.Errorf("leading comment should stay ABOVE the replaced field:\n%s", got)
 	}
 	// It survives prune (the field is live, so the comment is not in the carcass).
-	pruned, _, _ := PruneOrphanBlocks(got)
+	pruned, _, _, _ := PruneOrphanBlocks(got)
 	if !strings.Contains(pruned, "// age in years") {
 		t.Errorf("a live field's leading comment must survive --prune:\n%s", pruned)
 	}
@@ -603,7 +603,7 @@ func TestComment_DroppedField_FoldsIntoCarcass(t *testing.T) {
 				t.Errorf("the leading comment must fold INTO the carcass (after the tag), not dangle above it:\n%s", got)
 			}
 			// After prune, the comment is gone with the carcass — nothing dangling.
-			pruned, removed, _ := PruneOrphanBlocks(got)
+			pruned, removed, _, _ := PruneOrphanBlocks(got)
 			if removed == 0 {
 				t.Errorf("prune should remove the field carcass:\n%s", got)
 			}

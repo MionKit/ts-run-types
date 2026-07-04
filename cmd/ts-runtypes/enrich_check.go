@@ -76,14 +76,16 @@ func runCheck(args []string) {
 		fatal("check: resolver has no checker")
 	}
 
-	text := sourceFile.Text()
+	scan := mirror.NewScanForSourceFile(sourceFile)
+	text := scan.Text()
 	lineIndex := mirror.NewLineIndex(text)
 	var findings []fileFinding
 
 	// Tag hygiene — the same detection the resolver's checkEnrich pass uses
-	// and the same pattern `gen --prune` removes.
-	classifier := mirror.NewFamilyClassifier(text)
-	for _, tag := range mirror.ScanDirtyTags(text) {
+	// and the same comment-anchored matches `gen --prune` removes, computed
+	// off the program's existing parse.
+	classifier := scan.FamilyClassifier()
+	for _, tag := range scan.DirtyTags() {
 		findings = append(findings, tagFileFinding(absPath, lineIndex, tag, classifier.FamilyFor(tag)))
 	}
 

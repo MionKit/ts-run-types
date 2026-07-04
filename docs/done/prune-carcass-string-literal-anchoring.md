@@ -67,6 +67,57 @@ are unchanged.
   and the lint suite stay green — real carcasses always start a block comment,
   so filtered matches are identical on generated mirrors.
 
+## Follow-up (same branch): parse-oracle comment spans — `mirror.Scan`
+
+The hand-rolled `commentSpans` lexer was then replaced wholesale by a
+parse-derived one ([internal/enrich/mirror/scanTags.go](../../internal/enrich/mirror/scanTags.go)),
+upgrading the anchoring from "good lexical approximation" to parser-grade:
+
+- **`Scan` type** — one per-file lexical view (text + comment spans + literal
+  token ranges), built once and shared by every probe. `NewScan(text)` parses;
+  `NewScanForSourceFile(sf)` reuses an EXISTING parse — both the resolver's
+  checkEnrich pass and `ts-runtypes check` already hold the Program's parse, so
+  the oracle costs one AST walk and no re-parse on the hot paths (previously
+  the hand-rolled lexer re-ran up to ~6× per file across the probes).
+- **Literal-token oracle** — the parser reports where string / template-part /
+  regex / JSX-text TOKENS are; comments fall out of one linear pass over
+  everything else. Comments are trivia (never AST nodes), and tsgo's lean AST
+  materializes no punctuation tokens, so per-node trivia enumeration
+  (`GetLeadingCommentRanges`) would miss a carcass parked before `};` — the
+  linear pass gets completeness for free (pinned by the existing prune suite,
+  whose orphan-child fixture sits exactly there).
+- **Two lexical blind spots fixed**, both directions of lint/prune symmetry
+  preserved by construction:
+  - a comment inside a template `${…}` interpolation is now SEEN — a carcass
+    there is reported and pruned (`TestScan_TemplateInterpolationComments`);
+  - `/*` bytes inside a regex literal no longer open a phantom comment — under
+    the old lexer, `pattern: /a\/* @rtOrphan x/` plus any later real comment
+    made the raw pattern "match" across LIVE code, which lint reported and
+    prune DELETED (the malformed-carcass guard only counts `export` statements
+    and a plain const slipped under it). Verified against the extracted old
+    lexer; pinned by `TestScan_RegexLiteralNeverPhantomComment`.
+- **Third raw-pattern consumer found and fixed:** `indexOrphanCarcasses`
+  ([index.go](../../internal/enrich/mirror/index.go)) — the restore-on-reappear
+  index — matched carcass bytes inside string literals too, so an authored
+  value documenting the syntax could be spliced back in AS LIVE CODE when the
+  named type reappeared. Now anchored through the same Scan
+  (`TestIndexOrphanCarcasses_StringEmbeddedNeverIndexed`). The todo's original
+  grep missed it because it uses a sibling pattern (`orphanCarcassPattern`),
+  not `orphanBlockPattern`. (`ownTriviaStart`'s use of the same sibling
+  pattern is safe as-is: it scans a `[fullStart, tokenStart)` region the
+  parser already guarantees is trivia-only.)
+- **Prune refuses unparseable files** — `PruneOrphanBlocks` gained an error
+  return: text with syntax errors comes back untouched with an error, and the
+  `gen --prune` CLI warns and skips that file (the same stance `ParseMirror`
+  takes for `gen --update`; prune is destructive and never rewrites bytes it
+  cannot confidently lex). Lint stays best-effort on broken files (recovered
+  parse), matching astcheck.
+- **Structural mask hardened:** the const-annotation probes
+  (`IsEnrichmentFile`, `FamilyClassifier`) now mask literal bodies as well as
+  comments, so a multiline template embedding a mirror-shaped line can't make
+  ordinary source read as a mirror; the DSL-import fallback keeps the
+  comments-only mask (it must see the quoted 'ts-runtypes' specifier).
+
 ## Notes / left as-is (still benign, as PR #168 concluded)
 
 The JS pre-filter
@@ -79,4 +130,5 @@ Grep confirmed at implementation time that `PruneOrphanBlocks` was the only
 remaining raw `orphanBlockPattern` consumer; the `cmd/ts-runtypes`
 check/translate paths all go through `ScanDirtyTags`. The two non-consumer
 references are in tests (`hygiene_test.go`, `todo_test.go`) asserting the
-pattern directly.
+pattern directly. (The follow-up above later found `orphanCarcassPattern` — a
+sibling pattern this grep could not catch — and anchored it too.)

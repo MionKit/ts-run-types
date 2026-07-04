@@ -12,9 +12,10 @@ import (
 // enrichment-health diagnostics (FamilyEnrich) for every requested file that
 // looks like an enrichment mirror. Three groups per file, one text read:
 //
-//   - tag hygiene (FT020–FT022 / MD020–MD022, per the mirror's family) — pure
-//     text scan over the Program's view of the file (mirror.ScanDirtyTags), so
-//     unsaved overlay text is honored;
+//   - tag hygiene (FT020–FT022 / MD020–MD022, per the mirror's family) — the
+//     comment-anchored scan over the Program's view of the file (one
+//     mirror.Scan built from the file's EXISTING parse, so unsaved overlay
+//     text is honored and the parse is never paid twice);
 //   - FriendlyText / MockData content validity (FT/MD codes) — the shared
 //     astcheck walk against this resolver's checker + runtype cache;
 //   - breadcrumb drift (GE002/GE003) — the mirror's source link, read from
@@ -34,14 +35,15 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diag.Diagnostic {
 		if err != nil || sourceFile == nil {
 			continue
 		}
-		text := sourceFile.Text()
-		if !mirror.IsEnrichmentFile(text) {
+		scan := mirror.NewScanForSourceFile(sourceFile)
+		if !scan.IsEnrichmentFile() {
 			continue
 		}
 
+		text := scan.Text()
 		lineIndex := mirror.NewLineIndex(text)
-		classifier := mirror.NewFamilyClassifier(text)
-		for _, tag := range mirror.ScanDirtyTags(text) {
+		classifier := scan.FamilyClassifier()
+		for _, tag := range scan.DirtyTags() {
 			out = append(out, diag.New(tagCode(tag.Kind, classifier.FamilyFor(tag)), tagSite(file, lineIndex, tag)))
 		}
 
@@ -54,7 +56,7 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diag.Diagnostic {
 		// with FriendlyText / MockData has ordinary relative imports, not a
 		// breadcrumb. `check` and `gen --check` — where the user explicitly
 		// targets enrichment files — stay ungated.
-		if mirror.HasMarkerComment(text) {
+		if scan.HasMarkerComment() {
 			absolutePath := tspath.ResolvePath(resolver.Program.TS.GetCurrentDirectory(), file)
 			for _, drift := range mirror.CheckBreadcrumbDrift(absolutePath, text, resolver.Program.FS) {
 				out = append(out, diag.New(drift.Code, tagSite(file, lineIndex, mirror.TagFinding{Start: drift.Start, End: drift.End}), drift.Args...))
