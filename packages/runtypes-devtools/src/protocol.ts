@@ -259,12 +259,37 @@ export interface Replacement {
 }
 
 // TransformResult mirrors Go protocol.TransformResult — the per-file output of
-// the `transform` op: rewritten source, its source map, and the cache-module
-// basenames the file now imports.
+// the `transform` op. Two wire shapes selected by Request.emitEdits:
+//   - 'go' mode (emitEdits unset): `code` is the fully rewritten source, `map`
+//     its source map. The plugin plumbs {code, map} straight to the bundler.
+//   - 'edits' mode (emitEdits set): `code`/`map` are absent and `importBlock` +
+//     `edits` + `sourceHash` carry the raw edit list the FE applies itself (see
+//     apply-edits.ts). Lighter wire: O(sites) instead of the whole file + map.
 export interface TransformResult {
-  code: string;
+  code?: string;
   map?: SourceMap;
+  // 'edits' mode — the deduped import block prepended at offset 0 (single
+  // physical line, already relativized to <outDir>/types in files-mode).
+  // Absent when the file needs no injected imports.
+  importBlock?: string;
+  // 'edits' mode — the flat point/span edit list (NOT the import block), in
+  // UTF-16 code-unit offsets against the ORIGINAL source (the FE indexes JS
+  // strings natively).
+  edits?: Edit[];
+  // 'edits' mode — FNV-1a/32 hash of the source bytes the offsets index. The
+  // applier hashes the bundler-supplied source and, on mismatch, re-uploads it
+  // (setSources) and re-requests rather than misplacing every offset.
+  sourceHash?: string;
   emittedModules?: string[];
+}
+
+// Edit mirrors Go protocol.Edit — one point insertion (start === end) or span
+// replacement (start < end) in UTF-16 CODE-UNIT offsets against the original
+// source. Used only by 'edits'-mode transform.
+export interface Edit {
+  start: number;
+  end: number;
+  text: string;
 }
 
 // SourceMap is a standard source-map v3 object (the shape Vite/Rollup accept).
@@ -324,6 +349,15 @@ export interface Request {
   // payload. Implied by includeEntryModules; the lint plugin sets it so one
   // scan surfaces everything a build would.
   includeRtDiagnostics?: boolean;
+  // transform only — switch from 'go' mode (full code + map per file) to
+  // 'edits' mode: each TransformResult carries importBlock + edits + sourceHash
+  // for the FE to apply itself. A per-request wire knob; the artifacts are
+  // identical either way, so it never affects the disk cache.
+  emitEdits?: boolean;
+  // transform only ('go' mode) — drop the original source from the map's
+  // sourcesContent (the heaviest single wire item). The bundler composes the
+  // chained map and fills original content itself, so it rarely needs our copy.
+  omitSourcesContent?: boolean;
 }
 
 // Metrics mirrors the Go-side protocol.Metrics — populated on a response
