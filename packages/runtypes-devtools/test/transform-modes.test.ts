@@ -220,6 +220,25 @@ getRunTypeId<Guard>();
     expect(sourceHash('a')).toBe('e40c292c');
     expect(sourceHash('foobar')).toBe('bf9cf968');
   });
+
+  // 'go' mode also returns a sourceHash so the plugin can DETECT (and warn on)
+  // an upstream pre-plugin's drift, even though it can't recover in 'go' mode.
+  runTest(
+    "'go' mode returns a sourceHash so drift is detectable",
+    {
+      'go-drift.ts': `import {getRunTypeId} from 'ts-runtypes';
+type GoDrift = {id: number};
+getRunTypeId<GoDrift>();
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const go = (await client.transform(['go-drift.ts'])).transformed['go-drift.ts'];
+        expect(typeof go.code).toBe('string'); // 'go' still returns full code
+        expect(go.sourceHash).toBe(sourceHash(sources['go-drift.ts']));
+      });
+    }
+  );
 });
 
 describe('runtypes-devtools / transform modes / go-mode sourcesContent trim', () => {
