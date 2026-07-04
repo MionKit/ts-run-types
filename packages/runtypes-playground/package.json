@@ -32,7 +32,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "demo": "vite",
-    "format": "prettier --write 'src/**/*.ts'",
+    "format": "oxfmt --write 'src/**/*.ts'",
     "clean": "rimraf dist dist-site tsconfig.tsbuildinfo"
   },
   "dependencies": {

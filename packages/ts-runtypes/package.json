@@ -74,7 +74,7 @@
     "pretest": "pnpm --filter runtypes-devtools run build",
     "test": "vitest run",
     "dev:test": "vitest watch",
-    "format": "prettier --write 'src/**/*.ts'",
+    "format": "oxfmt --write 'src/**/*.ts'",
     "clean": "rimraf dist .coverage tsconfig.tsbuildinfo",
     "fresh-start": "pnpm run clean && rimraf node_modules"
   },
