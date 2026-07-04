@@ -87,6 +87,7 @@ RT_BENCH_DUMP|dev|-|Print typecost probe sources (debug)
 RT_BENCH_SERIALIZATION_OUT|dev|-|Serialization bench output dir (default container/website/public/bench-data)
 RT_COMPILETIME_N|dev|-|Compile-time bench repeat count (default 5)
 RT_COMPILETIME_COMPETITORS|dev|-|Libraries to measure compile time for (default "ts-runtypes typia")
+RT_TRANSFORM_WIRE_N|dev|-|Transform-wire bench per-cell repeat count (default 5)
 RT_BENCH_DOCDATA|dev|-|Host dir to publish benchmark JSON into (default .docdata)
 RT_BENCH_REMOTE_IMAGE|dev|-|GHCR ref to pull (default ghcr.io/$GHCR_OWNER/tsrt-website:latest)
 RT_BENCH_MOUNT_OPTS|dev|-|Extra bind-mount opts, e.g. ":z" on SELinux
