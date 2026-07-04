@@ -1,5 +1,5 @@
 // End-to-end proof that the rewrite's source map survives Vite's composite
-// map chain (our EditBuffer map -> esbuild's TS transform -> Rollup
+// map chain (our EditBuffer map -> Oxc's TS transform -> Rolldown
 // bundling): in a real `vite build` with sourcemaps on, the emitted chunk
 // must map each marker call site back to its ORIGINAL fixture line — i.e.
 // the injected single-line import block and the spliced bindings displace
@@ -91,14 +91,18 @@ describe.each(['edits', 'go'] as const)('vite build / composite source map [tran
   }
 
   // expectMappedToOriginalLine asserts the composite map carries the marker
-  // call back to the fixture line that wrote it. Vite app builds run Rollup
-  // with `preserveEntrySignatures: false`, so the entry's exported NAMES are
-  // dropped and only the side-effectful marker calls survive — the assertion
-  // therefore keys on the surviving call expression (`generatedToken`).
-  // Several generated lines can contain that token (the marker package's own
-  // function definition bundles into the same chunk), so the match requires
-  // a segment pointing at the FIXTURE source index AND the expected line —
-  // definition/diagnostic lines map to other sources and can't false-hit.
+  // call back to the fixture line that wrote it. Vite app builds run the
+  // bundler with `preserveEntrySignatures: false`, so the entry's exported
+  // NAMES are dropped and only the side-effectful marker calls survive — the
+  // assertion therefore keys on the surviving call expression
+  // (`generatedToken`). Several generated lines can contain that token (the
+  // marker package's own function definition bundles into the same chunk), so
+  // the match requires a segment pointing at the FIXTURE source index AND the
+  // expected line — definition/diagnostic lines map to other sources and can't
+  // false-hit. NOTE: Rolldown (vite@8) inlines the single-use `const sample`
+  // straight into the reflection call, so its generated form is
+  // `getRunTypeId({ mapProp: "x" }, id)` — the reflection token keys on that
+  // inlined shape, not the original `getRunTypeId(sample)` text.
   function expectMappedToOriginalLine(
     built: {chunk: Rollup.OutputChunk; mappedLines: MappingSegment[][]; fixtureSourceIndex: number},
     generatedToken: string,
@@ -131,7 +135,7 @@ describe.each(['edits', 'go'] as const)('vite build / composite source map [tran
   register(
     'reflection form: getRunTypeId(value) site maps back to its original line',
     async () => {
-      expectMappedToOriginalLine(await builtChunk(), 'getRunTypeId(sample', 'getRunTypeId(sample)');
+      expectMappedToOriginalLine(await builtChunk(), 'getRunTypeId({', 'getRunTypeId(sample)');
     },
     120_000
   );

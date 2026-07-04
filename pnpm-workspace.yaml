@@ -39,7 +39,32 @@ minimumReleaseAge: 43200
 # until 30 days pass. The binaries themselves are precompiled artifacts
 # whose source is the audited `rollup` package (which we already accept);
 # excluding them from the policy is a small, contained relaxation.
+#
+# `@rolldown/binding-*` — platform-specific native binaries for Rolldown, the
+# bundler behind vite@8. Same lockstep story as `@rollup/rollup-*`: Rolldown
+# pins each binding package exact-equal to its own version, so a fresh Rolldown
+# point release (pulled through vite's `rolldown` range) publishes all of them
+# at once and temporarily blocks a lockfile refresh until 30 days pass. The
+# binaries are prebuilt napi-rs artifacts (no install script) of the audited
+# `rolldown` package we already accept. Note: this list is Rolldown's binding
+# set (no riscv64), which differs from oxlint/oxfmt's — re-verify against the
+# resolved rolldown version if vite bumps it.
 minimumReleaseAgeExclude:
+  - '@rolldown/binding-darwin-x64'
+  - '@rolldown/binding-darwin-arm64'
+  - '@rolldown/binding-win32-x64-msvc'
+  - '@rolldown/binding-win32-arm64-msvc'
+  - '@rolldown/binding-linux-x64-gnu'
+  - '@rolldown/binding-linux-x64-musl'
+  - '@rolldown/binding-linux-arm64-gnu'
+  - '@rolldown/binding-linux-arm64-musl'
+  - '@rolldown/binding-linux-arm-gnueabihf'
+  - '@rolldown/binding-linux-s390x-gnu'
+  - '@rolldown/binding-linux-ppc64-gnu'
+  - '@rolldown/binding-freebsd-x64'
+  - '@rolldown/binding-android-arm64'
+  - '@rolldown/binding-openharmony-arm64'
+  - '@rolldown/binding-wasm32-wasi'
   - '@rollup/rollup-android-arm-eabi'
   - '@rollup/rollup-android-arm64'
   - '@rollup/rollup-darwin-arm64'
