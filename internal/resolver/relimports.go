@@ -30,6 +30,15 @@ func relativizeModuleImports(moduleBasename, source string) string {
 	})
 }
 
+// RelativizeUserImports rewrites the virtual:rt specifiers in `code` into paths
+// relative to filePath, pointing at <outDir>/types/<basename>.js. Exported for
+// the compile CLI ([internal/compile]), which relativizes the EMITTED .js
+// against its OUTPUT location (not the source location the plugin uses); the
+// virtual:rt specifiers survive tsgo emit unresolved, so one pass fixes them.
+func RelativizeUserImports(filePath, outDir, code string) string {
+	return relativizeUserImports(filePath, outDir, code)
+}
+
 // relativizeUserImports rewrites the virtual:rt specifiers in a transformed
 // USER file's injected import block into paths relative to that file, pointing
 // at <outDir>/types/<basename>.js. The import block is a single physical line,
