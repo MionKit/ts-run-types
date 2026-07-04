@@ -15,7 +15,7 @@ type astLiteralView struct {
 }
 
 // NewASTLiteralView builds an enrich.LiteralView over an
-// ObjectLiteralExpression node, for the paired FriendlyType / MockData checkers.
+// ObjectLiteralExpression node, for the paired FriendlyText / MockData checkers.
 func NewASTLiteralView(literal *ast.Node) enrich.LiteralView {
 	return newASTLiteralView(literal)
 }

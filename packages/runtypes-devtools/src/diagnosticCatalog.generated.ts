@@ -112,14 +112,14 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: 'Invalid type-format params — {0}',
   },
   FT002: {
-    headline: 'Unknown field `{0}` — the type does not declare it, so this FriendlyType entry is dead.',
+    headline: 'Unknown field `{0}` — the type does not declare it, so this FriendlyText entry is dead.',
     detail:
-      "The FriendlyType map names a field the source type does not have\n(removed, renamed, or a typo). Its labels and messages can never be\nused.\n\nExample — `nick` no longer exists on the type:\n  interface User { name: string }\n  export const friendlyUser: FriendlyType<User> = {\n    name: {rt$label: 'Name'},\n-   nick: {rt$label: 'Nickname'},\n  };\n\nFix — remove the entry, or re-run the reconcile so the mirror follows\nthe type (a renamed field carries its authored values along):\n  ts-runtypes gen <source.ts> <Type> --update",
+      "The FriendlyText map names a field the source type does not have\n(removed, renamed, or a typo). Its labels and messages can never be\nused.\n\nExample — `nick` no longer exists on the type:\n  interface User { name: string }\n  export const friendlyUser: FriendlyText<User> = {\n    name: {rt$label: 'Name'},\n-   nick: {rt$label: 'Nickname'},\n  };\n\nFix — remove the entry, or re-run the reconcile so the mirror follows\nthe type (a renamed field carries its authored values along):\n  ts-runtypes gen <source.ts> <Type> --update",
   },
   FT003: {
     headline: 'Error key `{0}` is not a declared constraint of this field — the message can never fire.',
     detail:
-      "`rt$errors` keys must name a failure the field can actually produce:\n`type`, `rt$default`, or one of the field's declared format constraints\n(`minLength`, `pattern`, `min`, …). An undeclared key is dead\nconfiguration.\n\nExample — the field has no `maxLength` constraint:\n  interface User { name: string & FormatString<{minLength: 2}> }\n  export const friendlyUser: FriendlyType<User> = {\n    name: {\n      rt$errors: {\n        minLength: 'Name needs at least 2 characters',\n-       maxLength: 'Name is too long',\n      },\n    },\n  };\n\nFix — remove the key, or declare the matching constraint on the field's\nTypeFormat so the message has a failure to describe.",
+      "`rt$errors` keys must name a failure the field can actually produce:\n`type`, `rt$default`, or one of the field's declared format constraints\n(`minLength`, `pattern`, `min`, …). An undeclared key is dead\nconfiguration.\n\nExample — the field has no `maxLength` constraint:\n  interface User { name: string & FormatString<{minLength: 2}> }\n  export const friendlyUser: FriendlyText<User> = {\n    name: {\n      rt$errors: {\n        minLength: 'Name needs at least 2 characters',\n-       maxLength: 'Name is too long',\n      },\n    },\n  };\n\nFix — remove the key, or declare the matching constraint on the field's\nTypeFormat so the message has a failure to describe.",
   },
   FT005: {
     headline: 'Unknown placeholder `$[{0}]` — expected one of `$[label]`, `$[val]`, `$[path]`, `$[index]`.',
@@ -154,17 +154,17 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
   FT020: {
     headline: 'Unfilled `@todo` placeholder — fill in the real labels/messages, then delete the `@todo` line.',
     detail:
-      "The generator stamps a `@todo` line on every freshly-scaffolded const in\na FriendlyType mirror file. It means \"this skeleton still carries\ngenerated blanks\". A clean, committed mirror has none.\n\nExample — a fresh scaffold:\n  /** @rtType User#a1b2c3 @rtIds {name: d4e5f6} */\n- // @todo: generated skeleton — fill in real data, then delete this line\n  export const friendlyUser: FriendlyType<User> = {\n-   name: {rt$label: ''},\n+   name: {rt$label: 'Name'},\n  };\n\nFix — author the real labels and error messages for the const, then\ndelete the whole `@todo` line (the compiler never removes it for you).",
+      "The generator stamps a `@todo` line on every freshly-scaffolded const in\na FriendlyText mirror file. It means \"this skeleton still carries\ngenerated blanks\". A clean, committed mirror has none.\n\nExample — a fresh scaffold:\n  /** @rtType User#a1b2c3 @rtIds {name: d4e5f6} */\n- // @todo: generated skeleton — fill in real data, then delete this line\n  export const friendlyUser: FriendlyText<User> = {\n-   name: {rt$label: ''},\n+   name: {rt$label: 'Name'},\n  };\n\nFix — author the real labels and error messages for the const, then\ndelete the whole `@todo` line (the compiler never removes it for you).",
   },
   FT021: {
     headline: 'Stale `@rtOrphan` carcass — run `ts-runtypes gen --prune` to remove it (or restore the type).',
     detail:
-      'The reconcile commented this FriendlyType const out because its source\ntype was deleted or renamed. The carcass preserves your authored labels\nand messages so a reappearing type can restore them — but a clean,\ncommitted mirror has none.\n\nFix — if the type is really gone, prune the carcass:\n  ts-runtypes gen --prune\n\nFix — if the type was renamed, re-run the reconcile; a matching carcass\nis restored with your values intact:\n  ts-runtypes gen <source.ts> <NewName> --update',
+      'The reconcile commented this FriendlyText const out because its source\ntype was deleted or renamed. The carcass preserves your authored labels\nand messages so a reappearing type can restore them — but a clean,\ncommitted mirror has none.\n\nFix — if the type is really gone, prune the carcass:\n  ts-runtypes gen --prune\n\nFix — if the type was renamed, re-run the reconcile; a matching carcass\nis restored with your values intact:\n  ts-runtypes gen <source.ts> <NewName> --update',
   },
   FT022: {
     headline: 'Stale `@rtOrphanChild` field carcass — run `ts-runtypes gen --prune` to remove it (or restore the field).',
     detail:
-      "The reconcile commented this field out because the source type no longer\ndeclares it. The carcass preserves your authored value inline — but a\nclean, committed mirror has none.\n\nExample:\n  export const friendlyUser: FriendlyType<User> = {\n-   /* @rtOrphanChild nick: {rt$label: 'Nickname'}, */\n    name: {rt$label: 'Name'},\n  };\n\nFix — if the field is really gone: `ts-runtypes gen --prune`.\nFix — if the field was renamed, re-run `--update`; the authored value\nmoves to the renamed field when the ids match.",
+      "The reconcile commented this field out because the source type no longer\ndeclares it. The carcass preserves your authored value inline — but a\nclean, committed mirror has none.\n\nExample:\n  export const friendlyUser: FriendlyText<User> = {\n-   /* @rtOrphanChild nick: {rt$label: 'Nickname'}, */\n    name: {rt$label: 'Name'},\n  };\n\nFix — if the field is really gone: `ts-runtypes gen --prune`.\nFix — if the field was renamed, re-run `--update`; the authored value\nmoves to the renamed field when the ids match.",
   },
   GE000: {
     headline: 'Cannot read enrichment mirror file: {0}',

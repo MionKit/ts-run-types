@@ -1,4 +1,4 @@
-import type {FriendlyType, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Builtin / native kinds. Date and RegExp are scalar-like leaves — friendly
@@ -6,7 +6,7 @@ import type {EnrichCase} from './types.ts';
 // (solution A): the emitter walks the key/value/element types. `Map<K,V>` →
 // friendly `{rt$label: '', rt$keys, rt$values}` / mock `{rt$keys, rt$values}` (the
 // optional `rt$size` is left for the author to add); `Set<U>` → friendly
-// `{rt$label: '', rt$values}` / mock `{rt$values}`. All are valid `FriendlyType` /
+// `{rt$label: '', rt$values}` / mock `{rt$values}`. All are valid `FriendlyText` /
 // `MockData` — no `as` cast needed. Mirrors the validation suite's NATIVE range.
 export const NATIVE = {
   date: {
@@ -15,7 +15,7 @@ export const NATIVE = {
       // ##### src #####
       type Target = Date;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -29,7 +29,7 @@ export const NATIVE = {
       // ##### src #####
       type Target = RegExp;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -43,7 +43,7 @@ export const NATIVE = {
       // ##### src #####
       type Target = Map<string, number>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$keys: {rt$label: '', rt$errors: {type: ''}},
@@ -62,7 +62,7 @@ export const NATIVE = {
       // ##### src #####
       type Target = Set<string>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$values: {rt$label: '', rt$errors: {type: ''}},

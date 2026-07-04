@@ -88,6 +88,12 @@ func Reconcile(spec Spec, existing []byte, readSource func(string) (string, erro
 	// `from '<src>'` byte-identical.
 	syncBreadcrumbClause(&ops, index, spec, orphanedEntries, renamedExisting)
 
+	// Lazy annotation migration: rewrite a legacy `FriendlyType` wrapper (both the
+	// const annotation + the ts-runtypes DSL import) to the current `FriendlyText`
+	// spelling, so files authored before the friendly-text rename migrate on the
+	// next `gen --update`. Skips orphaned consts (about to be commented out).
+	migrateLegacyFriendlyWrapper(&ops, index, orphanedEntries)
+
 	// Apply the in-place splices first (all index the ORIGINAL bytes), then append
 	// new consts + any cross-file imports they introduce.
 	merged, err := applySplices(index.raw, ops)
@@ -571,6 +577,45 @@ func emitConstRename(ops *[]spliceOp, index *Index, rename constRename) {
 	}
 }
 
+// migrateLegacyFriendlyWrapper splices a committed mirror's legacy `FriendlyType`
+// annotation wrapper (and the matching `import type { FriendlyText }` DSL import)
+// to the current `FriendlyText` spelling, so a `gen --update` migrates files
+// authored before the friendly-text rename in place. The splices are AST-anchored
+// and disjoint from the rename / marker / body edits (wrapper name vs `<T>` arg vs
+// var name vs import clause never overlap). Orphaned consts are skipped — their
+// whole-statement carcass splice would otherwise overlap the wrapper splice, and
+// a commented-out const's wrapper name is moot. The DSL import is migrated only
+// when at least one surviving const was, so an all-orphaned file leaves its
+// (now unused, already legacy) import untouched.
+func migrateLegacyFriendlyWrapper(ops *[]spliceOp, index *Index, orphaned []*constEntry) {
+	orphanedSet := map[*constEntry]bool{}
+	for _, entry := range orphaned {
+		orphanedSet[entry] = true
+	}
+	migrated := false
+	for _, entry := range index.consts {
+		if !entry.isFriendly || orphanedSet[entry] {
+			continue
+		}
+		if entry.annoWrapper == enrich.FriendlyTypeName && entry.annoWrapperStart != entry.annoWrapperEnd {
+			*ops = append(*ops, spliceOp{start: entry.annoWrapperStart, end: entry.annoWrapperEnd, text: enrich.FriendlyTextName})
+			migrated = true
+		}
+	}
+	if !migrated || index.dslImport == nil {
+		return
+	}
+	for i, name := range index.dslImport.names {
+		if name != enrich.FriendlyTypeName || i >= len(index.dslImport.nameSpans) {
+			continue
+		}
+		span := index.dslImport.nameSpans[i]
+		if span[0] != span[1] {
+			*ops = append(*ops, spliceOp{start: span[0], end: span[1], text: enrich.FriendlyTextName})
+		}
+	}
+}
+
 // queueNewConst records a NamedConst for append exactly once. Identity is the
 // var-name PAIR (friendly + mock): the same NamedConst is reconciled separately for
 // its friendly and mock forms and must not queue twice, but two DIFFERENT named
@@ -597,7 +642,7 @@ func appendNewConsts(merged []byte, spec Spec, index *Index, addedConsts []enric
 	var blocks []string
 	for _, named := range addedConsts {
 		if spec.WantFriendly {
-			blocks = append(blocks, ConstBlock(named.FriendlyVar, "FriendlyType", named, named.Friendly))
+			blocks = append(blocks, ConstBlock(named.FriendlyVar, enrich.FriendlyTextName, named, named.Friendly))
 		}
 		if spec.WantMock {
 			blocks = append(blocks, ConstBlock(named.MockVar, "MockData", named, named.Mock))

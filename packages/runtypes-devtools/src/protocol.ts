@@ -314,7 +314,7 @@ export interface Request {
   // `transform` injects imports relative to it. Empty keeps virtual specifiers.
   outDir?: string;
   // scanFiles only — opts the response into the enrichment-health pass over
-  // the request's files (tag hygiene + FriendlyType/MockData content +
+  // the request's files (tag hygiene + FriendlyText/MockData content +
   // breadcrumb drift), appended to diagnostics as Family.Enrich entries.
   // Off by default so the rewrite pipeline pays nothing; the lint plugin is
   // the consumer.
@@ -453,7 +453,7 @@ export type Severity = (typeof Severity)[keyof typeof Severity];
 
 // Family classifies a Diagnostic by which subsystem produced it. Same
 // numeric-on-the-wire scheme as Severity. Enrich covers the opt-in
-// enrichment-health pass (Request.checkEnrich): tag hygiene, FriendlyType /
+// enrichment-health pass (Request.checkEnrich): tag hygiene, FriendlyText /
 // MockData content validity, and mirror breadcrumb drift.
 export const Family = {
   PureFn: 1,

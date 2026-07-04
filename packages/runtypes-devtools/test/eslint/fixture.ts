@@ -34,7 +34,9 @@ export declare function createValidate<T>(
   options?: CompTimeFnArgs<ValidateOptions>,
   id?: InjectTypeFnArgs<T, 'val'>
 ): (value: unknown) => boolean;
-export type FriendlyType<T> = Record<string, unknown> & {readonly __rtFriendly?: T};
+export type FriendlyText<T> = Record<string, unknown> & {readonly __rtFriendly?: T};
+/** @deprecated legacy alias kept so mirrors authored before the friendly-text rename still resolve */
+export type FriendlyType<T> = FriendlyText<T>;
 export type MockData<T> = Record<string, unknown> & {readonly __rtMock?: T};
 `;
 

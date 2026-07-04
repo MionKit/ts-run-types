@@ -1,4 +1,4 @@
-// The model + command set for the FriendlyType i18n-sync fuzzer.
+// The model + command set for the FriendlyText i18n-sync fuzzer.
 //
 // SUT: the `gen --translate` / `check --translate` pipeline over a (SOURCE
 // TYPE, translation file T) pair — the SRC-DERIVED reconcile

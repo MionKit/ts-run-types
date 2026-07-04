@@ -11,7 +11,7 @@
 
 import {describe, it, expect} from 'vitest';
 import type * as TF from 'ts-runtypes/formats';
-import {createFriendly, type FriendlyType, type RTValidationError} from 'ts-runtypes';
+import {createFriendly, type FriendlyText, type RTValidationError} from 'ts-runtypes';
 
 interface User {
   name: TF.String<{minLength: 2}>;
@@ -20,7 +20,7 @@ interface User {
   profile: {email: TF.String<{maxLength: 60}>; score: TF.Number<{min: 0; max: 100}>};
 }
 
-const map: FriendlyType<User> = {
+const map: FriendlyText<User> = {
   rt$label: 'User account',
   rt$errors: {type: 'Account is invalid'},
   name: {
@@ -81,9 +81,9 @@ describe('createFriendly — error rendering', () => {
 
   it('label falls back to the raw field name when rt$label is absent', () => {
     // Intentionally degenerate map: omits every `rt$label` (and root meta) so the renderer
-    // must fall back to the raw field name. The `as` cast opts past the total `FriendlyType`
+    // must fall back to the raw field name. The `as` cast opts past the total `FriendlyText`
     // contract — real callers pass a filled map; this probes the missing-`rt$label` safety net.
-    const m = {widget: {rt$errors: {type: 'bad'}}} as unknown as FriendlyType<{widget: string}>;
+    const m = {widget: {rt$errors: {type: 'bad'}}} as unknown as FriendlyText<{widget: string}>;
     const out = createFriendly(m).errors([{path: ['widget'], expected: 'string'}]);
     expect(out[0].label).toBe('widget');
     expect(out[0].message).toBe('bad');
@@ -108,7 +108,7 @@ describe('createFriendly — error rendering', () => {
   });
 
   it('rt$default catches an unlisted constraint', () => {
-    const m: FriendlyType<{name: string}> = {
+    const m: FriendlyText<{name: string}> = {
       rt$label: 'Form',
       rt$errors: {type: 'Form is invalid'},
       name: {rt$label: 'Name', rt$errors: {rt$default: '$[label] is wrong ($[path])'}},
@@ -122,8 +122,8 @@ describe('createFriendly — error rendering', () => {
   it('missing map entry → graceful fallback message', () => {
     // Intentionally degenerate map: omits field `b` entirely (and root meta) so the renderer
     // must fall back to the raw name + generic message for an unmapped field. The `as` cast
-    // opts past the total `FriendlyType` contract — this probes the missing-entry safety net.
-    const m = {a: {rt$label: 'A', rt$errors: {type: 'A is invalid'}}} as unknown as FriendlyType<{a: string; b: string}>;
+    // opts past the total `FriendlyText` contract — this probes the missing-entry safety net.
+    const m = {a: {rt$label: 'A', rt$errors: {type: 'A is invalid'}}} as unknown as FriendlyText<{a: string; b: string}>;
     const out = createFriendly(m).errors([{path: ['b'], expected: 'string'}]);
     expect(out[0].label).toBe('b');
     expect(out[0].message).toBe('b is invalid');
@@ -132,7 +132,7 @@ describe('createFriendly — error rendering', () => {
 
 describe('createFriendly — Map / Set entries', () => {
   it('Map value failure resolves to rt$values + carries the entry index', () => {
-    const m: FriendlyType<Map<string, number>> = {
+    const m: FriendlyText<Map<string, number>> = {
       rt$label: 'Settings',
       rt$errors: {type: 'Settings must be a map'},
       rt$keys: {rt$label: 'Setting key', rt$errors: {type: 'key must be text'}},
@@ -143,7 +143,7 @@ describe('createFriendly — Map / Set entries', () => {
   });
 
   it('Map key failure resolves to rt$keys', () => {
-    const m: FriendlyType<Map<string, number>> = {
+    const m: FriendlyText<Map<string, number>> = {
       rt$label: 'Settings',
       rt$errors: {type: 'Settings must be a map'},
       rt$keys: {rt$label: 'Setting key', rt$errors: {type: 'key must be text'}},
@@ -154,7 +154,7 @@ describe('createFriendly — Map / Set entries', () => {
   });
 
   it('key + value failures at the same entry do not collide (rt$keys vs rt$values)', () => {
-    const m: FriendlyType<Map<string, number>> = {
+    const m: FriendlyText<Map<string, number>> = {
       rt$label: 'Settings',
       rt$errors: {type: 'Settings must be a map'},
       rt$keys: {rt$label: 'K', rt$errors: {type: 'bad key'}},
@@ -171,7 +171,7 @@ describe('createFriendly — Map / Set entries', () => {
     interface Form {
       tags: Set<string>;
     }
-    const m: FriendlyType<Form> = {
+    const m: FriendlyText<Form> = {
       rt$label: 'Form',
       rt$errors: {type: 'Form is invalid'},
       tags: {
@@ -188,7 +188,7 @@ describe('createFriendly — Map / Set entries', () => {
 
 describe('createFriendly — tuples', () => {
   it('fixed-tuple slot failure resolves to rt$slots[i] (not rt$items)', () => {
-    const m: FriendlyType<[string, number]> = {
+    const m: FriendlyText<[string, number]> = {
       rt$label: 'Coordinate',
       rt$errors: {type: 'Coordinate must be a pair'},
       rt$slots: [
@@ -201,7 +201,7 @@ describe('createFriendly — tuples', () => {
   });
 
   it('rest-tuple element falls back to rt$items + $[index] (broad length)', () => {
-    const m: FriendlyType<[string, ...number[]]> = {
+    const m: FriendlyText<[string, ...number[]]> = {
       rt$label: 'Args',
       rt$errors: {type: 'Args must be a list'},
       rt$items: {rt$label: 'Arg', rt$errors: {type: 'arg #$[index] must match'}},
@@ -212,7 +212,7 @@ describe('createFriendly — tuples', () => {
   });
 
   it('array of tuples: outer rt$items then inner rt$slots', () => {
-    const m: FriendlyType<[string, number][]> = {
+    const m: FriendlyText<[string, number][]> = {
       rt$label: 'Pairs',
       rt$errors: {type: 'Pairs must be a list'},
       rt$items: {
@@ -233,7 +233,7 @@ describe('createFriendly — tuples', () => {
     interface Form {
       coord: [number, number];
     }
-    const m: FriendlyType<Form> = {
+    const m: FriendlyText<Form> = {
       rt$label: 'Form',
       rt$errors: {type: 'Form is invalid'},
       coord: {

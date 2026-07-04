@@ -1,4 +1,4 @@
-// Event-driven fuzz of the FriendlyType/MockData sync pipeline — the first real
+// Event-driven fuzz of the FriendlyText/MockData sync pipeline — the first real
 // application of the fuzzy-testing framework
 // (docs/talks/directive-driven-testing/framework-fuzzy-testing.md §6).
 //

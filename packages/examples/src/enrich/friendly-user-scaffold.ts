@@ -1,8 +1,8 @@
-import type {FriendlyType} from 'ts-runtypes';
+import type {FriendlyText} from 'ts-runtypes';
 import type {User} from './user';
 
 // scaffolded by `gen`: every field in place, each blank marked @todo
-export const friendlyUser: FriendlyType<User> = {
+export const friendlyUser: FriendlyText<User> = {
   rt$label: '', // @todo
   rt$errors: {type: ''}, // @todo
 

@@ -1,4 +1,4 @@
-import type {FriendlyType, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Utility-type kinds — the mapped / lookup utilities resolve to a concrete
@@ -12,7 +12,7 @@ export const UTILITY = {
       type Person = {name: string; age: number; createdAt: Date};
       type Target = Pick<Person, 'name' | 'createdAt'>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         name: {rt$label: '', rt$errors: {type: ''}},
@@ -34,7 +34,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = Omit<{a: string; b?: number; c: boolean}, 'a'>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         b: {rt$label: '', rt$errors: {type: ''}},
@@ -56,7 +56,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = Partial<{name: string; age: number}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         name: {rt$label: '', rt$errors: {type: ''}},
@@ -78,7 +78,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = Required<{name?: string; age?: number}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         name: {rt$label: '', rt$errors: {type: ''}},
@@ -100,7 +100,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = Readonly<{name: string; age: number}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         name: {rt$label: '', rt$errors: {type: ''}},
@@ -122,7 +122,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = Record<'a' | 'b', number>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         a: {rt$label: '', rt$errors: {type: ''}},
@@ -144,7 +144,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = ReturnType<() => {a: string; b: number}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         a: {rt$label: '', rt$errors: {type: ''}},
@@ -166,7 +166,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = keyof {name: string; age: number};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -180,7 +180,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = {name: string; age: number}['name'];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -194,7 +194,7 @@ export const UTILITY = {
       // ##### src #####
       type Target = NonNullable<string | number | null | undefined>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####

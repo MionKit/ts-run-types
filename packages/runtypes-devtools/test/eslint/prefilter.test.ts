@@ -9,6 +9,7 @@ import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {looksLikeEnrichmentFile, needsResolverPass, referencesMarkerModule} from '../../src/eslint/prefilter.ts';
 import {
+  FRIENDLY_TEXT_NAME,
   FRIENDLY_TYPE_NAME,
   MARKER_COMMENT_PREFIX,
   MOCK_DATA_NAME,
@@ -31,7 +32,8 @@ describe('constant sync with internal/enrich/mirror/tags.go', () => {
     expect(TAGS_GO).toContain(`TodoTag = "${TODO_TAG}"`);
     expect(TAGS_GO).toContain(`OrphanTag      = "${ORPHAN_TAG}"`);
     expect(ORPHAN_CHILD_TAG).toBe(`${ORPHAN_TAG}Child`);
-    expect(NAMES_GO).toContain(`FriendlyTypeName = "${FRIENDLY_TYPE_NAME}"`);
+    expect(NAMES_GO).toContain(`FriendlyTextName = "${FRIENDLY_TEXT_NAME}"`);
+    expect(NAMES_GO).toContain(`FriendlyTypeName = "${FRIENDLY_TYPE_NAME}"`); // legacy spelling still declared
     expect(NAMES_GO).toContain(`MockDataName     = "${MOCK_DATA_NAME}"`);
   });
 
@@ -61,7 +63,8 @@ describe('referencesMarkerModule', () => {
 describe('looksLikeEnrichmentFile', () => {
   it('matches the marker EMIT form and the annotation form', () => {
     expect(looksLikeEnrichmentFile(`${MARKER_COMMENT_PREFIX}User#a1 */\nexport const friendlyUser = {};`)).toBe(true);
-    expect(looksLikeEnrichmentFile(`export const f: ${FRIENDLY_TYPE_NAME}<User> = {};`)).toBe(true);
+    expect(looksLikeEnrichmentFile(`export const f: ${FRIENDLY_TEXT_NAME}<User> = {};`)).toBe(true);
+    expect(looksLikeEnrichmentFile(`export const f: ${FRIENDLY_TYPE_NAME}<User> = {};`)).toBe(true); // legacy spelling still recognized
     expect(looksLikeEnrichmentFile(`export const m:\n  ${MOCK_DATA_NAME}<User> = {};`)).toBe(true);
   });
 

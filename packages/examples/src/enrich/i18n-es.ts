@@ -1,9 +1,9 @@
-import type {FriendlyType} from 'ts-runtypes';
+import type {FriendlyText} from 'ts-runtypes';
 import type {User} from './user';
 
 // runtypes/generated/i18n/es/models/user.ts — partially filled; blanks fall
 // back to the source language at render time.
-export const es_friendlyUser: FriendlyType<User> = {
+export const es_friendlyUser: FriendlyText<User> = {
   rt$label: 'Cuenta de usuario',
   rt$errors: {type: ''},
   name: {

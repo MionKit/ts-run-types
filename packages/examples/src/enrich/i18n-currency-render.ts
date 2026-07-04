@@ -1,13 +1,13 @@
-import type {FriendlyType} from 'ts-runtypes';
+import type {FriendlyText} from 'ts-runtypes';
 import {createFriendlyI18n} from 'ts-runtypes';
 import type {Order} from './i18n-currency-type';
 
-const friendlyOrder: FriendlyType<Order> = {
+const friendlyOrder: FriendlyText<Order> = {
   rt$label: 'Order',
   rt$errors: {type: ''},
   total: {rt$label: 'Total', rt$errors: {type: '', max: 'at most $[val]'}},
 };
-const de_friendlyOrder: FriendlyType<Order> = {
+const de_friendlyOrder: FriendlyText<Order> = {
   rt$label: 'Bestellung',
   rt$errors: {type: ''},
   total: {rt$label: 'Summe', rt$errors: {type: '', max: 'höchstens $[val]'}},

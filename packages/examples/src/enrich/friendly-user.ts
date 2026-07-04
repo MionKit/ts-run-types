@@ -1,7 +1,7 @@
-import type {FriendlyType} from 'ts-runtypes';
+import type {FriendlyText} from 'ts-runtypes';
 import type {User} from './user';
 
-export const friendlyUser: FriendlyType<User> = {
+export const friendlyUser: FriendlyText<User> = {
   rt$label: 'User account',
   rt$errors: {type: '$[label] must be an object'},
 

@@ -1,9 +1,9 @@
-import type {FriendlyType} from 'ts-runtypes';
+import type {FriendlyText} from 'ts-runtypes';
 import type {User} from './user';
 
 // runtypes/generated/i18n/pl/models/user.ts — scaffolded by `gen --translate pl`:
 // the same tree as the source map, every leaf blank, plural arms in POLISH form.
-export const pl_friendlyUser: FriendlyType<User> = {
+export const pl_friendlyUser: FriendlyText<User> = {
   rt$label: '', // @todo
   rt$errors: {type: ''}, // @todo
   name: {

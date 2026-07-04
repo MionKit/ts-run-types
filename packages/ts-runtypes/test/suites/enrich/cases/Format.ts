@@ -1,5 +1,5 @@
 import type * as TF from 'ts-runtypes/formats';
-import type {FriendlyType, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Format-branded leaves — the `TF.*` catalog. A format annotation seeds
@@ -15,7 +15,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.String<{minLength: 2; maxLength: 60}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}},
       };
@@ -33,7 +33,7 @@ export const FORMAT = {
       type Target = TF.String<{lowercase: true}>;
       // ##### friendly #####
       // `lowercase` is a TRANSFORMER param (non-failing) — it is not an rt$errors key.
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -47,7 +47,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Email;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}, pattern: ''},
       };
@@ -64,7 +64,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.UUIDv4;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: '', version: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: '', version: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -78,7 +78,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Url;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: '', maxLength: {one: '', other: ''}, pattern: ''},
       };
@@ -95,7 +95,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Alpha;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: '', pattern: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: '', pattern: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -109,7 +109,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Number<{min: 0; max: 120}>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}},
       };
@@ -126,7 +126,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Integer;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: '', integer: ''}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: '', integer: ''}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -140,7 +140,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Positive;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: '', min: {one: '', other: ''}}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: '', min: {one: '', other: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -154,7 +154,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.Int32;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: '', integer: '', max: {one: '', other: ''}, min: {one: '', other: ''}},
       };
@@ -171,7 +171,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.BigPositive;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {rt$label: '', rt$errors: {type: '', min: {one: '', other: ''}}};
+      const friendlyTarget: FriendlyText<Target> = {rt$label: '', rt$errors: {type: '', min: {one: '', other: ''}}};
       // ##### mock #####
       const mockTarget: MockData<Target> = {pool: []};
       // ##### result #####
@@ -185,7 +185,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = TF.BigInt64;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}},
       };
@@ -202,7 +202,7 @@ export const FORMAT = {
       // ##### src #####
       type Target = {name: TF.String<{minLength: 2; maxLength: 60}>; age: TF.Number<{min: 0; max: 120}>; email: TF.Email};
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         name: {rt$label: '', rt$errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},

@@ -151,9 +151,9 @@ export function checkCategory(fileBase: string, constName: string): Record<strin
     const filePath = resolve(dir, `${fileBase}__${caseKey}.rt.ts`);
     const source =
       `${TEMP_HEADER}` +
-      "import type {FriendlyType, MockData} from 'ts-runtypes';\n" +
+      "import type {FriendlyText, MockData} from 'ts-runtypes';\n" +
       `${span.src}\n` +
-      `const friendlyTarget: FriendlyType<Target> = ${span.friendly};\n` +
+      `const friendlyTarget: FriendlyText<Target> = ${span.friendly};\n` +
       `const mockTarget: MockData<Target> = ${span.mock};\n` +
       'export {friendlyTarget, mockTarget};\n';
     writeFileSync(filePath, source);

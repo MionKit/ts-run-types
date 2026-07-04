@@ -32,7 +32,7 @@ type fileFinding struct {
 //   - tag hygiene: unfilled `@todo` scaffolds and stale `@rtOrphan` /
 //     `@rtOrphanChild` carcasses, reported under the mirror's family
 //     (FT020–FT022 / MD020–MD022);
-//   - FriendlyType / MockData content validity against the resolved T
+//   - FriendlyText / MockData content validity against the resolved T
 //     (FT002/FT003/FT005/MD001);
 //   - breadcrumb drift: source deleted / type no longer declared
 //     (GE002/GE003; GE001 location drift lives in `gen --check`, which knows
@@ -87,7 +87,7 @@ func runCheck(args []string) {
 		findings = append(findings, tagFileFinding(absPath, lineIndex, tag, classifier.FamilyFor(tag)))
 	}
 
-	// FriendlyType / MockData content validity.
+	// FriendlyText / MockData content validity.
 	for _, positioned := range astcheck.CheckSourceFile(sourceFile, res.Checker(), res.Cache(), prog.FS, absPath) {
 		findings = append(findings, fileFinding{
 			File:    absPath,

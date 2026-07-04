@@ -56,7 +56,7 @@ const (
 	FamilyMarker  Family = 2
 	FamilyRunType Family = 3
 	// FamilyEnrich covers the enrichment-file health checks: tag hygiene
-	// (@todo scaffolds, @rtOrphan/@rtOrphanChild carcasses), FriendlyType /
+	// (@todo scaffolds, @rtOrphan/@rtOrphanChild carcasses), FriendlyText /
 	// MockData content validity, and mirror breadcrumb drift. Emitted only
 	// when a caller opts in (Request.CheckEnrich, `ts-runtypes check`).
 	FamilyEnrich Family = 4

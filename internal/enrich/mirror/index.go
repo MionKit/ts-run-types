@@ -35,7 +35,7 @@ type Index struct {
 	// breadcrumb is the `import type { … } from '<src>'` source breadcrumb, or
 	// nil when the file has none.
 	breadcrumb *importEntry
-	// dslImport is the `import type { FriendlyType, MockData } from 'ts-runtypes'`
+	// dslImport is the `import type { FriendlyText, MockData } from 'ts-runtypes'`
 	// DSL-types import, or nil when absent.
 	dslImport *importEntry
 	// valueImports are the cross-file `import { friendly*/mock* } from '<rel>'`
@@ -81,7 +81,7 @@ func typeFormKey(typeID string, isFriendly bool) string {
 type constEntry struct {
 	varName    string            // the const identifier, e.g. "friendlyUser"
 	isFriendly bool              // friendly* (true) vs mock* (false)
-	typeName   string            // the annotated source type, e.g. "User" from FriendlyType<User>
+	typeName   string            // the annotated source type, e.g. "User" from FriendlyText<User>
 	typeID     string            // the @rtType id, or "" when no marker (matched by var name)
 	childIDs   map[string]string // @rtIds dotted-field-path → child type id
 	fullStart  int               // node.Pos() — start of leading trivia (the JSDoc)
@@ -94,7 +94,7 @@ type constEntry struct {
 	markerStart int
 	markerEnd   int
 	// varNameStart / varNameEnd bound the `export const <var>` identifier, and
-	// annoNameStart / annoNameEnd the `FriendlyType<<Name>>` annotation type-name —
+	// annoNameStart / annoNameEnd the `FriendlyText<<Name>>` annotation type-name —
 	// both spliced when the const is RENAMED (its type was renamed but keeps its
 	// structural id, so it is matched + carried, not orphaned). The annotation
 	// range is (0,0) when there is no `Wrapper<Name>` annotation.
@@ -102,6 +102,13 @@ type constEntry struct {
 	varNameEnd    int
 	annoNameStart int
 	annoNameEnd   int
+	// annoWrapper is the annotation WRAPPER type name (`FriendlyText` / `MockData`,
+	// or the legacy `FriendlyType`), and annoWrapperStart / annoWrapperEnd bound it,
+	// so `gen --update` can splice a legacy `FriendlyType` → `FriendlyText`. Empty /
+	// (0,0) when the const has no `Wrapper<Name>` annotation.
+	annoWrapper      string
+	annoWrapperStart int
+	annoWrapperEnd   int
 }
 
 // importEntry is one indexed import statement: its declared names + the byte
@@ -109,6 +116,7 @@ type constEntry struct {
 // of the `{ … }` named-bindings clause (for surgical breadcrumb-name edits).
 type importEntry struct {
 	names      []string
+	nameSpans  [][2]int // byte range of each name's original identifier, aligned with names (for the DSL-import lazy rename)
 	specifier  string
 	tokenStart int
 	end        int
@@ -259,22 +267,26 @@ func (index *Index) indexVariableStatement(text string, statement *ast.Node) {
 
 		markerStart, markerEnd := markerBlockRange(text, ownStart, tokenStart)
 		typeName, annoStart, annoEnd := annotationTypeNameRange(declaration, index.sourceFile)
+		wrapperName, wrapperStart, wrapperEnd := annotationWrapperRange(declaration, index.sourceFile)
 		entry := &constEntry{
-			varName:       varName,
-			isFriendly:    isFriendly,
-			typeName:      typeName,
-			typeID:        typeID,
-			childIDs:      childIDs,
-			fullStart:     ownStart,
-			tokenStart:    tokenStart,
-			end:           statement.End(),
-			body:          body,
-			markerStart:   markerStart,
-			markerEnd:     markerEnd,
-			varNameStart:  scanner.GetTokenPosOfNode(nameNode, index.sourceFile, false),
-			varNameEnd:    nameNode.End(),
-			annoNameStart: annoStart,
-			annoNameEnd:   annoEnd,
+			varName:          varName,
+			isFriendly:       isFriendly,
+			typeName:         typeName,
+			typeID:           typeID,
+			childIDs:         childIDs,
+			fullStart:        ownStart,
+			tokenStart:       tokenStart,
+			end:              statement.End(),
+			body:             body,
+			markerStart:      markerStart,
+			markerEnd:        markerEnd,
+			varNameStart:     scanner.GetTokenPosOfNode(nameNode, index.sourceFile, false),
+			varNameEnd:       nameNode.End(),
+			annoNameStart:    annoStart,
+			annoNameEnd:      annoEnd,
+			annoWrapper:      wrapperName,
+			annoWrapperStart: wrapperStart,
+			annoWrapperEnd:   wrapperEnd,
 		}
 		index.consts = append(index.consts, entry)
 		index.byVar[varName] = entry
@@ -304,7 +316,7 @@ func formLabel(isFriendly bool) string {
 }
 
 // annotationTypeNameRange reads the source type name from a const's
-// `FriendlyType<T>` / `MockData<T>` annotation — the `T` identifier — plus its
+// `FriendlyText<T>` / `MockData<T>` annotation — the `T` identifier — plus its
 // trivia-trimmed byte range (so a rename can splice it). Name is "" and the range
 // (0,0) when the annotation is absent or not a single named type argument.
 func annotationTypeNameRange(declaration *ast.Node, sourceFile *ast.SourceFile) (name string, start, end int) {
@@ -327,6 +339,23 @@ func annotationTypeNameRange(declaration *ast.Node, sourceFile *ast.SourceFile) 
 	return nameNode.Text(), scanner.GetTokenPosOfNode(nameNode, sourceFile, false), nameNode.End()
 }
 
+// annotationWrapperRange reads the WRAPPER type name from a const's
+// `FriendlyText<T>` / `MockData<T>` annotation — the `FriendlyText` identifier
+// itself (not its `<T>` argument) — plus its byte range, so a `gen --update`
+// pass can splice a legacy `FriendlyType` wrapper to `FriendlyText`. Name is ""
+// and the range (0,0) when the annotation is not a type reference.
+func annotationWrapperRange(declaration *ast.Node, sourceFile *ast.SourceFile) (name string, start, end int) {
+	typeNode := declaration.AsVariableDeclaration().Type
+	if typeNode == nil || !ast.IsTypeReferenceNode(typeNode) {
+		return "", 0, 0
+	}
+	nameNode := typeNode.AsTypeReferenceNode().TypeName
+	if nameNode == nil {
+		return "", 0, 0
+	}
+	return nameNode.Text(), scanner.GetTokenPosOfNode(nameNode, sourceFile, false), nameNode.End()
+}
+
 // indexImport records one import statement: the source breadcrumb, the
 // ts-runtypes DSL import, or a cross-file value import.
 func (index *Index) indexImport(text string, statement *ast.Node) {
@@ -337,9 +366,10 @@ func (index *Index) indexImport(text string, statement *ast.Node) {
 	specifier := importDecl.ModuleSpecifier.Text()
 	tokenStart := scanner.GetTokenPosOfNode(statement, index.sourceFile, false)
 
-	names, clauseStart, clauseEnd := importedNames(text, importDecl)
+	names, nameSpans, clauseStart, clauseEnd := importedNames(text, importDecl, index.sourceFile)
 	entry := &importEntry{
 		names:       names,
+		nameSpans:   nameSpans,
 		specifier:   specifier,
 		tokenStart:  tokenStart,
 		end:         statement.End(),
@@ -364,45 +394,51 @@ func (index *Index) indexImport(text string, statement *ast.Node) {
 }
 
 // importedNames returns the imported names of an import declaration (original
-// name before any `as` alias) plus the byte range of the names list inside its
-// `{ … }` named bindings — trimmed of surrounding trivia so a splice replaces
-// EXACTLY `User, Post` (the surrounding `{ ` / ` }` stay byte-identical).
-// clauseStart == 0 when there are no named bindings.
-func importedNames(text string, importDecl *ast.ImportDeclaration) (names []string, clauseStart, clauseEnd int) {
+// name before any `as` alias) plus the byte range of each name's ORIGINAL
+// identifier (aligned with names, for a surgical per-name splice) and the byte
+// range of the names list inside its `{ … }` named bindings — trimmed of
+// surrounding trivia so a splice replaces EXACTLY `User, Post` (the surrounding
+// `{ ` / ` }` stay byte-identical). clauseStart == 0 when there are no named bindings.
+func importedNames(text string, importDecl *ast.ImportDeclaration, sourceFile *ast.SourceFile) (names []string, nameSpans [][2]int, clauseStart, clauseEnd int) {
 	if importDecl.ImportClause == nil {
-		return nil, 0, 0
+		return nil, nil, 0, 0
 	}
 	clause := importDecl.ImportClause.AsImportClause()
 	if clause == nil || clause.NamedBindings == nil {
-		return nil, 0, 0
+		return nil, nil, 0, 0
 	}
 	if !ast.IsNamedImports(clause.NamedBindings) {
-		return nil, 0, 0
+		return nil, nil, 0, 0
 	}
 	named := clause.NamedBindings.AsNamedImports()
 	if named == nil || named.Elements == nil {
-		return nil, 0, 0
+		return nil, nil, 0, 0
 	}
 	for _, element := range named.Elements.Nodes {
 		if element == nil || !ast.IsImportSpecifier(element) {
 			continue
 		}
 		specifier := element.AsImportSpecifier()
-		name := ""
-		if specifier.PropertyName != nil {
-			name = specifier.PropertyName.Text()
-		} else if elementName := element.Name(); elementName != nil {
-			name = elementName.Text()
+		// The ORIGINAL name node — the `PropertyName` of a `Foo as Bar` specifier,
+		// else the bare name — so a splice rewrites `Foo`, never the local alias.
+		nameNode := specifier.PropertyName
+		if nameNode == nil {
+			nameNode = element.Name()
 		}
+		if nameNode == nil {
+			continue
+		}
+		name := nameNode.Text()
 		if name != "" {
 			names = append(names, name)
+			nameSpans = append(nameSpans, [2]int{scanner.GetTokenPosOfNode(nameNode, sourceFile, false), nameNode.End()})
 		}
 	}
 	// Trim the elements' span of surrounding trivia so the clause range covers
 	// EXACTLY the names text (`User, Post`), leaving the braces + their padding
 	// byte-identical when a reconcile rewrites only the names.
 	clauseStart, clauseEnd = trimRange(text, named.Elements.Pos(), named.Elements.End())
-	return names, clauseStart, clauseEnd
+	return names, nameSpans, clauseStart, clauseEnd
 }
 
 // trimRange shrinks [start, end) over text to exclude leading + trailing ASCII
@@ -527,7 +563,7 @@ func (index *Index) ValueImports() []ValueImportInfo {
 
 // FriendlyConstType is one friendly-form const's public view for the translate
 // driver's DISCOVERY step: the const identifier and the source type name its
-// `FriendlyType<T>` annotation carries ("" when unannotated).
+// `FriendlyText<T>` annotation carries ("" when unannotated).
 type FriendlyConstType struct {
 	VarName  string
 	TypeName string

@@ -1,4 +1,4 @@
-// `FriendlyType<T>` — the human-readable enrichment map for a type: a combined
+// `FriendlyText<T>` — the human-readable enrichment map for a type: a combined
 // per-field LABEL + ERROR-MESSAGE mapping, authored once and committed (see
 // docs/AI_ENRICHMENT.md). Pure type-level here; `createFriendly` (./createFriendly.ts)
 // renders validation errors against it at runtime.
@@ -8,11 +8,11 @@
 // `infer` on the hot path (element/property types reached with `T[number]` /
 // `T[K]`), scalar-before-object `extends` gates, and a homomorphic
 // `{ [K in keyof T]?: … }` child map that preserves structure for free. The
-// `#region friendlytype-extract` block is sliced VERBATIM by
+// `#region friendlytext-extract` block is sliced VERBATIM by
 // test/types/enrichHarness.ts into the instantiation-budget compile test, so
 // it must reference only `lib` types + its own declarations.
 
-// #region friendlytype-extract — FriendlyType machinery; sliced verbatim between
+// #region friendlytext-extract — FriendlyText machinery; sliced verbatim between
 // these markers by test/types/enrichHarness.ts. Self-contained: `lib` + own decls only.
 
 /** A friendly message template — a plain string with `$[…]` placeholders the
@@ -161,9 +161,9 @@ export type FriendlyNode<T, Depth extends number = 8> = Depth extends 0
 
 /** The friendly map for `T` — combined labels + per-field error templates,
  *  validated against `T` at scan time (the `ShapeCheckedArgs<T>` axis). */
-export type FriendlyType<T> = FriendlyNode<T>;
+export type FriendlyText<T> = FriendlyNode<T>;
 
-// #endregion friendlytype-extract
+// #endregion friendlytext-extract
 // (`Translation<T>` was REMOVED: one type annotates every friendly-family file —
-// a translation const is `FriendlyType<T>` at `i18n/<locale>/<rel>.ts` with a
+// a translation const is `FriendlyText<T>` at `i18n/<locale>/<rel>.ts` with a
 // `<locale>_friendly*` name; the path + prefix carry the locale, not the type.)

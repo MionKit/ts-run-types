@@ -37,13 +37,13 @@ func translateFixture(t *testing.T, strict bool) (enrichConfig, string, string) 
 	sourceMirror := filepath.Join(dir, "runtypes", "generated", "friendly", "models.ts")
 	writeTestFile(t, sourceMirror,
 		"import type { User } from '../../../src/models';\n"+
-			"import type { FriendlyType } from 'ts-runtypes';\n\n"+
+			"import type { FriendlyText } from 'ts-runtypes';\n\n"+
 			"/** @rtType User#u1 @rtIds {name: n1} */\n"+
-			"export const friendlyUser: FriendlyType<User> = {\n"+
+			"export const friendlyUser: FriendlyText<User> = {\n"+
 			"  rt$label: 'User',\n"+
 			"  name: {rt$label: 'Full name'},\n"+
 			"};\n\n"+
-			"export const pl_friendlyUser: FriendlyType<User> = {rt$label: ''};\n\n"+
+			"export const pl_friendlyUser: FriendlyText<User> = {rt$label: ''};\n\n"+
 			"export const friendlyHelper = {rt$label: ''};\n")
 	return resolveEnrichConfig(source, ""), source, sourceMirror
 }
@@ -226,8 +226,8 @@ func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("translation file not written: %v", err)
 	}
-	if !strings.Contains(string(scaffolded), "export const pl_friendlyUser: FriendlyType<User>") {
-		t.Errorf("translation consts annotate FriendlyType (Translation is retired):\n%s", scaffolded)
+	if !strings.Contains(string(scaffolded), "export const pl_friendlyUser: FriendlyText<User>") {
+		t.Errorf("translation consts annotate FriendlyText (Translation is retired):\n%s", scaffolded)
 	}
 
 	// In sync: no TR003.

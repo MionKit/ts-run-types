@@ -15,7 +15,7 @@ import (
 //   - tag hygiene (FT020–FT022 / MD020–MD022, per the mirror's family) — pure
 //     text scan over the Program's view of the file (mirror.ScanDirtyTags), so
 //     unsaved overlay text is honored;
-//   - FriendlyType / MockData content validity (FT/MD codes) — the shared
+//   - FriendlyText / MockData content validity (FT/MD codes) — the shared
 //     astcheck walk against this resolver's checker + runtype cache;
 //   - breadcrumb drift (GE002/GE003) — the mirror's source link, read from
 //     disk (mirrors track on-disk sources).
@@ -51,7 +51,7 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diag.Diagnostic {
 
 		// Drift only applies to GENERATED mirrors (marker emit form present as
 		// a real comment): a hand-written file that merely annotates consts
-		// with FriendlyType / MockData has ordinary relative imports, not a
+		// with FriendlyText / MockData has ordinary relative imports, not a
 		// breadcrumb. `check` and `gen --check` — where the user explicitly
 		// targets enrichment files — stay ungated.
 		if mirror.HasMarkerComment(text) {
@@ -95,7 +95,7 @@ func diagSeverityFor(severity enrich.Severity) diag.Severity {
 
 // tagCode maps a hygiene TagKind + the finding's mirror family to its diag
 // code. Since the per-family file split every hygiene code is family-specific
-// (FT02x in a FriendlyType mirror, MD02x in a MockData mirror); an
+// (FT02x in a FriendlyText mirror, MD02x in a MockData mirror); an
 // unattributable finding (no annotation, no DSL import — only possible in a
 // degenerate hand-edited file) reports under the friendly code and the file
 // path in the site tells the user the rest.

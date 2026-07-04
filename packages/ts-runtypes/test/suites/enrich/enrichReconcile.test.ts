@@ -107,12 +107,12 @@ describe('enrichment reconcile — family split', () => {
 
     const friendly = readMirror(fixture, 'friendly');
     const mock = readMirror(fixture, 'mock');
-    expect(friendly).toContain('export const friendlyUser: FriendlyType<User>');
-    expect(friendly).toContain("import type { FriendlyType } from 'ts-runtypes'");
+    expect(friendly).toContain('export const friendlyUser: FriendlyText<User>');
+    expect(friendly).toContain("import type { FriendlyText } from 'ts-runtypes'");
     expect(friendly).not.toContain('MockData');
     expect(mock).toContain('export const mockUser: MockData<User>');
     expect(mock).toContain("import type { MockData } from 'ts-runtypes'");
-    expect(mock).not.toContain('FriendlyType');
+    expect(mock).not.toContain('FriendlyText');
   });
 
   it('migrates a pre-split combined mirror in place, carrying authored values (idempotently)', () => {
@@ -123,8 +123,8 @@ describe('enrichment reconcile — family split', () => {
     writeFileSync(
       legacyPath,
       "import type { User } from '../../src/models';\n" +
-        "import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
-        'export const friendlyUser: FriendlyType<User> = {\n' +
+        "import type { FriendlyText, MockData } from 'ts-runtypes';\n\n" +
+        'export const friendlyUser: FriendlyText<User> = {\n' +
         "  rt$label: 'The user',\n" +
         "  rt$errors: {type: ''},\n" +
         "  name: {rt$label: 'Full name', rt$errors: {type: ''}},\n" +

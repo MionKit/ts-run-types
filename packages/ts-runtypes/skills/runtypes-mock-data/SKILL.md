@@ -6,7 +6,7 @@ description: Author and use a `MockData<T>` for a RunTypes type — the committe
 # Authoring & using `MockData<T>`
 
 `MockData<T>` is one of two **AI-enrichment artifacts** in RunTypes (the other is
-`FriendlyType<T>` — see the `runtypes-friendly-type` skill). Unlike validators / codecs
+`FriendlyText<T>` — see the `runtypes-friendly-type` skill). Unlike validators / codecs
 (pure functions of the type, recomputed every build, never committed), enrichment is
 **authored once, committed, and validated against the type forever after**. The full
 design is [docs/AI_ENRICHMENT.md](https://github.com/mionkit/ts-runtypes/blob/main/docs/AI_ENRICHMENT.md).
@@ -85,11 +85,11 @@ a configured floor, off by default).
 
 ## Where the map lives — the mock mirror file
 
-Like `FriendlyType<T>`, a `MockData<T>` map is committed in a **mirror directory** whose
+Like `FriendlyText<T>`, a `MockData<T>` map is committed in a **mirror directory** whose
 tree shadows your source, anchored at the file where the **type is defined**, not where
 it's consumed — and each enrichment family gets its own file: `src/models/user.ts` →
 `<enrichDir>/mock/models/user.ts` (default `enrichDir`: `runtypes/generated`, so
-`runtypes/generated/mock/models/user.ts`), holding `mock<Name>` consts. `FriendlyType<T>`
+`runtypes/generated/mock/models/user.ts`), holding `mock<Name>` consts. `FriendlyText<T>`
 consts live separately under `<enrichDir>/friendly/…` — the two families never share one
 file. One mirror file per source file, one `export` per enriched type defined there —
 **one enrichment home per type, at its definition**, however many files mock it. It's

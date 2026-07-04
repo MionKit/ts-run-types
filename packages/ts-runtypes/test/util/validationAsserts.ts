@@ -610,7 +610,7 @@ export function assertFriendlyCoverage(c: AssertableCase): void {
   if (c.factoryThrows) return; // the factory itself throws — not a rendering concern
   const getErrors = factory() as (value: unknown) => RTValidationError[];
   // A bare map (only the required root meta, no field overrides): this net asserts
-  // every type's errors render with pure fallback messages. `FriendlyType<unknown>`
+  // every type's errors render with pure fallback messages. `FriendlyText<unknown>`
   // reduces to `FriendlyMeta`, whose `rt$errors` needs the base `type` key (blank =
   // no custom message, everything falls to the generic fallback).
   const renderer = createFriendly<unknown>({rt$label: '', rt$errors: {type: ''}});

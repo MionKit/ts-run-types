@@ -16,7 +16,7 @@
 //                                    in the message, e.g. "[VL010] …").
 //   runtypes/no-enrichment-todo      unfilled @todo scaffold lines.
 //   runtypes/no-orphan-carcass       stale @rtOrphan / @rtOrphanChild blocks.
-//   runtypes/enrichment-field        FriendlyType/MockData content findings.
+//   runtypes/enrichment-field        FriendlyText/MockData content findings.
 //   runtypes/enrichment-drift        mirror breadcrumb drift (source deleted
 //                                    or type no longer declared).
 //
@@ -135,7 +135,7 @@ export const rules: Record<RuleName, RuleModule> = {
   ),
   'enrichment-field': diagnosticRule(
     'enrichment-field',
-    'FriendlyType / MockData maps must match the source type (no dead fields, constraints, or placeholders)',
+    'FriendlyText / MockData maps must match the source type (no dead fields, constraints, or placeholders)',
     looksLikeEnrichmentFile
   ),
   'enrichment-drift': diagnosticRule(

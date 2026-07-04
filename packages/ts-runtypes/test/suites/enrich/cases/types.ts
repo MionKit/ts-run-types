@@ -3,7 +3,7 @@
 // type-checked TypeScript carrying four marker-delimited spans:
 //
 //   // ##### src #####       — `type Target = …;`
-//   // ##### friendly #####  — `const friendlyTarget: FriendlyType<Target> = …;`
+//   // ##### friendly #####  — `const friendlyTarget: FriendlyText<Target> = …;`
 //   // ##### mock #####       — `const mockTarget: MockData<Target> = …;`
 //   // ##### result #####     — `return {friendlyTarget, mockTarget};`
 //
@@ -11,7 +11,7 @@
 // markers, feeds `src` to the `gen --files` CLI, and compares the generated
 // object-literal skeleton against the case-authored `friendly` / `mock`
 // initializers (Prettier-normalized). `tsc` proves the expecteds are
-// well-formed `FriendlyType<Target>` / `MockData<Target>` for the given type.
+// well-formed `FriendlyText<Target>` / `MockData<Target>` for the given type.
 export interface EnrichCase {
   title: string;
   description?: string;

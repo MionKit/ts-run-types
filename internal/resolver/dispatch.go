@@ -651,7 +651,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
 		combinedDiagnostics := append(append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
-		// Opt-in enrichment-health pass (tag hygiene + FriendlyType/MockData
+		// Opt-in enrichment-health pass (tag hygiene + FriendlyText/MockData
 		// content + breadcrumb drift) for the lint surfaces. Runs AFTER
 		// cache.Added(before) so the types the content checks intern never
 		// leak into this response's added* HMR signals.

@@ -49,7 +49,7 @@ type DriftFinding struct {
 }
 
 // ParseBreadcrumb extracts the source breadcrumb from a mirror file's
-// contents. The ts-runtypes DSL import (`import type { FriendlyType, MockData }
+// contents. The ts-runtypes DSL import (`import type { FriendlyText, MockData }
 // from 'ts-runtypes'`) is skipped so the SOURCE breadcrumb is the one
 // returned. ok=false when no source breadcrumb is present (not a generated
 // mirror, or no source link to check).

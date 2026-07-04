@@ -52,7 +52,7 @@ type ClosureOptions struct {
 	// FriendlyErrors picks the `rt$errors` mode new nodes scaffold ("default" →
 	// the exclusive catch-all; else per-constraint). See EmitOptions.
 	FriendlyErrors string
-	// SourceLocale is the language the FriendlyType source maps are authored in
+	// SourceLocale is the language the FriendlyText source maps are authored in
 	// (tsconfig `i18n.sourceLocale`); it selects the CLDR arm set count-bearing
 	// `rt$errors` constraints scaffold. Empty means the default ('en').
 	SourceLocale string

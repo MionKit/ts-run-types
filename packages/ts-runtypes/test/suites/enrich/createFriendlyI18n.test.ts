@@ -1,4 +1,4 @@
-// Runtime behaviour of the FriendlyType i18n layer: plural-arm selection via
+// Runtime behaviour of the FriendlyText i18n layer: plural-arm selection via
 // Intl.PluralRules on the violated bound, TYPE-DRIVEN `$[val]` rendering (an
 // isCurrency-marked bound via the renderer's `currency` option, date-family
 // bounds via Intl.DateTimeFormat), `resolveLocale` BCP-47 truncation, and
@@ -7,14 +7,14 @@
 
 import {describe, it, expect} from 'vitest';
 import type * as TF from 'ts-runtypes/formats';
-import {createFriendly, createFriendlyI18n, resolveLocale, type FriendlyType, type RTValidationError} from 'ts-runtypes';
+import {createFriendly, createFriendlyI18n, resolveLocale, type FriendlyText, type RTValidationError} from 'ts-runtypes';
 
 interface User {
   name: TF.String<{minLength: 2}>;
   age: TF.Number<{min: 0}>;
 }
 
-const source: FriendlyType<User> = {
+const source: FriendlyText<User> = {
   rt$label: 'User account',
   rt$errors: {type: 'Account is invalid'},
   name: {
@@ -48,7 +48,7 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
   });
 
   it('pl: one/few/many arms select by CLDR rules', () => {
-    const pl: FriendlyType<User> = {
+    const pl: FriendlyText<User> = {
       rt$label: '',
       rt$errors: {type: ''},
       name: {
@@ -73,7 +73,7 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
 
   it('ar: all six categories select', () => {
     const arms = {zero: 'z $[val]', one: 'o $[val]', two: 't $[val]', few: 'f $[val]', many: 'm $[val]', other: 'x $[val]'};
-    const ar: FriendlyType<User> = {
+    const ar: FriendlyText<User> = {
       rt$label: '',
       rt$errors: {type: ''},
       name: {rt$label: '', rt$errors: {type: '', minLength: arms}},
@@ -89,7 +89,7 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
   });
 
   it('ja: other-only plural always selects other', () => {
-    const ja: FriendlyType<User> = {
+    const ja: FriendlyText<User> = {
       rt$label: '',
       rt$errors: {type: ''},
       name: {rt$label: '', rt$errors: {type: '', minLength: {other: '$[val]文字以上'}}},
@@ -102,7 +102,7 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
 
   it('a missing arm for the selected category falls to `other` inside the leaf', () => {
     // en select(1) = 'one', but only `other` is filled — the in-leaf backstop.
-    const sparse: FriendlyType<User> = {
+    const sparse: FriendlyText<User> = {
       ...source,
       name: {rt$label: 'Full name', rt$errors: {type: '', minLength: {other: 'need $[val]+ chars'}}},
     };
@@ -111,7 +111,7 @@ describe('plural selection — Intl.PluralRules on the violated bound', () => {
 });
 
 describe('type-driven $[val] rendering', () => {
-  const priceSource: FriendlyType<{price: TF.Currency<{max: 100}>}> = {
+  const priceSource: FriendlyText<{price: TF.Currency<{max: 100}>}> = {
     rt$label: '',
     rt$errors: {type: ''},
     price: {rt$label: 'Price', rt$errors: {type: '', max: {other: 'must be at most $[val]'}}},
@@ -129,7 +129,7 @@ describe('type-driven $[val] rendering', () => {
     const en = createFriendlyI18n(priceSource, {locale: 'en', translations: {}, currency: 'USD'});
     expect(en.errors(currencyMaxError)[0].message).toBe('must be at most $100.00');
 
-    const de: FriendlyType<{price: TF.Currency<{max: 100}>}> = {
+    const de: FriendlyText<{price: TF.Currency<{max: 100}>}> = {
       rt$label: '',
       rt$errors: {type: ''},
       price: {rt$label: 'Preis', rt$errors: {type: '', max: {other: 'höchstens $[val]'}}},
@@ -164,7 +164,7 @@ describe('type-driven $[val] rendering', () => {
   });
 
   it('a date-family bound renders as a localized date; a relative bound stays verbatim', () => {
-    const src: FriendlyType<{createdAt: TF.Date<{max: 'now'}>}> = {
+    const src: FriendlyText<{createdAt: TF.Date<{max: 'now'}>}> = {
       rt$label: '',
       rt$errors: {type: ''},
       createdAt: {rt$label: 'Created', rt$errors: {type: '', max: 'must be before $[val]'}},
@@ -181,7 +181,7 @@ describe('type-driven $[val] rendering', () => {
   });
 
   it('an unknown bare token stays verbatim; a literal colon in prose is untouched', () => {
-    const src: FriendlyType<{price: TF.Currency<{max: 100}>}> = {
+    const src: FriendlyText<{price: TF.Currency<{max: 100}>}> = {
       rt$label: '',
       rt$errors: {type: ''},
       price: {rt$label: '', rt$errors: {type: '', max: 'ratio 3:1 and $[nonsense] with $[val]'}},
@@ -191,7 +191,7 @@ describe('type-driven $[val] rendering', () => {
   });
 
   it('a leftover colon-form token (removed syntax) stays verbatim', () => {
-    const src: FriendlyType<{price: TF.Currency<{max: 100}>}> = {
+    const src: FriendlyText<{price: TF.Currency<{max: 100}>}> = {
       rt$label: '',
       rt$errors: {type: ''},
       price: {rt$label: '', rt$errors: {type: '', max: 'at most $[val:number:currency]'}},
@@ -207,7 +207,7 @@ describe('type-driven $[val] rendering', () => {
 });
 
 describe('resolveLocale — naive BCP-47 truncation', () => {
-  const maps = {pt: {} as FriendlyType<User>, 'zh-Hans': {} as FriendlyType<User>, es: {} as FriendlyType<User>};
+  const maps = {pt: {} as FriendlyText<User>, 'zh-Hans': {} as FriendlyText<User>, es: {} as FriendlyText<User>};
 
   it('exact tag wins', () => {
     expect(resolveLocale('es', maps)).toBe('es');
@@ -228,7 +228,7 @@ describe('resolveLocale — naive BCP-47 truncation', () => {
 });
 
 describe('createFriendlyI18n — per-leaf fallback to the source', () => {
-  const es: FriendlyType<User> = {
+  const es: FriendlyText<User> = {
     rt$label: 'Cuenta de usuario',
     rt$errors: {type: ''},
     name: {
@@ -286,7 +286,7 @@ describe('createFriendlyI18n — per-leaf fallback to the source', () => {
   it("a translation's rt$default mode wins over the source's per-constraint messages", () => {
     // The exclusive catch-all replaces the removed function form: the
     // translator opted their node into one message for everything.
-    const esDefault: FriendlyType<User> = {
+    const esDefault: FriendlyText<User> = {
       ...es,
       name: {rt$label: 'Nombre', rt$errors: {rt$default: 'mensaje propio'}},
     };
@@ -300,13 +300,13 @@ describe('createFriendlyI18n — per-leaf fallback to the source', () => {
       rt$errors: {type: ''},
       name: {rt$label: 'Name', rt$errors: {rt$default: 'from source default'}},
       age: {rt$label: 'Age', rt$errors: {type: '', min: ''}},
-    } as unknown as FriendlyType<User>;
+    } as unknown as FriendlyText<User>;
     const bare = {
       rt$label: '',
       rt$errors: {type: ''},
       name: {rt$label: 'Nombre'},
       age: {rt$label: '', rt$errors: {type: '', min: ''}},
-    } as unknown as FriendlyType<User>;
+    } as unknown as FriendlyText<User>;
     const friendly = createFriendlyI18n<User>(defaultSource, {locale: 'es', translations: {es: bare}});
     const out = friendly.errors(minLengthError(2));
     expect(out[0].message).toBe('from source default');
@@ -315,7 +315,7 @@ describe('createFriendlyI18n — per-leaf fallback to the source', () => {
 
   it('sourceLocale drives source-map plural rules when the source is not English', () => {
     // Polish-primary project: the SOURCE map carries Polish arms.
-    const plSource: FriendlyType<User> = {
+    const plSource: FriendlyText<User> = {
       rt$label: '',
       rt$errors: {type: ''},
       name: {
@@ -330,7 +330,7 @@ describe('createFriendlyI18n — per-leaf fallback to the source', () => {
   });
 
   it('never throws on a partial translation (whole node missing)', () => {
-    const sparse = {rt$label: '', rt$errors: {type: ''}} as unknown as FriendlyType<User>;
+    const sparse = {rt$label: '', rt$errors: {type: ''}} as unknown as FriendlyText<User>;
     const friendly = createFriendlyI18n<User>(source, {locale: 'es', translations: {es: sparse}});
     const out = friendly.errors(minLengthError(3));
     expect(out[0].message).toBe('at least 3 characters');

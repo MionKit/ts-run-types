@@ -468,8 +468,8 @@ const unknownMockField = negativeProbe('unknownMockField', 'mock', 'MD001', 'fzU
 
 const unknownFriendlyField = negativeProbe('unknownFriendlyField', 'friendly', 'FT002', 'fzUnrelated', (text) =>
   text.replace(
-    `export const friendly${TYPE_NAME}: FriendlyType<${TYPE_NAME}> = {`,
-    `export const friendly${TYPE_NAME}: FriendlyType<${TYPE_NAME}> = {\n  fzUnrelated: {rt$label: ''},`
+    `export const friendly${TYPE_NAME}: FriendlyText<${TYPE_NAME}> = {`,
+    `export const friendly${TYPE_NAME}: FriendlyText<${TYPE_NAME}> = {\n  fzUnrelated: {rt$label: ''},`
   )
 );
 

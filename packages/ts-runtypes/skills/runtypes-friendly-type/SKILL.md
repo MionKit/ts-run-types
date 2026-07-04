@@ -1,17 +1,17 @@
 ---
 name: runtypes-friendly-type
-description: Author and use a `FriendlyType<T>` for a RunTypes type — the committed, type-keyed map of human-readable field LABELS + ERROR-MESSAGE templates. Use when writing or editing friendly validation errors, friendly/human-readable field labels, form-builder labels, or a `*.rt.ts` enrichment sibling; when turning `createGetValidationErrors<T>()` output into readable messages via `createFriendly<T>(map).errors(...)`; or when an `rt$errors` / `rt$label` / `$[label]` / `$[val]` placeholder template needs writing. Covers the `{ rt$label, rt$errors, ...children }` node shape (total: both meta keys required on every node), the `$[…]` placeholder DSL, the param-precise error-template keys (the failed-constraint name: `type`, `minLength`, `min`, `max`, `pattern`, …), the exclusive `rt$default` catch-all mode, and where the map lives.
+description: Author and use a `FriendlyText<T>` for a RunTypes type — the committed, type-keyed map of human-readable field LABELS + ERROR-MESSAGE templates. Use when writing or editing friendly validation errors, friendly/human-readable field labels, form-builder labels, or a `*.rt.ts` enrichment sibling; when turning `createGetValidationErrors<T>()` output into readable messages via `createFriendly<T>(map).errors(...)`; or when an `rt$errors` / `rt$label` / `$[label]` / `$[val]` placeholder template needs writing. Covers the `{ rt$label, rt$errors, ...children }` node shape (total: both meta keys required on every node), the `$[…]` placeholder DSL, the param-precise error-template keys (the failed-constraint name: `type`, `minLength`, `min`, `max`, `pattern`, …), the exclusive `rt$default` catch-all mode, and where the map lives.
 ---
 
-# Authoring & using `FriendlyType<T>`
+# Authoring & using `FriendlyText<T>`
 
-`FriendlyType<T>` is one of two **AI-enrichment artifacts** in RunTypes (the other is
+`FriendlyText<T>` is one of two **AI-enrichment artifacts** in RunTypes (the other is
 `MockData<T>` — see the `runtypes-mock-data` skill). Unlike validators / codecs (pure
 functions of the type, recomputed every build, never committed), enrichment is
 **authored once, committed, and validated against the type forever after**. The full
 design is [docs/AI_ENRICHMENT.md](https://github.com/mionkit/ts-runtypes/blob/main/docs/AI_ENRICHMENT.md).
 
-A `FriendlyType<T>` is a combined, per-field map of:
+A `FriendlyText<T>` is a combined, per-field map of:
 
 - **labels** — `rt$label`, a human name for each field (`'Full name'` for `name`);
 - **error-message templates** — `rt$errors`, one template per failed constraint.
@@ -27,7 +27,7 @@ injection, no `rtUtils` — error rendering needs only `(map, errors)`.
   human-readable messages instead of raw `{ path, expected, format }`.
 - You need stable, human field **labels** (form building, error summaries).
 - You're scaffolding a type's committed friendly mirror file, or filling a
-  locale's translation file (also typed `FriendlyType<T>`, rendered via
+  locale's translation file (also typed `FriendlyText<T>`, rendered via
   `createFriendlyI18n`).
 
 If you only need a boolean pass/fail, use `createValidate<T>()` directly — no friendly
@@ -35,7 +35,7 @@ map involved.
 
 ## What is shipped today vs designed
 
-- **Shipped:** the `FriendlyType<T>` DSL type with the plural types
+- **Shipped:** the `FriendlyText<T>` DSL type with the plural types
   (`PluralTemplate`, `TemplateLeaf`, `PluralCategory`)
   ([`friendlyType.ts`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/friendlyType.ts)); the
   plural-aware `createFriendly<T>(map)` renderer plus `createFriendlyI18n`,
@@ -67,7 +67,7 @@ blank `''` means "no custom text" (the renderer falls back gracefully), so blank
 always safe. Never delete a key to opt out — the next `gen --update` scaffolds it
 back; one type maps to exactly one shape.
 
-The map's structure is checked against `T` by the `FriendlyType<T>` mapped type:
+The map's structure is checked against `T` by the `FriendlyText<T>` mapped type:
 a missing field, an object node where `T` is scalar (or vice-versa), an unknown
 `rt$errors` key — all TYPE errors, caught in the IDE before `check` even runs.
 
@@ -190,11 +190,11 @@ artifact (every other output is gitignored cache) and is hand-editable.
 
 ```ts
 // runtypes/generated/friendly/models/user.ts — committed, hand-editable
-import type {FriendlyType} from 'ts-runtypes';
+import type {FriendlyText} from 'ts-runtypes';
 import type {User} from '../../../../src/models/user';
 
 /** @rtType User#9f3a @rtIds {…} */
-export const friendlyUser: FriendlyType<User> = {
+export const friendlyUser: FriendlyText<User> = {
   /* … */
 };
 ```
@@ -246,11 +246,11 @@ friendly.label('profile.email'); // → 'Email'  (falls back to the raw field na
   one message per failure). Returns `FriendlyMessage[]` (`{ path, label, message }`).
 - `label(path)` — the friendly label for a dotted path or a raw path-segment array.
 
-## Translations — per-locale `FriendlyType<T>` files under `<enrichDir>/i18n`
+## Translations — per-locale `FriendlyText<T>` files under `<enrichDir>/i18n`
 
 The friendly map you authored IS the source language (tsconfig `i18n.sourceLocale`,
 default `en`) — there is no separate default catalog and no separate translation type.
-A locale file is a `FriendlyType<T>` map authored in another language, generated from
+A locale file is a `FriendlyText<T>` map authored in another language, generated from
 the SOURCE TYPE by the same driver as the friendly mirror (the mirror is a discovery
 input only — which sources translate — never a content input; no generated file ever
 feeds the generation of another). Translation is optional per leaf; anything unfilled
@@ -260,7 +260,7 @@ falls back to the source at render time.
   (default `i18nDir`: `<enrichDir>/i18n`, e.g. `runtypes/generated/i18n/pl/models/user.ts`;
   the locale is a path segment, so `pt-BR` works verbatim).
 - The const per type is `<locale>_friendly<Name>` — BCP-47 `-` becomes `_`
-  (`pt_BR_friendlyUser`) — annotated `FriendlyType<Name>`, carrying the SAME
+  (`pt_BR_friendlyUser`) — annotated `FriendlyText<Name>`, carrying the SAME
   `@rtType <Name>#<id> @rtIds {…}` markers as the source. The path + const prefix
   carry the locale; there is no i18n marker.
 - Scaffold with `ts-runtypes gen --translate <locale|all>`; reconcile with `--update`
@@ -281,11 +281,11 @@ has exactly one string to translate and is never descended.
 
 ```ts
 // runtypes/generated/i18n/pl/models/user.ts — committed, filled by a translator/agent
-import type {FriendlyType} from 'ts-runtypes';
+import type {FriendlyText} from 'ts-runtypes';
 import type {User} from '../../../../../src/models/user';
 
 /** @rtType User#9f3a @rtIds {…} */
-export const pl_friendlyUser: FriendlyType<User> = {
+export const pl_friendlyUser: FriendlyText<User> = {
   /* … */
 };
 ```
@@ -355,10 +355,10 @@ export interface User {
 
 ```ts
 // runtypes/generated/friendly/models/user.ts — the committed friendly mirror
-import type {FriendlyType} from 'ts-runtypes';
+import type {FriendlyText} from 'ts-runtypes';
 import type {User} from '../../../../src/models/user';
 
-export const friendlyUser: FriendlyType<User> = {
+export const friendlyUser: FriendlyText<User> = {
   rt$label: 'User account',
   rt$errors: {type: '$[label] must be an object'},
 
@@ -415,7 +415,7 @@ const messages = friendly.errors(getUserErrors({name: 'A', age: 200, profile: {e
 
 - Put the map in the **definition's friendly mirror file**
   (`<enrichDir>/friendly/<rel>.ts`), not the consumer's file.
-- Type it `FriendlyType<T>` so structure is checked against `T`. The map is TOTAL:
+- Type it `FriendlyText<T>` so structure is checked against `T`. The map is TOTAL:
   every field present, `rt$label` + `rt$errors` on every node. Blank `''` = no custom
   text (FT001 Info nudges unlabeled fields); never delete a key — it re-scaffolds.
 - The `rt$errors` key set is exactly the field's **declared failable format params**

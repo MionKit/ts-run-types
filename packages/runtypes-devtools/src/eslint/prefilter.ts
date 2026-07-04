@@ -3,7 +3,7 @@
 // like an enrichment mirror can produce no RunTypes diagnostics, so the
 // rules skip it entirely — the common case for most files in a lint run.
 
-import {FRIENDLY_TYPE_NAME, MARKER_COMMENT_PREFIX, MOCK_DATA_NAME} from '../runtypes-constants.generated.ts';
+import {FRIENDLY_TEXT_NAME, FRIENDLY_TYPE_NAME, MARKER_COMMENT_PREFIX, MOCK_DATA_NAME} from '../runtypes-constants.generated.ts';
 
 // MARKER_MODULE mirrors the unplugin's short-circuit: match the package only
 // as a quoted import specifier (`'ts-runtypes`, `"ts-runtypes`, incl.
@@ -24,8 +24,10 @@ export function referencesMarkerModule(text: string): boolean {
 // matching (a JSDoc code example there never counts); this pre-filter skips
 // the masking — a rare comment-only match just pays one resolver round trip
 // that the authoritative Go guard then rejects.
+// FRIENDLY_TYPE_NAME (legacy) stays in the alternation so mirrors authored
+// before the friendly-text rename still match the pre-filter.
 const enrichConstAnnotationPattern = new RegExp(
-  `^[ \\t]*(?:export[ \\t]+)?const[ \\t]+[A-Za-z_$][A-Za-z0-9_$]*[ \\t]*:\\s*(?:${FRIENDLY_TYPE_NAME}|${MOCK_DATA_NAME})[ \\t]*<`,
+  `^[ \\t]*(?:export[ \\t]+)?const[ \\t]+[A-Za-z_$][A-Za-z0-9_$]*[ \\t]*:\\s*(?:${FRIENDLY_TEXT_NAME}|${FRIENDLY_TYPE_NAME}|${MOCK_DATA_NAME})[ \\t]*<`,
   'm'
 );
 

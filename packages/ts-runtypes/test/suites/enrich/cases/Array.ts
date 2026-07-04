@@ -1,5 +1,5 @@
 import type * as TF from 'ts-runtypes/formats';
-import type {FriendlyType, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from 'ts-runtypes';
 import type {EnrichCase} from './types.ts';
 
 // Array kinds — `T[]`, `Array<T>`, nested arrays, arrays of objects. Friendly
@@ -12,7 +12,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = string[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$items: {rt$label: '', rt$errors: {type: ''}},
@@ -30,7 +30,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = number[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$items: {rt$label: '', rt$errors: {type: ''}},
@@ -48,7 +48,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = boolean[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$items: {rt$label: '', rt$errors: {type: ''}},
@@ -66,7 +66,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = Date[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$items: {rt$label: '', rt$errors: {type: ''}},
@@ -84,7 +84,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = Array<string>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$items: {rt$label: '', rt$errors: {type: ''}},
@@ -102,7 +102,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = ReadonlyArray<string>;
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$items: {rt$label: '', rt$errors: {type: ''}},
@@ -120,7 +120,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = string[][];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$items: {rt$label: '', rt$errors: {type: ''}, rt$items: {rt$label: '', rt$errors: {type: ''}}},
@@ -138,7 +138,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = {a: string}[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$items: {
@@ -165,7 +165,7 @@ export const ARRAY = {
       // ##### src #####
       type Target = TF.Email[];
       // ##### friendly #####
-      const friendlyTarget: FriendlyType<Target> = {
+      const friendlyTarget: FriendlyText<Target> = {
         rt$label: '',
         rt$errors: {type: ''},
         rt$items: {

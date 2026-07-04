@@ -6,6 +6,8 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/scanner"
+
+	"github.com/mionkit/ts-runtypes/internal/enrich"
 )
 
 // SplitCombined splits a pre-family-split COMBINED mirror (one file holding
@@ -134,6 +136,19 @@ func collectSplitItems(index *Index, text string) []splitItem {
 	return items
 }
 
+// friendlyWrapperFromImport returns the friendly-map wrapper name the combined
+// file's DSL import actually used — the current `FriendlyText` or the legacy
+// `FriendlyText`, whichever it imported — so the split header stays byte-faithful
+// to the verbatim-carried const annotations. Defaults to the current name.
+func friendlyWrapperFromImport(dslImport *importEntry) string {
+	for _, name := range dslImport.names {
+		if enrich.IsFriendlyWrapperName(name) {
+			return name
+		}
+	}
+	return enrich.FriendlyTextName
+}
+
 // writeSplitHeader synthesizes one family file's import header from the
 // combined file's indexed imports: the recomputed source breadcrumb, the
 // family's DSL import, and the family-filtered cross-file value imports.
@@ -146,9 +161,13 @@ func writeSplitHeader(builder *strings.Builder, index *Index, text, mirrorPath, 
 		builder.WriteString("';\n")
 	}
 	if index.dslImport != nil {
-		wrapper := "MockData"
+		wrapper := enrich.MockDataName
 		if friendly {
-			wrapper = "FriendlyType"
+			// Split carries const annotations VERBATIM, so the synthesized import must
+			// match the source's friendly wrapper spelling (a pre-family-split combined
+			// file predates the friendly-text rename and still reads `FriendlyText`);
+			// the next `gen --update` migrates both to `FriendlyText` together.
+			wrapper = friendlyWrapperFromImport(index.dslImport)
 		}
 		builder.WriteString("import type { ")
 		builder.WriteString(wrapper)

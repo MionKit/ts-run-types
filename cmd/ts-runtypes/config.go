@@ -36,7 +36,7 @@ const (
 // locale owns a path segment under it: <EnrichDir>/i18n/<locale>/<rel>.
 const defaultI18nDirName = "i18n"
 
-// defaultSourceLocale is the language source FriendlyType maps are assumed to
+// defaultSourceLocale is the language source FriendlyText maps are assumed to
 // be authored in when tsconfig `i18n.sourceLocale` is absent.
 const defaultSourceLocale = "en"
 
@@ -94,7 +94,7 @@ type tsRuntypesPlugin struct {
 	EmitMode       string `json:"emitMode"`
 	InlineMode     string `json:"inlineMode"`
 
-	// I18n is the FriendlyType translation config. A pointer so an absent key
+	// I18n is the FriendlyText translation config. A pointer so an absent key
 	// (nil) keeps every i18n default dormant.
 	I18n *i18nPluginConfig `json:"i18n"`
 
@@ -120,7 +120,7 @@ type tsRuntypesPlugin struct {
 //	  "locales": ["es", "pl"], "formats": "runtypes/i18n.formats.ts",
 //	  "strict": false }
 //
-// sourceLocale names the language the source FriendlyType maps are authored in
+// sourceLocale names the language the source FriendlyText maps are authored in
 // (it selects the plural arms the scaffold emits). dir is the translation
 // subtree root (locale is a PATH SEGMENT under it), resolved like enrichDir
 // (relative → under the project root); default <enrichDir>/i18n. locales is

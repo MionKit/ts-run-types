@@ -300,7 +300,7 @@ describeIfBinary('enrich-mirror HMR dev loop (E2E)', () => {
 
       friendly = fs.readFileSync(project.friendlyMirror, 'utf8');
       expect(friendly, 'var renamed').toContain('export const friendlyAccount');
-      expect(friendly, 'annotation renamed').toContain('FriendlyType<Account>');
+      expect(friendly, 'annotation renamed').toContain('FriendlyText<Account>');
       expect(friendly, 'authored value carried live').toContain('AUTH_FN');
       expect(friendly, 'old const fully gone').not.toContain('friendlyUser');
       // Mock-side parity: the mock mirror renames in place the same way.

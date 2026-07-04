@@ -59,11 +59,11 @@ const (
 // IsEnrichmentFile is the scoping guard (defense in depth under the consumer's
 // lint glob): hygiene only applies to files that look like enrichment mirrors —
 // a reconcile marker in its EMIT form (`/** @rtType …`), or a CONST
-// declaration annotated with the DSL types (`export const x: FriendlyType<…>`,
+// declaration annotated with the DSL types (`export const x: FriendlyText<…>`,
 // the shape every scaffold emits — covering a freshly-scaffolded const whose
 // unresolved root got no marker). The const annotation is matched with
 // comments MASKED OUT, so neither the DSL package's own sources (declarations,
-// `(map: FriendlyType<T>)` parameter annotations, prose with `@todo`) nor a
+// `(map: FriendlyText<T>)` parameter annotations, prose with `@todo`) nor a
 // JSDoc code example can make ordinary source read as a mirror.
 func IsEnrichmentFile(text string) bool {
 	if HasMarkerComment(text) {
@@ -89,12 +89,12 @@ func HasMarkerComment(text string) bool {
 }
 
 // enrichConstAnnotationPattern matches a (possibly exported) const declaration
-// annotated `: FriendlyType<` / `: MockData<` at the start of a line — the
-// exact shape ConstBlock emits. `\s*` after the colon tolerates a formatter
-// wrapping the annotation onto the next line.
+// annotated `: FriendlyText<` / `: FriendlyType<` (legacy) / `: MockData<` at
+// the start of a line — the exact shape ConstBlock emits. `\s*` after the colon
+// tolerates a formatter wrapping the annotation onto the next line.
 var enrichConstAnnotationPattern = regexp.MustCompile(
 	`(?m)^[ \t]*(?:export[ \t]+)?const[ \t]+[A-Za-z_$][A-Za-z0-9_$]*[ \t]*:\s*(?:` +
-		enrich.FriendlyTypeName + `|` + enrich.MockDataName + `)[ \t]*<`)
+		dslWrapperAlternation + `)[ \t]*<`)
 
 // maskComments blanks every comment byte (newlines preserved) so structural
 // probes never match inside doc prose or JSDoc code examples.
@@ -173,16 +173,22 @@ func ScanDirtyTags(text string) []TagFinding {
 	return findings
 }
 
+// dslWrapperAlternation is the regex alternation of every recognized DSL
+// wrapper type name — the current `FriendlyText` + legacy `FriendlyType` +
+// `MockData` — shared by the annotation-structure probes so all of them accept
+// mirrors authored before the friendly-text rename.
+var dslWrapperAlternation = strings.Join(append(append([]string{}, enrich.FriendlyWrapperNames...), enrich.MockDataName), `|`)
+
 // annotationFamilyPattern is the family-capturing twin of
 // enrichConstAnnotationPattern; group 1 is the DSL type name.
 var annotationFamilyPattern = regexp.MustCompile(
 	`(?m)^[ \t]*(?:export[ \t]+)?const[ \t]+[A-Za-z_$][A-Za-z0-9_$]*[ \t]*:\s*(` +
-		enrich.FriendlyTypeName + `|` + enrich.MockDataName + `)[ \t]*<`)
+		dslWrapperAlternation + `)[ \t]*<`)
 
 // carcassAnnotationPattern reads the preserved const's annotation INSIDE an
 // orphan carcass (comment text, so the anchored pattern cannot apply).
 var carcassAnnotationPattern = regexp.MustCompile(
-	`const[ \t]+[A-Za-z_$][A-Za-z0-9_$]*[ \t]*:\s*(` + enrich.FriendlyTypeName + `|` + enrich.MockDataName + `)[ \t]*<`)
+	`const[ \t]+[A-Za-z_$][A-Za-z0-9_$]*[ \t]*:\s*(` + dslWrapperAlternation + `)[ \t]*<`)
 
 // dslImportPattern captures the `import type { … } from 'ts-runtypes'` clause
 // body — a per-family mirror imports exactly its own DSL type.
@@ -253,7 +259,13 @@ func dslImportFamily(text string) MirrorFamily {
 		return FamilyUnknown
 	}
 	clause := match[1]
-	hasFriendly := strings.Contains(clause, enrich.FriendlyTypeName)
+	hasFriendly := false
+	for _, name := range enrich.FriendlyWrapperNames { // FriendlyText (+ legacy FriendlyType)
+		if strings.Contains(clause, name) {
+			hasFriendly = true
+			break
+		}
+	}
 	hasMock := strings.Contains(clause, enrich.MockDataName)
 	switch {
 	case hasFriendly && !hasMock:

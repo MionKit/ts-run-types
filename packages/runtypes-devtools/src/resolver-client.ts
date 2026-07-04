@@ -130,7 +130,7 @@ export interface ScanFilesOptions {
   // rewrite pipeline never sets it.
   includeMetrics?: boolean;
   // Opts the response into the enrichment-health pass over the request's
-  // files (tag hygiene + FriendlyType/MockData content + breadcrumb drift),
+  // files (tag hygiene + FriendlyText/MockData content + breadcrumb drift),
   // returned as Family.Enrich diagnostics. Lint-plugin use; the rewrite
   // pipeline never sets it.
   checkEnrich?: boolean;
