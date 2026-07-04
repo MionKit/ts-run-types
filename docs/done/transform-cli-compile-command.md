@@ -1,7 +1,24 @@
 # Transform architecture — CLI full-transform + incremental wire
 
-**Status:** design of record (2026-07-04), agreed in review. The **wire** half shipped in [transform-wire-modes](../done/transform-wire-modes.md) (PR #172); the **CLI** half is the next build item.
-**Related:** [`internal/compiled/transform/transform.go`](../../internal/compiled/transform/transform.go) (`Apply`) + [`edits.go`](../../internal/compiled/transform/edits.go) (`ComputeEdits`, `makeByteToChar`), [`internal/resolver/dispatch.go`](../../internal/resolver/dispatch.go) (`OpTransform`, `OpGenerate`), [`packages/runtypes-devtools/src/apply-edits.ts`](../../packages/runtypes-devtools/src/apply-edits.ts), [`unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts)
+**Status:** **implemented** (2026-07-04). The **wire** half shipped in [transform-wire-modes](../done/transform-wire-modes.md); the **CLI** half (`ts-runtypes --compile`) is now built — see What shipped.
+**Related:** [`internal/compile/compile.go`](../../internal/compile/compile.go) (the pipeline), [`internal/compiled/transform/compose.go`](../../internal/compiled/transform/compose.go) (`ComposeMaps`), [`internal/compiled/transform/transform.go`](../../internal/compiled/transform/transform.go) (`Apply`), [`internal/resolver/dispatch.go`](../../internal/resolver/dispatch.go) (`OpTransform`, `OpGenerate`), [`cmd/ts-runtypes/main.go`](../../cmd/ts-runtypes/main.go) (`--compile`)
+
+## What shipped
+
+`ts-runtypes --compile` — a tsc-style batch compile ([internal/compile.Run](../../internal/compile/compile.go)):
+
+1. **Pass 1** builds the tsconfig Program, scans for markers, and via `OpTransform` (empty OutDir → keeps `virtual:rt/…` specifiers) gets each marker file's rewritten source + **map A** (rewritten → original); `OpGenerate` writes the cache modules to `--compile-cache-dir` (default `<cwd>/__runtypes`).
+2. **Pass 2** rebuilds the Program with the rewritten sources **overlaid** at the same paths (so the real tsconfig options — target/module/outDir/sourceMap — apply) and runs tsgo `Emit`, capturing every output via the `WriteFile` sink.
+3. Each emitted `.js` has its `virtual:rt/…` imports relativized to the cache dir **against its output location**; each emitted `.js.map` (**map B**: js → rewritten) is composed with map A into **map C** (js → original) so breakpoints land on the user's source. Composition is `ComposeMaps` ([compose.go](../../internal/compiled/transform/compose.go)) — Emit has no custom-transformer hook, so it is done here; it adds a v3 VLQ decoder mirroring the `EditBuffer`'s encoder.
+
+Tests: `ComposeMaps` unit tests (round-trip + compose + injected-drop), a real temp-project Go integration test (asserts the composed map references only original lines), and a JS e2e that spawns the binary and proves the generated cache materializes a **working validator** at runtime.
+
+## Known limitations / follow-ups
+
+- **External source maps only.** `sourceMap: true` (external `.js.map`) is composed; `inlineSourceMap` (a data-URI map inside the `.js`) is NOT yet composed — extract + compose + re-inline is a follow-up. No source map (`sourceMap` unset) just emits `.js`.
+- **ESM output.** Relativization matches `from '…'` specifiers; CommonJS emit (`require('virtual:rt/…')`) is not handled. Use `module: esnext`/`nodenext`.
+- **Cache dir reachability.** The emitted `.js` import the cache modules by relative path, so the cache dir must be reachable from the output tree (default `<cwd>/__runtypes` works when the tsconfig `outDir` is under `<cwd>`); exotic `rootDir`/`outDir` layouts may need an explicit `--compile-cache-dir`.
+- `.d.ts` declaration emit passes through unmodified (call-site rewrites don't touch declarations).
 
 ## Two surfaces, two jobs
 
