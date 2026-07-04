@@ -25,11 +25,10 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
-# ── Get packages in reverse topological order (dependents first, dependencies last) ──
-PACKAGES=$(pnpm exec lerna ls --no-private --toposort --json 2>/dev/null | node -e "
-  const pkgs = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-  pkgs.reverse().forEach(p => console.log(p.name));
-")
+# ── Packages in reverse dependency order (dependents first, dependencies last) ──
+# Hardcoded to avoid a lerna dependency; the workspace publish graph is
+# ts-runtypes-bin <- runtypes-devtools <- ts-runtypes (see scripts/pack-artifacts.mjs).
+PACKAGES="ts-runtypes runtypes-devtools ts-runtypes-bin"
 
 # ── Preview ──
 echo ""

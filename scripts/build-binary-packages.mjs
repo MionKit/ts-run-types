@@ -37,11 +37,11 @@ const PLATFORMS = [
 ];
 
 function readVersion() {
-  const lerna = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'lerna.json'), 'utf8'));
-  if (!lerna.version || lerna.version === 'independent') {
-    throw new Error('lerna.json has no fixed lockstep version to stamp binary packages with.');
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'version.json'), 'utf8'));
+  if (!manifest.version || manifest.version === 'independent') {
+    throw new Error('version.json has no fixed lockstep version to stamp binary packages with.');
   }
-  return lerna.version;
+  return manifest.version;
 }
 
 function readTsgoRevision() {

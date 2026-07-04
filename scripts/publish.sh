@@ -45,14 +45,15 @@ echo -e "${GREEN}Working tree is clean${NC}"
 echo ""
 echo -e "${GREEN}[3/5] Version bump${NC}"
 echo "──────────────────────────────────────────"
-echo -e "${YELLOW}Select version bump (lerna version):${NC}"
-pnpm exec lerna version
+read -rp "Version bump (patch / minor / major or explicit X.Y.Z): " BUMP
+# Writes the lockstep version into version.json + every package.json, then commits + tags.
+node scripts/bump-version.mjs "$BUMP"
 
 # ── Cross-compile + stage the per-platform binary packages ──
 echo ""
 echo -e "${GREEN}[4/5] Building per-platform binary packages...${NC}"
 echo "──────────────────────────────────────────"
-# Stamps the freshly bumped lerna version into every ts-runtypes-binary-<os>-<arch>
+# Stamps the freshly bumped version.json into every ts-runtypes-binary-<os>-<arch>
 # package and into ts-runtypes-bin's optionalDependencies. Output: dist-binaries/.
 node scripts/build-binary-packages.mjs
 
@@ -75,10 +76,11 @@ while read -r PKG; do
   npm publish "dist-binaries/${PKG}" --access public "${OTP_FLAG[@]}"
 done < <(node -e "JSON.parse(require('fs').readFileSync('dist-binaries/publish-order.json','utf8')).forEach(p=>console.log(p))")
 
-# FE packages via lerna (rewrites workspace:* → concrete versions). ts-runtypes-bin
-# was just published above, so `from-package` sees its version on the registry and
-# skips it — only ts-runtypes + runtypes-devtools publish here.
-pnpm exec lerna publish from-package --no-private --ignore-scripts "${OTP_FLAG[@]}"
+# FE packages via `pnpm publish` (rewrites workspace:* → concrete versions, exactly
+# like the CI pack path in pack-artifacts.mjs). ts-runtypes-bin was already published
+# in the loop above; only ts-runtypes + runtypes-devtools publish here.
+pnpm --filter ts-runtypes --filter runtypes-devtools publish \
+  --no-git-checks --ignore-scripts --access public "${OTP_FLAG[@]}"
 
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════${NC}"

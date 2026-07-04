@@ -20,7 +20,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 
 ## Monorepo structure
 
-- pnpm workspaces ([pnpm-workspace.yaml](pnpm-workspace.yaml)) + Lerna ([lerna.json](lerna.json)) for lockstep versioning and topo-ordered scripts.
+- pnpm workspaces ([pnpm-workspace.yaml](pnpm-workspace.yaml)) for lockstep versioning ([version.json](version.json), bumped by [scripts/bump-version.mjs](scripts/bump-version.mjs)) and topo-ordered scripts (`pnpm -r run`).
 - All three published packages (`ts-runtypes`, `runtypes-devtools`, `ts-runtypes-bin`) move in lockstep (`forcePublish: true`, `exact: true`); the per-platform `ts-runtypes-binary-*` packages are assembled at publish time and pinned exact-equal to the same version.
 - `ts-runtypes` exposes the `InjectRunTypeId<T>` marker and `getRunTypeId` (static `getRunTypeId<T>()` + value-first `getRunTypeId(value)` forms).
 - `runtypes-devtools` spawns the Go binary, applies byte-offset rewrites + import injection, serves the per-entry `virtual:rt/*` modules. Its `binary` option is OPTIONAL — when omitted it resolves the host binary via `ts-runtypes-bin`'s `getExePath()`.
@@ -77,7 +77,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 ## Development workflow
 
 - After modifying Go sources, rebuild `bin/ts-runtypes` before re-running JS plugin tests; Go-only tests (`go test ./internal/...`) exercise the packages directly and don't need the prebuilt binary.
-- `pnpm run clean` (nx reset + per-package clean) before a fresh start.
+- `pnpm run clean` (per-package clean via `pnpm -r run clean`) before a fresh start.
 - Before committing, run `pnpm run lint` and `pnpm run format` (fix errors first).
 - **"Format" means running `pnpm run format` — never hand-format, and never widen its scope.** That one command is the single source of truth: it runs **oxfmt** over `packages/**/*.ts` (TypeScript), **Prettier** over `packages/**/*.md` (markdown only), AND `gofmt -w` over `cmd` + `internal` (all the Go source). `pnpm run check-format` is its read-only twin (CI / pre-commit). The scope is deliberately narrow: everything else is EXCLUDED on purpose — the website / docs / scripts / `.claude` markdown (Prettier mangles the MDC `::`-component and ` ```md ` examples in them), the vendored `third_party/` and `_deps/` trees, lockfiles, and the `internal/**/testdata` golden fixtures. If a formatting change ever seems needed outside `pnpm run format`'s scope, STOP and surface it rather than running oxfmt/Prettier/gofmt manually over other paths.
 - Prefer `pnpm` scripts from `package.json` over raw `pnpm exec <cmd>` when a script exists.

@@ -57,7 +57,7 @@ The Vite plugin spawns this binary at JS test time and at build time — **build
 ### JS packages
 
 ```bash
-pnpm run build                                       # all packages, lerna-orchestrated
+pnpm run build                                       # all packages, topo-ordered via `pnpm -r`
 pnpm --filter ts-runtypes run build      # single package
 pnpm --filter runtypes-devtools run build         # the other
 ```
@@ -295,7 +295,7 @@ Commit the new `.patch` file under `third_party/tsgolint/patches/` so other cont
 
 ## Publishing
 
-All three published packages (`ts-runtypes`, `runtypes-devtools`, `ts-runtypes-bin`) move in lockstep (`forcePublish: true`, `exact: true` in [lerna.json](lerna.json)). The two FE packages emit dual module output (CJS + ESM) via per-package `tsc -p tsconfig.json`; `ts-runtypes-bin` ships hand-written JS + types (no build step).
+All three published packages (`ts-runtypes`, `runtypes-devtools`, `ts-runtypes-bin`) move in lockstep off the single version in [version.json](version.json) (bumped by [scripts/bump-version.mjs](scripts/bump-version.mjs)). The two FE packages emit dual module output (CJS + ESM) via per-package `tsc -p tsconfig.json`; `ts-runtypes-bin` ships hand-written JS + types (no build step).
 
 The native resolver binary is distributed esbuild-style: it is cross-compiled per platform into `ts-runtypes-binary-<os>-<arch>` packages (each `os`/`cpu`-gated), declared as `optionalDependencies` of `ts-runtypes-bin`. A consumer installs only the one matching their machine, and `runtypes-devtools` locates it via `getExePath()`. The publishing host needs the Go toolchain — pure Go (`CGO_ENABLED=0`), so one host cross-compiles every target with no per-platform C toolchain.
 
@@ -310,9 +310,9 @@ pnpm run npm-publish        # interactive: version -> build binaries -> publish
 
 1. `npm whoami` check.
 2. Working-tree clean check.
-3. `pnpm exec lerna version` (interactive lockstep bump).
+3. `node scripts/bump-version.mjs <patch|minor|major|X.Y.Z>` (lockstep bump: writes `version.json` + every `package.json`, then commits + tags).
 4. [`scripts/build-binary-packages.mjs`](scripts/build-binary-packages.mjs) — cross-compiles the 7-platform matrix and stages `ts-runtypes-binary-*` + the launcher (its `optionalDependencies` filled, pinned exact-equal) under `dist-binaries/`.
-5. Prompts for npm OTP, then publishes the platform packages **first** and the launcher **last** (so the launcher never references a not-yet-published optional dep), then `lerna publish from-package` for the two FE packages (`ts-runtypes-bin` is already live by then, so lerna skips it).
+5. Prompts for npm OTP, then publishes the platform packages **first** and the launcher **last** (so the launcher never references a not-yet-published optional dep), then `pnpm publish` for the two FE packages (`ts-runtypes-bin` is already live by then). `pnpm publish` rewrites their `workspace:*` deps to concrete versions, exactly like the CI pack path.
 
 **Changelog & GitHub Release.** Refresh [CHANGELOG.md](CHANGELOG.md) with `pnpm run changelog` when preparing a release and commit it in the release PR. When the release lands on a `release/**` branch, [`.github/workflows/publish.yml`](.github/workflows/publish.yml) publishes to npm, pushes the `v<version>` tag, then generates that tag's notes with [`orhun/git-cliff-action`](https://github.com/orhun/git-cliff-action) and creates the matching **GitHub Release**. The committed file and the Release notes are produced from the same [`cliff.toml`](cliff.toml).
 
@@ -347,9 +347,8 @@ pnpm run npm-unpublish <version>
 ## Workspace command cheatsheet
 
 ```bash
-pnpm exec lerna list                         # list workspace packages
-pnpm exec lerna run <script> --scope ts-runtypes
-pnpm --filter ts-runtypes <cmd>  # equivalent
-pnpm -r <cmd>                                # run in every workspace package
-pnpm exec nx reset                           # clear nx build cache
+pnpm ls -r --depth -1                        # list workspace packages
+pnpm --filter ts-runtypes run <script>       # run a script in one package
+pnpm --filter ts-runtypes <cmd>              # equivalent
+pnpm -r run <script>                         # run in every workspace package (topo order)
 ```

@@ -47,7 +47,7 @@ jobs:
       - uses: ./.github/actions/bootstrap
       - id: version
         shell: bash
-        run: echo "version=$(node -p "require('./lerna.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(node -p "require('./version.json').version")" >> "$GITHUB_OUTPUT"
       - name: Go test suite
         run: go test ./internal/...
       - name: Go formatting + vet (our code only; never third_party)

@@ -245,14 +245,13 @@ docs/ARCHITECTURE.md             detailed design + factory reference
 docs/ROADMAP.md                  scope + known lossy mappings
 scripts/                         publish / unpublish / pre-publish-test / pack
 pnpm-workspace.yaml              workspace + supply-chain hardening
-lerna.json                       lockstep version + publish config
-nx.json                          build-cache config
+version.json                     lockstep version (source of truth)
 .oxlintrc.json                   oxlint config (general lint + enrichment plugin)
 .oxfmtrc.json                    oxfmt config (TypeScript formatter)
 .prettierrc                      Prettier config (markdown + playground runtime)
 ```
 
-`packages/*` is a pnpm workspace managed by Lerna.
+`packages/*` is a pnpm workspace; publishing is a small script (`scripts/publish.sh`) over `pnpm publish`.
 
 ## License
 
