@@ -118,6 +118,7 @@ Full manual steps are in [SETUP.md](SETUP.md). After touching Go sources, rebuil
 - Commits authored before a `main` change (e.g. deleting/renaming files `main` later edited) MUST be rebased so they're rewritten on top of the new `main`. A branch that won't rebase cleanly must be linearized onto current `main` before review — rebase, or rebuild as a single commit: `git commit-tree $(git rev-parse HEAD^{tree}) -p origin/main` then `git reset --hard <new>`.
 - Before pushing, confirm the branch is linear: `git log --oneline origin/main..HEAD` lists only your own commits, with **no merge commits**.
 - After any rebase, push with `git push --force-with-lease` — never plain `--force` (the lease refuses the push if the remote branch moved under you).
+- **Resolve a PR review thread once you've FIXED it — never before.** When a review comment is addressed by a pushed change, mark that thread resolved (GitHub `resolve_review_thread`) so the reviewer sees only what's still open. This applies ONLY to fixes: a **push-back** (you disagree and explain why you won't make the change) or a plain **explanation / answer** (no code change) is left OPEN for the reviewer to close — resolving it would hide the discussion before they've read it. Reply with the reasoning in both cases; resolve only the fixes.
 
 ## Marker package self-import resolution
 
