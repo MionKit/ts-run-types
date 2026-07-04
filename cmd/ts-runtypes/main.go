@@ -22,8 +22,10 @@ import (
 	// Blank-import the format-emitter aggregator so every concrete
 	// format (stringFormat, uuid, …) registers with the formats
 	// registry before the resolver starts handing out RunTypes.
+	"github.com/mionkit/ts-runtypes/internal/compile"
 	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
 	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/marker"
 	"github.com/mionkit/ts-runtypes/internal/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -44,6 +46,12 @@ Options:
     --out-json PATH     after stdin is drained, write the cache as JSON to PATH
     --out-modules DIR   after stdin is drained, write every per-entry virtual
                         module to DIR/<basename>.js (debugging aid)
+    --compile           tsc-like batch compile: transform every marker file,
+                        emit .js via tsgo with source maps composed back to the
+                        ORIGINAL source, and write the generated cache modules
+                        to disk. Emits to the tsconfig outDir; no stdio protocol.
+    --compile-cache-dir DIR  where --compile writes the cache modules
+                        (default <cwd>/__runtypes)
     --hash-length N     short-id length for type hashes (default 7)
     --single-threaded   force single-checker mode (useful for tests);
                         also disables the parallel scan + renders
@@ -99,6 +107,8 @@ func main() {
 		socketPath         string
 		outJSON            string
 		outModulesDir      string
+		compileMode        bool
+		compileCacheDir    string
 		hashLength         int
 		singleThreaded     bool
 		noParallelScan     bool
@@ -125,6 +135,10 @@ func main() {
 	flag.StringVar(&socketPath, "socket", "/tmp/ts-runtypes.sock", "Unix socket path")
 	flag.StringVar(&outJSON, "out-json", "", "write cache as JSON to PATH after stdin EOF")
 	flag.StringVar(&outModulesDir, "out-modules", "", "write per-entry virtual modules to DIR after stdin EOF")
+	flag.BoolVar(&compileMode, "compile", false,
+		"compile mode: transform + emit .js with composed source maps + generated caches to disk (tsc-like); uses the tsconfig outDir")
+	flag.StringVar(&compileCacheDir, "compile-cache-dir", "",
+		"where compile writes the generated cache modules (default <cwd>/__runtypes); the emitted .js import them by relative path")
 	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 7)")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
 	flag.BoolVar(&noParallelScan, "no-parallel-scan", false,
@@ -296,6 +310,37 @@ func main() {
 		SizeItems:             merged.sizeItems,
 		SizeStringBytes:       merged.sizeStringBytes,
 		SizeMaxBytes:          merged.sizeMaxBytes,
+	}
+
+	// Compile mode is a batch build, not a stdio session: it drives the two-pass
+	// transform + tsgo emit + map composition itself and returns. Requires a
+	// tsconfig (the inline / server overlay modes have no emit options to honor).
+	if compileMode {
+		if !hasTsconfig {
+			fatal("compile: requires a tsconfig (not compatible with --inline-server / --inline-sources-stdin)")
+		}
+		compileResult, compileErr := compile.Run(compile.Options{
+			Cwd:          absCwd,
+			TsconfigPath: tsconfigPath,
+			CacheOutDir:  compileCacheDir,
+			ResolverOpts: resolverOpts,
+		})
+		if compileErr != nil {
+			fatal("compile: %v", compileErr)
+		}
+		errorCount := 0
+		for _, d := range compileResult.Diagnostics {
+			fmt.Fprintln(os.Stderr, diag.FormatDebug(d))
+			if d.Severity == diag.SeverityError {
+				errorCount++
+			}
+		}
+		fmt.Fprintf(os.Stderr, "ts-runtypes: compiled %d file(s), %d cache module(s)\n",
+			len(compileResult.EmittedFiles), len(compileResult.Caches))
+		if errorCount > 0 {
+			os.Exit(1)
+		}
+		return
 	}
 
 	var r *resolver.Resolver
