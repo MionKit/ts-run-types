@@ -1,8 +1,23 @@
 # Transform wire modes — call-site edits + FE apply vs full-file Go transform (+ benchmarks)
 
-**Status:** spec / investigation (not started)
-**Owner:** TBD
-**Related:** [`internal/protocol/protocol.go`](../../internal/protocol/protocol.go) (`OpScanFiles`, `OpTransform`, `Site`, `Replacement`, `TransformResult`, `SourceMap`), [`internal/resolver/dispatch.go`](../../internal/resolver/dispatch.go), [`internal/compiled/transform/transform.go`](../../internal/compiled/transform/transform.go) + [`editbuffer.go`](../../internal/compiled/transform/editbuffer.go), [`packages/runtypes-devtools/src/unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts), [`resolver-client.ts`](../../packages/runtypes-devtools/src/resolver-client.ts), [`scan-batcher.ts`](../../packages/runtypes-devtools/src/scan-batcher.ts), [docs/ARCHITECTURE.md → Rewrite mechanics](../ARCHITECTURE.md)
+**Status:** **implemented** (2026-07-04). Approach (b) shipped; default is `'edits'` (data-driven — the benchmark measured a 6-55× inbound-wire reduction). Both modes kept and benchmarked.
+**Related:** [`internal/protocol/protocol.go`](../../internal/protocol/protocol.go) (`OpScanFiles`, `OpTransform`, `Site`, `Replacement`, `TransformResult`, `SourceMap`, `Edit`), [`internal/resolver/dispatch.go`](../../internal/resolver/dispatch.go), [`internal/compiled/transform/transform.go`](../../internal/compiled/transform/transform.go) + [`editbuffer.go`](../../internal/compiled/transform/editbuffer.go) + [`edits.go`](../../internal/compiled/transform/edits.go), [`packages/runtypes-devtools/src/unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts), [`edit-buffer.ts`](../../packages/runtypes-devtools/src/edit-buffer.ts) + [`apply-edits.ts`](../../packages/runtypes-devtools/src/apply-edits.ts), [`resolver-client.ts`](../../packages/runtypes-devtools/src/resolver-client.ts), [docs/ARCHITECTURE.md → Rewrite mechanics](../ARCHITECTURE.md)
+
+## What shipped
+
+Design **(b)** — Go computes a flat edit list, the FE applies it blindly — chosen over (a) so all naming/assembly stays single-sourced in Go and the two modes cannot drift.
+
+- **Wire (Go).** `Request.EmitEdits` switches `OpTransform` to return `TransformResult{ImportBlock, Edits[], SourceHash}` per file instead of `{code, map}`. `transform.ComputeEdits` ([edits.go](../../internal/compiled/transform/edits.go)) reuses `Apply`'s `buildInsertion`/`buildImportBlock`/`makeByteToChar`; `Edit` offsets are **UTF-16 code units**. `SourceHash` is FNV-1a/32 over the source (the consistency guard). `Request.OmitSourcesContent` is the milestone-0 map trim (go-mode). `Code` became `omitempty`.
+- **FE.** `edit-buffer.ts` resurrected from `6307b227`; `apply-edits.ts` adds the ~40-line blind applier + the matching FNV-1a/32 `sourceHash`. `unplugin.ts` gains `transformMode: 'go' | 'edits'` (default `'edits'`) + `sourcesContent`; the `transform` hook applies edits and, on a source-hash mismatch, re-syncs via `setSources` + re-request (warns), falling back to `'go'` if it still can't reconcile or the applier throws. `resolver-client.ts` gains the `emitEdits`/`omitSourcesContent` knobs + always-on `wireStats()` byte counters.
+- **Correctness gates.** Byte-parity is **structural** (the FE applier mirrors `Apply`'s `prepend`/`appendLeft`/`update` sequence); pinned by the mode-parity corpus [transform-modes.test.ts](../../packages/runtypes-devtools/test/transform-modes.test.ts) (both `getRunTypeId` call shapes, multi-fn `fnIds`, `trailingComma`, pure-fn `Replacement`, multibyte/astral, `moduleMode: allSingle`), the source-drift guard test, the FNV cross-language vectors (Go [`edits_test.go`](../../internal/compiled/transform/edits_test.go) + FE), and the e2e composite-map build run in **both** modes ([build-sourcemap.test.ts](../../packages/runtypes-devtools/test/build-sourcemap.test.ts)).
+- **Benchmarks.** `scripts/benchmarks.sh transform-wire` → [`container/benchmarks/transform-wire/transform-wire.mjs`](../../container/benchmarks/transform-wire/transform-wire.mjs): sweeps file size × site density × file count × mode (`go`, `go-noSC`, `edits`), reports per-file latency + wire bytes both directions via `wireStats()`, and writes `results/transform-wire.json` with a data-driven `recommendedDefault`. `RT_TRANSFORM_WIRE_N` registered in the env registry; no `_deps` change (bind-mounted like `compiletime`, so no bench-image republish).
+- **Docs.** ARCHITECTURE.md (Rewrite mechanics → Two transform wire modes), README (`transformMode`/`sourcesContent`), website configuration page (host-level options + plugin-ordering note), CLAUDE.md rewrite-mechanics highlight (the new EditBuffer twin + FNV-hash sync boundaries).
+
+**Not shipped / follow-ups (noted, not built):** the full multi-host bench matrix (§4 asks for a non-Vite unplugin target + the no-bundler CLI baseline — the harness drives the mode-agnostic resolver wire directly, which is host-independent, so those are extensions); Go-side peak-RSS sampling (the harness captures wire + latency, the load-bearing metrics); response-trimming of `sites`/`replacements` in `'go'` mode (§6.6, cheap/optional); `'go'`-mode drift *detection* (§6.7 — `'go'` still clobbers silently, as before).
+
+---
+
+_Original spec below (design + investigation, preserved for context)._
 
 ## 1. Problem
 
