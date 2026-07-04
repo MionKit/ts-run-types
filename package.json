@@ -79,10 +79,9 @@
     "format": "prettier --write 'packages/**/*.{ts,md}' && gofmt -w cmd internal",
     "check-format": "prettier --check 'packages/**/*.{ts,md}' && gofmt -l cmd internal && test -z \"$(gofmt -l cmd internal)\"",
     "check-format-pre-commit": "prettier --check",
-    "lint": "lerna run lint && pnpm run typecheck && pnpm run lint:runtypes",
+    "lint": "pnpm run lint:runtypes && pnpm run typecheck",
     "prelint:runtypes": "pnpm run check:builds",
     "lint:runtypes": "oxlint",
-    "lint-pre-committ": "eslint --quiet",
     "typecheck:test": "lerna run typecheck:test",
     "typecheck": "pnpm run typecheck:test && tsc -p internal/testfixtures/tsconfig.json --noEmit && tsc -p internal/testfixtures/atomic/tsconfig.json --noEmit && tsc -p packages/examples/tsconfig.json",
     "build": "lerna run build",
@@ -132,25 +131,22 @@
   },
   "lint-staged": {
     "packages/**/!(*.spec|*.test|vitest.config|vite.config).ts": [
-      "pnpm run lint-pre-committ --",
       "pnpm run check-format-pre-commit --"
     ],
     "packages/**/*.{spec,test}.ts": [
       "pnpm run check-format-pre-commit --"
     ],
     "**/*.ts": [
-      "pnpm exec oxlint"
+      "pnpm exec oxlint --no-error-on-unmatched-pattern"
     ]
   },
   "devDependencies": {
     "@commitlint/cli": "21.0.1",
     "@commitlint/config-conventional": "21.0.1",
-    "@eslint/js": "9.39.4",
     "@playwright/cli": "0.1.13",
     "@types/node": "24.12.2",
     "commitizen": "4.3.1",
     "cz-conventional-changelog": "3.3.0",
-    "eslint": "9.39.4",
     "husky": "9.1.7",
     "lerna": "9.0.7",
     "lint-staged": "16.4.0",
@@ -160,7 +156,6 @@
     "rimraf": "6.1.3",
     "temporal-polyfill": "0.3.2",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.58.1",
     "vitest": "2.1.9"
   }
 }

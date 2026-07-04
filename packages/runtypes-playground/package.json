@@ -32,7 +32,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "demo": "vite",
-    "lint": "eslint src",
     "format": "prettier --write 'src/**/*.ts'",
     "clean": "rimraf dist dist-site tsconfig.tsbuildinfo"
   },
