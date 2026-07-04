@@ -201,8 +201,18 @@ func jsonNoopRecursive(rt *protocol.RunType, ctx *EmitContext, mode jsonNoopMode
 		// Promise / non-serializable natives) are dropped slots in both
 		// emitters — the same isStrippedUnionMember test strippedPropertyDrop
 		// keys the drop on (the diagnostic-emitting wrapper stays with the
-		// emitters; the predicate shares the pure decision).
+		// emitters; the predicate shares the pure decision). ONE exception on
+		// the prepare (mutate) side: a stripped value that JSON.stringify would
+		// serialize AS DATA (a Promise / a non-serializable native like a typed
+		// array) is `delete`d from the live object so the mutate output matches
+		// the data-only projection (emitPropertyPrepareForJson → jsonStringifyLeaks).
+		// That delete is real code, so the property is NOT identity on encode.
+		// The restore/compact side reads from already-parsed JSON (the key is
+		// gone) and drops it with empty code, staying noop there.
 		if isStrippedUnionMember(resolved) {
+			if mode == noopModePrepare && jsonStringifyLeaks(resolved) {
+				return false
+			}
 			return true
 		}
 		return jsonNoopRecursive(resolved, ctx, mode, visited)
@@ -287,12 +297,30 @@ func jsonNoopObjectChildren(children []*protocol.RunType, ctx *EmitContext, mode
 // never strips), and the decoder has nothing to unwrap. A member carrying a
 // transform forces the `[idx, value]` / `[-1, merged]` envelope on encode
 // and the unwrap on decode — real code on both halves. Mirrors
-// union_flat_layout.go's AtomicNeedsTuple = !roundTripsRaw; the degenerate
-// all-dangling / all-stripped layout emits nothing on either half.
+// union_flat_layout.go's AtomicNeedsTuple = !roundTripsRaw. The degenerate
+// all-dangling / empty layout emits nothing on either half (noop below); the
+// all-stripped case does NOT — see the guard.
 func unionJsonNoop(rt *protocol.RunType, ctx *EmitContext) bool {
 	children := rt.SafeUnionChildren
 	if len(children) == 0 {
 		children = rt.Children
+	}
+	// All-stripped fallback — mirror dataOnlyUnionMembers (union_strip.go):
+	// when EVERY member projects to `never` (all stripped) the DataOnly union
+	// is `never`, so the emitter KEEPS the original member list, reaches a
+	// stripped member's CodeNS leaf, and renders an alwaysThrow — NOT the
+	// identity (buildFlatLayout buckets the non-serializable members, so the
+	// empty-layout noop arm never fires). An all-dangling / empty union has no
+	// stripped member here (isStrippedUnionMember(nil) is false) and stays noop
+	// via the loop: dangling refs contribute no code on either half.
+	strippedCount := 0
+	for _, ref := range children {
+		if isStrippedUnionMember(ctx.ResolveRef(ref)) {
+			strippedCount++
+		}
+	}
+	if len(children) > 0 && strippedCount == len(children) {
+		return false
 	}
 	for _, ref := range children {
 		resolved := ctx.ResolveRef(ref)
