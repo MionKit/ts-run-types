@@ -114,38 +114,58 @@ func maskComments(text string) string {
 	return string(masked)
 }
 
+// CarcassMatches returns the byte ranges of every REAL orphan carcass in text:
+// `orphanBlockPattern` matches (the raw pattern `gen --prune` removes)
+// restricted to those that START a genuine block-comment span. This is the
+// single definition of "what a carcass IS", shared by the lint scan
+// (ScanDirtyTags) and the destructive prune (PruneOrphanBlocks) so the two can
+// never disagree — the same single-source principle tags.go applies to the tag
+// literals. Two match classes are filtered out identically for both consumers:
+//   - the pattern bytes appearing inside a STRING literal (the generated
+//     diagnostic catalog embeds the tag syntax in its message text) or nested
+//     in JSDoc prose — the match does not begin a comment span; and
+//   - a carcass-looking sequence inside a `//` LINE comment — the match starts
+//     mid-line, not at the `//`, so it never begins a block-comment span.
+//
+// Ranges are half-open [start, end) byte offsets, in text order.
+func CarcassMatches(text string) [][2]int {
+	commentStarts := map[int]bool{}
+	for _, span := range commentSpans(text) {
+		commentStarts[span.start] = true
+	}
+	var matches [][2]int
+	for _, match := range orphanBlockPattern.FindAllStringIndex(text, -1) {
+		start, end := match[0], match[1]
+		if !commentStarts[start] {
+			continue // pattern bytes inside a string / another comment — not a carcass
+		}
+		matches = append(matches, [2]int{start, end})
+	}
+	return matches
+}
+
 // ScanDirtyTags returns every dirty-tag occurrence in text, ordered by Start.
 //
-//   - Orphan carcasses are matched with the SAME pattern `gen --prune` removes
-//     (orphanBlockPattern), so the rule reports exactly what prune would fix —
-//     restricted to matches that START a real block comment, so the pattern
-//     appearing inside a string literal (e.g. the generated diagnostic
-//     catalog's own message text) or nested in JSDoc prose never fires.
+//   - Orphan carcasses come from CarcassMatches — the SAME comment-anchored
+//     set `gen --prune` removes, so the rule reports exactly what prune would
+//     fix (a pattern inside a string literal or nested in JSDoc prose never
+//     fires, and neither is pruned).
 //   - `@todo` is matched as a comment token (line or block comment; string
 //     literals don't count) with an identifier boundary after it, so `@todos`
 //     or a pool string containing "@todo" never fire.
 //   - A `@todo` INSIDE an orphan carcass is part of the preserved const text —
 //     prune removes it with the block — so it is not reported separately.
 func ScanDirtyTags(text string) []TagFinding {
-	commentStarts := map[int]bool{}
-	for _, span := range commentSpans(text) {
-		commentStarts[span.start] = true
-	}
-
 	var findings []TagFinding
-	var carcasses [][2]int
-	for _, match := range orphanBlockPattern.FindAllStringIndex(text, -1) {
-		start, end := match[0], match[1]
-		if !commentStarts[start] {
-			continue // pattern bytes inside a string / another comment — not a carcass
-		}
+	carcasses := CarcassMatches(text)
+	for _, carcass := range carcasses {
+		start, end := carcass[0], carcass[1]
 		kind, tag := TagOrphan, OrphanTag
 		if strings.HasPrefix(text[start:], "/* "+OrphanChildTag) {
 			kind, tag = TagOrphanChild, OrphanChildTag
 		}
 		tagStart := start + len("/* ")
 		findings = append(findings, TagFinding{Kind: kind, Start: tagStart, End: tagStart + len(tag), BlockStart: start, BlockEnd: end})
-		carcasses = append(carcasses, [2]int{start, end})
 	}
 
 	for _, comment := range commentSpans(text) {

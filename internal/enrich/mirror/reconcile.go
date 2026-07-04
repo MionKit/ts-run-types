@@ -673,8 +673,15 @@ func appendNewConsts(merged []byte, spec Spec, index *Index, addedConsts []enric
 // carcass whose terminator spans a live statement boundary is collected into
 // skipped (left in place) so prune never eats live code — the caller warns.
 // Returns (text, 0, nil) when there is nothing to prune.
+//
+// Carcasses come from CarcassMatches — the same comment-anchored set the lint
+// scan reports — so prune removes EXACTLY what lint flags: a pattern embedded
+// in an authored string value (an rt$errors template documenting the syntax)
+// or in a `//` line comment is neither reported nor pruned. On generated
+// mirrors this is identical to the raw pattern (a real carcass always starts a
+// block comment).
 func PruneOrphanBlocks(text string) (string, int, []string) {
-	matches := orphanBlockPattern.FindAllStringIndex(text, -1)
+	matches := CarcassMatches(text)
 	if len(matches) == 0 {
 		return text, 0, nil
 	}
