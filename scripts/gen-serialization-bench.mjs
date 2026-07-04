@@ -47,17 +47,11 @@ try {
 } catch {}
 
 // The benchmark runs on Node >= 26, which ships Temporal natively — so the timed
-// encoders/decoders run on the same runtime the published library targets, with
-// no temporal-polyfill shim. The suites reference globalThis.Temporal at
-// getTestData / emitted-code time; when invoked on an older host (vitest's
-// test/setup.ts does this too) fall back to the polyfill if it's installed.
+// encoders/decoders run on the same runtime the published library targets. The
+// suites read globalThis.Temporal at getTestData / emitted-code time.
 if (typeof globalThis.Temporal === 'undefined') {
-  try {
-    ({Temporal: globalThis.Temporal} = await import('temporal-polyfill'));
-  } catch {
-    process.stderr.write('Temporal is unavailable: run on Node >= 26, or install temporal-polyfill on an older host.\n');
-    process.exit(1);
-  }
+  process.stderr.write('Temporal is unavailable: this benchmark requires Node >= 26.\n');
+  process.exit(1);
 }
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));

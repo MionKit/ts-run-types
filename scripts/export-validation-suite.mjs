@@ -27,14 +27,8 @@ import path from 'node:path';
 import url from 'node:url';
 import {performance} from 'node:perf_hooks';
 import {createServer} from 'vite';
-// Node 22 has no native `Temporal` (unflagged in Node 26 / ES2026). The
-// vitest run installs the polyfill via test/setup.ts; this script loads the
-// same suites OUTSIDE vitest, so it must install it itself — the Temporal
-// cases' getSamples / emitted runtime code reference `globalThis.Temporal`.
-import {Temporal} from 'temporal-polyfill';
-if (typeof globalThis.Temporal === 'undefined') {
-  globalThis.Temporal = Temporal;
-}
+// Temporal is the native global on the repo's Node >= 26 baseline (ES2026),
+// which the Temporal cases' getSamples / emitted runtime code read directly.
 
 // The vite plugin's default export lives in the /vite entry (dist/index.js's
 // default is the constants object); matches the package's "./vite" export.

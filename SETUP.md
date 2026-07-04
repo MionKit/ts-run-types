@@ -13,12 +13,12 @@ The repository contains a **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) 
 | Tool   | Version  | Needed by                                     | Source of truth                      |
 | ------ | -------- | --------------------------------------------- | ------------------------------------ |
 | Go     | ≥ 1.26   | resolver binary + benchmarks                  | `go.mod`                             |
-| Node   | ≥ 24.0.0 | tests, builds, benchmarks host prep           | root `package.json` `engines.node`   |
+| Node   | ≥ 26.0.0 | tests, builds, benchmarks host prep           | root `package.json` `engines.node`   |
 | pnpm   | ≥ 11.0.0 | the monorepo (workspace policies)             | `packageManager: pnpm@11.1.1`        |
 | git    | recent   | submodule + `git apply` are used              | -                                    |
 | podman | ≥ 4.0    | docs website + benchmarks containers          | tested 4.9.3 / 5.8.3                 |
 
-> **Container runtime is Node 26.** A single shared image ([`container/website/Containerfile`](container/website/Containerfile)) builds `FROM node:26-bookworm`, which unflags the global `Temporal` API, so benchmark timings and the docs build run on native Temporal (no `temporal-polyfill`), the same runtime the published library targets. The one image holds both dependency trees in separate dirs: the website at `/app`, the benchmarks at `/bench`. Node 26 ships only `npm` (the bundled `corepack` shim was removed), so the image installs the repo-pinned pnpm globally. The **host** still only needs Node >= 24 (the prep + on-host codegen run there). Override the base with `RT_WEBSITE_BASE_IMAGE` (mirror / air-gapped / offline-built base).
+> **Container runtime is Node 26.** A single shared image ([`container/website/Containerfile`](container/website/Containerfile)) builds `FROM node:26-bookworm`, which unflags the global `Temporal` API, so benchmark timings and the docs build run on native Temporal (no `temporal-polyfill`), the same runtime the published library targets. The one image holds both dependency trees in separate dirs: the website at `/app`, the benchmarks at `/bench`. Node 26 ships only `npm` (the bundled `corepack` shim was removed), so the image installs the repo-pinned pnpm globally. The **host** also needs Node >= 26 now: with `temporal-polyfill` dropped, the test suite runs on the native `Temporal` global too. Override the base with `RT_WEBSITE_BASE_IMAGE` (mirror / air-gapped / offline-built base).
 
 **macOS Apple Silicon also needs Rosetta 2** — the podman-machine `vfkit` backend requires it and exits 1 without it. Install with `softwareupdate --install-rosetta --agree-to-license` (the skill does this automatically).
 

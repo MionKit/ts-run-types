@@ -4,7 +4,7 @@ SETUP_DATE="2026-07-04"
 # ----------------------------------------------------------------------------
 set -uo pipefail
 
-NODE_MAJOR_MIN=24
+NODE_MAJOR_MIN=26
 PODMAN_MIN=4.0
 GO_MIN=1.26
 GO_INSTALL_VERSION=1.26.0 # only used if Go is somehow absent from the image
@@ -85,14 +85,14 @@ PNPM_PIN="$(sed -n 's/.*"packageManager": *"pnpm@\([0-9.]*\)".*/\1/p' "$REPO_DIR
 [ -n "$PNPM_PIN" ] || PNPM_PIN="11.8.0"
 
 # -----------------------------------------------------------------------------
-# 1. Node 24: install (nvm first, nodejs.org tarball fallback), then make it win
+# 1. Node 26: install (nvm first, nodejs.org tarball fallback), then make it win
 #    on PATH for the harness's NON-login shells via $HOME/.local/bin symlinks.
 # -----------------------------------------------------------------------------
-provision_node24() {
+provision_node26() {
   bold "Node $NODE_MAJOR_MIN (repo requires >= $NODE_MAJOR_MIN; CI pins $NODE_MAJOR_MIN)"
 
-  local n24root=""
-  if [ "$(node_major)" -ge "$NODE_MAJOR_MIN" ] && [ -x "/opt/node24/bin/node" ]; then
+  local n26root=""
+  if [ "$(node_major)" -ge "$NODE_MAJOR_MIN" ] && [ -x "/opt/node26/bin/node" ]; then
     ok "Node $(node --version) already active"
   elif [ "$CHECK_ONLY" = 1 ]; then
     warn "Node $NODE_MAJOR_MIN not active (found major $(node_major)) - re-run without --check to install"
@@ -108,11 +108,11 @@ provision_node24() {
       # shellcheck disable=SC1091
       export NVM_DIR="$nvm_dir"; . "$nvm_dir/nvm.sh"
       if nvm install "$NODE_MAJOR_MIN" >/dev/null 2>&1; then
-        n24root="$(dirname "$(dirname "$(nvm which "$NODE_MAJOR_MIN" 2>/dev/null)")")"
+        n26root="$(dirname "$(dirname "$(nvm which "$NODE_MAJOR_MIN" 2>/dev/null)")")"
       fi
     fi
     # (b) fallback: nodejs.org tarball
-    if [ -z "$n24root" ] || [ ! -x "$n24root/bin/node" ]; then
+    if [ -z "$n26root" ] || [ ! -x "$n26root/bin/node" ]; then
       warn "nvm unavailable or failed - falling back to a nodejs.org tarball"
       local nodearch; case "$(uname -m)" in
         x86_64) nodearch=x64 ;; aarch64|arm64) nodearch=arm64 ;;
@@ -124,42 +124,42 @@ provision_node24() {
       local tarball="node-v${ver}-linux-${nodearch}.tar.xz"
       curl -fsSL "https://nodejs.org/dist/v${ver}/${tarball}" -o "/tmp/${tarball}" \
         || { err "Node tarball download failed"; FAILED=1; return 1; }
-      rm -rf /opt/node24-dist && mkdir -p /opt/node24-dist
-      tar -C /opt/node24-dist --strip-components=1 -xf "/tmp/${tarball}" \
+      rm -rf /opt/node26-dist && mkdir -p /opt/node26-dist
+      tar -C /opt/node26-dist --strip-components=1 -xf "/tmp/${tarball}" \
         || { err "Node tarball extract failed"; FAILED=1; return 1; }
-      n24root="/opt/node24-dist"
+      n26root="/opt/node26-dist"
     fi
   fi
 
-  # Stable /opt/node24 symlink + PATH wiring even on the "already active" path,
+  # Stable /opt/node26 symlink + PATH wiring even on the "already active" path,
   # so a re-run repairs a half-set-up container.
-  if [ -n "$n24root" ]; then
-    ln -sfn "$n24root" /opt/node24 || { err "could not create /opt/node24 symlink"; FAILED=1; return 1; }
+  if [ -n "$n26root" ]; then
+    ln -sfn "$n26root" /opt/node26 || { err "could not create /opt/node26 symlink"; FAILED=1; return 1; }
   fi
-  [ -x "/opt/node24/bin/node" ] || { [ "$CHECK_ONLY" = 1 ] && return 0; err "/opt/node24/bin/node missing after install"; FAILED=1; return 1; }
+  [ -x "/opt/node26/bin/node" ] || { [ "$CHECK_ONLY" = 1 ] && return 0; err "/opt/node26/bin/node missing after install"; FAILED=1; return 1; }
 
   # pnpm via corepack, pinned to the repo's packageManager. Run from the repo
   # root so corepack reads the ROOT package.json (a submodule pins npm).
-  /opt/node24/bin/corepack enable >/dev/null 2>&1 || true
-  ( cd "$REPO_DIR" && /opt/node24/bin/corepack prepare "pnpm@$PNPM_PIN" --activate >/dev/null 2>&1 ) \
+  /opt/node26/bin/corepack enable >/dev/null 2>&1 || true
+  ( cd "$REPO_DIR" && /opt/node26/bin/corepack prepare "pnpm@$PNPM_PIN" --activate >/dev/null 2>&1 ) \
     || warn "corepack could not pre-activate pnpm@$PNPM_PIN (will resolve on first use)"
 
   # The harness runs NON-login shells that inherit PATH from the image and do
   # NOT source /etc/profile.d, so a profile.d file alone would not take effect.
   # $HOME/.local/bin is first on that inherited PATH (ahead of /opt/node<xx>),
-  # so symlinking the node24 binaries there makes `node`/`pnpm` resolve to 24.
+  # so symlinking the node26 binaries there makes `node`/`pnpm` resolve to 26.
   local localbin="$HOME/.local/bin" exe; mkdir -p "$localbin"
-  for exe in /opt/node24/bin/*; do ln -sfn "$exe" "$localbin/$(basename "$exe")"; done
+  for exe in /opt/node26/bin/*; do ln -sfn "$exe" "$localbin/$(basename "$exe")"; done
   case ":$PATH:" in *":$localbin:"*) : ;; *) warn "$localbin is not on PATH - add it ahead of /opt/node<xx>/bin" ;; esac
 
   # Belt-and-suspenders for LOGIN shells (e.g. an interactive terminal).
   if [ -w /etc/profile.d ] || [ "$(id -u)" = 0 ]; then
-    cat > /etc/profile.d/zz-node24.sh <<EOF
+    cat > /etc/profile.d/zz-node26.sh <<EOF
 # ts-runtypes claude-web setup: prefer Node $NODE_MAJOR_MIN (repo requires >= $NODE_MAJOR_MIN; CI pins $NODE_MAJOR_MIN)
 export NVM_DIR="${NVM_DIR:-/opt/nvm}"
-export PATH="\$HOME/.local/bin:/opt/node24/bin:\$PATH"
+export PATH="\$HOME/.local/bin:/opt/node26/bin:\$PATH"
 EOF
-    chmod 0644 /etc/profile.d/zz-node24.sh 2>/dev/null || true
+    chmod 0644 /etc/profile.d/zz-node26.sh 2>/dev/null || true
   fi
 
   hash -r 2>/dev/null || true
@@ -304,7 +304,7 @@ apply_tsgolint_patches() {
 # -----------------------------------------------------------------------------
 install_workspace_deps() {
   bold "Workspace deps (pnpm install --frozen-lockfile)"
-  command -v pnpm >/dev/null 2>&1 || { err "pnpm missing (the Node 24 step should have provided it)"; FAILED=1; return 1; }
+  command -v pnpm >/dev/null 2>&1 || { err "pnpm missing (the Node 26 step should have provided it)"; FAILED=1; return 1; }
   if [ -d "$REPO_DIR/node_modules" ] && [ -f "$REPO_DIR/node_modules/.modules.yaml" ]; then ok "node_modules present (skipping install)"; return 0; fi
   [ "$CHECK_ONLY" = 1 ] && { warn "workspace deps not installed - re-run without --check"; return 0; }
   ( cd "$REPO_DIR" && pnpm install --frozen-lockfile ) && ok "workspace deps installed" || { err "pnpm install failed"; FAILED=1; }
@@ -398,7 +398,7 @@ main() {
   fi
   [ "$(id -u)" = 0 ] || warn "not running as root - install steps use sudo where available"
 
-  provision_node24
+  provision_node26
   ensure_podman
   ensure_go
   provision_submodules_light
@@ -443,10 +443,10 @@ main "$@"
 # +-------------------------------------------------------------------------+
 #
 # What it does, in one go, no prompts, Linux/apt only:
-#   1. Node 24  - repo requires >= 24 & CI pins 24, but the web image ships
-#      20/21/22. Install via the image's nvm (nodejs.org tarball fallback) and
+#   1. Node 26  - repo requires >= 26 & CI pins 26, but the web image ships
+#      an older Node. Install via the image's nvm (nodejs.org tarball fallback) and
 #      make it win on the harness's NON-login PATH (which does not source
-#      /etc/profile.d) by symlinking node24 bins into $HOME/.local/bin. pnpm
+#      /etc/profile.d) by symlinking node26 bins into $HOME/.local/bin. pnpm
 #      comes from corepack, pinned to the repo's packageManager.
 #   2. podman   - via apt; confirm the engine is reachable.
 #   3. Go 1.26  - present in the web image; nodejs-style tarball fallback.

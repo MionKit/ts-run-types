@@ -360,17 +360,12 @@ cmd_serialization() {
   mkdir -p "$out"
   local tsgo=/bench/competitors/ts-runtypes
   read_lines NARGS < <(net_args)
-  # On a Node < 26 base (e.g. an air-gapped/mirror BASE_IMAGE without native
-  # Temporal) the driver imports temporal-polyfill; mount the host copy so it
-  # resolves. No-op on Node 26, where globalThis.Temporal exists and the import
-  # is never reached.
+  # The image is Node >= 26, so globalThis.Temporal is native — no polyfill mount.
   local extra_mounts=()
-  [ -d "$ROOT_DIR/node_modules/temporal-polyfill" ] && \
-    extra_mounts+=(-v "$ROOT_DIR/node_modules/temporal-polyfill:$tsgo/node_modules/temporal-polyfill:ro$MOUNT_OPTS")
   # The plugin eagerly imports ts-runtypes-bin; provide the workspace copy.
   [ -f "$BIN_PKG/lib/index.js" ] && \
     extra_mounts+=(-v "$BIN_PKG:$tsgo/node_modules/ts-runtypes-bin:ro$MOUNT_OPTS")
-  echo "==> serialization bench (in-container, native or polyfilled Temporal) -> $out"
+  echo "==> serialization bench (in-container, native Temporal) -> $out"
   "$ENGINE" run --rm --init \
     ${NARGS[@]+"${NARGS[@]}"} \
     ${extra_mounts[@]+"${extra_mounts[@]}"} \
