@@ -33,7 +33,7 @@
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "demo": "vite",
     "format": "oxfmt --write 'src/**/*.ts'",
-    "clean": "rimraf dist dist-site tsconfig.tsbuildinfo"
+    "clean": "node ../../scripts/rmrf.mjs dist dist-site tsconfig.tsbuildinfo"
   },
   "dependencies": {
     "monaco-editor": "0.52.2",
