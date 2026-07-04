@@ -60,6 +60,12 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    // Generating + validating the deepest mock cases (e.g. a 3-D string array,
+    // MOCK_ITERATIONS times) takes a few seconds; under the full suite's
+    // parallel CPU contention that occasionally crossed vitest's tight 5 s
+    // default and timed out. Give every case comfortable headroom (mirrors the
+    // playground project's timeout). Real hangs still fail, just later.
+    testTimeout: 30000,
     setupFiles: ['./test/setup.ts'],
     // Removes the generated <PACKAGE_ROOT>/__runtypes output tree after the
     // whole suite (teardown only — see the file's note on globalSetup timing).
