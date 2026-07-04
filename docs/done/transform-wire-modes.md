@@ -17,6 +17,30 @@ Design **(b)** — Go computes a flat edit list, the FE applies it blindly — c
 
 **Not shipped / follow-ups (noted, not built):** the full multi-host bench matrix (§4 asks for a non-Vite unplugin target + the no-bundler CLI baseline — the harness drives the mode-agnostic resolver wire directly, which is host-independent, so those are extensions); Go-side peak-RSS sampling (the harness captures wire + latency, the load-bearing metrics); response-trimming of `sites`/`replacements` in `'go'` mode (§6.6, cheap/optional — measured a small fraction of the wire, dwarfed by the code+map that `'edits'` already removes).
 
+## Benchmark findings
+
+Measured via `scripts/benchmarks.sh transform-wire` (here on the host, N=7 median, Apple silicon — container numbers will be steadier but the shape holds). Sweep = file size × site density × file count; the three modes are `go`, `go` with `sourcesContent:false`, and `edits`.
+
+| file size | inbound wire: `go` → `edits` | wire cut | concurrent build (`go`/`edits`, >1 = edits faster) |
+|---|---|---|---|
+| ~0.18 KiB (1 site, no filler) | 1253 B → 357 B | **3.5×** | 1.0× |
+| ~1 KiB | 5126 B → 557 B | **9.2×** | 1.21× |
+| ~1.9 KiB (dense) | 10227 B → 1752 B | **5.8×** | 1.20× |
+| ~24 KiB | 98893 B → 1779 B | **56×** | 1.08× |
+| ~92 KiB | 374993 B → 1779 B | **211×** | 0.99× |
+| ~3.6 KiB × 60 files | 16031 B → 961 B | **17×** | 1.18× |
+
+**What it says.**
+
+- **Wire: `edits` wins massively and scales.** `edits`'s inbound payload is nearly flat (~1.8 KiB regardless of file size — it is O(sites), not O(file)), while `go` ships the whole rewritten file + a dense `hires:'boundary'` map. The gap runs from 3.5× on tiny files to **211×** on a ~92 KiB file. This is the headline win, and it matters most for memory (neither process buffers/parses a huge payload), for the socket/daemon client (§6.5), and for any non-local transport.
+- **Concurrent build (the realistic shape): `edits` is faster or even everywhere** (1.0–1.21×), best in the common "many small-to-medium files" regime. The resolver pipe is FIFO, so a big `go` response head-of-line-blocks the next file; `edits`'s small responses drain fast.
+- **The one caveat — sequential latency on very large files.** `edits` moves source-map generation from Go to JS (`applyEdits` → the FE `EditBuffer`, O(file size)). One file at a time on a fast local pipe, that JS cost (~4.2 ms on a 92 KiB file) roughly cancels the wire savings, so a single very-large file is a wash. It never dominates a real build (bundlers transform concurrently — see the concurrent column) but it is the honest ceiling on `edits`'s per-file win.
+- **`sourcesContent:false` is a real cheap win for `go`-mode users:** ~25–30% less wire and consistently a touch faster (e.g. 92 KiB: 375 KB → 277 KB, 4.37 → 3.75 ms/file), at no debuggability cost when the bundler composes the map.
+
+**Verdict:** `'edits'` is the right default — it wins or ties the concurrent build in every cell and cuts the wire by 1–2 orders of magnitude. Kept `'go'` for non-JS/plugin-free hosts and as the drift fallback.
+
+**Speculative follow-up surfaced by the data (documented, not built):** the `edits` apply cost is entirely the O(file) `hires:'boundary'` map walk. A future `mapResolution: 'boundary' | 'lines'` knob could let `edits` emit a coarse line-granular map (cheap to generate, still valid for bundler chaining) when byte-parity with `go` is not required — trading map granularity for near-zero apply cost on huge files. It breaks the parity guarantee, so it needs its own design + tests; noted here rather than built.
+
 ---
 
 _Original spec below (design + investigation, preserved for context)._
