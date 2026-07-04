@@ -167,12 +167,14 @@ Notes:
 ## Lint & format
 
 ```bash
-pnpm lint            # lerna run lint (eslint per package)
-pnpm format          # prettier --write 'packages/**/*.{ts,md}'
-pnpm check-format    # prettier --check (CI-safe)
+pnpm lint            # oxlint (single root pass) + typecheck
+pnpm format          # oxfmt (TS) + prettier (md) + gofmt
+pnpm check-format    # the read-only twin (CI-safe)
 ```
 
-ESLint config is flat (`eslint.config.js`) and TypeScript-aware via `projectService`. Prettier rules live in `.prettierrc`.
+Linting is a single root **oxlint** pass (config in [`.oxlintrc.json`](.oxlintrc.json)): the `correctness` category as errors plus the default `typescript`/`oxc`/`unicorn` plugins, which is a superset of the old `eslint:recommended` + `tseslint:recommended`. The same config hosts the enrichment `runtypes/*` rules via the built devtools lint plugin (`jsPlugins`). Type checking stays a separate `tsc`/tsgo step (`pnpm run typecheck`), which `pnpm run lint` chains after oxlint.
+
+Formatting splits by file type: **oxfmt** formats TypeScript (`packages/**/*.ts`, config in [`.oxfmtrc.json`](.oxfmtrc.json), a 1:1 port of `.prettierrc`), **Prettier** formats markdown (`packages/**/*.md`), and `gofmt` handles Go. Prettier stays for markdown and for the playground's in-browser beautifier.
 
 ### Variable naming
 
@@ -192,7 +194,7 @@ func New(program *program.Program, checker *checker.Checker) { ... }
 
 Two Husky hooks, both activated automatically by `pnpm install` via the root `prepare` script (run `pnpm exec husky` to force activation):
 
-- [`.husky/pre-commit`](.husky/pre-commit) runs `pnpm exec lint-staged` on staged files. The `lint-staged` config in [package.json](package.json) runs ESLint + Prettier on staged `.ts` files (specs are formatted but not linted).
+- [`.husky/pre-commit`](.husky/pre-commit) runs `pnpm exec lint-staged` on staged files. The `lint-staged` config in [package.json](package.json) runs oxlint (`--no-error-on-unmatched-pattern`, so a commit of only ignored files still passes) + oxfmt `--check` on staged `.ts` files (specs are format-checked but not lint-gated, since the general oxlint pass skips `test/**`).
 - [`.husky/commit-msg`](.husky/commit-msg) runs `pnpm exec commitlint --edit` to validate the commit message against [Conventional Commits](https://www.conventionalcommits.org) (stock `@commitlint/config-conventional`, see [`commitlint.config.js`](commitlint.config.js)).
 
 ---
@@ -330,7 +332,8 @@ pnpm run npm-unpublish <version>
 | `pnpm install` rejects a dependency with "minimum release age" | `pnpm-workspace.yaml` blocks packages <30 days old                          | Wait or add a targeted entry under `minimumReleaseAgeExclude`.                                                                 |
 | `pnpm install` fails on a peer dep                             | `strictPeerDependencies: true`                                              | Add the peer to the package's `peerDependencies` or `devDependencies`.                                                         |
 | JS plugin tests error spawning the resolver                    | `bin/ts-runtypes` not built                                             | `pnpm run check:builds` or `go build -o bin/ts-runtypes ./cmd/ts-runtypes`.                                            |
-| ESLint errors `tsconfigRootDir` cannot find project            | New package missing from root `tsconfig.json` `references`                  | Add the package path to the root `tsconfig.json`.                                                                              |
+| `pnpm run typecheck` errors "cannot find project" / missing reference | New package missing from root `tsconfig.json` `references`            | Add the package path to the root `tsconfig.json`.                                                                              |
+| oxlint fails to load with `Plugin 'runtypes' not found`        | Stale/missing `runtypes-devtools` dist (the `jsPlugins` entry)              | Rebuild it: `pnpm --filter runtypes-devtools run build` (or `pnpm run check:builds`).                                          |
 | Husky hook not firing                                          | `prepare` script did not run                                                | `pnpm install` again, or `pnpm exec husky` to force activation.                                                                |
 | `pnpm run changelog` fails: `git-cliff: command not found`     | git-cliff binary not installed (deliberately not an npm dep)                | `cargo install git-cliff` (or `brew install git-cliff` / a prebuilt release). Not needed to cut a release — CI uses `orhun/git-cliff-action`. |
 | Commit rejected by `commit-msg` hook                           | Message is not a valid Conventional Commit                                  | Re-commit with `type(scope): summary`, or run `pnpm run commit` for an interactive prompt.                                     |

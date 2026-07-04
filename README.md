@@ -247,8 +247,9 @@ scripts/                         publish / unpublish / pre-publish-test / pack
 pnpm-workspace.yaml              workspace + supply-chain hardening
 lerna.json                       lockstep version + publish config
 nx.json                          build-cache config
-eslint.config.js                 flat ESLint config (TypeScript-aware)
-.prettierrc                      formatter config
+.oxlintrc.json                   oxlint config (general lint + enrichment plugin)
+.oxfmtrc.json                    oxfmt config (TypeScript formatter)
+.prettierrc                      Prettier config (markdown + playground runtime)
 ```
 
 `packages/*` is a pnpm workspace managed by Lerna.

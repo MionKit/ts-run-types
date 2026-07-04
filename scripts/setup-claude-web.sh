@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # --- BUMP THIS DATE to force a fresh setup run (YYYY-MM-DD) -------------------
-SETUP_DATE="2026-07-02"
+SETUP_DATE="2026-07-04"
 # ----------------------------------------------------------------------------
 set -uo pipefail
 
