@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats"
-	"github.com/mionkit/ts-runtypes/internal/operations"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 

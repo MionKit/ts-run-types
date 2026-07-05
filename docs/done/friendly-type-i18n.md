@@ -725,7 +725,7 @@ configurable `sourceLocale`.
   enforce `other`-mandatory at build.
 - **Constraint-classification must agree** between the generator (which emits object vs string)
   and the checker (which validates the kind). Keep the count-bearing list in one place
-  (`internal/operations` / the constraint catalog) so both read it.
+  (`internal/cachegen/operations` / the constraint catalog) so both read it.
 - **Rename-suppression inside a plural object** must cover **both** orphan and rename (VERIFIED
   `computeRenames` could pair a dropped `one` with an added `few`).
 - **Splicer non-overlap** for per-arm ops inside one plural object (fatal-on-overlap).

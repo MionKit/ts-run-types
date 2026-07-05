@@ -167,7 +167,7 @@ shrink to only what's host-specific.
 The list below is the seed — the agent's first job is to harden it by reading
 the four anchor files
 ([`internal/constants/constants.go`](../../internal/constants/constants.go),
-[`internal/hashid/hashid.go`](../../internal/hashid/hashid.go),
+[`internal/cachegen/hashid/hashid.go`](../../internal/cachegen/hashid/hashid.go),
 [`internal/resolver/resolver.go`](../../internal/resolver/resolver.go),
 [`cmd/ts-runtypes/main.go`](../../cmd/ts-runtypes/main.go)) plus the runtime
 options in
@@ -218,7 +218,7 @@ Source: [`internal/resolver/resolver.go`](../../internal/resolver/resolver.go).
 ### C. Internal constants that decide cache / id / wire shape
 
 Source: [`internal/constants/constants.go`](../../internal/constants/constants.go),
-[`internal/hashid/hashid.go`](../../internal/hashid/hashid.go).
+[`internal/cachegen/hashid/hashid.go`](../../internal/cachegen/hashid/hashid.go).
 
 These deliberately ride the disk fingerprint OR the typeID hash OR the wire
 identifiers — changing them without isolating caches is unsafe. Each one

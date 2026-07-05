@@ -2,7 +2,7 @@
 
 > _Resurfaced historical doc, kept as a record of implemented work. Project names have changed since: `ts-go-run-types` / `@mionjs/ts-go-run-types` is now `ts-runtypes`, the `vite-plugin-runtypes` plugin is now `runtypes-devtools`, and `reflectRunTypeId(value)` is now `getRunTypeId(value)`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
 
-> **Superseded (historical).** The readable-tag fnId scheme and the `MigratedFamilies` gate referenced below were later replaced by the opaque-`fnHash` scheme (the `internal/operations` registry + Go-emitted JSON composites; all families demand-driven, gated only on `len(dump.Sites) > 0`). See [CLAUDE.md](../CLAUDE.md) → "Two injection markers + demand-driven function caches" for the current model. The cross-family-edge capture mechanism this doc designed is still in force.
+> **Superseded (historical).** The readable-tag fnId scheme and the `MigratedFamilies` gate referenced below were later replaced by the opaque-`fnHash` scheme (the `internal/cachegen/operations` registry + Go-emitted JSON composites; all families demand-driven, gated only on `len(dump.Sites) > 0`). See [CLAUDE.md](../CLAUDE.md) → "Two injection markers + demand-driven function caches" for the current model. The cross-family-edge capture mechanism this doc designed is still in force.
 
 Status: **ready to implement** (delegated, focused unit).
 Parent: `docs/DEMAND-DRIVEN-FN-CACHES.md` (Slice D prerequisite, item D0pre).
